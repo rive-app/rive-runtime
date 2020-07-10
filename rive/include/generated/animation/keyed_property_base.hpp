@@ -5,6 +5,11 @@ namespace rive
 {
 	class KeyedPropertyBase : public Core
 	{
+	private:
+		int m_PropertyKey = 0;
+	public:
+		int propertyKey() const { return m_PropertyKey; }
+		void propertyKey(int value) { m_PropertyKey = value; }
 	};
 } // namespace rive
 

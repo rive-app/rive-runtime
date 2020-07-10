@@ -104,14 +104,59 @@ class Definition {
   Future<void> generateCode() async {
     bool defineContextExtension = _extensionOf?._name == null;
     StringBuffer code = StringBuffer();
-    if (defineContextExtension) {
-      code.writeln('#include "core.hpp"');
-    } else {
-      code.writeln('#include "${_extensionOf.concreteCodeFilename}"');
+
+    var includes = <String>{
+      defineContextExtension ? 'core.hpp' : _extensionOf.concreteCodeFilename
+    };
+    for (final property in properties) {
+      if (property.type.include != null) {
+        includes.add(property.type.include);
+      }
     }
+
+    var sortedIncludes = includes.toList()..sort();
+    for (final include in sortedIncludes) {
+      code.write('#include ');
+      if (include[0] == '<') {
+        code.write(include);
+      } else {
+        code.write('\"$include\"');
+      }
+      code.write('\n');
+    }
+
     code.writeln('namespace rive {');
     code.writeln('class ${_name}Base : public '
-        '${defineContextExtension ? 'Core' : _extensionOf?._name} {};');
+        '${defineContextExtension ? 'Core' : _extensionOf?._name} {');
+    if (properties.isNotEmpty) {
+      code.writeln('private:');
+
+      // Write fields.
+      for (final property in properties) {
+        code.writeln('${property.type.cppName} m_${property.capitalizedName}');
+
+        var initialize = property.initialValue ?? property.type.defaultValue;
+        if (initialize != null) {
+          code.write(' = $initialize');
+        }
+        code.write(';');
+      }
+
+      // Write getter/setters.
+      code.writeln('public:');
+      for (final property in properties) {
+        code.writeln('${property.type.cppName} ${property.name}() const {'
+            'return m_${property.capitalizedName};'
+            '}');
+
+        code.writeln('void ${property.name}(${property.type.cppName} value) {'
+            'm_${property.capitalizedName} = value;'
+            '}');
+
+        code.writeln();
+      }
+    }
+    code.writeln('};');
     code.writeln('}');
 
     var file = File('$generatedHppPath$localCodeFilename');
