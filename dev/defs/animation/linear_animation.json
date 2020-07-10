@@ -1,0 +1,71 @@
+{
+  "name": "LinearAnimation",
+  "key": {
+    "int": 31,
+    "string": "linearanimation"
+  },
+  "extends": "animation/animation.json",
+  "properties": {
+    "fps": {
+      "type": "int",
+      "initialValue": "60",
+      "key": {
+        "int": 56,
+        "string": "fps"
+      },
+      "description": "Frames per second used to quantize keyframe times to discrete values that match this rate."
+    },
+    "duration": {
+      "type": "int",
+      "initialValue": "60",
+      "key": {
+        "int": 57,
+        "string": "duration"
+      },
+      "description": "Duration expressed in number of frames."
+    },
+    "speed": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 58,
+        "string": "speed"
+      },
+      "description": "Playback speed multiplier."
+    },
+    "loopValue": {
+      "type": "int",
+      "initialValue": "0",
+      "key": {
+        "int": 59,
+        "string": "loop"
+      },
+      "description": "Loop value option matches Loop enumeration."
+    },
+    "workStart": {
+      "type": "int",
+      "key": {
+        "int": 60,
+        "string": "workstart"
+      },
+      "description": "Start of the work area in frames."
+    },
+    "workEnd": {
+      "type": "int",
+      "key": {
+        "int": 61,
+        "string": "workend"
+      },
+      "description": "End of the work area in frames."
+    },
+    "enableWorkArea": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 62,
+        "string": "enableworkarea"
+      },
+      "description": "Whether or not the work area is enabled."
+    }
+  }
+}

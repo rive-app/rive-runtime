@@ -1,0 +1,45 @@
+{
+  "name": "Component",
+  "key": {
+    "int": 10,
+    "string": "component"
+  },
+  "abstract": true,
+  "properties": {
+    "dependentIds": {
+      "type": "List<Id>",
+      "key": {
+        "int": 3,
+        "string": "dependentIds"
+      },
+      "description": "List of integer ids for objects registered in the same context that depend on this object.",
+      "runtime": false
+    },
+    "name": {
+      "type": "String",
+      "key": {
+        "int": 4,
+        "string": "name"
+      },
+      "description": "Non-unique identifier, used to give friendly names to elements in the hierarchy. Runtimes provide an API for finding components by this [name]."
+    },
+    "parentId": {
+      "type": "Id",
+      "typeRuntime": "int",
+      "key": {
+        "int": 5,
+        "string": "parentId"
+      },
+      "description": "Identifier used to track parent ContainerComponent."
+    },
+    "childOrder": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 6,
+        "string": "childOrder"
+      },
+      "description": "Order value for sorting child elements in ContainerComponent parent.",
+      "runtime": false
+    }
+  }
+}

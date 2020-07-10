@@ -1,0 +1,8 @@
+{
+  "name": "PathComposer",
+  "key": {
+    "int": 9,
+    "string": "pathcomposer"
+  },
+  "extends": "component.json"
+}

@@ -1,0 +1,31 @@
+{
+  "name": "PathVertex",
+  "key": {
+    "int": 14,
+    "string": "pathvertex"
+  },
+  "abstract": true,
+  "extends": "component.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 24,
+        "string": "x"
+      },
+      "description": "X value for the translation of the vertex."
+    },
+    "y": {
+      "type": "double",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 25,
+        "string": "y"
+      },
+      "description": "Y value for the translation of the vertex."
+    }
+  }
+}

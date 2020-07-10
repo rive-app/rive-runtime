@@ -1,0 +1,9 @@
+{
+  "name": "Path",
+  "key": {
+    "int": 12,
+    "string": "path"
+  },
+  "abstract": true,
+  "extends": "node.json"
+}

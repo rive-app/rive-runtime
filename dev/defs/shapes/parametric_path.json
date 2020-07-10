@@ -1,0 +1,29 @@
+{
+  "name": "ParametricPath",
+  "key": {
+    "int": 15,
+    "string": "parametricpath"
+  },
+  "abstract": true,
+  "extends": "shapes/path.json",
+  "properties": {
+    "width": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 20,
+        "string": "width"
+      },
+      "description": "Width of the parametric path."
+    },
+    "height": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 21,
+        "string": "height"
+      },
+      "description": "Height of the parametric path."
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "KeyFrameDouble",
+  "key": {
+    "int": 30,
+    "string": "keyframedouble"
+  },
+  "extends": "animation/keyframe.json",
+  "properties": {
+    "value": {
+      "type": "double",
+      "key": {
+        "int": 70,
+        "string": "value"
+      }
+    }
+  }
+}

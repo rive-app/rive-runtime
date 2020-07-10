@@ -1,0 +1,8 @@
+{
+  "name": "Triangle",
+  "key": {
+    "int": 8,
+    "string": "triangle"
+  },
+  "extends": "shapes/parametric_path.json"
+}

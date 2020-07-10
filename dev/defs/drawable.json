@@ -1,0 +1,26 @@
+{
+  "name": "Drawable",
+  "key": {
+    "int": 13,
+    "string": "drawable"
+  },
+  "abstract": true,
+  "extends": "node.json",
+  "properties": {
+    "drawOrder": {
+      "type": "FractionalIndex",
+      "typeRuntime": "int",
+      "key": {
+        "int": 22,
+        "string": "drawOrder"
+      }
+    },
+    "blendMode": {
+      "type": "int",
+      "key": {
+        "int": 23,
+        "string": "blendMode"
+      }
+    }
+  }
+}

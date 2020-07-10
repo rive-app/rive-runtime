@@ -1,0 +1,36 @@
+{
+  "name": "KeyFrameDrawOrderValue",
+  "key": {
+    "int": 33,
+    "string": "keyframedrawordervalue"
+  },
+  "properties": {
+    "keyframeId": {
+      "type": "Id",
+      "key": {
+        "int": 76,
+        "string": "keyframeid"
+      },
+      "description": "The id of the KeyFrameDrawOrder this KeyFrameDrawOrderValue belongs to.",
+      "runtime": false
+    },
+    "drawableId": {
+      "type": "Id",
+      "typeRuntime": "int",
+      "key": {
+        "int": 77,
+        "string": "drawableid"
+      },
+      "description": "The id of the Drawable this KeyFrameDrawOrderValue's value is for."
+    },
+    "value": {
+      "type": "FractionalIndex",
+      "typeRuntime": "int",
+      "key": {
+        "int": 78,
+        "string": "value"
+      },
+      "description": "The draw order value to apply to the Drawable."
+    }
+  }
+}

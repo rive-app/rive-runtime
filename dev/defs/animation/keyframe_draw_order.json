@@ -1,0 +1,8 @@
+{
+  "name": "KeyFrameDrawOrder",
+  "key": {
+    "int": 32,
+    "string": "keyframedraworder"
+  },
+  "extends": "animation/keyframe.json"
+}

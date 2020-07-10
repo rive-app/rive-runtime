@@ -1,0 +1,17 @@
+{
+  "name": "KeyFrameColor",
+  "key": {
+    "int": 37,
+    "string": "keyframecolor"
+  },
+  "extends": "animation/keyframe.json",
+  "properties": {
+    "value": {
+      "type": "Color",
+      "key": {
+        "int": 88,
+        "string": "value"
+      }
+    }
+  }
+}

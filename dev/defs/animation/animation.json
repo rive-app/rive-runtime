@@ -1,0 +1,35 @@
+{
+  "name": "Animation",
+  "key": {
+    "int": 27,
+    "string": "animation"
+  },
+  "properties": {
+    "artboardId": {
+      "type": "Id",
+      "key": {
+        "int": 54,
+        "string": "artboardid"
+      },
+      "description": "Identifier used to track the artboard this animation belongs to.",
+      "runtime": false
+    },
+    "name": {
+      "type": "String",
+      "key": {
+        "int": 55,
+        "string": "name"
+      },
+      "description": "Name of the animation."
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 73,
+        "string": "order"
+      },
+      "description": "Order this animation shows up in the animations list.",
+      "runtime": false
+    }
+  }
+}

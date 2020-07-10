@@ -1,0 +1,37 @@
+{
+  "name": "Backboard",
+  "key": {
+    "int": 23,
+    "string": "backboard"
+  },
+  "properties": {
+    "activeArtboardId": {
+      "type": "Id",
+      "key": {
+        "int": 43,
+        "string": "activeArtboardId"
+      },
+      "description": "Identifier used to track the last active artboard.",
+      "runtime": false
+    },
+    "mainArtboardId": {
+      "type": "Id",
+      "key": {
+        "int": 44,
+        "string": "mainArtboardId"
+      },
+      "description": "Identifier used to track the  main artboard (this is the default one that shows up in runtimes unless specified).",
+      "runtime": false
+    },
+    "colorValue": {
+      "type": "Color",
+      "initialValue": "0xFF222222",
+      "key": {
+        "int": 45,
+        "string": "colorValue"
+      },
+      "description": "The background color.",
+      "runtime": false
+    }
+  }
+}

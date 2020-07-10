@@ -1,0 +1,8 @@
+{
+  "name": "Shape",
+  "key": {
+    "int": 3,
+    "string": "shape"
+  },
+  "extends": "drawable.json"
+}

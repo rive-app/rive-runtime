@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+
+# Generated make files
+Makefile
+*.make
+
+# Dart stuff
+pubspec.lock
+.packages
+.dart_tool
