@@ -104,6 +104,44 @@ local function test(filepath)
 end
 
 -- Build all cpp test files in Rive's test directory
+-- for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
+--     test(cppFile)
+-- end
+
+-- Build test executable for a cpp file and link to the precompiled rive lib
+local function test_precompiled(filepath)
+
+    local filename = filepath:match("([^/]+)$") .. "_linked"
+    local projectname = filename:match("^[^%.]+") .. "_linked"
+    -- print("Filepath: " .. filepath)
+    -- print("Filename: " .. filename)
+    -- print("Projectname: " .. projectname)
+
+    project(projectname)
+    kind "ConsoleApp"
+    language "C++"
+    cppdialect "C++11"
+    targetdir "build/bin/%{cfg.buildcfg}"
+    objdir "build/obj/%{cfg.buildcfg}"
+
+    includedirs {
+        "./include",
+        "../../rive/include"
+    }
+
+    files { filepath }
+
+    links
+    {
+        "../../rive/build/bin/debug/librive.a"
+    }
+
+    filter "configurations:debug"
+        defines { "DEBUG" }
+        symbols "On"
+end
+
+-- Build all cpp test files in Rive's test directory
 for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
-    test(cppFile)
+    test_precompiled(cppFile)
 end
