@@ -104,9 +104,9 @@ local function test(filepath)
 end
 
 -- Build all cpp test files in Rive's test directory
--- for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
---     test(cppFile)
--- end
+for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
+    test(cppFile)
+end
 
 -- Build test executable for a cpp file and link to the precompiled rive lib
 local function test_precompiled(filepath)
@@ -142,6 +142,6 @@ local function test_precompiled(filepath)
 end
 
 -- Build all cpp test files in Rive's test directory
-for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
-    test_precompiled(cppFile)
-end
+-- for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
+--     test_precompiled(cppFile)
+-- end
