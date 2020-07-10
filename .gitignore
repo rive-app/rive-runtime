@@ -31,6 +31,9 @@
 *.out
 *.app
 
+# test builds
+dev/test/build/bin/*
+
 # Generated make files
 Makefile
 *.make

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd build
+
 OPTION=$1
 
 if [ "$OPTION" = 'help' ]

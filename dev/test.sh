@@ -1,3 +1,5 @@
+#!/bin/bash
+
 cd test
 # premake5 clean || exit 1
 premake5 gmake || exit 1

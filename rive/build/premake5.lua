@@ -26,6 +26,9 @@ newaction {
       print("clean the build...")
       os.rmdir("./bin")
       os.rmdir("./obj")
+      os.remove("Makefile")
+      -- no wildcards in os.remove, so use shell
+      os.execute("rm *.make")
       print("build cleaned")
    end
 }
