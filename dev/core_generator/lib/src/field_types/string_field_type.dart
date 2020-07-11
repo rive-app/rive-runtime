@@ -5,5 +5,7 @@ class StringFieldType extends FieldType {
       : super(
           'String',
           'CoreStringType',
+          cppName: 'std::string',
+          include: '<string>'
         );
 }

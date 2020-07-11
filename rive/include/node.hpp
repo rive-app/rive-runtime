@@ -6,15 +6,9 @@ namespace rive
 {
 	class Node : public NodeBase
 	{
-		float m_X;
-
 	public:
-		Node() : m_X(1.0f) { printf("Constructing Node\n"); }
-		float x() const { return m_X; }
-		void set_x(float val) { m_X = val; }
+		Node() { printf("Constructing Node\n"); }
 	};
-
-	float nodeX(rive::Node* node);
 } // namespace rive
 
 #endif

@@ -5,6 +5,11 @@ namespace rive
 {
 	class ShapePaintBase : public ContainerComponent
 	{
+	private:
+		bool m_IsVisible = true;
+	public:
+		bool isVisible() const { return m_IsVisible; }
+		void isVisible(bool value) { m_IsVisible = value; }
 	};
 } // namespace rive
 

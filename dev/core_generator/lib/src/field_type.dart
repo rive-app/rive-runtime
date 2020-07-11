@@ -9,6 +9,7 @@ Map<String, FieldType> _types = <String, FieldType>{};
 abstract class FieldType {
   final String name;
   String _cppName;
+  final String include;
   String get cppName => _cppName;
 
   String _runtimeCoreType;
@@ -18,6 +19,7 @@ abstract class FieldType {
     this.name,
     String runtimeCoreType, {
     String cppName,
+    this.include,
   }) {
     _cppName = cppName ?? name;
     _runtimeCoreType = runtimeCoreType;
@@ -40,7 +42,7 @@ abstract class FieldType {
     return "$varAName == $varBName";
   }
 
-  String get defaultValue => 'null';
+  String get defaultValue => null;
 
   String get uncapitalizedName => '${name[0].toLowerCase()}${name.substring(1)}'
       .replaceAll('<', '')

@@ -5,6 +5,11 @@ namespace rive
 {
 	class RectangleBase : public ParametricPath
 	{
+	private:
+		double m_CornerRadius = 0.0;
+	public:
+		double cornerRadius() const { return m_CornerRadius; }
+		void cornerRadius(double value) { m_CornerRadius = value; }
 	};
 } // namespace rive
 

@@ -5,6 +5,11 @@ namespace rive
 {
 	class PointsPathBase : public Path
 	{
+	private:
+		bool m_IsClosed = false;
+	public:
+		bool isClosed() const { return m_IsClosed; }
+		void isClosed(bool value) { m_IsClosed = value; }
 	};
 } // namespace rive
 

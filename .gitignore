@@ -34,6 +34,9 @@
 # test builds
 dev/test/build/bin/*
 
+# aot snapshots
+dev/bin/*
+
 # Generated make files
 Makefile
 *.make

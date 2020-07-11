@@ -5,6 +5,11 @@ namespace rive
 {
 	class KeyFrameDoubleBase : public KeyFrame
 	{
+	private:
+		double m_Value = 0.0;
+	public:
+		double value() const { return m_Value; }
+		void value(double value) { m_Value = value; }
 	};
 } // namespace rive
 
