@@ -27,6 +27,7 @@ namespace rive
         std::string readString();
         double readFloat64();
         float readFloat32();
+        uint8_t readByte();
 	};
 } // namespace rive
 

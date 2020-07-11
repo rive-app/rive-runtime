@@ -9,8 +9,6 @@ namespace rive
 	public:
 		Node() { printf("Constructing Node\n"); }
 	};
-
-	float nodeX(rive::Node* node);
 } // namespace rive
 
 #endif

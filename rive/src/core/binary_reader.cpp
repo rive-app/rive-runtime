@@ -95,3 +95,13 @@ float BinaryReader::readFloat32()
     m_Position += readBytes;
     return value;
 }
+
+uint8_t BinaryReader::readByte()
+{
+    if (m_End - m_Position < 1)
+    {
+        overflow();
+		return 0;
+    }
+    return *m_Position++;
+}

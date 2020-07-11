@@ -45,3 +45,6 @@ Makefile
 pubspec.lock
 .packages
 .dart_tool
+
+# OSX stuff
+*.DS_Store
