@@ -1,34 +1,32 @@
 #include <stdlib.h>
+#include <string.h>
 
 /* Decode an unsigned int LEB128 at buf into r, returning the nr of bytes read.
  */
-inline size_t decode_uint_leb(const uint8_t* buf, const uint8_t* buf_end, uint64_t* r)
+inline size_t decode_uint_leb(const uint8_t *buf, const uint8_t *buf_end, uint64_t *r)
 {
-	const uint8_t* p = buf;
+	const uint8_t *p = buf;
 	uint8_t shift = 0;
 	uint64_t result = 0;
 	uint8_t byte;
 
-	while (1)
+	do
 	{
 		if (p >= buf_end)
 			return 0;
-
 		byte = *p++;
 		result |= ((uint64_t)(byte & 0x7f)) << shift;
-		if ((byte & 0x80) == 0)
-			break;
 		shift += 7;
-	}
+	} while ((byte & 0x80) != 0);
 	*r = result;
 	return p - buf;
 }
 
 /* Decode a signed int LEB128 at buf into r, returning the nr of bytes read.
  */
-inline size_t decode_int_leb(const uint8_t* buf, const uint8_t* buf_end, int64_t* r)
+inline size_t decode_int_leb(const uint8_t *buf, const uint8_t *buf_end, int64_t *r)
 {
-	const uint8_t* p = buf;
+	const uint8_t *p = buf;
 	uint8_t shift = 0;
 	int64_t result = 0;
 	uint8_t byte;
@@ -51,11 +49,12 @@ inline size_t decode_int_leb(const uint8_t* buf, const uint8_t* buf_end, int64_t
 
 /* Decodes a string
  */
-inline size_t decode_string(uint8_t str_len, const uint8_t* buf, const uint8_t* buf_end, char* char_buf)
+inline size_t decode_string(uint8_t str_len, const uint8_t *buf, const uint8_t *buf_end, char *char_buf)
 {
+	// Return zero bytes read on buffer overflow
 	if (buf_end - buf < str_len)
 		return 0;
-	const uint8_t* p = buf;
+	const uint8_t *p = buf;
 	for (int i = 0; i < str_len; i++)
 	{
 		char_buf[i] = *p++;
@@ -67,8 +66,9 @@ inline size_t decode_string(uint8_t str_len, const uint8_t* buf, const uint8_t* 
 
 /* Decodes a double (8 bytes)
  */
-inline size_t decode_double(const uint8_t* buf, const uint8_t* buf_end, double* r)
+inline size_t decode_double(const uint8_t *buf, const uint8_t *buf_end, double *r)
 {
+	// Return zero bytes read on buffer overflow
 	if (buf_end - buf < sizeof(double))
 		return 0;
 	memcpy(r, buf, sizeof(double));
@@ -77,10 +77,22 @@ inline size_t decode_double(const uint8_t* buf, const uint8_t* buf_end, double* 
 
 /* Decodes a float (4 bytes)
  */
-inline size_t decode_float(const uint8_t* buf, const uint8_t* buf_end, float* r)
+inline size_t decode_float(const uint8_t *buf, const uint8_t *buf_end, float *r)
 {
+	// Return zero bytes read on buffer overflow
 	if (buf_end - buf < sizeof(float))
 		return 0;
 	memcpy(r, buf, sizeof(float));
 	return sizeof(float);
+}
+
+/* Decodes a single byte
+ */
+inline size_t decode_uint_8(const uint8_t *buf, const uint8_t *buf_end, uint8_t *r)
+{
+	// Return zero bytes read on buffer overflow
+	if (buf_end - buf < sizeof(uint8_t))
+		return 0;
+	memcpy(r, buf, sizeof(uint8_t));
+	return sizeof(uint8_t);
 }
