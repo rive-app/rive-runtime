@@ -5,6 +5,9 @@ namespace rive
 {
 	class KeyFrameDrawOrderBase : public KeyFrame
 	{
+	public:
+		static const int typeKey = 32;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

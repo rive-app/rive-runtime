@@ -55,4 +55,8 @@ abstract class FieldType {
   String get snakeName => name
       .replaceAllMapped(RegExp('(.+?)([A-Z])'), (Match m) => '${m[1]}_${m[2]}')
       .toLowerCase();
+
+  String get snakeRuntimeCoreName => _runtimeCoreType
+      .replaceAllMapped(RegExp('(.+?)([A-Z])'), (Match m) => '${m[1]}_${m[2]}')
+      .toLowerCase();
 }

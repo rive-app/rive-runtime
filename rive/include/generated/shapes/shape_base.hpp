@@ -5,6 +5,9 @@ namespace rive
 {
 	class ShapeBase : public Drawable
 	{
+	public:
+		static const int typeKey = 3;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

@@ -5,6 +5,9 @@ namespace rive
 {
 	class EllipseBase : public ParametricPath
 	{
+	public:
+		static const int typeKey = 4;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

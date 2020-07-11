@@ -112,6 +112,8 @@ class Definition {
       if (property.type.include != null) {
         includes.add(property.type.include);
       }
+      includes.add(
+          'core/field_types/' + property.type.snakeRuntimeCoreName + '.hpp');
     }
 
     var sortedIncludes = includes.toList()..sort();
@@ -128,7 +130,15 @@ class Definition {
     code.writeln('namespace rive {');
     code.writeln('class ${_name}Base : public '
         '${defineContextExtension ? 'Core' : _extensionOf?._name} {');
+
+    code.writeln('public:');
+    code.writeln('static const int typeKey = ${_key.intValue};');
+    code.writeln('int coreType() const override { return typeKey; }');
     if (properties.isNotEmpty) {
+      for (final property in properties) {
+        code.writeln('static const int ${property.name}PropertyKey = '
+            '${property.key.intValue};');
+      }
       code.writeln('private:');
 
       // Write fields.
@@ -154,6 +164,26 @@ class Definition {
             '}');
 
         code.writeln();
+      }
+    }
+
+    if (properties.isNotEmpty || _extensionOf == null) {
+      code.writeln('bool deserialize(int propertyKey, '
+          'BinaryReader& reader) override {');
+      if (_extensionOf != null) {
+        code.writeln('switch (propertyKey){');
+        for (final property in properties) {
+          code.writeln('case ${property.name}PropertyKey:');
+          code.writeln('m_${property.capitalizedName} = '
+              '${property.type.runtimeCoreType}::deserialize(reader);');
+          code.writeln('return true;');
+        }
+        // code.writeln('default: break;');
+        code.writeln('}');
+        code.writeln('return ${_extensionOf.name}::'
+            'deserialize(propertyKey, reader); }');
+      } else {
+        code.writeln('return false; }');
       }
     }
     code.writeln('};');
@@ -272,8 +302,47 @@ class Definition {
       await definition.generateCode();
     }
 
-    StringBuffer ctxCode =
-        StringBuffer('namespace rive {class CoreContext {};}');
+    StringBuffer ctxCode = StringBuffer('');
+    var includes = <String>{};
+    for (final definition in definitions.values) {
+      includes.add(definition.concreteCodeFilename);
+    }
+    var includeList = includes.toList()..sort();
+    for (final include in includeList) {
+      ctxCode.writeln('#include "$include"');
+    }
+    ctxCode.writeln('namespace rive {class CoreContext {'
+        'public:');
+    ctxCode.writeln('Core* makeCoreInstance(int typeKey) {'
+        'switch(typeKey) {');
+    for (final definition in definitions.values) {
+      if (definition._isAbstract) {
+        continue;
+      }
+      ctxCode.writeln('case ${definition.name}Base::typeKey:');
+      ctxCode.writeln('return new ${definition.name}();');
+    }
+    ctxCode.writeln('} return nullptr; }');
+    /*Core makeCoreInstance(int typeKey) {
+    switch (typeKey) {
+      case KeyedObjectBase.typeKey:
+        return KeyedObject();
+      case KeyedPropertyBase.typeKey:
+        return KeyedProperty();*/
+    // Put our fields in.
+    // var usedFieldTypes = <FieldType>{};
+    // for (final definition in definitions.values) {
+    //   for (final property in definition.properties) {
+    //     usedFieldTypes.add(property.type);
+    //   }
+    // }
+    // // Find fields we use.
+
+    // for (final fieldType in usedFieldTypes) {
+    //   ctxCode.writeln('static ${fieldType.runtimeCoreType} '
+    //       '${fieldType.uncapitalizedName}Type;');
+    // }
+    ctxCode.writeln('};}');
 
     var output = generatedHppPath;
     var folder =

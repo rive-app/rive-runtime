@@ -5,6 +5,9 @@ namespace rive
 {
 	class PathComposerBase : public Component
 	{
+	public:
+		static const int typeKey = 9;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

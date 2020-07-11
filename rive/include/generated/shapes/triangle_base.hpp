@@ -5,6 +5,9 @@ namespace rive
 {
 	class TriangleBase : public ParametricPath
 	{
+	public:
+		static const int typeKey = 8;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

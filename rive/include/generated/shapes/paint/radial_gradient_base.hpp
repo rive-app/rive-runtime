@@ -5,6 +5,9 @@ namespace rive
 {
 	class RadialGradientBase : public LinearGradient
 	{
+	public:
+		static const int typeKey = 17;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

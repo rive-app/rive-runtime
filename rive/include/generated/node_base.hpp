@@ -1,10 +1,21 @@
 #ifndef _RIVE_NODE_BASE_HPP_
 #define _RIVE_NODE_BASE_HPP_
 #include "container_component.hpp"
+#include "core/field_types/core_double_type.hpp"
 namespace rive
 {
 	class NodeBase : public ContainerComponent
 	{
+	public:
+		static const int typeKey = 2;
+		int coreType() const override { return typeKey; }
+		static const int xPropertyKey = 13;
+		static const int yPropertyKey = 14;
+		static const int rotationPropertyKey = 15;
+		static const int scaleXPropertyKey = 16;
+		static const int scaleYPropertyKey = 17;
+		static const int opacityPropertyKey = 18;
+
 	private:
 		double m_X = 0;
 		double m_Y = 0;
@@ -30,6 +41,32 @@ namespace rive
 
 		double opacity() const { return m_Opacity; }
 		void opacity(double value) { m_Opacity = value; }
+
+		bool deserialize(int propertyKey, BinaryReader& reader) override
+		{
+			switch (propertyKey)
+			{
+				case xPropertyKey:
+					m_X = CoreDoubleType::deserialize(reader);
+					return true;
+				case yPropertyKey:
+					m_Y = CoreDoubleType::deserialize(reader);
+					return true;
+				case rotationPropertyKey:
+					m_Rotation = CoreDoubleType::deserialize(reader);
+					return true;
+				case scaleXPropertyKey:
+					m_ScaleX = CoreDoubleType::deserialize(reader);
+					return true;
+				case scaleYPropertyKey:
+					m_ScaleY = CoreDoubleType::deserialize(reader);
+					return true;
+				case opacityPropertyKey:
+					m_Opacity = CoreDoubleType::deserialize(reader);
+					return true;
+			}
+			return ContainerComponent::deserialize(propertyKey, reader);
+		}
 	};
 } // namespace rive
 

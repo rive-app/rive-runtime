@@ -5,6 +5,9 @@ namespace rive
 {
 	class CubicVertexBase : public PathVertex
 	{
+	public:
+		static const int typeKey = 36;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

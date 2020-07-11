@@ -5,6 +5,9 @@ namespace rive
 {
 	class PathBase : public Node
 	{
+	public:
+		static const int typeKey = 12;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 

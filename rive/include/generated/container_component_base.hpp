@@ -5,6 +5,9 @@ namespace rive
 {
 	class ContainerComponentBase : public Component
 	{
+	public:
+		static const int typeKey = 11;
+		int coreType() const override { return typeKey; }
 	};
 } // namespace rive
 
