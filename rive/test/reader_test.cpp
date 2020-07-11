@@ -42,10 +42,10 @@ TEST_CASE("signed int leb decoder", "[reader]")
 
 TEST_CASE("string decoder", "[reader]")
 {
-	char* str = strdup("New Artboard");
+	char *str = strdup("New Artboard");
 	uint8_t str_bytes[] = {0x4E, 0x65, 0x77, 0x20, 0x41, 0x72, 0x74, 0x62, 0x6F, 0x61, 0x72, 0x64};
 	// Length of string + 1 is needed to add the null terminator
-	char* decoded_str = (char*)malloc((13) * sizeof(char));
+	char *decoded_str = (char *)malloc((13) * sizeof(char));
 	uint64_t bytes_read = decode_string(12, str_bytes, str_bytes + 12, decoded_str);
 	REQUIRE(strcmp(str, decoded_str) == 0);
 	REQUIRE(bytes_read == 12);
@@ -100,4 +100,23 @@ TEST_CASE("float decoder", "[reader]")
 
 	bytes_read = decode_float(num_bytes_neg_euler, num_bytes_neg_euler + 3, &decoded_num);
 	REQUIRE(bytes_read == 0);
+}
+
+TEST_CASE("byte decoder", "[reader")
+{
+	uint8_t decoded_byte;
+	uint64_t bytes_read;
+	uint8_t pos = 0;
+	uint8_t bytes[] = {0x00, 0x00, 0xC8, 0x42};
+
+	pos += decode_uint_8(bytes + pos, bytes + 4, &decoded_byte);
+	REQUIRE(decoded_byte == bytes[pos - 1]);
+	pos += decode_uint_8(bytes + pos, bytes + 4, &decoded_byte);
+	REQUIRE(decoded_byte == bytes[pos - 1]);
+	pos += decode_uint_8(bytes + pos, bytes + 4, &decoded_byte);
+	REQUIRE(decoded_byte == bytes[pos - 1]);
+	pos += decode_uint_8(bytes + pos, bytes + 4, &decoded_byte);
+	REQUIRE(decoded_byte == bytes[pos - 1]);
+	// overflow
+	REQUIRE(decode_uint_8(bytes + pos, bytes + 4, &decoded_byte) == 0);
 }
