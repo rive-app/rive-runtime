@@ -7,7 +7,6 @@ namespace rive
 	class Drawable : public DrawableBase
 	{
 	public:
-		Drawable() { printf("Constructing Drawable\n"); }
 	};
 } // namespace rive
 

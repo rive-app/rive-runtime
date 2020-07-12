@@ -7,7 +7,6 @@ namespace rive
 	class LinearGradient : public LinearGradientBase
 	{
 	public:
-		LinearGradient() { printf("Constructing LinearGradient\n"); }
 	};
 } // namespace rive
 

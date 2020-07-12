@@ -8,7 +8,9 @@ namespace rive
     class Core 
     {
     public:
+        virtual ~Core() {}
         virtual int coreType() const = 0;
+        virtual bool inheritsFrom(int typeKey) = 0;
         virtual bool deserialize(int propertyKey, BinaryReader& reader) = 0;
     };
 }

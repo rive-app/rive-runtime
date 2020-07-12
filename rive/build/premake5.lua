@@ -4,6 +4,7 @@ workspace "rive"
 project "rive"
    kind "StaticLib"
    language "C++"
+   cppdialect "C++17"
    targetdir "bin/%{cfg.buildcfg}"
    objdir "obj/%{cfg.buildcfg}"
    includedirs { "../include" }

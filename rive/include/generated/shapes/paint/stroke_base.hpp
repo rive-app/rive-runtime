@@ -10,7 +10,24 @@ namespace rive
 	{
 	public:
 		static const int typeKey = 24;
+
+		// Helper to quickly determine if a core object extends another without RTTI
+		/// at runtime.
+		bool inheritsFrom(int typeKey) override
+		{
+			switch (typeKey)
+			{
+				case ShapePaintBase::typeKey:
+				case ContainerComponentBase::typeKey:
+				case ComponentBase::typeKey:
+					return true;
+				default:
+					return false;
+			}
+		}
+
 		int coreType() const override { return typeKey; }
+
 		static const int thicknessPropertyKey = 47;
 		static const int capPropertyKey = 48;
 		static const int joinPropertyKey = 49;

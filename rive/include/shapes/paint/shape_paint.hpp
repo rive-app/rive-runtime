@@ -7,7 +7,6 @@ namespace rive
 	class ShapePaint : public ShapePaintBase
 	{
 	public:
-		ShapePaint() { printf("Constructing ShapePaint\n"); }
 	};
 } // namespace rive
 

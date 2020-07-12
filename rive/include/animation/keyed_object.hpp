@@ -7,7 +7,6 @@ namespace rive
 	class KeyedObject : public KeyedObjectBase
 	{
 	public:
-		KeyedObject() { printf("Constructing KeyedObject\n"); }
 	};
 } // namespace rive
 

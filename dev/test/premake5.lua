@@ -84,9 +84,15 @@ local function test(filepath)
     project(projectname)
     kind "ConsoleApp"
     language "C++"
-    cppdialect "C++11"
+    cppdialect "C++17"
     targetdir "build/bin/%{cfg.buildcfg}"
     objdir "build/obj/%{cfg.buildcfg}"
+    
+    buildoptions {
+        "-Wall", 
+        "-fno-exceptions", 
+        "-fno-rtti"
+    }
 
     includedirs {
         "./include",
@@ -120,9 +126,15 @@ local function test_precompiled(filepath)
     project(projectname)
     kind "ConsoleApp"
     language "C++"
-    cppdialect "C++11"
+    cppdialect "C++17"
     targetdir "build/bin/%{cfg.buildcfg}"
     objdir "build/obj/%{cfg.buildcfg}"
+    
+    buildoptions {
+        "-Wall", 
+        "-fno-exceptions", 
+        "-fno-rtti"
+    }
 
     includedirs {
         "./include",

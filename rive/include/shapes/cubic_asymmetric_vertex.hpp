@@ -7,7 +7,6 @@ namespace rive
 	class CubicAsymmetricVertex : public CubicAsymmetricVertexBase
 	{
 	public:
-		CubicAsymmetricVertex() { printf("Constructing CubicAsymmetricVertex\n"); }
 	};
 } // namespace rive
 

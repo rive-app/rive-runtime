@@ -7,7 +7,6 @@ namespace rive
 	class Triangle : public TriangleBase
 	{
 	public:
-		Triangle() { printf("Constructing Triangle\n"); }
 	};
 } // namespace rive
 

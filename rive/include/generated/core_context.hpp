@@ -42,7 +42,7 @@ namespace rive
 	class CoreContext
 	{
 	public:
-		Core* makeCoreInstance(int typeKey)
+		static Core* makeCoreInstance(int typeKey)
 		{
 			switch (typeKey)
 			{

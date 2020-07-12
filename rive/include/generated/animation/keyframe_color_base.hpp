@@ -8,7 +8,22 @@ namespace rive
 	{
 	public:
 		static const int typeKey = 37;
+
+		// Helper to quickly determine if a core object extends another without RTTI
+		/// at runtime.
+		bool inheritsFrom(int typeKey) override
+		{
+			switch (typeKey)
+			{
+				case KeyFrameBase::typeKey:
+					return true;
+				default:
+					return false;
+			}
+		}
+
 		int coreType() const override { return typeKey; }
+
 		static const int valuePropertyKey = 88;
 
 	private:

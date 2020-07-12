@@ -7,7 +7,6 @@ namespace rive
 	class KeyFrameColor : public KeyFrameColorBase
 	{
 	public:
-		KeyFrameColor() { printf("Constructing KeyFrameColor\n"); }
 	};
 } // namespace rive
 

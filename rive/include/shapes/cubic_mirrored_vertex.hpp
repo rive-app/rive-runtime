@@ -7,7 +7,6 @@ namespace rive
 	class CubicMirroredVertex : public CubicMirroredVertexBase
 	{
 	public:
-		CubicMirroredVertex() { printf("Constructing CubicMirroredVertex\n"); }
 	};
 } // namespace rive
 

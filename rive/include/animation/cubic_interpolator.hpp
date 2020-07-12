@@ -7,7 +7,6 @@ namespace rive
 	class CubicInterpolator : public CubicInterpolatorBase
 	{
 	public:
-		CubicInterpolator() { printf("Constructing CubicInterpolator\n"); }
 	};
 } // namespace rive
 

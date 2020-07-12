@@ -1,5 +1,7 @@
 #!/bin/bash
 
+./install_dependencies.sh
+
 cd test
 # premake5 clean || exit 1
 premake5 gmake || exit 1

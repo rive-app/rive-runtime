@@ -7,7 +7,6 @@ namespace rive
 	class Backboard : public BackboardBase
 	{
 	public:
-		Backboard() { printf("Constructing Backboard\n"); }
 	};
 } // namespace rive
 

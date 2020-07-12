@@ -7,7 +7,6 @@ namespace rive
 	class KeyedProperty : public KeyedPropertyBase
 	{
 	public:
-		KeyedProperty() { printf("Constructing KeyedProperty\n"); }
 	};
 } // namespace rive
 

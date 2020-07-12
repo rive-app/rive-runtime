@@ -7,7 +7,6 @@ namespace rive
 	class Animation : public AnimationBase
 	{
 	public:
-		Animation() { printf("Constructing Animation\n"); }
 	};
 } // namespace rive
 

@@ -7,7 +7,6 @@ namespace rive
 	class GradientStop : public GradientStopBase
 	{
 	public:
-		GradientStop() { printf("Constructing GradientStop\n"); }
 	};
 } // namespace rive
 

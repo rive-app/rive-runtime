@@ -7,7 +7,6 @@ namespace rive
 	class StraightVertex : public StraightVertexBase
 	{
 	public:
-		StraightVertex() { printf("Constructing StraightVertex\n"); }
 	};
 } // namespace rive
 

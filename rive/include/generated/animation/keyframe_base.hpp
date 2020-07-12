@@ -8,7 +8,13 @@ namespace rive
 	{
 	public:
 		static const int typeKey = 29;
+
+		// Helper to quickly determine if a core object extends another without RTTI
+		/// at runtime.
+		bool inheritsFrom(int typeKey) override { return false; }
+
 		int coreType() const override { return typeKey; }
+
 		static const int framePropertyKey = 67;
 		static const int interpolationTypePropertyKey = 68;
 		static const int interpolatorIdPropertyKey = 69;
@@ -27,7 +33,22 @@ namespace rive
 		int interpolatorId() const { return m_InterpolatorId; }
 		void interpolatorId(int value) { m_InterpolatorId = value; }
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override { return false; }
+		bool deserialize(int propertyKey, BinaryReader& reader) override
+		{
+			switch (propertyKey)
+			{
+				case framePropertyKey:
+					m_Frame = CoreIntType::deserialize(reader);
+					return true;
+				case interpolationTypePropertyKey:
+					m_InterpolationType = CoreIntType::deserialize(reader);
+					return true;
+				case interpolatorIdPropertyKey:
+					m_InterpolatorId = CoreIntType::deserialize(reader);
+					return true;
+			}
+			return false;
+		}
 	};
 } // namespace rive
 

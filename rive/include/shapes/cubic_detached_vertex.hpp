@@ -7,7 +7,6 @@ namespace rive
 	class CubicDetachedVertex : public CubicDetachedVertexBase
 	{
 	public:
-		CubicDetachedVertex() { printf("Constructing CubicDetachedVertex\n"); }
 	};
 } // namespace rive
 

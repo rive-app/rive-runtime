@@ -7,7 +7,6 @@ namespace rive
 	class LinearAnimation : public LinearAnimationBase
 	{
 	public:
-		LinearAnimation() { printf("Constructing LinearAnimation\n"); }
 	};
 } // namespace rive
 

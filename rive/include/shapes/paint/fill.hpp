@@ -7,7 +7,6 @@ namespace rive
 	class Fill : public FillBase
 	{
 	public:
-		Fill() { printf("Constructing Fill\n"); }
 	};
 } // namespace rive
 

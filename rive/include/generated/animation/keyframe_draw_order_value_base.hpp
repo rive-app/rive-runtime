@@ -8,7 +8,13 @@ namespace rive
 	{
 	public:
 		static const int typeKey = 33;
+
+		// Helper to quickly determine if a core object extends another without RTTI
+		/// at runtime.
+		bool inheritsFrom(int typeKey) override { return false; }
+
 		int coreType() const override { return typeKey; }
+
 		static const int drawableIdPropertyKey = 77;
 		static const int valuePropertyKey = 78;
 
@@ -22,7 +28,19 @@ namespace rive
 		int value() const { return m_Value; }
 		void value(int value) { m_Value = value; }
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override { return false; }
+		bool deserialize(int propertyKey, BinaryReader& reader) override
+		{
+			switch (propertyKey)
+			{
+				case drawableIdPropertyKey:
+					m_DrawableId = CoreIntType::deserialize(reader);
+					return true;
+				case valuePropertyKey:
+					m_Value = CoreIntType::deserialize(reader);
+					return true;
+			}
+			return false;
+		}
 	};
 } // namespace rive
 

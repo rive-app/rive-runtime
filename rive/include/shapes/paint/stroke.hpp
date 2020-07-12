@@ -7,7 +7,6 @@ namespace rive
 	class Stroke : public StrokeBase
 	{
 	public:
-		Stroke() { printf("Constructing Stroke\n"); }
 	};
 } // namespace rive
 

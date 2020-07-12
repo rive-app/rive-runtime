@@ -7,7 +7,6 @@ namespace rive
 	class SolidColor : public SolidColorBase
 	{
 	public:
-		SolidColor() { printf("Constructing SolidColor\n"); }
 	};
 } // namespace rive
 

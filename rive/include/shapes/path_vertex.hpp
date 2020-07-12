@@ -7,7 +7,6 @@ namespace rive
 	class PathVertex : public PathVertexBase
 	{
 	public:
-		PathVertex() { printf("Constructing PathVertex\n"); }
 	};
 } // namespace rive
 

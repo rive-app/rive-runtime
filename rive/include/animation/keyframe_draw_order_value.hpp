@@ -7,7 +7,6 @@ namespace rive
 	class KeyFrameDrawOrderValue : public KeyFrameDrawOrderValueBase
 	{
 	public:
-		KeyFrameDrawOrderValue() { printf("Constructing KeyFrameDrawOrderValue\n"); }
 	};
 } // namespace rive
 

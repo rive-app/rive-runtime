@@ -7,7 +7,6 @@ namespace rive
 	class Ellipse : public EllipseBase
 	{
 	public:
-		Ellipse() { printf("Constructing Ellipse\n"); }
 	};
 } // namespace rive
 

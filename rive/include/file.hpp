@@ -1,35 +1,40 @@
 #ifndef _RIVE_FILE_HPP_
 #define _RIVE_FILE_HPP_
 
-#include "runtime_header.hpp"
 #include "core/binary_reader.hpp"
+#include "runtime_header.hpp"
+#include "backboard.hpp"
+#include "artboard.hpp"
+#include <vector>
 
-namespace rive 
+namespace rive
 {
-    class File 
-    {
-        static const int majorVersion = 1;
-        static const int minorVersion = 0;
+	enum class ImportResult
+	{
+		success,
+		unsupportedVersion,
+		malformed
+	};
 
+	class File
+	{
     public:
-        static File* import(BinaryReader& reader) 
-        {
-            RuntimeHeader header;
-            if(!RuntimeHeader::read(reader, header))
-            {
-                printf("Bad header\n");
-                // Bad header.
-                return nullptr;
-            }
-            if(header.majorVersion() != majorVersion) 
-            {
-                printf("Unsupported version %u expected %u.\n", majorVersion, header.majorVersion());
-                // Unsupported major version.
-                return nullptr;
-            }
-            printf("IS IT BACK %llu == 23?", reader.readVarUint());
-            return new File();
-        }
-    };
-}
+		static const int majorVersion = 1;
+		static const int minorVersion = 0;
+
+    private:
+        Backboard* m_Backboard;
+        std::vector<Artboard*> m_Artboards;
+
+	public:
+		static ImportResult import(BinaryReader& reader, File** importedFile);
+
+        Backboard* backboard() const;
+        Artboard* artboard() const;
+        Artboard* artboard(std::string name) const;
+
+    private:
+        ImportResult read(BinaryReader& reader);
+	};
+} // namespace rive
 #endif

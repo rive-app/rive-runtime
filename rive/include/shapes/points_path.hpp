@@ -7,7 +7,6 @@ namespace rive
 	class PointsPath : public PointsPathBase
 	{
 	public:
-		PointsPath() { printf("Constructing PointsPath\n"); }
 	};
 } // namespace rive
 

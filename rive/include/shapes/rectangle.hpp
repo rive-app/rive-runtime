@@ -7,7 +7,6 @@ namespace rive
 	class Rectangle : public RectangleBase
 	{
 	public:
-		Rectangle() { printf("Constructing Rectangle\n"); }
 	};
 } // namespace rive
 

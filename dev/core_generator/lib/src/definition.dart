@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:colorize/colorize.dart';
 // import 'package:core_generator/src/field_type.dart';
-// import 'package:core_generator/src/comment.dart';
+import 'package:core_generator/src/comment.dart';
 import 'package:core_generator/src/key.dart';
 import 'package:core_generator/src/cpp_formatter.dart';
 import 'package:core_generator/src/property.dart';
@@ -132,8 +132,27 @@ class Definition {
         '${defineContextExtension ? 'Core' : _extensionOf?._name} {');
 
     code.writeln('public:');
-    code.writeln('static const int typeKey = ${_key.intValue};');
-    code.writeln('int coreType() const override { return typeKey; }');
+    code.writeln('static const int typeKey = ${_key.intValue};\n');
+
+    code.write(comment(
+        'Helper to quickly determine if a core object extends another '
+        'without RTTI at runtime.',
+        indent: 1));
+    code.writeln('bool inheritsFrom(int typeKey) override {');
+
+    if (_extensionOf != null) {
+      code.writeln('switch(typeKey) {');
+      for (var p = _extensionOf; p != null; p = p._extensionOf) {
+        code.writeln('case ${p._name}Base::typeKey:');
+      }
+      code.writeln('return true;');
+      code.writeln('default: return false;}');
+    } else {
+      code.writeln('return false;');
+    }
+    code.writeln('}\n');
+
+    code.writeln('int coreType() const override { return typeKey; }\n');
     if (properties.isNotEmpty) {
       for (final property in properties) {
         code.writeln('static const int ${property.name}PropertyKey = '
@@ -170,16 +189,16 @@ class Definition {
     if (properties.isNotEmpty || _extensionOf == null) {
       code.writeln('bool deserialize(int propertyKey, '
           'BinaryReader& reader) override {');
+
+      code.writeln('switch (propertyKey){');
+      for (final property in properties) {
+        code.writeln('case ${property.name}PropertyKey:');
+        code.writeln('m_${property.capitalizedName} = '
+            '${property.type.runtimeCoreType}::deserialize(reader);');
+        code.writeln('return true;');
+      }
+      code.writeln('}');
       if (_extensionOf != null) {
-        code.writeln('switch (propertyKey){');
-        for (final property in properties) {
-          code.writeln('case ${property.name}PropertyKey:');
-          code.writeln('m_${property.capitalizedName} = '
-              '${property.type.runtimeCoreType}::deserialize(reader);');
-          code.writeln('return true;');
-        }
-        // code.writeln('default: break;');
-        code.writeln('}');
         code.writeln('return ${_extensionOf.name}::'
             'deserialize(propertyKey, reader); }');
       } else {
@@ -198,8 +217,7 @@ class Definition {
 
     // See if we need to stub out the concrete version...
     var concreteFile = File('$concreteHppPath$concreteCodeFilename');
-    if (true) {
-      //!concreteFile.existsSync()) {
+    if (!concreteFile.existsSync()) {
       StringBuffer concreteCode = StringBuffer();
       concreteFile.createSync(recursive: true);
       concreteCode.writeln('#include "generated/$localCodeFilename"');
@@ -207,9 +225,6 @@ class Definition {
       concreteCode.writeln('namespace rive {');
       concreteCode.writeln('''class $_name : public ${_name}Base {
         public:
-          $_name() {
-            printf("Constructing $_name\\n");
-          }
       };''');
       concreteCode.writeln('}');
 
@@ -313,7 +328,7 @@ class Definition {
     }
     ctxCode.writeln('namespace rive {class CoreContext {'
         'public:');
-    ctxCode.writeln('Core* makeCoreInstance(int typeKey) {'
+    ctxCode.writeln('static Core* makeCoreInstance(int typeKey) {'
         'switch(typeKey) {');
     for (final definition in definitions.values) {
       if (definition._isAbstract) {

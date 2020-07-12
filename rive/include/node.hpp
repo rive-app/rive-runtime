@@ -7,7 +7,6 @@ namespace rive
 	class Node : public NodeBase
 	{
 	public:
-		Node() { printf("Constructing Node\n"); }
 	};
 } // namespace rive
 

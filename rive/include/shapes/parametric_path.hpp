@@ -7,7 +7,6 @@ namespace rive
 	class ParametricPath : public ParametricPathBase
 	{
 	public:
-		ParametricPath() { printf("Constructing ParametricPath\n"); }
 	};
 } // namespace rive
 

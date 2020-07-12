@@ -7,7 +7,6 @@ namespace rive
 	class Component : public ComponentBase
 	{
 	public:
-		Component() { printf("Constructing Component\n"); }
 	};
 } // namespace rive
 

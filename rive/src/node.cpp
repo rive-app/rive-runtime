@@ -8,7 +8,7 @@
 
 void test() 
 {
-    auto coreIntType = rive::CoreIntType();
+    // auto coreIntType = rive::CoreIntType();
     // auto type = rive::CoreContext::intType;
     // type.lerp(0,1, 0.5);
 }

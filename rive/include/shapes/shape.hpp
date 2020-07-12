@@ -7,7 +7,6 @@ namespace rive
 	class Shape : public ShapeBase
 	{
 	public:
-		Shape() { printf("Constructing Shape\n"); }
 	};
 } // namespace rive
 

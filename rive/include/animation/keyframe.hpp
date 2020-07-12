@@ -7,7 +7,6 @@ namespace rive
 	class KeyFrame : public KeyFrameBase
 	{
 	public:
-		KeyFrame() { printf("Constructing KeyFrame\n"); }
 	};
 } // namespace rive
 

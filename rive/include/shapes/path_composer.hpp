@@ -7,7 +7,6 @@ namespace rive
 	class PathComposer : public PathComposerBase
 	{
 	public:
-		PathComposer() { printf("Constructing PathComposer\n"); }
 	};
 } // namespace rive
 

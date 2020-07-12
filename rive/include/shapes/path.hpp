@@ -7,7 +7,6 @@ namespace rive
 	class Path : public PathBase
 	{
 	public:
-		Path() { printf("Constructing Path\n"); }
 	};
 } // namespace rive
 

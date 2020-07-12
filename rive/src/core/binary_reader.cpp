@@ -105,3 +105,15 @@ uint8_t BinaryReader::readByte()
     }
     return *m_Position++;
 }
+
+BinaryReader BinaryReader::read(size_t length)
+{
+    if (m_End - m_Position < length)
+    {
+        overflow();
+		return BinaryReader(m_Position, 0);
+    }
+    auto readerPosition = m_Position;
+    m_Position += length;
+    return BinaryReader(readerPosition, length);
+}
