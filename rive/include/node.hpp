@@ -4,6 +4,7 @@
 #include <stdio.h>
 namespace rive
 {
+	/// A Rive Node
 	class Node : public NodeBase
 	{
 	public:

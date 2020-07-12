@@ -2,8 +2,11 @@
 #include "animation/animation.hpp"
 #include "generated/core_context.hpp"
 
+// Default namespace for Rive Cpp code
 using namespace rive;
 
+// Import a single Rive runtime object.
+// Used by the file importer.
 template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 {
 	auto coreObjectKey = reader.readVarUint();
@@ -53,6 +56,7 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 	return reinterpret_cast<T*>(object);
 }
 
+// Import a Rive file from a file handle
 ImportResult File::import(BinaryReader& reader, File** importedFile)
 {
 	RuntimeHeader header;
@@ -130,7 +134,7 @@ ImportResult File::read(BinaryReader& reader)
 	return ImportResult::success;
 }
 
-Backboard* File::backboard() const {return m_Backboard; }
+Backboard* File::backboard() const { return m_Backboard; }
 
 Artboard* File::artboard(std::string name) const
 {

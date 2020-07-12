@@ -48,3 +48,6 @@ pubspec.lock
 
 # OSX stuff
 *.DS_Store
+
+# Generated docs
+rive/docs
