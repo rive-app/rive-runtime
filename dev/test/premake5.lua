@@ -1,8 +1,54 @@
-require "lfs"
+-- require "lfs"
+
+-- Clean Function --
+newaction {
+    trigger     = "clean",
+    description = "clean the build",
+    execute     = function ()
+       print("clean the build...")
+       os.rmdir("build")
+       os.remove("Makefile")
+       -- no wildcards in os.remove, so use shell
+       os.execute("rm *.make")
+       print("build cleaned")
+    end
+ }
+
+workspace "rive_tests"
+configurations {
+    "debug"
+}
+
+project("tests")
+kind "ConsoleApp"
+language "C++"
+cppdialect "C++17"
+targetdir "build/bin/%{cfg.buildcfg}"
+objdir "build/obj/%{cfg.buildcfg}"
+
+buildoptions {
+    "-Wall", 
+    "-fno-exceptions", 
+    "-fno-rtti"
+}
+
+includedirs {
+    "./include",
+    "../../rive/include"
+}
+
+files {
+    "../../rive/src/**.cpp", -- the Rive runtime source
+    "../../rive/test/**.cpp" -- the tests
+    
+}
+
+filter "configurations:debug"
+    defines { "DEBUG" }
+    symbols "On"
+
 
 --[[
-    Utility functions
---]]
 
 -- Recursively iterate through all files in a dir
 function dirtree(dir)
@@ -48,29 +94,6 @@ function getFilesByExtension(extension, dir)
         yieldfile(dir)
     end)
 end
-
---[[
-    Premake configuration
---]]
-
--- Clean Function --
-newaction {
-    trigger     = "clean",
-    description = "clean the build",
-    execute     = function ()
-       print("clean the build...")
-       os.rmdir("build")
-       os.remove("Makefile")
-       -- no wildcards in os.remove, so use shell
-       os.execute("rm *.make")
-       print("build cleaned")
-    end
- }
-
-workspace "rive_tests"
-configurations {
-    "debug"
-}
 
 -- Build test executable for a cpp file
 local function test(filepath)
@@ -154,6 +177,8 @@ local function test_precompiled(filepath)
 end
 
 -- Build all cpp test files in Rive's test directory
--- for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
---     test_precompiled(cppFile)
--- end
+for cppFile in getFilesByExtension(".cpp", "../../rive/test/") do
+    test_precompiled(cppFile)
+end
+
+--]]

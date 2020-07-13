@@ -1,4 +1,3 @@
-#define CATCH_CONFIG_MAIN // This tells Catch to provide a main() - only do this in one cpp file
 #include "catch.hpp"
 #include "core/binary_reader.hpp"
 #include "file.hpp"
@@ -21,7 +20,7 @@ TEST_CASE("file can be read", "[file]")
 	REQUIRE(result == rive::ImportResult::success);
 	REQUIRE(file != nullptr);
 	REQUIRE(file->artboard() != nullptr);
-	
+
 	// Default artboard should be named One.
 	REQUIRE(file->artboard()->name() == "One");
 
