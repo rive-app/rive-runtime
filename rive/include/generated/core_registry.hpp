@@ -1,5 +1,5 @@
-#ifndef _RIVE_CORE_CONTEXT_HPP_
-#define _RIVE_CORE_CONTEXT_HPP_
+#ifndef _RIVE_CORE_REGISTRY_HPP_
+#define _RIVE_CORE_REGISTRY_HPP_
 #include "animation/animation.hpp"
 #include "animation/cubic_interpolator.hpp"
 #include "animation/keyed_object.hpp"
@@ -39,7 +39,7 @@
 #include "shapes/triangle.hpp"
 namespace rive
 {
-	class CoreContext
+	class CoreRegistry
 	{
 	public:
 		static Core* makeCoreInstance(int typeKey)

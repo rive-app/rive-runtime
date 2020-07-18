@@ -10,7 +10,16 @@ namespace rive
 
 		// Helper to quickly determine if a core object extends another without RTTI
 		/// at runtime.
-		bool inheritsFrom(int typeKey) override { return false; }
+		bool isTypeOf(int typeKey) override
+		{
+			switch (typeKey)
+			{
+				case BackboardBase::typeKey:
+					return true;
+				default:
+					return false;
+			}
+		}
 
 		int coreType() const override { return typeKey; }
 

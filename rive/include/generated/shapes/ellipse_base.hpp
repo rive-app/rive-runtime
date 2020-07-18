@@ -10,10 +10,11 @@ namespace rive
 
 		// Helper to quickly determine if a core object extends another without RTTI
 		/// at runtime.
-		bool inheritsFrom(int typeKey) override
+		bool isTypeOf(int typeKey) override
 		{
 			switch (typeKey)
 			{
+				case EllipseBase::typeKey:
 				case ParametricPathBase::typeKey:
 				case PathBase::typeKey:
 				case NodeBase::typeKey:

@@ -1,6 +1,6 @@
 #include "file.hpp"
 #include "animation/animation.hpp"
-#include "generated/core_context.hpp"
+#include "generated/core_registry.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -10,7 +10,7 @@ using namespace rive;
 template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 {
 	auto coreObjectKey = reader.readVarUint();
-	auto object = CoreContext::makeCoreInstance(coreObjectKey);
+	auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
 
 	while (true)
 	{
@@ -31,7 +31,10 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 			return nullptr;
 		}
 
-		object->deserialize(propertyKey, valueReader);
+		if (object != nullptr)
+		{
+			object->deserialize(propertyKey, valueReader);
+		}
 	}
 
 	// This is evaluated at compile time based on how the templated method is
@@ -39,19 +42,29 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 	// Core (which is the default). The type checking is skipped in this case.
 	if constexpr (!std::is_same<T, Core>::value)
 	{
+		// Concrete Core object couldn't be read.
+		if (object == nullptr)
+		{
+			fprintf(stderr, "Expected object of type %d but found %llu, which this runtime doesn't understand.\n", T::typeKey,
+			        coreObjectKey);
+			return nullptr;
+		}
 		// Ensure the object is of the provided type, if not, return null and
 		// delete the object. Note that we read in the properties regardless of
 		// whether or not this object is the expected one. This ensures our
 		// reader has advanced past the object.
-		if (T::typeKey != object->coreType() &&
-		    // It may not be that concrete type, but it does it extend that
-		    // type?
-		    !object->inheritsFrom(T::typeKey))
+		if(!object->is<T>())
 		{
 			fprintf(stderr, "Expected object of type %d but found %d.\n", T::typeKey, object->coreType());
 			delete object;
 			return nullptr;
 		}
+	}
+	// Core object couldn't be read.
+	else if (object == nullptr)
+	{
+		fprintf(stderr, "Expected a Core object but found %llu, which this runtime doesn't understand.\n", coreObjectKey);
+		return nullptr;
 	}
 	return reinterpret_cast<T*>(object);
 }
@@ -127,9 +140,59 @@ ImportResult File::read(BinaryReader& reader)
 			{
 				continue;
 			}
-			artboard->addObject(animation);
-			// animation.artboard = artboard;
+			artboard->addAnimation(animation);
+			if (animation->coreType() == LinearAnimationBase::typeKey)
+			{
+				auto linearAnimation = reinterpret_cast<LinearAnimation*>(animation);
+				int numKeyedObjects = reader.readVarUint();
+				for (int j = 0; j < numKeyedObjects; j++)
+				{
+					auto keyedObject = readRuntimeObject<KeyedObject>(reader);
+					if (keyedObject == nullptr)
+					{
+						continue;
+					}
+					linearAnimation->addKeyedObject(keyedObject);
+
+					int numKeyedProperties = reader.readVarUint();
+					for (int k = 0; k < numKeyedProperties; k++)
+					{
+						auto keyedProperty = readRuntimeObject<KeyedProperty>(reader);
+						if (keyedProperty == nullptr)
+						{
+							continue;
+						}
+						keyedObject->addKeyedProperty(keyedProperty);
+
+						int numKeyframes = reader.readVarUint();
+						for (int l = 0; l < numKeyframes; l++)
+						{
+							auto keyframe = readRuntimeObject<KeyFrame>(reader);
+							if (keyframe == nullptr)
+							{
+								continue;
+							}
+							else if (keyframe->is<KeyFrameDrawOrder>())
+							{
+								auto drawOrderKeyFrame = reinterpret_cast<KeyFrameDrawOrder*>(keyframe);
+								int numValues = reader.readVarUint();
+								for (int m = 0; m < numValues; m++)
+								{
+									auto valueObject = new KeyFrameDrawOrderValue();
+									valueObject->drawableId(reader.readVarInt());
+									valueObject->value(m);
+									drawOrderKeyFrame->addValue(valueObject);
+								}
+							}
+							keyedProperty->addKeyFrame(keyframe);
+						}
+					}
+				}
+			}
 		}
+
+		// Artboard has been read in.
+		artboard->initialize();
 	}
 	return ImportResult::success;
 }

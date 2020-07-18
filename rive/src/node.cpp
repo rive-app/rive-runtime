@@ -4,7 +4,6 @@
 #include "core/field_types/core_double_type.hpp"
 #include "core/field_types/core_string_type.hpp"
 #include "core/field_types/core_color_type.hpp"
-#include "generated/core_context.hpp"
 
 void test() 
 {

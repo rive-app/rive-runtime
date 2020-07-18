@@ -138,18 +138,16 @@ class Definition {
         'Helper to quickly determine if a core object extends another '
         'without RTTI at runtime.',
         indent: 1));
-    code.writeln('bool inheritsFrom(int typeKey) override {');
+    code.writeln('bool isTypeOf(int typeKey) override {');
 
-    if (_extensionOf != null) {
-      code.writeln('switch(typeKey) {');
-      for (var p = _extensionOf; p != null; p = p._extensionOf) {
-        code.writeln('case ${p._name}Base::typeKey:');
-      }
-      code.writeln('return true;');
-      code.writeln('default: return false;}');
-    } else {
-      code.writeln('return false;');
+    code.writeln('switch(typeKey) {');
+    code.writeln('case ${_name}Base::typeKey:');
+    for (var p = _extensionOf; p != null; p = p._extensionOf) {
+      code.writeln('case ${p._name}Base::typeKey:');
     }
+    code.writeln('return true;');
+    code.writeln('default: return false;}');
+
     code.writeln('}\n');
 
     code.writeln('int coreType() const override { return typeKey; }\n');
@@ -326,7 +324,7 @@ class Definition {
     for (final include in includeList) {
       ctxCode.writeln('#include "$include"');
     }
-    ctxCode.writeln('namespace rive {class CoreContext {'
+    ctxCode.writeln('namespace rive {class CoreRegistry {'
         'public:');
     ctxCode.writeln('static Core* makeCoreInstance(int typeKey) {'
         'switch(typeKey) {');
@@ -365,11 +363,11 @@ class Definition {
             ? output.substring(0, output.length - 1)
             : output;
 
-    var file = File('$folder/core_context.hpp');
+    var file = File('$folder/core_registry.hpp');
     file.createSync(recursive: true);
 
     var formattedCode =
-        await _formatter.formatAndGuard('CoreContext', ctxCode.toString());
+        await _formatter.formatAndGuard('CoreRegistry', ctxCode.toString());
     file.writeAsStringSync(formattedCode, flush: true);
 
     return true;
