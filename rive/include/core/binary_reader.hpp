@@ -24,7 +24,7 @@ namespace rive
 
         uint64_t readVarUint();
         int64_t readVarInt();
-        std::string readString();
+        std::string readString(bool explicitLength = false);
         double readFloat64();
         float readFloat32();
         uint8_t readByte();

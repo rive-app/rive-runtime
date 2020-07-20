@@ -5,5 +5,5 @@ using namespace rive;
 
 std::string CoreStringType::deserialize(BinaryReader& reader) 
 {
-    return reader.readString();
+    return reader.readString(false);
 }

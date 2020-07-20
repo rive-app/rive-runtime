@@ -6,7 +6,7 @@
 
 TEST_CASE("file can be read", "[file]")
 {
-	FILE* fp = fopen("../../assets/copy_paste_test.riv", "r");
+	FILE* fp = fopen("../../assets/two_artboards.riv", "r");
 	REQUIRE(fp != nullptr);
 
 	fseek(fp, 0, SEEK_END);
@@ -34,7 +34,7 @@ TEST_CASE("file can be read", "[file]")
 
 TEST_CASE("file with animation be read", "[file]")
 {
-	FILE* fp = fopen("../../assets/colors_juice.riv", "r");
+	FILE* fp = fopen("../../assets/juice.riv", "r");
 	REQUIRE(fp != nullptr);
 
 	fseek(fp, 0, SEEK_END);
