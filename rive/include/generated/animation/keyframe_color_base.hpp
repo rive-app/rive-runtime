@@ -31,7 +31,15 @@ namespace rive
 		int m_Value = 0;
 	public:
 		int value() const { return m_Value; }
-		void value(int value) { m_Value = value; }
+		void value(int value)
+		{
+			if (m_Value == value)
+			{
+				return;
+			}
+			m_Value = value;
+			valueChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -43,6 +51,9 @@ namespace rive
 			}
 			return KeyFrame::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void valueChanged() {}
 	};
 } // namespace rive
 

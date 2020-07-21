@@ -39,16 +39,48 @@ namespace rive
 		double m_OutDistance = 0;
 	public:
 		double inRotation() const { return m_InRotation; }
-		void inRotation(double value) { m_InRotation = value; }
+		void inRotation(double value)
+		{
+			if (m_InRotation == value)
+			{
+				return;
+			}
+			m_InRotation = value;
+			inRotationChanged();
+		}
 
 		double inDistance() const { return m_InDistance; }
-		void inDistance(double value) { m_InDistance = value; }
+		void inDistance(double value)
+		{
+			if (m_InDistance == value)
+			{
+				return;
+			}
+			m_InDistance = value;
+			inDistanceChanged();
+		}
 
 		double outRotation() const { return m_OutRotation; }
-		void outRotation(double value) { m_OutRotation = value; }
+		void outRotation(double value)
+		{
+			if (m_OutRotation == value)
+			{
+				return;
+			}
+			m_OutRotation = value;
+			outRotationChanged();
+		}
 
 		double outDistance() const { return m_OutDistance; }
-		void outDistance(double value) { m_OutDistance = value; }
+		void outDistance(double value)
+		{
+			if (m_OutDistance == value)
+			{
+				return;
+			}
+			m_OutDistance = value;
+			outDistanceChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -69,6 +101,12 @@ namespace rive
 			}
 			return CubicVertex::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void inRotationChanged() {}
+		virtual void inDistanceChanged() {}
+		virtual void outRotationChanged() {}
+		virtual void outDistanceChanged() {}
 	};
 } // namespace rive
 

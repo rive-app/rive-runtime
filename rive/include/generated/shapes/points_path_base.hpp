@@ -34,7 +34,15 @@ namespace rive
 		bool m_IsClosed = false;
 	public:
 		bool isClosed() const { return m_IsClosed; }
-		void isClosed(bool value) { m_IsClosed = value; }
+		void isClosed(bool value)
+		{
+			if (m_IsClosed == value)
+			{
+				return;
+			}
+			m_IsClosed = value;
+			isClosedChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -46,6 +54,9 @@ namespace rive
 			}
 			return Path::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void isClosedChanged() {}
 	};
 } // namespace rive
 

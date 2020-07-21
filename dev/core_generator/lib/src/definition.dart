@@ -177,7 +177,10 @@ class Definition {
             '}');
 
         code.writeln('void ${property.name}(${property.type.cppName} value) {'
+            'if(m_${property.capitalizedName} == value)'
+            '{return;}'
             'm_${property.capitalizedName} = value;'
+            '${property.name}Changed();'
             '}');
 
         code.writeln();
@@ -201,6 +204,13 @@ class Definition {
             'deserialize(propertyKey, reader); }');
       } else {
         code.writeln('return false; }');
+      }
+    }
+    
+    code.writeln('protected:');
+    if (properties.isNotEmpty) {
+      for (final property in properties) {
+        code.writeln('virtual void ${property.name}Changed() {}');
       }
     }
     code.writeln('};');

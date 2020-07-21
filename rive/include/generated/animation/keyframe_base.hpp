@@ -34,13 +34,37 @@ namespace rive
 		int m_InterpolatorId = 0;
 	public:
 		int frame() const { return m_Frame; }
-		void frame(int value) { m_Frame = value; }
+		void frame(int value)
+		{
+			if (m_Frame == value)
+			{
+				return;
+			}
+			m_Frame = value;
+			frameChanged();
+		}
 
 		int interpolationType() const { return m_InterpolationType; }
-		void interpolationType(int value) { m_InterpolationType = value; }
+		void interpolationType(int value)
+		{
+			if (m_InterpolationType == value)
+			{
+				return;
+			}
+			m_InterpolationType = value;
+			interpolationTypeChanged();
+		}
 
 		int interpolatorId() const { return m_InterpolatorId; }
-		void interpolatorId(int value) { m_InterpolatorId = value; }
+		void interpolatorId(int value)
+		{
+			if (m_InterpolatorId == value)
+			{
+				return;
+			}
+			m_InterpolatorId = value;
+			interpolatorIdChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -58,6 +82,11 @@ namespace rive
 			}
 			return false;
 		}
+
+	protected:
+		virtual void frameChanged() {}
+		virtual void interpolationTypeChanged() {}
+		virtual void interpolatorIdChanged() {}
 	};
 } // namespace rive
 

@@ -35,19 +35,25 @@ void Node::updateTransform()
 	m_Transform[4] = x();
 	m_Transform[5] = y();
 	Mat2D::scaleByValues(m_Transform, scaleX(), scaleY());
-	printf("UPDATE TRANSFORM!\n");
 }
 
 void Node::updateWorldTransform() {}
 
 void Node::update(ComponentDirt value)
 {
-	if (hasDirt(ComponentDirt::Transform))
+	if (hasDirt(value, ComponentDirt::Transform))
 	{
 		updateTransform();
 	}
-	if (hasDirt(ComponentDirt::WorldTransform))
+	if (hasDirt(value, ComponentDirt::WorldTransform))
 	{
 		updateWorldTransform();
 	}
 }
+
+void Node::xChanged() { markTransformDirty(); }
+void Node::yChanged() { markTransformDirty(); }
+void Node::rotationChanged() { markTransformDirty(); }
+void Node::scaleXChanged() { markTransformDirty(); }
+void Node::scaleYChanged() { markTransformDirty(); }
+void Node::opacityChanged() { markTransformDirty(); }

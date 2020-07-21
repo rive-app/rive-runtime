@@ -20,6 +20,14 @@ namespace rive
 		void updateWorldTransform();
 		void markTransformDirty();
 		void markWorldTransformDirty();
+
+	protected:
+		void xChanged() override;
+		void yChanged() override;
+		void rotationChanged() override;
+		void scaleXChanged() override;
+		void scaleYChanged() override;
+		void opacityChanged() override;
 	};
 } // namespace rive
 

@@ -30,6 +30,8 @@ namespace rive
 			}
 			return false;
 		}
+
+	protected:
 	};
 } // namespace rive
 

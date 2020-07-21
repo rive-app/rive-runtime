@@ -32,7 +32,15 @@ namespace rive
 		double m_Radius = 0;
 	public:
 		double radius() const { return m_Radius; }
-		void radius(double value) { m_Radius = value; }
+		void radius(double value)
+		{
+			if (m_Radius == value)
+			{
+				return;
+			}
+			m_Radius = value;
+			radiusChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -44,6 +52,9 @@ namespace rive
 			}
 			return PathVertex::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void radiusChanged() {}
 	};
 } // namespace rive
 

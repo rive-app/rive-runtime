@@ -141,6 +141,7 @@ bool Artboard::updateComponents()
 		}
 		return true;
 	}
+	return false;
 }
 
 bool Artboard::advance(double elapsedSeconds) { return updateComponents(); }

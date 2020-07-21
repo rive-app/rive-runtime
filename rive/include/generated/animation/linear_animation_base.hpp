@@ -45,25 +45,81 @@ namespace rive
 		bool m_EnableWorkArea = false;
 	public:
 		int fps() const { return m_Fps; }
-		void fps(int value) { m_Fps = value; }
+		void fps(int value)
+		{
+			if (m_Fps == value)
+			{
+				return;
+			}
+			m_Fps = value;
+			fpsChanged();
+		}
 
 		int duration() const { return m_Duration; }
-		void duration(int value) { m_Duration = value; }
+		void duration(int value)
+		{
+			if (m_Duration == value)
+			{
+				return;
+			}
+			m_Duration = value;
+			durationChanged();
+		}
 
 		double speed() const { return m_Speed; }
-		void speed(double value) { m_Speed = value; }
+		void speed(double value)
+		{
+			if (m_Speed == value)
+			{
+				return;
+			}
+			m_Speed = value;
+			speedChanged();
+		}
 
 		int loopValue() const { return m_LoopValue; }
-		void loopValue(int value) { m_LoopValue = value; }
+		void loopValue(int value)
+		{
+			if (m_LoopValue == value)
+			{
+				return;
+			}
+			m_LoopValue = value;
+			loopValueChanged();
+		}
 
 		int workStart() const { return m_WorkStart; }
-		void workStart(int value) { m_WorkStart = value; }
+		void workStart(int value)
+		{
+			if (m_WorkStart == value)
+			{
+				return;
+			}
+			m_WorkStart = value;
+			workStartChanged();
+		}
 
 		int workEnd() const { return m_WorkEnd; }
-		void workEnd(int value) { m_WorkEnd = value; }
+		void workEnd(int value)
+		{
+			if (m_WorkEnd == value)
+			{
+				return;
+			}
+			m_WorkEnd = value;
+			workEndChanged();
+		}
 
 		bool enableWorkArea() const { return m_EnableWorkArea; }
-		void enableWorkArea(bool value) { m_EnableWorkArea = value; }
+		void enableWorkArea(bool value)
+		{
+			if (m_EnableWorkArea == value)
+			{
+				return;
+			}
+			m_EnableWorkArea = value;
+			enableWorkAreaChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -93,6 +149,15 @@ namespace rive
 			}
 			return Animation::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void fpsChanged() {}
+		virtual void durationChanged() {}
+		virtual void speedChanged() {}
+		virtual void loopValueChanged() {}
+		virtual void workStartChanged() {}
+		virtual void workEndChanged() {}
+		virtual void enableWorkAreaChanged() {}
 	};
 } // namespace rive
 

@@ -32,10 +32,26 @@ namespace rive
 		int m_Value = 0;
 	public:
 		int drawableId() const { return m_DrawableId; }
-		void drawableId(int value) { m_DrawableId = value; }
+		void drawableId(int value)
+		{
+			if (m_DrawableId == value)
+			{
+				return;
+			}
+			m_DrawableId = value;
+			drawableIdChanged();
+		}
 
 		int value() const { return m_Value; }
-		void value(int value) { m_Value = value; }
+		void value(int value)
+		{
+			if (m_Value == value)
+			{
+				return;
+			}
+			m_Value = value;
+			valueChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -50,6 +66,10 @@ namespace rive
 			}
 			return false;
 		}
+
+	protected:
+		virtual void drawableIdChanged() {}
+		virtual void valueChanged() {}
 	};
 } // namespace rive
 

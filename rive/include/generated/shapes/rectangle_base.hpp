@@ -35,7 +35,15 @@ namespace rive
 		double m_CornerRadius = 0.0;
 	public:
 		double cornerRadius() const { return m_CornerRadius; }
-		void cornerRadius(double value) { m_CornerRadius = value; }
+		void cornerRadius(double value)
+		{
+			if (m_CornerRadius == value)
+			{
+				return;
+			}
+			m_CornerRadius = value;
+			cornerRadiusChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -47,6 +55,9 @@ namespace rive
 			}
 			return ParametricPath::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void cornerRadiusChanged() {}
 	};
 } // namespace rive
 

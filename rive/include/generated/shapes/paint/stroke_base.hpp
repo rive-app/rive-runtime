@@ -41,16 +41,48 @@ namespace rive
 		bool m_TransformAffectsStroke = true;
 	public:
 		double thickness() const { return m_Thickness; }
-		void thickness(double value) { m_Thickness = value; }
+		void thickness(double value)
+		{
+			if (m_Thickness == value)
+			{
+				return;
+			}
+			m_Thickness = value;
+			thicknessChanged();
+		}
 
 		int cap() const { return m_Cap; }
-		void cap(int value) { m_Cap = value; }
+		void cap(int value)
+		{
+			if (m_Cap == value)
+			{
+				return;
+			}
+			m_Cap = value;
+			capChanged();
+		}
 
 		int join() const { return m_Join; }
-		void join(int value) { m_Join = value; }
+		void join(int value)
+		{
+			if (m_Join == value)
+			{
+				return;
+			}
+			m_Join = value;
+			joinChanged();
+		}
 
 		bool transformAffectsStroke() const { return m_TransformAffectsStroke; }
-		void transformAffectsStroke(bool value) { m_TransformAffectsStroke = value; }
+		void transformAffectsStroke(bool value)
+		{
+			if (m_TransformAffectsStroke == value)
+			{
+				return;
+			}
+			m_TransformAffectsStroke = value;
+			transformAffectsStrokeChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -71,6 +103,12 @@ namespace rive
 			}
 			return ShapePaint::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void thicknessChanged() {}
+		virtual void capChanged() {}
+		virtual void joinChanged() {}
+		virtual void transformAffectsStrokeChanged() {}
 	};
 } // namespace rive
 

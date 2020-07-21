@@ -34,10 +34,26 @@ namespace rive
 		int m_ParentId = 0;
 	public:
 		std::string name() const { return m_Name; }
-		void name(std::string value) { m_Name = value; }
+		void name(std::string value)
+		{
+			if (m_Name == value)
+			{
+				return;
+			}
+			m_Name = value;
+			nameChanged();
+		}
 
 		int parentId() const { return m_ParentId; }
-		void parentId(int value) { m_ParentId = value; }
+		void parentId(int value)
+		{
+			if (m_ParentId == value)
+			{
+				return;
+			}
+			m_ParentId = value;
+			parentIdChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -52,6 +68,10 @@ namespace rive
 			}
 			return false;
 		}
+
+	protected:
+		virtual void nameChanged() {}
+		virtual void parentIdChanged() {}
 	};
 } // namespace rive
 

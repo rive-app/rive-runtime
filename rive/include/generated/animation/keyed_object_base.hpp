@@ -30,7 +30,15 @@ namespace rive
 		int m_ObjectId = 0;
 	public:
 		int objectId() const { return m_ObjectId; }
-		void objectId(int value) { m_ObjectId = value; }
+		void objectId(int value)
+		{
+			if (m_ObjectId == value)
+			{
+				return;
+			}
+			m_ObjectId = value;
+			objectIdChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -42,6 +50,9 @@ namespace rive
 			}
 			return false;
 		}
+
+	protected:
+		virtual void objectIdChanged() {}
 	};
 } // namespace rive
 

@@ -36,10 +36,26 @@ namespace rive
 		double m_Height = 0;
 	public:
 		double width() const { return m_Width; }
-		void width(double value) { m_Width = value; }
+		void width(double value)
+		{
+			if (m_Width == value)
+			{
+				return;
+			}
+			m_Width = value;
+			widthChanged();
+		}
 
 		double height() const { return m_Height; }
-		void height(double value) { m_Height = value; }
+		void height(double value)
+		{
+			if (m_Height == value)
+			{
+				return;
+			}
+			m_Height = value;
+			heightChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -54,6 +70,10 @@ namespace rive
 			}
 			return Path::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void widthChanged() {}
+		virtual void heightChanged() {}
 	};
 } // namespace rive
 

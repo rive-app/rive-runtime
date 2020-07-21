@@ -42,22 +42,70 @@ namespace rive
 		double m_OriginY = 0.0;
 	public:
 		double width() const { return m_Width; }
-		void width(double value) { m_Width = value; }
+		void width(double value)
+		{
+			if (m_Width == value)
+			{
+				return;
+			}
+			m_Width = value;
+			widthChanged();
+		}
 
 		double height() const { return m_Height; }
-		void height(double value) { m_Height = value; }
+		void height(double value)
+		{
+			if (m_Height == value)
+			{
+				return;
+			}
+			m_Height = value;
+			heightChanged();
+		}
 
 		double x() const { return m_X; }
-		void x(double value) { m_X = value; }
+		void x(double value)
+		{
+			if (m_X == value)
+			{
+				return;
+			}
+			m_X = value;
+			xChanged();
+		}
 
 		double y() const { return m_Y; }
-		void y(double value) { m_Y = value; }
+		void y(double value)
+		{
+			if (m_Y == value)
+			{
+				return;
+			}
+			m_Y = value;
+			yChanged();
+		}
 
 		double originX() const { return m_OriginX; }
-		void originX(double value) { m_OriginX = value; }
+		void originX(double value)
+		{
+			if (m_OriginX == value)
+			{
+				return;
+			}
+			m_OriginX = value;
+			originXChanged();
+		}
 
 		double originY() const { return m_OriginY; }
-		void originY(double value) { m_OriginY = value; }
+		void originY(double value)
+		{
+			if (m_OriginY == value)
+			{
+				return;
+			}
+			m_OriginY = value;
+			originYChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -84,6 +132,14 @@ namespace rive
 			}
 			return ContainerComponent::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void widthChanged() {}
+		virtual void heightChanged() {}
+		virtual void xChanged() {}
+		virtual void yChanged() {}
+		virtual void originXChanged() {}
+		virtual void originYChanged() {}
 	};
 } // namespace rive
 

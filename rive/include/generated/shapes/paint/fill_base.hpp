@@ -33,7 +33,15 @@ namespace rive
 		int m_FillRule = 0;
 	public:
 		int fillRule() const { return m_FillRule; }
-		void fillRule(int value) { m_FillRule = value; }
+		void fillRule(int value)
+		{
+			if (m_FillRule == value)
+			{
+				return;
+			}
+			m_FillRule = value;
+			fillRuleChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -45,6 +53,9 @@ namespace rive
 			}
 			return ShapePaint::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void fillRuleChanged() {}
 	};
 } // namespace rive
 

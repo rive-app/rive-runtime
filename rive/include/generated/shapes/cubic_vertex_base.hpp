@@ -24,6 +24,8 @@ namespace rive
 		}
 
 		int coreType() const override { return typeKey; }
+
+	protected:
 	};
 } // namespace rive
 

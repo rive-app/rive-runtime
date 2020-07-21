@@ -34,10 +34,26 @@ namespace rive
 		double m_Position = 0;
 	public:
 		int colorValue() const { return m_ColorValue; }
-		void colorValue(int value) { m_ColorValue = value; }
+		void colorValue(int value)
+		{
+			if (m_ColorValue == value)
+			{
+				return;
+			}
+			m_ColorValue = value;
+			colorValueChanged();
+		}
 
 		double position() const { return m_Position; }
-		void position(double value) { m_Position = value; }
+		void position(double value)
+		{
+			if (m_Position == value)
+			{
+				return;
+			}
+			m_Position = value;
+			positionChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -52,6 +68,10 @@ namespace rive
 			}
 			return Component::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void colorValueChanged() {}
+		virtual void positionChanged() {}
 	};
 } // namespace rive
 

@@ -32,7 +32,15 @@ namespace rive
 		bool m_IsVisible = true;
 	public:
 		bool isVisible() const { return m_IsVisible; }
-		void isVisible(bool value) { m_IsVisible = value; }
+		void isVisible(bool value)
+		{
+			if (m_IsVisible == value)
+			{
+				return;
+			}
+			m_IsVisible = value;
+			isVisibleChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -44,6 +52,9 @@ namespace rive
 			}
 			return ContainerComponent::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void isVisibleChanged() {}
 	};
 } // namespace rive
 

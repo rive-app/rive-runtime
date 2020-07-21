@@ -155,3 +155,5 @@ TEST_CASE("dependencies are as expected", "[file]")
 // call setupFill/restoreFill and setupStroke/restoreStroke.
 
 // Draw will be called by C++ on the Shape, the Shape will call draw on the fill/stroke (propagates to jsFill/jsStroke)
+
+// ADD xChanged etc virtual methods in core generator

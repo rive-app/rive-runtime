@@ -42,22 +42,70 @@ namespace rive
 		double m_Opacity = 1;
 	public:
 		double x() const { return m_X; }
-		void x(double value) { m_X = value; }
+		void x(double value)
+		{
+			if (m_X == value)
+			{
+				return;
+			}
+			m_X = value;
+			xChanged();
+		}
 
 		double y() const { return m_Y; }
-		void y(double value) { m_Y = value; }
+		void y(double value)
+		{
+			if (m_Y == value)
+			{
+				return;
+			}
+			m_Y = value;
+			yChanged();
+		}
 
 		double rotation() const { return m_Rotation; }
-		void rotation(double value) { m_Rotation = value; }
+		void rotation(double value)
+		{
+			if (m_Rotation == value)
+			{
+				return;
+			}
+			m_Rotation = value;
+			rotationChanged();
+		}
 
 		double scaleX() const { return m_ScaleX; }
-		void scaleX(double value) { m_ScaleX = value; }
+		void scaleX(double value)
+		{
+			if (m_ScaleX == value)
+			{
+				return;
+			}
+			m_ScaleX = value;
+			scaleXChanged();
+		}
 
 		double scaleY() const { return m_ScaleY; }
-		void scaleY(double value) { m_ScaleY = value; }
+		void scaleY(double value)
+		{
+			if (m_ScaleY == value)
+			{
+				return;
+			}
+			m_ScaleY = value;
+			scaleYChanged();
+		}
 
 		double opacity() const { return m_Opacity; }
-		void opacity(double value) { m_Opacity = value; }
+		void opacity(double value)
+		{
+			if (m_Opacity == value)
+			{
+				return;
+			}
+			m_Opacity = value;
+			opacityChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -84,6 +132,14 @@ namespace rive
 			}
 			return ContainerComponent::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void xChanged() {}
+		virtual void yChanged() {}
+		virtual void rotationChanged() {}
+		virtual void scaleXChanged() {}
+		virtual void scaleYChanged() {}
+		virtual void opacityChanged() {}
 	};
 } // namespace rive
 

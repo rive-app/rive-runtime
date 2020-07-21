@@ -35,10 +35,26 @@ namespace rive
 		int m_BlendMode = 0;
 	public:
 		int drawOrder() const { return m_DrawOrder; }
-		void drawOrder(int value) { m_DrawOrder = value; }
+		void drawOrder(int value)
+		{
+			if (m_DrawOrder == value)
+			{
+				return;
+			}
+			m_DrawOrder = value;
+			drawOrderChanged();
+		}
 
 		int blendMode() const { return m_BlendMode; }
-		void blendMode(int value) { m_BlendMode = value; }
+		void blendMode(int value)
+		{
+			if (m_BlendMode == value)
+			{
+				return;
+			}
+			m_BlendMode = value;
+			blendModeChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -53,6 +69,10 @@ namespace rive
 			}
 			return Node::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void drawOrderChanged() {}
+		virtual void blendModeChanged() {}
 	};
 } // namespace rive
 

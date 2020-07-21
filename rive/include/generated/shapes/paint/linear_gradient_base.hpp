@@ -40,19 +40,59 @@ namespace rive
 		double m_Opacity = 1;
 	public:
 		double startX() const { return m_StartX; }
-		void startX(double value) { m_StartX = value; }
+		void startX(double value)
+		{
+			if (m_StartX == value)
+			{
+				return;
+			}
+			m_StartX = value;
+			startXChanged();
+		}
 
 		double startY() const { return m_StartY; }
-		void startY(double value) { m_StartY = value; }
+		void startY(double value)
+		{
+			if (m_StartY == value)
+			{
+				return;
+			}
+			m_StartY = value;
+			startYChanged();
+		}
 
 		double endX() const { return m_EndX; }
-		void endX(double value) { m_EndX = value; }
+		void endX(double value)
+		{
+			if (m_EndX == value)
+			{
+				return;
+			}
+			m_EndX = value;
+			endXChanged();
+		}
 
 		double endY() const { return m_EndY; }
-		void endY(double value) { m_EndY = value; }
+		void endY(double value)
+		{
+			if (m_EndY == value)
+			{
+				return;
+			}
+			m_EndY = value;
+			endYChanged();
+		}
 
 		double opacity() const { return m_Opacity; }
-		void opacity(double value) { m_Opacity = value; }
+		void opacity(double value)
+		{
+			if (m_Opacity == value)
+			{
+				return;
+			}
+			m_Opacity = value;
+			opacityChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -76,6 +116,13 @@ namespace rive
 			}
 			return ContainerComponent::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void startXChanged() {}
+		virtual void startYChanged() {}
+		virtual void endXChanged() {}
+		virtual void endYChanged() {}
+		virtual void opacityChanged() {}
 	};
 } // namespace rive
 

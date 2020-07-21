@@ -36,16 +36,48 @@ namespace rive
 		double m_Y2 = 1;
 	public:
 		double x1() const { return m_X1; }
-		void x1(double value) { m_X1 = value; }
+		void x1(double value)
+		{
+			if (m_X1 == value)
+			{
+				return;
+			}
+			m_X1 = value;
+			x1Changed();
+		}
 
 		double y1() const { return m_Y1; }
-		void y1(double value) { m_Y1 = value; }
+		void y1(double value)
+		{
+			if (m_Y1 == value)
+			{
+				return;
+			}
+			m_Y1 = value;
+			y1Changed();
+		}
 
 		double x2() const { return m_X2; }
-		void x2(double value) { m_X2 = value; }
+		void x2(double value)
+		{
+			if (m_X2 == value)
+			{
+				return;
+			}
+			m_X2 = value;
+			x2Changed();
+		}
 
 		double y2() const { return m_Y2; }
-		void y2(double value) { m_Y2 = value; }
+		void y2(double value)
+		{
+			if (m_Y2 == value)
+			{
+				return;
+			}
+			m_Y2 = value;
+			y2Changed();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -66,6 +98,12 @@ namespace rive
 			}
 			return false;
 		}
+
+	protected:
+		virtual void x1Changed() {}
+		virtual void y1Changed() {}
+		virtual void x2Changed() {}
+		virtual void y2Changed() {}
 	};
 } // namespace rive
 

@@ -33,10 +33,26 @@ namespace rive
 		double m_Y = 0.0;
 	public:
 		double x() const { return m_X; }
-		void x(double value) { m_X = value; }
+		void x(double value)
+		{
+			if (m_X == value)
+			{
+				return;
+			}
+			m_X = value;
+			xChanged();
+		}
 
 		double y() const { return m_Y; }
-		void y(double value) { m_Y = value; }
+		void y(double value)
+		{
+			if (m_Y == value)
+			{
+				return;
+			}
+			m_Y = value;
+			yChanged();
+		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
@@ -51,6 +67,10 @@ namespace rive
 			}
 			return Component::deserialize(propertyKey, reader);
 		}
+
+	protected:
+		virtual void xChanged() {}
+		virtual void yChanged() {}
 	};
 } // namespace rive
 

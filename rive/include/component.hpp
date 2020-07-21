@@ -19,6 +19,8 @@ namespace rive
 		std::vector<Component*> m_Dependents;
 
 		unsigned int m_GraphOrder;
+
+	protected:
 		ComponentDirt m_Dirt = ComponentDirt::Filthy;
 
 	public:
@@ -37,7 +39,8 @@ namespace rive
 
 		unsigned int graphOrder() const { return m_GraphOrder; }
 		bool addDirt(ComponentDirt value, bool recurse = false);
-		bool hasDirt(ComponentDirt value) const { return (m_Dirt & value) == value; }
+		inline bool hasDirt(ComponentDirt flag) const { return (m_Dirt & flag) == flag; }
+		static inline bool hasDirt(ComponentDirt value, ComponentDirt flag) { return (value & flag) == flag; }
 	};
 } // namespace rive
 
