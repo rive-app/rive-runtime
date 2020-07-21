@@ -1,13 +1,53 @@
 #include "node.hpp"
-#include "core/field_types/core_int_type.hpp"
-#include "core/field_types/core_bool_type.hpp"
-#include "core/field_types/core_double_type.hpp"
-#include "core/field_types/core_string_type.hpp"
-#include "core/field_types/core_color_type.hpp"
 
-void test() 
+using namespace rive;
+
+void Node::onAddedClean(CoreContext* context) {}
+void Node::buildDependencies()
 {
-    // auto coreIntType = rive::CoreIntType();
-    // auto type = rive::CoreContext::intType;
-    // type.lerp(0,1, 0.5);
+	if (parent() != nullptr)
+	{
+		parent()->addDependent(this);
+	}
+}
+
+void Node::markTransformDirty()
+{
+	if (!addDirt(ComponentDirt::Transform))
+	{
+		return;
+	}
+	markWorldTransformDirty();
+}
+
+void Node::markWorldTransformDirty() { addDirt(ComponentDirt::WorldTransform, true); }
+
+void Node::updateTransform()
+{
+	if (rotation() != 0)
+	{
+		Mat2D::fromRotation(m_Transform, rotation());
+	}
+	else
+	{
+		Mat2D::identity(m_Transform);
+	}
+	m_Transform[4] = x();
+	m_Transform[5] = y();
+	Mat2D::scaleByValues(m_Transform, scaleX(), scaleY());
+	printf("UPDATE TRANSFORM!\n");
+}
+
+void Node::updateWorldTransform() {}
+
+void Node::update(ComponentDirt value)
+{
+	if (hasDirt(ComponentDirt::Transform))
+	{
+		updateTransform();
+	}
+	if (hasDirt(ComponentDirt::WorldTransform))
+	{
+		updateWorldTransform();
+	}
 }

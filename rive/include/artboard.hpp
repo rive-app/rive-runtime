@@ -15,8 +15,11 @@ namespace rive
 	private:
 		std::vector<Core*> m_Objects;
 		std::vector<Animation*> m_Animations;
+		std::vector<Component*> m_DependencyOrder;
+		unsigned int m_DirtDepth = 0;
 
 		void initialize();
+		void sortDependencies();
 
 	public:
 		~Artboard();
@@ -26,8 +29,25 @@ namespace rive
 		Core* resolve(int id) const override;
 
 		void onAddedClean(CoreContext* context) override {}
+		void onComponentDirty(Component* component);
 
-		Core* find(std::string name);
+		/// Update components that depend on each other in DAG order.
+		bool updateComponents();
+
+		bool advance(double elapsedSeconds);
+
+		template <typename T = Component> T* find(std::string name)
+		{
+			for (auto object : m_Objects)
+			{
+				if (object->is<T>() && object->as<T>()->name() == name)
+				{
+
+					return reinterpret_cast<T*>(object);
+				}
+			}
+			return nullptr;
+		}
 	};
 } // namespace rive
 

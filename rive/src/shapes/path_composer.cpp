@@ -1,0 +1,28 @@
+#include "shapes/path_composer.hpp"
+#include "shapes/path.hpp"
+#include "shapes/shape.hpp"
+
+using namespace rive;
+
+void PathComposer::onAddedClean(CoreContext* context)
+{
+	// Find the shape.
+	for (auto currentParent = parent(); currentParent != nullptr; currentParent = currentParent->parent())
+	{
+		if (currentParent->is<Shape>())
+		{
+			m_Shape = currentParent->as<Shape>();
+			return;
+		}
+	}
+}
+
+void PathComposer::buildDependencies()
+{
+	assert(m_Shape != nullptr);
+	m_Shape->addDependent(this);
+	for (auto path : m_Shape->paths())
+	{
+		path->addDependent(this);
+	}
+}

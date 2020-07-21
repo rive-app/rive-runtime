@@ -1,13 +1,25 @@
 #ifndef _RIVE_NODE_HPP_
 #define _RIVE_NODE_HPP_
 #include "generated/node_base.hpp"
+#include "math/mat2d.hpp"
+
 namespace rive
 {
 	/// A Rive Node
 	class Node : public NodeBase
 	{
+	private:
+		Mat2D m_Transform;
+		Mat2D m_WorldTransform;
+
 	public:
-		void onAddedClean(CoreContext* context) {}
+		void onAddedClean(CoreContext* context) override;
+		void buildDependencies() override;
+		void update(ComponentDirt value) override;
+		void updateTransform();
+		void updateWorldTransform();
+		void markTransformDirty();
+		void markWorldTransformDirty();
 	};
 } // namespace rive
 

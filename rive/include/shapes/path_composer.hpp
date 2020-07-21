@@ -3,11 +3,16 @@
 #include "generated/shapes/path_composer_base.hpp"
 namespace rive
 {
+	class Shape;
 	class PathComposer : public PathComposerBase
 	{
+	private:
+		Shape* m_Shape;
+
 	public:
-		void onAddedClean(CoreContext* context) {}
+		Shape* shape() const { return m_Shape; }
+		void onAddedClean(CoreContext* context);
+		void buildDependencies();
 	};
 } // namespace rive
-
 #endif
