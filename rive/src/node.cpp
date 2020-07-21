@@ -2,7 +2,11 @@
 
 using namespace rive;
 
-void Node::onAddedClean(CoreContext* context) {}
+void Node::onAddedClean(CoreContext* context)
+{
+	m_ParentNode = parent() != nullptr && parent()->is<Node>() ? parent()->as<Node>() : nullptr;
+}
+
 void Node::buildDependencies()
 {
 	if (parent() != nullptr)
@@ -37,7 +41,19 @@ void Node::updateTransform()
 	Mat2D::scaleByValues(m_Transform, scaleX(), scaleY());
 }
 
-void Node::updateWorldTransform() {}
+void Node::updateWorldTransform()
+{
+	m_RenderOpacity = opacity();
+	if (m_ParentNode != nullptr)
+	{
+		m_RenderOpacity *= m_ParentNode->childOpacity();
+		Mat2D::multiply(m_WorldTransform, m_ParentNode->m_WorldTransform, m_Transform);
+	}
+	else
+	{
+		Mat2D::copy(m_WorldTransform, m_Transform);
+	}
+}
 
 void Node::update(ComponentDirt value)
 {
@@ -50,6 +66,9 @@ void Node::update(ComponentDirt value)
 		updateWorldTransform();
 	}
 }
+
+const Mat2D& Node::transform() const { return m_Transform; }
+const Mat2D& Node::worldTransform() const { return m_WorldTransform; }
 
 void Node::xChanged() { markTransformDirty(); }
 void Node::yChanged() { markTransformDirty(); }

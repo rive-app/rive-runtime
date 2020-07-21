@@ -11,6 +11,8 @@ namespace rive
 	private:
 		Mat2D m_Transform;
 		Mat2D m_WorldTransform;
+		float m_RenderOpacity = 0.0f;
+		Node* m_ParentNode = nullptr;
 
 	public:
 		void onAddedClean(CoreContext* context) override;
@@ -21,6 +23,12 @@ namespace rive
 		void markTransformDirty();
 		void markWorldTransformDirty();
 
+		/// Opacity inherited by any child of this node. This'll later get
+		/// overridden by effect layers.
+		virtual float childOpacity() { return m_RenderOpacity; }
+		const Mat2D& transform() const;
+		const Mat2D& worldTransform() const;
+		
 	protected:
 		void xChanged() override;
 		void yChanged() override;

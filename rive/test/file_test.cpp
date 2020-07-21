@@ -137,6 +137,10 @@ TEST_CASE("dependencies are as expected", "[file]")
 
 	artboard->advance(0.0f);
 
+	auto world = shape->worldTransform();
+	REQUIRE(world[4] == 39.203125f);
+	REQUIRE(world[5] == 29.535156f);
+
 	delete[] bytes;
 }
 
@@ -155,5 +159,3 @@ TEST_CASE("dependencies are as expected", "[file]")
 // call setupFill/restoreFill and setupStroke/restoreStroke.
 
 // Draw will be called by C++ on the Shape, the Shape will call draw on the fill/stroke (propagates to jsFill/jsStroke)
-
-// ADD xChanged etc virtual methods in core generator

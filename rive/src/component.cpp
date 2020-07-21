@@ -5,8 +5,6 @@
 
 using namespace rive;
 
-ContainerComponent* Component::parent() const { return m_Parent; }
-
 void Component::onAddedDirty(CoreContext* context)
 {
 	auto coreObject = context->resolve(parentId());

@@ -25,7 +25,7 @@ namespace rive
 
 	public:
 		void onAddedDirty(CoreContext* context) override;
-		ContainerComponent* parent() const;
+		inline ContainerComponent* parent() const { return m_Parent; }
 		const std::vector<Component*>& dependents() const { return m_Dependents; }
 		void addDependent(Component* component);
 
