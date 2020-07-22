@@ -6,6 +6,7 @@ namespace rive
 	class PathVertex : public PathVertexBase
 	{
 	public:
+		void onAddedDirty(CoreContext* context) override;
 		void onAddedClean(CoreContext* context) override {}
 	};
 } // namespace rive

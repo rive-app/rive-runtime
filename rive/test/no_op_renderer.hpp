@@ -14,8 +14,13 @@ namespace rive
 	class NoOpRenderPath : public RenderPath
 	{
 	public:
-		void reset() {}
-		void addPath(RenderPath* path, Mat2D* transform) {}
+		void reset() override {}
+		void addPath(RenderPath* path, Mat2D* transform) override {}
+
+		void moveTo(float x, float y) override {}
+		void lineTo(float x, float y) override {}
+		void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override {}
+		void close() override {}
 	};
 	RenderPath* makeRenderPath() { return new NoOpRenderPath(); }
 } // namespace rive

@@ -5,7 +5,9 @@ namespace rive
 {
 	class CubicMirroredVertex : public CubicMirroredVertexBase
 	{
-	public:
+	protected:
+		void computeIn() override;
+		void computeOut() override;
 	};
 } // namespace rive
 

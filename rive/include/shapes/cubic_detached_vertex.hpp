@@ -5,7 +5,9 @@ namespace rive
 {
 	class CubicDetachedVertex : public CubicDetachedVertexBase
 	{
-	public:
+	protected:
+		void computeIn() override;
+		void computeOut() override;
 	};
 } // namespace rive
 

@@ -1,0 +1,15 @@
+#include "shapes/cubic_mirrored_vertex.hpp"
+#include "math/vec2d.hpp"
+#include <cmath>
+
+using namespace rive;
+
+void CubicMirroredVertex::computeIn()
+{
+	Vec2D::add(m_InPoint, Vec2D(x(), y()), Vec2D(cos(rotation()) * -distance(), sin(rotation()) * -distance()));
+}
+
+void CubicMirroredVertex::computeOut()
+{
+	Vec2D::add(m_OutPoint, Vec2D(x(), y()), Vec2D(cos(rotation()) * distance(), sin(rotation()) * distance()));
+}

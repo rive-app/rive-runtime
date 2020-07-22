@@ -5,7 +5,9 @@ namespace rive
 {
 	class CubicAsymmetricVertex : public CubicAsymmetricVertexBase
 	{
-	public:
+	protected:
+		void computeIn() override;
+		void computeOut() override;
 	};
 } // namespace rive
 

@@ -12,6 +12,11 @@ namespace rive
 		virtual void reset() = 0;
 		// TODO: add commands like cubicTo, moveTo, etc...
 		virtual void addPath(RenderPath* path, Mat2D* transform) = 0;
+
+		virtual void moveTo(float x, float y) = 0;
+		virtual void lineTo(float x, float y) = 0;
+		virtual void cubicTo(float ox, float oy, float ix, float iy, float x, float y) = 0;
+		virtual void close() = 0;
 	};
 
 	// struct RenderColorStop
