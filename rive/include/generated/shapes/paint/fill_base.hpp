@@ -6,6 +6,9 @@ namespace rive
 {
 	class FillBase : public ShapePaint
 	{
+	protected:
+		typedef ShapePaint Super;
+
 	public:
 		static const int typeKey = 20;
 

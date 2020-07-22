@@ -6,6 +6,9 @@ namespace rive
 {
 	class ShapePaintBase : public ContainerComponent
 	{
+	protected:
+		typedef ContainerComponent Super;
+
 	public:
 		static const int typeKey = 21;
 

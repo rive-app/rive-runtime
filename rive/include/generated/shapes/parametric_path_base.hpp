@@ -6,6 +6,9 @@ namespace rive
 {
 	class ParametricPathBase : public Path
 	{
+	protected:
+		typedef Path Super;
+
 	public:
 		static const int typeKey = 15;
 

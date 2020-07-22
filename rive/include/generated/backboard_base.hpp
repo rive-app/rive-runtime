@@ -5,6 +5,9 @@ namespace rive
 {
 	class BackboardBase : public Core
 	{
+	protected:
+		typedef Core Super;
+
 	public:
 		static const int typeKey = 23;
 

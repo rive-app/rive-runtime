@@ -6,6 +6,9 @@ namespace rive
 {
 	class DrawableBase : public Node
 	{
+	protected:
+		typedef Node Super;
+
 	public:
 		static const int typeKey = 13;
 

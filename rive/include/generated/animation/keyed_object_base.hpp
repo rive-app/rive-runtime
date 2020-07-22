@@ -6,6 +6,9 @@ namespace rive
 {
 	class KeyedObjectBase : public Core
 	{
+	protected:
+		typedef Core Super;
+
 	public:
 		static const int typeKey = 25;
 

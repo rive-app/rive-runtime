@@ -7,6 +7,9 @@ namespace rive
 {
 	class GradientStopBase : public Component
 	{
+	protected:
+		typedef Component Super;
+
 	public:
 		static const int typeKey = 19;
 

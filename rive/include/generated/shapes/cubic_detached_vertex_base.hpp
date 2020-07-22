@@ -6,6 +6,9 @@ namespace rive
 {
 	class CubicDetachedVertexBase : public CubicVertex
 	{
+	protected:
+		typedef CubicVertex Super;
+
 	public:
 		static const int typeKey = 6;
 

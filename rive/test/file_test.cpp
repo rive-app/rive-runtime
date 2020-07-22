@@ -4,6 +4,7 @@
 #include "node.hpp"
 #include "shapes/rectangle.hpp"
 #include "shapes/shape.hpp"
+#include "no_op_renderer.hpp"
 #include <cstdio>
 
 TEST_CASE("file can be read", "[file]")

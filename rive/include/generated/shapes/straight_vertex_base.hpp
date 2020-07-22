@@ -6,6 +6,9 @@ namespace rive
 {
 	class StraightVertexBase : public PathVertex
 	{
+	protected:
+		typedef PathVertex Super;
+
 	public:
 		static const int typeKey = 5;
 

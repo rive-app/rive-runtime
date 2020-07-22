@@ -6,6 +6,9 @@ namespace rive
 {
 	class RectangleBase : public ParametricPath
 	{
+	protected:
+		typedef ParametricPath Super;
+
 	public:
 		static const int typeKey = 7;
 

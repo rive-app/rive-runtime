@@ -5,6 +5,9 @@ namespace rive
 {
 	class CubicVertexBase : public PathVertex
 	{
+	protected:
+		typedef PathVertex Super;
+
 	public:
 		static const int typeKey = 36;
 

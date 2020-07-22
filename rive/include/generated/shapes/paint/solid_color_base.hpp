@@ -6,6 +6,9 @@ namespace rive
 {
 	class SolidColorBase : public Component
 	{
+	protected:
+		typedef Component Super;
+
 	public:
 		static const int typeKey = 18;
 

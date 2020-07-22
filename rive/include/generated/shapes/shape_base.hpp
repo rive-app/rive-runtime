@@ -5,6 +5,9 @@ namespace rive
 {
 	class ShapeBase : public Drawable
 	{
+	protected:
+		typedef Drawable Super;
+
 	public:
 		static const int typeKey = 3;
 

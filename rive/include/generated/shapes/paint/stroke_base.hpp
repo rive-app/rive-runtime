@@ -8,6 +8,9 @@ namespace rive
 {
 	class StrokeBase : public ShapePaint
 	{
+	protected:
+		typedef ShapePaint Super;
+
 	public:
 		static const int typeKey = 24;
 

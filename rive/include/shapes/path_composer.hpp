@@ -4,15 +4,23 @@
 namespace rive
 {
 	class Shape;
+	class RenderPath;
 	class PathComposer : public PathComposerBase
 	{
 	private:
-		Shape* m_Shape;
+		Shape* m_Shape = nullptr;
+		RenderPath* m_LocalPath = nullptr;
+		RenderPath* m_WorldPath = nullptr;
 
 	public:
+	~PathComposer();
 		Shape* shape() const { return m_Shape; }
-		void onAddedClean(CoreContext* context);
-		void buildDependencies();
+		void onAddedClean(CoreContext* context) override;
+		void buildDependencies() override;
+		void update(ComponentDirt value) override;
+
+		RenderPath* localPath() const { return m_LocalPath; }
+		RenderPath* worldPath() const { return m_WorldPath; }
 	};
 } // namespace rive
 #endif

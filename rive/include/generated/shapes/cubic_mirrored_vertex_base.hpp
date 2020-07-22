@@ -6,6 +6,9 @@ namespace rive
 {
 	class CubicMirroredVertexBase : public CubicVertex
 	{
+	protected:
+		typedef CubicVertex Super;
+
 	public:
 		static const int typeKey = 35;
 

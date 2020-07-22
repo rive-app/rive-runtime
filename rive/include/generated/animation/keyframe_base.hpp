@@ -6,6 +6,9 @@ namespace rive
 {
 	class KeyFrameBase : public Core
 	{
+	protected:
+		typedef Core Super;
+
 	public:
 		static const int typeKey = 29;
 

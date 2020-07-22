@@ -8,6 +8,9 @@ namespace rive
 {
 	class LinearAnimationBase : public Animation
 	{
+	protected:
+		typedef Animation Super;
+
 	public:
 		static const int typeKey = 31;
 

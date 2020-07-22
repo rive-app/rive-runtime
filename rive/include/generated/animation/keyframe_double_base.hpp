@@ -6,6 +6,9 @@ namespace rive
 {
 	class KeyFrameDoubleBase : public KeyFrame
 	{
+	protected:
+		typedef KeyFrame Super;
+
 	public:
 		static const int typeKey = 30;
 

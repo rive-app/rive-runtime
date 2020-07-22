@@ -1,12 +1,13 @@
 #ifndef _RIVE_SHAPE_HPP_
 #define _RIVE_SHAPE_HPP_
 #include "generated/shapes/shape_base.hpp"
+#include "shapes/shape_paint_container.hpp"
 #include <vector>
 
 namespace rive
 {
 	class Path;
-	class Shape : public ShapeBase
+	class Shape : public ShapeBase, public ShapePaintContainer
 	{
 	private:
 		std::vector<Path*> m_Paths;
@@ -14,6 +15,11 @@ namespace rive
 	public:
 		void addPath(Path* path);
 		std::vector<Path*>& paths() { return m_Paths; }
+
+		bool wantLocalPath() const { return true; }
+		bool wantWorldPath() const { return true; }
+
+		void update(ComponentDirt value) override;
 	};
 } // namespace rive
 

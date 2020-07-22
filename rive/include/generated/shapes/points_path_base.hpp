@@ -6,6 +6,9 @@ namespace rive
 {
 	class PointsPathBase : public Path
 	{
+	protected:
+		typedef Path Super;
+
 	public:
 		static const int typeKey = 16;
 

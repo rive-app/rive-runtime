@@ -6,6 +6,9 @@ namespace rive
 {
 	class ArtboardBase : public ContainerComponent
 	{
+	protected:
+		typedef ContainerComponent Super;
+
 	public:
 		static const int typeKey = 1;
 

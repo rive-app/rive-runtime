@@ -5,6 +5,9 @@ namespace rive
 {
 	class PathBase : public Node
 	{
+	protected:
+		typedef Node Super;
+
 	public:
 		static const int typeKey = 12;
 

@@ -6,6 +6,9 @@ namespace rive
 {
 	class PathVertexBase : public Component
 	{
+	protected:
+		typedef Component Super;
+
 	public:
 		static const int typeKey = 14;
 

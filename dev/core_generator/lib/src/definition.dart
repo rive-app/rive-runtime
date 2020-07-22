@@ -128,9 +128,11 @@ class Definition {
     }
 
     code.writeln('namespace rive {');
-    code.writeln('class ${_name}Base : public '
-        '${defineContextExtension ? 'Core' : _extensionOf?._name} {');
+    var superTypeName = defineContextExtension ? 'Core' : _extensionOf?._name;
+    code.writeln('class ${_name}Base : public $superTypeName {');
 
+    code.writeln('protected:');
+    code.writeln('typedef $superTypeName Super;');
     code.writeln('public:');
     code.writeln('static const int typeKey = ${_key.intValue};\n');
 
@@ -206,7 +208,7 @@ class Definition {
         code.writeln('return false; }');
       }
     }
-    
+
     code.writeln('protected:');
     if (properties.isNotEmpty) {
       for (final property in properties) {

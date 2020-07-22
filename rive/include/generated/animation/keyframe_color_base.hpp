@@ -6,6 +6,9 @@ namespace rive
 {
 	class KeyFrameColorBase : public KeyFrame
 	{
+	protected:
+		typedef KeyFrame Super;
+
 	public:
 		static const int typeKey = 37;
 

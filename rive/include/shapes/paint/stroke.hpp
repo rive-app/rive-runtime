@@ -1,12 +1,13 @@
 #ifndef _RIVE_STROKE_HPP_
 #define _RIVE_STROKE_HPP_
 #include "generated/shapes/paint/stroke_base.hpp"
+#include "shapes/path_space.hpp"
 namespace rive
 {
 	class Stroke : public StrokeBase
 	{
 	public:
-		void onAddedClean(CoreContext* context) override {}
+		PathSpace pathSpace() const override;
 	};
 } // namespace rive
 

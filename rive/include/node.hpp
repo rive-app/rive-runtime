@@ -26,9 +26,11 @@ namespace rive
 		/// Opacity inherited by any child of this node. This'll later get
 		/// overridden by effect layers.
 		virtual float childOpacity() { return m_RenderOpacity; }
+		float renderOpacity() const { return m_RenderOpacity; }
+		
 		const Mat2D& transform() const;
 		const Mat2D& worldTransform() const;
-		
+
 	protected:
 		void xChanged() override;
 		void yChanged() override;

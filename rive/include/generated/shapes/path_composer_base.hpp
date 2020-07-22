@@ -5,6 +5,9 @@ namespace rive
 {
 	class PathComposerBase : public Component
 	{
+	protected:
+		typedef Component Super;
+
 	public:
 		static const int typeKey = 9;
 

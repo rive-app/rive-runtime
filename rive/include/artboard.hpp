@@ -2,13 +2,13 @@
 #define _RIVE_ARTBOARD_HPP_
 #include "core_context.hpp"
 #include "generated/artboard_base.hpp"
-
+#include "shapes/shape_paint_container.hpp"
 #include <vector>
 namespace rive
 {
 	class Animation;
 	class File;
-	class Artboard : public ArtboardBase, public CoreContext
+	class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer
 	{
 		friend class File;
 

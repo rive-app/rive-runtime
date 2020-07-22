@@ -5,6 +5,9 @@ namespace rive
 {
 	class TriangleBase : public ParametricPath
 	{
+	protected:
+		typedef ParametricPath Super;
+
 	public:
 		static const int typeKey = 8;
 

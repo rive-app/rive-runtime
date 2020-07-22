@@ -8,6 +8,9 @@ namespace rive
 {
 	class ComponentBase : public Core
 	{
+	protected:
+		typedef Core Super;
+
 	public:
 		static const int typeKey = 10;
 
