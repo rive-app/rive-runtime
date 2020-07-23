@@ -8,12 +8,23 @@ Artboard::~Artboard()
 {
 	for (auto object : m_Objects)
 	{
+		// First object is artboard
+		if (object == this)
+		{
+			continue;
+		}
 		delete object;
 	}
 	for (auto object : m_Animations)
 	{
 		delete object;
 	}
+}
+
+void Artboard::onAddedDirty(CoreContext* context)
+{
+	// Intentionally empty and intentionally doesn't call
+	// Super::onAddedDirty(context); to avoid parenting to self.
 }
 
 void Artboard::initialize()
@@ -40,12 +51,10 @@ void Artboard::initialize()
 	{
 		object->onAddedClean(this);
 	}
-
 	for (auto object : m_Animations)
 	{
 		object->onAddedClean(this);
 	}
-
 	// Multi-level references have been built up, now we can actually mark
 	// what's dependent on what.
 	for (auto object : m_Objects)
@@ -73,7 +82,10 @@ void Artboard::sortDependencies()
 
 void Artboard::addObject(Core* object) { m_Objects.push_back(object); }
 
-void Artboard::addAnimation(Animation* object) { m_Animations.push_back(object); }
+void Artboard::addAnimation(Animation* object)
+{
+	m_Animations.push_back(object);
+}
 
 Core* Artboard::resolve(int id) const
 {
@@ -88,7 +100,8 @@ void Artboard::onComponentDirty(Component* component)
 {
 	if (hasDirt(ComponentDirt::Components))
 	{
-		// TODO: we need to tell the system that it needs to advance/draw another frame ASAP.
+		// TODO: we need to tell the system that it needs to advance/draw
+		// another frame ASAP.
 		//   context?.markNeedsAdvance();
 		m_Dirt |= ComponentDirt::Components;
 	}
@@ -132,7 +145,8 @@ bool Artboard::updateComponents()
 				// update.
 				if (m_DirtDepth < i)
 				{
-					// We put this in here just to know if we need to keep this around...
+					// We put this in here just to know if we need to keep this
+					// around...
 					assert(false);
 					break;
 				}

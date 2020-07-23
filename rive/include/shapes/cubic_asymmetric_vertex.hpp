@@ -8,6 +8,9 @@ namespace rive
 	protected:
 		void computeIn() override;
 		void computeOut() override;
+		void rotationChanged() override;
+		void inDistanceChanged() override;
+		void outDistanceChanged() override;
 	};
 } // namespace rive
 

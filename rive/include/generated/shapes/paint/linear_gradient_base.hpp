@@ -36,14 +36,14 @@ namespace rive
 		static const int opacityPropertyKey = 46;
 
 	private:
-		double m_StartX = 0;
-		double m_StartY = 0;
-		double m_EndX = 0;
-		double m_EndY = 0;
-		double m_Opacity = 1;
+		float m_StartX = 0;
+		float m_StartY = 0;
+		float m_EndX = 0;
+		float m_EndY = 0;
+		float m_Opacity = 1;
 	public:
-		double startX() const { return m_StartX; }
-		void startX(double value)
+		float startX() const { return m_StartX; }
+		void startX(float value)
 		{
 			if (m_StartX == value)
 			{
@@ -53,8 +53,8 @@ namespace rive
 			startXChanged();
 		}
 
-		double startY() const { return m_StartY; }
-		void startY(double value)
+		float startY() const { return m_StartY; }
+		void startY(float value)
 		{
 			if (m_StartY == value)
 			{
@@ -64,8 +64,8 @@ namespace rive
 			startYChanged();
 		}
 
-		double endX() const { return m_EndX; }
-		void endX(double value)
+		float endX() const { return m_EndX; }
+		void endX(float value)
 		{
 			if (m_EndX == value)
 			{
@@ -75,8 +75,8 @@ namespace rive
 			endXChanged();
 		}
 
-		double endY() const { return m_EndY; }
-		void endY(double value)
+		float endY() const { return m_EndY; }
+		void endY(float value)
 		{
 			if (m_EndY == value)
 			{
@@ -86,8 +86,8 @@ namespace rive
 			endYChanged();
 		}
 
-		double opacity() const { return m_Opacity; }
-		void opacity(double value)
+		float opacity() const { return m_Opacity; }
+		void opacity(float value)
 		{
 			if (m_Opacity == value)
 			{

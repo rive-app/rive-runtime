@@ -33,13 +33,13 @@ namespace rive
 		static const int y2PropertyKey = 66;
 
 	private:
-		double m_X1 = 0.42;
-		double m_Y1 = 0;
-		double m_X2 = 0.58;
-		double m_Y2 = 1;
+		float m_X1 = 0.42;
+		float m_Y1 = 0;
+		float m_X2 = 0.58;
+		float m_Y2 = 1;
 	public:
-		double x1() const { return m_X1; }
-		void x1(double value)
+		float x1() const { return m_X1; }
+		void x1(float value)
 		{
 			if (m_X1 == value)
 			{
@@ -49,8 +49,8 @@ namespace rive
 			x1Changed();
 		}
 
-		double y1() const { return m_Y1; }
-		void y1(double value)
+		float y1() const { return m_Y1; }
+		void y1(float value)
 		{
 			if (m_Y1 == value)
 			{
@@ -60,8 +60,8 @@ namespace rive
 			y1Changed();
 		}
 
-		double x2() const { return m_X2; }
-		void x2(double value)
+		float x2() const { return m_X2; }
+		void x2(float value)
 		{
 			if (m_X2 == value)
 			{
@@ -71,8 +71,8 @@ namespace rive
 			x2Changed();
 		}
 
-		double y2() const { return m_Y2; }
-		void y2(double value)
+		float y2() const { return m_Y2; }
+		void y2(float value)
 		{
 			if (m_Y2 == value)
 			{

@@ -31,10 +31,10 @@ namespace rive
 		static const int valuePropertyKey = 70;
 
 	private:
-		double m_Value = 0.0;
+		float m_Value = 0.0f;
 	public:
-		double value() const { return m_Value; }
-		void value(double value)
+		float value() const { return m_Value; }
+		void value(float value)
 		{
 			if (m_Value == value)
 			{

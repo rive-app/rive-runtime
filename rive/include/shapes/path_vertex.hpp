@@ -8,6 +8,9 @@ namespace rive
 	public:
 		void onAddedDirty(CoreContext* context) override;
 		void onAddedClean(CoreContext* context) override {}
+
+	protected:
+		void markPathDirty();
 	};
 } // namespace rive
 

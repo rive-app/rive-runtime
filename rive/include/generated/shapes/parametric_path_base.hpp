@@ -35,11 +35,11 @@ namespace rive
 		static const int heightPropertyKey = 21;
 
 	private:
-		double m_Width = 0;
-		double m_Height = 0;
+		float m_Width = 0;
+		float m_Height = 0;
 	public:
-		double width() const { return m_Width; }
-		void width(double value)
+		float width() const { return m_Width; }
+		void width(float value)
 		{
 			if (m_Width == value)
 			{
@@ -49,8 +49,8 @@ namespace rive
 			widthChanged();
 		}
 
-		double height() const { return m_Height; }
-		void height(double value)
+		float height() const { return m_Height; }
+		void height(float value)
 		{
 			if (m_Height == value)
 			{

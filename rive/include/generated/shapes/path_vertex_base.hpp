@@ -32,11 +32,11 @@ namespace rive
 		static const int yPropertyKey = 25;
 
 	private:
-		double m_X = 0.0;
-		double m_Y = 0.0;
+		float m_X = 0.0f;
+		float m_Y = 0.0f;
 	public:
-		double x() const { return m_X; }
-		void x(double value)
+		float x() const { return m_X; }
+		void x(float value)
 		{
 			if (m_X == value)
 			{
@@ -46,8 +46,8 @@ namespace rive
 			xChanged();
 		}
 
-		double y() const { return m_Y; }
-		void y(double value)
+		float y() const { return m_Y; }
+		void y(float value)
 		{
 			if (m_Y == value)
 			{

@@ -8,6 +8,8 @@ bool ShapePaintMutator::initPaintMutator(Component* parent)
 {
 	if (parent->is<ShapePaint>())
 	{
+        // Set this object as the mutator for the shape paint and get a
+        // reference to the paint we'll be mutating.
 		m_RenderPaint = parent->as<ShapePaint>()->initPaintMutator(this);
 		return true;
 	}

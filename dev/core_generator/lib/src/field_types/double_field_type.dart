@@ -5,8 +5,9 @@ class DoubleFieldType extends FieldType {
       : super(
           'double',
           'CoreDoubleType',
+          cppName: 'float'
         );
 
   @override
-  String get defaultValue => '0.0';
+  String get defaultValue => '0.0f';
 }

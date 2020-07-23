@@ -35,10 +35,10 @@ namespace rive
 		static const int cornerRadiusPropertyKey = 31;
 
 	private:
-		double m_CornerRadius = 0.0;
+		float m_CornerRadius = 0.0f;
 	public:
-		double cornerRadius() const { return m_CornerRadius; }
-		void cornerRadius(double value)
+		float cornerRadius() const { return m_CornerRadius; }
+		void cornerRadius(float value)
 		{
 			if (m_CornerRadius == value)
 			{

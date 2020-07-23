@@ -38,13 +38,13 @@ namespace rive
 		static const int transformAffectsStrokePropertyKey = 50;
 
 	private:
-		double m_Thickness = 1;
+		float m_Thickness = 1;
 		int m_Cap = 0;
 		int m_Join = 0;
 		bool m_TransformAffectsStroke = true;
 	public:
-		double thickness() const { return m_Thickness; }
-		void thickness(double value)
+		float thickness() const { return m_Thickness; }
+		void thickness(float value)
 		{
 			if (m_Thickness == value)
 			{

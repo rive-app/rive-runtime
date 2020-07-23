@@ -37,15 +37,15 @@ namespace rive
 		static const int originYPropertyKey = 12;
 
 	private:
-		double m_Width = 0.0;
-		double m_Height = 0.0;
-		double m_X = 0.0;
-		double m_Y = 0.0;
-		double m_OriginX = 0.0;
-		double m_OriginY = 0.0;
+		float m_Width = 0.0f;
+		float m_Height = 0.0f;
+		float m_X = 0.0f;
+		float m_Y = 0.0f;
+		float m_OriginX = 0.0f;
+		float m_OriginY = 0.0f;
 	public:
-		double width() const { return m_Width; }
-		void width(double value)
+		float width() const { return m_Width; }
+		void width(float value)
 		{
 			if (m_Width == value)
 			{
@@ -55,8 +55,8 @@ namespace rive
 			widthChanged();
 		}
 
-		double height() const { return m_Height; }
-		void height(double value)
+		float height() const { return m_Height; }
+		void height(float value)
 		{
 			if (m_Height == value)
 			{
@@ -66,8 +66,8 @@ namespace rive
 			heightChanged();
 		}
 
-		double x() const { return m_X; }
-		void x(double value)
+		float x() const { return m_X; }
+		void x(float value)
 		{
 			if (m_X == value)
 			{
@@ -77,8 +77,8 @@ namespace rive
 			xChanged();
 		}
 
-		double y() const { return m_Y; }
-		void y(double value)
+		float y() const { return m_Y; }
+		void y(float value)
 		{
 			if (m_Y == value)
 			{
@@ -88,8 +88,8 @@ namespace rive
 			yChanged();
 		}
 
-		double originX() const { return m_OriginX; }
-		void originX(double value)
+		float originX() const { return m_OriginX; }
+		void originX(float value)
 		{
 			if (m_OriginX == value)
 			{
@@ -99,8 +99,8 @@ namespace rive
 			originXChanged();
 		}
 
-		double originY() const { return m_OriginY; }
-		void originY(double value)
+		float originY() const { return m_OriginY; }
+		void originY(float value)
 		{
 			if (m_OriginY == value)
 			{
