@@ -8,7 +8,9 @@ namespace rive
 {
 	class Animation;
 	class File;
-	class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer
+	class Artboard : public ArtboardBase,
+	                 public CoreContext,
+	                 public ShapePaintContainer
 	{
 		friend class File;
 
@@ -18,16 +20,17 @@ namespace rive
 		std::vector<Component*> m_DependencyOrder;
 		unsigned int m_DirtDepth = 0;
 
-		void initialize();
 		void sortDependencies();
 
 	public:
 		~Artboard();
+		void initialize();
 		void addObject(Core* object);
 		void addAnimation(Animation* object);
 
 		Core* resolve(int id) const override;
 
+		void onAddedDirty(CoreContext* context) override;
 		void onAddedClean(CoreContext* context) override {}
 		void onComponentDirty(Component* component);
 

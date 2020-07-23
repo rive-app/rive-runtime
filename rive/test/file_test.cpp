@@ -30,7 +30,8 @@ TEST_CASE("file can be read", "[file]")
 
 	// There should be a second artboard named Two.
 	REQUIRE(file->artboard("Two") != nullptr);
-
+	
+	delete file;
 	delete[] bytes;
 }
 
@@ -68,6 +69,7 @@ TEST_CASE("file with animation be read", "[file]")
 	REQUIRE(shinNode->parent()->parent()->parent() != nullptr);
 	REQUIRE(shinNode->parent()->parent()->parent() == artboard);
 
+	delete file;
 	delete[] bytes;
 }
 
@@ -142,6 +144,7 @@ TEST_CASE("dependencies are as expected", "[file]")
 	REQUIRE(world[4] == 39.203125f);
 	REQUIRE(world[5] == 29.535156f);
 
+	delete file;
 	delete[] bytes;
 }
 

@@ -41,7 +41,7 @@ namespace rive
 	private:
 		int m_Fps = 60;
 		int m_Duration = 60;
-		double m_Speed = 1;
+		float m_Speed = 1;
 		int m_LoopValue = 0;
 		int m_WorkStart = 0;
 		int m_WorkEnd = 0;
@@ -69,8 +69,8 @@ namespace rive
 			durationChanged();
 		}
 
-		double speed() const { return m_Speed; }
-		void speed(double value)
+		float speed() const { return m_Speed; }
+		void speed(float value)
 		{
 			if (m_Speed == value)
 			{

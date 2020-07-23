@@ -37,15 +37,15 @@ namespace rive
 		static const int opacityPropertyKey = 18;
 
 	private:
-		double m_X = 0;
-		double m_Y = 0;
-		double m_Rotation = 0;
-		double m_ScaleX = 1;
-		double m_ScaleY = 1;
-		double m_Opacity = 1;
+		float m_X = 0;
+		float m_Y = 0;
+		float m_Rotation = 0;
+		float m_ScaleX = 1;
+		float m_ScaleY = 1;
+		float m_Opacity = 1;
 	public:
-		double x() const { return m_X; }
-		void x(double value)
+		float x() const { return m_X; }
+		void x(float value)
 		{
 			if (m_X == value)
 			{
@@ -55,8 +55,8 @@ namespace rive
 			xChanged();
 		}
 
-		double y() const { return m_Y; }
-		void y(double value)
+		float y() const { return m_Y; }
+		void y(float value)
 		{
 			if (m_Y == value)
 			{
@@ -66,8 +66,8 @@ namespace rive
 			yChanged();
 		}
 
-		double rotation() const { return m_Rotation; }
-		void rotation(double value)
+		float rotation() const { return m_Rotation; }
+		void rotation(float value)
 		{
 			if (m_Rotation == value)
 			{
@@ -77,8 +77,8 @@ namespace rive
 			rotationChanged();
 		}
 
-		double scaleX() const { return m_ScaleX; }
-		void scaleX(double value)
+		float scaleX() const { return m_ScaleX; }
+		void scaleX(float value)
 		{
 			if (m_ScaleX == value)
 			{
@@ -88,8 +88,8 @@ namespace rive
 			scaleXChanged();
 		}
 
-		double scaleY() const { return m_ScaleY; }
-		void scaleY(double value)
+		float scaleY() const { return m_ScaleY; }
+		void scaleY(float value)
 		{
 			if (m_ScaleY == value)
 			{
@@ -99,8 +99,8 @@ namespace rive
 			scaleYChanged();
 		}
 
-		double opacity() const { return m_Opacity; }
-		void opacity(double value)
+		float opacity() const { return m_Opacity; }
+		void opacity(float value)
 		{
 			if (m_Opacity == value)
 			{

@@ -5,7 +5,9 @@ namespace rive
 {
 	class ParametricPath : public ParametricPathBase
 	{
-	public:
+	protected:
+		void widthChanged() override;
+		void heightChanged() override;
 	};
 } // namespace rive
 

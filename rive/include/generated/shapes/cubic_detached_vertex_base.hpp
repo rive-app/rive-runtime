@@ -36,13 +36,13 @@ namespace rive
 		static const int outDistancePropertyKey = 87;
 
 	private:
-		double m_InRotation = 0;
-		double m_InDistance = 0;
-		double m_OutRotation = 0;
-		double m_OutDistance = 0;
+		float m_InRotation = 0;
+		float m_InDistance = 0;
+		float m_OutRotation = 0;
+		float m_OutDistance = 0;
 	public:
-		double inRotation() const { return m_InRotation; }
-		void inRotation(double value)
+		float inRotation() const { return m_InRotation; }
+		void inRotation(float value)
 		{
 			if (m_InRotation == value)
 			{
@@ -52,8 +52,8 @@ namespace rive
 			inRotationChanged();
 		}
 
-		double inDistance() const { return m_InDistance; }
-		void inDistance(double value)
+		float inDistance() const { return m_InDistance; }
+		void inDistance(float value)
 		{
 			if (m_InDistance == value)
 			{
@@ -63,8 +63,8 @@ namespace rive
 			inDistanceChanged();
 		}
 
-		double outRotation() const { return m_OutRotation; }
-		void outRotation(double value)
+		float outRotation() const { return m_OutRotation; }
+		void outRotation(float value)
 		{
 			if (m_OutRotation == value)
 			{
@@ -74,8 +74,8 @@ namespace rive
 			outRotationChanged();
 		}
 
-		double outDistance() const { return m_OutDistance; }
-		void outDistance(double value)
+		float outDistance() const { return m_OutDistance; }
+		void outDistance(float value)
 		{
 			if (m_OutDistance == value)
 			{

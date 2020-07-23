@@ -21,3 +21,15 @@ const Vec2D& CubicVertex::outPoint()
 	}
 	return m_OutPoint;
 }
+
+void CubicVertex::outPoint(const Vec2D& value)
+{
+	Vec2D::copy(m_OutPoint, value);
+	m_OutValid = true;
+}
+
+void CubicVertex::inPoint(const Vec2D& value)
+{
+	Vec2D::copy(m_InPoint, value);
+	m_InValid = true;
+}

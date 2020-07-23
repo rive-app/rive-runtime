@@ -6,6 +6,7 @@ namespace rive
 	class PointsPath : public PointsPathBase
 	{
 	public:
+		bool isPathClosed() const override { return isClosed(); }
 	};
 } // namespace rive
 

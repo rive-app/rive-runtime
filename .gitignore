@@ -51,3 +51,6 @@ pubspec.lock
 
 # Generated docs
 rive/docs
+
+# Analysis results
+dev/analysis_report

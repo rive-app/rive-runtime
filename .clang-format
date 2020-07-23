@@ -12,7 +12,10 @@ NamespaceIndentation: All
 AccessModifierOffset: -4
 BreakConstructorInitializers: AfterColon
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
-ColumnLimit: 140
+ColumnLimit: 80
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: Align
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterEnum: true

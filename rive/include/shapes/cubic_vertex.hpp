@@ -20,6 +20,9 @@ namespace rive
 	public:
 		const Vec2D& outPoint();
 		const Vec2D& inPoint();
+
+		void outPoint(const Vec2D& value);
+		void inPoint(const Vec2D& value);
 	};
 } // namespace rive
 

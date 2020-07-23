@@ -15,7 +15,7 @@ namespace rive
 		friend class Artboard;
 
 	private:
-		ContainerComponent* m_Parent;
+		ContainerComponent* m_Parent = nullptr;
 		std::vector<Component*> m_Dependents;
 
 		unsigned int m_GraphOrder;

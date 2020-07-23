@@ -9,7 +9,7 @@ namespace rive
 	class Shape;
 	class RenderPath;
 	class PathVertex;
-	
+
 	class Path : public PathBase
 	{
 	private:
@@ -27,6 +27,9 @@ namespace rive
 		void update(ComponentDirt value) override;
 
 		void addVertex(PathVertex* vertex);
+
+		void markPathDirty();
+		virtual bool isPathClosed() const { return true; }
 	};
 } // namespace rive
 

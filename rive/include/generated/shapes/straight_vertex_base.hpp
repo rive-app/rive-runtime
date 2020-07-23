@@ -32,10 +32,10 @@ namespace rive
 		static const int radiusPropertyKey = 26;
 
 	private:
-		double m_Radius = 0;
+		float m_Radius = 0;
 	public:
-		double radius() const { return m_Radius; }
-		void radius(double value)
+		float radius() const { return m_Radius; }
+		void radius(float value)
 		{
 			if (m_Radius == value)
 			{

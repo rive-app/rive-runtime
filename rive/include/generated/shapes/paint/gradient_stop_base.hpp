@@ -34,7 +34,7 @@ namespace rive
 
 	private:
 		int m_ColorValue = 0xFFFFFFFF;
-		double m_Position = 0;
+		float m_Position = 0;
 	public:
 		int colorValue() const { return m_ColorValue; }
 		void colorValue(int value)
@@ -47,8 +47,8 @@ namespace rive
 			colorValueChanged();
 		}
 
-		double position() const { return m_Position; }
-		void position(double value)
+		float position() const { return m_Position; }
+		void position(float value)
 		{
 			if (m_Position == value)
 			{

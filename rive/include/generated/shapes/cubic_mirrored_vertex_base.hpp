@@ -34,11 +34,11 @@ namespace rive
 		static const int distancePropertyKey = 83;
 
 	private:
-		double m_Rotation = 0;
-		double m_Distance = 0;
+		float m_Rotation = 0;
+		float m_Distance = 0;
 	public:
-		double rotation() const { return m_Rotation; }
-		void rotation(double value)
+		float rotation() const { return m_Rotation; }
+		void rotation(float value)
 		{
 			if (m_Rotation == value)
 			{
@@ -48,8 +48,8 @@ namespace rive
 			rotationChanged();
 		}
 
-		double distance() const { return m_Distance; }
-		void distance(double value)
+		float distance() const { return m_Distance; }
+		void distance(float value)
 		{
 			if (m_Distance == value)
 			{
