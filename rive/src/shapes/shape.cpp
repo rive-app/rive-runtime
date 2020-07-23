@@ -26,3 +26,8 @@ void Shape::update(ComponentDirt value)
 		}
 	}
 }
+
+void Shape::draw(Renderer* renderer) 
+{
+	// TODO: ...
+}

@@ -1,6 +1,8 @@
 #include "artboard.hpp"
 #include "animation/animation.hpp"
 #include "dependency_sorter.hpp"
+#include "shapes/paint/shape_paint.hpp"
+#include "renderer.hpp"
 
 using namespace rive;
 
@@ -19,6 +21,7 @@ Artboard::~Artboard()
 	{
 		delete object;
 	}
+	delete m_RenderPath;
 }
 
 void Artboard::onAddedDirty(CoreContext* context)
@@ -29,6 +32,8 @@ void Artboard::onAddedDirty(CoreContext* context)
 
 void Artboard::initialize()
 {
+	m_RenderPath = makeRenderPath();
+
 	// onAddedDirty guarantees that all objects are now available so they can be
 	// looked up by index/id. This is where nodes find their parents, but they
 	// can't assume that their parent's parent will have resolved yet.
@@ -115,6 +120,15 @@ void Artboard::onComponentDirty(Component* component)
 	}
 }
 
+void Artboard::update(ComponentDirt value)
+{
+	if (hasDirt(value, ComponentDirt::Path))
+	{
+		m_RenderPath->reset();
+		m_RenderPath->addRect(0.0f, 0.0f, width(), height());
+	}
+}
+
 bool Artboard::updateComponents()
 {
 	if (hasDirt(ComponentDirt::Components))
@@ -159,3 +173,18 @@ bool Artboard::updateComponents()
 }
 
 bool Artboard::advance(double elapsedSeconds) { return updateComponents(); }
+
+void Artboard::draw(Renderer* renderer)
+{
+	for (auto shapePaint : m_ShapePaints)
+	{
+		shapePaint->draw(renderer, m_RenderPath);
+	}
+	renderer->save();
+	renderer->clipPath(m_RenderPath);
+	renderer->translate(width() * originX(), height() * originY());
+	// for(auto drawable : m_Drawables) {
+
+	// }
+	renderer->restore();
+}

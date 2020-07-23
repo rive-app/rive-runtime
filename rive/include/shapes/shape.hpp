@@ -20,6 +20,7 @@ namespace rive
 		bool wantWorldPath() const { return true; }
 
 		void update(ComponentDirt value) override;
+		void draw(Renderer* renderer) override;
 	};
 } // namespace rive
 

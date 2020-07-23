@@ -75,5 +75,15 @@ namespace rive
 		}
 	};
 
+	class NoOpRenderer : public Renderer
+	{
+		void save() {}
+		void restore() {}
+		void transform(Mat2D* transform) {}
+		void translate(float x, float y) {}
+		void drawPath(RenderPath* path, RenderPaint* paint) {}
+		void clipPath(RenderPath* path) {}
+	};
+
 } // namespace rive
 #endif

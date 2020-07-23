@@ -2,8 +2,10 @@
 #define _RIVE_ARTBOARD_HPP_
 #include "core_context.hpp"
 #include "generated/artboard_base.hpp"
+#include "renderer.hpp"
 #include "shapes/shape_paint_container.hpp"
 #include <vector>
+
 namespace rive
 {
 	class Animation;
@@ -19,6 +21,7 @@ namespace rive
 		std::vector<Animation*> m_Animations;
 		std::vector<Component*> m_DependencyOrder;
 		unsigned int m_DirtDepth = 0;
+		RenderPath* m_RenderPath = nullptr;
 
 		void sortDependencies();
 
@@ -36,8 +39,10 @@ namespace rive
 
 		/// Update components that depend on each other in DAG order.
 		bool updateComponents();
+		void update(ComponentDirt value) override;
 
 		bool advance(double elapsedSeconds);
+		void draw(Renderer* renderer);
 
 		template <typename T = Component> T* find(std::string name)
 		{

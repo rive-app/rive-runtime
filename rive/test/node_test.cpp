@@ -9,4 +9,5 @@ TEST_CASE("nodeX function return x value", "[node]")
 	REQUIRE(node->x() == 0.0f);
 	node->x(2.0f);
 	REQUIRE(node->x() == 2.0f);
+	delete node;
 }

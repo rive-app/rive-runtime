@@ -8,6 +8,7 @@ namespace rive
 	{
 	public:
 		PathSpace pathSpace() const override;
+		void draw(Renderer* renderer, RenderPath* path) override;
 	};
 } // namespace rive
 

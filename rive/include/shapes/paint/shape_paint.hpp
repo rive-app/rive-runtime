@@ -3,6 +3,7 @@
 #include "generated/shapes/paint/shape_paint_base.hpp"
 #include "shapes/paint/shape_paint_mutator.hpp"
 #include "shapes/path_space.hpp"
+#include "renderer.hpp"
 
 namespace rive
 {
@@ -10,7 +11,7 @@ namespace rive
 	class ShapePaintMutator;
 	class ShapePaint : public ShapePaintBase
 	{
-	private:
+	protected:
 		RenderPaint* m_RenderPaint;
 		ShapePaintMutator* m_PaintMutator;
 
@@ -23,6 +24,8 @@ namespace rive
 		RenderPaint* initPaintMutator(ShapePaintMutator* mutator);
 
 		virtual PathSpace pathSpace() const = 0;
+
+		virtual void draw(Renderer* renderer, RenderPath* path) = 0;
 	};
 } // namespace rive
 
