@@ -45,7 +45,10 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 		// Concrete Core object couldn't be read.
 		if (object == nullptr)
 		{
-			fprintf(stderr, "Expected object of type %d but found %llu, which this runtime doesn't understand.\n", T::typeKey,
+			fprintf(stderr,
+			        "Expected object of type %d but found %llu, which this "
+			        "runtime doesn't understand.\n",
+			        T::typeKey,
 			        coreObjectKey);
 			return nullptr;
 		}
@@ -53,9 +56,12 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 		// delete the object. Note that we read in the properties regardless of
 		// whether or not this object is the expected one. This ensures our
 		// reader has advanced past the object.
-		if(!object->is<T>())
+		if (!object->is<T>())
 		{
-			fprintf(stderr, "Expected object of type %d but found %d.\n", T::typeKey, object->coreType());
+			fprintf(stderr,
+			        "Expected object of type %d but found %d.\n",
+			        T::typeKey,
+			        object->coreType());
 			delete object;
 			return nullptr;
 		}
@@ -63,11 +69,16 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 	// Core object couldn't be read.
 	else if (object == nullptr)
 	{
-		fprintf(stderr, "Expected a Core object but found %llu, which this runtime doesn't understand.\n", coreObjectKey);
+		fprintf(stderr,
+		        "Expected a Core object but found %llu, which this runtime "
+		        "doesn't understand.\n",
+		        coreObjectKey);
 		return nullptr;
 	}
 	return reinterpret_cast<T*>(object);
 }
+
+File::~File() { delete m_Backboard; }
 
 // Import a Rive file from a file handle
 ImportResult File::import(BinaryReader& reader, File** importedFile)
@@ -80,7 +91,10 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 	}
 	if (header.majorVersion() != majorVersion)
 	{
-		fprintf(stderr, "Unsupported version %u expected %u.\n", majorVersion, header.majorVersion());
+		fprintf(stderr,
+		        "Unsupported version %u expected %u.\n",
+		        majorVersion,
+		        header.majorVersion());
 		return ImportResult::unsupportedVersion;
 	}
 	auto file = new File();
@@ -96,7 +110,7 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 
 ImportResult File::read(BinaryReader& reader)
 {
-	auto m_Backboard = readRuntimeObject<Backboard>(reader);
+	m_Backboard = readRuntimeObject<Backboard>(reader);
 	if (m_Backboard == nullptr)
 	{
 		fprintf(stderr, "Expected first object to be the backboard.\n");
@@ -109,7 +123,9 @@ ImportResult File::read(BinaryReader& reader)
 		auto numObjects = reader.readVarUint();
 		if (numObjects == 0)
 		{
-			fprintf(stderr, "Artboards must contain at least one object (themselves).\n");
+			fprintf(
+			    stderr,
+			    "Artboards must contain at least one object (themselves).\n");
 			return ImportResult::malformed;
 		}
 		auto artboard = readRuntimeObject<Artboard>(reader);
@@ -143,7 +159,8 @@ ImportResult File::read(BinaryReader& reader)
 			artboard->addAnimation(animation);
 			if (animation->coreType() == LinearAnimationBase::typeKey)
 			{
-				auto linearAnimation = reinterpret_cast<LinearAnimation*>(animation);
+				auto linearAnimation =
+				    reinterpret_cast<LinearAnimation*>(animation);
 				int numKeyedObjects = reader.readVarUint();
 				for (int j = 0; j < numKeyedObjects; j++)
 				{
@@ -157,7 +174,8 @@ ImportResult File::read(BinaryReader& reader)
 					int numKeyedProperties = reader.readVarUint();
 					for (int k = 0; k < numKeyedProperties; k++)
 					{
-						auto keyedProperty = readRuntimeObject<KeyedProperty>(reader);
+						auto keyedProperty =
+						    readRuntimeObject<KeyedProperty>(reader);
 						if (keyedProperty == nullptr)
 						{
 							continue;
@@ -174,12 +192,16 @@ ImportResult File::read(BinaryReader& reader)
 							}
 							else if (keyframe->is<KeyFrameDrawOrder>())
 							{
-								auto drawOrderKeyFrame = reinterpret_cast<KeyFrameDrawOrder*>(keyframe);
+								auto drawOrderKeyFrame =
+								    reinterpret_cast<KeyFrameDrawOrder*>(
+								        keyframe);
 								int numValues = reader.readVarUint();
 								for (int m = 0; m < numValues; m++)
 								{
-									auto valueObject = new KeyFrameDrawOrderValue();
-									valueObject->drawableId(reader.readVarInt());
+									auto valueObject =
+									    new KeyFrameDrawOrderValue();
+									valueObject->drawableId(
+									    reader.readVarInt());
 									valueObject->value(m);
 									drawOrderKeyFrame->addValue(valueObject);
 								}

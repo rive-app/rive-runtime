@@ -39,16 +39,20 @@ namespace rive
 	private:
 		/// The file's backboard. All Rive files have a single backboard
 		/// where the artboards live.
-		Backboard* m_Backboard;
+		Backboard* m_Backboard = nullptr;
+
 		/// List of artboards in the file. Each artboard encapsulates a set of
 		/// Rive components and animations.
 		std::vector<Artboard*> m_Artboards;
 
 	public:
+		~File();
+		
 		///
 		/// Imports a Rive file from a binary buffer.
 		/// @param reader a pointer to a binary reader attached to the file.
-		/// @param importedFile a handle to a file that will contain the imported data.
+		/// @param importedFile a handle to a file that will contain the
+		/// imported data.
 		/// @returns whether the import was successful or an error occurred.
 		static ImportResult import(BinaryReader& reader, File** importedFile);
 
