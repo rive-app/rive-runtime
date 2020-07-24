@@ -7,9 +7,11 @@
 namespace rive
 {
 	class Path;
+	class PathComposer;
 	class Shape : public ShapeBase, public ShapePaintContainer
 	{
 	private:
+		PathComposer* m_PathComposer = nullptr;
 		std::vector<Path*> m_Paths;
 
 	public:
@@ -21,6 +23,8 @@ namespace rive
 
 		void update(ComponentDirt value) override;
 		void draw(Renderer* renderer) override;
+
+		void pathComposer(PathComposer* value);
 	};
 } // namespace rive
 

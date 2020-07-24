@@ -10,6 +10,7 @@ namespace rive
 {
 	class Animation;
 	class File;
+	class Drawable;
 	class Artboard : public ArtboardBase,
 	                 public CoreContext,
 	                 public ShapePaintContainer
@@ -20,6 +21,7 @@ namespace rive
 		std::vector<Core*> m_Objects;
 		std::vector<Animation*> m_Animations;
 		std::vector<Component*> m_DependencyOrder;
+		std::vector<Drawable*> m_Drawables;
 		unsigned int m_DirtDepth = 0;
 		RenderPath* m_RenderPath = nullptr;
 

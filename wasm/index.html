@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Test Animation</title>
+    <script src="build/bin/debug/rive_wasm.js"></script>
+</head>
+
+<body>
+
+    <canvas id="myCanvas" width=1024 height=1024></canvas>
+    <script>
+        RiveWASM({
+            locateFile: (file) => "build/bin/debug/" + file,
+        }).then((module) => {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+
+            function makeMatrix(m2d) {
+                const m = svg.createSVGMatrix();
+                m.a = m2d.xx;
+                m.b = m2d.xy;
+                m.c = m2d.yx;
+                m.d = m2d.yy;
+                m.e = m2d.tx;
+                m.f = m2d.ty;
+                return m;
+            }
+
+            const {
+                Renderer,
+                RenderPath,
+                RenderPaint,
+                load
+            } = module;
+
+            const CanvasRenderPath = RenderPath.extend("CanvasRenderPath", {
+                __construct: function () {
+                    this.__parent.__construct.call(this);
+                    this._path2D = new Path2D();
+                },
+                reset: function () {
+                    this._path2D = new Path2D();
+                },
+                addPath: function (path, m2d) {
+                    this._path2D.addPath(path._path2D, makeMatrix(m2d));
+                },
+                moveTo: function (x, y) {
+                    this._path2D.moveTo(x, y);
+                },
+                lineTo: function (x, y) {
+                    this._path2D.lineTo(x, y);
+                },
+                cubicTo: function (ox, oy, ix, iy, x, y) {
+                    this._path2D.bezierCurveTo(ox, oy, ix, iy, x, y);
+                },
+                close: function () {
+                    this._path2D.closePath();
+                }
+            });
+
+            const CanvasRenderPaint = RenderPaint.extend("CanvasRenderPaint", {
+                color: function (value) {
+
+                }
+            });
+
+            const CanvasRenderer = Renderer.extend("Renderer", {
+                __construct: function (ctx) {
+                    this.__parent.__construct.call(this);
+                    this._ctx = ctx;
+                },
+                save: function () {
+                    this._ctx.save();
+                },
+                restore: function () {
+                    this._ctx.restore();
+                },
+                translate: function (x, y) {
+                    this._ctx.translate(x, y);
+                },
+                transform: function (matrix) {
+                    this._ctx.transform(matrix.xx, matrix.xy, matrix.yx, matrix.yy, matrix.tx,
+                        matrix.ty);
+                },
+                drawPath: function (path, paint) {
+                    // todo: check if paint is fill or stroke
+                    this._ctx.fillStyle = "rgba(0,0,0,0.25)";
+                    this._ctx.fill(path._path2D);
+                },
+                clipPath: function (path) {
+                    console.log("CLIP PATH", path);
+                }
+            });
+
+            module.renderFactory = {
+                makeRenderPaint: function () {
+                    return new CanvasRenderPaint();
+                },
+                makeRenderPath: function () {
+                    return new CanvasRenderPath();
+                }
+            };
+
+            // renderer.save();
+            const assetRequest = new Request('../assets/juice.riv');
+
+            fetch(assetRequest).then(function (response) {
+                return response.arrayBuffer();
+            }).then(function (buffer) {
+                const file = load(new Uint8Array(buffer));
+                const artboard = file.defaultArtboard();
+
+                const canvas = document.getElementById("myCanvas");
+                const ctx = canvas.getContext("2d");
+
+                const renderer = new CanvasRenderer(ctx);
+                artboard.advance(0);
+                artboard.draw(renderer);
+            });
+
+
+            // const Rectangle = module.AnimationRectangle.extend("Rectangle", {
+            //     __construct: function () {
+            //         this.__parent.__construct.call(this);
+            //         this._path = new Path2D();
+            //         this._path.rect(0, 0, this.width, this.height);
+            //     },
+            //     __destruct: function () {
+            //         this.__parent.__destruct.call(this);
+            //         this._path = null;
+            //     },
+            //     draw: function (context) {
+            //         const {
+            //             x,
+            //             y,
+            //             width,
+            //             height,
+            //             _path: path
+            //         } = this;
+            //         context.fillStyle = "green";
+            //         context.save();
+            //         context.translate(x, y);
+            //         context.fill(path);
+            //         context.restore();
+            //     }
+            // });
+
+            // const Animation = module.Animation.extend("Animation", {
+            //     makeRectangle: function () {
+            //         return new Rectangle();
+            //     }
+            // });
+
+            // var animation = new Animation();
+
+            // // setup gui...
+            // var gui = new dat.GUI();
+            // gui.add(animation, "addRect");
+            // gui.add(animation, "removeRect");
+
+            // animation.load(5);
+
+            // var lastTime;
+
+
+
+            // const canvas = document.getElementById("myCanvas");
+            // const ctx = canvas.getContext("2d");
+
+            // function drawFrame(time) {
+            //     if (!lastTime) {
+            //         lastTime = time;
+            //     }
+            //     const elapsedSeconds = (time - lastTime) / 1000;
+            //     lastTime = time;
+
+            //     animation.advance(elapsedSeconds);
+
+            //     ctx.clearRect(0, 0, canvas.width, canvas.height);
+            //     animation.draw(ctx);
+
+            //     requestAnimationFrame(drawFrame);
+            // }
+            // requestAnimationFrame(drawFrame);
+        });
+    </script>
+</body>
+
+</html>

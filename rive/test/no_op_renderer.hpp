@@ -45,7 +45,7 @@ namespace rive
 			                                        0.0f,
 			                                        0.0f});
 		}
-		void addPath(RenderPath* path, Mat2D* transform) override {}
+		void addPath(RenderPath* path, const Mat2D* transform) override {}
 
 		void moveTo(float x, float y) override
 		{
@@ -79,7 +79,7 @@ namespace rive
 	{
 		void save() {}
 		void restore() {}
-		void transform(Mat2D* transform) {}
+		void transform(const Mat2D* transform) {}
 		void translate(float x, float y) {}
 		void drawPath(RenderPath* path, RenderPaint* paint) {}
 		void clipPath(RenderPath* path) {}

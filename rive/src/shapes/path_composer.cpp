@@ -19,6 +19,7 @@ void PathComposer::onAddedClean(CoreContext* context)
 		if (currentParent->is<Shape>())
 		{
 			m_Shape = currentParent->as<Shape>();
+			m_Shape->pathComposer(this);
 			return;
 		}
 	}
@@ -60,7 +61,7 @@ void PathComposer::update(ComponentDirt value)
 				Mat2D localTransform;
 				auto transform = path->pathTransform();
 				Mat2D::multiply(localTransform, inverseWorld, transform);
-				m_LocalPath->addPath(path->renderPath(), &transform);
+				m_LocalPath->addPath(path->renderPath(), &localTransform);
 			}
 		}
 		if ((space & PathSpace::World) == PathSpace::World)
@@ -75,7 +76,7 @@ void PathComposer::update(ComponentDirt value)
 			}
 			for (auto path : m_Shape->paths()) 
 			{
-				auto transform = path->pathTransform();
+				const Mat2D& transform = path->pathTransform();
 				m_WorldPath->addPath(path->renderPath(), &transform);
 			}
 		}

@@ -39,6 +39,13 @@ namespace rive
 		static void decompose(TransformComponents& result, const Mat2D& m);
 		static void compose(Mat2D& result, const TransformComponents& components);
 		static void scaleByValues(Mat2D& result, float sx, float sy);
+
+		float xx() const { return m_Buffer[0]; }
+		float xy() const { return m_Buffer[1]; }
+		float yx() const { return m_Buffer[2]; }
+		float yy() const { return m_Buffer[3]; }
+		float tx() const { return m_Buffer[4]; }
+		float ty() const { return m_Buffer[5]; }
 	};
 
 	inline Mat2D operator*(const Mat2D& a, const Mat2D& b)

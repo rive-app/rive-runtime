@@ -1,5 +1,6 @@
 #include "shapes/shape.hpp"
 #include "shapes/paint/shape_paint.hpp"
+#include "shapes/path_composer.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -14,7 +15,7 @@ void Shape::addPath(Path* path)
 void Shape::update(ComponentDirt value)
 {
 	Super::update(value);
-	
+
 	// RenderOpacity gets updated with the worldTransform (accumulates through
 	// hierarchy), so if we see worldTransform is dirty, update our internal
 	// render opacities.
@@ -27,7 +28,22 @@ void Shape::update(ComponentDirt value)
 	}
 }
 
-void Shape::draw(Renderer* renderer) 
+void Shape::pathComposer(PathComposer* value) { m_PathComposer = value; }
+void Shape::draw(Renderer* renderer)
 {
-	// TODO: ...
+	for (auto shapePaint : m_ShapePaints)
+	{
+		// TODO: make this efficient.
+		renderer->save();
+		if (m_PathComposer->worldPath())
+		{
+			const Mat2D& transform = worldTransform();
+			renderer->transform(&transform);
+		}
+		shapePaint->draw(renderer,
+		                 shapePaint->pathSpace() == PathSpace::Local
+		                     ? m_PathComposer->localPath()
+		                     : m_PathComposer->worldPath());
+		renderer->restore();
+	}
 }

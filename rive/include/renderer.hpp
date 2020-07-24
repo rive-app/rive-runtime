@@ -12,7 +12,7 @@ namespace rive
 		virtual ~RenderPath() {}
 		virtual void reset() = 0;
 		// TODO: add commands like cubicTo, moveTo, etc...
-		virtual void addPath(RenderPath* path, Mat2D* transform) = 0;
+		virtual void addPath(RenderPath* path, const Mat2D* transform) = 0;
 
 		virtual void moveTo(float x, float y) = 0;
 		virtual void lineTo(float x, float y) = 0;
@@ -59,9 +59,10 @@ namespace rive
 	class Renderer
 	{
 	public:
+		virtual ~Renderer() {}
 		virtual void save() = 0;
 		virtual void restore() = 0;
-		virtual void transform(Mat2D* transform) = 0;
+		virtual void transform(const Mat2D* transform) = 0;
 		virtual void translate(float x, float y) = 0;
 		virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
 		virtual void clipPath(RenderPath* path) = 0;

@@ -1,8 +1,9 @@
 #include "artboard.hpp"
 #include "animation/animation.hpp"
 #include "dependency_sorter.hpp"
-#include "shapes/paint/shape_paint.hpp"
+#include "drawable.hpp"
 #include "renderer.hpp"
+#include "shapes/paint/shape_paint.hpp"
 
 using namespace rive;
 
@@ -67,6 +68,10 @@ void Artboard::initialize()
 		if (object->is<Component>())
 		{
 			object->as<Component>()->buildDependencies();
+		}
+		if (object->is<Drawable>())
+		{
+			m_Drawables.push_back(object->as<Drawable>());
 		}
 	}
 
@@ -183,8 +188,9 @@ void Artboard::draw(Renderer* renderer)
 	renderer->save();
 	renderer->clipPath(m_RenderPath);
 	renderer->translate(width() * originX(), height() * originY());
-	// for(auto drawable : m_Drawables) {
-
-	// }
+	for (auto drawable : m_Drawables)
+	{
+		drawable->draw(renderer);
+	}
 	renderer->restore();
 }

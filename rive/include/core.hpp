@@ -2,6 +2,7 @@
 #define _RIVE_CORE_HPP_
 
 #include "core/binary_reader.hpp"
+#include <cassert>
 
 namespace rive
 {

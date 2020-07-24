@@ -5,6 +5,7 @@
 #include "shapes/shape.hpp"
 #include "shapes/straight_vertex.hpp"
 #include "math/circle_constant.hpp"
+#include <cassert>
 
 using namespace rive;
 
