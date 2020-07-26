@@ -12,16 +12,15 @@ namespace rive
 	class ShapePaint : public ShapePaintBase
 	{
 	protected:
-		RenderPaint* m_RenderPaint;
-		ShapePaintMutator* m_PaintMutator;
+		RenderPaint* m_RenderPaint = nullptr;
+		ShapePaintMutator* m_PaintMutator = nullptr;
 
 	public:
-		void onAddedDirty(CoreContext* context) override;
 		void onAddedClean(CoreContext* context) override;
 
 		float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
 		void renderOpacity(float value) { m_PaintMutator->renderOpacity(value); }
-		RenderPaint* initPaintMutator(ShapePaintMutator* mutator);
+		virtual RenderPaint* initPaintMutator(ShapePaintMutator* mutator);
 
 		virtual PathSpace pathSpace() const = 0;
 

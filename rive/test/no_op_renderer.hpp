@@ -9,6 +9,7 @@ namespace rive
 	{
 	public:
 		void color(unsigned int value) {}
+		void style(RenderPaintStyle value) {}
 	};
 
 	enum class NoOpPathCommandType
@@ -45,7 +46,7 @@ namespace rive
 			                                        0.0f,
 			                                        0.0f});
 		}
-		void addPath(RenderPath* path, const Mat2D* transform) override {}
+		void addPath(RenderPath* path, const Mat2D& transform) override {}
 
 		void moveTo(float x, float y) override
 		{
@@ -79,7 +80,7 @@ namespace rive
 	{
 		void save() {}
 		void restore() {}
-		void transform(const Mat2D* transform) {}
+		void transform(const Mat2D& transform) {}
 		void translate(float x, float y) {}
 		void drawPath(RenderPath* path, RenderPaint* paint) {}
 		void clipPath(RenderPath* path) {}

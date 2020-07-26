@@ -35,10 +35,10 @@ void Shape::draw(Renderer* renderer)
 	{
 		// TODO: make this efficient.
 		renderer->save();
-		if (m_PathComposer->worldPath())
+		if (shapePaint->pathSpace() == PathSpace::Local)
 		{
 			const Mat2D& transform = worldTransform();
-			renderer->transform(&transform);
+			renderer->transform(transform);
 		}
 		shapePaint->draw(renderer,
 		                 shapePaint->pathSpace() == PathSpace::Local

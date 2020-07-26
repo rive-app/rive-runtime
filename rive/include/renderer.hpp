@@ -1,8 +1,10 @@
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
+
+#include "math/mat2d.hpp"
+
 namespace rive
 {
-	class Mat2D;
 	class Vec2D;
 
 	/// Abstract path used implemented by the renderer.
@@ -12,7 +14,7 @@ namespace rive
 		virtual ~RenderPath() {}
 		virtual void reset() = 0;
 		// TODO: add commands like cubicTo, moveTo, etc...
-		virtual void addPath(RenderPath* path, const Mat2D* transform) = 0;
+		virtual void addPath(RenderPath* path, const Mat2D& transform) = 0;
 
 		virtual void moveTo(float x, float y) = 0;
 		virtual void lineTo(float x, float y) = 0;
@@ -45,9 +47,16 @@ namespace rive
 	// 	float stop;
 	// };
 
+	enum class RenderPaintStyle
+	{
+		Stroke,
+		Fill
+	};
+
 	class RenderPaint
 	{
 	public:
+		virtual void style(RenderPaintStyle style) = 0;
 		virtual void color(unsigned int value) = 0;
 		// virtual void linearGradient(Vec2D* start, Vec2D* end,
 		// RenderColorStop* stops, int stopsLength) = 0; virtual void
@@ -62,7 +71,7 @@ namespace rive
 		virtual ~Renderer() {}
 		virtual void save() = 0;
 		virtual void restore() = 0;
-		virtual void transform(const Mat2D* transform) = 0;
+		virtual void transform(const Mat2D& transform) = 0;
 		virtual void translate(float x, float y) = 0;
 		virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
 		virtual void clipPath(RenderPath* path) = 0;

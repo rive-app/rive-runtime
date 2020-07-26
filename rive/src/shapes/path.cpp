@@ -1,10 +1,10 @@
 #include "shapes/path.hpp"
+#include "math/circle_constant.hpp"
 #include "renderer.hpp"
 #include "shapes/cubic_vertex.hpp"
 #include "shapes/path_vertex.hpp"
 #include "shapes/shape.hpp"
 #include "shapes/straight_vertex.hpp"
-#include "math/circle_constant.hpp"
 #include <cassert>
 
 using namespace rive;
@@ -249,6 +249,7 @@ void Path::markPathDirty() { addDirt(ComponentDirt::Path); }
 
 void Path::update(ComponentDirt value)
 {
+	Super::update(value);
 	assert(m_RenderPath != nullptr);
 	if (hasDirt(value, ComponentDirt::Path))
 	{

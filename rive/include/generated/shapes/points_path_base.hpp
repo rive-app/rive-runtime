@@ -12,7 +12,8 @@ namespace rive
 	public:
 		static const int typeKey = 16;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
 		bool isTypeOf(int typeKey) override
 		{
@@ -35,6 +36,7 @@ namespace rive
 
 	private:
 		bool m_IsClosed = false;
+
 	public:
 		bool isClosed() const { return m_IsClosed; }
 		void isClosed(bool value)
@@ -52,6 +54,7 @@ namespace rive
 			switch (propertyKey)
 			{
 				case isClosedPropertyKey:
+
 					m_IsClosed = CoreBoolType::deserialize(reader);
 					return true;
 			}

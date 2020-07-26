@@ -11,6 +11,7 @@ namespace rive
 		void onAddedClean(CoreContext* context) override {}
 	protected:
 		void syncColor() override;
+		void colorValueChanged() override;
 	};
 } // namespace rive
 

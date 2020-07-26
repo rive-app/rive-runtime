@@ -8,7 +8,7 @@
 
 <body>
 
-    <canvas id="myCanvas" width=1024 height=1024></canvas>
+    <canvas id="myCanvas" width=2048 height=1024></canvas>
     <script>
         RiveWASM({
             locateFile: (file) => "build/bin/debug/" + file,
@@ -30,8 +30,14 @@
                 Renderer,
                 RenderPath,
                 RenderPaint,
+                RenderPaintStyle,
                 load
             } = module;
+
+            const {
+                Fill,
+                Stroke
+            } = RenderPaintStyle;
 
             const CanvasRenderPath = RenderPath.extend("CanvasRenderPath", {
                 __construct: function () {
@@ -58,9 +64,30 @@
                 }
             });
 
+
             const CanvasRenderPaint = RenderPaint.extend("CanvasRenderPaint", {
                 color: function (value) {
-
+                    console.log("SETTING RENDER PAINT COLOR", value);
+                    this._value = "rgba(0,0,0,0.25)";
+                },
+                style: function (value) {
+                    this._style = value;
+                },
+                draw: function (ctx, path) {
+                    const {
+                        _style,
+                        _value
+                    } = this;
+                    switch (_style) {
+                        case Stroke:
+                            ctx.strokeStyle = _value;
+                            ctx.stroke(path._path2D);
+                            break;
+                        case Fill:
+                            ctx.fillStyle = _value;
+                            ctx.fill(path._path2D);
+                            break;
+                    }
                 }
             });
 
@@ -84,11 +111,13 @@
                 },
                 drawPath: function (path, paint) {
                     // todo: check if paint is fill or stroke
-                    this._ctx.fillStyle = "rgba(0,0,0,0.25)";
-                    this._ctx.fill(path._path2D);
+                    paint.draw(this._ctx, path);
+                    // console.log("PAINT", paint);
+                    // this._ctx.fillStyle = "rgba(0,0,0,0.25)";
+                    // this._ctx.fill(path._path2D);
                 },
                 clipPath: function (path) {
-                    console.log("CLIP PATH", path);
+                    // console.log("CLIP PATH", path);
                 }
             });
 

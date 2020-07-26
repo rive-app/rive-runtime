@@ -8,11 +8,14 @@ void SolidColor::onAddedDirty(CoreContext* context)
 {
 	Super::onAddedDirty(context);
 	assert(initPaintMutator(parent()));
+	syncColor();
 }
 
 void SolidColor::syncColor()
 {
-	// renderPaint()->color()
+	renderPaint()->color(colorValue());
 	// sync color to render paint
 	// colorValue() with renderOpacity
 }
+
+void SolidColor::colorValueChanged() { syncColor(); }

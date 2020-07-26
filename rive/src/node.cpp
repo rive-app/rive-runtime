@@ -46,6 +46,7 @@ void Node::updateWorldTransform()
 	m_RenderOpacity = opacity();
 	if (m_ParentNode != nullptr)
 	{
+		
 		m_RenderOpacity *= m_ParentNode->childOpacity();
 		Mat2D::multiply(m_WorldTransform, m_ParentNode->m_WorldTransform, m_Transform);
 	}

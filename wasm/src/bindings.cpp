@@ -21,7 +21,7 @@ public:
 
 	void restore() override { call<void>("restore"); }
 
-	void transform(const rive::Mat2D* transform) override
+	void transform(const rive::Mat2D& transform) override
 	{
 		call<void>("transform", transform);
 	}
@@ -46,7 +46,7 @@ public:
 
 	void reset() override { call<void>("reset"); }
 	// TODO: add commands like cubicTo, moveTo, etc...
-	void addPath(rive::RenderPath* path, const rive::Mat2D* transform) override
+	void addPath(rive::RenderPath* path, const rive::Mat2D& transform) override
 	{
 		call<void>("addPath", path, transform);
 	}
@@ -67,6 +67,7 @@ public:
 	EMSCRIPTEN_WRAPPER(RenderPaintWrapper);
 
 	void color(unsigned int value) { call<void>("color", value); }
+	void style(rive::RenderPaintStyle value) { call<void>("style", value); }
 };
 
 namespace rive
@@ -158,9 +159,17 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	              allow_raw_pointers())
 	    .allow_subclass<RenderPathWrapper>("RenderPathWrapper");
 
+	enum_<rive::RenderPaintStyle>("RenderPaintStyle")
+	    .value("Fill", rive::RenderPaintStyle::Fill)
+	    .value("Stroke", rive::RenderPaintStyle::Stroke);
+
 	class_<rive::RenderPaint>("RenderPaint")
-	    .function("reset",
+	    .function("color",
 	              &RenderPaintWrapper::color,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("style",
+	              &RenderPaintWrapper::style,
 	              pure_virtual(),
 	              allow_raw_pointers())
 	    .allow_subclass<RenderPaintWrapper>("RenderPaintWrapper");

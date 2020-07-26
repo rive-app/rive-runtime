@@ -5,15 +5,8 @@
 
 using namespace rive;
 
-void ShapePaint::onAddedDirty(CoreContext* context) 
-{
-    Super::onAddedDirty(context);
-    m_RenderPaint = makeRenderPaint();
-}
-
 void ShapePaint::onAddedClean(CoreContext* context) 
 {
-    // Init the mutator.
     auto container = ShapePaintContainer::from(parent());
     assert(container != nullptr);
     container->addPaint(this);
@@ -21,6 +14,7 @@ void ShapePaint::onAddedClean(CoreContext* context)
 
 RenderPaint* ShapePaint::initPaintMutator(ShapePaintMutator* mutator)
 {
+    assert(m_RenderPaint == nullptr);
     m_PaintMutator = mutator;
-    return m_RenderPaint;
+    return m_RenderPaint = makeRenderPaint();
 }

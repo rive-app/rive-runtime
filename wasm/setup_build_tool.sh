@@ -20,6 +20,5 @@ then
     cd ../../
 else
     cd emsdk
+    source ./emsdk_env.sh
 fi
-
-source ./emsdk_env.sh

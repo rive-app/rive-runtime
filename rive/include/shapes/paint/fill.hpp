@@ -7,6 +7,7 @@ namespace rive
 	class Fill : public FillBase
 	{
 	public:
+		RenderPaint* initPaintMutator(ShapePaintMutator* mutator) override;
 		PathSpace pathSpace() const override;
 		void draw(Renderer* renderer, RenderPath* path) override;
 	};
