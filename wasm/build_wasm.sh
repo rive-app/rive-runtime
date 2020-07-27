@@ -23,11 +23,13 @@ em++ -O3 \
     -s WASM=1 \
     -s EXPORT_NAME="RiveWASM" \
     -s LLD_REPORT_UNDEFINED \
-    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=1 \
+    -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 \
     -DSINGLE \
     -DANSI_DECLARATORS \
     -Wno-c++17-extensions \
     -fno-exceptions \
+    -fno-rtti \
+    -fno-unwind-tables \
     -I../../rive/include \
     --no-entry \
     ../../rive/src/*/*.cpp \
