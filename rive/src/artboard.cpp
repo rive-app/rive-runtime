@@ -125,8 +125,17 @@ void Artboard::onComponentDirty(Component* component)
 	}
 }
 
+static bool drawOrderComparer(Drawable* a, Drawable* b)
+{
+	return a->drawOrder() < b->drawOrder();
+}
+
 void Artboard::update(ComponentDirt value)
 {
+	if (hasDirt(value, ComponentDirt::DrawOrder))
+	{
+		std::sort(m_Drawables.begin(), m_Drawables.end(), drawOrderComparer);
+	}
 	if (hasDirt(value, ComponentDirt::Path))
 	{
 		m_RenderPath->reset();

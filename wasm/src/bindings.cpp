@@ -66,8 +66,25 @@ class RenderPaintWrapper : public wrapper<rive::RenderPaint>
 public:
 	EMSCRIPTEN_WRAPPER(RenderPaintWrapper);
 
-	void color(unsigned int value) { call<void>("color", value); }
-	void style(rive::RenderPaintStyle value) { call<void>("style", value); }
+	void color(unsigned int value) override { call<void>("color", value); }
+	void thickness(float value) override { call<void>("thickness", value); }
+	void style(rive::RenderPaintStyle value) override
+	{
+		call<void>("style", value);
+	}
+	void linearGradient(float sx, float sy, float ex, float ey) override
+	{
+		call<void>("linearGradient", sx, sy, ex, ey);
+	}
+	void radialGradient(float sx, float sy, float ex, float ey) override
+	{
+		call<void>("radialGradient", sx, sy, ex, ey);
+	}
+	void addStop(unsigned int color, float stop) override
+	{
+		call<void>("addStop", color, stop);
+	}
+	void completeGradient() override { call<void>("completeGradient"); }
 };
 
 namespace rive
@@ -168,17 +185,32 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	              &RenderPaintWrapper::color,
 	              pure_virtual(),
 	              allow_raw_pointers())
+
 	    .function("style",
 	              &RenderPaintWrapper::style,
 	              pure_virtual(),
 	              allow_raw_pointers())
+	    .function("thickness",
+	              &RenderPaintWrapper::thickness,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("linearGradient",
+	              &RenderPaintWrapper::linearGradient,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("radialGradient",
+	              &RenderPaintWrapper::radialGradient,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("addStop",
+	              &RenderPaintWrapper::addStop,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("completeGradient",
+	              &RenderPaintWrapper::completeGradient,
+	              pure_virtual(),
+	              allow_raw_pointers())
 	    .allow_subclass<RenderPaintWrapper>("RenderPaintWrapper");
-
-	// class_<RendererNoOp>("RendererNoOp")
-	//     .constructor<>()
-	//     .function("save", &RendererNoOp::save)
-	//     .function("transform", &RendererNoOp::transform,
-	//     allow_raw_pointers());
 
 	class_<rive::Mat2D>("Mat2D")
 	    .property("xx", &rive::Mat2D::xx)

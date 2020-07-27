@@ -10,7 +10,7 @@ namespace rive
 		void onAddedDirty(CoreContext* context) override;
 		void onAddedClean(CoreContext* context) override {}
 	protected:
-		void syncColor() override;
+		void renderOpacityChanged() override;
 		void colorValueChanged() override;
 	};
 } // namespace rive

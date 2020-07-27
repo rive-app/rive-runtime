@@ -10,6 +10,12 @@ namespace rive
 	public:
 		void color(unsigned int value) {}
 		void style(RenderPaintStyle value) {}
+		void thickness(float value) {}
+
+		void linearGradient(float sx, float sy, float ex, float ey) {}
+		void radialGradient(float sx, float sy, float ex, float ey) {}
+		void addStop(unsigned int color, float stop) {}
+		void completeGradient() {}
 	};
 
 	enum class NoOpPathCommandType

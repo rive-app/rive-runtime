@@ -15,7 +15,7 @@ namespace rive
 		/// Hook up this paint mutator as the mutator for the shape paint
 		/// expected to be the parent.
 		bool initPaintMutator(Component* parent);
-		virtual void syncColor() = 0;
+		virtual void renderOpacityChanged() = 0;
 
 		RenderPaint* renderPaint() const { return m_RenderPaint; }
 

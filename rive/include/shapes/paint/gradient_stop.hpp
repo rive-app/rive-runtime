@@ -6,7 +6,12 @@ namespace rive
 	class GradientStop : public GradientStopBase
 	{
 	public:
+		void onAddedDirty(CoreContext* context) override;
 		void onAddedClean(CoreContext* context) override {}
+
+	protected:
+		void colorValueChanged() override;
+		void positionChanged() override;
 	};
 } // namespace rive
 

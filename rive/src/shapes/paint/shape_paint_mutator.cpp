@@ -23,5 +23,5 @@ void ShapePaintMutator::renderOpacity(float value)
 		return;
 	}
 	m_RenderOpacity = value;
-	syncColor();
+	renderOpacityChanged();
 }

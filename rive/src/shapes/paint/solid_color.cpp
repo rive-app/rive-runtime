@@ -1,6 +1,7 @@
 #include "shapes/paint/solid_color.hpp"
 #include "container_component.hpp"
 #include "renderer.hpp"
+#include "shapes/paint/color.hpp"
 
 using namespace rive;
 
@@ -8,14 +9,16 @@ void SolidColor::onAddedDirty(CoreContext* context)
 {
 	Super::onAddedDirty(context);
 	assert(initPaintMutator(parent()));
-	syncColor();
+	renderOpacityChanged();
 }
 
-void SolidColor::syncColor()
+void SolidColor::renderOpacityChanged()
 {
+	if (renderPaint() == nullptr)
+	{
+		return;
+	}
 	renderPaint()->color(colorValue());
-	// sync color to render paint
-	// colorValue() with renderOpacity
 }
 
-void SolidColor::colorValueChanged() { syncColor(); }
+void SolidColor::colorValueChanged() { renderOpacityChanged(); }

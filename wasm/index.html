@@ -65,22 +65,91 @@
             });
 
 
+            function _colorStyle(value) {
+                return 'rgba(' + ((0x00ff0000 & value) >>>
+                        16) + ',' + ((0x0000ff00 &
+                        value) >>> 8) + ',' + ((0x000000ff & value) >>> 0) + ',' +
+                    (((0xff000000 & value) >>> 24) / 0xFF) + ')'
+            }
             const CanvasRenderPaint = RenderPaint.extend("CanvasRenderPaint", {
                 color: function (value) {
-                    console.log("SETTING RENDER PAINT COLOR", value);
-                    this._value = "rgba(0,0,0,0.25)";
+                    this._value = _colorStyle(value);
+                },
+                thickness: function (value) {
+                    this._thickness = value;
                 },
                 style: function (value) {
                     this._style = value;
                 },
-                draw: function (ctx, path) {
+                linearGradient: function (sx, sy, ex, ey) {
+                    this._gradient = {
+                        sx,
+                        sy,
+                        ex,
+                        ey,
+                        stops: []
+                    };
+                },
+                radialGradient: function (sx, sy, ex, ey) {
+                    this._gradient = {
+                        sx,
+                        sy,
+                        ex,
+                        ey,
+                        stops: [],
+                        isRadial: true
+                    };
+                },
+                addStop: function (color, stop) {
                     const {
+                        stops
+                    } = this._gradient;
+                    stops.push({
+                        color,
+                        stop
+                    });
+                },
+
+                completeGradient: function () {
+
+                },
+
+                draw: function (ctx, path) {
+                    let {
                         _style,
-                        _value
+                        _value,
+                        _gradient
                     } = this;
+                    if (_gradient != null) {
+                        const {
+                            sx,
+                            sy,
+                            ex,
+                            ey,
+                            stops
+                        } = _gradient;
+                        if (_gradient.isRadial) {
+                            const dx = ex - sx;
+                            const dy = ey - sy;
+                            const radius = Math.sqrt(dx * dx + dy * dy);
+                            _value = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+                        } else {
+                            _value = ctx.createLinearGradient(sx, sy, ex, ey);
+                        }
+
+                        for ({
+                                stop,
+                                color
+                            } of stops) {
+                            _value.addColorStop(stop, _colorStyle(color));
+                        }
+                        this._value = _value;
+                        this._gradient = null;
+                    }
                     switch (_style) {
                         case Stroke:
                             ctx.strokeStyle = _value;
+                            ctx.lineWidth = this._thickness;
                             ctx.stroke(path._path2D);
                             break;
                         case Fill:
