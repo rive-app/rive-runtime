@@ -14,9 +14,10 @@ namespace rive
 	public:
 		static const int typeKey = 31;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
-		bool isTypeOf(int typeKey) override
+		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -47,7 +48,7 @@ namespace rive
 		int m_WorkEnd = 0;
 		bool m_EnableWorkArea = false;
 	public:
-		int fps() const { return m_Fps; }
+		inline int fps() const { return m_Fps; }
 		void fps(int value)
 		{
 			if (m_Fps == value)
@@ -58,7 +59,7 @@ namespace rive
 			fpsChanged();
 		}
 
-		int duration() const { return m_Duration; }
+		inline int duration() const { return m_Duration; }
 		void duration(int value)
 		{
 			if (m_Duration == value)
@@ -69,7 +70,7 @@ namespace rive
 			durationChanged();
 		}
 
-		float speed() const { return m_Speed; }
+		inline float speed() const { return m_Speed; }
 		void speed(float value)
 		{
 			if (m_Speed == value)
@@ -80,7 +81,7 @@ namespace rive
 			speedChanged();
 		}
 
-		int loopValue() const { return m_LoopValue; }
+		inline int loopValue() const { return m_LoopValue; }
 		void loopValue(int value)
 		{
 			if (m_LoopValue == value)
@@ -91,7 +92,7 @@ namespace rive
 			loopValueChanged();
 		}
 
-		int workStart() const { return m_WorkStart; }
+		inline int workStart() const { return m_WorkStart; }
 		void workStart(int value)
 		{
 			if (m_WorkStart == value)
@@ -102,7 +103,7 @@ namespace rive
 			workStartChanged();
 		}
 
-		int workEnd() const { return m_WorkEnd; }
+		inline int workEnd() const { return m_WorkEnd; }
 		void workEnd(int value)
 		{
 			if (m_WorkEnd == value)
@@ -113,7 +114,7 @@ namespace rive
 			workEndChanged();
 		}
 
-		bool enableWorkArea() const { return m_EnableWorkArea; }
+		inline bool enableWorkArea() const { return m_EnableWorkArea; }
 		void enableWorkArea(bool value)
 		{
 			if (m_EnableWorkArea == value)

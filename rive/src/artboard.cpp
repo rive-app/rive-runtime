@@ -108,13 +108,7 @@ Core* Artboard::resolve(int id) const
 
 void Artboard::onComponentDirty(Component* component)
 {
-	if (hasDirt(ComponentDirt::Components))
-	{
-		// TODO: we need to tell the system that it needs to advance/draw
-		// another frame ASAP.
-		//   context?.markNeedsAdvance();
-		m_Dirt |= ComponentDirt::Components;
-	}
+	m_Dirt |= ComponentDirt::Components;
 
 	/// If the order of the component is less than the current dirt depth,
 	/// update the dirt depth so that the update loop can break out early and
@@ -152,7 +146,7 @@ bool Artboard::updateComponents()
 		int count = m_DependencyOrder.size();
 		while (hasDirt(ComponentDirt::Components) && step < maxSteps)
 		{
-			m_Dirt &= ~ComponentDirt::Components;
+			// m_Dirt = m_Dirt & ~ComponentDirt::Components;
 
 			// Track dirt depth here so that if something else marks
 			// dirty, we restart.

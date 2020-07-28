@@ -23,6 +23,8 @@ namespace rive
 
 		void outPoint(const Vec2D& value);
 		void inPoint(const Vec2D& value);
+		void xChanged() override;
+		void yChanged() override;
 	};
 } // namespace rive
 

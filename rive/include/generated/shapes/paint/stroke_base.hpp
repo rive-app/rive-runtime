@@ -14,9 +14,10 @@ namespace rive
 	public:
 		static const int typeKey = 24;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
-		bool isTypeOf(int typeKey) override
+		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -43,7 +44,7 @@ namespace rive
 		int m_Join = 0;
 		bool m_TransformAffectsStroke = true;
 	public:
-		float thickness() const { return m_Thickness; }
+		inline float thickness() const { return m_Thickness; }
 		void thickness(float value)
 		{
 			if (m_Thickness == value)
@@ -54,7 +55,7 @@ namespace rive
 			thicknessChanged();
 		}
 
-		int cap() const { return m_Cap; }
+		inline int cap() const { return m_Cap; }
 		void cap(int value)
 		{
 			if (m_Cap == value)
@@ -65,7 +66,7 @@ namespace rive
 			capChanged();
 		}
 
-		int join() const { return m_Join; }
+		inline int join() const { return m_Join; }
 		void join(int value)
 		{
 			if (m_Join == value)
@@ -76,7 +77,10 @@ namespace rive
 			joinChanged();
 		}
 
-		bool transformAffectsStroke() const { return m_TransformAffectsStroke; }
+		inline bool transformAffectsStroke() const
+		{
+			return m_TransformAffectsStroke;
+		}
 		void transformAffectsStroke(bool value)
 		{
 			if (m_TransformAffectsStroke == value)
@@ -101,7 +105,8 @@ namespace rive
 					m_Join = CoreIntType::deserialize(reader);
 					return true;
 				case transformAffectsStrokePropertyKey:
-					m_TransformAffectsStroke = CoreBoolType::deserialize(reader);
+					m_TransformAffectsStroke =
+					    CoreBoolType::deserialize(reader);
 					return true;
 			}
 			return ShapePaint::deserialize(propertyKey, reader);

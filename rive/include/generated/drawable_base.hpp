@@ -12,9 +12,10 @@ namespace rive
 	public:
 		static const int typeKey = 13;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
-		bool isTypeOf(int typeKey) override
+		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -37,7 +38,7 @@ namespace rive
 		int m_DrawOrder = 0;
 		int m_BlendMode = 0;
 	public:
-		int drawOrder() const { return m_DrawOrder; }
+		inline int drawOrder() const { return m_DrawOrder; }
 		void drawOrder(int value)
 		{
 			if (m_DrawOrder == value)
@@ -48,7 +49,7 @@ namespace rive
 			drawOrderChanged();
 		}
 
-		int blendMode() const { return m_BlendMode; }
+		inline int blendMode() const { return m_BlendMode; }
 		void blendMode(int value)
 		{
 			if (m_BlendMode == value)

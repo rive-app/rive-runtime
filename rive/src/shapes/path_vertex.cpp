@@ -20,3 +20,6 @@ void PathVertex::markPathDirty()
 	}
 	parent()->as<Path>()->markPathDirty();
 }
+
+void PathVertex::xChanged() { markPathDirty(); }
+void PathVertex::yChanged() { markPathDirty(); }

@@ -20,5 +20,13 @@ void CubicMirroredVertex::computeOut()
 	    Vec2D(cos(rotation()) * distance(), sin(rotation()) * distance()));
 }
 
-void CubicMirroredVertex::rotationChanged() { m_InValid = m_OutValid = false; }
-void CubicMirroredVertex::distanceChanged() { m_InValid = m_OutValid = false; }
+void CubicMirroredVertex::rotationChanged()
+{
+	m_InValid = m_OutValid = false;
+	markPathDirty();
+}
+void CubicMirroredVertex::distanceChanged()
+{
+	m_InValid = m_OutValid = false;
+	markPathDirty();
+}

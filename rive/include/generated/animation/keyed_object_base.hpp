@@ -12,9 +12,10 @@ namespace rive
 	public:
 		static const int typeKey = 25;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
-		bool isTypeOf(int typeKey) override
+		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -32,7 +33,7 @@ namespace rive
 	private:
 		int m_ObjectId = 0;
 	public:
-		int objectId() const { return m_ObjectId; }
+		inline int objectId() const { return m_ObjectId; }
 		void objectId(int value)
 		{
 			if (m_ObjectId == value)

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:colorize/colorize.dart';
 // import 'package:core_generator/src/field_type.dart';
 import 'package:core_generator/src/comment.dart';
+import 'package:core_generator/src/field_type.dart';
 import 'package:core_generator/src/key.dart';
 import 'package:core_generator/src/cpp_formatter.dart';
 import 'package:core_generator/src/property.dart';
@@ -140,7 +141,7 @@ class Definition {
         'Helper to quickly determine if a core object extends another '
         'without RTTI at runtime.',
         indent: 1));
-    code.writeln('bool isTypeOf(int typeKey) override {');
+    code.writeln('bool isTypeOf(int typeKey) const override {');
 
     code.writeln('switch(typeKey) {');
     code.writeln('case ${_name}Base::typeKey:');
@@ -174,8 +175,8 @@ class Definition {
       // Write getter/setters.
       code.writeln('public:');
       for (final property in properties) {
-        code.writeln('${property.type.cppName} ${property.name}() const {'
-            'return m_${property.capitalizedName};'
+        code.writeln('inline ${property.type.cppName} ${property.name}() const '
+            '{ return m_${property.capitalizedName};'
             '}');
 
         code.writeln('void ${property.name}(${property.type.cppName} value) {'
@@ -348,6 +349,45 @@ class Definition {
       ctxCode.writeln('return new ${definition.name}();');
     }
     ctxCode.writeln('} return nullptr; }');
+
+    var usedFieldTypes = <FieldType, List<Property>>{};
+    for (final definition in definitions.values) {
+      for (final property in definition.properties) {
+        usedFieldTypes[property.type] ??= [];
+        usedFieldTypes[property.type].add(property);
+      }
+    }
+    for (final fieldType in usedFieldTypes.keys) {
+      ctxCode
+          .writeln('static void set${fieldType.capitalizedName}(Core* object, '
+              'int propertyKey, ${fieldType.cppName} value){');
+      ctxCode.writeln('switch (propertyKey) {');
+      var properties = usedFieldTypes[fieldType];
+      for (final property in properties) {
+        ctxCode.writeln('case ${property.definition.name}Base'
+            '::${property.name}PropertyKey:');
+        ctxCode.writeln('object->as<${property.definition.name}Base>()->'
+            '${property.name}(value);');
+        ctxCode.writeln('break;');
+      }
+      ctxCode.writeln('}}');
+    }
+    for (final fieldType in usedFieldTypes.keys) {
+      ctxCode.writeln(
+          'static ${fieldType.cppName} get${fieldType.capitalizedName}('
+          'Core* object, int propertyKey){');
+      ctxCode.writeln('switch (propertyKey) {');
+      var properties = usedFieldTypes[fieldType];
+      for (final property in properties) {
+        ctxCode.writeln('case ${property.definition.name}Base'
+            '::${property.name}PropertyKey:');
+        ctxCode.writeln('return object->as<${property.definition.name}Base>()->'
+            '${property.name}();');
+      }
+      ctxCode.writeln('}');
+      ctxCode.writeln('return ${fieldType.defaultValue ?? 'nullptr'};');
+      ctxCode.writeln('}');
+    }
     /*Core makeCoreInstance(int typeKey) {
     switch (typeKey) {
       case KeyedObjectBase.typeKey:

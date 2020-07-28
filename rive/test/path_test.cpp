@@ -2,19 +2,18 @@
 #include "catch.hpp"
 #include "core/binary_reader.hpp"
 #include "file.hpp"
+#include "math/circle_constant.hpp"
 #include "no_op_renderer.hpp"
 #include "node.hpp"
-#include "shapes/rectangle.hpp"
 #include "shapes/ellipse.hpp"
+#include "shapes/rectangle.hpp"
 #include "shapes/shape.hpp"
-#include "math/circle_constant.hpp"
 #include <cstdio>
 
 TEST_CASE("rectangle path builds expected commands", "[path]")
 {
 	rive::Artboard* artboard = new rive::Artboard();
 	rive::Rectangle* rectangle = new rive::Rectangle();
-
 	rectangle->x(0.0f);
 	rectangle->y(0.0f);
 	rectangle->width(100.0f);
@@ -122,8 +121,7 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 
 	REQUIRE(ellipse->renderPath() != nullptr);
 
-	auto path =
-	    reinterpret_cast<rive::NoOpRenderPath*>(ellipse->renderPath());
+	auto path = reinterpret_cast<rive::NoOpRenderPath*>(ellipse->renderPath());
 
 	// reset
 	// moveTo
@@ -136,7 +134,6 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 	// close
 
 	REQUIRE(path->commands.size() == 7);
-
 
 	// Init
 	REQUIRE(path->commands[0].command == rive::NoOpPathCommandType::Reset);

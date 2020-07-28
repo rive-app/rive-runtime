@@ -206,6 +206,7 @@ ImportResult File::read(BinaryReader& reader)
 									drawOrderKeyFrame->addValue(valueObject);
 								}
 							}
+							keyframe->computeSeconds(linearAnimation->fps());
 							keyedProperty->addKeyFrame(keyframe);
 						}
 					}

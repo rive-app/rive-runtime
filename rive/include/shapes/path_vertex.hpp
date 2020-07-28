@@ -11,6 +11,8 @@ namespace rive
 
 	protected:
 		void markPathDirty();
+		void xChanged() override;
+		void yChanged() override;
 	};
 } // namespace rive
 

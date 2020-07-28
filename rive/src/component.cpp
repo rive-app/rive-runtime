@@ -1,4 +1,5 @@
 #include "component.hpp"
+#include "artboard.hpp"
 #include "container_component.hpp"
 #include "core_context.hpp"
 #include <algorithm>
@@ -7,6 +8,7 @@ using namespace rive;
 
 void Component::onAddedDirty(CoreContext* context)
 {
+	m_Artboard = static_cast<Artboard*>(context);
 	auto coreObject = context->resolve(parentId());
 	if (coreObject == nullptr)
 	{
@@ -21,7 +23,8 @@ void Component::onAddedDirty(CoreContext* context)
 void Component::addDependent(Component* component)
 {
 	// Make it's not already a dependent.
-	assert(std::find(m_Dependents.begin(), m_Dependents.end(), component) == m_Dependents.end());
+	assert(std::find(m_Dependents.begin(), m_Dependents.end(), component) ==
+	       m_Dependents.end());
 	m_Dependents.push_back(component);
 }
 
@@ -37,7 +40,8 @@ bool Component::addDirt(ComponentDirt value, bool recurse)
 	m_Dirt |= value;
 
 	onDirty(m_Dirt);
-	// artboard ?.onComponentDirty(this);
+
+	m_Artboard->onComponentDirty(this);
 
 	if (!recurse)
 	{

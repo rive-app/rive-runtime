@@ -12,9 +12,10 @@ namespace rive
 	public:
 		static const int typeKey = 15;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
-		bool isTypeOf(int typeKey) override
+		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -38,7 +39,7 @@ namespace rive
 		float m_Width = 0;
 		float m_Height = 0;
 	public:
-		float width() const { return m_Width; }
+		inline float width() const { return m_Width; }
 		void width(float value)
 		{
 			if (m_Width == value)
@@ -49,7 +50,7 @@ namespace rive
 			widthChanged();
 		}
 
-		float height() const { return m_Height; }
+		inline float height() const { return m_Height; }
 		void height(float value)
 		{
 			if (m_Height == value)

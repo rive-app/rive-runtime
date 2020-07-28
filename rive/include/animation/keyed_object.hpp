@@ -4,6 +4,7 @@
 #include <vector>
 namespace rive
 {
+	class Artboard;
 	class KeyedProperty;
 	class KeyedObject : public KeyedObjectBase
 	{
@@ -14,8 +15,9 @@ namespace rive
 		~KeyedObject();
 		void addKeyedProperty(KeyedProperty* property);
 
-		void onAddedDirty(CoreContext* context) override {}
-		void onAddedClean(CoreContext* context) override {}
+		void onAddedDirty(CoreContext* context) override;
+		void onAddedClean(CoreContext* context) override;
+		void apply(Artboard* coreContext, float time, float mix);
 	};
 } // namespace rive
 

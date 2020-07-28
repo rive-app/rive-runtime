@@ -12,9 +12,10 @@ namespace rive
 	public:
 		static const int typeKey = 1;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
-		bool isTypeOf(int typeKey) override
+		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -44,7 +45,7 @@ namespace rive
 		float m_OriginX = 0.0f;
 		float m_OriginY = 0.0f;
 	public:
-		float width() const { return m_Width; }
+		inline float width() const { return m_Width; }
 		void width(float value)
 		{
 			if (m_Width == value)
@@ -55,7 +56,7 @@ namespace rive
 			widthChanged();
 		}
 
-		float height() const { return m_Height; }
+		inline float height() const { return m_Height; }
 		void height(float value)
 		{
 			if (m_Height == value)
@@ -66,7 +67,7 @@ namespace rive
 			heightChanged();
 		}
 
-		float x() const { return m_X; }
+		inline float x() const { return m_X; }
 		void x(float value)
 		{
 			if (m_X == value)
@@ -77,7 +78,7 @@ namespace rive
 			xChanged();
 		}
 
-		float y() const { return m_Y; }
+		inline float y() const { return m_Y; }
 		void y(float value)
 		{
 			if (m_Y == value)
@@ -88,7 +89,7 @@ namespace rive
 			yChanged();
 		}
 
-		float originX() const { return m_OriginX; }
+		inline float originX() const { return m_OriginX; }
 		void originX(float value)
 		{
 			if (m_OriginX == value)
@@ -99,7 +100,7 @@ namespace rive
 			originXChanged();
 		}
 
-		float originY() const { return m_OriginY; }
+		inline float originY() const { return m_OriginY; }
 		void originY(float value)
 		{
 			if (m_OriginY == value)

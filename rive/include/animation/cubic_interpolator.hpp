@@ -5,9 +5,18 @@ namespace rive
 {
 	class CubicInterpolator : public CubicInterpolatorBase
 	{
+	private:
+		static constexpr int SplineTableSize = 11;
+		static constexpr float SampleStepSize = 1.0f / (SplineTableSize - 1.0f);
+		float m_Values[SplineTableSize];
+
+		float getT(float x) const;
 	public:
 		void onAddedClean(CoreContext* context) override {}
-		void onAddedDirty(CoreContext* context) override {}
+		void onAddedDirty(CoreContext* context) override;
+
+		/// Convert a linear interpolation factor to an eased one.
+		float transform(float value) const;
 	};
 } // namespace rive
 

@@ -25,6 +25,7 @@ namespace rive
 		void draw(Renderer* renderer) override;
 
 		void pathComposer(PathComposer* value);
+		void pathChanged();
 	};
 } // namespace rive
 

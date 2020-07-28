@@ -12,8 +12,10 @@ namespace rive
 	public:
 		~KeyedProperty();
 		void addKeyFrame(KeyFrame* keyframe);
-		void onAddedClean(CoreContext* context) {}
-		void onAddedDirty(CoreContext* context) {}
+		void onAddedClean(CoreContext* context) override;
+		void onAddedDirty(CoreContext* context) override;
+
+		void apply(Core* object, float time, float mix);
 	};
 } // namespace rive
 

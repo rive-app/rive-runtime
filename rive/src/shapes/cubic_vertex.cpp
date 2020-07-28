@@ -33,3 +33,14 @@ void CubicVertex::inPoint(const Vec2D& value)
 	Vec2D::copy(m_InPoint, value);
 	m_InValid = true;
 }
+
+void CubicVertex::xChanged()
+{
+	Super::xChanged();
+	m_InValid = m_OutValid = false;
+}
+void CubicVertex::yChanged()
+{
+	Super::yChanged();
+	m_InValid = m_OutValid = false;
+}

@@ -11,6 +11,13 @@ namespace rive
 		std::vector<KeyFrameDrawOrderValue*> m_Values;
 	public:
 		void addValue(KeyFrameDrawOrderValue* value);
+
+		void apply(Core* object, int propertyKey, float mix) override;
+		void applyInterpolation(Core* object,
+		                        int propertyKey,
+		                        float seconds,
+		                        const KeyFrame* nextFrame,
+		                        float mix) override;
 	};
 } // namespace rive
 

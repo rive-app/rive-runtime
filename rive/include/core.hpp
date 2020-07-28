@@ -12,14 +12,20 @@ namespace rive
 	public:
 		virtual ~Core() {}
 		virtual int coreType() const = 0;
-		virtual bool isTypeOf(int typeKey) = 0;
+		virtual bool isTypeOf(int typeKey) const = 0;
 		virtual bool deserialize(int propertyKey, BinaryReader& reader) = 0;
 
-		template <typename T> bool is() { return isTypeOf(T::typeKey); }
+		template <typename T> bool is() const { return isTypeOf(T::typeKey); }
 		template <typename T> T* as()
 		{
 			assert(is<T>());
 			return reinterpret_cast<T*>(this);
+		}
+
+		template <typename T> const T* as() const
+		{
+			assert(is<T>());
+			return reinterpret_cast<const T*>(this);
 		}
 
 		/// Called when the object is first added to the context, other objects

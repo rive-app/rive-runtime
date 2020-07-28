@@ -24,6 +24,15 @@ void CubicAsymmetricVertex::rotationChanged()
 {
 	m_InValid = false;
 	m_OutValid = false;
+	markPathDirty();
 }
-void CubicAsymmetricVertex::inDistanceChanged() { m_InValid = false; }
-void CubicAsymmetricVertex::outDistanceChanged() { m_OutValid = false; }
+void CubicAsymmetricVertex::inDistanceChanged()
+{
+	m_InValid = false;
+	markPathDirty();
+}
+void CubicAsymmetricVertex::outDistanceChanged()
+{
+	m_OutValid = false;
+	markPathDirty();
+}

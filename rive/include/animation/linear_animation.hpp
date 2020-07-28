@@ -4,14 +4,19 @@
 #include <vector>
 namespace rive
 {
+	class Artboard;
 	class KeyedObject;
 	class LinearAnimation : public LinearAnimationBase
 	{
 	private:
 		std::vector<KeyedObject*> m_KeyedObjects;
+
 	public:
 		~LinearAnimation();
+		void onAddedDirty(CoreContext* context) override;
+		void onAddedClean(CoreContext* context) override;
 		void addKeyedObject(KeyedObject* object);
+		void apply(Artboard* artboard, float time, float mix = 1.0f);
 	};
 } // namespace rive
 

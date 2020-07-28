@@ -20,7 +20,23 @@ void CubicDetachedVertex::computeOut()
 	                 sin(outRotation()) * outDistance()));
 }
 
-void CubicDetachedVertex::inRotationChanged() { m_InValid = false; }
-void CubicDetachedVertex::inDistanceChanged() { m_InValid = false; }
-void CubicDetachedVertex::outRotationChanged() { m_OutValid = false; }
-void CubicDetachedVertex::outDistanceChanged() { m_OutValid = false; }
+void CubicDetachedVertex::inRotationChanged()
+{
+	m_InValid = false;
+	markPathDirty();
+}
+void CubicDetachedVertex::inDistanceChanged()
+{
+	m_InValid = false;
+	markPathDirty();
+}
+void CubicDetachedVertex::outRotationChanged()
+{
+	m_OutValid = false;
+	markPathDirty();
+}
+void CubicDetachedVertex::outDistanceChanged()
+{
+	m_OutValid = false;
+	markPathDirty();
+}

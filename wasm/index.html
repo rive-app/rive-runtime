@@ -8,7 +8,7 @@
 
 <body>
 
-    <canvas id="myCanvas" width=2048 height=1024></canvas>
+    <canvas id="myCanvas" width=512 height=512></canvas>
     <script>
         RiveWASM({
             locateFile: (file) => "build/bin/debug/" + file,
@@ -146,6 +146,7 @@
                         this._value = _value;
                         this._gradient = null;
                     }
+                    // ctx.globalAlpha = 0.5;
                     switch (_style) {
                         case Stroke:
                             ctx.strokeStyle = _value;
@@ -207,13 +208,40 @@
             }).then(function (buffer) {
                 const file = load(new Uint8Array(buffer));
                 const artboard = file.defaultArtboard();
+                const animation = artboard.animation("walk");
 
                 const canvas = document.getElementById("myCanvas");
                 const ctx = canvas.getContext("2d");
 
                 const renderer = new CanvasRenderer(ctx);
                 artboard.advance(0);
-                artboard.draw(renderer);
+                // artboard.draw(renderer);
+
+                let lastTime = 0;
+
+                function drawFrame(time) {
+                    if (!lastTime) {
+                        lastTime = time;
+                    }
+                    const elapsedSeconds = (time - lastTime) / 1000;
+                    lastTime = time;
+
+                    const duration = animation.duration/animation.fps;
+                    
+                    animation.apply(artboard, 0.5 + ((time/1000)%1), 1.0);
+                    artboard.advance(elapsedSeconds);
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.save();
+                    ctx.translate(-250, 80);
+                    ctx.scale(0.5, 0.5);
+                    artboard.draw(renderer);
+                    ctx.restore();
+
+                    requestAnimationFrame(drawFrame);
+                }
+                requestAnimationFrame(drawFrame);
+
             });
 
 

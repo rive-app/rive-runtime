@@ -245,7 +245,14 @@ static void buildPath(RenderPath& renderPath,
 	}
 }
 
-void Path::markPathDirty() { addDirt(ComponentDirt::Path); }
+void Path::markPathDirty()
+{
+	addDirt(ComponentDirt::Path);
+	if (m_Shape != nullptr)
+	{
+		m_Shape->pathChanged();
+	}
+}
 
 void Path::update(ComponentDirt value)
 {

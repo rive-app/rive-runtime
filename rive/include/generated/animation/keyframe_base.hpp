@@ -12,9 +12,10 @@ namespace rive
 	public:
 		static const int typeKey = 29;
 
-		// Helper to quickly determine if a core object extends another without RTTI
+		// Helper to quickly determine if a core object extends another without
+		// RTTI
 		/// at runtime.
-		bool isTypeOf(int typeKey) override
+		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -36,7 +37,7 @@ namespace rive
 		int m_InterpolationType = 0;
 		int m_InterpolatorId = 0;
 	public:
-		int frame() const { return m_Frame; }
+		inline int frame() const { return m_Frame; }
 		void frame(int value)
 		{
 			if (m_Frame == value)
@@ -47,7 +48,7 @@ namespace rive
 			frameChanged();
 		}
 
-		int interpolationType() const { return m_InterpolationType; }
+		inline int interpolationType() const { return m_InterpolationType; }
 		void interpolationType(int value)
 		{
 			if (m_InterpolationType == value)
@@ -58,7 +59,7 @@ namespace rive
 			interpolationTypeChanged();
 		}
 
-		int interpolatorId() const { return m_InterpolatorId; }
+		inline int interpolatorId() const { return m_InterpolatorId; }
 		void interpolatorId(int value)
 		{
 			if (m_InterpolatorId == value)

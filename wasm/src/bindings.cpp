@@ -1,3 +1,4 @@
+#include "animation/linear_animation.hpp"
 #include "artboard.hpp"
 #include "core/binary_reader.hpp"
 #include "file.hpp"
@@ -232,5 +233,17 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 
 	class_<rive::Artboard>("Artboard")
 	    .function("advance", &rive::Artboard::advance)
-	    .function("draw", &rive::Artboard::draw, allow_raw_pointers());
+	    .function("draw", &rive::Artboard::draw, allow_raw_pointers())
+	    .function(
+	        "animation",
+	        optional_override([](rive::Artboard& artboard,
+	                             std::string name) -> rive::LinearAnimation* {
+		        return artboard.animation<rive::LinearAnimation>(name);
+	        }),
+	        allow_raw_pointers());
+
+	class_<rive::LinearAnimation>("LinearAnimation")
+	    .property("duration", select_overload<int() const>(&rive::LinearAnimationBase::duration))
+	    .property("fps", select_overload<int() const>(&rive::LinearAnimationBase::fps))
+	    .function("apply", &rive::LinearAnimation::apply, allow_raw_pointers());
 }
