@@ -12,6 +12,11 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 	auto coreObjectKey = reader.readVarUint();
 	auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
 
+	if (object == nullptr)
+	{
+		fprintf(stderr, "Unknown object of type %llu.\n", coreObjectKey);
+		return nullptr;
+	}
 	while (true)
 	{
 		auto propertyKey = reader.readVarUint();
@@ -20,20 +25,18 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 			// Terminator. https://media.giphy.com/media/7TtvTUMm9mp20/giphy.gif
 			break;
 		}
-		auto propertyLength = reader.readVarUint();
-		auto valueReader = reader.read(propertyLength);
 
-		// We can get away with just checking once as our reader is safe to call
-		// again after overflowing.
 		if (reader.didOverflow())
 		{
 			delete object;
 			return nullptr;
 		}
 
-		if (object != nullptr)
+		if (!object->deserialize(propertyKey, reader))
 		{
-			object->deserialize(propertyKey, valueReader);
+			fprintf(stderr, "Unknown property of type %llu.\n", propertyKey);
+			delete object;
+			return nullptr;
 		}
 	}
 
@@ -93,8 +96,8 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 	{
 		fprintf(stderr,
 		        "Unsupported version %u expected %u.\n",
-		        majorVersion,
-		        header.majorVersion());
+		        header.majorVersion(),
+		        majorVersion);
 		return ImportResult::unsupportedVersion;
 	}
 	auto file = new File();

@@ -32,7 +32,7 @@ namespace rive
 	{
 	public:
 		/// Major version number supported by the runtime.
-		static const int majorVersion = 2;
+		static const int majorVersion = 3;
 		/// Minor version number supported by the runtime.
 		static const int minorVersion = 0;
 
@@ -47,7 +47,7 @@ namespace rive
 
 	public:
 		~File();
-		
+
 		///
 		/// Imports a Rive file from a binary buffer.
 		/// @param reader a pointer to a binary reader attached to the file.

@@ -1,8 +1,8 @@
 #ifndef _RIVE_COMPONENT_BASE_HPP_
 #define _RIVE_COMPONENT_BASE_HPP_
 #include "core.hpp"
-#include "core/field_types/core_int_type.hpp"
 #include "core/field_types/core_string_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 #include <string>
 namespace rive
 {
@@ -14,9 +14,8 @@ namespace rive
 	public:
 		static const int typeKey = 10;
 
-		// Helper to quickly determine if a core object extends another without
-		// RTTI
-		/// at runtime.
+		/// Helper to quickly determine if a core object extends another without
+		/// RTTI at runtime.
 		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
@@ -67,7 +66,7 @@ namespace rive
 					m_Name = CoreStringType::deserialize(reader);
 					return true;
 				case parentIdPropertyKey:
-					m_ParentId = CoreIntType::deserialize(reader);
+					m_ParentId = CoreUintType::deserialize(reader);
 					return true;
 			}
 			return false;

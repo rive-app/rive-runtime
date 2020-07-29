@@ -1,7 +1,7 @@
 #ifndef _RIVE_KEYED_OBJECT_BASE_HPP_
 #define _RIVE_KEYED_OBJECT_BASE_HPP_
 #include "core.hpp"
-#include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class KeyedObjectBase : public Core
@@ -12,9 +12,8 @@ namespace rive
 	public:
 		static const int typeKey = 25;
 
-		// Helper to quickly determine if a core object extends another without
-		// RTTI
-		/// at runtime.
+		/// Helper to quickly determine if a core object extends another without
+		/// RTTI at runtime.
 		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
@@ -49,7 +48,7 @@ namespace rive
 			switch (propertyKey)
 			{
 				case objectIdPropertyKey:
-					m_ObjectId = CoreIntType::deserialize(reader);
+					m_ObjectId = CoreUintType::deserialize(reader);
 					return true;
 			}
 			return false;

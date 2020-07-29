@@ -12,9 +12,8 @@ namespace rive
 	public:
 		static const int typeKey = 5;
 
-		// Helper to quickly determine if a core object extends another without
-		// RTTI
-		/// at runtime.
+		/// Helper to quickly determine if a core object extends another without
+		/// RTTI at runtime.
 		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)

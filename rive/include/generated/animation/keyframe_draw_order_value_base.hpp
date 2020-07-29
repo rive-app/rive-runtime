@@ -1,7 +1,7 @@
 #ifndef _RIVE_KEY_FRAME_DRAW_ORDER_VALUE_BASE_HPP_
 #define _RIVE_KEY_FRAME_DRAW_ORDER_VALUE_BASE_HPP_
 #include "core.hpp"
-#include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class KeyFrameDrawOrderValueBase : public Core
@@ -12,9 +12,8 @@ namespace rive
 	public:
 		static const int typeKey = 33;
 
-		// Helper to quickly determine if a core object extends another without
-		// RTTI
-		/// at runtime.
+		/// Helper to quickly determine if a core object extends another without
+		/// RTTI at runtime.
 		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
@@ -62,10 +61,10 @@ namespace rive
 			switch (propertyKey)
 			{
 				case drawableIdPropertyKey:
-					m_DrawableId = CoreIntType::deserialize(reader);
+					m_DrawableId = CoreUintType::deserialize(reader);
 					return true;
 				case valuePropertyKey:
-					m_Value = CoreIntType::deserialize(reader);
+					m_Value = CoreUintType::deserialize(reader);
 					return true;
 			}
 			return false;

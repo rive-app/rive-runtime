@@ -9,17 +9,18 @@
   "properties": {
     "drawOrder": {
       "type": "FractionalIndex",
-      "typeRuntime": "int",
+      "typeRuntime": "uint",
       "key": {
         "int": 22,
         "string": "drawOrder"
       }
     },
-    "blendMode": {
+    "blendModeValue": {
       "type": "int",
+      "initialValue": "3",
       "key": {
         "int": 23,
-        "string": "blendMode"
+        "string": "blendModeValue"
       }
     }
   }

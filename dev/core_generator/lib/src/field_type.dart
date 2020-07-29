@@ -3,6 +3,7 @@ export 'package:core_generator/src/field_types/double_field_type.dart';
 export 'package:core_generator/src/field_types/int_field_type.dart';
 export 'package:core_generator/src/field_types/string_field_type.dart';
 export 'package:core_generator/src/field_types/color_field_type.dart';
+export 'package:core_generator/src/field_types/uint_field_type.dart';
 
 Map<String, FieldType> _types = <String, FieldType>{};
 

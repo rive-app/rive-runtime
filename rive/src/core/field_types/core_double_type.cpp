@@ -5,5 +5,5 @@ using namespace rive;
 
 double CoreDoubleType::deserialize(BinaryReader& reader) 
 {
-    return reader.lengthInBytes() == 4 ? reader.readFloat32() : reader.readFloat64();
+    return reader.readFloat32();
 }

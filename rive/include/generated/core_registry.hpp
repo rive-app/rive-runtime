@@ -105,13 +105,34 @@ namespace rive
 			}
 			return nullptr;
 		}
-		static void setInt(Core* object, int propertyKey, int value)
+		static void setUint(Core* object, int propertyKey, int value)
 		{
 			switch (propertyKey)
 			{
 				case KeyedObjectBase::objectIdPropertyKey:
 					object->as<KeyedObjectBase>()->objectId(value);
 					break;
+				case KeyFrameBase::interpolatorIdPropertyKey:
+					object->as<KeyFrameBase>()->interpolatorId(value);
+					break;
+				case KeyFrameDrawOrderValueBase::drawableIdPropertyKey:
+					object->as<KeyFrameDrawOrderValueBase>()->drawableId(value);
+					break;
+				case KeyFrameDrawOrderValueBase::valuePropertyKey:
+					object->as<KeyFrameDrawOrderValueBase>()->value(value);
+					break;
+				case ComponentBase::parentIdPropertyKey:
+					object->as<ComponentBase>()->parentId(value);
+					break;
+				case DrawableBase::drawOrderPropertyKey:
+					object->as<DrawableBase>()->drawOrder(value);
+					break;
+			}
+		}
+		static void setInt(Core* object, int propertyKey, int value)
+		{
+			switch (propertyKey)
+			{
 				case KeyedPropertyBase::propertyKeyPropertyKey:
 					object->as<KeyedPropertyBase>()->propertyKey(value);
 					break;
@@ -120,9 +141,6 @@ namespace rive
 					break;
 				case KeyFrameBase::interpolationTypePropertyKey:
 					object->as<KeyFrameBase>()->interpolationType(value);
-					break;
-				case KeyFrameBase::interpolatorIdPropertyKey:
-					object->as<KeyFrameBase>()->interpolatorId(value);
 					break;
 				case LinearAnimationBase::fpsPropertyKey:
 					object->as<LinearAnimationBase>()->fps(value);
@@ -139,15 +157,6 @@ namespace rive
 				case LinearAnimationBase::workEndPropertyKey:
 					object->as<LinearAnimationBase>()->workEnd(value);
 					break;
-				case KeyFrameDrawOrderValueBase::drawableIdPropertyKey:
-					object->as<KeyFrameDrawOrderValueBase>()->drawableId(value);
-					break;
-				case KeyFrameDrawOrderValueBase::valuePropertyKey:
-					object->as<KeyFrameDrawOrderValueBase>()->value(value);
-					break;
-				case ComponentBase::parentIdPropertyKey:
-					object->as<ComponentBase>()->parentId(value);
-					break;
 				case StrokeBase::capPropertyKey:
 					object->as<StrokeBase>()->cap(value);
 					break;
@@ -157,11 +166,8 @@ namespace rive
 				case FillBase::fillRulePropertyKey:
 					object->as<FillBase>()->fillRule(value);
 					break;
-				case DrawableBase::drawOrderPropertyKey:
-					object->as<DrawableBase>()->drawOrder(value);
-					break;
-				case DrawableBase::blendModePropertyKey:
-					object->as<DrawableBase>()->blendMode(value);
+				case DrawableBase::blendModeValuePropertyKey:
+					object->as<DrawableBase>()->blendModeValue(value);
 					break;
 			}
 		}
@@ -336,20 +342,36 @@ namespace rive
 					break;
 			}
 		}
-		static int getInt(Core* object, int propertyKey)
+		static int getUint(Core* object, int propertyKey)
 		{
 			switch (propertyKey)
 			{
 				case KeyedObjectBase::objectIdPropertyKey:
 					return object->as<KeyedObjectBase>()->objectId();
+				case KeyFrameBase::interpolatorIdPropertyKey:
+					return object->as<KeyFrameBase>()->interpolatorId();
+				case KeyFrameDrawOrderValueBase::drawableIdPropertyKey:
+					return object->as<KeyFrameDrawOrderValueBase>()
+					    ->drawableId();
+				case KeyFrameDrawOrderValueBase::valuePropertyKey:
+					return object->as<KeyFrameDrawOrderValueBase>()->value();
+				case ComponentBase::parentIdPropertyKey:
+					return object->as<ComponentBase>()->parentId();
+				case DrawableBase::drawOrderPropertyKey:
+					return object->as<DrawableBase>()->drawOrder();
+			}
+			return 0;
+		}
+		static int getInt(Core* object, int propertyKey)
+		{
+			switch (propertyKey)
+			{
 				case KeyedPropertyBase::propertyKeyPropertyKey:
 					return object->as<KeyedPropertyBase>()->propertyKey();
 				case KeyFrameBase::framePropertyKey:
 					return object->as<KeyFrameBase>()->frame();
 				case KeyFrameBase::interpolationTypePropertyKey:
 					return object->as<KeyFrameBase>()->interpolationType();
-				case KeyFrameBase::interpolatorIdPropertyKey:
-					return object->as<KeyFrameBase>()->interpolatorId();
 				case LinearAnimationBase::fpsPropertyKey:
 					return object->as<LinearAnimationBase>()->fps();
 				case LinearAnimationBase::durationPropertyKey:
@@ -360,23 +382,14 @@ namespace rive
 					return object->as<LinearAnimationBase>()->workStart();
 				case LinearAnimationBase::workEndPropertyKey:
 					return object->as<LinearAnimationBase>()->workEnd();
-				case KeyFrameDrawOrderValueBase::drawableIdPropertyKey:
-					return object->as<KeyFrameDrawOrderValueBase>()
-					    ->drawableId();
-				case KeyFrameDrawOrderValueBase::valuePropertyKey:
-					return object->as<KeyFrameDrawOrderValueBase>()->value();
-				case ComponentBase::parentIdPropertyKey:
-					return object->as<ComponentBase>()->parentId();
 				case StrokeBase::capPropertyKey:
 					return object->as<StrokeBase>()->cap();
 				case StrokeBase::joinPropertyKey:
 					return object->as<StrokeBase>()->join();
 				case FillBase::fillRulePropertyKey:
 					return object->as<FillBase>()->fillRule();
-				case DrawableBase::drawOrderPropertyKey:
-					return object->as<DrawableBase>()->drawOrder();
-				case DrawableBase::blendModePropertyKey:
-					return object->as<DrawableBase>()->blendMode();
+				case DrawableBase::blendModeValuePropertyKey:
+					return object->as<DrawableBase>()->blendModeValue();
 			}
 			return 0;
 		}

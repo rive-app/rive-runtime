@@ -8,6 +8,7 @@
   "properties": {
     "cornerRadius": {
       "type": "double",
+      "initialValue": "0",
       "key": {
         "int": 31,
         "string": "cornerRadius"

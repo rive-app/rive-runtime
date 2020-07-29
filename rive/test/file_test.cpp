@@ -35,7 +35,7 @@ TEST_CASE("file can be read", "[file]")
 	delete[] bytes;
 }
 
-TEST_CASE("file with animation be read", "[file]")
+TEST_CASE("file with animation can be read", "[file]")
 {
 	FILE* fp = fopen("../../assets/juice.riv", "r");
 	REQUIRE(fp != nullptr);
@@ -116,7 +116,7 @@ TEST_CASE("dependencies are as expected", "[file]")
 	auto nodeB = artboard->find<rive::Node>("B");
 	auto nodeC = artboard->find<rive::Node>("C");
 	auto shape = artboard->find<rive::Shape>("Rectangle");
-	auto path = artboard->find<rive::Rectangle>("Rectangle Path");
+	auto path = artboard->find<rive::Path>("Rectangle Path");
 	REQUIRE(nodeA != nullptr);
 	REQUIRE(nodeB != nullptr);
 	REQUIRE(nodeC != nullptr);

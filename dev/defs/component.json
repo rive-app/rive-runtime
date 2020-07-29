@@ -25,7 +25,7 @@
     },
     "parentId": {
       "type": "Id",
-      "typeRuntime": "int",
+      "typeRuntime": "uint",
       "key": {
         "int": 5,
         "string": "parentId"

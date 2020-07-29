@@ -1,6 +1,7 @@
 #ifndef _RIVE_DRAWABLE_BASE_HPP_
 #define _RIVE_DRAWABLE_BASE_HPP_
 #include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 #include "node.hpp"
 namespace rive
 {
@@ -12,9 +13,8 @@ namespace rive
 	public:
 		static const int typeKey = 13;
 
-		// Helper to quickly determine if a core object extends another without
-		// RTTI
-		/// at runtime.
+		/// Helper to quickly determine if a core object extends another without
+		/// RTTI at runtime.
 		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
@@ -32,11 +32,11 @@ namespace rive
 		int coreType() const override { return typeKey; }
 
 		static const int drawOrderPropertyKey = 22;
-		static const int blendModePropertyKey = 23;
+		static const int blendModeValuePropertyKey = 23;
 
 	private:
 		int m_DrawOrder = 0;
-		int m_BlendMode = 0;
+		int m_BlendModeValue = 3;
 	public:
 		inline int drawOrder() const { return m_DrawOrder; }
 		void drawOrder(int value)
@@ -49,15 +49,15 @@ namespace rive
 			drawOrderChanged();
 		}
 
-		inline int blendMode() const { return m_BlendMode; }
-		void blendMode(int value)
+		inline int blendModeValue() const { return m_BlendModeValue; }
+		void blendModeValue(int value)
 		{
-			if (m_BlendMode == value)
+			if (m_BlendModeValue == value)
 			{
 				return;
 			}
-			m_BlendMode = value;
-			blendModeChanged();
+			m_BlendModeValue = value;
+			blendModeValueChanged();
 		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
@@ -65,10 +65,10 @@ namespace rive
 			switch (propertyKey)
 			{
 				case drawOrderPropertyKey:
-					m_DrawOrder = CoreIntType::deserialize(reader);
+					m_DrawOrder = CoreUintType::deserialize(reader);
 					return true;
-				case blendModePropertyKey:
-					m_BlendMode = CoreIntType::deserialize(reader);
+				case blendModeValuePropertyKey:
+					m_BlendModeValue = CoreIntType::deserialize(reader);
 					return true;
 			}
 			return Node::deserialize(propertyKey, reader);
@@ -76,7 +76,7 @@ namespace rive
 
 	protected:
 		virtual void drawOrderChanged() {}
-		virtual void blendModeChanged() {}
+		virtual void blendModeValueChanged() {}
 	};
 } // namespace rive
 

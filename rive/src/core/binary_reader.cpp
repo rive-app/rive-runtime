@@ -3,7 +3,11 @@
 
 using namespace rive;
 
-BinaryReader::BinaryReader(uint8_t* bytes, size_t length) : m_Position(bytes), m_End(bytes + length), m_Overflowed(false), m_Length(length)
+BinaryReader::BinaryReader(uint8_t* bytes, size_t length) :
+    m_Position(bytes),
+    m_End(bytes + length),
+    m_Overflowed(false),
+    m_Length(length)
 {
 }
 
@@ -43,9 +47,9 @@ int64_t BinaryReader::readVarInt()
 	return value;
 }
 
-std::string BinaryReader::readString(bool explicitLength)
+std::string BinaryReader::readString()
 {
-	uint64_t length = explicitLength ? readVarUint() : m_End - m_Position;
+	uint64_t length = readVarUint();
 	if (didOverflow())
 	{
 		return std::string();
@@ -98,14 +102,15 @@ uint8_t BinaryReader::readByte()
 	return *m_Position++;
 }
 
-BinaryReader BinaryReader::read(size_t length)
+uint32_t BinaryReader::readUint() 
 {
-	if (m_End - m_Position < length)
+	uint32_t value;
+	auto readBytes = decode_uint_32(m_Position, m_End, &value);
+	if (readBytes == 0)
 	{
 		overflow();
-		return BinaryReader(m_Position, 0);
+		return 0;
 	}
-	auto readerPosition = m_Position;
-	m_Position += length;
-	return BinaryReader(readerPosition, length);
+	m_Position += readBytes;
+	return value;
 }

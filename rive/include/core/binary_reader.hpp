@@ -24,10 +24,11 @@ namespace rive
 
         uint64_t readVarUint();
         int64_t readVarInt();
-        std::string readString(bool explicitLength = false);
+        std::string readString();
         double readFloat64();
         float readFloat32();
         uint8_t readByte();
+        uint32_t readUint();
         BinaryReader read(size_t length);
 	};
 } // namespace rive

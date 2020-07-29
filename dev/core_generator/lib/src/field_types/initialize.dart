@@ -8,6 +8,7 @@ void initializeFields() {
   fields = [
     StringFieldType(),
     IntFieldType(),
+    UintFieldType(),
     DoubleFieldType(),
     BoolFieldType(),
     ColorFieldType(),

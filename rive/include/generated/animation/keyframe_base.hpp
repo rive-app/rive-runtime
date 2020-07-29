@@ -2,6 +2,7 @@
 #define _RIVE_KEY_FRAME_BASE_HPP_
 #include "core.hpp"
 #include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class KeyFrameBase : public Core
@@ -12,9 +13,8 @@ namespace rive
 	public:
 		static const int typeKey = 29;
 
-		// Helper to quickly determine if a core object extends another without
-		// RTTI
-		/// at runtime.
+		/// Helper to quickly determine if a core object extends another without
+		/// RTTI at runtime.
 		bool isTypeOf(int typeKey) const override
 		{
 			switch (typeKey)
@@ -81,7 +81,7 @@ namespace rive
 					m_InterpolationType = CoreIntType::deserialize(reader);
 					return true;
 				case interpolatorIdPropertyKey:
-					m_InterpolatorId = CoreIntType::deserialize(reader);
+					m_InterpolatorId = CoreUintType::deserialize(reader);
 					return true;
 			}
 			return false;

@@ -10,7 +10,7 @@ String comment(String s, {int indent = 0}) {
     _indentRegexp[indent] = reg = _makeWrappingRegExp(80 - 4 - 2 * indent);
   }
 
-  return "// " +
+  return "/// " +
       s
           .replaceAllMapped(reg, (Match m) => "${m[1]}${m[2]}\n")
           .trim()

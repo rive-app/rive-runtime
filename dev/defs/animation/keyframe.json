@@ -33,7 +33,7 @@
     },
     "interpolatorId": {
       "type": "Id",
-      "typeRuntime": "int",
+      "typeRuntime": "uint",
       "key": {
         "int": 69,
         "string": "interpolatorid"
