@@ -122,12 +122,12 @@ static void buildPath(RenderPath& renderPath,
 
 			Vec2D posNext;
 			Vec2D::scaleAndAdd(posNext, pos, toNext, renderRadius);
-			renderPath.cubicTo(outPoint[0],
-			                   outPoint[1],
+			renderPath.cubicTo(startInX = outPoint[0],
+			                   startInY = outPoint[1],
 			                   inPoint[0],
 			                   inPoint[1],
-			                   startInX = outX = posNext[0],
-			                   startInY = outY = posNext[1]);
+			                   outX = posNext[0],
+			                   outY = posNext[1]);
 			prevIsCubic = false;
 		}
 		else
