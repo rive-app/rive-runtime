@@ -20,8 +20,8 @@ Module.onRuntimeInitialized = function () {
     } = Module;
 
     const {
-        Fill,
-        Stroke
+        fill,
+        stroke
     } = RenderPaintStyle;
 
     var CanvasRenderPath = RenderPath.extend("CanvasRenderPath", {
@@ -131,12 +131,12 @@ Module.onRuntimeInitialized = function () {
                 this._gradient = null;
             }
             switch (_style) {
-                case Stroke:
+                case stroke:
                     ctx.strokeStyle = _value;
                     ctx.lineWidth = this._thickness;
                     ctx.stroke(path._path2D);
                     break;
-                case Fill:
+                case fill:
                     ctx.fillStyle = _value;
                     ctx.fill(path._path2D);
                     break;
@@ -154,9 +154,6 @@ Module.onRuntimeInitialized = function () {
         },
         restore: function () {
             this._ctx.restore();
-        },
-        translate: function (x, y) {
-            this._ctx.translate(x, y);
         },
         transform: function (matrix) {
             this._ctx.transform(matrix.xx, matrix.xy, matrix.yx, matrix.yy, matrix.tx,

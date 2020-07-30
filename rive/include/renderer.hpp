@@ -1,7 +1,11 @@
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
 
+#include "layout.hpp"
+#include "math/aabb.hpp"
 #include "math/mat2d.hpp"
+#include <cmath>
+#include <stdio.h>
 
 namespace rive
 {
@@ -30,27 +34,12 @@ namespace rive
 			lineTo(x, y + height);
 			close();
 		}
-
-		// void addRect(const AABB& bounds)
-		// {
-		// 	moveTo(bounds[0], bounds[1]);
-		// 	lineTo(bounds[2], bounds[1]);
-		// 	lineTo(bounds[2], bounds[3]);
-		// 	lineTo(bounds[0], bounds[3]);
-		// 	close();
-		// }
 	};
-
-	// struct RenderColorStop
-	// {
-	// 	unsigned int color;
-	// 	float stop;
-	// };
 
 	enum class RenderPaintStyle
 	{
-		Stroke,
-		Fill
+		stroke,
+		fill
 	};
 
 	class RenderPaint
@@ -78,9 +67,82 @@ namespace rive
 		virtual void save() = 0;
 		virtual void restore() = 0;
 		virtual void transform(const Mat2D& transform) = 0;
-		virtual void translate(float x, float y) = 0;
 		virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
 		virtual void clipPath(RenderPath* path) = 0;
+
+		void align(Fit fit,
+		           const Alignment& alignment,
+		           const AABB& frame,
+		           const AABB& content)
+		{
+			float contentWidth = content[2] - content[0];
+			float contentHeight = content[3] - content[1];
+			float x = -content[0] - contentWidth / 2.0 -
+			          (alignment.x() * contentWidth / 2.0);
+			float y = -content[1] - contentHeight / 2.0 -
+			          (alignment.y() * contentHeight / 2.0);
+
+			float scaleX = 1.0, scaleY = 1.0;
+
+			switch (fit)
+			{
+				case Fit::fill: {
+					scaleX = frame.width() / contentWidth;
+					scaleY = frame.height() / contentHeight;
+					break;
+				}
+				case Fit::contain: {
+					float minScale = std::fmin(frame.width() / contentWidth,
+					                           frame.height() / contentHeight);
+					scaleX = scaleY = minScale;
+					break;
+				}
+				case Fit::cover: {
+					float maxScale = std::fmax(frame.width() / contentWidth,
+					                           frame.height() / contentHeight);
+					scaleX = scaleY = maxScale;
+					break;
+				}
+				case Fit::fitHeight: {
+					float minScale = frame.height() / contentHeight;
+					scaleX = scaleY = minScale;
+					break;
+				}
+				case Fit::fitWidth: {
+					float minScale = frame.width() / contentWidth;
+					scaleX = scaleY = minScale;
+					break;
+				}
+				case Fit::none: {
+					scaleX = scaleY = 1.0;
+					break;
+				}
+				case Fit::scaleDown: {
+					float minScale = std::fmin(frame.width() / contentWidth,
+					                           frame.height() / contentHeight);
+					scaleX = scaleY = minScale < 1.0 ? minScale : 1.0;
+					break;
+				}
+			}
+
+			Mat2D translation;
+			translation[4] = frame[0] + frame.width() / 2.0 +
+			                 (alignment.x() * frame.width() / 2.0);
+			translation[5] = frame[1] + frame.height() / 2.0 +
+			                 (alignment.y() * frame.height() / 2.0);
+			Mat2D scale;
+			scale[0] = scaleX;
+			scale[3] = scaleY;
+
+			Mat2D translateBack;
+			translateBack[4] = x;
+			translateBack[5] = y;
+
+			Mat2D result;
+			Mat2D::multiply(result, translation, scale);
+			Mat2D::multiply(result, result, translateBack);
+			transform(result);
+		}
 	};
 
 	extern RenderPath* makeRenderPath();

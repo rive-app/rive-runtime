@@ -3,6 +3,7 @@
 #include "artboard.hpp"
 #include "core/binary_reader.hpp"
 #include "file.hpp"
+#include "layout.hpp"
 #include "math/mat2d.hpp"
 #include "renderer.hpp"
 #include <emscripten.h>
@@ -27,8 +28,6 @@ public:
 	{
 		call<void>("transform", transform);
 	}
-
-	void translate(float x, float y) override { call<void>("translate", x, y); }
 
 	void drawPath(rive::RenderPath* path, rive::RenderPaint* paint) override
 	{
@@ -137,10 +136,6 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	              &RendererWrapper::transform,
 	              pure_virtual(),
 	              allow_raw_pointers())
-	    .function("translate",
-	              &RendererWrapper::translate,
-	              pure_virtual(),
-	              allow_raw_pointers())
 	    .function("drawPath",
 	              &RendererWrapper::drawPath,
 	              pure_virtual(),
@@ -149,6 +144,7 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	              &RendererWrapper::clipPath,
 	              pure_virtual(),
 	              allow_raw_pointers())
+	    .function("align", &rive::Renderer::align)
 	    .allow_subclass<RendererWrapper>("RendererWrapper");
 
 	class_<rive::RenderPath>("RenderPath")
@@ -179,8 +175,8 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	    .allow_subclass<RenderPathWrapper>("RenderPathWrapper");
 
 	enum_<rive::RenderPaintStyle>("RenderPaintStyle")
-	    .value("Fill", rive::RenderPaintStyle::Fill)
-	    .value("Stroke", rive::RenderPaintStyle::Stroke);
+	    .value("fill", rive::RenderPaintStyle::fill)
+	    .value("stroke", rive::RenderPaintStyle::stroke);
 
 	class_<rive::RenderPaint>("RenderPaint")
 	    .function("color",
@@ -241,7 +237,8 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	                             std::string name) -> rive::LinearAnimation* {
 		        return artboard.animation<rive::LinearAnimation>(name);
 	        }),
-	        allow_raw_pointers());
+	        allow_raw_pointers())
+	    .property("bounds", &rive::Artboard::bounds);
 
 	class_<rive::LinearAnimation>("LinearAnimation")
 	    .property(
@@ -259,5 +256,35 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	            &rive::LinearAnimationInstance::time),
 	        select_overload<void(float)>(&rive::LinearAnimationInstance::time))
 	    .function("advance", &rive::LinearAnimationInstance::advance)
-	    .function("apply", &rive::LinearAnimationInstance::apply, allow_raw_pointers());
+	    .function("apply",
+	              &rive::LinearAnimationInstance::apply,
+	              allow_raw_pointers());
+
+	enum_<rive::Fit>("Fit")
+	    .value("fill", rive::Fit::fill)
+	    .value("contain", rive::Fit::contain)
+	    .value("cover", rive::Fit::cover)
+	    .value("fitWidth", rive::Fit::fitWidth)
+	    .value("fitHeight", rive::Fit::fitHeight)
+	    .value("none", rive::Fit::none)
+	    .value("scaleDown", rive::Fit::scaleDown);
+
+	class_<rive::Alignment>("Alignment")
+	    .property("x", &rive::Alignment::x)
+	    .property("y", &rive::Alignment::y)
+	    .class_property("topLeft", &rive::Alignment::topLeft)
+	    .class_property("topCenter", &rive::Alignment::topCenter)
+	    .class_property("topRight", &rive::Alignment::topRight)
+	    .class_property("centerLeft", &rive::Alignment::centerLeft)
+	    .class_property("center", &rive::Alignment::center)
+	    .class_property("centerRight", &rive::Alignment::centerRight)
+	    .class_property("bottomLeft", &rive::Alignment::bottomLeft)
+	    .class_property("bottomCenter", &rive::Alignment::bottomCenter)
+	    .class_property("bottomRight", &rive::Alignment::bottomRight);
+
+	value_object<rive::AABB>("AABB")
+	    .field("minX", &rive::AABB::minX)
+	    .field("minY", &rive::AABB::minY)
+	    .field("maxX", &rive::AABB::maxX)
+	    .field("maxY", &rive::AABB::maxY);
 }

@@ -1,10 +1,10 @@
 #include "catch.hpp"
 #include "core/binary_reader.hpp"
 #include "file.hpp"
+#include "no_op_renderer.hpp"
 #include "node.hpp"
 #include "shapes/rectangle.hpp"
 #include "shapes/shape.hpp"
-#include "no_op_renderer.hpp"
 #include <cstdio>
 
 TEST_CASE("file can be read", "[file]")
@@ -30,7 +30,7 @@ TEST_CASE("file can be read", "[file]")
 
 	// There should be a second artboard named Two.
 	REQUIRE(file->artboard("Two") != nullptr);
-	
+
 	delete file;
 	delete[] bytes;
 }
@@ -149,17 +149,24 @@ TEST_CASE("dependencies are as expected", "[file]")
 }
 
 // TODO:
-// ShapePaint (fill/stroke) needs to be implemented in WASM (jsFill/jsStroke) in order to create Paint objects as necessary.
+// ShapePaint (fill/stroke) needs to be implemented in WASM (jsFill/jsStroke) in
+// order to create Paint objects as necessary.
 
-// Mutators need to be implemented in WASM (solid/linear/radial) and get access to their ShapePaint so they can mutate any extra objects
-// they create on it (like a paint object for skia).
+// Mutators need to be implemented in WASM (solid/linear/radial) and get access
+// to their ShapePaint so they can mutate any extra objects they create on it
+// (like a paint object for skia).
 
-// Paths need to be implemented in WASM but not so much as a core path (like parametric/pointspath, etc) but more as a general rendering
-// path. Handed their commands so they can generate/store a re-usable path. This would be a Path2D in context2D and a SkPath in CanvasKit.
+// Paths need to be implemented in WASM but not so much as a core path (like
+// parametric/pointspath, etc) but more as a general rendering path. Handed
+// their commands so they can generate/store a re-usable path. This would be a
+// Path2D in context2D and a SkPath in CanvasKit.
 
-// PathComposer is the factory for the Paths. But they do need to surive so they can be reset/reused as available by the rendering lib.
+// PathComposer is the factory for the Paths. But they do need to surive so they
+// can be reset/reused as available by the rendering lib.
 
-// PathComposer needs to be implemented in WASM to compose the paths together and be accessible from the Shape (jsShape) which will need a
-// call setupFill/restoreFill and setupStroke/restoreStroke.
+// PathComposer needs to be implemented in WASM to compose the paths together
+// and be accessible from the Shape (jsShape) which will need a call
+// setupFill/restoreFill and setupStroke/restoreStroke.
 
-// Draw will be called by C++ on the Shape, the Shape will call draw on the fill/stroke (propagates to jsFill/jsStroke)
+// Draw will be called by C++ on the Shape, the Shape will call draw on the
+// fill/stroke (propagates to jsFill/jsStroke)

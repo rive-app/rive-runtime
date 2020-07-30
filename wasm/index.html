@@ -17,6 +17,8 @@
             const {
                 CanvasRenderer,
                 LinearAnimationInstance,
+                Alignment,
+                Fit,
                 load
             } = module;
 
@@ -55,15 +57,19 @@
                     }
                     const elapsedSeconds = (time - lastTime) / 1000;
                     lastTime = time;
-                    
+
                     animationInstance.advance(elapsedSeconds);
                     animationInstance.apply(artboard, 1.0);
                     artboard.advance(elapsedSeconds);
 
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.save();
-                    ctx.translate(-250, 80);
-                    ctx.scale(0.5, 0.5);
+                    renderer.align(Fit.contain, Alignment.center, {
+                        minX: 0,
+                        minY: 0,
+                        maxX: canvas.width,
+                        maxY: canvas.height
+                    }, artboard.bounds);
                     artboard.draw(renderer);
                     ctx.restore();
 

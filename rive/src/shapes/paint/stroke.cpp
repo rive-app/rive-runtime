@@ -10,7 +10,7 @@ PathSpace Stroke::pathSpace() const
 RenderPaint* Stroke::initPaintMutator(ShapePaintMutator* mutator)
 {
 	auto renderPaint = Super::initPaintMutator(mutator);
-	renderPaint->style(RenderPaintStyle::Stroke);
+	renderPaint->style(RenderPaintStyle::stroke);
 	renderPaint->thickness(thickness());
 	return renderPaint;
 }

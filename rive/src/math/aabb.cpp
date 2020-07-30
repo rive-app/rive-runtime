@@ -3,17 +3,20 @@
 
 using namespace rive;
 
-AABB::AABB() : m_Buffer{0} {}
+AABB::AABB() : buffer{0} {}
 
 AABB::AABB(const AABB& copy)
 {
-	m_Buffer[0] = copy.m_Buffer[0];
-	m_Buffer[1] = copy.m_Buffer[1];
-	m_Buffer[2] = copy.m_Buffer[2];
-	m_Buffer[3] = copy.m_Buffer[3];
+	buffer[0] = copy.buffer[0];
+	buffer[1] = copy.buffer[1];
+	buffer[2] = copy.buffer[2];
+	buffer[3] = copy.buffer[3];
 }
 
-AABB::AABB(float minX, float minY, float maxX, float maxY) : m_Buffer{minX, minY, maxX, maxY} {}
+AABB::AABB(float minX, float minY, float maxX, float maxY) :
+    buffer{minX, minY, maxX, maxY}
+{
+}
 
 void AABB::center(Vec2D& out, const AABB& a)
 {
@@ -35,13 +38,17 @@ void AABB::extents(Vec2D& out, const AABB& a)
 
 void AABB::combine(AABB& out, const AABB& a, const AABB& b) {}
 
-bool AABB::contains(const AABB& a, const AABB& b) { return a[0] <= b[0] && a[1] <= b[1] && b[2] <= a[2] && b[3] <= a[3]; }
+bool AABB::contains(const AABB& a, const AABB& b)
+{
+	return a[0] <= b[0] && a[1] <= b[1] && b[2] <= a[2] && b[3] <= a[3];
+}
 
 bool AABB::isValid(const AABB& a)
 {
 	float dx = a[2] - a[0];
 	float dy = a[3] - a[1];
-	return dx >= 0.0f && dy >= 0.0f && std::isfinite(a[0]) && std::isfinite(a[1]) && std::isfinite(a[2]) && std::isfinite(a[3]);
+	return dx >= 0.0f && dy >= 0.0f && std::isfinite(a[0]) &&
+	       std::isfinite(a[1]) && std::isfinite(a[2]) && std::isfinite(a[3]);
 }
 
 bool AABB::testOverlap(const AABB& a, const AABB& b)
@@ -65,16 +72,19 @@ bool AABB::testOverlap(const AABB& a, const AABB& b)
 	return true;
 }
 
-bool AABB::areIdentical(const AABB& a, const AABB& b) { return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]; }
+bool AABB::areIdentical(const AABB& a, const AABB& b)
+{
+	return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
+}
 
-float AABB::width() const { return m_Max[0] - m_Min[0]; }
+float AABB::width() const { return max[0] - min[0]; }
 
-float AABB::height() const { return m_Max[1] - m_Min[1]; }
+float AABB::height() const { return max[1] - min[1]; }
 
 float AABB::perimeter() const
 {
-	float wx = m_Buffer[2] - m_Buffer[0];
-	float wy = m_Buffer[3] - m_Buffer[1];
+	float wx = buffer[2] - buffer[0];
+	float wy = buffer[3] - buffer[1];
 	return 2.0 * (wx + wy);
 }
 

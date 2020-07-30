@@ -3,6 +3,7 @@
 #include "animation/animation.hpp"
 #include "core_context.hpp"
 #include "generated/artboard_base.hpp"
+#include "math/aabb.hpp"
 #include "renderer.hpp"
 #include "shapes/shape_paint_container.hpp"
 #include <vector>
@@ -45,6 +46,8 @@ namespace rive
 
 		bool advance(double elapsedSeconds);
 		void draw(Renderer* renderer);
+
+		AABB bounds() const;
 
 		template <typename T = Component> T* find(std::string name)
 		{

@@ -195,10 +195,22 @@ void Artboard::draw(Renderer* renderer)
 	}
 	renderer->save();
 	renderer->clipPath(m_RenderPath);
-	renderer->translate(width() * originX(), height() * originY());
+	
+	Mat2D artboardTransform;
+	artboardTransform[4] = width() * originX();
+	artboardTransform[5] = height() * originY();
+	renderer->transform(artboardTransform);
+
 	for (auto drawable : m_Drawables)
 	{
 		drawable->draw(renderer);
 	}
 	renderer->restore();
+}
+
+AABB Artboard::bounds() const
+{
+	auto x = -originX() * width();
+	auto y = -originY() * height();
+	return AABB(x, y, x + width(), y + height());
 }

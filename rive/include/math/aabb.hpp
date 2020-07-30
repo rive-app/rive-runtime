@@ -9,13 +9,17 @@ namespace rive
 {
 	class AABB
 	{
-	private:
+	public:
 		union
 		{
-			float m_Buffer[4];
+			float buffer[4];
 			struct
 			{
-				Vec2D m_Min, m_Max;
+				Vec2D min, max;
+			};
+			struct
+			{
+				float minX, minY, maxX, maxY;
 			};
 		};
 
@@ -24,10 +28,10 @@ namespace rive
 		AABB(const AABB& copy);
 		AABB(float minX, float minY, float maxX, float maxY);
 
-		inline const float* values() const { return m_Buffer; }
+		inline const float* values() const { return buffer; }
 
-		float& operator[](std::size_t idx) { return m_Buffer[idx]; }
-		const float& operator[](std::size_t idx) const { return m_Buffer[idx]; }
+		float& operator[](std::size_t idx) { return buffer[idx]; }
+		const float& operator[](std::size_t idx) const { return buffer[idx]; }
 
 		static void center(Vec2D& out, const AABB& a);
 		static void size(Vec2D& out, const AABB& a);
