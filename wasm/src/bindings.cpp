@@ -1,4 +1,5 @@
 #include "animation/linear_animation.hpp"
+#include "animation/linear_animation_instance.hpp"
 #include "artboard.hpp"
 #include "core/binary_reader.hpp"
 #include "file.hpp"
@@ -243,7 +244,20 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	        allow_raw_pointers());
 
 	class_<rive::LinearAnimation>("LinearAnimation")
-	    .property("duration", select_overload<int() const>(&rive::LinearAnimationBase::duration))
-	    .property("fps", select_overload<int() const>(&rive::LinearAnimationBase::fps))
+	    .property(
+	        "duration",
+	        select_overload<int() const>(&rive::LinearAnimationBase::duration))
+	    .property("fps",
+	              select_overload<int() const>(&rive::LinearAnimationBase::fps))
 	    .function("apply", &rive::LinearAnimation::apply, allow_raw_pointers());
+
+	class_<rive::LinearAnimationInstance>("LinearAnimationInstance")
+	    .constructor<rive::LinearAnimation*>()
+	    .property(
+	        "time",
+	        select_overload<float() const>(
+	            &rive::LinearAnimationInstance::time),
+	        select_overload<void(float)>(&rive::LinearAnimationInstance::time))
+	    .function("advance", &rive::LinearAnimationInstance::advance)
+	    .function("apply", &rive::LinearAnimationInstance::apply, allow_raw_pointers());
 }

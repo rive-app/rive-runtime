@@ -16,17 +16,29 @@
 
             const {
                 CanvasRenderer,
+                LinearAnimationInstance,
                 load
             } = module;
 
-            const assetRequest = new Request('../assets/juice.riv');
+            const assetRequest = new Request('../assets/fix_rectangle.riv');
 
             fetch(assetRequest).then(function (response) {
                 return response.arrayBuffer();
             }).then(function (buffer) {
+
+                // Load Rive file from buffer.
                 const file = load(new Uint8Array(buffer));
+
+                // Get the default artboard.
                 const artboard = file.defaultArtboard();
-                const animation = artboard.animation("walk");
+
+                // Find an animation.
+                const animation = artboard.animation("Untitled 1");
+
+                // Make an animation instance (stores time and direction state
+                // for a single animation). Make sure to call .delete on this
+                // object when you are done with it.
+                const animationInstance = new LinearAnimationInstance(animation);
 
                 const canvas = document.getElementById("myCanvas");
                 const ctx = canvas.getContext("2d");
@@ -43,16 +55,15 @@
                     }
                     const elapsedSeconds = (time - lastTime) / 1000;
                     lastTime = time;
-
-                    const duration = animation.duration/animation.fps;
                     
-                    animation.apply(artboard, 0.5 + ((time/1000)%1), 1.0);
+                    animationInstance.advance(elapsedSeconds);
+                    animationInstance.apply(artboard, 1.0);
                     artboard.advance(elapsedSeconds);
 
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.save();
-                    ctx.translate(-250, 80);
-                    ctx.scale(0.5, 0.5);
+                    // ctx.translate(-250, 80);
+                    // ctx.scale(0.5, 0.5);
                     artboard.draw(renderer);
                     ctx.restore();
 

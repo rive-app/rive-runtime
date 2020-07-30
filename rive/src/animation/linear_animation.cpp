@@ -11,15 +11,14 @@ LinearAnimation::~LinearAnimation()
 	}
 }
 
-void LinearAnimation::onAddedDirty(CoreContext* context) 
+void LinearAnimation::onAddedDirty(CoreContext* context)
 {
 	for (auto object : m_KeyedObjects)
 	{
 		object->onAddedDirty(context);
 	}
-
 }
-void LinearAnimation::onAddedClean(CoreContext* context) 
+void LinearAnimation::onAddedClean(CoreContext* context)
 {
 	for (auto object : m_KeyedObjects)
 	{
