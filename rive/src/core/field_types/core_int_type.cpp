@@ -6,4 +6,4 @@ using namespace rive;
 int CoreIntType::deserialize(BinaryReader& reader) 
 {
     return reader.readVarInt();
-}
+} 

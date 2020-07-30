@@ -54,3 +54,8 @@ rive/docs
 
 # Analysis results
 dev/analysis_report
+
+# Build directories
+wasm/build
+rive/build/bin
+wasm/custom_emcc

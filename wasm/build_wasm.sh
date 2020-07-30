@@ -1,6 +1,6 @@
 #!/bin/bash
 
-OUTPUT_DIR=bin/debug
+OUTPUT_DIR=bin/release
 
 mkdir -p build
 pushd build &>/dev/null
@@ -11,7 +11,7 @@ mkdir -p $OUTPUT_DIR
 em++ -Oz --js-opts 0 -g1 \
     --closure 0 \
     --bind \
-    -o $OUTPUT_DIR/rive_wasm.js \
+    -o $OUTPUT_DIR/rive.js \
     -s ASSERTIONS=0 \
     -s FORCE_FILESYSTEM=0 \
     -s MODULARIZE=1 \
@@ -41,11 +41,11 @@ em++ -Oz --js-opts 0 -g1 \
 
 awk 'NR==FNR { a[n++]=$0; next }
 /console\.log\("--REPLACE WITH RENDERING CODE--"\);/ { for (i=0;i<n;++i) print a[i]; next }
-1' ../js/renderer.js ./bin/debug/rive_wasm.js > ./bin/debug/rive_wasm_combined.js
+1' ../js/renderer.js ./bin/release/rive.js > ./bin/release/rive_combined.js
 
 if ! command -v terser &> /dev/null
 then
     npm install terser -g
 fi
-terser --compress --mangle -o ./bin/debug/rive_wasm.min.js -- ./bin/debug/rive_wasm_combined.js
+terser --compress --mangle -o ./bin/release/rive.min.js -- ./bin/release/rive_combined.js
 popd &>/dev/null

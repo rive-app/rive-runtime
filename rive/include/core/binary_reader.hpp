@@ -29,7 +29,6 @@ namespace rive
         float readFloat32();
         uint8_t readByte();
         uint32_t readUint();
-        BinaryReader read(size_t length);
 	};
 } // namespace rive
 
