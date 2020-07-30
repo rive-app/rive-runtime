@@ -30,7 +30,10 @@ namespace rive
 		return (0xff000000 & value) >> 24;
 	}
 
-	float colorOpacity(unsigned int value) { return (float)colorAlpha(value) / 0xFF; }
+	float colorOpacity(unsigned int value)
+	{
+		return (float)colorAlpha(value) / 0xFF;
+	}
 
 	unsigned int colorWithAlpha(unsigned int value, unsigned int a)
 	{
@@ -47,5 +50,18 @@ namespace rive
 	{
 		return colorWithAlpha(
 		    value, std::round(255.0f * colorOpacity(value) * opacity));
+	}
+
+	static unsigned int lerp(unsigned int a, unsigned int b, float mix)
+	{
+		return a + (b - a) * mix;
+	}
+
+	unsigned int colorLerp(unsigned int from, unsigned int to, float mix)
+	{
+		return colorARGB(lerp(colorAlpha(from), colorAlpha(to), mix),
+		                 lerp(colorRed(from), colorRed(to), mix),
+		                 lerp(colorGreen(from), colorGreen(to), mix),
+		                 lerp(colorBlue(from), colorBlue(to), mix));
 	}
 } // namespace rive

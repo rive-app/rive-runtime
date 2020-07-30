@@ -21,5 +21,7 @@ namespace rive
 	unsigned int colorWithOpacity(unsigned int value, float opacity);
 
 	unsigned int colorModulateOpacity(unsigned int value, float opacity);
+
+	unsigned int colorLerp(unsigned int from, unsigned int to, float mix);
 } // namespace rive
 #endif
