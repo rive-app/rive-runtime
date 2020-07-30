@@ -20,7 +20,7 @@
                 load
             } = module;
 
-            const assetRequest = new Request('../assets/fix_rectangle.riv');
+            const assetRequest = new Request('../assets/juice.riv');
 
             fetch(assetRequest).then(function (response) {
                 return response.arrayBuffer();
@@ -33,7 +33,7 @@
                 const artboard = file.defaultArtboard();
 
                 // Find an animation.
-                const animation = artboard.animation("Untitled 1");
+                const animation = artboard.animation("walk");
 
                 // Make an animation instance (stores time and direction state
                 // for a single animation). Make sure to call .delete on this
@@ -62,8 +62,8 @@
 
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.save();
-                    // ctx.translate(-250, 80);
-                    // ctx.scale(0.5, 0.5);
+                    ctx.translate(-250, 80);
+                    ctx.scale(0.5, 0.5);
                     artboard.draw(renderer);
                     ctx.restore();
 

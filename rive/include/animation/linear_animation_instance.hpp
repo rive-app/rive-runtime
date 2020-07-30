@@ -9,8 +9,8 @@ namespace rive
 	{
 	private:
 		LinearAnimation* m_Animation = nullptr;
-		float m_Time = 0.0f;
-		int m_Direction = 1;
+		float m_Time;
+		int m_Direction;
 
 	public:
 		LinearAnimationInstance(LinearAnimation* animation);

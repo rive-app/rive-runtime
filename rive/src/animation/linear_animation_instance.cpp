@@ -5,9 +5,10 @@
 using namespace rive;
 
 LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
-    m_Animation(animation)
+    m_Animation(animation), m_Time(animation->enableWorkArea() ? animation->workStart() : 0), m_Direction(1)
 {
 }
+
 bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
 	LinearAnimation& animation = *m_Animation;
