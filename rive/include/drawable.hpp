@@ -9,6 +9,9 @@ namespace rive
 	{
 	public:
 		virtual void draw(Renderer* renderer) = 0;
+
+	protected:
+		void drawOrderChanged() override;
 	};
 } // namespace rive
 

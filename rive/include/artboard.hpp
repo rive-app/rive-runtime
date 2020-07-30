@@ -41,6 +41,7 @@ namespace rive
 		/// Update components that depend on each other in DAG order.
 		bool updateComponents();
 		void update(ComponentDirt value) override;
+		void onDirty(ComponentDirt dirt) override;
 
 		bool advance(double elapsedSeconds);
 		void draw(Renderer* renderer);

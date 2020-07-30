@@ -119,6 +119,11 @@ void Artboard::onComponentDirty(Component* component)
 	}
 }
 
+void Artboard::onDirty(ComponentDirt dirt)
+{
+	m_Dirt |= ComponentDirt::Components;
+}
+
 static bool drawOrderComparer(Drawable* a, Drawable* b)
 {
 	return a->drawOrder() < b->drawOrder();

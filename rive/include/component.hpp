@@ -25,9 +25,13 @@ namespace rive
 		ComponentDirt m_Dirt = ComponentDirt::Filthy;
 
 	public:
+		inline Artboard* artboard() const { return m_Artboard; }
 		void onAddedDirty(CoreContext* context) override;
 		inline ContainerComponent* parent() const { return m_Parent; }
-		const std::vector<Component*>& dependents() const { return m_Dependents; }
+		const std::vector<Component*>& dependents() const
+		{
+			return m_Dependents;
+		}
 		void addDependent(Component* component);
 
 		// TODO: re-evaluate when more of the lib is complete...
@@ -40,8 +44,14 @@ namespace rive
 
 		unsigned int graphOrder() const { return m_GraphOrder; }
 		bool addDirt(ComponentDirt value, bool recurse = false);
-		inline bool hasDirt(ComponentDirt flag) const { return (m_Dirt & flag) == flag; }
-		static inline bool hasDirt(ComponentDirt value, ComponentDirt flag) { return (value & flag) == flag; }
+		inline bool hasDirt(ComponentDirt flag) const
+		{
+			return (m_Dirt & flag) == flag;
+		}
+		static inline bool hasDirt(ComponentDirt value, ComponentDirt flag)
+		{
+			return (value & flag) == flag;
+		}
 	};
 } // namespace rive
 
