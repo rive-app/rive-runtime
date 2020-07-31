@@ -11,6 +11,8 @@ namespace rive
 		void color(unsigned int value) {}
 		void style(RenderPaintStyle value) {}
 		void thickness(float value) {}
+		virtual void join(StrokeJoin value) {}
+		virtual void cap(StrokeCap value) {}
 
 		void linearGradient(float sx, float sy, float ex, float ey) {}
 		void radialGradient(float sx, float sy, float ex, float ey) {}

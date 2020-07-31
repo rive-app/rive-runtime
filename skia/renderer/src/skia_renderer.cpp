@@ -37,6 +37,14 @@ void SkiaRenderPaint::style(RenderPaintStyle style)
 }
 void SkiaRenderPaint::color(unsigned int value) { m_Paint.setColor(value); }
 void SkiaRenderPaint::thickness(float value) { m_Paint.setStrokeWidth(value); }
+void SkiaRenderPaint::join(StrokeJoin value)
+{
+	m_Paint.setStrokeJoin(ToSkia::convert(value));
+}
+void SkiaRenderPaint::cap(StrokeCap value)
+{
+	m_Paint.setStrokeCap(ToSkia::convert(value));
+}
 
 void SkiaRenderPaint::linearGradient(float sx, float sy, float ex, float ey)
 {

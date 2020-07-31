@@ -16,7 +16,9 @@ Module.onRuntimeInitialized = function () {
         RenderPaintStyle,
         RenderPath,
         RenderPaint,
-        Renderer
+        Renderer,
+        StrokeCap,
+        StrokeJoin
     } = Module;
 
     const {
@@ -61,6 +63,33 @@ Module.onRuntimeInitialized = function () {
         },
         thickness: function (value) {
             this._thickness = value;
+        },
+        join: function (value) {
+            switch (value) {
+                case StrokeJoin.miter:
+                    this._join = 'miter';
+                    break;
+                case StrokeJoin.round:
+                    this._join = 'round';
+                    break;
+                case StrokeJoin.bevel:
+                    this._join = 'bevel';
+                    break;
+            }
+
+        },
+        cap: function (value) {
+            switch (value) {
+                case StrokeCap.butt:
+                    this._cap = 'butt';
+                    break;
+                case StrokeCap.round:
+                    this._cap = 'round';
+                    break;
+                case StrokeCap.square:
+                    this._cap = 'square';
+                    break;
+            }
         },
         style: function (value) {
             this._style = value;
@@ -134,6 +163,8 @@ Module.onRuntimeInitialized = function () {
                 case stroke:
                     ctx.strokeStyle = _value;
                     ctx.lineWidth = this._thickness;
+                    ctx.lineCap = this._cap;
+                    ctx.lineJoin = this._join;
                     ctx.stroke(path._path2D);
                     break;
                 case fill:

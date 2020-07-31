@@ -3,7 +3,8 @@
 #include "SkPaint.h"
 #include "math/mat2d.hpp"
 #include "math/vec2d.hpp"
-
+#include "shapes/paint/stroke_cap.hpp"
+#include "shapes/paint/stroke_join.hpp"
 namespace rive
 {
 	class ToSkia
@@ -32,6 +33,34 @@ namespace rive
 		static SkPoint convert(const rive::Vec2D& point)
 		{
 			return SkPoint::Make(point[0], point[1]);
+		}
+
+		static SkPaint::Cap convert(rive::StrokeCap cap)
+		{
+			switch (cap)
+			{
+				case rive::StrokeCap::butt:
+					return SkPaint::Cap::kButt_Cap;
+				case rive::StrokeCap::round:
+					return SkPaint::Cap::kRound_Cap;
+				case rive::StrokeCap::square:
+					return SkPaint::Cap::kSquare_Cap;
+			}
+			return SkPaint::Cap::kButt_Cap;
+		}
+
+		static SkPaint::Join convert(rive::StrokeJoin join)
+		{
+			switch (join)
+			{
+				case rive::StrokeJoin::bevel:
+					return SkPaint::Join::kBevel_Join;
+				case rive::StrokeJoin::round:
+					return SkPaint::Join::kRound_Join;
+				case rive::StrokeJoin::miter:
+					return SkPaint::Join::kMiter_Join;
+			}
+			return SkPaint::Join::kMiter_Join;
 		}
 	};
 } // namespace rive

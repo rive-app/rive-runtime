@@ -69,6 +69,9 @@ public:
 
 	void color(unsigned int value) override { call<void>("color", value); }
 	void thickness(float value) override { call<void>("thickness", value); }
+	void join(rive::StrokeJoin value) override { call<void>("join", value); }
+	void cap(rive::StrokeCap value) override { call<void>("cap", value); }
+
 	void style(rive::RenderPaintStyle value) override
 	{
 		call<void>("style", value);
@@ -178,6 +181,16 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	    .value("fill", rive::RenderPaintStyle::fill)
 	    .value("stroke", rive::RenderPaintStyle::stroke);
 
+	enum_<rive::StrokeCap>("StrokeCap")
+	    .value("butt", rive::StrokeCap::butt)
+	    .value("round", rive::StrokeCap::round)
+	    .value("square", rive::StrokeCap::square);
+
+	enum_<rive::StrokeJoin>("StrokeJoin")
+	    .value("miter", rive::StrokeJoin::miter)
+	    .value("round", rive::StrokeJoin::round)
+	    .value("bevel", rive::StrokeJoin::bevel);
+
 	class_<rive::RenderPaint>("RenderPaint")
 	    .function("color",
 	              &RenderPaintWrapper::color,
@@ -190,6 +203,14 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	              allow_raw_pointers())
 	    .function("thickness",
 	              &RenderPaintWrapper::thickness,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("join",
+	              &RenderPaintWrapper::join,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("cap",
+	              &RenderPaintWrapper::cap,
 	              pure_virtual(),
 	              allow_raw_pointers())
 	    .function("linearGradient",

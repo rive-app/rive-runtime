@@ -80,6 +80,8 @@ namespace rive
 		void style(RenderPaintStyle style) override;
 		void color(unsigned int value) override;
 		void thickness(float value) override;
+		void join(StrokeJoin value) override;
+		void cap(StrokeCap value) override;
 
 		void linearGradient(float sx, float sy, float ex, float ey) override;
 		void radialGradient(float sx, float sy, float ex, float ey) override;
