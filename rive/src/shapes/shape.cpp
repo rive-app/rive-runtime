@@ -1,4 +1,5 @@
 #include "shapes/shape.hpp"
+#include "shapes/paint/blend_mode.hpp"
 #include "shapes/paint/shape_paint.hpp"
 #include "shapes/path_composer.hpp"
 #include <algorithm>
@@ -15,6 +16,14 @@ void Shape::addPath(Path* path)
 void Shape::update(ComponentDirt value)
 {
 	Super::update(value);
+
+	if (hasDirt(value, ComponentDirt::Paint))
+	{
+		for (auto shapePaint : m_ShapePaints)
+		{
+			shapePaint->blendMode((BlendMode)blendModeValue());
+		}
+	}
 
 	// RenderOpacity gets updated with the worldTransform (accumulates through
 	// hierarchy), so if we see worldTransform is dirty, update our internal
@@ -46,5 +55,18 @@ void Shape::draw(Renderer* renderer)
 		                     ? m_PathComposer->localPath()
 		                     : m_PathComposer->worldPath());
 		renderer->restore();
+	}
+}
+
+void Shape::buildDependencies()
+{
+	Super::buildDependencies();
+	
+	// Set the blend mode on all the shape paints. If we ever animate this
+	// property, we'll need to update it in the update cycle/mark dirty when the
+	// blend mode changes.
+	for (auto paint : m_ShapePaints)
+	{
+		paint->blendMode((BlendMode)blendModeValue());
 	}
 }

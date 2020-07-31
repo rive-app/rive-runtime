@@ -71,6 +71,10 @@ public:
 	void thickness(float value) override { call<void>("thickness", value); }
 	void join(rive::StrokeJoin value) override { call<void>("join", value); }
 	void cap(rive::StrokeCap value) override { call<void>("cap", value); }
+	void blendMode(rive::BlendMode value) override
+	{
+		call<void>("blendMode", value);
+	}
 
 	void style(rive::RenderPaintStyle value) override
 	{
@@ -191,6 +195,24 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	    .value("round", rive::StrokeJoin::round)
 	    .value("bevel", rive::StrokeJoin::bevel);
 
+	enum_<rive::BlendMode>("BlendMode")
+	    .value("srcOver", rive::BlendMode::srcOver)
+	    .value("screen", rive::BlendMode::screen)
+	    .value("overlay", rive::BlendMode::overlay)
+	    .value("darken", rive::BlendMode::darken)
+	    .value("lighten", rive::BlendMode::lighten)
+	    .value("colorDodge", rive::BlendMode::colorDodge)
+	    .value("colorBurn", rive::BlendMode::colorBurn)
+	    .value("hardLight", rive::BlendMode::hardLight)
+	    .value("softLight", rive::BlendMode::softLight)
+	    .value("difference", rive::BlendMode::difference)
+	    .value("exclusion", rive::BlendMode::exclusion)
+	    .value("multiply", rive::BlendMode::multiply)
+	    .value("hue", rive::BlendMode::hue)
+	    .value("saturation", rive::BlendMode::saturation)
+	    .value("color", rive::BlendMode::color)
+	    .value("luminosity", rive::BlendMode::luminosity);
+
 	class_<rive::RenderPaint>("RenderPaint")
 	    .function("color",
 	              &RenderPaintWrapper::color,
@@ -211,6 +233,10 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	              allow_raw_pointers())
 	    .function("cap",
 	              &RenderPaintWrapper::cap,
+	              pure_virtual(),
+	              allow_raw_pointers())
+	    .function("blendMode",
+	              &RenderPaintWrapper::blendMode,
 	              pure_virtual(),
 	              allow_raw_pointers())
 	    .function("linearGradient",

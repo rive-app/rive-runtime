@@ -4,6 +4,7 @@
 #include "layout.hpp"
 #include "math/aabb.hpp"
 #include "math/mat2d.hpp"
+#include "shapes/paint/blend_mode.hpp"
 #include "shapes/paint/stroke_cap.hpp"
 #include "shapes/paint/stroke_join.hpp"
 #include <cmath>
@@ -52,6 +53,7 @@ namespace rive
 		virtual void thickness(float value) = 0;
 		virtual void join(StrokeJoin value) = 0;
 		virtual void cap(StrokeCap value) = 0;
+		virtual void blendMode(BlendMode value) = 0;
 
 		virtual void linearGradient(float sx, float sy, float ex, float ey) = 0;
 		virtual void radialGradient(float sx, float sy, float ex, float ey) = 0;

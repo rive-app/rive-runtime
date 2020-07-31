@@ -49,7 +49,9 @@ bin/gn gen out/Static --args=" \
     skia_enable_gpu=true \
     skia_enable_fontmgr_empty=false \
     skia_enable_spirv_validation=false \
-    skia_enable_pdf=false
+    skia_enable_pdf=false \
+    skia_use_libpng_encode = true \
+    skia_use_libpng_decode = true
     "
 ninja -C out/Static
 cd ..

@@ -2,6 +2,8 @@
 #define _RIVE_SHAPE_PAINT_CONTAINER_HPP_
 #include <vector>
 #include "shapes/path_space.hpp"
+#include "shapes/paint/blend_mode.hpp"
+
 namespace rive
 {
 	class ShapePaint;
