@@ -1,5 +1,10 @@
 #!/bin/bash
 
+cd ../../rive/
+./build.sh $@
+
+cd ../skia/renderer
+
 cd build
 
 OPTION=$1
