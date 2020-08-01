@@ -64,6 +64,10 @@ void SkiaRenderPaint::completeGradient()
 	delete m_GradientBuilder;
 }
 
+void SkiaRenderPaint::blendMode(BlendMode value) {
+    m_Paint.setBlendMode(ToSkia::convert(value));
+}
+
 void SkiaRadialGradientBuilder::make(SkPaint& paint)
 {
 	int numStops = stops.size();

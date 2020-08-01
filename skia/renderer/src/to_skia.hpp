@@ -62,6 +62,46 @@ namespace rive
 			}
 			return SkPaint::Join::kMiter_Join;
 		}
+
+		static SkBlendMode convert(rive::BlendMode blendMode)
+		{
+			switch (blendMode)
+			{
+				case rive::BlendMode::srcOver:
+					return SkBlendMode::kSrcOver;
+				case rive::BlendMode::screen:
+					return SkBlendMode::kScreen;
+				case rive::BlendMode::overlay:
+					return SkBlendMode::kOverlay;
+				case rive::BlendMode::darken:
+					return SkBlendMode::kDarken;
+				case rive::BlendMode::lighten:
+					return SkBlendMode::kLighten;
+				case rive::BlendMode::colorDodge:
+					return SkBlendMode::kColorDodge;
+				case rive::BlendMode::colorBurn:
+					return SkBlendMode::kColorBurn;
+				case rive::BlendMode::hardLight:
+					return SkBlendMode::kHardLight;
+				case rive::BlendMode::softLight:
+					return SkBlendMode::kSoftLight;
+				case rive::BlendMode::difference:
+					return SkBlendMode::kDifference;
+				case rive::BlendMode::exclusion:
+					return SkBlendMode::kExclusion;
+				case rive::BlendMode::multiply:
+					return SkBlendMode::kMultiply;
+				case rive::BlendMode::hue:
+					return SkBlendMode::kHue;
+				case rive::BlendMode::saturation:
+					return SkBlendMode::kSaturation;
+				case rive::BlendMode::color:
+					return SkBlendMode::kColor;
+				case rive::BlendMode::luminosity:
+					return SkBlendMode::kLuminosity;
+			}
+			return SkBlendMode::kSrcOver;
+		}
 	};
 } // namespace rive
 #endif

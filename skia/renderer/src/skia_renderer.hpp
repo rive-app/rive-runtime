@@ -82,6 +82,7 @@ namespace rive
 		void thickness(float value) override;
 		void join(StrokeJoin value) override;
 		void cap(StrokeCap value) override;
+        void blendMode(BlendMode value) override;
 
 		void linearGradient(float sx, float sy, float ex, float ey) override;
 		void radialGradient(float sx, float sy, float ex, float ey) override;
