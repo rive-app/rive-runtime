@@ -7,6 +7,7 @@ namespace rive
 	{
 	public:
 		void onAddedClean(CoreContext* context) override {}
+		void makeGradient(const Vec2D& start, const Vec2D& end) override;
 	};
 } // namespace rive
 

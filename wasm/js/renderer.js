@@ -249,7 +249,7 @@ Module.onRuntimeInitialized = function () {
             paint.draw(this._ctx, path);
         },
         clipPath: function (path) {
-            // console.log("CLIP PATH", path);
+            this._ctx.clip(path._path2D);
         }
     });
 
