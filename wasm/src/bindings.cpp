@@ -5,6 +5,7 @@
 #include "file.hpp"
 #include "layout.hpp"
 #include "math/mat2d.hpp"
+#include "node.hpp"
 #include "renderer.hpp"
 #include <emscripten.h>
 #include <emscripten/bind.h>
@@ -278,6 +279,7 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	class_<rive::Artboard>("Artboard")
 	    .function("advance", &rive::Artboard::advance)
 	    .function("draw", &rive::Artboard::draw, allow_raw_pointers())
+	    .function("node", &rive::Artboard::node, allow_raw_pointers())
 	    .function(
 	        "animation",
 	        optional_override([](rive::Artboard& artboard,
@@ -286,6 +288,14 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	        }),
 	        allow_raw_pointers())
 	    .property("bounds", &rive::Artboard::bounds);
+
+	class_<rive::Node>("Node")
+	    .property("x",
+	              select_overload<float() const>(&rive::Node::x),
+	              select_overload<void(float)>(&rive::Node::x))
+	    .property("y",
+	              select_overload<float() const>(&rive::Node::y),
+	              select_overload<void(float)>(&rive::Node::y));
 
 	class_<rive::LinearAnimation>("LinearAnimation")
 	    .property(

@@ -43,6 +43,9 @@ void Shape::draw(Renderer* renderer)
 {
 	for (auto shapePaint : m_ShapePaints)
 	{
+		if(!shapePaint->isVisible()) {
+			continue;
+		}
 		// TODO: make this efficient.
 		renderer->save();
 		if (shapePaint->pathSpace() == PathSpace::Local)

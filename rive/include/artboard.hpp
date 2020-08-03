@@ -11,6 +11,8 @@ namespace rive
 {
 	class File;
 	class Drawable;
+	class Node;
+	
 	class Artboard : public ArtboardBase,
 	                 public CoreContext,
 	                 public ShapePaintContainer
@@ -46,6 +48,8 @@ namespace rive
 
 		bool advance(double elapsedSeconds);
 		void draw(Renderer* renderer);
+
+		Node* node(const std::string& name) const;
 
 		AABB bounds() const;
 
