@@ -43,7 +43,8 @@ void Shape::draw(Renderer* renderer)
 {
 	for (auto shapePaint : m_ShapePaints)
 	{
-		if(!shapePaint->isVisible()) {
+		if (!shapePaint->isVisible())
+		{
 			continue;
 		}
 		// TODO: make this efficient.
@@ -64,7 +65,7 @@ void Shape::draw(Renderer* renderer)
 void Shape::buildDependencies()
 {
 	Super::buildDependencies();
-	
+
 	// Set the blend mode on all the shape paints. If we ever animate this
 	// property, we'll need to update it in the update cycle/mark dirty when the
 	// blend mode changes.

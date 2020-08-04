@@ -262,4 +262,11 @@ void Path::update(ComponentDirt value)
 	{
 		buildPath(*m_RenderPath, isPathClosed(), m_Vertices);
 	}
+	if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
+	{
+		// Make sure the path composer has an opportunity to rebuild the path
+		// (this is why the composer depends on the shape and all its paths,
+		// ascertaning it updates after both)
+		m_Shape->pathChanged();
+	}
 }
