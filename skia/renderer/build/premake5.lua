@@ -11,7 +11,7 @@ includedirs {"../include", "../../../rive/include", "../../dependencies/skia", "
              "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
              "../../dependencies/skia/include/config"}
 
-links {"Cocoa.framework", "IOKit.framework", "CoreVideo.framework", "rive", "skia"}
+links {"rive", "skia"}
 libdirs {"../../../rive/build/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static"}
 
 files {"../src/**.cpp"}
