@@ -5,6 +5,7 @@
 #include "node.hpp"
 #include "renderer.hpp"
 #include "shapes/paint/shape_paint.hpp"
+#include <algorithm>
 
 using namespace rive;
 

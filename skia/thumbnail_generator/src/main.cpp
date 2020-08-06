@@ -29,14 +29,17 @@ int main(int argc, char* argv[])
 	FILE* fp = fopen(argv[1], "r");
 
 	const char* outPath;
+	std::string filename;
+	std::string fullName;
 	if (argc > 2)
 	{
 		outPath = argv[2];
 	}
 	else
 	{
-		std::string filename = getFileName(argv[1]);
-		outPath = (filename + ".png").c_str();
+		filename = getFileName(argv[1]);
+		fullName = filename + ".png";
+		outPath = fullName.c_str();
 	}
 
 	if (fp == nullptr)
