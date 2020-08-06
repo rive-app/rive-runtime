@@ -44,6 +44,7 @@ bin/gn gen out/Static --args=" \
     skia_use_piex=false \
     skia_use_vulkan=false \
     skia_use_metal=false \
+    skia_use_gl=true \
     skia_use_zlib=true \
     skia_use_system_zlib=false \
     skia_enable_ccpr=true \
@@ -52,7 +53,7 @@ bin/gn gen out/Static --args=" \
     skia_enable_spirv_validation=false \
     skia_enable_pdf=false \
     skia_use_libpng_encode = true \
-    skia_use_libpng_decode = true
+    skia_use_libpng_decode = true \
     "
 ninja -C out/Static
 cd ..

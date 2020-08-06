@@ -20,7 +20,7 @@ RUN /app/skia/dependencies/make_glfw.sh
 WORKDIR /app/packages/peon_process
 ADD rive /app/rive
 ADD skia /app/skia
-WORKDIR /app/skia/renderer
+WORKDIR /app/skia/thumbnail_generator
 
-RUN /app/skia/renderer/build.sh clean
-RUN /app/skia/renderer/build.sh
+RUN /app/skia/thumbnail_generator/build.sh clean
+RUN /app/skia/thumbnail_generator/build.sh
