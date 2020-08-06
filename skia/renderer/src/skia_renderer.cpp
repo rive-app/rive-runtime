@@ -1,11 +1,12 @@
 #include "skia_renderer.hpp"
 #include "SkGradientShader.h"
 #include "math/vec2d.hpp"
+#include "shapes/paint/color.hpp"
 #include "to_skia.hpp"
 
 using namespace rive;
 
-void SkiaRenderPath::reset() { m_Path.rewind(); }
+void SkiaRenderPath::reset() { m_Path.reset(); }
 void SkiaRenderPath::addPath(RenderPath* path, const Mat2D& transform)
 {
 	m_Path.addPath(reinterpret_cast<SkiaRenderPath*>(path)->m_Path,
@@ -64,8 +65,9 @@ void SkiaRenderPaint::completeGradient()
 	delete m_GradientBuilder;
 }
 
-void SkiaRenderPaint::blendMode(BlendMode value) {
-    m_Paint.setBlendMode(ToSkia::convert(value));
+void SkiaRenderPaint::blendMode(BlendMode value)
+{
+	m_Paint.setBlendMode(ToSkia::convert(value));
 }
 
 void SkiaRadialGradientBuilder::make(SkPaint& paint)

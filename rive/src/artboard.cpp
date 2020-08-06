@@ -26,12 +26,6 @@ Artboard::~Artboard()
 	delete m_RenderPath;
 }
 
-void Artboard::onAddedDirty(CoreContext* context)
-{
-	// Intentionally empty and intentionally doesn't call
-	// Super::onAddedDirty(context); to avoid parenting to self.
-}
-
 void Artboard::initialize()
 {
 	m_RenderPath = makeRenderPath();

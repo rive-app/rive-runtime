@@ -2,9 +2,9 @@
 #include "math/vec2d.hpp"
 #include "node.hpp"
 #include "renderer.hpp"
+#include "shapes/paint/color.hpp"
 #include "shapes/paint/gradient_stop.hpp"
 #include "shapes/shape_paint_container.hpp"
-#include "shapes/paint/color.hpp"
 
 using namespace rive;
 
@@ -33,9 +33,13 @@ void LinearGradient::buildDependencies()
 		auto parentsParent = p->parent();
 		// Parent's parent must be a shape paint container.
 		assert(ShapePaintContainer::from(parentsParent) != nullptr);
-		assert(parentsParent->is<Node>());
 
-		m_ShapePaintContainer = parentsParent->as<Node>();
+		// TODO: see if artboard should inherit from some TransformComponent
+		// that can return a world transform. We store the container just for
+		// doing the transform to world in update. If it's the artboard, then
+		// we're already in world so no need to transform.
+		m_ShapePaintContainer =
+		    parentsParent->is<Node>() ? parentsParent->as<Node>() : nullptr;
 		parentsParent->addDependent(this);
 	}
 }
@@ -56,8 +60,8 @@ void LinearGradient::update(ComponentDirt value)
 		std::sort(m_Stops.begin(), m_Stops.end(), stopsComparer);
 	}
 
-	bool worldTransformed = hasDirt(value & ComponentDirt::WorldTransform);
-	bool localTransformed = hasDirt(value & ComponentDirt::Transform);
+	bool worldTransformed = hasDirt(value, ComponentDirt::WorldTransform);
+	bool localTransformed = hasDirt(value, ComponentDirt::Transform);
 
 	// We rebuild the gradient if the gradient is dirty or we paint in world
 	// space and the world space transform has changed, or the local transform
@@ -71,8 +75,10 @@ void LinearGradient::update(ComponentDirt value)
 		auto paint = renderPaint();
 		Vec2D start(startX(), startY());
 		Vec2D end(endX(), endY());
-		// Check if we need to update the world space gradient.
-		if (m_PaintsInWorldSpace)
+		// Check if we need to update the world space gradient (if there's no
+		// shape container, presumably it's the artboard and we're already in
+		// world).
+		if (m_PaintsInWorldSpace && m_ShapePaintContainer != nullptr)
 		{
 			// Get the start and end of the gradient in world coordinates (world
 			// transform of the shape).
@@ -107,9 +113,9 @@ void LinearGradient::makeGradient(const Vec2D& start, const Vec2D& end)
 
 void LinearGradient::markGradientDirty()
 {
-	addDirt(ComponentDirt::Paint & ComponentDirt::Stops);
+	addDirt(ComponentDirt::Paint);
 }
-void LinearGradient::markStopsDirty() { addDirt(ComponentDirt::Paint); }
+void LinearGradient::markStopsDirty() { addDirt(ComponentDirt::Paint & ComponentDirt::Stops); }
 
 void LinearGradient::renderOpacityChanged() { markGradientDirty(); }
 

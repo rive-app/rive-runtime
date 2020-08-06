@@ -1,8 +1,8 @@
-workspace "rive_renderer"
+workspace "rive_skia_renderer"
 configurations {"debug", "release"}
 
-project "rive_renderer"
-kind "ConsoleApp"
+project "rive_skia_renderer"
+kind "StaticLib"
 language "C++"
 cppdialect "C++17"
 targetdir "bin/%{cfg.buildcfg}"
