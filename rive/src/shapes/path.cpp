@@ -88,7 +88,11 @@ static void buildPath(RenderPath& renderPath,
 			Vec2D pos(point.x(), point.y());
 
 			Vec2D toPrev;
-			Vec2D::subtract(toPrev, Vec2D(prev->x(), prev->y()), pos);
+			Vec2D::subtract(toPrev,
+			                prev->is<CubicVertex>()
+			                    ? prev->as<CubicVertex>()->outPoint()
+			                    : Vec2D(prev->x(), prev->y()),
+			                pos);
 			auto toPrevLength = Vec2D::length(toPrev);
 			toPrev[0] /= toPrevLength;
 			toPrev[1] /= toPrevLength;
@@ -110,8 +114,8 @@ static void buildPath(RenderPath& renderPath,
 
 			Vec2D translation;
 			Vec2D::scaleAndAdd(translation, pos, toPrev, renderRadius);
-			renderPath.moveTo(startX = translation[0], startY = translation[1]);
-
+			renderPath.moveTo(startInX = startX = translation[0],
+			                  startInY = startY = translation[1]);
 			Vec2D outPoint;
 			Vec2D::scaleAndAdd(
 			    outPoint, pos, toPrev, icircleConstant * renderRadius);
@@ -122,8 +126,8 @@ static void buildPath(RenderPath& renderPath,
 
 			Vec2D posNext;
 			Vec2D::scaleAndAdd(posNext, pos, toNext, renderRadius);
-			renderPath.cubicTo(startInX = outPoint[0],
-			                   startInY = outPoint[1],
+			renderPath.cubicTo(outPoint[0],
+			                   outPoint[1],
 			                   inPoint[0],
 			                   inPoint[1],
 			                   outX = posNext[0],
