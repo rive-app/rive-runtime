@@ -3,7 +3,7 @@
 #include "animation/animation.hpp"
 #include "core/field_types/core_bool_type.hpp"
 #include "core/field_types/core_double_type.hpp"
-#include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class LinearAnimationBase : public Animation
@@ -129,22 +129,22 @@ namespace rive
 			switch (propertyKey)
 			{
 				case fpsPropertyKey:
-					m_Fps = CoreIntType::deserialize(reader);
+					m_Fps = CoreUintType::deserialize(reader);
 					return true;
 				case durationPropertyKey:
-					m_Duration = CoreIntType::deserialize(reader);
+					m_Duration = CoreUintType::deserialize(reader);
 					return true;
 				case speedPropertyKey:
 					m_Speed = CoreDoubleType::deserialize(reader);
 					return true;
 				case loopValuePropertyKey:
-					m_LoopValue = CoreIntType::deserialize(reader);
+					m_LoopValue = CoreUintType::deserialize(reader);
 					return true;
 				case workStartPropertyKey:
-					m_WorkStart = CoreIntType::deserialize(reader);
+					m_WorkStart = CoreUintType::deserialize(reader);
 					return true;
 				case workEndPropertyKey:
-					m_WorkEnd = CoreIntType::deserialize(reader);
+					m_WorkEnd = CoreUintType::deserialize(reader);
 					return true;
 				case enableWorkAreaPropertyKey:
 					m_EnableWorkArea = CoreBoolType::deserialize(reader);

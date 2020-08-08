@@ -1,6 +1,5 @@
 #ifndef _RIVE_DRAWABLE_BASE_HPP_
 #define _RIVE_DRAWABLE_BASE_HPP_
-#include "core/field_types/core_int_type.hpp"
 #include "core/field_types/core_uint_type.hpp"
 #include "node.hpp"
 namespace rive
@@ -68,7 +67,7 @@ namespace rive
 					m_DrawOrder = CoreUintType::deserialize(reader);
 					return true;
 				case blendModeValuePropertyKey:
-					m_BlendModeValue = CoreIntType::deserialize(reader);
+					m_BlendModeValue = CoreUintType::deserialize(reader);
 					return true;
 			}
 			return Node::deserialize(propertyKey, reader);

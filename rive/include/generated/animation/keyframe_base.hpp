@@ -1,7 +1,6 @@
 #ifndef _RIVE_KEY_FRAME_BASE_HPP_
 #define _RIVE_KEY_FRAME_BASE_HPP_
 #include "core.hpp"
-#include "core/field_types/core_int_type.hpp"
 #include "core/field_types/core_uint_type.hpp"
 namespace rive
 {
@@ -75,10 +74,10 @@ namespace rive
 			switch (propertyKey)
 			{
 				case framePropertyKey:
-					m_Frame = CoreIntType::deserialize(reader);
+					m_Frame = CoreUintType::deserialize(reader);
 					return true;
 				case interpolationTypePropertyKey:
-					m_InterpolationType = CoreIntType::deserialize(reader);
+					m_InterpolationType = CoreUintType::deserialize(reader);
 					return true;
 				case interpolatorIdPropertyKey:
 					m_InterpolatorId = CoreUintType::deserialize(reader);

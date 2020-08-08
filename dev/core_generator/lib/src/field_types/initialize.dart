@@ -7,7 +7,6 @@ List<FieldType> fields;
 void initializeFields() {
   fields = [
     StringFieldType(),
-    IntFieldType(),
     UintFieldType(),
     DoubleFieldType(),
     BoolFieldType(),

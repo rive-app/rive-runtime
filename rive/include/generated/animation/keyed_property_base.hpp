@@ -1,7 +1,7 @@
 #ifndef _RIVE_KEYED_PROPERTY_BASE_HPP_
 #define _RIVE_KEYED_PROPERTY_BASE_HPP_
 #include "core.hpp"
-#include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class KeyedPropertyBase : public Core
@@ -48,7 +48,7 @@ namespace rive
 			switch (propertyKey)
 			{
 				case propertyKeyPropertyKey:
-					m_PropertyKey = CoreIntType::deserialize(reader);
+					m_PropertyKey = CoreUintType::deserialize(reader);
 					return true;
 			}
 			return false;

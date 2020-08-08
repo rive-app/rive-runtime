@@ -15,7 +15,7 @@
       "runtime": false
     },
     "propertyKey": {
-      "type": "int",
+      "type": "uint",
       "key": {
         "int": 53,
         "string": "propertykey"

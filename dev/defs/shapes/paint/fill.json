@@ -7,7 +7,7 @@
   "extends": "shapes/paint/shape_paint.json",
   "properties": {
     "fillRule": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "0",
       "key": {
         "int": 40,

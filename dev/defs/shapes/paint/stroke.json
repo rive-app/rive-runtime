@@ -16,7 +16,7 @@
       }
     },
     "cap": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "0",
       "key": {
         "int": 48,
@@ -24,7 +24,7 @@
       }
     },
     "join": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "0",
       "key": {
         "int": 49,

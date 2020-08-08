@@ -2,7 +2,7 @@
 #define _RIVE_STROKE_BASE_HPP_
 #include "core/field_types/core_bool_type.hpp"
 #include "core/field_types/core_double_type.hpp"
-#include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 #include "shapes/paint/shape_paint.hpp"
 namespace rive
 {
@@ -98,10 +98,10 @@ namespace rive
 					m_Thickness = CoreDoubleType::deserialize(reader);
 					return true;
 				case capPropertyKey:
-					m_Cap = CoreIntType::deserialize(reader);
+					m_Cap = CoreUintType::deserialize(reader);
 					return true;
 				case joinPropertyKey:
-					m_Join = CoreIntType::deserialize(reader);
+					m_Join = CoreUintType::deserialize(reader);
 					return true;
 				case transformAffectsStrokePropertyKey:
 					m_TransformAffectsStroke =
