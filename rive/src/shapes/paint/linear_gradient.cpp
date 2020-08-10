@@ -5,6 +5,7 @@
 #include "shapes/paint/color.hpp"
 #include "shapes/paint/gradient_stop.hpp"
 #include "shapes/shape_paint_container.hpp"
+#include <algorithm>
 
 using namespace rive;
 
@@ -111,11 +112,11 @@ void LinearGradient::makeGradient(const Vec2D& start, const Vec2D& end)
 	renderPaint()->linearGradient(start[0], start[1], end[0], end[1]);
 }
 
-void LinearGradient::markGradientDirty()
+void LinearGradient::markGradientDirty() { addDirt(ComponentDirt::Paint); }
+void LinearGradient::markStopsDirty()
 {
-	addDirt(ComponentDirt::Paint);
+	addDirt(ComponentDirt::Paint & ComponentDirt::Stops);
 }
-void LinearGradient::markStopsDirty() { addDirt(ComponentDirt::Paint & ComponentDirt::Stops); }
 
 void LinearGradient::renderOpacityChanged() { markGradientDirty(); }
 

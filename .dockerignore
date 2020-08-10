@@ -64,4 +64,3 @@ wasm/custom_emcc
 skia/dependencies/skia
 skia/dependencies/glfw_build
 skia/renderer/build/bin
-skia/**/build/bin

@@ -11,7 +11,13 @@ includedirs {"../include", "../../../rive/include", "../../dependencies/skia", "
              "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
              "../../dependencies/skia/include/config"}
 
-links {"Cocoa.framework", "IOKit.framework", "CoreVideo.framework", "rive", "skia"}
+
+if os.host() == "macosx" then
+    links {"Cocoa.framework",  "rive", "skia"}
+else 
+    links {"rive", "skia"}
+end
+
 libdirs {"../../../rive/build/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static"}
 
 files {"../src/**.cpp"}

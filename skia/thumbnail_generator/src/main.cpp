@@ -8,10 +8,40 @@
 #include "skia_renderer.hpp"
 #include <cstdio>
 #include <stdio.h>
+#include <string>
 
-int main()
+std::string getFileName(char* path)
 {
-	FILE* fp = fopen("../../assets/juice.riv", "r");
+	std::string str(path);
+
+	const size_t from = str.find_last_of("\\/");
+	const size_t to = str.find_last_of(".");
+	return str.substr(from + 1, to - from - 1);
+}
+
+int main(int argc, char* argv[])
+{
+	if (argc < 2)
+	{
+		fprintf(stderr, "must pass source file");
+		return 1;
+	}
+	FILE* fp = fopen(argv[1], "r");
+
+	const char* outPath;
+	std::string filename;
+	std::string fullName;
+	if (argc > 2)
+	{
+		outPath = argv[2];
+	}
+	else
+	{
+		filename = getFileName(argv[1]);
+		fullName = filename + ".png";
+		outPath = fullName.c_str();
+	}
+
 	if (fp == nullptr)
 	{
 		fprintf(stderr, "Failed to open rive file.\n");
@@ -41,7 +71,7 @@ int main()
 	delete[] bytes;
 
 	int width = 256, height = 256;
-	const char* path = "test.png";
+
 	sk_sp<SkSurface> rasterSurface =
 	    SkSurface::MakeRasterN32Premul(width, height);
 	SkCanvas* rasterCanvas = rasterSurface->getCanvas();
@@ -65,7 +95,7 @@ int main()
 	{
 		return 1;
 	}
-	SkFILEWStream out(path);
+	SkFILEWStream out(outPath);
 	(void)out.write(png->data(), png->size());
 	return 0;
 }
