@@ -12,6 +12,9 @@
 #include "animation/linear_animation.hpp"
 #include "artboard.hpp"
 #include "backboard.hpp"
+#include "bones/bone.hpp"
+#include "bones/root_bone.hpp"
+#include "bones/skeletal_component.hpp"
 #include "component.hpp"
 #include "container_component.hpp"
 #include "drawable.hpp"
@@ -37,6 +40,7 @@
 #include "shapes/shape.hpp"
 #include "shapes/straight_vertex.hpp"
 #include "shapes/triangle.hpp"
+#include "transform_component.hpp"
 namespace rive
 {
 	class CoreRegistry
@@ -102,6 +106,10 @@ namespace rive
 					return new Artboard();
 				case BackboardBase::typeKey:
 					return new Backboard();
+				case BoneBase::typeKey:
+					return new Bone();
+				case RootBoneBase::typeKey:
+					return new RootBone();
 			}
 			return nullptr;
 		}
@@ -220,23 +228,23 @@ namespace rive
 				case GradientStopBase::positionPropertyKey:
 					object->as<GradientStopBase>()->position(value);
 					break;
+				case TransformComponentBase::rotationPropertyKey:
+					object->as<TransformComponentBase>()->rotation(value);
+					break;
+				case TransformComponentBase::scaleXPropertyKey:
+					object->as<TransformComponentBase>()->scaleX(value);
+					break;
+				case TransformComponentBase::scaleYPropertyKey:
+					object->as<TransformComponentBase>()->scaleY(value);
+					break;
+				case TransformComponentBase::opacityPropertyKey:
+					object->as<TransformComponentBase>()->opacity(value);
+					break;
 				case NodeBase::xPropertyKey:
 					object->as<NodeBase>()->x(value);
 					break;
 				case NodeBase::yPropertyKey:
 					object->as<NodeBase>()->y(value);
-					break;
-				case NodeBase::rotationPropertyKey:
-					object->as<NodeBase>()->rotation(value);
-					break;
-				case NodeBase::scaleXPropertyKey:
-					object->as<NodeBase>()->scaleX(value);
-					break;
-				case NodeBase::scaleYPropertyKey:
-					object->as<NodeBase>()->scaleY(value);
-					break;
-				case NodeBase::opacityPropertyKey:
-					object->as<NodeBase>()->opacity(value);
 					break;
 				case PathVertexBase::xPropertyKey:
 					object->as<PathVertexBase>()->x(value);
@@ -300,6 +308,15 @@ namespace rive
 					break;
 				case ArtboardBase::originYPropertyKey:
 					object->as<ArtboardBase>()->originY(value);
+					break;
+				case BoneBase::lengthPropertyKey:
+					object->as<BoneBase>()->length(value);
+					break;
+				case RootBoneBase::xPropertyKey:
+					object->as<RootBoneBase>()->x(value);
+					break;
+				case RootBoneBase::yPropertyKey:
+					object->as<RootBoneBase>()->y(value);
 					break;
 			}
 		}
@@ -421,18 +438,18 @@ namespace rive
 					return object->as<StrokeBase>()->thickness();
 				case GradientStopBase::positionPropertyKey:
 					return object->as<GradientStopBase>()->position();
+				case TransformComponentBase::rotationPropertyKey:
+					return object->as<TransformComponentBase>()->rotation();
+				case TransformComponentBase::scaleXPropertyKey:
+					return object->as<TransformComponentBase>()->scaleX();
+				case TransformComponentBase::scaleYPropertyKey:
+					return object->as<TransformComponentBase>()->scaleY();
+				case TransformComponentBase::opacityPropertyKey:
+					return object->as<TransformComponentBase>()->opacity();
 				case NodeBase::xPropertyKey:
 					return object->as<NodeBase>()->x();
 				case NodeBase::yPropertyKey:
 					return object->as<NodeBase>()->y();
-				case NodeBase::rotationPropertyKey:
-					return object->as<NodeBase>()->rotation();
-				case NodeBase::scaleXPropertyKey:
-					return object->as<NodeBase>()->scaleX();
-				case NodeBase::scaleYPropertyKey:
-					return object->as<NodeBase>()->scaleY();
-				case NodeBase::opacityPropertyKey:
-					return object->as<NodeBase>()->opacity();
 				case PathVertexBase::xPropertyKey:
 					return object->as<PathVertexBase>()->x();
 				case PathVertexBase::yPropertyKey:
@@ -477,6 +494,12 @@ namespace rive
 					return object->as<ArtboardBase>()->originX();
 				case ArtboardBase::originYPropertyKey:
 					return object->as<ArtboardBase>()->originY();
+				case BoneBase::lengthPropertyKey:
+					return object->as<BoneBase>()->length();
+				case RootBoneBase::xPropertyKey:
+					return object->as<RootBoneBase>()->x();
+				case RootBoneBase::yPropertyKey:
+					return object->as<RootBoneBase>()->y();
 			}
 			return 0.0f;
 		}

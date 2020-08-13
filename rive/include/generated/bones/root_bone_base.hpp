@@ -1,16 +1,16 @@
-#ifndef _RIVE_NODE_BASE_HPP_
-#define _RIVE_NODE_BASE_HPP_
+#ifndef _RIVE_ROOT_BONE_BASE_HPP_
+#define _RIVE_ROOT_BONE_BASE_HPP_
+#include "bones/bone.hpp"
 #include "core/field_types/core_double_type.hpp"
-#include "transform_component.hpp"
 namespace rive
 {
-	class NodeBase : public TransformComponent
+	class RootBoneBase : public Bone
 	{
 	protected:
-		typedef TransformComponent Super;
+		typedef Bone Super;
 
 	public:
-		static const int typeKey = 2;
+		static const int typeKey = 41;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
@@ -18,7 +18,9 @@ namespace rive
 		{
 			switch (typeKey)
 			{
-				case NodeBase::typeKey:
+				case RootBoneBase::typeKey:
+				case BoneBase::typeKey:
+				case SkeletalComponentBase::typeKey:
 				case TransformComponentBase::typeKey:
 				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
@@ -30,8 +32,8 @@ namespace rive
 
 		int coreType() const override { return typeKey; }
 
-		static const int xPropertyKey = 13;
-		static const int yPropertyKey = 14;
+		static const int xPropertyKey = 90;
+		static const int yPropertyKey = 91;
 
 	private:
 		float m_X = 0;
@@ -70,7 +72,7 @@ namespace rive
 					m_Y = CoreDoubleType::deserialize(reader);
 					return true;
 			}
-			return TransformComponent::deserialize(propertyKey, reader);
+			return Bone::deserialize(propertyKey, reader);
 		}
 
 	protected:

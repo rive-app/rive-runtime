@@ -20,6 +20,7 @@ namespace rive
 				case ShapeBase::typeKey:
 				case DrawableBase::typeKey:
 				case NodeBase::typeKey:
+				case TransformComponentBase::typeKey:
 				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
 					return true;

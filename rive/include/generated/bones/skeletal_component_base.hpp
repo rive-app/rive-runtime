@@ -1,15 +1,15 @@
-#ifndef _RIVE_PATH_BASE_HPP_
-#define _RIVE_PATH_BASE_HPP_
-#include "node.hpp"
+#ifndef _RIVE_SKELETAL_COMPONENT_BASE_HPP_
+#define _RIVE_SKELETAL_COMPONENT_BASE_HPP_
+#include "transform_component.hpp"
 namespace rive
 {
-	class PathBase : public Node
+	class SkeletalComponentBase : public TransformComponent
 	{
 	protected:
-		typedef Node Super;
+		typedef TransformComponent Super;
 
 	public:
-		static const int typeKey = 12;
+		static const int typeKey = 39;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
@@ -17,8 +17,7 @@ namespace rive
 		{
 			switch (typeKey)
 			{
-				case PathBase::typeKey:
-				case NodeBase::typeKey:
+				case SkeletalComponentBase::typeKey:
 				case TransformComponentBase::typeKey:
 				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
