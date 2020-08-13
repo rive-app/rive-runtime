@@ -9,7 +9,6 @@
     "x": {
       "type": "double",
       "initialValue": "0",
-      "overrideGet": true,
       "animates": true,
       "group": "position",
       "key": {
@@ -20,7 +19,6 @@
     "y": {
       "type": "double",
       "initialValue": "0",
-      "overrideGet": true,
       "animates": true,
       "group": "position",
       "key": {

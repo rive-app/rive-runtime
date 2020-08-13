@@ -193,10 +193,10 @@ class Property {
     if (initialValue != null) {
       data['initialValue'] = initialValue;
     }
-    if (isGetOverride != null) {
+    if (isGetOverride) {
       data['overrideGet'] = true;
     }
-    if (isSetOverride != null) {
+    if (isSetOverride) {
       data['overrideSet'] = true;
     }
     if (animates) {
