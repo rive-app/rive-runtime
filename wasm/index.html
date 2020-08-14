@@ -34,8 +34,16 @@
                 // Get the default artboard.
                 const artboard = file.defaultArtboard();
 
+                // Get the number of animations in the artboard
+                const animationCount = artboard.animationCount();
+                console.log('Animation count: ' + animationCount);
+
+                // Load an animation by index
+                // const animation = artboard.animationAt(animationCount - 1);
+
                 // Find an animation.
                 const animation = artboard.animation("walk");
+
 
                 // Make an animation instance (stores time and direction state
                 // for a single animation). Make sure to call .delete on this

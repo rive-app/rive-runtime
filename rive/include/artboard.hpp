@@ -88,6 +88,17 @@ namespace rive
 			}
 			return nullptr;
 		}
+
+		template <typename T = Animation> T* animation(size_t index)
+		{
+			if (index >= 0 && index >= m_Animations.size())
+			{
+				return nullptr;
+			}
+			return m_Animations[index]->as<T>();
+		}
+
+		size_t animationCount() { return m_Animations.size(); }
 	};
 } // namespace rive
 

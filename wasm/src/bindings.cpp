@@ -127,6 +127,7 @@ rive::File* load(emscripten::val byteArray)
 	auto result = rive::File::import(reader, &file);
 	return file;
 }
+
 EMSCRIPTEN_BINDINGS(RiveWASM)
 {
 	function("load", &load, allow_raw_pointers());
@@ -287,6 +288,13 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 		        return artboard.animation<rive::LinearAnimation>(name);
 	        }),
 	        allow_raw_pointers())
+	    .function("animationAt",
+	              optional_override([](rive::Artboard& artboard,
+	                                   size_t index) -> rive::LinearAnimation* {
+		              return artboard.animation<rive::LinearAnimation>(index);
+	              }),
+	              allow_raw_pointers())
+	    .function("animationCount", &rive::Artboard::animationCount)
 	    .property("bounds", &rive::Artboard::bounds);
 
 	class_<rive::Node>("Node")
