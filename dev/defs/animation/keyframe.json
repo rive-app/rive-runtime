@@ -16,7 +16,7 @@
       "runtime": false
     },
     "frame": {
-      "type": "int",
+      "type": "uint",
       "key": {
         "int": 67,
         "string": "frame"
@@ -24,7 +24,7 @@
       "description": "Timecode as frame number can be converted to time by dividing by animation fps."
     },
     "interpolationType": {
-      "type": "int",
+      "type": "uint",
       "key": {
         "int": 68,
         "string": "interpolation"

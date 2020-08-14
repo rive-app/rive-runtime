@@ -15,9 +15,9 @@ then
     premake5 clean
 elif [ "$OPTION" = "release" ]
 then
-    premake5 gmake2 && make config=release
+    premake5 gmake2 && make config=release -j7
 else
-    premake5 gmake2 && make
+    premake5 gmake2 && make -j7
 fi
 
 popd &>/dev/null

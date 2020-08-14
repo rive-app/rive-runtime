@@ -18,27 +18,6 @@ TEST_CASE("uint leb decoder", "[reader]")
 	REQUIRE(result == 624485);
 }
 
-TEST_CASE("signed int leb decoder", "[reader]")
-{
-	int64_t result;
-
-	uint8_t encoded1[] = {0x01};
-	decode_int_leb(encoded1, encoded1 + 1, &result);
-	REQUIRE(result == 1);
-
-	uint8_t encoded15[] = {0x0F};
-	decode_int_leb(encoded15, encoded15 + 1, &result);
-	REQUIRE(result == 15);
-
-	uint8_t encodedMultiByte[] = {0xE5, 0x8E, 0x26};
-	decode_int_leb(encodedMultiByte, encodedMultiByte + 3, &result);
-	REQUIRE(result == 624485);
-
-	uint8_t encodedNegativeMultiByte[] = {0xC0, 0xBB, 0x78};
-	decode_int_leb(encodedNegativeMultiByte, encodedNegativeMultiByte + 3, &result);
-	REQUIRE(result == -123456);
-}
-
 TEST_CASE("string decoder", "[reader]")
 {
 	char* str = strdup("New Artboard");

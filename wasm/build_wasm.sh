@@ -41,10 +41,9 @@ em++ -Oz --js-opts 0 -g1 \
 
 awk 'NR==FNR { a[n++]=$0; next }
 /console\.log\("--REPLACE WITH RENDERING CODE--"\);/ { for (i=0;i<n;++i) print a[i]; next }
-1' ../js/renderer.js ./bin/release/rive.js > ./bin/release/rive_combined.js
+1' ../js/renderer.js ./bin/release/rive.js >./bin/release/rive_combined.js
 
-if ! command -v terser &> /dev/null
-then
+if ! command -v terser &>/dev/null; then
     npm install terser -g
 fi
 terser --compress --mangle -o ./bin/release/rive.min.js -- ./bin/release/rive_combined.js

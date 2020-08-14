@@ -11,6 +11,8 @@ namespace rive
 {
 	class File;
 	class Drawable;
+	class Node;
+
 	class Artboard : public ArtboardBase,
 	                 public CoreContext,
 	                 public ShapePaintContainer
@@ -35,7 +37,6 @@ namespace rive
 
 		Core* resolve(int id) const override;
 
-		void onAddedDirty(CoreContext* context) override;
 		void onAddedClean(CoreContext* context) override {}
 		void onComponentDirty(Component* component);
 
@@ -47,6 +48,8 @@ namespace rive
 		bool advance(double elapsedSeconds);
 		void draw(Renderer* renderer);
 
+		Node* node(const std::string& name) const;
+
 		AABB bounds() const;
 
 		template <typename T = Component> T* find(std::string name)
@@ -57,6 +60,18 @@ namespace rive
 				{
 
 					return reinterpret_cast<T*>(object);
+				}
+			}
+			return nullptr;
+		}
+
+		template <typename T = Animation> T* firstAnimation()
+		{
+			for (auto animation : m_Animations)
+			{
+				if (animation->is<T>())
+				{
+					return reinterpret_cast<T*>(animation);
 				}
 			}
 			return nullptr;

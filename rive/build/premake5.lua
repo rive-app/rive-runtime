@@ -70,6 +70,12 @@ project "rive"
 
    files { "../src/**.cpp" }
 
+   buildoptions {
+      "-Wall", 
+      "-fno-exceptions", 
+      "-fno-rtti"
+  }
+  
    filter "configurations:debug"
       defines { "DEBUG" }
       symbols "On"

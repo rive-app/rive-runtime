@@ -175,16 +175,19 @@ class Definition {
       // Write getter/setters.
       code.writeln('public:');
       for (final property in properties) {
-        code.writeln('inline ${property.type.cppName} ${property.name}() const '
-            '{ return m_${property.capitalizedName};'
-            '}');
+        code.writeln(
+            'inline ${property.type.cppName} ${property.name}() const ' +
+                (property.isGetOverride ? 'override' : '') +
+                '{ return m_${property.capitalizedName}; }');
 
-        code.writeln('void ${property.name}(${property.type.cppName} value) {'
-            'if(m_${property.capitalizedName} == value)'
-            '{return;}'
-            'm_${property.capitalizedName} = value;'
-            '${property.name}Changed();'
-            '}');
+        code.writeln('void ${property.name}(${property.type.cppName} value) ' +
+            (property.isSetOverride ? 'override' : '') +
+            '{'
+                'if(m_${property.capitalizedName} == value)'
+                '{return;}'
+                'm_${property.capitalizedName} = value;'
+                '${property.name}Changed();'
+                '}');
 
         code.writeln();
       }

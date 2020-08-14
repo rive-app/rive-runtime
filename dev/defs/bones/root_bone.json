@@ -1,0 +1,32 @@
+{
+  "name": "RootBone",
+  "key": {
+    "int": 41,
+    "string": "rootbone"
+  },
+  "extends": "bones/bone.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "overrideGet": true,
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 90,
+        "string": "x"
+      }
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "overrideGet": true,
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 91,
+        "string": "y"
+      }
+    }
+  }
+}

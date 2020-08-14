@@ -4,7 +4,7 @@
     "int": 2,
     "string": "node"
   },
-  "extends": "container_component.json",
+  "extends": "transform_component.json",
   "properties": {
     "x": {
       "type": "double",
@@ -24,44 +24,6 @@
       "key": {
         "int": 14,
         "string": "y"
-      }
-    },
-    "rotation": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 15,
-        "string": "r"
-      }
-    },
-    "scaleX": {
-      "type": "double",
-      "initialValue": "1",
-      "animates": true,
-      "group": "scale",
-      "key": {
-        "int": 16,
-        "string": "sx"
-      }
-    },
-    "scaleY": {
-      "type": "double",
-      "initialValue": "1",
-      "animates": true,
-      "group": "scale",
-      "key": {
-        "int": 17,
-        "string": "sy"
-      }
-    },
-    "opacity": {
-      "type": "double",
-      "initialValue": "1",
-      "animates": true,
-      "key": {
-        "int": 18,
-        "string": "opacity"
       }
     }
   }

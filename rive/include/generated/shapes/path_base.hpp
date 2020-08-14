@@ -19,6 +19,7 @@ namespace rive
 			{
 				case PathBase::typeKey:
 				case NodeBase::typeKey:
+				case TransformComponentBase::typeKey:
 				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
 					return true;

@@ -204,7 +204,7 @@ ImportResult File::read(BinaryReader& reader)
 									auto valueObject =
 									    new KeyFrameDrawOrderValue();
 									valueObject->drawableId(
-									    reader.readVarInt());
+									    reader.readVarUint());
 									valueObject->value(m);
 									drawOrderKeyFrame->addValue(valueObject);
 								}

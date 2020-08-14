@@ -15,7 +15,7 @@
       "description": "If the path should close back on its first vertex."
     },
     "editingModeValue": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "0",
       "key": {
         "int": 74,

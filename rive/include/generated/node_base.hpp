@@ -1,13 +1,13 @@
 #ifndef _RIVE_NODE_BASE_HPP_
 #define _RIVE_NODE_BASE_HPP_
-#include "container_component.hpp"
 #include "core/field_types/core_double_type.hpp"
+#include "transform_component.hpp"
 namespace rive
 {
-	class NodeBase : public ContainerComponent
+	class NodeBase : public TransformComponent
 	{
 	protected:
-		typedef ContainerComponent Super;
+		typedef TransformComponent Super;
 
 	public:
 		static const int typeKey = 2;
@@ -19,6 +19,7 @@ namespace rive
 			switch (typeKey)
 			{
 				case NodeBase::typeKey:
+				case TransformComponentBase::typeKey:
 				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
 					return true;
@@ -31,20 +32,12 @@ namespace rive
 
 		static const int xPropertyKey = 13;
 		static const int yPropertyKey = 14;
-		static const int rotationPropertyKey = 15;
-		static const int scaleXPropertyKey = 16;
-		static const int scaleYPropertyKey = 17;
-		static const int opacityPropertyKey = 18;
 
 	private:
 		float m_X = 0;
 		float m_Y = 0;
-		float m_Rotation = 0;
-		float m_ScaleX = 1;
-		float m_ScaleY = 1;
-		float m_Opacity = 1;
 	public:
-		inline float x() const { return m_X; }
+		inline float x() const override { return m_X; }
 		void x(float value)
 		{
 			if (m_X == value)
@@ -55,7 +48,7 @@ namespace rive
 			xChanged();
 		}
 
-		inline float y() const { return m_Y; }
+		inline float y() const override { return m_Y; }
 		void y(float value)
 		{
 			if (m_Y == value)
@@ -64,50 +57,6 @@ namespace rive
 			}
 			m_Y = value;
 			yChanged();
-		}
-
-		inline float rotation() const { return m_Rotation; }
-		void rotation(float value)
-		{
-			if (m_Rotation == value)
-			{
-				return;
-			}
-			m_Rotation = value;
-			rotationChanged();
-		}
-
-		inline float scaleX() const { return m_ScaleX; }
-		void scaleX(float value)
-		{
-			if (m_ScaleX == value)
-			{
-				return;
-			}
-			m_ScaleX = value;
-			scaleXChanged();
-		}
-
-		inline float scaleY() const { return m_ScaleY; }
-		void scaleY(float value)
-		{
-			if (m_ScaleY == value)
-			{
-				return;
-			}
-			m_ScaleY = value;
-			scaleYChanged();
-		}
-
-		inline float opacity() const { return m_Opacity; }
-		void opacity(float value)
-		{
-			if (m_Opacity == value)
-			{
-				return;
-			}
-			m_Opacity = value;
-			opacityChanged();
 		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
@@ -120,29 +69,13 @@ namespace rive
 				case yPropertyKey:
 					m_Y = CoreDoubleType::deserialize(reader);
 					return true;
-				case rotationPropertyKey:
-					m_Rotation = CoreDoubleType::deserialize(reader);
-					return true;
-				case scaleXPropertyKey:
-					m_ScaleX = CoreDoubleType::deserialize(reader);
-					return true;
-				case scaleYPropertyKey:
-					m_ScaleY = CoreDoubleType::deserialize(reader);
-					return true;
-				case opacityPropertyKey:
-					m_Opacity = CoreDoubleType::deserialize(reader);
-					return true;
 			}
-			return ContainerComponent::deserialize(propertyKey, reader);
+			return TransformComponent::deserialize(propertyKey, reader);
 		}
 
 	protected:
 		virtual void xChanged() {}
 		virtual void yChanged() {}
-		virtual void rotationChanged() {}
-		virtual void scaleXChanged() {}
-		virtual void scaleYChanged() {}
-		virtual void opacityChanged() {}
 	};
 } // namespace rive
 

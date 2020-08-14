@@ -23,7 +23,6 @@ namespace rive
         size_t lengthInBytes() const;
 
         uint64_t readVarUint();
-        int64_t readVarInt();
         std::string readString();
         double readFloat64();
         float readFloat32();

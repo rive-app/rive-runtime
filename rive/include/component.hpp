@@ -19,7 +19,7 @@ namespace rive
 		std::vector<Component*> m_Dependents;
 
 		unsigned int m_GraphOrder;
-		Artboard* m_Artboard;
+		Artboard* m_Artboard = nullptr;
 
 	protected:
 		ComponentDirt m_Dirt = ComponentDirt::Filthy;

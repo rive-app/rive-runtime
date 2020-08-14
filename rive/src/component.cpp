@@ -9,6 +9,11 @@ using namespace rive;
 void Component::onAddedDirty(CoreContext* context)
 {
 	m_Artboard = static_cast<Artboard*>(context);
+	if (this == m_Artboard)
+	{
+		// We're the artboard, don't parent to ourselves.
+		return;
+	}
 	auto coreObject = context->resolve(parentId());
 	if (coreObject == nullptr)
 	{

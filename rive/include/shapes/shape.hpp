@@ -15,6 +15,7 @@ namespace rive
 		std::vector<Path*> m_Paths;
 
 	public:
+		void buildDependencies() override;
 		void addPath(Path* path);
 		std::vector<Path*>& paths() { return m_Paths; }
 

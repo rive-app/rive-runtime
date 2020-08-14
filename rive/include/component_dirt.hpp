@@ -39,7 +39,7 @@ namespace rive
 		Stops = 1 << 8,
 
 		// Everything is dirty.
-		Filthy = 0xFF
+		Filthy = 0xFFFF
 	};
 
 	inline constexpr ComponentDirt operator&(ComponentDirt lhs, ComponentDirt rhs)

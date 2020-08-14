@@ -59,7 +59,7 @@ void PathComposer::update(ComponentDirt value)
 			for (auto path : m_Shape->paths()) 
 			{
 				Mat2D localTransform;
-				auto transform = path->pathTransform();
+				const Mat2D& transform = path->pathTransform();
 				Mat2D::multiply(localTransform, inverseWorld, transform);
 				m_LocalPath->addPath(path->renderPath(), localTransform);
 			}

@@ -1,0 +1,20 @@
+{
+    "name": "rive-canvas",
+    "version": "0.0.9",
+    "description": "Rive JS WASM runtime.",
+    "main": "rive.js",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rive-app/rive-cpp"
+    },
+    "keywords": [
+        "rive",
+        "animation"
+    ],
+    "author": "Rive",
+    "contributors": [
+        "Luigi Rosso <luigi@rive.app> (https://rive.app)",
+        "Matthew Sullivan <matt@rive.app> (https://rive.app)"
+    ],
+    "license": "MIT"
+}

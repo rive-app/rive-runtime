@@ -54,7 +54,7 @@ namespace rive
 
 	static unsigned int lerp(unsigned int a, unsigned int b, float mix)
 	{
-		return a + (b - a) * mix;
+		return a * (1.0f - mix) + b * mix;
 	}
 
 	unsigned int colorLerp(unsigned int from, unsigned int to, float mix)

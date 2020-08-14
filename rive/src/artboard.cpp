@@ -2,8 +2,10 @@
 #include "animation/animation.hpp"
 #include "dependency_sorter.hpp"
 #include "drawable.hpp"
+#include "node.hpp"
 #include "renderer.hpp"
 #include "shapes/paint/shape_paint.hpp"
+#include <algorithm>
 
 using namespace rive;
 
@@ -23,12 +25,6 @@ Artboard::~Artboard()
 		delete object;
 	}
 	delete m_RenderPath;
-}
-
-void Artboard::onAddedDirty(CoreContext* context)
-{
-	// Intentionally empty and intentionally doesn't call
-	// Super::onAddedDirty(context); to avoid parenting to self.
 }
 
 void Artboard::initialize()
@@ -195,7 +191,7 @@ void Artboard::draw(Renderer* renderer)
 	}
 	renderer->save();
 	renderer->clipPath(m_RenderPath);
-	
+
 	Mat2D artboardTransform;
 	artboardTransform[4] = width() * originX();
 	artboardTransform[5] = height() * originY();
@@ -213,4 +209,17 @@ AABB Artboard::bounds() const
 	auto x = -originX() * width();
 	auto y = -originY() * height();
 	return AABB(x, y, x + width(), y + height());
+}
+
+Node* Artboard::node(const std::string& name) const
+{
+	for (auto object : m_Objects)
+	{
+		// First object is artboard
+		if (object->is<Node>() && object->as<Node>()->name() == name)
+		{
+			return object->as<Node>();
+		}
+	}
+	return nullptr;
 }

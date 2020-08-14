@@ -1,6 +1,6 @@
 #ifndef _RIVE_FILL_BASE_HPP_
 #define _RIVE_FILL_BASE_HPP_
-#include "core/field_types/core_int_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 #include "shapes/paint/shape_paint.hpp"
 namespace rive
 {
@@ -51,7 +51,7 @@ namespace rive
 			switch (propertyKey)
 			{
 				case fillRulePropertyKey:
-					m_FillRule = CoreIntType::deserialize(reader);
+					m_FillRule = CoreUintType::deserialize(reader);
 					return true;
 			}
 			return ShapePaint::deserialize(propertyKey, reader);

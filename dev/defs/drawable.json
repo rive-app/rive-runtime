@@ -16,7 +16,7 @@
       }
     },
     "blendModeValue": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "3",
       "key": {
         "int": 23,

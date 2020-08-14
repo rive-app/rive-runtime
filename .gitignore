@@ -59,3 +59,9 @@ dev/analysis_report
 wasm/build
 rive/build/bin
 wasm/custom_emcc
+
+# Skia dependencies
+skia/dependencies/skia
+skia/dependencies/glfw_build
+skia/renderer/build/bin
+skia/**/build/bin

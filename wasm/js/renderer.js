@@ -16,7 +16,10 @@ Module.onRuntimeInitialized = function () {
         RenderPaintStyle,
         RenderPath,
         RenderPaint,
-        Renderer
+        Renderer,
+        StrokeCap,
+        StrokeJoin,
+        BlendMode
     } = Module;
 
     const {
@@ -62,8 +65,86 @@ Module.onRuntimeInitialized = function () {
         thickness: function (value) {
             this._thickness = value;
         },
+        join: function (value) {
+            switch (value) {
+                case StrokeJoin.miter:
+                    this._join = 'miter';
+                    break;
+                case StrokeJoin.round:
+                    this._join = 'round';
+                    break;
+                case StrokeJoin.bevel:
+                    this._join = 'bevel';
+                    break;
+            }
+        },
+        cap: function (value) {
+            switch (value) {
+                case StrokeCap.butt:
+                    this._cap = 'butt';
+                    break;
+                case StrokeCap.round:
+                    this._cap = 'round';
+                    break;
+                case StrokeCap.square:
+                    this._cap = 'square';
+                    break;
+            }
+        },
         style: function (value) {
             this._style = value;
+        },
+        blendMode: function (value) {
+            switch (value) {
+                case BlendMode.srcOver:
+                    this._blend = 'source-over';
+                    break;
+                case BlendMode.screen:
+                    this._blend = 'screen';
+                    break;
+                case BlendMode.overlay:
+                    this._blend = 'overlay';
+                    break;
+                case BlendMode.darken:
+                    this._blend = 'darken';
+                    break;
+                case BlendMode.lighten:
+                    this._blend = 'lighten';
+                    break;
+                case BlendMode.colorDodge:
+                    this._blend = 'color-dodge';
+                    break;
+                case BlendMode.colorBurn:
+                    this._blend = 'color-burn';
+                    break;
+                case BlendMode.hardLight:
+                    this._blend = 'hard-light';
+                    break;
+                case BlendMode.softLight:
+                    this._blend = 'soft-light';
+                    break;
+                case BlendMode.difference:
+                    this._blend = 'difference';
+                    break;
+                case BlendMode.exclusion:
+                    this._blend = 'exclusion';
+                    break;
+                case BlendMode.multiply:
+                    this._blend = 'multiply';
+                    break;
+                case BlendMode.hue:
+                    this._blend = 'hue';
+                    break;
+                case BlendMode.saturation:
+                    this._blend = 'saturation';
+                    break;
+                case BlendMode.color:
+                    this._blend = 'color';
+                    break;
+                case BlendMode.luminosity:
+                    this._blend = 'luminosity';
+                    break;
+            }
         },
         linearGradient: function (sx, sy, ex, ey) {
             this._gradient = {
@@ -99,8 +180,11 @@ Module.onRuntimeInitialized = function () {
             let {
                 _style,
                 _value,
-                _gradient
+                _gradient,
+                _blend
             } = this;
+
+            ctx.globalCompositeOperation = _blend;
 
             if (_gradient != null) {
                 const {
@@ -134,6 +218,8 @@ Module.onRuntimeInitialized = function () {
                 case stroke:
                     ctx.strokeStyle = _value;
                     ctx.lineWidth = this._thickness;
+                    ctx.lineCap = this._cap;
+                    ctx.lineJoin = this._join;
                     ctx.stroke(path._path2D);
                     break;
                 case fill:
@@ -163,7 +249,7 @@ Module.onRuntimeInitialized = function () {
             paint.draw(this._ctx, path);
         },
         clipPath: function (path) {
-            // console.log("CLIP PATH", path);
+            this._ctx.clip(path._path2D);
         }
     });
 

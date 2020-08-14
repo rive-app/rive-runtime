@@ -7,7 +7,7 @@
   "extends": "animation/animation.json",
   "properties": {
     "fps": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "60",
       "key": {
         "int": 56,
@@ -16,7 +16,7 @@
       "description": "Frames per second used to quantize keyframe times to discrete values that match this rate."
     },
     "duration": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "60",
       "key": {
         "int": 57,
@@ -34,7 +34,7 @@
       "description": "Playback speed multiplier."
     },
     "loopValue": {
-      "type": "int",
+      "type": "uint",
       "initialValue": "0",
       "key": {
         "int": 59,
@@ -43,7 +43,7 @@
       "description": "Loop value option matches Loop enumeration."
     },
     "workStart": {
-      "type": "int",
+      "type": "uint",
       "key": {
         "int": 60,
         "string": "workstart"
@@ -51,7 +51,7 @@
       "description": "Start of the work area in frames."
     },
     "workEnd": {
-      "type": "int",
+      "type": "uint",
       "key": {
         "int": 61,
         "string": "workend"
