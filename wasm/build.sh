@@ -17,7 +17,7 @@ elif [ "$OPTION" = "release" ]
 then
     premake5 gmake2 && make config=release
 else
-    premake5 gmake2 && make
+    premake5 gmake2 && make config=debug
 fi
 
 popd &>/dev/null
