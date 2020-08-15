@@ -52,6 +52,10 @@ public:
 	{
 		call<void>("addPath", path, transform);
 	}
+	void fillRule(rive::FillRule value) override
+	{
+		call<void>("fillRule", value);
+	}
 
 	void moveTo(float x, float y) override { call<void>("moveTo", x, y); }
 	void lineTo(float x, float y) override { call<void>("lineTo", x, y); }
@@ -165,6 +169,7 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	              &RenderPathWrapper::addPath,
 	              pure_virtual(),
 	              allow_raw_pointers())
+	    .function("fillRule", &RenderPathWrapper::fillRule, pure_virtual())
 	    .function("moveTo",
 	              &RenderPathWrapper::moveTo,
 	              pure_virtual(),

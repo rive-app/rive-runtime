@@ -18,10 +18,7 @@ namespace rive
 		const SkPath& path() const { return m_Path; }
 		void reset() override;
 		void addPath(RenderPath* path, const Mat2D& transform) override;
-
-		FillRule fillRule() const override;
 		void fillRule(FillRule value) override;
-
 		void moveTo(float x, float y) override;
 		void lineTo(float x, float y) override;
 		void cubicTo(

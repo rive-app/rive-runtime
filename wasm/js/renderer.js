@@ -14,6 +14,7 @@ function makeMatrix(m2d) {
 Module.onRuntimeInitialized = function () {
     const {
         RenderPaintStyle,
+        FillRule,
         RenderPath,
         RenderPaint,
         Renderer,
@@ -27,6 +28,11 @@ Module.onRuntimeInitialized = function () {
         stroke
     } = RenderPaintStyle;
 
+    const {
+        evenOdd,
+        nonZero
+    } = FillRule;
+
     var CanvasRenderPath = RenderPath.extend("CanvasRenderPath", {
         __construct: function () {
             this.__parent.__construct.call(this);
@@ -37,6 +43,9 @@ Module.onRuntimeInitialized = function () {
         },
         addPath: function (path, m2d) {
             this._path2D.addPath(path._path2D, makeMatrix(m2d));
+        },
+        fillRule: function(fillRule) {
+            this._fillRule = fillRule;
         },
         moveTo: function (x, y) {
             this._path2D.moveTo(x, y);
@@ -249,7 +258,8 @@ Module.onRuntimeInitialized = function () {
             paint.draw(this._ctx, path);
         },
         clipPath: function (path) {
-            this._ctx.clip(path._path2D);
+            
+            this._ctx.clip(path._path2D, path._fillRule === evenOdd ? 'evenodd' : 'nonzero');
         }
     });
 

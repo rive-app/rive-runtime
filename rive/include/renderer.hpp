@@ -24,7 +24,6 @@ namespace rive
 	{
 	public:
 		virtual ~RenderPath() {}
-		virtual FillRule fillRule() const = 0;
 		virtual void fillRule(FillRule value) = 0;
 		virtual void reset() = 0;
 		// TODO: add commands like cubicTo, moveTo, etc...

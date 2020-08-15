@@ -7,17 +7,6 @@
 
 using namespace rive;
 
-FillRule SkiaRenderPath::fillRule() const
-{
-	switch (m_Path.getFillType())
-	{
-		case SkPathFillType::kEvenOdd:
-			return FillRule::evenOdd;
-		default:
-			return FillRule::nonZero;
-	}
-}
-
 void SkiaRenderPath::fillRule(FillRule value)
 {
 	switch (value)
