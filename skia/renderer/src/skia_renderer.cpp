@@ -1,10 +1,35 @@
 #include "skia_renderer.hpp"
 #include "SkGradientShader.h"
+#include "SkPath.h"
 #include "math/vec2d.hpp"
 #include "shapes/paint/color.hpp"
 #include "to_skia.hpp"
 
 using namespace rive;
+
+FillRule SkiaRenderPath::fillRule() const
+{
+	switch (m_Path.getFillType())
+	{
+		case SkPathFillType::kEvenOdd:
+			return FillRule::evenOdd;
+		default:
+			return FillRule::nonZero;
+	}
+}
+
+void SkiaRenderPath::fillRule(FillRule value)
+{
+	switch (value)
+	{
+		case FillRule::evenOdd:
+			m_Path.setFillType(SkPathFillType::kEvenOdd);
+			break;
+		case FillRule::nonZero:
+			m_Path.setFillType(SkPathFillType::kWinding);
+			break;
+	}
+}
 
 void SkiaRenderPath::reset() { m_Path.reset(); }
 void SkiaRenderPath::addPath(RenderPath* path, const Mat2D& transform)
@@ -123,7 +148,11 @@ void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 	m_Canvas->drawPath(reinterpret_cast<SkiaRenderPath*>(path)->path(),
 	                   reinterpret_cast<SkiaRenderPaint*>(paint)->paint());
 }
-void SkiaRenderer::clipPath(RenderPath* path) {}
+
+void SkiaRenderer::clipPath(RenderPath* path)
+{
+	m_Canvas->clipPath(reinterpret_cast<SkiaRenderPath*>(path)->path(), true);
+}
 
 namespace rive
 {

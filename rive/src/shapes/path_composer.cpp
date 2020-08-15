@@ -1,9 +1,12 @@
 #include "shapes/path_composer.hpp"
+#include "artboard.hpp"
 #include "renderer.hpp"
 #include "shapes/path.hpp"
 #include "shapes/shape.hpp"
 
 using namespace rive;
+
+static Mat2D identity;
 
 PathComposer::~PathComposer()
 {
@@ -14,7 +17,8 @@ PathComposer::~PathComposer()
 void PathComposer::onAddedClean(CoreContext* context)
 {
 	// Find the shape.
-	for (auto currentParent = parent(); currentParent != nullptr; currentParent = currentParent->parent())
+	for (auto currentParent = parent(); currentParent != nullptr;
+	     currentParent = currentParent->parent())
 	{
 		if (currentParent->is<Shape>())
 		{
@@ -52,11 +56,12 @@ void PathComposer::update(ComponentDirt value)
 			}
 			auto world = m_Shape->worldTransform();
 			Mat2D inverseWorld;
-			if (!Mat2D::invert(inverseWorld, world)) {
+			if (!Mat2D::invert(inverseWorld, world))
+			{
 				Mat2D::identity(inverseWorld);
 			}
 			// Get all the paths into local shape space.
-			for (auto path : m_Shape->paths()) 
+			for (auto path : m_Shape->paths())
 			{
 				Mat2D localTransform;
 				const Mat2D& transform = path->pathTransform();
@@ -74,11 +79,25 @@ void PathComposer::update(ComponentDirt value)
 			{
 				m_WorldPath->reset();
 			}
-			for (auto path : m_Shape->paths()) 
+			for (auto path : m_Shape->paths())
 			{
 				const Mat2D& transform = path->pathTransform();
 				m_WorldPath->addPath(path->renderPath(), transform);
 			}
+		}
+		if ((space & PathSpace::Difference) == PathSpace::Difference)
+		{
+			if (m_DifferencePath == nullptr)
+			{
+				m_DifferencePath = makeRenderPath();
+				m_DifferencePath->fillRule(FillRule::evenOdd);
+			}
+			else
+			{
+				m_DifferencePath->reset();
+			}
+			m_DifferencePath->addPath(artboard()->renderPath(), identity);
+			m_DifferencePath->addPath(m_WorldPath, identity);
 		}
 	}
 }

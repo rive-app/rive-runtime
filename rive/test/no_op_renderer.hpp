@@ -56,6 +56,8 @@ namespace rive
 			                                        0.0f});
 		}
 		void addPath(RenderPath* path, const Mat2D& transform) override {}
+		FillRule fillRule() const override { return FillRule::nonZero; }
+		void fillRule(FillRule value) override {}
 
 		void moveTo(float x, float y) override
 		{

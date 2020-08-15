@@ -1,4 +1,5 @@
 #include "transform_component.hpp"
+#include "shapes/clipping_shape.hpp"
 
 using namespace rive;
 

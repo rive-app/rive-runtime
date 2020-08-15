@@ -11,9 +11,10 @@ namespace rive
 		Shape* m_Shape = nullptr;
 		RenderPath* m_LocalPath = nullptr;
 		RenderPath* m_WorldPath = nullptr;
+		RenderPath* m_DifferencePath = nullptr;
 
 	public:
-	~PathComposer();
+		~PathComposer();
 		Shape* shape() const { return m_Shape; }
 		void onAddedClean(CoreContext* context) override;
 		void buildDependencies() override;
@@ -21,6 +22,7 @@ namespace rive
 
 		RenderPath* localPath() const { return m_LocalPath; }
 		RenderPath* worldPath() const { return m_WorldPath; }
+		RenderPath* differencePath() const { return m_DifferencePath; }
 	};
 } // namespace rive
 #endif

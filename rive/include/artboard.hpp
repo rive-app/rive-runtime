@@ -48,6 +48,10 @@ namespace rive
 		bool advance(double elapsedSeconds);
 		void draw(Renderer* renderer);
 
+		RenderPath* renderPath() const { return m_RenderPath; }
+
+		const std::vector<Core*>& objects() const { return m_Objects; }
+
 		Node* node(const std::string& name) const;
 
 		AABB bounds() const;

@@ -187,6 +187,10 @@ EMSCRIPTEN_BINDINGS(RiveWASM)
 	    .value("fill", rive::RenderPaintStyle::fill)
 	    .value("stroke", rive::RenderPaintStyle::stroke);
 
+	enum_<rive::FillRule>("FillRule")
+	    .value("nonZero", rive::FillRule::nonZero)
+	    .value("evenOdd", rive::FillRule::evenOdd);
+
 	enum_<rive::StrokeCap>("StrokeCap")
 	    .value("butt", rive::StrokeCap::butt)
 	    .value("round", rive::StrokeCap::round)

@@ -1,4 +1,5 @@
 #include "shapes/shape.hpp"
+#include "shapes/clipping_shape.hpp"
 #include "shapes/paint/blend_mode.hpp"
 #include "shapes/paint/shape_paint.hpp"
 #include "shapes/path_composer.hpp"
@@ -41,6 +42,8 @@ void Shape::pathChanged() { m_PathComposer->addDirt(ComponentDirt::Path); }
 void Shape::pathComposer(PathComposer* value) { m_PathComposer = value; }
 void Shape::draw(Renderer* renderer)
 {
+	auto shouldRestore = clip(renderer);
+
 	for (auto shapePaint : m_ShapePaints)
 	{
 		if (!shapePaint->isVisible())
@@ -60,6 +63,11 @@ void Shape::draw(Renderer* renderer)
 		                     : m_PathComposer->worldPath());
 		renderer->restore();
 	}
+
+	if (shouldRestore)
+	{
+		renderer->restore();
+	}
 }
 
 void Shape::buildDependencies()
@@ -73,4 +81,9 @@ void Shape::buildDependencies()
 	{
 		paint->blendMode((BlendMode)blendModeValue());
 	}
+}
+
+void Shape::addDefaultPathSpace(PathSpace space)
+{
+	m_DefaultPathSpace |= space;
 }

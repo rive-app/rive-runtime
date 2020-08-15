@@ -19,6 +19,7 @@
 #include "container_component.hpp"
 #include "drawable.hpp"
 #include "node.hpp"
+#include "shapes/clipping_shape.hpp"
 #include "shapes/cubic_asymmetric_vertex.hpp"
 #include "shapes/cubic_detached_vertex.hpp"
 #include "shapes/cubic_mirrored_vertex.hpp"
@@ -98,6 +99,8 @@ namespace rive
 					return new Triangle();
 				case EllipseBase::typeKey:
 					return new Ellipse();
+				case ClippingShapeBase::typeKey:
+					return new ClippingShape();
 				case PathComposerBase::typeKey:
 					return new PathComposer();
 				case CubicDetachedVertexBase::typeKey:
@@ -170,6 +173,12 @@ namespace rive
 					break;
 				case DrawableBase::blendModeValuePropertyKey:
 					object->as<DrawableBase>()->blendModeValue(value);
+					break;
+				case ClippingShapeBase::shapeIdPropertyKey:
+					object->as<ClippingShapeBase>()->shapeId(value);
+					break;
+				case ClippingShapeBase::clipOpValuePropertyKey:
+					object->as<ClippingShapeBase>()->clipOpValue(value);
 					break;
 			}
 		}
@@ -351,6 +360,9 @@ namespace rive
 				case PointsPathBase::isClosedPropertyKey:
 					object->as<PointsPathBase>()->isClosed(value);
 					break;
+				case ClippingShapeBase::isVisiblePropertyKey:
+					object->as<ClippingShapeBase>()->isVisible(value);
+					break;
 			}
 		}
 		static int getUint(Core* object, int propertyKey)
@@ -394,6 +406,10 @@ namespace rive
 					return object->as<DrawableBase>()->drawOrder();
 				case DrawableBase::blendModeValuePropertyKey:
 					return object->as<DrawableBase>()->blendModeValue();
+				case ClippingShapeBase::shapeIdPropertyKey:
+					return object->as<ClippingShapeBase>()->shapeId();
+				case ClippingShapeBase::clipOpValuePropertyKey:
+					return object->as<ClippingShapeBase>()->clipOpValue();
 			}
 			return 0;
 		}
@@ -528,6 +544,8 @@ namespace rive
 					return object->as<StrokeBase>()->transformAffectsStroke();
 				case PointsPathBase::isClosedPropertyKey:
 					return object->as<PointsPathBase>()->isClosed();
+				case ClippingShapeBase::isVisiblePropertyKey:
+					return object->as<ClippingShapeBase>()->isVisible();
 			}
 			return false;
 		}

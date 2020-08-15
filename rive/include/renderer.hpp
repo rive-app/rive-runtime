@@ -14,11 +14,18 @@ namespace rive
 {
 	class Vec2D;
 
+	enum class FillRule
+	{
+		nonZero,
+		evenOdd
+	};
 	/// Abstract path used implemented by the renderer.
 	class RenderPath
 	{
 	public:
 		virtual ~RenderPath() {}
+		virtual FillRule fillRule() const = 0;
+		virtual void fillRule(FillRule value) = 0;
 		virtual void reset() = 0;
 		// TODO: add commands like cubicTo, moveTo, etc...
 		virtual void addPath(RenderPath* path, const Mat2D& transform) = 0;

@@ -27,7 +27,7 @@ void ShapePaintContainer::addPaint(ShapePaint* paint)
 
 PathSpace ShapePaintContainer::pathSpace() const
 {
-	PathSpace space = PathSpace::Neither;
+	PathSpace space = m_DefaultPathSpace;
 	for (auto paint : m_ShapePaints)
 	{
 		space |= paint->pathSpace();

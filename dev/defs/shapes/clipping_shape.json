@@ -1,0 +1,36 @@
+{
+  "name": "ClippingShape",
+  "key": {
+    "int": 42,
+    "string": "clippingshape"
+  },
+  "extends": "component.json",
+  "properties": {
+    "shapeId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "key": {
+        "int": 92,
+        "string": "shapeid"
+      },
+      "description": "Identifier used to track the shape to use as a clipping source."
+    },
+    "clipOpValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 93,
+        "string": "clipopvalue"
+      },
+      "description": "Backing enum value for the clipping operation type (intersection or difference)."
+    },
+    "isVisible": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 94,
+        "string": "isvisible"
+      }
+    }
+  }
+}

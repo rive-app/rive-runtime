@@ -32,7 +32,7 @@ namespace rive
 	{
 	public:
 		/// Major version number supported by the runtime.
-		static const int majorVersion = 4;
+		static const int majorVersion = 5;
 		/// Minor version number supported by the runtime.
 		static const int minorVersion = 0;
 

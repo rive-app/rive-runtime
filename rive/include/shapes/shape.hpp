@@ -14,19 +14,23 @@ namespace rive
 		PathComposer* m_PathComposer = nullptr;
 		std::vector<Path*> m_Paths;
 
+		bool m_WantDifferencePath = false;
+
 	public:
 		void buildDependencies() override;
 		void addPath(Path* path);
 		std::vector<Path*>& paths() { return m_Paths; }
 
-		bool wantLocalPath() const { return true; }
-		bool wantWorldPath() const { return true; }
+		bool wantDifferencePath() const { return m_WantDifferencePath; }
 
 		void update(ComponentDirt value) override;
 		void draw(Renderer* renderer) override;
 
 		void pathComposer(PathComposer* value);
+		PathComposer* pathComposer() const { return m_PathComposer; }
+
 		void pathChanged();
+		void addDefaultPathSpace(PathSpace space);
 	};
 } // namespace rive
 

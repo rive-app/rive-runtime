@@ -14,6 +14,7 @@ namespace rive
 		friend class ShapePaint;
 
 	protected:
+		PathSpace m_DefaultPathSpace = PathSpace::Neither;
 		std::vector<ShapePaint*> m_ShapePaints;
 		void addPaint(ShapePaint* paint);
 
