@@ -9,7 +9,7 @@
 
 TEST_CASE("file can be read", "[file]")
 {
-	FILE* fp = fopen("../../assets/two_artboards.riv", "r");
+	FILE* fp = fopen("../../test/assets/two_artboards.riv", "r");
 	REQUIRE(fp != nullptr);
 
 	fseek(fp, 0, SEEK_END);
@@ -37,7 +37,7 @@ TEST_CASE("file can be read", "[file]")
 
 TEST_CASE("file with animation can be read", "[file]")
 {
-	FILE* fp = fopen("../../assets/juice.riv", "r");
+	FILE* fp = fopen("../../test/assets/juice.riv", "r");
 	REQUIRE(fp != nullptr);
 
 	fseek(fp, 0, SEEK_END);
@@ -93,7 +93,7 @@ TEST_CASE("dependencies are as expected", "[file]")
 	//                   │ ┌──────────────┐
 	//                   └▶│Rectangle Path│
 	//                     └──────────────┘
-	FILE* fp = fopen("../../assets/dependency_test.riv", "r");
+	FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
 	REQUIRE(fp != nullptr);
 
 	fseek(fp, 0, SEEK_END);
