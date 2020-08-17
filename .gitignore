@@ -50,15 +50,13 @@ pubspec.lock
 *.DS_Store
 
 # Generated docs
-rive/docs
+docs
 
 # Analysis results
 dev/analysis_report
 
 # Build directories
-wasm/build
-rive/build/bin
-wasm/custom_emcc
+build/bin
 
 # Skia dependencies
 skia/dependencies/skia

@@ -34,12 +34,12 @@ buildoptions {
 
 includedirs {
     "./include",
-    "../../rive/include"
+    "../../include"
 }
 
 files {
-    "../../rive/src/**.cpp", -- the Rive runtime source
-    "../../rive/test/**.cpp" -- the tests
+    "../../src/**.cpp", -- the Rive runtime source
+    "../../test/**.cpp" -- the tests
     
 }
 

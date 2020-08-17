@@ -3,14 +3,14 @@
 #include "file.hpp"
 #include "no_op_renderer.hpp"
 #include "node.hpp"
+#include "shapes/clipping_shape.hpp"
 #include "shapes/rectangle.hpp"
 #include "shapes/shape.hpp"
-#include "shapes/clipping_shape.hpp"
 #include <cstdio>
 
 TEST_CASE("clipping loads correctly", "[clipping]")
 {
-	FILE* fp = fopen("../../assets/circle_clips.riv", "r");
+	FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
 	REQUIRE(fp != nullptr);
 
 	fseek(fp, 0, SEEK_END);
@@ -26,19 +26,19 @@ TEST_CASE("clipping loads correctly", "[clipping]")
 	REQUIRE(file != nullptr);
 	REQUIRE(file->artboard() != nullptr);
 
-    auto node = file->artboard()->node("TopEllipse");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->is<rive::Shape>());
+	auto node = file->artboard()->node("TopEllipse");
+	REQUIRE(node != nullptr);
+	REQUIRE(node->is<rive::Shape>());
 
-    auto shape = node->as<rive::Shape>();
-    REQUIRE(shape->clippingShapes().size() == 2);
-    REQUIRE(shape->clippingShapes()[0]->shape()->name() == "ClipRect2");
-    REQUIRE(shape->clippingShapes()[1]->shape()->name() == "BabyEllipse");
+	auto shape = node->as<rive::Shape>();
+	REQUIRE(shape->clippingShapes().size() == 2);
+	REQUIRE(shape->clippingShapes()[0]->shape()->name() == "ClipRect2");
+	REQUIRE(shape->clippingShapes()[1]->shape()->name() == "BabyEllipse");
 
-    file->artboard()->updateComponents();
+	file->artboard()->updateComponents();
 
-    rive::NoOpRenderer renderer;
-    file->artboard()->draw(&renderer);
+	rive::NoOpRenderer renderer;
+	file->artboard()->draw(&renderer);
 
 	delete file;
 	delete[] bytes;
