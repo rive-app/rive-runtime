@@ -1,3 +1,3 @@
 String defsPath = "./defs/";
-String generatedHppPath = "../rive/include/generated/";
-String concreteHppPath = "../rive/include/";
+String generatedHppPath = "../include/generated/";
+String concreteHppPath = "../include/";

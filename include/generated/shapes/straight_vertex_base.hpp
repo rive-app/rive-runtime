@@ -20,6 +20,7 @@ namespace rive
 			{
 				case StraightVertexBase::typeKey:
 				case PathVertexBase::typeKey:
+				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
 					return true;
 				default:

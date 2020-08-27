@@ -5,7 +5,7 @@
     "string": "pathvertex"
   },
   "abstract": true,
-  "extends": "component.json",
+  "extends": "container_component.json",
   "properties": {
     "x": {
       "type": "double",

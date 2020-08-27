@@ -12,7 +12,8 @@
         "string": "activeArtboardId"
       },
       "description": "Identifier used to track the last active artboard.",
-      "runtime": false
+      "runtime": false,
+      "coop": false
     },
     "mainArtboardId": {
       "type": "Id",
