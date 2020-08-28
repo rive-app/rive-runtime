@@ -6,8 +6,8 @@ namespace rive
 	class KeyFrameDrawOrderValue : public KeyFrameDrawOrderValueBase
 	{
 	public:
-		void onAddedClean(CoreContext* context) {}
-		void onAddedDirty(CoreContext* context) {}
+		StatusCode onAddedClean(CoreContext* context) { return StatusCode::Ok; }
+		StatusCode onAddedDirty(CoreContext* context) { return StatusCode::Ok; }
 	};
 } // namespace rive
 

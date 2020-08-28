@@ -7,6 +7,7 @@ namespace rive
 	class RootBone : public RootBoneBase
 	{
 	public:
+		StatusCode onAddedClean(CoreContext* context) override;
 	};
 } // namespace rive
 

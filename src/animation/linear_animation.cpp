@@ -11,19 +11,29 @@ LinearAnimation::~LinearAnimation()
 	}
 }
 
-void LinearAnimation::onAddedDirty(CoreContext* context)
+StatusCode LinearAnimation::onAddedDirty(CoreContext* context)
 {
+	StatusCode code;
 	for (auto object : m_KeyedObjects)
 	{
-		object->onAddedDirty(context);
+		if ((code = object->onAddedDirty(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
+	return StatusCode::Ok;
 }
-void LinearAnimation::onAddedClean(CoreContext* context)
+StatusCode LinearAnimation::onAddedClean(CoreContext* context)
 {
+	StatusCode code;
 	for (auto object : m_KeyedObjects)
 	{
-		object->onAddedClean(context);
+		if ((code = object->onAddedClean(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
+	return StatusCode::Ok;
 }
 
 void LinearAnimation::addKeyedObject(KeyedObject* object)

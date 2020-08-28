@@ -3,12 +3,13 @@
 
 using namespace rive;
 
-void TransformComponent::onAddedClean(CoreContext* context)
+StatusCode TransformComponent::onAddedClean(CoreContext* context)
 {
 	m_ParentTransformComponent =
 	    parent() != nullptr && parent()->is<TransformComponent>()
 	        ? parent()->as<TransformComponent>()
 	        : nullptr;
+	return StatusCode::Ok;
 }
 
 void TransformComponent::buildDependencies()
@@ -53,7 +54,6 @@ void TransformComponent::updateWorldTransform()
 	m_RenderOpacity = opacity();
 	if (m_ParentTransformComponent != nullptr)
 	{
-
 		m_RenderOpacity *= m_ParentTransformComponent->childOpacity();
 		Mat2D::multiply(m_WorldTransform,
 		                m_ParentTransformComponent->m_WorldTransform,
@@ -82,3 +82,8 @@ const Mat2D& TransformComponent::worldTransform() const
 {
 	return m_WorldTransform;
 }
+
+void TransformComponent::rotationChanged() { markTransformDirty(); }
+void TransformComponent::scaleXChanged() { markTransformDirty(); }
+void TransformComponent::scaleYChanged() { markTransformDirty(); }
+void TransformComponent::opacityChanged() { markTransformDirty(); }

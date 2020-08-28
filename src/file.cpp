@@ -92,7 +92,9 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 		fprintf(stderr, "Bad header\n");
 		return ImportResult::malformed;
 	}
-	if (header.majorVersion() != majorVersion)
+	if (header.majorVersion() != majorVersion ||
+	    (header.majorVersion() == majorVersion &&
+	     header.minorVersion() > minorVersion))
 	{
 		fprintf(stderr,
 		        "Unsupported version %u expected %u.\n",

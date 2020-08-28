@@ -18,8 +18,8 @@ namespace rive
 
 	public:
 		Shape* shape() const { return m_Shape; }
-		void onAddedClean(CoreContext* context) override;
-		void onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override;
+		StatusCode onAddedDirty(CoreContext* context) override;
 	};
 } // namespace rive
 

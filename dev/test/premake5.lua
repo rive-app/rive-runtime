@@ -43,6 +43,8 @@ files {
     
 }
 
+defines { "TESTING" }
+
 filter "configurations:debug"
     defines { "DEBUG" }
     symbols "On"

@@ -5,7 +5,7 @@
 
 using namespace rive;
 
-void ClippingShape::onAddedClean(CoreContext* context)
+StatusCode ClippingShape::onAddedClean(CoreContext* context)
 {
 	auto clippingHolder = parent();
 
@@ -21,26 +21,32 @@ void ClippingShape::onAddedClean(CoreContext* context)
 				if (component == clippingHolder)
 				{
 					drawable->addClippingShape(this);
-					return;
+					break;
 				}
 			}
 		}
 	}
+	return StatusCode::Ok;
 }
 
-void ClippingShape::onAddedDirty(CoreContext* context)
+StatusCode ClippingShape::onAddedDirty(CoreContext* context)
 {
-	Super::onAddedDirty(context);
+	StatusCode code = Super::onAddedDirty(context);
+	if (code != StatusCode::Ok)
+	{
+		return code;
+	}
 	auto coreObject = context->resolve(shapeId());
-	if (coreObject == nullptr)
+	if (coreObject == nullptr || !coreObject->is<Shape>())
 	{
-		return;
+		return StatusCode::MissingObject;
 	}
-	if (coreObject->is<Shape>())
-	{
-		m_Shape = reinterpret_cast<Shape*>(coreObject);
-        m_Shape->addDefaultPathSpace((ClipOp)clipOpValue() == ClipOp::intersection
-	                         ? PathSpace::World
-	                         : PathSpace::World | PathSpace::Difference);
-	}
+
+	m_Shape = reinterpret_cast<Shape*>(coreObject);
+	m_Shape->addDefaultPathSpace((ClipOp)clipOpValue() == ClipOp::intersection
+	                                 ? PathSpace::World
+	                                 : PathSpace::World |
+	                                       PathSpace::Difference);
+
+	return StatusCode::Ok;
 }

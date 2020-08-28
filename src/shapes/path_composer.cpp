@@ -14,7 +14,7 @@ PathComposer::~PathComposer()
 	delete m_WorldPath;
 }
 
-void PathComposer::onAddedClean(CoreContext* context)
+StatusCode PathComposer::onAddedClean(CoreContext* context)
 {
 	// Find the shape.
 	for (auto currentParent = parent(); currentParent != nullptr;
@@ -24,9 +24,10 @@ void PathComposer::onAddedClean(CoreContext* context)
 		{
 			m_Shape = currentParent->as<Shape>();
 			m_Shape->pathComposer(this);
-			return;
+			return StatusCode::Ok;
 		}
 	}
+	return StatusCode::MissingObject;
 }
 
 void PathComposer::buildDependencies()

@@ -6,23 +6,21 @@
 
 using namespace rive;
 
-void Component::onAddedDirty(CoreContext* context)
+StatusCode Component::onAddedDirty(CoreContext* context)
 {
 	m_Artboard = static_cast<Artboard*>(context);
 	if (this == m_Artboard)
 	{
 		// We're the artboard, don't parent to ourselves.
-		return;
+		return StatusCode::Ok;
 	}
 	auto coreObject = context->resolve(parentId());
-	if (coreObject == nullptr)
+	if (coreObject == nullptr || !coreObject->is<ContainerComponent>())
 	{
-		return;
+		return StatusCode::MissingObject;
 	}
-	if (coreObject->is<ContainerComponent>())
-	{
-		m_Parent = reinterpret_cast<ContainerComponent*>(coreObject);
-	}
+	m_Parent = reinterpret_cast<ContainerComponent*>(coreObject);
+	return StatusCode::Ok;
 }
 
 void Component::addDependent(Component* component)

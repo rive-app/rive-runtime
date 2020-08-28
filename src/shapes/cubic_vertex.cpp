@@ -1,6 +1,30 @@
 #include "shapes/cubic_vertex.hpp"
-
+#include "bones/cubic_weight.hpp"
 using namespace rive;
+
+const Vec2D& CubicVertex::renderIn()
+{
+	if (hasWeight())
+	{
+		return weight<CubicWeight>()->inTranslation();
+	}
+	else
+	{
+		return inPoint();
+	}
+}
+
+const Vec2D& CubicVertex::renderOut()
+{
+	if (hasWeight())
+	{
+		return weight<CubicWeight>()->outTranslation();
+	}
+	else
+	{
+		return outPoint();
+	}
+}
 
 const Vec2D& CubicVertex::inPoint()
 {
@@ -43,4 +67,26 @@ void CubicVertex::yChanged()
 {
 	Super::yChanged();
 	m_InValid = m_OutValid = false;
+}
+
+void CubicVertex::deform(Mat2D& worldTransform, float* boneTransforms)
+{
+	Super::deform(worldTransform, boneTransforms);
+
+	auto cubicWeight = weight<CubicWeight>();
+
+	Weight::deform(x(),
+	               y(),
+	               cubicWeight->inIndices(),
+	               cubicWeight->inValues(),
+	               worldTransform,
+	               boneTransforms,
+	               cubicWeight->inTranslation());
+	Weight::deform(x(),
+	               y(),
+	               cubicWeight->outIndices(),
+	               cubicWeight->outValues(),
+	               worldTransform,
+	               boneTransforms,
+	               cubicWeight->outTranslation());
 }

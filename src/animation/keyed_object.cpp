@@ -16,23 +16,29 @@ void KeyedObject::addKeyedProperty(KeyedProperty* property)
 	m_KeyedProperties.push_back(property);
 }
 
-
-void KeyedObject::onAddedDirty(CoreContext* context) 
+StatusCode KeyedObject::onAddedDirty(CoreContext* context)
 {
+	// Make sure we're keying a valid object.
+	if (context->resolve(objectId()) == nullptr)
+	{
+		return StatusCode::MissingObject;
+	}
+
 	for (auto property : m_KeyedProperties)
 	{
 		property->onAddedDirty(context);
 	}
-
+	return StatusCode::Ok;
 }
-void KeyedObject::onAddedClean(CoreContext* context) 
+
+StatusCode KeyedObject::onAddedClean(CoreContext* context)
 {
 	for (auto property : m_KeyedProperties)
 	{
 		property->onAddedClean(context);
 	}
+	return StatusCode::Ok;
 }
-
 
 void KeyedObject::apply(Artboard* artboard, float time, float mix)
 {

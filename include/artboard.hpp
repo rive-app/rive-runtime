@@ -31,13 +31,16 @@ namespace rive
 
 	public:
 		~Artboard();
-		void initialize();
+		StatusCode initialize();
 		void addObject(Core* object);
 		void addAnimation(Animation* object);
 
 		Core* resolve(int id) const override;
 
-		void onAddedClean(CoreContext* context) override {}
+		StatusCode onAddedClean(CoreContext* context) override
+		{
+			return StatusCode::Ok;
+		}
 		void onComponentDirty(Component* component);
 
 		/// Update components that depend on each other in DAG order.

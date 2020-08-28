@@ -14,7 +14,7 @@ namespace rive
 		TransformComponent* m_ParentTransformComponent = nullptr;
 
 	public:
-		void onAddedClean(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override;
 		void buildDependencies() override;
 		void update(ComponentDirt value) override;
 		void updateTransform();
@@ -32,6 +32,11 @@ namespace rive
 
 		virtual float x() const = 0;
 		virtual float y() const = 0;
+
+		void rotationChanged() override;
+		void scaleXChanged() override;
+		void scaleYChanged() override;
+		void opacityChanged() override;
 	};
 } // namespace rive
 

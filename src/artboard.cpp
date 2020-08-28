@@ -27,8 +27,10 @@ Artboard::~Artboard()
 	delete m_RenderPath;
 }
 
-void Artboard::initialize()
+StatusCode Artboard::initialize()
 {
+	StatusCode code;
+
 	m_RenderPath = makeRenderPath();
 
 	// onAddedDirty guarantees that all objects are now available so they can be
@@ -36,12 +38,18 @@ void Artboard::initialize()
 	// can't assume that their parent's parent will have resolved yet.
 	for (auto object : m_Objects)
 	{
-		object->onAddedDirty(this);
+		if ((code = object->onAddedDirty(this)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
 
 	for (auto object : m_Animations)
 	{
-		object->onAddedDirty(this);
+		if ((code = object->onAddedDirty(this)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
 
 	// onAddedClean is called when all individually referenced components have
@@ -51,11 +59,17 @@ void Artboard::initialize()
 	// parent should be type X can be checked now).
 	for (auto object : m_Objects)
 	{
-		object->onAddedClean(this);
+		if ((code = object->onAddedClean(this)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
 	for (auto object : m_Animations)
 	{
-		object->onAddedClean(this);
+		if ((code = object->onAddedClean(this)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
 	// Multi-level references have been built up, now we can actually mark
 	// what's dependent on what.
@@ -72,6 +86,8 @@ void Artboard::initialize()
 	}
 
 	sortDependencies();
+
+	return StatusCode::Ok;
 }
 
 void Artboard::sortDependencies()

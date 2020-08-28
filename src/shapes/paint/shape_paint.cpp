@@ -5,11 +5,15 @@
 
 using namespace rive;
 
-void ShapePaint::onAddedClean(CoreContext* context)
+StatusCode ShapePaint::onAddedClean(CoreContext* context)
 {
 	auto container = ShapePaintContainer::from(parent());
-	assert(container != nullptr);
+	if (container == nullptr)
+	{
+		return StatusCode::MissingObject;
+	}
 	container->addPaint(this);
+	return StatusCode::Ok;
 }
 
 RenderPaint* ShapePaint::initPaintMutator(ShapePaintMutator* mutator)
@@ -21,6 +25,6 @@ RenderPaint* ShapePaint::initPaintMutator(ShapePaintMutator* mutator)
 
 void ShapePaint::blendMode(BlendMode value)
 {
-    assert(m_RenderPaint != nullptr);
+	assert(m_RenderPaint != nullptr);
 	m_RenderPaint->blendMode(value);
 }

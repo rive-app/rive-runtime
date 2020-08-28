@@ -15,8 +15,8 @@ namespace rive
 		~KeyedObject();
 		void addKeyedProperty(KeyedProperty* property);
 
-		void onAddedDirty(CoreContext* context) override;
-		void onAddedClean(CoreContext* context) override;
+		StatusCode onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override;
 		void apply(Artboard* coreContext, float time, float mix);
 	};
 } // namespace rive

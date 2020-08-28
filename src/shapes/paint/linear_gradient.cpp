@@ -9,10 +9,19 @@
 
 using namespace rive;
 
-void LinearGradient::onAddedDirty(CoreContext* context)
+StatusCode LinearGradient::onAddedDirty(CoreContext* context)
 {
-	Super::onAddedDirty(context);
-	assert(initPaintMutator(parent()));
+	StatusCode code = Super::onAddedDirty(context);
+	if (code != StatusCode::Ok)
+	{
+		return code;
+	}
+
+	if (!initPaintMutator(parent()))
+	{
+		return StatusCode::MissingObject;
+	}
+	return StatusCode::Ok;
 }
 
 bool LinearGradient::paintsInWorldSpace() const { return m_PaintsInWorldSpace; }

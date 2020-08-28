@@ -25,12 +25,13 @@ static float getSlope(float aT, float aA1, float aA2)
 	       2.0f * (3.0f * aA2 - 6.0f * aA1) * aT + (3.0f * aA1);
 }
 
-void CubicInterpolator::onAddedDirty(CoreContext* context)
+StatusCode CubicInterpolator::onAddedDirty(CoreContext* context)
 {
 	for (int i = 0; i < SplineTableSize; ++i)
 	{
 		m_Values[i] = calcBezier(i * SampleStepSize, x1(), x2());
 	}
+	return StatusCode::Ok;
 }
 
 float CubicInterpolator::getT(float x) const

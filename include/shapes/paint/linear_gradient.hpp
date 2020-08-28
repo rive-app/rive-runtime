@@ -17,8 +17,11 @@ namespace rive
 		Node* m_ShapePaintContainer = nullptr;
 
 	public:
-		void onAddedDirty(CoreContext* context) override;
-		void onAddedClean(CoreContext* context) override {}
+		StatusCode onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override
+		{
+			return StatusCode::Ok;
+		}
 		void addStop(GradientStop* stop);
 		void update(ComponentDirt value) override;
 		bool paintsInWorldSpace() const;

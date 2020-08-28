@@ -5,7 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/dev/test/include",
-                "${workspaceFolder}/rive/include"
+                "${workspaceFolder}/include"
             ],
             "defines": [],
             "macFrameworkPath": [],

@@ -3,11 +3,28 @@
 
 using namespace rive;
 
-void PathVertex::onAddedDirty(CoreContext* context)
+Vec2D PathVertex::renderTranslation()
 {
-	Super::onAddedDirty(context);
-	// As asserts for us.
+	if (hasWeight())
+	{
+		return m_Weight->translation();
+	}
+	return Vec2D(x(), y());
+}
+
+StatusCode PathVertex::onAddedDirty(CoreContext* context)
+{
+	StatusCode code = Super::onAddedDirty(context);
+	if (code != StatusCode::Ok)
+	{
+		return code;
+	}
+	if (!parent()->is<Path>())
+	{
+		return StatusCode::MissingObject;
+	}
 	parent()->as<Path>()->addVertex(this);
+	return StatusCode::Ok;
 }
 
 void PathVertex::markPathDirty()
@@ -23,3 +40,14 @@ void PathVertex::markPathDirty()
 
 void PathVertex::xChanged() { markPathDirty(); }
 void PathVertex::yChanged() { markPathDirty(); }
+
+void PathVertex::deform(Mat2D& worldTransform, float* boneTransforms)
+{
+	Weight::deform(x(),
+	               y(),
+	               m_Weight->indices(),
+	               m_Weight->values(),
+	               worldTransform,
+	               boneTransforms,
+	               m_Weight->translation());
+}

@@ -11,9 +11,13 @@ namespace rive
 		float m_Values[SplineTableSize];
 
 		float getT(float x) const;
+
 	public:
-		void onAddedClean(CoreContext* context) override {}
-		void onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override
+		{
+			return StatusCode::Ok;
+		}
+		StatusCode onAddedDirty(CoreContext* context) override;
 
 		/// Convert a linear interpolation factor to an eased one.
 		float transform(float value) const;
