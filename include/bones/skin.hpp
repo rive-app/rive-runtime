@@ -10,7 +10,7 @@ namespace rive
 	class Tendon;
 	class PathVertex;
 	class Skinnable;
-	
+
 	class Skin : public SkinBase
 	{
 		friend class Tendon;
@@ -32,6 +32,7 @@ namespace rive
 		void buildDependencies() override;
 		void deform(std::vector<PathVertex*>& vertices);
 		void onDirty(ComponentDirt dirt) override;
+		void update(ComponentDirt value) override;
 
 #ifdef TESTING
 		std::vector<Tendon*>& tendons() { return m_Tendons; }

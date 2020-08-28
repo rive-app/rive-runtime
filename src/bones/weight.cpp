@@ -21,15 +21,15 @@ StatusCode Weight::onAddedDirty(CoreContext* context)
 	return StatusCode::Ok;
 }
 
-static int encodedWeightValue(int index, int data)
+static int encodedWeightValue(unsigned int index, unsigned int data)
 {
 	return (data >> (index * 8)) & 0xFF;
 }
 
 void Weight::deform(float x,
                     float y,
-                    int indices,
-                    int weights,
+                    unsigned int indices,
+                    unsigned int weights,
                     const Mat2D& world,
                     const float* boneTransforms,
                     Vec2D& result)

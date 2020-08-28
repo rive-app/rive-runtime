@@ -22,8 +22,8 @@ namespace rive
 
 		static void deform(float x,
 		                   float y,
-		                   int indices,
-		                   int weights,
+		                   unsigned int indices,
+		                   unsigned int weights,
 		                   const Mat2D& world,
 		                   const float* boneTransforms,
 		                   Vec2D& result);

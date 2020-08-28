@@ -47,12 +47,7 @@ StatusCode Path::onAddedClean(CoreContext* context)
 
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
-const Mat2D& Path::pathTransform() const
-{
-	// If we're bound to bounds, return identity as points will already be in
-	// world space.
-	return worldTransform();
-}
+const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
 static void buildPath(RenderPath& renderPath,
                       bool isClosed,

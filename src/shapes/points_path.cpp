@@ -3,6 +3,7 @@
 
 using namespace rive;
 
+Mat2D identity;
 void PointsPath::buildDependencies()
 {
 	Super::buildDependencies();
@@ -10,6 +11,15 @@ void PointsPath::buildDependencies()
 	{
 		skin()->addDependent(this);
 	}
+}
+
+const Mat2D& PointsPath::pathTransform() const
+{
+	if (skin() != nullptr)
+	{
+		return identity;
+	}
+	return worldTransform();
 }
 
 void PointsPath::update(ComponentDirt value)

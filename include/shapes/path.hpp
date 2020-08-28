@@ -22,7 +22,7 @@ namespace rive
 		Shape* shape() const { return m_Shape; }
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
-		const Mat2D& pathTransform() const;
+		virtual const Mat2D& pathTransform() const;
 		RenderPath* renderPath() const { return m_RenderPath; }
 		void update(ComponentDirt value) override;
 

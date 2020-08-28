@@ -12,6 +12,7 @@ namespace rive
 		void update(ComponentDirt value) override;
 		void markPathDirty() override;
 		void markSkinDirty() override;
+		const Mat2D& pathTransform() const override;
 	};
 } // namespace rive
 

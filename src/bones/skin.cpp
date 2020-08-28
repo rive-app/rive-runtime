@@ -28,6 +28,23 @@ StatusCode Skin::onAddedClean(CoreContext* context)
 	return StatusCode::Ok;
 }
 
+void Skin::update(ComponentDirt value)
+{
+	int bidx = 6;
+	Mat2D world;
+	for (auto tendon : m_Tendons)
+	{
+		Mat2D::multiply(
+		    world, tendon->bone()->worldTransform(), tendon->inverseBind());
+		m_BoneTransforms[bidx++] = world[0];
+		m_BoneTransforms[bidx++] = world[1];
+		m_BoneTransforms[bidx++] = world[2];
+		m_BoneTransforms[bidx++] = world[3];
+		m_BoneTransforms[bidx++] = world[4];
+		m_BoneTransforms[bidx++] = world[5];
+	}
+}
+
 void Skin::buildDependencies()
 {
 	// depend on bones from tendons
@@ -47,20 +64,6 @@ void Skin::buildDependencies()
 	m_BoneTransforms[3] = 1;
 	m_BoneTransforms[4] = 0;
 	m_BoneTransforms[5] = 0;
-
-	int bidx = 6;
-	Mat2D world;
-	for (auto tendon : m_Tendons)
-	{
-		Mat2D::multiply(
-		    world, tendon->bone()->worldTransform(), tendon->inverseBind());
-		m_BoneTransforms[bidx++] = world[0];
-		m_BoneTransforms[bidx++] = world[1];
-		m_BoneTransforms[bidx++] = world[2];
-		m_BoneTransforms[bidx++] = world[3];
-		m_BoneTransforms[bidx++] = world[4];
-		m_BoneTransforms[bidx++] = world[5];
-	}
 }
 
 void Skin::deform(std::vector<PathVertex*>& vertices)
