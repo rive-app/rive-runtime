@@ -12,7 +12,7 @@ namespace rive
 		std::vector<Bone*> m_ChildBones;
 
 	public:
-		void onAddedClean(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override;
 		float x() const override;
 		float y() const override;
 

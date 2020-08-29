@@ -12,7 +12,7 @@ namespace rive
 
 	class Path : public PathBase
 	{
-	private:
+	protected:
 		Shape* m_Shape = nullptr;
 		RenderPath* m_RenderPath = nullptr;
 		std::vector<PathVertex*> m_Vertices;
@@ -20,16 +20,20 @@ namespace rive
 	public:
 		~Path();
 		Shape* shape() const { return m_Shape; }
-		void onAddedDirty(CoreContext* context) override;
-		void onAddedClean(CoreContext* context) override;
-		const Mat2D& pathTransform() const;
+		StatusCode onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override;
+		virtual const Mat2D& pathTransform() const;
 		RenderPath* renderPath() const { return m_RenderPath; }
 		void update(ComponentDirt value) override;
 
 		void addVertex(PathVertex* vertex);
 
-		void markPathDirty();
+		virtual void markPathDirty();
 		virtual bool isPathClosed() const { return true; }
+
+#ifdef TESTING
+		std::vector<PathVertex*>& vertices() { return m_Vertices; }
+#endif
 	};
 } // namespace rive
 

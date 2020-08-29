@@ -15,8 +15,8 @@ namespace rive
 
 	public:
 		~LinearAnimation();
-		void onAddedDirty(CoreContext* context) override;
-		void onAddedClean(CoreContext* context) override;
+		StatusCode onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override;
 		void addKeyedObject(KeyedObject* object);
 		void apply(Artboard* artboard, float time, float mix = 1.0f);
 

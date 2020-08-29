@@ -3,9 +3,16 @@
 using namespace rive;
 
 void Bone::addChildBone(Bone* bone) { m_ChildBones.push_back(bone); }
-void Bone::onAddedClean(CoreContext* context)
+
+StatusCode Bone::onAddedClean(CoreContext* context)
 {
+	Super::onAddedClean(context);
+	if (!parent()->is<Bone>())
+	{
+		return StatusCode::MissingObject;
+	}
 	parent()->as<Bone>()->addChildBone(this);
+	return StatusCode::Ok;
 }
 
 void Bone::lengthChanged()
@@ -19,21 +26,3 @@ void Bone::lengthChanged()
 float Bone::x() const { return parent()->as<Bone>()->length(); }
 
 float Bone::y() const { return 0.0f; }
-
-//   /// Sets the position of the Node
-//   set translation(Vec2D pos) {
-//     x = pos[0];
-//     y = pos[1];
-//   }
-
-//   @override
-//   void xChanged(double from, double to) {
-//     markTransformDirty();
-//   }
-
-//   @override
-//   void yChanged(double from, double to) {
-//     markTransformDirty();
-//   }
-
-//   AABB get localBounds => AABB.fromValues(x, y, x, y);

@@ -7,8 +7,12 @@ namespace rive
 	class SolidColor : public SolidColorBase, public ShapePaintMutator
 	{
 	public:
-		void onAddedDirty(CoreContext* context) override;
-		void onAddedClean(CoreContext* context) override {}
+		StatusCode onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override
+		{
+			return StatusCode::Ok;
+		}
+
 	protected:
 		void renderOpacityChanged() override;
 		void colorValueChanged() override;

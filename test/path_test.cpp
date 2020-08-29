@@ -8,12 +8,16 @@
 #include "shapes/ellipse.hpp"
 #include "shapes/rectangle.hpp"
 #include "shapes/shape.hpp"
+#include "shapes/path_composer.hpp"
 #include <cstdio>
 
 TEST_CASE("rectangle path builds expected commands", "[path]")
 {
 	rive::Artboard* artboard = new rive::Artboard();
+	rive::Shape* shape = new rive::Shape();
+	rive::PathComposer* composer = new rive::PathComposer();
 	rive::Rectangle* rectangle = new rive::Rectangle();
+	
 	rectangle->x(0.0f);
 	rectangle->y(0.0f);
 	rectangle->width(100.0f);
@@ -21,9 +25,13 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 	rectangle->cornerRadius(0.0f);
 
 	artboard->addObject(artboard);
+	artboard->addObject(shape);
+	artboard->addObject(composer);
 	artboard->addObject(rectangle);
+	rectangle->parentId(1);
+	composer->parentId(1);
 
-	artboard->initialize();
+	REQUIRE(artboard->initialize() == rive::StatusCode::Ok);
 
 	artboard->advance(0.0f);
 
@@ -46,6 +54,8 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 {
 	rive::Artboard* artboard = new rive::Artboard();
+	rive::Shape* shape = new rive::Shape();
+	rive::PathComposer* composer = new rive::PathComposer();
 	rive::Rectangle* rectangle = new rive::Rectangle();
 
 	rectangle->x(0.0f);
@@ -55,7 +65,11 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 	rectangle->cornerRadius(20.0f);
 
 	artboard->addObject(artboard);
+	artboard->addObject(shape);
+	artboard->addObject(composer);
 	artboard->addObject(rectangle);
+	rectangle->parentId(1);
+	composer->parentId(1);
 
 	artboard->initialize();
 
@@ -106,6 +120,8 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 {
 	rive::Artboard* artboard = new rive::Artboard();
 	rive::Ellipse* ellipse = new rive::Ellipse();
+	rive::Shape* shape = new rive::Shape();
+	rive::PathComposer* composer = new rive::PathComposer();
 
 	ellipse->x(0.0f);
 	ellipse->y(0.0f);
@@ -113,7 +129,11 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 	ellipse->height(200.0f);
 
 	artboard->addObject(artboard);
+	artboard->addObject(shape);
+	artboard->addObject(composer);
 	artboard->addObject(ellipse);
+	ellipse->parentId(1);
+	composer->parentId(1);
 
 	artboard->initialize();
 

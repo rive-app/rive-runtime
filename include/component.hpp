@@ -26,7 +26,7 @@ namespace rive
 
 	public:
 		inline Artboard* artboard() const { return m_Artboard; }
-		void onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedDirty(CoreContext* context) override;
 		inline ContainerComponent* parent() const { return m_Parent; }
 		const std::vector<Component*>& dependents() const
 		{

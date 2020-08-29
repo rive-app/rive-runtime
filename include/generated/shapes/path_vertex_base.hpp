@@ -1,13 +1,13 @@
 #ifndef _RIVE_PATH_VERTEX_BASE_HPP_
 #define _RIVE_PATH_VERTEX_BASE_HPP_
-#include "component.hpp"
+#include "container_component.hpp"
 #include "core/field_types/core_double_type.hpp"
 namespace rive
 {
-	class PathVertexBase : public Component
+	class PathVertexBase : public ContainerComponent
 	{
 	protected:
-		typedef Component Super;
+		typedef ContainerComponent Super;
 
 	public:
 		static const int typeKey = 14;
@@ -19,6 +19,7 @@ namespace rive
 			switch (typeKey)
 			{
 				case PathVertexBase::typeKey:
+				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
 					return true;
 				default:
@@ -68,7 +69,7 @@ namespace rive
 					m_Y = CoreDoubleType::deserialize(reader);
 					return true;
 			}
-			return Component::deserialize(propertyKey, reader);
+			return ContainerComponent::deserialize(propertyKey, reader);
 		}
 
 	protected:

@@ -7,7 +7,7 @@ language "C++"
 cppdialect "C++17"
 targetdir "bin/%{cfg.buildcfg}"
 objdir "obj/%{cfg.buildcfg}"
-includedirs {"../include", "../../../rive/include", "../../dependencies/skia", "../../dependencies/skia/include/core",
+includedirs {"../include", "../../../include", "../../dependencies/skia", "../../dependencies/skia/include/core",
              "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
              "../../dependencies/skia/include/config"}
 
@@ -18,7 +18,7 @@ else
     links {"rive", "skia"}
 end
 
-libdirs {"../../../rive/build/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static"}
+libdirs {"../../../build/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static"}
 
 files {"../src/**.cpp"}
 

@@ -5,11 +5,19 @@
 
 using namespace rive;
 
-void SolidColor::onAddedDirty(CoreContext* context)
+StatusCode SolidColor::onAddedDirty(CoreContext* context)
 {
-	Super::onAddedDirty(context);
-	assert(initPaintMutator(parent()));
+	StatusCode code = Super::onAddedDirty(context);
+	if (code != StatusCode::Ok)
+	{
+		return code;
+	}
+	if (!initPaintMutator(parent()))
+	{
+		return StatusCode::MissingObject;
+	}
 	renderOpacityChanged();
+	return StatusCode::Ok;
 }
 
 void SolidColor::renderOpacityChanged()
@@ -18,7 +26,8 @@ void SolidColor::renderOpacityChanged()
 	{
 		return;
 	}
-	renderPaint()->color(colorModulateOpacity((unsigned int)colorValue(), renderOpacity()));
+	renderPaint()->color(
+	    colorModulateOpacity((unsigned int)colorValue(), renderOpacity()));
 }
 
 void SolidColor::colorValueChanged() { renderOpacityChanged(); }

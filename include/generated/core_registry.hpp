@@ -13,8 +13,12 @@
 #include "artboard.hpp"
 #include "backboard.hpp"
 #include "bones/bone.hpp"
+#include "bones/cubic_weight.hpp"
 #include "bones/root_bone.hpp"
 #include "bones/skeletal_component.hpp"
+#include "bones/skin.hpp"
+#include "bones/tendon.hpp"
+#include "bones/weight.hpp"
 #include "component.hpp"
 #include "container_component.hpp"
 #include "drawable.hpp"
@@ -109,10 +113,18 @@ namespace rive
 					return new Artboard();
 				case BackboardBase::typeKey:
 					return new Backboard();
+				case WeightBase::typeKey:
+					return new Weight();
 				case BoneBase::typeKey:
 					return new Bone();
 				case RootBoneBase::typeKey:
 					return new RootBone();
+				case SkinBase::typeKey:
+					return new Skin();
+				case TendonBase::typeKey:
+					return new Tendon();
+				case CubicWeightBase::typeKey:
+					return new CubicWeight();
 			}
 			return nullptr;
 		}
@@ -179,6 +191,27 @@ namespace rive
 					break;
 				case ClippingShapeBase::clipOpValuePropertyKey:
 					object->as<ClippingShapeBase>()->clipOpValue(value);
+					break;
+				case WeightBase::valuesPropertyKey:
+					object->as<WeightBase>()->values(value);
+					break;
+				case WeightBase::indicesPropertyKey:
+					object->as<WeightBase>()->indices(value);
+					break;
+				case TendonBase::boneIdPropertyKey:
+					object->as<TendonBase>()->boneId(value);
+					break;
+				case CubicWeightBase::inValuesPropertyKey:
+					object->as<CubicWeightBase>()->inValues(value);
+					break;
+				case CubicWeightBase::inIndicesPropertyKey:
+					object->as<CubicWeightBase>()->inIndices(value);
+					break;
+				case CubicWeightBase::outValuesPropertyKey:
+					object->as<CubicWeightBase>()->outValues(value);
+					break;
+				case CubicWeightBase::outIndicesPropertyKey:
+					object->as<CubicWeightBase>()->outIndices(value);
 					break;
 			}
 		}
@@ -327,6 +360,42 @@ namespace rive
 				case RootBoneBase::yPropertyKey:
 					object->as<RootBoneBase>()->y(value);
 					break;
+				case SkinBase::xxPropertyKey:
+					object->as<SkinBase>()->xx(value);
+					break;
+				case SkinBase::yxPropertyKey:
+					object->as<SkinBase>()->yx(value);
+					break;
+				case SkinBase::xyPropertyKey:
+					object->as<SkinBase>()->xy(value);
+					break;
+				case SkinBase::yyPropertyKey:
+					object->as<SkinBase>()->yy(value);
+					break;
+				case SkinBase::txPropertyKey:
+					object->as<SkinBase>()->tx(value);
+					break;
+				case SkinBase::tyPropertyKey:
+					object->as<SkinBase>()->ty(value);
+					break;
+				case TendonBase::xxPropertyKey:
+					object->as<TendonBase>()->xx(value);
+					break;
+				case TendonBase::yxPropertyKey:
+					object->as<TendonBase>()->yx(value);
+					break;
+				case TendonBase::xyPropertyKey:
+					object->as<TendonBase>()->xy(value);
+					break;
+				case TendonBase::yyPropertyKey:
+					object->as<TendonBase>()->yy(value);
+					break;
+				case TendonBase::txPropertyKey:
+					object->as<TendonBase>()->tx(value);
+					break;
+				case TendonBase::tyPropertyKey:
+					object->as<TendonBase>()->ty(value);
+					break;
 			}
 		}
 		static void setColor(Core* object, int propertyKey, int value)
@@ -410,6 +479,20 @@ namespace rive
 					return object->as<ClippingShapeBase>()->shapeId();
 				case ClippingShapeBase::clipOpValuePropertyKey:
 					return object->as<ClippingShapeBase>()->clipOpValue();
+				case WeightBase::valuesPropertyKey:
+					return object->as<WeightBase>()->values();
+				case WeightBase::indicesPropertyKey:
+					return object->as<WeightBase>()->indices();
+				case TendonBase::boneIdPropertyKey:
+					return object->as<TendonBase>()->boneId();
+				case CubicWeightBase::inValuesPropertyKey:
+					return object->as<CubicWeightBase>()->inValues();
+				case CubicWeightBase::inIndicesPropertyKey:
+					return object->as<CubicWeightBase>()->inIndices();
+				case CubicWeightBase::outValuesPropertyKey:
+					return object->as<CubicWeightBase>()->outValues();
+				case CubicWeightBase::outIndicesPropertyKey:
+					return object->as<CubicWeightBase>()->outIndices();
 			}
 			return 0;
 		}
@@ -516,6 +599,30 @@ namespace rive
 					return object->as<RootBoneBase>()->x();
 				case RootBoneBase::yPropertyKey:
 					return object->as<RootBoneBase>()->y();
+				case SkinBase::xxPropertyKey:
+					return object->as<SkinBase>()->xx();
+				case SkinBase::yxPropertyKey:
+					return object->as<SkinBase>()->yx();
+				case SkinBase::xyPropertyKey:
+					return object->as<SkinBase>()->xy();
+				case SkinBase::yyPropertyKey:
+					return object->as<SkinBase>()->yy();
+				case SkinBase::txPropertyKey:
+					return object->as<SkinBase>()->tx();
+				case SkinBase::tyPropertyKey:
+					return object->as<SkinBase>()->ty();
+				case TendonBase::xxPropertyKey:
+					return object->as<TendonBase>()->xx();
+				case TendonBase::yxPropertyKey:
+					return object->as<TendonBase>()->yx();
+				case TendonBase::xyPropertyKey:
+					return object->as<TendonBase>()->xy();
+				case TendonBase::yyPropertyKey:
+					return object->as<TendonBase>()->yy();
+				case TendonBase::txPropertyKey:
+					return object->as<TendonBase>()->tx();
+				case TendonBase::tyPropertyKey:
+					return object->as<TendonBase>()->ty();
 			}
 			return 0.0f;
 		}

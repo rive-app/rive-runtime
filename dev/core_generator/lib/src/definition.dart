@@ -30,7 +30,6 @@ class Definition {
   Definition _extensionOf;
   Key _key;
   bool _isAbstract = false;
-  bool _exportsWithContext = false;
   bool _editorOnly = false;
   factory Definition(String filename) {
     var definition = definitions[filename];
@@ -70,10 +69,6 @@ class Definition {
     dynamic editorOnlyValue = data['editorOnly'];
     if (editorOnlyValue is bool) {
       _editorOnly = editorOnlyValue;
-    }
-    dynamic exportsWithContextValue = data['exportsWithContext'];
-    if (exportsWithContextValue is bool) {
-      _exportsWithContext = exportsWithContextValue;
     }
     _key = Key.fromJSON(data['key']) ?? Key.forDefinition(this);
 

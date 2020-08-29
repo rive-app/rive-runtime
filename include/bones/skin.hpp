@@ -1,0 +1,43 @@
+#ifndef _RIVE_SKIN_HPP_
+#define _RIVE_SKIN_HPP_
+#include "generated/bones/skin_base.hpp"
+#include "math/mat2d.hpp"
+#include <stdio.h>
+#include <vector>
+
+namespace rive
+{
+	class Tendon;
+	class PathVertex;
+	class Skinnable;
+
+	class Skin : public SkinBase
+	{
+		friend class Tendon;
+
+	public:
+		~Skin();
+
+	private:
+		Mat2D m_WorldTransform;
+		std::vector<Tendon*> m_Tendons;
+		float* m_BoneTransforms = nullptr;
+		Skinnable* m_Skinnable;
+
+	protected:
+		void addTendon(Tendon* tendon);
+
+	public:
+		StatusCode onAddedClean(CoreContext* context) override;
+		void buildDependencies() override;
+		void deform(std::vector<PathVertex*>& vertices);
+		void onDirty(ComponentDirt dirt) override;
+		void update(ComponentDirt value) override;
+
+#ifdef TESTING
+		std::vector<Tendon*>& tendons() { return m_Tendons; }
+#endif
+	};
+} // namespace rive
+
+#endif

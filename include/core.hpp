@@ -2,6 +2,7 @@
 #define _RIVE_CORE_HPP_
 
 #include "core/binary_reader.hpp"
+#include "status_code.hpp"
 #include <cassert>
 
 namespace rive
@@ -33,13 +34,13 @@ namespace rive
 		/// to look up objects referenced by id, but not assume that they in
 		/// turn have resolved their references yet. Called during
 		/// load/instance.
-		virtual void onAddedDirty(CoreContext* context) = 0;
+		virtual StatusCode onAddedDirty(CoreContext* context) = 0;
 
 		/// Called when all the objects in the context have had onAddedDirty
 		/// called. This is an opportunity to reference things referenced by
 		/// dependencies. (A path should be able to find a Shape somewhere in
 		/// its hierarchy, which may be multiple levels up).
-		virtual void onAddedClean(CoreContext* context) = 0;
+		virtual StatusCode onAddedClean(CoreContext* context) = 0;
 	};
 } // namespace rive
 #endif

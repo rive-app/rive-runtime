@@ -1,9 +1,9 @@
 #!/bin/bash
 
-cd ../../rive/
+cd ../..
 ./build.sh $@
 
-cd ../skia/renderer
+cd skia/renderer
 
 cd build
 

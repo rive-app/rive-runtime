@@ -6,8 +6,8 @@ namespace rive
 	class Backboard : public BackboardBase
 	{
 	public:
-		void onAddedDirty(CoreContext* context) {}
-		void onAddedClean(CoreContext* context) {}
+		StatusCode onAddedDirty(CoreContext* context) { return StatusCode::Ok; }
+		StatusCode onAddedClean(CoreContext* context) { return StatusCode::Ok; }
 	};
 } // namespace rive
 

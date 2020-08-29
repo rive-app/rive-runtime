@@ -80,19 +80,28 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
 	}
 }
 
-
-void KeyedProperty::onAddedDirty(CoreContext* context) 
+StatusCode KeyedProperty::onAddedDirty(CoreContext* context)
 {
+	StatusCode code;
 	for (auto keyframe : m_KeyFrames)
 	{
-		keyframe->onAddedDirty(context);
+		if ((code = keyframe->onAddedDirty(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
-
+	return StatusCode::Ok;
 }
-void KeyedProperty::onAddedClean(CoreContext* context) 
+
+StatusCode KeyedProperty::onAddedClean(CoreContext* context)
 {
+	StatusCode code;
 	for (auto keyframe : m_KeyFrames)
 	{
-		keyframe->onAddedClean(context);
+		if ((code = keyframe->onAddedClean(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
+	return StatusCode::Ok;
 }

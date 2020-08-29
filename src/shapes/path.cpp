@@ -11,15 +11,24 @@ using namespace rive;
 
 Path::~Path() { delete m_RenderPath; }
 
-void Path::onAddedDirty(CoreContext* context)
+StatusCode Path::onAddedDirty(CoreContext* context)
 {
-	Super::onAddedDirty(context);
+	StatusCode code = Super::onAddedDirty(context);
+	if (code != StatusCode::Ok)
+	{
+		return code;
+	}
 	m_RenderPath = makeRenderPath();
+	return StatusCode::Ok;
 }
 
-void Path::onAddedClean(CoreContext* context)
+StatusCode Path::onAddedClean(CoreContext* context)
 {
-	Super::onAddedClean(context);
+	StatusCode code = Super::onAddedClean(context);
+	if (code != StatusCode::Ok)
+	{
+		return code;
+	}
 
 	// Find the shape.
 	for (auto currentParent = parent(); currentParent != nullptr;
@@ -29,19 +38,16 @@ void Path::onAddedClean(CoreContext* context)
 		{
 			m_Shape = currentParent->as<Shape>();
 			m_Shape->addPath(this);
-			return;
+			return StatusCode::Ok;
 		}
 	}
+
+	return StatusCode::MissingObject;
 }
 
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
-const Mat2D& Path::pathTransform() const
-{
-	// If we're bound to bounds, return identity as points will already be in
-	// world space.
-	return worldTransform();
-}
+const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
 static void buildPath(RenderPath& renderPath,
                       bool isClosed,
@@ -68,13 +74,14 @@ static void buildPath(RenderPath& renderPath,
 	{
 		auto cubic = firstPoint->as<CubicVertex>();
 		startIsCubic = prevIsCubic = true;
-		auto inPoint = cubic->inPoint();
+		auto inPoint = cubic->renderIn();
 		startInX = inPoint[0];
 		startInY = inPoint[1];
-		auto outPoint = cubic->outPoint();
+		auto outPoint = cubic->renderOut();
 		outX = outPoint[0];
 		outY = outPoint[1];
-		renderPath.moveTo(startX = cubic->x(), startY = cubic->y());
+		auto translation = cubic->renderTranslation();
+		renderPath.moveTo(startX = translation[0], startY = translation[1]);
 	}
 	else
 	{
@@ -85,13 +92,13 @@ static void buildPath(RenderPath& renderPath,
 		{
 			auto prev = vertices[length - 1];
 
-			Vec2D pos(point.x(), point.y());
+			Vec2D pos = point.renderTranslation();
 
 			Vec2D toPrev;
 			Vec2D::subtract(toPrev,
 			                prev->is<CubicVertex>()
-			                    ? prev->as<CubicVertex>()->outPoint()
-			                    : Vec2D(prev->x(), prev->y()),
+			                    ? prev->as<CubicVertex>()->renderOut()
+			                    : prev->renderTranslation(),
 			                pos);
 			auto toPrevLength = Vec2D::length(toPrev);
 			toPrev[0] /= toPrevLength;
@@ -102,8 +109,8 @@ static void buildPath(RenderPath& renderPath,
 			Vec2D toNext;
 			Vec2D::subtract(toNext,
 			                next->is<CubicVertex>()
-			                    ? next->as<CubicVertex>()->inPoint()
-			                    : Vec2D(next->x(), next->y()),
+			                    ? next->as<CubicVertex>()->renderIn()
+			                    : next->renderTranslation(),
 			                pos);
 			auto toNextLength = Vec2D::length(toNext);
 			toNext[0] /= toNextLength;
@@ -136,10 +143,9 @@ static void buildPath(RenderPath& renderPath,
 		}
 		else
 		{
-			outX = point.x();
-			outY = point.y();
-			renderPath.moveTo(startInX = startX = outX,
-			                  startInY = startY = outY);
+			auto translation = point.renderTranslation();
+			renderPath.moveTo(startInX = startX = outX = translation[0],
+			                  startInY = startY = outY = translation[1]);
 		}
 	}
 
@@ -150,24 +156,28 @@ static void buildPath(RenderPath& renderPath,
 		if (vertex->is<CubicVertex>())
 		{
 			auto cubic = vertex->as<CubicVertex>();
-			auto inPoint = cubic->inPoint();
+			auto inPoint = cubic->renderIn();
+			auto translation = cubic->renderTranslation();
 
-			renderPath.cubicTo(
-			    outX, outY, inPoint[0], inPoint[1], cubic->x(), cubic->y());
+			renderPath.cubicTo(outX,
+			                   outY,
+			                   inPoint[0],
+			                   inPoint[1],
+			                   translation[0],
+			                   translation[1]);
 
 			prevIsCubic = true;
-			auto outPoint = cubic->outPoint();
+			auto outPoint = cubic->renderOut();
 			outX = outPoint[0];
 			outY = outPoint[1];
 		}
 		else
 		{
 			auto point = *vertex->as<StraightVertex>();
+			Vec2D pos = point.renderTranslation();
 
 			if (auto radius = point.radius(); radius > 0.0f)
 			{
-				Vec2D pos(point.x(), point.y());
-
 				Vec2D toPrev;
 				Vec2D::subtract(toPrev, Vec2D(outX, outY), pos);
 				auto toPrevLength = Vec2D::length(toPrev);
@@ -179,8 +189,8 @@ static void buildPath(RenderPath& renderPath,
 				Vec2D toNext;
 				Vec2D::subtract(toNext,
 				                next->is<CubicVertex>()
-				                    ? next->as<CubicVertex>()->inPoint()
-				                    : Vec2D(next->x(), next->y()),
+				                    ? next->as<CubicVertex>()->renderIn()
+				                    : next->renderTranslation(),
 				                pos);
 				auto toNextLength = Vec2D::length(toNext);
 				toNext[0] /= toNextLength;
@@ -225,8 +235,8 @@ static void buildPath(RenderPath& renderPath,
 			}
 			else if (prevIsCubic)
 			{
-				float x = point.x();
-				float y = point.y();
+				float x = pos[0];
+				float y = pos[1];
 				renderPath.cubicTo(outX, outY, x, y, x, y);
 
 				prevIsCubic = false;
@@ -235,7 +245,7 @@ static void buildPath(RenderPath& renderPath,
 			}
 			else
 			{
-				renderPath.lineTo(outX = point.x(), outY = point.y());
+				renderPath.lineTo(outX = pos[0], outY = pos[1]);
 			}
 		}
 	}

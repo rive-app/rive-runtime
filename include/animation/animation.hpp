@@ -6,8 +6,14 @@ namespace rive
 	class Animation : public AnimationBase
 	{
 	public:
-		void onAddedDirty(CoreContext* context) override {}
-		void onAddedClean(CoreContext* context) override {}
+		StatusCode onAddedDirty(CoreContext* context) override
+		{
+			return StatusCode::Ok;
+		}
+		StatusCode onAddedClean(CoreContext* context) override
+		{
+			return StatusCode::Ok;
+		}
 	};
 } // namespace rive
 

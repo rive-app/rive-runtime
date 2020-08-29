@@ -17,8 +17,8 @@ namespace rive
 
 		void computeSeconds(int fps);
 
-		void onAddedDirty(CoreContext* context) override;
-		void onAddedClean(CoreContext* context) override {}
+		StatusCode onAddedDirty(CoreContext* context) override;
+		StatusCode onAddedClean(CoreContext* context) override { return StatusCode::Ok; }
 
 		virtual void apply(Core* object, int propertyKey, float mix) = 0;
 		virtual void applyInterpolation(Core* object,
