@@ -19,14 +19,14 @@ namespace rive
 		nonZero,
 		evenOdd
 	};
+
 	/// Abstract path used implemented by the renderer.
 	class RenderPath
 	{
 	public:
 		virtual ~RenderPath() {}
-		virtual void fillRule(FillRule value) = 0;
 		virtual void reset() = 0;
-		// TODO: add commands like cubicTo, moveTo, etc...
+		virtual void fillRule(FillRule value) = 0;
 		virtual void addPath(RenderPath* path, const Mat2D& transform) = 0;
 
 		virtual void moveTo(float x, float y) = 0;
@@ -98,38 +98,45 @@ namespace rive
 
 			switch (fit)
 			{
-				case Fit::fill: {
+				case Fit::fill:
+				{
 					scaleX = frame.width() / contentWidth;
 					scaleY = frame.height() / contentHeight;
 					break;
 				}
-				case Fit::contain: {
+				case Fit::contain:
+				{
 					float minScale = std::fmin(frame.width() / contentWidth,
 					                           frame.height() / contentHeight);
 					scaleX = scaleY = minScale;
 					break;
 				}
-				case Fit::cover: {
+				case Fit::cover:
+				{
 					float maxScale = std::fmax(frame.width() / contentWidth,
 					                           frame.height() / contentHeight);
 					scaleX = scaleY = maxScale;
 					break;
 				}
-				case Fit::fitHeight: {
+				case Fit::fitHeight:
+				{
 					float minScale = frame.height() / contentHeight;
 					scaleX = scaleY = minScale;
 					break;
 				}
-				case Fit::fitWidth: {
+				case Fit::fitWidth:
+				{
 					float minScale = frame.width() / contentWidth;
 					scaleX = scaleY = minScale;
 					break;
 				}
-				case Fit::none: {
+				case Fit::none:
+				{
 					scaleX = scaleY = 1.0;
 					break;
 				}
-				case Fit::scaleDown: {
+				case Fit::scaleDown:
+				{
 					float minScale = std::fmin(frame.width() / contentWidth,
 					                           frame.height() / contentHeight);
 					scaleX = scaleY = minScale < 1.0 ? minScale : 1.0;

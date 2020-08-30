@@ -4,6 +4,5 @@
 namespace rive
 {
 	RenderPaint* makeRenderPaint() { return new NoOpRenderPaint(); }
-
 	RenderPath* makeRenderPath() { return new NoOpRenderPath(); }
 } // namespace rive
