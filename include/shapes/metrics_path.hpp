@@ -13,11 +13,18 @@ namespace rive
 		cubic
 	};
 
+	struct SegmentInfo
+	{
+		SegmentType type;
+		unsigned char offset;
+		SegmentInfo(SegmentType t, unsigned char l) : type(t), offset(l) {}
+	};
+
 	class MetricsPath : public RenderPath
 	{
 	private:
 		std::vector<Vec2D> m_Points;
-		std::vector<SegmentType> m_SegmentTypes;
+		std::vector<SegmentInfo> m_SegmentTypes;
 		std::vector<float> m_Lengths;
 		std::vector<MetricsPath*> m_Paths;
 
@@ -31,6 +38,18 @@ namespace rive
 		void close() override;
 
 		float computeLength();
+
+		/// Add commands to the result RenderPath that will draw the segment
+		/// from startLength to endLength of this MetricsPath. Requires
+		/// computeLength be called prior to trimming.
+		void trim(float startLength, float endLength, RenderPath* result);
+
+	private:
+		void addSegmentType(SegmentType type);
+		/// Extract a single segment from startT to endT as render commands
+		/// added to result.
+		void
+		extractSegment(int index, float startT, float endT, bool moveTo, RenderPath* result);
 	};
 
 	class OnlyMetricsPath : public MetricsPath

@@ -24,14 +24,19 @@ void MetricsPath::moveTo(float x, float y)
 
 void MetricsPath::lineTo(float x, float y)
 {
-	m_SegmentTypes.push_back(SegmentType::line);
+	addSegmentType(SegmentType::line);
 	m_Points.emplace_back(Vec2D(x, y));
+}
+
+void MetricsPath::addSegmentType(SegmentType type)
+{
+	m_SegmentTypes.push_back(SegmentInfo(type, m_Points.size()));
 }
 
 void MetricsPath::cubicTo(
     float ox, float oy, float ix, float iy, float x, float y)
 {
-	m_SegmentTypes.push_back(SegmentType::cubic);
+	addSegmentType(SegmentType::cubic);
 	m_Points.emplace_back(Vec2D(ox, oy));
 	m_Points.emplace_back(Vec2D(ix, iy));
 	m_Points.emplace_back(Vec2D(x, y));
@@ -39,11 +44,11 @@ void MetricsPath::cubicTo(
 
 void MetricsPath::close()
 {
-	if (m_SegmentTypes.back() == SegmentType::line)
+	if (m_SegmentTypes.back().type == SegmentType::line)
 	{
 		// We auto close the last segment if it's a cubic, if it's not then make
 		// sure to add the final segment in so we can compute its length too.
-		m_SegmentTypes.push_back(SegmentType::line);
+		addSegmentType(SegmentType::line);
 		m_Points.emplace_back(m_Points[0]);
 	}
 }
@@ -54,9 +59,9 @@ float MetricsPath::computeLength()
 	int idx = 1;
 	float length = 0.0f;
 
-	for (auto type : m_SegmentTypes)
+	for (const SegmentInfo& segment : m_SegmentTypes)
 	{
-		switch (type)
+		switch (segment.type)
 		{
 			case SegmentType::line:
 			{
@@ -84,6 +89,10 @@ float MetricsPath::computeLength()
 				Vec2D::scale(derivativePoint3, derivativePoint3, 3.0f);
 
 				float segmentLength = 0.0f;
+
+				// Compute cubic length by evaluating length of derivative
+				// points for pre-computed T values. Known as Gauss quadrature:
+				// https://pomax.github.io/bezierinfo/#arclength
 				int steps = sizeof(Tvalues) / sizeof(Tvalues[0]);
 				for (int i = 0; i < steps; i++)
 				{
@@ -100,8 +109,7 @@ float MetricsPath::computeLength()
 					float y = a * derivativePoint1[1] +
 					          b * derivativePoint2[1] + c * derivativePoint3[1];
 
-					// length of the delta
-
+					// sum length of the delta
 					segmentLength += Cvalues[i] * sqrt(x * x + y * y);
 				}
 
@@ -113,6 +121,90 @@ float MetricsPath::computeLength()
 		}
 	}
 	return length;
+}
+
+void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
+{
+	assert(endLength > startLength);
+
+	// We need to find the first segment to trim.
+	float length = 0.0f;
+
+	int segmentCount = m_SegmentTypes.size();
+	int firstSegmentIndex = -1, lastSegmentIndex = segmentCount - 1;
+	float startT = 0.0f, endT = 1.0f;
+
+	// Find first segment.
+	for (int i = 0; i < segmentCount; i++)
+	{
+		float segmentLength = m_Lengths[i];
+		if (length + segmentLength > startLength)
+		{
+			firstSegmentIndex = i;
+			startT = (startLength - length) / segmentLength;
+			break;
+		}
+		length += segmentLength;
+	}
+	// Find last segment.
+	for (int i = firstSegmentIndex; i < segmentCount; i++)
+	{
+		float segmentLength = m_Lengths[i];
+		if (length + segmentLength >= endLength)
+		{
+			lastSegmentIndex = i;
+			endT = (endLength - length) / segmentLength;
+			break;
+		}
+		length += segmentLength;
+	}
+
+	if (firstSegmentIndex == -1)
+	{
+		// Couldn't find it.
+		return;
+	}
+	if (firstSegmentIndex == lastSegmentIndex)
+	{
+		extractSegment(firstSegmentIndex, startT, endT, true, result);
+	}
+	else
+	{
+		extractSegment(firstSegmentIndex, startT, 1.0f, true, result);
+		for (int i = firstSegmentIndex + 1; i < lastSegmentIndex; i++)
+		{
+			// add entire segment...
+			const SegmentInfo& segment = m_SegmentTypes[i];
+			switch (segment.type)
+			{
+				case SegmentType::line:
+				{
+					const Vec2D& point = m_Points[segment.offset];
+					result->lineTo(point[0], point[1]);
+					break;
+				}
+				case SegmentType::cubic:
+				{
+					const Vec2D& point1 = m_Points[segment.offset];
+					const Vec2D& point2 = m_Points[segment.offset + 1];
+					const Vec2D& point3 = m_Points[segment.offset + 2];
+					result->cubicTo(point1[0],
+					                point1[1],
+					                point2[0],
+					                point2[1],
+					                point3[0],
+					                point3[1]);
+					break;
+				}
+			}
+		}
+		extractSegment(lastSegmentIndex, 0.0f, endT, false, result);
+	}
+}
+
+void MetricsPath::extractSegment(
+    int index, float startT, float endT, bool moveTo, RenderPath* result)
+{
 }
 
 void RenderMetricsPath::addPath(RenderPath* path, const Mat2D& transform)
