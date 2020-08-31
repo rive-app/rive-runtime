@@ -36,6 +36,7 @@
 #include "shapes/paint/shape_paint.hpp"
 #include "shapes/paint/solid_color.hpp"
 #include "shapes/paint/stroke.hpp"
+#include "shapes/paint/trim_path.hpp"
 #include "shapes/parametric_path.hpp"
 #include "shapes/path.hpp"
 #include "shapes/path_composer.hpp"
@@ -83,6 +84,8 @@ namespace rive
 					return new SolidColor();
 				case GradientStopBase::typeKey:
 					return new GradientStop();
+				case TrimPathBase::typeKey:
+					return new TrimPath();
 				case FillBase::typeKey:
 					return new Fill();
 				case NodeBase::typeKey:
@@ -177,6 +180,9 @@ namespace rive
 				case StrokeBase::joinPropertyKey:
 					object->as<StrokeBase>()->join(value);
 					break;
+				case TrimPathBase::modeValuePropertyKey:
+					object->as<TrimPathBase>()->modeValue(value);
+					break;
 				case FillBase::fillRulePropertyKey:
 					object->as<FillBase>()->fillRule(value);
 					break;
@@ -269,6 +275,15 @@ namespace rive
 					break;
 				case GradientStopBase::positionPropertyKey:
 					object->as<GradientStopBase>()->position(value);
+					break;
+				case TrimPathBase::startPropertyKey:
+					object->as<TrimPathBase>()->start(value);
+					break;
+				case TrimPathBase::endPropertyKey:
+					object->as<TrimPathBase>()->end(value);
+					break;
+				case TrimPathBase::offsetPropertyKey:
+					object->as<TrimPathBase>()->offset(value);
 					break;
 				case TransformComponentBase::rotationPropertyKey:
 					object->as<TransformComponentBase>()->rotation(value);
@@ -469,6 +484,8 @@ namespace rive
 					return object->as<StrokeBase>()->cap();
 				case StrokeBase::joinPropertyKey:
 					return object->as<StrokeBase>()->join();
+				case TrimPathBase::modeValuePropertyKey:
+					return object->as<TrimPathBase>()->modeValue();
 				case FillBase::fillRulePropertyKey:
 					return object->as<FillBase>()->fillRule();
 				case DrawableBase::drawOrderPropertyKey:
@@ -537,6 +554,12 @@ namespace rive
 					return object->as<StrokeBase>()->thickness();
 				case GradientStopBase::positionPropertyKey:
 					return object->as<GradientStopBase>()->position();
+				case TrimPathBase::startPropertyKey:
+					return object->as<TrimPathBase>()->start();
+				case TrimPathBase::endPropertyKey:
+					return object->as<TrimPathBase>()->end();
+				case TrimPathBase::offsetPropertyKey:
+					return object->as<TrimPathBase>()->offset();
 				case TransformComponentBase::rotationPropertyKey:
 					return object->as<TransformComponentBase>()->rotation();
 				case TransformComponentBase::scaleXPropertyKey:

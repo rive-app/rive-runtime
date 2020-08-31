@@ -38,7 +38,12 @@ void Shape::update(ComponentDirt value)
 	}
 }
 
-void Shape::pathChanged() { m_PathComposer->addDirt(ComponentDirt::Path); }
+void Shape::pathChanged()
+{
+	m_PathComposer->addDirt(ComponentDirt::Path);
+	invalidateStrokeEffects();
+}
+
 void Shape::pathComposer(PathComposer* value) { m_PathComposer = value; }
 void Shape::draw(Renderer* renderer)
 {

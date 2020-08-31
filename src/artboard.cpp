@@ -31,7 +31,7 @@ StatusCode Artboard::initialize()
 {
 	StatusCode code;
 
-	m_RenderPath = makeRenderPath();
+	m_RenderPath = makeRenderPath(PathSpace::Neither);
 
 	// onAddedDirty guarantees that all objects are now available so they can be
 	// looked up by index/id. This is where nodes find their parents, but they

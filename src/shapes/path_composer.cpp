@@ -12,6 +12,7 @@ PathComposer::~PathComposer()
 {
 	delete m_LocalPath;
 	delete m_WorldPath;
+	delete m_DifferencePath;
 }
 
 StatusCode PathComposer::onAddedClean(CoreContext* context)
@@ -49,7 +50,7 @@ void PathComposer::update(ComponentDirt value)
 		{
 			if (m_LocalPath == nullptr)
 			{
-				m_LocalPath = makeRenderPath();
+				m_LocalPath = m_Shape->makeRenderPath(PathSpace::Local);
 			}
 			else
 			{
@@ -74,7 +75,7 @@ void PathComposer::update(ComponentDirt value)
 		{
 			if (m_WorldPath == nullptr)
 			{
-				m_WorldPath = makeRenderPath();
+				m_WorldPath = m_Shape->makeRenderPath(PathSpace::World);
 			}
 			else
 			{

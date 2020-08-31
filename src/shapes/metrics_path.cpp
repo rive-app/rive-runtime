@@ -202,9 +202,65 @@ void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
 	}
 }
 
+static void computeHull(const Vec2D& from,
+                        const Vec2D& fromOut,
+                        const Vec2D& toIn,
+                        const Vec2D& to,
+                        float t,
+                        Vec2D* hull)
+{
+	Vec2D::lerp(hull[0], from, fromOut, t);
+	Vec2D::lerp(hull[1], fromOut, toIn, t);
+	Vec2D::lerp(hull[2], toIn, to, t);
+
+	Vec2D::lerp(hull[3], hull[0], hull[1], t);
+	Vec2D::lerp(hull[4], hull[1], hull[2], t);
+
+	Vec2D::lerp(hull[5], hull[3], hull[4], t);
+}
+
 void MetricsPath::extractSegment(
     int index, float startT, float endT, bool moveTo, RenderPath* result)
 {
+	assert(startT >= 0.0f && startT <= 1.0f && endT >= 0.0f && endT <= 1.0f);
+
+	const SegmentInfo& segment = m_SegmentTypes[index];
+	switch (segment.type)
+	{
+		case SegmentType::line:
+		{
+			const Vec2D& from = m_Points[segment.offset - 1];
+			const Vec2D& to = m_Points[segment.offset];
+			Vec2D dir;
+			Vec2D::subtract(dir, to, from);
+			if (moveTo)
+			{
+				Vec2D point;
+				Vec2D::scaleAndAdd(point, from, dir, startT);
+				result->moveTo(point[0], point[1]);
+			}
+			Vec2D::scaleAndAdd(dir, from, dir, endT);
+			result->lineTo(dir[0], dir[1]);
+
+			break;
+		}
+		case SegmentType::cubic:
+		{
+			Vec2D hull[6];
+
+			// TODO: cubic segment extraction.
+			const Vec2D& from = m_Points[segment.offset - 1];
+			const Vec2D& fromOut = m_Points[segment.offset];
+			const Vec2D& toIn = m_Points[segment.offset + 1];
+			const Vec2D& to = m_Points[segment.offset + 2];
+
+			computeHull(from, fromOut, toIn, to, startT, hull);
+
+			// left: from, hull[0], hull[3], hull[5]
+			// right: hull[5], hull[4], hull[2], to
+			break;
+		}
+	}
 }
 
 void RenderMetricsPath::addPath(RenderPath* path, const Mat2D& transform)

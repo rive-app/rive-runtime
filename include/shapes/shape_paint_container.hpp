@@ -8,7 +8,8 @@ namespace rive
 {
 	class ShapePaint;
 	class Component;
-
+	class RenderPath;
+	
 	class ShapePaintContainer
 	{
 		friend class ShapePaint;
@@ -23,6 +24,10 @@ namespace rive
 		static ShapePaintContainer* from(Component* component);
 
         PathSpace pathSpace() const;
+
+		void invalidateStrokeEffects();
+
+		RenderPath* makeRenderPath(PathSpace space);
 	};
 } // namespace rive
 

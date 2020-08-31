@@ -4,7 +4,7 @@ using namespace rive;
 
 PathSpace Fill::pathSpace() const { return PathSpace::Local; }
 
-RenderPaint* Fill::initPaintMutator(ShapePaintMutator* mutator) 
+RenderPaint* Fill::initPaintMutator(ShapePaintMutator* mutator)
 {
 	auto renderPaint = Super::initPaintMutator(mutator);
 	renderPaint->style(RenderPaintStyle::fill);
@@ -13,5 +13,9 @@ RenderPaint* Fill::initPaintMutator(ShapePaintMutator* mutator)
 
 void Fill::draw(Renderer* renderer, RenderPath* path)
 {
+	if (!isVisible())
+	{
+		return;
+	}
 	renderer->drawPath(path, m_RenderPaint);
 }
