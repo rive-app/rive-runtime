@@ -1,5 +1,8 @@
 #ifndef _RIVE_PATH_SPACE_HPP_
 #define _RIVE_PATH_SPACE_HPP_
+
+#include <type_traits>
+
 namespace rive
 {
 	enum class PathSpace : unsigned char
@@ -7,7 +10,8 @@ namespace rive
 		Neither = 0,
 		Local = 1 << 1,
 		World = 1 << 2,
-		Difference = 1 << 3
+		Difference = 1 << 3,
+		Clipping = 1 << 4
 	};
 
 	inline constexpr PathSpace operator&(PathSpace lhs, PathSpace rhs)

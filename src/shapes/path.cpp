@@ -9,7 +9,7 @@
 
 using namespace rive;
 
-Path::~Path() { delete m_RenderPath; }
+Path::~Path() { delete m_CommandPath; }
 
 StatusCode Path::onAddedDirty(CoreContext* context)
 {
@@ -18,7 +18,6 @@ StatusCode Path::onAddedDirty(CoreContext* context)
 	{
 		return code;
 	}
-	m_RenderPath = makeRenderPath();
 	return StatusCode::Ok;
 }
 
@@ -45,15 +44,24 @@ StatusCode Path::onAddedClean(CoreContext* context)
 	return StatusCode::MissingObject;
 }
 
+void Path::buildDependencies()
+{
+	Super::buildDependencies();
+	// Make sure this is called once the shape has all of the paints added
+	// (paints get added during the added cycle so buildDependencies is a good
+	// time to do this.)
+	m_CommandPath = m_Shape->makeCommandPath(PathSpace::Neither);
+}
+
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
-static void buildPath(RenderPath& renderPath,
+static void buildPath(CommandPath& commandPath,
                       bool isClosed,
                       const std::vector<PathVertex*>& vertices)
 {
-	renderPath.reset();
+	commandPath.reset();
 
 	auto length = vertices.size();
 	if (length < 2)
@@ -81,7 +89,7 @@ static void buildPath(RenderPath& renderPath,
 		outX = outPoint[0];
 		outY = outPoint[1];
 		auto translation = cubic->renderTranslation();
-		renderPath.moveTo(startX = translation[0], startY = translation[1]);
+		commandPath.moveTo(startX = translation[0], startY = translation[1]);
 	}
 	else
 	{
@@ -121,8 +129,8 @@ static void buildPath(RenderPath& renderPath,
 
 			Vec2D translation;
 			Vec2D::scaleAndAdd(translation, pos, toPrev, renderRadius);
-			renderPath.moveTo(startInX = startX = translation[0],
-			                  startInY = startY = translation[1]);
+			commandPath.moveTo(startInX = startX = translation[0],
+			                   startInY = startY = translation[1]);
 			Vec2D outPoint;
 			Vec2D::scaleAndAdd(
 			    outPoint, pos, toPrev, icircleConstant * renderRadius);
@@ -133,19 +141,19 @@ static void buildPath(RenderPath& renderPath,
 
 			Vec2D posNext;
 			Vec2D::scaleAndAdd(posNext, pos, toNext, renderRadius);
-			renderPath.cubicTo(outPoint[0],
-			                   outPoint[1],
-			                   inPoint[0],
-			                   inPoint[1],
-			                   outX = posNext[0],
-			                   outY = posNext[1]);
+			commandPath.cubicTo(outPoint[0],
+			                    outPoint[1],
+			                    inPoint[0],
+			                    inPoint[1],
+			                    outX = posNext[0],
+			                    outY = posNext[1]);
 			prevIsCubic = false;
 		}
 		else
 		{
 			auto translation = point.renderTranslation();
-			renderPath.moveTo(startInX = startX = outX = translation[0],
-			                  startInY = startY = outY = translation[1]);
+			commandPath.moveTo(startInX = startX = outX = translation[0],
+			                   startInY = startY = outY = translation[1]);
 		}
 	}
 
@@ -159,12 +167,12 @@ static void buildPath(RenderPath& renderPath,
 			auto inPoint = cubic->renderIn();
 			auto translation = cubic->renderTranslation();
 
-			renderPath.cubicTo(outX,
-			                   outY,
-			                   inPoint[0],
-			                   inPoint[1],
-			                   translation[0],
-			                   translation[1]);
+			commandPath.cubicTo(outX,
+			                    outY,
+			                    inPoint[0],
+			                    inPoint[1],
+			                    translation[0],
+			                    translation[1]);
 
 			prevIsCubic = true;
 			auto outPoint = cubic->renderOut();
@@ -203,16 +211,16 @@ static void buildPath(RenderPath& renderPath,
 				Vec2D::scaleAndAdd(translation, pos, toPrev, renderRadius);
 				if (prevIsCubic)
 				{
-					renderPath.cubicTo(outX,
-					                   outY,
-					                   translation[0],
-					                   translation[1],
-					                   translation[0],
-					                   translation[1]);
+					commandPath.cubicTo(outX,
+					                    outY,
+					                    translation[0],
+					                    translation[1],
+					                    translation[0],
+					                    translation[1]);
 				}
 				else
 				{
-					renderPath.lineTo(translation[0], translation[1]);
+					commandPath.lineTo(translation[0], translation[1]);
 				}
 
 				Vec2D outPoint;
@@ -225,19 +233,19 @@ static void buildPath(RenderPath& renderPath,
 
 				Vec2D posNext;
 				Vec2D::scaleAndAdd(posNext, pos, toNext, renderRadius);
-				renderPath.cubicTo(outPoint[0],
-				                   outPoint[1],
-				                   inPoint[0],
-				                   inPoint[1],
-				                   outX = posNext[0],
-				                   outY = posNext[1]);
+				commandPath.cubicTo(outPoint[0],
+				                    outPoint[1],
+				                    inPoint[0],
+				                    inPoint[1],
+				                    outX = posNext[0],
+				                    outY = posNext[1]);
 				prevIsCubic = false;
 			}
 			else if (prevIsCubic)
 			{
 				float x = pos[0];
 				float y = pos[1];
-				renderPath.cubicTo(outX, outY, x, y, x, y);
+				commandPath.cubicTo(outX, outY, x, y, x, y);
 
 				prevIsCubic = false;
 				outX = x;
@@ -245,7 +253,7 @@ static void buildPath(RenderPath& renderPath,
 			}
 			else
 			{
-				renderPath.lineTo(outX = pos[0], outY = pos[1]);
+				commandPath.lineTo(outX = pos[0], outY = pos[1]);
 			}
 		}
 	}
@@ -253,9 +261,9 @@ static void buildPath(RenderPath& renderPath,
 	{
 		if (prevIsCubic || startIsCubic)
 		{
-			renderPath.cubicTo(outX, outY, startInX, startInY, startX, startY);
+			commandPath.cubicTo(outX, outY, startInX, startInY, startX, startY);
 		}
-		renderPath.close();
+		commandPath.close();
 	}
 }
 
@@ -268,19 +276,28 @@ void Path::markPathDirty()
 	}
 }
 
+void Path::onDirty(ComponentDirt value)
+{
+	if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
+	{
+		m_Shape->pathChanged();
+	}
+}
+
 void Path::update(ComponentDirt value)
 {
 	Super::update(value);
-	assert(m_RenderPath != nullptr);
+
+	assert(m_CommandPath != nullptr);
 	if (hasDirt(value, ComponentDirt::Path))
 	{
-		buildPath(*m_RenderPath, isPathClosed(), m_Vertices);
+		buildPath(*m_CommandPath, isPathClosed(), m_Vertices);
 	}
-	if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
-	{
-		// Make sure the path composer has an opportunity to rebuild the path
-		// (this is why the composer depends on the shape and all its paths,
-		// ascertaning it updates after both)
-		m_Shape->pathChanged();
-	}
+	// if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
+	// {
+	// 	// Make sure the path composer has an opportunity to rebuild the path
+	// 	// (this is why the composer depends on the shape and all its paths,
+	// 	// ascertaning it updates after both)
+	// 	m_Shape->pathChanged();
+	// }
 }

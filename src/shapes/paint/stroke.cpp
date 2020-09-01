@@ -20,7 +20,7 @@ RenderPaint* Stroke::initPaintMutator(ShapePaintMutator* mutator)
 	return renderPaint;
 }
 
-void Stroke::draw(Renderer* renderer, RenderPath* path)
+void Stroke::draw(Renderer* renderer, CommandPath* path)
 {
 	if (!isVisible())
 	{
@@ -33,7 +33,7 @@ void Stroke::draw(Renderer* renderer, RenderPath* path)
 		path = m_Effect->effectPath(reinterpret_cast<MetricsPath*>(path));
 	}
 
-	renderer->drawPath(path, m_RenderPaint);
+	renderer->drawPath(path->renderPath(), m_RenderPaint);
 }
 
 void Stroke::thicknessChanged()

@@ -24,14 +24,14 @@ Artboard::~Artboard()
 	{
 		delete object;
 	}
-	delete m_RenderPath;
+	delete m_CommandPath;
 }
 
 StatusCode Artboard::initialize()
 {
 	StatusCode code;
 
-	m_RenderPath = makeRenderPath(PathSpace::Neither);
+	m_CommandPath = makeCommandPath(PathSpace::Neither);
 
 	// onAddedDirty guarantees that all objects are now available so they can be
 	// looked up by index/id. This is where nodes find their parents, but they
@@ -149,8 +149,8 @@ void Artboard::update(ComponentDirt value)
 	}
 	if (hasDirt(value, ComponentDirt::Path))
 	{
-		m_RenderPath->reset();
-		m_RenderPath->addRect(0.0f, 0.0f, width(), height());
+		m_CommandPath->reset();
+		m_CommandPath->addRect(0.0f, 0.0f, width(), height());
 	}
 }
 
@@ -203,10 +203,10 @@ void Artboard::draw(Renderer* renderer)
 {
 	for (auto shapePaint : m_ShapePaints)
 	{
-		shapePaint->draw(renderer, m_RenderPath);
+		shapePaint->draw(renderer, m_CommandPath);
 	}
 	renderer->save();
-	renderer->clipPath(m_RenderPath);
+	renderer->clipPath(m_CommandPath->renderPath());
 
 	Mat2D artboardTransform;
 	artboardTransform[4] = width() * originX();

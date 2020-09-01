@@ -11,11 +11,11 @@ RenderPaint* Fill::initPaintMutator(ShapePaintMutator* mutator)
 	return renderPaint;
 }
 
-void Fill::draw(Renderer* renderer, RenderPath* path)
+void Fill::draw(Renderer* renderer, CommandPath* path)
 {
 	if (!isVisible())
 	{
 		return;
 	}
-	renderer->drawPath(path, m_RenderPaint);
+	renderer->drawPath(path->renderPath(), m_RenderPaint);
 }

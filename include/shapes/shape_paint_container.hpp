@@ -1,15 +1,16 @@
 #ifndef _RIVE_SHAPE_PAINT_CONTAINER_HPP_
 #define _RIVE_SHAPE_PAINT_CONTAINER_HPP_
-#include <vector>
-#include "shapes/path_space.hpp"
 #include "shapes/paint/blend_mode.hpp"
+#include "shapes/path_space.hpp"
+#include <vector>
 
 namespace rive
 {
 	class ShapePaint;
 	class Component;
-	class RenderPath;
-	
+
+	class CommandPath;
+
 	class ShapePaintContainer
 	{
 		friend class ShapePaint;
@@ -23,11 +24,11 @@ namespace rive
 	public:
 		static ShapePaintContainer* from(Component* component);
 
-        PathSpace pathSpace() const;
+		PathSpace pathSpace() const;
 
 		void invalidateStrokeEffects();
 
-		RenderPath* makeRenderPath(PathSpace space);
+		CommandPath* makeCommandPath(PathSpace space);
 	};
 } // namespace rive
 

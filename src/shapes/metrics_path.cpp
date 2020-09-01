@@ -1,17 +1,20 @@
 #include "shapes/metrics_path.hpp"
 #include "bezier.hpp"
+#include "renderer.hpp"
+#include <math.h>
 
 using namespace rive;
 
 void MetricsPath::reset()
 {
+	printf("RESET METRICS?!\n");
 	m_Points.clear();
 	m_SegmentTypes.clear();
 	m_Lengths.clear();
 	m_Paths.clear();
 }
 
-void MetricsPath::addPath(RenderPath* path, const Mat2D& transform)
+void MetricsPath::addPath(CommandPath* path, const Mat2D& transform)
 {
 	m_Paths.emplace_back(reinterpret_cast<MetricsPath*>(path));
 }
@@ -55,6 +58,16 @@ void MetricsPath::close()
 
 float MetricsPath::computeLength()
 {
+	if (!m_Paths.empty())
+	{
+		float totalLength = 0.0f;
+		for (auto path : m_Paths)
+		{
+			totalLength += path->computeLength();
+		}
+		return totalLength;
+	}
+
 	const Vec2D* pen = &m_Points[0];
 	int idx = 1;
 	float length = 0.0f;
@@ -125,8 +138,13 @@ float MetricsPath::computeLength()
 
 void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
 {
-	assert(endLength > startLength);
+	assert(endLength >= startLength);
 
+	if (!m_Paths.empty())
+	{
+		m_Paths.front()->trim(startLength, endLength, result);
+		return;
+	}
 	// We need to find the first segment to trim.
 	float length = 0.0f;
 
@@ -146,6 +164,11 @@ void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
 		}
 		length += segmentLength;
 	}
+	if (firstSegmentIndex == -1)
+	{
+		// Couldn't find it.
+		return;
+	}
 	// Find last segment.
 	for (int i = firstSegmentIndex; i < segmentCount; i++)
 	{
@@ -159,11 +182,6 @@ void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
 		length += segmentLength;
 	}
 
-	if (firstSegmentIndex == -1)
-	{
-		// Couldn't find it.
-		return;
-	}
 	if (firstSegmentIndex == lastSegmentIndex)
 	{
 		extractSegment(firstSegmentIndex, startT, endT, true, result);
@@ -263,10 +281,13 @@ void MetricsPath::extractSegment(
 	}
 }
 
-void RenderMetricsPath::addPath(RenderPath* path, const Mat2D& transform)
+RenderMetricsPath::RenderMetricsPath() : m_RenderPath(makeRenderPath()) {}
+RenderMetricsPath::~RenderMetricsPath() { delete m_RenderPath; }
+
+void RenderMetricsPath::addPath(CommandPath* path, const Mat2D& transform)
 {
 	MetricsPath::addPath(path, transform);
-	m_RenderPath->addPath(path, transform);
+	m_RenderPath->addPath(path->renderPath(), transform);
 }
 
 void RenderMetricsPath::reset()
@@ -283,6 +304,7 @@ void RenderMetricsPath::moveTo(float x, float y)
 
 void RenderMetricsPath::lineTo(float x, float y)
 {
+	printf("CALLING LINETO ON RENDER METRICS %f %f\n", x, y);
 	MetricsPath::lineTo(x, y);
 	m_RenderPath->lineTo(x, y);
 }

@@ -18,13 +18,14 @@ void Shape::update(ComponentDirt value)
 {
 	Super::update(value);
 
-	if (hasDirt(value, ComponentDirt::Paint))
-	{
-		for (auto shapePaint : m_ShapePaints)
-		{
-			shapePaint->blendMode((BlendMode)blendModeValue());
-		}
-	}
+	// TODO: do we need this?
+	// if (hasDirt(value, ComponentDirt::BlendMode))
+	// {
+	// 	for (auto shapePaint : m_ShapePaints)
+	// 	{
+	// 		shapePaint->blendMode((BlendMode)blendModeValue());
+	// 	}
+	// }
 
 	// RenderOpacity gets updated with the worldTransform (accumulates through
 	// hierarchy), so if we see worldTransform is dirty, update our internal
@@ -55,17 +56,17 @@ void Shape::draw(Renderer* renderer)
 		{
 			continue;
 		}
-		// TODO: make this efficient.
 		renderer->save();
-		if (shapePaint->pathSpace() == PathSpace::Local)
+		bool paintsInLocal =
+		    (shapePaint->pathSpace() & PathSpace::Local) == PathSpace::Local;
+		if (paintsInLocal)
 		{
 			const Mat2D& transform = worldTransform();
 			renderer->transform(transform);
 		}
 		shapePaint->draw(renderer,
-		                 shapePaint->pathSpace() == PathSpace::Local
-		                     ? m_PathComposer->localPath()
-		                     : m_PathComposer->worldPath());
+		                 paintsInLocal ? m_PathComposer->localPath()
+		                               : m_PathComposer->worldPath());
 		renderer->restore();
 	}
 

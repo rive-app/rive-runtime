@@ -97,9 +97,11 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 	     header.minorVersion() > minorVersion))
 	{
 		fprintf(stderr,
-		        "Unsupported version %u expected %u.\n",
+		        "Unsupported version %u.%u expected %u.%u.\n",
 		        header.majorVersion(),
-		        majorVersion);
+		        header.minorVersion(),
+		        majorVersion,
+		        minorVersion);
 		return ImportResult::unsupportedVersion;
 	}
 	auto file = new File();

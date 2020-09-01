@@ -50,7 +50,8 @@ void PathComposer::update(ComponentDirt value)
 		{
 			if (m_LocalPath == nullptr)
 			{
-				m_LocalPath = m_Shape->makeRenderPath(PathSpace::Local);
+				printf("MAKING LOCAL RENDER PATH FOR COMPOSER\n");
+				m_LocalPath = m_Shape->makeCommandPath(PathSpace::Local);
 			}
 			else
 			{
@@ -68,14 +69,15 @@ void PathComposer::update(ComponentDirt value)
 				Mat2D localTransform;
 				const Mat2D& transform = path->pathTransform();
 				Mat2D::multiply(localTransform, inverseWorld, transform);
-				m_LocalPath->addPath(path->renderPath(), localTransform);
+				m_LocalPath->addPath(path->commandPath(), localTransform);
 			}
 		}
 		if ((space & PathSpace::World) == PathSpace::World)
 		{
 			if (m_WorldPath == nullptr)
 			{
-				m_WorldPath = m_Shape->makeRenderPath(PathSpace::World);
+				printf("MAKING WORLD RENDER PATH FOR COMPOSER\n");
+				m_WorldPath = m_Shape->makeCommandPath(PathSpace::World);
 			}
 			else
 			{
@@ -84,13 +86,14 @@ void PathComposer::update(ComponentDirt value)
 			for (auto path : m_Shape->paths())
 			{
 				const Mat2D& transform = path->pathTransform();
-				m_WorldPath->addPath(path->renderPath(), transform);
+				m_WorldPath->addPath(path->commandPath(), transform);
 			}
 		}
 		if ((space & PathSpace::Difference) == PathSpace::Difference)
 		{
 			if (m_DifferencePath == nullptr)
 			{
+				printf("MAKING DIFFERENCE RENDER PATH FOR COMPOSER\n");
 				m_DifferencePath = makeRenderPath();
 				m_DifferencePath->fillRule(FillRule::evenOdd);
 			}
@@ -98,8 +101,9 @@ void PathComposer::update(ComponentDirt value)
 			{
 				m_DifferencePath->reset();
 			}
-			m_DifferencePath->addPath(artboard()->renderPath(), identity);
-			m_DifferencePath->addPath(m_WorldPath, identity);
+			m_DifferencePath->addPath(artboard()->commandPath()->renderPath(),
+			                          identity);
+			m_DifferencePath->addPath(m_WorldPath->renderPath(), identity);
 		}
 	}
 }

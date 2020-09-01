@@ -1,6 +1,7 @@
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
 
+#include "command_path.hpp"
 #include "layout.hpp"
 #include "math/aabb.hpp"
 #include "math/mat2d.hpp"
@@ -13,37 +14,6 @@
 namespace rive
 {
 	class Vec2D;
-
-	enum class FillRule
-	{
-		nonZero,
-		evenOdd
-	};
-
-	/// Abstract path used implemented by the renderer.
-	class RenderPath
-	{
-	public:
-		virtual ~RenderPath() {}
-		virtual void reset() = 0;
-		virtual void fillRule(FillRule value) = 0;
-		virtual void addPath(RenderPath* path, const Mat2D& transform) = 0;
-
-		virtual void moveTo(float x, float y) = 0;
-		virtual void lineTo(float x, float y) = 0;
-		virtual void
-		cubicTo(float ox, float oy, float ix, float iy, float x, float y) = 0;
-		virtual void close() = 0;
-
-		void addRect(float x, float y, float width, float height)
-		{
-			moveTo(x, y);
-			lineTo(x + width, y);
-			lineTo(x + width, y + height);
-			lineTo(x, y + height);
-			close();
-		}
-	};
 
 	enum class RenderPaintStyle
 	{
@@ -70,6 +40,12 @@ namespace rive
 		// radialGradient(Vec2D* start, Vec2D* end, RenderColorStop* stops, int
 		// stopsLength) = 0;
 		virtual ~RenderPaint() {}
+	};
+
+	class RenderPath : public CommandPath
+	{
+	public:
+		RenderPath* renderPath() override { return this; }
 	};
 
 	class Renderer

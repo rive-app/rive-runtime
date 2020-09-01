@@ -43,10 +43,10 @@ StatusCode ClippingShape::onAddedDirty(CoreContext* context)
 	}
 
 	m_Shape = reinterpret_cast<Shape*>(coreObject);
-	m_Shape->addDefaultPathSpace((ClipOp)clipOpValue() == ClipOp::intersection
-	                                 ? PathSpace::World
-	                                 : PathSpace::World |
-	                                       PathSpace::Difference);
+	m_Shape->addDefaultPathSpace(
+	    (ClipOp)clipOpValue() == ClipOp::intersection
+	        ? PathSpace::World | PathSpace::Clipping
+	        : PathSpace::World | PathSpace::Difference | PathSpace::Clipping);
 
 	return StatusCode::Ok;
 }

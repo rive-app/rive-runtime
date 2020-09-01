@@ -17,7 +17,7 @@ namespace rive
 	public:
 		const SkPath& path() const { return m_Path; }
 		void reset() override;
-		void addPath(RenderPath* path, const Mat2D& transform) override;
+		void addPath(CommandPath* path, const Mat2D& transform) override;
 		void fillRule(FillRule value) override;
 		void moveTo(float x, float y) override;
 		void lineTo(float x, float y) override;
@@ -83,7 +83,7 @@ namespace rive
 		void thickness(float value) override;
 		void join(StrokeJoin value) override;
 		void cap(StrokeCap value) override;
-        void blendMode(BlendMode value) override;
+		void blendMode(BlendMode value) override;
 
 		void linearGradient(float sx, float sy, float ex, float ey) override;
 		void radialGradient(float sx, float sy, float ex, float ey) override;

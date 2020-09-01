@@ -9,10 +9,12 @@ namespace rive
 	class TrimPath : public TrimPathBase, public StrokeEffect
 	{
 	private:
-		RenderPath* m_TrimmedPath = nullptr;
+		RenderPath* m_TrimmedPath;
 		RenderPath* m_RenderPath = nullptr;
 
 	public:
+		TrimPath();
+		~TrimPath();
 		StatusCode onAddedClean(CoreContext* context) override;
 		RenderPath* effectPath(MetricsPath* source) override;
 		void invalidateEffect() override;

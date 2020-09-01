@@ -1,11 +1,11 @@
 #include "shapes/shape_paint_container.hpp"
 #include "artboard.hpp"
 #include "component.hpp"
+#include "renderer.hpp"
+#include "shapes/metrics_path.hpp"
 #include "shapes/paint/fill.hpp"
 #include "shapes/paint/stroke.hpp"
 #include "shapes/shape.hpp"
-#include "renderer.hpp"
-#include "shapes/metrics_path.hpp"
 
 using namespace rive;
 ShapePaintContainer* ShapePaintContainer::from(Component* component)
@@ -48,21 +48,28 @@ void ShapePaintContainer::invalidateStrokeEffects()
 	}
 }
 
-RenderPath* ShapePaintContainer::makeRenderPath(PathSpace space)
+CommandPath* ShapePaintContainer::makeCommandPath(PathSpace space)
 {
 	bool needForRender = false;
 	bool needForEffects = false;
 	for (auto paint : m_ShapePaints)
 	{
-		if (space != PathSpace::Neither && space != paint->pathSpace())
+		if (space != PathSpace::Neither &&
+		    (space & paint->pathSpace()) != space)
 		{
 			continue;
 		}
+
 		if (paint->is<Stroke>() && paint->as<Stroke>()->hasStrokeEffect())
 		{
 			needForEffects = true;
 		}
 		else
+		{
+			needForRender = true;
+		}
+
+		if ((space & PathSpace::Clipping) == PathSpace::Clipping)
 		{
 			needForRender = true;
 		}

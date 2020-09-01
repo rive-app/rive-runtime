@@ -1,8 +1,8 @@
 #ifndef _RIVE_METRICS_PATH_HPP_
 #define _RIVE_METRICS_PATH_HPP_
 
+#include "command_path.hpp"
 #include "math/vec2d.hpp"
-#include "renderer.hpp"
 #include <vector>
 
 namespace rive
@@ -20,7 +20,7 @@ namespace rive
 		SegmentInfo(SegmentType t, unsigned char l) : type(t), offset(l) {}
 	};
 
-	class MetricsPath : public RenderPath
+	class MetricsPath : public CommandPath
 	{
 	private:
 		std::vector<Vec2D> m_Points;
@@ -29,7 +29,7 @@ namespace rive
 		std::vector<MetricsPath*> m_Paths;
 
 	public:
-		void addPath(RenderPath* path, const Mat2D& transform) override;
+		void addPath(CommandPath* path, const Mat2D& transform) override;
 		void reset() override;
 		void moveTo(float x, float y) override;
 		void lineTo(float x, float y) override;
@@ -48,14 +48,23 @@ namespace rive
 		void addSegmentType(SegmentType type);
 		/// Extract a single segment from startT to endT as render commands
 		/// added to result.
-		void
-		extractSegment(int index, float startT, float endT, bool moveTo, RenderPath* result);
+		void extractSegment(int index,
+		                    float startT,
+		                    float endT,
+		                    bool moveTo,
+		                    RenderPath* result);
 	};
 
 	class OnlyMetricsPath : public MetricsPath
 	{
 	public:
 		void fillRule(FillRule value) override {}
+
+		RenderPath* renderPath() override
+		{
+			// Should never be used for actual rendering.
+			assert(false);
+		}
 	};
 
 	class RenderMetricsPath : public MetricsPath
@@ -64,10 +73,10 @@ namespace rive
 		RenderPath* m_RenderPath;
 
 	public:
-		RenderMetricsPath() : m_RenderPath(makeRenderPath()) {}
-		~RenderMetricsPath() { delete m_RenderPath; }
-		RenderPath* renderPath() { return m_RenderPath; }
-		void addPath(RenderPath* path, const Mat2D& transform) override;
+		RenderMetricsPath();
+		~RenderMetricsPath();
+		RenderPath* renderPath() override { return m_RenderPath; }
+		void addPath(CommandPath* path, const Mat2D& transform) override;
 
 		void fillRule(FillRule value) override;
 		void reset() override;
@@ -78,5 +87,4 @@ namespace rive
 		void close() override;
 	};
 } // namespace rive
-
 #endif
