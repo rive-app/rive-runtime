@@ -11,7 +11,6 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 {
 	auto coreObjectKey = reader.readVarUint();
 	auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
-
 	if (object == nullptr)
 	{
 		fprintf(stderr, "Unknown object of type %llu.\n", coreObjectKey);

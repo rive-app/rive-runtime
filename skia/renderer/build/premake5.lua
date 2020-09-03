@@ -1,4 +1,4 @@
-workspace "rive_skia_renderer"
+workspace "rive"
 configurations {"debug", "release"}
 
 project "rive_skia_renderer"
@@ -11,10 +11,9 @@ includedirs {"../include", "../../../include", "../../dependencies/skia", "../..
              "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
              "../../dependencies/skia/include/config"}
 
-
 if os.host() == "macosx" then
-    links {"Cocoa.framework",  "rive", "skia"}
-else 
+    links {"Cocoa.framework", "rive", "skia"}
+else
     links {"rive", "skia"}
 end
 

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-dir=$(pwd)
+# dir=$(pwd)
 
-cd ../renderer
-./build.sh $@
+# cd ../renderer
+# ./build.sh $@
 
-cd $dir
+# cd $dir
 
 cd build
 

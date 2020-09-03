@@ -1,5 +1,13 @@
-workspace "rive_viewer"
+workspace "rive"
 configurations {"debug", "release"}
+
+BASE_DIR = path.getabsolute("../../../build")
+location("./")
+dofile(path.join(BASE_DIR, "premake5.lua"))
+
+BASE_DIR = path.getabsolute("../../renderer/build")
+location("./")
+dofile(path.join(BASE_DIR, "premake5.lua"))
 
 project "rive_viewer"
 kind "ConsoleApp"
