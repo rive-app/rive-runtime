@@ -8,6 +8,7 @@ using namespace rive;
 void MetricsPath::reset()
 {
 	printf("RESET METRICS?!\n");
+	m_ComputedLength = 0.0f;
 	m_Points.clear();
 	m_SegmentTypes.clear();
 	m_Lengths.clear();
@@ -16,7 +17,9 @@ void MetricsPath::reset()
 
 void MetricsPath::addPath(CommandPath* path, const Mat2D& transform)
 {
-	m_Paths.emplace_back(reinterpret_cast<MetricsPath*>(path));
+	MetricsPath* metricsPath = reinterpret_cast<MetricsPath*>(path);
+	m_ComputedLength += metricsPath->computeLength(transform);
+	m_Paths.emplace_back(metricsPath);
 }
 
 void MetricsPath::moveTo(float x, float y)
@@ -56,21 +59,21 @@ void MetricsPath::close()
 	}
 }
 
-float MetricsPath::computeLength()
+float MetricsPath::computeLength(const Mat2D& transform)
 {
-	if (!m_Paths.empty())
-	{
-		float totalLength = 0.0f;
-		for (auto path : m_Paths)
-		{
-			totalLength += path->computeLength();
-		}
-		return totalLength;
-	}
-
+	// Should never have subPaths with more subPaths (Skia allows this but for
+	// Rive this isn't necessary and it keeps things simpler).
+	assert(m_Paths.empty());
 	const Vec2D* pen = &m_Points[0];
 	int idx = 1;
 	float length = 0.0f;
+
+	// Transform all the points by transform. We know this works because we only
+	// call computeLength once when this path is added as as subPath.
+	for (Vec2D& point : m_Points)
+	{
+		Vec2D::transform(point, point, transform);
+	}
 
 	for (const SegmentInfo& segment : m_SegmentTypes)
 	{
@@ -79,6 +82,7 @@ float MetricsPath::computeLength()
 			case SegmentType::line:
 			{
 				const Vec2D& point = m_Points[idx++];
+
 				float segmentLength = Vec2D::distance(*pen, point);
 				m_Lengths.push_back(segmentLength);
 				pen = &point;
@@ -133,16 +137,20 @@ float MetricsPath::computeLength()
 			}
 		}
 	}
+	m_ComputedLength = length;
 	return length;
 }
 
-void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
+void MetricsPath::trim(float startLength,
+                       float endLength,
+                       bool moveTo,
+                       RenderPath* result)
 {
 	assert(endLength >= startLength);
 
 	if (!m_Paths.empty())
 	{
-		m_Paths.front()->trim(startLength, endLength, result);
+		m_Paths.front()->trim(startLength, endLength, moveTo, result);
 		return;
 	}
 	// We need to find the first segment to trim.
@@ -169,6 +177,7 @@ void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
 		// Couldn't find it.
 		return;
 	}
+
 	// Find last segment.
 	for (int i = firstSegmentIndex; i < segmentCount; i++)
 	{
@@ -184,11 +193,11 @@ void MetricsPath::trim(float startLength, float endLength, RenderPath* result)
 
 	if (firstSegmentIndex == lastSegmentIndex)
 	{
-		extractSegment(firstSegmentIndex, startT, endT, true, result);
+		extractSegment(firstSegmentIndex, startT, endT, moveTo, result);
 	}
 	else
 	{
-		extractSegment(firstSegmentIndex, startT, 1.0f, true, result);
+		extractSegment(firstSegmentIndex, startT, 1.0f, moveTo, result);
 		for (int i = firstSegmentIndex + 1; i < lastSegmentIndex; i++)
 		{
 			// add entire segment...

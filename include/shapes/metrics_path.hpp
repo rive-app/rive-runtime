@@ -27,8 +27,10 @@ namespace rive
 		std::vector<SegmentInfo> m_SegmentTypes;
 		std::vector<float> m_Lengths;
 		std::vector<MetricsPath*> m_Paths;
+		float m_ComputedLength = 0.0f;
 
 	public:
+		const std::vector<MetricsPath*>& paths() const { return m_Paths; }
 		void addPath(CommandPath* path, const Mat2D& transform) override;
 		void reset() override;
 		void moveTo(float x, float y) override;
@@ -37,14 +39,18 @@ namespace rive
 		    float ox, float oy, float ix, float iy, float x, float y) override;
 		void close() override;
 
-		float computeLength();
+		float length() const { return m_ComputedLength; }
 
 		/// Add commands to the result RenderPath that will draw the segment
 		/// from startLength to endLength of this MetricsPath. Requires
 		/// computeLength be called prior to trimming.
-		void trim(float startLength, float endLength, RenderPath* result);
+		void trim(float startLength,
+		          float endLength,
+		          bool moveTo,
+		          RenderPath* result);
 
 	private:
+		float computeLength(const Mat2D& transform);
 		void addSegmentType(SegmentType type);
 		/// Extract a single segment from startT to endT as render commands
 		/// added to result.

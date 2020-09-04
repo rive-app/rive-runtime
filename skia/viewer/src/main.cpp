@@ -176,7 +176,7 @@ int main()
 
 			rive::SkiaRenderer renderer(canvas);
 			renderer.save();
-			renderer.align(rive::Fit::cover,
+			renderer.align(rive::Fit::contain,
 			               rive::Alignment::center,
 			               rive::AABB(0, 0, width, height),
 			               artboard->bounds());
