@@ -3,6 +3,7 @@
 
 #include "command_path.hpp"
 #include "math/vec2d.hpp"
+#include <cassert>
 #include <vector>
 
 namespace rive

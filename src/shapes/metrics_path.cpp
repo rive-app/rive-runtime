@@ -1,7 +1,6 @@
 #include "shapes/metrics_path.hpp"
 #include "bezier.hpp"
 #include "renderer.hpp"
-#include <cassert>
 #include <math.h>
 
 using namespace rive;
