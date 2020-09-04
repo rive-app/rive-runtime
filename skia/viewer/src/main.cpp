@@ -1,13 +1,13 @@
 #define SK_GL
 #include "GLFW/glfw3.h"
 
-#include "gl/GrGLInterface.h"
 #include "GrBackendSurface.h"
 #include "GrContext.h"
 #include "SkCanvas.h"
 #include "SkColorSpace.h"
 #include "SkSurface.h"
 #include "SkTypes.h"
+#include "gl/GrGLInterface.h"
 
 #include "animation/linear_animation_instance.hpp"
 #include "artboard.hpp"
@@ -176,7 +176,7 @@ int main()
 
 			rive::SkiaRenderer renderer(canvas);
 			renderer.save();
-			renderer.align(rive::Fit::cover,
+			renderer.align(rive::Fit::contain,
 			               rive::Alignment::center,
 			               rive::AABB(0, 0, width, height),
 			               artboard->bounds());

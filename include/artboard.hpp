@@ -25,7 +25,7 @@ namespace rive
 		std::vector<Component*> m_DependencyOrder;
 		std::vector<Drawable*> m_Drawables;
 		unsigned int m_DirtDepth = 0;
-		RenderPath* m_RenderPath = nullptr;
+		CommandPath* m_CommandPath = nullptr;
 
 		void sortDependencies();
 
@@ -51,7 +51,7 @@ namespace rive
 		bool advance(double elapsedSeconds);
 		void draw(Renderer* renderer);
 
-		RenderPath* renderPath() const { return m_RenderPath; }
+		CommandPath* commandPath() const { return m_CommandPath; }
 
 		const std::vector<Core*>& objects() const { return m_Objects; }
 

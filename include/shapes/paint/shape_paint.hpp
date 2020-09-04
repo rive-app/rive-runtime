@@ -30,7 +30,7 @@ namespace rive
 
 		virtual PathSpace pathSpace() const = 0;
 
-		virtual void draw(Renderer* renderer, RenderPath* path) = 0;
+		virtual void draw(Renderer* renderer, CommandPath* path) = 0;
 	};
 } // namespace rive
 

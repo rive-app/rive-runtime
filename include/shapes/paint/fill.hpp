@@ -9,7 +9,7 @@ namespace rive
 	public:
 		RenderPaint* initPaintMutator(ShapePaintMutator* mutator) override;
 		PathSpace pathSpace() const override;
-		void draw(Renderer* renderer, RenderPath* path) override;
+		void draw(Renderer* renderer, CommandPath* path) override;
 	};
 } // namespace rive
 

@@ -38,14 +38,16 @@ bool Drawable::clip(Renderer* renderer) const
 		switch ((ClipOp)clippingShape->clipOpValue())
 		{
 			case ClipOp::intersection:
-				renderPath = composer->worldPath();
-				if(renderPath == nullptr) {
+				renderPath = composer->worldPath()->renderPath();
+				if (renderPath == nullptr)
+				{
 					printf("NO INTER\n");
 				}
 				break;
 			case ClipOp::difference:
 				renderPath = composer->differencePath();
-				if(renderPath == nullptr) {
+				if (renderPath == nullptr)
+				{
 					printf("NO DIFF\n");
 				}
 				break;

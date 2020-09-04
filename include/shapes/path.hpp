@@ -7,14 +7,14 @@
 namespace rive
 {
 	class Shape;
-	class RenderPath;
+	class CommandPath;
 	class PathVertex;
 
 	class Path : public PathBase
 	{
 	protected:
 		Shape* m_Shape = nullptr;
-		RenderPath* m_RenderPath = nullptr;
+		CommandPath* m_CommandPath = nullptr;
 		std::vector<PathVertex*> m_Vertices;
 
 	public:
@@ -22,15 +22,16 @@ namespace rive
 		Shape* shape() const { return m_Shape; }
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
+		void buildDependencies() override;
 		virtual const Mat2D& pathTransform() const;
-		RenderPath* renderPath() const { return m_RenderPath; }
+		CommandPath* commandPath() const { return m_CommandPath; }
 		void update(ComponentDirt value) override;
 
 		void addVertex(PathVertex* vertex);
 
 		virtual void markPathDirty();
 		virtual bool isPathClosed() const { return true; }
-
+		void onDirty(ComponentDirt dirt) override;
 #ifdef TESTING
 		std::vector<PathVertex*>& vertices() { return m_Vertices; }
 #endif

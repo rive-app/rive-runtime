@@ -6,9 +6,9 @@
 #include "no_op_renderer.hpp"
 #include "node.hpp"
 #include "shapes/ellipse.hpp"
+#include "shapes/path_composer.hpp"
 #include "shapes/rectangle.hpp"
 #include "shapes/shape.hpp"
-#include "shapes/path_composer.hpp"
 #include <cstdio>
 
 TEST_CASE("rectangle path builds expected commands", "[path]")
@@ -17,7 +17,7 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 	rive::Shape* shape = new rive::Shape();
 	rive::PathComposer* composer = new rive::PathComposer();
 	rive::Rectangle* rectangle = new rive::Rectangle();
-	
+
 	rectangle->x(0.0f);
 	rectangle->y(0.0f);
 	rectangle->width(100.0f);
@@ -35,10 +35,10 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 
 	artboard->advance(0.0f);
 
-	REQUIRE(rectangle->renderPath() != nullptr);
+	REQUIRE(rectangle->commandPath() != nullptr);
 
 	auto path =
-	    reinterpret_cast<rive::NoOpRenderPath*>(rectangle->renderPath());
+	    reinterpret_cast<rive::NoOpRenderPath*>(rectangle->commandPath());
 
 	REQUIRE(path->commands.size() == 6);
 	REQUIRE(path->commands[0].command == rive::NoOpPathCommandType::Reset);
@@ -75,10 +75,10 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 
 	artboard->advance(0.0f);
 
-	REQUIRE(rectangle->renderPath() != nullptr);
+	REQUIRE(rectangle->commandPath() != nullptr);
 
 	auto path =
-	    reinterpret_cast<rive::NoOpRenderPath*>(rectangle->renderPath());
+	    reinterpret_cast<rive::NoOpRenderPath*>(rectangle->commandPath());
 
 	// reset
 	// moveTo
@@ -139,9 +139,9 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 
 	artboard->advance(0.0f);
 
-	REQUIRE(ellipse->renderPath() != nullptr);
+	REQUIRE(ellipse->commandPath() != nullptr);
 
-	auto path = reinterpret_cast<rive::NoOpRenderPath*>(ellipse->renderPath());
+	auto path = reinterpret_cast<rive::NoOpRenderPath*>(ellipse->commandPath());
 
 	// reset
 	// moveTo

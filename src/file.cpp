@@ -11,7 +11,6 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 {
 	auto coreObjectKey = reader.readVarUint();
 	auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
-
 	if (object == nullptr)
 	{
 		fprintf(stderr, "Unknown object of type %llu.\n", coreObjectKey);
@@ -97,9 +96,11 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 	     header.minorVersion() > minorVersion))
 	{
 		fprintf(stderr,
-		        "Unsupported version %u expected %u.\n",
+		        "Unsupported version %u.%u expected %u.%u.\n",
 		        header.majorVersion(),
-		        majorVersion);
+		        header.minorVersion(),
+		        majorVersion,
+		        minorVersion);
 		return ImportResult::unsupportedVersion;
 	}
 	auto file = new File();

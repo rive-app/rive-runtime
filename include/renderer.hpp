@@ -1,6 +1,7 @@
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
 
+#include "command_path.hpp"
 #include "layout.hpp"
 #include "math/aabb.hpp"
 #include "math/mat2d.hpp"
@@ -13,37 +14,6 @@
 namespace rive
 {
 	class Vec2D;
-
-	enum class FillRule
-	{
-		nonZero,
-		evenOdd
-	};
-	/// Abstract path used implemented by the renderer.
-	class RenderPath
-	{
-	public:
-		virtual ~RenderPath() {}
-		virtual void fillRule(FillRule value) = 0;
-		virtual void reset() = 0;
-		// TODO: add commands like cubicTo, moveTo, etc...
-		virtual void addPath(RenderPath* path, const Mat2D& transform) = 0;
-
-		virtual void moveTo(float x, float y) = 0;
-		virtual void lineTo(float x, float y) = 0;
-		virtual void
-		cubicTo(float ox, float oy, float ix, float iy, float x, float y) = 0;
-		virtual void close() = 0;
-
-		void addRect(float x, float y, float width, float height)
-		{
-			moveTo(x, y);
-			lineTo(x + width, y);
-			lineTo(x + width, y + height);
-			lineTo(x, y + height);
-			close();
-		}
-	};
 
 	enum class RenderPaintStyle
 	{
@@ -72,6 +42,12 @@ namespace rive
 		virtual ~RenderPaint() {}
 	};
 
+	class RenderPath : public CommandPath
+	{
+	public:
+		RenderPath* renderPath() override { return this; }
+	};
+
 	class Renderer
 	{
 	public:
@@ -98,38 +74,45 @@ namespace rive
 
 			switch (fit)
 			{
-				case Fit::fill: {
+				case Fit::fill:
+				{
 					scaleX = frame.width() / contentWidth;
 					scaleY = frame.height() / contentHeight;
 					break;
 				}
-				case Fit::contain: {
+				case Fit::contain:
+				{
 					float minScale = std::fmin(frame.width() / contentWidth,
 					                           frame.height() / contentHeight);
 					scaleX = scaleY = minScale;
 					break;
 				}
-				case Fit::cover: {
+				case Fit::cover:
+				{
 					float maxScale = std::fmax(frame.width() / contentWidth,
 					                           frame.height() / contentHeight);
 					scaleX = scaleY = maxScale;
 					break;
 				}
-				case Fit::fitHeight: {
+				case Fit::fitHeight:
+				{
 					float minScale = frame.height() / contentHeight;
 					scaleX = scaleY = minScale;
 					break;
 				}
-				case Fit::fitWidth: {
+				case Fit::fitWidth:
+				{
 					float minScale = frame.width() / contentWidth;
 					scaleX = scaleY = minScale;
 					break;
 				}
-				case Fit::none: {
+				case Fit::none:
+				{
 					scaleX = scaleY = 1.0;
 					break;
 				}
-				case Fit::scaleDown: {
+				case Fit::scaleDown:
+				{
 					float minScale = std::fmin(frame.width() / contentWidth,
 					                           frame.height() / contentHeight);
 					scaleX = scaleY = minScale < 1.0 ? minScale : 1.0;

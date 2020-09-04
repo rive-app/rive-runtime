@@ -4,6 +4,7 @@ namespace rive {
     enum class StatusCode : unsigned char {
         Ok,
         MissingObject,
+        InvalidObject,
         FailedInversion
     };
 }
