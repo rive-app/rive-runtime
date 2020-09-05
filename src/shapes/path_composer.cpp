@@ -50,7 +50,6 @@ void PathComposer::update(ComponentDirt value)
 		{
 			if (m_LocalPath == nullptr)
 			{
-				printf("MAKING LOCAL RENDER PATH FOR COMPOSER\n");
 				m_LocalPath = m_Shape->makeCommandPath(PathSpace::Local);
 			}
 			else
@@ -76,7 +75,6 @@ void PathComposer::update(ComponentDirt value)
 		{
 			if (m_WorldPath == nullptr)
 			{
-				printf("MAKING WORLD RENDER PATH FOR COMPOSER\n");
 				m_WorldPath = m_Shape->makeCommandPath(PathSpace::World);
 			}
 			else
@@ -93,7 +91,6 @@ void PathComposer::update(ComponentDirt value)
 		{
 			if (m_DifferencePath == nullptr)
 			{
-				printf("MAKING DIFFERENCE RENDER PATH FOR COMPOSER\n");
 				m_DifferencePath = makeRenderPath();
 				m_DifferencePath->fillRule(FillRule::evenOdd);
 			}

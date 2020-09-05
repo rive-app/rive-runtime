@@ -8,24 +8,42 @@
 
 namespace rive
 {
-	enum class SegmentType : unsigned char
+
+	struct CubicSegment
 	{
-		line,
-		cubic
+		float t;
+		float length;
+		CubicSegment(float tValue, float lengthValue) :
+		    t(tValue), length(lengthValue)
+		{
+		}
 	};
 
-	struct SegmentInfo
+	struct PathPart
 	{
-		SegmentType type;
+		static const unsigned char line = 0;
+		/// Type is 0 when this is a line segment, it's 1 or greater when it's a
+		/// cubic. When it's a cubic it also represents the index in
+		/// CubicSegments-1.
+		unsigned char type;
+
+		/// Offset is the offset in original path points (which get transformed
+		/// when they're added to another path).
 		unsigned char offset;
-		SegmentInfo(SegmentType t, unsigned char l) : type(t), offset(l) {}
+
+		// Only used by the cubic to count the number of cubic segments used by
+		// this part.
+		unsigned char numSegments;
+
+		PathPart(unsigned char t, unsigned char l) : type(t), offset(l), numSegments(0) {}
 	};
 
 	class MetricsPath : public CommandPath
 	{
 	private:
 		std::vector<Vec2D> m_Points;
-		std::vector<SegmentInfo> m_SegmentTypes;
+		std::vector<CubicSegment> m_CubicSegments;
+		std::vector<PathPart> m_Parts;
 		std::vector<float> m_Lengths;
 		std::vector<MetricsPath*> m_Paths;
 		float m_ComputedLength = 0.0f;
@@ -52,10 +70,10 @@ namespace rive
 
 	private:
 		float computeLength(const Mat2D& transform);
-		void addSegmentType(SegmentType type);
+
 		/// Extract a single segment from startT to endT as render commands
 		/// added to result.
-		void extractSegment(int index,
+		void extractSubPart(int index,
 		                    float startT,
 		                    float endT,
 		                    bool moveTo,
