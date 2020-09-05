@@ -1,5 +1,4 @@
 #include "shapes/metrics_path.hpp"
-#include "bezier.hpp"
 #include "renderer.hpp"
 #include <math.h>
 
@@ -7,10 +6,10 @@ using namespace rive;
 
 void MetricsPath::reset()
 {
-	printf("RESET METRICS?!\n");
 	m_ComputedLength = 0.0f;
+	m_CubicSegments.clear();
 	m_Points.clear();
-	m_SegmentTypes.clear();
+	m_Parts.clear();
 	m_Lengths.clear();
 	m_Paths.clear();
 }
@@ -30,19 +29,14 @@ void MetricsPath::moveTo(float x, float y)
 
 void MetricsPath::lineTo(float x, float y)
 {
-	addSegmentType(SegmentType::line);
+	m_Parts.push_back(PathPart(0, m_Points.size()));
 	m_Points.emplace_back(Vec2D(x, y));
-}
-
-void MetricsPath::addSegmentType(SegmentType type)
-{
-	m_SegmentTypes.push_back(SegmentInfo(type, m_Points.size()));
 }
 
 void MetricsPath::cubicTo(
     float ox, float oy, float ix, float iy, float x, float y)
 {
-	addSegmentType(SegmentType::cubic);
+	m_Parts.push_back(PathPart(1, m_Points.size()));
 	m_Points.emplace_back(Vec2D(ox, oy));
 	m_Points.emplace_back(Vec2D(ix, iy));
 	m_Points.emplace_back(Vec2D(x, y));
@@ -50,11 +44,11 @@ void MetricsPath::cubicTo(
 
 void MetricsPath::close()
 {
-	if (m_SegmentTypes.back().type == SegmentType::line)
+	if (m_Parts.back().type == PathPart::line)
 	{
-		// We auto close the last segment if it's a cubic, if it's not then make
-		// sure to add the final segment in so we can compute its length too.
-		addSegmentType(SegmentType::line);
+		// We auto close the last part if it's a cubic, if it's not then make
+		// sure to add the final part in so we can compute its length too.
+		m_Parts.push_back(PathPart(0, m_Points.size()));
 		m_Points.emplace_back(m_Points[0]);
 	}
 }
@@ -75,64 +69,65 @@ float MetricsPath::computeLength(const Mat2D& transform)
 		Vec2D::transform(point, point, transform);
 	}
 
-	for (const SegmentInfo& segment : m_SegmentTypes)
+	for (PathPart& part : m_Parts)
 	{
-		switch (segment.type)
+		switch (part.type)
 		{
-			case SegmentType::line:
+			case PathPart::line:
 			{
 				const Vec2D& point = m_Points[idx++];
 
-				float segmentLength = Vec2D::distance(*pen, point);
-				m_Lengths.push_back(segmentLength);
+				float partLength = Vec2D::distance(*pen, point);
+				m_Lengths.push_back(partLength);
 				pen = &point;
-				length += segmentLength;
+				length += partLength;
 				break;
 			}
-			case SegmentType::cubic:
+			// Anything above 0 is the number of cubic parts...
+			default:
 			{
-				// Compute the first derivative of the cubic (cubic->quadratic).
-				// https://pomax.github.io/bezierinfo/#derivatives
-				Vec2D derivativePoint1;
-				Vec2D derivativePoint2;
-				Vec2D derivativePoint3;
-				Vec2D::subtract(derivativePoint1, pen[1], pen[0]);
-				Vec2D::scale(derivativePoint1, derivativePoint1, 3.0f);
+				// Subdivide as necessary...
 
-				Vec2D::subtract(derivativePoint2, pen[2], pen[1]);
-				Vec2D::scale(derivativePoint2, derivativePoint2, 3.0f);
+				// push in the parts
+				// hard coding to 10 parts.
+				int partCount = 10;
+				float tInc = 1.0f / partCount;
 
-				Vec2D::subtract(derivativePoint3, pen[3], pen[2]);
-				Vec2D::scale(derivativePoint3, derivativePoint3, 3.0f);
+				const Vec2D& from = pen[0];
+				const Vec2D& fromOut = pen[1];
+				const Vec2D& toIn = pen[2];
+				const Vec2D& to = pen[3];
+				float partLength = 0.0f;
 
-				float segmentLength = 0.0f;
+				int index = m_CubicSegments.size();
 
-				// Compute cubic length by evaluating length of derivative
-				// points for pre-computed T values. Known as Gauss quadrature:
-				// https://pomax.github.io/bezierinfo/#arclength
-				int steps = sizeof(Tvalues) / sizeof(Tvalues[0]);
-				for (int i = 0; i < steps; i++)
+				Vec2D prev = pen[0];
+				for (int i = 1; i < partCount; i++)
 				{
-					float t = Tvalues[i];
+					float t = tInc * i;
 
-					// Compute derivative x, y at t
-					float it = 1.0f - t;
-					float a = it * it;
-					float b = it * t * 2.0f;
-					float c = t * t;
+					float ti = 1 - t;
+					float ti3 = ti * ti * ti;
+					float ti2 = ti * ti;
+					float t3 = t * t * t;
+					float t2 = t * t;
 
-					float x = a * derivativePoint1[0] +
-					          b * derivativePoint2[0] + c * derivativePoint3[0];
-					float y = a * derivativePoint1[1] +
-					          b * derivativePoint2[1] + c * derivativePoint3[1];
+					Vec2D point(ti3 * from[0] + 3 * ti2 * t * fromOut[0] +
+					                3 * ti * t2 * toIn[0] + t3 * to[0],
+					            ti3 * from[1] + 3 * ti2 * t * fromOut[1] +
+					                3 * ti * t2 * toIn[1] + t3 * to[1]);
 
-					// sum length of the delta
-					segmentLength += Cvalues[i] * sqrt(x * x + y * y);
+					partLength += Vec2D::distance(prev, point);
+					m_CubicSegments.emplace_back(CubicSegment(t, partLength));
+					prev = point;
 				}
-
-				segmentLength *= 0.5;
-				m_Lengths.push_back(segmentLength);
-				length += segmentLength;
+				// Add the very last segment.
+				partLength += Vec2D::distance(prev, to);
+				part.type = 1 + index;
+				m_CubicSegments.emplace_back(CubicSegment(1.0, partLength));
+				part.numSegments = m_CubicSegments.size() - index;
+				m_Lengths.push_back(partLength);
+				length += partLength;
 				break;
 			}
 		}
@@ -153,68 +148,68 @@ void MetricsPath::trim(float startLength,
 		m_Paths.front()->trim(startLength, endLength, moveTo, result);
 		return;
 	}
-	// We need to find the first segment to trim.
+	// We need to find the first part to trim.
 	float length = 0.0f;
 
-	int segmentCount = m_SegmentTypes.size();
-	int firstSegmentIndex = -1, lastSegmentIndex = segmentCount - 1;
+	int partCount = m_Parts.size();
+	int firstPartIndex = -1, lastPartIndex = partCount - 1;
 	float startT = 0.0f, endT = 1.0f;
 
-	// Find first segment.
-	for (int i = 0; i < segmentCount; i++)
+	// Find first part.
+	for (int i = 0; i < partCount; i++)
 	{
-		float segmentLength = m_Lengths[i];
-		if (length + segmentLength > startLength)
+		float partLength = m_Lengths[i];
+		if (length + partLength > startLength)
 		{
-			firstSegmentIndex = i;
-			startT = (startLength - length) / segmentLength;
+			firstPartIndex = i;
+			startT = (startLength - length) / partLength;
 			break;
 		}
-		length += segmentLength;
+		length += partLength;
 	}
-	if (firstSegmentIndex == -1)
+	if (firstPartIndex == -1)
 	{
 		// Couldn't find it.
 		return;
 	}
 
-	// Find last segment.
-	for (int i = firstSegmentIndex; i < segmentCount; i++)
+	// Find last part.
+	for (int i = firstPartIndex; i < partCount; i++)
 	{
-		float segmentLength = m_Lengths[i];
-		if (length + segmentLength >= endLength)
+		float partLength = m_Lengths[i];
+		if (length + partLength >= endLength)
 		{
-			lastSegmentIndex = i;
-			endT = (endLength - length) / segmentLength;
+			lastPartIndex = i;
+			endT = (endLength - length) / partLength;
 			break;
 		}
-		length += segmentLength;
+		length += partLength;
 	}
 
-	if (firstSegmentIndex == lastSegmentIndex)
+	if (firstPartIndex == lastPartIndex)
 	{
-		extractSegment(firstSegmentIndex, startT, endT, moveTo, result);
+		extractSubPart(firstPartIndex, startT, endT, moveTo, result);
 	}
 	else
 	{
-		extractSegment(firstSegmentIndex, startT, 1.0f, moveTo, result);
-		for (int i = firstSegmentIndex + 1; i < lastSegmentIndex; i++)
+		extractSubPart(firstPartIndex, startT, 1.0f, moveTo, result);
+		for (int i = firstPartIndex + 1; i < lastPartIndex; i++)
 		{
-			// add entire segment...
-			const SegmentInfo& segment = m_SegmentTypes[i];
-			switch (segment.type)
+			// add entire part...
+			const PathPart& part = m_Parts[i];
+			switch (part.type)
 			{
-				case SegmentType::line:
+				case PathPart::line:
 				{
-					const Vec2D& point = m_Points[segment.offset];
+					const Vec2D& point = m_Points[part.offset];
 					result->lineTo(point[0], point[1]);
 					break;
 				}
-				case SegmentType::cubic:
+				default:
 				{
-					const Vec2D& point1 = m_Points[segment.offset];
-					const Vec2D& point2 = m_Points[segment.offset + 1];
-					const Vec2D& point3 = m_Points[segment.offset + 2];
+					const Vec2D& point1 = m_Points[part.offset];
+					const Vec2D& point2 = m_Points[part.offset + 1];
+					const Vec2D& point3 = m_Points[part.offset + 2];
 					result->cubicTo(point1[0],
 					                point1[1],
 					                point2[0],
@@ -225,7 +220,7 @@ void MetricsPath::trim(float startLength,
 				}
 			}
 		}
-		extractSegment(lastSegmentIndex, 0.0f, endT, false, result);
+		extractSubPart(lastPartIndex, 0.0f, endT, false, result);
 	}
 }
 
@@ -246,18 +241,19 @@ static void computeHull(const Vec2D& from,
 	Vec2D::lerp(hull[5], hull[3], hull[4], t);
 }
 
-void MetricsPath::extractSegment(
+float lerp(float from, float to, float f) { return from + f * (to - from); }
+
+void MetricsPath::extractSubPart(
     int index, float startT, float endT, bool moveTo, RenderPath* result)
 {
 	assert(startT >= 0.0f && startT <= 1.0f && endT >= 0.0f && endT <= 1.0f);
-
-	const SegmentInfo& segment = m_SegmentTypes[index];
-	switch (segment.type)
+	const PathPart& part = m_Parts[index];
+	switch (part.type)
 	{
-		case SegmentType::line:
+		case PathPart::line:
 		{
-			const Vec2D& from = m_Points[segment.offset - 1];
-			const Vec2D& to = m_Points[segment.offset];
+			const Vec2D& from = m_Points[part.offset - 1];
+			const Vec2D& to = m_Points[part.offset];
 			Vec2D dir;
 			Vec2D::subtract(dir, to, from);
 			if (moveTo)
@@ -271,20 +267,149 @@ void MetricsPath::extractSegment(
 
 			break;
 		}
-		case SegmentType::cubic:
+		default:
 		{
+			auto startingSegmentIndex = part.type - 1;
+			auto startEndSegmentIndex = startingSegmentIndex;
+			auto endingSegmentIndex = startingSegmentIndex + part.numSegments;
+
+			// Find cubicStartT and cubicEndT
+			float length = m_Lengths[index];
+			if (startT != 0.0f)
+			{
+				float startLength = startT * length;
+
+				for (int si = startingSegmentIndex; si < endingSegmentIndex;
+				     si++)
+				{
+					const CubicSegment& segment = m_CubicSegments[si];
+					if (segment.length >= startLength)
+					{
+						if (si == startingSegmentIndex)
+						{
+							startT = segment.t * (startLength / segment.length);
+						}
+						else
+						{
+							float previousLength =
+							    m_CubicSegments[si - 1].length;
+
+							float t = (startLength - previousLength) /
+							          (segment.length - previousLength);
+							startT =
+							    lerp(m_CubicSegments[si - 1].t, segment.t, t);
+						}
+						// Help out the ending segment finder by setting its
+						// start to where we landed while finding the first
+						// segment, that way it can skip a bunch of work.
+						startEndSegmentIndex = si;
+						break;
+					}
+				}
+			}
+
+			if (endT != 1.0f)
+			{
+				float endLength = endT * length;
+				for (int si = startEndSegmentIndex; si < endingSegmentIndex;
+				     si++)
+				{
+					const CubicSegment& segment = m_CubicSegments[si];
+					if (segment.length >= endLength)
+					{
+						if (si == startingSegmentIndex)
+						{
+							endT = segment.t * (endLength / segment.length);
+						}
+						else
+						{
+							float previousLength =
+							    m_CubicSegments[si - 1].length;
+
+							float t = (endLength - previousLength) /
+							          (segment.length - previousLength);
+							endT =
+							    lerp(m_CubicSegments[si - 1].t, segment.t, t);
+						}
+						break;
+					}
+				}
+			}
+
 			Vec2D hull[6];
 
-			// TODO: cubic segment extraction.
-			const Vec2D& from = m_Points[segment.offset - 1];
-			const Vec2D& fromOut = m_Points[segment.offset];
-			const Vec2D& toIn = m_Points[segment.offset + 1];
-			const Vec2D& to = m_Points[segment.offset + 2];
+			const Vec2D& from = m_Points[part.offset - 1];
+			const Vec2D& fromOut = m_Points[part.offset];
+			const Vec2D& toIn = m_Points[part.offset + 1];
+			const Vec2D& to = m_Points[part.offset + 2];
 
-			computeHull(from, fromOut, toIn, to, startT, hull);
-
+			// printf("%f %f | %f %f | %f %f | %f %f\n",
+			//        from[0],
+			//        from[1],
+			//        fromOut[0],
+			//        fromOut[1],
+			//        toIn[0],
+			//        toIn[1],
+			//        to[0],
+			//        to[1]);
+			// Computing the hull stores the left/right split as follows:
 			// left: from, hull[0], hull[3], hull[5]
 			// right: hull[5], hull[4], hull[2], to
+
+			if (startT == 0.0f)
+			{
+				// Start is 0, so split at end and keep the left side.
+				computeHull(from, fromOut, toIn, to, endT, hull);
+				if (moveTo)
+				{
+					result->moveTo(from[0], from[1]);
+				}
+				result->cubicTo(hull[0][0],
+				                hull[0][1],
+				                hull[3][0],
+				                hull[3][1],
+				                hull[5][0],
+				                hull[5][1]);
+			}
+			else
+			{
+				// Split at start since it's non 0.
+				computeHull(from, fromOut, toIn, to, startT, hull);
+				if (moveTo)
+				{
+					// Move to first point on the right side.
+					result->moveTo(hull[5][0], hull[5][1]);
+				}
+				if (endT == 1.0f)
+				{
+					// End is 1, so no further split is necessary just cubicTo
+					// the remaining right side.
+					result->cubicTo(hull[4][0],
+					                hull[4][1],
+					                hull[2][0],
+					                hull[2][1],
+					                to[0],
+					                to[1]);
+				}
+				else
+				{
+					// End is not 1, so split again and cubic to the left side
+					// of the split and remap endT to the new curve range
+					computeHull(hull[5],
+					            hull[4],
+					            hull[2],
+					            to,
+					            (endT - startT) / (1.0f - startT),
+					            hull);
+
+					result->cubicTo(hull[0][0],
+					                hull[0][1],
+					                hull[3][0],
+					                hull[3][1],
+					                hull[5][0],
+					                hull[5][1]);
+				}
+			}
 			break;
 		}
 	}
@@ -313,7 +438,6 @@ void RenderMetricsPath::moveTo(float x, float y)
 
 void RenderMetricsPath::lineTo(float x, float y)
 {
-	printf("CALLING LINETO ON RENDER METRICS %f %f\n", x, y);
 	MetricsPath::lineTo(x, y);
 	m_RenderPath->lineTo(x, y);
 }
