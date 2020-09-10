@@ -8,7 +8,9 @@ Vec2D::Vec2D() : m_Buffer{0.0f, 0.0f} {}
 
 Vec2D::Vec2D(float x, float y) : m_Buffer{x, y} {}
 
-Vec2D::Vec2D(const Vec2D& copy) : m_Buffer{copy.m_Buffer[0], copy.m_Buffer[1]} {}
+Vec2D::Vec2D(const Vec2D& copy) : m_Buffer{copy.m_Buffer[0], copy.m_Buffer[1]}
+{
+}
 
 void Vec2D::transform(Vec2D& result, const Vec2D& a, const Mat2D& m)
 {
@@ -38,18 +40,25 @@ void Vec2D::subtract(Vec2D& result, const Vec2D& a, const Vec2D& b)
 	result[1] = a[1] - b[1];
 }
 
-float Vec2D::length(const Vec2D& a)
+float Vec2D::length(const Vec2D& a) { return std::sqrt(lengthSquared(a)); }
+
+float Vec2D::lengthSquared(const Vec2D& a)
 {
 	float x = a[0];
 	float y = a[1];
-	return std::sqrt(x * x + y * y);
+	return x * x + y * y;
 }
 
 float Vec2D::distance(const Vec2D& a, const Vec2D& b)
 {
+	return std::sqrt(distanceSquared(a, b));
+}
+
+float Vec2D::distanceSquared(const Vec2D& a, const Vec2D& b)
+{
 	float x = b[0] - a[0];
 	float y = b[1] - a[1];
-	return std::sqrt(x * x + y * y);
+	return x * x + y * y;
 }
 
 void Vec2D::copy(Vec2D& result, const Vec2D& a)
@@ -71,7 +80,10 @@ void Vec2D::normalize(Vec2D& result, const Vec2D& a)
 	}
 }
 
-float Vec2D::dot(const Vec2D& a, const Vec2D& b) { return a[0] * b[0] + a[1] * b[1]; }
+float Vec2D::dot(const Vec2D& a, const Vec2D& b)
+{
+	return a[0] * b[0] + a[1] * b[1];
+}
 
 void Vec2D::lerp(Vec2D& o, const Vec2D& a, const Vec2D& b, float f)
 {
