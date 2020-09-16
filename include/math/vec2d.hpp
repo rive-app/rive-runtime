@@ -26,7 +26,9 @@ namespace rive
 		static void subtract(Vec2D& result, const Vec2D& a, const Vec2D& b);
 		static void add(Vec2D& result, const Vec2D& a, const Vec2D& b);
 		static float length(const Vec2D& a);
+		static float lengthSquared(const Vec2D& a);
 		static float distance(const Vec2D& a, const Vec2D& b);
+		static float distanceSquared(const Vec2D& a, const Vec2D& b);
 		static void copy(Vec2D& result, const Vec2D& a);
 		static void normalize(Vec2D& result, const Vec2D& a);
 		static float dot(const Vec2D& a, const Vec2D& b);
