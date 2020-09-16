@@ -3,11 +3,12 @@
 
 namespace rive
 {
-    class BinaryReader;
-    class CoreDoubleType
+	class BinaryReader;
+	class CoreDoubleType
 	{
-    public:
-        static double deserialize(BinaryReader& reader);
+	public:
+		static const int id = 2;
+		static double deserialize(BinaryReader& reader);
 	};
 } // namespace rive
 #endif

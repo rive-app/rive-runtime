@@ -27,7 +27,7 @@ namespace rive
         double readFloat64();
         float readFloat32();
         uint8_t readByte();
-        uint32_t readUint();
+        uint32_t readUint32();
 	};
 } // namespace rive
 

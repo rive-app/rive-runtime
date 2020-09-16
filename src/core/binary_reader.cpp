@@ -89,7 +89,7 @@ uint8_t BinaryReader::readByte()
 	return *m_Position++;
 }
 
-uint32_t BinaryReader::readUint() 
+uint32_t BinaryReader::readUint32() 
 {
 	uint32_t value;
 	auto readBytes = decode_uint_32(m_Position, m_End, &value);

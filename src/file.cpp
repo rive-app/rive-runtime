@@ -1,5 +1,9 @@
 #include "file.hpp"
 #include "animation/animation.hpp"
+#include "core/field_types/core_color_type.hpp"
+#include "core/field_types/core_double_type.hpp"
+#include "core/field_types/core_string_type.hpp"
+#include "core/field_types/core_uint_type.hpp"
 #include "generated/core_registry.hpp"
 
 // Default namespace for Rive Cpp code
@@ -7,15 +11,11 @@ using namespace rive;
 
 // Import a single Rive runtime object.
 // Used by the file importer.
-template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
+template <typename T = Core>
+static T* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
 {
 	auto coreObjectKey = reader.readVarUint();
 	auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
-	if (object == nullptr)
-	{
-		fprintf(stderr, "Unknown object of type %llu.\n", coreObjectKey);
-		return nullptr;
-	}
 	while (true)
 	{
 		auto propertyKey = reader.readVarUint();
@@ -30,18 +30,41 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 			delete object;
 			return nullptr;
 		}
-
-		if (!object->deserialize(propertyKey, reader))
+		if (object == nullptr || !object->deserialize(propertyKey, reader))
 		{
-			fprintf(stderr, "Unknown property of type %llu.\n", propertyKey);
-			delete object;
-			return nullptr;
+			int id = header.propertyFieldId(propertyKey);
+			if (id != 0)
+			{
+				fprintf(
+				    stderr,
+				    "Unknown property key %llu, missing from property ToC.\n",
+				    propertyKey);
+				delete object;
+				return nullptr;
+			}
+
+			switch (id)
+			{
+				case CoreUintType::id:
+					CoreUintType::deserialize(reader);
+					break;
+				case CoreStringType::id:
+					CoreStringType::deserialize(reader);
+					break;
+				case CoreDoubleType::id:
+					CoreDoubleType::deserialize(reader);
+					break;
+				case CoreColorType::id:
+					CoreColorType::deserialize(reader);
+					break;
+			}
 		}
 	}
 
-	// This is evaluated at compile time based on how the templated method is
-	// called. This means that it'll get optimized out when calling with type
-	// Core (which is the default). The type checking is skipped in this case.
+	// This is evaluated at compile time based on how the templated method
+	// is called. This means that it'll get optimized out when calling with
+	// type Core (which is the default). The type checking is skipped in
+	// this case.
 	if constexpr (!std::is_same<T, Core>::value)
 	{
 		// Concrete Core object couldn't be read.
@@ -54,10 +77,10 @@ template <typename T = Core> static T* readRuntimeObject(BinaryReader& reader)
 			        coreObjectKey);
 			return nullptr;
 		}
-		// Ensure the object is of the provided type, if not, return null and
-		// delete the object. Note that we read in the properties regardless of
-		// whether or not this object is the expected one. This ensures our
-		// reader has advanced past the object.
+		// Ensure the object is of the provided type, if not, return null
+		// and delete the object. Note that we read in the properties
+		// regardless of whether or not this object is the expected one.
+		// This ensures our reader has advanced past the object.
 		if (!object->is<T>())
 		{
 			fprintf(stderr,
@@ -104,7 +127,7 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 		return ImportResult::unsupportedVersion;
 	}
 	auto file = new File();
-	auto result = file->read(reader);
+	auto result = file->read(reader, header);
 	if (result != ImportResult::success)
 	{
 		delete file;
@@ -114,9 +137,9 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 	return result;
 }
 
-ImportResult File::read(BinaryReader& reader)
+ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 {
-	m_Backboard = readRuntimeObject<Backboard>(reader);
+	m_Backboard = readRuntimeObject<Backboard>(reader, header);
 	if (m_Backboard == nullptr)
 	{
 		fprintf(stderr, "Expected first object to be the backboard.\n");
@@ -129,12 +152,12 @@ ImportResult File::read(BinaryReader& reader)
 		auto numObjects = reader.readVarUint();
 		if (numObjects == 0)
 		{
-			fprintf(
-			    stderr,
-			    "Artboards must contain at least one object (themselves).\n");
+			fprintf(stderr,
+			        "Artboards must contain at least one object "
+			        "(themselves).\n");
 			return ImportResult::malformed;
 		}
-		auto artboard = readRuntimeObject<Artboard>(reader);
+		auto artboard = readRuntimeObject<Artboard>(reader, header);
 		if (artboard == nullptr)
 		{
 			fprintf(stderr, "Found non-artboard in artboard list.\n");
@@ -146,18 +169,18 @@ ImportResult File::read(BinaryReader& reader)
 
 		for (int i = 1; i < numObjects; i++)
 		{
-			auto object = readRuntimeObject(reader);
-			// N.B. we add objects that don't load (null) too as we need to look
-			// them up by index.
+			auto object = readRuntimeObject(reader, header);
+			// N.B. we add objects that don't load (null) too as we need to
+			// look them up by index.
 			artboard->addObject(object);
 		}
 
-		// Animations also need to reference objects, so make sure they get read
-		// in before the hierarchy resolves (batch add completes).
+		// Animations also need to reference objects, so make sure they get
+		// read in before the hierarchy resolves (batch add completes).
 		auto numAnimations = reader.readVarUint();
 		for (int i = 0; i < numAnimations; i++)
 		{
-			auto animation = readRuntimeObject<Animation>(reader);
+			auto animation = readRuntimeObject<Animation>(reader, header);
 			if (animation == nullptr)
 			{
 				continue;
@@ -170,7 +193,8 @@ ImportResult File::read(BinaryReader& reader)
 				int numKeyedObjects = reader.readVarUint();
 				for (int j = 0; j < numKeyedObjects; j++)
 				{
-					auto keyedObject = readRuntimeObject<KeyedObject>(reader);
+					auto keyedObject =
+					    readRuntimeObject<KeyedObject>(reader, header);
 					if (keyedObject == nullptr)
 					{
 						continue;
@@ -181,7 +205,7 @@ ImportResult File::read(BinaryReader& reader)
 					for (int k = 0; k < numKeyedProperties; k++)
 					{
 						auto keyedProperty =
-						    readRuntimeObject<KeyedProperty>(reader);
+						    readRuntimeObject<KeyedProperty>(reader, header);
 						if (keyedProperty == nullptr)
 						{
 							continue;
@@ -191,26 +215,11 @@ ImportResult File::read(BinaryReader& reader)
 						int numKeyframes = reader.readVarUint();
 						for (int l = 0; l < numKeyframes; l++)
 						{
-							auto keyframe = readRuntimeObject<KeyFrame>(reader);
+							auto keyframe =
+							    readRuntimeObject<KeyFrame>(reader, header);
 							if (keyframe == nullptr)
 							{
 								continue;
-							}
-							else if (keyframe->is<KeyFrameDrawOrder>())
-							{
-								auto drawOrderKeyFrame =
-								    reinterpret_cast<KeyFrameDrawOrder*>(
-								        keyframe);
-								int numValues = reader.readVarUint();
-								for (int m = 0; m < numValues; m++)
-								{
-									auto valueObject =
-									    new KeyFrameDrawOrderValue();
-									valueObject->drawableId(
-									    reader.readVarUint());
-									valueObject->value(m);
-									drawOrderKeyFrame->addValue(valueObject);
-								}
 							}
 							keyframe->computeSeconds(linearAnimation->fps());
 							keyedProperty->addKeyFrame(keyframe);
