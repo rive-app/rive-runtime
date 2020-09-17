@@ -12,6 +12,7 @@ namespace rive
 	class File;
 	class Drawable;
 	class Node;
+	class DrawTarget;
 
 	class Artboard : public ArtboardBase,
 	                 public CoreContext,
@@ -24,10 +25,13 @@ namespace rive
 		std::vector<Animation*> m_Animations;
 		std::vector<Component*> m_DependencyOrder;
 		std::vector<Drawable*> m_Drawables;
+		std::vector<DrawTarget*> m_DrawTargets;
 		unsigned int m_DirtDepth = 0;
 		CommandPath* m_CommandPath = nullptr;
+		Drawable* m_FirstDrawable = nullptr;
 
 		void sortDependencies();
+		void sortDrawOrder();
 
 	public:
 		~Artboard();

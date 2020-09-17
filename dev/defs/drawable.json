@@ -7,14 +7,6 @@
   "abstract": true,
   "extends": "node.json",
   "properties": {
-    "drawOrder": {
-      "type": "FractionalIndex",
-      "typeRuntime": "uint",
-      "key": {
-        "int": 22,
-        "string": "drawOrder"
-      }
-    },
     "blendModeValue": {
       "type": "uint",
       "initialValue": "3",

@@ -5,11 +5,12 @@
 
 namespace rive
 {
-    class BinaryReader;
-    class CoreStringType
+	class BinaryReader;
+	class CoreStringType
 	{
-    public:
-        static std::string deserialize(BinaryReader& reader);
+	public:
+		static const int id = 1;
+		static std::string deserialize(BinaryReader& reader);
 	};
 } // namespace rive
 #endif

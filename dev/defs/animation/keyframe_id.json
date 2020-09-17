@@ -1,0 +1,18 @@
+{
+  "name": "KeyFrameId",
+  "key": {
+    "int": 50,
+    "string": "keyframeid"
+  },
+  "extends": "animation/keyframe.json",
+  "properties": {
+    "value": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "key": {
+        "int": 122,
+        "string": "value"
+      }
+    }
+  }
+}

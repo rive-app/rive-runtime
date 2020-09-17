@@ -6,11 +6,6 @@
 
 using namespace rive;
 
-void Drawable::drawOrderChanged()
-{
-	artboard()->addDirt(ComponentDirt::DrawOrder);
-}
-
 void Drawable::addClippingShape(ClippingShape* shape)
 {
 	m_ClippingShapes.push_back(shape);
