@@ -103,7 +103,7 @@ StatusCode Artboard::initialize()
 			Drawable* drawable = object->as<Drawable>();
 			m_Drawables.push_back(drawable);
 
-			for (auto parent = drawable->parent(); parent != nullptr;
+			for (ContainerComponent* parent = drawable; parent != nullptr;
 			     parent = parent->parent())
 			{
 				auto itr = componentDrawRules.find(parent);
@@ -175,6 +175,7 @@ void Artboard::sortDrawOrder()
 		auto rules = drawable->flattenedDrawRules;
 		if (rules != nullptr && rules->activeTarget() != nullptr)
 		{
+			
 			auto target = rules->activeTarget();
 			if (target->first == nullptr)
 			{
@@ -215,6 +216,7 @@ void Artboard::sortDrawOrder()
 		switch (rule->placement())
 		{
 			case DrawTargetPlacement::before:
+			{
 				if (targetDrawable->prev != nullptr)
 				{
 					targetDrawable->prev->next = rule->first;
@@ -227,7 +229,9 @@ void Artboard::sortDrawOrder()
 				targetDrawable->prev = rule->last;
 				rule->last->next = targetDrawable;
 				break;
+			}
 			case DrawTargetPlacement::after:
+			{
 				if (targetDrawable->next != nullptr)
 				{
 					targetDrawable->next->prev = rule->last;
@@ -240,6 +244,7 @@ void Artboard::sortDrawOrder()
 				targetDrawable->next = rule->first;
 				rule->first->prev = targetDrawable;
 				break;
+			}
 		}
 	}
 
