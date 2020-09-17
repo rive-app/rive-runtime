@@ -28,6 +28,7 @@ namespace rive
 		std::vector<DrawTarget*> m_DrawTargets;
 		unsigned int m_DirtDepth = 0;
 		CommandPath* m_CommandPath = nullptr;
+		Drawable* m_FirstDrawable = nullptr;
 
 		void sortDependencies();
 		void sortDrawOrder();

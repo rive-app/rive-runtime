@@ -1,7 +1,10 @@
 #ifndef _RIVE_DRAW_TARGET_HPP_
 #define _RIVE_DRAW_TARGET_HPP_
+
+#include "draw_target_placement.hpp"
 #include "generated/draw_target_base.hpp"
 #include <stdio.h>
+
 namespace rive
 {
 	class Drawable;
@@ -12,7 +15,7 @@ namespace rive
 
 	private:
 		Drawable* m_Drawable = nullptr;
-		
+
 		// Controlled by the artboard.
 		Drawable* first = nullptr;
 		Drawable* last = nullptr;
@@ -21,6 +24,11 @@ namespace rive
 		Drawable* drawable() const { return m_Drawable; }
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
+
+		DrawTargetPlacement placement() const
+		{
+			return (DrawTargetPlacement)placementValue();
+		}
 
 	protected:
 		void placementValueChanged() override;

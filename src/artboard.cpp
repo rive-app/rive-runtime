@@ -3,6 +3,7 @@
 #include "dependency_sorter.hpp"
 #include "draw_rules.hpp"
 #include "draw_target.hpp"
+#include "draw_target_placement.hpp"
 #include "drawable.hpp"
 #include "node.hpp"
 #include "renderer.hpp"
@@ -166,6 +167,83 @@ void Artboard::sortDrawOrder()
 	{
 		target->first = target->last = nullptr;
 	}
+
+	m_FirstDrawable = nullptr;
+	Drawable* lastDrawable = nullptr;
+	for (auto drawable : m_Drawables)
+	{
+		auto rules = drawable->flattenedDrawRules;
+		if (rules != nullptr && rules->activeTarget() != nullptr)
+		{
+			auto target = rules->activeTarget();
+			if (target->first == nullptr)
+			{
+				target->first = target->last = drawable;
+				drawable->prev = drawable->next = nullptr;
+			}
+			else
+			{
+				target->last->next = drawable;
+				drawable->prev = target->last;
+				target->last = drawable;
+				drawable->next = nullptr;
+			}
+		}
+		else
+		{
+			drawable->prev = lastDrawable;
+			drawable->next = nullptr;
+			if (lastDrawable == nullptr)
+			{
+				lastDrawable = m_FirstDrawable = drawable;
+			}
+			else
+			{
+				lastDrawable->next = drawable;
+				lastDrawable = drawable;
+			}
+		}
+	}
+
+	for (auto rule : m_DrawTargets)
+	{
+		if (rule->first == nullptr)
+		{
+			continue;
+		}
+		auto targetDrawable = rule->drawable();
+		switch (rule->placement())
+		{
+			case DrawTargetPlacement::before:
+				if (targetDrawable->prev != nullptr)
+				{
+					targetDrawable->prev->next = rule->first;
+					rule->first->prev = targetDrawable->prev;
+				}
+				if (targetDrawable == m_FirstDrawable)
+				{
+					m_FirstDrawable = rule->first;
+				}
+				targetDrawable->prev = rule->last;
+				rule->last->next = targetDrawable;
+				break;
+			case DrawTargetPlacement::after:
+				if (targetDrawable->next != nullptr)
+				{
+					targetDrawable->next->prev = rule->last;
+					rule->last->next = targetDrawable->next;
+				}
+				if (targetDrawable == lastDrawable)
+				{
+					lastDrawable = rule->last;
+				}
+				targetDrawable->next = rule->first;
+				rule->first->prev = targetDrawable;
+				break;
+		}
+	}
+
+	m_FirstDrawable = lastDrawable;
 }
 
 void Artboard::sortDependencies()
@@ -286,10 +364,12 @@ void Artboard::draw(Renderer* renderer)
 	artboardTransform[5] = height() * originY();
 	renderer->transform(artboardTransform);
 
-	for (auto drawable : m_Drawables)
+	for (auto drawable = m_FirstDrawable; drawable != nullptr;
+	     drawable = drawable->prev)
 	{
 		drawable->draw(renderer);
 	}
+
 	renderer->restore();
 }
 
