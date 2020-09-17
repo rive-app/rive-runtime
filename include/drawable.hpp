@@ -7,10 +7,20 @@
 namespace rive
 {
 	class ClippingShape;
+	class Artboard;
+	class DrawRules;
+	
 	class Drawable : public DrawableBase
 	{
+		friend class Artboard;
+
 	private:
 		std::vector<ClippingShape*> m_ClippingShapes;
+
+		/// Used exclusively by the artboard;
+		DrawRules* flattenedDrawRules = nullptr;
+		Drawable* prev = nullptr;
+		Drawable* next = nullptr;
 
 	public:
 		bool clip(Renderer* renderer) const;
@@ -20,9 +30,6 @@ namespace rive
 		{
 			return m_ClippingShapes;
 		}
-
-	protected:
-		void drawOrderChanged() override;
 	};
 } // namespace rive
 

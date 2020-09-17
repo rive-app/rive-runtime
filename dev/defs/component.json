@@ -21,7 +21,8 @@
         "int": 4,
         "string": "name"
       },
-      "description": "Non-unique identifier, used to give friendly names to elements in the hierarchy. Runtimes provide an API for finding components by this [name]."
+      "description": "Non-unique identifier, used to give friendly names to elements in the hierarchy. Runtimes provide an API for finding components by this [name].",
+      "nullable": true
     },
     "parentId": {
       "type": "Id",

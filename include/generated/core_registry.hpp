@@ -7,8 +7,7 @@
 #include "animation/keyframe.hpp"
 #include "animation/keyframe_color.hpp"
 #include "animation/keyframe_double.hpp"
-#include "animation/keyframe_draw_order.hpp"
-#include "animation/keyframe_draw_order_value.hpp"
+#include "animation/keyframe_id.hpp"
 #include "animation/linear_animation.hpp"
 #include "artboard.hpp"
 #include "backboard.hpp"
@@ -21,6 +20,8 @@
 #include "bones/weight.hpp"
 #include "component.hpp"
 #include "container_component.hpp"
+#include "draw_rules.hpp"
+#include "draw_target.hpp"
 #include "drawable.hpp"
 #include "node.hpp"
 #include "shapes/clipping_shape.hpp"
@@ -56,10 +57,14 @@ namespace rive
 		{
 			switch (typeKey)
 			{
+				case DrawTargetBase::typeKey:
+					return new DrawTarget();
 				case KeyedObjectBase::typeKey:
 					return new KeyedObject();
 				case KeyedPropertyBase::typeKey:
 					return new KeyedProperty();
+				case KeyFrameIdBase::typeKey:
+					return new KeyFrameId();
 				case AnimationBase::typeKey:
 					return new Animation();
 				case CubicInterpolatorBase::typeKey:
@@ -70,10 +75,6 @@ namespace rive
 					return new KeyFrameColor();
 				case LinearAnimationBase::typeKey:
 					return new LinearAnimation();
-				case KeyFrameDrawOrderBase::typeKey:
-					return new KeyFrameDrawOrder();
-				case KeyFrameDrawOrderValueBase::typeKey:
-					return new KeyFrameDrawOrderValue();
 				case LinearGradientBase::typeKey:
 					return new LinearGradient();
 				case RadialGradientBase::typeKey:
@@ -112,6 +113,8 @@ namespace rive
 					return new PathComposer();
 				case CubicDetachedVertexBase::typeKey:
 					return new CubicDetachedVertex();
+				case DrawRulesBase::typeKey:
+					return new DrawRules();
 				case ArtboardBase::typeKey:
 					return new Artboard();
 				case BackboardBase::typeKey:
@@ -131,10 +134,31 @@ namespace rive
 			}
 			return nullptr;
 		}
+		static void setString(Core* object, int propertyKey, std::string value)
+		{
+			switch (propertyKey)
+			{
+				case ComponentBase::namePropertyKey:
+					object->as<ComponentBase>()->name(value);
+					break;
+				case AnimationBase::namePropertyKey:
+					object->as<AnimationBase>()->name(value);
+					break;
+			}
+		}
 		static void setUint(Core* object, int propertyKey, int value)
 		{
 			switch (propertyKey)
 			{
+				case ComponentBase::parentIdPropertyKey:
+					object->as<ComponentBase>()->parentId(value);
+					break;
+				case DrawTargetBase::drawableIdPropertyKey:
+					object->as<DrawTargetBase>()->drawableId(value);
+					break;
+				case DrawTargetBase::placementValuePropertyKey:
+					object->as<DrawTargetBase>()->placementValue(value);
+					break;
 				case KeyedObjectBase::objectIdPropertyKey:
 					object->as<KeyedObjectBase>()->objectId(value);
 					break;
@@ -149,6 +173,9 @@ namespace rive
 					break;
 				case KeyFrameBase::interpolatorIdPropertyKey:
 					object->as<KeyFrameBase>()->interpolatorId(value);
+					break;
+				case KeyFrameIdBase::valuePropertyKey:
+					object->as<KeyFrameIdBase>()->value(value);
 					break;
 				case LinearAnimationBase::fpsPropertyKey:
 					object->as<LinearAnimationBase>()->fps(value);
@@ -165,15 +192,6 @@ namespace rive
 				case LinearAnimationBase::workEndPropertyKey:
 					object->as<LinearAnimationBase>()->workEnd(value);
 					break;
-				case KeyFrameDrawOrderValueBase::drawableIdPropertyKey:
-					object->as<KeyFrameDrawOrderValueBase>()->drawableId(value);
-					break;
-				case KeyFrameDrawOrderValueBase::valuePropertyKey:
-					object->as<KeyFrameDrawOrderValueBase>()->value(value);
-					break;
-				case ComponentBase::parentIdPropertyKey:
-					object->as<ComponentBase>()->parentId(value);
-					break;
 				case StrokeBase::capPropertyKey:
 					object->as<StrokeBase>()->cap(value);
 					break;
@@ -186,9 +204,6 @@ namespace rive
 				case FillBase::fillRulePropertyKey:
 					object->as<FillBase>()->fillRule(value);
 					break;
-				case DrawableBase::drawOrderPropertyKey:
-					object->as<DrawableBase>()->drawOrder(value);
-					break;
 				case DrawableBase::blendModeValuePropertyKey:
 					object->as<DrawableBase>()->blendModeValue(value);
 					break;
@@ -197,6 +212,9 @@ namespace rive
 					break;
 				case ClippingShapeBase::clipOpValuePropertyKey:
 					object->as<ClippingShapeBase>()->clipOpValue(value);
+					break;
+				case DrawRulesBase::drawTargetIdPropertyKey:
+					object->as<DrawRulesBase>()->drawTargetId(value);
 					break;
 				case WeightBase::valuesPropertyKey:
 					object->as<WeightBase>()->values(value);
@@ -218,18 +236,6 @@ namespace rive
 					break;
 				case CubicWeightBase::outIndicesPropertyKey:
 					object->as<CubicWeightBase>()->outIndices(value);
-					break;
-			}
-		}
-		static void setString(Core* object, int propertyKey, std::string value)
-		{
-			switch (propertyKey)
-			{
-				case AnimationBase::namePropertyKey:
-					object->as<AnimationBase>()->name(value);
-					break;
-				case ComponentBase::namePropertyKey:
-					object->as<ComponentBase>()->name(value);
 					break;
 			}
 		}
@@ -449,10 +455,27 @@ namespace rive
 					break;
 			}
 		}
+		static std::string getString(Core* object, int propertyKey)
+		{
+			switch (propertyKey)
+			{
+				case ComponentBase::namePropertyKey:
+					return object->as<ComponentBase>()->name();
+				case AnimationBase::namePropertyKey:
+					return object->as<AnimationBase>()->name();
+			}
+			return "";
+		}
 		static int getUint(Core* object, int propertyKey)
 		{
 			switch (propertyKey)
 			{
+				case ComponentBase::parentIdPropertyKey:
+					return object->as<ComponentBase>()->parentId();
+				case DrawTargetBase::drawableIdPropertyKey:
+					return object->as<DrawTargetBase>()->drawableId();
+				case DrawTargetBase::placementValuePropertyKey:
+					return object->as<DrawTargetBase>()->placementValue();
 				case KeyedObjectBase::objectIdPropertyKey:
 					return object->as<KeyedObjectBase>()->objectId();
 				case KeyedPropertyBase::propertyKeyPropertyKey:
@@ -463,6 +486,8 @@ namespace rive
 					return object->as<KeyFrameBase>()->interpolationType();
 				case KeyFrameBase::interpolatorIdPropertyKey:
 					return object->as<KeyFrameBase>()->interpolatorId();
+				case KeyFrameIdBase::valuePropertyKey:
+					return object->as<KeyFrameIdBase>()->value();
 				case LinearAnimationBase::fpsPropertyKey:
 					return object->as<LinearAnimationBase>()->fps();
 				case LinearAnimationBase::durationPropertyKey:
@@ -473,13 +498,6 @@ namespace rive
 					return object->as<LinearAnimationBase>()->workStart();
 				case LinearAnimationBase::workEndPropertyKey:
 					return object->as<LinearAnimationBase>()->workEnd();
-				case KeyFrameDrawOrderValueBase::drawableIdPropertyKey:
-					return object->as<KeyFrameDrawOrderValueBase>()
-					    ->drawableId();
-				case KeyFrameDrawOrderValueBase::valuePropertyKey:
-					return object->as<KeyFrameDrawOrderValueBase>()->value();
-				case ComponentBase::parentIdPropertyKey:
-					return object->as<ComponentBase>()->parentId();
 				case StrokeBase::capPropertyKey:
 					return object->as<StrokeBase>()->cap();
 				case StrokeBase::joinPropertyKey:
@@ -488,14 +506,14 @@ namespace rive
 					return object->as<TrimPathBase>()->modeValue();
 				case FillBase::fillRulePropertyKey:
 					return object->as<FillBase>()->fillRule();
-				case DrawableBase::drawOrderPropertyKey:
-					return object->as<DrawableBase>()->drawOrder();
 				case DrawableBase::blendModeValuePropertyKey:
 					return object->as<DrawableBase>()->blendModeValue();
 				case ClippingShapeBase::shapeIdPropertyKey:
 					return object->as<ClippingShapeBase>()->shapeId();
 				case ClippingShapeBase::clipOpValuePropertyKey:
 					return object->as<ClippingShapeBase>()->clipOpValue();
+				case DrawRulesBase::drawTargetIdPropertyKey:
+					return object->as<DrawRulesBase>()->drawTargetId();
 				case WeightBase::valuesPropertyKey:
 					return object->as<WeightBase>()->values();
 				case WeightBase::indicesPropertyKey:
@@ -512,17 +530,6 @@ namespace rive
 					return object->as<CubicWeightBase>()->outIndices();
 			}
 			return 0;
-		}
-		static std::string getString(Core* object, int propertyKey)
-		{
-			switch (propertyKey)
-			{
-				case AnimationBase::namePropertyKey:
-					return object->as<AnimationBase>()->name();
-				case ComponentBase::namePropertyKey:
-					return object->as<ComponentBase>()->name();
-			}
-			return "";
 		}
 		static float getDouble(Core* object, int propertyKey)
 		{

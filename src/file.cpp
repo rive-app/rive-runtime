@@ -230,7 +230,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 		}
 
 		// Artboard has been read in.
-		artboard->initialize();
+		if (artboard->initialize() != StatusCode::Ok)
+		{
+			return ImportResult::malformed;
+		}
 	}
 	return ImportResult::success;
 }

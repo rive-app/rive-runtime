@@ -1,16 +1,16 @@
-#ifndef _RIVE_KEY_FRAME_DRAW_ORDER_VALUE_BASE_HPP_
-#define _RIVE_KEY_FRAME_DRAW_ORDER_VALUE_BASE_HPP_
-#include "core.hpp"
+#ifndef _RIVE_DRAW_TARGET_BASE_HPP_
+#define _RIVE_DRAW_TARGET_BASE_HPP_
+#include "component.hpp"
 #include "core/field_types/core_uint_type.hpp"
 namespace rive
 {
-	class KeyFrameDrawOrderValueBase : public Core
+	class DrawTargetBase : public Component
 	{
 	protected:
-		typedef Core Super;
+		typedef Component Super;
 
 	public:
-		static const int typeKey = 33;
+		static const int typeKey = 48;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
@@ -18,7 +18,8 @@ namespace rive
 		{
 			switch (typeKey)
 			{
-				case KeyFrameDrawOrderValueBase::typeKey:
+				case DrawTargetBase::typeKey:
+				case ComponentBase::typeKey:
 					return true;
 				default:
 					return false;
@@ -27,12 +28,12 @@ namespace rive
 
 		int coreType() const override { return typeKey; }
 
-		static const int drawableIdPropertyKey = 77;
-		static const int valuePropertyKey = 78;
+		static const int drawableIdPropertyKey = 119;
+		static const int placementValuePropertyKey = 120;
 
 	private:
 		int m_DrawableId = 0;
-		int m_Value = 0;
+		int m_PlacementValue = 0;
 	public:
 		inline int drawableId() const { return m_DrawableId; }
 		void drawableId(int value)
@@ -45,15 +46,15 @@ namespace rive
 			drawableIdChanged();
 		}
 
-		inline int value() const { return m_Value; }
-		void value(int value)
+		inline int placementValue() const { return m_PlacementValue; }
+		void placementValue(int value)
 		{
-			if (m_Value == value)
+			if (m_PlacementValue == value)
 			{
 				return;
 			}
-			m_Value = value;
-			valueChanged();
+			m_PlacementValue = value;
+			placementValueChanged();
 		}
 
 		bool deserialize(int propertyKey, BinaryReader& reader) override
@@ -63,16 +64,16 @@ namespace rive
 				case drawableIdPropertyKey:
 					m_DrawableId = CoreUintType::deserialize(reader);
 					return true;
-				case valuePropertyKey:
-					m_Value = CoreUintType::deserialize(reader);
+				case placementValuePropertyKey:
+					m_PlacementValue = CoreUintType::deserialize(reader);
 					return true;
 			}
-			return false;
+			return Component::deserialize(propertyKey, reader);
 		}
 
 	protected:
 		virtual void drawableIdChanged() {}
-		virtual void valueChanged() {}
+		virtual void placementValueChanged() {}
 	};
 } // namespace rive
 
