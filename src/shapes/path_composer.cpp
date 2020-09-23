@@ -12,7 +12,6 @@ PathComposer::~PathComposer()
 {
 	delete m_LocalPath;
 	delete m_WorldPath;
-	delete m_DifferencePath;
 }
 
 StatusCode PathComposer::onAddedClean(CoreContext* context)
@@ -86,21 +85,6 @@ void PathComposer::update(ComponentDirt value)
 				const Mat2D& transform = path->pathTransform();
 				m_WorldPath->addPath(path->commandPath(), transform);
 			}
-		}
-		if ((space & PathSpace::Difference) == PathSpace::Difference)
-		{
-			if (m_DifferencePath == nullptr)
-			{
-				m_DifferencePath = makeRenderPath();
-				m_DifferencePath->fillRule(FillRule::evenOdd);
-			}
-			else
-			{
-				m_DifferencePath->reset();
-			}
-			m_DifferencePath->addPath(artboard()->commandPath()->renderPath(),
-			                          identity);
-			m_DifferencePath->addPath(m_WorldPath->renderPath(), identity);
 		}
 	}
 }

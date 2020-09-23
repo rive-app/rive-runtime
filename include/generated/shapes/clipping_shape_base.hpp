@@ -29,35 +29,35 @@ namespace rive
 
 		int coreType() const override { return typeKey; }
 
-		static const int shapeIdPropertyKey = 92;
-		static const int clipOpValuePropertyKey = 93;
+		static const int sourceIdPropertyKey = 92;
+		static const int fillRulePropertyKey = 93;
 		static const int isVisiblePropertyKey = 94;
 
 	private:
-		int m_ShapeId = 0;
-		int m_ClipOpValue = 0;
+		int m_SourceId = 0;
+		int m_FillRule = 0;
 		bool m_IsVisible = true;
 	public:
-		inline int shapeId() const { return m_ShapeId; }
-		void shapeId(int value)
+		inline int sourceId() const { return m_SourceId; }
+		void sourceId(int value)
 		{
-			if (m_ShapeId == value)
+			if (m_SourceId == value)
 			{
 				return;
 			}
-			m_ShapeId = value;
-			shapeIdChanged();
+			m_SourceId = value;
+			sourceIdChanged();
 		}
 
-		inline int clipOpValue() const { return m_ClipOpValue; }
-		void clipOpValue(int value)
+		inline int fillRule() const { return m_FillRule; }
+		void fillRule(int value)
 		{
-			if (m_ClipOpValue == value)
+			if (m_FillRule == value)
 			{
 				return;
 			}
-			m_ClipOpValue = value;
-			clipOpValueChanged();
+			m_FillRule = value;
+			fillRuleChanged();
 		}
 
 		inline bool isVisible() const { return m_IsVisible; }
@@ -75,11 +75,11 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
-				case shapeIdPropertyKey:
-					m_ShapeId = CoreUintType::deserialize(reader);
+				case sourceIdPropertyKey:
+					m_SourceId = CoreUintType::deserialize(reader);
 					return true;
-				case clipOpValuePropertyKey:
-					m_ClipOpValue = CoreUintType::deserialize(reader);
+				case fillRulePropertyKey:
+					m_FillRule = CoreUintType::deserialize(reader);
 					return true;
 				case isVisiblePropertyKey:
 					m_IsVisible = CoreBoolType::deserialize(reader);
@@ -89,8 +89,8 @@ namespace rive
 		}
 
 	protected:
-		virtual void shapeIdChanged() {}
-		virtual void clipOpValueChanged() {}
+		virtual void sourceIdChanged() {}
+		virtual void fillRuleChanged() {}
 		virtual void isVisibleChanged() {}
 	};
 } // namespace rive

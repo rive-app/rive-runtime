@@ -2,24 +2,29 @@
 #define _RIVE_CLIPPING_SHAPE_HPP_
 #include "generated/shapes/clipping_shape_base.hpp"
 #include <stdio.h>
+#include <vector>
+
 namespace rive
 {
-	enum class ClipOp : unsigned char
-	{
-		intersection = 0,
-		difference = 1
-	};
-
 	class Shape;
+	class Node;
+	class RenderPath;
 	class ClippingShape : public ClippingShapeBase
 	{
 	private:
-		Shape* m_Shape;
+		std::vector<Shape*> m_Shapes;
+		Node* m_Source = nullptr;
+		RenderPath* m_RenderPath = nullptr;
 
 	public:
-		Shape* shape() const { return m_Shape; }
+		Node* source() const { return m_Source; }
+		const std::vector<Shape*>& shapes() const { return m_Shapes; }
 		StatusCode onAddedClean(CoreContext* context) override;
 		StatusCode onAddedDirty(CoreContext* context) override;
+		void buildDependencies() override;
+		void update(ComponentDirt value) override;
+
+		RenderPath* renderPath() const { return m_RenderPath; }
 	};
 } // namespace rive
 

@@ -26,27 +26,8 @@ bool Drawable::clip(Renderer* renderer) const
 		{
 			continue;
 		}
-		auto shape = clippingShape->shape();
-		auto composer = shape->pathComposer();
 
-		RenderPath* renderPath = nullptr;
-		switch ((ClipOp)clippingShape->clipOpValue())
-		{
-			case ClipOp::intersection:
-				renderPath = composer->worldPath()->renderPath();
-				if (renderPath == nullptr)
-				{
-					printf("NO INTER\n");
-				}
-				break;
-			case ClipOp::difference:
-				renderPath = composer->differencePath();
-				if (renderPath == nullptr)
-				{
-					printf("NO DIFF\n");
-				}
-				break;
-		}
+		RenderPath* renderPath = clippingShape->renderPath();
 
 		assert(renderPath != nullptr);
 		renderer->clipPath(renderPath);
