@@ -207,11 +207,11 @@ namespace rive
 				case DrawableBase::blendModeValuePropertyKey:
 					object->as<DrawableBase>()->blendModeValue(value);
 					break;
-				case ClippingShapeBase::shapeIdPropertyKey:
-					object->as<ClippingShapeBase>()->shapeId(value);
+				case ClippingShapeBase::sourceIdPropertyKey:
+					object->as<ClippingShapeBase>()->sourceId(value);
 					break;
-				case ClippingShapeBase::clipOpValuePropertyKey:
-					object->as<ClippingShapeBase>()->clipOpValue(value);
+				case ClippingShapeBase::fillRulePropertyKey:
+					object->as<ClippingShapeBase>()->fillRule(value);
 					break;
 				case DrawRulesBase::drawTargetIdPropertyKey:
 					object->as<DrawRulesBase>()->drawTargetId(value);
@@ -508,10 +508,10 @@ namespace rive
 					return object->as<FillBase>()->fillRule();
 				case DrawableBase::blendModeValuePropertyKey:
 					return object->as<DrawableBase>()->blendModeValue();
-				case ClippingShapeBase::shapeIdPropertyKey:
-					return object->as<ClippingShapeBase>()->shapeId();
-				case ClippingShapeBase::clipOpValuePropertyKey:
-					return object->as<ClippingShapeBase>()->clipOpValue();
+				case ClippingShapeBase::sourceIdPropertyKey:
+					return object->as<ClippingShapeBase>()->sourceId();
+				case ClippingShapeBase::fillRulePropertyKey:
+					return object->as<ClippingShapeBase>()->fillRule();
 				case DrawRulesBase::drawTargetIdPropertyKey:
 					return object->as<DrawRulesBase>()->drawTargetId();
 				case WeightBase::valuesPropertyKey:

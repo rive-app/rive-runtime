@@ -32,8 +32,8 @@ TEST_CASE("clipping loads correctly", "[clipping]")
 
 	auto shape = node->as<rive::Shape>();
 	REQUIRE(shape->clippingShapes().size() == 2);
-	REQUIRE(shape->clippingShapes()[0]->shape()->name() == "ClipRect2");
-	REQUIRE(shape->clippingShapes()[1]->shape()->name() == "BabyEllipse");
+	REQUIRE(shape->clippingShapes()[0]->source()->name() == "ClipRect2");
+	REQUIRE(shape->clippingShapes()[1]->source()->name() == "BabyEllipse");
 
 	file->artboard()->updateComponents();
 

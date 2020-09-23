@@ -1,6 +1,9 @@
 #include "shapes/clipping_shape.hpp"
 #include "artboard.hpp"
 #include "core_context.hpp"
+#include "node.hpp"
+#include "renderer.hpp"
+#include "shapes/path_composer.hpp"
 #include "shapes/shape.hpp"
 
 using namespace rive;
@@ -25,7 +28,26 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context)
 				}
 			}
 		}
+		if (core->is<Shape>())
+		{
+			auto component = core->as<ContainerComponent>();
+			while (component != nullptr)
+			{
+				if (component == m_Source)
+				{
+					auto shape = core->as<Shape>();
+					shape->addDefaultPathSpace(PathSpace::World |
+					                           PathSpace::Clipping);
+					m_Shapes.push_back(shape);
+					break;
+				}
+				component = component->parent();
+			}
+		}
 	}
+
+	m_RenderPath = rive::makeRenderPath();
+
 	return StatusCode::Ok;
 }
 
@@ -36,17 +58,36 @@ StatusCode ClippingShape::onAddedDirty(CoreContext* context)
 	{
 		return code;
 	}
-	auto coreObject = context->resolve(shapeId());
-	if (coreObject == nullptr || !coreObject->is<Shape>())
+	auto coreObject = context->resolve(sourceId());
+	if (coreObject == nullptr || !coreObject->is<Node>())
 	{
 		return StatusCode::MissingObject;
 	}
 
-	m_Shape = reinterpret_cast<Shape*>(coreObject);
-	m_Shape->addDefaultPathSpace(
-	    (ClipOp)clipOpValue() == ClipOp::intersection
-	        ? PathSpace::World | PathSpace::Clipping
-	        : PathSpace::World | PathSpace::Difference | PathSpace::Clipping);
+	m_Source = reinterpret_cast<Node*>(coreObject);
 
 	return StatusCode::Ok;
+}
+
+void ClippingShape::buildDependencies()
+{
+	for (auto shape : m_Shapes)
+	{
+		shape->pathComposer()->addDependent(this);
+	}
+}
+
+static Mat2D identity;
+void ClippingShape::update(ComponentDirt value)
+{
+	if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform))
+	{
+		m_RenderPath->reset();
+
+		m_RenderPath->fillRule((FillRule)fillRule());
+		for (auto shape : m_Shapes)
+		{
+			m_RenderPath->addPath(shape->pathComposer()->worldPath(), identity);
+		}
+	}
 }

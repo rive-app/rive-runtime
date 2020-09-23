@@ -6,23 +6,23 @@
   },
   "extends": "component.json",
   "properties": {
-    "shapeId": {
+    "sourceId": {
       "type": "Id",
       "typeRuntime": "uint",
       "key": {
         "int": 92,
-        "string": "shapeid"
+        "string": "sourceid"
       },
-      "description": "Identifier used to track the shape to use as a clipping source."
+      "description": "Identifier used to track the node to use as a clipping source."
     },
-    "clipOpValue": {
+    "fillRule": {
       "type": "uint",
       "initialValue": "0",
       "key": {
         "int": 93,
-        "string": "clipopvalue"
+        "string": "fillrule"
       },
-      "description": "Backing enum value for the clipping operation type (intersection or difference)."
+      "description": "Backing enum value for the clipping fill rule (nonZero or evenOdd)."
     },
     "isVisible": {
       "type": "bool",
