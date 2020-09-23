@@ -50,7 +50,7 @@ namespace rive
 		}
 		static inline bool hasDirt(ComponentDirt value, ComponentDirt flag)
 		{
-			return (value & flag) == flag;
+			return (value & flag) != ComponentDirt::None;
 		}
 	};
 } // namespace rive
