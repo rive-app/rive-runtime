@@ -5,6 +5,8 @@
 
 using namespace rive;
 
+ShapePaint::~ShapePaint() { delete m_RenderPaint; }
+
 StatusCode ShapePaint::onAddedClean(CoreContext* context)
 {
 	auto container = ShapePaintContainer::from(parent());

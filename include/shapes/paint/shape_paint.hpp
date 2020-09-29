@@ -16,6 +16,7 @@ namespace rive
 		ShapePaintMutator* m_PaintMutator = nullptr;
 
 	public:
+		~ShapePaint();
 		StatusCode onAddedClean(CoreContext* context) override;
 
 		float renderOpacity() const { return m_PaintMutator->renderOpacity(); }

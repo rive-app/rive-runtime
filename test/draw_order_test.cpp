@@ -10,7 +10,6 @@
 
 TEST_CASE("draw rules load and sort correctly", "[draw rules]")
 {
-    printf("LOADING DRAW RULES?!\n");
 	FILE* fp = fopen("../../test/assets/draw_rule_cycle.riv", "r");
 	REQUIRE(fp != nullptr);
 
@@ -40,7 +39,6 @@ TEST_CASE("draw rules load and sort correctly", "[draw rules]")
 
 	// rive::NoOpRenderer renderer;
 	// file->artboard()->draw(&renderer);
-    printf("BYEEEEEEEE -----\n");
 	delete file;
 	delete[] bytes;
 }
