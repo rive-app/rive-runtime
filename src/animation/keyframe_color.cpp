@@ -4,19 +4,25 @@
 
 using namespace rive;
 
-void KeyFrameColor::apply(Core* object, int propertyKey, float mix)
+static void applyColor(Core* object, int propertyKey, float mix, int value)
 {
-	if (mix == 1)
+	if (mix == 1.0f)
 	{
-		CoreRegistry::setColor(object, propertyKey, value());
+		CoreRegistry::setColor(object, propertyKey, value);
 	}
 	else
 	{
 		auto mixedColor =
-		    colorLerp(CoreRegistry::getColor(object, propertyKey), value(), mix);
+		    colorLerp(CoreRegistry::getColor(object, propertyKey), value, mix);
 		CoreRegistry::setColor(object, propertyKey, mixedColor);
 	}
 }
+
+void KeyFrameColor::apply(Core* object, int propertyKey, float mix)
+{
+	applyColor(object, propertyKey, mix, value());
+}
+
 void KeyFrameColor::applyInterpolation(Core* object,
                                        int propertyKey,
                                        float currentTime,
@@ -31,17 +37,7 @@ void KeyFrameColor::applyInterpolation(Core* object,
 	{
 		f = cubic->transform(f);
 	}
-	auto interpolatedValue = colorLerp(value(), nextColor.value(), f);
-	if (mix == 1)
-	{
-		CoreRegistry::setColor(object, propertyKey, interpolatedValue);
-	}
-	else
-	{
-		auto mixedColor =
-		    colorLerp(CoreRegistry::getColor(object, propertyKey),
-		              interpolatedValue,
-		              mix);
-		CoreRegistry::setColor(object, propertyKey, mixedColor);
-	}
+
+	applyColor(
+	    object, propertyKey, mix, colorLerp(value(), nextColor.value(), f));
 }
