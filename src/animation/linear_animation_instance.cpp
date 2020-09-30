@@ -35,6 +35,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 				keepGoing = false;
 				frames = end;
 				m_Time = frames / fps;
+				notifyObservers(Loop::oneShot);
 			}
 			break;
 		case Loop::loop:
@@ -43,6 +44,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 				frames = m_Time * fps;
 				frames = start + std::fmod(frames - start, range);
 				m_Time = frames / fps;
+				notifyObservers(Loop::loop);
 			}
 			break;
 		case Loop::pingPong:
@@ -53,12 +55,14 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 					m_Direction = -1;
 					frames = end + (end - frames);
 					m_Time = frames / fps;
+					notifyObservers(Loop::pingPong);
 				}
 				else if (m_Direction == -1 && frames < start)
 				{
 					m_Direction = 1;
 					frames = start + (start - frames);
 					m_Time = frames / fps;
+					notifyObservers(Loop::pingPong);
 				}
 				else
 				{
@@ -84,3 +88,34 @@ void LinearAnimationInstance::time(float value)
 	m_Time = value;
 	m_Direction = 1;
 }
+
+void LinearAnimationInstance::notifyObservers(Loop loopType)
+{
+	auto animationName = m_Animation->name();
+	switch (loopType)
+	{
+		case Loop::oneShot:
+			for (auto o : m_Observers)
+			{
+				o->onFinished(animationName);
+			}
+			break;
+		case Loop::pingPong:
+			for (auto o : m_Observers)
+			{
+				o->onPingPong(animationName);
+			}
+			break;
+		case Loop::loop:
+			for (auto o : m_Observers)
+			{
+				o->onLoop(animationName);
+			}
+			break;
+
+		default:
+			break;
+	}
+}
+
+IAnimationObserver::~IAnimationObserver() {}
