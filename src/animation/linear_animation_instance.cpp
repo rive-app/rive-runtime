@@ -11,7 +11,7 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
 {
 }
 
-bool LinearAnimationInstance::advance(float elapsedSeconds, Loop& event)
+bool LinearAnimationInstance::advance(float elapsedSeconds, LoopEvent& event)
 {
 	LinearAnimation& animation = *m_Animation;
 	m_Time += elapsedSeconds * animation.speed() * m_Direction;
@@ -26,6 +26,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, Loop& event)
 	int range = end - start;
 
 	bool keepGoing = true;
+	event = LoopEvent::none;
 
 	switch (animation.loop())
 	{
@@ -35,7 +36,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, Loop& event)
 				keepGoing = false;
 				frames = end;
 				m_Time = frames / fps;
-				event = Loop::oneShot;
+				event = LoopEvent::oneShot;
 			}
 			break;
 		case Loop::loop:
@@ -44,7 +45,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, Loop& event)
 				frames = m_Time * fps;
 				frames = start + std::fmod(frames - start, range);
 				m_Time = frames / fps;
-				event = Loop::loop;
+				event = LoopEvent::loop;
 			}
 			break;
 		case Loop::pingPong:
@@ -55,14 +56,14 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, Loop& event)
 					m_Direction = -1;
 					frames = end + (end - frames);
 					m_Time = frames / fps;
-					event = Loop::pingPong;
+					event = LoopEvent::pingPong;
 				}
 				else if (m_Direction == -1 && frames < start)
 				{
 					m_Direction = 1;
 					frames = start + (start - frames);
 					m_Time = frames / fps;
-					event = Loop::oneShot;
+					event = LoopEvent::oneShot;
 				}
 				else
 				{
