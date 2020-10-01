@@ -15,7 +15,7 @@ template <typename T = Core>
 static T* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
 {
 	auto coreObjectKey = reader.readVarUint();
-	auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
+	auto object = CoreRegistry::makeCoreInstance((int) coreObjectKey);
 	while (true)
 	{
 		auto propertyKey = reader.readVarUint();
@@ -30,9 +30,9 @@ static T* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
 			delete object;
 			return nullptr;
 		}
-		if (object == nullptr || !object->deserialize(propertyKey, reader))
+		if (object == nullptr || !object->deserialize((int) propertyKey, reader))
 		{
-			int id = header.propertyFieldId(propertyKey);
+			int id = header.propertyFieldId((int) propertyKey);
 			if (id != 0)
 			{
 				fprintf(
@@ -190,7 +190,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 			{
 				auto linearAnimation =
 				    reinterpret_cast<LinearAnimation*>(animation);
-				int numKeyedObjects = reader.readVarUint();
+				auto numKeyedObjects = reader.readVarUint();
 				for (int j = 0; j < numKeyedObjects; j++)
 				{
 					auto keyedObject =
@@ -201,7 +201,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 					}
 					linearAnimation->addKeyedObject(keyedObject);
 
-					int numKeyedProperties = reader.readVarUint();
+					int numKeyedProperties = (int) reader.readVarUint();
 					for (int k = 0; k < numKeyedProperties; k++)
 					{
 						auto keyedProperty =
@@ -212,7 +212,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 						}
 						keyedObject->addKeyedProperty(keyedProperty);
 
-						int numKeyframes = reader.readVarUint();
+						auto numKeyframes = reader.readVarUint();
 						for (int l = 0; l < numKeyframes; l++)
 						{
 							auto keyframe =

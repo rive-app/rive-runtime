@@ -316,7 +316,7 @@ bool Artboard::updateComponents()
 	{
 		const int maxSteps = 100;
 		int step = 0;
-		int count = m_DependencyOrder.size();
+		int count = (int) m_DependencyOrder.size();
 		while (hasDirt(ComponentDirt::Components) && step < maxSteps)
 		{
 			// m_Dirt = m_Dirt & ~ComponentDirt::Components;

@@ -58,30 +58,30 @@ namespace rive
 				}
 			}
 
-			header.m_MajorVersion = reader.readVarUint();
+			header.m_MajorVersion = (int) reader.readVarUint();
 			if (reader.didOverflow())
 			{
 				return false;
 			}
-			header.m_MinorVersion = reader.readVarUint();
+			header.m_MinorVersion = (int) reader.readVarUint();
 			if (reader.didOverflow())
 			{
 				return false;
 			}
 
-			header.m_OwnerId = reader.readVarUint();
-			header.m_FileId = reader.readVarUint();
+			header.m_OwnerId = (int) reader.readVarUint();
+			header.m_FileId = (int) reader.readVarUint();
 
 			std::vector<int> propertyKeys;
-			for (int propertyKey = reader.readVarUint(); propertyKey != 0;
-			     propertyKey = reader.readVarUint())
+			for (int propertyKey = (int) reader.readVarUint(); propertyKey != 0;
+			     propertyKey = (int) reader.readVarUint())
 			{
 				propertyKeys.push_back(propertyKey);
 			}
 
 			int currentInt = 0;
 			int currentBit = 8;
-			for (int propertyKey : propertyKeys)
+			for (auto propertyKey : propertyKeys)
 			{
 				if (currentBit == 8)
 				{
