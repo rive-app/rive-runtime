@@ -6,14 +6,6 @@ namespace rive
 {
 	class LinearAnimation;
 
-	enum class LoopEvent
-	{
-		none,
-		oneShot,
-		loop,
-		pingPong
-	};
-
 	class LinearAnimationInstance
 	{
 	private:
@@ -23,7 +15,7 @@ namespace rive
 
 	public:
 		LinearAnimationInstance(LinearAnimation* animation);
-		bool advance(float seconds, LoopEvent& event);
+		bool advance(float seconds, bool didLoop);
 		float time() const { return m_Time; }
 		void time(float value);
 		void apply(Artboard* artboard, float mix = 1.0f) const
