@@ -71,21 +71,11 @@ static void computeHull(const Vec2D& from,
 }
 
 static const float minSegmentLength = 0.05f;
-static const float splitDistSquared = 0.5f;
+static const float distTooFar = 1.0f;
 
-static float distToSegmentSquared(const Vec2D& point,
-                                  const Vec2D& p1,
-                                  const Vec2D& diffToP2,
-                                  float lengthSquared)
+static bool tooFar(const Vec2D& a, const Vec2D& b)
 {
-	Vec2D result;
-
-	float t =
-	    ((point[0] - p1[0]) * diffToP2[0] + (point[1] - p1[1]) * diffToP2[1]) /
-	    lengthSquared;
-
-	Vec2D::scaleAndAdd(result, p1, diffToP2, t);
-	return Vec2D::distanceSquared(point, result);
+	return std::max(std::abs(a[0] - b[0]), std::abs(a[1] - b[1])) > distTooFar;
 }
 
 static bool shouldSplitCubic(const Vec2D& from,
@@ -93,19 +83,10 @@ static bool shouldSplitCubic(const Vec2D& from,
                              const Vec2D& toIn,
                              const Vec2D& to)
 {
-	Vec2D diff;
-	Vec2D::subtract(diff, from, to);
-	float lengthSquared = Vec2D::lengthSquared(diff);
-	if (lengthSquared < 0.0001f)
-	{
-		return Vec2D::distanceSquared(fromOut, from) > splitDistSquared ||
-		       Vec2D::distanceSquared(toIn, from) > splitDistSquared;
-	}
-
-	return distToSegmentSquared(fromOut, from, diff, lengthSquared) >
-	           splitDistSquared ||
-	       distToSegmentSquared(toIn, from, diff, lengthSquared) >
-	           splitDistSquared;
+	Vec2D oneThird, twoThird;
+	Vec2D::lerp(oneThird, from, to, 1.0f / 3.0f);
+	Vec2D::lerp(twoThird, from, to, 2.0f / 3.0f);
+	return tooFar(fromOut, oneThird) || tooFar(toIn, twoThird);
 }
 
 static float segmentCubic(const Vec2D& from,
@@ -117,6 +98,7 @@ static float segmentCubic(const Vec2D& from,
                           float t2,
                           std::vector<CubicSegment>& segments)
 {
+
 	if (shouldSplitCubic(from, fromOut, toIn, to))
 	{
 		float halfT = (t1 + t2) / 2.0f;
@@ -188,8 +170,12 @@ float MetricsPath::computeLength(const Mat2D& transform)
 				const Vec2D& fromOut = pen[1];
 				const Vec2D& toIn = pen[2];
 				const Vec2D& to = pen[3];
+        
+				idx += 3;
+				pen = &to;
 
 				int index = (int) m_CubicSegments.size();
+				part.type = index + 1;
 				float partLength = segmentCubic(
 				    from, fromOut, toIn, to, 0.0f, 0.0f, 1.0f, m_CubicSegments);
 				m_Lengths.push_back(partLength);
@@ -221,7 +207,6 @@ void MetricsPath::trim(float startLength,
 	int partCount = (int) m_Parts.size();
 	int firstPartIndex = -1, lastPartIndex = partCount - 1;
 	float startT = 0.0f, endT = 1.0f;
-
 	// Find first part.
 	for (int i = 0; i < partCount; i++)
 	{
@@ -328,7 +313,6 @@ void MetricsPath::extractSubPart(
 			if (startT != 0.0f)
 			{
 				float startLength = startT * length;
-
 				for (int si = startingSegmentIndex; si < endingSegmentIndex;
 				     si++)
 				{
@@ -392,19 +376,6 @@ void MetricsPath::extractSubPart(
 			const Vec2D& fromOut = m_Points[part.offset];
 			const Vec2D& toIn = m_Points[part.offset + 1];
 			const Vec2D& to = m_Points[part.offset + 2];
-
-			// printf("%f %f | %f %f | %f %f | %f %f\n",
-			//        from[0],
-			//        from[1],
-			//        fromOut[0],
-			//        fromOut[1],
-			//        toIn[0],
-			//        toIn[1],
-			//        to[0],
-			//        to[1]);
-			// Computing the hull stores the left/right split as follows:
-			// left: from, hull[0], hull[3], hull[5]
-			// right: hull[5], hull[4], hull[2], to
 
 			if (startT == 0.0f)
 			{

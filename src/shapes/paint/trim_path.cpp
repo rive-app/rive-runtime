@@ -39,6 +39,14 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 			float totalLength = source->length();
 			auto startLength = totalLength * (start() + renderOffset);
 			auto endLength = totalLength * (end() + renderOffset);
+
+			if (endLength < startLength)
+			{
+				float swap = startLength;
+				startLength = endLength;
+				endLength = swap;
+			}
+
 			if (startLength > totalLength)
 			{
 				startLength -= totalLength;
