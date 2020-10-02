@@ -53,7 +53,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 				endLength -= totalLength;
 			}
 
-			int i = 0, subPathCount = subPaths.size();
+			int i = 0, subPathCount = (int) subPaths.size();
 			while (endLength > 0)
 			{
 				MetricsPath* path =

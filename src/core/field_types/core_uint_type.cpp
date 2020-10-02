@@ -5,5 +5,5 @@ using namespace rive;
 
 unsigned int CoreUintType::deserialize(BinaryReader& reader)
 {
-	return reader.readVarUint();
+	return (int) reader.readVarUint();
 }

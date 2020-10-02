@@ -170,11 +170,11 @@ float MetricsPath::computeLength(const Mat2D& transform)
 				const Vec2D& fromOut = pen[1];
 				const Vec2D& toIn = pen[2];
 				const Vec2D& to = pen[3];
-
+        
 				idx += 3;
 				pen = &to;
 
-				int index = m_CubicSegments.size();
+				int index = (int) m_CubicSegments.size();
 				part.type = index + 1;
 				float partLength = segmentCubic(
 				    from, fromOut, toIn, to, 0.0f, 0.0f, 1.0f, m_CubicSegments);
@@ -204,7 +204,7 @@ void MetricsPath::trim(float startLength,
 	// We need to find the first part to trim.
 	float length = 0.0f;
 
-	int partCount = m_Parts.size();
+	int partCount = (int) m_Parts.size();
 	int firstPartIndex = -1, lastPartIndex = partCount - 1;
 	float startT = 0.0f, endT = 1.0f;
 	// Find first part.
