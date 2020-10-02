@@ -103,7 +103,14 @@ static T* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
 	return reinterpret_cast<T*>(object);
 }
 
-File::~File() { delete m_Backboard; }
+File::~File()
+{
+	for (auto artboard : m_Artboards)
+	{
+		delete artboard;
+	}
+	delete m_Backboard;
+}
 
 // Import a Rive file from a file handle
 ImportResult File::import(BinaryReader& reader, File** importedFile)
