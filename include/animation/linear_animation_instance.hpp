@@ -15,6 +15,7 @@ namespace rive
 
 	public:
 		LinearAnimationInstance(LinearAnimation* animation);
+		bool advance(float seconds);
 		bool advance(float seconds, bool& didLoop);
 		LinearAnimation* animation() const { return m_Animation; }
 		float time() const { return m_Time; }

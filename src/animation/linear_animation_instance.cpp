@@ -11,6 +11,12 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
 {
 }
 
+bool LinearAnimationInstance::advance(float elapsedSeconds)
+{
+	bool didLoop = false;
+	return advance(elapsedSeconds, didLoop);
+}
+
 bool LinearAnimationInstance::advance(float elapsedSeconds, bool& didLoop)
 {
 	LinearAnimation& animation = *m_Animation;
