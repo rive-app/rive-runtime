@@ -10,3 +10,6 @@ StatusCode RootBone::onAddedClean(CoreContext* context)
 	// other TransformComponents.
 	return TransformComponent::onAddedClean(context);
 }
+
+void RootBone::xChanged() { markTransformDirty(); }
+void RootBone::yChanged() { markTransformDirty(); }
