@@ -1,10 +1,11 @@
 #ifndef _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
 #define _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
 #include "animation/linear_animation.hpp"
-#include <vector>
+
 namespace rive
 {
 	class LinearAnimation;
+
 	class LinearAnimationInstance
 	{
 	private:
@@ -15,6 +16,8 @@ namespace rive
 	public:
 		LinearAnimationInstance(LinearAnimation* animation);
 		bool advance(float seconds);
+		bool advance(float seconds, bool& didLoop);
+		LinearAnimation* animation() const { return m_Animation; }
 		float time() const { return m_Time; }
 		void time(float value);
 		void apply(Artboard* artboard, float mix = 1.0f) const

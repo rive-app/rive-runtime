@@ -13,6 +13,12 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
 
 bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
+	bool didLoop = false;
+	return advance(elapsedSeconds, didLoop);
+}
+
+bool LinearAnimationInstance::advance(float elapsedSeconds, bool& didLoop)
+{
 	LinearAnimation& animation = *m_Animation;
 	m_Time += elapsedSeconds * animation.speed() * m_Direction;
 
@@ -26,6 +32,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 	int range = end - start;
 
 	bool keepGoing = true;
+	didLoop = false;
 
 	switch (animation.loop())
 	{
@@ -35,6 +42,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 				keepGoing = false;
 				frames = end;
 				m_Time = frames / fps;
+				didLoop = true;
 			}
 			break;
 		case Loop::loop:
@@ -43,6 +51,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 				frames = m_Time * fps;
 				frames = start + std::fmod(frames - start, range);
 				m_Time = frames / fps;
+				didLoop = true;
 			}
 			break;
 		case Loop::pingPong:
@@ -53,12 +62,14 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 					m_Direction = -1;
 					frames = end + (end - frames);
 					m_Time = frames / fps;
+					didLoop = true;
 				}
 				else if (m_Direction == -1 && frames < start)
 				{
 					m_Direction = 1;
 					frames = start + (start - frames);
 					m_Time = frames / fps;
+					didLoop = true;
 				}
 				else
 				{
