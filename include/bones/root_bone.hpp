@@ -8,6 +8,10 @@ namespace rive
 	{
 	public:
 		StatusCode onAddedClean(CoreContext* context) override;
+
+	protected:
+		void xChanged() override;
+		void yChanged() override;
 	};
 } // namespace rive
 
