@@ -1,1 +1,1 @@
-./build/bin/debug/rive_thumbnail_generator $1
+./build/bin/debug/rive_thumbnail_generator
