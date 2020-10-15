@@ -9,6 +9,7 @@ set -e
 # GLFW requires CMake
 
 SKIA_REPO=https://github.com/google/skia
+SKIA_STABLE_BRANCH=chrome/m87
 
 # -----------------------------
 # Get & Build Skia
@@ -18,11 +19,16 @@ if [ ! -d skia ]; then
     git clone $SKIA_REPO
 else
     echo "Already have Skia, update it."
-    cd skia && git fetch && git merge master
+    cd skia && git checkout master && git fetch && git pull
     cd ..
 fi
 
 cd skia
+
+# switch to a stable branch
+echo "Checking out stable branch $SKIA_STABLE_BRANCH"
+git checkout $SKIA_STABLE_BRANCH
+
 python tools/git-sync-deps
 bin/gn gen out/Static --args=" \
     is_official_build=true \
