@@ -10,7 +10,7 @@ bool ShapePaintMutator::initPaintMutator(Component* parent)
 	{
         // Set this object as the mutator for the shape paint and get a
         // reference to the paint we'll be mutating.
-		m_RenderPaint = parent->as<ShapePaint>()->initPaintMutator(this);
+		m_RenderPaint = parent->as<ShapePaint>()->initRenderPaint(this);
 		return true;
 	}
 	return false;

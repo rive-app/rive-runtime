@@ -11,7 +11,7 @@ namespace rive
 		StrokeEffect* m_Effect = nullptr;
 
 	public:
-		RenderPaint* initPaintMutator(ShapePaintMutator* mutator) override;
+		RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
 		PathSpace pathSpace() const override;
 		void draw(Renderer* renderer, CommandPath* path) override;
 		void addStrokeEffect(StrokeEffect* effect);

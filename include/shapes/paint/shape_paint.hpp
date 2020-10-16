@@ -27,7 +27,10 @@ namespace rive
 
 		void blendMode(BlendMode value);
 
-		virtual RenderPaint* initPaintMutator(ShapePaintMutator* mutator);
+		/// Creates a RenderPaint object for the provided ShapePaintMutator*.
+		/// This should be called only once as the ShapePaint manages the
+		/// lifecycle of the RenderPaint.
+		virtual RenderPaint* initRenderPaint(ShapePaintMutator* mutator);
 
 		virtual PathSpace pathSpace() const = 0;
 

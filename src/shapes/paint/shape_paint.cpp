@@ -18,7 +18,7 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
 	return StatusCode::Ok;
 }
 
-RenderPaint* ShapePaint::initPaintMutator(ShapePaintMutator* mutator)
+RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator)
 {
 	assert(m_RenderPaint == nullptr);
 	m_PaintMutator = mutator;

@@ -10,9 +10,9 @@ PathSpace Stroke::pathSpace() const
 	return transformAffectsStroke() ? PathSpace::Local : PathSpace::World;
 }
 
-RenderPaint* Stroke::initPaintMutator(ShapePaintMutator* mutator)
+RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
 {
-	auto renderPaint = Super::initPaintMutator(mutator);
+	auto renderPaint = Super::initRenderPaint(mutator);
 	renderPaint->style(RenderPaintStyle::stroke);
 	renderPaint->thickness(thickness());
 	renderPaint->cap((StrokeCap)cap());

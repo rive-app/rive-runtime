@@ -4,9 +4,9 @@ using namespace rive;
 
 PathSpace Fill::pathSpace() const { return PathSpace::Local; }
 
-RenderPaint* Fill::initPaintMutator(ShapePaintMutator* mutator)
+RenderPaint* Fill::initRenderPaint(ShapePaintMutator* mutator)
 {
-	auto renderPaint = Super::initPaintMutator(mutator);
+	auto renderPaint = Super::initRenderPaint(mutator);
 	renderPaint->style(RenderPaintStyle::fill);
 	return renderPaint;
 }
