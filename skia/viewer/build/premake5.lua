@@ -34,6 +34,7 @@ symbols "On"
 
 filter "configurations:release"
 defines {"RELEASE"}
+defines { "NDEBUG" }
 optimize "On"
 
 -- Clean Function --
