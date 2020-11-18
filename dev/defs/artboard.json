@@ -44,7 +44,7 @@
         "int": 11,
         "string": "ox"
       },
-      "description": "Origin x in normalized coordinates (0 = center, -1 = left, 1 = right)."
+      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right)."
     },
     "originY": {
       "type": "double",
@@ -52,7 +52,7 @@
         "int": 12,
         "string": "oy"
       },
-      "description": "Origin y in normalized coordinates (0 = center, -1 = left, 1 = right)."
+      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
     }
   }
 }

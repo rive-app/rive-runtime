@@ -34,10 +34,14 @@ namespace rive
 
 		static const int widthPropertyKey = 20;
 		static const int heightPropertyKey = 21;
+		static const int originXPropertyKey = 123;
+		static const int originYPropertyKey = 124;
 
 	private:
 		float m_Width = 0;
 		float m_Height = 0;
+		float m_OriginX = 0.5;
+		float m_OriginY = 0.5;
 	public:
 		inline float width() const { return m_Width; }
 		void width(float value)
@@ -61,6 +65,28 @@ namespace rive
 			heightChanged();
 		}
 
+		inline float originX() const { return m_OriginX; }
+		void originX(float value)
+		{
+			if (m_OriginX == value)
+			{
+				return;
+			}
+			m_OriginX = value;
+			originXChanged();
+		}
+
+		inline float originY() const { return m_OriginY; }
+		void originY(float value)
+		{
+			if (m_OriginY == value)
+			{
+				return;
+			}
+			m_OriginY = value;
+			originYChanged();
+		}
+
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
@@ -71,6 +97,12 @@ namespace rive
 				case heightPropertyKey:
 					m_Height = CoreDoubleType::deserialize(reader);
 					return true;
+				case originXPropertyKey:
+					m_OriginX = CoreDoubleType::deserialize(reader);
+					return true;
+				case originYPropertyKey:
+					m_OriginY = CoreDoubleType::deserialize(reader);
+					return true;
 			}
 			return Path::deserialize(propertyKey, reader);
 		}
@@ -78,6 +110,8 @@ namespace rive
 	protected:
 		virtual void widthChanged() {}
 		virtual void heightChanged() {}
+		virtual void originXChanged() {}
+		virtual void originYChanged() {}
 	};
 } // namespace rive
 

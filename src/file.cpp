@@ -15,7 +15,7 @@ template <typename T = Core>
 static T* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
 {
 	auto coreObjectKey = reader.readVarUint();
-	auto object = CoreRegistry::makeCoreInstance((int) coreObjectKey);
+	auto object = CoreRegistry::makeCoreInstance((int)coreObjectKey);
 	while (true)
 	{
 		auto propertyKey = reader.readVarUint();
@@ -30,9 +30,9 @@ static T* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
 			delete object;
 			return nullptr;
 		}
-		if (object == nullptr || !object->deserialize((int) propertyKey, reader))
+		if (object == nullptr || !object->deserialize((int)propertyKey, reader))
 		{
-			int id = header.propertyFieldId((int) propertyKey);
+			int id = header.propertyFieldId((int)propertyKey);
 			if (id != 0)
 			{
 				fprintf(
@@ -121,9 +121,7 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 		fprintf(stderr, "Bad header\n");
 		return ImportResult::malformed;
 	}
-	if (header.majorVersion() != majorVersion ||
-	    (header.majorVersion() == majorVersion &&
-	     header.minorVersion() > minorVersion))
+	if (header.majorVersion() > majorVersion)
 	{
 		fprintf(stderr,
 		        "Unsupported version %u.%u expected %u.%u.\n",
@@ -208,7 +206,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 					}
 					linearAnimation->addKeyedObject(keyedObject);
 
-					int numKeyedProperties = (int) reader.readVarUint();
+					int numKeyedProperties = (int)reader.readVarUint();
 					for (int k = 0; k < numKeyedProperties; k++)
 					{
 						auto keyedProperty =

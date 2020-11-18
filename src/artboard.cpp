@@ -380,9 +380,7 @@ void Artboard::draw(Renderer* renderer)
 
 AABB Artboard::bounds() const
 {
-	auto x = -originX() * width();
-	auto y = -originY() * height();
-	return AABB(x, y, x + width(), y + height());
+	return AABB(0.0f, 0.0f, width(), height());
 }
 
 Node* Artboard::node(const std::string& name) const

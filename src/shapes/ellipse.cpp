@@ -19,25 +19,28 @@ void Ellipse::update(ComponentDirt value)
 		auto radiusX = width() / 2.0f;
 		auto radiusY = height() / 2.0f;
 
-		m_Vertex1.x(0.0f);
-		m_Vertex1.y(-radiusY);
-		m_Vertex1.inPoint(Vec2D(-radiusX * circleConstant, -radiusY));
-		m_Vertex1.outPoint(Vec2D(radiusX * circleConstant, -radiusY));
+		auto ox = -originX() * width() + radiusX;
+		auto oy = -originY() * height() + radiusY;
 
-		m_Vertex2.x(radiusX);
-		m_Vertex2.y(0.0f);
-		m_Vertex2.inPoint(Vec2D(radiusX, circleConstant * -radiusY));
-		m_Vertex2.outPoint(Vec2D(radiusX, circleConstant * radiusY));
+		m_Vertex1.x(ox);
+		m_Vertex1.y(oy - radiusY);
+		m_Vertex1.inPoint(Vec2D(ox - radiusX * circleConstant, oy - radiusY));
+		m_Vertex1.outPoint(Vec2D(ox + radiusX * circleConstant, oy - radiusY));
 
-		m_Vertex3.x(0.0f);
-		m_Vertex3.y(radiusY);
-		m_Vertex3.inPoint(Vec2D(radiusX * circleConstant, radiusY));
-		m_Vertex3.outPoint(Vec2D(-radiusX * circleConstant, radiusY));
+		m_Vertex2.x(ox + radiusX);
+		m_Vertex2.y(oy);
+		m_Vertex2.inPoint(Vec2D(ox + radiusX, oy + circleConstant * -radiusY));
+		m_Vertex2.outPoint(Vec2D(ox + radiusX, oy + circleConstant * radiusY));
 
-		m_Vertex4.x(-radiusX);
-		m_Vertex4.y(0.0f);
-		m_Vertex4.inPoint(Vec2D(-radiusX, radiusY * circleConstant));
-		m_Vertex4.outPoint(Vec2D(-radiusX, -radiusY * circleConstant));
+		m_Vertex3.x(ox);
+		m_Vertex3.y(oy + radiusY);
+		m_Vertex3.inPoint(Vec2D(ox + radiusX * circleConstant, oy + radiusY));
+		m_Vertex3.outPoint(Vec2D(ox - radiusX * circleConstant, oy + radiusY));
+
+		m_Vertex4.x(ox - radiusX);
+		m_Vertex4.y(oy);
+		m_Vertex4.inPoint(Vec2D(ox - radiusX, oy + radiusY * circleConstant));
+		m_Vertex4.outPoint(Vec2D(ox - radiusX, oy - radiusY * circleConstant));
 	}
 
 	Super::update(value);

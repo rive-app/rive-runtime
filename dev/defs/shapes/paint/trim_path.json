@@ -12,7 +12,7 @@
       "animates": true,
       "key": {
         "int": 114,
-        "string": "start"
+        "string": "trimStart"
       }
     },
     "end": {
@@ -21,7 +21,7 @@
       "animates": true,
       "key": {
         "int": 115,
-        "string": "end"
+        "string": "trimEnd"
       }
     },
     "offset": {
@@ -30,7 +30,7 @@
       "animates": true,
       "key": {
         "int": 116,
-        "string": "offset"
+        "string": "trimOffset"
       }
     },
     "modeValue": {
