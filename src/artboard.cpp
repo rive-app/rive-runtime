@@ -175,7 +175,7 @@ void Artboard::sortDrawOrder()
 		auto rules = drawable->flattenedDrawRules;
 		if (rules != nullptr && rules->activeTarget() != nullptr)
 		{
-			
+
 			auto target = rules->activeTarget();
 			if (target->first == nullptr)
 			{
@@ -316,7 +316,7 @@ bool Artboard::updateComponents()
 	{
 		const int maxSteps = 100;
 		int step = 0;
-		int count = (int) m_DependencyOrder.size();
+		int count = (int)m_DependencyOrder.size();
 		while (hasDirt(ComponentDirt::Components) && step < maxSteps)
 		{
 			// m_Dirt = m_Dirt & ~ComponentDirt::Components;
@@ -378,20 +378,4 @@ void Artboard::draw(Renderer* renderer)
 	renderer->restore();
 }
 
-AABB Artboard::bounds() const
-{
-	return AABB(0.0f, 0.0f, width(), height());
-}
-
-Node* Artboard::node(const std::string& name) const
-{
-	for (auto object : m_Objects)
-	{
-		// First object is artboard
-		if (object->is<Node>() && object->as<Node>()->name() == name)
-		{
-			return object->as<Node>();
-		}
-	}
-	return nullptr;
-}
+AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }

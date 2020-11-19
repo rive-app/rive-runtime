@@ -35,10 +35,6 @@ namespace rive
 		virtual void radialGradient(float sx, float sy, float ex, float ey) = 0;
 		virtual void addStop(unsigned int color, float stop) = 0;
 		virtual void completeGradient() = 0;
-		// virtual void linearGradient(Vec2D* start, Vec2D* end,
-		// RenderColorStop* stops, int stopsLength) = 0; virtual void
-		// radialGradient(Vec2D* start, Vec2D* end, RenderColorStop* stops, int
-		// stopsLength) = 0;
 		virtual ~RenderPaint() {}
 	};
 

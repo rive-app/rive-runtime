@@ -59,8 +59,6 @@ namespace rive
 
 		const std::vector<Core*>& objects() const { return m_Objects; }
 
-		Node* node(const std::string& name) const;
-
 		AABB bounds() const;
 
 		template <typename T = Component> T* find(std::string name)
@@ -69,7 +67,6 @@ namespace rive
 			{
 				if (object->is<T>() && object->as<T>()->name() == name)
 				{
-
 					return reinterpret_cast<T*>(object);
 				}
 			}
