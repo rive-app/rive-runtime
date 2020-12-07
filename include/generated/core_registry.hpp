@@ -43,8 +43,10 @@
 #include "shapes/path_composer.hpp"
 #include "shapes/path_vertex.hpp"
 #include "shapes/points_path.hpp"
+#include "shapes/polygon.hpp"
 #include "shapes/rectangle.hpp"
 #include "shapes/shape.hpp"
+#include "shapes/star.hpp"
 #include "shapes/straight_vertex.hpp"
 #include "shapes/triangle.hpp"
 #include "transform_component.hpp"
@@ -109,6 +111,10 @@ namespace rive
 					return new Ellipse();
 				case ClippingShapeBase::typeKey:
 					return new ClippingShape();
+				case PolygonBase::typeKey:
+					return new Polygon();
+				case StarBase::typeKey:
+					return new Star();
 				case PathComposerBase::typeKey:
 					return new PathComposer();
 				case CubicDetachedVertexBase::typeKey:
@@ -212,6 +218,9 @@ namespace rive
 					break;
 				case ClippingShapeBase::fillRulePropertyKey:
 					object->as<ClippingShapeBase>()->fillRule(value);
+					break;
+				case PolygonBase::pointsPropertyKey:
+					object->as<PolygonBase>()->points(value);
 					break;
 				case DrawRulesBase::drawTargetIdPropertyKey:
 					object->as<DrawRulesBase>()->drawTargetId(value);
@@ -347,6 +356,12 @@ namespace rive
 					break;
 				case CubicMirroredVertexBase::distancePropertyKey:
 					object->as<CubicMirroredVertexBase>()->distance(value);
+					break;
+				case PolygonBase::cornerRadiusPropertyKey:
+					object->as<PolygonBase>()->cornerRadius(value);
+					break;
+				case StarBase::innerRadiusPropertyKey:
+					object->as<StarBase>()->innerRadius(value);
 					break;
 				case CubicDetachedVertexBase::inRotationPropertyKey:
 					object->as<CubicDetachedVertexBase>()->inRotation(value);
@@ -518,6 +533,8 @@ namespace rive
 					return object->as<ClippingShapeBase>()->sourceId();
 				case ClippingShapeBase::fillRulePropertyKey:
 					return object->as<ClippingShapeBase>()->fillRule();
+				case PolygonBase::pointsPropertyKey:
+					return object->as<PolygonBase>()->points();
 				case DrawRulesBase::drawTargetIdPropertyKey:
 					return object->as<DrawRulesBase>()->drawTargetId();
 				case WeightBase::valuesPropertyKey:
@@ -613,6 +630,10 @@ namespace rive
 					return object->as<CubicMirroredVertexBase>()->rotation();
 				case CubicMirroredVertexBase::distancePropertyKey:
 					return object->as<CubicMirroredVertexBase>()->distance();
+				case PolygonBase::cornerRadiusPropertyKey:
+					return object->as<PolygonBase>()->cornerRadius();
+				case StarBase::innerRadiusPropertyKey:
+					return object->as<StarBase>()->innerRadius();
 				case CubicDetachedVertexBase::inRotationPropertyKey:
 					return object->as<CubicDetachedVertexBase>()->inRotation();
 				case CubicDetachedVertexBase::inDistancePropertyKey:
