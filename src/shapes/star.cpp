@@ -1,44 +1,45 @@
-#include "math/pi.hpp"
 #include "shapes/star.hpp"
 #include "shapes/straight_vertex.hpp"
 #include <cmath>
 
 using namespace rive;
 
+Star::Star() {}
+
 void Star::innerRadiusChanged() { markPathDirty(); }
+
+int Star::expectedSize()
+{
+	return points() * 2;
+}
+
+void Star::buildPolygon()
+{
+	auto actualPoints = expectedSize();
+	auto halfWidth = width() / 2;
+	auto halfHeight = height() / 2;
+	auto innerHalfWidth = width() * innerRadius() / 2;
+	auto innerHalfHeight = height() * innerRadius() / 2;
+
+	auto angle = -M_PI / 2;
+	auto inc = 2 * M_PI / actualPoints;
+
+	for (int i = 0; i < actualPoints; i++)
+	{
+		auto isInner = i & 1;
+		if (isInner)
+		{
+			buildVertex(m_Vertices[i], innerHalfHeight, innerHalfWidth, angle);
+		}
+		else
+		{
+			buildVertex(m_Vertices[i], halfHeight, halfWidth, angle);
+		}
+		angle += inc;
+	}
+}
 
 void Star::update(ComponentDirt value)
 {
-	if (hasDirt(value, ComponentDirt::Path))
-	{
-		clearVertices();
-
-		auto actualPoints = points() * 2;
-		auto halfWidth = width() / 2;
-		auto halfHeight = height() / 2;
-		auto innerHalfWidth = width() * innerRadius() / 2;
-		auto innerHalfHeight = height() * innerRadius() / 2;
-
-		auto angle = -pi / 2;
-		auto inc = 2 * pi / actualPoints;
-
-		for (int i = 0; i < points(); i++)
-		{
-			StraightVertex* outerVertex = new StraightVertex();
-			outerVertex->x(cos(angle) * halfWidth);
-			outerVertex->y(sin(angle) * halfHeight);
-			outerVertex->radius(cornerRadius());
-			addVertex(outerVertex);
-			angle += inc;
-
-			StraightVertex* innerVertex = new StraightVertex();
-			innerVertex->x(cos(angle) * innerHalfWidth);
-			innerVertex->y(sin(angle) * innerHalfHeight);
-			innerVertex->radius(cornerRadius());
-			addVertex(innerVertex);
-			angle += inc;
-		}
-	}
-
-	ParametricPath::update(value);
+	Super::update(value);
 }

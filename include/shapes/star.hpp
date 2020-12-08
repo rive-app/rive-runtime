@@ -7,10 +7,13 @@ namespace rive
 	class Star : public StarBase
 	{
 	public:
+		Star();
 		void update(ComponentDirt value) override;
 
 	protected:
 		void innerRadiusChanged() override;
+		int expectedSize() override;
+		void buildPolygon() override;
 	};
 } // namespace rive
 
