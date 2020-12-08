@@ -8,10 +8,7 @@ Star::Star() {}
 
 void Star::innerRadiusChanged() { markPathDirty(); }
 
-int Star::expectedSize()
-{
-	return points() * 2;
-}
+int Star::expectedSize() { return points() * 2; }
 
 void Star::buildPolygon()
 {
@@ -39,7 +36,4 @@ void Star::buildPolygon()
 	}
 }
 
-void Star::update(ComponentDirt value)
-{
-	Super::update(value);
-}
+void Star::update(ComponentDirt value) { Super::update(value); }

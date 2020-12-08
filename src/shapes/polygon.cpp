@@ -9,7 +9,7 @@ Polygon::Polygon() {}
 
 Polygon::~Polygon()
 {
-	for (auto vertex: m_Vertices)
+	for (auto vertex : m_Vertices)
 	{
 		delete vertex;
 	}
@@ -46,10 +46,7 @@ void Polygon::resizeVertices(int newSize)
 	}
 }
 
-int Polygon::expectedSize()
-{
-	return points();
-}
+int Polygon::expectedSize() { return points(); }
 
 void Polygon::buildVertex(PathVertex* vertex, float h, float w, float angle)
 {
