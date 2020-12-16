@@ -37,7 +37,7 @@ namespace rive
 			auto itr = m_PropertyToFieldIndex.find(propertyKey);
 			if (itr == m_PropertyToFieldIndex.end())
 			{
-				return 0;
+				return -1;
 			}
 
 			return itr->second;

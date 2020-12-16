@@ -32,9 +32,18 @@ static T* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
 		}
 		if (object == nullptr || !object->deserialize((int)propertyKey, reader))
 		{
-			int id = header.propertyFieldId((int)propertyKey);
-			if (id != 0)
+			// We have an unknown object or property, first see if core knows
+			// the property type.
+			int id = CoreRegistry::propertyFieldId((int)propertyKey);
+			if (id == -1)
 			{
+				// No, check if it's in toc.
+				id = header.propertyFieldId((int)propertyKey);
+			}
+
+			if (id == -1)
+			{
+				// Still couldn't find it, give up.
 				fprintf(
 				    stderr,
 				    "Unknown property key %llu, missing from property ToC.\n",
