@@ -4,6 +4,13 @@
 
 namespace rive
 {
+	// Return result when calling advanceDidLoop
+	struct AdvanceResult
+	{
+		bool isActive;
+		bool didLoop;
+	};
+
 	class LinearAnimation;
 
 	class LinearAnimationInstance
@@ -17,6 +24,7 @@ namespace rive
 		LinearAnimationInstance(LinearAnimation* animation);
 		bool advance(float seconds);
 		bool advance(float seconds, bool& didLoop);
+		AdvanceResult advanceDidLoop(float seconds);
 		LinearAnimation* animation() const { return m_Animation; }
 		float time() const { return m_Time; }
 		void time(float value);
