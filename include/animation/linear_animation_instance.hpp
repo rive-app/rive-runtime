@@ -41,7 +41,7 @@ namespace rive
 
 		// Set when the animation is advanced, true if the animation has stopped
 		// (oneShot), reached the end (loop), or changed direction (pingPong)
-		bool didLoop();
+		bool didLoop() const { return m_didLoop; } 
 	};
 } // namespace rive
 #endif
