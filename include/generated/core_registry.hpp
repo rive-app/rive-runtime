@@ -717,6 +717,118 @@ namespace rive
 			}
 			return false;
 		}
+		static int propertyFieldId(int propertyKey)
+		{
+			switch (propertyKey)
+			{
+				case ComponentBase::namePropertyKey:
+				case AnimationBase::namePropertyKey:
+					return CoreStringType::id;
+				case ComponentBase::parentIdPropertyKey:
+				case DrawTargetBase::drawableIdPropertyKey:
+				case DrawTargetBase::placementValuePropertyKey:
+				case KeyedObjectBase::objectIdPropertyKey:
+				case KeyedPropertyBase::propertyKeyPropertyKey:
+				case KeyFrameBase::framePropertyKey:
+				case KeyFrameBase::interpolationTypePropertyKey:
+				case KeyFrameBase::interpolatorIdPropertyKey:
+				case KeyFrameIdBase::valuePropertyKey:
+				case LinearAnimationBase::fpsPropertyKey:
+				case LinearAnimationBase::durationPropertyKey:
+				case LinearAnimationBase::loopValuePropertyKey:
+				case LinearAnimationBase::workStartPropertyKey:
+				case LinearAnimationBase::workEndPropertyKey:
+				case StrokeBase::capPropertyKey:
+				case StrokeBase::joinPropertyKey:
+				case TrimPathBase::modeValuePropertyKey:
+				case FillBase::fillRulePropertyKey:
+				case DrawableBase::blendModeValuePropertyKey:
+				case ClippingShapeBase::sourceIdPropertyKey:
+				case ClippingShapeBase::fillRulePropertyKey:
+				case DrawRulesBase::drawTargetIdPropertyKey:
+				case WeightBase::valuesPropertyKey:
+				case WeightBase::indicesPropertyKey:
+				case TendonBase::boneIdPropertyKey:
+				case CubicWeightBase::inValuesPropertyKey:
+				case CubicWeightBase::inIndicesPropertyKey:
+				case CubicWeightBase::outValuesPropertyKey:
+				case CubicWeightBase::outIndicesPropertyKey:
+					return CoreUintType::id;
+				case CubicInterpolatorBase::x1PropertyKey:
+				case CubicInterpolatorBase::y1PropertyKey:
+				case CubicInterpolatorBase::x2PropertyKey:
+				case CubicInterpolatorBase::y2PropertyKey:
+				case KeyFrameDoubleBase::valuePropertyKey:
+				case LinearAnimationBase::speedPropertyKey:
+				case LinearGradientBase::startXPropertyKey:
+				case LinearGradientBase::startYPropertyKey:
+				case LinearGradientBase::endXPropertyKey:
+				case LinearGradientBase::endYPropertyKey:
+				case LinearGradientBase::opacityPropertyKey:
+				case StrokeBase::thicknessPropertyKey:
+				case GradientStopBase::positionPropertyKey:
+				case TrimPathBase::startPropertyKey:
+				case TrimPathBase::endPropertyKey:
+				case TrimPathBase::offsetPropertyKey:
+				case TransformComponentBase::rotationPropertyKey:
+				case TransformComponentBase::scaleXPropertyKey:
+				case TransformComponentBase::scaleYPropertyKey:
+				case TransformComponentBase::opacityPropertyKey:
+				case NodeBase::xPropertyKey:
+				case NodeBase::yPropertyKey:
+				case PathVertexBase::xPropertyKey:
+				case PathVertexBase::yPropertyKey:
+				case StraightVertexBase::radiusPropertyKey:
+				case CubicAsymmetricVertexBase::rotationPropertyKey:
+				case CubicAsymmetricVertexBase::inDistancePropertyKey:
+				case CubicAsymmetricVertexBase::outDistancePropertyKey:
+				case ParametricPathBase::widthPropertyKey:
+				case ParametricPathBase::heightPropertyKey:
+				case ParametricPathBase::originXPropertyKey:
+				case ParametricPathBase::originYPropertyKey:
+				case RectangleBase::cornerRadiusPropertyKey:
+				case CubicMirroredVertexBase::rotationPropertyKey:
+				case CubicMirroredVertexBase::distancePropertyKey:
+				case CubicDetachedVertexBase::inRotationPropertyKey:
+				case CubicDetachedVertexBase::inDistancePropertyKey:
+				case CubicDetachedVertexBase::outRotationPropertyKey:
+				case CubicDetachedVertexBase::outDistancePropertyKey:
+				case ArtboardBase::widthPropertyKey:
+				case ArtboardBase::heightPropertyKey:
+				case ArtboardBase::xPropertyKey:
+				case ArtboardBase::yPropertyKey:
+				case ArtboardBase::originXPropertyKey:
+				case ArtboardBase::originYPropertyKey:
+				case BoneBase::lengthPropertyKey:
+				case RootBoneBase::xPropertyKey:
+				case RootBoneBase::yPropertyKey:
+				case SkinBase::xxPropertyKey:
+				case SkinBase::yxPropertyKey:
+				case SkinBase::xyPropertyKey:
+				case SkinBase::yyPropertyKey:
+				case SkinBase::txPropertyKey:
+				case SkinBase::tyPropertyKey:
+				case TendonBase::xxPropertyKey:
+				case TendonBase::yxPropertyKey:
+				case TendonBase::xyPropertyKey:
+				case TendonBase::yyPropertyKey:
+				case TendonBase::txPropertyKey:
+				case TendonBase::tyPropertyKey:
+					return CoreDoubleType::id;
+				case KeyFrameColorBase::valuePropertyKey:
+				case SolidColorBase::colorValuePropertyKey:
+				case GradientStopBase::colorValuePropertyKey:
+					return CoreColorType::id;
+				case LinearAnimationBase::enableWorkAreaPropertyKey:
+				case ShapePaintBase::isVisiblePropertyKey:
+				case StrokeBase::transformAffectsStrokePropertyKey:
+				case PointsPathBase::isClosedPropertyKey:
+				case ClippingShapeBase::isVisiblePropertyKey:
+					return CoreBoolType::id;
+				default:
+					return -1;
+			}
+		}
 	};
 } // namespace rive
 

@@ -30,6 +30,12 @@ Artboard::~Artboard()
 	delete m_CommandPath;
 }
 
+static bool canContinue(StatusCode code) 
+{
+	// We currently only cease loading on invalid object.
+	return code != StatusCode::InvalidObject;
+}
+
 StatusCode Artboard::initialize()
 {
 	StatusCode code;
@@ -41,7 +47,12 @@ StatusCode Artboard::initialize()
 	// can't assume that their parent's parent will have resolved yet.
 	for (auto object : m_Objects)
 	{
-		if ((code = object->onAddedDirty(this)) != StatusCode::Ok)
+		if(object == nullptr) 
+		{
+			// objects can be null if they were not understood by this runtime.
+			continue;
+		}
+		if (!canContinue(code = object->onAddedDirty(this)))
 		{
 			return code;
 		}
@@ -49,7 +60,7 @@ StatusCode Artboard::initialize()
 
 	for (auto object : m_Animations)
 	{
-		if ((code = object->onAddedDirty(this)) != StatusCode::Ok)
+		if (!canContinue(code = object->onAddedDirty(this)))
 		{
 			return code;
 		}
@@ -66,7 +77,11 @@ StatusCode Artboard::initialize()
 	// parent should be type X can be checked now).
 	for (auto object : m_Objects)
 	{
-		if ((code = object->onAddedClean(this)) != StatusCode::Ok)
+		if(object == nullptr) 
+		{
+			continue;
+		}
+		if (!canContinue(code = object->onAddedClean(this)))
 		{
 			return code;
 		}
@@ -74,18 +89,19 @@ StatusCode Artboard::initialize()
 		{
 			DrawRules* rules = reinterpret_cast<DrawRules*>(object);
 			Core* component = resolve(rules->parentId());
-			if (component == nullptr)
+			if (component != nullptr)
 			{
-				// Couldn't resolve the parent of the rule, something exported
-				// wrong.
-				return StatusCode::MissingObject;
+				componentDrawRules[component] = rules;
 			}
-			componentDrawRules[component] = rules;
+			else 
+			{
+				fprintf(stderr, "Artboard::initialize - Draw rule targets missing component width id %d\n", rules->parentId());
+			}
 		}
 	}
 	for (auto object : m_Animations)
 	{
-		if ((code = object->onAddedClean(this)) != StatusCode::Ok)
+		if (!canContinue(code = object->onAddedClean(this)))
 		{
 			return code;
 		}
@@ -94,6 +110,10 @@ StatusCode Artboard::initialize()
 	// what's dependent on what.
 	for (auto object : m_Objects)
 	{
+		if(object == nullptr) 
+		{
+			continue;
+		}
 		if (object->is<Component>())
 		{
 			object->as<Component>()->buildDependencies();
@@ -123,6 +143,10 @@ StatusCode Artboard::initialize()
 	// dependencies.
 	for (auto object : m_Objects)
 	{
+		if(object == nullptr) 
+		{
+			continue;
+		}
 		if (object->is<DrawTarget>())
 		{
 			DrawTarget* target = object->as<DrawTarget>();

@@ -386,6 +386,20 @@ class Definition {
       ctxCode.writeln('return ${fieldType.defaultValue ?? 'nullptr'};');
       ctxCode.writeln('}');
     }
+
+    ctxCode.writeln('static int propertyFieldId(int propertyKey) {');
+    ctxCode.writeln('switch(propertyKey) {');
+
+    for (final fieldType in usedFieldTypes.keys) {
+      var properties = usedFieldTypes[fieldType];
+      for (final property in properties) {
+        ctxCode.writeln('case ${property.definition.name}Base'
+            '::${property.name}PropertyKey:');
+      }
+      ctxCode.writeln('return Core${fieldType.capitalizedName}Type::id;');
+    }
+
+    ctxCode.writeln('default: return -1;}}');
     /*Core makeCoreInstance(int typeKey) {
     switch (typeKey) {
       case KeyedObjectBase.typeKey:
