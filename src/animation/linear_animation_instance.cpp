@@ -78,7 +78,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 			break;
 	}
 
-	m_didLoop = didLoop;
+	m_DidLoop = didLoop;
 	return keepGoing;
 }
 

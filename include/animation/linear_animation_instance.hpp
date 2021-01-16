@@ -12,7 +12,7 @@ namespace rive
 		LinearAnimation* m_Animation = nullptr;
 		float m_Time;
 		int m_Direction;
-		bool m_didLoop;
+		bool m_DidLoop;
 
 	public:
 		LinearAnimationInstance(LinearAnimation* animation);
@@ -41,7 +41,7 @@ namespace rive
 
 		// Set when the animation is advanced, true if the animation has stopped
 		// (oneShot), reached the end (loop), or changed direction (pingPong)
-		bool didLoop() const { return m_didLoop; } 
+		bool didLoop() const { return m_DidLoop; } 
 	};
 } // namespace rive
 #endif
