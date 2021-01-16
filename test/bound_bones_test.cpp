@@ -30,7 +30,7 @@ TEST_CASE("bound bones load correctly", "[bones]")
 	REQUIRE(file != nullptr);
 	REQUIRE(file->artboard() != nullptr);
 
-	auto node = file->artboard()->node("transmission_front_testing");
+	auto node = file->artboard()->find("transmission_front_testing");
 	REQUIRE(node != nullptr);
 	REQUIRE(node->is<rive::Shape>());
     REQUIRE(node->as<rive::Shape>()->paths().size() == 1);
