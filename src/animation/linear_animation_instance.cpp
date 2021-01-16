@@ -13,12 +13,6 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
 
 bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
-	bool didLoop = false;
-	return advance(elapsedSeconds, didLoop);
-}
-
-bool LinearAnimationInstance::advance(float elapsedSeconds, bool& didLoop)
-{
 	LinearAnimation& animation = *m_Animation;
 	m_Time += elapsedSeconds * animation.speed() * m_Direction;
 
@@ -32,7 +26,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, bool& didLoop)
 	int range = end - start;
 
 	bool keepGoing = true;
-	didLoop = false;
+	bool didLoop = false;
 
 	switch (animation.loop())
 	{
@@ -83,6 +77,8 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, bool& didLoop)
 			}
 			break;
 	}
+
+	m_DidLoop = didLoop;
 	return keepGoing;
 }
 

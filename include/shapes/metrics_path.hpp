@@ -35,7 +35,10 @@ namespace rive
 		// this part.
 		unsigned char numSegments;
 
-		PathPart(unsigned char t, unsigned char l) : type(t), offset(l), numSegments(0) {}
+		PathPart(unsigned char t, unsigned char l) :
+		    type(t), offset(l), numSegments(0)
+		{
+		}
 	};
 
 	class MetricsPath : public CommandPath
@@ -89,6 +92,7 @@ namespace rive
 		{
 			// Should never be used for actual rendering.
 			assert(false);
+			return nullptr;
 		}
 	};
 
