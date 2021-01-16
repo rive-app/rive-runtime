@@ -26,7 +26,7 @@ TEST_CASE("clipping loads correctly", "[clipping]")
 	REQUIRE(file != nullptr);
 	REQUIRE(file->artboard() != nullptr);
 
-	auto node = file->artboard()->node("TopEllipse");
+	auto node = file->artboard()->find("TopEllipse");
 	REQUIRE(node != nullptr);
 	REQUIRE(node->is<rive::Shape>());
 
