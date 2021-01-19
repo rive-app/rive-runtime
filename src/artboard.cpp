@@ -27,7 +27,8 @@ Artboard::~Artboard()
 	{
 		delete object;
 	}
-	delete m_CommandPath;
+	delete m_ClipPath;
+	delete m_BackgroundPath;
 }
 
 static bool canContinue(StatusCode code) 
@@ -40,7 +41,8 @@ StatusCode Artboard::initialize()
 {
 	StatusCode code;
 
-	m_CommandPath = makeCommandPath(PathSpace::Neither);
+	m_BackgroundPath = makeCommandPath(PathSpace::Neither);
+	m_ClipPath = makeCommandPath(PathSpace::Neither);
 
 	// onAddedDirty guarantees that all objects are now available so they can be
 	// looked up by index/id. This is where nodes find their parents, but they
@@ -329,8 +331,9 @@ void Artboard::update(ComponentDirt value)
 	}
 	if (hasDirt(value, ComponentDirt::Path))
 	{
-		m_CommandPath->reset();
-		m_CommandPath->addRect(0.0f, 0.0f, width(), height());
+		m_ClipPath->reset();
+		m_ClipPath->addRect(0.0f, 0.0f, width(), height());
+		m_BackgroundPath->addRect(-width() * originX(), -height() * originY(), width(), height());
 	}
 }
 
@@ -381,17 +384,17 @@ bool Artboard::advance(double elapsedSeconds) { return updateComponents(); }
 
 void Artboard::draw(Renderer* renderer)
 {
-	for (auto shapePaint : m_ShapePaints)
-	{
-		shapePaint->draw(renderer, m_CommandPath);
-	}
 	renderer->save();
-	renderer->clipPath(m_CommandPath->renderPath());
+	renderer->clipPath(m_ClipPath->renderPath());
 
 	Mat2D artboardTransform;
 	artboardTransform[4] = width() * originX();
 	artboardTransform[5] = height() * originY();
 	renderer->transform(artboardTransform);
+	for (auto shapePaint : m_ShapePaints)
+	{
+		shapePaint->draw(renderer, m_BackgroundPath);
+	}
 
 	for (auto drawable = m_FirstDrawable; drawable != nullptr;
 	     drawable = drawable->prev)
