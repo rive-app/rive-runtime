@@ -51,10 +51,8 @@ void TransformComponent::updateTransform()
 
 void TransformComponent::updateWorldTransform()
 {
-	m_RenderOpacity = opacity();
 	if (m_ParentTransformComponent != nullptr)
 	{
-		m_RenderOpacity *= m_ParentTransformComponent->childOpacity();
 		Mat2D::multiply(m_WorldTransform,
 		                m_ParentTransformComponent->m_WorldTransform,
 		                m_Transform);
@@ -75,6 +73,14 @@ void TransformComponent::update(ComponentDirt value)
 	{
 		updateWorldTransform();
 	}
+	if (hasDirt(value, ComponentDirt::RenderOpacity))
+	{
+		m_RenderOpacity = opacity();
+		if (m_ParentTransformComponent != nullptr)
+		{
+			m_RenderOpacity *= m_ParentTransformComponent->childOpacity();
+		}
+	}
 }
 
 const Mat2D& TransformComponent::transform() const { return m_Transform; }
@@ -86,4 +92,7 @@ const Mat2D& TransformComponent::worldTransform() const
 void TransformComponent::rotationChanged() { markTransformDirty(); }
 void TransformComponent::scaleXChanged() { markTransformDirty(); }
 void TransformComponent::scaleYChanged() { markTransformDirty(); }
-void TransformComponent::opacityChanged() { markTransformDirty(); }
+void TransformComponent::opacityChanged()
+{
+	addDirt(ComponentDirt::RenderOpacity, true);
+}

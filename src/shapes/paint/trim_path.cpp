@@ -26,12 +26,13 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 		return m_RenderPath;
 	}
 
+	
+
 	// Source is always a containing (shape) path.
 	const std::vector<MetricsPath*>& subPaths = source->paths();
 
 	m_TrimmedPath->reset();
 	auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
-
 	switch (modeValue())
 	{
 		case 1:
@@ -56,8 +57,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 			int i = 0, subPathCount = (int) subPaths.size();
 			while (endLength > 0)
 			{
-				MetricsPath* path =
-				    reinterpret_cast<MetricsPath*>(subPaths[i % subPathCount]);
+				auto path = subPaths[i % subPathCount];
 				auto pathLength = path->length();
 
 				if (startLength < pathLength)

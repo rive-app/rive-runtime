@@ -18,19 +18,7 @@ void Shape::update(ComponentDirt value)
 {
 	Super::update(value);
 
-	// TODO: do we need this?
-	// if (hasDirt(value, ComponentDirt::BlendMode))
-	// {
-	// 	for (auto shapePaint : m_ShapePaints)
-	// 	{
-	// 		shapePaint->blendMode((BlendMode)blendModeValue());
-	// 	}
-	// }
-
-	// RenderOpacity gets updated with the worldTransform (accumulates through
-	// hierarchy), so if we see worldTransform is dirty, update our internal
-	// render opacities.
-	if (hasDirt(value, ComponentDirt::WorldTransform))
+	if (hasDirt(value, ComponentDirt::RenderOpacity))
 	{
 		for (auto shapePaint : m_ShapePaints)
 		{
