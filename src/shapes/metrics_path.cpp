@@ -131,23 +131,31 @@ static float segmentCubic(const Vec2D& from,
 
 float MetricsPath::computeLength(const Mat2D& transform)
 {
-	if (!m_Lengths.empty())
+	// If the pre-computed length is still valid (transformed with the same
+	// transform) just return that.
+	if (!m_Lengths.empty() && transform == m_ComputedLengthTransform)
 	{
 		return m_ComputedLength;
 	}
+	m_ComputedLengthTransform = transform;
+	m_Lengths.clear();
+	m_CubicSegments.clear();
+
+	// We have to dupe the transformed points as we're not sure whether just the
+	// transform is changing (path may not have been reset but got added with
+	// another transform).
+	m_TransformedPoints.resize(m_Points.size());
+	for (int i = 0, l = m_Points.size(); i < l; i++)
+	{
+		Vec2D::transform(m_TransformedPoints[i], m_Points[i], transform);
+	}
+
 	// Should never have subPaths with more subPaths (Skia allows this but for
 	// Rive this isn't necessary and it keeps things simpler).
 	assert(m_Paths.empty());
-	const Vec2D* pen = &m_Points[0];
+	const Vec2D* pen = &m_TransformedPoints[0];
 	int idx = 1;
 	float length = 0.0f;
-
-	// Transform all the points by transform. We know this works because we only
-	// call computeLength once when this path is added as as subPath.
-	for (Vec2D& point : m_Points)
-	{
-		Vec2D::transform(point, point, transform);
-	}
 
 	for (PathPart& part : m_Parts)
 	{
@@ -155,7 +163,7 @@ float MetricsPath::computeLength(const Mat2D& transform)
 		{
 			case PathPart::line:
 			{
-				const Vec2D& point = m_Points[idx++];
+				const Vec2D& point = m_TransformedPoints[idx++];
 
 				float partLength = Vec2D::distance(*pen, point);
 				m_Lengths.push_back(partLength);
@@ -199,10 +207,14 @@ void MetricsPath::trim(float startLength,
                        RenderPath* result)
 {
 	assert(endLength >= startLength);
-
 	if (!m_Paths.empty())
 	{
 		m_Paths.front()->trim(startLength, endLength, moveTo, result);
+		return;
+	}
+	if (startLength == endLength)
+	{
+		// nothing to trim.
 		return;
 	}
 	// We need to find the first part to trim.
@@ -257,15 +269,15 @@ void MetricsPath::trim(float startLength,
 			{
 				case PathPart::line:
 				{
-					const Vec2D& point = m_Points[part.offset];
+					const Vec2D& point = m_TransformedPoints[part.offset];
 					result->lineTo(point[0], point[1]);
 					break;
 				}
 				default:
 				{
-					const Vec2D& point1 = m_Points[part.offset];
-					const Vec2D& point2 = m_Points[part.offset + 1];
-					const Vec2D& point3 = m_Points[part.offset + 2];
+					const Vec2D& point1 = m_TransformedPoints[part.offset];
+					const Vec2D& point2 = m_TransformedPoints[part.offset + 1];
+					const Vec2D& point3 = m_TransformedPoints[part.offset + 2];
 					result->cubicTo(point1[0],
 					                point1[1],
 					                point2[0],
@@ -291,8 +303,8 @@ void MetricsPath::extractSubPart(
 	{
 		case PathPart::line:
 		{
-			const Vec2D& from = m_Points[part.offset - 1];
-			const Vec2D& to = m_Points[part.offset];
+			const Vec2D& from = m_TransformedPoints[part.offset - 1];
+			const Vec2D& to = m_TransformedPoints[part.offset];
 			Vec2D dir;
 			Vec2D::subtract(dir, to, from);
 			if (moveTo)
@@ -376,10 +388,10 @@ void MetricsPath::extractSubPart(
 
 			Vec2D hull[6];
 
-			const Vec2D& from = m_Points[part.offset - 1];
-			const Vec2D& fromOut = m_Points[part.offset];
-			const Vec2D& toIn = m_Points[part.offset + 1];
-			const Vec2D& to = m_Points[part.offset + 2];
+			const Vec2D& from = m_TransformedPoints[part.offset - 1];
+			const Vec2D& fromOut = m_TransformedPoints[part.offset];
+			const Vec2D& toIn = m_TransformedPoints[part.offset + 1];
+			const Vec2D& to = m_TransformedPoints[part.offset + 2];
 
 			if (startT == 0.0f)
 			{
