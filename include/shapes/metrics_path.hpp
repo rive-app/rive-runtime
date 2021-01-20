@@ -45,11 +45,13 @@ namespace rive
 	{
 	private:
 		std::vector<Vec2D> m_Points;
+		std::vector<Vec2D> m_TransformedPoints;
 		std::vector<CubicSegment> m_CubicSegments;
 		std::vector<PathPart> m_Parts;
 		std::vector<float> m_Lengths;
 		std::vector<MetricsPath*> m_Paths;
 		float m_ComputedLength = 0.0f;
+		Mat2D m_ComputedLengthTransform;
 
 	public:
 		const std::vector<MetricsPath*>& paths() const { return m_Paths; }

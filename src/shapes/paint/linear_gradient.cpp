@@ -71,14 +71,15 @@ void LinearGradient::update(ComponentDirt value)
 	}
 
 	bool worldTransformed = hasDirt(value, ComponentDirt::WorldTransform);
-	bool localTransformed = hasDirt(value, ComponentDirt::Transform);
 
 	// We rebuild the gradient if the gradient is dirty or we paint in world
 	// space and the world space transform has changed, or the local transform
 	// has changed. Local transform changes when a stop moves in local space.
-	bool rebuildGradient = hasDirt(value, ComponentDirt::Paint) ||
-	                       localTransformed ||
-	                       (m_PaintsInWorldSpace && worldTransformed);
+	bool rebuildGradient =
+	    hasDirt(value,
+	            ComponentDirt::Paint | ComponentDirt::RenderOpacity |
+	                ComponentDirt::Transform) ||
+	    (m_PaintsInWorldSpace && worldTransformed);
 
 	if (rebuildGradient)
 	{

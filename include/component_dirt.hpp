@@ -31,12 +31,15 @@ namespace rive
 		/// Used by any component that needs to update its world transform.
 		WorldTransform = 1 << 6,
 
+		/// Marked when the stored render opacity needs to be updated.
+		RenderOpacity = 1 << 7,
+
 		/// Dirt used to mark some stored paint needs to be rebuilt or that we
 		/// just want to trigger an update cycle so painting occurs.
-		Paint = 1 << 7,
+		Paint = 1 << 8,
 
 		/// Used by the gradients track when the stops need to be re-ordered.
-		Stops = 1 << 8,
+		Stops = 1 << 9,
 
 		/// Blend modes need to be updated
 		// TODO: do we need this?
