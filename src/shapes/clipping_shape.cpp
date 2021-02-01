@@ -15,6 +15,8 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context)
 	auto artboard = static_cast<Artboard*>(context);
 	for (auto core : artboard->objects())
 	{
+		// Iterate artboard to find drawables that are parented to this clipping
+		// shape, they need to know they'll be clipped by this shape.
 		if (core->is<Drawable>())
 		{
 			auto drawable = core->as<Drawable>();
@@ -28,7 +30,11 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context)
 				}
 			}
 		}
-		if (core->is<Shape>())
+
+		// Iterate artboard to find shapes that are parented to the source,
+		// their paths will need to be RenderPaths in order to be used for
+		// clipping operations.
+		if (core->is<Shape>() && core != clippingHolder)
 		{
 			auto component = core->as<ContainerComponent>();
 			while (component != nullptr)
