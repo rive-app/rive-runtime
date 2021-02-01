@@ -50,8 +50,13 @@ void ShapePaintContainer::invalidateStrokeEffects()
 
 CommandPath* ShapePaintContainer::makeCommandPath(PathSpace space)
 {
-	bool needForRender = false;
+	// Force a render path if we specifically request to use it for clipping or
+	// this shape is used for clipping.
+	bool needForRender = ((space | m_DefaultPathSpace) & PathSpace::Clipping) ==
+	                     PathSpace::Clipping;
+
 	bool needForEffects = false;
+
 	for (auto paint : m_ShapePaints)
 	{
 		if (space != PathSpace::Neither &&
@@ -65,11 +70,6 @@ CommandPath* ShapePaintContainer::makeCommandPath(PathSpace space)
 			needForEffects = true;
 		}
 		else
-		{
-			needForRender = true;
-		}
-
-		if ((space & PathSpace::Clipping) == PathSpace::Clipping)
 		{
 			needForRender = true;
 		}
