@@ -21,10 +21,10 @@ void SkiaRenderPath::fillRule(FillRule value)
 }
 
 void SkiaRenderPath::reset() { m_Path.reset(); }
-void SkiaRenderPath::addPath(CommandPath* path, const Mat2D& transform)
+void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
 {
 	m_Path.addPath(
-	    reinterpret_cast<SkiaRenderPath*>(path->renderPath())->m_Path,
+	    reinterpret_cast<SkiaRenderPath*>(path)->m_Path,
 	    ToSkia::convert(transform));
 }
 
