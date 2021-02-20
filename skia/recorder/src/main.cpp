@@ -212,16 +212,6 @@ int main(int argc, char* argv[])
 
 	int err;
 
-	//     AVFrame* videoFrame = nullptr;
-	// AVCodecContext* cctx = nullptr;
-	// SwsContext* swsCtx = nullptr;
-	// int frameCounter = 0;
-	// AVFormatContext* ofctx = nullptr;
-	// AVOutputFormat* oformat = nullptr;
-	// AVCodec *codec;
-	// AVStream *videoStream;
-	// AVFrame *videoFrame;
-
 	// Get a context for the format to work with (I guess the OutputFormat
 	// is sort of the blueprint, and this is the instance for this specific
 	// run of it).
@@ -307,13 +297,10 @@ int main(int argc, char* argv[])
 	}
 	else if (videoStream->codecpar->codec_id == AV_CODEC_ID_H265)
 	{
+		// More beauty
 		av_opt_set(cctx, "preset", "ultrafast", 0);
 	}
-	// if (ofctx->oformat->flags & AVFMT_GLOBALHEADER)
-	// {
-	// 	// Pass along some flags? More black magic stuff found online.
-	// 	cctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-	// }
+
 	// OK! Finally set the parameters on the stream from the codec context we
 	// just fucked with.
 	avcodec_parameters_from_context(videoStream->codecpar, cctx);
@@ -449,7 +436,7 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 
-        // Send off the packet to the encoder...
+		// Send off the packet to the encoder...
 		AVPacket pkt;
 		av_init_packet(&pkt);
 		pkt.data = nullptr;
@@ -466,7 +453,7 @@ int main(int argc, char* argv[])
 	}
 	printf(".\n");
 
-	// Encode any delayed frames...
+	// Encode any delayed frames accumulated...
 	AVPacket pkt;
 	av_init_packet(&pkt);
 	pkt.data = nullptr;
@@ -489,7 +476,7 @@ int main(int argc, char* argv[])
 	}
 	printf(".\n");
 
-    // Write the footer (trailer?) woo!
+	// Write the footer (trailer?) woo!
 	av_write_trailer(ofctx);
 	if (!(oformat->flags & AVFMT_NOFILE))
 	{
