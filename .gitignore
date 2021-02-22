@@ -61,6 +61,8 @@ build/bin
 # Skia dependencies
 skia/dependencies/skia
 skia/dependencies/glfw_build
+skia/dependencies/FFmpeg
+skia/dependencies/x264
 skia/renderer/build/bin
 skia/**/build/bin
 /skia/dependencies/glfw
