@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
 		{
 
 			fprintf(stderr,
-			        "File doesn't contain an artboard named %s.\n",
+			        "Artboard doesn't contain an animation named %s.\n",
 			        animationOptionName.c_str());
 			return 1;
 		}
@@ -223,7 +223,7 @@ int main(int argc, char* argv[])
 		        "Failed to allocate output context %s\n.",
 		        destinationFilename.c_str());
 		// This is where something in a longer lived app would cleanup the
-		// oformat previously allocated.
+		// format previously allocated.
 		return 1;
 	}
 
