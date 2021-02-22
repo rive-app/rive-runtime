@@ -15,57 +15,61 @@ language "C++"
 cppdialect "C++17"
 targetdir "bin/%{cfg.buildcfg}"
 objdir "obj/%{cfg.buildcfg}"
-includedirs {"../include", "../../../include", "../../renderer/include", "../../dependencies/glfw/include",
-             "../../dependencies/skia", "../../dependencies/skia/include/core",
-             "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
-             "../../dependencies/skia/include/config", 
-             "../../dependencies/FFmpeg", 
-             "../../dependencies/x264/include", 
-             "/usr/local/include",
-            }
-
+includedirs {
+    "../include",
+    "../../../include",
+    "../../renderer/include",
+    "../../dependencies/glfw/include",
+    "../../dependencies/skia",
+    "../../dependencies/skia/include/core",
+    "../../dependencies/skia/include/effects",
+    "../../dependencies/skia/include/gpu",
+    "../../dependencies/skia/include/config",
+    "../../dependencies/FFmpeg",
+    "../../dependencies/x264/include",
+    "/usr/local/include"
+}
 
 links {
-    "avcodec", 
-    "avformat", 
-    "avutil", 
-    "glfw3", 
-    "z",
+    "AudioToolbox.framework",
+    "AudioUnit.framework",
+    "avcodec",
+    "avformat",
+    "avutil",
     "bz2",
+    "Cocoa.framework",
+    "CoreFoundation.framework",
+    "CoreMedia.framework",
+    "CoreServices.framework",
+    "CoreVideo.framework",
+    "glfw3",
     "iconv",
+    "IOKit.framework",
     "lzma",
     "m",
-    "rive_skia_renderer", 
-    "rive", 
-    "skia", 
-    "swscale", 
-    "swresample", 
-    "AudioToolbox.framework", 
-    "AudioUnit.framework", 
-    "Cocoa.framework", 
-    "CoreFoundation.framework", 
-    "CoreServices.framework", 
-    "CoreVideo.framework", 
-    "CoreMedia.framework",
+    "rive_skia_renderer",
+    "rive",
     "Security.framework",
-    "IOKit.framework", 
+    "skia",
+    "swresample",
+    "swscale",
     "VideoToolbox.framework",
     "x264",
+    "z",
 }
 
 libdirs {
-    "../../../build/bin/%{cfg.buildcfg}", 
-    "../../dependencies/FFmpeg/libavcodec", 
-    "../../dependencies/FFmpeg/libavformat", 
-    "../../dependencies/FFmpeg/libavutil", 
+    "../../../build/bin/%{cfg.buildcfg}",
+    "../../dependencies/FFmpeg/libavcodec",
+    "../../dependencies/FFmpeg/libavformat",
+    "../../dependencies/FFmpeg/libavutil",
     "../../dependencies/FFmpeg/libswscale",
     "../../dependencies/FFmpeg/libswresample",
     "../../dependencies/x264/lib",
     "../../dependencies/glfw_build/src",
-    "../../dependencies/skia/out/Static", 
-    
-    "../../renderer/build/bin/%{cfg.buildcfg}", 
-    "/usr/local/lib",
+    "../../dependencies/skia/out/Static",
+    "../../renderer/build/bin/%{cfg.buildcfg}",
+    "/usr/local/lib"
 }
 
 files {"../src/**.cpp"}
@@ -78,7 +82,7 @@ symbols "On"
 
 filter "configurations:release"
 defines {"RELEASE"}
-defines { "NDEBUG" }
+defines {"NDEBUG"}
 optimize "On"
 
 -- Clean Function --

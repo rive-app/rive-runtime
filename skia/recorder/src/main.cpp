@@ -1,45 +1,4 @@
-#include "SkData.h"
-#include "SkImage.h"
-#include "SkStream.h"
-#include "SkSurface.h"
-#include "animation/animation.hpp"
-#include "animation/linear_animation.hpp"
-#include "args.hxx"
-#include "artboard.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
-#include "math/aabb.hpp"
-#include "skia_renderer.hpp"
-#include <cstdio>
-#include <iostream>
-#include <stdio.h>
-#include <string>
-
-extern "C"
-{
-#include <libavcodec/avcodec.h>
-#include <libavcodec/avfft.h>
-
-#include <libavdevice/avdevice.h>
-
-#include <libavfilter/buffersink.h>
-#include <libavfilter/buffersrc.h>
-
-#include <libavformat/avformat.h>
-#include <libavformat/avio.h>
-
-#include <libavutil/channel_layout.h>
-#include <libavutil/common.h>
-#include <libavutil/file.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/mathematics.h>
-#include <libavutil/opt.h>
-#include <libavutil/pixdesc.h>
-#include <libavutil/samplefmt.h>
-#include <libavutil/time.h>
-
-#include <libswscale/swscale.h>
-}
+#include "main.hpp"
 
 std::string getFileName(const char* path)
 {
@@ -50,6 +9,56 @@ std::string getFileName(const char* path)
 	return str.substr(from + 1, to - from - 1);
 }
 
+template <typename... Args>
+std::string string_format(const std::string& format, Args... args)
+{
+	int size = snprintf(nullptr, 0, format.c_str(), args...) +
+	           1; // Extra space for '\0'
+	if (size <= 0)
+	{
+		throw std::runtime_error("Error during formatting.");
+	}
+	std::unique_ptr<char[]> buf(new char[size]);
+	snprintf(buf.get(), size, format.c_str(), args...);
+	return std::string(buf.get(),
+	                   buf.get() + size - 1); // We don't want the '\0' inside
+}
+
+rive::File* getRiveFile(const char* path)
+{
+	FILE* fp = fopen(path, "r");
+
+	if (fp == nullptr)
+	{
+		throw std::invalid_argument(
+		    string_format("Failed to open rive file %s", path));
+	}
+	fseek(fp, 0, SEEK_END);
+	auto length = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	// TODO: need to remove this?
+	uint8_t* bytes = new uint8_t[length];
+
+	if (fread(bytes, 1, length, fp) != length)
+	{
+		throw std::invalid_argument(
+		    string_format("Failed to read file into bytes array %s", path));
+	}
+
+	auto reader = rive::BinaryReader(bytes, length);
+	rive::File* file = nullptr;
+	auto result = rive::File::import(reader, &file);
+	if (result != rive::ImportResult::success)
+	{
+		throw std::invalid_argument(
+		    string_format("Failed to read bytes into Rive file %s", path));
+	}
+	return file;
+}
+
+#ifdef TESTING
+#else
 int main(int argc, char* argv[])
 {
 	args::ArgumentParser parser(
@@ -101,44 +110,15 @@ int main(int argc, char* argv[])
 		std::cerr << parser;
 		return 1;
 	}
-	if (argc < 2)
-	{
-		fprintf(stderr, "must pass source file\n");
-		return 1;
-	}
 
-	// Arguments validated, we can assume things are good with those going
-	// forward.
-	auto sourceFilename = args::get(source);
-	// Ok first thing, open up our Rive file. No point going any further if we
-	// don't have that and we need some stuff from it to determine dimensions of
-	// things to render (we could add arguments for these later too).
-	FILE* fp = fopen(sourceFilename.c_str(), "r");
-
-	if (fp == nullptr)
+	rive::File* file;
+	try
 	{
-		fprintf(
-		    stderr, "Failed to open rive file %s.\n", sourceFilename.c_str());
-		return 1;
+		file = getRiveFile(args::get(source).c_str());
 	}
-	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	uint8_t* bytes = new uint8_t[length];
-	if (fread(bytes, 1, length, fp) != length)
+	catch (const std::invalid_argument e)
 	{
-		fprintf(
-		    stderr, "Failed to read rive file %s.\n", sourceFilename.c_str());
-		return 1;
-	}
-
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
-	if (result != rive::ImportResult::success)
-	{
-		fprintf(
-		    stderr, "Failed to read rive file %s.\n", sourceFilename.c_str());
+		std::cout << e.what();
 		return 1;
 	}
 
@@ -489,3 +469,5 @@ int main(int argc, char* argv[])
 	}
 	return 0;
 }
+
+#endif
