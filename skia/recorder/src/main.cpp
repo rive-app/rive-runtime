@@ -39,7 +39,6 @@ inline bool file_exists(const std::string& name)
 
 class RiveFrameExtractor
 {
-	rive::File* riveFile;
 
 public:
 	rive::Artboard* artboard;
@@ -57,6 +56,7 @@ public:
 	};
 
 private:
+	rive::File* riveFile;
 	sk_sp<SkImage> getWaterMark(const char* watermark_name)
 	{
 		// Init skia surfaces to render to.
@@ -170,6 +170,162 @@ private:
 	};
 };
 
+class MovieWriter
+{
+public:
+	AVCodecContext* cctx;
+	AVStream* videoStream;
+	AVOutputFormat* oformat;
+	AVFormatContext* ofctx;
+	AVCodec* codec;
+	MovieWriter(const char* _destination, int _width, int _height, int _fps)
+	{
+		destinationFilename = _destination;
+		width = _width;
+		height = _height;
+		fps = _fps;
+		initialize();
+	};
+
+	AVFrame* get_av_frame()
+	{
+		// Init some ffmpeg data to hold our encoded frames (convert them to the
+		// right format).
+		AVFrame* videoFrame = av_frame_alloc();
+		videoFrame->format = AV_PIX_FMT_YUV420P;
+		videoFrame->width = cctx->width;
+		videoFrame->height = cctx->height;
+		int err;
+		if ((err = av_frame_get_buffer(videoFrame, 32)) < 0)
+		{
+			throw std::invalid_argument(string_format(
+			    "Failed to allocate buffer for frame with error %i\n", err));
+		}
+		return videoFrame;
+	};
+
+private:
+	const char* destinationFilename;
+
+	// Ok we should have some more optional params for these:
+	int width, height, fps;
+	int bitrate = 400;
+
+	void initialize()
+	{
+		// if init fails all this stuff needs cleaning up?
+
+		// Try to guess the output format from the name.
+		oformat = av_guess_format(nullptr, destinationFilename, nullptr);
+		if (!oformat)
+		{
+			throw std::invalid_argument(
+			    string_format("Failed to determine output format for %s\n.",
+			                  destinationFilename));
+		}
+
+		// Get a context for the format to work with (I guess the OutputFormat
+		// is sort of the blueprint, and this is the instance for this specific
+		// run of it).
+		ofctx = nullptr;
+		// TODO: there's probably cleanup to do here.
+		if (avformat_alloc_output_context2(
+		        &ofctx, oformat, nullptr, destinationFilename) < 0)
+		{
+			throw std::invalid_argument(
+			    string_format("Failed to allocate output context %s\n.",
+			                  destinationFilename));
+		}
+		// Check that we have the necessary codec for the format we want to
+		// encode (I think most formats can have multiple codecs so this
+		// probably tries to guess the best default available one).
+		codec = avcodec_find_encoder(oformat->video_codec);
+		if (!codec)
+		{
+			throw std::invalid_argument(string_format(
+			    "Failed to find codec for %s\n.", destinationFilename));
+		}
+
+		// Allocate the stream we're going to be writing to.
+		videoStream = avformat_new_stream(ofctx, codec);
+		if (!videoStream)
+		{
+			throw std::invalid_argument(string_format(
+			    "Failed to create a stream for %s\n.", destinationFilename));
+		}
+
+		// Similar to AVOutputFormat and AVFormatContext, the codec needs an
+		// instance/"context" to store data specific to this run.
+		cctx = avcodec_alloc_context3(codec);
+		if (!cctx)
+		{
+			throw std::invalid_argument(
+			    string_format("Failed to allocate codec context for "
+			                  "%s\n.",
+			                  destinationFilename));
+		}
+
+		videoStream->codecpar->codec_id = oformat->video_codec;
+		videoStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+		videoStream->codecpar->width = width;
+		videoStream->codecpar->height = height;
+		videoStream->codecpar->format = AV_PIX_FMT_YUV420P;
+		videoStream->codecpar->bit_rate = bitrate * 1000;
+		videoStream->time_base = {1, fps};
+
+		// Yeah so these are just some numbers that work, we'll probably want to
+		// fine tune these...
+		avcodec_parameters_to_context(cctx, videoStream->codecpar);
+		cctx->time_base = {1, fps};
+		cctx->max_b_frames = 2;
+		cctx->gop_size = 12;
+
+		if (videoStream->codecpar->codec_id == AV_CODEC_ID_H264)
+		{
+			// Set the H264 preset to shite but fast, I guess?
+			av_opt_set(cctx, "preset", "ultrafast", 0);
+		}
+		else if (videoStream->codecpar->codec_id == AV_CODEC_ID_H265)
+		{
+			// More beauty
+			av_opt_set(cctx, "preset", "ultrafast", 0);
+		}
+
+		// OK! Finally set the parameters on the stream from the codec context
+		// we just fucked with.
+		avcodec_parameters_from_context(videoStream->codecpar, cctx);
+
+		if (avcodec_open2(cctx, codec, NULL) < 0)
+		{
+			throw std::invalid_argument(string_format(
+			    "Failed to open codec %i\n", destinationFilename));
+		}
+
+		// Finally open the file! Interesting step here, I guess some files can
+		// just record to memory or something, so they don't actually need a
+		// file to open io.
+		if (!(oformat->flags & AVFMT_NOFILE))
+		{
+			if (avio_open(&ofctx->pb, destinationFilename, AVIO_FLAG_WRITE) < 0)
+			{
+				throw std::invalid_argument(
+				    string_format("Failed to open file %s with error %i\n",
+				                  destinationFilename));
+			}
+		}
+
+		// Header time...
+		if (avformat_write_header(ofctx, NULL) < 0)
+		{
+			throw std::invalid_argument(string_format(
+			    "Failed to write header %i\n", destinationFilename));
+		}
+
+		// Write the format into the header...
+		av_dump_format(ofctx, 0, destinationFilename, 1);
+	}
+};
+
 #ifdef TESTING
 #else
 int main(int argc, char* argv[])
@@ -240,182 +396,34 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	// Cool, file's sane, let's start initializing the video recorder.
-	auto destinationFilename = args::get(destination);
-
-	// Note because this is one shot app we don't take care of cleaning up
-	// resources. If this needs to be a longer lived worker app, we should
-	// really build a pool of Recorder objects that handle this nicely.
-
-	// Try to guess the output format from the name.
-	AVOutputFormat* oformat;
-	if (!(oformat =
-	          av_guess_format(nullptr, destinationFilename.c_str(), nullptr)))
+	MovieWriter* writer;
+	try
 	{
-		fprintf(stderr,
-		        "Failed to determine output format for %s\n.",
-		        destinationFilename.c_str());
-		return 1;
+		writer = new MovieWriter(args::get(destination).c_str(),
+		                         extractor->artboard->width(),
+		                         extractor->artboard->height(),
+		                         extractor->animation->fps());
 	}
-
-	int err;
-
-	// Get a context for the format to work with (I guess the OutputFormat
-	// is sort of the blueprint, and this is the instance for this specific
-	// run of it).
-	AVFormatContext* ofctx = nullptr;
-	if ((err = avformat_alloc_output_context2(
-	               &ofctx, oformat, nullptr, destinationFilename.c_str()) < 0))
+	catch (const std::invalid_argument e)
 	{
-		fprintf(stderr,
-		        "Failed to allocate output context %s\n.",
-		        destinationFilename.c_str());
-		// This is where something in a longer lived app would cleanup the
-		// format previously allocated.
-		return 1;
-	}
-
-	// Check that we have the necessary codec for the format we want to
-	// encode (I think most formats can have multiple codecs so this
-	// probably tries to guess the best default available one).
-	AVCodec* codec;
-	if (!(codec = avcodec_find_encoder(oformat->video_codec)))
-	{
-		fprintf(stderr,
-		        "Failed to find codec for %s\n.",
-		        destinationFilename.c_str());
-		// This is where something in a longer lived app would cleanup the
-		// oformat and ofctx previously allocated.
-		return 1;
-	}
-
-	// Allocate the stream we're going to be writing to.
-	AVStream* videoStream;
-	if (!(videoStream = avformat_new_stream(ofctx, codec)))
-	{
-		fprintf(stderr,
-		        "Failed to create a stream for %s\n.",
-		        destinationFilename.c_str());
-
-		// This is where something in a longer lived app would cleanup the
-		// oformat, ofctx, and codec previously allocated. I'm going to stop
-		// doing these, you get it.
-		return 1;
-	}
-
-	// Similar to AVOutputFormat and AVFormatContext, the codec needs an
-	// instance/"context" to store data specific to this run.
-	AVCodecContext* cctx = nullptr;
-	if (!(cctx = avcodec_alloc_context3(codec)))
-	{
-		fprintf(stderr,
-		        "Failed to allocate codec context for %s\n.",
-		        destinationFilename.c_str());
-		// Cleanup you swine...
-		return 1;
-	}
-
-	// Coooool we made it this far! We can now start initializing the video
-	// stream to use the right codec we figured out.
-
-	// Ok we should have some more optional params for these:
-	int bitrate = 400;
-	int fps = extractor->animation->fps();
-	int videoWidth = (int)extractor->artboard->width();
-	int videoHeight = (int)extractor->artboard->height();
-
-	videoStream->codecpar->codec_id = oformat->video_codec;
-	videoStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
-	videoStream->codecpar->width = videoWidth;
-	videoStream->codecpar->height = videoHeight;
-	videoStream->codecpar->format = AV_PIX_FMT_YUV420P;
-	videoStream->codecpar->bit_rate = bitrate * 1000;
-	videoStream->time_base = {1, fps};
-
-	// Yeah so these are just some numbers that work, we'll probably want to
-	// fine tune these...
-	avcodec_parameters_to_context(cctx, videoStream->codecpar);
-	cctx->time_base = {1, fps};
-	cctx->max_b_frames = 2;
-	cctx->gop_size = 12;
-	if (videoStream->codecpar->codec_id == AV_CODEC_ID_H264)
-	{
-		// Set the H264 preset to shite but fast, I guess?
-		av_opt_set(cctx, "preset", "ultrafast", 0);
-	}
-	else if (videoStream->codecpar->codec_id == AV_CODEC_ID_H265)
-	{
-		// More beauty
-		av_opt_set(cctx, "preset", "ultrafast", 0);
-	}
-
-	// OK! Finally set the parameters on the stream from the codec context we
-	// just fucked with.
-	avcodec_parameters_from_context(videoStream->codecpar, cctx);
-
-	if ((err = avcodec_open2(cctx, codec, NULL)) < 0)
-	{
-		fprintf(stderr, "Failed to open codec %i\n", err);
-		// Cleanup crew...
-		return 1;
-	}
-
-	// Finally open the file! Interesting step here, I guess some files can just
-	// record to memory or something, so they don't actually need a file to
-	// open io.
-	if (!(oformat->flags & AVFMT_NOFILE))
-	{
-		if ((err = avio_open(
-		         &ofctx->pb, destinationFilename.c_str(), AVIO_FLAG_WRITE)) < 0)
-		{
-			fprintf(stderr,
-			        "Failed to open file %s with error %i\n",
-			        destinationFilename.c_str(),
-			        err);
-			// You know what to do...
-			return 1;
-		}
-	}
-
-	// Header time...
-	if ((err = avformat_write_header(ofctx, NULL)) < 0)
-	{
-		fprintf(stderr, "Failed to write header %i\n", err);
-		return 1;
-	}
-
-	// Write the format into the header...
-	av_dump_format(ofctx, 0, destinationFilename.c_str(), 1);
-
-	// ALRIGHT! At this point we're ready to start adding frames!
-
-	// Init some ffmpeg data to hold our encoded frames (convert them to the
-	// right format).
-	AVFrame* videoFrame = av_frame_alloc();
-	videoFrame->format = AV_PIX_FMT_YUV420P;
-	videoFrame->width = cctx->width;
-	videoFrame->height = cctx->height;
-	if ((err = av_frame_get_buffer(videoFrame, 32)) < 0)
-	{
-		fprintf(
-		    stderr, "Failed to allocate buffer for frame with error %i\n", err);
+		std::cout << e.what();
 		return 1;
 	}
 
 	// Init a software scaler to do the conversion.
-	SwsContext* swsCtx = sws_getContext(cctx->width,
-	                                    cctx->height,
+	SwsContext* swsCtx = sws_getContext(writer->cctx->width,
+	                                    writer->cctx->height,
 	                                    AV_PIX_FMT_RGBA,
-	                                    cctx->width,
-	                                    cctx->height,
+	                                    writer->cctx->width,
+	                                    writer->cctx->height,
 	                                    AV_PIX_FMT_YUV420P,
 	                                    SWS_BICUBIC,
 	                                    0,
 	                                    0,
 	                                    0);
 
-	sk_sp<SkSurface> rasterSurface =
-	    SkSurface::MakeRasterN32Premul(cctx->width, cctx->height);
+	sk_sp<SkSurface> rasterSurface = SkSurface::MakeRasterN32Premul(
+	    writer->cctx->width, writer->cctx->height);
 	SkCanvas* rasterCanvas = rasterSurface->getCanvas();
 
 	rive::SkiaRenderer renderer(rasterCanvas);
@@ -423,14 +431,16 @@ int main(int argc, char* argv[])
 	// We should also respect the work area here... we're just exporting the
 	// entire animation for now.
 	int totalFrames = extractor->animation->duration();
-	float ifps = 1.0 / fps;
+	float ifps = 1.0 / extractor->animation->fps();
+	auto videoFrame = writer->get_av_frame();
 	for (int i = 0; i < totalFrames; i++)
 	{
 		renderer.save();
-		renderer.align(rive::Fit::cover,
-		               rive::Alignment::center,
-		               rive::AABB(0, 0, cctx->width, cctx->height),
-		               extractor->artboard->bounds());
+		renderer.align(
+		    rive::Fit::cover,
+		    rive::Alignment::center,
+		    rive::AABB(0, 0, writer->cctx->width, writer->cctx->height),
+		    extractor->artboard->bounds());
 		extractor->animation->apply(extractor->artboard, i * ifps);
 		extractor->artboard->advance(0.0f);
 		extractor->artboard->draw(&renderer);
@@ -440,8 +450,8 @@ int main(int argc, char* argv[])
 			watermarkPaint.setBlendMode(SkBlendMode::kDifference);
 			rasterCanvas->drawImage(
 			    extractor->watermarkImage,
-			    cctx->width - extractor->watermarkImage->width() - 20,
-			    cctx->height - extractor->watermarkImage->height() - 20,
+			    writer->cctx->width - extractor->watermarkImage->width() - 20,
+			    writer->cctx->height - extractor->watermarkImage->height() - 20,
 			    &watermarkPaint);
 		}
 		renderer.restore();
@@ -465,7 +475,7 @@ int main(int argc, char* argv[])
 		// optimize by having skia render RGB only since we discard the A anwyay
 		// and I don't think we're compositing anything where it would matter to
 		// have the alpha buffer.
-		int inLinesize[1] = {4 * cctx->width};
+		int inLinesize[1] = {4 * writer->cctx->width};
 		// Get the address to the first pixel (addr8 will assert in debug mode
 		// as Skia only wants you to use that with 8 bit surfaces).
 		auto pixelData = pixels.addr(0, 0);
@@ -475,7 +485,7 @@ int main(int argc, char* argv[])
 		          (const uint8_t* const*)&pixelData,
 		          inLinesize,
 		          0,
-		          cctx->height,
+		          writer->cctx->height,
 		          videoFrame->data,
 		          videoFrame->linesize);
 
@@ -485,8 +495,10 @@ int main(int argc, char* argv[])
 		// incrementing but there's some extra voodoo where it won't work if you
 		// just use the frame number. I used to understand this stuf...
 		videoFrame->pts =
-		    i * videoStream->time_base.den / (videoStream->time_base.num * fps);
-		if ((err = avcodec_send_frame(cctx, videoFrame)) < 0)
+		    i * writer->videoStream->time_base.den /
+		    (writer->videoStream->time_base.num * extractor->animation->fps());
+		int err;
+		if ((err = avcodec_send_frame(writer->cctx, videoFrame)) < 0)
 		{
 			fprintf(stderr, "Failed to send frame %i\n", err);
 			return 1;
@@ -498,10 +510,10 @@ int main(int argc, char* argv[])
 		pkt.data = nullptr;
 		pkt.size = 0;
 
-		if (avcodec_receive_packet(cctx, &pkt) == 0)
+		if (avcodec_receive_packet(writer->cctx, &pkt) == 0)
 		{
 			pkt.flags |= AV_PKT_FLAG_KEY;
-			av_interleaved_write_frame(ofctx, &pkt);
+			av_interleaved_write_frame(writer->ofctx, &pkt);
 			av_packet_unref(&pkt);
 		}
 		printf(".");
@@ -519,10 +531,10 @@ int main(int argc, char* argv[])
 	{
 		printf("_");
 		fflush(stdout);
-		avcodec_send_frame(cctx, nullptr);
-		if (avcodec_receive_packet(cctx, &pkt) == 0)
+		avcodec_send_frame(writer->cctx, nullptr);
+		if (avcodec_receive_packet(writer->cctx, &pkt) == 0)
 		{
-			av_interleaved_write_frame(ofctx, &pkt);
+			av_interleaved_write_frame(writer->ofctx, &pkt);
 			av_packet_unref(&pkt);
 		}
 		else
@@ -533,10 +545,10 @@ int main(int argc, char* argv[])
 	printf(".\n");
 
 	// Write the footer (trailer?) woo!
-	av_write_trailer(ofctx);
-	if (!(oformat->flags & AVFMT_NOFILE))
+	av_write_trailer(writer->ofctx);
+	if (!(writer->oformat->flags & AVFMT_NOFILE))
 	{
-		int err = avio_close(ofctx->pb);
+		int err = avio_close(writer->ofctx->pb);
 		if (err < 0)
 		{
 			fprintf(stderr, "Failed to close file %i\n", err);
