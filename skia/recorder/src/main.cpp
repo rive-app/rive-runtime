@@ -1,4 +1,8 @@
 #include "main.hpp"
+#include <fstream>
+#include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 
 std::string getFileName(const char* path)
 {
@@ -37,7 +41,7 @@ rive::File* getRiveFile(const char* path)
 	auto length = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
-	// TODO: need to remove this?
+	// TODO: need to clean this up?
 	uint8_t* bytes = new uint8_t[length];
 
 	if (fread(bytes, 1, length, fp) != length)
@@ -55,6 +59,13 @@ rive::File* getRiveFile(const char* path)
 		    string_format("Failed to read bytes into Rive file %s", path));
 	}
 	return file;
+}
+
+inline bool file_exists(const std::string& name)
+{
+	// https://stackoverflow.com/questions/12774207/fastest-way-to-check-if-a-file-exist-using-standard-c-c11-c
+	struct stat buffer;
+	return (stat(name.c_str(), &buffer) == 0);
 }
 
 #ifdef TESTING
@@ -126,6 +137,7 @@ int main(int argc, char* argv[])
 
 	// Figure out which artboard to use.
 	rive::Artboard* artboard;
+
 	if (artboardOption)
 	{
 		auto artboardOptionName = args::get(artboardOption);
@@ -173,6 +185,26 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 	}
+
+	// Init skia surfaces to render to.
+	sk_sp<SkImage> watermarkImage;
+	if (watermarkOption)
+	{
+		auto watermarkFilename = args::get(watermarkOption);
+		if (!file_exists(watermarkFilename))
+		{
+			fprintf(stderr,
+			        "Watermark file cannot be found at %s.\n",
+			        watermarkFilename.c_str());
+			return 1;
+		}
+		if (auto data = SkData::MakeFromFileName(watermarkFilename.c_str()))
+		{
+			watermarkImage = SkImage::MakeFromEncoded(data);
+		}
+	}
+
+	//
 
 	// Cool, file's sane, let's start initializing the video recorder.
 	auto destinationFilename = args::get(destination);
@@ -347,17 +379,6 @@ int main(int argc, char* argv[])
 	                                    0,
 	                                    0,
 	                                    0);
-
-	// Init skia surfaces to render to.
-	sk_sp<SkImage> watermarkImage;
-	if (watermarkOption)
-	{
-		auto watermarkFilename = args::get(watermarkOption);
-		if (auto data = SkData::MakeFromFileName(watermarkFilename.c_str()))
-		{
-			watermarkImage = SkImage::MakeFromEncoded(data);
-		}
-	}
 
 	sk_sp<SkSurface> rasterSurface =
 	    SkSurface::MakeRasterN32Premul(cctx->width, cctx->height);
