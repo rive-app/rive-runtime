@@ -83,6 +83,8 @@ int main(int argc, char* argv[])
 	    {'a', "animation"});
 	args::ValueFlag<std::string> artboardOption(
 	    optional, "name", "artboard to draw from", {'t', "artboard"});
+	args::ValueFlag<std::string> watermarkOption(
+	    optional, "path", "watermark filename", {'w', "watermark"});
 	args::CompletionFlag completion(parser, {"complete"});
 	try
 	{
@@ -347,6 +349,15 @@ int main(int argc, char* argv[])
 	                                    0);
 
 	// Init skia surfaces to render to.
+	sk_sp<SkImage> watermarkImage;
+	if (watermarkOption)
+	{
+		auto watermarkFilename = args::get(watermarkOption);
+		if (auto data = SkData::MakeFromFileName(watermarkFilename.c_str()))
+		{
+			watermarkImage = SkImage::MakeFromEncoded(data);
+		}
+	}
 
 	sk_sp<SkSurface> rasterSurface =
 	    SkSurface::MakeRasterN32Premul(cctx->width, cctx->height);
@@ -368,6 +379,16 @@ int main(int argc, char* argv[])
 		animation->apply(artboard, i * ifps);
 		artboard->advance(0.0f);
 		artboard->draw(&renderer);
+		if (watermarkImage)
+		{
+			SkPaint watermarkPaint;
+			watermarkPaint.setBlendMode(SkBlendMode::kDifference);
+			rasterCanvas->drawImage(watermarkImage,
+			                        cctx->width - watermarkImage->width() - 20,
+			                        cctx->height - watermarkImage->height() -
+			                            20,
+			                        &watermarkPaint);
+		}
 		renderer.restore();
 
 		// After drawing the frame, grab the raw image data.
