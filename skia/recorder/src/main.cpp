@@ -28,45 +28,122 @@ std::string string_format(const std::string& format, Args... args)
 	                   buf.get() + size - 1); // We don't want the '\0' inside
 }
 
-rive::File* getRiveFile(const char* path)
-{
-	FILE* fp = fopen(path, "r");
-
-	if (fp == nullptr)
-	{
-		throw std::invalid_argument(
-		    string_format("Failed to open rive file %s", path));
-	}
-	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-
-	// TODO: need to clean this up?
-	uint8_t* bytes = new uint8_t[length];
-
-	if (fread(bytes, 1, length, fp) != length)
-	{
-		throw std::invalid_argument(
-		    string_format("Failed to read file into bytes array %s", path));
-	}
-
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
-	if (result != rive::ImportResult::success)
-	{
-		throw std::invalid_argument(
-		    string_format("Failed to read bytes into Rive file %s", path));
-	}
-	return file;
-}
-
+// QUESTION: inline looks fun. so this copy pastes the code around i guess, but
+// its considered faster than referencing code?
 inline bool file_exists(const std::string& name)
 {
 	// https://stackoverflow.com/questions/12774207/fastest-way-to-check-if-a-file-exist-using-standard-c-c11-c
 	struct stat buffer;
 	return (stat(name.c_str(), &buffer) == 0);
 }
+
+class RiveFrameExtractor
+{
+	rive::File* riveFile;
+
+public:
+	rive::Artboard* artboard;
+	rive::LinearAnimation* animation;
+	RiveFrameExtractor(const char* path,
+	                   const char* artboard_name,
+	                   const char* animation_name)
+	{
+		riveFile = getRiveFile(path);
+		artboard = getArtboard(artboard_name);
+		animation = getAnimation(animation_name);
+	};
+
+private:
+	rive::File* getRiveFile(const char* path)
+	{
+		FILE* fp = fopen(path, "r");
+
+		if (fp == nullptr)
+		{
+			throw std::invalid_argument(
+			    string_format("Failed to open file %s", path));
+		}
+		fseek(fp, 0, SEEK_END);
+		auto length = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+
+		// TODO: need to clean this up? how?!
+		uint8_t* bytes = new uint8_t[length];
+
+		if (fread(bytes, 1, length, fp) != length)
+		{
+			throw std::invalid_argument(
+			    string_format("Failed to read file into bytes array %s", path));
+		}
+
+		auto reader = rive::BinaryReader(bytes, length);
+		rive::File* file = nullptr;
+		auto result = rive::File::import(reader, &file);
+		if (result != rive::ImportResult::success)
+		{
+			throw std::invalid_argument(
+			    string_format("Failed to read bytes into Rive file %s", path));
+		}
+		return file;
+	}
+
+	rive::Artboard* getArtboard(const char* artboard_name)
+	{
+		// Figure out which artboard to use.
+		rive::Artboard* artboard;
+
+		// QUESTION: better to keep this logic in the main? or pass the flag in
+		// here, so we can bool check if the flag is set or not? what happens if
+		// we try to target the artboard '' otherwise?
+		if (artboard_name != NULL && artboard_name[0] != '\0')
+		{
+			if ((artboard = riveFile->artboard(artboard_name)) == nullptr)
+			{
+				throw std::invalid_argument(
+				    string_format("File doesn't contain an artboard named %s.",
+				                  artboard_name));
+			}
+		}
+		else
+		{
+			artboard = riveFile->artboard();
+			if (artboard == nullptr)
+			{
+				throw std::invalid_argument(
+				    string_format("File doesn't contain an default artboard.",
+				                  artboard_name));
+			}
+		}
+		return artboard;
+	}
+
+	rive::LinearAnimation* getAnimation(const char* animation_name)
+	{
+		// Figure out which animation to use.
+		rive::LinearAnimation* animation;
+		if (animation_name != NULL && animation_name[0] != '\0')
+		{
+			if ((animation = artboard->animation<rive::LinearAnimation>(
+			         animation_name)) == nullptr)
+			{
+
+				fprintf(stderr,
+				        "Artboard doesn't contain an animation named %s.\n",
+				        animation_name);
+			}
+		}
+		else
+		{
+			animation = artboard->firstAnimation<rive::LinearAnimation>();
+			if (animation == nullptr)
+			{
+				throw std::invalid_argument(string_format(
+				    "Artboard doesn't contain a default animation."));
+			}
+		}
+		return animation;
+	};
+};
 
 #ifdef TESTING
 #else
@@ -124,66 +201,17 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	rive::File* file;
+	RiveFrameExtractor* extractor;
 	try
 	{
-		file = getRiveFile(args::get(source).c_str());
+		extractor = new RiveFrameExtractor(args::get(source).c_str(),
+		                                   args::get(artboardOption).c_str(),
+		                                   args::get(animationOption).c_str());
 	}
 	catch (const std::invalid_argument e)
 	{
 		std::cout << e.what();
 		return 1;
-	}
-
-	// Figure out which artboard to use.
-	rive::Artboard* artboard;
-
-	if (artboardOption)
-	{
-		auto artboardOptionName = args::get(artboardOption);
-		if ((artboard = file->artboard(artboardOptionName)) == nullptr)
-		{
-
-			fprintf(stderr,
-			        "File doesn't contain an artboard named %s.\n",
-			        artboardOptionName.c_str());
-			return 1;
-		}
-	}
-	else
-	{
-		artboard = file->artboard();
-		if (artboard == nullptr)
-		{
-			fprintf(stderr, "File doesn't contain a default artboard.\n");
-			return 1;
-		}
-	}
-
-	// Figure out which animation to use.
-	rive::LinearAnimation* animation;
-	if (animationOption)
-	{
-		auto animationOptionName = args::get(animationOption);
-
-		if ((animation = artboard->animation<rive::LinearAnimation>(
-		         animationOptionName)) == nullptr)
-		{
-
-			fprintf(stderr,
-			        "Artboard doesn't contain an animation named %s.\n",
-			        animationOptionName.c_str());
-			return 1;
-		}
-	}
-	else
-	{
-		animation = artboard->firstAnimation<rive::LinearAnimation>();
-		if (animation == nullptr)
-		{
-			fprintf(stderr, "Artboard doesn't contain a default animation.\n");
-			return 1;
-		}
 	}
 
 	// Init skia surfaces to render to.
@@ -203,8 +231,6 @@ int main(int argc, char* argv[])
 			watermarkImage = SkImage::MakeFromEncoded(data);
 		}
 	}
-
-	//
 
 	// Cool, file's sane, let's start initializing the video recorder.
 	auto destinationFilename = args::get(destination);
@@ -286,9 +312,9 @@ int main(int argc, char* argv[])
 
 	// Ok we should have some more optional params for these:
 	int bitrate = 400;
-	int fps = animation->fps();
-	int videoWidth = (int)artboard->width();
-	int videoHeight = (int)artboard->height();
+	int fps = extractor->animation->fps();
+	int videoWidth = (int)extractor->artboard->width();
+	int videoHeight = (int)extractor->artboard->height();
 
 	videoStream->codecpar->codec_id = oformat->video_codec;
 	videoStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
@@ -388,7 +414,7 @@ int main(int argc, char* argv[])
 
 	// We should also respect the work area here... we're just exporting the
 	// entire animation for now.
-	int totalFrames = animation->duration();
+	int totalFrames = extractor->animation->duration();
 	float ifps = 1.0 / fps;
 	for (int i = 0; i < totalFrames; i++)
 	{
@@ -396,10 +422,10 @@ int main(int argc, char* argv[])
 		renderer.align(rive::Fit::cover,
 		               rive::Alignment::center,
 		               rive::AABB(0, 0, cctx->width, cctx->height),
-		               artboard->bounds());
-		animation->apply(artboard, i * ifps);
-		artboard->advance(0.0f);
-		artboard->draw(&renderer);
+		               extractor->artboard->bounds());
+		extractor->animation->apply(extractor->artboard, i * ifps);
+		extractor->artboard->advance(0.0f);
+		extractor->artboard->draw(&renderer);
 		if (watermarkImage)
 		{
 			SkPaint watermarkPaint;
