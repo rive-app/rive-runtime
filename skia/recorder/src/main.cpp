@@ -44,16 +44,40 @@ class RiveFrameExtractor
 public:
 	rive::Artboard* artboard;
 	rive::LinearAnimation* animation;
+	sk_sp<SkImage> watermarkImage;
 	RiveFrameExtractor(const char* path,
 	                   const char* artboard_name,
-	                   const char* animation_name)
+	                   const char* animation_name,
+	                   const char* watermark_name)
 	{
 		riveFile = getRiveFile(path);
 		artboard = getArtboard(artboard_name);
 		animation = getAnimation(animation_name);
+		watermarkImage = getWaterMark(watermark_name);
 	};
 
 private:
+	sk_sp<SkImage> getWaterMark(const char* watermark_name)
+	{
+		// Init skia surfaces to render to.
+		sk_sp<SkImage> watermarkImage;
+		if (watermark_name != NULL && watermark_name[0] != '\0')
+		{
+
+			if (!file_exists(watermark_name))
+			{
+				throw std::invalid_argument(
+				    string_format("Cannot find file containing watermark at %s",
+				                  watermark_name));
+			}
+			if (auto data = SkData::MakeFromFileName(watermark_name))
+			{
+				watermarkImage = SkImage::MakeFromEncoded(data);
+			}
+		}
+		return watermarkImage;
+	}
+
 	rive::File* getRiveFile(const char* path)
 	{
 		FILE* fp = fopen(path, "r");
@@ -95,6 +119,7 @@ private:
 		// QUESTION: better to keep this logic in the main? or pass the flag in
 		// here, so we can bool check if the flag is set or not? what happens if
 		// we try to target the artboard '' otherwise?
+		//
 		if (artboard_name != NULL && artboard_name[0] != '\0')
 		{
 			if ((artboard = riveFile->artboard(artboard_name)) == nullptr)
@@ -206,30 +231,13 @@ int main(int argc, char* argv[])
 	{
 		extractor = new RiveFrameExtractor(args::get(source).c_str(),
 		                                   args::get(artboardOption).c_str(),
-		                                   args::get(animationOption).c_str());
+		                                   args::get(animationOption).c_str(),
+		                                   args::get(watermarkOption).c_str());
 	}
 	catch (const std::invalid_argument e)
 	{
 		std::cout << e.what();
 		return 1;
-	}
-
-	// Init skia surfaces to render to.
-	sk_sp<SkImage> watermarkImage;
-	if (watermarkOption)
-	{
-		auto watermarkFilename = args::get(watermarkOption);
-		if (!file_exists(watermarkFilename))
-		{
-			fprintf(stderr,
-			        "Watermark file cannot be found at %s.\n",
-			        watermarkFilename.c_str());
-			return 1;
-		}
-		if (auto data = SkData::MakeFromFileName(watermarkFilename.c_str()))
-		{
-			watermarkImage = SkImage::MakeFromEncoded(data);
-		}
 	}
 
 	// Cool, file's sane, let's start initializing the video recorder.
@@ -426,15 +434,15 @@ int main(int argc, char* argv[])
 		extractor->animation->apply(extractor->artboard, i * ifps);
 		extractor->artboard->advance(0.0f);
 		extractor->artboard->draw(&renderer);
-		if (watermarkImage)
+		if (extractor->watermarkImage)
 		{
 			SkPaint watermarkPaint;
 			watermarkPaint.setBlendMode(SkBlendMode::kDifference);
-			rasterCanvas->drawImage(watermarkImage,
-			                        cctx->width - watermarkImage->width() - 20,
-			                        cctx->height - watermarkImage->height() -
-			                            20,
-			                        &watermarkPaint);
+			rasterCanvas->drawImage(
+			    extractor->watermarkImage,
+			    cctx->width - extractor->watermarkImage->width() - 20,
+			    cctx->height - extractor->watermarkImage->height() - 20,
+			    &watermarkPaint);
 		}
 		renderer.restore();
 
