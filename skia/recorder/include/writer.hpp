@@ -1,3 +1,6 @@
+#ifndef WRITER_HPP
+#define WRITER_HPP
+
 #include "SkData.h"
 #include "SkImage.h"
 #include "SkStream.h"
@@ -10,6 +13,7 @@
 #include "file.hpp"
 #include "math/aabb.hpp"
 #include "skia_renderer.hpp"
+#include "util.hxx"
 #include <cstdio>
 #include <iostream>
 #include <memory>
@@ -42,3 +46,23 @@ extern "C"
 
 #include <libswscale/swscale.h>
 }
+
+class MovieWriter
+{
+public:
+	AVCodecContext* cctx;
+	AVStream* videoStream;
+	AVOutputFormat* oformat;
+	AVFormatContext* ofctx;
+	AVCodec* codec;
+	MovieWriter(const char* _destination, int _width, int _height, int _fps);
+	AVFrame* get_av_frame();
+
+private:
+	const char* destinationFilename;
+	void initialize();
+	int width, height, fps;
+	int bitrate = 400;
+};
+
+#endif
