@@ -18,6 +18,8 @@ public:
 	                   const char* artboard_name,
 	                   const char* animation_name,
 	                   const char* watermark_name);
+	int width() { return artboard->width(); };
+	int height() { return artboard->height(); };
 
 private:
 	rive::File* riveFile;

@@ -50,17 +50,22 @@ extern "C"
 class MovieWriter
 {
 public:
+	MovieWriter(const char* _destination, int _width, int _height, int _fps);
+	void writeFrame(int frameNumber, const uint8_t* const* pixelData);
+	void writeHeader();
+	void finalize();
+
+private:
+	AVFrame* videoFrame;
 	AVCodecContext* cctx;
 	AVStream* videoStream;
 	AVOutputFormat* oformat;
 	AVFormatContext* ofctx;
 	AVCodec* codec;
-	MovieWriter(const char* _destination, int _width, int _height, int _fps);
-	AVFrame* get_av_frame();
-
-private:
+	SwsContext* swsCtx;
 	const char* destinationFilename;
 	void initialize();
+	void initialise_av_frame();
 	int width, height, fps;
 	int bitrate = 400;
 };

@@ -56,21 +56,20 @@ MovieWriter::MovieWriter(const char* _destination,
 	initialize();
 };
 
-AVFrame* MovieWriter::get_av_frame()
+void MovieWriter::initialise_av_frame()
 {
 	// Init some ffmpeg data to hold our encoded frames (convert them to the
 	// right format).
-	AVFrame* videoFrame = av_frame_alloc();
+	videoFrame = av_frame_alloc();
 	videoFrame->format = AV_PIX_FMT_YUV420P;
-	videoFrame->width = cctx->width;
-	videoFrame->height = cctx->height;
+	videoFrame->width = width;
+	videoFrame->height = height;
 	int err;
 	if ((err = av_frame_get_buffer(videoFrame, 32)) < 0)
 	{
 		throw std::invalid_argument(string_format(
 		    "Failed to allocate buffer for frame with error %i\n", err));
 	}
-	return videoFrame;
 };
 
 void MovieWriter::initialize()
@@ -161,16 +160,22 @@ void MovieWriter::initialize()
 		throw std::invalid_argument(
 		    string_format("Failed to open codec %i\n", destinationFilename));
 	}
+	initialise_av_frame();
+}
 
+void MovieWriter::writeHeader()
+{
 	// Finally open the file! Interesting step here, I guess some files can
 	// just record to memory or something, so they don't actually need a
 	// file to open io.
 	if (!(oformat->flags & AVFMT_NOFILE))
 	{
-		if (avio_open(&ofctx->pb, destinationFilename, AVIO_FLAG_WRITE) < 0)
+		int err;
+		if ((err = avio_open(
+		         &ofctx->pb, destinationFilename, AVIO_FLAG_WRITE)) < 0)
 		{
-			throw std::invalid_argument(string_format(
-			    "Failed to open file %s with error %i\n", destinationFilename));
+			throw std::invalid_argument(
+			    string_format("Failed to open file %s with error %i\n", err));
 		}
 	}
 
@@ -183,4 +188,104 @@ void MovieWriter::initialize()
 
 	// Write the format into the header...
 	av_dump_format(ofctx, 0, destinationFilename, 1);
+
+	// Init a software scaler to do the conversion.
+	// TODO: how should this work. do we just flat out take the input
+	// dimensions, the artboard, or do we render and scale differently here?
+	swsCtx = sws_getContext(width,
+	                        height,
+	                        AV_PIX_FMT_RGBA,
+	                        width,
+	                        height,
+	                        AV_PIX_FMT_YUV420P,
+	                        SWS_BICUBIC,
+	                        0,
+	                        0,
+	                        0);
+};
+
+void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
+{
+	// Ok some assumptions about channels here should be ok as our backing
+	// Skia surface is RGBA (I think that's the N32 means). We could try to
+	// optimize by having skia render RGB only since we discard the A anwyay
+	// and I don't think we're compositing anything where it would matter to
+	// have the alpha buffer.
+
+	int inLinesize[1] = {4 * width};
+	sws_scale(swsCtx,
+	          pixelData,
+	          inLinesize,
+	          0,
+	          height,
+	          videoFrame->data,
+	          videoFrame->linesize);
+
+	// This was kind of a guess... works ok (time seems to elapse properly
+	// when playing back and durations look right). PTS is still somewhat of
+	// a mystery to me, I think it just needs to be monotonically
+	// incrementing but there's some extra voodoo where it won't work if you
+	// just use the frame number. I used to understand this stuf...
+	videoFrame->pts = frameNumber * videoStream->time_base.den /
+	                  (videoStream->time_base.num * fps);
+	int err;
+	if ((err = avcodec_send_frame(cctx, videoFrame)) < 0)
+	{
+		throw std::invalid_argument(
+		    string_format("Failed to send frame %i\n", err));
+	}
+
+	// Send off the packet to the encoder...
+	AVPacket pkt;
+	av_init_packet(&pkt);
+	pkt.data = nullptr;
+	pkt.size = 0;
+
+	if (avcodec_receive_packet(cctx, &pkt) == 0)
+	{
+		pkt.flags |= AV_PKT_FLAG_KEY;
+		av_interleaved_write_frame(ofctx, &pkt);
+		av_packet_unref(&pkt);
+	}
+
+	fflush(stdout);
+	printf(".");
+}
+
+void MovieWriter::finalize()
+{
+	// Encode any delayed frames accumulated...
+	AVPacket pkt;
+	av_init_packet(&pkt);
+	pkt.data = nullptr;
+	pkt.size = 0;
+
+	for (;;)
+	{
+		printf("_");
+		fflush(stdout);
+		avcodec_send_frame(cctx, nullptr);
+		if (avcodec_receive_packet(cctx, &pkt) == 0)
+		{
+			av_interleaved_write_frame(ofctx, &pkt);
+			av_packet_unref(&pkt);
+		}
+		else
+		{
+			break;
+		}
+	}
+	printf(".\n");
+
+	// Write the footer (trailer?) woo!
+	av_write_trailer(ofctx);
+	if (!(oformat->flags & AVFMT_NOFILE))
+	{
+		int err = avio_close(ofctx->pb);
+		if (err < 0)
+		{
+			throw std::invalid_argument(
+			    string_format("Failed to close file %i\n", err));
+		}
+	}
 }
