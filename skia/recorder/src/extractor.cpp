@@ -1,8 +1,4 @@
 #include "extractor.hpp"
-#include "SkImage.h"
-#include "animation/linear_animation.hpp"
-#include "artboard.hpp"
-#include "file.hpp"
 
 RiveFrameExtractor::RiveFrameExtractor(const char* path,
                                        const char* artboard_name,
@@ -13,6 +9,9 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
 	artboard = getArtboard(artboard_name);
 	animation = getAnimation(animation_name);
 	watermarkImage = getWaterMark(watermark_name);
+	rasterSurface = SkSurface::MakeRasterN32Premul(width(), height());
+	rasterCanvas = rasterSurface->getCanvas();
+	ifps = 1.0 / animation->fps();
 };
 
 sk_sp<SkImage> RiveFrameExtractor::getWaterMark(const char* watermark_name)
@@ -123,4 +122,46 @@ RiveFrameExtractor::getAnimation(const char* animation_name)
 		}
 	}
 	return animation;
+};
+
+const void* RiveFrameExtractor::getFrame(int i)
+{
+	// hmm "no deafault constructor exists bla bla... "
+	rive::SkiaRenderer renderer(rasterCanvas);
+
+	renderer.save();
+	renderer.align(rive::Fit::cover,
+	               rive::Alignment::center,
+	               rive::AABB(0, 0, width(), height()),
+	               artboard->bounds());
+	animation->apply(artboard, i * ifps);
+	artboard->advance(0.0f);
+	artboard->draw(&renderer);
+	if (watermarkImage)
+	{
+		SkPaint watermarkPaint;
+		watermarkPaint.setBlendMode(SkBlendMode::kDifference);
+		rasterCanvas->drawImage(watermarkImage,
+		                        width() - watermarkImage->width() - 20,
+		                        height() - watermarkImage->height() - 20,
+		                        &watermarkPaint);
+	}
+	renderer.restore();
+
+	// After drawing the frame, grab the raw image data.
+	sk_sp<SkImage> img(rasterSurface->makeImageSnapshot());
+	if (!img)
+	{
+		throw std::invalid_argument(
+		    string_format("Cant generate image frame %i from riv file.", i));
+	}
+	SkPixmap pixels;
+	if (!img->peekPixels(&pixels))
+	{
+		string_format("Failed to peek at the pixel buffer for frame %i\n", i);
+	}
+
+	// Get the address to the first pixel (addr8 will assert in debug mode
+	// as Skia only wants you to use that with 8 bit surfaces).
+	return pixels.addr(0, 0);
 };

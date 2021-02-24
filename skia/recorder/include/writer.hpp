@@ -1,18 +1,6 @@
 #ifndef WRITER_HPP
 #define WRITER_HPP
 
-#include "SkData.h"
-#include "SkImage.h"
-#include "SkStream.h"
-#include "SkSurface.h"
-#include "animation/animation.hpp"
-#include "animation/linear_animation.hpp"
-#include "args.hxx"
-#include "artboard.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
-#include "math/aabb.hpp"
-#include "skia_renderer.hpp"
 #include "util.hxx"
 #include <cstdio>
 #include <iostream>

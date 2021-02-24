@@ -89,61 +89,14 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	sk_sp<SkSurface> rasterSurface =
-	    SkSurface::MakeRasterN32Premul(extractor->width(), extractor->height());
-	SkCanvas* rasterCanvas = rasterSurface->getCanvas();
-
-	rive::SkiaRenderer renderer(rasterCanvas);
-
 	// We should also respect the work area here... we're just exporting the
 	// entire animation for now.
 	int totalFrames = extractor->animation->duration();
-	float ifps = 1.0 / extractor->animation->fps();
 
 	writer->writeHeader();
 	for (int i = 0; i < totalFrames; i++)
 	{
-		renderer.save();
-		renderer.align(
-		    rive::Fit::cover,
-		    rive::Alignment::center,
-		    rive::AABB(0, 0, extractor->width(), extractor->height()),
-		    extractor->artboard->bounds());
-		extractor->animation->apply(extractor->artboard, i * ifps);
-		extractor->artboard->advance(0.0f);
-		extractor->artboard->draw(&renderer);
-		if (extractor->watermarkImage)
-		{
-			SkPaint watermarkPaint;
-			watermarkPaint.setBlendMode(SkBlendMode::kDifference);
-			rasterCanvas->drawImage(
-			    extractor->watermarkImage,
-			    extractor->width() - extractor->watermarkImage->width() - 20,
-			    extractor->height() - extractor->watermarkImage->height() - 20,
-			    &watermarkPaint);
-		}
-		renderer.restore();
-
-		// After drawing the frame, grab the raw image data.
-		sk_sp<SkImage> img(rasterSurface->makeImageSnapshot());
-		if (!img)
-		{
-			return 1;
-		}
-		SkPixmap pixels;
-		if (!img->peekPixels(&pixels))
-		{
-			fprintf(
-			    stderr, "Failed to peek at the pixel buffer for frame %i\n", i);
-			return 1;
-		}
-
-		// Get the address to the first pixel (addr8 will assert in debug mode
-		// as Skia only wants you to use that with 8 bit surfaces).
-		auto pixelData = pixels.addr(0, 0);
-
-		// Run the software "scaler" really just convert from RGBA to YUV
-		// here.
+		auto pixelData = extractor->getFrame(i);
 		writer->writeFrame(i, (const uint8_t* const*)&pixelData);
 	}
 	writer->finalize();
