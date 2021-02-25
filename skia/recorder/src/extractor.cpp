@@ -8,6 +8,7 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
 	riveFile = getRiveFile(path);
 	artboard = getArtboard(artboard_name);
 	animation = getAnimation(animation_name);
+	animation_instance = new rive::LinearAnimationInstance(animation);
 	watermarkImage = getWaterMark(watermark_name);
 	rasterSurface = SkSurface::MakeRasterN32Premul(width(), height());
 	rasterCanvas = rasterSurface->getCanvas();
@@ -134,7 +135,8 @@ const void* RiveFrameExtractor::getFrame(int i)
 	               rive::Alignment::center,
 	               rive::AABB(0, 0, width(), height()),
 	               artboard->bounds());
-	animation->apply(artboard, i * ifps);
+	animation_instance->advance(ifps);
+	animation_instance->apply(artboard);
 	artboard->advance(0.0f);
 	artboard->draw(&renderer);
 	if (watermarkImage)
