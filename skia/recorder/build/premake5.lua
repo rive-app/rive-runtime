@@ -19,7 +19,6 @@ includedirs {
     "../include",
     "../../../include",
     "../../renderer/include",
-    "../../dependencies/glfw/include",
     "../../dependencies/skia",
     "../../dependencies/skia/include/core",
     "../../dependencies/skia/include/effects",
@@ -27,49 +26,72 @@ includedirs {
     "../../dependencies/skia/include/config",
     "../../dependencies/FFmpeg",
     "../../dependencies/x264/include",
-    "/usr/local/include"
+    "/usr/local/include",
+    "/usr/include",
 }
 
-links {
-    "AudioToolbox.framework",
-    "AudioUnit.framework",
-    "avcodec",
-    "avformat",
-    "avutil",
-    "bz2",
-    "Cocoa.framework",
-    "CoreFoundation.framework",
-    "CoreMedia.framework",
-    "CoreServices.framework",
-    "CoreVideo.framework",
-    "glfw3",
-    "iconv",
-    "IOKit.framework",
-    "lzma",
-    "m",
-    "rive_skia_renderer",
-    "rive",
-    "Security.framework",
-    "skia",
-    "swresample",
-    "swscale",
-    "VideoToolbox.framework",
-    "x264",
-    "z",
-}
+if os.host() == 'macosx' then 
+    links {
+        "AudioToolbox.framework",
+        "AudioUnit.framework",
+        "Cocoa.framework",
+        "CoreFoundation.framework",
+        "CoreMedia.framework",
+        "CoreServices.framework",
+        "CoreVideo.framework",
+        "IOKit.framework",
+        "Security.framework",
+        "VideoToolbox.framework",
+        "avcodec",
+        "avformat",
+        "avutil",
+        "bz2",
+        "iconv",
+        "lzma",
+        "rive_skia_renderer",
+        "rive",
+        "skia",
+        "swresample",
+        "swscale", -- lib av format 
+        "x264",
+        "z",  -- lib av format 
+    }
+else
+    links {
+        "avcodec",
+        "avformat",
+        "avfilter",
+        "avutil",
+        -- "bz2",
+        -- "iconv",
+        -- "lzma",
+        "m",
+        "rive_skia_renderer",
+        "rive",
+        "skia",
+        "swresample",
+        "swscale",
+        "x264",
+        "z",
+        "dl"
+    }
+end 
+
+
 
 libdirs {
     "../../../build/bin/%{cfg.buildcfg}",
     "../../dependencies/FFmpeg/libavcodec",
     "../../dependencies/FFmpeg/libavformat",
+    "../../dependencies/FFmpeg/libavfilter",
     "../../dependencies/FFmpeg/libavutil",
     "../../dependencies/FFmpeg/libswscale",
     "../../dependencies/FFmpeg/libswresample",
     "../../dependencies/x264/lib",
-    "../../dependencies/glfw_build/src",
     "../../dependencies/skia/out/Static",
     "../../renderer/build/bin/%{cfg.buildcfg}",
-    "/usr/local/lib"
+    "/usr/local/lib",
+    "/usr/lib",
 }
 
 files {"../src/**.cpp"}

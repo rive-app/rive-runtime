@@ -1,6 +1,8 @@
 #ifndef UTIL_HXX
 #define UTIL_HXX
 
+#include <memory>
+#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>

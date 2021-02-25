@@ -2,23 +2,24 @@
 
 set -e
 
+# Based on http://www.alamtechstuffs.com/ffmpegcompile_with_x264/
+
 FFMPEG_REPO=https://github.com/FFmpeg/FFmpeg
-FFMPEG_BRANCH=release/4.3
 
 # -----------------------------
-# Get & Build FFMPEG
+# Get & Build Skia
 # -----------------------------
-if [ ! -d ffmpeg ]; then
-	echo "Cloning ffmpeg."
+if [ ! -d FFmpeg ]; then
+	echo "Cloning FFmpeg."
     git clone $FFMPEG_REPO
-    git checkout $FFMPEG_BRANCH
 else
     echo "Already have FFmpeg, update it."
-    cd ffmpeg && git checkout $FFMPEG_BRANCH && git fetch && git pull
+    cd FFmpeg && git checkout master && git fetch && git pull
     cd ..
 fi
 
-# uh build it...
-# forget that for now...
-# brew install ffmpeg
-# brew install libav
+cd FFmpeg
+
+./configure --enable-gpl --enable-libx264 --enable-pthreads --enable-static --extra-cflags=-I../x264/include --extra-ldflags=-L../x264/lib --extra-libs=-ldl
+make
+cd ..
