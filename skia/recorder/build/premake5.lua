@@ -58,10 +58,11 @@ if os.host() == 'macosx' then
     }
 else
     links {
-        "avcodec",
         "avformat",
         "avfilter",
+        "avcodec",
         "avutil",
+        -- included in gc6?!
         -- "bz2",
         -- "iconv",
         -- "lzma",
@@ -76,8 +77,6 @@ else
         "dl"
     }
 end 
-
-
 
 libdirs {
     "../../../build/bin/%{cfg.buildcfg}",

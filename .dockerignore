@@ -1,0 +1,72 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# test builds
+dev/test/build/bin/*
+
+# aot snapshots
+dev/bin/*
+
+# Generated make files
+Makefile
+*.make
+
+# Dart stuff
+pubspec.lock
+.packages
+.dart_tool
+
+# OSX stuff
+*.DS_Store
+
+# Generated docs
+docs
+
+# Analysis results
+dev/analysis_report
+
+# Build directories
+build/bin
+
+# Skia dependencies
+skia/dependencies/skia
+skia/dependencies/glfw_build
+skia/dependencies/FFmpeg
+skia/dependencies/x264
+skia/renderer/build/bin
+skia/**/build/bin
+/skia/dependencies/glfw
+
+
+**/build/obj
+**/build/bin
