@@ -24,9 +24,6 @@ RUN /app/skia/dependencies/make_skia.sh
 ADD skia/dependencies/make_x264.sh  /app/skia/dependencies/make_x264.sh
 RUN /app/skia/dependencies/make_x264.sh
 
-# move once you cba to build everything again.
-RUN apt update && apt-get -y install vim
-
 # install ffmpeg
 ADD skia/dependencies/make_ffmpeg.sh  /app/skia/dependencies/make_ffmpeg.sh
 # this one is fun. :psyduck:
