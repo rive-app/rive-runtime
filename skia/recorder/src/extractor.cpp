@@ -10,7 +10,8 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
 	animation = getAnimation(animation_name);
 	animation_instance = new rive::LinearAnimationInstance(animation);
 	watermarkImage = getWaterMark(watermark_name);
-	rasterSurface = SkSurface::MakeRasterN32Premul(width(), height());
+	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
+	    width(), height(), kRGBA_8888_SkColorType, kPremul_SkAlphaType));
 	rasterCanvas = rasterSurface->getCanvas();
 	ifps = 1.0 / animation->fps();
 };
