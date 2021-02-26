@@ -12,22 +12,6 @@ MovieWriter::MovieWriter(const char* _destination,
 	initialize();
 };
 
-void MovieWriter::initialise_av_frame()
-{
-	// Init some ffmpeg data to hold our encoded frames (convert them to the
-	// right format).
-	videoFrame = av_frame_alloc();
-	videoFrame->format = AV_PIX_FMT_YUV420P;
-	videoFrame->width = width;
-	videoFrame->height = height;
-	int err;
-	if ((err = av_frame_get_buffer(videoFrame, 32)) < 0)
-	{
-		throw std::invalid_argument(string_format(
-		    "Failed to allocate buffer for frame with error %i\n", err));
-	}
-};
-
 void MovieWriter::initialize()
 {
 	// if init fails all this stuff needs cleaning up?
@@ -81,11 +65,28 @@ void MovieWriter::initialize()
 		                  destinationFilename));
 	}
 
+	// default to our friend yuv, mp4 is basically locked onto this.
+	pixel_format = AV_PIX_FMT_YUV420P;
+	if (oformat->video_codec == AV_CODEC_ID_GIF)
+	{
+		// for some reason we dont get anything actually animating here...
+		// we're getting the same frame over and over
+		pixel_format = AV_PIX_FMT_RGB8;
+
+		// I think these are the formats that should work here
+		// https://ffmpeg.org/doxygen/trunk/libavcodec_2gif_8c.html
+		//     .pix_fmts       = (const enum AVPixelFormat[]){
+		//     AV_PIX_FMT_RGB8, AV_PIX_FMT_BGR8, AV_PIX_FMT_RGB4_BYTE,
+		//     AV_PIX_FMT_BGR4_BYTE, AV_PIX_FMT_GRAY8, AV_PIX_FMT_PAL8,
+		//     AV_PIX_FMT_NONE
+		// },
+	}
+
 	videoStream->codecpar->codec_id = oformat->video_codec;
 	videoStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
 	videoStream->codecpar->width = width;
 	videoStream->codecpar->height = height;
-	videoStream->codecpar->format = AV_PIX_FMT_YUV420P;
+	videoStream->codecpar->format = pixel_format;
 	videoStream->codecpar->bit_rate = bitrate * 1000;
 	videoStream->time_base = {1, fps};
 
@@ -116,8 +117,24 @@ void MovieWriter::initialize()
 		throw std::invalid_argument(
 		    string_format("Failed to open codec %i\n", destinationFilename));
 	}
-	initialise_av_frame();
+	// initialise_av_frame();
 }
+
+void MovieWriter::initialise_av_frame()
+{
+	// Init some ffmpeg data to hold our encoded frames (convert them to the
+	// right format).
+	videoFrame = av_frame_alloc();
+	videoFrame->format = pixel_format;
+	videoFrame->width = width;
+	videoFrame->height = height;
+	int err;
+	if ((err = av_frame_get_buffer(videoFrame, 32)) < 0)
+	{
+		throw std::invalid_argument(string_format(
+		    "Failed to allocate buffer for frame with error %i\n", err));
+	}
+};
 
 void MovieWriter::writeHeader()
 {
@@ -146,14 +163,13 @@ void MovieWriter::writeHeader()
 	av_dump_format(ofctx, 0, destinationFilename, 1);
 
 	// Init a software scaler to do the conversion.
-	// TODO: how should this work. do we just flat out take the input
-	// dimensions, the artboard, or do we render and scale differently here?
 	swsCtx = sws_getContext(width,
 	                        height,
+	                        // avcodec_default_get_format(cctx, &format),
 	                        AV_PIX_FMT_RGBA,
 	                        width,
 	                        height,
-	                        AV_PIX_FMT_YUV420P,
+	                        pixel_format,
 	                        SWS_BICUBIC,
 	                        0,
 	                        0,
@@ -167,7 +183,7 @@ void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
 	// optimize by having skia render RGB only since we discard the A anwyay
 	// and I don't think we're compositing anything where it would matter to
 	// have the alpha buffer.
-
+	initialise_av_frame();
 	int inLinesize[1] = {4 * width};
 
 	// Run the software "scaler" really just convert from RGBA to YUV
@@ -184,9 +200,10 @@ void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
 	// when playing back and durations look right). PTS is still somewhat of
 	// a mystery to me, I think it just needs to be monotonically
 	// incrementing but there's some extra voodoo where it won't work if you
-	// just use the frame number. I used to understand this stuf...
+	// just use the frame number. I used to understand this stuff...
 	videoFrame->pts = frameNumber * videoStream->time_base.den /
 	                  (videoStream->time_base.num * fps);
+
 	int err;
 	if ((err = avcodec_send_frame(cctx, videoFrame)) < 0)
 	{
@@ -199,14 +216,31 @@ void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
 	av_init_packet(&pkt);
 	pkt.data = nullptr;
 	pkt.size = 0;
-
-	if (avcodec_receive_packet(cctx, &pkt) == 0)
+	err = avcodec_receive_packet(cctx, &pkt);
+	if (err == 0)
 	{
-		pkt.flags |= AV_PKT_FLAG_KEY;
-		av_interleaved_write_frame(ofctx, &pkt);
+		// pkt.flags |= AV_PKT_FLAG_KEY;
+		// TODO: we should probably create a timebase, so we can convert to
+		// different time bases. i think our pts right now is only good for mp4
+		// av_packet_rescale_ts(&pkt, cctx->time_base, videoStream->time_base);
+		// pkt.stream_index = videoStream->index;
+
+		if (av_interleaved_write_frame(ofctx, &pkt) < 0)
+		{
+			printf("Potential issue detected.");
+		}
 		av_packet_unref(&pkt);
 	}
+	else
+	{
+		// delayed frames will cause errors, but they get picked up in finalize
+		// int ERROR_BUFSIZ = 1024;
+		// char* errorstring = new char[ERROR_BUFSIZ];
+		// av_strerror(err, errorstring, ERROR_BUFSIZ);
+		// printf(errorstring);
+	}
 
+	av_frame_free(&videoFrame);
 	fflush(stdout);
 	printf(".");
 }
@@ -226,6 +260,10 @@ void MovieWriter::finalize()
 		avcodec_send_frame(cctx, nullptr);
 		if (avcodec_receive_packet(cctx, &pkt) == 0)
 		{
+			// TODO: we should probably create a timebase, so we can convert to
+			// different time bases. i think our pts right now is only good for
+			// mp4 av_packet_rescale_ts(&pkt, cctx->time_base,
+			// videoStream->time_base); pkt.stream_index = videoStream->index;
 			av_interleaved_write_frame(ofctx, &pkt);
 			av_packet_unref(&pkt);
 		}

@@ -51,6 +51,7 @@ private:
 	AVFormatContext* ofctx;
 	AVCodec* codec;
 	SwsContext* swsCtx;
+	AVPixelFormat pixel_format;
 	const char* destinationFilename;
 	void initialize();
 	void initialise_av_frame();
