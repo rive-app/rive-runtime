@@ -41,7 +41,6 @@ extern "C"
 #include <libswscale/swscale.h>
 }
 
-#include "args.hxx"
 #include "extractor.hpp"
 #include "writer.hpp"
 #include <fstream>

@@ -1,5 +1,10 @@
 #include "extractor.hpp"
 
+// int RiveFrameExtractor::nextMultipleOf(float number, int multiple_of)
+// {
+// 	return std::ceil(number / multiple_of) * multiple_of;
+// }
+
 RiveFrameExtractor::RiveFrameExtractor(const char* path,
                                        const char* artboard_name,
                                        const char* animation_name,
@@ -92,7 +97,7 @@ rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name)
 		if (artboard == nullptr)
 		{
 			throw std::invalid_argument(string_format(
-			    "File doesn't contain an default artboard.", artboard_name));
+			    "File doesn't contain a default artboard.", artboard_name));
 		}
 	}
 	return artboard;

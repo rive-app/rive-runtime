@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "math/aabb.hpp"
 #include "skia_renderer.hpp"
+#include "util.hpp"
 #include "util.hxx"
 
 class RiveFrameExtractor
@@ -24,8 +25,8 @@ public:
 	                   const char* artboard_name,
 	                   const char* animation_name,
 	                   const char* watermark_name);
-	int width() { return artboard->width(); };
-	int height() { return artboard->height(); };
+	int width() { return nextMultipleOf(artboard->width(), 2); };
+	int height() { return nextMultipleOf(artboard->height(), 2); };
 	int fps() { return animation->fps(); };
 	int duration() { return animation->duration(); };
 	const void* getFrame(int i);

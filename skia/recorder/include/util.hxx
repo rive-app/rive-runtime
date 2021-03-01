@@ -1,6 +1,7 @@
 #ifndef UTIL_HXX
 #define UTIL_HXX
 
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
