@@ -1,22 +1,37 @@
 #include "extractor.hpp"
 
-// int RiveFrameExtractor::nextMultipleOf(float number, int multiple_of)
-// {
-// 	return std::ceil(number / multiple_of) * multiple_of;
-// }
+int valueOrDefault(int value, int default_value)
+{
+	if (value == 0)
+	{
+		return default_value;
+	}
+	return value;
+}
+
+int RiveFrameExtractor::width() { return _width; };
+int RiveFrameExtractor::height() { return _height; };
+int RiveFrameExtractor::fps() { return animation->fps(); };
+int RiveFrameExtractor::duration() { return animation->duration(); };
 
 RiveFrameExtractor::RiveFrameExtractor(const char* path,
                                        const char* artboard_name,
                                        const char* animation_name,
-                                       const char* watermark_name)
+                                       const char* watermark_name,
+                                       int width,
+                                       int height)
 {
+
 	riveFile = getRiveFile(path);
 	artboard = getArtboard(artboard_name);
+	_width = valueOrDefault(width, nextMultipleOf(artboard->width(), 2));
+	_height = valueOrDefault(height, nextMultipleOf(artboard->height(), 2));
 	animation = getAnimation(animation_name);
 	animation_instance = new rive::LinearAnimationInstance(animation);
 	watermarkImage = getWaterMark(watermark_name);
+
 	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-	    width(), height(), kRGBA_8888_SkColorType, kPremul_SkAlphaType));
+	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
 	rasterCanvas = rasterSurface->getCanvas();
 	ifps = 1.0 / animation->fps();
 };

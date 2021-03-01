@@ -24,14 +24,17 @@ public:
 	RiveFrameExtractor(const char* path,
 	                   const char* artboard_name,
 	                   const char* animation_name,
-	                   const char* watermark_name);
-	int width() { return nextMultipleOf(artboard->width(), 2); };
-	int height() { return nextMultipleOf(artboard->height(), 2); };
-	int fps() { return animation->fps(); };
-	int duration() { return animation->duration(); };
+	                   const char* watermark_name,
+	                   int width,
+	                   int height);
+	int width();
+	int height();
+	int fps();
+	int duration();
 	const void* getFrame(int i);
 
 private:
+	int _width, _height;
 	rive::File* riveFile;
 	float ifps;
 	sk_sp<SkImage> getWaterMark(const char* watermark_name);

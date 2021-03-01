@@ -74,8 +74,16 @@ int main(int argc, char* argv[])
 	args::ValueFlag<std::string> artboardOption(
 	    optional, "name", "artboard to draw from", {'t', "artboard"});
 	args::ValueFlag<std::string> watermarkOption(
-	    optional, "path", "watermark filename", {'w', "watermark"});
+	    optional, "path", "watermark filename", {'k', "watermark"});
+
+	args::ValueFlag<int> width(
+	    optional, "path", "container width", {'w', "width"}, 0);
+
+	args::ValueFlag<int> height(
+	    optional, "path", "container height", {'H', "height"}, 0);
+
 	args::CompletionFlag completion(parser, {"complete"});
+
 	try
 	{
 		parser.ParseCLI(argc, argv);
@@ -109,7 +117,9 @@ int main(int argc, char* argv[])
 		extractor = new RiveFrameExtractor(args::get(source).c_str(),
 		                                   args::get(artboardOption).c_str(),
 		                                   args::get(animationOption).c_str(),
-		                                   args::get(watermarkOption).c_str());
+		                                   args::get(watermarkOption).c_str(),
+		                                   args::get(width),
+		                                   args::get(height));
 	}
 	catch (const std::invalid_argument e)
 	{
