@@ -66,3 +66,7 @@ skia/dependencies/x264
 skia/renderer/build/bin
 skia/**/build/bin
 /skia/dependencies/glfw
+
+
+**/build/obj
+**/build/bin
