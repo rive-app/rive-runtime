@@ -31,8 +31,11 @@ int RiveFrameExtractor::totalFrames()
 	// TODO: combine those two into one function
 	switch (animation->loop())
 	{
+		case rive::Loop::pingPong:
+			animationFrames *= 2;
 		case rive::Loop::loop:
-
+			// pingpong is like loop, just you gotta go back and forth, so 2x
+			// duration
 			if (min_frames != 0 && totalFrames < min_frames)
 			{
 				totalFrames = std::ceil(min_frames / float(animationFrames)) *
@@ -41,26 +44,11 @@ int RiveFrameExtractor::totalFrames()
 			if (max_frames != 0 && totalFrames > max_frames &&
 			    animationFrames < max_frames)
 			{
+
 				totalFrames = std::floor(max_frames / (animationFrames)) *
 				              animationFrames;
 			}
 			break;
-		case rive::Loop::pingPong:
-			if (min_frames != 0 && totalFrames < min_frames)
-			{
-				totalFrames =
-				    std::ceil(min_frames / float(animationFrames * 2)) *
-				    animationFrames * 2;
-			}
-			if (max_frames != 0 && totalFrames > max_frames &&
-			    animationFrames < max_frames)
-			{
-
-				totalFrames = std::floor(max_frames / (animationFrames * 2)) *
-				              animationFrames * 2;
-			}
-			break;
-
 		default:
 			break;
 	}
@@ -74,8 +62,6 @@ int RiveFrameExtractor::totalFrames()
 	{
 		totalFrames = max_frames;
 	}
-	fprintf(stderr, string_format("\n\n\n%s", "").c_str());
-
 	return totalFrames;
 };
 
