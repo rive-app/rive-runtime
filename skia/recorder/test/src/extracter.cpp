@@ -50,3 +50,35 @@ TEST_CASE("Text extractor height override")
 	REQUIRE(rive->width() == 50);
 	REQUIRE(rive->height() == 100);
 }
+
+TEST_CASE("Text small extent target (width)")
+{
+	auto rive =
+	    new RiveFrameExtractor("./static/50x51.riv", "", "", "", 50, 100, 720);
+	REQUIRE(rive->width() == 720);
+	REQUIRE(rive->height() == 1440);
+}
+
+TEST_CASE("Text small extent target maxed (width)")
+{
+	auto rive = new RiveFrameExtractor(
+	    "./static/50x51.riv", "", "", "", 50, 100, 720, 1080, 1080);
+	REQUIRE(rive->width() == 540);
+	REQUIRE(rive->height() == 1080);
+}
+
+TEST_CASE("Text small extent target (height)")
+{
+	auto rive =
+	    new RiveFrameExtractor("./static/50x51.riv", "", "", "", 100, 50, 720);
+	REQUIRE(rive->height() == 720);
+	REQUIRE(rive->width() == 1440);
+}
+
+TEST_CASE("Text small extent target maxed (height)")
+{
+	auto rive = new RiveFrameExtractor(
+	    "./static/50x51.riv", "", "", "", 100, 50, 720, 1080, 1080);
+	REQUIRE(rive->height() == 540);
+	REQUIRE(rive->width() == 1080);
+}

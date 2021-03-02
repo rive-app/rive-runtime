@@ -9,6 +9,15 @@ int valueOrDefault(int value, int default_value)
 	return value;
 }
 
+void scale(int* value, int targetValue, int* otherValue)
+{
+	if (*value != targetValue)
+	{
+		*otherValue = *otherValue * targetValue / *value;
+		*value = targetValue;
+	}
+}
+
 int RiveFrameExtractor::width() { return _width; };
 int RiveFrameExtractor::height() { return _height; };
 int RiveFrameExtractor::fps() { return animation->fps(); };
@@ -19,22 +28,66 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
                                        const char* animation_name,
                                        const char* watermark_name,
                                        int width,
-                                       int height)
+                                       int height,
+                                       int small_extent_target,
+                                       int max_width,
+                                       int max_height)
 {
 
 	riveFile = getRiveFile(path);
 	artboard = getArtboard(artboard_name);
-	_width = valueOrDefault(width, nextMultipleOf(artboard->width(), 2));
-	_height = valueOrDefault(height, nextMultipleOf(artboard->height(), 2));
 	animation = getAnimation(animation_name);
 	animation_instance = new rive::LinearAnimationInstance(animation);
 	watermarkImage = getWaterMark(watermark_name);
-
+	initializeDimensions(
+	    width, height, small_extent_target, max_width, max_height);
 	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
 	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
 	rasterCanvas = rasterSurface->getCanvas();
 	ifps = 1.0 / animation->fps();
 };
+
+void RiveFrameExtractor::initializeDimensions(int width,
+                                              int height,
+                                              int small_extent_target,
+                                              int max_width,
+                                              int max_height)
+{
+	// Take the width & height from user input, or from the provided artboard
+	_width = valueOrDefault(width, artboard->width());
+	_height = valueOrDefault(height, artboard->height());
+
+	// if we have a target value for whichever extent is smaller, lets scale to
+	// that.
+	if (small_extent_target != 0)
+	{
+		if (_width < _height)
+		{
+			scale(&_width, small_extent_target, &_height);
+		}
+		else
+		{
+			scale(&_height, small_extent_target, &_width);
+		}
+	}
+
+	// if we have a max height, lets scale down to that
+	if (max_height != 0 && max_height < _height)
+	{
+
+		scale(&_height, max_height, &_width);
+	}
+
+	// if we have a max width, lets scale down to that
+	if (max_width != 0 && max_width < _width)
+	{
+		scale(&_width, max_width, &_height);
+	}
+
+	// We're sticking with 2's right now. so you know it is what it is.
+	_width = nextMultipleOf(_width, 2);
+	_height = nextMultipleOf(_height, 2);
+}
 
 sk_sp<SkImage> RiveFrameExtractor::getWaterMark(const char* watermark_name)
 {
@@ -160,16 +213,16 @@ const void* RiveFrameExtractor::getFrame(int i)
 	animation_instance->apply(artboard);
 	artboard->advance(0.0f);
 	artboard->draw(&renderer);
+	renderer.restore();
 	if (watermarkImage)
 	{
 		SkPaint watermarkPaint;
 		watermarkPaint.setBlendMode(SkBlendMode::kDifference);
 		rasterCanvas->drawImage(watermarkImage,
-		                        width() - watermarkImage->width() - 20,
-		                        height() - watermarkImage->height() - 20,
+		                        width() - watermarkImage->width() - 50,
+		                        height() - watermarkImage->height() - 50,
 		                        &watermarkPaint);
 	}
-	renderer.restore();
 
 	// After drawing the frame, grab the raw image data.
 	sk_sp<SkImage> img(rasterSurface->makeImageSnapshot());

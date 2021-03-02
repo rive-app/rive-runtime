@@ -74,13 +74,26 @@ int main(int argc, char* argv[])
 	args::ValueFlag<std::string> artboardOption(
 	    optional, "name", "artboard to draw from", {'t', "artboard"});
 	args::ValueFlag<std::string> watermarkOption(
-	    optional, "path", "watermark filename", {'k', "watermark"});
+	    optional, "path", "watermark filename", {'w', "watermark"});
 
 	args::ValueFlag<int> width(
-	    optional, "path", "container width", {'w', "width"}, 0);
+	    optional, "number", "container width", {'W', "width"}, 0);
 
 	args::ValueFlag<int> height(
-	    optional, "path", "container height", {'H', "height"}, 0);
+	    optional, "number", "container height", {'H', "height"}, 0);
+
+	args::ValueFlag<int> small_extent_target(
+	    optional,
+	    "number",
+	    "target size for smaller edge of container",
+	    {"small-extent-target"},
+	    0);
+
+	args::ValueFlag<int> max_width(
+	    optional, "number", "maximum container width", {"max-width"}, 0);
+
+	args::ValueFlag<int> max_height(
+	    optional, "number", "maximum container height", {"max-height"}, 0);
 
 	args::CompletionFlag completion(parser, {"complete"});
 
@@ -119,7 +132,10 @@ int main(int argc, char* argv[])
 		                                   args::get(animationOption).c_str(),
 		                                   args::get(watermarkOption).c_str(),
 		                                   args::get(width),
-		                                   args::get(height));
+		                                   args::get(height),
+		                                   args::get(small_extent_target),
+		                                   args::get(max_width),
+		                                   args::get(max_height));
 	}
 	catch (const std::invalid_argument e)
 	{

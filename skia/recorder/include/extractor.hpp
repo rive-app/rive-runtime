@@ -25,8 +25,11 @@ public:
 	                   const char* artboard_name,
 	                   const char* animation_name,
 	                   const char* watermark_name,
-	                   int width,
-	                   int height);
+	                   int width = 0,
+	                   int height = 0,
+	                   int small_extent_target = 0,
+	                   int max_width = 0,
+	                   int max_height = 0);
 	int width();
 	int height();
 	int fps();
@@ -47,6 +50,11 @@ private:
 	sk_sp<SkImage> watermarkImage;
 	SkCanvas* rasterCanvas;
 	sk_sp<SkSurface> rasterSurface;
+	void initializeDimensions(int width,
+	                          int height,
+	                          int small_extent_target,
+	                          int max_width,
+	                          int max_height);
 };
 
 #endif
