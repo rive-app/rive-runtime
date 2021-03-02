@@ -95,6 +95,15 @@ int main(int argc, char* argv[])
 	args::ValueFlag<int> max_height(
 	    optional, "number", "maximum container height", {"max-height"}, 0);
 
+	args::ValueFlag<int> min_duration(
+	    optional, "number", "minimum duration in seconds", {"min-duration"}, 0);
+
+	args::ValueFlag<int> max_duration(
+	    optional, "number", "maximum duration in seconds", {"max-duration"}, 0);
+
+	args::ValueFlag<int> bitrate(
+	    optional, "number", "bitrate in kbps", {"bitrate"}, 5000);
+
 	args::CompletionFlag completion(parser, {"complete"});
 
 	try
@@ -149,7 +158,8 @@ int main(int argc, char* argv[])
 		writer = new MovieWriter(args::get(destination).c_str(),
 		                         extractor->width(),
 		                         extractor->height(),
-		                         extractor->fps());
+		                         extractor->fps(),
+		                         args::get(bitrate));
 	}
 	catch (const std::invalid_argument e)
 	{

@@ -36,7 +36,11 @@ extern "C"
 class MovieWriter
 {
 public:
-	MovieWriter(const char* _destination, int _width, int _height, int _fps);
+	MovieWriter(const char* _destination,
+	            int _width,
+	            int _height,
+	            int _fps,
+	            int bitrate = 5000);
 	void writeFrame(int frameNumber, const uint8_t* const* pixelData);
 	void writeHeader();
 	void finalize();
@@ -53,8 +57,7 @@ private:
 	const char* destinationFilename;
 	void initialize();
 	void initialise_av_frame();
-	int width, height, fps;
-	int bitrate = 400;
+	int width, height, fps, bitrate;
 };
 
 #endif
