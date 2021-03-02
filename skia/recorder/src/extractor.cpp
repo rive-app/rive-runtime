@@ -21,7 +21,63 @@ void scale(int* value, int targetValue, int* otherValue)
 int RiveFrameExtractor::width() { return _width; };
 int RiveFrameExtractor::height() { return _height; };
 int RiveFrameExtractor::fps() { return animation->fps(); };
-int RiveFrameExtractor::duration() { return animation->duration(); };
+int RiveFrameExtractor::totalFrames()
+{
+	int min_frames = _min_duration * fps();
+	int max_frames = _max_duration * fps();
+
+	int animationFrames = animation->duration();
+	int totalFrames = animation->duration();
+	// TODO: combine those two into one function
+	switch (animation->loop())
+	{
+		case rive::Loop::loop:
+
+			if (min_frames != 0 && totalFrames < min_frames)
+			{
+				totalFrames = std::ceil(min_frames / float(animationFrames)) *
+				              animationFrames;
+			}
+			if (max_frames != 0 && totalFrames > max_frames &&
+			    animationFrames < max_frames)
+			{
+				totalFrames = std::floor(max_frames / (animationFrames)) *
+				              animationFrames;
+			}
+			break;
+		case rive::Loop::pingPong:
+			if (min_frames != 0 && totalFrames < min_frames)
+			{
+				totalFrames =
+				    std::ceil(min_frames / float(animationFrames * 2)) *
+				    animationFrames * 2;
+			}
+			if (max_frames != 0 && totalFrames > max_frames &&
+			    animationFrames < max_frames)
+			{
+
+				totalFrames = std::floor(max_frames / (animationFrames * 2)) *
+				              animationFrames * 2;
+			}
+			break;
+
+		default:
+			break;
+	}
+	// no matter what shenanigans we had before, lets make sure we fall in line
+	// regardless.
+	if (min_frames != 0 && totalFrames < min_frames)
+	{
+		totalFrames = min_frames;
+	}
+	if (max_frames != 0 && totalFrames > max_frames)
+	{
+		totalFrames = max_frames;
+	}
+	fprintf(stderr, string_format("\n\n\n%s", "").c_str());
+
+	return totalFrames;
+};
 
 RiveFrameExtractor::RiveFrameExtractor(const char* path,
                                        const char* artboard_name,
@@ -31,9 +87,12 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
                                        int height,
                                        int small_extent_target,
                                        int max_width,
-                                       int max_height)
+                                       int max_height,
+                                       int min_duration,
+                                       int max_duration)
 {
-
+	_min_duration = min_duration;
+	_max_duration = max_duration;
 	riveFile = getRiveFile(path);
 	artboard = getArtboard(artboard_name);
 	animation = getAnimation(animation_name);

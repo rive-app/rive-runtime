@@ -144,7 +144,11 @@ int main(int argc, char* argv[])
 		                                   args::get(height),
 		                                   args::get(small_extent_target),
 		                                   args::get(max_width),
-		                                   args::get(max_height));
+		                                   args::get(max_height),
+		                                   args::get(min_duration),
+		                                   args::get(max_duration)
+
+		);
 	}
 	catch (const std::invalid_argument e)
 	{
@@ -169,7 +173,7 @@ int main(int argc, char* argv[])
 
 	// We should also respect the work area here... we're just exporting the
 	// entire animation for now.
-	int totalFrames = extractor->duration();
+	int totalFrames = extractor->totalFrames();
 
 	writer->writeHeader();
 	for (int i = 0; i < totalFrames; i++)

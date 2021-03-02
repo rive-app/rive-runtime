@@ -29,15 +29,17 @@ public:
 	                   int height = 0,
 	                   int small_extent_target = 0,
 	                   int max_width = 0,
-	                   int max_height = 0);
+	                   int max_height = 0,
+	                   int min_duration = 0,
+	                   int max_duration = 0);
 	int width();
 	int height();
 	int fps();
-	int duration();
+	int totalFrames();
 	const void* getFrame(int i);
 
 private:
-	int _width, _height;
+	int _width, _height, _min_duration, _max_duration;
 	rive::File* riveFile;
 	float ifps;
 	sk_sp<SkImage> getWaterMark(const char* watermark_name);
