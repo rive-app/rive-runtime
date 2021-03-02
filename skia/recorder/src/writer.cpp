@@ -1,14 +1,13 @@
 #include "writer.hpp"
 
-MovieWriter::MovieWriter(const char* _destination,
-                         int _width,
-                         int _height,
-                         int _fps)
+MovieWriter::MovieWriter(
+    const char* _destination, int _width, int _height, int _fps, int _bitrate)
 {
 	destinationFilename = _destination;
 	width = _width;
 	height = _height;
 	fps = _fps;
+	bitrate = _bitrate;
 	initialize();
 };
 

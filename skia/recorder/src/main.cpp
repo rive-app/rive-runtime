@@ -41,7 +41,6 @@ extern "C"
 #include <libswscale/swscale.h>
 }
 
-#include "args.hxx"
 #include "extractor.hpp"
 #include "writer.hpp"
 #include <fstream>
@@ -76,7 +75,37 @@ int main(int argc, char* argv[])
 	    optional, "name", "artboard to draw from", {'t', "artboard"});
 	args::ValueFlag<std::string> watermarkOption(
 	    optional, "path", "watermark filename", {'w', "watermark"});
+
+	args::ValueFlag<int> width(
+	    optional, "number", "container width", {'W', "width"}, 0);
+
+	args::ValueFlag<int> height(
+	    optional, "number", "container height", {'H', "height"}, 0);
+
+	args::ValueFlag<int> small_extent_target(
+	    optional,
+	    "number",
+	    "target size for smaller edge of container",
+	    {"small-extent-target"},
+	    0);
+
+	args::ValueFlag<int> max_width(
+	    optional, "number", "maximum container width", {"max-width"}, 0);
+
+	args::ValueFlag<int> max_height(
+	    optional, "number", "maximum container height", {"max-height"}, 0);
+
+	args::ValueFlag<int> min_duration(
+	    optional, "number", "minimum duration in seconds", {"min-duration"}, 0);
+
+	args::ValueFlag<int> max_duration(
+	    optional, "number", "maximum duration in seconds", {"max-duration"}, 0);
+
+	args::ValueFlag<int> bitrate(
+	    optional, "number", "bitrate in kbps", {"bitrate"}, 5000);
+
 	args::CompletionFlag completion(parser, {"complete"});
+
 	try
 	{
 		parser.ParseCLI(argc, argv);
@@ -110,7 +139,16 @@ int main(int argc, char* argv[])
 		extractor = new RiveFrameExtractor(args::get(source).c_str(),
 		                                   args::get(artboardOption).c_str(),
 		                                   args::get(animationOption).c_str(),
-		                                   args::get(watermarkOption).c_str());
+		                                   args::get(watermarkOption).c_str(),
+		                                   args::get(width),
+		                                   args::get(height),
+		                                   args::get(small_extent_target),
+		                                   args::get(max_width),
+		                                   args::get(max_height),
+		                                   args::get(min_duration),
+		                                   args::get(max_duration)
+
+		);
 	}
 	catch (const std::invalid_argument e)
 	{
@@ -124,7 +162,8 @@ int main(int argc, char* argv[])
 		writer = new MovieWriter(args::get(destination).c_str(),
 		                         extractor->width(),
 		                         extractor->height(),
-		                         extractor->fps());
+		                         extractor->fps(),
+		                         args::get(bitrate));
 	}
 	catch (const std::invalid_argument e)
 	{
@@ -134,7 +173,7 @@ int main(int argc, char* argv[])
 
 	// We should also respect the work area here... we're just exporting the
 	// entire animation for now.
-	int totalFrames = extractor->duration();
+	int totalFrames = extractor->totalFrames();
 
 	writer->writeHeader();
 	for (int i = 0; i < totalFrames; i++)

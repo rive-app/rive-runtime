@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "math/aabb.hpp"
 #include "skia_renderer.hpp"
+#include "util.hpp"
 #include "util.hxx"
 
 class RiveFrameExtractor
@@ -23,14 +24,22 @@ public:
 	RiveFrameExtractor(const char* path,
 	                   const char* artboard_name,
 	                   const char* animation_name,
-	                   const char* watermark_name);
-	int width() { return artboard->width(); };
-	int height() { return artboard->height(); };
-	int fps() { return animation->fps(); };
-	int duration() { return animation->duration(); };
+	                   const char* watermark_name,
+	                   int width = 0,
+	                   int height = 0,
+	                   int small_extent_target = 0,
+	                   int max_width = 0,
+	                   int max_height = 0,
+	                   int min_duration = 0,
+	                   int max_duration = 0);
+	int width();
+	int height();
+	int fps();
+	int totalFrames();
 	const void* getFrame(int i);
 
 private:
+	int _width, _height, _min_duration, _max_duration;
 	rive::File* riveFile;
 	float ifps;
 	sk_sp<SkImage> getWaterMark(const char* watermark_name);
@@ -43,6 +52,11 @@ private:
 	sk_sp<SkImage> watermarkImage;
 	SkCanvas* rasterCanvas;
 	sk_sp<SkSurface> rasterSurface;
+	void initializeDimensions(int width,
+	                          int height,
+	                          int small_extent_target,
+	                          int max_width,
+	                          int max_height);
 };
 
 #endif
