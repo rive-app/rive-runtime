@@ -5,5 +5,16 @@
     "string": "path"
   },
   "abstract": true,
-  "extends": "node.json"
+  "extends": "node.json",
+  "properties": {
+    "pathFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 128,
+        "string": "pathflags"
+      },
+      "coop": false
+    }
+  }
 }

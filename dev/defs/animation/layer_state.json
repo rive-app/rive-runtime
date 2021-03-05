@@ -1,0 +1,38 @@
+{
+  "name": "LayerState",
+  "key": {
+    "int": 60,
+    "string": "layerstate"
+  },
+  "abstract": true,
+  "extends": "animation/state_machine_layer_component.json",
+  "properties": {
+    "layerId": {
+      "type": "Id",
+      "key": {
+        "int": 146,
+        "string": "layerid"
+      },
+      "description": "Id of the state machine layer this state belongs to.",
+      "runtime": false
+    },
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 147,
+        "string": "x"
+      },
+      "runtime": false
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 148,
+        "string": "y"
+      },
+      "runtime": false
+    }
+  }
+}

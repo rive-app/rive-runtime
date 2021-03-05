@@ -1,0 +1,20 @@
+{
+  "name": "TransitionValueCondition",
+  "key": {
+    "int": 69,
+    "string": "transitionvaluecondition"
+  },
+  "abstract": true,
+  "extends": "animation/transition_condition.json",
+  "properties": {
+    "opValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 156,
+        "string": "opvalue"
+      },
+      "description": "Integer representation of the StateMachineOp enum."
+    }
+  }
+}

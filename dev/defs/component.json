@@ -41,6 +41,15 @@
       },
       "description": "Order value for sorting child elements in ContainerComponent parent.",
       "runtime": false
+    },
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 130,
+        "string": "flags"
+      },
+      "runtime": false
     }
   }
 }

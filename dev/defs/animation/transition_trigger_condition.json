@@ -1,0 +1,8 @@
+{
+  "name": "TransitionTriggerCondition",
+  "key": {
+    "int": 68,
+    "string": "transitiontriggercondition"
+  },
+  "extends": "animation/transition_condition.json"
+}

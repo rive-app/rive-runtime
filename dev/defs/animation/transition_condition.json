@@ -1,0 +1,39 @@
+{
+  "name": "TransitionCondition",
+  "key": {
+    "int": 67,
+    "string": "transitioncondition"
+  },
+  "abstract": true,
+  "properties": {
+    "transitionId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "key": {
+        "int": 153,
+        "string": "transitionid"
+      },
+      "description": "Id of the transition this condition belongs to.",
+      "runtime": false
+    },
+    "conditionOrder": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 154,
+        "string": "conditionorder"
+      },
+      "description": "Order value for condition in a transition.",
+      "runtime": false
+    },
+    "inputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "key": {
+        "int": 155,
+        "string": "inputid"
+      },
+      "description": "Id of the StateMachineInput referenced.",
+      "nullable": true
+    }
+  }
+}

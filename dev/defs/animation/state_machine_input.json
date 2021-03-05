@@ -1,0 +1,9 @@
+{
+  "name": "StateMachineInput",
+  "key": {
+    "int": 55,
+    "string": "statemachineinput"
+  },
+  "abstract": true,
+  "extends": "animation/state_machine_component.json"
+}

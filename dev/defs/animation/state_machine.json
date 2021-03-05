@@ -1,0 +1,32 @@
+{
+  "name": "StateMachine",
+  "key": {
+    "int": 53,
+    "string": "statemachine"
+  },
+  "extends": "animation/animation.json",
+  "properties": {
+    "editingListValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 136,
+        "string": "editinglistvalue"
+      },
+      "description": "Backing value for enum representing which list being edited.",
+      "runtime": false,
+      "coop": false
+    },
+    "editingLayerId": {
+      "type": "Id",
+      "key": {
+        "int": 142,
+        "string": "editinglayer"
+      },
+      "description": "Id of the currently editing layer.",
+      "nullable": true,
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

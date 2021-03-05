@@ -1,0 +1,20 @@
+{
+  "name": "AnimationState",
+  "key": {
+    "int": 61,
+    "string": "animationstate"
+  },
+  "extends": "animation/layer_state.json",
+  "properties": {
+    "animationId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "key": {
+        "int": 149,
+        "string": "animationid"
+      },
+      "description": "Id of the animation this layer state refers to.",
+      "nullable": true
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "StateMachineDouble",
+  "key": {
+    "int": 56,
+    "string": "statemachinedouble"
+  },
+  "extends": "animation/state_machine_input.json",
+  "properties": {
+    "value": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 140,
+        "string": "value"
+      }
+    }
+  }
+}

@@ -13,7 +13,8 @@
         "int": 119,
         "string": "drawableid"
       },
-      "description": "Id of the drawable this target references."
+      "description": "Id of the drawable this target references.",
+      "nullable": true
     },
     "placementValue": {
       "type": "uint",

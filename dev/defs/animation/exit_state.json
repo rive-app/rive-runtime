@@ -1,0 +1,8 @@
+{
+  "name": "ExitState",
+  "key": {
+    "int": 64,
+    "string": "exitstate"
+  },
+  "extends": "animation/layer_state.json"
+}

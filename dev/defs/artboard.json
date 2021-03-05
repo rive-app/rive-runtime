@@ -53,6 +53,16 @@
         "string": "oy"
       },
       "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
+    },
+    "editingAnimation": {
+      "type": "Id",
+      "key": {
+        "int": 131,
+        "string": "editinganimation"
+      },
+      "description": "Id of the last open animation.",
+      "runtime": false,
+      "coop": false
     }
   }
 }

@@ -14,6 +14,15 @@
         "int": 23,
         "string": "blendModeValue"
       }
+    },
+    "drawableFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 129,
+        "string": "drawableflags"
+      },
+      "coop": false
     }
   }
 }

@@ -1,14 +1,33 @@
 #ifndef _RIVE_CORE_REGISTRY_HPP_
 #define _RIVE_CORE_REGISTRY_HPP_
 #include "animation/animation.hpp"
+#include "animation/animation_state.hpp"
+#include "animation/any_state.hpp"
 #include "animation/cubic_interpolator.hpp"
+#include "animation/entry_state.hpp"
+#include "animation/exit_state.hpp"
 #include "animation/keyed_object.hpp"
 #include "animation/keyed_property.hpp"
 #include "animation/keyframe.hpp"
 #include "animation/keyframe_color.hpp"
 #include "animation/keyframe_double.hpp"
 #include "animation/keyframe_id.hpp"
+#include "animation/layer_state.hpp"
 #include "animation/linear_animation.hpp"
+#include "animation/state_machine.hpp"
+#include "animation/state_machine_bool.hpp"
+#include "animation/state_machine_component.hpp"
+#include "animation/state_machine_double.hpp"
+#include "animation/state_machine_input.hpp"
+#include "animation/state_machine_layer.hpp"
+#include "animation/state_machine_layer_component.hpp"
+#include "animation/state_machine_trigger.hpp"
+#include "animation/state_transition.hpp"
+#include "animation/transition_bool_condition.hpp"
+#include "animation/transition_condition.hpp"
+#include "animation/transition_double_condition.hpp"
+#include "animation/transition_trigger_condition.hpp"
+#include "animation/transition_value_condition.hpp"
 #include "artboard.hpp"
 #include "backboard.hpp"
 #include "bones/bone.hpp"
@@ -61,22 +80,48 @@ namespace rive
 			{
 				case DrawTargetBase::typeKey:
 					return new DrawTarget();
+				case AnimationStateBase::typeKey:
+					return new AnimationState();
 				case KeyedObjectBase::typeKey:
 					return new KeyedObject();
+				case TransitionTriggerConditionBase::typeKey:
+					return new TransitionTriggerCondition();
 				case KeyedPropertyBase::typeKey:
 					return new KeyedProperty();
+				case StateMachineDoubleBase::typeKey:
+					return new StateMachineDouble();
 				case KeyFrameIdBase::typeKey:
 					return new KeyFrameId();
+				case AnyStateBase::typeKey:
+					return new AnyState();
+				case StateMachineLayerBase::typeKey:
+					return new StateMachineLayer();
 				case AnimationBase::typeKey:
 					return new Animation();
 				case CubicInterpolatorBase::typeKey:
 					return new CubicInterpolator();
+				case TransitionDoubleConditionBase::typeKey:
+					return new TransitionDoubleCondition();
+				case StateTransitionBase::typeKey:
+					return new StateTransition();
 				case KeyFrameDoubleBase::typeKey:
 					return new KeyFrameDouble();
 				case KeyFrameColorBase::typeKey:
 					return new KeyFrameColor();
+				case StateMachineBase::typeKey:
+					return new StateMachine();
+				case EntryStateBase::typeKey:
+					return new EntryState();
 				case LinearAnimationBase::typeKey:
 					return new LinearAnimation();
+				case StateMachineTriggerBase::typeKey:
+					return new StateMachineTrigger();
+				case ExitStateBase::typeKey:
+					return new ExitState();
+				case TransitionBoolConditionBase::typeKey:
+					return new TransitionBoolCondition();
+				case StateMachineBoolBase::typeKey:
+					return new StateMachineBool();
 				case LinearGradientBase::typeKey:
 					return new LinearGradient();
 				case RadialGradientBase::typeKey:
@@ -147,6 +192,9 @@ namespace rive
 				case ComponentBase::namePropertyKey:
 					object->as<ComponentBase>()->name(value);
 					break;
+				case StateMachineComponentBase::namePropertyKey:
+					object->as<StateMachineComponentBase>()->name(value);
+					break;
 				case AnimationBase::namePropertyKey:
 					object->as<AnimationBase>()->name(value);
 					break;
@@ -165,8 +213,14 @@ namespace rive
 				case DrawTargetBase::placementValuePropertyKey:
 					object->as<DrawTargetBase>()->placementValue(value);
 					break;
+				case AnimationStateBase::animationIdPropertyKey:
+					object->as<AnimationStateBase>()->animationId(value);
+					break;
 				case KeyedObjectBase::objectIdPropertyKey:
 					object->as<KeyedObjectBase>()->objectId(value);
+					break;
+				case TransitionConditionBase::inputIdPropertyKey:
+					object->as<TransitionConditionBase>()->inputId(value);
 					break;
 				case KeyedPropertyBase::propertyKeyPropertyKey:
 					object->as<KeyedPropertyBase>()->propertyKey(value);
@@ -182,6 +236,18 @@ namespace rive
 					break;
 				case KeyFrameIdBase::valuePropertyKey:
 					object->as<KeyFrameIdBase>()->value(value);
+					break;
+				case TransitionValueConditionBase::opValuePropertyKey:
+					object->as<TransitionValueConditionBase>()->opValue(value);
+					break;
+				case StateTransitionBase::stateToIdPropertyKey:
+					object->as<StateTransitionBase>()->stateToId(value);
+					break;
+				case StateTransitionBase::flagsPropertyKey:
+					object->as<StateTransitionBase>()->flags(value);
+					break;
+				case StateTransitionBase::durationPropertyKey:
+					object->as<StateTransitionBase>()->duration(value);
 					break;
 				case LinearAnimationBase::fpsPropertyKey:
 					object->as<LinearAnimationBase>()->fps(value);
@@ -210,8 +276,14 @@ namespace rive
 				case FillBase::fillRulePropertyKey:
 					object->as<FillBase>()->fillRule(value);
 					break;
+				case PathBase::pathFlagsPropertyKey:
+					object->as<PathBase>()->pathFlags(value);
+					break;
 				case DrawableBase::blendModeValuePropertyKey:
 					object->as<DrawableBase>()->blendModeValue(value);
+					break;
+				case DrawableBase::drawableFlagsPropertyKey:
+					object->as<DrawableBase>()->drawableFlags(value);
 					break;
 				case ClippingShapeBase::sourceIdPropertyKey:
 					object->as<ClippingShapeBase>()->sourceId(value);
@@ -252,6 +324,9 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
+				case StateMachineDoubleBase::valuePropertyKey:
+					object->as<StateMachineDoubleBase>()->value(value);
+					break;
 				case CubicInterpolatorBase::x1PropertyKey:
 					object->as<CubicInterpolatorBase>()->x1(value);
 					break;
@@ -263,6 +338,9 @@ namespace rive
 					break;
 				case CubicInterpolatorBase::y2PropertyKey:
 					object->as<CubicInterpolatorBase>()->y2(value);
+					break;
+				case TransitionDoubleConditionBase::valuePropertyKey:
+					object->as<TransitionDoubleConditionBase>()->value(value);
 					break;
 				case KeyFrameDoubleBase::valuePropertyKey:
 					object->as<KeyFrameDoubleBase>()->value(value);
@@ -462,6 +540,9 @@ namespace rive
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 					object->as<LinearAnimationBase>()->enableWorkArea(value);
 					break;
+				case StateMachineBoolBase::valuePropertyKey:
+					object->as<StateMachineBoolBase>()->value(value);
+					break;
 				case ShapePaintBase::isVisiblePropertyKey:
 					object->as<ShapePaintBase>()->isVisible(value);
 					break;
@@ -482,6 +563,8 @@ namespace rive
 			{
 				case ComponentBase::namePropertyKey:
 					return object->as<ComponentBase>()->name();
+				case StateMachineComponentBase::namePropertyKey:
+					return object->as<StateMachineComponentBase>()->name();
 				case AnimationBase::namePropertyKey:
 					return object->as<AnimationBase>()->name();
 			}
@@ -497,8 +580,12 @@ namespace rive
 					return object->as<DrawTargetBase>()->drawableId();
 				case DrawTargetBase::placementValuePropertyKey:
 					return object->as<DrawTargetBase>()->placementValue();
+				case AnimationStateBase::animationIdPropertyKey:
+					return object->as<AnimationStateBase>()->animationId();
 				case KeyedObjectBase::objectIdPropertyKey:
 					return object->as<KeyedObjectBase>()->objectId();
+				case TransitionConditionBase::inputIdPropertyKey:
+					return object->as<TransitionConditionBase>()->inputId();
 				case KeyedPropertyBase::propertyKeyPropertyKey:
 					return object->as<KeyedPropertyBase>()->propertyKey();
 				case KeyFrameBase::framePropertyKey:
@@ -509,6 +596,15 @@ namespace rive
 					return object->as<KeyFrameBase>()->interpolatorId();
 				case KeyFrameIdBase::valuePropertyKey:
 					return object->as<KeyFrameIdBase>()->value();
+				case TransitionValueConditionBase::opValuePropertyKey:
+					return object->as<TransitionValueConditionBase>()
+					    ->opValue();
+				case StateTransitionBase::stateToIdPropertyKey:
+					return object->as<StateTransitionBase>()->stateToId();
+				case StateTransitionBase::flagsPropertyKey:
+					return object->as<StateTransitionBase>()->flags();
+				case StateTransitionBase::durationPropertyKey:
+					return object->as<StateTransitionBase>()->duration();
 				case LinearAnimationBase::fpsPropertyKey:
 					return object->as<LinearAnimationBase>()->fps();
 				case LinearAnimationBase::durationPropertyKey:
@@ -527,8 +623,12 @@ namespace rive
 					return object->as<TrimPathBase>()->modeValue();
 				case FillBase::fillRulePropertyKey:
 					return object->as<FillBase>()->fillRule();
+				case PathBase::pathFlagsPropertyKey:
+					return object->as<PathBase>()->pathFlags();
 				case DrawableBase::blendModeValuePropertyKey:
 					return object->as<DrawableBase>()->blendModeValue();
+				case DrawableBase::drawableFlagsPropertyKey:
+					return object->as<DrawableBase>()->drawableFlags();
 				case ClippingShapeBase::sourceIdPropertyKey:
 					return object->as<ClippingShapeBase>()->sourceId();
 				case ClippingShapeBase::fillRulePropertyKey:
@@ -558,6 +658,8 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
+				case StateMachineDoubleBase::valuePropertyKey:
+					return object->as<StateMachineDoubleBase>()->value();
 				case CubicInterpolatorBase::x1PropertyKey:
 					return object->as<CubicInterpolatorBase>()->x1();
 				case CubicInterpolatorBase::y1PropertyKey:
@@ -566,6 +668,8 @@ namespace rive
 					return object->as<CubicInterpolatorBase>()->x2();
 				case CubicInterpolatorBase::y2PropertyKey:
 					return object->as<CubicInterpolatorBase>()->y2();
+				case TransitionDoubleConditionBase::valuePropertyKey:
+					return object->as<TransitionDoubleConditionBase>()->value();
 				case KeyFrameDoubleBase::valuePropertyKey:
 					return object->as<KeyFrameDoubleBase>()->value();
 				case LinearAnimationBase::speedPropertyKey:
@@ -706,6 +810,8 @@ namespace rive
 			{
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 					return object->as<LinearAnimationBase>()->enableWorkArea();
+				case StateMachineBoolBase::valuePropertyKey:
+					return object->as<StateMachineBoolBase>()->value();
 				case ShapePaintBase::isVisiblePropertyKey:
 					return object->as<ShapePaintBase>()->isVisible();
 				case StrokeBase::transformAffectsStrokePropertyKey:
@@ -722,17 +828,24 @@ namespace rive
 			switch (propertyKey)
 			{
 				case ComponentBase::namePropertyKey:
+				case StateMachineComponentBase::namePropertyKey:
 				case AnimationBase::namePropertyKey:
 					return CoreStringType::id;
 				case ComponentBase::parentIdPropertyKey:
 				case DrawTargetBase::drawableIdPropertyKey:
 				case DrawTargetBase::placementValuePropertyKey:
+				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
+				case TransitionConditionBase::inputIdPropertyKey:
 				case KeyedPropertyBase::propertyKeyPropertyKey:
 				case KeyFrameBase::framePropertyKey:
 				case KeyFrameBase::interpolationTypePropertyKey:
 				case KeyFrameBase::interpolatorIdPropertyKey:
 				case KeyFrameIdBase::valuePropertyKey:
+				case TransitionValueConditionBase::opValuePropertyKey:
+				case StateTransitionBase::stateToIdPropertyKey:
+				case StateTransitionBase::flagsPropertyKey:
+				case StateTransitionBase::durationPropertyKey:
 				case LinearAnimationBase::fpsPropertyKey:
 				case LinearAnimationBase::durationPropertyKey:
 				case LinearAnimationBase::loopValuePropertyKey:
@@ -742,9 +855,12 @@ namespace rive
 				case StrokeBase::joinPropertyKey:
 				case TrimPathBase::modeValuePropertyKey:
 				case FillBase::fillRulePropertyKey:
+				case PathBase::pathFlagsPropertyKey:
 				case DrawableBase::blendModeValuePropertyKey:
+				case DrawableBase::drawableFlagsPropertyKey:
 				case ClippingShapeBase::sourceIdPropertyKey:
 				case ClippingShapeBase::fillRulePropertyKey:
+				case PolygonBase::pointsPropertyKey:
 				case DrawRulesBase::drawTargetIdPropertyKey:
 				case WeightBase::valuesPropertyKey:
 				case WeightBase::indicesPropertyKey:
@@ -754,10 +870,12 @@ namespace rive
 				case CubicWeightBase::outValuesPropertyKey:
 				case CubicWeightBase::outIndicesPropertyKey:
 					return CoreUintType::id;
+				case StateMachineDoubleBase::valuePropertyKey:
 				case CubicInterpolatorBase::x1PropertyKey:
 				case CubicInterpolatorBase::y1PropertyKey:
 				case CubicInterpolatorBase::x2PropertyKey:
 				case CubicInterpolatorBase::y2PropertyKey:
+				case TransitionDoubleConditionBase::valuePropertyKey:
 				case KeyFrameDoubleBase::valuePropertyKey:
 				case LinearAnimationBase::speedPropertyKey:
 				case LinearGradientBase::startXPropertyKey:
@@ -789,6 +907,8 @@ namespace rive
 				case RectangleBase::cornerRadiusPropertyKey:
 				case CubicMirroredVertexBase::rotationPropertyKey:
 				case CubicMirroredVertexBase::distancePropertyKey:
+				case PolygonBase::cornerRadiusPropertyKey:
+				case StarBase::innerRadiusPropertyKey:
 				case CubicDetachedVertexBase::inRotationPropertyKey:
 				case CubicDetachedVertexBase::inDistancePropertyKey:
 				case CubicDetachedVertexBase::outRotationPropertyKey:
@@ -820,6 +940,7 @@ namespace rive
 				case GradientStopBase::colorValuePropertyKey:
 					return CoreColorType::id;
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
+				case StateMachineBoolBase::valuePropertyKey:
 				case ShapePaintBase::isVisiblePropertyKey:
 				case StrokeBase::transformAffectsStrokePropertyKey:
 				case PointsPathBase::isClosedPropertyKey:

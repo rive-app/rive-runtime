@@ -32,9 +32,11 @@ namespace rive
 		int coreType() const override { return typeKey; }
 
 		static const int blendModeValuePropertyKey = 23;
+		static const int drawableFlagsPropertyKey = 129;
 
 	private:
 		int m_BlendModeValue = 3;
+		int m_DrawableFlags = 0;
 	public:
 		inline int blendModeValue() const { return m_BlendModeValue; }
 		void blendModeValue(int value)
@@ -47,6 +49,17 @@ namespace rive
 			blendModeValueChanged();
 		}
 
+		inline int drawableFlags() const { return m_DrawableFlags; }
+		void drawableFlags(int value)
+		{
+			if (m_DrawableFlags == value)
+			{
+				return;
+			}
+			m_DrawableFlags = value;
+			drawableFlagsChanged();
+		}
+
 		bool deserialize(int propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
@@ -54,12 +67,16 @@ namespace rive
 				case blendModeValuePropertyKey:
 					m_BlendModeValue = CoreUintType::deserialize(reader);
 					return true;
+				case drawableFlagsPropertyKey:
+					m_DrawableFlags = CoreUintType::deserialize(reader);
+					return true;
 			}
 			return Node::deserialize(propertyKey, reader);
 		}
 
 	protected:
 		virtual void blendModeValueChanged() {}
+		virtual void drawableFlagsChanged() {}
 	};
 } // namespace rive
 

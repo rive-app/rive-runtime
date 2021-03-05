@@ -38,7 +38,6 @@ namespace rive
 
 	private:
 		float m_InnerRadius = 0.5;
-
 	public:
 		inline float innerRadius() const { return m_InnerRadius; }
 		void innerRadius(float value)

@@ -1,0 +1,54 @@
+{
+  "name": "StateTransition",
+  "key": {
+    "int": 65,
+    "string": "statetransition"
+  },
+  "extends": "animation/state_machine_layer_component.json",
+  "properties": {
+    "stateFromId": {
+      "type": "Id",
+      "key": {
+        "int": 150,
+        "string": "statefromid"
+      },
+      "description": "Id of the state this transition originates from.",
+      "runtime": false
+    },
+    "stateToId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "key": {
+        "int": 151,
+        "string": "statetoid"
+      },
+      "description": "Id of the state this transition originates from."
+    },
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 152,
+        "string": "flags"
+      }
+    },
+    "duration": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 158,
+        "string": "duration"
+      },
+      "description": "Duration of the trasition (mix time) in milliseconds."
+    },
+    "transitionOrder": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 159,
+        "string": "transitionorder"
+      },
+      "description": "Order value for sorting transitions in states.",
+      "runtime": false
+    }
+  }
+}

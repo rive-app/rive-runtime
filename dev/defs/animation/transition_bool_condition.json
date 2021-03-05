@@ -1,0 +1,8 @@
+{
+  "name": "TransitionBoolCondition",
+  "key": {
+    "int": 71,
+    "string": "transitionboolcondition"
+  },
+  "extends": "animation/transition_value_condition.json"
+}

@@ -33,6 +33,17 @@
       },
       "description": "The background color.",
       "runtime": false
+    },
+    "editorMode": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 135,
+        "string": "editormode"
+      },
+      "description": "Edit time mode.",
+      "runtime": false,
+      "coop": false
     }
   }
 }

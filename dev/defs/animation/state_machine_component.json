@@ -1,0 +1,37 @@
+{
+  "name": "StateMachineComponent",
+  "key": {
+    "int": 54,
+    "string": "statemachinecomponent"
+  },
+  "abstract": true,
+  "properties": {
+    "machineId": {
+      "type": "Id",
+      "key": {
+        "int": 137,
+        "string": "machineid"
+      },
+      "description": "Id of the state machine this component belongs to.",
+      "runtime": false
+    },
+    "name": {
+      "type": "String",
+      "key": {
+        "int": 138,
+        "string": "name"
+      },
+      "description": "Non-unique identifier, used to give friendly names to state machine components (like layers or inputs).",
+      "nullable": true
+    },
+    "machineOrder": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 139,
+        "string": "machineorder"
+      },
+      "description": "Order of this component in the state machine. Exported in order for runtime",
+      "runtime": false
+    }
+  }
+}

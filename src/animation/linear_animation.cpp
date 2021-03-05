@@ -23,6 +23,7 @@ StatusCode LinearAnimation::onAddedDirty(CoreContext* context)
 	}
 	return StatusCode::Ok;
 }
+
 StatusCode LinearAnimation::onAddedClean(CoreContext* context)
 {
 	StatusCode code;

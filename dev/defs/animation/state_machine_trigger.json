@@ -1,0 +1,8 @@
+{
+  "name": "StateMachineTrigger",
+  "key": {
+    "int": 58,
+    "string": "statemachinetrigger"
+  },
+  "extends": "animation/state_machine_input.json"
+}
