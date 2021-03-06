@@ -58,7 +58,7 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths)
 	delete animationInstance;
 	delete currentFile;
 
-	auto animation = artboard->firstAnimation<rive::LinearAnimation>();
+	auto animation = artboard->firstAnimation();
 	if (animation != nullptr)
 	{
 		animationInstance = new rive::LinearAnimationInstance(animation);

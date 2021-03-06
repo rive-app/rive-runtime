@@ -11,11 +11,11 @@ namespace rive
 		typedef ParametricPath Super;
 
 	public:
-		static const int typeKey = 51;
+		static const uint16_t typeKey = 51;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -32,10 +32,10 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int pointsPropertyKey = 125;
-		static const int cornerRadiusPropertyKey = 126;
+		static const uint16_t pointsPropertyKey = 125;
+		static const uint16_t cornerRadiusPropertyKey = 126;
 
 	private:
 		int m_Points = 5;
@@ -63,7 +63,7 @@ namespace rive
 			cornerRadiusChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

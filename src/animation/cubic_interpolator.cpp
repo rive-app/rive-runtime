@@ -1,4 +1,7 @@
 #include "animation/cubic_interpolator.hpp"
+#include "artboard.hpp"
+#include "importers/artboard_importer.hpp"
+#include "importers/import_stack.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -99,4 +102,16 @@ float CubicInterpolator::getT(float x) const
 float CubicInterpolator::transform(float mix) const
 {
 	return calcBezier(getT(mix), y1(), y2());
+}
+
+StatusCode CubicInterpolator::import(ImportStack& importStack)
+{
+	auto artboardImporter =
+	    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+	if (artboardImporter == nullptr)
+	{
+		return StatusCode::MissingObject;
+	}
+	artboardImporter->addComponent(this);
+	return Super::import(importStack);
 }

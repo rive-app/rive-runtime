@@ -10,11 +10,11 @@ namespace rive
 		typedef TransformComponent Super;
 
 	public:
-		static const int typeKey = 2;
+		static const uint16_t typeKey = 2;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -28,10 +28,10 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int xPropertyKey = 13;
-		static const int yPropertyKey = 14;
+		static const uint16_t xPropertyKey = 13;
+		static const uint16_t yPropertyKey = 14;
 
 	private:
 		float m_X = 0;
@@ -59,7 +59,7 @@ namespace rive
 			yChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

@@ -1,6 +1,7 @@
 #ifndef _RIVE_ARTBOARD_HPP_
 #define _RIVE_ARTBOARD_HPP_
-#include "animation/animation.hpp"
+#include "animation/linear_animation.hpp"
+#include "animation/state_machine.hpp"
 #include "core_context.hpp"
 #include "generated/artboard_base.hpp"
 #include "math/aabb.hpp"
@@ -22,7 +23,8 @@ namespace rive
 
 	private:
 		std::vector<Core*> m_Objects;
-		std::vector<Animation*> m_Animations;
+		std::vector<LinearAnimation*> m_Animations;
+		std::vector<StateMachine*> m_StateMachines;
 		std::vector<Component*> m_DependencyOrder;
 		std::vector<Drawable*> m_Drawables;
 		std::vector<DrawTarget*> m_DrawTargets;
@@ -38,7 +40,8 @@ namespace rive
 		~Artboard();
 		StatusCode initialize();
 		void addObject(Core* object);
-		void addAnimation(Animation* object);
+		void addAnimation(LinearAnimation* object);
+		void addStateMachine(StateMachine* object);
 
 		Core* resolve(int id) const override;
 
@@ -75,40 +78,15 @@ namespace rive
 			return nullptr;
 		}
 
-		template <typename T = Animation> T* firstAnimation()
-		{
-			for (auto animation : m_Animations)
-			{
-				if (animation->is<T>())
-				{
-					return reinterpret_cast<T*>(animation);
-				}
-			}
-			return nullptr;
-		}
-
-		template <typename T = Animation> T* animation(std::string name)
-		{
-			for (auto animation : m_Animations)
-			{
-				if (animation->is<T>() && animation->as<T>()->name() == name)
-				{
-					return reinterpret_cast<T*>(animation);
-				}
-			}
-			return nullptr;
-		}
-
-		template <typename T = Animation> T* animation(size_t index)
-		{
-			if (index >= 0 && index >= m_Animations.size())
-			{
-				return nullptr;
-			}
-			return m_Animations[index]->as<T>();
-		}
-
+		LinearAnimation* firstAnimation();
+		LinearAnimation* animation(std::string name);
+		LinearAnimation* animation(size_t index);
 		size_t animationCount() { return m_Animations.size(); }
+
+		StateMachine* firstStateMachine();
+		StateMachine* stateMachine(std::string name);
+		StateMachine* stateMachine(size_t index);
+		size_t stateMachineCount() { return m_StateMachines.size(); }
 	};
 } // namespace rive
 

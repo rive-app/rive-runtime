@@ -11,11 +11,11 @@ namespace rive
 		typedef Component Super;
 
 	public:
-		static const int typeKey = 44;
+		static const uint16_t typeKey = 44;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -27,15 +27,15 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int boneIdPropertyKey = 95;
-		static const int xxPropertyKey = 96;
-		static const int yxPropertyKey = 97;
-		static const int xyPropertyKey = 98;
-		static const int yyPropertyKey = 99;
-		static const int txPropertyKey = 100;
-		static const int tyPropertyKey = 101;
+		static const uint16_t boneIdPropertyKey = 95;
+		static const uint16_t xxPropertyKey = 96;
+		static const uint16_t yxPropertyKey = 97;
+		static const uint16_t xyPropertyKey = 98;
+		static const uint16_t yyPropertyKey = 99;
+		static const uint16_t txPropertyKey = 100;
+		static const uint16_t tyPropertyKey = 101;
 
 	private:
 		int m_BoneId = 0;
@@ -123,7 +123,7 @@ namespace rive
 			tyChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

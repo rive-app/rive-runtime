@@ -10,11 +10,11 @@ namespace rive
 		typedef StateMachineLayerComponent Super;
 
 	public:
-		static const int typeKey = 65;
+		static const uint16_t typeKey = 65;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -26,11 +26,11 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int stateToIdPropertyKey = 151;
-		static const int flagsPropertyKey = 152;
-		static const int durationPropertyKey = 158;
+		static const uint16_t stateToIdPropertyKey = 151;
+		static const uint16_t flagsPropertyKey = 152;
+		static const uint16_t durationPropertyKey = 158;
 
 	private:
 		int m_StateToId = 0;
@@ -70,7 +70,7 @@ namespace rive
 			durationChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

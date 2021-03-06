@@ -10,11 +10,11 @@ namespace rive
 		typedef LayerState Super;
 
 	public:
-		static const int typeKey = 61;
+		static const uint16_t typeKey = 61;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -27,9 +27,9 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int animationIdPropertyKey = 149;
+		static const uint16_t animationIdPropertyKey = 149;
 
 	private:
 		int m_AnimationId = 0;
@@ -45,7 +45,7 @@ namespace rive
 			animationIdChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

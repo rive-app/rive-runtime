@@ -27,11 +27,15 @@ Artboard::~Artboard()
 	{
 		delete object;
 	}
+	for (auto object : m_StateMachines)
+	{
+		delete object;
+	}
 	delete m_ClipPath;
 	delete m_BackgroundPath;
 }
 
-static bool canContinue(StatusCode code) 
+static bool canContinue(StatusCode code)
 {
 	// We currently only cease loading on invalid object.
 	return code != StatusCode::InvalidObject;
@@ -49,7 +53,7 @@ StatusCode Artboard::initialize()
 	// can't assume that their parent's parent will have resolved yet.
 	for (auto object : m_Objects)
 	{
-		if(object == nullptr) 
+		if (object == nullptr)
 		{
 			// objects can be null if they were not understood by this runtime.
 			continue;
@@ -68,6 +72,14 @@ StatusCode Artboard::initialize()
 		}
 	}
 
+	for (auto object : m_StateMachines)
+	{
+		if (!canContinue(code = object->onAddedDirty(this)))
+		{
+			return code;
+		}
+	}
+
 	// Store a map of the drawRules to make it easier to lookup the matching
 	// rule for a transform component.
 	std::unordered_map<Core*, DrawRules*> componentDrawRules;
@@ -79,7 +91,7 @@ StatusCode Artboard::initialize()
 	// parent should be type X can be checked now).
 	for (auto object : m_Objects)
 	{
-		if(object == nullptr) 
+		if (object == nullptr)
 		{
 			continue;
 		}
@@ -95,12 +107,16 @@ StatusCode Artboard::initialize()
 			{
 				componentDrawRules[component] = rules;
 			}
-			else 
+			else
 			{
-				fprintf(stderr, "Artboard::initialize - Draw rule targets missing component width id %d\n", rules->parentId());
+				fprintf(stderr,
+				        "Artboard::initialize - Draw rule targets missing "
+				        "component width id %d\n",
+				        rules->parentId());
 			}
 		}
 	}
+	
 	for (auto object : m_Animations)
 	{
 		if (!canContinue(code = object->onAddedClean(this)))
@@ -108,11 +124,20 @@ StatusCode Artboard::initialize()
 			return code;
 		}
 	}
+
+	for (auto object : m_StateMachines)
+	{
+		if (!canContinue(code = object->onAddedClean(this)))
+		{
+			return code;
+		}
+	}
+
 	// Multi-level references have been built up, now we can actually mark
 	// what's dependent on what.
 	for (auto object : m_Objects)
 	{
-		if(object == nullptr) 
+		if (object == nullptr)
 		{
 			continue;
 		}
@@ -145,7 +170,7 @@ StatusCode Artboard::initialize()
 	// dependencies.
 	for (auto object : m_Objects)
 	{
-		if(object == nullptr) 
+		if (object == nullptr)
 		{
 			continue;
 		}
@@ -291,9 +316,14 @@ void Artboard::sortDependencies()
 
 void Artboard::addObject(Core* object) { m_Objects.push_back(object); }
 
-void Artboard::addAnimation(Animation* object)
+void Artboard::addAnimation(LinearAnimation* object)
 {
 	m_Animations.push_back(object);
+}
+
+void Artboard::addStateMachine(StateMachine* object)
+{
+	m_StateMachines.push_back(object);
 }
 
 Core* Artboard::resolve(int id) const
@@ -333,7 +363,8 @@ void Artboard::update(ComponentDirt value)
 	{
 		m_ClipPath->reset();
 		m_ClipPath->addRect(0.0f, 0.0f, width(), height());
-		m_BackgroundPath->addRect(-width() * originX(), -height() * originY(), width(), height());
+		m_BackgroundPath->addRect(
+		    -width() * originX(), -height() * originY(), width(), height());
 	}
 }
 
@@ -406,3 +437,63 @@ void Artboard::draw(Renderer* renderer)
 }
 
 AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }
+
+LinearAnimation* Artboard::firstAnimation()
+{
+	if (m_Animations.empty())
+	{
+		return nullptr;
+	}
+	return m_Animations.front();
+}
+
+LinearAnimation* Artboard::animation(std::string name)
+{
+	for (auto animation : m_Animations)
+	{
+		if (animation->name() == name)
+		{
+			return animation;
+		}
+	}
+	return nullptr;
+}
+
+LinearAnimation* Artboard::animation(size_t index)
+{
+	if (index < 0 || index >= m_Animations.size())
+	{
+		return nullptr;
+	}
+	return m_Animations[index];
+}
+
+StateMachine* Artboard::firstStateMachine()
+{
+	if (m_StateMachines.empty())
+	{
+		return nullptr;
+	}
+	return m_StateMachines.front();
+}
+
+StateMachine* Artboard::stateMachine(std::string name)
+{
+	for (auto machine : m_StateMachines)
+	{
+		if (machine->name() == name)
+		{
+			return machine;
+		}
+	}
+	return nullptr;
+}
+
+StateMachine* Artboard::stateMachine(size_t index)
+{
+	if (index < 0 || index >= m_StateMachines.size())
+	{
+		return nullptr;
+	}
+	return m_StateMachines[index];
+}

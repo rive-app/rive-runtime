@@ -10,11 +10,11 @@ namespace rive
 		typedef Component Super;
 
 	public:
-		static const int typeKey = 18;
+		static const uint16_t typeKey = 18;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -26,9 +26,9 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int colorValuePropertyKey = 37;
+		static const uint16_t colorValuePropertyKey = 37;
 
 	private:
 		int m_ColorValue = 0xFF747474;
@@ -44,7 +44,7 @@ namespace rive
 			colorValueChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

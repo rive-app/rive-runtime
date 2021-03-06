@@ -10,11 +10,11 @@ namespace rive
 		typedef ContainerComponent Super;
 
 	public:
-		static const int typeKey = 1;
+		static const uint16_t typeKey = 1;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -27,14 +27,14 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int widthPropertyKey = 7;
-		static const int heightPropertyKey = 8;
-		static const int xPropertyKey = 9;
-		static const int yPropertyKey = 10;
-		static const int originXPropertyKey = 11;
-		static const int originYPropertyKey = 12;
+		static const uint16_t widthPropertyKey = 7;
+		static const uint16_t heightPropertyKey = 8;
+		static const uint16_t xPropertyKey = 9;
+		static const uint16_t yPropertyKey = 10;
+		static const uint16_t originXPropertyKey = 11;
+		static const uint16_t originYPropertyKey = 12;
 
 	private:
 		float m_Width = 0.0f;
@@ -110,7 +110,7 @@ namespace rive
 			originYChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

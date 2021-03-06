@@ -32,9 +32,9 @@ namespace rive
 	{
 	public:
 		/// Major version number supported by the runtime.
-		static const int majorVersion = 6;
+		static const int majorVersion = 7;
 		/// Minor version number supported by the runtime.
-		static const int minorVersion = 3;
+		static const int minorVersion = 0;
 
 	private:
 		/// The file's backboard. All Rive files have a single backboard

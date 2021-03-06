@@ -8,13 +8,15 @@
 namespace rive
 {
 	class CoreContext;
+	class ImportStack;
 	class Core
 	{
 	public:
 		virtual ~Core() {}
-		virtual int coreType() const = 0;
-		virtual bool isTypeOf(int typeKey) const = 0;
-		virtual bool deserialize(int propertyKey, BinaryReader& reader) = 0;
+		virtual uint16_t coreType() const = 0;
+		virtual bool isTypeOf(uint16_t typeKey) const = 0;
+		virtual bool deserialize(uint16_t propertyKey,
+		                         BinaryReader& reader) = 0;
 
 		template <typename T> bool is() const { return isTypeOf(T::typeKey); }
 		template <typename T> T* as()
@@ -41,6 +43,11 @@ namespace rive
 		/// dependencies. (A path should be able to find a Shape somewhere in
 		/// its hierarchy, which may be multiple levels up).
 		virtual StatusCode onAddedClean(CoreContext* context) = 0;
+
+		virtual StatusCode import(ImportStack& importStack)
+		{
+			return StatusCode::Ok;
+		}
 	};
 } // namespace rive
 #endif

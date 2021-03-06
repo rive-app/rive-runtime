@@ -10,11 +10,11 @@ namespace rive
 		typedef Weight Super;
 
 	public:
-		static const int typeKey = 46;
+		static const uint16_t typeKey = 46;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -27,12 +27,12 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int inValuesPropertyKey = 110;
-		static const int inIndicesPropertyKey = 111;
-		static const int outValuesPropertyKey = 112;
-		static const int outIndicesPropertyKey = 113;
+		static const uint16_t inValuesPropertyKey = 110;
+		static const uint16_t inIndicesPropertyKey = 111;
+		static const uint16_t outValuesPropertyKey = 112;
+		static const uint16_t outIndicesPropertyKey = 113;
 
 	private:
 		int m_InValues = 255;
@@ -84,7 +84,7 @@ namespace rive
 			outIndicesChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

@@ -10,11 +10,11 @@ namespace rive
 		typedef CubicVertex Super;
 
 	public:
-		static const int typeKey = 35;
+		static const uint16_t typeKey = 35;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -29,10 +29,10 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int rotationPropertyKey = 82;
-		static const int distancePropertyKey = 83;
+		static const uint16_t rotationPropertyKey = 82;
+		static const uint16_t distancePropertyKey = 83;
 
 	private:
 		float m_Rotation = 0;
@@ -60,7 +60,7 @@ namespace rive
 			distanceChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

@@ -10,11 +10,11 @@ namespace rive
 		typedef TransitionValueCondition Super;
 
 	public:
-		static const int typeKey = 70;
+		static const uint16_t typeKey = 70;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -27,9 +27,9 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int valuePropertyKey = 157;
+		static const uint16_t valuePropertyKey = 157;
 
 	private:
 		float m_Value = 0;
@@ -45,7 +45,7 @@ namespace rive
 			valueChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

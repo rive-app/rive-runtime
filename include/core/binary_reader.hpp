@@ -19,6 +19,7 @@ namespace rive
     public:
         BinaryReader(uint8_t* bytes, size_t length);
         bool didOverflow() const;
+        bool reachedEnd() const;
 
         size_t lengthInBytes() const;
 

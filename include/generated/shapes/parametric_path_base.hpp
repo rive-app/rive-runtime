@@ -10,11 +10,11 @@ namespace rive
 		typedef Path Super;
 
 	public:
-		static const int typeKey = 15;
+		static const uint16_t typeKey = 15;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -30,12 +30,12 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int widthPropertyKey = 20;
-		static const int heightPropertyKey = 21;
-		static const int originXPropertyKey = 123;
-		static const int originYPropertyKey = 124;
+		static const uint16_t widthPropertyKey = 20;
+		static const uint16_t heightPropertyKey = 21;
+		static const uint16_t originXPropertyKey = 123;
+		static const uint16_t originYPropertyKey = 124;
 
 	private:
 		float m_Width = 0;
@@ -87,7 +87,7 @@ namespace rive
 			originYChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

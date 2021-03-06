@@ -2,6 +2,8 @@
 #include "artboard.hpp"
 #include "container_component.hpp"
 #include "core_context.hpp"
+#include "importers/import_stack.hpp"
+#include "importers/artboard_importer.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -56,4 +58,16 @@ bool Component::addDirt(ComponentDirt value, bool recurse)
 		d->addDirt(value, true);
 	}
 	return true;
+}
+
+StatusCode Component::import(ImportStack& importStack)
+{
+	auto artboardImporter =
+	    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+	if (artboardImporter == nullptr)
+	{
+		return StatusCode::MissingObject;
+	}
+	artboardImporter->addComponent(this);
+	return Super::import(importStack);
 }

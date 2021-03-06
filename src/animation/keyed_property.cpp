@@ -1,5 +1,8 @@
 #include "animation/keyed_property.hpp"
 #include "animation/keyframe.hpp"
+#include "importers/import_stack.hpp"
+#include "importers/keyed_object_importer.hpp"
+#include "animation/keyed_object.hpp"
 
 using namespace rive;
 
@@ -104,4 +107,16 @@ StatusCode KeyedProperty::onAddedClean(CoreContext* context)
 		}
 	}
 	return StatusCode::Ok;
+}
+
+StatusCode KeyedProperty::import(ImportStack& importStack)
+{
+	auto importer =
+	    importStack.latest<KeyedObjectImporter>(KeyedObjectBase::typeKey);
+	if (importer == nullptr)
+	{
+		return StatusCode::MissingObject;
+	}
+	importer->addKeyedProperty(this);
+	return Super::import(importStack);
 }

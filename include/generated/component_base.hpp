@@ -12,11 +12,11 @@ namespace rive
 		typedef Core Super;
 
 	public:
-		static const int typeKey = 10;
+		static const uint16_t typeKey = 10;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -27,10 +27,10 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int namePropertyKey = 4;
-		static const int parentIdPropertyKey = 5;
+		static const uint16_t namePropertyKey = 4;
+		static const uint16_t parentIdPropertyKey = 5;
 
 	private:
 		std::string m_Name = "";
@@ -58,7 +58,7 @@ namespace rive
 			parentIdChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

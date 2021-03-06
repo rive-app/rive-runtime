@@ -11,6 +11,8 @@ BinaryReader::BinaryReader(uint8_t* bytes, size_t length) :
 {
 }
 
+bool BinaryReader::reachedEnd() const { return m_Position == m_End || didOverflow(); }
+
 size_t BinaryReader::lengthInBytes() const { return m_Length; }
 
 bool BinaryReader::didOverflow() const { return m_Overflowed; }
@@ -89,7 +91,7 @@ uint8_t BinaryReader::readByte()
 	return *m_Position++;
 }
 
-uint32_t BinaryReader::readUint32() 
+uint32_t BinaryReader::readUint32()
 {
 	uint32_t value;
 	auto readBytes = decode_uint_32(m_Position, m_End, &value);

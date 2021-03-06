@@ -52,6 +52,8 @@ namespace rive
 		{
 			return (value & flag) != ComponentDirt::None;
 		}
+
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 

@@ -13,12 +13,18 @@ namespace rive
 
 	public:
 		inline float seconds() const { return m_Seconds; }
-		inline CubicInterpolator* interpolator() const { return m_Interpolator; }
+		inline CubicInterpolator* interpolator() const
+		{
+			return m_Interpolator;
+		}
 
 		void computeSeconds(int fps);
 
 		StatusCode onAddedDirty(CoreContext* context) override;
-		StatusCode onAddedClean(CoreContext* context) override { return StatusCode::Ok; }
+		StatusCode onAddedClean(CoreContext* context) override
+		{
+			return StatusCode::Ok;
+		}
 
 		virtual void apply(Core* object, int propertyKey, float mix) = 0;
 		virtual void applyInterpolation(Core* object,
@@ -26,6 +32,8 @@ namespace rive
 		                                float seconds,
 		                                const KeyFrame* nextFrame,
 		                                float mix) = 0;
+										
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 

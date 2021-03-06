@@ -18,6 +18,8 @@ namespace rive
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
 		void apply(Artboard* coreContext, float time, float mix);
+
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 

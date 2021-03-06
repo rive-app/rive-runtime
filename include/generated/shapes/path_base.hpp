@@ -10,11 +10,11 @@ namespace rive
 		typedef Node Super;
 
 	public:
-		static const int typeKey = 12;
+		static const uint16_t typeKey = 12;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
-		bool isTypeOf(int typeKey) const override
+		bool isTypeOf(uint16_t typeKey) const override
 		{
 			switch (typeKey)
 			{
@@ -29,9 +29,9 @@ namespace rive
 			}
 		}
 
-		int coreType() const override { return typeKey; }
+		uint16_t coreType() const override { return typeKey; }
 
-		static const int pathFlagsPropertyKey = 128;
+		static const uint16_t pathFlagsPropertyKey = 128;
 
 	private:
 		int m_PathFlags = 0;
@@ -47,7 +47,7 @@ namespace rive
 			pathFlagsChanged();
 		}
 
-		bool deserialize(int propertyKey, BinaryReader& reader) override
+		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
 			{

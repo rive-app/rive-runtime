@@ -21,6 +21,8 @@ namespace rive
 
 		/// Convert a linear interpolation factor to an eased one.
 		float transform(float value) const;
+
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 

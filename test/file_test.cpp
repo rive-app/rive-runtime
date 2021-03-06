@@ -25,11 +25,11 @@ TEST_CASE("file can be read", "[file]")
 	REQUIRE(file != nullptr);
 	REQUIRE(file->artboard() != nullptr);
 
-	// Default artboard should be named One.
-	REQUIRE(file->artboard()->name() == "One");
+	// Default artboard should be named Two.
+	REQUIRE(file->artboard()->name() == "Two");
 
-	// There should be a second artboard named Two.
-	REQUIRE(file->artboard("Two") != nullptr);
+	// There should be a second artboard named One.
+	REQUIRE(file->artboard("One") != nullptr);
 
 	delete file;
 	delete[] bytes;
@@ -68,6 +68,11 @@ TEST_CASE("file with animation can be read", "[file]")
 	REQUIRE(shinNode->parent()->parent() != nullptr);
 	REQUIRE(shinNode->parent()->parent()->parent() != nullptr);
 	REQUIRE(shinNode->parent()->parent()->parent() == artboard);
+
+	auto walkAnimation = artboard->animation("walk");
+	REQUIRE(walkAnimation != nullptr);
+	REQUIRE(walkAnimation->numKeyedObjects() == 22);
+	
 
 	delete file;
 	delete[] bytes;

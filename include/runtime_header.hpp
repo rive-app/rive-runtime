@@ -18,7 +18,6 @@ namespace rive
 
 		int m_MajorVersion;
 		int m_MinorVersion;
-		int m_OwnerId;
 		int m_FileId;
 		std::unordered_map<int, int> m_PropertyToFieldIndex;
 
@@ -27,8 +26,6 @@ namespace rive
 		int majorVersion() const { return m_MajorVersion; }
 		/// @returns the file's minor version
 		int minorVersion() const { return m_MinorVersion; }
-		/// @returns the id of the file's owner; may be zero
-		int ownerId() const { return m_OwnerId; }
 		/// @returns the file's id; may be zero
 		int fileId() const { return m_FileId; }
 
@@ -58,25 +55,33 @@ namespace rive
 				}
 			}
 
-			header.m_MajorVersion = (int) reader.readVarUint();
+			header.m_MajorVersion = (int)reader.readVarUint();
 			if (reader.didOverflow())
 			{
 				return false;
 			}
-			header.m_MinorVersion = (int) reader.readVarUint();
+			header.m_MinorVersion = (int)reader.readVarUint();
 			if (reader.didOverflow())
 			{
 				return false;
 			}
 
-			header.m_OwnerId = (int) reader.readVarUint();
-			header.m_FileId = (int) reader.readVarUint();
+			header.m_FileId = (int)reader.readVarUint();
+
+			if (reader.didOverflow())
+			{
+				return false;
+			}
 
 			std::vector<int> propertyKeys;
-			for (int propertyKey = (int) reader.readVarUint(); propertyKey != 0;
-			     propertyKey = (int) reader.readVarUint())
+			for (int propertyKey = (int)reader.readVarUint(); propertyKey != 0;
+			     propertyKey = (int)reader.readVarUint())
 			{
 				propertyKeys.push_back(propertyKey);
+				if (reader.didOverflow())
+				{
+					return false;
+				}
 			}
 
 			int currentInt = 0;
@@ -91,6 +96,10 @@ namespace rive
 				int fieldIndex = (currentInt >> currentBit) & 3;
 				header.m_PropertyToFieldIndex[propertyKey] = fieldIndex;
 				currentBit += 2;
+				if (reader.didOverflow())
+				{
+					return false;
+				}
 			}
 
 			return true;

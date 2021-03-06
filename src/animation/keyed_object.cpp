@@ -1,6 +1,8 @@
 #include "animation/keyed_object.hpp"
 #include "animation/keyed_property.hpp"
+#include "animation/linear_animation.hpp"
 #include "artboard.hpp"
+#include "importers/linear_animation_importer.hpp"
 
 using namespace rive;
 
@@ -51,4 +53,16 @@ void KeyedObject::apply(Artboard* artboard, float time, float mix)
 	{
 		property->apply(object, time, mix);
 	}
+}
+
+StatusCode KeyedObject::import(ImportStack& importStack)
+{
+	auto importer = importStack.latest<LinearAnimationImporter>(
+	    LinearAnimationBase::typeKey);
+	if (importer == nullptr)
+	{
+		return StatusCode::MissingObject;
+	}
+	importer->addKeyedObject(this);
+	return Super::import(importStack);
 }

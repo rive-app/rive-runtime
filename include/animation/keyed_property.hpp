@@ -16,6 +16,8 @@ namespace rive
 		StatusCode onAddedDirty(CoreContext* context) override;
 
 		void apply(Core* object, float time, float mix);
+		
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 
