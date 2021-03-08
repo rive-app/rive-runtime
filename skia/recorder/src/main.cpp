@@ -166,7 +166,6 @@ int main(int argc, char* argv[])
 		                         extractor->width(),
 		                         extractor->height(),
 		                         extractor->fps(),
-		                         args::get(snapshot_path).c_str(),
 		                         args::get(bitrate));
 	}
 	catch (const std::invalid_argument e)
@@ -178,17 +177,16 @@ int main(int argc, char* argv[])
 	// We should also respect the work area here... we're just exporting the
 	// entire animation for now.
 	int totalFrames = extractor->totalFrames();
+	auto snapshotPath = args::get(snapshot_path).c_str();
 
 	writer->writeHeader();
 	for (int i = 0; i < totalFrames; i++)
 	{
 		extractor->advanceFrame();
 
-		if (i == 0)
+		if (i == 0 && snapshotPath != NULL && snapshotPath[0] != '\0')
 		{
-
-			std::string outPath = "out.png";
-			SkFILEWStream out(outPath.c_str());
+			SkFILEWStream out(snapshotPath);
 			auto png = extractor->getSkData();
 			(void)out.write(png->data(), png->size());
 		}

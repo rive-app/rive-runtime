@@ -40,7 +40,6 @@ public:
 	            int _width,
 	            int _height,
 	            int _fps,
-	            const char* _snapshotPath,
 	            int bitrate = 5000);
 	void writeFrame(int frameNumber, const uint8_t* const* pixelData);
 	void writeHeader();
@@ -56,7 +55,6 @@ private:
 	SwsContext* swsCtx;
 	AVPixelFormat pixel_format;
 	const char* destinationPath;
-	const char* snapshotPath;
 	void initialize();
 	void initialise_av_frame();
 	int width, height, fps, bitrate;
