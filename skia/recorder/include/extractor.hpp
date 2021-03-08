@@ -36,7 +36,9 @@ public:
 	int height();
 	int fps();
 	int totalFrames();
-	const void* getFrame(int i);
+	void advanceFrame();
+	const void* getPixelAddresses();
+	sk_sp<SkData> getSkData();
 
 private:
 	int _width, _height, _min_duration, _max_duration;
@@ -52,6 +54,7 @@ private:
 	sk_sp<SkImage> watermarkImage;
 	SkCanvas* rasterCanvas;
 	sk_sp<SkSurface> rasterSurface;
+	sk_sp<SkImage> getSnapshot();
 	void initializeDimensions(int width,
 	                          int height,
 	                          int small_extent_target,

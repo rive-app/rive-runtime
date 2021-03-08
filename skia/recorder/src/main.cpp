@@ -104,6 +104,9 @@ int main(int argc, char* argv[])
 	args::ValueFlag<int> bitrate(
 	    optional, "number", "bitrate in kbps", {"bitrate"}, 5000);
 
+	args::ValueFlag<std::string> snapshot_path(
+	    optional, "path", "destination image filename", {"snapshot-path"});
+
 	args::CompletionFlag completion(parser, {"complete"});
 
 	try
@@ -163,6 +166,7 @@ int main(int argc, char* argv[])
 		                         extractor->width(),
 		                         extractor->height(),
 		                         extractor->fps(),
+		                         args::get(snapshot_path).c_str(),
 		                         args::get(bitrate));
 	}
 	catch (const std::invalid_argument e)
@@ -178,7 +182,17 @@ int main(int argc, char* argv[])
 	writer->writeHeader();
 	for (int i = 0; i < totalFrames; i++)
 	{
-		auto pixelData = extractor->getFrame(i);
+		extractor->advanceFrame();
+
+		if (i == 0)
+		{
+
+			std::string outPath = "out.png";
+			SkFILEWStream out(outPath.c_str());
+			auto png = extractor->getSkData();
+			(void)out.write(png->data(), png->size());
+		}
+		auto pixelData = extractor->getPixelAddresses();
 		writer->writeFrame(i, (const uint8_t* const*)&pixelData);
 	}
 	writer->finalize();

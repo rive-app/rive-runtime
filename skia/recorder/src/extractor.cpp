@@ -244,7 +244,9 @@ RiveFrameExtractor::getAnimation(const char* animation_name)
 	return animation;
 };
 
-const void* RiveFrameExtractor::getFrame(int i)
+void RiveFrameExtractor::advanceFrame() { animation_instance->advance(ifps); }
+
+sk_sp<SkImage> RiveFrameExtractor::getSnapshot()
 {
 	// hmm "no deafault constructor exists bla bla... "
 	rive::SkiaRenderer renderer(rasterCanvas);
@@ -254,7 +256,6 @@ const void* RiveFrameExtractor::getFrame(int i)
 	               rive::Alignment::center,
 	               rive::AABB(0, 0, width(), height()),
 	               artboard->bounds());
-	animation_instance->advance(ifps);
 	animation_instance->apply(artboard);
 	artboard->advance(0.0f);
 	artboard->draw(&renderer);
@@ -273,16 +274,37 @@ const void* RiveFrameExtractor::getFrame(int i)
 	sk_sp<SkImage> img(rasterSurface->makeImageSnapshot());
 	if (!img)
 	{
-		throw std::invalid_argument(
-		    string_format("Cant generate image frame %i from riv file.", i));
+		throw std::invalid_argument(string_format("Cant make a snapshot."));
 	}
+	return img;
+}
+
+const void* RiveFrameExtractor::getPixelAddresses()
+{
+	auto img = getSnapshot();
 	SkPixmap pixels;
 	if (!img->peekPixels(&pixels))
 	{
-		string_format("Failed to peek at the pixel buffer for frame %i\n", i);
+		throw std::invalid_argument(
+		    string_format("Cant peek pixels image frame from riv file."));
 	}
 
 	// Get the address to the first pixel (addr8 will assert in debug mode
 	// as Skia only wants you to use that with 8 bit surfaces).
 	return pixels.addr(0, 0);
+};
+
+sk_sp<SkData> RiveFrameExtractor::getSkData()
+{
+	auto img = getSnapshot();
+	sk_sp<SkData> png(img->encodeToData());
+	if (!png)
+	{
+		throw std::invalid_argument(
+		    string_format("Cant encode snapshot as png."));
+	}
+
+	// Get the address to the first pixel (addr8 will assert in debug mode
+	// as Skia only wants you to use that with 8 bit surfaces).
+	return png;
 };
