@@ -1,6 +1,6 @@
 FROM google/dart
 
-RUN apt update && apt-get -y install unzip zip clang cmake ninja-build pkg-config libgtk-3-dev xvfb cargo wget g++ lsof nasm yasm
+RUN apt update && apt-get -y install unzip zip clang cmake ninja-build pkg-config libgtk-3-dev xvfb cargo wget g++ lsof nasm yasm mediainfo
 
 # Setup env variables for rive-cpp compilation
 ENV LDFLAGS="-pthreads"

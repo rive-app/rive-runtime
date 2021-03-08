@@ -3,7 +3,7 @@
 MovieWriter::MovieWriter(
     const char* _destination, int _width, int _height, int _fps, int _bitrate)
 {
-	destinationFilename = _destination;
+	destinationPath = _destination;
 	width = _width;
 	height = _height;
 	fps = _fps;
@@ -16,12 +16,11 @@ void MovieWriter::initialize()
 	// if init fails all this stuff needs cleaning up?
 
 	// Try to guess the output format from the name.
-	oformat = av_guess_format(nullptr, destinationFilename, nullptr);
+	oformat = av_guess_format(nullptr, destinationPath, nullptr);
 	if (!oformat)
 	{
-		throw std::invalid_argument(
-		    string_format("Failed to determine output format for %s\n.",
-		                  destinationFilename));
+		throw std::invalid_argument(string_format(
+		    "Failed to determine output format for %s\n.", destinationPath));
 	}
 
 	// Get a context for the format to work with (I guess the OutputFormat
@@ -30,10 +29,10 @@ void MovieWriter::initialize()
 	ofctx = nullptr;
 	// TODO: there's probably cleanup to do here.
 	if (avformat_alloc_output_context2(
-	        &ofctx, oformat, nullptr, destinationFilename) < 0)
+	        &ofctx, oformat, nullptr, destinationPath) < 0)
 	{
 		throw std::invalid_argument(string_format(
-		    "Failed to allocate output context %s\n.", destinationFilename));
+		    "Failed to allocate output context %s\n.", destinationPath));
 	}
 	// Check that we have the necessary codec for the format we want to
 	// encode (I think most formats can have multiple codecs so this
@@ -41,8 +40,8 @@ void MovieWriter::initialize()
 	codec = avcodec_find_encoder(oformat->video_codec);
 	if (!codec)
 	{
-		throw std::invalid_argument(string_format(
-		    "Failed to find codec for %s\n.", destinationFilename));
+		throw std::invalid_argument(
+		    string_format("Failed to find codec for %s\n.", destinationPath));
 	}
 
 	// Allocate the stream we're going to be writing to.
@@ -50,7 +49,7 @@ void MovieWriter::initialize()
 	if (!videoStream)
 	{
 		throw std::invalid_argument(string_format(
-		    "Failed to create a stream for %s\n.", destinationFilename));
+		    "Failed to create a stream for %s\n.", destinationPath));
 	}
 
 	// Similar to AVOutputFormat and AVFormatContext, the codec needs an
@@ -61,7 +60,7 @@ void MovieWriter::initialize()
 		throw std::invalid_argument(
 		    string_format("Failed to allocate codec context for "
 		                  "%s\n.",
-		                  destinationFilename));
+		                  destinationPath));
 	}
 
 	// default to our friend yuv, mp4 is basically locked onto this.
@@ -114,7 +113,7 @@ void MovieWriter::initialize()
 	if (avcodec_open2(cctx, codec, NULL) < 0)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to open codec %i\n", destinationFilename));
+		    string_format("Failed to open codec %i\n", destinationPath));
 	}
 	// initialise_av_frame();
 }
@@ -143,8 +142,7 @@ void MovieWriter::writeHeader()
 	if (!(oformat->flags & AVFMT_NOFILE))
 	{
 		int err;
-		if ((err = avio_open(
-		         &ofctx->pb, destinationFilename, AVIO_FLAG_WRITE)) < 0)
+		if ((err = avio_open(&ofctx->pb, destinationPath, AVIO_FLAG_WRITE)) < 0)
 		{
 			throw std::invalid_argument(
 			    string_format("Failed to open file %s with error %i\n", err));
@@ -155,11 +153,11 @@ void MovieWriter::writeHeader()
 	if (avformat_write_header(ofctx, NULL) < 0)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to write header %i\n", destinationFilename));
+		    string_format("Failed to write header %i\n", destinationPath));
 	}
 
 	// Write the format into the header...
-	av_dump_format(ofctx, 0, destinationFilename, 1);
+	av_dump_format(ofctx, 0, destinationPath, 1);
 
 	// Init a software scaler to do the conversion.
 	swsCtx = sws_getContext(width,

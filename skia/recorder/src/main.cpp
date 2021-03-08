@@ -104,6 +104,9 @@ int main(int argc, char* argv[])
 	args::ValueFlag<int> bitrate(
 	    optional, "number", "bitrate in kbps", {"bitrate"}, 5000);
 
+	args::ValueFlag<std::string> snapshot_path(
+	    optional, "path", "destination image filename", {"snapshot-path"});
+
 	args::CompletionFlag completion(parser, {"complete"});
 
 	try
@@ -174,11 +177,20 @@ int main(int argc, char* argv[])
 	// We should also respect the work area here... we're just exporting the
 	// entire animation for now.
 	int totalFrames = extractor->totalFrames();
+	auto snapshotPath = args::get(snapshot_path).c_str();
 
 	writer->writeHeader();
 	for (int i = 0; i < totalFrames; i++)
 	{
-		auto pixelData = extractor->getFrame(i);
+		extractor->advanceFrame();
+
+		if (i == 0 && snapshotPath != NULL && snapshotPath[0] != '\0')
+		{
+			SkFILEWStream out(snapshotPath);
+			auto png = extractor->getSkData();
+			(void)out.write(png->data(), png->size());
+		}
+		auto pixelData = extractor->getPixelAddresses();
 		writer->writeFrame(i, (const uint8_t* const*)&pixelData);
 	}
 	writer->finalize();
