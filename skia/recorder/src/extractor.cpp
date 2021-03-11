@@ -223,8 +223,7 @@ RiveFrameExtractor::getAnimation(const char* animation_name)
 	rive::LinearAnimation* animation;
 	if (animation_name != NULL && animation_name[0] != '\0')
 	{
-		if ((animation = artboard->animation<rive::LinearAnimation>(
-		         animation_name)) == nullptr)
+		if ((animation = artboard->animation(animation_name)) == nullptr)
 		{
 
 			fprintf(stderr,
@@ -234,7 +233,7 @@ RiveFrameExtractor::getAnimation(const char* animation_name)
 	}
 	else
 	{
-		animation = artboard->firstAnimation<rive::LinearAnimation>();
+		animation = artboard->firstAnimation();
 		if (animation == nullptr)
 		{
 			throw std::invalid_argument(
