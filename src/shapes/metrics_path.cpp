@@ -4,6 +4,19 @@
 
 using namespace rive;
 
+float clamp(float v, float lo, float hi)
+{
+	if (v < lo)
+	{
+		return lo;
+	}
+	else if (v > hi)
+	{
+		return hi;
+	}
+	return v;
+}
+
 void MetricsPath::reset()
 {
 	m_ComputedLength = 0.0f;
@@ -253,6 +266,10 @@ void MetricsPath::trim(float startLength,
 		}
 		length += partLength;
 	}
+
+	// Lets make sur we're between 0 & 1f on both start & end.
+	startT = clamp(startT, 0.0f, 1.0f);
+	endT = clamp(endT, 0.0f, 1.0f);
 
 	if (firstPartIndex == lastPartIndex)
 	{
