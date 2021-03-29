@@ -7,6 +7,7 @@
   "properties": {
     "keyedObjectId": {
       "type": "Id",
+      "initialValue": "Core.missingId",
       "key": {
         "int": 71,
         "string": "keyedobjectid"
@@ -16,6 +17,7 @@
     },
     "propertyKey": {
       "type": "uint",
+      "initialValue": "CoreContext.invalidPropertyKey",
       "key": {
         "int": 53,
         "string": "propertykey"

@@ -44,6 +44,7 @@
     },
     "workStart": {
       "type": "uint",
+      "initialValue": "-1",
       "key": {
         "int": 60,
         "string": "workstart"
@@ -52,6 +53,7 @@
     },
     "workEnd": {
       "type": "uint",
+      "initialValue": "-1",
       "key": {
         "int": 61,
         "string": "workend"

@@ -9,12 +9,13 @@
     "drawableId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 119,
         "string": "drawableid"
       },
-      "description": "Id of the drawable this target references.",
-      "nullable": true
+      "description": "Id of the drawable this target references."
     },
     "placementValue": {
       "type": "uint",

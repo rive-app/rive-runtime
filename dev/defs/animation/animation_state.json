@@ -9,12 +9,13 @@
     "animationId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 149,
         "string": "animationid"
       },
-      "description": "Id of the animation this layer state refers to.",
-      "nullable": true
+      "description": "Id of the animation this layer state refers to."
     }
   }
 }

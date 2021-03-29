@@ -8,6 +8,7 @@
   "properties": {
     "isClosed": {
       "type": "bool",
+      "initialValue": "false",
       "key": {
         "int": 32,
         "string": "isclosed"

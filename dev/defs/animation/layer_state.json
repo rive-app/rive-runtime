@@ -9,6 +9,7 @@
   "properties": {
     "layerId": {
       "type": "Id",
+      "initialValue": "Core.missingId",
       "key": {
         "int": 146,
         "string": "layerid"

@@ -9,6 +9,7 @@
   "properties": {
     "x": {
       "type": "double",
+      "initialValue": "0",
       "animates": true,
       "group": "position",
       "key": {
@@ -19,6 +20,7 @@
     },
     "y": {
       "type": "double",
+      "initialValue": "0",
       "animates": true,
       "group": "position",
       "key": {

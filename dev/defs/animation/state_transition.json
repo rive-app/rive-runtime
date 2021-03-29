@@ -8,6 +8,7 @@
   "properties": {
     "stateFromId": {
       "type": "Id",
+      "initialValue": "Core.missingId",
       "key": {
         "int": 150,
         "string": "statefromid"
@@ -18,6 +19,8 @@
     "stateToId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 151,
         "string": "statetoid"
@@ -43,6 +46,7 @@
     },
     "transitionOrder": {
       "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 159,
         "string": "transitionorder"

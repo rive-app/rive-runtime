@@ -8,6 +8,7 @@
   "properties": {
     "value": {
       "type": "Color",
+      "initialValue": "0",
       "key": {
         "int": 88,
         "string": "value"

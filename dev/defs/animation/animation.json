@@ -7,6 +7,7 @@
   "properties": {
     "artboardId": {
       "type": "Id",
+      "initialValue": "Core.missingId",
       "key": {
         "int": 54,
         "string": "artboardid"
@@ -16,6 +17,7 @@
     },
     "name": {
       "type": "String",
+      "initialValue": "''",
       "key": {
         "int": 55,
         "string": "name"
@@ -24,6 +26,7 @@
     },
     "order": {
       "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 73,
         "string": "order"

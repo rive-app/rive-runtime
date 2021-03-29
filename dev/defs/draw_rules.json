@@ -9,6 +9,8 @@
     "drawTargetId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "animates": true,
       "key": {
         "int": 121,

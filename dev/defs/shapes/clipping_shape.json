@@ -9,6 +9,8 @@
     "sourceId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 92,
         "string": "sourceid"

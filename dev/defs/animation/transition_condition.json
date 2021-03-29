@@ -9,6 +9,8 @@
     "transitionId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 153,
         "string": "transitionid"
@@ -18,6 +20,8 @@
     },
     "conditionOrder": {
       "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
       "key": {
         "int": 154,
         "string": "conditionorder"
@@ -28,12 +32,13 @@
     "inputId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 155,
         "string": "inputid"
       },
-      "description": "Id of the StateMachineInput referenced.",
-      "nullable": true
+      "description": "Id of the StateMachineInput referenced."
     }
   }
 }

@@ -8,6 +8,8 @@
     "objectId": {
       "type": "Id",
       "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
       "key": {
         "int": 51,
         "string": "objectid"
@@ -16,6 +18,8 @@
     },
     "animationId": {
       "type": "Id",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 52,
         "string": "animationid"

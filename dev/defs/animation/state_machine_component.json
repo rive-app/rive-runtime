@@ -8,6 +8,7 @@
   "properties": {
     "machineId": {
       "type": "Id",
+      "initialValue": "Core.missingId",
       "key": {
         "int": 137,
         "string": "machineid"
@@ -17,15 +18,16 @@
     },
     "name": {
       "type": "String",
+      "initialValue": "''",
       "key": {
         "int": 138,
         "string": "name"
       },
-      "description": "Non-unique identifier, used to give friendly names to state machine components (like layers or inputs).",
-      "nullable": true
+      "description": "Non-unique identifier, used to give friendly names to state machine components (like layers or inputs)."
     },
     "machineOrder": {
       "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 139,
         "string": "machineorder"

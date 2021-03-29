@@ -19,12 +19,12 @@
     },
     "editingLayerId": {
       "type": "Id",
+      "initialValue": "Core.missingId",
       "key": {
         "int": 142,
         "string": "editinglayer"
       },
       "description": "Id of the currently editing layer.",
-      "nullable": true,
       "runtime": false,
       "coop": false
     }
