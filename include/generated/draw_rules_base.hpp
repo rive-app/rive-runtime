@@ -32,7 +32,7 @@ namespace rive
 		static const uint16_t drawTargetIdPropertyKey = 121;
 
 	private:
-		int m_DrawTargetId = 0;
+		int m_DrawTargetId = -1;
 	public:
 		inline int drawTargetId() const { return m_DrawTargetId; }
 		void drawTargetId(int value)

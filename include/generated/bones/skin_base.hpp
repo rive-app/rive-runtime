@@ -37,12 +37,12 @@ namespace rive
 		static const uint16_t tyPropertyKey = 109;
 
 	private:
-		float m_Xx = 1;
-		float m_Yx = 0;
-		float m_Xy = 0;
-		float m_Yy = 1;
-		float m_Tx = 0;
-		float m_Ty = 0;
+		float m_Xx = 1.0f;
+		float m_Yx = 0.0f;
+		float m_Xy = 0.0f;
+		float m_Yy = 1.0f;
+		float m_Tx = 0.0f;
+		float m_Ty = 0.0f;
 	public:
 		inline float xx() const { return m_Xx; }
 		void xx(float value)

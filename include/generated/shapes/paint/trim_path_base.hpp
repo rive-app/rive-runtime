@@ -35,9 +35,9 @@ namespace rive
 		static const uint16_t modeValuePropertyKey = 117;
 
 	private:
-		float m_Start = 0;
-		float m_End = 0;
-		float m_Offset = 0;
+		float m_Start = 0.0f;
+		float m_End = 0.0f;
+		float m_Offset = 0.0f;
 		int m_ModeValue = 0;
 	public:
 		inline float start() const { return m_Start; }

@@ -15,6 +15,10 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context)
 	auto artboard = static_cast<Artboard*>(context);
 	for (auto core : artboard->objects())
 	{
+		if (core == nullptr)
+		{
+			continue;
+		}
 		// Iterate artboard to find drawables that are parented to this clipping
 		// shape, they need to know they'll be clipped by this shape.
 		if (core->is<Drawable>())

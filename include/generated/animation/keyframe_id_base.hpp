@@ -31,7 +31,7 @@ namespace rive
 		static const uint16_t valuePropertyKey = 122;
 
 	private:
-		int m_Value = 0;
+		int m_Value = -1;
 	public:
 		inline int value() const { return m_Value; }
 		void value(int value)

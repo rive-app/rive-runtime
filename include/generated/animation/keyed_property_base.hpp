@@ -30,7 +30,7 @@ namespace rive
 		static const uint16_t propertyKeyPropertyKey = 53;
 
 	private:
-		int m_PropertyKey = 0;
+		int m_PropertyKey = Core::invalidPropertyKey;
 	public:
 		inline int propertyKey() const { return m_PropertyKey; }
 		void propertyKey(int value)

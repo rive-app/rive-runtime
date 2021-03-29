@@ -34,7 +34,7 @@ namespace rive
 		static const uint16_t isVisiblePropertyKey = 94;
 
 	private:
-		int m_SourceId = 0;
+		int m_SourceId = -1;
 		int m_FillRule = 0;
 		bool m_IsVisible = true;
 	public:

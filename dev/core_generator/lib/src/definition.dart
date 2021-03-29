@@ -160,9 +160,11 @@ class Definition {
       for (final property in properties) {
         code.writeln('${property.type.cppName} m_${property.capitalizedName}');
 
-        var initialize = property.initialValue ?? property.type.defaultValue;
+        var initialize = property.initialValueRuntime ??
+            property.initialValue ??
+            property.type.defaultValue;
         if (initialize != null) {
-          code.write(' = $initialize');
+          code.write(' = ${property.type.convertCpp(initialize)}');
         }
         code.write(';');
       }

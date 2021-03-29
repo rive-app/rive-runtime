@@ -59,4 +59,6 @@ abstract class FieldType {
   String get snakeRuntimeCoreName => _runtimeCoreType
       .replaceAllMapped(RegExp('(.+?)([A-Z])'), (Match m) => '${m[1]}_${m[2]}')
       .toLowerCase();
+
+  String convertCpp(String value) => value;
 }

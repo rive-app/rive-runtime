@@ -32,7 +32,7 @@ namespace rive
 		static const uint16_t animationIdPropertyKey = 149;
 
 	private:
-		int m_AnimationId = 0;
+		int m_AnimationId = -1;
 	public:
 		inline int animationId() const { return m_AnimationId; }
 		void animationId(int value)

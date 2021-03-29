@@ -15,7 +15,6 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 {
 	rive::Artboard* artboard = new rive::Artboard();
 	rive::Shape* shape = new rive::Shape();
-	rive::PathComposer* composer = new rive::PathComposer();
 	rive::Rectangle* rectangle = new rive::Rectangle();
 
 	rectangle->x(0.0f);
@@ -26,10 +25,8 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 
 	artboard->addObject(artboard);
 	artboard->addObject(shape);
-	artboard->addObject(composer);
 	artboard->addObject(rectangle);
 	rectangle->parentId(1);
-	composer->parentId(1);
 
 	REQUIRE(artboard->initialize() == rive::StatusCode::Ok);
 
@@ -55,7 +52,6 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 {
 	rive::Artboard* artboard = new rive::Artboard();
 	rive::Shape* shape = new rive::Shape();
-	rive::PathComposer* composer = new rive::PathComposer();
 	rive::Rectangle* rectangle = new rive::Rectangle();
 
 	rectangle->x(0.0f);
@@ -66,10 +62,8 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 
 	artboard->addObject(artboard);
 	artboard->addObject(shape);
-	artboard->addObject(composer);
 	artboard->addObject(rectangle);
 	rectangle->parentId(1);
-	composer->parentId(1);
 
 	artboard->initialize();
 
@@ -121,7 +115,6 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 	rive::Artboard* artboard = new rive::Artboard();
 	rive::Ellipse* ellipse = new rive::Ellipse();
 	rive::Shape* shape = new rive::Shape();
-	rive::PathComposer* composer = new rive::PathComposer();
 
 	ellipse->x(0.0f);
 	ellipse->y(0.0f);
@@ -130,10 +123,8 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 
 	artboard->addObject(artboard);
 	artboard->addObject(shape);
-	artboard->addObject(composer);
 	artboard->addObject(ellipse);
 	ellipse->parentId(1);
-	composer->parentId(1);
 
 	artboard->initialize();
 

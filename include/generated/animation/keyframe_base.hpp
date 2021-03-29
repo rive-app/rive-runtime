@@ -34,7 +34,7 @@ namespace rive
 	private:
 		int m_Frame = 0;
 		int m_InterpolationType = 0;
-		int m_InterpolatorId = 0;
+		int m_InterpolatorId = -1;
 	public:
 		inline int frame() const { return m_Frame; }
 		void frame(int value)

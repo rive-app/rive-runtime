@@ -38,10 +38,10 @@ namespace rive
 		static const uint16_t originYPropertyKey = 124;
 
 	private:
-		float m_Width = 0;
-		float m_Height = 0;
-		float m_OriginX = 0.5;
-		float m_OriginY = 0.5;
+		float m_Width = 0.0f;
+		float m_Height = 0.0f;
+		float m_OriginX = 0.5f;
+		float m_OriginY = 0.5f;
 	public:
 		inline float width() const { return m_Width; }
 		void width(float value)

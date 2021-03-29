@@ -33,7 +33,7 @@ namespace rive
 		static const uint16_t durationPropertyKey = 158;
 
 	private:
-		int m_StateToId = 0;
+		int m_StateToId = -1;
 		int m_Flags = 0;
 		int m_Duration = 0;
 	public:

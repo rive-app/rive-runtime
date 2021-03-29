@@ -38,13 +38,13 @@ namespace rive
 		static const uint16_t tyPropertyKey = 101;
 
 	private:
-		int m_BoneId = 0;
-		float m_Xx = 1;
-		float m_Yx = 0;
-		float m_Xy = 0;
-		float m_Yy = 1;
-		float m_Tx = 0;
-		float m_Ty = 0;
+		int m_BoneId = -1;
+		float m_Xx = 1.0f;
+		float m_Yx = 0.0f;
+		float m_Xy = 0.0f;
+		float m_Yy = 1.0f;
+		float m_Tx = 0.0f;
+		float m_Ty = 0.0f;
 	public:
 		inline int boneId() const { return m_BoneId; }
 		void boneId(int value)

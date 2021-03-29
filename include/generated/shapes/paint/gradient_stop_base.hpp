@@ -34,7 +34,7 @@ namespace rive
 
 	private:
 		int m_ColorValue = 0xFFFFFFFF;
-		float m_Position = 0;
+		float m_Position = 0.0f;
 	public:
 		inline int colorValue() const { return m_ColorValue; }
 		void colorValue(int value)

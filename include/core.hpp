@@ -12,6 +12,7 @@ namespace rive
 	class Core
 	{
 	public:
+		static const int invalidPropertyKey = 0;
 		virtual ~Core() {}
 		virtual uint16_t coreType() const = 0;
 		virtual bool isTypeOf(uint16_t typeKey) const = 0;

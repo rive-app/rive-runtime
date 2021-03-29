@@ -8,26 +8,11 @@ using namespace rive;
 
 static Mat2D identity;
 
+PathComposer::PathComposer(Shape* shape) : m_Shape(shape) {}
 PathComposer::~PathComposer()
 {
 	delete m_LocalPath;
 	delete m_WorldPath;
-}
-
-StatusCode PathComposer::onAddedClean(CoreContext* context)
-{
-	// Find the shape.
-	for (auto currentParent = parent(); currentParent != nullptr;
-	     currentParent = currentParent->parent())
-	{
-		if (currentParent->is<Shape>())
-		{
-			m_Shape = currentParent->as<Shape>();
-			m_Shape->pathComposer(this);
-			return StatusCode::Ok;
-		}
-	}
-	return StatusCode::MissingObject;
 }
 
 void PathComposer::buildDependencies()

@@ -36,7 +36,7 @@ namespace rive
 		static const uint16_t cornerRadiusPropertyKey = 31;
 
 	private:
-		float m_CornerRadius = 0;
+		float m_CornerRadius = 0.0f;
 	public:
 		inline float cornerRadius() const { return m_CornerRadius; }
 		void cornerRadius(float value)

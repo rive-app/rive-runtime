@@ -41,10 +41,10 @@ namespace rive
 	private:
 		int m_Fps = 60;
 		int m_Duration = 60;
-		float m_Speed = 1;
+		float m_Speed = 1.0f;
 		int m_LoopValue = 0;
-		int m_WorkStart = 0;
-		int m_WorkEnd = 0;
+		int m_WorkStart = -1;
+		int m_WorkEnd = -1;
 		bool m_EnableWorkArea = false;
 	public:
 		inline int fps() const { return m_Fps; }

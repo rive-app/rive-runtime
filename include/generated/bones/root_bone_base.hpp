@@ -36,8 +36,8 @@ namespace rive
 		static const uint16_t yPropertyKey = 91;
 
 	private:
-		float m_X = 0;
-		float m_Y = 0;
+		float m_X = 0.0f;
+		float m_Y = 0.0f;
 	public:
 		inline float x() const override { return m_X; }
 		void x(float value)

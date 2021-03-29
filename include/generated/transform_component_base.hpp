@@ -35,10 +35,10 @@ namespace rive
 		static const uint16_t opacityPropertyKey = 18;
 
 	private:
-		float m_Rotation = 0;
-		float m_ScaleX = 1;
-		float m_ScaleY = 1;
-		float m_Opacity = 1;
+		float m_Rotation = 0.0f;
+		float m_ScaleX = 1.0f;
+		float m_ScaleY = 1.0f;
+		float m_Opacity = 1.0f;
 	public:
 		inline float rotation() const { return m_Rotation; }
 		void rotation(float value)

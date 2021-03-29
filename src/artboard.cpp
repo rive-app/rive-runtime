@@ -116,7 +116,7 @@ StatusCode Artboard::initialize()
 			}
 		}
 	}
-	
+
 	for (auto object : m_Animations)
 	{
 		if (!canContinue(code = object->onAddedClean(this)))
@@ -186,7 +186,7 @@ StatusCode Artboard::initialize()
 				// targets that belong to this rule here.
 				for (auto object : m_Objects)
 				{
-					if (object->is<DrawTarget>())
+					if (object != nullptr && object->is<DrawTarget>())
 					{
 						DrawTarget* dependentTarget = object->as<DrawTarget>();
 						if (dependentTarget->parent() == dependentRules)
@@ -198,7 +198,6 @@ StatusCode Artboard::initialize()
 			}
 		}
 	}
-
 	DependencySorter sorter;
 	std::vector<Component*> drawTargetOrder;
 	sorter.sort(&root, drawTargetOrder);

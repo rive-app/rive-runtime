@@ -30,7 +30,7 @@ namespace rive
 		static const uint16_t inputIdPropertyKey = 155;
 
 	private:
-		int m_InputId = 0;
+		int m_InputId = -1;
 	public:
 		inline int inputId() const { return m_InputId; }
 		void inputId(int value)

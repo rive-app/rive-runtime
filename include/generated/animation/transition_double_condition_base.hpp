@@ -32,7 +32,7 @@ namespace rive
 		static const uint16_t valuePropertyKey = 157;
 
 	private:
-		float m_Value = 0;
+		float m_Value = 0.0f;
 	public:
 		inline float value() const { return m_Value; }
 		void value(float value)

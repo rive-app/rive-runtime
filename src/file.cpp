@@ -77,8 +77,8 @@ static Core* readRuntimeObject(BinaryReader& reader,
 	if (object == nullptr)
 	{
 		fprintf(stderr,
-		        "Expected a Core object but found %llu, which this runtime "
-		        "doesn't understand.\n",
+		        "File contains an unknown object with coreType %llu, which "
+		        "this runtime doesn't understand.\n",
 		        coreObjectKey);
 		return nullptr;
 	}
@@ -132,10 +132,20 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 		auto object = readRuntimeObject(reader, header);
 		if (object == nullptr)
 		{
+			// See if there's an artboard on the stack, need to track the null
+			// object as it'll still hold an id.
+			auto importer =
+			    importStack.latest<ArtboardImporter>(Artboard::typeKey);
+			if (importer == nullptr)
+			{
+				return ImportResult::malformed;
+			}
+			importer->addComponent(object);
 			continue;
 		}
 		ImportStackObject* stackObject = nullptr;
 		auto stackType = object->coreType();
+
 		switch (stackType)
 		{
 			case Artboard::typeKey:
@@ -180,6 +190,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 			}
 		}
 	}
+
 	return importStack.resolve() == StatusCode::Ok ? ImportResult::success
 	                                               : ImportResult::malformed;
 }

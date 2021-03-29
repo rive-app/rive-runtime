@@ -1,8 +1,8 @@
 #include "animation/keyed_property.hpp"
+#include "animation/keyed_object.hpp"
 #include "animation/keyframe.hpp"
 #include "importers/import_stack.hpp"
 #include "importers/keyed_object_importer.hpp"
-#include "animation/keyed_object.hpp"
 
 using namespace rive;
 
@@ -49,6 +49,7 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
 		idx = start;
 	}
 	int pk = propertyKey();
+
 	if (idx == 0)
 	{
 		m_KeyFrames[0]->apply(object, pk, mix);

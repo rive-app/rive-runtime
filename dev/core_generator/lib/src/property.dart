@@ -9,6 +9,7 @@ class Property {
   final FieldType type;
   final Definition definition;
   String initialValue;
+  String initialValueRuntime;
   bool animates = false;
   String group;
   Key key;
@@ -48,6 +49,10 @@ class Property {
     dynamic init = data['initialValue'];
     if (init is String) {
       initialValue = init;
+    }
+    dynamic initRuntime = data['initialValueRuntime'];
+    if (initRuntime is String) {
+      initialValueRuntime = initRuntime;
     }
     dynamic overrideSet = data['overrideSet'];
     if (overrideSet is bool && overrideSet) {
@@ -93,8 +98,9 @@ class Property {
     var code = StringBuffer('  /// ${'-' * 74}\n');
     code.write(comment('${capitalize(name)} field with key ${key.intValue}.',
         indent: 1));
-    if (initialValue != null) {
-      code.writeln('${exportType.cppName} _$name = $initialValue;');
+    if (initialValueRuntime != null || initialValue != null) {
+      code.writeln(
+          '${exportType.cppName} _$name = ${initialValueRuntime ?? initialValue};');
     } else {
       code.writeln('${exportType.cppName} _$name;');
     }
@@ -192,6 +198,9 @@ class Property {
 
     if (initialValue != null) {
       data['initialValue'] = initialValue;
+    }
+    if (initialValueRuntime != null) {
+      data['initialValueRuntime'] = initialValueRuntime;
     }
     if (isGetOverride) {
       data['overrideGet'] = true;

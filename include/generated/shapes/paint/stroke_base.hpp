@@ -38,7 +38,7 @@ namespace rive
 		static const uint16_t transformAffectsStrokePropertyKey = 50;
 
 	private:
-		float m_Thickness = 1;
+		float m_Thickness = 1.0f;
 		int m_Cap = 0;
 		int m_Join = 0;
 		bool m_TransformAffectsStroke = true;

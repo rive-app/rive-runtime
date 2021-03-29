@@ -70,7 +70,8 @@ namespace rive
 		{
 			for (auto object : m_Objects)
 			{
-				if (object->is<T>() && object->as<T>()->name() == name)
+				if (object != nullptr && object->is<T>() &&
+				    object->as<T>()->name() == name)
 				{
 					return reinterpret_cast<T*>(object);
 				}

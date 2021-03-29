@@ -36,9 +36,9 @@ namespace rive
 		static const uint16_t outDistancePropertyKey = 81;
 
 	private:
-		float m_Rotation = 0;
-		float m_InDistance = 0;
-		float m_OutDistance = 0;
+		float m_Rotation = 0.0f;
+		float m_InDistance = 0.0f;
+		float m_OutDistance = 0.0f;
 	public:
 		inline float rotation() const { return m_Rotation; }
 		void rotation(float value)

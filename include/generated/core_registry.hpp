@@ -59,7 +59,6 @@
 #include "shapes/paint/trim_path.hpp"
 #include "shapes/parametric_path.hpp"
 #include "shapes/path.hpp"
-#include "shapes/path_composer.hpp"
 #include "shapes/path_vertex.hpp"
 #include "shapes/points_path.hpp"
 #include "shapes/polygon.hpp"
@@ -160,8 +159,6 @@ namespace rive
 					return new Polygon();
 				case StarBase::typeKey:
 					return new Star();
-				case PathComposerBase::typeKey:
-					return new PathComposer();
 				case CubicDetachedVertexBase::typeKey:
 					return new CubicDetachedVertex();
 				case DrawRulesBase::typeKey:

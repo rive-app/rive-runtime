@@ -39,7 +39,7 @@ namespace rive
 
 	private:
 		int m_Points = 5;
-		float m_CornerRadius = 0;
+		float m_CornerRadius = 0.0f;
 	public:
 		inline int points() const { return m_Points; }
 		void points(int value)

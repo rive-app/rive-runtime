@@ -34,7 +34,7 @@ namespace rive
 		static const uint16_t lengthPropertyKey = 89;
 
 	private:
-		float m_Length = 0;
+		float m_Length = 0.0f;
 	public:
 		inline float length() const { return m_Length; }
 		void length(float value)

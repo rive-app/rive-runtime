@@ -39,6 +39,7 @@ namespace rive
 				delete stackObject;
 				if (code != StatusCode::Ok)
 				{
+					m_Latests.erase(coreType);
 					return code;
 				}
 			}

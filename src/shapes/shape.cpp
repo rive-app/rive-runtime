@@ -7,6 +7,8 @@
 
 using namespace rive;
 
+Shape::Shape() : m_PathComposer(this) {}
+
 void Shape::addPath(Path* path)
 {
 	// Make sure the path is not already in the shape.
@@ -29,11 +31,10 @@ void Shape::update(ComponentDirt value)
 
 void Shape::pathChanged()
 {
-	m_PathComposer->addDirt(ComponentDirt::Path, true);
+	m_PathComposer.addDirt(ComponentDirt::Path, true);
 	invalidateStrokeEffects();
 }
 
-void Shape::pathComposer(PathComposer* value) { m_PathComposer = value; }
 void Shape::draw(Renderer* renderer)
 {
 	auto shouldRestore = clip(renderer);
@@ -53,8 +54,8 @@ void Shape::draw(Renderer* renderer)
 			renderer->transform(transform);
 		}
 		shapePaint->draw(renderer,
-		                 paintsInLocal ? m_PathComposer->localPath()
-		                               : m_PathComposer->worldPath());
+		                 paintsInLocal ? m_PathComposer.localPath()
+		                               : m_PathComposer.worldPath());
 		renderer->restore();
 	}
 
@@ -66,6 +67,10 @@ void Shape::draw(Renderer* renderer)
 
 void Shape::buildDependencies()
 {
+	// Make sure to propagate the call to PathComposer as it's no longer part of
+	// Core and owned only by the Shape.
+	m_PathComposer.buildDependencies();
+
 	Super::buildDependencies();
 
 	// Set the blend mode on all the shape paints. If we ever animate this
@@ -80,4 +85,11 @@ void Shape::buildDependencies()
 void Shape::addDefaultPathSpace(PathSpace space)
 {
 	m_DefaultPathSpace |= space;
+}
+
+StatusCode Shape::onAddedDirty(CoreContext* context)
+{
+	Super::onAddedDirty(context);
+	// This ensures context propagates to path composer too.
+	m_PathComposer.onAddedDirty(context);
 }

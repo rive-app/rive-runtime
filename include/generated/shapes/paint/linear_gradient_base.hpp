@@ -36,11 +36,11 @@ namespace rive
 		static const uint16_t opacityPropertyKey = 46;
 
 	private:
-		float m_StartX = 0;
-		float m_StartY = 0;
-		float m_EndX = 0;
-		float m_EndY = 0;
-		float m_Opacity = 1;
+		float m_StartX = 0.0f;
+		float m_StartY = 0.0f;
+		float m_EndX = 0.0f;
+		float m_EndY = 0.0f;
+		float m_Opacity = 1.0f;
 	public:
 		inline float startX() const { return m_StartX; }
 		void startX(float value)

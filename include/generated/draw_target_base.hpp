@@ -32,7 +32,7 @@ namespace rive
 		static const uint16_t placementValuePropertyKey = 120;
 
 	private:
-		int m_DrawableId = 0;
+		int m_DrawableId = -1;
 		int m_PlacementValue = 0;
 	public:
 		inline int drawableId() const { return m_DrawableId; }

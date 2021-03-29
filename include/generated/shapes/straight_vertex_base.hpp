@@ -33,7 +33,7 @@ namespace rive
 		static const uint16_t radiusPropertyKey = 26;
 
 	private:
-		float m_Radius = 0;
+		float m_Radius = 0.0f;
 	public:
 		inline float radius() const { return m_Radius; }
 		void radius(float value)
