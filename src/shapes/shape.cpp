@@ -89,7 +89,11 @@ void Shape::addDefaultPathSpace(PathSpace space)
 
 StatusCode Shape::onAddedDirty(CoreContext* context)
 {
-	Super::onAddedDirty(context);
+	auto code = Super::onAddedDirty(context);
+	if (code != StatusCode::Ok)
+	{
+		return code;
+	}
 	// This ensures context propagates to path composer too.
-	m_PathComposer.onAddedDirty(context);
+	return m_PathComposer.onAddedDirty(context);
 }
