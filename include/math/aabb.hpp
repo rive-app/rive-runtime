@@ -15,10 +15,6 @@ namespace rive
 			float buffer[4];
 			struct
 			{
-				Vec2D min, max;
-			};
-			struct
-			{
 				float minX, minY, maxX, maxY;
 			};
 		};

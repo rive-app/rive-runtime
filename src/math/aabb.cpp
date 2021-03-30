@@ -77,9 +77,9 @@ bool AABB::areIdentical(const AABB& a, const AABB& b)
 	return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
 }
 
-float AABB::width() const { return max[0] - min[0]; }
+float AABB::width() const { return buffer[2] - buffer[0]; }
 
-float AABB::height() const { return max[1] - min[1]; }
+float AABB::height() const { return buffer[3] - buffer[1]; }
 
 float AABB::perimeter() const
 {
