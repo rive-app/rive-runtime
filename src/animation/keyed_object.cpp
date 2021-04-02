@@ -28,7 +28,11 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
 
 	for (auto property : m_KeyedProperties)
 	{
-		property->onAddedDirty(context);
+		StatusCode code;
+		if ((code = property->onAddedDirty(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
 	}
 	return StatusCode::Ok;
 }
