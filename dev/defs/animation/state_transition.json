@@ -42,7 +42,7 @@
         "int": 158,
         "string": "duration"
       },
-      "description": "Duration of the trasition (mix time) in milliseconds."
+      "description": "Duration of the trasition (mix time) in milliseconds or percentage (0-100) based on flags."
     },
     "transitionOrder": {
       "type": "FractionalIndex",
@@ -53,6 +53,15 @@
       },
       "description": "Order value for sorting transitions in states.",
       "runtime": false
+    },
+    "exitTime": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 160,
+        "string": "exittime"
+      },
+      "description": "Duration in milliseconds that must elapse before allowing the state to change. If the flags mark this property as being percentage based, the value is in 0-100% of the outgoing animation's duration"
     }
   }
 }

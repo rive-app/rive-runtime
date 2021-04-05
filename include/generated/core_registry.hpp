@@ -246,6 +246,9 @@ namespace rive
 				case StateTransitionBase::durationPropertyKey:
 					object->as<StateTransitionBase>()->duration(value);
 					break;
+				case StateTransitionBase::exitTimePropertyKey:
+					object->as<StateTransitionBase>()->exitTime(value);
+					break;
 				case LinearAnimationBase::fpsPropertyKey:
 					object->as<LinearAnimationBase>()->fps(value);
 					break;
@@ -602,6 +605,8 @@ namespace rive
 					return object->as<StateTransitionBase>()->flags();
 				case StateTransitionBase::durationPropertyKey:
 					return object->as<StateTransitionBase>()->duration();
+				case StateTransitionBase::exitTimePropertyKey:
+					return object->as<StateTransitionBase>()->exitTime();
 				case LinearAnimationBase::fpsPropertyKey:
 					return object->as<LinearAnimationBase>()->fps();
 				case LinearAnimationBase::durationPropertyKey:
@@ -843,6 +848,7 @@ namespace rive
 				case StateTransitionBase::stateToIdPropertyKey:
 				case StateTransitionBase::flagsPropertyKey:
 				case StateTransitionBase::durationPropertyKey:
+				case StateTransitionBase::exitTimePropertyKey:
 				case LinearAnimationBase::fpsPropertyKey:
 				case LinearAnimationBase::durationPropertyKey:
 				case LinearAnimationBase::loopValuePropertyKey:

@@ -31,11 +31,13 @@ namespace rive
 		static const uint16_t stateToIdPropertyKey = 151;
 		static const uint16_t flagsPropertyKey = 152;
 		static const uint16_t durationPropertyKey = 158;
+		static const uint16_t exitTimePropertyKey = 160;
 
 	private:
 		int m_StateToId = -1;
 		int m_Flags = 0;
 		int m_Duration = 0;
+		int m_ExitTime = 0;
 	public:
 		inline int stateToId() const { return m_StateToId; }
 		void stateToId(int value)
@@ -70,6 +72,17 @@ namespace rive
 			durationChanged();
 		}
 
+		inline int exitTime() const { return m_ExitTime; }
+		void exitTime(int value)
+		{
+			if (m_ExitTime == value)
+			{
+				return;
+			}
+			m_ExitTime = value;
+			exitTimeChanged();
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
@@ -83,6 +96,9 @@ namespace rive
 				case durationPropertyKey:
 					m_Duration = CoreUintType::deserialize(reader);
 					return true;
+				case exitTimePropertyKey:
+					m_ExitTime = CoreUintType::deserialize(reader);
+					return true;
 			}
 			return StateMachineLayerComponent::deserialize(propertyKey, reader);
 		}
@@ -91,6 +107,7 @@ namespace rive
 		virtual void stateToIdChanged() {}
 		virtual void flagsChanged() {}
 		virtual void durationChanged() {}
+		virtual void exitTimeChanged() {}
 	};
 } // namespace rive
 

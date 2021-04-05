@@ -7,6 +7,7 @@ namespace rive
 	class StateMachine : public StateMachineBase
 	{
 	public:
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 
