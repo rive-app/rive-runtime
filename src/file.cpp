@@ -10,6 +10,13 @@
 #include "importers/keyed_object_importer.hpp"
 #include "importers/keyed_property_importer.hpp"
 #include "importers/linear_animation_importer.hpp"
+#include "importers/state_machine_importer.hpp"
+#include "importers/state_machine_layer_importer.hpp"
+#include "importers/layer_state_importer.hpp"
+#include "animation/any_state.hpp"
+#include "animation/entry_state.hpp"
+#include "animation/exit_state.hpp"
+#include "animation/animation_state.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -76,10 +83,10 @@ static Core* readRuntimeObject(BinaryReader& reader,
 	}
 	if (object == nullptr)
 	{
-		fprintf(stderr,
-		        "File contains an unknown object with coreType %llu, which "
-		        "this runtime doesn't understand.\n",
-		        coreObjectKey);
+		// fprintf(stderr,
+		//         "File contains an unknown object with coreType %llu, which "
+		//         "this runtime doesn't understand.\n",
+		//         coreObjectKey);
 		return nullptr;
 	}
 	return object;
@@ -132,15 +139,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 		auto object = readRuntimeObject(reader, header);
 		if (object == nullptr)
 		{
-			// See if there's an artboard on the stack, need to track the null
-			// object as it'll still hold an id.
-			auto importer =
-			    importStack.latest<ArtboardImporter>(Artboard::typeKey);
-			if (importer == nullptr)
-			{
-				return ImportResult::malformed;
-			}
-			importer->addComponent(object);
+			importStack.readNullObject();
 			continue;
 		}
 		ImportStackObject* stackObject = nullptr;
@@ -171,6 +170,31 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 				    importer->animation(), object->as<KeyedProperty>());
 				break;
 			}
+			case StateMachine::typeKey:
+				stackObject =
+				    new StateMachineImporter(object->as<StateMachine>());
+				break;
+			case StateMachineLayer::typeKey:
+			{
+				auto artboardImporter =
+				    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+				if (artboardImporter == nullptr)
+				{
+					return ImportResult::malformed;
+				}
+
+				stackObject = new StateMachineLayerImporter(
+				    object->as<StateMachineLayer>(), artboardImporter);
+
+				break;
+			}
+			case EntryState::typeKey:
+			case ExitState::typeKey:
+			case AnyState::typeKey:
+			case AnimationState::typeKey:
+				stackObject = new LayerStateImporter(object->as<LayerState>());
+				stackType = LayerState::typeKey;
+				break;
 		}
 		if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)
 		{

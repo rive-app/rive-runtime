@@ -14,12 +14,14 @@ namespace rive
 	class Drawable;
 	class Node;
 	class DrawTarget;
+	class ArtboardImporter;
 
 	class Artboard : public ArtboardBase,
 	                 public CoreContext,
 	                 public ShapePaintContainer
 	{
 		friend class File;
+		friend class ArtboardImporter;
 
 	private:
 		std::vector<Core*> m_Objects;
@@ -36,12 +38,16 @@ namespace rive
 		void sortDependencies();
 		void sortDrawOrder();
 
+#ifdef TESTING
 	public:
-		~Artboard();
-		StatusCode initialize();
+#endif
 		void addObject(Core* object);
 		void addAnimation(LinearAnimation* object);
 		void addStateMachine(StateMachine* object);
+
+	public:
+		~Artboard();
+		StatusCode initialize();
 
 		Core* resolve(int id) const override;
 
@@ -79,15 +85,15 @@ namespace rive
 			return nullptr;
 		}
 
-		LinearAnimation* firstAnimation();
-		LinearAnimation* animation(std::string name);
-		LinearAnimation* animation(size_t index);
-		size_t animationCount() { return m_Animations.size(); }
+		LinearAnimation* firstAnimation() const;
+		LinearAnimation* animation(std::string name) const;
+		LinearAnimation* animation(size_t index) const;
+		size_t animationCount() const { return m_Animations.size(); }
 
-		StateMachine* firstStateMachine();
-		StateMachine* stateMachine(std::string name);
-		StateMachine* stateMachine(size_t index);
-		size_t stateMachineCount() { return m_StateMachines.size(); }
+		StateMachine* firstStateMachine() const;
+		StateMachine* stateMachine(std::string name) const;
+		StateMachine* stateMachine(size_t index) const;
+		size_t stateMachineCount() const { return m_StateMachines.size(); }
 	};
 } // namespace rive
 

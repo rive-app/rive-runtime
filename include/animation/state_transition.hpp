@@ -5,15 +5,22 @@
 #include <stdio.h>
 namespace rive
 {
+	class LayerState;
+	class StateMachineLayerImporter;
 	class StateTransition : public StateTransitionBase
 	{
+		friend class StateMachineLayerImporter;
+
 	private:
 		StateTransitionFlags transitionFlags() const
 		{
 			return static_cast<StateTransitionFlags>(flags());
 		}
+		LayerState* m_StateTo = nullptr;
 
 	public:
+		const LayerState* stateTo() const { return m_StateTo; }
+
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
 
@@ -38,6 +45,8 @@ namespace rive
 			return (transitionFlags() & StateTransitionFlags::EnableExitTime) !=
 			       StateTransitionFlags::EnableExitTime;
 		}
+
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 

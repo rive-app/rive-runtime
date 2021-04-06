@@ -66,3 +66,6 @@ skia/dependencies/x264
 skia/renderer/build/bin
 skia/**/build/bin
 /skia/dependencies/glfw
+/skia/dependencies/gl3w
+/skia/dependencies/imgui
+/skia/viewer/imgui.ini

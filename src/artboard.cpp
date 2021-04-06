@@ -437,7 +437,7 @@ void Artboard::draw(Renderer* renderer)
 
 AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }
 
-LinearAnimation* Artboard::firstAnimation()
+LinearAnimation* Artboard::firstAnimation() const
 {
 	if (m_Animations.empty())
 	{
@@ -446,7 +446,7 @@ LinearAnimation* Artboard::firstAnimation()
 	return m_Animations.front();
 }
 
-LinearAnimation* Artboard::animation(std::string name)
+LinearAnimation* Artboard::animation(std::string name) const
 {
 	for (auto animation : m_Animations)
 	{
@@ -458,16 +458,16 @@ LinearAnimation* Artboard::animation(std::string name)
 	return nullptr;
 }
 
-LinearAnimation* Artboard::animation(size_t index)
+LinearAnimation* Artboard::animation(size_t index) const
 {
-	if (index < 0 || index >= m_Animations.size())
+	if (index >= m_Animations.size())
 	{
 		return nullptr;
 	}
 	return m_Animations[index];
 }
 
-StateMachine* Artboard::firstStateMachine()
+StateMachine* Artboard::firstStateMachine() const
 {
 	if (m_StateMachines.empty())
 	{
@@ -476,7 +476,7 @@ StateMachine* Artboard::firstStateMachine()
 	return m_StateMachines.front();
 }
 
-StateMachine* Artboard::stateMachine(std::string name)
+StateMachine* Artboard::stateMachine(std::string name) const
 {
 	for (auto machine : m_StateMachines)
 	{
@@ -488,7 +488,7 @@ StateMachine* Artboard::stateMachine(std::string name)
 	return nullptr;
 }
 
-StateMachine* Artboard::stateMachine(size_t index)
+StateMachine* Artboard::stateMachine(size_t index) const
 {
 	if (index < 0 || index >= m_StateMachines.size())
 	{

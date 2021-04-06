@@ -33,6 +33,7 @@ namespace rive
 
 	private:
 		int m_AnimationId = -1;
+
 	public:
 		inline int animationId() const { return m_AnimationId; }
 		void animationId(int value)

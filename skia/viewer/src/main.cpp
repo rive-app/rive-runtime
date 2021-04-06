@@ -1,3 +1,7 @@
+
+// Makes ure gl3w is included before glfw3
+#include "GL/gl3w.h"
+
 #define SK_GL
 #include "GLFW/glfw3.h"
 
@@ -16,12 +20,50 @@
 #include "math/aabb.hpp"
 #include "skia_renderer.hpp"
 
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_opengl3.h"
+
 #include <cmath>
 #include <stdio.h>
 
 rive::File* currentFile = nullptr;
 rive::Artboard* artboard = nullptr;
 rive::LinearAnimationInstance* animationInstance = nullptr;
+uint8_t* fileBytes = nullptr;
+unsigned int fileBytesLength = 0;
+
+void initAnimation(int index)
+{
+	assert(fileBytes != nullptr);
+	auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
+	rive::File* file = nullptr;
+	auto result = rive::File::import(reader, &file);
+	if (result != rive::ImportResult::success)
+	{
+		delete[] fileBytes;
+		fprintf(stderr, "failed to import file\n");
+		return;
+	}
+	artboard = file->artboard();
+	artboard->advance(0.0f);
+
+	delete animationInstance;
+	delete currentFile;
+
+	auto animation = index >= 0 && index < artboard->animationCount()
+	                     ? artboard->animation(index)
+	                     : nullptr;
+	if (animation != nullptr)
+	{
+		animationInstance = new rive::LinearAnimationInstance(animation);
+	}
+	else
+	{
+		animationInstance = nullptr;
+	}
+
+	currentFile = file;
+}
 
 void glfwErrorCallback(int error, const char* description)
 {
@@ -34,42 +76,17 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths)
 	auto filename = paths[count - 1];
 	FILE* fp = fopen(filename, "r");
 	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
+	fileBytesLength = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
-	uint8_t* bytes = new uint8_t[length];
-	if (fread(bytes, 1, length, fp) != length)
+	delete[] fileBytes;
+	fileBytes = new uint8_t[fileBytesLength];
+	if (fread(fileBytes, 1, fileBytesLength, fp) != fileBytesLength)
 	{
-		delete[] bytes;
+		delete[] fileBytes;
 		fprintf(stderr, "failed to read all of %s\n", filename);
 		return;
 	}
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
-	if (result != rive::ImportResult::success)
-	{
-		delete[] bytes;
-		fprintf(stderr, "failed to import %s\n", filename);
-		return;
-	}
-	artboard = file->artboard();
-	artboard->advance(0.0f);
-
-	delete animationInstance;
-	delete currentFile;
-
-	auto animation = artboard->firstAnimation();
-	if (animation != nullptr)
-	{
-		animationInstance = new rive::LinearAnimationInstance(animation);
-	}
-	else
-	{
-		animationInstance = nullptr;
-	}
-
-	currentFile = file;
-	delete[] bytes;
+	initAnimation(0);
 }
 
 int main()
@@ -81,8 +98,8 @@ int main()
 	}
 	glfwSetErrorCallback(glfwErrorCallback);
 
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 	GLFWwindow* window = glfwCreateWindow(1280, 720, "Rive Viewer", NULL, NULL);
 	if (window == nullptr)
 	{
@@ -93,8 +110,24 @@ int main()
 
 	glfwSetDropCallback(window, glfwDropCallback);
 	glfwMakeContextCurrent(window);
+	if (gl3wInit() != 0)
+	{
+		fprintf(stderr, "Failed to make initialize gl3w.\n");
+		glfwTerminate();
+		return 1;
+	}
 	// Enable VSYNC.
 	glfwSwapInterval(1);
+
+	// Setup ImGui
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	(void)io;
+
+	ImGui::StyleColorsDark();
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 150");
+	io.Fonts->AddFontDefault();
 
 	// Setup Skia
 	GrContextOptions options;
@@ -186,15 +219,50 @@ int main()
 
 		context->flush();
 
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		static int animationIndex = 0;
+
+		if (artboard != nullptr)
+		{
+			if (ImGui::ListBox(
+			        "Animations",
+			        &animationIndex,
+			        [](void* data, int index, const char** name) {
+				        const char* animationName =
+				            artboard->animation(index)->name().c_str();
+				        *name = animationName;
+				        return true;
+			        },
+			        artboard,
+			        artboard->animationCount(),
+			        4))
+			{
+				initAnimation(animationIndex);
+			}
+		}
+		else
+		{
+			ImGui::Text("Drop a .riv file to preview.");
+		}
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 
 	delete currentFile;
+	delete[] fileBytes;
 
 	// Cleanup Skia.
 	delete surface;
 	context = nullptr;
+
+	ImGui_ImplGlfw_Shutdown();
 
 	// Cleanup GLFW.
 	glfwDestroyWindow(window);

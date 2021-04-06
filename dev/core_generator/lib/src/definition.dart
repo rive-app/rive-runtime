@@ -173,7 +173,7 @@ class Definition {
       code.writeln('public:');
       for (final property in properties) {
         code.writeln(
-            'inline ${property.type.cppName} ${property.name}() const ' +
+            'inline ${property.type.cppGetterName} ${property.name}() const ' +
                 (property.isGetOverride ? 'override' : '') +
                 '{ return m_${property.capitalizedName}; }');
 

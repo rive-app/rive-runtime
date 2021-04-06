@@ -24,3 +24,9 @@ void ArtboardImporter::addStateMachine(StateMachine* stateMachine)
 }
 
 StatusCode ArtboardImporter::resolve() { return m_Artboard->initialize(); }
+
+bool ArtboardImporter::readNullObject()
+{
+	addComponent(nullptr);
+	return true;
+}

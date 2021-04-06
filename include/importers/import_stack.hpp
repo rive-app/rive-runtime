@@ -3,6 +3,7 @@
 #include "status_code.hpp"
 #include <algorithm>
 #include <unordered_map>
+#include <vector>
 
 namespace rive
 {
@@ -11,12 +12,14 @@ namespace rive
 	public:
 		virtual ~ImportStackObject() {}
 		virtual StatusCode resolve() { return StatusCode::Ok; }
+		virtual bool readNullObject() { return false; }
 	};
 
 	class ImportStack
 	{
 	private:
 		std::unordered_map<uint16_t, ImportStackObject*> m_Latests;
+		std::vector<ImportStackObject*> m_LastAdded;
 
 	public:
 		template <typename T = ImportStackObject> T* latest(uint16_t coreType)
@@ -36,6 +39,15 @@ namespace rive
 			if (itr != m_Latests.end())
 			{
 				auto stackObject = itr->second;
+
+				// Remove it from latests.
+				auto itr = std::find(
+				    m_LastAdded.begin(), m_LastAdded.end(), stackObject);
+				if (itr != m_LastAdded.end())
+				{
+					m_LastAdded.erase(itr);
+				}
+
 				StatusCode code = stackObject->resolve();
 				delete stackObject;
 				if (code != StatusCode::Ok)
@@ -53,6 +65,7 @@ namespace rive
 			else
 			{
 				m_Latests[coreType] = object;
+				m_LastAdded.push_back(object);
 			}
 			return StatusCode::Ok;
 		}
@@ -76,6 +89,19 @@ namespace rive
 			{
 				delete pair.second;
 			}
+		}
+
+		bool readNullObject()
+		{
+			for (auto itr = m_LastAdded.rbegin(); itr != m_LastAdded.rend();
+			     itr++)
+			{
+				if ((*itr)->readNullObject())
+				{
+					return true;
+				}
+			}
+			return false;
 		}
 	};
 } // namespace rive

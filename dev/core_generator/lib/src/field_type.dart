@@ -11,6 +11,7 @@ abstract class FieldType {
   String _cppName;
   final String include;
   String get cppName => _cppName;
+  String get cppGetterName => _cppName;
 
   String _runtimeCoreType;
   String get runtimeCoreType => _runtimeCoreType;
