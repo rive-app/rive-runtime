@@ -27,8 +27,8 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
 	int mid = 0;
 	float closestSeconds = 0.0f;
 	int start = 0;
-	auto numKeyFrames = m_KeyFrames.size();
-	int end = (int)numKeyFrames - 1;
+	auto numKeyFrames = static_cast<int>(m_KeyFrames.size());
+	int end = numKeyFrames - 1;
 	while (start <= end)
 	{
 		mid = (start + end) >> 1;

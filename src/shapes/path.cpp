@@ -157,7 +157,7 @@ static void buildPath(CommandPath& commandPath,
 		}
 	}
 
-	for (int i = 1; i < length; i++)
+	for (size_t i = 1; i < length; i++)
 	{
 		auto vertex = vertices[i];
 

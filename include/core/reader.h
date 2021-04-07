@@ -64,7 +64,7 @@ inline size_t
 decode_double(const uint8_t* buf, const uint8_t* buf_end, double* r)
 {
 	// Return zero bytes read on buffer overflow
-	if (buf_end - buf < sizeof(double))
+	if (buf_end - buf < ((unsigned) sizeof(double)))
 	{
 		return 0;
 	}
@@ -92,7 +92,7 @@ decode_double(const uint8_t* buf, const uint8_t* buf_end, double* r)
 inline size_t decode_float(const uint8_t* buf, const uint8_t* buf_end, float* r)
 {
 	// Return zero bytes read on buffer overflow
-	if (buf_end - buf < sizeof(float))
+	if (buf_end - buf < (unsigned) sizeof(float))
 	{
 		return 0;
 	}
@@ -114,7 +114,7 @@ inline size_t
 decode_uint_8(const uint8_t* buf, const uint8_t* buf_end, uint8_t* r)
 {
 	// Return zero bytes read on buffer overflow
-	if (buf_end - buf < sizeof(uint8_t))
+	if (buf_end - buf < (unsigned) sizeof(uint8_t))
 	{
 		return 0;
 	}
@@ -128,7 +128,7 @@ inline size_t
 decode_uint_32(const uint8_t* buf, const uint8_t* buf_end, uint32_t* r)
 {
 	// Return zero bytes read on buffer overflow
-	if (buf_end - buf < sizeof(uint32_t))
+	if (buf_end - buf < (unsigned) sizeof(uint32_t))
 	{
 		return 0;
 	}

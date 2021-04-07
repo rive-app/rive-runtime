@@ -327,7 +327,7 @@ void Artboard::addStateMachine(StateMachine* object)
 
 Core* Artboard::resolve(int id) const
 {
-	if (id < 0 || id >= m_Objects.size())
+	if (id < 0 || id >= static_cast<int>(m_Objects.size()))
 	{
 		return nullptr;
 	}
@@ -373,14 +373,14 @@ bool Artboard::updateComponents()
 	{
 		const int maxSteps = 100;
 		int step = 0;
-		int count = (int)m_DependencyOrder.size();
+		auto count = m_DependencyOrder.size();
 		while (hasDirt(ComponentDirt::Components) && step < maxSteps)
 		{
 			// m_Dirt = m_Dirt & ~ComponentDirt::Components;
 
 			// Track dirt depth here so that if something else marks
 			// dirty, we restart.
-			for (int i = 0; i < count; i++)
+			for (unsigned int i = 0; i < count; i++)
 			{
 				auto component = m_DependencyOrder[i];
 				m_DirtDepth = i;

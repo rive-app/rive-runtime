@@ -21,7 +21,7 @@ void Polygon::pointsChanged() { markPathDirty(); }
 
 void Polygon::resizeVertices(int newSize)
 {
-	auto currentSize = m_Vertices.size();
+	auto currentSize = static_cast<int>(m_Vertices.size());
 
 	if (newSize == currentSize)
 	{
@@ -73,7 +73,7 @@ void Polygon::update(ComponentDirt value)
 {
 	if (hasDirt(value, ComponentDirt::Path))
 	{
-		if (m_Vertices.size() != expectedSize())
+		if (static_cast<int>(m_Vertices.size()) != expectedSize())
 		{
 			resizeVertices(expectedSize());
 		}
