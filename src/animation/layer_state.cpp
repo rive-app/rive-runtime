@@ -3,10 +3,19 @@
 #include "importers/import_stack.hpp"
 #include "importers/state_machine_layer_importer.hpp"
 #include "generated/animation/state_machine_layer_base.hpp"
+#include "animation/state_transition.hpp"
 
 using namespace rive;
 
 using namespace rive;
+
+LayerState::~LayerState()
+{
+	for (auto transition : m_Transitions)
+	{
+		delete transition;
+	}
+}
 
 StatusCode LayerState::onAddedDirty(CoreContext* context)
 {

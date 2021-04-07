@@ -13,6 +13,7 @@
 #include "importers/state_machine_importer.hpp"
 #include "importers/state_machine_layer_importer.hpp"
 #include "importers/layer_state_importer.hpp"
+#include "importers/state_transition_importer.hpp"
 #include "animation/any_state.hpp"
 #include "animation/entry_state.hpp"
 #include "animation/exit_state.hpp"
@@ -194,6 +195,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 			case AnimationState::typeKey:
 				stackObject = new LayerStateImporter(object->as<LayerState>());
 				stackType = LayerState::typeKey;
+				break;
+			case StateTransition::typeKey:
+				stackObject =
+				    new StateTransitionImporter(object->as<StateTransition>());
 				break;
 		}
 		if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)

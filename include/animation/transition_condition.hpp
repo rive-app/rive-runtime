@@ -9,6 +9,8 @@ namespace rive
 	public:
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
+
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 

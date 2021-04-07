@@ -70,6 +70,21 @@ TEST_CASE("file with state machine be read", "[file]")
 	REQUIRE(stateTo->as<rive::AnimationState>()->animation() != nullptr);
 	REQUIRE(stateTo->as<rive::AnimationState>()->animation()->name() == "idle");
 
+	auto idleState = stateTo->as<rive::AnimationState>();
+	REQUIRE(idleState->transitionCount() == 2);
+	for (int i = 0; i < idleState->transitionCount(); i++)
+	{
+		auto transition = idleState->transition(i);
+		if (transition->stateTo()
+		        ->as<rive::AnimationState>()
+		        ->animation()
+		        ->name() == "Roll_over")
+		{
+			// Check the condition
+			REQUIRE(transition->conditionCount() == 1);
+		}
+	}
+
 	delete file;
 	delete[] bytes;
 }
