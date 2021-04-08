@@ -1,6 +1,6 @@
 #ifndef _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
 #define _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
-#include "animation/linear_animation.hpp"
+#include "artboard.hpp"
 
 namespace rive
 {
@@ -41,7 +41,7 @@ namespace rive
 
 		// Set when the animation is advanced, true if the animation has stopped
 		// (oneShot), reached the end (loop), or changed direction (pingPong)
-		bool didLoop() const { return m_DidLoop; } 
+		bool didLoop() const { return m_DidLoop; }
 	};
 } // namespace rive
 #endif
