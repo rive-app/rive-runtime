@@ -25,7 +25,6 @@ namespace rive
 		StateMachineLayerInstance* m_Layers;
 
 		void markNeedsAdvance();
-		bool updateState();
 
 	public:
 		StateMachineInstance(StateMachine* machine);

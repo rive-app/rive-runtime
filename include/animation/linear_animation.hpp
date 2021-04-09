@@ -18,7 +18,7 @@ namespace rive
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
 		void addKeyedObject(KeyedObject* object);
-		void apply(Artboard* artboard, float time, float mix = 1.0f);
+		void apply(Artboard* artboard, float time, float mix = 1.0f) const;
 
 		Loop loop() const { return (Loop)loopValue(); }
 

@@ -25,6 +25,7 @@ namespace rive
 		const LayerState* m_StateFrom = nullptr;
 		const StateTransition* m_Transition = nullptr;
 
+		bool m_HoldAnimationFrom = false;
 		LinearAnimationInstance* m_AnimationInstance = nullptr;
 		LinearAnimationInstance* m_AnimationInstanceFrom = nullptr;
 		float m_Mix = 1.0f;
@@ -34,6 +35,20 @@ namespace rive
 
 		bool advance(float seconds, StateMachineInputInstance** inputs)
 		{
+			if (m_AnimationInstance != nullptr)
+			{
+				m_AnimationInstance->advance(seconds);
+			}
+
+			if (m_Transition != nullptr && m_StateFrom != nullptr &&
+			    m_Transition->duration() != 0)
+			{
+				m_Mix =
+				    std::min(1.0f,
+				             std::max(0.0f,
+				                      (m_Mix + seconds / m_Transition->mixTime(
+				                                             m_StateFrom))));
+			}
 			for (int i = 0; updateState(inputs); i++)
 			{
 				if (i == maxIterations)
@@ -129,8 +144,7 @@ namespace rive
 					m_StateFrom = stateFrom;
 
 					// If we had an exit time and wanted to pause on exit, make
-					// sure to hold
-					// the exit time.
+					// sure to hold the exit time.
 					if (transition->pauseOnExit() &&
 					    transition->enableExitTime() &&
 					    m_AnimationInstance != nullptr)
@@ -138,9 +152,43 @@ namespace rive
 						m_AnimationInstance->time(
 						    transition->exitTimeSeconds(stateFrom, false));
 					}
+
+					if (m_Mix != 0.0f)
+					{
+						m_HoldAnimationFrom = transition->pauseOnExit();
+						delete m_AnimationInstanceFrom;
+						m_AnimationInstanceFrom = m_AnimationInstance;
+
+						// Don't let it get deleted as we've passed it on to the
+						// from.
+						m_AnimationInstance = nullptr;
+					}
+					else
+					{
+						delete m_AnimationInstance;
+						m_AnimationInstance = nullptr;
+					}
+
+					if (m_CurrentState->is<AnimationState>())
+					{
+						auto animationState =
+						    m_CurrentState->as<AnimationState>();
+						auto spilledTime =
+						    m_AnimationInstanceFrom == nullptr
+						        ? 0
+						        : m_AnimationInstanceFrom->spilledTime();
+						if (animationState->animation() != nullptr)
+						{
+							m_AnimationInstance = new LinearAnimationInstance(
+							    animationState->animation());
+							m_AnimationInstance->advance(spilledTime);
+						}
+						m_Mix = 0.0f;
+					}
+					return true;
 				}
 			}
-			return true;
+			return false;
 		}
 
 		void apply(Artboard* artboard) const {}
@@ -197,8 +245,6 @@ StateMachineInstance::~StateMachineInstance()
 	delete[] m_InputInstances;
 	delete[] m_Layers;
 }
-
-bool StateMachineInstance::updateState() { return false; }
 
 bool StateMachineInstance::advance(float seconds)
 {

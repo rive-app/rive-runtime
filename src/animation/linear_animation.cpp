@@ -45,7 +45,7 @@ void LinearAnimation::addKeyedObject(KeyedObject* object)
 	m_KeyedObjects.push_back(object);
 }
 
-void LinearAnimation::apply(Artboard* artboard, float time, float mix)
+void LinearAnimation::apply(Artboard* artboard, float time, float mix) const
 {
 	for (auto object : m_KeyedObjects)
 	{

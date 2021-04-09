@@ -59,6 +59,32 @@ void StateTransition::addCondition(TransitionCondition* condition)
 	m_Conditions.push_back(condition);
 }
 
+float StateTransition::mixTime(const LayerState* stateFrom) const
+{
+	if (duration() == 0)
+	{
+		return 0;
+	}
+	if ((transitionFlags() & StateTransitionFlags::DurationIsPercentage) !=
+	    StateTransitionFlags::DurationIsPercentage)
+	{
+		float animationDuration = 0.0f;
+		if (stateFrom->is<AnimationState>())
+		{
+			auto animation = stateFrom->as<AnimationState>()->animation();
+			if (animation != nullptr)
+			{
+				animationDuration = animation->durationSeconds();
+			}
+		}
+		return duration() / 100.0f * animationDuration;
+	}
+	else
+	{
+		return duration() / 1000.0f;
+	}
+}
+
 float StateTransition::exitTimeSeconds(const LayerState* stateFrom,
                                        bool relativeToWorkArea) const
 {
@@ -67,6 +93,7 @@ float StateTransition::exitTimeSeconds(const LayerState* stateFrom,
 	{
 		return 0;
 	}
+
 	float animationDuration = 0.0f;
 	float animationOrigin = 0.0f;
 	if (stateFrom->is<AnimationState>())

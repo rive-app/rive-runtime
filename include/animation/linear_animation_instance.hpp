@@ -9,7 +9,7 @@ namespace rive
 	class LinearAnimationInstance
 	{
 	private:
-		LinearAnimation* m_Animation = nullptr;
+		const LinearAnimation* m_Animation = nullptr;
 		float m_Time;
 		float m_TotalTime;
 		float m_LastTotalTime;
@@ -18,14 +18,14 @@ namespace rive
 		bool m_DidLoop;
 
 	public:
-		LinearAnimationInstance(LinearAnimation* animation);
+		LinearAnimationInstance(const LinearAnimation* animation);
 
 		// Advance the animation by the specified time. Returns true if the
 		// animation will continue to animate after this advance.
 		bool advance(float seconds);
 
 		// Returns a pointer to the instance's animation
-		LinearAnimation* animation() const { return m_Animation; }
+		const LinearAnimation* animation() const { return m_Animation; }
 
 		// Returns the current point in time at which this instance has advance
 		// to

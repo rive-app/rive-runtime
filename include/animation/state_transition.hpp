@@ -69,8 +69,14 @@ namespace rive
 			return nullptr;
 		}
 
-		// Exit time in seconds. Specify relativeToWorkArea to use the work area
-		// start as the origin. Otherwise time 0 of the animation is the origin.
+		/// The amount of time to mix the outgoing animation onto the incoming
+		/// one when changing state. Only applies when going out from an
+		/// AnimationState.
+		float mixTime(const LayerState* stateFrom) const;
+
+		/// Exit time in seconds. Specify relativeToWorkArea to use the work
+		/// area start as the origin. Otherwise time 0 of the animation is the
+		/// origin.
 		float exitTimeSeconds(const LayerState* stateFrom,
 		                      bool relativeToWorkArea) const;
 	};

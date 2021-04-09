@@ -5,7 +5,8 @@
 
 using namespace rive;
 
-LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
+LinearAnimationInstance::LinearAnimationInstance(
+    const LinearAnimation* animation) :
     m_Animation(animation),
     m_Time(animation->enableWorkArea()
                ? (float)animation->workStart() / animation->fps()
@@ -19,7 +20,7 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
 
 bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
-	LinearAnimation& animation = *m_Animation;
+	const LinearAnimation& animation = *m_Animation;
 	m_Time += elapsedSeconds * animation.speed() * m_Direction;
 	m_LastTotalTime = m_TotalTime;
 	m_TotalTime += elapsedSeconds;
@@ -35,6 +36,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 
 	bool keepGoing = true;
 	bool didLoop = false;
+	m_SpilledTime = 0.0f;
 
 	switch (animation.loop())
 	{
