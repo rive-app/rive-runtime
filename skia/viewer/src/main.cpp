@@ -15,6 +15,10 @@
 
 #include "animation/linear_animation_instance.hpp"
 #include "animation/state_machine_instance.hpp"
+#include "animation/state_machine_input_instance.hpp"
+#include "animation/state_machine_double.hpp"
+#include "animation/state_machine_bool.hpp"
+#include "animation/state_machine_trigger.hpp"
 #include "artboard.hpp"
 #include "file.hpp"
 #include "layout.hpp"
@@ -27,6 +31,7 @@
 #include <cmath>
 #include <stdio.h>
 
+std::string filename;
 rive::File* currentFile = nullptr;
 rive::Artboard* artboard = nullptr;
 rive::StateMachineInstance* stateMachineInstance = nullptr;
@@ -106,8 +111,9 @@ void glfwErrorCallback(int error, const char* description)
 void glfwDropCallback(GLFWwindow* window, int count, const char** paths)
 {
 	// Just get the last dropped file for now...
-	auto filename = paths[count - 1];
-	FILE* fp = fopen(filename, "r");
+	filename = paths[count - 1];
+
+	FILE* fp = fopen(filename.c_str(), "r");
 	fseek(fp, 0, SEEK_END);
 	fileBytesLength = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
@@ -116,7 +122,7 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths)
 	if (fread(fileBytes, 1, fileBytesLength, fp) != fileBytesLength)
 	{
 		delete[] fileBytes;
-		fprintf(stderr, "failed to read all of %s\n", filename);
+		fprintf(stderr, "failed to read all of %s\n", filename.c_str());
 		return;
 	}
 	initAnimation(0);
@@ -266,6 +272,7 @@ int main()
 
 		if (artboard != nullptr)
 		{
+			ImGui::Begin(filename.c_str(), nullptr);
 			if (ImGui::ListBox(
 			        "Animations",
 			        &animationIndex,
@@ -298,6 +305,62 @@ int main()
 				animationIndex = -1;
 				initStateMachine(stateMachineIndex);
 			}
+			if (stateMachineInstance != nullptr)
+			{
+
+				ImGui::Columns(2);
+				ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.6666);
+
+				for (int i = 0; i < stateMachineInstance->inputCount(); i++)
+				{
+					auto inputInstance = stateMachineInstance->input(i);
+
+					// ImGui requires names as id's, use ## to hide the label
+					// but still give it an id.
+					char label[256];
+					snprintf(label, 256, "##%u", i);
+
+					if (inputInstance->input()->is<rive::StateMachineDouble>())
+					{
+						auto number =
+						    static_cast<rive::StateMachineNumberInstance*>(
+						        inputInstance);
+						float v = number->value();
+						ImGui::InputFloat(label, &v, 1.0f, 2.0f, "%.3f");
+						number->value(v);
+						ImGui::NextColumn();
+					}
+					else if (inputInstance->input()
+					             ->is<rive::StateMachineTrigger>())
+					{
+						if (ImGui::Button(label))
+						{
+							auto trigger =
+							    static_cast<rive::StateMachineTriggerInstance*>(
+							        inputInstance);
+							trigger->fire();
+						}
+						ImGui::NextColumn();
+					}
+					else if (inputInstance->input()
+					             ->is<rive::StateMachineBool>())
+					{
+						auto boolInput =
+						    static_cast<rive::StateMachineBoolInstance*>(
+						        inputInstance);
+						bool value = boolInput->value();
+
+						ImGui::Checkbox(label, &value);
+						boolInput->value(value);
+						ImGui::NextColumn();
+					}
+					ImGui::Text("%s", inputInstance->input()->name().c_str());
+					ImGui::NextColumn();
+				}
+
+				ImGui::Columns(1);
+			}
+			ImGui::End();
 		}
 		else
 		{

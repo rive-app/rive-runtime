@@ -45,7 +45,7 @@ namespace rive
 		/// during mixing.
 		bool pauseOnExit() const
 		{
-			return (transitionFlags() & StateTransitionFlags::PauseOnExit) !=
+			return (transitionFlags() & StateTransitionFlags::PauseOnExit) ==
 			       StateTransitionFlags::PauseOnExit;
 		}
 
@@ -53,7 +53,7 @@ namespace rive
 		/// exit time is effectively an AND with the rest of the conditions.
 		bool enableExitTime() const
 		{
-			return (transitionFlags() & StateTransitionFlags::EnableExitTime) !=
+			return (transitionFlags() & StateTransitionFlags::EnableExitTime) ==
 			       StateTransitionFlags::EnableExitTime;
 		}
 

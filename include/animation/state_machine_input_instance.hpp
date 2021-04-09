@@ -23,11 +23,12 @@ namespace rive
 	protected:
 		void valueChanged();
 
-		const StateMachineInput* input() const { return m_Input; }
-
 		StateMachineInputInstance(const StateMachineInput* input,
 		                          StateMachineInstance* machineInstance);
 		virtual ~StateMachineInputInstance() {}
+
+	public:
+		const StateMachineInput* input() const { return m_Input; }
 	};
 
 	class StateMachineBoolInstance : public StateMachineInputInstance

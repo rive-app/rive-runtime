@@ -41,6 +41,9 @@ namespace rive
 
 		// Returns true when the StateMachineInstance has more data to process.
 		bool needsAdvance() const;
+
+		size_t inputCount() const { return m_InputCount; }
+		StateMachineInputInstance* input(size_t index) const;
 	};
 } // namespace rive
 #endif

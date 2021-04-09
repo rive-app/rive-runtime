@@ -305,3 +305,12 @@ void StateMachineInstance::apply(Artboard* artboard) const
 
 void StateMachineInstance::markNeedsAdvance() { m_NeedsAdvance = true; }
 bool StateMachineInstance::needsAdvance() const { return m_NeedsAdvance; }
+
+StateMachineInputInstance* StateMachineInstance::input(size_t index) const
+{
+	if (index < m_InputCount)
+	{
+		return m_InputInstances[index];
+	}
+	return nullptr;
+}
