@@ -1,28 +1,26 @@
-#include "animation/transition_double_condition.hpp"
+#include "animation/transition_number_condition.hpp"
 #include "animation/state_machine_input_instance.hpp"
-#include "animation/state_machine_double.hpp"
+#include "animation/state_machine_number.hpp"
 #include "animation/transition_condition_op.hpp"
 
 using namespace rive;
 
-bool TransitionDoubleCondition::validateInputType(
+bool TransitionNumberCondition::validateInputType(
     const StateMachineInput* input) const
 {
 	// A null input is valid as the StateMachine can attempt to limp along if we
 	// introduce new input types that old conditions are expected to handle in
 	// newer runtimes. The older runtimes will just evaluate them to true.
-	return input == nullptr || input->is<StateMachineDouble>();
+	return input == nullptr || input->is<StateMachineNumber>();
 }
 
-bool TransitionDoubleCondition::evaluate(
-    const StateMachineInputInstance* inputInstance) const
+bool TransitionNumberCondition::evaluate(const SMIInput* inputInstance) const
 {
 	if (inputInstance == nullptr)
 	{
 		return true;
 	}
-	auto numberInput =
-	    reinterpret_cast<const StateMachineNumberInstance*>(inputInstance);
+	auto numberInput = reinterpret_cast<const SMINumber*>(inputInstance);
 
 	switch (op())
 	{

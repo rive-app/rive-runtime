@@ -16,7 +16,7 @@
 #include "animation/linear_animation_instance.hpp"
 #include "animation/state_machine_instance.hpp"
 #include "animation/state_machine_input_instance.hpp"
-#include "animation/state_machine_double.hpp"
+#include "animation/state_machine_number.hpp"
 #include "animation/state_machine_bool.hpp"
 #include "animation/state_machine_trigger.hpp"
 #include "artboard.hpp"
@@ -39,8 +39,13 @@ rive::LinearAnimationInstance* animationInstance = nullptr;
 uint8_t* fileBytes = nullptr;
 unsigned int fileBytesLength = 0;
 
+int animationIndex = 0;
+int stateMachineIndex = -1;
+
 void initStateMachine(int index)
 {
+	stateMachineIndex = index;
+	animationIndex = -1;
 	assert(fileBytes != nullptr);
 	auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
 	rive::File* file = nullptr;
@@ -73,6 +78,8 @@ void initStateMachine(int index)
 
 void initAnimation(int index)
 {
+	animationIndex = index;
+	stateMachineIndex = -1;
 	assert(fileBytes != nullptr);
 	auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
 	rive::File* file = nullptr;
@@ -267,9 +274,6 @@ int main()
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		static int animationIndex = 0;
-		static int stateMachineIndex = -1;
-
 		if (artboard != nullptr)
 		{
 			ImGui::Begin(filename.c_str(), nullptr);
@@ -315,13 +319,13 @@ int main()
 				{
 					auto inputInstance = stateMachineInstance->input(i);
 
-					// ImGui requires names as id's, use ## to hide the label
-					// but still give it an id.
-					char label[256];
-					snprintf(label, 256, "##%u", i);
-
-					if (inputInstance->input()->is<rive::StateMachineDouble>())
+					if (inputInstance->input()->is<rive::StateMachineNumber>())
 					{
+						// ImGui requires names as id's, use ## to hide the
+						// label but still give it an id.
+						char label[256];
+						snprintf(label, 256, "##%u", i);
+
 						auto number =
 						    static_cast<rive::StateMachineNumberInstance*>(
 						        inputInstance);
@@ -333,6 +337,10 @@ int main()
 					else if (inputInstance->input()
 					             ->is<rive::StateMachineTrigger>())
 					{
+						// ImGui requires names as id's, use ## to hide the
+						// label but still give it an id.
+						char label[256];
+						snprintf(label, 256, "Fire##%u", i);
 						if (ImGui::Button(label))
 						{
 							auto trigger =
@@ -345,6 +353,10 @@ int main()
 					else if (inputInstance->input()
 					             ->is<rive::StateMachineBool>())
 					{
+						// ImGui requires names as id's, use ## to hide the
+						// label but still give it an id.
+						char label[256];
+						snprintf(label, 256, "##%u", i);
 						auto boolInput =
 						    static_cast<rive::StateMachineBoolInstance*>(
 						        inputInstance);

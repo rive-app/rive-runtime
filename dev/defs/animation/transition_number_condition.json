@@ -1,8 +1,8 @@
 {
-  "name": "TransitionDoubleCondition",
+  "name": "TransitionNumberCondition",
   "key": {
     "int": 70,
-    "string": "transitiondoublecondition"
+    "string": "transitionnumbercondition"
   },
   "extends": "animation/transition_value_condition.json",
   "properties": {

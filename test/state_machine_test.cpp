@@ -6,6 +6,7 @@
 #include "animation/animation_state.hpp"
 #include "animation/entry_state.hpp"
 #include "animation/state_transition.hpp"
+#include "animation/state_machine_instance.hpp"
 #include <cstdio>
 
 TEST_CASE("file with state machine be read", "[file]")
@@ -84,6 +85,10 @@ TEST_CASE("file with state machine be read", "[file]")
 			REQUIRE(transition->conditionCount() == 1);
 		}
 	}
+
+	rive::StateMachineInstance smi(artboard->stateMachine("Button"));
+	REQUIRE(smi.getBool("Hover") != nullptr);
+	REQUIRE(smi.getBool("Press") != nullptr);
 
 	delete file;
 	delete[] bytes;

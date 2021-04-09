@@ -65,7 +65,7 @@ float StateTransition::mixTime(const LayerState* stateFrom) const
 	{
 		return 0;
 	}
-	if ((transitionFlags() & StateTransitionFlags::DurationIsPercentage) !=
+	if ((transitionFlags() & StateTransitionFlags::DurationIsPercentage) ==
 	    StateTransitionFlags::DurationIsPercentage)
 	{
 		float animationDuration = 0.0f;

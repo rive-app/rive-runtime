@@ -6,11 +6,11 @@ namespace rive
 	class StateMachineInstance;
 	class StateMachineInput;
 	class StateMachineBool;
-	class StateMachineDouble;
+	class StateMachineNumber;
 	class StateMachineTrigger;
 	class TransitionTriggerCondition;
 
-	class StateMachineInputInstance
+	class SMIInput
 	{
 		friend class StateMachineInstance;
 
@@ -23,45 +23,45 @@ namespace rive
 	protected:
 		void valueChanged();
 
-		StateMachineInputInstance(const StateMachineInput* input,
-		                          StateMachineInstance* machineInstance);
-		virtual ~StateMachineInputInstance() {}
+		SMIInput(const StateMachineInput* input,
+		         StateMachineInstance* machineInstance);
+		virtual ~SMIInput() {}
 
 	public:
 		const StateMachineInput* input() const { return m_Input; }
 	};
 
-	class StateMachineBoolInstance : public StateMachineInputInstance
+	class SMIBool : public SMIInput
 	{
 		friend class StateMachineInstance;
 
 	private:
 		bool m_Value;
 
-		StateMachineBoolInstance(const StateMachineBool* input,
-		                         StateMachineInstance* machineInstance);
+		SMIBool(const StateMachineBool* input,
+		        StateMachineInstance* machineInstance);
 
 	public:
 		bool value() const { return m_Value; }
 		void value(bool newValue);
 	};
 
-	class StateMachineNumberInstance : public StateMachineInputInstance
+	class SMINumber : public SMIInput
 	{
 		friend class StateMachineInstance;
 
 	private:
 		float m_Value;
 
-		StateMachineNumberInstance(const StateMachineDouble* input,
-		                           StateMachineInstance* machineInstance);
+		SMINumber(const StateMachineNumber* input,
+		          StateMachineInstance* machineInstance);
 
 	public:
 		float value() const { return m_Value; }
 		void value(float newValue);
 	};
 
-	class StateMachineTriggerInstance : public StateMachineInputInstance
+	class SMITrigger : public SMIInput
 	{
 		friend class StateMachineInstance;
 		friend class TransitionTriggerCondition;
@@ -69,8 +69,8 @@ namespace rive
 	private:
 		bool m_Fired = false;
 
-		StateMachineTriggerInstance(const StateMachineTrigger* input,
-		                            StateMachineInstance* machineInstance);
+		SMITrigger(const StateMachineTrigger* input,
+		           StateMachineInstance* machineInstance);
 		void advanced() override { m_Fired = false; }
 
 	public:

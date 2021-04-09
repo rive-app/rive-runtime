@@ -1,7 +1,7 @@
 #include "animation/state_machine_instance.hpp"
 #include "animation/state_machine_input.hpp"
 #include "animation/state_machine_bool.hpp"
-#include "animation/state_machine_double.hpp"
+#include "animation/state_machine_number.hpp"
 #include "animation/state_machine_trigger.hpp"
 #include "animation/state_machine_input_instance.hpp"
 #include "animation/state_machine.hpp"
@@ -38,7 +38,7 @@ namespace rive
 			m_CurrentState = m_Layer->entryState();
 		}
 
-		bool advance(float seconds, StateMachineInputInstance** inputs)
+		bool advance(float seconds, SMIInput** inputs)
 		{
 			bool keepGoing = false;
 			if (m_AnimationInstance != nullptr)
@@ -77,7 +77,7 @@ namespace rive
 			return m_Mix != 1.0f || keepGoing;
 		}
 
-		bool updateState(StateMachineInputInstance** inputs)
+		bool updateState(SMIInput** inputs)
 		{
 			if (tryChangeState(m_Layer->anyState(), inputs))
 			{
@@ -97,8 +97,7 @@ namespace rive
 			return true;
 		}
 
-		bool tryChangeState(const LayerState* stateFrom,
-		                    StateMachineInputInstance** inputs)
+		bool tryChangeState(const LayerState* stateFrom, SMIInput** inputs)
 		{
 			if (stateFrom == nullptr)
 			{
@@ -213,7 +212,7 @@ namespace rive
 			if (m_AnimationInstanceFrom != nullptr && m_Mix < 1.0f)
 			{
 				m_AnimationInstanceFrom->animation()->apply(
-				    artboard, m_AnimationInstanceFrom->time(), m_Mix);
+				    artboard, m_AnimationInstanceFrom->time(), 1.0 - m_Mix);
 			}
 			if (m_AnimationInstance != nullptr)
 			{
@@ -228,7 +227,7 @@ StateMachineInstance::StateMachineInstance(StateMachine* machine) :
     m_Machine(machine)
 {
 	m_InputCount = machine->inputCount();
-	m_InputInstances = new StateMachineInputInstance*[m_InputCount];
+	m_InputInstances = new SMIInput*[m_InputCount];
 	for (int i = 0; i < m_InputCount; i++)
 	{
 		auto input = machine->input(i);
@@ -240,16 +239,16 @@ StateMachineInstance::StateMachineInstance(StateMachine* machine) :
 		switch (input->coreType())
 		{
 			case StateMachineBool::typeKey:
-				m_InputInstances[i] = new StateMachineBoolInstance(
-				    input->as<StateMachineBool>(), this);
+				m_InputInstances[i] =
+				    new SMIBool(input->as<StateMachineBool>(), this);
 				break;
-			case StateMachineDouble::typeKey:
-				m_InputInstances[i] = new StateMachineNumberInstance(
-				    input->as<StateMachineDouble>(), this);
+			case StateMachineNumber::typeKey:
+				m_InputInstances[i] =
+				    new SMINumber(input->as<StateMachineNumber>(), this);
 				break;
 			case StateMachineTrigger::typeKey:
-				m_InputInstances[i] = new StateMachineTriggerInstance(
-				    input->as<StateMachineTrigger>(), this);
+				m_InputInstances[i] =
+				    new SMITrigger(input->as<StateMachineTrigger>(), this);
 				break;
 			default:
 				// Sanity check.
@@ -306,11 +305,49 @@ void StateMachineInstance::apply(Artboard* artboard) const
 void StateMachineInstance::markNeedsAdvance() { m_NeedsAdvance = true; }
 bool StateMachineInstance::needsAdvance() const { return m_NeedsAdvance; }
 
-StateMachineInputInstance* StateMachineInstance::input(size_t index) const
+SMIInput* StateMachineInstance::input(size_t index) const
 {
 	if (index < m_InputCount)
 	{
 		return m_InputInstances[index];
+	}
+	return nullptr;
+}
+
+SMIBool* StateMachineInstance::getBool(std::string name) const
+{
+	for (int i = 0; i < m_InputCount; i++)
+	{
+		auto input = m_InputInstances[i]->input();
+		if (input->is<StateMachineBool>() && input->name() == name)
+		{
+			return static_cast<SMIBool*>(m_InputInstances[i]);
+		}
+	}
+	return nullptr;
+}
+
+SMINumber* StateMachineInstance::getNumber(std::string name) const
+{
+	for (int i = 0; i < m_InputCount; i++)
+	{
+		auto input = m_InputInstances[i]->input();
+		if (input->is<StateMachineNumber>() && input->name() == name)
+		{
+			return static_cast<SMINumber*>(m_InputInstances[i]);
+		}
+	}
+	return nullptr;
+}
+SMITrigger* StateMachineInstance::getTrigger(std::string name) const
+{
+	for (int i = 0; i < m_InputCount; i++)
+	{
+		auto input = m_InputInstances[i]->input();
+		if (input->is<StateMachineTrigger>() && input->name() == name)
+		{
+			return static_cast<SMITrigger*>(m_InputInstances[i]);
+		}
 	}
 	return nullptr;
 }

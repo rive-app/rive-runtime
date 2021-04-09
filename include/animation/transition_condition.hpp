@@ -5,7 +5,7 @@
 namespace rive
 {
 	class StateMachineInput;
-	class StateMachineInputInstance;
+	class SMIInput;
 
 	class TransitionCondition : public TransitionConditionBase
 	{
@@ -15,8 +15,7 @@ namespace rive
 
 		StatusCode import(ImportStack& importStack) override;
 
-		virtual bool
-		evaluate(const StateMachineInputInstance* inputInstance) const
+		virtual bool evaluate(const SMIInput* inputInstance) const
 		{
 			return true;
 		}

@@ -1,10 +1,10 @@
-#ifndef _RIVE_TRANSITION_DOUBLE_CONDITION_BASE_HPP_
-#define _RIVE_TRANSITION_DOUBLE_CONDITION_BASE_HPP_
+#ifndef _RIVE_TRANSITION_NUMBER_CONDITION_BASE_HPP_
+#define _RIVE_TRANSITION_NUMBER_CONDITION_BASE_HPP_
 #include "animation/transition_value_condition.hpp"
 #include "core/field_types/core_double_type.hpp"
 namespace rive
 {
-	class TransitionDoubleConditionBase : public TransitionValueCondition
+	class TransitionNumberConditionBase : public TransitionValueCondition
 	{
 	protected:
 		typedef TransitionValueCondition Super;
@@ -18,7 +18,7 @@ namespace rive
 		{
 			switch (typeKey)
 			{
-				case TransitionDoubleConditionBase::typeKey:
+				case TransitionNumberConditionBase::typeKey:
 				case TransitionValueConditionBase::typeKey:
 				case TransitionConditionBase::typeKey:
 					return true;

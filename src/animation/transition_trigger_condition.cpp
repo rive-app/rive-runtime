@@ -14,15 +14,13 @@ bool TransitionTriggerCondition::validateInputType(
 	return input == nullptr || input->is<StateMachineTrigger>();
 }
 
-bool TransitionTriggerCondition::evaluate(
-    const StateMachineInputInstance* inputInstance) const
+bool TransitionTriggerCondition::evaluate(const SMIInput* inputInstance) const
 {
 	if (inputInstance == nullptr)
 	{
 		return true;
 	}
-	auto triggerInput =
-	    reinterpret_cast<const StateMachineTriggerInstance*>(inputInstance);
+	auto triggerInput = reinterpret_cast<const SMITrigger*>(inputInstance);
 
 	if (triggerInput->m_Fired)
 	{

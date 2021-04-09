@@ -1,10 +1,10 @@
-#ifndef _RIVE_STATE_MACHINE_DOUBLE_BASE_HPP_
-#define _RIVE_STATE_MACHINE_DOUBLE_BASE_HPP_
+#ifndef _RIVE_STATE_MACHINE_NUMBER_BASE_HPP_
+#define _RIVE_STATE_MACHINE_NUMBER_BASE_HPP_
 #include "animation/state_machine_input.hpp"
 #include "core/field_types/core_double_type.hpp"
 namespace rive
 {
-	class StateMachineDoubleBase : public StateMachineInput
+	class StateMachineNumberBase : public StateMachineInput
 	{
 	protected:
 		typedef StateMachineInput Super;
@@ -18,7 +18,7 @@ namespace rive
 		{
 			switch (typeKey)
 			{
-				case StateMachineDoubleBase::typeKey:
+				case StateMachineNumberBase::typeKey:
 				case StateMachineInputBase::typeKey:
 				case StateMachineComponentBase::typeKey:
 					return true;

@@ -14,15 +14,13 @@ bool TransitionBoolCondition::validateInputType(
 	return input == nullptr || input->is<StateMachineBool>();
 }
 
-bool TransitionBoolCondition::evaluate(
-    const StateMachineInputInstance* inputInstance) const
+bool TransitionBoolCondition::evaluate(const SMIInput* inputInstance) const
 {
 	if (inputInstance == nullptr)
 	{
 		return true;
 	}
-	auto boolInput =
-	    reinterpret_cast<const StateMachineBoolInstance*>(inputInstance);
+	auto boolInput = reinterpret_cast<const SMIBool*>(inputInstance);
 
 	return (boolInput->value() && op() == TransitionConditionOp::equal) ||
 	       (!boolInput->value() && op() == TransitionConditionOp::notEqual);
