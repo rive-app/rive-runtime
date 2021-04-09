@@ -80,7 +80,7 @@ void StateMachine::addInput(StateMachineInput* input)
 	m_Inputs.push_back(input);
 }
 
-StateMachineInput* StateMachine::input(std::string name)
+const StateMachineInput* StateMachine::input(std::string name) const
 {
 	for (auto input : m_Inputs)
 	{
@@ -92,7 +92,7 @@ StateMachineInput* StateMachine::input(std::string name)
 	return nullptr;
 }
 
-StateMachineInput* StateMachine::input(size_t index)
+const StateMachineInput* StateMachine::input(size_t index) const
 {
 	if (index >= 0 && index < m_Inputs.size())
 	{
@@ -101,7 +101,7 @@ StateMachineInput* StateMachine::input(size_t index)
 	return nullptr;
 }
 
-StateMachineLayer* StateMachine::layer(std::string name)
+const StateMachineLayer* StateMachine::layer(std::string name) const
 {
 	for (auto layer : m_Layers)
 	{
@@ -113,7 +113,7 @@ StateMachineLayer* StateMachine::layer(std::string name)
 	return nullptr;
 }
 
-StateMachineLayer* StateMachine::layer(size_t index)
+const StateMachineLayer* StateMachine::layer(size_t index) const
 {
 
 	if (index >= 0 && index < m_Layers.size())

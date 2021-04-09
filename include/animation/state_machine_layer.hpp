@@ -30,13 +30,13 @@ namespace rive
 
 		StatusCode import(ImportStack& importStack) override;
 
-		const AnyState* any() const { return m_Any; }
-		const EntryState* entry() const { return m_Entry; }
-		const ExitState* exit() const { return m_Exit; }
+		const AnyState* anyState() const { return m_Any; }
+		const EntryState* entryState() const { return m_Entry; }
+		const ExitState* exitState() const { return m_Exit; }
 
 #ifdef TESTING
 		size_t stateCount() const { return m_States.size(); }
-		LayerState* state(size_t index)
+		LayerState* state(size_t index) const
 		{
 			if (index < m_States.size())
 			{

@@ -8,6 +8,7 @@ namespace rive
 	class StateMachineBool;
 	class StateMachineDouble;
 	class StateMachineTrigger;
+	class TransitionTriggerCondition;
 
 	class StateMachineInputInstance
 	{
@@ -15,15 +16,18 @@ namespace rive
 
 	private:
 		StateMachineInstance* m_MachineInstance;
-		StateMachineInput* m_Input;
+		const StateMachineInput* m_Input;
+
+		virtual void advanced() {}
 
 	protected:
 		void valueChanged();
 
-		StateMachineInput* input() const { return m_Input; }
+		const StateMachineInput* input() const { return m_Input; }
 
-		StateMachineInputInstance(StateMachineInput* input,
+		StateMachineInputInstance(const StateMachineInput* input,
 		                          StateMachineInstance* machineInstance);
+		virtual ~StateMachineInputInstance() {}
 	};
 
 	class StateMachineBoolInstance : public StateMachineInputInstance
@@ -33,7 +37,7 @@ namespace rive
 	private:
 		bool m_Value;
 
-		StateMachineBoolInstance(StateMachineBool* input,
+		StateMachineBoolInstance(const StateMachineBool* input,
 		                         StateMachineInstance* machineInstance);
 
 	public:
@@ -48,7 +52,7 @@ namespace rive
 	private:
 		float m_Value;
 
-		StateMachineNumberInstance(StateMachineDouble* input,
+		StateMachineNumberInstance(const StateMachineDouble* input,
 		                           StateMachineInstance* machineInstance);
 
 	public:
@@ -59,12 +63,14 @@ namespace rive
 	class StateMachineTriggerInstance : public StateMachineInputInstance
 	{
 		friend class StateMachineInstance;
+		friend class TransitionTriggerCondition;
 
 	private:
-		bool m_Triggered = false;
+		bool m_Fired = false;
 
-		StateMachineTriggerInstance(StateMachineTrigger* input,
+		StateMachineTriggerInstance(const StateMachineTrigger* input,
 		                            StateMachineInstance* machineInstance);
+		void advanced() override { m_Fired = false; }
 
 	public:
 		void fire();

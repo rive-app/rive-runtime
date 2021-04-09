@@ -24,13 +24,13 @@ namespace rive
 		~StateMachine();
 		StatusCode import(ImportStack& importStack) override;
 
-		size_t layerCount() { return m_Layers.size(); }
-		size_t inputCount() { return m_Inputs.size(); }
+		size_t layerCount() const { return m_Layers.size(); }
+		size_t inputCount() const { return m_Inputs.size(); }
 
-		StateMachineInput* input(std::string name);
-		StateMachineInput* input(size_t index);
-		StateMachineLayer* layer(std::string name);
-		StateMachineLayer* layer(size_t index);
+		const StateMachineInput* input(std::string name) const;
+		const StateMachineInput* input(size_t index) const;
+		const StateMachineLayer* layer(std::string name) const;
+		const StateMachineLayer* layer(size_t index) const;
 
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;

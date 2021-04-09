@@ -33,6 +33,8 @@ namespace rive
 		StatusCode onAddedDirty(CoreContext* context) override;
 		StatusCode onAddedClean(CoreContext* context) override;
 
+		/// Whether the transition is marked disabled (usually done in the
+		/// editor).
 		bool isDisabled() const
 		{
 			return (transitionFlags() & StateTransitionFlags::Disabled) ==
@@ -56,7 +58,7 @@ namespace rive
 		}
 
 		StatusCode import(ImportStack& importStack) override;
-#ifdef TESTING
+
 		size_t conditionCount() const { return m_Conditions.size(); }
 		TransitionCondition* condition(size_t index) const
 		{
@@ -66,7 +68,11 @@ namespace rive
 			}
 			return nullptr;
 		}
-#endif
+
+		// Exit time in seconds. Specify relativeToWorkArea to use the work area
+		// start as the origin. Otherwise time 0 of the animation is the origin.
+		float exitTimeSeconds(const LayerState* stateFrom,
+		                      bool relativeToWorkArea) const;
 	};
 } // namespace rive
 

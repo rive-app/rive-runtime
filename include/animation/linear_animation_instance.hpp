@@ -11,6 +11,9 @@ namespace rive
 	private:
 		LinearAnimation* m_Animation = nullptr;
 		float m_Time;
+		float m_TotalTime;
+		float m_LastTotalTime;
+		float m_SpilledTime;
 		int m_Direction;
 		bool m_DidLoop;
 
@@ -42,6 +45,10 @@ namespace rive
 		// Set when the animation is advanced, true if the animation has stopped
 		// (oneShot), reached the end (loop), or changed direction (pingPong)
 		bool didLoop() const { return m_DidLoop; }
+
+		float totalTime() const { return m_TotalTime; }
+		float lastTotalTime() const { return m_LastTotalTime; }
+		float spilledTime() const { return m_SpilledTime; }
 	};
 } // namespace rive
 #endif

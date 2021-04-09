@@ -19,11 +19,27 @@ LayerState::~LayerState()
 
 StatusCode LayerState::onAddedDirty(CoreContext* context)
 {
+	StatusCode code;
+	for (auto transition : m_Transitions)
+	{
+		if ((code = transition->onAddedDirty(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
+	}
 	return StatusCode::Ok;
 }
 
 StatusCode LayerState::onAddedClean(CoreContext* context)
 {
+	StatusCode code;
+	for (auto transition : m_Transitions)
+	{
+		if ((code = transition->onAddedClean(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
+	}
 	return StatusCode::Ok;
 }
 

@@ -15,6 +15,7 @@ namespace rive
 
 	public:
 		StateMachineImporter(StateMachine* machine);
+		const StateMachine* stateMachine() const { return m_StateMachine; }
 		void addLayer(StateMachineLayer* layer);
 		void addInput(StateMachineInput* input);
 		StatusCode resolve() override;

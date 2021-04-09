@@ -9,6 +9,8 @@ namespace rive
 	class StateMachineInputInstance;
 	class Artboard;
 
+	class StateMachineLayerInstance;
+
 	class StateMachineInstance
 	{
 		friend class StateMachineInputInstance;
@@ -19,8 +21,11 @@ namespace rive
 
 		size_t m_InputCount;
 		StateMachineInputInstance** m_InputInstances;
+		unsigned int m_LayerCount;
+		StateMachineLayerInstance* m_Layers;
 
 		void markNeedsAdvance();
+		bool updateState();
 
 	public:
 		StateMachineInstance(StateMachine* machine);

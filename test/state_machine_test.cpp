@@ -46,9 +46,9 @@ TEST_CASE("file with state machine be read", "[file]")
 	auto layer = stateMachine->layer(0);
 	REQUIRE(layer->stateCount() == 6);
 
-	REQUIRE(layer->any() != nullptr);
-	REQUIRE(layer->entry() != nullptr);
-	REQUIRE(layer->exit() != nullptr);
+	REQUIRE(layer->anyState() != nullptr);
+	REQUIRE(layer->entryState() != nullptr);
+	REQUIRE(layer->exitState() != nullptr);
 
 	int foundAnimationStates = 0;
 	for (int i = 0; i < layer->stateCount(); i++)
@@ -63,8 +63,8 @@ TEST_CASE("file with state machine be read", "[file]")
 
 	REQUIRE(foundAnimationStates == 3);
 
-	REQUIRE(layer->entry()->transitionCount() == 1);
-	auto stateTo = layer->entry()->transition(0)->stateTo();
+	REQUIRE(layer->entryState()->transitionCount() == 1);
+	auto stateTo = layer->entryState()->transition(0)->stateTo();
 	REQUIRE(stateTo != nullptr);
 	REQUIRE(stateTo->is<rive::AnimationState>());
 	REQUIRE(stateTo->as<rive::AnimationState>()->animation() != nullptr);

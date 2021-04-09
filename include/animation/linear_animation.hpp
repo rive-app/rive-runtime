@@ -24,6 +24,10 @@ namespace rive
 
 		StatusCode import(ImportStack& importStack) override;
 
+		float startSeconds() const;
+		float endSeconds() const;
+		float durationSeconds() const;
+
 #ifdef TESTING
 		size_t numKeyedObjects() { return m_KeyedObjects.size(); }
 #endif

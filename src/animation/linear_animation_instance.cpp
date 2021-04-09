@@ -10,6 +10,9 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimation* animation) :
     m_Time(animation->enableWorkArea()
                ? (float)animation->workStart() / animation->fps()
                : 0),
+    m_TotalTime(0.0f),
+    m_LastTotalTime(0.0f),
+    m_SpilledTime(0.0f),
     m_Direction(1)
 {
 }
@@ -18,6 +21,8 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
 	LinearAnimation& animation = *m_Animation;
 	m_Time += elapsedSeconds * animation.speed() * m_Direction;
+	m_LastTotalTime = m_TotalTime;
+	m_TotalTime += elapsedSeconds;
 
 	int fps = animation.fps();
 
@@ -37,6 +42,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 			if (frames > end)
 			{
 				keepGoing = false;
+				m_SpilledTime = (frames - end) / fps;
 				frames = end;
 				m_Time = frames / fps;
 				didLoop = true;
@@ -45,6 +51,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 		case Loop::loop:
 			if (frames >= end)
 			{
+				m_SpilledTime = (frames - end) / fps;
 				frames = m_Time * fps;
 				frames = start + std::fmod(frames - start, range);
 				m_Time = frames / fps;
@@ -56,6 +63,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 			{
 				if (m_Direction == 1 && frames >= end)
 				{
+					m_SpilledTime = (frames - end) / fps;
 					m_Direction = -1;
 					frames = end + (end - frames);
 					m_Time = frames / fps;
@@ -63,6 +71,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 				}
 				else if (m_Direction == -1 && frames < start)
 				{
+					m_SpilledTime = (start - frames) / fps;
 					m_Direction = 1;
 					frames = start + (start - frames);
 					m_Time = frames / fps;
@@ -92,5 +101,14 @@ void LinearAnimationInstance::time(float value)
 		return;
 	}
 	m_Time = value;
+	// Make sure to keep last and total in relative lockstep so state machines
+	// can track change even when setting time.
+	auto diff = m_TotalTime - m_LastTotalTime;
+
+	int start = (m_Animation->enableWorkArea() ? m_Animation->workStart() : 0) *
+	            m_Animation->fps();
+	m_TotalTime = value - start;
+	m_LastTotalTime = m_TotalTime - diff;
+
 	m_Direction = 1;
 }

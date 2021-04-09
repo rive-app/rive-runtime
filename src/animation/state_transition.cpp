@@ -3,6 +3,8 @@
 #include "importers/layer_state_importer.hpp"
 #include "animation/layer_state.hpp"
 #include "animation/transition_condition.hpp"
+#include "animation/animation_state.hpp"
+#include "animation/linear_animation.hpp"
 
 using namespace rive;
 
@@ -16,11 +18,27 @@ StateTransition::~StateTransition()
 
 StatusCode StateTransition::onAddedDirty(CoreContext* context)
 {
+	StatusCode code;
+	for (auto condition : m_Conditions)
+	{
+		if ((code = condition->onAddedDirty(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
+	}
 	return StatusCode::Ok;
 }
 
 StatusCode StateTransition::onAddedClean(CoreContext* context)
 {
+	StatusCode code;
+	for (auto condition : m_Conditions)
+	{
+		if ((code = condition->onAddedClean(context)) != StatusCode::Ok)
+		{
+			return code;
+		}
+	}
 	return StatusCode::Ok;
 }
 
@@ -39,4 +57,32 @@ StatusCode StateTransition::import(ImportStack& importStack)
 void StateTransition::addCondition(TransitionCondition* condition)
 {
 	m_Conditions.push_back(condition);
+}
+
+float StateTransition::exitTimeSeconds(const LayerState* stateFrom,
+                                       bool relativeToWorkArea) const
+{
+	auto exitValue = exitTime();
+	if (exitValue == 0)
+	{
+		return 0;
+	}
+	float animationDuration = 0.0f;
+	float animationOrigin = 0.0f;
+	if (stateFrom->is<AnimationState>())
+	{
+		auto animation = stateFrom->as<AnimationState>()->animation();
+		animationDuration = animation->durationSeconds();
+		animationOrigin = relativeToWorkArea ? 0 : animation->startSeconds();
+	}
+
+	if ((transitionFlags() & StateTransitionFlags::ExitTimeIsPercentage) ==
+	    StateTransitionFlags::ExitTimeIsPercentage)
+	{
+		return animationOrigin + exitValue / 100.0f * animationDuration;
+	}
+	else
+	{
+		return animationOrigin + exitValue / 1000.0f;
+	}
 }

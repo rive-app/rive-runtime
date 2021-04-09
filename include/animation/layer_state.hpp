@@ -26,7 +26,6 @@ namespace rive
 
 		StatusCode import(ImportStack& importStack) override;
 
-#ifdef TESTING
 		size_t transitionCount() const { return m_Transitions.size(); }
 		StateTransition* transition(size_t index) const
 		{
@@ -36,7 +35,6 @@ namespace rive
 			}
 			return nullptr;
 		}
-#endif
 	};
 } // namespace rive
 

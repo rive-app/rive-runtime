@@ -6,7 +6,12 @@ namespace rive
 {
 	class TransitionDoubleCondition : public TransitionDoubleConditionBase
 	{
+	protected:
+		bool validateInputType(const StateMachineInput* input) const override;
+
 	public:
+		bool
+		evaluate(const StateMachineInputInstance* inputInstance) const override;
 	};
 } // namespace rive
 

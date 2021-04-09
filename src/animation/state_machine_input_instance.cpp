@@ -7,10 +7,11 @@
 using namespace rive;
 
 StateMachineInputInstance::StateMachineInputInstance(
-    StateMachineInput* input, StateMachineInstance* machineInstance) :
+    const StateMachineInput* input, StateMachineInstance* machineInstance) :
     m_MachineInstance(machineInstance), m_Input(input)
 {
 }
+
 void StateMachineInputInstance::valueChanged()
 {
 	m_MachineInstance->markNeedsAdvance();
@@ -19,7 +20,7 @@ void StateMachineInputInstance::valueChanged()
 // bool
 
 StateMachineBoolInstance::StateMachineBoolInstance(
-    StateMachineBool* input, StateMachineInstance* machineInstance) :
+    const StateMachineBool* input, StateMachineInstance* machineInstance) :
     StateMachineInputInstance(input, machineInstance), m_Value(input->value())
 {
 }
@@ -36,7 +37,7 @@ void StateMachineBoolInstance::value(bool newValue)
 
 // number
 StateMachineNumberInstance::StateMachineNumberInstance(
-    StateMachineDouble* input, StateMachineInstance* machineInstance) :
+    const StateMachineDouble* input, StateMachineInstance* machineInstance) :
     StateMachineInputInstance(input, machineInstance), m_Value(input->value())
 {
 }
@@ -53,17 +54,17 @@ void StateMachineNumberInstance::value(float newValue)
 
 // trigger
 StateMachineTriggerInstance::StateMachineTriggerInstance(
-    StateMachineTrigger* input, StateMachineInstance* machineInstance) :
+    const StateMachineTrigger* input, StateMachineInstance* machineInstance) :
     StateMachineInputInstance(input, machineInstance)
 {
 }
 
 void StateMachineTriggerInstance::fire()
 {
-	if (m_Triggered)
+	if (m_Fired)
 	{
 		return;
 	}
-	m_Triggered = true;
+	m_Fired = true;
 	valueChanged();
 }

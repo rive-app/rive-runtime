@@ -64,3 +64,16 @@ StatusCode LinearAnimation::import(ImportStack& importStack)
 	artboardImporter->addAnimation(this);
 	return Super::import(importStack);
 }
+
+float LinearAnimation::startSeconds() const
+{
+	return (enableWorkArea() ? workStart() : 0) / (float)fps();
+}
+float LinearAnimation::endSeconds() const
+{
+	return (enableWorkArea() ? workEnd() : duration()) / (float)fps();
+}
+float LinearAnimation::durationSeconds() const
+{
+	return endSeconds() - startSeconds();
+}
