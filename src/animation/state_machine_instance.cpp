@@ -35,9 +35,10 @@ namespace rive
 
 		bool advance(float seconds, StateMachineInputInstance** inputs)
 		{
+			bool keepGoing = false;
 			if (m_AnimationInstance != nullptr)
 			{
-				m_AnimationInstance->advance(seconds);
+				keepGoing = m_AnimationInstance->advance(seconds);
 			}
 
 			if (m_Transition != nullptr && m_StateFrom != nullptr &&
@@ -49,6 +50,17 @@ namespace rive
 				                      (m_Mix + seconds / m_Transition->mixTime(
 				                                             m_StateFrom))));
 			}
+			else
+			{
+				m_Mix = 1.0f;
+			}
+
+			if (m_AnimationInstanceFrom != nullptr && m_Mix < 1.0f &&
+			    !m_HoldAnimationFrom)
+			{
+				m_AnimationInstanceFrom->advance(seconds);
+			}
+
 			for (int i = 0; updateState(inputs); i++)
 			{
 				if (i == maxIterations)
@@ -57,7 +69,7 @@ namespace rive
 					return false;
 				}
 			}
-			return true;
+			return m_Mix != 1.0f || keepGoing;
 		}
 
 		bool updateState(StateMachineInputInstance** inputs)
@@ -191,7 +203,19 @@ namespace rive
 			return false;
 		}
 
-		void apply(Artboard* artboard) const {}
+		void apply(Artboard* artboard) const
+		{
+			if (m_AnimationInstanceFrom != nullptr && m_Mix < 1.0f)
+			{
+				m_AnimationInstanceFrom->animation()->apply(
+				    artboard, m_AnimationInstanceFrom->time(), m_Mix);
+			}
+			if (m_AnimationInstance != nullptr)
+			{
+				m_AnimationInstance->animation()->apply(
+				    artboard, m_AnimationInstance->time(), m_Mix);
+			}
+		}
 	};
 } // namespace rive
 
