@@ -7,6 +7,7 @@
 #include "animation/state_machine.hpp"
 #include "animation/state_machine_layer.hpp"
 #include "animation/any_state.hpp"
+#include "animation/entry_state.hpp"
 #include "animation/state_transition.hpp"
 #include "animation/transition_condition.hpp"
 #include "animation/linear_animation_instance.hpp"
@@ -31,7 +32,11 @@ namespace rive
 		float m_Mix = 1.0f;
 
 	public:
-		void init(const StateMachineLayer* layer) { m_Layer = layer; }
+		void init(const StateMachineLayer* layer)
+		{
+			m_Layer = layer;
+			m_CurrentState = m_Layer->entryState();
+		}
 
 		bool advance(float seconds, StateMachineInputInstance** inputs)
 		{
@@ -104,6 +109,7 @@ namespace rive
 			     i++)
 			{
 				auto transition = stateFrom->transition(i);
+
 				if (transition->isDisabled())
 				{
 					continue;
@@ -180,7 +186,6 @@ namespace rive
 						delete m_AnimationInstance;
 						m_AnimationInstance = nullptr;
 					}
-
 					if (m_CurrentState->is<AnimationState>())
 					{
 						auto animationState =
@@ -254,6 +259,7 @@ StateMachineInstance::StateMachineInstance(StateMachine* machine) :
 	}
 
 	m_LayerCount = machine->layerCount();
+	m_Layers = new StateMachineLayerInstance[m_LayerCount];
 	for (int i = 0; i < m_LayerCount; i++)
 	{
 		m_Layers[i].init(machine->layer(i));
@@ -289,7 +295,13 @@ bool StateMachineInstance::advance(float seconds)
 	return m_NeedsAdvance;
 }
 
-void StateMachineInstance::apply(Artboard* artboard) const {}
+void StateMachineInstance::apply(Artboard* artboard) const
+{
+	for (int i = 0; i < m_LayerCount; i++)
+	{
+		m_Layers[i].apply(artboard);
+	}
+}
 
 void StateMachineInstance::markNeedsAdvance() { m_NeedsAdvance = true; }
 bool StateMachineInstance::needsAdvance() const { return m_NeedsAdvance; }

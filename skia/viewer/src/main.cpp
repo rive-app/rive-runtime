@@ -14,6 +14,7 @@
 #include "gl/GrGLInterface.h"
 
 #include "animation/linear_animation_instance.hpp"
+#include "animation/state_machine_instance.hpp"
 #include "artboard.hpp"
 #include "file.hpp"
 #include "layout.hpp"
@@ -28,9 +29,42 @@
 
 rive::File* currentFile = nullptr;
 rive::Artboard* artboard = nullptr;
+rive::StateMachineInstance* stateMachineInstance = nullptr;
 rive::LinearAnimationInstance* animationInstance = nullptr;
 uint8_t* fileBytes = nullptr;
 unsigned int fileBytesLength = 0;
+
+void initStateMachine(int index)
+{
+	assert(fileBytes != nullptr);
+	auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
+	rive::File* file = nullptr;
+	auto result = rive::File::import(reader, &file);
+	if (result != rive::ImportResult::success)
+	{
+		delete[] fileBytes;
+		fprintf(stderr, "failed to import file\n");
+		return;
+	}
+	artboard = file->artboard();
+	artboard->advance(0.0f);
+
+	delete animationInstance;
+	delete stateMachineInstance;
+	delete currentFile;
+	animationInstance = nullptr;
+	stateMachineInstance = nullptr;
+
+	auto stateMachine = index >= 0 && index < artboard->stateMachineCount()
+	                        ? artboard->stateMachine(index)
+	                        : nullptr;
+	if (stateMachine != nullptr)
+	{
+		stateMachineInstance = new rive::StateMachineInstance(stateMachine);
+	}
+
+	currentFile = file;
+}
 
 void initAnimation(int index)
 {
@@ -48,7 +82,10 @@ void initAnimation(int index)
 	artboard->advance(0.0f);
 
 	delete animationInstance;
+	delete stateMachineInstance;
 	delete currentFile;
+	animationInstance = nullptr;
+	stateMachineInstance = nullptr;
 
 	auto animation = index >= 0 && index < artboard->animationCount()
 	                     ? artboard->animation(index)
@@ -56,10 +93,6 @@ void initAnimation(int index)
 	if (animation != nullptr)
 	{
 		animationInstance = new rive::LinearAnimationInstance(animation);
-	}
-	else
-	{
-		animationInstance = nullptr;
 	}
 
 	currentFile = file;
@@ -205,6 +238,11 @@ int main()
 				animationInstance->advance(elapsed);
 				animationInstance->apply(artboard);
 			}
+			else if (stateMachineInstance != nullptr)
+			{
+				stateMachineInstance->advance(elapsed);
+				stateMachineInstance->apply(artboard);
+			}
 			artboard->advance(elapsed);
 
 			rive::SkiaRenderer renderer(canvas);
@@ -224,6 +262,7 @@ int main()
 		ImGui::NewFrame();
 
 		static int animationIndex = 0;
+		static int stateMachineIndex = -1;
 
 		if (artboard != nullptr)
 		{
@@ -240,7 +279,24 @@ int main()
 			        artboard->animationCount(),
 			        4))
 			{
+				stateMachineIndex = -1;
 				initAnimation(animationIndex);
+			}
+			if (ImGui::ListBox(
+			        "State Machines",
+			        &stateMachineIndex,
+			        [](void* data, int index, const char** name) {
+				        const char* machineName =
+				            artboard->stateMachine(index)->name().c_str();
+				        *name = machineName;
+				        return true;
+			        },
+			        artboard,
+			        artboard->stateMachineCount(),
+			        4))
+			{
+				animationIndex = -1;
+				initStateMachine(stateMachineIndex);
 			}
 		}
 		else
