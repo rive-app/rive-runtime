@@ -327,8 +327,7 @@ int main()
 						snprintf(label, 256, "##%u", i);
 
 						auto number =
-						    static_cast<rive::StateMachineNumberInstance*>(
-						        inputInstance);
+						    static_cast<rive::SMINumber*>(inputInstance);
 						float v = number->value();
 						ImGui::InputFloat(label, &v, 1.0f, 2.0f, "%.3f");
 						number->value(v);
@@ -344,8 +343,7 @@ int main()
 						if (ImGui::Button(label))
 						{
 							auto trigger =
-							    static_cast<rive::StateMachineTriggerInstance*>(
-							        inputInstance);
+							    static_cast<rive::SMITrigger*>(inputInstance);
 							trigger->fire();
 						}
 						ImGui::NextColumn();
@@ -358,8 +356,7 @@ int main()
 						char label[256];
 						snprintf(label, 256, "##%u", i);
 						auto boolInput =
-						    static_cast<rive::StateMachineBoolInstance*>(
-						        inputInstance);
+						    static_cast<rive::SMIBool*>(inputInstance);
 						bool value = boolInput->value();
 
 						ImGui::Checkbox(label, &value);
