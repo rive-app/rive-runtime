@@ -1,6 +1,7 @@
 #ifndef _RIVE_IMPORT_STACK_HPP_
 #define _RIVE_IMPORT_STACK_HPP_
 #include "status_code.hpp"
+#include <algorithm>
 #include <unordered_map>
 
 namespace rive
