@@ -249,7 +249,7 @@ Artboard* File::artboard() const
 
 Artboard* File::artboard(size_t index) const
 {
-	if (index < 0 || index >= m_Artboards.size())
+	if (index >= m_Artboards.size())
 	{
 		return nullptr;
 	}

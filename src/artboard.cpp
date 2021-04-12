@@ -490,7 +490,7 @@ StateMachine* Artboard::stateMachine(std::string name) const
 
 StateMachine* Artboard::stateMachine(size_t index) const
 {
-	if (index < 0 || index >= m_StateMachines.size())
+	if (index >= m_StateMachines.size())
 	{
 		return nullptr;
 	}
