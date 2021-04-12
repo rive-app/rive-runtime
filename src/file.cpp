@@ -246,3 +246,12 @@ Artboard* File::artboard() const
 	}
 	return m_Artboards[0];
 }
+
+Artboard* File::artboard(size_t index) const
+{
+	if (index < 0 || index >= m_Artboards.size())
+	{
+		return nullptr;
+	}
+	return m_Artboards[index];
+}

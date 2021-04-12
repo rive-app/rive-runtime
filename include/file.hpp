@@ -64,8 +64,15 @@ namespace rive
 		Artboard* artboard() const;
 
 		/// @returns the named artboard. If no artboard is found with that name,
-		/// the null pointer is returned
+		/// the null pointer is returned.
 		Artboard* artboard(std::string name) const;
+
+		/// @returns the artboard at the specified index, or the nullptr if the
+		/// index is out of range.
+		Artboard* artboard(size_t index) const;
+
+		/// @returns the number of artboards in the file.
+		size_t artboardCount() const { return m_Artboards.size(); }
 
 	private:
 		ImportResult read(BinaryReader& reader, const RuntimeHeader& header);
