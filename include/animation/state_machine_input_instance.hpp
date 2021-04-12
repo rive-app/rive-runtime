@@ -1,6 +1,8 @@
 #ifndef _RIVE_STATE_MACHINE_INPUT_INSTANCE_HPP_
 #define _RIVE_STATE_MACHINE_INPUT_INSTANCE_HPP_
 
+#include <stdint.h>
+
 namespace rive
 {
 	class StateMachineInstance;
@@ -25,10 +27,12 @@ namespace rive
 
 		SMIInput(const StateMachineInput* input,
 		         StateMachineInstance* machineInstance);
-		virtual ~SMIInput() {}
 
 	public:
+		virtual ~SMIInput() {}
 		const StateMachineInput* input() const { return m_Input; }
+
+		uint16_t inputCoreType() const;
 	};
 
 	class SMIBool : public SMIInput
