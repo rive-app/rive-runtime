@@ -14,6 +14,8 @@ SMIInput::SMIInput(const StateMachineInput* input,
 
 uint16_t SMIInput::inputCoreType() const { return m_Input->coreType(); }
 
+const std::string& SMIInput::name() const { return m_Input->name(); } 
+
 void SMIInput::valueChanged() { m_MachineInstance->markNeedsAdvance(); }
 
 // bool

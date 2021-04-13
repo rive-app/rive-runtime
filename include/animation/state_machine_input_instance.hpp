@@ -1,6 +1,7 @@
 #ifndef _RIVE_STATE_MACHINE_INPUT_INSTANCE_HPP_
 #define _RIVE_STATE_MACHINE_INPUT_INSTANCE_HPP_
 
+#include <string>
 #include <stdint.h>
 
 namespace rive
@@ -31,7 +32,8 @@ namespace rive
 	public:
 		virtual ~SMIInput() {}
 		const StateMachineInput* input() const { return m_Input; }
-
+		
+		const std::string& name() const;
 		uint16_t inputCoreType() const;
 	};
 
