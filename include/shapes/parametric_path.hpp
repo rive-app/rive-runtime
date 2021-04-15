@@ -8,6 +8,8 @@ namespace rive
 	protected:
 		void widthChanged() override;
 		void heightChanged() override;
+		void originXChanged() override;
+		void originYChanged() override;
 	};
 } // namespace rive
 
