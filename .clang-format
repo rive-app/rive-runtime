@@ -17,6 +17,7 @@ BinPackArguments: false
 BinPackParameters: false
 AlignAfterOpenBracket: Align
 BreakBeforeBraces: Custom
+SortIncludes: false
 BraceWrapping:
   AfterEnum: true
   AfterClass: true

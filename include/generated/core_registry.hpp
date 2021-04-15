@@ -17,15 +17,15 @@
 #include "animation/state_machine.hpp"
 #include "animation/state_machine_bool.hpp"
 #include "animation/state_machine_component.hpp"
-#include "animation/state_machine_double.hpp"
 #include "animation/state_machine_input.hpp"
 #include "animation/state_machine_layer.hpp"
 #include "animation/state_machine_layer_component.hpp"
+#include "animation/state_machine_number.hpp"
 #include "animation/state_machine_trigger.hpp"
 #include "animation/state_transition.hpp"
 #include "animation/transition_bool_condition.hpp"
 #include "animation/transition_condition.hpp"
-#include "animation/transition_double_condition.hpp"
+#include "animation/transition_number_condition.hpp"
 #include "animation/transition_trigger_condition.hpp"
 #include "animation/transition_value_condition.hpp"
 #include "artboard.hpp"
@@ -83,14 +83,16 @@ namespace rive
 					return new AnimationState();
 				case KeyedObjectBase::typeKey:
 					return new KeyedObject();
+				case StateMachineNumberBase::typeKey:
+					return new StateMachineNumber();
 				case TransitionTriggerConditionBase::typeKey:
 					return new TransitionTriggerCondition();
 				case KeyedPropertyBase::typeKey:
 					return new KeyedProperty();
-				case StateMachineDoubleBase::typeKey:
-					return new StateMachineDouble();
 				case KeyFrameIdBase::typeKey:
 					return new KeyFrameId();
+				case TransitionNumberConditionBase::typeKey:
+					return new TransitionNumberCondition();
 				case AnyStateBase::typeKey:
 					return new AnyState();
 				case StateMachineLayerBase::typeKey:
@@ -99,8 +101,6 @@ namespace rive
 					return new Animation();
 				case CubicInterpolatorBase::typeKey:
 					return new CubicInterpolator();
-				case TransitionDoubleConditionBase::typeKey:
-					return new TransitionDoubleCondition();
 				case StateTransitionBase::typeKey:
 					return new StateTransition();
 				case KeyFrameDoubleBase::typeKey:
@@ -246,6 +246,9 @@ namespace rive
 				case StateTransitionBase::durationPropertyKey:
 					object->as<StateTransitionBase>()->duration(value);
 					break;
+				case StateTransitionBase::exitTimePropertyKey:
+					object->as<StateTransitionBase>()->exitTime(value);
+					break;
 				case LinearAnimationBase::fpsPropertyKey:
 					object->as<LinearAnimationBase>()->fps(value);
 					break;
@@ -321,8 +324,11 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
-				case StateMachineDoubleBase::valuePropertyKey:
-					object->as<StateMachineDoubleBase>()->value(value);
+				case StateMachineNumberBase::valuePropertyKey:
+					object->as<StateMachineNumberBase>()->value(value);
+					break;
+				case TransitionNumberConditionBase::valuePropertyKey:
+					object->as<TransitionNumberConditionBase>()->value(value);
 					break;
 				case CubicInterpolatorBase::x1PropertyKey:
 					object->as<CubicInterpolatorBase>()->x1(value);
@@ -335,9 +341,6 @@ namespace rive
 					break;
 				case CubicInterpolatorBase::y2PropertyKey:
 					object->as<CubicInterpolatorBase>()->y2(value);
-					break;
-				case TransitionDoubleConditionBase::valuePropertyKey:
-					object->as<TransitionDoubleConditionBase>()->value(value);
 					break;
 				case KeyFrameDoubleBase::valuePropertyKey:
 					object->as<KeyFrameDoubleBase>()->value(value);
@@ -602,6 +605,8 @@ namespace rive
 					return object->as<StateTransitionBase>()->flags();
 				case StateTransitionBase::durationPropertyKey:
 					return object->as<StateTransitionBase>()->duration();
+				case StateTransitionBase::exitTimePropertyKey:
+					return object->as<StateTransitionBase>()->exitTime();
 				case LinearAnimationBase::fpsPropertyKey:
 					return object->as<LinearAnimationBase>()->fps();
 				case LinearAnimationBase::durationPropertyKey:
@@ -655,8 +660,10 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
-				case StateMachineDoubleBase::valuePropertyKey:
-					return object->as<StateMachineDoubleBase>()->value();
+				case StateMachineNumberBase::valuePropertyKey:
+					return object->as<StateMachineNumberBase>()->value();
+				case TransitionNumberConditionBase::valuePropertyKey:
+					return object->as<TransitionNumberConditionBase>()->value();
 				case CubicInterpolatorBase::x1PropertyKey:
 					return object->as<CubicInterpolatorBase>()->x1();
 				case CubicInterpolatorBase::y1PropertyKey:
@@ -665,8 +672,6 @@ namespace rive
 					return object->as<CubicInterpolatorBase>()->x2();
 				case CubicInterpolatorBase::y2PropertyKey:
 					return object->as<CubicInterpolatorBase>()->y2();
-				case TransitionDoubleConditionBase::valuePropertyKey:
-					return object->as<TransitionDoubleConditionBase>()->value();
 				case KeyFrameDoubleBase::valuePropertyKey:
 					return object->as<KeyFrameDoubleBase>()->value();
 				case LinearAnimationBase::speedPropertyKey:
@@ -843,6 +848,7 @@ namespace rive
 				case StateTransitionBase::stateToIdPropertyKey:
 				case StateTransitionBase::flagsPropertyKey:
 				case StateTransitionBase::durationPropertyKey:
+				case StateTransitionBase::exitTimePropertyKey:
 				case LinearAnimationBase::fpsPropertyKey:
 				case LinearAnimationBase::durationPropertyKey:
 				case LinearAnimationBase::loopValuePropertyKey:
@@ -867,12 +873,12 @@ namespace rive
 				case CubicWeightBase::outValuesPropertyKey:
 				case CubicWeightBase::outIndicesPropertyKey:
 					return CoreUintType::id;
-				case StateMachineDoubleBase::valuePropertyKey:
+				case StateMachineNumberBase::valuePropertyKey:
+				case TransitionNumberConditionBase::valuePropertyKey:
 				case CubicInterpolatorBase::x1PropertyKey:
 				case CubicInterpolatorBase::y1PropertyKey:
 				case CubicInterpolatorBase::x2PropertyKey:
 				case CubicInterpolatorBase::y2PropertyKey:
-				case TransitionDoubleConditionBase::valuePropertyKey:
 				case KeyFrameDoubleBase::valuePropertyKey:
 				case LinearAnimationBase::speedPropertyKey:
 				case LinearGradientBase::startXPropertyKey:

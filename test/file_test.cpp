@@ -78,6 +78,37 @@ TEST_CASE("file with animation can be read", "[file]")
 	delete[] bytes;
 }
 
+TEST_CASE("artboards can be counted and accessed via index or name", "[file]")
+{
+	FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
+	REQUIRE(fp != nullptr);
+
+	fseek(fp, 0, SEEK_END);
+	auto length = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	uint8_t* bytes = new uint8_t[length];
+	REQUIRE(fread(bytes, 1, length, fp) == length);
+	auto reader = rive::BinaryReader(bytes, length);
+	rive::File* file = nullptr;
+	auto result = rive::File::import(reader, &file);
+
+	REQUIRE(result == rive::ImportResult::success);
+	REQUIRE(file != nullptr);
+
+	// The default artboard can be accessed
+	REQUIRE(file->artboard() != nullptr);
+
+	// The artboards caqn be counted
+	REQUIRE(file->artboardCount() == 1);
+
+	// Artboards can be access by index
+	REQUIRE(file->artboard(0) != nullptr);
+
+	// Artboards can be accessed by name
+	REQUIRE(file->artboard("Blue") != nullptr);
+
+}
+
 TEST_CASE("dependencies are as expected", "[file]")
 {
 	// ┌────┐

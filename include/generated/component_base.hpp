@@ -1,9 +1,9 @@
 #ifndef _RIVE_COMPONENT_BASE_HPP_
 #define _RIVE_COMPONENT_BASE_HPP_
+#include <string>
 #include "core.hpp"
 #include "core/field_types/core_string_type.hpp"
 #include "core/field_types/core_uint_type.hpp"
-#include <string>
 namespace rive
 {
 	class ComponentBase : public Core
@@ -36,7 +36,7 @@ namespace rive
 		std::string m_Name = "";
 		int m_ParentId = 0;
 	public:
-		inline std::string name() const { return m_Name; }
+		inline const std::string& name() const { return m_Name; }
 		void name(std::string value)
 		{
 			if (m_Name == value)

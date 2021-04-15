@@ -6,12 +6,6 @@ namespace rive
 {
 	class StateMachineTrigger : public StateMachineTriggerBase
 	{
-	private: 
-		bool m_Fired = false;
-		void reset();
-
-	public:
-		void fire();
 	};
 } // namespace rive
 

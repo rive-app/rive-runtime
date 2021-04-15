@@ -19,6 +19,7 @@ namespace rive
 		KeyedPropertyImporter(LinearAnimation* animation,
 		                      KeyedProperty* keyedProperty);
 		void addKeyFrame(KeyFrame* keyFrame);
+		bool readNullObject() override;
 	};
 } // namespace rive
 #endif

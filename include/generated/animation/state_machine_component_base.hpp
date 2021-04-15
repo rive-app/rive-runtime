@@ -1,8 +1,8 @@
 #ifndef _RIVE_STATE_MACHINE_COMPONENT_BASE_HPP_
 #define _RIVE_STATE_MACHINE_COMPONENT_BASE_HPP_
+#include <string>
 #include "core.hpp"
 #include "core/field_types/core_string_type.hpp"
-#include <string>
 namespace rive
 {
 	class StateMachineComponentBase : public Core
@@ -33,7 +33,7 @@ namespace rive
 	private:
 		std::string m_Name = "";
 	public:
-		inline std::string name() const { return m_Name; }
+		inline const std::string& name() const { return m_Name; }
 		void name(std::string value)
 		{
 			if (m_Name == value)

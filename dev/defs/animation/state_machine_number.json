@@ -1,8 +1,8 @@
 {
-  "name": "StateMachineDouble",
+  "name": "StateMachineNumber",
   "key": {
     "int": 56,
-    "string": "statemachinedouble"
+    "string": "statemachinenumber"
   },
   "extends": "animation/state_machine_input.json",
   "properties": {
