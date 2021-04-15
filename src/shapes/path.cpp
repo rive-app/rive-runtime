@@ -263,6 +263,10 @@ static void buildPath(CommandPath& commandPath,
 		{
 			commandPath.cubicTo(outX, outY, startInX, startInY, startX, startY);
 		}
+		else
+		{
+			commandPath.lineTo(startX, startY);
+		}
 		commandPath.close();
 	}
 }

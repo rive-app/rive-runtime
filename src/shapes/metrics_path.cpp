@@ -55,16 +55,7 @@ void MetricsPath::cubicTo(
 	m_Points.emplace_back(Vec2D(x, y));
 }
 
-void MetricsPath::close()
-{
-	if (m_Parts.back().type == PathPart::line)
-	{
-		// We auto close the last part if it's a cubic, if it's not then make
-		// sure to add the final part in so we can compute its length too.
-		m_Parts.push_back(PathPart(0, m_Points.size()));
-		m_Points.emplace_back(m_Points[0]);
-	}
-}
+void MetricsPath::close() {}
 
 static void computeHull(const Vec2D& from,
                         const Vec2D& fromOut,
