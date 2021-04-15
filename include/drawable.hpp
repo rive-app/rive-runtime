@@ -9,7 +9,7 @@ namespace rive
 	class ClippingShape;
 	class Artboard;
 	class DrawRules;
-	
+
 	class Drawable : public DrawableBase
 	{
 		friend class Artboard;
@@ -29,6 +29,13 @@ namespace rive
 		inline const std::vector<ClippingShape*>& clippingShapes() const
 		{
 			return m_ClippingShapes;
+		}
+
+		const inline bool isHidden() const
+		{
+			// For now we have a single drawable flag, when we have more we can
+			// make an actual enum for this.
+			return (drawableFlags() & 0x1) == 0x1;
 		}
 	};
 } // namespace rive

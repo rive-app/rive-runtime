@@ -429,6 +429,10 @@ void Artboard::draw(Renderer* renderer)
 	for (auto drawable = m_FirstDrawable; drawable != nullptr;
 	     drawable = drawable->prev)
 	{
+		if (drawable->isHidden())
+		{
+			continue;
+		}
 		drawable->draw(renderer);
 	}
 
