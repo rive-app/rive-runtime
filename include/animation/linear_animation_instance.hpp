@@ -31,6 +31,23 @@ namespace rive
 		// to
 		float time() const { return m_Time; }
 
+		// Returns the direction that we are currently playing in
+		float direction() const { return m_Direction; }
+
+		// Update the direction of the animation instance, positive value for
+		// forwards Negative for backwards
+		void direction(int direction)
+		{
+			if (direction > 0)
+			{
+				m_Direction = 1;
+			}
+			else
+			{
+				m_Direction = -1;
+			}
+		}
+
 		// Sets the animation's point in time.
 		void time(float value);
 

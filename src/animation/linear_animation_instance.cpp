@@ -38,10 +38,11 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 	bool didLoop = false;
 	m_SpilledTime = 0.0f;
 
+	// TODO: this deserves a test or two
 	switch (animation.loop())
 	{
 		case Loop::oneShot:
-			if (frames > end)
+			if (m_Direction == 1 && frames > end)
 			{
 				keepGoing = false;
 				m_SpilledTime = (frames - end) / fps;
@@ -49,13 +50,30 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 				m_Time = frames / fps;
 				didLoop = true;
 			}
+			else if (m_Direction == -1 && frames < start)
+			{
+				keepGoing = false;
+				m_SpilledTime = (start - frames) / fps;
+				frames = start;
+				m_Time = frames / fps;
+				didLoop = true;
+			}
 			break;
 		case Loop::loop:
-			if (frames >= end)
+			if (m_Direction == 1 && frames >= end)
 			{
 				m_SpilledTime = (frames - end) / fps;
 				frames = m_Time * fps;
 				frames = start + std::fmod(frames - start, range);
+
+				m_Time = frames / fps;
+				didLoop = true;
+			}
+			else if (m_Direction == -1 && frames <= start)
+			{
+				m_SpilledTime = (start - frames) / fps;
+				frames = m_Time * fps;
+				frames = end - std::abs(std::fmod(frames, range));
 				m_Time = frames / fps;
 				didLoop = true;
 			}
@@ -112,5 +130,7 @@ void LinearAnimationInstance::time(float value)
 	m_TotalTime = value - start;
 	m_LastTotalTime = m_TotalTime - diff;
 
+	// leaving this RIGHT now. but is this required? it kinda messes up
+	// playing things backwards and seeking. what purpose does it solve?
 	m_Direction = 1;
 }
