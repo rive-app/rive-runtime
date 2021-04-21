@@ -6,16 +6,6 @@
   },
   "extends": "component.json",
   "properties": {
-    "index": {
-      "type": "uint",
-      "initialValue": "0",
-      "key": {
-        "int": 118,
-        "string": "index"
-      },
-      "description": "The index used for weighting. Implicit at runtime. Required at edit time to allow undo ops to put them back in order.",
-      "runtime": false
-    },
     "boneId": {
       "type": "Id",
       "typeRuntime": "uint",
