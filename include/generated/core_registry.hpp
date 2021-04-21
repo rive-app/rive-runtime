@@ -426,8 +426,17 @@ namespace rive
 				case ParametricPathBase::originYPropertyKey:
 					object->as<ParametricPathBase>()->originY(value);
 					break;
-				case RectangleBase::cornerRadiusPropertyKey:
-					object->as<RectangleBase>()->cornerRadius(value);
+				case RectangleBase::cornerRadiusTLPropertyKey:
+					object->as<RectangleBase>()->cornerRadiusTL(value);
+					break;
+				case RectangleBase::cornerRadiusTRPropertyKey:
+					object->as<RectangleBase>()->cornerRadiusTR(value);
+					break;
+				case RectangleBase::cornerRadiusBLPropertyKey:
+					object->as<RectangleBase>()->cornerRadiusBL(value);
+					break;
+				case RectangleBase::cornerRadiusBRPropertyKey:
+					object->as<RectangleBase>()->cornerRadiusBR(value);
 					break;
 				case CubicMirroredVertexBase::rotationPropertyKey:
 					object->as<CubicMirroredVertexBase>()->rotation(value);
@@ -551,6 +560,9 @@ namespace rive
 					break;
 				case PointsPathBase::isClosedPropertyKey:
 					object->as<PointsPathBase>()->isClosed(value);
+					break;
+				case RectangleBase::linkCornerRadiusPropertyKey:
+					object->as<RectangleBase>()->linkCornerRadius(value);
 					break;
 				case ClippingShapeBase::isVisiblePropertyKey:
 					object->as<ClippingShapeBase>()->isVisible(value);
@@ -730,8 +742,14 @@ namespace rive
 					return object->as<ParametricPathBase>()->originX();
 				case ParametricPathBase::originYPropertyKey:
 					return object->as<ParametricPathBase>()->originY();
-				case RectangleBase::cornerRadiusPropertyKey:
-					return object->as<RectangleBase>()->cornerRadius();
+				case RectangleBase::cornerRadiusTLPropertyKey:
+					return object->as<RectangleBase>()->cornerRadiusTL();
+				case RectangleBase::cornerRadiusTRPropertyKey:
+					return object->as<RectangleBase>()->cornerRadiusTR();
+				case RectangleBase::cornerRadiusBLPropertyKey:
+					return object->as<RectangleBase>()->cornerRadiusBL();
+				case RectangleBase::cornerRadiusBRPropertyKey:
+					return object->as<RectangleBase>()->cornerRadiusBR();
 				case CubicMirroredVertexBase::rotationPropertyKey:
 					return object->as<CubicMirroredVertexBase>()->rotation();
 				case CubicMirroredVertexBase::distancePropertyKey:
@@ -820,6 +838,8 @@ namespace rive
 					return object->as<StrokeBase>()->transformAffectsStroke();
 				case PointsPathBase::isClosedPropertyKey:
 					return object->as<PointsPathBase>()->isClosed();
+				case RectangleBase::linkCornerRadiusPropertyKey:
+					return object->as<RectangleBase>()->linkCornerRadius();
 				case ClippingShapeBase::isVisiblePropertyKey:
 					return object->as<ClippingShapeBase>()->isVisible();
 			}
@@ -907,7 +927,10 @@ namespace rive
 				case ParametricPathBase::heightPropertyKey:
 				case ParametricPathBase::originXPropertyKey:
 				case ParametricPathBase::originYPropertyKey:
-				case RectangleBase::cornerRadiusPropertyKey:
+				case RectangleBase::cornerRadiusTLPropertyKey:
+				case RectangleBase::cornerRadiusTRPropertyKey:
+				case RectangleBase::cornerRadiusBLPropertyKey:
+				case RectangleBase::cornerRadiusBRPropertyKey:
 				case CubicMirroredVertexBase::rotationPropertyKey:
 				case CubicMirroredVertexBase::distancePropertyKey:
 				case PolygonBase::cornerRadiusPropertyKey:
@@ -947,6 +970,7 @@ namespace rive
 				case ShapePaintBase::isVisiblePropertyKey:
 				case StrokeBase::transformAffectsStrokePropertyKey:
 				case PointsPathBase::isClosedPropertyKey:
+				case RectangleBase::linkCornerRadiusPropertyKey:
 				case ClippingShapeBase::isVisiblePropertyKey:
 					return CoreBoolType::id;
 				default:

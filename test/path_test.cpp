@@ -21,7 +21,7 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 	rectangle->y(0.0f);
 	rectangle->width(100.0f);
 	rectangle->height(200.0f);
-	rectangle->cornerRadius(0.0f);
+	rectangle->cornerRadiusTL(0.0f);
 
 	artboard->addObject(artboard);
 	artboard->addObject(shape);
@@ -59,7 +59,8 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 	rectangle->y(0.0f);
 	rectangle->width(100.0f);
 	rectangle->height(200.0f);
-	rectangle->cornerRadius(20.0f);
+	rectangle->cornerRadiusTL(20.0f);
+	rectangle->linkCornerRadius(true);
 
 	artboard->addObject(artboard);
 	artboard->addObject(shape);
