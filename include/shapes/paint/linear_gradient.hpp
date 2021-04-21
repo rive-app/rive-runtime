@@ -13,7 +13,6 @@ namespace rive
 	{
 	private:
 		std::vector<GradientStop*> m_Stops;
-		bool m_PaintsInWorldSpace;
 		Node* m_ShapePaintContainer = nullptr;
 
 	public:
@@ -24,8 +23,6 @@ namespace rive
 		}
 		void addStop(GradientStop* stop);
 		void update(ComponentDirt value) override;
-		bool paintsInWorldSpace() const;
-		void paintsInWorldSpace(bool value);
 		void markGradientDirty();
 		void markStopsDirty();
 

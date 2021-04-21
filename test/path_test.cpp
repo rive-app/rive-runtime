@@ -37,13 +37,14 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 	auto path =
 	    reinterpret_cast<rive::NoOpRenderPath*>(rectangle->commandPath());
 
-	REQUIRE(path->commands.size() == 6);
+	REQUIRE(path->commands.size() == 7);
 	REQUIRE(path->commands[0].command == rive::NoOpPathCommandType::Reset);
 	REQUIRE(path->commands[1].command == rive::NoOpPathCommandType::MoveTo);
 	REQUIRE(path->commands[2].command == rive::NoOpPathCommandType::LineTo);
 	REQUIRE(path->commands[3].command == rive::NoOpPathCommandType::LineTo);
 	REQUIRE(path->commands[4].command == rive::NoOpPathCommandType::LineTo);
-	REQUIRE(path->commands[5].command == rive::NoOpPathCommandType::Close);
+	REQUIRE(path->commands[5].command == rive::NoOpPathCommandType::LineTo);
+	REQUIRE(path->commands[6].command == rive::NoOpPathCommandType::Close);
 
 	delete artboard;
 }
@@ -84,7 +85,7 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 
 	// close
 
-	REQUIRE(path->commands.size() == 10);
+	REQUIRE(path->commands.size() == 11);
 
 	// Init
 	REQUIRE(path->commands[0].command == rive::NoOpPathCommandType::Reset);
@@ -105,7 +106,9 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 	REQUIRE(path->commands[7].command == rive::NoOpPathCommandType::LineTo);
 	REQUIRE(path->commands[8].command == rive::NoOpPathCommandType::CubicTo);
 
-	REQUIRE(path->commands[9].command == rive::NoOpPathCommandType::Close);
+	REQUIRE(path->commands[9].command == rive::NoOpPathCommandType::LineTo);
+
+	REQUIRE(path->commands[10].command == rive::NoOpPathCommandType::Close);
 
 	delete artboard;
 }

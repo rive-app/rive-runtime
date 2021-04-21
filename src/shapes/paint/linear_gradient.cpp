@@ -5,6 +5,7 @@
 #include "shapes/paint/color.hpp"
 #include "shapes/paint/gradient_stop.hpp"
 #include "shapes/shape_paint_container.hpp"
+#include "shapes/paint/shape_paint.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -22,17 +23,6 @@ StatusCode LinearGradient::onAddedDirty(CoreContext* context)
 		return StatusCode::MissingObject;
 	}
 	return StatusCode::Ok;
-}
-
-bool LinearGradient::paintsInWorldSpace() const { return m_PaintsInWorldSpace; }
-void LinearGradient::paintsInWorldSpace(bool value)
-{
-	if (m_PaintsInWorldSpace == value)
-	{
-		return;
-	}
-	m_PaintsInWorldSpace = value;
-	addDirt(ComponentDirt::Paint);
 }
 
 void LinearGradient::buildDependencies()
@@ -72,6 +62,8 @@ void LinearGradient::update(ComponentDirt value)
 
 	bool worldTransformed = hasDirt(value, ComponentDirt::WorldTransform);
 
+	bool paintsInWorldSpace =
+	    parent()->as<ShapePaint>()->pathSpace() == PathSpace::World;
 	// We rebuild the gradient if the gradient is dirty or we paint in world
 	// space and the world space transform has changed, or the local transform
 	// has changed. Local transform changes when a stop moves in local space.
@@ -79,8 +71,7 @@ void LinearGradient::update(ComponentDirt value)
 	    hasDirt(value,
 	            ComponentDirt::Paint | ComponentDirt::RenderOpacity |
 	                ComponentDirt::Transform) ||
-	    (m_PaintsInWorldSpace && worldTransformed);
-
+	    (paintsInWorldSpace && worldTransformed);
 	if (rebuildGradient)
 	{
 		auto paint = renderPaint();
@@ -89,7 +80,7 @@ void LinearGradient::update(ComponentDirt value)
 		// Check if we need to update the world space gradient (if there's no
 		// shape container, presumably it's the artboard and we're already in
 		// world).
-		if (m_PaintsInWorldSpace && m_ShapePaintContainer != nullptr)
+		if (paintsInWorldSpace && m_ShapePaintContainer != nullptr)
 		{
 			// Get the start and end of the gradient in world coordinates (world
 			// transform of the shape).
