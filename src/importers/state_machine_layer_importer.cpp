@@ -6,9 +6,9 @@
 #include "artboard.hpp"
 
 using namespace rive;
-StateMachineLayerImporter::StateMachineLayerImporter(
-    StateMachineLayer* layer, ArtboardImporter* artboardImporter) :
-    m_Layer(layer), m_ArtboardImporter(artboardImporter)
+StateMachineLayerImporter::StateMachineLayerImporter(StateMachineLayer* layer,
+                                                     const Artboard* artboard) :
+    m_Layer(layer), m_Artboard(artboard)
 {
 }
 void StateMachineLayerImporter::addState(LayerState* state)
@@ -18,7 +18,7 @@ void StateMachineLayerImporter::addState(LayerState* state)
 
 StatusCode StateMachineLayerImporter::resolve()
 {
-	auto artboard = m_ArtboardImporter->artboard();
+
 	for (auto state : m_Layer->m_States)
 	{
 		if (state->is<AnimationState>())
@@ -28,7 +28,7 @@ StatusCode StateMachineLayerImporter::resolve()
 			if (animationState->animationId() != -1)
 			{
 				animationState->m_Animation =
-				    artboard->animation(animationState->animationId());
+				    m_Artboard->animation(animationState->animationId());
 				if (animationState->m_Animation == nullptr)
 				{
 					return StatusCode::MissingObject;

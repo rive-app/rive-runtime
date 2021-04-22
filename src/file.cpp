@@ -185,7 +185,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 				}
 
 				stackObject = new StateMachineLayerImporter(
-				    object->as<StateMachineLayer>(), artboardImporter);
+				    object->as<StateMachineLayer>(),
+				    artboardImporter->artboard());
 
 				break;
 			}
