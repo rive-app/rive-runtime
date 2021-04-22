@@ -7,6 +7,7 @@
 namespace rive
 {
 	class StateMachine;
+	class LayerState;
 	class SMIInput;
 	class Artboard;
 	class SMIBool;
@@ -50,6 +51,16 @@ namespace rive
 		SMIBool* getBool(std::string name) const;
 		SMINumber* getNumber(std::string name) const;
 		SMITrigger* getTrigger(std::string name) const;
+
+		// The number of state changes that occurred across all layers on the
+		// previous advance.
+		size_t stateChangedCount() const;
+
+		// Returns the state name for states that changed in layers on the
+		// previously called advance. If the index of out of range, it returns
+		// the empty string.
+		const LayerState* stateChangedByIndex(size_t index) const;
+
 	};
 } // namespace rive
 #endif

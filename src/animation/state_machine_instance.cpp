@@ -30,6 +30,7 @@ namespace rive
 		LinearAnimationInstance* m_AnimationInstance = nullptr;
 		LinearAnimationInstance* m_AnimationInstanceFrom = nullptr;
 		float m_Mix = 1.0f;
+		bool m_stateChangedOnAdvance = false;
 
 	public:
 		void init(const StateMachineLayer* layer)
@@ -41,6 +42,8 @@ namespace rive
 		bool advance(float seconds, SMIInput** inputs, size_t inputCount)
 		{
 			bool keepGoing = false;
+			m_stateChangedOnAdvance = false;
+
 			if (m_AnimationInstance != nullptr)
 			{
 				keepGoing = m_AnimationInstance->advance(seconds);
@@ -100,6 +103,7 @@ namespace rive
 				return false;
 			}
 			m_CurrentState = stateTo;
+			m_stateChangedOnAdvance = true;
 			return true;
 		}
 
@@ -225,6 +229,16 @@ namespace rive
 				m_AnimationInstance->animation()->apply(
 				    artboard, m_AnimationInstance->time(), m_Mix);
 			}
+		}
+
+		bool stateChangedOnAdvance() const
+		{
+			return m_stateChangedOnAdvance;
+		}
+
+		const LayerState* currentState() 
+		{
+			return m_CurrentState;
 		}
 	};
 } // namespace rive
@@ -355,5 +369,36 @@ SMITrigger* StateMachineInstance::getTrigger(std::string name) const
 			return static_cast<SMITrigger*>(m_InputInstances[i]);
 		}
 	}
+	return nullptr;
+}
+
+size_t StateMachineInstance::stateChangedCount() const
+{
+	size_t count = 0;
+	for (int i = 0; i < m_LayerCount; i++)
+	{
+		if (m_Layers[i].stateChangedOnAdvance())
+		{
+			count++;
+		} 
+	}
+	return count;
+}
+
+const LayerState* StateMachineInstance::stateChangedByIndex(size_t index) const
+{
+	size_t count = 0;
+	for (int i = 0; i < m_LayerCount; i++)
+	{
+		if (m_Layers[i].stateChangedOnAdvance())
+		{
+			if (count == index)
+			{
+				return m_Layers[i].currentState();
+			}
+			count++;
+		} 
+	}
+
 	return nullptr;
 }

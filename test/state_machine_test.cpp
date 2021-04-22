@@ -92,6 +92,7 @@ TEST_CASE("file with state machine be read", "[file]")
 	REQUIRE(smi.getBool("Press")->name() == "Press");
 	REQUIRE(smi.getBool("Hover") != nullptr);
 	REQUIRE(smi.getBool("Press") != nullptr);
+	REQUIRE(smi.stateChangedCount() == 0);
 
 	delete file;
 	delete[] bytes;
