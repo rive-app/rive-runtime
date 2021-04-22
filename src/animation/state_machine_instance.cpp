@@ -38,7 +38,7 @@ namespace rive
 			m_CurrentState = m_Layer->entryState();
 		}
 
-		bool advance(float seconds, SMIInput** inputs)
+		bool advance(float seconds, SMIInput** inputs, size_t inputCount)
 		{
 			bool keepGoing = false;
 			if (m_AnimationInstance != nullptr)
@@ -68,6 +68,12 @@ namespace rive
 
 			for (int i = 0; updateState(inputs); i++)
 			{
+				// Reset inputs between updates.
+				for (size_t i = 0; i < inputCount; i++)
+				{
+					inputs[i]->advanced();
+				}
+
 				if (i == maxIterations)
 				{
 					fprintf(stderr, "StateMachine exceeded max iterations.\n");
@@ -280,7 +286,7 @@ bool StateMachineInstance::advance(float seconds)
 	m_NeedsAdvance = false;
 	for (int i = 0; i < m_LayerCount; i++)
 	{
-		if (m_Layers[i].advance(seconds, m_InputInstances))
+		if (m_Layers[i].advance(seconds, m_InputInstances, m_InputCount))
 		{
 			m_NeedsAdvance = true;
 		}
