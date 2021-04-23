@@ -3,6 +3,7 @@
 
 #include <string>
 #include <stddef.h>
+#include "animation/linear_animation_instance.hpp"
 
 namespace rive
 {
@@ -52,6 +53,9 @@ namespace rive
 		SMINumber* getNumber(std::string name) const;
 		SMITrigger* getTrigger(std::string name) const;
 
+		const size_t currentAnimationCount() const;
+		const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
+
 		// The number of state changes that occurred across all layers on the
 		// previous advance.
 		size_t stateChangedCount() const;
@@ -60,7 +64,6 @@ namespace rive
 		// previously called advance. If the index of out of range, it returns
 		// the empty string.
 		const LayerState* stateChangedByIndex(size_t index) const;
-
 	};
 } // namespace rive
 #endif

@@ -10,7 +10,6 @@
 #include "animation/entry_state.hpp"
 #include "animation/state_transition.hpp"
 #include "animation/transition_condition.hpp"
-#include "animation/linear_animation_instance.hpp"
 #include "animation/animation_state.hpp"
 
 using namespace rive;
@@ -240,6 +239,11 @@ namespace rive
 		{
 			return m_CurrentState;
 		}
+
+		const LinearAnimationInstance* currentAnimation() const
+		{
+			return m_AnimationInstance;
+		}
 	};
 } // namespace rive
 
@@ -399,6 +403,35 @@ const LayerState* StateMachineInstance::stateChangedByIndex(size_t index) const
 			count++;
 		} 
 	}
+	return nullptr;
+}
 
+const size_t StateMachineInstance::currentAnimationCount() const
+{
+	size_t count = 0;
+	for (int i = 0; i < m_LayerCount; i++)
+	{
+		if(m_Layers[i].currentAnimation() != nullptr)
+		{
+			count++;
+		}
+	}
+	return count;
+}
+
+const LinearAnimationInstance* StateMachineInstance::currentAnimationByIndex(size_t index) const
+{
+	size_t count = 0;
+	for (int i = 0; i < m_LayerCount; i++)
+	{
+		if (m_Layers[i].currentAnimation() != nullptr)
+		{
+			if (count == index)
+			{
+				return m_Layers[i].currentAnimation();
+			}
+			count++;
+		} 
+	}
 	return nullptr;
 }
