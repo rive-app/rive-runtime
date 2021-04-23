@@ -38,7 +38,6 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 	bool didLoop = false;
 	m_SpilledTime = 0.0f;
 
-	// TODO: this deserves a test or two
 	switch (animation.loop())
 	{
 		case Loop::oneShot:
@@ -71,9 +70,10 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 			}
 			else if (m_Direction == -1 && frames <= start)
 			{
+
 				m_SpilledTime = (start - frames) / fps;
 				frames = m_Time * fps;
-				frames = end - std::abs(std::fmod(frames, range));
+				frames = end - std::abs(std::fmod(start - frames, range));
 				m_Time = frames / fps;
 				didLoop = true;
 			}
