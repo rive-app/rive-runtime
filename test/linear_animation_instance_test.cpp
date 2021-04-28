@@ -146,6 +146,58 @@ TEST_CASE("LinearAnimationInstance loop <-", "[animation]")
 	delete linearAnimation;
 }
 
+TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]")
+{
+	rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+	// duration in seconds is 50
+	linearAnimation->workStart(4);
+	linearAnimation->enableWorkArea(true);
+	linearAnimation->workEnd(10);
+	linearAnimation->duration(100);
+	linearAnimation->fps(2);
+	linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
+
+	rive::LinearAnimationInstance* linearAnimationInstance =
+	    new rive::LinearAnimationInstance(linearAnimation);
+	linearAnimationInstance->direction(-1);
+	REQUIRE(linearAnimationInstance->time() == 2.0);
+
+	// kick off, we're at the lower bound, will move to 5s.
+	bool continuePlaying = linearAnimationInstance->advance(0.0);
+
+	REQUIRE(continuePlaying == true);
+	REQUIRE(linearAnimationInstance->direction() == -1);
+	REQUIRE(linearAnimationInstance->time() == 5.0);
+	REQUIRE(linearAnimationInstance->totalTime() == 0.0);
+	REQUIRE(linearAnimationInstance->didLoop() == true);
+
+	// 2 more secs , 5s -> 3s
+	continuePlaying = linearAnimationInstance->advance(2.0);
+	REQUIRE(continuePlaying == true);
+	REQUIRE(linearAnimationInstance->direction() == -1);
+	REQUIRE(linearAnimationInstance->time() == 3.0);
+	REQUIRE(linearAnimationInstance->totalTime() == 2.0);
+	REQUIRE(linearAnimationInstance->didLoop() == false);
+
+	// 2 more secs , 3s -> 1s, thats before start, so loops to 4s
+	continuePlaying = linearAnimationInstance->advance(2.0);
+	REQUIRE(continuePlaying == true);
+	REQUIRE(linearAnimationInstance->direction() == -1);
+	REQUIRE(linearAnimationInstance->time() == 4.0);
+	REQUIRE(linearAnimationInstance->totalTime() == 4.0);
+	REQUIRE(linearAnimationInstance->didLoop() == true);
+
+	// another hit, 4->2s, thats at the start, loops to 5s
+	continuePlaying = linearAnimationInstance->advance(2.0);
+	REQUIRE(continuePlaying == true);
+	REQUIRE(linearAnimationInstance->time() == 5.0);
+	REQUIRE(linearAnimationInstance->totalTime() == 6.0);
+	REQUIRE(linearAnimationInstance->didLoop() == true);
+
+	delete linearAnimationInstance;
+	delete linearAnimation;
+}
+
 TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]")
 {
 	rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
