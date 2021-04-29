@@ -27,7 +27,7 @@ namespace rive
 
 		size_t m_InputCount;
 		SMIInput** m_InputInstances;
-		unsigned int m_LayerCount;
+		size_t m_LayerCount;
 		StateMachineLayerInstance* m_Layers;
 
 		void markNeedsAdvance();

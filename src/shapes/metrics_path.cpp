@@ -149,7 +149,7 @@ float MetricsPath::computeLength(const Mat2D& transform)
 	// transform is changing (path may not have been reset but got added with
 	// another transform).
 	m_TransformedPoints.resize(m_Points.size());
-	for (int i = 0, l = m_Points.size(); i < l; i++)
+	for (size_t i = 0, l = m_Points.size(); i < l; i++)
 	{
 		Vec2D::transform(m_TransformedPoints[i], m_Points[i], transform);
 	}
