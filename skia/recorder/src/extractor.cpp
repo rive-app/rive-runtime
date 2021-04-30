@@ -247,6 +247,12 @@ void RiveFrameExtractor::advanceFrame() { animation_instance->advance(ifps); }
 
 sk_sp<SkImage> RiveFrameExtractor::getSnapshot()
 {
+
+	// I see a canvas and I want to paint it black.
+	// (without this transparent background dont get cleared.)
+	SkPaint paint;
+	rasterCanvas->clear(SK_ColorBLACK);
+
 	// hmm "no deafault constructor exists bla bla... "
 	rive::SkiaRenderer renderer(rasterCanvas);
 
