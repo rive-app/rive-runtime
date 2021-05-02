@@ -1,5 +1,6 @@
 #include "core/binary_reader.hpp"
 #include "core/reader.h"
+#include <vector>
 
 using namespace rive;
 
@@ -11,7 +12,10 @@ BinaryReader::BinaryReader(uint8_t* bytes, size_t length) :
 {
 }
 
-bool BinaryReader::reachedEnd() const { return m_Position == m_End || didOverflow(); }
+bool BinaryReader::reachedEnd() const
+{
+	return m_Position == m_End || didOverflow();
+}
 
 size_t BinaryReader::lengthInBytes() const { return m_Length; }
 
@@ -52,7 +56,7 @@ std::string BinaryReader::readString()
 		return std::string();
 	}
 	m_Position += readBytes;
-	return std::string(rawValue.data(), rawValue.size());
+	return std::string(rawValue.data(), length);
 }
 
 double BinaryReader::readFloat64()
