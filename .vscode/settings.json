@@ -1,4 +1,8 @@
 {
+    "disasexpl.associations": {
+        "**/*.c": "${workspaceFolder}/build/bin/assembly/${fileDirname}/${fileBasenameNoExtension}.S",
+        "**/*.cpp": "${workspaceFolder}/build/bin/assembly/${fileDirname}/${fileBasenameNoExtension}.S"
+    },
     "files.associations": {
         "type_traits": "cpp",
         "string": "cpp",
