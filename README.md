@@ -1,5 +1,5 @@
 # rive-cpp
-C++ runtime for Rive. Provides these runtime features:
+C++ runtime for [Rive](https://rive.app). Provides these runtime features:
 - Loading Artboards and their contents from **.riv** files.
 - Querying LinearAnimations and StateMachines from Artboards.
 - Making changes to Artboard hierarchy (fundamentally same guts used by LinearAnimations and StateMachines) and effienclty solving those changes via Artboard::advance.
@@ -35,7 +35,7 @@ brew install --HEAD LouisBrunner/valgrind/valgrind
 You can now run the all the tests through valgrind by running ```test.sh memory```.
 
 ## Disassembly Explorer
-If you want to examine the generated assembly code, install [Disassembly Explorer](https://marketplace.visualstudio.com/items?itemName=dseight.disasexpl).
+If you want to examine the generated assembly code per cpp file, install [Disassembly Explorer](https://marketplace.visualstudio.com/items?itemName=dseight.disasexpl) in VSCode.
 
 A ```disassemble``` task is provided to compile and preview the generated assembly. You can reach it via the Tasks: Run Task command palette or you can bind it to a shortcut by editing your VSCode keybindings.json:
 ```
