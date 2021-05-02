@@ -44,7 +44,7 @@ std::string BinaryReader::readString()
 		return std::string();
 	}
 
-	char rawValue[length + 1];
+	std::vector<char> rawValue(length + 1);
 	auto readBytes = decode_string(length, m_Position, m_End, &rawValue[0]);
 	if (readBytes != length)
 	{
@@ -52,7 +52,7 @@ std::string BinaryReader::readString()
 		return std::string();
 	}
 	m_Position += readBytes;
-	return std::string(rawValue);
+	return std::string(rawValue.data(), rawValue.size());
 }
 
 double BinaryReader::readFloat64()

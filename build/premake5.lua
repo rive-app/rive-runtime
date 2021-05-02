@@ -1,26 +1,29 @@
 workspace "rive"
-configurations {"debug", "release"}
+    configurations {"debug", "release"}
 
 project "rive"
-kind "StaticLib"
-language "C++"
-cppdialect "C++17"
-targetdir "bin/%{cfg.buildcfg}"
-objdir "obj/%{cfg.buildcfg}"
-includedirs {"../include"}
+    kind "StaticLib"
+    language "C++"
+    cppdialect "C++17"
+    targetdir "bin/%{cfg.buildcfg}"
+    objdir "obj/%{cfg.buildcfg}"
+    includedirs {"../include"}
 
-files {"../src/**.cpp"}
+    files {"../src/**.cpp"}
 
-buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti"}
+    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti"}
 
-filter "configurations:debug"
-defines {"DEBUG"}
-symbols "On"
+    filter "system:windows"
+        defines {"_USE_MATH_DEFINES"}
 
-filter "configurations:release"
-defines {"RELEASE"}
-defines { "NDEBUG" }
-optimize "On"
+    filter "configurations:debug"
+        defines {"DEBUG"}
+        symbols "On"
+
+    filter "configurations:release"
+        defines {"RELEASE"}
+        defines {"NDEBUG"}
+        optimize "On"
 
 -- Clean Function --
 newaction {
