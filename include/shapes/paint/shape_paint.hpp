@@ -35,6 +35,11 @@ namespace rive
 		virtual PathSpace pathSpace() const = 0;
 
 		virtual void draw(Renderer* renderer, CommandPath* path) = 0;
+
+		/// Get the component that represents the ShapePaintMutator for this
+		/// ShapePaint. It'll be one of SolidColor, LinearGradient, or
+		/// RadialGradient.
+		Component* paint() const { return m_PaintMutator->component(); }
 	};
 } // namespace rive
 

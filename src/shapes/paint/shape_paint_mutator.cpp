@@ -4,12 +4,14 @@
 
 using namespace rive;
 
-bool ShapePaintMutator::initPaintMutator(Component* parent)
+bool ShapePaintMutator::initPaintMutator(Component* component)
 {
+	auto parent = component->parent();
+	m_Component = component;
 	if (parent->is<ShapePaint>())
 	{
-        // Set this object as the mutator for the shape paint and get a
-        // reference to the paint we'll be mutating.
+		// Set this object as the mutator for the shape paint and get a
+		// reference to the paint we'll be mutating.
 		m_RenderPaint = parent->as<ShapePaint>()->initRenderPaint(this);
 		return true;
 	}

@@ -18,7 +18,7 @@ StatusCode LinearGradient::onAddedDirty(CoreContext* context)
 		return code;
 	}
 
-	if (!initPaintMutator(parent()))
+	if (!initPaintMutator(this))
 	{
 		return StatusCode::MissingObject;
 	}
