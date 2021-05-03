@@ -247,7 +247,7 @@ namespace rive
 	};
 } // namespace rive
 
-StateMachineInstance::StateMachineInstance(StateMachine* machine) :
+StateMachineInstance::StateMachineInstance(const StateMachine* machine) :
     m_Machine(machine)
 {
 	m_InputCount = machine->inputCount();

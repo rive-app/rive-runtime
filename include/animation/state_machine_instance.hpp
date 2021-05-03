@@ -22,7 +22,7 @@ namespace rive
 		friend class SMIInput;
 
 	private:
-		StateMachine* m_Machine;
+		const StateMachine* m_Machine;
 		bool m_NeedsAdvance = false;
 
 		size_t m_InputCount;
@@ -33,7 +33,7 @@ namespace rive
 		void markNeedsAdvance();
 
 	public:
-		StateMachineInstance(StateMachine* machine);
+		StateMachineInstance(const StateMachine* machine);
 		~StateMachineInstance();
 
 		// Advance the state machine by the specified time. Returns true if the
