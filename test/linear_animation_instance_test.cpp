@@ -269,3 +269,27 @@ TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]")
 	delete linearAnimationInstance;
 	delete linearAnimation;
 }
+
+TEST_CASE("LinearAnimationInstance override loop", "[animation]")
+{
+	rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+	// duration in seconds is 5
+	linearAnimation->duration(10);
+	linearAnimation->fps(2);
+	linearAnimation->loopValue(static_cast<int>(rive::Loop::oneShot));
+
+	rive::LinearAnimationInstance* linearAnimationInstance =
+	    new rive::LinearAnimationInstance(linearAnimation);
+
+	// Check the loop value is same as the animation's
+	REQUIRE(linearAnimationInstance->loopValue() == linearAnimation->loopValue());
+
+	// Override the loop type
+	linearAnimationInstance->loopValue(static_cast<int>(rive::Loop::pingPong));
+	REQUIRE(linearAnimationInstance->loopValue() != linearAnimation->loopValue());
+	REQUIRE(linearAnimationInstance->loopValue() == static_cast<int>(rive::Loop::pingPong));
+	REQUIRE(linearAnimationInstance->loop() == rive::Loop::pingPong);
+
+	delete linearAnimationInstance;
+	delete linearAnimation;
+}

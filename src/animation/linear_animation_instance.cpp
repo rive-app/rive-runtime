@@ -38,7 +38,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 	bool didLoop = false;
 	m_SpilledTime = 0.0f;
 
-	switch (animation.loop())
+	switch (loop())
 	{
 		case Loop::oneShot:
 			if (m_Direction == 1 && frames > end)
@@ -133,4 +133,28 @@ void LinearAnimationInstance::time(float value)
 	// leaving this RIGHT now. but is this required? it kinda messes up
 	// playing things backwards and seeking. what purpose does it solve?
 	m_Direction = 1;
+}
+
+// Returns either the animation's default or overridden loop values
+int LinearAnimationInstance::loopValue()
+{
+	if (m_LoopValue != -1)
+	{
+		return m_LoopValue;
+	}
+	return m_Animation->loopValue();
+}
+
+// Override the animation's loop value
+void LinearAnimationInstance::loopValue(int value)
+{
+	if (m_LoopValue == value)
+	{
+		return;
+	}
+	if (m_LoopValue == -1 && m_Animation->loopValue() == value)
+	{
+		return;
+	}
+	m_LoopValue = value;
 }

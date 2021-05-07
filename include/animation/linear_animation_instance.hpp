@@ -16,6 +16,7 @@ namespace rive
 		float m_SpilledTime;
 		int m_Direction;
 		bool m_DidLoop;
+		int m_LoopValue = -1;
 
 	public:
 		LinearAnimationInstance(const LinearAnimation* animation);
@@ -66,6 +67,12 @@ namespace rive
 		float totalTime() const { return m_TotalTime; }
 		float lastTotalTime() const { return m_LastTotalTime; }
 		float spilledTime() const { return m_SpilledTime; }
+
+		// Returns either the animation's default or overridden loop values
+		Loop loop() { return (Loop)loopValue(); }
+		int loopValue();
+		// Override the animation's default loop
+		void loopValue(int value);
 	};
 } // namespace rive
 #endif
