@@ -46,6 +46,9 @@ namespace rive
 		// Returns true when the StateMachineInstance has more data to process.
 		bool needsAdvance() const;
 
+		// Returns a pointer to the instance's stateMachine
+		const StateMachine* stateMachine() const { return m_Machine; }
+
 		size_t inputCount() const { return m_InputCount; }
 		SMIInput* input(size_t index) const;
 
@@ -54,7 +57,8 @@ namespace rive
 		SMITrigger* getTrigger(std::string name) const;
 
 		const size_t currentAnimationCount() const;
-		const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
+		const LinearAnimationInstance*
+		currentAnimationByIndex(size_t index) const;
 
 		// The number of state changes that occurred across all layers on the
 		// previous advance.
