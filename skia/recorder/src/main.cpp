@@ -107,6 +107,9 @@ int main(int argc, char* argv[])
 	args::ValueFlag<std::string> snapshot_path(
 	    optional, "path", "destination image filename", {"snapshot-path"});
 
+	args::ValueFlag<float> fps(
+	    required, "number", "frame rate", {"f", "fps"}, 60.0);
+
 	args::CompletionFlag completion(parser, {"complete"});
 
 	try
@@ -149,9 +152,8 @@ int main(int argc, char* argv[])
 		                                   args::get(max_width),
 		                                   args::get(max_height),
 		                                   args::get(min_duration),
-		                                   args::get(max_duration)
-
-		);
+		                                   args::get(max_duration),
+		                                   args::get(fps));
 	}
 	catch (const std::invalid_argument e)
 	{
@@ -170,6 +172,7 @@ int main(int argc, char* argv[])
 	}
 	catch (const std::invalid_argument e)
 	{
+		delete extractor;
 		std::cout << e.what();
 		return 1;
 	}
@@ -194,6 +197,8 @@ int main(int argc, char* argv[])
 		writer->writeFrame(i, (const uint8_t* const*)&pixelData);
 	}
 	writer->finalize();
+	delete writer;
+	delete extractor;
 }
 
 #endif
