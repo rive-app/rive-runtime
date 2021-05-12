@@ -112,7 +112,7 @@ TEST_CASE("Test 2s_pingpong min 5s")
 	REQUIRE(rive->totalFrames() == 480);
 }
 
-TEST_CASE("Test 100s_oneshot animation min duration 10s")
+TEST_CASE("Test 100s_oneShot animation min duration 10s")
 {
 	auto rive = new RiveFrameExtractor("./static/animations.riv",
 	                                   "",
@@ -149,4 +149,21 @@ TEST_CASE("Test 100s_pingpong animation min duration 10s")
 	                                   0,
 	                                   10);
 	REQUIRE(rive->totalFrames() == 600);
+}
+
+TEST_CASE("Test 1s_oneShot animation custom fps 120")
+{
+	auto rive = new RiveFrameExtractor("./static/animations.riv",
+	                                   "",
+	                                   "100s_oneShot",
+	                                   "",
+	                                   0,
+	                                   0,
+	                                   0,
+	                                   0,
+	                                   0,
+	                                   0,
+	                                   10,
+	                                   120);
+	REQUIRE(rive->totalFrames() == 1200);
 }

@@ -31,11 +31,14 @@ public:
 	                   int max_width = 0,
 	                   int max_height = 0,
 	                   int min_duration = 0,
-	                   int max_duration = 0);
+	                   int max_duration = 0,
+	                   float fps = 0);
+	~RiveFrameExtractor();
+
 	int width();
 	int height();
-	int fps();
 	int totalFrames();
+	float fps();
 	void advanceFrame();
 	const void* getPixelAddresses();
 	sk_sp<SkData> getSkData();
@@ -43,7 +46,7 @@ public:
 private:
 	int _width, _height, _min_duration, _max_duration;
 	rive::File* riveFile;
-	float ifps;
+	float ifps, _fps;
 	sk_sp<SkImage> getWaterMark(const char* watermark_name);
 	rive::File* getRiveFile(const char* path);
 	rive::Artboard* getArtboard(const char* artboard_name);

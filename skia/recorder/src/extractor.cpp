@@ -1,12 +1,8 @@
 #include "extractor.hpp"
 
-int valueOrDefault(int value, int default_value)
+inline int valueOrDefault(int value, int default_value)
 {
-	if (value == 0)
-	{
-		return default_value;
-	}
-	return value;
+	return value <= 0 ? default_value : value;
 }
 
 void scale(int* value, int targetValue, int* otherValue)
@@ -18,9 +14,50 @@ void scale(int* value, int targetValue, int* otherValue)
 	}
 }
 
+RiveFrameExtractor::RiveFrameExtractor(const char* path,
+                                       const char* artboard_name,
+                                       const char* animation_name,
+                                       const char* watermark_name,
+                                       int width,
+                                       int height,
+                                       int small_extent_target,
+                                       int max_width,
+                                       int max_height,
+                                       int min_duration,
+                                       int max_duration,
+                                       float fps)
+{
+	_min_duration = min_duration;
+	_max_duration = max_duration;
+	riveFile = getRiveFile(path);
+	artboard = getArtboard(artboard_name);
+	animation = getAnimation(animation_name);
+	animation_instance = new rive::LinearAnimationInstance(animation);
+	watermarkImage = getWaterMark(watermark_name);
+	initializeDimensions(
+	    width, height, small_extent_target, max_width, max_height);
+	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
+	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
+	rasterCanvas = rasterSurface->getCanvas();
+	_fps = valueOrDefault(fps, animation->fps());
+	ifps = 1.0 / fps;
+};
+
+RiveFrameExtractor::~RiveFrameExtractor()
+{
+	if (animation_instance)
+	{
+		delete animation_instance;
+	}
+	if (riveFile)
+	{
+		delete riveFile;
+	}
+}
+
 int RiveFrameExtractor::width() { return _width; };
 int RiveFrameExtractor::height() { return _height; };
-int RiveFrameExtractor::fps() { return animation->fps(); };
+float RiveFrameExtractor::fps() { return _fps; };
 int RiveFrameExtractor::totalFrames()
 {
 	int min_frames = _min_duration * fps();
@@ -65,33 +102,6 @@ int RiveFrameExtractor::totalFrames()
 	return totalFrames;
 };
 
-RiveFrameExtractor::RiveFrameExtractor(const char* path,
-                                       const char* artboard_name,
-                                       const char* animation_name,
-                                       const char* watermark_name,
-                                       int width,
-                                       int height,
-                                       int small_extent_target,
-                                       int max_width,
-                                       int max_height,
-                                       int min_duration,
-                                       int max_duration)
-{
-	_min_duration = min_duration;
-	_max_duration = max_duration;
-	riveFile = getRiveFile(path);
-	artboard = getArtboard(artboard_name);
-	animation = getAnimation(animation_name);
-	animation_instance = new rive::LinearAnimationInstance(animation);
-	watermarkImage = getWaterMark(watermark_name);
-	initializeDimensions(
-	    width, height, small_extent_target, max_width, max_height);
-	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
-	rasterCanvas = rasterSurface->getCanvas();
-	ifps = 1.0 / animation->fps();
-};
-
 void RiveFrameExtractor::initializeDimensions(int width,
                                               int height,
                                               int small_extent_target,
@@ -119,7 +129,6 @@ void RiveFrameExtractor::initializeDimensions(int width,
 	// if we have a max height, lets scale down to that
 	if (max_height != 0 && max_height < _height)
 	{
-
 		scale(&_height, max_height, &_width);
 	}
 
@@ -160,6 +169,7 @@ rive::File* RiveFrameExtractor::getRiveFile(const char* path)
 
 	if (fp == nullptr)
 	{
+		fclose(fp);
 		throw std::invalid_argument(
 		    string_format("Failed to open file %s", path));
 	}
@@ -167,11 +177,12 @@ rive::File* RiveFrameExtractor::getRiveFile(const char* path)
 	auto length = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
-	// TODO: need to clean this up? how?!
 	uint8_t* bytes = new uint8_t[length];
 
 	if (fread(bytes, 1, length, fp) != length)
 	{
+		fclose(fp);
+		delete[] bytes;
 		throw std::invalid_argument(
 		    string_format("Failed to read file into bytes array %s", path));
 	}
@@ -179,6 +190,10 @@ rive::File* RiveFrameExtractor::getRiveFile(const char* path)
 	auto reader = rive::BinaryReader(bytes, length);
 	rive::File* file = nullptr;
 	auto result = rive::File::import(reader, &file);
+
+	fclose(fp);
+	delete[] bytes;
+
 	if (result != rive::ImportResult::success)
 	{
 		throw std::invalid_argument(
