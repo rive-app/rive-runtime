@@ -321,6 +321,7 @@ FlattenedPath* Path::makeFlat()
 				auto straightVertex = vertex->as<StraightVertex>();
 				if (straightVertex->radius() != 0)
 				{
+					// TODO: convert to two cubic vertices
 					break;
 				}
 			}
