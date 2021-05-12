@@ -1,12 +1,8 @@
 #include "extractor.hpp"
 
-int valueOrDefault(int value, int default_value)
+inline int valueOrDefault(int value, int default_value)
 {
-	if (value == 0)
-	{
-		return default_value;
-	}
-	return value;
+	return value <= 0 ? default_value : value;
 }
 
 void scale(int* value, int targetValue, int* otherValue)
@@ -43,7 +39,7 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
 	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
 	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
 	rasterCanvas = rasterSurface->getCanvas();
-	_fps = fps <= 0 ? animation->fps() : fps;
+	_fps = valueOrDefault(fps, animation->fps());
 	ifps = 1.0 / fps;
 };
 
