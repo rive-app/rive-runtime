@@ -18,6 +18,47 @@ void scale(int* value, int targetValue, int* otherValue)
 	}
 }
 
+RiveFrameExtractor::RiveFrameExtractor(const char* path,
+                                       const char* artboard_name,
+                                       const char* animation_name,
+                                       const char* watermark_name,
+                                       int width,
+                                       int height,
+                                       int small_extent_target,
+                                       int max_width,
+                                       int max_height,
+                                       int min_duration,
+                                       int max_duration,
+                                       float fps)
+{
+	_min_duration = min_duration;
+	_max_duration = max_duration;
+	riveFile = getRiveFile(path);
+	artboard = getArtboard(artboard_name);
+	animation = getAnimation(animation_name);
+	animation_instance = new rive::LinearAnimationInstance(animation);
+	watermarkImage = getWaterMark(watermark_name);
+	initializeDimensions(
+	    width, height, small_extent_target, max_width, max_height);
+	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
+	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
+	rasterCanvas = rasterSurface->getCanvas();
+	_fps = fps <= 0 ? animation->fps() : fps;
+	ifps = 1.0 / fps;
+};
+
+RiveFrameExtractor::~RiveFrameExtractor()
+{
+	if (animation_instance)
+	{
+		delete animation_instance;
+	}
+	if (riveFile)
+	{
+		delete riveFile;
+	}
+}
+
 int RiveFrameExtractor::width() { return _width; };
 int RiveFrameExtractor::height() { return _height; };
 float RiveFrameExtractor::fps() { return _fps; };
@@ -64,47 +105,6 @@ int RiveFrameExtractor::totalFrames()
 	}
 	return totalFrames;
 };
-
-RiveFrameExtractor::RiveFrameExtractor(const char* path,
-                                       const char* artboard_name,
-                                       const char* animation_name,
-                                       const char* watermark_name,
-                                       int width,
-                                       int height,
-                                       int small_extent_target,
-                                       int max_width,
-                                       int max_height,
-                                       int min_duration,
-                                       int max_duration,
-																			 float fps)
-{
-	_min_duration = min_duration;
-	_max_duration = max_duration;
-	riveFile = getRiveFile(path);
-	artboard = getArtboard(artboard_name);
-	animation = getAnimation(animation_name);
-	animation_instance = new rive::LinearAnimationInstance(animation);
-	watermarkImage = getWaterMark(watermark_name);
-	initializeDimensions(
-	    width, height, small_extent_target, max_width, max_height);
-	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
-	rasterCanvas = rasterSurface->getCanvas();
-	_fps = fps;
-	ifps = 1.0 / fps;
-};
-
-RiveFrameExtractor::~RiveFrameExtractor()
-{
-	if (animation_instance)
-	{
-		delete animation_instance;
-	}
-	if (riveFile)
-	{
-		delete riveFile;
-	}
-}
 
 void RiveFrameExtractor::initializeDimensions(int width,
                                               int height,

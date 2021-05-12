@@ -32,7 +32,7 @@ public:
 	                   int max_height = 0,
 	                   int min_duration = 0,
 	                   int max_duration = 0,
-	                   float fps = 60);
+	                   float fps = 0);
 	~RiveFrameExtractor();
 
 	int width();

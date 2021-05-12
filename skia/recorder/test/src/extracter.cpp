@@ -112,7 +112,7 @@ TEST_CASE("Test 2s_pingpong min 5s")
 	REQUIRE(rive->totalFrames() == 480);
 }
 
-TEST_CASE("Test 100s_oneshot animation min duration 10s")
+TEST_CASE("Test 100s_oneShot animation min duration 10s")
 {
 	auto rive = new RiveFrameExtractor("./static/animations.riv",
 	                                   "",
