@@ -2,6 +2,7 @@
 #include "math/circle_constant.hpp"
 #include "renderer.hpp"
 #include "shapes/cubic_vertex.hpp"
+#include "shapes/cubic_detached_vertex.hpp"
 #include "shapes/path_vertex.hpp"
 #include "shapes/shape.hpp"
 #include "shapes/straight_vertex.hpp"
@@ -308,29 +309,136 @@ void Path::update(ComponentDirt value)
 
 #ifdef ENABLE_QUERY_FLAT_VERTICES
 
+class DisplayCubicVertex : public CubicVertex
+{
+public:
+	DisplayCubicVertex(const Vec2D& in,
+	                   const Vec2D& out,
+	                   const Vec2D& translation)
+
+	{
+		m_InPoint = in;
+		m_OutPoint = out;
+		m_InValid = true;
+		m_OutValid = true;
+		x(translation[0]);
+		y(translation[1]);
+	}
+
+	void computeIn() override {}
+	void computeOut() override {}
+};
+
 FlattenedPath* Path::makeFlat()
 {
-	FlattenedPath* flat = new FlattenedPath();
-	for (auto vertex : m_Vertices)
+	if (m_Vertices.empty())
 	{
+		return nullptr;
+	}
+
+	auto transform = pathTransform();
+	FlattenedPath* flat = new FlattenedPath();
+	auto length = m_Vertices.size();
+	PathVertex* previous = isPathClosed() ? m_Vertices[length - 1] : nullptr;
+	for (size_t i = 0; i < length; i++)
+	{
+		auto vertex = m_Vertices[i];
 
 		switch (vertex->coreType())
 		{
 			case StraightVertex::typeKey:
 			{
-				auto straightVertex = vertex->as<StraightVertex>();
-				if (straightVertex->radius() != 0)
+				auto point = *vertex->as<StraightVertex>();
+				if (point.radius() > 0.0f &&
+				    (isPathClosed() || (i != 0 && i != length - 1)))
 				{
-					// TODO: convert to two cubic vertices
+					auto next = m_Vertices[(i + 1) % length];
+
+					Vec2D prevPoint =
+					    previous->is<CubicVertex>()
+					        ? previous->as<CubicVertex>()->renderOut()
+					        : previous->renderTranslation();
+					Vec2D nextPoint = next->is<CubicVertex>()
+					                      ? next->as<CubicVertex>()->renderIn()
+					                      : next->renderTranslation();
+
+					Vec2D pos = point.renderTranslation();
+
+					Vec2D toPrev;
+					Vec2D::subtract(toPrev, prevPoint, pos);
+					auto toPrevLength = Vec2D::length(toPrev);
+					toPrev[0] /= toPrevLength;
+					toPrev[1] /= toPrevLength;
+
+					Vec2D toNext;
+					Vec2D::subtract(toNext, nextPoint, pos);
+					auto toNextLength = Vec2D::length(toNext);
+					toNext[0] /= toNextLength;
+					toNext[1] /= toNextLength;
+
+					auto renderRadius = std::min(
+					    toPrevLength, std::min(toNextLength, point.radius()));
+					Vec2D translation;
+					Vec2D::scaleAndAdd(translation, pos, toPrev, renderRadius);
+
+					Vec2D out;
+					Vec2D::scaleAndAdd(
+					    out, pos, toPrev, icircleConstant * renderRadius);
+					auto v1 =
+					    new DisplayCubicVertex(translation, out, translation);
+					flat->addVertex(v1, transform);
+					delete v1;
+
+					Vec2D::scaleAndAdd(translation, pos, toNext, renderRadius);
+
+					Vec2D in;
+					Vec2D::scaleAndAdd(
+					    in, pos, toNext, icircleConstant * renderRadius);
+					auto v2 =
+					    new DisplayCubicVertex(in, translation, translation);
+
+					flat->addVertex(v2, transform);
+					delete v2;
+
+					previous = v2;
 					break;
 				}
 			}
 			default:
-				flat->m_Vertices.push_back(vertex->clone()->as<PathVertex>());
+				previous = vertex;
+				flat->addVertex(previous, transform);
 				break;
 		}
 	}
 	return flat;
+}
+
+void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform)
+{
+	// To make this easy and relatively clean we just transform the vertices.
+	// Requires the vertex to be passed in as a clone.
+	if (vertex->is<CubicVertex>())
+	{
+		auto cubic = vertex->as<CubicVertex>();
+
+		// Cubics need to be transformed so we create a Display version which
+		// has set in/out values.
+		Vec2D in, out, translation;
+		Vec2D::transform(in, cubic->renderIn(), transform);
+		Vec2D::transform(out, cubic->renderOut(), transform);
+		Vec2D::transform(translation, cubic->renderTranslation(), transform);
+
+		auto displayCubic = new DisplayCubicVertex(in, out, translation);
+		m_Vertices.push_back(displayCubic);
+	}
+	else
+	{
+		auto point = new PathVertex();
+		auto translation = vertex->renderTranslation();
+		point->x(translation[0]);
+		point->y(translation[1]);
+		m_Vertices.push_back(point);
+	}
 }
 
 FlattenedPath::~FlattenedPath()
