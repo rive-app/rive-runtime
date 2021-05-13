@@ -5,15 +5,6 @@ namespace rive
 {
 	class Animation : public AnimationBase
 	{
-	public:
-		StatusCode onAddedDirty(CoreContext* context) override
-		{
-			return StatusCode::Ok;
-		}
-		StatusCode onAddedClean(CoreContext* context) override
-		{
-			return StatusCode::Ok;
-		}
 	};
 } // namespace rive
 

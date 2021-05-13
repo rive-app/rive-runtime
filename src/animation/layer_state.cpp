@@ -7,8 +7,6 @@
 
 using namespace rive;
 
-using namespace rive;
-
 LayerState::~LayerState()
 {
 	for (auto transition : m_Transitions)

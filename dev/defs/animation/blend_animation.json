@@ -1,0 +1,43 @@
+{
+  "name": "BlendAnimation",
+  "key": {
+    "int": 74,
+    "string": "blendanimation"
+  },
+  "abstract": true,
+  "properties": {
+    "blendStateId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 170,
+        "string": "blendstateid"
+      },
+      "description": "Id of the BlendState that this BlendAnimation belongs to.",
+      "runtime": false
+    },
+    "animationId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 165,
+        "string": "animationid"
+      },
+      "description": "Id of the animation this BlendAnimation references."
+    },
+    "animationOrder": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 169,
+        "string": "animationorder"
+      },
+      "description": "Order value for sorting animations in blend states.",
+      "runtime": false
+    }
+  }
+}

@@ -14,10 +14,13 @@
 #include "importers/state_machine_layer_importer.hpp"
 #include "importers/layer_state_importer.hpp"
 #include "importers/state_transition_importer.hpp"
+#include "animation/blend_state_transition.hpp"
 #include "animation/any_state.hpp"
 #include "animation/entry_state.hpp"
 #include "animation/exit_state.hpp"
 #include "animation/animation_state.hpp"
+#include "animation/blend_state_1d.hpp"
+#include "animation/blend_state_direct.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -194,12 +197,16 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 			case ExitState::typeKey:
 			case AnyState::typeKey:
 			case AnimationState::typeKey:
+			case BlendState1D::typeKey:
+			case BlendStateDirect::typeKey:
 				stackObject = new LayerStateImporter(object->as<LayerState>());
 				stackType = LayerState::typeKey;
 				break;
 			case StateTransition::typeKey:
+			case BlendStateTransition::typeKey:
 				stackObject =
 				    new StateTransitionImporter(object->as<StateTransition>());
+				stackType = StateTransition::typeKey;
 				break;
 		}
 		if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)

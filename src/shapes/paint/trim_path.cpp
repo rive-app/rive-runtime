@@ -26,8 +26,6 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 		return m_RenderPath;
 	}
 
-	
-
 	// Source is always a containing (shape) path.
 	const std::vector<MetricsPath*>& subPaths = source->paths();
 
@@ -54,7 +52,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 				endLength -= totalLength;
 			}
 
-			int i = 0, subPathCount = (int) subPaths.size();
+			int i = 0, subPathCount = (int)subPaths.size();
 			while (endLength > 0)
 			{
 				auto path = subPaths[i % subPathCount];

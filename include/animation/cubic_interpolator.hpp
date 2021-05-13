@@ -13,10 +13,6 @@ namespace rive
 		float getT(float x) const;
 
 	public:
-		StatusCode onAddedClean(CoreContext* context) override
-		{
-			return StatusCode::Ok;
-		}
 		StatusCode onAddedDirty(CoreContext* context) override;
 
 		/// Convert a linear interpolation factor to an eased one.

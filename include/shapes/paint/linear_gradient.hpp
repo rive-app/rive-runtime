@@ -17,10 +17,6 @@ namespace rive
 
 	public:
 		StatusCode onAddedDirty(CoreContext* context) override;
-		StatusCode onAddedClean(CoreContext* context) override
-		{
-			return StatusCode::Ok;
-		}
 		void addStop(GradientStop* stop);
 		void update(ComponentDirt value) override;
 		void markGradientDirty();

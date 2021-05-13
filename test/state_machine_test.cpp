@@ -8,6 +8,10 @@
 #include "animation/state_transition.hpp"
 #include "animation/state_machine_instance.hpp"
 #include "animation/state_machine_input_instance.hpp"
+#include "animation/blend_state_1d.hpp"
+#include "animation/blend_animation_1d.hpp"
+#include "animation/blend_state_direct.hpp"
+#include "animation/blend_state_transition.hpp"
 #include <cstdio>
 
 TEST_CASE("file with state machine be read", "[file]")
@@ -94,6 +98,78 @@ TEST_CASE("file with state machine be read", "[file]")
 	REQUIRE(smi.getBool("Press") != nullptr);
 	REQUIRE(smi.stateChangedCount() == 0);
 	REQUIRE(smi.currentAnimationCount() == 0);
+
+	delete file;
+	delete[] bytes;
+}
+
+TEST_CASE("file with blend states loads correctly", "[file]")
+{
+	FILE* fp = fopen("../../test/assets/blend_test.riv", "r");
+	REQUIRE(fp != nullptr);
+
+	fseek(fp, 0, SEEK_END);
+	auto length = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	uint8_t* bytes = new uint8_t[length];
+	REQUIRE(fread(bytes, 1, length, fp) == length);
+	auto reader = rive::BinaryReader(bytes, length);
+	rive::File* file = nullptr;
+	auto result = rive::File::import(reader, &file);
+
+	REQUIRE(result == rive::ImportResult::success);
+	REQUIRE(file != nullptr);
+	auto artboard = file->artboard();
+	REQUIRE(artboard != nullptr);
+	REQUIRE(artboard->animationCount() == 4);
+	REQUIRE(artboard->stateMachineCount() == 2);
+
+	auto stateMachine = artboard->stateMachine("blend");
+	REQUIRE(stateMachine != nullptr);
+
+	REQUIRE(stateMachine->layerCount() == 1);
+	auto layer = stateMachine->layer(0);
+	REQUIRE(layer->stateCount() == 5);
+
+	REQUIRE(layer->anyState() != nullptr);
+	REQUIRE(layer->entryState() != nullptr);
+	REQUIRE(layer->exitState() != nullptr);
+
+	REQUIRE(layer->state(3)->is<rive::BlendState1D>());
+	REQUIRE(layer->state(2)->is<rive::BlendState1D>());
+
+	auto blendStateA = layer->state(3)->as<rive::BlendState1D>();
+	auto blendStateB = layer->state(2)->as<rive::BlendState1D>();
+
+	REQUIRE(blendStateA->animationCount() == 3);
+	REQUIRE(blendStateB->animationCount() == 3);
+
+	auto animation = blendStateA->animation(0);
+	REQUIRE(animation->is<rive::BlendAnimation1D>());
+	auto animation1D = animation->as<rive::BlendAnimation1D>();
+	REQUIRE(animation1D->animation() != nullptr);
+	REQUIRE(animation1D->animation()->name() == "horizontal");
+	REQUIRE(animation1D->value() == 0.0f);
+
+	animation = blendStateA->animation(1);
+	REQUIRE(animation->is<rive::BlendAnimation1D>());
+	animation1D = animation->as<rive::BlendAnimation1D>();
+	REQUIRE(animation1D->animation() != nullptr);
+	REQUIRE(animation1D->animation()->name() == "vertical");
+	REQUIRE(animation1D->value() == 100.0f);
+
+	animation = blendStateA->animation(2);
+	REQUIRE(animation->is<rive::BlendAnimation1D>());
+	animation1D = animation->as<rive::BlendAnimation1D>();
+	REQUIRE(animation1D->animation() != nullptr);
+	REQUIRE(animation1D->animation()->name() == "rotate");
+	REQUIRE(animation1D->value() == 0.0f);
+
+	REQUIRE(blendStateA->transitionCount() == 1);
+	REQUIRE(blendStateA->transition(0)->is<rive::BlendStateTransition>());
+	REQUIRE(blendStateA->transition(0)
+	            ->as<rive::BlendStateTransition>()
+	            ->exitBlendAnimation() != nullptr);
 
 	delete file;
 	delete[] bytes;

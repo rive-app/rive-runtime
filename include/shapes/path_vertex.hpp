@@ -15,10 +15,6 @@ namespace rive
 
 	public:
 		StatusCode onAddedDirty(CoreContext* context) override;
-		StatusCode onAddedClean(CoreContext* context) override
-		{
-			return StatusCode::Ok;
-		}
 		template <typename T> T* weight() { return m_Weight->as<T>(); }
 		virtual void deform(Mat2D& worldTransform, float* boneTransforms);
 		bool hasWeight() { return m_Weight != nullptr; }

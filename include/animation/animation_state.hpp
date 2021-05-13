@@ -13,7 +13,7 @@ namespace rive
 		friend class StateMachineLayerImporter;
 
 	private:
-		LinearAnimation* m_Animation;
+		LinearAnimation* m_Animation = nullptr;
 
 	public:
 		const LinearAnimation* animation() const { return m_Animation; }

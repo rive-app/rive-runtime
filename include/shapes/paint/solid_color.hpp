@@ -8,10 +8,6 @@ namespace rive
 	{
 	public:
 		StatusCode onAddedDirty(CoreContext* context) override;
-		StatusCode onAddedClean(CoreContext* context) override
-		{
-			return StatusCode::Ok;
-		}
 
 	protected:
 		void renderOpacityChanged() override;

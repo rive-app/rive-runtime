@@ -1,0 +1,21 @@
+{
+  "name": "BlendAnimationDirect",
+  "key": {
+    "int": 77,
+    "string": "blendanimationdirect"
+  },
+  "extends": "animation/blend_animation.json",
+  "properties": {
+    "inputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 168,
+        "string": "inputid"
+      },
+      "description": "Id of the input that drives the direct mix value for this animation."
+    }
+  }
+}

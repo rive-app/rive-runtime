@@ -3,6 +3,13 @@
 #include "animation/animation.hpp"
 #include "animation/animation_state.hpp"
 #include "animation/any_state.hpp"
+#include "animation/blend_animation.hpp"
+#include "animation/blend_animation_1d.hpp"
+#include "animation/blend_animation_direct.hpp"
+#include "animation/blend_state.hpp"
+#include "animation/blend_state_1d.hpp"
+#include "animation/blend_state_direct.hpp"
+#include "animation/blend_state_transition.hpp"
 #include "animation/cubic_interpolator.hpp"
 #include "animation/entry_state.hpp"
 #include "animation/exit_state.hpp"
@@ -83,6 +90,8 @@ namespace rive
 					return new AnimationState();
 				case KeyedObjectBase::typeKey:
 					return new KeyedObject();
+				case BlendAnimationDirectBase::typeKey:
+					return new BlendAnimationDirect();
 				case StateMachineNumberBase::typeKey:
 					return new StateMachineNumber();
 				case TransitionTriggerConditionBase::typeKey:
@@ -115,12 +124,20 @@ namespace rive
 					return new LinearAnimation();
 				case StateMachineTriggerBase::typeKey:
 					return new StateMachineTrigger();
+				case BlendStateDirectBase::typeKey:
+					return new BlendStateDirect();
 				case ExitStateBase::typeKey:
 					return new ExitState();
+				case BlendState1DBase::typeKey:
+					return new BlendState1D();
 				case TransitionBoolConditionBase::typeKey:
 					return new TransitionBoolCondition();
+				case BlendStateTransitionBase::typeKey:
+					return new BlendStateTransition();
 				case StateMachineBoolBase::typeKey:
 					return new StateMachineBool();
+				case BlendAnimation1DBase::typeKey:
+					return new BlendAnimation1D();
 				case LinearGradientBase::typeKey:
 					return new LinearGradient();
 				case RadialGradientBase::typeKey:
@@ -216,6 +233,12 @@ namespace rive
 				case KeyedObjectBase::objectIdPropertyKey:
 					object->as<KeyedObjectBase>()->objectId(value);
 					break;
+				case BlendAnimationBase::animationIdPropertyKey:
+					object->as<BlendAnimationBase>()->animationId(value);
+					break;
+				case BlendAnimationDirectBase::inputIdPropertyKey:
+					object->as<BlendAnimationDirectBase>()->inputId(value);
+					break;
 				case TransitionConditionBase::inputIdPropertyKey:
 					object->as<TransitionConditionBase>()->inputId(value);
 					break;
@@ -263,6 +286,13 @@ namespace rive
 					break;
 				case LinearAnimationBase::workEndPropertyKey:
 					object->as<LinearAnimationBase>()->workEnd(value);
+					break;
+				case BlendState1DBase::inputIdPropertyKey:
+					object->as<BlendState1DBase>()->inputId(value);
+					break;
+				case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
+					object->as<BlendStateTransitionBase>()
+					    ->exitBlendAnimationId(value);
 					break;
 				case StrokeBase::capPropertyKey:
 					object->as<StrokeBase>()->cap(value);
@@ -347,6 +377,9 @@ namespace rive
 					break;
 				case LinearAnimationBase::speedPropertyKey:
 					object->as<LinearAnimationBase>()->speed(value);
+					break;
+				case BlendAnimation1DBase::valuePropertyKey:
+					object->as<BlendAnimation1DBase>()->value(value);
 					break;
 				case LinearGradientBase::startXPropertyKey:
 					object->as<LinearGradientBase>()->startX(value);
@@ -596,6 +629,10 @@ namespace rive
 					return object->as<AnimationStateBase>()->animationId();
 				case KeyedObjectBase::objectIdPropertyKey:
 					return object->as<KeyedObjectBase>()->objectId();
+				case BlendAnimationBase::animationIdPropertyKey:
+					return object->as<BlendAnimationBase>()->animationId();
+				case BlendAnimationDirectBase::inputIdPropertyKey:
+					return object->as<BlendAnimationDirectBase>()->inputId();
 				case TransitionConditionBase::inputIdPropertyKey:
 					return object->as<TransitionConditionBase>()->inputId();
 				case KeyedPropertyBase::propertyKeyPropertyKey:
@@ -629,6 +666,11 @@ namespace rive
 					return object->as<LinearAnimationBase>()->workStart();
 				case LinearAnimationBase::workEndPropertyKey:
 					return object->as<LinearAnimationBase>()->workEnd();
+				case BlendState1DBase::inputIdPropertyKey:
+					return object->as<BlendState1DBase>()->inputId();
+				case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
+					return object->as<BlendStateTransitionBase>()
+					    ->exitBlendAnimationId();
 				case StrokeBase::capPropertyKey:
 					return object->as<StrokeBase>()->cap();
 				case StrokeBase::joinPropertyKey:
@@ -688,6 +730,8 @@ namespace rive
 					return object->as<KeyFrameDoubleBase>()->value();
 				case LinearAnimationBase::speedPropertyKey:
 					return object->as<LinearAnimationBase>()->speed();
+				case BlendAnimation1DBase::valuePropertyKey:
+					return object->as<BlendAnimation1DBase>()->value();
 				case LinearGradientBase::startXPropertyKey:
 					return object->as<LinearGradientBase>()->startX();
 				case LinearGradientBase::startYPropertyKey:
@@ -858,6 +902,8 @@ namespace rive
 				case DrawTargetBase::placementValuePropertyKey:
 				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
+				case BlendAnimationBase::animationIdPropertyKey:
+				case BlendAnimationDirectBase::inputIdPropertyKey:
 				case TransitionConditionBase::inputIdPropertyKey:
 				case KeyedPropertyBase::propertyKeyPropertyKey:
 				case KeyFrameBase::framePropertyKey:
@@ -874,6 +920,8 @@ namespace rive
 				case LinearAnimationBase::loopValuePropertyKey:
 				case LinearAnimationBase::workStartPropertyKey:
 				case LinearAnimationBase::workEndPropertyKey:
+				case BlendState1DBase::inputIdPropertyKey:
+				case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
 				case StrokeBase::capPropertyKey:
 				case StrokeBase::joinPropertyKey:
 				case TrimPathBase::modeValuePropertyKey:
@@ -901,6 +949,7 @@ namespace rive
 				case CubicInterpolatorBase::y2PropertyKey:
 				case KeyFrameDoubleBase::valuePropertyKey:
 				case LinearAnimationBase::speedPropertyKey:
+				case BlendAnimation1DBase::valuePropertyKey:
 				case LinearGradientBase::startXPropertyKey:
 				case LinearGradientBase::startYPropertyKey:
 				case LinearGradientBase::endXPropertyKey:

@@ -1,0 +1,22 @@
+{
+  "name": "BlendState1D",
+  "key": {
+    "int": 76,
+    "string": "blendstate1d"
+  },
+  "extends": "animation/blend_state.json",
+  "generic": "animation/blend_animation_1d.json",
+  "properties": {
+    "inputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 167,
+        "string": "inputid"
+      },
+      "description": "Id of the input that drives the mix value for this blend state."
+    }
+  }
+}

@@ -51,10 +51,6 @@ namespace rive
 
 		Core* resolve(int id) const override;
 
-		StatusCode onAddedClean(CoreContext* context) override
-		{
-			return StatusCode::Ok;
-		}
 		void onComponentDirty(Component* component);
 
 		/// Update components that depend on each other in DAG order.
