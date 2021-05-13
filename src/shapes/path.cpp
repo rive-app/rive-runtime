@@ -434,7 +434,8 @@ void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform)
 	else
 	{
 		auto point = new PathVertex();
-		auto translation = vertex->renderTranslation();
+		Vec2D translation;
+		Vec2D::transform(translation, vertex->renderTranslation(), transform);
 		point->x(translation[0]);
 		point->y(translation[1]);
 		m_Vertices.push_back(point);
