@@ -20,24 +20,30 @@ bool LayerStateImporter::addBlendAnimation(BlendAnimation* animation)
 	}
 	auto blendState = m_State->as<BlendState>();
 
-	for (auto transition : blendState->m_Transitions)
-	{
-		if (!transition->is<BlendStateTransition>())
-		{
-			continue;
-		}
-
-		auto blendStateTransition = transition->as<BlendStateTransition>();
-		auto exitId = blendStateTransition->exitBlendAnimationId();
-		printf("EXIT ID IS: %i\n", exitId);
-		if (exitId >= 0 && exitId < blendState->m_Animations.size())
-		{
-			blendStateTransition->m_ExitBlendAnimation =
-			    blendState->m_Animations[exitId];
-		}
-	}
 	blendState->addAnimation(animation);
 	return true;
 }
 
-StatusCode LayerStateImporter::resolve() { return StatusCode::Ok; }
+StatusCode LayerStateImporter::resolve()
+{
+	if (m_State->is<BlendState>())
+	{
+		auto blendState = m_State->as<BlendState>();
+		for (auto transition : blendState->m_Transitions)
+		{
+			if (!transition->is<BlendStateTransition>())
+			{
+				continue;
+			}
+
+			auto blendStateTransition = transition->as<BlendStateTransition>();
+			auto exitId = blendStateTransition->exitBlendAnimationId();
+			if (exitId >= 0 && exitId < blendState->m_Animations.size())
+			{
+				blendStateTransition->m_ExitBlendAnimation =
+				    blendState->m_Animations[exitId];
+			}
+		}
+	}
+	return StatusCode::Ok;
+}

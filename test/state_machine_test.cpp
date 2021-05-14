@@ -135,10 +135,10 @@ TEST_CASE("file with blend states loads correctly", "[file]")
 	REQUIRE(layer->entryState() != nullptr);
 	REQUIRE(layer->exitState() != nullptr);
 
-	REQUIRE(layer->state(3)->is<rive::BlendState1D>());
+	REQUIRE(layer->state(1)->is<rive::BlendState1D>());
 	REQUIRE(layer->state(2)->is<rive::BlendState1D>());
 
-	auto blendStateA = layer->state(3)->as<rive::BlendState1D>();
+	auto blendStateA = layer->state(1)->as<rive::BlendState1D>();
 	auto blendStateB = layer->state(2)->as<rive::BlendState1D>();
 
 	REQUIRE(blendStateA->animationCount() == 3);

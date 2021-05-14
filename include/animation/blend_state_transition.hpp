@@ -18,8 +18,6 @@ namespace rive
 		{
 			return m_ExitBlendAnimation;
 		}
-
-		StatusCode onAddedClean(CoreContext* context);
 	};
 
 } // namespace rive
