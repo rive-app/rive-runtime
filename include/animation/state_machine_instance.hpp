@@ -38,10 +38,7 @@ namespace rive
 
 		// Advance the state machine by the specified time. Returns true if the
 		// state machine will continue to animate after this advance.
-		bool advance(float seconds);
-
-		// Applies the animations of the StateMachine to an artboard.
-		void apply(Artboard* artboard) const;
+		bool advance(Artboard* artboard, float seconds);
 
 		// Returns true when the StateMachineInstance has more data to process.
 		bool needsAdvance() const;
@@ -54,7 +51,8 @@ namespace rive
 		SMITrigger* getTrigger(std::string name) const;
 
 		const size_t currentAnimationCount() const;
-		const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
+		const LinearAnimationInstance*
+		currentAnimationByIndex(size_t index) const;
 
 		// The number of state changes that occurred across all layers on the
 		// previous advance.

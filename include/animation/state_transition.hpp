@@ -11,6 +11,18 @@ namespace rive
 	class StateMachineLayerImporter;
 	class StateTransitionImporter;
 	class TransitionCondition;
+	class StateInstance;
+	class SMIInput;
+	class LinearAnimation;
+	class LinearAnimationInstance;
+
+	enum class AllowTransition : unsigned char
+	{
+		no,
+		waitingForExit,
+		yes
+	};
+
 	class StateTransition : public StateTransitionBase
 	{
 		friend class StateMachineLayerImporter;
@@ -40,6 +52,12 @@ namespace rive
 			return (transitionFlags() & StateTransitionFlags::Disabled) ==
 			       StateTransitionFlags::Disabled;
 		}
+
+		/// Returns AllowTransition::yes when this transition can be taken from
+		/// stateFrom with the given inputs.
+		AllowTransition allowed(StateInstance* stateFrom,
+		                        SMIInput** inputs,
+		                        bool ignoreTriggers) const;
 
 		/// Whether the animation is held at exit or if it keeps advancing
 		/// during mixing.
@@ -74,11 +92,26 @@ namespace rive
 		/// AnimationState.
 		float mixTime(const LayerState* stateFrom) const;
 
-		/// Exit time in seconds. Specify relativeToWorkArea to use the work
-		/// area start as the origin. Otherwise time 0 of the animation is the
-		/// origin.
+		/// Computes the exit time in seconds of the stateFrom. Set absolute to
+		/// true if you want the returned time to be relative to the entire
+		/// animation. Set absolute to false if you want it relative to the work
+		/// area.
 		float exitTimeSeconds(const LayerState* stateFrom,
-		                      bool relativeToWorkArea) const;
+		                      bool absolute = false) const;
+
+		/// Provide the animation instance to use for computing percentage
+		/// durations for exit time.
+		const LinearAnimationInstance*
+		exitTimeAnimationInstance(const StateInstance* from) const;
+
+		/// Provide the animation to use for computing percentage durations for
+		/// exit time.
+		const LinearAnimation* exitTimeAnimation(const LayerState* from) const;
+
+		/// Retruns true when we need to hold the exit time, also applies the
+		/// correct time to the animation instance in the stateFrom, when
+		/// applicable (when it's an AnimationState).
+		bool applyExitCondition(StateInstance* stateFrom) const;
 	};
 } // namespace rive
 

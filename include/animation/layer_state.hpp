@@ -9,6 +9,7 @@ namespace rive
 	class StateTransition;
 	class LayerStateImporter;
 	class StateMachineLayerImporter;
+	class StateInstance;
 
 	class LayerState : public LayerStateBase
 	{
@@ -35,6 +36,10 @@ namespace rive
 			}
 			return nullptr;
 		}
+
+		/// Make an instance of this state that can be advanced and applied by
+		/// the state machine when it is active or being transitioned from.
+		virtual StateInstance* makeInstance() const;
 	};
 } // namespace rive
 

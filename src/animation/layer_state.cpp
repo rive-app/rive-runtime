@@ -4,6 +4,7 @@
 #include "importers/state_machine_layer_importer.hpp"
 #include "generated/animation/state_machine_layer_base.hpp"
 #include "animation/state_transition.hpp"
+#include "animation/system_state_instance.hpp"
 
 using namespace rive;
 
@@ -56,4 +57,9 @@ StatusCode LayerState::import(ImportStack& importStack)
 void LayerState::addTransition(StateTransition* transition)
 {
 	m_Transitions.push_back(transition);
+}
+
+StateInstance* LayerState::makeInstance() const
+{
+	return new SystemStateInstance(this);
 }

@@ -115,7 +115,6 @@ const StateMachineLayer* StateMachine::layer(std::string name) const
 
 const StateMachineLayer* StateMachine::layer(size_t index) const
 {
-
 	if (index >= 0 && index < m_Layers.size())
 	{
 		return m_Layers[index];
