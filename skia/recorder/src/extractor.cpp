@@ -5,7 +5,7 @@ inline int valueOrDefault(int value, int default_value)
 	return value <= 0 ? default_value : value;
 }
 
-void scale(int* value, int targetValue, int* otherValue)
+inline void scale(int* value, int targetValue, int* otherValue)
 {
 	if (*value != targetValue)
 	{
@@ -40,7 +40,7 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
 	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
 	rasterCanvas = rasterSurface->getCanvas();
 	_fps = valueOrDefault(fps, animation->fps());
-	ifps = 1.0 / fps;
+	ifps = 1.0 / _fps;
 };
 
 RiveFrameExtractor::~RiveFrameExtractor()
