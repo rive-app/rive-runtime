@@ -43,6 +43,9 @@ namespace rive
 		// Returns true when the StateMachineInstance has more data to process.
 		bool needsAdvance() const;
 
+		// Returns a pointer to the instance's stateMachine
+		const StateMachine* stateMachine() const { return m_Machine; }
+
 		size_t inputCount() const { return m_InputCount; }
 		SMIInput* input(size_t index) const;
 
