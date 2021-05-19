@@ -8,6 +8,7 @@
 #include "animation/state_machine_input_instance.hpp"
 #include "animation/state_machine_trigger.hpp"
 #include "animation/animation_state_instance.hpp"
+#include "animation/transition_trigger_condition.hpp"
 
 using namespace rive;
 
@@ -140,8 +141,7 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
 		// N.B. state machine instance sanitizes these for us...
 		auto input = inputs[condition->inputId()];
 
-		if ((!ignoreTriggers ||
-		     input->inputCoreType() != StateMachineTrigger::typeKey) &&
+		if ((ignoreTriggers && condition->is<TransitionTriggerCondition>()) ||
 		    !condition->evaluate(input))
 		{
 			return AllowTransition::no;
