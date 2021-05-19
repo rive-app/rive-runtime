@@ -1,21 +1,17 @@
-#include "animation/blend_animation_direct.hpp"
+#include "animation/blend_state_1d.hpp"
 #include "animation/state_machine.hpp"
 #include "animation/state_machine_number.hpp"
+#include "animation/blend_state_1d_instance.hpp"
 #include "importers/state_machine_importer.hpp"
 
 using namespace rive;
 
-StatusCode BlendAnimationDirect::onAddedDirty(CoreContext* context)
+StateInstance* BlendState1D::makeInstance() const
 {
-	return StatusCode::Ok;
+	return new BlendState1DInstance(this);
 }
 
-StatusCode BlendAnimationDirect::onAddedClean(CoreContext* context)
-{
-	return StatusCode::Ok;
-}
-
-StatusCode BlendAnimationDirect::import(ImportStack& importStack)
+StatusCode BlendState1D::import(ImportStack& importStack)
 {
 	auto stateMachineImporter =
 	    importStack.latest<StateMachineImporter>(StateMachine::typeKey);

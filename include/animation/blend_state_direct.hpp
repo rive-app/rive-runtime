@@ -7,6 +7,7 @@ namespace rive
 	class BlendStateDirect : public BlendStateDirectBase
 	{
 	public:
+		StateInstance* makeInstance() const override;
 	};
 } // namespace rive
 

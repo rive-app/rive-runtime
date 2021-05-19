@@ -36,13 +36,13 @@ namespace rive
 		// LinearAnimationInstance* m_AnimationInstance = nullptr;
 		// LinearAnimationInstance* m_AnimationInstanceFrom = nullptr;
 		float m_Mix = 1.0f;
+		float m_MixFrom = 1.0f;
 		bool m_StateChangedOnAdvance = false;
 
 		bool m_WaitingForExit = false;
 		/// Used to ensure a specific animation is applied on the next apply.
 		const LinearAnimation* m_HoldAnimation = nullptr;
 		float m_HoldTime = 0.0f;
-		float m_HoldMix = 0.0f;
 
 	public:
 		~StateMachineLayerInstance()
@@ -162,6 +162,7 @@ namespace rive
 				return false;
 			}
 			auto stateFrom = stateFromInstance->state();
+			auto outState = m_CurrentState;
 			for (size_t i = 0, length = stateFrom->transitionCount();
 			     i < length;
 			     i++)
@@ -180,12 +181,13 @@ namespace rive
 						// Old state from is done.
 						delete m_StateFrom;
 					}
-					m_StateFrom = stateFromInstance;
+					m_StateFrom = outState;
 
 					// If we had an exit time and wanted to pause on exit, make
 					// sure to hold the exit time. Delegate this to the
 					// transition by telling it that it was completed.
-					if (transition->applyExitCondition(stateFromInstance))
+					if (outState != nullptr &&
+					    transition->applyExitCondition(outState))
 					{
 						// Make sure we apply this state. This only returns true
 						// when it's an animation state instance.
@@ -195,15 +197,16 @@ namespace rive
 
 						m_HoldAnimation = instance->animation();
 						m_HoldTime = instance->time();
-						m_HoldMix = m_Mix;
 					}
+					m_MixFrom = m_Mix;
 
 					// Keep mixing last animation that was mixed in.
 					if (m_Mix != 0.0f)
 					{
 						m_HoldAnimationFrom = transition->pauseOnExit();
 					}
-					if (m_StateFrom->state()->is<AnimationState>() &&
+					if (m_StateFrom != nullptr &&
+					    m_StateFrom->state()->is<AnimationState>() &&
 					    m_CurrentState != nullptr)
 					{
 						auto instance = static_cast<AnimationStateInstance*>(
@@ -230,13 +233,13 @@ namespace rive
 		{
 			if (m_HoldAnimation != nullptr)
 			{
-				m_HoldAnimation->apply(artboard, m_HoldTime, m_HoldMix);
+				m_HoldAnimation->apply(artboard, m_HoldTime, m_MixFrom);
 				m_HoldAnimation = nullptr;
 			}
 
 			if (m_StateFrom != nullptr && m_Mix < 1.0f)
 			{
-				m_StateFrom->apply(artboard, 1.0f - m_Mix);
+				m_StateFrom->apply(artboard, m_MixFrom);
 			}
 			if (m_CurrentState != nullptr)
 			{

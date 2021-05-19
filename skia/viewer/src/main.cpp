@@ -253,8 +253,7 @@ int main()
 			}
 			else if (stateMachineInstance != nullptr)
 			{
-				stateMachineInstance->advance(elapsed);
-				stateMachineInstance->apply(artboard);
+				stateMachineInstance->advance(artboard, elapsed);
 			}
 			artboard->advance(elapsed);
 
