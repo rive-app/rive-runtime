@@ -83,6 +83,16 @@ namespace rive
 			exitTimeChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const StateTransitionBase& object)
+		{
+			m_StateToId = object.m_StateToId;
+			m_Flags = object.m_Flags;
+			m_Duration = object.m_Duration;
+			m_ExitTime = object.m_ExitTime;
+			StateMachineLayerComponent::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

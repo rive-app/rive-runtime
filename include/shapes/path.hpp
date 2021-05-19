@@ -10,6 +10,25 @@ namespace rive
 	class CommandPath;
 	class PathVertex;
 
+#ifdef ENABLE_QUERY_FLAT_VERTICES
+	class Path;
+	/// A flattened path is composed of only linear and cubic vertices. No
+	/// corner vertices and it's entirely in world space. This is helpful for
+	/// getting a close to identical representation of the vertices used to
+	/// issue the high level path draw commands.
+	class FlattenedPath
+	{
+	private:
+		friend class Path;
+		std::vector<PathVertex*> m_Vertices;
+
+	public:
+		~FlattenedPath();
+
+		const std::vector<PathVertex*>& vertices() const { return m_Vertices; }
+	};
+#endif
+
 	class Path : public PathBase
 	{
 	protected:
@@ -32,6 +51,10 @@ namespace rive
 		virtual void markPathDirty();
 		virtual bool isPathClosed() const { return true; }
 		void onDirty(ComponentDirt dirt) override;
+#ifdef ENABLE_QUERY_FLAT_VERTICES
+		FlattenedPath* makeFlat();
+#endif
+
 #ifdef TESTING
 		std::vector<PathVertex*>& vertices() { return m_Vertices; }
 #endif

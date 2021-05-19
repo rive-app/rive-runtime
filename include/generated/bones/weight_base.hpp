@@ -57,6 +57,14 @@ namespace rive
 			indicesChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const WeightBase& object)
+		{
+			m_Values = object.m_Values;
+			m_Indices = object.m_Indices;
+			Component::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

@@ -45,6 +45,13 @@ namespace rive
 			animationIdChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const AnimationStateBase& object)
+		{
+			m_AnimationId = object.m_AnimationId;
+			LayerState::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

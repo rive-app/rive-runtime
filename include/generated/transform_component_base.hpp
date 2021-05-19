@@ -84,6 +84,15 @@ namespace rive
 			opacityChanged();
 		}
 
+		void copy(const TransformComponentBase& object)
+		{
+			m_Rotation = object.m_Rotation;
+			m_ScaleX = object.m_ScaleX;
+			m_ScaleY = object.m_ScaleY;
+			m_Opacity = object.m_Opacity;
+			ContainerComponent::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

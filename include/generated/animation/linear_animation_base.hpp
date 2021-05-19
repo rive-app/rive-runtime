@@ -124,6 +124,19 @@ namespace rive
 			enableWorkAreaChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const LinearAnimationBase& object)
+		{
+			m_Fps = object.m_Fps;
+			m_Duration = object.m_Duration;
+			m_Speed = object.m_Speed;
+			m_LoopValue = object.m_LoopValue;
+			m_WorkStart = object.m_WorkStart;
+			m_WorkEnd = object.m_WorkEnd;
+			m_EnableWorkArea = object.m_EnableWorkArea;
+			Animation::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

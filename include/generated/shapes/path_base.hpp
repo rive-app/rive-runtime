@@ -47,6 +47,12 @@ namespace rive
 			pathFlagsChanged();
 		}
 
+		void copy(const PathBase& object)
+		{
+			m_PathFlags = object.m_PathFlags;
+			Node::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

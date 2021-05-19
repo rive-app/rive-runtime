@@ -305,3 +305,39 @@ void Path::update(ComponentDirt value)
 	// 	m_Shape->pathChanged();
 	// }
 }
+
+#ifdef ENABLE_QUERY_FLAT_VERTICES
+
+FlattenedPath* Path::makeFlat()
+{
+	FlattenedPath* flat = new FlattenedPath();
+	for (auto vertex : m_Vertices)
+	{
+
+		switch (vertex->coreType())
+		{
+			case StraightVertex::typeKey:
+			{
+				auto straightVertex = vertex->as<StraightVertex>();
+				if (straightVertex->radius() != 0)
+				{
+					break;
+				}
+			}
+			default:
+				flat->m_Vertices.push_back(vertex->clone()->as<PathVertex>());
+				break;
+		}
+	}
+	return flat;
+}
+
+FlattenedPath::~FlattenedPath()
+{
+	for (auto vertex : m_Vertices)
+	{
+		delete vertex;
+	}
+}
+
+#endif

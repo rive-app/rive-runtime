@@ -44,6 +44,13 @@ namespace rive
 			colorValueChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const SolidColorBase& object)
+		{
+			m_ColorValue = object.m_ColorValue;
+			Component::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

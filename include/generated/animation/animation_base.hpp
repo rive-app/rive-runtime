@@ -44,6 +44,9 @@ namespace rive
 			nameChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const AnimationBase& object) { m_Name = object.m_Name; }
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

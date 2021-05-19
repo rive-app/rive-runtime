@@ -45,6 +45,13 @@ namespace rive
 			valueChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const StateMachineNumberBase& object)
+		{
+			m_Value = object.m_Value;
+			StateMachineInput::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

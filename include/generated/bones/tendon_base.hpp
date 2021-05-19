@@ -123,6 +123,19 @@ namespace rive
 			tyChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const TendonBase& object)
+		{
+			m_BoneId = object.m_BoneId;
+			m_Xx = object.m_Xx;
+			m_Yx = object.m_Yx;
+			m_Xy = object.m_Xy;
+			m_Yy = object.m_Yy;
+			m_Tx = object.m_Tx;
+			m_Ty = object.m_Ty;
+			Component::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

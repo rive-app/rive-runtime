@@ -82,6 +82,15 @@ namespace rive
 			y2Changed();
 		}
 
+		Core* clone() const override;
+		void copy(const CubicInterpolatorBase& object)
+		{
+			m_X1 = object.m_X1;
+			m_Y1 = object.m_Y1;
+			m_X2 = object.m_X2;
+			m_Y2 = object.m_Y2;
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

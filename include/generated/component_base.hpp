@@ -58,6 +58,12 @@ namespace rive
 			parentIdChanged();
 		}
 
+		void copy(const ComponentBase& object)
+		{
+			m_Name = object.m_Name;
+			m_ParentId = object.m_ParentId;
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

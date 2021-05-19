@@ -44,6 +44,11 @@ namespace rive
 			nameChanged();
 		}
 
+		void copy(const StateMachineComponentBase& object)
+		{
+			m_Name = object.m_Name;
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

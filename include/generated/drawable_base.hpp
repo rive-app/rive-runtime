@@ -60,6 +60,13 @@ namespace rive
 			drawableFlagsChanged();
 		}
 
+		void copy(const DrawableBase& object)
+		{
+			m_BlendModeValue = object.m_BlendModeValue;
+			m_DrawableFlags = object.m_DrawableFlags;
+			Node::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

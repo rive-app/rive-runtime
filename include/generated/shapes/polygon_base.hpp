@@ -63,6 +63,14 @@ namespace rive
 			cornerRadiusChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const PolygonBase& object)
+		{
+			m_Points = object.m_Points;
+			m_CornerRadius = object.m_CornerRadius;
+			ParametricPath::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

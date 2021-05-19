@@ -29,6 +29,8 @@ namespace rive
 			return reinterpret_cast<T*>(this);
 		}
 
+		virtual Core* clone() const { return nullptr; }
+
 		template <typename T> inline const T* as() const
 		{
 			assert(is<T>());

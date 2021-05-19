@@ -84,6 +84,16 @@ namespace rive
 			outIndicesChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const CubicWeightBase& object)
+		{
+			m_InValues = object.m_InValues;
+			m_InIndices = object.m_InIndices;
+			m_OutValues = object.m_OutValues;
+			m_OutIndices = object.m_OutIndices;
+			Weight::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

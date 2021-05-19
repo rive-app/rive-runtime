@@ -58,6 +58,13 @@ namespace rive
 			yChanged();
 		}
 
+		void copy(const PathVertexBase& object)
+		{
+			m_X = object.m_X;
+			m_Y = object.m_Y;
+			ContainerComponent::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

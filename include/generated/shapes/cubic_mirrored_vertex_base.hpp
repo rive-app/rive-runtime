@@ -60,6 +60,14 @@ namespace rive
 			distanceChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const CubicMirroredVertexBase& object)
+		{
+			m_Rotation = object.m_Rotation;
+			m_Distance = object.m_Distance;
+			CubicVertex::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

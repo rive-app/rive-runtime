@@ -1,23 +1,20 @@
 -- require "lfs"
-
 -- Clean Function --
 newaction {
-    trigger     = "clean",
+    trigger = "clean",
     description = "clean the build",
-    execute     = function ()
-       print("clean the build...")
-       os.rmdir("build")
-       os.remove("Makefile")
-       -- no wildcards in os.remove, so use shell
-       os.execute("rm *.make")
-       print("build cleaned")
+    execute = function()
+        print("clean the build...")
+        os.rmdir("build")
+        os.remove("Makefile")
+        -- no wildcards in os.remove, so use shell
+        os.execute("rm *.make")
+        print("build cleaned")
     end
- }
+}
 
 workspace "rive_tests"
-configurations {
-    "debug"
-}
+configurations {"debug"}
 
 project("tests")
 kind "ConsoleApp"
@@ -26,29 +23,19 @@ cppdialect "C++17"
 targetdir "build/bin/%{cfg.buildcfg}"
 objdir "build/obj/%{cfg.buildcfg}"
 
-buildoptions {
-    "-Wall", 
-    "-fno-exceptions", 
-    "-fno-rtti"
+buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti"}
+
+includedirs {"./include", "../../include"}
+
+files {"../../src/**.cpp", -- the Rive runtime source
+"../../test/**.cpp" -- the tests
 }
 
-includedirs {
-    "./include",
-    "../../include"
-}
-
-files {
-    "../../src/**.cpp", -- the Rive runtime source
-    "../../test/**.cpp" -- the tests
-    
-}
-
-defines { "TESTING" }
+defines {"TESTING", "ENABLE_QUERY_FLAT_VERTICES"}
 
 filter "configurations:debug"
-    defines { "DEBUG" }
-    symbols "On"
-
+defines {"DEBUG"}
+symbols "On"
 
 --[[
 

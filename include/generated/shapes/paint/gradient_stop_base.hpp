@@ -58,6 +58,14 @@ namespace rive
 			positionChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const GradientStopBase& object)
+		{
+			m_ColorValue = object.m_ColorValue;
+			m_Position = object.m_Position;
+			Component::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

@@ -90,6 +90,16 @@ namespace rive
 			transformAffectsStrokeChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const StrokeBase& object)
+		{
+			m_Thickness = object.m_Thickness;
+			m_Cap = object.m_Cap;
+			m_Join = object.m_Join;
+			m_TransformAffectsStroke = object.m_TransformAffectsStroke;
+			ShapePaint::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

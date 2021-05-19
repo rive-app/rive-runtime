@@ -71,6 +71,15 @@ namespace rive
 			isVisibleChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const ClippingShapeBase& object)
+		{
+			m_SourceId = object.m_SourceId;
+			m_FillRule = object.m_FillRule;
+			m_IsVisible = object.m_IsVisible;
+			Component::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

@@ -69,6 +69,13 @@ namespace rive
 			interpolatorIdChanged();
 		}
 
+		void copy(const KeyFrameBase& object)
+		{
+			m_Frame = object.m_Frame;
+			m_InterpolationType = object.m_InterpolationType;
+			m_InterpolatorId = object.m_InterpolatorId;
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

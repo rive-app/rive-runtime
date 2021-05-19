@@ -26,6 +26,9 @@ namespace rive
 
 		uint16_t coreType() const override { return typeKey; }
 
+		Core* clone() const override;
+		void copy(const BackboardBase& object) {}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

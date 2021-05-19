@@ -97,6 +97,17 @@ namespace rive
 			opacityChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const LinearGradientBase& object)
+		{
+			m_StartX = object.m_StartX;
+			m_StartY = object.m_StartY;
+			m_EndX = object.m_EndX;
+			m_EndY = object.m_EndY;
+			m_Opacity = object.m_Opacity;
+			ContainerComponent::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

@@ -45,6 +45,13 @@ namespace rive
 			valueChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const TransitionNumberConditionBase& object)
+		{
+			m_Value = object.m_Value;
+			TransitionValueCondition::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

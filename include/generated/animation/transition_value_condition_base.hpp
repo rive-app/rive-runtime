@@ -44,6 +44,12 @@ namespace rive
 			opValueChanged();
 		}
 
+		void copy(const TransitionValueConditionBase& object)
+		{
+			m_OpValue = object.m_OpValue;
+			TransitionCondition::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

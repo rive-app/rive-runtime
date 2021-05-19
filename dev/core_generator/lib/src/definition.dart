@@ -94,7 +94,7 @@ class Definition {
 
   String get localCodeFilename => '${stripExtension(_filename)}_base.hpp';
   String get concreteCodeFilename => '${stripExtension(_filename)}.hpp';
-  String get codeFilename => 'lib/src/generated/$localCodeFilename';
+  String get localCppCodeFilename => '${stripExtension(_filename)}_base.cpp';
 
   /// Generates cpp header code based on the Definition
   Future<void> generateCode() async {
@@ -190,7 +190,23 @@ class Definition {
       }
     }
 
+    if (!_isAbstract) {
+      code.writeln('Core* clone() const override;');
+    }
+
     if (properties.isNotEmpty || _extensionOf == null) {
+      code.writeln('void copy(const ${_name}Base& object) {');
+      for (final property in properties) {
+        code.writeln('m_${property.capitalizedName} = '
+            'object.m_${property.capitalizedName};');
+      }
+      if (_extensionOf != null) {
+        code.writeln('${_extensionOf.name}::'
+            'copy(object); ');
+      }
+      code.writeln('}');
+      code.writeln();
+
       code.writeln('bool deserialize(uint16_t propertyKey, '
           'BinaryReader& reader) override {');
 
@@ -242,6 +258,23 @@ class Definition {
       var formattedCode =
           await _formatter.formatAndGuard(_name, concreteCode.toString());
       concreteFile.writeAsStringSync(formattedCode, flush: true);
+    }
+    if (!_isAbstract) {
+      StringBuffer cppCode = StringBuffer();
+      cppCode.writeln('#include "generated/$localCodeFilename"');
+      cppCode.writeln('#include "$concreteCodeFilename"');
+      cppCode.writeln();
+      cppCode.writeln('using namespace rive;');
+      cppCode.writeln();
+      cppCode.writeln('Core* ${_name}Base::clone() const { '
+          'auto cloned = new $_name(); '
+          'cloned->copy(*this); '
+          'return cloned; '
+          '}');
+      var cppFile = File('$generatedCppPath$localCppCodeFilename');
+      cppFile.createSync(recursive: true);
+      var formattedCode = await _formatter.format(cppCode.toString());
+      cppFile.writeAsStringSync(formattedCode, flush: true);
     }
   }
 

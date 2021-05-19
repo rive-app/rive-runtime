@@ -59,6 +59,14 @@ namespace rive
 			yChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const NodeBase& object)
+		{
+			m_X = object.m_X;
+			m_Y = object.m_Y;
+			TransformComponent::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

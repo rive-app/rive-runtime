@@ -102,6 +102,17 @@ namespace rive
 			cornerRadiusBRChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const RectangleBase& object)
+		{
+			m_LinkCornerRadius = object.m_LinkCornerRadius;
+			m_CornerRadiusTL = object.m_CornerRadiusTL;
+			m_CornerRadiusTR = object.m_CornerRadiusTR;
+			m_CornerRadiusBL = object.m_CornerRadiusBL;
+			m_CornerRadiusBR = object.m_CornerRadiusBR;
+			ParametricPath::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

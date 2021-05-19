@@ -46,6 +46,13 @@ namespace rive
 			radiusChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const StraightVertexBase& object)
+		{
+			m_Radius = object.m_Radius;
+			PathVertex::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

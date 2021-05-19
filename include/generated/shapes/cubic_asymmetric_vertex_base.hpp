@@ -73,6 +73,15 @@ namespace rive
 			outDistanceChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const CubicAsymmetricVertexBase& object)
+		{
+			m_Rotation = object.m_Rotation;
+			m_InDistance = object.m_InDistance;
+			m_OutDistance = object.m_OutDistance;
+			CubicVertex::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

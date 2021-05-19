@@ -84,6 +84,16 @@ namespace rive
 			modeValueChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const TrimPathBase& object)
+		{
+			m_Start = object.m_Start;
+			m_End = object.m_End;
+			m_Offset = object.m_Offset;
+			m_ModeValue = object.m_ModeValue;
+			Component::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

@@ -87,6 +87,15 @@ namespace rive
 			originYChanged();
 		}
 
+		void copy(const ParametricPathBase& object)
+		{
+			m_Width = object.m_Width;
+			m_Height = object.m_Height;
+			m_OriginX = object.m_OriginX;
+			m_OriginY = object.m_OriginY;
+			Path::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

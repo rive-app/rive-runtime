@@ -110,6 +110,18 @@ namespace rive
 			originYChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const ArtboardBase& object)
+		{
+			m_Width = object.m_Width;
+			m_Height = object.m_Height;
+			m_X = object.m_X;
+			m_Y = object.m_Y;
+			m_OriginX = object.m_OriginX;
+			m_OriginY = object.m_OriginY;
+			ContainerComponent::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
