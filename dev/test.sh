@@ -19,6 +19,11 @@ then
   echo Will perform memory checks...
   UTILITY='valgrind --leak-check=full'
   shift
+elif [ "$OPTION" = "debug" ]
+then
+  echo Starting debugger...
+  UTILITY='lldb'
+  shift
 fi
 
 premake5 gmake2 || exit 1

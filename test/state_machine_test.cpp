@@ -174,3 +174,47 @@ TEST_CASE("file with blend states loads correctly", "[file]")
 	delete file;
 	delete[] bytes;
 }
+
+TEST_CASE("animation state with no animation doesn't crash", "[file]")
+{
+	FILE* fp = fopen("../../test/assets/multiple_state_machines.riv", "r");
+	REQUIRE(fp != nullptr);
+
+	fseek(fp, 0, SEEK_END);
+	auto length = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	uint8_t* bytes = new uint8_t[length];
+	REQUIRE(fread(bytes, 1, length, fp) == length);
+	auto reader = rive::BinaryReader(bytes, length);
+	rive::File* file = nullptr;
+	auto result = rive::File::import(reader, &file);
+
+	REQUIRE(result == rive::ImportResult::success);
+	REQUIRE(file != nullptr);
+	auto artboard = file->artboard();
+	REQUIRE(artboard != nullptr);
+	REQUIRE(artboard->animationCount() == 1);
+	REQUIRE(artboard->stateMachineCount() == 4);
+
+	auto stateMachine = artboard->stateMachine("two");
+	REQUIRE(stateMachine != nullptr);
+
+	REQUIRE(stateMachine->layerCount() == 1);
+	auto layer = stateMachine->layer(0);
+	REQUIRE(layer->stateCount() == 4);
+
+	REQUIRE(layer->anyState() != nullptr);
+	REQUIRE(layer->entryState() != nullptr);
+	REQUIRE(layer->exitState() != nullptr);
+
+	REQUIRE(layer->state(3)->is<rive::AnimationState>());
+
+	auto animationState = layer->state(3)->as<rive::AnimationState>();
+	REQUIRE(animationState->animation() == nullptr);
+
+	rive::StateMachineInstance smi(stateMachine);
+	smi.advance(artboard, 0.0f);
+
+	delete file;
+	delete[] bytes;
+}
