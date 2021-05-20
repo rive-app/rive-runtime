@@ -329,14 +329,28 @@ public:
 	void computeOut() override {}
 };
 
-FlattenedPath* Path::makeFlat()
+FlattenedPath* Path::makeFlat(bool transformToParent)
 {
 	if (m_Vertices.empty())
 	{
 		return nullptr;
 	}
 
+	// Path transform always puts the path into world space.
 	auto transform = pathTransform();
+
+	if (transformToParent && parent()->is<TransformComponent>())
+	{
+		// Put the transform in parent space.
+		auto world = parent()->as<TransformComponent>()->worldTransform();
+		Mat2D inverseWorld;
+		if (!Mat2D::invert(inverseWorld, world))
+		{
+			Mat2D::identity(inverseWorld);
+		}
+		Mat2D::multiply(transform, inverseWorld, transform);
+	}
+
 	FlattenedPath* flat = new FlattenedPath();
 	auto length = m_Vertices.size();
 	PathVertex* previous = isPathClosed() ? m_Vertices[length - 1] : nullptr;

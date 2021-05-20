@@ -55,7 +55,7 @@ namespace rive
 		virtual bool isPathClosed() const { return true; }
 		void onDirty(ComponentDirt dirt) override;
 #ifdef ENABLE_QUERY_FLAT_VERTICES
-		FlattenedPath* makeFlat();
+		FlattenedPath* makeFlat(bool transformToParent);
 #endif
 
 #ifdef TESTING
