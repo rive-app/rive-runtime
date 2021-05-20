@@ -23,6 +23,11 @@ namespace rive
 
 	public:
 		const T* blendAnimation() const { return m_BlendAnimation; }
+		const LinearAnimationInstance* animationInstance() const
+		{
+			return &m_AnimationInstance;
+		}
+
 		BlendStateAnimationInstance(const T* blendAnimation) :
 		    m_BlendAnimation(blendAnimation),
 		    m_AnimationInstance(blendAnimation->animation())
@@ -70,6 +75,20 @@ namespace rive
 				float m = mix * animation.m_Mix;
 				animation.m_AnimationInstance.apply(artboard, m);
 			}
+		}
+
+		// Find the animationInstance that corresponds to the blendAnimation.
+		const LinearAnimationInstance*
+		animationInstance(const BlendAnimation* blendAnimation) const
+		{
+			for (auto& animation : m_AnimationInstances)
+			{
+				if (animation.m_BlendAnimation == blendAnimation)
+				{
+					return animation.animationInstance();
+				}
+			}
+			return nullptr;
 		}
 	};
 } // namespace rive

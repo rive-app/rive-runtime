@@ -101,12 +101,13 @@ namespace rive
 
 		/// Provide the animation instance to use for computing percentage
 		/// durations for exit time.
-		const LinearAnimationInstance*
+		virtual const LinearAnimationInstance*
 		exitTimeAnimationInstance(const StateInstance* from) const;
 
 		/// Provide the animation to use for computing percentage durations for
 		/// exit time.
-		const LinearAnimation* exitTimeAnimation(const LayerState* from) const;
+		virtual const LinearAnimation*
+		exitTimeAnimation(const LayerState* from) const;
 
 		/// Retruns true when we need to hold the exit time, also applies the
 		/// correct time to the animation instance in the stateFrom, when
