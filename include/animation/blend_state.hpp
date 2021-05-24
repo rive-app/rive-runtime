@@ -3,6 +3,7 @@
 #include "generated/animation/blend_state_base.hpp"
 #include <stdio.h>
 #include <vector>
+#include <algorithm>
 
 namespace rive
 {
