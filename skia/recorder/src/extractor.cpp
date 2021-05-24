@@ -63,13 +63,19 @@ int RiveFrameExtractor::totalFrames()
 	int min_frames = _min_duration * fps();
 	int max_frames = _max_duration * fps();
 
-	int animationFrames = animation->duration();
-	int totalFrames = animation->duration();
+	int startFrame = animation->enableWorkArea() ? animation->workStart() : 0;
+	int endFrame = animation->enableWorkArea() ? animation->workEnd()
+	                                           : animation->duration();
+
+	int animationFrames = endFrame - startFrame;
+	int totalFrames = animationFrames;
+
 	// TODO: combine those two into one function
 	switch (animation->loop())
 	{
 		case rive::Loop::pingPong:
 			animationFrames *= 2;
+		// No break: falls through.
 		case rive::Loop::loop:
 			// pingpong is like loop, just you gotta go back and forth, so 2x
 			// duration
