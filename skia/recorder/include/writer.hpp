@@ -40,7 +40,7 @@ public:
 	            int _width,
 	            int _height,
 	            int _fps,
-	            int bitrate = 5000);
+	            int bitrate = 0);
 	void writeFrame(int frameNumber, const uint8_t* const* pixelData);
 	void writeHeader();
 	void finalize();

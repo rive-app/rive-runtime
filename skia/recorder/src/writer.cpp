@@ -20,7 +20,7 @@ void MovieWriter::initialize()
 	if (!oformat)
 	{
 		throw std::invalid_argument(string_format(
-		    "Failed to determine output format for %s\n.", destinationPath));
+		    "Failed to determine output format for %s.\n", destinationPath));
 	}
 
 	// Get a context for the format to work with (I guess the OutputFormat
@@ -85,7 +85,6 @@ void MovieWriter::initialize()
 	videoStream->codecpar->width = width;
 	videoStream->codecpar->height = height;
 	videoStream->codecpar->format = pixel_format;
-	videoStream->codecpar->bit_rate = bitrate * 1000;
 	videoStream->time_base = {1, fps};
 
 	// Yeah so these are just some numbers that work, we'll probably want to
