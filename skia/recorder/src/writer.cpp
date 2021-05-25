@@ -92,6 +92,7 @@ void MovieWriter::initialize()
 	// fine tune these...
 	avcodec_parameters_to_context(cctx, videoStream->codecpar);
 	cctx->time_base = {1, fps};
+	cctx->framerate = {fps, 1};
 	cctx->max_b_frames = 2;
 	cctx->gop_size = 12;
 
@@ -110,7 +111,31 @@ void MovieWriter::initialize()
 	// we just fucked with.
 	avcodec_parameters_from_context(videoStream->codecpar, cctx);
 
-	if (avcodec_open2(cctx, codec, NULL) < 0)
+	AVDictionary* codec_options(0);
+	// Add a few quality options that respect the choices above.
+	av_dict_set(&codec_options, "preset", "ultrafast", 0);
+	av_dict_set(&codec_options, "tune", "film", 0);
+	// Set number of frames to look ahead for frametype and ratecontrol.
+	av_dict_set_int(&codec_options, "rc-lookahead", 60, 0);
+
+	// A custom Bit Rate has been specified: 
+	// 	enforce CBR via AVCodecContext and string parameters.
+	if (bitrate != 0)
+	{
+		int br = bitrate * 1000;
+		cctx->bit_rate = br;
+		cctx->rc_min_rate = br;
+		cctx->rc_max_rate = br;
+		cctx->rc_buffer_size = br;
+		cctx->rc_initial_buffer_occupancy = static_cast<int>(br * 9 / 10);
+
+		std::string strParams = "vbv-maxrate=" + std::to_string(bitrate) +
+		                        ":vbv-bufsize=" + std::to_string(bitrate) +
+		                        ":force-cfr=1:nal-hrd=cbr";
+		av_dict_set(&codec_options, "x264-params", strParams.c_str(), 0);
+	}
+
+	if (avcodec_open2(cctx, codec, &codec_options) < 0)
 	{
 		throw std::invalid_argument(
 		    string_format("Failed to open codec %i\n", destinationPath));
@@ -238,8 +263,8 @@ void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
 	}
 
 	av_frame_free(&videoFrame);
-	fflush(stdout);
 	printf(".");
+	fflush(stdout);
 }
 
 void MovieWriter::finalize()
