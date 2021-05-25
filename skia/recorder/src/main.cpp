@@ -99,8 +99,9 @@ int main(int argc, char* argv[])
 	args::ValueFlag<int> max_duration(
 	    optional, "number", "maximum duration in seconds", {"max-duration"}, 0);
 
+	// 0 will use VBR. By setting a bitrate value, users enforce CBR.
 	args::ValueFlag<int> bitrate(
-	    optional, "number", "bitrate in kbps", {"bitrate"}, 5000);
+	    optional, "number", "bitrate in kbps", {"bitrate"}, 0);
 
 	args::ValueFlag<std::string> snapshot_path(
 	    optional, "path", "destination image filename", {"snapshot-path"});
