@@ -112,6 +112,13 @@ TEST_CASE("Test 2s_pingpong min 5s")
 	REQUIRE(rive->totalFrames() == 480);
 }
 
+TEST_CASE("Test 2s_pingpong")
+{
+	auto rive = new RiveFrameExtractor(
+	    "./static/animations.riv", "", "2s_pingpong", "", 0, 0, 0, 0, 0, 0);
+	REQUIRE(rive->totalFrames() == 2 * 60);
+}
+
 TEST_CASE("Test 100s_oneShot animation min duration 10s")
 {
 	auto rive = new RiveFrameExtractor("./static/animations.riv",
@@ -166,4 +173,18 @@ TEST_CASE("Test 1s_oneShot animation custom fps 120")
 	                                   10,
 	                                   120);
 	REQUIRE(rive->totalFrames() == 1200);
+}
+
+TEST_CASE("Test frames: 3s_loop work_area start_16 duration_1s")
+{
+	auto rive = new RiveFrameExtractor(
+	    "./static/work_area.riv", "", "Animation 1", "", 0, 0, 0, 0, 0, 0, 0);
+	REQUIRE(rive->totalFrames() == 60);
+}
+
+TEST_CASE("Test frames: 3s_loop work_area start_16 duration_1s min 5s")
+{
+	auto rive = new RiveFrameExtractor(
+	    "./static/work_area.riv", "", "Animation 1", "", 0, 0, 0, 0, 0, 5, 0);
+	REQUIRE(rive->totalFrames() == 300);
 }

@@ -10,7 +10,10 @@
 #include "file.hpp"
 #include "math/aabb.hpp"
 #include "skia_renderer.hpp"
+#include "extractor.hpp"
+#include "writer.hpp"
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -40,11 +43,6 @@ extern "C"
 
 #include <libswscale/swscale.h>
 }
-
-#include "extractor.hpp"
-#include "writer.hpp"
-#include <fstream>
-#include <string>
 
 #ifdef TESTING
 #else
@@ -177,25 +175,31 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	// We should also respect the work area here... we're just exporting the
-	// entire animation for now.
 	int totalFrames = extractor->totalFrames();
-	auto snapshotPath = args::get(snapshot_path).c_str();
+	std::string snapshotPath = args::get(snapshot_path);
 
 	writer->writeHeader();
-	for (int i = 0; i < totalFrames; i++)
+	if (totalFrames > 0)
 	{
 		extractor->advanceFrame();
-
-		if (i == 0 && snapshotPath != NULL && snapshotPath[0] != '\0')
+		if (!snapshotPath.empty())
 		{
-			SkFILEWStream out(snapshotPath);
+			SkFILEWStream out(snapshotPath.c_str());
 			auto png = extractor->getSkData();
 			(void)out.write(png->data(), png->size());
 		}
 		auto pixelData = extractor->getPixelAddresses();
+		writer->writeFrame(0, (const uint8_t* const*)&pixelData);
+	}
+
+
+	for (int i = 1; i < totalFrames; i++)
+	{
+		extractor->advanceFrame();
+		auto pixelData = extractor->getPixelAddresses();
 		writer->writeFrame(i, (const uint8_t* const*)&pixelData);
 	}
+
 	writer->finalize();
 	delete writer;
 	delete extractor;
