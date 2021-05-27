@@ -1,0 +1,17 @@
+name: Tests
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Perform tests
+        run: |
+          sudo apt update && apt-get -y install build-essential cmake wget clang
+          cd dev
+          ./test.sh
