@@ -12,6 +12,6 @@ jobs:
       
       - name: Perform tests
         run: |
-          sudo apt update && apt-get -y install build-essential cmake wget clang
+          sudo apt update && sudo apt-get -y install build-essential cmake wget clang
           cd dev
           ./test.sh
