@@ -6,8 +6,15 @@
 
 using namespace rive;
 
+#ifdef TESTING
+int LinearAnimation::deleteCount = 0;
+#endif
+
 LinearAnimation::~LinearAnimation()
 {
+#ifdef TESTING
+	deleteCount++;
+#endif
 	for (auto object : m_KeyedObjects)
 	{
 		delete object;

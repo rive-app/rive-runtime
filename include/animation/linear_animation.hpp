@@ -30,6 +30,8 @@ namespace rive
 
 #ifdef TESTING
 		size_t numKeyedObjects() { return m_KeyedObjects.size(); }
+		// Used in testing to check how many animations gets deleted.
+		static int deleteCount;
 #endif
 	};
 } // namespace rive
