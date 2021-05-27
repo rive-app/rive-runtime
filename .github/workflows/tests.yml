@@ -17,6 +17,7 @@ jobs:
           tar -xvf premake-5.0.0-alpha15-linux.tar.gz
           mkdir bin
           cp premake5 bin/premake5
-          mv premake5 /usr/local/bin
+          sudo chmod a+x premake5
+          sudo mv premake5 /usr/local/bin
           cd dev
           ./test.sh
