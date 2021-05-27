@@ -73,6 +73,8 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]")
 	rive::NoOpRenderer renderer;
 	artboard->draw(&renderer);
 
+	delete artboard;
+
 	delete file;
 	delete[] bytes;
 }

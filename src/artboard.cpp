@@ -23,14 +23,22 @@ Artboard::~Artboard()
 		}
 		delete object;
 	}
-	for (auto object : m_Animations)
+
+	// Instances reference back to the original artboard's animations and state
+	// machines, so don't delete them here, they'll get cleaned up when the
+	// source is deleted.
+	if (!m_IsInstance)
 	{
-		delete object;
+		for (auto object : m_Animations)
+		{
+			delete object;
+		}
+		for (auto object : m_StateMachines)
+		{
+			delete object;
+		}
 	}
-	for (auto object : m_StateMachines)
-	{
-		delete object;
-	}
+
 	delete m_ClipPath;
 	delete m_BackgroundPath;
 }
@@ -519,16 +527,11 @@ Artboard* Artboard::instance() const
 
 	for (auto animation : m_Animations)
 	{
-		artboardClone->m_Animations.push_back(
-		    animation == nullptr ? nullptr
-		                         : animation->clone()->as<LinearAnimation>());
+		artboardClone->m_Animations.push_back(animation);
 	}
 	for (auto stateMachine : m_StateMachines)
 	{
-		artboardClone->m_StateMachines.push_back(
-		    stateMachine == nullptr
-		        ? nullptr
-		        : stateMachine->clone()->as<StateMachine>());
+		artboardClone->m_StateMachines.push_back(stateMachine);
 	}
 
 	if (artboardClone->initialize() != StatusCode::Ok)
@@ -536,6 +539,8 @@ Artboard* Artboard::instance() const
 		delete artboardClone;
 		artboardClone = nullptr;
 	}
+
+	artboardClone->m_IsInstance = true;
 
 	return artboardClone;
 }

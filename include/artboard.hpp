@@ -34,6 +34,7 @@ namespace rive
 		CommandPath* m_BackgroundPath = nullptr;
 		CommandPath* m_ClipPath = nullptr;
 		Drawable* m_FirstDrawable = nullptr;
+		bool m_IsInstance = false;
 
 		void sortDependencies();
 		void sortDrawOrder();
