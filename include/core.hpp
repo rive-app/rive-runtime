@@ -29,6 +29,7 @@ namespace rive
 			return reinterpret_cast<T*>(this);
 		}
 
+		/// Make a shallow copy of the object.
 		virtual Core* clone() const { return nullptr; }
 
 		template <typename T> inline const T* as() const

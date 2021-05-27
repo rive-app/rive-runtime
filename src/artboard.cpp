@@ -500,3 +500,42 @@ StateMachine* Artboard::stateMachine(size_t index) const
 	}
 	return m_StateMachines[index];
 }
+
+Artboard* Artboard::instance() const
+{
+	auto artboardClone = clone()->as<Artboard>();
+
+	artboardClone->m_Objects.push_back(artboardClone);
+
+	// Skip first object (artboard).
+	auto itr = m_Objects.begin();
+	while (++itr != m_Objects.end())
+	{
+		auto object = *itr;
+
+		artboardClone->m_Objects.push_back(object == nullptr ? nullptr
+		                                                     : object->clone());
+	}
+
+	for (auto animation : m_Animations)
+	{
+		artboardClone->m_Animations.push_back(
+		    animation == nullptr ? nullptr
+		                         : animation->clone()->as<LinearAnimation>());
+	}
+	for (auto stateMachine : m_StateMachines)
+	{
+		artboardClone->m_StateMachines.push_back(
+		    stateMachine == nullptr
+		        ? nullptr
+		        : stateMachine->clone()->as<StateMachine>());
+	}
+
+	if (artboardClone->initialize() != StatusCode::Ok)
+	{
+		delete artboardClone;
+		artboardClone = nullptr;
+	}
+
+	return artboardClone;
+}

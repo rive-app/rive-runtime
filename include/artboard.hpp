@@ -90,6 +90,10 @@ namespace rive
 		StateMachine* stateMachine(std::string name) const;
 		StateMachine* stateMachine(size_t index) const;
 		size_t stateMachineCount() const { return m_StateMachines.size(); }
+
+		/// Make an instance of this artboard, must be explictly deleted when no
+		/// longer needed.
+		Artboard* instance() const;
 	};
 } // namespace rive
 
