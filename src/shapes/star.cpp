@@ -1,6 +1,7 @@
 #include "shapes/star.hpp"
 #include "shapes/straight_vertex.hpp"
 #include <cmath>
+#include <cstdio>
 
 using namespace rive;
 
@@ -8,31 +9,37 @@ Star::Star() {}
 
 void Star::innerRadiusChanged() { markPathDirty(); }
 
-int Star::expectedSize() { return points() * 2; }
+std::size_t Star::vertexCount() { return points() * 2; }
 
 void Star::buildPolygon()
 {
-	auto actualPoints = expectedSize();
 	auto halfWidth = width() / 2;
 	auto halfHeight = height() / 2;
 	auto innerHalfWidth = width() * innerRadius() / 2;
 	auto innerHalfHeight = height() * innerRadius() / 2;
+	auto ox = -originX() * width() + halfWidth;
+	auto oy = -originY() * height() + halfHeight;
 
+	std::size_t length = vertexCount();
 	auto angle = -M_PI / 2;
-	auto inc = 2 * M_PI / actualPoints;
+	auto inc = 2 * M_PI / length;
 
-	for (int i = 0; i < actualPoints; i++)
+	for (int i = 0; i < length; i += 2)
 	{
-		auto isInner = i & 1;
-		if (isInner)
 		{
-			buildVertex(m_Vertices[i], innerHalfHeight, innerHalfWidth, angle);
+			StraightVertex& vertex = m_PolygonVertices[i];
+			vertex.x(ox + cos(angle) * halfWidth);
+			vertex.y(oy + sin(angle) * halfHeight);
+			vertex.radius(cornerRadius());
+			angle += inc;
 		}
-		else
 		{
-			buildVertex(m_Vertices[i], halfHeight, halfWidth, angle);
+			StraightVertex& vertex = m_PolygonVertices[i + 1];
+			vertex.x(ox + cos(angle) * innerHalfWidth);
+			vertex.y(oy + sin(angle) * innerHalfHeight);
+			vertex.radius(cornerRadius());
+			angle += inc;
 		}
-		angle += inc;
 	}
 }
 

@@ -354,6 +354,7 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
 	FlattenedPath* flat = new FlattenedPath();
 	auto length = m_Vertices.size();
 	PathVertex* previous = isPathClosed() ? m_Vertices[length - 1] : nullptr;
+	bool deletePrevious = false;
 	for (size_t i = 0; i < length; i++)
 	{
 		auto vertex = m_Vertices[i];
@@ -398,10 +399,12 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
 					Vec2D out;
 					Vec2D::scaleAndAdd(
 					    out, pos, toPrev, icircleConstant * renderRadius);
-					auto v1 =
-					    new DisplayCubicVertex(translation, out, translation);
-					flat->addVertex(v1, transform);
-					delete v1;
+					{
+						auto v1 = new DisplayCubicVertex(
+						    translation, out, translation);
+						flat->addVertex(v1, transform);
+						delete v1;
+					}
 
 					Vec2D::scaleAndAdd(translation, pos, toNext, renderRadius);
 
@@ -412,17 +415,29 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
 					    new DisplayCubicVertex(in, translation, translation);
 
 					flat->addVertex(v2, transform);
-					delete v2;
-
+					if (deletePrevious)
+					{
+						delete previous;
+					}
 					previous = v2;
+					deletePrevious = true;
 					break;
 				}
 			}
 			default:
+				if (deletePrevious)
+				{
+					delete previous;
+				}
 				previous = vertex;
+				deletePrevious = false;
 				flat->addVertex(previous, transform);
 				break;
 		}
+	}
+	if (deletePrevious)
+	{
+		delete previous;
 	}
 	return flat;
 }

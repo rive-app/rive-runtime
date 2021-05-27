@@ -12,7 +12,7 @@ namespace rive
 
 	protected:
 		void innerRadiusChanged() override;
-		int expectedSize() override;
+		std::size_t vertexCount() override;
 		void buildPolygon() override;
 	};
 } // namespace rive

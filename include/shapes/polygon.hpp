@@ -2,11 +2,15 @@
 #define _RIVE_POLYGON_HPP_
 #include "generated/shapes/polygon_base.hpp"
 #include "shapes/path_vertex.hpp"
-#include <stdio.h>
+#include "shapes/straight_vertex.hpp"
+#include <vector>
 namespace rive
 {
 	class Polygon : public PolygonBase
 	{
+	protected:
+		std::vector<StraightVertex> m_PolygonVertices;
+
 	public:
 		Polygon();
 		~Polygon();
@@ -15,11 +19,8 @@ namespace rive
 	protected:
 		void cornerRadiusChanged() override;
 		void pointsChanged() override;
-		void clearVertices();
-		void resizeVertices(int size);
-		virtual int expectedSize();
+		virtual std::size_t vertexCount();
 		virtual void buildPolygon();
-		void buildVertex(PathVertex* vertex, float h, float w, float angle);
 	};
 } // namespace rive
 
