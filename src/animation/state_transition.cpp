@@ -161,7 +161,7 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
 			auto exitTime = exitTimeSeconds(stateFrom->state());
 			auto animationFrom = exitAnimation->animation();
 			auto duration = animationFrom->durationSeconds();
-			if (exitTime < duration)
+			if (exitTime <= duration)
 			{
 				// Get exit time relative to the loop lastTime was in.
 				exitTime += std::floor(lastTime / duration) * duration;
