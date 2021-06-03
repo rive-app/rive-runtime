@@ -41,23 +41,24 @@ public:
 	            int _height,
 	            int _fps,
 	            int bitrate = 0);
-	void writeFrame(int frameNumber, const uint8_t* const* pixelData);
 	void writeHeader();
-	void finalize();
+	void writeFrame(int frameNumber, const uint8_t* const* pixelData);
+	void finalize() const;
 
 private:
-	AVFrame* videoFrame;
-	AVCodecContext* cctx;
-	AVStream* videoStream;
-	AVOutputFormat* oformat;
-	AVFormatContext* ofctx;
-	AVCodec* codec;
-	SwsContext* swsCtx;
-	AVPixelFormat pixel_format;
-	const char* destinationPath;
+	AVFrame* m_videoFrame;
+	AVCodecContext* m_Cctx;
+	AVStream* m_VideoStream;
+	AVOutputFormat* m_OFormat;
+	AVFormatContext* m_OFctx;
+	AVCodec* m_Codec;
+	SwsContext* m_SwsCtx;
+	AVPixelFormat m_PixelFormat;
+	const char* m_DestinationPath;
+	int m_Width, m_Height, m_Fps, m_Bitrate;
+
 	void initialize();
 	void initialise_av_frame();
-	int width, height, fps, bitrate;
 };
 
 #endif

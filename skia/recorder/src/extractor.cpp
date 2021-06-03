@@ -67,28 +67,8 @@ int RiveFrameExtractor::totalFrames() const
 	    m_Animation->enableWorkArea() ? m_Animation->workStart() : 0;
 	int endFrame = m_Animation->enableWorkArea() ? m_Animation->workEnd()
 	                                             : m_Animation->duration();
-	auto letsee = m_Animation->durationSeconds() * m_Fps;
 	int animationFrames = endFrame - startFrame;
 	int totalFrames = animationFrames;
-
-	/**
-	 * Examples:
-	 * a) looping:
-	 * 	- fps: 30
-	 * 	- duration: 15 frames (0.5s)
-	 * 	- min_frames: 0
-	 * 	- max_frames: 0
-	 * b) looping:
-	 * 	- fps: 30
-	 * 	- duration: 15 frames (0.5s)
-	 * 	- min duration: 2s (2 * 30 = 60 frames)
-	 * 	- max duration: 5s (5 * 30 = 150 frames)
-	 * c) ping-pong:
-	 * 	- fps: 30
-	 * 	- duration: 300 frames (10s)
-	 * 	- min duration: 2s (2 * 30 = 60 frames)
-	 * 	- max duration: 5s (5 * 30 = 150 frames)
-	 */
 
 	// TODO: combine those two into one function
 	switch (m_Animation->loop())
