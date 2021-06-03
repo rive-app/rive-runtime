@@ -11,11 +11,11 @@ TEST_CASE("No format for file")
 TEST_CASE("Bitrate has been set to the 10,000kbps")
 {
 	auto writer = MovieWriter("./output.mp4", 100, 100, 60, 10000);
-	REQUIRE(writer.cctx->bit_rate == 10000 * 1000);
+	REQUIRE(writer.m_Cctx->bit_rate == 10000 * 1000);
 }
 
 TEST_CASE("Bitrate is empty: set to 0 (auto)")
 {
 	auto writer = MovieWriter("./output.mp4", 100, 100, 60);
-	REQUIRE(writer.cctx->bit_rate == 0);
+	REQUIRE(writer.m_Cctx->bit_rate == 0);
 }

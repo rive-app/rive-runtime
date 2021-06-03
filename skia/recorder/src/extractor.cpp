@@ -87,7 +87,6 @@ int RiveFrameExtractor::totalFrames() const
 			if (max_frames != 0 && totalFrames > max_frames &&
 			    animationFrames < max_frames)
 			{
-
 				totalFrames = std::floor(max_frames / (animationFrames)) *
 				              animationFrames;
 			}
@@ -95,8 +94,8 @@ int RiveFrameExtractor::totalFrames() const
 		default:
 			break;
 	}
-	// no matter what shenanigans we had before, lets make sure we fall in line
-	// regardless.
+	// no matter what shenanigans we had before, lets make sure we fall
+	// in line regardless.
 	if (min_frames != 0 && totalFrames < min_frames)
 	{
 		totalFrames = min_frames;

@@ -135,7 +135,7 @@ TEST_CASE("Test 100s_oneShot animation min duration 10s")
 	REQUIRE(rive->totalFrames() == 600);
 }
 
-TEST_CASE("Test 100s_loop animation min duration 10s")
+TEST_CASE("Test 100s_loop animation max duration 10s")
 {
 	auto rive = new RiveFrameExtractor(
 	    "./static/animations.riv", "", "100s_loop", "", 0, 0, 0, 0, 0, 0, 10);
