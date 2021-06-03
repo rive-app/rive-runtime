@@ -267,6 +267,11 @@ void RiveFrameExtractor::advanceFrame() const
 	m_Animation_instance->advance(ifps);
 }
 
+void RiveFrameExtractor::restart() const
+{
+	m_Animation_instance->time(m_Animation->startSeconds());
+}
+
 sk_sp<SkImage> RiveFrameExtractor::getSnapshot() const
 {
 

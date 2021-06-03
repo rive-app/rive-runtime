@@ -99,6 +99,13 @@ int main(int argc, char* argv[])
 	args::ValueFlag<int> max_duration(
 	    optional, "number", "maximum duration in seconds", {"max-duration"}, 0);
 
+	args::ValueFlag<int> num_loops(
+	    optional,
+	    "number",
+	    "number of times this video should be looped for",
+	    {"num-loops"},
+	    1);
+
 	// 0 will use VBR. By setting a bitrate value, users enforce CBR.
 	args::ValueFlag<int> bitrate(
 	    optional, "number", "bitrate in kbps", {"bitrate"}, 0);
@@ -178,27 +185,28 @@ int main(int argc, char* argv[])
 
 	int totalFrames = extractor->totalFrames();
 	std::string snapshotPath = args::get(snapshot_path);
-
+	int numLoops = args::get(num_loops);
 	writer->writeHeader();
-	if (totalFrames > 0)
+
+	if (!snapshotPath.empty())
 	{
 		extractor->advanceFrame();
-		if (!snapshotPath.empty())
-		{
-			SkFILEWStream out(snapshotPath.c_str());
-			auto png = extractor->getSkData();
-			(void)out.write(png->data(), png->size());
-		}
-		auto pixelData = extractor->getPixelAddresses();
-		writer->writeFrame(0, (const uint8_t* const*)&pixelData);
+		SkFILEWStream out(snapshotPath.c_str());
+		auto png = extractor->getSkData();
+		(void)out.write(png->data(), png->size());
 	}
 
-
-	for (int i = 1; i < totalFrames; i++)
+	for (int loops = 0; loops < numLoops; loops++)
 	{
-		extractor->advanceFrame();
-		auto pixelData = extractor->getPixelAddresses();
-		writer->writeFrame(i, (const uint8_t* const*)&pixelData);
+		// Reset the animation time to the start
+		extractor->restart();
+		for (int i = 0; i < totalFrames; i++)
+		{
+			extractor->advanceFrame();
+			auto pixelData = extractor->getPixelAddresses();
+			int frameNumber = loops * totalFrames + i;
+			writer->writeFrame(frameNumber, (const uint8_t* const*)&pixelData);
+		}
 	}
 
 	writer->finalize();

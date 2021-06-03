@@ -40,6 +40,7 @@ public:
 	int totalFrames() const;
 	float fps() const;
 	void advanceFrame() const;
+	void restart() const;
 	const void* getPixelAddresses() const;
 	sk_sp<SkData> getSkData() const;
 
