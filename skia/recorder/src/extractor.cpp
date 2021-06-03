@@ -60,14 +60,12 @@ int RiveFrameExtractor::height() const { return m_Height; };
 float RiveFrameExtractor::fps() const { return m_Fps; };
 int RiveFrameExtractor::totalFrames() const
 {
-	int min_frames = m_MinDuration * fps();
-	int max_frames = m_MaxDuration * fps();
+	int min_frames = m_MinDuration * m_Fps;
+	int max_frames = m_MaxDuration * m_Fps;
 
-	int startFrame =
-	    m_Animation->enableWorkArea() ? m_Animation->workStart() : 0;
-	int endFrame = m_Animation->enableWorkArea() ? m_Animation->workEnd()
-	                                             : m_Animation->duration();
-	int animationFrames = endFrame - startFrame;
+	int animationFps = m_Animation->fps();
+	int duration = m_Animation->durationSeconds() * animationFps;
+	int animationFrames = duration;
 	int totalFrames = animationFrames;
 
 	// TODO: combine those two into one function
