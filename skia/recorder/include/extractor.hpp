@@ -35,29 +35,30 @@ public:
 	                   float fps = 0);
 	~RiveFrameExtractor();
 
-	int width();
-	int height();
-	int totalFrames();
-	float fps();
-	void advanceFrame();
-	const void* getPixelAddresses();
-	sk_sp<SkData> getSkData();
+	int width() const;
+	int height() const;
+	int totalFrames() const;
+	float fps() const;
+	void advanceFrame() const;
+	const void* getPixelAddresses() const;
+	sk_sp<SkData> getSkData() const;
 
 private:
-	int _width, _height, _min_duration, _max_duration;
-	rive::File* riveFile;
-	float ifps, _fps;
-	sk_sp<SkImage> getWaterMark(const char* watermark_name);
-	rive::File* getRiveFile(const char* path);
-	rive::Artboard* getArtboard(const char* artboard_name);
-	rive::LinearAnimation* getAnimation(const char* artboard_name);
-	rive::Artboard* artboard;
-	rive::LinearAnimation* animation;
-	rive::LinearAnimationInstance* animation_instance;
-	sk_sp<SkImage> watermarkImage;
-	SkCanvas* rasterCanvas;
-	sk_sp<SkSurface> rasterSurface;
-	sk_sp<SkImage> getSnapshot();
+	int m_Width, m_Height, m_MinDuration, m_MaxDuration;
+	rive::File* m_RiveFile;
+	float ifps, m_Fps;
+	rive::Artboard* m_Artboard;
+	rive::LinearAnimation* m_Animation;
+	rive::LinearAnimationInstance* m_Animation_instance;
+	sk_sp<SkImage> m_WatermarkImage;
+	SkCanvas* m_RasterCanvas;
+	sk_sp<SkSurface> m_RasterSurface;
+
+	sk_sp<SkImage> getWatermark(const char* watermark_name) const;
+	rive::File* getRiveFile(const char* path) const;
+	rive::Artboard* getArtboard(const char* artboard_name) const;
+	rive::LinearAnimation* getAnimation(const char* artboard_name) const;
+	sk_sp<SkImage> getSnapshot() const;
 	void initializeDimensions(int width,
 	                          int height,
 	                          int small_extent_target,

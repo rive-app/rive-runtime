@@ -27,51 +27,71 @@ RiveFrameExtractor::RiveFrameExtractor(const char* path,
                                        int max_duration,
                                        float fps)
 {
-	_min_duration = min_duration;
-	_max_duration = max_duration;
-	riveFile = getRiveFile(path);
-	artboard = getArtboard(artboard_name);
-	animation = getAnimation(animation_name);
-	animation_instance = new rive::LinearAnimationInstance(animation);
-	watermarkImage = getWaterMark(watermark_name);
+	m_MinDuration = min_duration;
+	m_MaxDuration = max_duration;
+	m_RiveFile = getRiveFile(path);
+	m_Artboard = getArtboard(artboard_name);
+	m_Animation = getAnimation(animation_name);
+	m_Animation_instance = new rive::LinearAnimationInstance(m_Animation);
+	m_WatermarkImage = getWatermark(watermark_name);
 	initializeDimensions(
 	    width, height, small_extent_target, max_width, max_height);
-	rasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-	    _width, _height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
-	rasterCanvas = rasterSurface->getCanvas();
-	_fps = valueOrDefault(fps, animation->fps());
-	ifps = 1.0 / _fps;
+	m_RasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
+	    m_Width, m_Height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
+	m_RasterCanvas = m_RasterSurface->getCanvas();
+	m_Fps = valueOrDefault(fps, m_Animation->fps());
+	ifps = 1.0 / m_Fps;
 };
 
 RiveFrameExtractor::~RiveFrameExtractor()
 {
-	if (animation_instance)
+	if (m_Animation_instance)
 	{
-		delete animation_instance;
+		delete m_Animation_instance;
 	}
-	if (riveFile)
+	if (m_RiveFile)
 	{
-		delete riveFile;
+		delete m_RiveFile;
 	}
 }
 
-int RiveFrameExtractor::width() { return _width; };
-int RiveFrameExtractor::height() { return _height; };
-float RiveFrameExtractor::fps() { return _fps; };
-int RiveFrameExtractor::totalFrames()
+int RiveFrameExtractor::width() const { return m_Width; };
+int RiveFrameExtractor::height() const { return m_Height; };
+float RiveFrameExtractor::fps() const { return m_Fps; };
+int RiveFrameExtractor::totalFrames() const
 {
-	int min_frames = _min_duration * fps();
-	int max_frames = _max_duration * fps();
+	int min_frames = m_MinDuration * fps();
+	int max_frames = m_MaxDuration * fps();
 
-	int startFrame = animation->enableWorkArea() ? animation->workStart() : 0;
-	int endFrame = animation->enableWorkArea() ? animation->workEnd()
-	                                           : animation->duration();
-
+	int startFrame =
+	    m_Animation->enableWorkArea() ? m_Animation->workStart() : 0;
+	int endFrame = m_Animation->enableWorkArea() ? m_Animation->workEnd()
+	                                             : m_Animation->duration();
+	auto letsee = m_Animation->durationSeconds() * m_Fps;
 	int animationFrames = endFrame - startFrame;
 	int totalFrames = animationFrames;
 
+	/**
+	 * Examples:
+	 * a) looping:
+	 * 	- fps: 30
+	 * 	- duration: 15 frames (0.5s)
+	 * 	- min_frames: 0
+	 * 	- max_frames: 0
+	 * b) looping:
+	 * 	- fps: 30
+	 * 	- duration: 15 frames (0.5s)
+	 * 	- min duration: 2s (2 * 30 = 60 frames)
+	 * 	- max duration: 5s (5 * 30 = 150 frames)
+	 * c) ping-pong:
+	 * 	- fps: 30
+	 * 	- duration: 300 frames (10s)
+	 * 	- min duration: 2s (2 * 30 = 60 frames)
+	 * 	- max duration: 5s (5 * 30 = 150 frames)
+	 */
+
 	// TODO: combine those two into one function
-	switch (animation->loop())
+	switch (m_Animation->loop())
 	{
 		case rive::Loop::pingPong:
 			animationFrames *= 2;
@@ -115,41 +135,42 @@ void RiveFrameExtractor::initializeDimensions(int width,
                                               int max_height)
 {
 	// Take the width & height from user input, or from the provided artboard
-	_width = valueOrDefault(width, artboard->width());
-	_height = valueOrDefault(height, artboard->height());
+	m_Width = valueOrDefault(width, m_Artboard->width());
+	m_Height = valueOrDefault(height, m_Artboard->height());
 
 	// if we have a target value for whichever extent is smaller, lets scale to
 	// that.
 	if (small_extent_target != 0)
 	{
-		if (_width < _height)
+		if (m_Width < m_Height)
 		{
-			scale(&_width, small_extent_target, &_height);
+			scale(&m_Width, small_extent_target, &m_Height);
 		}
 		else
 		{
-			scale(&_height, small_extent_target, &_width);
+			scale(&m_Height, small_extent_target, &m_Width);
 		}
 	}
 
 	// if we have a max height, lets scale down to that
-	if (max_height != 0 && max_height < _height)
+	if (max_height != 0 && max_height < m_Height)
 	{
-		scale(&_height, max_height, &_width);
+		scale(&m_Height, max_height, &m_Width);
 	}
 
 	// if we have a max width, lets scale down to that
-	if (max_width != 0 && max_width < _width)
+	if (max_width != 0 && max_width < m_Width)
 	{
-		scale(&_width, max_width, &_height);
+		scale(&m_Width, max_width, &m_Height);
 	}
 
 	// We're sticking with 2's right now. so you know it is what it is.
-	_width = nextMultipleOf(_width, 2);
-	_height = nextMultipleOf(_height, 2);
+	m_Width = nextMultipleOf(m_Width, 2);
+	m_Height = nextMultipleOf(m_Height, 2);
 }
 
-sk_sp<SkImage> RiveFrameExtractor::getWaterMark(const char* watermark_name)
+sk_sp<SkImage>
+RiveFrameExtractor::getWatermark(const char* watermark_name) const
 {
 	// Init skia surfaces to render to.
 	sk_sp<SkImage> watermarkImage;
@@ -169,7 +190,7 @@ sk_sp<SkImage> RiveFrameExtractor::getWaterMark(const char* watermark_name)
 	return watermarkImage;
 }
 
-rive::File* RiveFrameExtractor::getRiveFile(const char* path)
+rive::File* RiveFrameExtractor::getRiveFile(const char* path) const
 {
 	FILE* fp = fopen(path, "r");
 
@@ -208,7 +229,7 @@ rive::File* RiveFrameExtractor::getRiveFile(const char* path)
 	return file;
 }
 
-rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name)
+rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name) const
 {
 	// Figure out which artboard to use.
 	rive::Artboard* artboard;
@@ -219,7 +240,7 @@ rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name)
 	//
 	if (artboard_name != NULL && artboard_name[0] != '\0')
 	{
-		if ((artboard = riveFile->artboard(artboard_name)) == nullptr)
+		if ((artboard = m_RiveFile->artboard(artboard_name)) == nullptr)
 		{
 			throw std::invalid_argument(string_format(
 			    "File doesn't contain an artboard named %s.", artboard_name));
@@ -227,7 +248,7 @@ rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name)
 	}
 	else
 	{
-		artboard = riveFile->artboard();
+		artboard = m_RiveFile->artboard();
 		if (artboard == nullptr)
 		{
 			throw std::invalid_argument(string_format(
@@ -238,13 +259,13 @@ rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name)
 }
 
 rive::LinearAnimation*
-RiveFrameExtractor::getAnimation(const char* animation_name)
+RiveFrameExtractor::getAnimation(const char* animation_name) const
 {
 	// Figure out which animation to use.
 	rive::LinearAnimation* animation;
 	if (animation_name != NULL && animation_name[0] != '\0')
 	{
-		if ((animation = artboard->animation(animation_name)) == nullptr)
+		if ((animation = m_Artboard->animation(animation_name)) == nullptr)
 		{
 
 			fprintf(stderr,
@@ -254,7 +275,7 @@ RiveFrameExtractor::getAnimation(const char* animation_name)
 	}
 	else
 	{
-		animation = artboard->firstAnimation();
+		animation = m_Artboard->firstAnimation();
 		if (animation == nullptr)
 		{
 			throw std::invalid_argument(
@@ -264,40 +285,43 @@ RiveFrameExtractor::getAnimation(const char* animation_name)
 	return animation;
 };
 
-void RiveFrameExtractor::advanceFrame() { animation_instance->advance(ifps); }
+void RiveFrameExtractor::advanceFrame() const
+{
+	m_Animation_instance->advance(ifps);
+}
 
-sk_sp<SkImage> RiveFrameExtractor::getSnapshot()
+sk_sp<SkImage> RiveFrameExtractor::getSnapshot() const
 {
 
 	// I see a canvas and I want to paint it black.
 	// (without this transparent background dont get cleared.)
 	SkPaint paint;
-	rasterCanvas->clear(SK_ColorBLACK);
+	m_RasterCanvas->clear(SK_ColorBLACK);
 
 	// hmm "no deafault constructor exists bla bla... "
-	rive::SkiaRenderer renderer(rasterCanvas);
+	rive::SkiaRenderer renderer(m_RasterCanvas);
 
 	renderer.save();
 	renderer.align(rive::Fit::cover,
 	               rive::Alignment::center,
 	               rive::AABB(0, 0, width(), height()),
-	               artboard->bounds());
-	animation_instance->apply(artboard);
-	artboard->advance(0.0f);
-	artboard->draw(&renderer);
+	               m_Artboard->bounds());
+	m_Animation_instance->apply(m_Artboard);
+	m_Artboard->advance(0.0f);
+	m_Artboard->draw(&renderer);
 	renderer.restore();
-	if (watermarkImage)
+	if (m_WatermarkImage)
 	{
 		SkPaint watermarkPaint;
 		watermarkPaint.setBlendMode(SkBlendMode::kDifference);
-		rasterCanvas->drawImage(watermarkImage,
-		                        width() - watermarkImage->width() - 50,
-		                        height() - watermarkImage->height() - 50,
-		                        &watermarkPaint);
+		m_RasterCanvas->drawImage(m_WatermarkImage,
+		                          width() - m_WatermarkImage->width() - 50,
+		                          height() - m_WatermarkImage->height() - 50,
+		                          &watermarkPaint);
 	}
 
 	// After drawing the frame, grab the raw image data.
-	sk_sp<SkImage> img(rasterSurface->makeImageSnapshot());
+	sk_sp<SkImage> img(m_RasterSurface->makeImageSnapshot());
 	if (!img)
 	{
 		throw std::invalid_argument(string_format("Cant make a snapshot."));
@@ -305,7 +329,7 @@ sk_sp<SkImage> RiveFrameExtractor::getSnapshot()
 	return img;
 }
 
-const void* RiveFrameExtractor::getPixelAddresses()
+const void* RiveFrameExtractor::getPixelAddresses() const
 {
 	auto img = getSnapshot();
 	SkPixmap pixels;
@@ -320,7 +344,7 @@ const void* RiveFrameExtractor::getPixelAddresses()
 	return pixels.addr(0, 0);
 };
 
-sk_sp<SkData> RiveFrameExtractor::getSkData()
+sk_sp<SkData> RiveFrameExtractor::getSkData() const
 {
 	auto img = getSnapshot();
 	sk_sp<SkData> png(img->encodeToData());
