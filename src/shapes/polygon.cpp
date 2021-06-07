@@ -7,13 +7,7 @@ using namespace rive;
 
 Polygon::Polygon() {}
 
-Polygon::~Polygon()
-{
-	for (auto vertex : m_Vertices)
-	{
-		delete vertex;
-	}
-}
+Polygon::~Polygon() {}
 
 void Polygon::cornerRadiusChanged() { markPathDirty(); }
 
