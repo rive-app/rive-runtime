@@ -17,6 +17,7 @@ namespace rive
 		RenderPath* m_RenderPath = nullptr;
 
 	public:
+		~ClippingShape();
 		Node* source() const { return m_Source; }
 		const std::vector<Shape*>& shapes() const { return m_Shapes; }
 		StatusCode onAddedClean(CoreContext* context) override;

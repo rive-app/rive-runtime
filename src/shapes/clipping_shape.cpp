@@ -105,3 +105,5 @@ void ClippingShape::update(ComponentDirt value)
 		}
 	}
 }
+
+ClippingShape::~ClippingShape() { delete m_RenderPath; }
