@@ -9,69 +9,69 @@ Archive::Archive(const std::string& archive_name)
 	{
 		zip_error_t zip_error;
 		zip_error_init_with_code(&zip_error, err);
-		std::string err_output("Failed to open output file test.zip: ");
+		std::string err_output("[Archive::Archive()] zip_open failed:\n\t");
 		err_output += zip_error_strerror(&zip_error);
 		throw std::runtime_error(err_output);
 	}
 }
 
+// If this Archive hasn't been [finalize()]'d, it'll discard its contents.
 Archive::~Archive()
 {
 	if (zip_archive != nullptr)
 	{
-		//  The zip_close() function writes any changes made to archive to disk.
-		// If archive contains no files, the file is completely removed (no
-		// empty archive is written). If successful, archive is freed. Otherwise
-		// archive is left unchanged and must still be freed.
-		std::cout << "Outtahere!" << std::endl;
-		int err = zip_close(zip_archive);
-		if (err < 0)
-		{
-			std::cout << "Couldn't close zip, discarding." +
-			                 std::string(zip_strerror(zip_archive))
-			          << std::endl;
-			zip_discard(zip_archive);
-		}
+		zip_discard(zip_archive);
+		zip_archive = nullptr;
 	}
 }
 
+// Closes the stream and saves the contents to disk if the archive is not empty.
+void Archive::finalize()
+{
+	if (zip_close(zip_archive) < 0)
+	{
+		throw std::runtime_error("[Archive::finalize()] close failed:\n\t" +
+		                         std::string(zip_strerror(zip_archive)));
+	}
+	else
+	{
+		zip_archive = nullptr;
+	}
+}
+
+// Adds a buffer [bytes] in [zip_archive] with name [filename]
 int Archive::add_buffer(const std::string& filename,
                         const std::vector<char>& bytes) const
 {
-
+	if (zip_archive == nullptr)
+	{
+		throw std::runtime_error("[Archive::add_buffer()] already finalized!");
+	}
 	zip_source_t* source;
-	// std::vector<char> bytes = read_file(filepath);
-	std::cout << "Sourcing buffer!" << std::endl;
 	if ((source = zip_source_buffer(zip_archive, &bytes[0], bytes.size(), 0)) ==
 	    NULL)
 	{
-		// std::cout << "FAIL: zip_source_buffer()" << std::endl;
-		// std::cout << zip_strerror(zip_archive) << std::endl;
 		zip_source_free(source);
-		std::string err_output("Archive::add()::zip_source_buffer() failed: ");
+		std::string err_output(
+		    "Archive::add()::zip_source_buffer() failed:\n\t");
 		err_output += zip_strerror(zip_archive);
 		throw std::runtime_error(err_output);
 	}
 
-	std::cout << "Buffer sourced..!" << std::endl;
-	std::cout << "Add file?" << std::endl;
 	if (zip_file_add(zip_archive, filename.c_str(), source, 0) < 0)
 	{
-		// std::cout << "FAIL: zip_file_add()" << std::endl;
-		// std::cout << zip_strerror(zip_archive) << std::endl;
 		zip_source_free(source);
 		std::string err_output("Archive::add()::zip_file_add(" + filename +
-		                       ") failed: ");
+		                       ") failed:\n\t");
 		err_output += zip_strerror(zip_archive);
 		throw std::runtime_error(err_output);
 	}
-	std::cout << "File added!?" << std::endl;
 	return 0;
 }
 
+// Reads a file from [filepath] and returns its bytes.
 const std::vector<char> Archive::read_file(const std::string& filepath)
 {
-	std::cout << "Reading file: " << filepath << std::endl;
 	std::ifstream input(filepath, std::ios::binary);
 	input.seekg(0, input.end);
 	int size = input.tellg();
@@ -80,9 +80,6 @@ const std::vector<char> Archive::read_file(const std::string& filepath)
 	std::vector<char> bytes(size);
 	input.read(&bytes[0], size);
 	input.close();
-
-	std::cout << "Done reading " << bytes.size() << " bytes. Returning!"
-	          << std::endl;
 
 	return bytes;
 }

@@ -38,6 +38,7 @@ includedirs {
     "../../dependencies/skia/include/config",
     "../../dependencies/FFmpeg",
     "../../dependencies/x264/include",
+    "../../dependencies/libzip/lib",
     "/usr/local/include"
 }
 
@@ -68,6 +69,7 @@ links {
     "VideoToolbox.framework",
     "x264", 
     "z",
+    "zip"
 }
 
 libdirs {
@@ -80,6 +82,7 @@ libdirs {
     "../../dependencies/x264/lib",
     "../../dependencies/glfw_build/src",
     "../../dependencies/skia/out/Static",
+    "../../dependencies/libzip_build/lib",
     "../../renderer/build/bin/%{cfg.buildcfg}",
     "/usr/local/lib"
 }
