@@ -28,7 +28,7 @@ TEST_CASE("Empty Archive doesn't create a file")
 {
 	std::string archive_location("./static/archive_test.zip");
 	Archive archive = Archive(archive_location);
-	
+
 	archive.finalize();
 	archive.~Archive();
 
@@ -45,6 +45,7 @@ TEST_CASE("Test Archive file creation")
 	std::string archive_location("./static/archive_test.zip");
 	Archive* archive = new Archive(archive_location);
 	archive->add_buffer("buffer.riv", file_bytes);
+	REQUIRE(!archive->is_empty());
 	archive->finalize();
 	delete archive;
 

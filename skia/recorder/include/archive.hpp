@@ -14,6 +14,7 @@ public:
 	static const std::vector<char> read_file(const std::string& filepath);
 	int add_buffer(const std::string& filename,
 	               const std::vector<char>& bytes) const;
+	bool is_empty() const;
   void finalize();
 
 private:

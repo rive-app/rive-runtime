@@ -83,3 +83,18 @@ const std::vector<char> Archive::read_file(const std::string& filepath)
 
 	return bytes;
 }
+
+bool Archive::is_empty() const
+{
+	if (zip_archive == nullptr)
+	{
+		throw std::runtime_error("[Archive::is_empty()] already finalized!");
+	}
+	int entries = zip_get_num_entries(zip_archive, 0);
+	if (entries < 0)
+	{
+		throw std::runtime_error("[Archive::is_empty()] archive is NULL?");
+	}
+
+	return entries == 0;
+}
