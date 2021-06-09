@@ -15,7 +15,6 @@
 #include "animation/animation_state_instance.hpp"
 
 using namespace rive;
-
 namespace rive
 {
 	class StateMachineLayerInstance
@@ -192,7 +191,7 @@ namespace rive
 						// Make sure we apply this state. This only returns true
 						// when it's an animation state instance.
 						auto instance = static_cast<AnimationStateInstance*>(
-						                    stateFromInstance)
+						                    m_StateFrom)
 						                    ->animationInstance();
 
 						m_HoldAnimation = instance->animation();
@@ -210,7 +209,7 @@ namespace rive
 					    m_CurrentState != nullptr)
 					{
 						auto instance = static_cast<AnimationStateInstance*>(
-						                    stateFromInstance)
+						                    m_StateFrom)
 						                    ->animationInstance();
 
 						auto spilledTime = instance->spilledTime();
