@@ -56,8 +56,11 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]")
 	REQUIRE(result == rive::ImportResult::success);
 	REQUIRE(file != nullptr);
 	REQUIRE(file->artboard() != nullptr);
+	REQUIRE(!file->artboard()->isInstance());
 
 	auto artboard = file->artboard()->instance();
+
+	REQUIRE(artboard->isInstance());
 
 	auto node = artboard->find("TopEllipse");
 	REQUIRE(node != nullptr);
