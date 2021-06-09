@@ -26,6 +26,7 @@ includedirs {
     "../../dependencies/skia/include/config",
     "../../dependencies/FFmpeg",
     "../../dependencies/x264/include",
+    "../../dependencies/libzip/lib",
     "/usr/local/include",
     "/usr/include",
 }
@@ -55,6 +56,7 @@ if os.host() == 'macosx' then
         "swscale", -- lib av format 
         "x264",
         "z",  -- lib av format 
+        "zip"
     }
 else
     links {
@@ -74,7 +76,8 @@ else
         "swscale",
         "x264",
         "z",
-        "dl"
+        "dl",
+        "zip"
     }
 end 
 
@@ -88,6 +91,7 @@ libdirs {
     "../../dependencies/FFmpeg/libswresample",
     "../../dependencies/x264/lib",
     "../../dependencies/skia/out/Static",
+    "../../dependencies/libzip_build/lib",
     "../../renderer/build/bin/%{cfg.buildcfg}",
     "/usr/local/lib",
     "/usr/lib",

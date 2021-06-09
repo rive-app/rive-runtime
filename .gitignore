@@ -68,4 +68,6 @@ skia/**/build/bin
 /skia/dependencies/glfw
 /skia/dependencies/gl3w
 /skia/dependencies/imgui
+/skia/dependencies/libzip
+/skia/dependencies/libzip_build
 /skia/viewer/imgui.ini
