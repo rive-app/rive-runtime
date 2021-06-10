@@ -5,19 +5,19 @@
 
 TEST_CASE("Read the correct number of bytes")
 {
-	auto bytes = Archive::read_file("./static/51x50.riv");
+	auto bytes = Archive::readFile("./static/51x50.riv");
 	REQUIRE(bytes.size() == 76);
 }
 
 TEST_CASE("Non-finalized Archive doesnt create zip")
 {
-	auto file_bytes = Archive::read_file("./static/51x50.riv");
+	auto file_bytes = Archive::readFile("./static/51x50.riv");
 	std::string archive_location("./static/archive_test.zip");
 	Archive* archive = new Archive(archive_location);
-	archive->add_buffer("buffer.riv", file_bytes);
+	archive->addBuffer("buffer.riv", file_bytes);
 	delete archive;
 
-	zip* zip_ptr_dealloc = archive->zip_archive;
+	zip* zip_ptr_dealloc = archive->m_zipArchive;
 	REQUIRE(zip_ptr_dealloc == nullptr);
 
 	std::ifstream infile(archive_location);
@@ -32,7 +32,7 @@ TEST_CASE("Empty Archive doesn't create a file")
 	arc->finalize();
 	delete arc;
 
-	zip* zip_ptr_dealloc = arc->zip_archive;
+	zip* zip_ptr_dealloc = arc->m_zipArchive;
 	REQUIRE(zip_ptr_dealloc == nullptr);
 
 	std::ifstream infile(archive_location);
@@ -41,15 +41,15 @@ TEST_CASE("Empty Archive doesn't create a file")
 
 TEST_CASE("Test Archive file creation")
 {
-	auto file_bytes = Archive::read_file("./static/51x50.riv");
+	auto file_bytes = Archive::readFile("./static/51x50.riv");
 	std::string archive_location("./static/archive_test.zip");
 	Archive* archive = new Archive(archive_location);
-	archive->add_buffer("buffer.riv", file_bytes);
-	REQUIRE(!archive->is_empty());
+	archive->addBuffer("buffer.riv", file_bytes);
+	REQUIRE(!archive->isEmpty());
 	archive->finalize();
 	delete archive;
 
-	zip* zip_ptr_dealloc = archive->zip_archive;
+	zip* zip_ptr_dealloc = archive->m_zipArchive;
 	REQUIRE(zip_ptr_dealloc == nullptr);
 
 	std::ifstream infile(archive_location);

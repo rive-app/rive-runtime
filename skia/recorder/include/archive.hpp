@@ -11,12 +11,12 @@ public:
 	Archive(const std::string& archive_name);
 	~Archive();
 
-	static const std::vector<char> read_file(const std::string& filepath);
-	int add_buffer(const std::string& filename,
+	static const std::vector<char> readFile(const std::string& filepath);
+	int addBuffer(const std::string& filename,
 	               const std::vector<char>& bytes) const;
-	bool is_empty() const;
+	bool isEmpty() const;
   void finalize();
 
 private:
-	zip* zip_archive;
+	zip* m_zipArchive;
 };
