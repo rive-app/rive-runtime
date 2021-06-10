@@ -38,41 +38,8 @@ public:
 	int height() const;
 	float fps() const;
 
-	void takeSnapshot(const std::string& snapshotPath) const
-	{
-		if (snapshotPath.empty())
-		{
-			return;
-		}
-		this->restart();
-
-		this->advanceFrame();
-		SkFILEWStream out(snapshotPath.c_str());
-		auto png = this->getSkData();
-		(void)out.write(png->data(), png->size());
-
-		this->restart();
-	}
-
-	void extractVideo(int numLoops, MovieWriter& writer) const
-	{
-		writer.writeHeader();
-		int totalFrames = this->totalFrames();
-		for (int loops = 0; loops < numLoops; loops++)
-		{
-			// Reset the animation time to the start
-			this->restart();
-			for (int i = 0; i < totalFrames; i++)
-			{
-				this->advanceFrame();
-				auto pixelData = this->getPixelAddresses();
-				int frameNumber = loops * totalFrames + i;
-				writer.writeFrame(frameNumber,
-				                   (const uint8_t* const*)&pixelData);
-			}
-		}
-		writer.finalize();
-	}
+	void takeSnapshot(const std::string& snapshotPath) const;
+	void extractVideo(int numLoops, MovieWriter& writer) const;
 
 private:
 	int m_Width, m_Height, m_MinDuration, m_MaxDuration;

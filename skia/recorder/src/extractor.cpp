@@ -340,3 +340,40 @@ sk_sp<SkData> RiveFrameExtractor::getSkData() const
 	// as Skia only wants you to use that with 8 bit surfaces).
 	return png;
 };
+
+void RiveFrameExtractor::extractVideo(int numLoops, MovieWriter& writer) const
+{
+	writer.writeHeader();
+	int totalFrames = this->totalFrames();
+	for (int loops = 0; loops < numLoops; loops++)
+	{
+		// Reset the animation time to the start
+		this->restart();
+		for (int i = 0; i < totalFrames; i++)
+		{
+			this->advanceFrame();
+			auto pixelData = this->getPixelAddresses();
+			int frameNumber = loops * totalFrames + i;
+			writer.writeFrame(frameNumber, (const uint8_t* const*)&pixelData);
+		}
+	}
+	writer.finalize();
+}
+
+void RiveFrameExtractor::takeSnapshot(const std::string& snapshotPath) const
+{
+	if (snapshotPath.empty())
+	{
+		return;
+	}
+
+	this->restart();
+
+	this->advanceFrame();
+	SkFILEWStream out(snapshotPath.c_str());
+	auto png = this->getSkData();
+	(void)out.write(png->data(), png->size());
+
+	// Rewind back to the start.
+	this->restart();
+}
