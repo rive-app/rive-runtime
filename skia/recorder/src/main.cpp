@@ -1,24 +1,6 @@
-#include "SkData.h"
-#include "SkImage.h"
-#include "SkStream.h"
-#include "SkSurface.h"
-#include "animation/animation.hpp"
-#include "animation/linear_animation.hpp"
 #include "args.hxx"
-#include "artboard.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
-#include "math/aabb.hpp"
-#include "skia_renderer.hpp"
 #include "extractor.hpp"
 #include "writer.hpp"
-#include <cstdio>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <stdio.h>
-#include <string>
 
 extern "C"
 {
@@ -145,73 +127,33 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	RiveFrameExtractor* extractor;
 	try
 	{
-		extractor = new RiveFrameExtractor(args::get(source).c_str(),
-		                                   args::get(artboardOption).c_str(),
-		                                   args::get(animationOption).c_str(),
-		                                   args::get(watermarkOption).c_str(),
-		                                   args::get(width),
-		                                   args::get(height),
-		                                   args::get(small_extent_target),
-		                                   args::get(max_width),
-		                                   args::get(max_height),
-		                                   args::get(min_duration),
-		                                   args::get(max_duration),
-		                                   args::get(fps));
+		RiveFrameExtractor extractor(args::get(source).c_str(),
+		                             args::get(artboardOption).c_str(),
+		                             args::get(animationOption).c_str(),
+		                             args::get(watermarkOption).c_str(),
+		                             args::get(width),
+		                             args::get(height),
+		                             args::get(small_extent_target),
+		                             args::get(max_width),
+		                             args::get(max_height),
+		                             args::get(min_duration),
+		                             args::get(max_duration),
+		                             args::get(fps));
+		MovieWriter writer(args::get(destination).c_str(),
+		                   extractor.width(),
+		                   extractor.height(),
+		                   extractor.fps(),
+		                   args::get(bitrate));
+		extractor.takeSnapshot(args::get(snapshot_path));
+		extractor.extractVideo(args::get(num_loops), writer);
 	}
 	catch (const std::invalid_argument e)
 	{
 		std::cout << e.what();
 		return 1;
 	}
-
-	MovieWriter* writer;
-	try
-	{
-		writer = new MovieWriter(args::get(destination).c_str(),
-		                         extractor->width(),
-		                         extractor->height(),
-		                         extractor->fps(),
-		                         args::get(bitrate));
-	}
-	catch (const std::invalid_argument e)
-	{
-		delete extractor;
-		std::cout << e.what();
-		return 1;
-	}
-
-	int totalFrames = extractor->totalFrames();
-	std::string snapshotPath = args::get(snapshot_path);
-	int numLoops = args::get(num_loops);
-	writer->writeHeader();
-
-	if (!snapshotPath.empty())
-	{
-		extractor->advanceFrame();
-		SkFILEWStream out(snapshotPath.c_str());
-		auto png = extractor->getSkData();
-		(void)out.write(png->data(), png->size());
-	}
-
-	for (int loops = 0; loops < numLoops; loops++)
-	{
-		// Reset the animation time to the start
-		extractor->restart();
-		for (int i = 0; i < totalFrames; i++)
-		{
-			extractor->advanceFrame();
-			auto pixelData = extractor->getPixelAddresses();
-			int frameNumber = loops * totalFrames + i;
-			writer->writeFrame(frameNumber, (const uint8_t* const*)&pixelData);
-		}
-	}
-
-	writer->finalize();
-	delete writer;
-	delete extractor;
 }
 
 #endif
