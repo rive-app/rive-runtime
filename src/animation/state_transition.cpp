@@ -161,7 +161,16 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
 			auto exitTime = exitTimeSeconds(stateFrom->state());
 			auto animationFrom = exitAnimation->animation();
 			auto duration = animationFrom->durationSeconds();
-			if (exitTime <= duration)
+
+			// TODO: there are some considerations to have when exit time is combined with another condition (like trigger)
+			//   - not sure how to get this to make sense with pingPing animations
+			//   - also if exit time is, say 50% on a loop, this will be happy to fire
+			//       - when time is anywhere in 50%-100%, 150%-200%. as opposed to just at 50%
+			//       .... makes you wonder if we need some kind of exit after/exit before time 
+			//       .... but i suspect that will introduce some more issues?
+
+			// There's only one iteration in oneShot, 
+			if (exitTime <= duration && animationFrom->loop() !=Loop::oneShot)
 			{
 				// Get exit time relative to the loop lastTime was in.
 				exitTime += std::floor(lastTime / duration) * duration;
