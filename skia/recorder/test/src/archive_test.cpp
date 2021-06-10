@@ -27,12 +27,12 @@ TEST_CASE("Non-finalized Archive doesnt create zip")
 TEST_CASE("Empty Archive doesn't create a file")
 {
 	std::string archive_location("./static/archive_test.zip");
-	Archive archive = Archive(archive_location);
+	auto arc = new Archive(archive_location);
 
-	archive.finalize();
-	archive.~Archive();
+	arc->finalize();
+	delete arc;
 
-	zip* zip_ptr_dealloc = archive.zip_archive;
+	zip* zip_ptr_dealloc = arc->zip_archive;
 	REQUIRE(zip_ptr_dealloc == nullptr);
 
 	std::ifstream infile(archive_location);
