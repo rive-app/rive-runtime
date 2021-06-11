@@ -116,7 +116,7 @@ void LinearGradient::makeGradient(const Vec2D& start, const Vec2D& end)
 void LinearGradient::markGradientDirty() { addDirt(ComponentDirt::Paint); }
 void LinearGradient::markStopsDirty()
 {
-	addDirt(ComponentDirt::Paint & ComponentDirt::Stops);
+	addDirt(ComponentDirt::Paint | ComponentDirt::Stops);
 }
 
 void LinearGradient::renderOpacityChanged() { markGradientDirty(); }
