@@ -16,9 +16,21 @@ RiveFrameExtractor* makeExtractor(RecorderArguments& args)
 			    "PNG seq not supported yet! COMING SOON!");
 		// return new PngExtractor();
 		case ExtractorType::h264:
-			return new VideoExtractor(args);
 		default:
-			return new VideoExtractor(args);
+			return new VideoExtractor(args.source().c_str(),
+			                          args.artboard().c_str(),
+			                          args.animation().c_str(),
+			                          args.watermark().c_str(),
+			                          args.destination().c_str(),
+			                          args.width(),
+			                          args.height(),
+			                          args.smallExtentTarget(),
+			                          args.maxWidth(),
+			                          args.maxHeight(),
+			                          args.minDuration(),
+			                          args.maxDuration(),
+			                          args.fps(),
+			                          args.bitrate());
 	}
 }
 

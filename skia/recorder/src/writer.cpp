@@ -1,7 +1,7 @@
 #include "writer.hpp"
 
 MovieWriter::MovieWriter(
-    const char* _destination, int _width, int _height, int _fps, int _bitrate)
+    std::string _destination, int _width, int _height, int _fps, int _bitrate)
 {
 	m_DestinationPath = _destination;
 	m_Width = _width;
@@ -13,14 +13,15 @@ MovieWriter::MovieWriter(
 
 void MovieWriter::initialize()
 {
+	auto destPath = m_DestinationPath.c_str();
 	// if init fails all this stuff needs cleaning up?
 
 	// Try to guess the output format from the name.
-	m_OFormat = av_guess_format(nullptr, m_DestinationPath, nullptr);
+	m_OFormat = av_guess_format(nullptr, destPath, nullptr);
 	if (!m_OFormat)
 	{
 		throw std::invalid_argument(string_format(
-		    "Failed to determine output format for %s.\n", m_DestinationPath));
+		    "Failed to determine output format for %s.\n", destPath));
 	}
 
 	// Get a context for the format to work with (I guess the OutputFormat
@@ -28,11 +29,11 @@ void MovieWriter::initialize()
 	// run of it).
 	m_OFctx = nullptr;
 	// TODO: there's probably cleanup to do here.
-	if (avformat_alloc_output_context2(
-	        &m_OFctx, m_OFormat, nullptr, m_DestinationPath) < 0)
+	if (avformat_alloc_output_context2(&m_OFctx, m_OFormat, nullptr, destPath) <
+	    0)
 	{
-		throw std::invalid_argument(string_format(
-		    "Failed to allocate output context %s\n.", m_DestinationPath));
+		throw std::invalid_argument(
+		    string_format("Failed to allocate output context %s\n.", destPath));
 	}
 	// Check that we have the necessary codec for the format we want to
 	// encode (I think most formats can have multiple codecs so this
@@ -41,15 +42,15 @@ void MovieWriter::initialize()
 	if (!m_Codec)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to find codec for %s\n.", m_DestinationPath));
+		    string_format("Failed to find codec for %s\n.", destPath));
 	}
 
 	// Allocate the stream we're going to be writing to.
 	m_VideoStream = avformat_new_stream(m_OFctx, m_Codec);
 	if (!m_VideoStream)
 	{
-		throw std::invalid_argument(string_format(
-		    "Failed to create a stream for %s\n.", m_DestinationPath));
+		throw std::invalid_argument(
+		    string_format("Failed to create a stream for %s\n.", destPath));
 	}
 
 	// Similar to AVOutputFormat and AVFormatContext, the codec needs an
@@ -60,7 +61,7 @@ void MovieWriter::initialize()
 		throw std::invalid_argument(
 		    string_format("Failed to allocate codec context for "
 		                  "%s\n.",
-		                  m_DestinationPath));
+		                  destPath));
 	}
 
 	// default to our friend yuv, mp4 is basically locked onto this.
@@ -137,7 +138,7 @@ void MovieWriter::initialize()
 	if (avcodec_open2(m_Cctx, m_Codec, &codec_options) < 0)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to open codec %i\n", m_DestinationPath));
+		    string_format("Failed to open codec %i\n", destPath));
 	}
 	// initialise_av_frame();
 }
@@ -160,14 +161,14 @@ void MovieWriter::initialise_av_frame()
 
 void MovieWriter::writeHeader()
 {
+	auto destPath = m_DestinationPath.c_str();
 	// Finally open the file! Interesting step here, I guess some files can
 	// just record to memory or something, so they don't actually need a
 	// file to open io.
 	if (!(m_OFormat->flags & AVFMT_NOFILE))
 	{
 		int err;
-		if ((err = avio_open(
-		         &m_OFctx->pb, m_DestinationPath, AVIO_FLAG_WRITE)) < 0)
+		if ((err = avio_open(&m_OFctx->pb, destPath, AVIO_FLAG_WRITE)) < 0)
 		{
 			throw std::invalid_argument(
 			    string_format("Failed to open file %s with error %i\n", err));
@@ -178,11 +179,11 @@ void MovieWriter::writeHeader()
 	if (avformat_write_header(m_OFctx, NULL) < 0)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to write header %i\n", m_DestinationPath));
+		    string_format("Failed to write header %i\n", destPath));
 	}
 
 	// Write the format into the header...
-	av_dump_format(m_OFctx, 0, m_DestinationPath, 1);
+	av_dump_format(m_OFctx, 0, destPath, 1);
 
 	// Init a software scaler to do the conversion.
 	m_SwsCtx = sws_getContext(m_Width,

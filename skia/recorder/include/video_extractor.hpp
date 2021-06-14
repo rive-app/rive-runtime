@@ -8,21 +8,21 @@
 class VideoExtractor : public RiveFrameExtractor
 {
 public:
-	VideoExtractor(RecorderArguments& args)
+	VideoExtractor(std::string path,
+	               std::string artboardName,
+	               std::string animationName,
+	               std::string watermark,
+	               std::string destination,
+	               int width = 0,
+	               int height = 0,
+	               int smallExtentTarget = 0,
+	               int maxWidth = 0,
+	               int maxHeight = 0,
+	               int minDuration = 0,
+	               int maxDuration = 0,
+	               int fps = 0,
+	               int bitrate = 0)
 	{
-		auto path = args.source();
-		auto artboardName = args.artboard();
-		auto animationName = args.animation();
-		auto watermark = args.watermark();
-		auto width = args.width();
-		auto height = args.height();
-		auto smallExtentTarget = args.smallExtentTarget();
-		auto maxWidth = args.maxWidth();
-		auto maxHeight = args.maxHeight();
-		auto minDuration = args.minDuration();
-		auto maxDuration = args.maxDuration();
-		auto fps = args.fps();
-
 		m_MinDuration = minDuration;
 		m_MaxDuration = maxDuration;
 		m_RiveFile = getRiveFile(path.c_str());
@@ -37,9 +37,6 @@ public:
 		m_RasterCanvas = m_RasterSurface->getCanvas();
 		m_Fps = valueOrDefault(fps, m_Animation->fps());
 		m_IFps = 1.0 / m_Fps;
-
-		auto destination = args.destination().c_str();
-		auto bitrate = args.bitrate();
 
 		m_movieWriter =
 		    new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate);

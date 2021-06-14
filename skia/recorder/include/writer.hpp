@@ -36,7 +36,7 @@ extern "C"
 class MovieWriter
 {
 public:
-	MovieWriter(const char* _destination,
+	MovieWriter(std::string _destination,
 	            int _width,
 	            int _height,
 	            int _fps,
@@ -54,7 +54,7 @@ private:
 	AVCodec* m_Codec;
 	SwsContext* m_SwsCtx;
 	AVPixelFormat m_PixelFormat;
-	const char* m_DestinationPath;
+	std::string m_DestinationPath;
 	int m_Width, m_Height, m_Fps, m_Bitrate;
 
 	void initialize();
