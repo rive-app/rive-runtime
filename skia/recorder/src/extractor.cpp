@@ -1,18 +1,6 @@
 #include "extractor.hpp"
 #include "video_extractor.hpp"
 
-RiveFrameExtractor::~RiveFrameExtractor()
-{
-	if (m_Animation_instance)
-	{
-		delete m_Animation_instance;
-	}
-	if (m_RiveFile)
-	{
-		delete m_RiveFile;
-	}
-}
-
 int RiveFrameExtractor::width() const { return m_Width; };
 int RiveFrameExtractor::height() const { return m_Height; };
 float RiveFrameExtractor::fps() const { return m_Fps; };

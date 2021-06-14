@@ -5,7 +5,7 @@
 #include "recorder_arguments.hpp"
 #include "writer.hpp"
 
-class VideoExtractor : public RiveFrameExtractor
+class VideoExtractor : public virtual RiveFrameExtractor
 {
 public:
 	VideoExtractor(std::string path,
@@ -42,10 +42,21 @@ public:
 		    new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate);
 	}
 
-	~VideoExtractor()
+	virtual ~VideoExtractor()
 	{
-		if (m_movieWriter != nullptr)
+		if (m_movieWriter)
+		{
 			delete m_movieWriter;
+		}
+    // TODO: move these in parent class.
+		if (m_Animation_instance != nullptr)
+		{
+			delete m_Animation_instance;
+		}
+		if (m_RiveFile != nullptr)
+		{
+			delete m_RiveFile;
+		}
 	}
 
 	void extractFrames(int numLoops) const override

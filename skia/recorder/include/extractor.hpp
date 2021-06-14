@@ -18,8 +18,6 @@
 class RiveFrameExtractor
 {
 public:
-	virtual ~RiveFrameExtractor();
-
 	virtual void extractFrames(int numLoops) const;
 
 	float fps() const;
