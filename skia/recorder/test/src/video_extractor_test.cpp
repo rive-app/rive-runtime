@@ -1,3 +1,7 @@
+// Expose fields/methods.
+#define private public
+#define procted public
+
 #include "catch.hpp"
 #include "extractor.hpp"
 
