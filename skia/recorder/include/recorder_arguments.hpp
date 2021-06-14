@@ -143,6 +143,7 @@ public:
 			delete m_Parser;
 	}
 
+	// TODO: support reading this as a param.
 	ExtractorType renderType() const { return ExtractorType::h264; }
 	float fps() const { return m_Fps; }
 	int bitrate() const { return m_Bitrate; }

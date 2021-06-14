@@ -21,58 +21,13 @@ public:
 	               int minDuration = 0,
 	               int maxDuration = 0,
 	               int fps = 0,
-	               int bitrate = 0)
-	{
-		m_MinDuration = minDuration;
-		m_MaxDuration = maxDuration;
-		m_RiveFile = getRiveFile(path.c_str());
-		m_Artboard = getArtboard(artboardName.c_str());
-		m_Animation = getAnimation(animationName.c_str());
-		m_Animation_instance = new rive::LinearAnimationInstance(m_Animation);
-		m_WatermarkImage = getWatermark(watermark.c_str());
-		initializeDimensions(
-		    width, height, smallExtentTarget, maxWidth, maxHeight);
-		m_RasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-		    m_Width, m_Height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
-		m_RasterCanvas = m_RasterSurface->getCanvas();
-		m_Fps = valueOrDefault(fps, m_Animation->fps());
-		m_IFps = 1.0 / m_Fps;
+	               int bitrate = 0);
+	virtual ~VideoExtractor();
 
-		m_movieWriter =
-		    new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate);
-	}
-
-	virtual ~VideoExtractor()
-	{
-		if (m_movieWriter)
-		{
-			delete m_movieWriter;
-		}
-    // TODO: move these in parent class.
-		if (m_Animation_instance != nullptr)
-		{
-			delete m_Animation_instance;
-		}
-		if (m_RiveFile != nullptr)
-		{
-			delete m_RiveFile;
-		}
-	}
-
-	void extractFrames(int numLoops) const override
-	{
-		m_movieWriter->writeHeader();
-		RiveFrameExtractor::extractFrames(numLoops);
-		m_movieWriter->finalize();
-	}
+	void extractFrames(int numLoops) const override;
 
 protected:
-	void onNextFrame(int frameNumber) const override
-	{
-		auto pixelData = this->getPixelAddresses();
-		m_movieWriter->writeFrame(frameNumber,
-		                          (const uint8_t* const*)&pixelData);
-	}
+	void onNextFrame(int frameNumber) const override;
 
 private:
 	MovieWriter* m_movieWriter;
