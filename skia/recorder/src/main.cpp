@@ -1,58 +1,35 @@
 #include "args.hxx"
-#include "extractor.hpp"
-#include "writer.hpp"
 #include "recorder_arguments.hpp"
-
-extern "C"
-{
-#include <libavcodec/avcodec.h>
-#include <libavcodec/avfft.h>
-
-#include <libavfilter/buffersink.h>
-#include <libavfilter/buffersrc.h>
-
-#include <libavformat/avformat.h>
-#include <libavformat/avio.h>
-
-#include <libavutil/channel_layout.h>
-#include <libavutil/common.h>
-#include <libavutil/file.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/mathematics.h>
-#include <libavutil/opt.h>
-#include <libavutil/pixdesc.h>
-#include <libavutil/samplefmt.h>
-#include <libavutil/time.h>
-
-#include <libswscale/swscale.h>
-}
+#include "video_extractor.hpp"
+#include "writer.hpp"
 
 #ifdef TESTING
 #else
+
+RiveFrameExtractor* makeExtractor(RecorderArguments& args)
+{
+	auto renderType = args.renderType();
+	switch (renderType)
+	{
+		case ExtractorType::pngSequence:
+			throw std::invalid_argument(
+			    "PNG seq not supported yet! COMING SOON!");
+		// return new PngExtractor();
+		case ExtractorType::h264:
+			return new VideoExtractor(args);
+		default:
+			return new VideoExtractor(args);
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	try
 	{
 		RecorderArguments args(argc, argv);
-		RiveFrameExtractor extractor(args.source().c_str(),
-		                             args.artboard().c_str(),
-		                             args.animation().c_str(),
-		                             args.watermark().c_str(),
-		                             args.width(),
-		                             args.height(),
-		                             args.smallExtentTarget(),
-		                             args.maxWidth(),
-		                             args.maxHeight(),
-		                             args.minDuration(),
-		                             args.maxDuration(),
-		                             args.fps());
-		MovieWriter writer(args.destination().c_str(),
-		                   extractor.width(),
-		                   extractor.height(),
-		                   extractor.fps(),
-		                   args.bitrate());
-		extractor.takeSnapshot(args.snapshotPath());
-		extractor.extractVideo(args.numLoops(), writer);
+		auto extractor = makeExtractor(args);
+		extractor->takeSnapshot(args.snapshotPath());
+		extractor->extractFrames(args.numLoops());
 	}
 	catch (const args::Completion& e)
 	{

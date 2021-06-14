@@ -1,47 +1,5 @@
 #include "extractor.hpp"
-
-inline int valueOrDefault(int value, int default_value)
-{
-	return value <= 0 ? default_value : value;
-}
-
-inline void scale(int* value, int targetValue, int* otherValue)
-{
-	if (*value != targetValue)
-	{
-		*otherValue = *otherValue * targetValue / *value;
-		*value = targetValue;
-	}
-}
-
-RiveFrameExtractor::RiveFrameExtractor(const char* path,
-                                       const char* artboard_name,
-                                       const char* animation_name,
-                                       const char* watermark_name,
-                                       int width,
-                                       int height,
-                                       int small_extent_target,
-                                       int max_width,
-                                       int max_height,
-                                       int min_duration,
-                                       int max_duration,
-                                       float fps)
-{
-	m_MinDuration = min_duration;
-	m_MaxDuration = max_duration;
-	m_RiveFile = getRiveFile(path);
-	m_Artboard = getArtboard(artboard_name);
-	m_Animation = getAnimation(animation_name);
-	m_Animation_instance = new rive::LinearAnimationInstance(m_Animation);
-	m_WatermarkImage = getWatermark(watermark_name);
-	initializeDimensions(
-	    width, height, small_extent_target, max_width, max_height);
-	m_RasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-	    m_Width, m_Height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
-	m_RasterCanvas = m_RasterSurface->getCanvas();
-	m_Fps = valueOrDefault(fps, m_Animation->fps());
-	ifps = 1.0 / m_Fps;
-};
+#include "video_extractor.hpp"
 
 RiveFrameExtractor::~RiveFrameExtractor()
 {
@@ -264,7 +222,7 @@ RiveFrameExtractor::getAnimation(const char* animation_name) const
 
 void RiveFrameExtractor::advanceFrame() const
 {
-	m_Animation_instance->advance(ifps);
+	m_Animation_instance->advance(m_IFps);
 }
 
 void RiveFrameExtractor::restart() const
@@ -341,9 +299,8 @@ sk_sp<SkData> RiveFrameExtractor::getSkData() const
 	return png;
 };
 
-void RiveFrameExtractor::extractVideo(int numLoops, MovieWriter& writer) const
+void RiveFrameExtractor::extractFrames(int numLoops) const
 {
-	writer.writeHeader();
 	int totalFrames = this->totalFrames();
 	for (int loops = 0; loops < numLoops; loops++)
 	{
@@ -352,12 +309,10 @@ void RiveFrameExtractor::extractVideo(int numLoops, MovieWriter& writer) const
 		for (int i = 0; i < totalFrames; i++)
 		{
 			this->advanceFrame();
-			auto pixelData = this->getPixelAddresses();
 			int frameNumber = loops * totalFrames + i;
-			writer.writeFrame(frameNumber, (const uint8_t* const*)&pixelData);
+			this->onNextFrame(frameNumber);
 		}
 	}
-	writer.finalize();
 }
 
 void RiveFrameExtractor::takeSnapshot(const std::string& snapshotPath) const

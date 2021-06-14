@@ -1,4 +1,8 @@
+#ifndef RECORDER_ARGUMENTS_HPP
+#define RECORDER_ARGUMENTS_HPP
+
 #include "args.hxx"
+#include "extractor_type.hpp"
 #include <iostream>
 
 class RecorderArguments
@@ -80,7 +84,7 @@ public:
 		    optional, "path", "destination image filename", {"snapshot-path"});
 
 		args::ValueFlag<float> fps(
-		    required, "number", "frame rate", {"f", "fps"}, 60.0);
+		    optional, "number", "frame rate", {"f", "fps"}, 60.0);
 
 		args::CompletionFlag completion(*m_Parser, {"complete"});
 		try
@@ -139,39 +143,41 @@ public:
 			delete m_Parser;
 	}
 
-	std::string source() const { return m_Source; }
-	std::string destination() const { return m_Destination; }
+	ExtractorType renderType() const { return ExtractorType::h264; }
+	float fps() const { return m_Fps; }
+	int bitrate() const { return m_Bitrate; }
+	int height() const { return m_Height; }
+	int maxDuration() const { return m_MaxDuration; }
+	int maxHeight() const { return m_MaxHeight; }
+	int maxWidth() const { return m_MaxWidth; }
+	int minDuration() const { return m_MinDuration; }
+	int numLoops() const { return m_NumLoops; }
+	int smallExtentTarget() const { return m_SmallExtentTarget; }
+	int width() const { return m_Width; }
 	std::string animation() const { return m_Animation; }
 	std::string artboard() const { return m_Artboard; }
-	std::string watermark() const { return m_Watermark; }
+	std::string destination() const { return m_Destination; }
 	std::string snapshotPath() const { return m_SnapshotPath; }
-	int width() const { return m_Width; }
-	int height() const { return m_Height; }
-	int maxWidth() const { return m_MaxWidth; }
-	int maxHeight() const { return m_MaxHeight; }
-	int smallExtentTarget() const { return m_SmallExtentTarget; }
-	int minDuration() const { return m_MinDuration; }
-	int maxDuration() const { return m_MaxDuration; }
-	int numLoops() const { return m_NumLoops; }
-	int bitrate() const { return m_Bitrate; }
-	float fps() const { return m_Fps; }
+	std::string source() const { return m_Source; }
+	std::string watermark() const { return m_Watermark; }
 
 private:
 	args::ArgumentParser* m_Parser;
-	std::string m_Source;
-	std::string m_Destination;
+	float m_Fps;
+	int m_Bitrate;
+	int m_Height;
+	int m_MaxDuration;
+	int m_MaxHeight;
+	int m_MaxWidth;
+	int m_MinDuration;
+	int m_NumLoops;
+	int m_SmallExtentTarget;
+	int m_Width;
 	std::string m_Animation;
 	std::string m_Artboard;
-	std::string m_Watermark;
+	std::string m_Destination;
 	std::string m_SnapshotPath;
-	int m_Width;
-	int m_Height;
-	int m_MaxWidth;
-	int m_MaxHeight;
-	int m_SmallExtentTarget;
-	int m_MinDuration;
-	int m_MaxDuration;
-	int m_NumLoops;
-	int m_Bitrate;
-	float m_Fps;
+	std::string m_Source;
+	std::string m_Watermark;
 };
+#endif
