@@ -1,23 +1,28 @@
-#define private public // Expose private fields/methods.
 #include "catch.hpp"
 #include "recorder_arguments.hpp"
 #include "render_format.hpp"
-#include <cstdio> // std::remove()
 
-TEST_CASE("All defaults are correct")
+TEST_CASE("Missing arguments throws ValidationError")
+{
+	const char* argsVector[] = {"rive_recorder"};
+	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
+
+	REQUIRE_THROWS_AS(new RecorderArguments(argc, argsVector),
+	                  args::ValidationError);
+}
+
+TEST_CASE("Only required arguments, rest is default")
 {
 	const char* argsVector[] = {"rive_recorder",
 	                            "-s",
 	                            "~/source/file.riv",
 	                            "-d",
-	                            "~/destination/out.mp4",
-	                            "-w"
-	                            "~/watermark.png",
-	                            "--snapshot-path",
-	                            "~/snapshot.png"};
+	                            "~/destination/out.mp4"};
 	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
 	RecorderArguments args(argc, argsVector);
 
+	REQUIRE(args.destination() == "~/destination/out.mp4");
+	REQUIRE(args.source() == "~/source/file.riv");
 	REQUIRE(args.fps() == 60);
 	REQUIRE(args.bitrate() == 0);
 	REQUIRE(args.height() == 0);
@@ -30,6 +35,8 @@ TEST_CASE("All defaults are correct")
 	REQUIRE(args.width() == 0);
 	REQUIRE(args.animation().empty());
 	REQUIRE(args.artboard().empty());
+	REQUIRE(args.snapshotPath().empty());
+	REQUIRE(args.watermark().empty());
 	REQUIRE(args.renderFormat() == RenderFormat::h264);
 }
 
