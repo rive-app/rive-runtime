@@ -36,7 +36,7 @@ extern "C"
 class MovieWriter
 {
 public:
-	MovieWriter(std::string _destination,
+	MovieWriter(const std::string& _destination,
 	            int _width,
 	            int _height,
 	            int _fps,

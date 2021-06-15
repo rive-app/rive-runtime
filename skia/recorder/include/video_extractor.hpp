@@ -5,14 +5,14 @@
 #include "recorder_arguments.hpp"
 #include "writer.hpp"
 
-class VideoExtractor : public virtual RiveFrameExtractor
+class VideoExtractor : public RiveFrameExtractor
 {
 public:
-	VideoExtractor(std::string path,
-	               std::string artboardName,
-	               std::string animationName,
-	               std::string watermark,
-	               std::string destination,
+	VideoExtractor(const std::string& path,
+	               const std::string& artboardName,
+	               const std::string& animationName,
+	               const std::string& watermark,
+	               const std::string& destination,
 	               int width = 0,
 	               int height = 0,
 	               int smallExtentTarget = 0,

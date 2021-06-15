@@ -1,9 +1,6 @@
 #include "extractor.hpp"
 #include "video_extractor.hpp"
 
-int RiveFrameExtractor::width() const { return m_Width; };
-int RiveFrameExtractor::height() const { return m_Height; };
-float RiveFrameExtractor::fps() const { return m_Fps; };
 int RiveFrameExtractor::totalFrames() const
 {
 	int min_frames = m_MinDuration * m_Fps;

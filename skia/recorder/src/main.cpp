@@ -17,11 +17,11 @@ RiveFrameExtractor* makeExtractor(RecorderArguments& args)
 		// return new PngExtractor();
 		case ExtractorType::h264:
 		default:
-			return new VideoExtractor(args.source().c_str(),
-			                          args.artboard().c_str(),
-			                          args.animation().c_str(),
-			                          args.watermark().c_str(),
-			                          args.destination().c_str(),
+			return new VideoExtractor(args.source(),
+			                          args.artboard(),
+			                          args.animation(),
+			                          args.watermark(),
+			                          args.destination(),
 			                          args.width(),
 			                          args.height(),
 			                          args.smallExtentTarget(),
@@ -39,9 +39,10 @@ int main(int argc, char* argv[])
 	try
 	{
 		RecorderArguments args(argc, argv);
-		auto extractor = makeExtractor(args);
+		RiveFrameExtractor* extractor = makeExtractor(args);
 		extractor->takeSnapshot(args.snapshotPath());
 		extractor->extractFrames(args.numLoops());
+		delete extractor;
 	}
 	catch (const args::Completion& e)
 	{
@@ -59,6 +60,8 @@ int main(int argc, char* argv[])
 	{
 		return 1;
 	}
+
+	return 0;
 }
 
 #endif

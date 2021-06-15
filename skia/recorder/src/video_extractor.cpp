@@ -1,10 +1,10 @@
 #include "video_extractor.hpp"
 
-VideoExtractor::VideoExtractor(std::string path,
-                               std::string artboardName,
-                               std::string animationName,
-                               std::string watermark,
-                               std::string destination,
+VideoExtractor::VideoExtractor(const std::string& path,
+                               const std::string& artboardName,
+                               const std::string& animationName,
+                               const std::string& watermark,
+                               const std::string& destination,
                                int width,
                                int height,
                                int smallExtentTarget,

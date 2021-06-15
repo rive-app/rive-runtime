@@ -18,11 +18,12 @@
 class RiveFrameExtractor
 {
 public:
+	virtual ~RiveFrameExtractor() {}
 	virtual void extractFrames(int numLoops) const;
 
-	float fps() const;
-	int height() const;
-	int width() const;
+	float fps() const { return m_Fps; }
+	int height() const { return m_Height; }
+	int width() const { return m_Width; }
 	void takeSnapshot(const std::string& snapshotPath) const;
 
 protected:

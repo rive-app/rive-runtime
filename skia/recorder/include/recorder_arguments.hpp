@@ -140,7 +140,9 @@ public:
 	~RecorderArguments()
 	{
 		if (m_Parser != nullptr)
+		{
 			delete m_Parser;
+		}
 	}
 
 	// TODO: support reading this as a param.
@@ -155,12 +157,12 @@ public:
 	int numLoops() const { return m_NumLoops; }
 	int smallExtentTarget() const { return m_SmallExtentTarget; }
 	int width() const { return m_Width; }
-	std::string animation() const { return m_Animation; }
-	std::string artboard() const { return m_Artboard; }
-	std::string destination() const { return m_Destination; }
-	std::string snapshotPath() const { return m_SnapshotPath; }
-	std::string source() const { return m_Source; }
-	std::string watermark() const { return m_Watermark; }
+	const std::string& animation() const { return m_Animation; }
+	const std::string& artboard() const { return m_Artboard; }
+	const std::string& destination() const { return m_Destination; }
+	const std::string& snapshotPath() const { return m_SnapshotPath; }
+	const std::string& source() const { return m_Source; }
+	const std::string& watermark() const { return m_Watermark; }
 
 private:
 	args::ArgumentParser* m_Parser;
