@@ -18,6 +18,7 @@ public:
 	               int smallExtentTarget = 0,
 	               int maxWidth = 0,
 	               int maxHeight = 0,
+	               int duration = 0,
 	               int minDuration = 0,
 	               int maxDuration = 0,
 	               int fps = 0,

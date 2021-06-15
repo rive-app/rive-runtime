@@ -28,6 +28,7 @@ RiveFrameExtractor* makeExtractor(RecorderArguments& args)
 			                          args.smallExtentTarget(),
 			                          args.maxWidth(),
 			                          args.maxHeight(),
+			                          args.duration(),
 			                          args.minDuration(),
 			                          args.maxDuration(),
 			                          args.fps(),

@@ -79,6 +79,9 @@ public:
 		                                 {"max-duration"},
 		                                 0);
 
+		args::ValueFlag<int> duration(
+		    optional, "number", "Duration in frames", {"duration"}, 0);
+
 		args::ValueFlag<int> numLoops(
 		    optional,
 		    "number",
@@ -129,23 +132,25 @@ public:
 			throw;
 		}
 
-		m_Source = args::get(source);
-		m_Destination = args::get(destination);
+		m_Bitrate = args::get(bitrate);
+		m_Duration = args::get(duration);
+		m_Fps = args::get(fps);
+		m_Height = args::get(height);
+		m_MaxDuration = args::get(maxDuration);
+		m_MaxHeight = args::get(maxHeight);
+		m_MaxWidth = args::get(maxWidth);
+		m_MinDuration = args::get(minDuration);
+		m_NumLoops = args::get(numLoops);
+		m_RenderFormat = args::get(formatMapping);
+		m_SmallExtentTarget = args::get(smallExtentTarget);
+		m_Width = args::get(width);
+
 		m_Animation = args::get(animation);
 		m_Artboard = args::get(artboard);
-		m_Watermark = args::get(watermark);
+		m_Destination = args::get(destination);
 		m_SnapshotPath = args::get(snapshotPath);
-		m_Width = args::get(width);
-		m_Height = args::get(height);
-		m_MaxWidth = args::get(maxWidth);
-		m_MaxHeight = args::get(maxHeight);
-		m_SmallExtentTarget = args::get(smallExtentTarget);
-		m_MinDuration = args::get(minDuration);
-		m_MaxDuration = args::get(maxDuration);
-		m_NumLoops = args::get(numLoops);
-		m_Bitrate = args::get(bitrate);
-		m_Fps = args::get(fps);
-		m_RenderFormat = args::get(formatMapping);
+		m_Source = args::get(source);
+		m_Watermark = args::get(watermark);
 	}
 
 	~RecorderArguments()
@@ -159,6 +164,7 @@ public:
 	RenderFormat renderFormat() const { return m_RenderFormat; }
 	float fps() const { return m_Fps; }
 	int bitrate() const { return m_Bitrate; }
+	int duration() const { return m_Duration; }
 	int height() const { return m_Height; }
 	int maxDuration() const { return m_MaxDuration; }
 	int maxHeight() const { return m_MaxHeight; }
@@ -178,6 +184,7 @@ private:
 	args::ArgumentParser* m_Parser;
 	float m_Fps;
 	int m_Bitrate;
+	int m_Duration;
 	int m_Height;
 	int m_MaxDuration;
 	int m_MaxHeight;

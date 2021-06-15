@@ -25,6 +25,7 @@ TEST_CASE("Only required arguments, rest is default")
 	REQUIRE(args.source() == "~/source/file.riv");
 	REQUIRE(args.fps() == 60);
 	REQUIRE(args.bitrate() == 0);
+	REQUIRE(args.duration() == 0);
 	REQUIRE(args.height() == 0);
 	REQUIRE(args.maxDuration() == 0);
 	REQUIRE(args.maxHeight() == 0);
@@ -72,6 +73,7 @@ TEST_CASE("Reads the correct arguments and defaults")
 
 	REQUIRE(args.fps() == 60);
 	REQUIRE(args.bitrate() == 0);
+	REQUIRE(args.duration() == 0);
 	REQUIRE(args.height() == 0);
 	REQUIRE(args.maxDuration() == 30);
 	REQUIRE(args.maxHeight() == 0);

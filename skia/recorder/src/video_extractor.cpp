@@ -10,6 +10,7 @@ VideoExtractor::VideoExtractor(const std::string& path,
                                int smallExtentTarget,
                                int maxWidth,
                                int maxHeight,
+                               int duration,
                                int minDuration,
                                int maxDuration,
                                int fps,
@@ -28,6 +29,7 @@ VideoExtractor::VideoExtractor(const std::string& path,
 	m_RasterCanvas = m_RasterSurface->getCanvas();
 	m_Fps = valueOrDefault(fps, m_Animation->fps());
 	m_IFps = 1.0 / m_Fps;
+	m_Duration = valueOrDefault(duration, m_Animation->duration());
 
 	m_movieWriter =
 	    new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate);
