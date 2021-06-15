@@ -1,15 +1,18 @@
 #ifndef RECORDER_ARGUMENTS_HPP
 #define RECORDER_ARGUMENTS_HPP
 
-#include "args.hxx"
-#include "extractor_type.hpp"
 #include <iostream>
+#include <string>
+#include <unordered_map>
+
+#include "args.hxx"
+#include "render_format.hpp"
 
 class RecorderArguments
 {
 
 public:
-	RecorderArguments(int argc, char** argv)
+	RecorderArguments(int argc, const char** argv)
 	{
 		// PARSE INPUT
 		m_Parser = new args::ArgumentParser(
@@ -23,6 +26,13 @@ public:
 		args::Group optional(*m_Parser,
 		                     "optional arguments:",
 		                     args::Group::Validators::DontCare);
+
+		args::MapFlag<std::string, RenderFormat> formatMapping(
+		    *m_Parser,
+		    "Output Formmat",
+		    "Maps the format string (e.g. 264) to its enum",
+		    {"format"},
+		    m_renderFormatMap);
 
 		args::ValueFlag<std::string> source(
 		    required, "path", "source filename", {'s', "source"});
@@ -135,6 +145,7 @@ public:
 		m_NumLoops = args::get(numLoops);
 		m_Bitrate = args::get(bitrate);
 		m_Fps = args::get(fps);
+		m_RenderFormat = args::get(formatMapping);
 	}
 
 	~RecorderArguments()
@@ -145,8 +156,7 @@ public:
 		}
 	}
 
-	// TODO: support reading this as a param.
-	ExtractorType renderType() const { return ExtractorType::h264; }
+	RenderFormat renderFormat() const { return m_RenderFormat; }
 	float fps() const { return m_Fps; }
 	int bitrate() const { return m_Bitrate; }
 	int height() const { return m_Height; }
@@ -176,11 +186,16 @@ private:
 	int m_NumLoops;
 	int m_SmallExtentTarget;
 	int m_Width;
+	RenderFormat m_RenderFormat;
 	std::string m_Animation;
 	std::string m_Artboard;
 	std::string m_Destination;
 	std::string m_SnapshotPath;
 	std::string m_Source;
 	std::string m_Watermark;
+
+	std::unordered_map<std::string, RenderFormat> m_renderFormatMap{
+	    {"h264", RenderFormat::h264},
+	    {"png_sequence", RenderFormat::pngSequence}};
 };
 #endif
