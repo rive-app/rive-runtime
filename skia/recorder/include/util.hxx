@@ -1,9 +1,6 @@
 #ifndef UTIL_HXX
 #define UTIL_HXX
 
-#include <iostream>
-#include <memory>
-#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -30,6 +27,20 @@ inline bool file_exists(const std::string& name)
 	// https://stackoverflow.com/questions/12774207/fastest-way-to-check-if-a-file-exist-using-standard-c-c11-c
 	struct stat buffer;
 	return (stat(name.c_str(), &buffer) == 0);
+}
+
+inline int valueOrDefault(int value, int default_value)
+{
+	return value <= 0 ? default_value : value;
+}
+
+inline void scale(int* value, int targetValue, int* otherValue)
+{
+	if (*value != targetValue)
+	{
+		*otherValue = *otherValue * targetValue / *value;
+		*value = targetValue;
+	}
 }
 
 #endif

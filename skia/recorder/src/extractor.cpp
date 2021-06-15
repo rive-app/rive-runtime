@@ -1,63 +1,6 @@
 #include "extractor.hpp"
+#include "video_extractor.hpp"
 
-inline int valueOrDefault(int value, int default_value)
-{
-	return value <= 0 ? default_value : value;
-}
-
-inline void scale(int* value, int targetValue, int* otherValue)
-{
-	if (*value != targetValue)
-	{
-		*otherValue = *otherValue * targetValue / *value;
-		*value = targetValue;
-	}
-}
-
-RiveFrameExtractor::RiveFrameExtractor(const char* path,
-                                       const char* artboard_name,
-                                       const char* animation_name,
-                                       const char* watermark_name,
-                                       int width,
-                                       int height,
-                                       int small_extent_target,
-                                       int max_width,
-                                       int max_height,
-                                       int min_duration,
-                                       int max_duration,
-                                       float fps)
-{
-	m_MinDuration = min_duration;
-	m_MaxDuration = max_duration;
-	m_RiveFile = getRiveFile(path);
-	m_Artboard = getArtboard(artboard_name);
-	m_Animation = getAnimation(animation_name);
-	m_Animation_instance = new rive::LinearAnimationInstance(m_Animation);
-	m_WatermarkImage = getWatermark(watermark_name);
-	initializeDimensions(
-	    width, height, small_extent_target, max_width, max_height);
-	m_RasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-	    m_Width, m_Height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
-	m_RasterCanvas = m_RasterSurface->getCanvas();
-	m_Fps = valueOrDefault(fps, m_Animation->fps());
-	ifps = 1.0 / m_Fps;
-};
-
-RiveFrameExtractor::~RiveFrameExtractor()
-{
-	if (m_Animation_instance)
-	{
-		delete m_Animation_instance;
-	}
-	if (m_RiveFile)
-	{
-		delete m_RiveFile;
-	}
-}
-
-int RiveFrameExtractor::width() const { return m_Width; };
-int RiveFrameExtractor::height() const { return m_Height; };
-float RiveFrameExtractor::fps() const { return m_Fps; };
 int RiveFrameExtractor::totalFrames() const
 {
 	int min_frames = m_MinDuration * m_Fps;
@@ -264,7 +207,7 @@ RiveFrameExtractor::getAnimation(const char* animation_name) const
 
 void RiveFrameExtractor::advanceFrame() const
 {
-	m_Animation_instance->advance(ifps);
+	m_Animation_instance->advance(m_IFps);
 }
 
 void RiveFrameExtractor::restart() const
@@ -340,3 +283,37 @@ sk_sp<SkData> RiveFrameExtractor::getSkData() const
 	// as Skia only wants you to use that with 8 bit surfaces).
 	return png;
 };
+
+void RiveFrameExtractor::extractFrames(int numLoops) const
+{
+	int totalFrames = this->totalFrames();
+	for (int loops = 0; loops < numLoops; loops++)
+	{
+		// Reset the animation time to the start
+		this->restart();
+		for (int i = 0; i < totalFrames; i++)
+		{
+			this->advanceFrame();
+			int frameNumber = loops * totalFrames + i;
+			this->onNextFrame(frameNumber);
+		}
+	}
+}
+
+void RiveFrameExtractor::takeSnapshot(const std::string& snapshotPath) const
+{
+	if (snapshotPath.empty())
+	{
+		return;
+	}
+
+	this->restart();
+
+	this->advanceFrame();
+	SkFILEWStream out(snapshotPath.c_str());
+	auto png = this->getSkData();
+	(void)out.write(png->data(), png->size());
+
+	// Rewind back to the start.
+	this->restart();
+}
