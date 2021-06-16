@@ -6,9 +6,7 @@ int RiveFrameExtractor::totalFrames() const
 	int min_frames = m_MinDuration * m_Fps;
 	int max_frames = m_MaxDuration * m_Fps;
 
-	int animationFps = m_Animation->fps();
-	int duration = m_Animation->durationSeconds() * animationFps;
-	int animationFrames = duration;
+	int animationFrames = m_Duration;
 	int totalFrames = animationFrames;
 
 	// TODO: combine those two into one function

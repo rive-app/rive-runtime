@@ -30,6 +30,7 @@ protected:
 	float m_IFps;
 	float m_Fps;
 	int m_Height;
+	int m_Duration;
 	int m_MaxDuration;
 	int m_MinDuration;
 	int m_Width;

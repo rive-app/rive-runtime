@@ -1,15 +1,18 @@
 #ifndef RECORDER_ARGUMENTS_HPP
 #define RECORDER_ARGUMENTS_HPP
 
-#include "args.hxx"
-#include "extractor_type.hpp"
 #include <iostream>
+#include <string>
+#include <unordered_map>
+
+#include "args.hxx"
+#include "render_format.hpp"
 
 class RecorderArguments
 {
 
 public:
-	RecorderArguments(int argc, char** argv)
+	RecorderArguments(int argc, const char** argv)
 	{
 		// PARSE INPUT
 		m_Parser = new args::ArgumentParser(
@@ -23,6 +26,13 @@ public:
 		args::Group optional(*m_Parser,
 		                     "optional arguments:",
 		                     args::Group::Validators::DontCare);
+
+		args::MapFlag<std::string, RenderFormat> formatMapping(
+		    *m_Parser,
+		    "Output Formmat",
+		    "Maps the format string (e.g. 264) to its enum",
+		    {"format"},
+		    m_renderFormatMap);
 
 		args::ValueFlag<std::string> source(
 		    required, "path", "source filename", {'s', "source"});
@@ -68,6 +78,9 @@ public:
 		                                 "maximum duration in seconds",
 		                                 {"max-duration"},
 		                                 0);
+
+		args::ValueFlag<int> duration(
+		    optional, "number", "Duration in frames", {"duration"}, 0);
 
 		args::ValueFlag<int> numLoops(
 		    optional,
@@ -119,22 +132,25 @@ public:
 			throw;
 		}
 
-		m_Source = args::get(source);
-		m_Destination = args::get(destination);
+		m_Bitrate = args::get(bitrate);
+		m_Duration = args::get(duration);
+		m_Fps = args::get(fps);
+		m_Height = args::get(height);
+		m_MaxDuration = args::get(maxDuration);
+		m_MaxHeight = args::get(maxHeight);
+		m_MaxWidth = args::get(maxWidth);
+		m_MinDuration = args::get(minDuration);
+		m_NumLoops = args::get(numLoops);
+		m_RenderFormat = args::get(formatMapping);
+		m_SmallExtentTarget = args::get(smallExtentTarget);
+		m_Width = args::get(width);
+
 		m_Animation = args::get(animation);
 		m_Artboard = args::get(artboard);
-		m_Watermark = args::get(watermark);
+		m_Destination = args::get(destination);
 		m_SnapshotPath = args::get(snapshotPath);
-		m_Width = args::get(width);
-		m_Height = args::get(height);
-		m_MaxWidth = args::get(maxWidth);
-		m_MaxHeight = args::get(maxHeight);
-		m_SmallExtentTarget = args::get(smallExtentTarget);
-		m_MinDuration = args::get(minDuration);
-		m_MaxDuration = args::get(maxDuration);
-		m_NumLoops = args::get(numLoops);
-		m_Bitrate = args::get(bitrate);
-		m_Fps = args::get(fps);
+		m_Source = args::get(source);
+		m_Watermark = args::get(watermark);
 	}
 
 	~RecorderArguments()
@@ -145,10 +161,10 @@ public:
 		}
 	}
 
-	// TODO: support reading this as a param.
-	ExtractorType renderType() const { return ExtractorType::h264; }
+	RenderFormat renderFormat() const { return m_RenderFormat; }
 	float fps() const { return m_Fps; }
 	int bitrate() const { return m_Bitrate; }
+	int duration() const { return m_Duration; }
 	int height() const { return m_Height; }
 	int maxDuration() const { return m_MaxDuration; }
 	int maxHeight() const { return m_MaxHeight; }
@@ -168,6 +184,7 @@ private:
 	args::ArgumentParser* m_Parser;
 	float m_Fps;
 	int m_Bitrate;
+	int m_Duration;
 	int m_Height;
 	int m_MaxDuration;
 	int m_MaxHeight;
@@ -176,11 +193,16 @@ private:
 	int m_NumLoops;
 	int m_SmallExtentTarget;
 	int m_Width;
+	RenderFormat m_RenderFormat;
 	std::string m_Animation;
 	std::string m_Artboard;
 	std::string m_Destination;
 	std::string m_SnapshotPath;
 	std::string m_Source;
 	std::string m_Watermark;
+
+	std::unordered_map<std::string, RenderFormat> m_renderFormatMap{
+	    {"h264", RenderFormat::h264},
+	    {"png_sequence", RenderFormat::pngSequence}};
 };
 #endif

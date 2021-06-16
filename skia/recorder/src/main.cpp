@@ -1,5 +1,6 @@
 #include "args.hxx"
 #include "recorder_arguments.hpp"
+#include "render_format.hpp"
 #include "video_extractor.hpp"
 #include "writer.hpp"
 
@@ -8,14 +9,14 @@
 
 RiveFrameExtractor* makeExtractor(RecorderArguments& args)
 {
-	auto renderType = args.renderType();
-	switch (renderType)
+	auto renderFormat = args.renderFormat();
+	switch (renderFormat)
 	{
-		case ExtractorType::pngSequence:
+		case RenderFormat::pngSequence:
 			throw std::invalid_argument(
 			    "PNG seq not supported yet! COMING SOON!");
 		// return new PngExtractor();
-		case ExtractorType::h264:
+		case RenderFormat::h264:
 		default:
 			return new VideoExtractor(args.source(),
 			                          args.artboard(),
@@ -27,6 +28,7 @@ RiveFrameExtractor* makeExtractor(RecorderArguments& args)
 			                          args.smallExtentTarget(),
 			                          args.maxWidth(),
 			                          args.maxHeight(),
+			                          args.duration(),
 			                          args.minDuration(),
 			                          args.maxDuration(),
 			                          args.fps(),
@@ -34,7 +36,7 @@ RiveFrameExtractor* makeExtractor(RecorderArguments& args)
 	}
 }
 
-int main(int argc, char* argv[])
+int main(int argc, const char* argv[])
 {
 	try
 	{

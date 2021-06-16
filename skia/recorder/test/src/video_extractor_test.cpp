@@ -7,269 +7,364 @@
 
 TEST_CASE("Test extractor source not found")
 {
-	REQUIRE_THROWS_WITH(new VideoExtractor("missing.riv", "", "", "", "", 0, 0),
+	REQUIRE_THROWS_WITH(new VideoExtractor("missing.riv", // source
+	                                       "",            // artboard
+	                                       "",            // animation
+	                                       "",            // watermark
+	                                       "",            // destination
+	                                       0,             // width
+	                                       0              // height
+	                                       ),
 	                    "Failed to open file missing.riv");
 }
 
 TEST_CASE("Test extractor no animation")
 {
 	REQUIRE_THROWS_WITH(
-	    new VideoExtractor("./static/no_animation.riv", "", "", "", "", 0, 0),
+	    new VideoExtractor("./static/no_animation.riv", // source
+	                       "",                          // artboard
+	                       "",                          // animation
+	                       "",                          // watermark
+	                       "",                          // destination
+	                       0,                           // width
+	                       0                            // height
+	                       ),
 	    "Artboard doesn't contain a default animation.");
 }
 
 TEST_CASE("Test extractor no artboard")
 {
-	REQUIRE_THROWS_WITH(
-	    new VideoExtractor("./static/no_artboard.riv", "", "", "", "", 0, 0),
-	    "File doesn't contain a default artboard.");
+	REQUIRE_THROWS_WITH(new VideoExtractor("./static/no_artboard.riv", // source
+	                                       "", // artboard
+	                                       "", // animation
+	                                       "", // watermark
+	                                       "", // destination
+	                                       0,  // width
+	                                       0   // height
+	                                       ),
+	                    "File doesn't contain a default artboard.");
 }
 
 TEST_CASE("Test extractor odd width")
 {
-	auto rive =
-	    new VideoExtractor("./static/51x50.riv", "", "", "", "fake.mp4", 0, 0);
-	REQUIRE(rive->width() == 52);
-	REQUIRE(rive->height() == 50);
+	VideoExtractor rive("./static/51x50.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    0,                    // width
+	                    0                     // height
+	);
+	REQUIRE(rive.width() == 52);
+	REQUIRE(rive.height() == 50);
 }
 
 TEST_CASE("Test extractor odd height")
 {
-	auto rive =
-	    new VideoExtractor("./static/50x51.riv", "", "", "", "fake.mp4", 0, 0);
-	REQUIRE(rive->width() == 50);
-	REQUIRE(rive->height() == 52);
+	VideoExtractor rive("./static/50x51.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    0,                    // width
+	                    0                     // height
+	);
+	REQUIRE(rive.width() == 50);
+	REQUIRE(rive.height() == 52);
 }
 
 TEST_CASE("Test extractor width override")
 {
-	auto rive = new VideoExtractor(
-	    "./static/50x51.riv", "", "", "", "fake.mp4", 100, 0);
-	REQUIRE(rive->width() == 100);
-	REQUIRE(rive->height() == 52);
+	VideoExtractor rive("./static/50x51.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    100,                  // width
+	                    0                     // height
+	);
+	REQUIRE(rive.width() == 100);
+	REQUIRE(rive.height() == 52);
 }
 
 TEST_CASE("Test extractor height override")
 {
-	auto rive = new VideoExtractor(
-	    "./static/50x51.riv", "", "", "", "fake.mp4", 0, 100);
-	REQUIRE(rive->width() == 50);
-	REQUIRE(rive->height() == 100);
+	VideoExtractor rive("./static/50x51.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    0,                    // width
+	                    100                   // height
+	);
+	REQUIRE(rive.width() == 50);
+	REQUIRE(rive.height() == 100);
 }
 
 TEST_CASE("Test small extent target (width)")
 {
-	auto rive = new VideoExtractor(
-	    "./static/50x51.riv", "", "", "", "fake.mp4", 50, 100, 720);
-	REQUIRE(rive->width() == 720);
-	REQUIRE(rive->height() == 1440);
+	VideoExtractor rive("./static/50x51.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    50,                   // width
+	                    100,                  // height
+	                    720                   // smallExtentTarget
+	);
+	REQUIRE(rive.width() == 720);
+	REQUIRE(rive.height() == 1440);
 }
 
 TEST_CASE("Test small extent target maxed (width)")
 {
-	auto rive = new VideoExtractor(
-	    "./static/50x51.riv", "", "", "", "fake.mp4", 50, 100, 720, 1080, 1080);
-	REQUIRE(rive->width() == 540);
-	REQUIRE(rive->height() == 1080);
+	VideoExtractor rive("./static/50x51.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    50,                   // width
+	                    100,                  // height
+	                    720,                  // smallExtentTarget
+	                    1080,                 // maxWidth
+	                    1080                  // maxHeight
+	);
+	REQUIRE(rive.width() == 540);
+	REQUIRE(rive.height() == 1080);
 }
 
 TEST_CASE("Test small extent target (height)")
 {
-	auto rive = new VideoExtractor(
-	    "./static/50x51.riv", "", "", "", "fake.mp4", 100, 50, 720);
-	REQUIRE(rive->height() == 720);
-	REQUIRE(rive->width() == 1440);
+	VideoExtractor rive("./static/50x51.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    100,
+	                    50,
+	                    720);
+	REQUIRE(rive.height() == 720);
+	REQUIRE(rive.width() == 1440);
 }
 
 TEST_CASE("Test small extent target maxed (height)")
 {
-	auto rive = new VideoExtractor(
-	    "./static/50x51.riv", "", "", "", "fake.mp4", 100, 50, 720, 1080, 1080);
-	REQUIRE(rive->height() == 540);
-	REQUIRE(rive->width() == 1080);
+	VideoExtractor rive("./static/50x51.riv", // source
+	                    "",                   // artboard
+	                    "",                   // animation
+	                    "",                   // watermark
+	                    "fake.mp4",           // destination
+	                    100,                  // width
+	                    50,                   // height
+	                    720,                  // smallExtentTarget
+	                    1080,                 // maxWidth
+	                    1080                  // maxHeight
+	);
+	REQUIRE(rive.height() == 540);
+	REQUIRE(rive.width() == 1080);
 }
 
 TEST_CASE("Test 1s_oneShot min 10s")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "1s_oneShot",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               10);
-	REQUIRE(rive->totalFrames() == 600);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    10                         // minDuration
+	);
+	REQUIRE(rive.totalFrames() == 600);
 }
 
 TEST_CASE("Test 2s_loop min 5s")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "2s_loop",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               5);
-	REQUIRE(rive->totalFrames() == 360);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "2s_loop",                 // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    5                          // minDuration
+	);
+	REQUIRE(rive.totalFrames() == 360);
 }
 
 TEST_CASE("Test 2s_loop min 5s max 5s")
 {
 	// give it something dumb, it'll do something dumb.
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "2s_loop",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               5,
-	                               5);
-	REQUIRE(rive->totalFrames() == 300);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "2s_loop",                 // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    5,                         // minDuration
+	                    5                          // maxDuration
+	);
+	REQUIRE(rive.totalFrames() == 300);
 }
 
 TEST_CASE("Test 2s_pingpong min 5s")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "2s_pingpong",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               5);
-	REQUIRE(rive->totalFrames() == 480);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "2s_pingpong",             // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    5                          // minDuration
+	);
+	REQUIRE(rive.totalFrames() == 480);
 }
 
 TEST_CASE("Test 2s_pingpong")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "2s_pingpong",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0);
-	REQUIRE(rive->totalFrames() == 2 * 60);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "2s_pingpong",             // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    0                          // minDuration
+	);
+	REQUIRE(rive.totalFrames() == 2 * 60);
 }
 
 TEST_CASE("Test 100s_oneShot animation min duration 10s")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "100s_oneShot",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               10);
-	REQUIRE(rive->totalFrames() == 600);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "100s_oneShot",            // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    10                         // minDuration
+	);
+	REQUIRE(rive.totalFrames() == 6000);
 }
 
 TEST_CASE("Test 100s_loop animation max duration 10s")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "100s_loop",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               10);
-	REQUIRE(rive->totalFrames() == 600);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "100s_loop",               // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    0,                         // minDuration
+	                    10                         // maxDuration
+	);
+	REQUIRE(rive.totalFrames() == 600);
 }
 
 TEST_CASE("Test 100s_pingpong animation min duration 10s")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "100s_pingpong",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               10);
-	REQUIRE(rive->totalFrames() == 600);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "100s_pingpong",           // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    10                         // minDuration
+	);
+	REQUIRE(rive.totalFrames() == 6000);
 }
 
 TEST_CASE("Test 1s_oneShot animation custom fps 120")
 {
-	auto rive = new VideoExtractor("./static/animations.riv",
-	                               "",
-	                               "100s_oneShot",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               10,
-	                               120);
-	REQUIRE(rive->totalFrames() == 1200);
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "100s_oneShot",            // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    0,                         // duration
+	                    0,                         // minDuration
+	                    10,                        // maxDuration
+	                    120                        // fps
+	);
+	REQUIRE(rive.totalFrames() == 1200);
 }
 
 TEST_CASE("Test frames: 3s_loop work_area start_16 duration_1s")
 {
-	auto rive = new VideoExtractor("./static/work_area.riv",
-	                               "",
-	                               "Animation 1",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0);
-	REQUIRE(rive->totalFrames() == 60);
+	VideoExtractor rive("./static/work_area.riv", // source
+	                    "",                       // artboard
+	                    "Animation 1",            // animation
+	                    "",                       // watermark
+	                    "fake.mp4",               // destination
+	                    0,                        // width
+	                    0,                        // height
+	                    0,                        // smallExtentTarget
+	                    0,                        // maxWidth
+	                    0,                        // maxHeight
+	                    0,                        // duration
+	                    0,                        // minDuration
+	                    0                         // maxDuration
+	);
+	REQUIRE(rive.totalFrames() == 60);
 }
 
 TEST_CASE("Test frames: 3s_loop work_area start_16 duration_1s min 5s")
 {
-	auto rive = new VideoExtractor("./static/work_area.riv",
-	                               "",
-	                               "Animation 1",
-	                               "",
-	                               "fake.mp4",
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               0,
-	                               5,
-	                               0);
-	REQUIRE(rive->totalFrames() == 300);
+	VideoExtractor rive("./static/work_area.riv", // source
+	                    "",                       // artboard
+	                    "Animation 1",            // animation
+	                    "",                       // watermark
+	                    "fake.mp4",               // destination
+	                    0,                        // width
+	                    0,                        // height
+	                    0,                        // smallExtentTarget
+	                    0,                        // maxWidth
+	                    0,                        // maxHeight
+	                    0,                        // duration
+	                    5,                        // minDuration
+	                    0                         // maxDuration
+	);
+	REQUIRE(rive.totalFrames() == 300);
 }
