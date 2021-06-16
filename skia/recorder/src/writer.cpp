@@ -1,7 +1,10 @@
 #include "writer.hpp"
 
-MovieWriter::MovieWriter(
-    const std::string& _destination, int _width, int _height, int _fps, int _bitrate)
+MovieWriter::MovieWriter(const std::string& _destination,
+                         int _width,
+                         int _height,
+                         int _fps,
+                         int _bitrate)
 {
 	m_DestinationPath = _destination;
 	m_Width = _width;

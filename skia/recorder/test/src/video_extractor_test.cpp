@@ -182,6 +182,106 @@ TEST_CASE("Test 1s_oneShot min 10s")
 	REQUIRE(rive.totalFrames() == 600);
 }
 
+TEST_CASE("Test 1s oneShot animation @60fps with custom 2s duration")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120 // duration (60 fps * 2s = 120ff)
+	);
+
+	REQUIRE(rive.totalFrames() == 60 * 2);
+}
+
+TEST_CASE("Test 1s oneShot animation @120fps with custom 2s duration")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    240, // duration (60 fps * 2s = 120ff)
+	                    0,   // minDuration
+	                    0,   // maxDuration
+	                    120  // fps
+	);
+
+	REQUIRE(rive.totalFrames() == 120 * 2);
+	REQUIRE(rive.m_Fps == 120);
+}
+
+TEST_CASE("Test 1s oneShot animation @60fps with custom 2s duration min 3s")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120, // duration (60 fps * 2s = 120ff)
+	                    3    // minDuration
+	);
+
+	REQUIRE(rive.totalFrames() == 60 * 3);
+}
+
+TEST_CASE("Test 1s oneShot animation @60fps with custom 2s duration max 1s")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120, // duration (60 fps * 15s = 120ff)
+	                    0,   // minDuration
+	                    1    // maxDuration
+	);
+
+	REQUIRE(rive.totalFrames() == 60);
+}
+
+TEST_CASE(
+    "Test 1s oneShot animation @60fps with custom 2s duration min 3s max 4s")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120, // duration (60 fps * 2s = 120ff)
+	                    3,   // minDuration
+	                    4    // maxDuration
+	);
+
+	REQUIRE(rive.totalFrames() == 60 * 3);
+}
+
 TEST_CASE("Test 2s_loop min 5s")
 {
 	VideoExtractor rive("./static/animations.riv", // source
