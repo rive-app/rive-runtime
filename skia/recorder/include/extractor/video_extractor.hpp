@@ -1,7 +1,7 @@
 #ifndef VIDEOEXTRACTOR_HPP
 #define VIDEOEXTRACTOR_HPP
 
-#include "extractor.hpp"
+#include "extractor/extractor.hpp"
 #include "recorder_arguments.hpp"
 #include "writer.hpp"
 

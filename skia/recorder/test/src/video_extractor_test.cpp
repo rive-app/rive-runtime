@@ -3,7 +3,7 @@
 #define protected public
 
 #include "catch.hpp"
-#include "video_extractor.hpp"
+#include "extractor/video_extractor.hpp"
 
 TEST_CASE("Test extractor source not found")
 {

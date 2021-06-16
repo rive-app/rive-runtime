@@ -1,5 +1,5 @@
-#include "extractor.hpp"
-#include "video_extractor.hpp"
+#include "extractor/extractor.hpp"
+#include "extractor/video_extractor.hpp"
 
 int RiveFrameExtractor::totalFrames() const
 {

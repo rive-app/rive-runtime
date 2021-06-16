@@ -1,7 +1,7 @@
 #include "args.hxx"
 #include "recorder_arguments.hpp"
 #include "render_format.hpp"
-#include "video_extractor.hpp"
+#include "extractor/video_extractor.hpp"
 #include "writer.hpp"
 
 #ifdef TESTING

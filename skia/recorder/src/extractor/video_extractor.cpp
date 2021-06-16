@@ -1,4 +1,4 @@
-#include "video_extractor.hpp"
+#include "extractor/video_extractor.hpp"
 
 VideoExtractor::VideoExtractor(const std::string& path,
                                const std::string& artboardName,
