@@ -52,7 +52,7 @@ public:
 		m_Duration = valueOrDefault(duration, durationFrames);
 	}
 	virtual ~RiveFrameExtractor() {}
-	virtual void extractFrames(int numLoops) const;
+	virtual void extractFrames(int numLoops);
 
 	float fps() const { return m_Fps; }
 	int height() const { return m_Height; }

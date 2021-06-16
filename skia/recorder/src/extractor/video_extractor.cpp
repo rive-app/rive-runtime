@@ -32,9 +32,6 @@ VideoExtractor::VideoExtractor(const std::string& path,
     m_movieWriter(
         new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate))
 {
-	// TODO: set the properties directly on the animation?
-	// m_Animation->fps(m_Fps);
-	// m_Animation->duration(m_Duration);
 }
 
 VideoExtractor::~VideoExtractor()
@@ -45,7 +42,7 @@ VideoExtractor::~VideoExtractor()
 	}
 }
 
-void VideoExtractor::extractFrames(int numLoops) const
+void VideoExtractor::extractFrames(int numLoops)
 {
 	m_movieWriter->writeHeader();
 	RiveFrameExtractor::extractFrames(numLoops);

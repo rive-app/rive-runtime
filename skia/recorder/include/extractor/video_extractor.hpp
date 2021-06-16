@@ -25,7 +25,7 @@ public:
 	               int bitrate = 0);
 	virtual ~VideoExtractor();
 
-	void extractFrames(int numLoops) const override;
+	void extractFrames(int numLoops) override;
 
 protected:
 	void onNextFrame(int frameNumber) const override;

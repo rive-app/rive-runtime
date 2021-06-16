@@ -290,7 +290,7 @@ sk_sp<SkData> RiveFrameExtractor::getSkData() const
 	return png;
 };
 
-void RiveFrameExtractor::extractFrames(int numLoops) const
+void RiveFrameExtractor::extractFrames(int numLoops)
 {
 	int totalFrames = this->totalFrames();
 	for (int loops = 0; loops < numLoops; loops++)

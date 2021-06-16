@@ -41,15 +41,21 @@ void Archive::finalize()
 
 // Adds a buffer [bytes] in [m_zipArchive] with name [filename]
 int Archive::addBuffer(const std::string& filename,
-                        const std::vector<char>& bytes) const
+                       const std::vector<char>& bytes) const
+{
+	return addBuffer(filename, &bytes[0], bytes.size());
+}
+
+int Archive::addBuffer(const std::string& filename,
+                       const void* bytes,
+                       uint64_t size) const
 {
 	if (m_zipArchive == nullptr)
 	{
 		throw std::runtime_error("[Archive::add_buffer()] already finalized!");
 	}
 	zip_source_t* source;
-	if ((source = zip_source_buffer(m_zipArchive, &bytes[0], bytes.size(), 0)) ==
-	    NULL)
+	if ((source = zip_source_buffer(m_zipArchive, bytes, size, 0)) == NULL)
 	{
 		zip_source_free(source);
 		std::string err_output(
