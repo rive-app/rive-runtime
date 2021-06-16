@@ -18,6 +18,39 @@
 class RiveFrameExtractor
 {
 public:
+	RiveFrameExtractor(const std::string& path,
+	                   const std::string& artboardName,
+	                   const std::string& animationName,
+	                   const std::string& watermark,
+	                   const std::string& destination,
+	                   int width = 0,
+	                   int height = 0,
+	                   int smallExtentTarget = 0,
+	                   int maxWidth = 0,
+	                   int maxHeight = 0,
+	                   int duration = 0,
+	                   int minDuration = 0,
+	                   int maxDuration = 0,
+	                   int fps = 0) :
+	    m_MinDuration(minDuration), m_MaxDuration(maxDuration)
+	{
+		m_RiveFile = getRiveFile(path.c_str());
+		m_Artboard = getArtboard(artboardName.c_str());
+		m_Animation = getAnimation(animationName.c_str());
+		m_Animation_instance = new rive::LinearAnimationInstance(m_Animation);
+		m_WatermarkImage = getWatermark(watermark.c_str());
+		initializeDimensions(
+		    width, height, smallExtentTarget, maxWidth, maxHeight);
+		m_RasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
+		    m_Width, m_Height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
+		m_RasterCanvas = m_RasterSurface->getCanvas();
+		m_Fps = valueOrDefault(fps, m_Animation->fps());
+		m_IFps = 1.0 / m_Fps;
+
+		// We want the work area duration, and durationSeconds() respects that.
+		auto durationFrames = m_Animation->durationSeconds() * m_Fps;
+		m_Duration = valueOrDefault(duration, durationFrames);
+	}
 	virtual ~RiveFrameExtractor() {}
 	virtual void extractFrames(int numLoops) const;
 
@@ -31,8 +64,8 @@ protected:
 	float m_Fps;
 	int m_Height;
 	int m_Duration;
-	int m_MaxDuration;
 	int m_MinDuration;
+	int m_MaxDuration;
 	int m_Width;
 	rive::Artboard* m_Artboard;
 	rive::File* m_RiveFile;

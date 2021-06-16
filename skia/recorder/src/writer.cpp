@@ -1,4 +1,5 @@
 #include "writer.hpp"
+#include <sstream>
 
 MovieWriter::MovieWriter(const std::string& _destination,
                          int _width,
@@ -23,8 +24,9 @@ void MovieWriter::initialize()
 	m_OFormat = av_guess_format(nullptr, destPath, nullptr);
 	if (!m_OFormat)
 	{
-		throw std::invalid_argument(string_format(
-		    "Failed to determine output format for %s.\n", destPath));
+		throw std::invalid_argument(
+		    std::string("Failed to determine output format for ") + destPath +
+		    ".");
 	}
 
 	// Get a context for the format to work with (I guess the OutputFormat
@@ -36,7 +38,7 @@ void MovieWriter::initialize()
 	    0)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to allocate output context %s\n.", destPath));
+		    std::string("Failed to allocate output context ") + destPath + ".");
 	}
 	// Check that we have the necessary codec for the format we want to
 	// encode (I think most formats can have multiple codecs so this
@@ -44,8 +46,8 @@ void MovieWriter::initialize()
 	m_Codec = avcodec_find_encoder(m_OFormat->video_codec);
 	if (!m_Codec)
 	{
-		throw std::invalid_argument(
-		    string_format("Failed to find codec for %s\n.", destPath));
+		throw std::invalid_argument(std::string("Failed to find codec for ") +
+		                            destPath + ".");
 	}
 
 	// Allocate the stream we're going to be writing to.
@@ -53,7 +55,7 @@ void MovieWriter::initialize()
 	if (!m_VideoStream)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to create a stream for %s\n.", destPath));
+		    std::string("Failed to create a stream for ") + destPath + ".");
 	}
 
 	// Similar to AVOutputFormat and AVFormatContext, the codec needs an
@@ -62,9 +64,8 @@ void MovieWriter::initialize()
 	if (!m_Cctx)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to allocate codec context for "
-		                  "%s\n.",
-		                  destPath));
+		    std::string("Failed to allocate codec context for ") + destPath +
+		    ".");
 	}
 
 	// default to our friend yuv, mp4 is basically locked onto this.
@@ -140,8 +141,8 @@ void MovieWriter::initialize()
 
 	if (avcodec_open2(m_Cctx, m_Codec, &codec_options) < 0)
 	{
-		throw std::invalid_argument(
-		    string_format("Failed to open codec %i\n", destPath));
+		throw std::invalid_argument(std::string("Failed to open codec ") +
+		                            destPath);
 	}
 	// initialise_av_frame();
 }
@@ -157,8 +158,9 @@ void MovieWriter::initialise_av_frame()
 	int err;
 	if ((err = av_frame_get_buffer(m_videoFrame, 32)) < 0)
 	{
-		throw std::invalid_argument(string_format(
-		    "Failed to allocate buffer for frame with error %i\n", err));
+		std::ostringstream errorStream;
+		errorStream << "Failed to allocate buffer for frame with error " << err;
+		throw std::invalid_argument(errorStream.str());
 	}
 };
 
@@ -173,8 +175,10 @@ void MovieWriter::writeHeader()
 		int err;
 		if ((err = avio_open(&m_OFctx->pb, destPath, AVIO_FLAG_WRITE)) < 0)
 		{
-			throw std::invalid_argument(
-			    string_format("Failed to open file %s with error %i\n", err));
+			std::ostringstream errorStream;
+			errorStream << "Failed to open file " << destPath << " with error "
+			            << err;
+			throw std::invalid_argument(errorStream.str());
 		}
 	}
 
@@ -182,7 +186,7 @@ void MovieWriter::writeHeader()
 	if (avformat_write_header(m_OFctx, NULL) < 0)
 	{
 		throw std::invalid_argument(
-		    string_format("Failed to write header %i\n", destPath));
+		    std::string("Failed to write header %i\n", destPath));
 	}
 
 	// Write the format into the header...
@@ -233,8 +237,9 @@ void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
 	int err;
 	if ((err = avcodec_send_frame(m_Cctx, m_videoFrame)) < 0)
 	{
-		throw std::invalid_argument(
-		    string_format("Failed to send frame %i\n", err));
+		std::ostringstream errorStream;
+		errorStream << "Failed to send frame " << err;
+		throw std::invalid_argument(errorStream.str());
 	}
 
 	// Send off the packet to the encoder...
@@ -307,8 +312,9 @@ void MovieWriter::finalize() const
 		int err = avio_close(m_OFctx->pb);
 		if (err < 0)
 		{
-			throw std::invalid_argument(
-			    string_format("Failed to close file %i\n", err));
+			std::ostringstream errorStream;
+			errorStream << "Failed to close file " << err;
+			throw std::invalid_argument(errorStream.str());
 		}
 	}
 }

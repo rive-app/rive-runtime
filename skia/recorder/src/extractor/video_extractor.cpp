@@ -14,28 +14,27 @@ VideoExtractor::VideoExtractor(const std::string& path,
                                int minDuration,
                                int maxDuration,
                                int fps,
-                               int bitrate)
+                               int bitrate) :
+    RiveFrameExtractor(path,
+                       artboardName,
+                       animationName,
+                       watermark,
+                       destination,
+                       width,
+                       height,
+                       smallExtentTarget,
+                       maxWidth,
+                       maxHeight,
+                       duration,
+                       minDuration,
+                       maxDuration,
+                       fps),
+    m_movieWriter(
+        new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate))
 {
-	m_MinDuration = minDuration;
-	m_MaxDuration = maxDuration;
-	m_RiveFile = getRiveFile(path.c_str());
-	m_Artboard = getArtboard(artboardName.c_str());
-	m_Animation = getAnimation(animationName.c_str());
-	m_Animation_instance = new rive::LinearAnimationInstance(m_Animation);
-	m_WatermarkImage = getWatermark(watermark.c_str());
-	initializeDimensions(width, height, smallExtentTarget, maxWidth, maxHeight);
-	m_RasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
-	    m_Width, m_Height, kRGBA_8888_SkColorType, kPremul_SkAlphaType));
-	m_RasterCanvas = m_RasterSurface->getCanvas();
-	m_Fps = valueOrDefault(fps, m_Animation->fps());
-	m_IFps = 1.0 / m_Fps;
-
-	// We want the work area duration, and durationSeconds() respects that.
-	auto durationFrames = m_Animation->durationSeconds() * m_Fps;
-	m_Duration = valueOrDefault(duration, durationFrames);
-
-	m_movieWriter =
-	    new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate);
+	// TODO: set the properties directly on the animation?
+	// m_Animation->fps(m_Fps);
+	// m_Animation->duration(m_Duration);
 }
 
 VideoExtractor::~VideoExtractor()
@@ -43,15 +42,6 @@ VideoExtractor::~VideoExtractor()
 	if (m_movieWriter)
 	{
 		delete m_movieWriter;
-	}
-	// TODO: move these in parent class.
-	if (m_Animation_instance != nullptr)
-	{
-		delete m_Animation_instance;
-	}
-	if (m_RiveFile != nullptr)
-	{
-		delete m_RiveFile;
 	}
 }
 
