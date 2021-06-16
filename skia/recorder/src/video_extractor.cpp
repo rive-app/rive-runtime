@@ -29,7 +29,10 @@ VideoExtractor::VideoExtractor(const std::string& path,
 	m_RasterCanvas = m_RasterSurface->getCanvas();
 	m_Fps = valueOrDefault(fps, m_Animation->fps());
 	m_IFps = 1.0 / m_Fps;
-	m_Duration = valueOrDefault(duration, m_Animation->duration());
+
+	// We want the work area duration, and durationSeconds() respects that.
+	auto durationFrames = m_Animation->durationSeconds() * m_Fps;
+	m_Duration = valueOrDefault(duration, durationFrames);
 
 	m_movieWriter =
 	    new MovieWriter(destination, m_Width, m_Height, m_Fps, bitrate);

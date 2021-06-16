@@ -291,12 +291,10 @@ TEST_CASE("Test 100s_loop animation max duration 10s")
 	                    10                         // maxDuration
 	);
 	REQUIRE(rive.totalFrames() == 600);
-	std::cout << "Test ends here!" << std::endl;
 }
 
 TEST_CASE("Test 100s_pingpong animation min duration 10s")
 {
-	std::cout << "Test starts here!" << std::endl;
 	VideoExtractor rive("./static/animations.riv", // source
 	                    "",                        // artboard
 	                    "100s_pingpong",           // animation
