@@ -6,6 +6,7 @@
 #include <cstdio>
 #include "catch.hpp"
 #include "recorder_arguments.hpp"
+#include "extractor/extractor_factory.hpp"
 #include "extractor/png_extractor.hpp"
 
 TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
@@ -23,7 +24,7 @@ TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
 	                            "0",
 	                            "--max-duration",
 	                            "30",
-	                            "--duration", 
+	                            "--duration",
 	                            "20",
 	                            "-w"
 	                            "./static/watermark.png",
@@ -34,42 +35,18 @@ TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
 	                            "--fps",
 	                            "60",
 	                            "--snapshot-path",
-	                            "./static/snapshot.png"};
+	                            "./static/snapshot.png",
+	                            "--format",
+	                            "png_sequence"};
 	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
+
 	RecorderArguments args(argc, argsVector);
-
-	auto source = args.source();
-	auto artboard = args.artboard();
-	auto animation = args.animation();
-	auto watermark = args.watermark();
 	auto destination = args.destination();
-	auto width = args.width();
-	auto height = args.height();
-	auto smallExtentTarget = args.smallExtentTarget();
-	auto maxWidth = args.maxWidth();
-	auto maxHeight = args.maxHeight();
-	auto duration = args.duration();
-	auto minDuration = args.minDuration();
-	auto maxDuration = args.maxDuration();
-	auto fps = args.fps();
 
-	PNGExtractor extractor(source,
-	                       artboard,
-	                       animation,
-	                       watermark,
-	                       destination,
-	                       width,
-	                       height,
-	                       smallExtentTarget,
-	                       maxWidth,
-	                       maxHeight,
-	                       duration,
-	                       minDuration,
-	                       maxDuration,
-	                       fps);
+	PNGExtractor* extractor = (PNGExtractor*)(makeExtractor(args));
 	auto snapshotPath = args.snapshotPath();
-	extractor.takeSnapshot(snapshotPath);
-	extractor.extractFrames(args.numLoops());
+	extractor->takeSnapshot(snapshotPath);
+	extractor->extractFrames(args.numLoops());
 
 	std::ifstream videoFile(destination);
 	REQUIRE(videoFile.good());
@@ -81,4 +58,6 @@ TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
 	REQUIRE(snapshotFile.good());
 	removeErr = std::remove(snapshotPath.c_str());
 	REQUIRE(removeErr == 0);
+
+	delete extractor;
 }

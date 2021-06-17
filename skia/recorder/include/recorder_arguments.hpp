@@ -32,7 +32,8 @@ public:
 		    "Output Formmat",
 		    "Maps the format string (e.g. 264) to its enum",
 		    {"format"},
-		    m_renderFormatMap);
+		    m_renderFormatMap,
+		    RenderFormat::h264);
 
 		args::ValueFlag<std::string> source(
 		    required, "path", "source filename", {'s', "source"});
