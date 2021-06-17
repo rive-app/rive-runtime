@@ -27,14 +27,6 @@ public:
 		                     "optional arguments:",
 		                     args::Group::Validators::DontCare);
 
-		args::MapFlag<std::string, RenderFormat> formatMapping(
-		    *m_Parser,
-		    "Output Formmat",
-		    "Maps the format string (e.g. 264) to its enum",
-		    {"format"},
-		    m_renderFormatMap,
-		    RenderFormat::h264);
-
 		args::ValueFlag<std::string> source(
 		    required, "path", "source filename", {'s', "source"});
 		args::ValueFlag<std::string> destination(
@@ -99,6 +91,14 @@ public:
 
 		args::ValueFlag<float> fps(
 		    optional, "number", "frame rate", {"f", "fps"}, 60.0);
+
+		args::MapFlag<std::string, RenderFormat> formatMapping(
+		    optional,
+		    "Output Formmat",
+		    "Maps the format string (e.g. 264) to its enum",
+		    {"format"},
+		    m_renderFormatMap,
+		    RenderFormat::h264);
 
 		args::CompletionFlag completion(*m_Parser, {"complete"});
 		try
