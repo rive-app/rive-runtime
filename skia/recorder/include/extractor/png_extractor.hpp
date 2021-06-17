@@ -3,7 +3,8 @@
 
 #include "archive.hpp"
 #include "extractor/extractor.hpp"
-
+#include <fstream>
+#include <cstdio>
 class PNGExtractor : public RiveFrameExtractor
 {
 public:
@@ -40,19 +41,13 @@ public:
 	}
 	virtual ~PNGExtractor() {}
 
-	void extractFrames(int numLoops)
-	{
-		RiveFrameExtractor::extractFrames(numLoops);
-		// Write it out to disk.
-		m_Archive.finalize();
-	}
-
-	void onNextFrame(int frameNumber) const
+	void onNextFrame(int frameNumber)
 	{
 		sk_sp<SkData> png = this->getSkData();
 		auto buffer = png->data();
 		auto size = png->size();
-		m_Archive.addBuffer(std::to_string(frameNumber) + ".png", buffer, size);
+		auto pngName = std::to_string(frameNumber) + ".png";
+		m_Archive.addBuffer(pngName, buffer, size);
 	}
 
 private:

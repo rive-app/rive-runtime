@@ -12,14 +12,14 @@ public:
 	~Archive();
 
 	static const std::vector<char> readFile(const std::string& filepath);
-	int addBuffer(const std::string& filename,
-	              const std::vector<char>& bytes) const;
-	int addBuffer(const std::string& filename,
-	              const void* bytes,
-	              uint64_t size) const;
+	int addBuffer(const std::string& filename, const std::vector<char>& bytes);
+	int
+	addBuffer(const std::string& filename, const void* bytes, uint64_t size);
 	bool isEmpty() const;
-	void finalize();
+	void openArchive(int flag);
+	void closeArchive();
 
 private:
-	zip* m_zipArchive;
+	std::string m_ArchivePath;
+	zip* m_ZipArchive;
 };

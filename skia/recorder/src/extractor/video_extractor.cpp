@@ -49,7 +49,7 @@ void VideoExtractor::extractFrames(int numLoops)
 	m_movieWriter->finalize();
 }
 
-void VideoExtractor::onNextFrame(int frameNumber) const
+void VideoExtractor::onNextFrame(int frameNumber)
 {
 	auto pixelData = this->getPixelAddresses();
 	m_movieWriter->writeFrame(frameNumber, (const uint8_t* const*)&pixelData);

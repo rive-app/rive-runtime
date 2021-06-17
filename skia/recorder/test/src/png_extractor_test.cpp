@@ -23,6 +23,8 @@ TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
 	                            "0",
 	                            "--max-duration",
 	                            "30",
+	                            "--duration", 
+	                            "20",
 	                            "-w"
 	                            "./static/watermark.png",
 	                            "--width",
@@ -31,8 +33,6 @@ TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
 	                            "0",
 	                            "--fps",
 	                            "60",
-	                            "--num-loops",
-	                            "3",
 	                            "--snapshot-path",
 	                            "./static/snapshot.png"};
 	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
@@ -73,12 +73,12 @@ TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
 
 	std::ifstream videoFile(destination);
 	REQUIRE(videoFile.good());
-	// int removeErr = std::remove(destination.c_str());
-	// REQUIRE(removeErr == 0);
+	int removeErr = 0;
+	removeErr = std::remove(destination.c_str());
+	REQUIRE(removeErr == 0);
 
 	std::ifstream snapshotFile(snapshotPath);
 	REQUIRE(snapshotFile.good());
-	std::cout << "PNG Extracted alright!" << std::endl;
-	// removeErr = std::remove(snapshotPath.c_str());
-	// REQUIRE(removeErr == 0);
+	removeErr = std::remove(snapshotPath.c_str());
+	REQUIRE(removeErr == 0);
 }

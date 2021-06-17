@@ -28,7 +28,7 @@ public:
 	void extractFrames(int numLoops) override;
 
 protected:
-	void onNextFrame(int frameNumber) const override;
+	void onNextFrame(int frameNumber) override;
 
 private:
 	MovieWriter* m_movieWriter;

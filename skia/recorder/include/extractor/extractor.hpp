@@ -75,7 +75,7 @@ protected:
 	sk_sp<SkSurface> m_RasterSurface;
 	SkCanvas* m_RasterCanvas;
 
-	virtual void onNextFrame(int frameNumber) const = 0;
+	virtual void onNextFrame(int frameNumber) = 0;
 
 	const void* getPixelAddresses() const;
 	int totalFrames() const;
