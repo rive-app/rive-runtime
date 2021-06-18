@@ -5,7 +5,7 @@
 TEST_CASE("No format for file")
 {
 	REQUIRE_THROWS_WITH(MovieWriter("no_format", 100, 100, 60, 0),
-	                    "Failed to determine output format for no_format.\n");
+	                    "Failed to determine output format for no_format.");
 }
 
 TEST_CASE("Bitrate has been set to the 10,000kbps")

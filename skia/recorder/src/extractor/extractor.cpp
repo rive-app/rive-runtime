@@ -1,5 +1,6 @@
-#include "extractor.hpp"
-#include "video_extractor.hpp"
+#include "extractor/extractor.hpp"
+#include "extractor/video_extractor.hpp"
+#include <sstream>
 
 int RiveFrameExtractor::totalFrames() const
 {
@@ -97,8 +98,10 @@ RiveFrameExtractor::getWatermark(const char* watermark_name) const
 
 		if (!file_exists(watermark_name))
 		{
-			throw std::invalid_argument(string_format(
-			    "Cannot find file containing watermark at %s", watermark_name));
+			std::ostringstream errorStream;
+			errorStream << "Cannot find file containing watermark at "
+			            << watermark_name;
+			throw std::invalid_argument(errorStream.str());
 		}
 		if (auto data = SkData::MakeFromFileName(watermark_name))
 		{
@@ -115,8 +118,9 @@ rive::File* RiveFrameExtractor::getRiveFile(const char* path) const
 	if (fp == nullptr)
 	{
 		fclose(fp);
-		throw std::invalid_argument(
-		    string_format("Failed to open file %s", path));
+		std::ostringstream errorStream;
+		errorStream << "Failed to open file " << path;
+		throw std::invalid_argument(errorStream.str());
 	}
 	fseek(fp, 0, SEEK_END);
 	auto length = ftell(fp);
@@ -128,8 +132,9 @@ rive::File* RiveFrameExtractor::getRiveFile(const char* path) const
 	{
 		fclose(fp);
 		delete[] bytes;
-		throw std::invalid_argument(
-		    string_format("Failed to read file into bytes array %s", path));
+		std::ostringstream errorStream;
+		errorStream << "Failed to read file into bytes array " << path;
+		throw std::invalid_argument(errorStream.str());
 	}
 
 	auto reader = rive::BinaryReader(bytes, length);
@@ -141,8 +146,9 @@ rive::File* RiveFrameExtractor::getRiveFile(const char* path) const
 
 	if (result != rive::ImportResult::success)
 	{
-		throw std::invalid_argument(
-		    string_format("Failed to read bytes into Rive file %s", path));
+		std::ostringstream errorStream;
+		errorStream << "Failed to read bytes into Rive file " << path;
+		throw std::invalid_argument(errorStream.str());
 	}
 	return file;
 }
@@ -160,8 +166,10 @@ rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name) const
 	{
 		if ((artboard = m_RiveFile->artboard(artboard_name)) == nullptr)
 		{
-			throw std::invalid_argument(string_format(
-			    "File doesn't contain an artboard named %s.", artboard_name));
+			std::ostringstream errorStream;
+			errorStream << "File doesn't contain an artboard named "
+			            << artboard_name;
+			throw std::invalid_argument(errorStream.str());
 		}
 	}
 	else
@@ -169,8 +177,8 @@ rive::Artboard* RiveFrameExtractor::getArtboard(const char* artboard_name) const
 		artboard = m_RiveFile->artboard();
 		if (artboard == nullptr)
 		{
-			throw std::invalid_argument(string_format(
-			    "File doesn't contain a default artboard.", artboard_name));
+			throw std::invalid_argument(
+			    "File doesn't contain a default artboard.");
 		}
 	}
 	return artboard;
@@ -185,10 +193,10 @@ RiveFrameExtractor::getAnimation(const char* animation_name) const
 	{
 		if ((animation = m_Artboard->animation(animation_name)) == nullptr)
 		{
-
-			fprintf(stderr,
-			        "Artboard doesn't contain an animation named %s.\n",
-			        animation_name);
+			std::ostringstream errorStream;
+			errorStream << "Artboard doesn't contain an animation named "
+			            << animation_name;
+			throw std::invalid_argument(errorStream.str());
 		}
 	}
 	else
@@ -196,8 +204,7 @@ RiveFrameExtractor::getAnimation(const char* animation_name) const
 		animation = m_Artboard->firstAnimation();
 		if (animation == nullptr)
 		{
-			throw std::invalid_argument(
-			    string_format("Artboard doesn't contain a default animation."));
+			throw std::invalid_argument("Artboard doesn't contain a default animation.");
 		}
 	}
 	return animation;
@@ -247,7 +254,7 @@ sk_sp<SkImage> RiveFrameExtractor::getSnapshot() const
 	sk_sp<SkImage> img(m_RasterSurface->makeImageSnapshot());
 	if (!img)
 	{
-		throw std::invalid_argument(string_format("Cant make a snapshot."));
+		throw std::invalid_argument("Cant make a snapshot.");
 	}
 	return img;
 }
@@ -259,7 +266,7 @@ const void* RiveFrameExtractor::getPixelAddresses() const
 	if (!img->peekPixels(&pixels))
 	{
 		throw std::invalid_argument(
-		    string_format("Cant peek pixels image frame from riv file."));
+		    "Cant peek pixels image frame from riv file.");
 	}
 
 	// Get the address to the first pixel (addr8 will assert in debug mode
@@ -273,8 +280,7 @@ sk_sp<SkData> RiveFrameExtractor::getSkData() const
 	sk_sp<SkData> png(img->encodeToData());
 	if (!png)
 	{
-		throw std::invalid_argument(
-		    string_format("Cant encode snapshot as png."));
+		throw std::invalid_argument("Cant encode snapshot as png.");
 	}
 
 	// Get the address to the first pixel (addr8 will assert in debug mode
@@ -282,7 +288,7 @@ sk_sp<SkData> RiveFrameExtractor::getSkData() const
 	return png;
 };
 
-void RiveFrameExtractor::extractFrames(int numLoops) const
+void RiveFrameExtractor::extractFrames(int numLoops)
 {
 	int totalFrames = this->totalFrames();
 	for (int loops = 0; loops < numLoops; loops++)

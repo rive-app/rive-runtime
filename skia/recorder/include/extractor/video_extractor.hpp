@@ -1,7 +1,7 @@
 #ifndef VIDEOEXTRACTOR_HPP
 #define VIDEOEXTRACTOR_HPP
 
-#include "extractor.hpp"
+#include "extractor/extractor.hpp"
 #include "recorder_arguments.hpp"
 #include "writer.hpp"
 
@@ -25,10 +25,10 @@ public:
 	               int bitrate = 0);
 	virtual ~VideoExtractor();
 
-	void extractFrames(int numLoops) const override;
+	void extractFrames(int numLoops) override;
 
 protected:
-	void onNextFrame(int frameNumber) const override;
+	void onNextFrame(int frameNumber) override;
 
 private:
 	MovieWriter* m_movieWriter;

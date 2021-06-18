@@ -41,6 +41,21 @@ TEST_CASE("Only required arguments, rest is default")
 	REQUIRE(args.renderFormat() == RenderFormat::h264);
 }
 
+TEST_CASE("Format is read from parameters")
+{
+	const char* argsVector[] = {"rive_recorder",
+	                            "-s",
+	                            "~/source/file.riv",
+	                            "-d",
+	                            "~/destination/out.mp4",
+	                            "--format",
+	                            "png_sequence"};
+	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
+	RecorderArguments args(argc, argsVector);
+
+	REQUIRE(args.renderFormat() == RenderFormat::pngSequence);
+}
+
 TEST_CASE("Reads the correct arguments and defaults")
 {
 	const char* argsVector[] = {"rive_recorder",

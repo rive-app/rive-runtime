@@ -2,8 +2,10 @@
 #define private public
 #define protected public
 
+#include <fstream>
+#include <cstdio>
 #include "catch.hpp"
-#include "video_extractor.hpp"
+#include "extractor/video_extractor.hpp"
 
 TEST_CASE("Test extractor source not found")
 {
@@ -180,6 +182,106 @@ TEST_CASE("Test 1s_oneShot min 10s")
 	                    10                         // minDuration
 	);
 	REQUIRE(rive.totalFrames() == 600);
+}
+
+TEST_CASE("Test 1s oneShot animation @60fps with custom 2s duration")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120 // duration (60 fps * 2s = 120ff)
+	);
+
+	REQUIRE(rive.totalFrames() == 60 * 2);
+}
+
+TEST_CASE("Test 1s oneShot animation @120fps with custom 2s duration")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    240, // duration (60 fps * 2s = 120ff)
+	                    0,   // minDuration
+	                    0,   // maxDuration
+	                    120  // fps
+	);
+
+	REQUIRE(rive.totalFrames() == 120 * 2);
+	REQUIRE(rive.m_Fps == 120);
+}
+
+TEST_CASE("Test 1s oneShot animation @60fps with custom 2s duration min 3s")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120, // duration (60 fps * 2s = 120ff)
+	                    3    // minDuration
+	);
+
+	REQUIRE(rive.totalFrames() == 60 * 3);
+}
+
+TEST_CASE("Test 1s oneShot animation @60fps with custom 2s duration max 1s")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120, // duration (60 fps * 15s = 120ff)
+	                    0,   // minDuration
+	                    1    // maxDuration
+	);
+
+	REQUIRE(rive.totalFrames() == 60);
+}
+
+TEST_CASE(
+    "Test 1s oneShot animation @60fps with custom 2s duration min 3s max 4s")
+{
+	VideoExtractor rive("./static/animations.riv", // source
+	                    "",                        // artboard
+	                    "1s_oneShot",              // animation
+	                    "",                        // watermark
+	                    "fake.mp4",                // destination
+	                    0,                         // width
+	                    0,                         // height
+	                    0,                         // smallExtentTarget
+	                    0,                         // maxWidth
+	                    0,                         // maxHeight
+	                    120, // duration (60 fps * 2s = 120ff)
+	                    3,   // minDuration
+	                    4    // maxDuration
+	);
+
+	REQUIRE(rive.totalFrames() == 60 * 3);
 }
 
 TEST_CASE("Test 2s_loop min 5s")
@@ -367,4 +469,81 @@ TEST_CASE("Test frames: 3s_loop work_area start_16 duration_1s min 5s")
 	                    0                         // maxDuration
 	);
 	REQUIRE(rive.totalFrames() == 300);
+}
+
+TEST_CASE("Generate a video from a riv file")
+{
+	const char* argsVector[] = {"rive_recorder",
+	                            "-s",
+	                            "./static/animations.riv",
+	                            "-d",
+	                            "./static/animations.out.mp4",
+	                            "--max-height",
+	                            "0",
+	                            "--max-width",
+	                            "0",
+	                            "--min-duration",
+	                            "0",
+	                            "--max-duration",
+	                            "30",
+	                            "-w"
+	                            "./static/watermark.png",
+	                            "--width",
+	                            "0",
+	                            "--height",
+	                            "0",
+	                            "--fps",
+	                            "60",
+	                            "--num-loops",
+	                            "3",
+	                            "--snapshot-path",
+	                            "./static/snapshot.png"};
+	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
+	RecorderArguments args(argc, argsVector);
+
+	auto source = args.source();
+	auto artboard = args.artboard();
+	auto animation = args.animation();
+	auto watermark = args.watermark();
+	auto destination = args.destination();
+	auto width = args.width();
+	auto height = args.height();
+	auto smallExtentTarget = args.smallExtentTarget();
+	auto maxWidth = args.maxWidth();
+	auto maxHeight = args.maxHeight();
+	auto duration = args.duration();
+	auto minDuration = args.minDuration();
+	auto maxDuration = args.maxDuration();
+	auto fps = args.fps();
+	auto bitrate = args.bitrate();
+	VideoExtractor extractor(source,
+	                         artboard,
+	                         animation,
+	                         watermark,
+	                         destination,
+	                         width,
+	                         height,
+	                         smallExtentTarget,
+	                         maxWidth,
+	                         maxHeight,
+	                         duration,
+	                         minDuration,
+	                         maxDuration,
+	                         fps,
+	                         bitrate);
+	auto snapshotPath = args.snapshotPath();
+	extractor.takeSnapshot(snapshotPath);
+	extractor.extractFrames(args.numLoops());
+
+	std::ifstream videoFile(destination);
+	REQUIRE(videoFile.good());
+	int removeErr = std::remove(destination.c_str());
+	REQUIRE(removeErr == 0);
+
+	std::ifstream snapshotFile(snapshotPath);
+	REQUIRE(snapshotFile.good());
+	removeErr = std::remove(snapshotPath.c_str());
+	REQUIRE(removeErr == 0);
+
+	// TODO: Run mediainfo to validate this?
 }

@@ -1,40 +1,11 @@
-#include "args.hxx"
-#include "recorder_arguments.hpp"
-#include "render_format.hpp"
-#include "video_extractor.hpp"
-#include "writer.hpp"
-
 #ifdef TESTING
 #else
 
-RiveFrameExtractor* makeExtractor(RecorderArguments& args)
-{
-	auto renderFormat = args.renderFormat();
-	switch (renderFormat)
-	{
-		case RenderFormat::pngSequence:
-			throw std::invalid_argument(
-			    "PNG seq not supported yet! COMING SOON!");
-		// return new PngExtractor();
-		case RenderFormat::h264:
-		default:
-			return new VideoExtractor(args.source(),
-			                          args.artboard(),
-			                          args.animation(),
-			                          args.watermark(),
-			                          args.destination(),
-			                          args.width(),
-			                          args.height(),
-			                          args.smallExtentTarget(),
-			                          args.maxWidth(),
-			                          args.maxHeight(),
-			                          args.duration(),
-			                          args.minDuration(),
-			                          args.maxDuration(),
-			                          args.fps(),
-			                          args.bitrate());
-	}
-}
+#include "args.hxx"
+#include "recorder_arguments.hpp"
+#include "render_format.hpp"
+#include "extractor/extractor_factory.hpp"
+#include "writer.hpp"
 
 int main(int argc, const char* argv[])
 {
