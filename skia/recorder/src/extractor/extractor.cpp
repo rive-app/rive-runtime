@@ -204,9 +204,7 @@ RiveFrameExtractor::getAnimation(const char* animation_name) const
 		animation = m_Artboard->firstAnimation();
 		if (animation == nullptr)
 		{
-			std::ostringstream errorStream;
-			errorStream << "Artboard doesn't contain a default animation.";
-			throw std::invalid_argument(errorStream.str());
+			throw std::invalid_argument("Artboard doesn't contain a default animation.");
 		}
 	}
 	return animation;
