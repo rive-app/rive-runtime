@@ -43,7 +43,8 @@ public:
 
 	void onNextFrame(int frameNumber)
 	{
-		sk_sp<SkData> png = this->getSkData();
+		// Make sure we have a transparent background.
+		sk_sp<SkData> png = this->getSkData(SK_ColorTRANSPARENT);
 		auto buffer = png->data();
 		auto size = png->size();
 		auto pngName = std::to_string(frameNumber) + ".png";

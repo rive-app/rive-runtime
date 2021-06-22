@@ -10,7 +10,6 @@ int RiveFrameExtractor::totalFrames() const
 	int animationFrames = m_Duration;
 	int totalFrames = animationFrames;
 
-	// TODO: combine those two into one function
 	switch (m_Animation->loop())
 	{
 		case rive::Loop::pingPong:
@@ -204,7 +203,8 @@ RiveFrameExtractor::getAnimation(const char* animation_name) const
 		animation = m_Artboard->firstAnimation();
 		if (animation == nullptr)
 		{
-			throw std::invalid_argument("Artboard doesn't contain a default animation.");
+			throw std::invalid_argument(
+			    "Artboard doesn't contain a default animation.");
 		}
 	}
 	return animation;
@@ -220,13 +220,14 @@ void RiveFrameExtractor::restart() const
 	m_Animation_instance->time(m_Animation->startSeconds());
 }
 
-sk_sp<SkImage> RiveFrameExtractor::getSnapshot() const
+sk_sp<SkImage>
+RiveFrameExtractor::getSnapshot(SkColor clearColor = SK_ColorBLACK) const
 {
 
 	// I see a canvas and I want to paint it black.
 	// (without this transparent background dont get cleared.)
 	SkPaint paint;
-	m_RasterCanvas->clear(SK_ColorBLACK);
+	m_RasterCanvas->clear(clearColor);
 
 	// hmm "no deafault constructor exists bla bla... "
 	rive::SkiaRenderer renderer(m_RasterCanvas);
@@ -274,9 +275,10 @@ const void* RiveFrameExtractor::getPixelAddresses() const
 	return pixels.addr(0, 0);
 };
 
-sk_sp<SkData> RiveFrameExtractor::getSkData() const
+sk_sp<SkData>
+RiveFrameExtractor::getSkData(SkColor clearColor = SK_ColorBLACK) const
 {
-	auto img = getSnapshot();
+	auto img = getSnapshot(clearColor);
 	sk_sp<SkData> png(img->encodeToData());
 	if (!png)
 	{
