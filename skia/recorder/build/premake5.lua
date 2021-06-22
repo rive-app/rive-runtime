@@ -97,7 +97,7 @@ libdirs {
     "/usr/lib",
 }
 
-files {"../src/**.cpp"}
+files {"../src/**.cpp", "../src/**.c"}
 
 buildoptions {"-Wall", "-fno-rtti"}
 
