@@ -82,7 +82,7 @@ protected:
 	rive::Artboard* getArtboard(const char* artboard_name) const;
 	rive::File* getRiveFile(const char* path) const;
 	rive::LinearAnimation* getAnimation(const char* artboard_name) const;
-	sk_sp<SkData> getSkData(SkColor clearColo) const;
+	sk_sp<SkData> getSkData(SkColor clearColor) const;
 	sk_sp<SkImage> getSnapshot(SkColor clearColor) const;
 	sk_sp<SkImage> getWatermark(const char* watermark_name) const;
 	void advanceFrame() const;
