@@ -4,6 +4,8 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdexcept>
+#include <memory>
 
 template <typename... Args>
 std::string string_format(const std::string& format, Args... args)
