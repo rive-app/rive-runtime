@@ -17,6 +17,7 @@ namespace rive
 		void addStrokeEffect(StrokeEffect* effect);
 		bool hasStrokeEffect() { return m_Effect != nullptr; }
 		void invalidateEffects();
+		bool isVisible() const override;
 
 	protected:
 		void thicknessChanged() override;

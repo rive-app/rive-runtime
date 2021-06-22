@@ -20,6 +20,11 @@ RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
 	return renderPaint;
 }
 
+bool Stroke::isVisible() const
+{
+	return Super::isVisible() && thickness() > 0.0f;
+}
+
 void Stroke::draw(Renderer* renderer, CommandPath* path)
 {
 	if (!isVisible())
