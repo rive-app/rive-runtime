@@ -90,6 +90,7 @@ libdirs {
 
 files {
     "../src/**.cpp", -- the Rive runtime source
+    "../src/**.c", -- miniz source
     "./src/**.cpp" -- the tests
 }
 

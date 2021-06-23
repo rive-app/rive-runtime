@@ -3,13 +3,13 @@
 #include "archive.hpp"
 #include <cstdio> // std::remove()
 
-TEST_CASE("Read the correct number of bytes")
+TEST_CASE("Read the correct number of bytes", "[.]")
 {
 	auto bytes = Archive::readFile("./static/51x50.riv");
 	REQUIRE(bytes.size() == 76);
 }
 
-TEST_CASE("Empty Archive doesn't create a file")
+TEST_CASE("Empty Archive doesn't create a file", "[.]")
 {
 	std::string archive_location("./static/archive_test.zip");
 	auto arc = new Archive(archive_location);
@@ -22,7 +22,7 @@ TEST_CASE("Empty Archive doesn't create a file")
 	REQUIRE(!infile.good());
 }
 
-TEST_CASE("Test Archive file creation")
+TEST_CASE("Test Archive file creation", "[.]")
 {
 	auto file_bytes = Archive::readFile("./static/51x50.riv");
 	std::string archive_location("./static/archive_test.zip");

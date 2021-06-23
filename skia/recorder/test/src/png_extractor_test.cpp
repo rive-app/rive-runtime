@@ -4,12 +4,65 @@
 
 #include <fstream>
 #include <cstdio>
+#include <chrono>
 #include "catch.hpp"
 #include "recorder_arguments.hpp"
 #include "extractor/extractor_factory.hpp"
 #include "extractor/png_extractor.hpp"
 
-TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file")
+// Hidden test (tag starts with a .)
+// Run this test with cmd:
+// 	$ ./test.sh "[.perf]"
+TEST_CASE("PNG Sequence performance testing.", "[.perf]")
+{
+	const char* argsVector[] = {"rive_recorder",
+	                            "-s",
+	                            "./static/transparent.riv",
+	                            "-d",
+	                            "./static/out/transparent.zip",
+	                            "--duration",
+	                            "100",
+	                            "--snapshot-path",
+	                            "./static/out/alpha_snap.png",
+	                            "-w"
+	                            "./static/watermark.png",
+	                            "--format",
+	                            "png_sequence"};
+	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
+
+	RecorderArguments args(argc, argsVector);
+	auto destination = args.destination();
+
+	std::ifstream destinationFile(destination);
+	if (destinationFile.good())
+	{
+		std::remove(destination.c_str());
+	}
+
+	PNGExtractor* extractor = (PNGExtractor*)(makeExtractor(args));
+
+	// Timer start:
+	std::chrono::steady_clock::time_point begin =
+	    std::chrono::steady_clock::now();
+	extractor->extractFrames(args.numLoops());
+	// Timer end:
+	std::chrono::steady_clock::time_point end =
+	    std::chrono::steady_clock::now();
+
+	std::cout << "Time difference = "
+	          << std::chrono::duration_cast<std::chrono::milliseconds>(end -
+	                                                                   begin)
+	                 .count()
+	          << "[ms]" << std::endl;
+
+	std::ifstream zipFile(destination);
+	REQUIRE(zipFile.good());
+
+	delete extractor;
+}
+
+TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file",
+          "[zip_archive]")
 {
 	const char* argsVector[] = {"rive_recorder",
 	                            "-s",

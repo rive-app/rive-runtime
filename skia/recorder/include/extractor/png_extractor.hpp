@@ -1,7 +1,8 @@
 #ifndef _PNG_EXTRACTOR_HPP
 #define _PNG_EXTRACTOR_HPP
 
-#include "archive.hpp"
+#define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#include "miniz.h"
 #include "extractor/extractor.hpp"
 #include <fstream>
 #include <cstdio>
@@ -36,22 +37,29 @@ public:
 	                       minDuration,
 	                       maxDuration,
 	                       fps),
-	    m_Archive(Archive(destination))
+	    m_DestinationPath(destination)
 	{
 	}
 	virtual ~PNGExtractor() {}
 
 	void onNextFrame(int frameNumber)
 	{
-		sk_sp<SkData> png = this->getSkData();
+		// Make sure we have a transparent background.
+		sk_sp<SkData> png = this->getSkData(SK_ColorTRANSPARENT);
 		auto buffer = png->data();
 		auto size = png->size();
 		auto pngName = std::to_string(frameNumber) + ".png";
-		m_Archive.addBuffer(pngName, buffer, size);
+		mz_zip_add_mem_to_archive_file_in_place(m_DestinationPath.c_str(),
+		                                        pngName.c_str(),
+		                                        buffer,
+		                                        size,
+		                                        0,
+		                                        0,
+		                                        MZ_BEST_COMPRESSION);
 	}
 
 private:
-	Archive m_Archive;
+	std::string m_DestinationPath;
 };
 
 #endif
