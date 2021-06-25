@@ -36,17 +36,18 @@ extern "C"
 class MovieWriter
 {
 public:
-	MovieWriter(const std::string& _destination,
-	            int _width,
-	            int _height,
-	            int _fps,
+	MovieWriter(const std::string& destination,
+	            int width,
+	            int height,
+	            int fps,
 	            int bitrate = 0);
+	~MovieWriter();
 	void writeHeader();
 	void writeFrame(int frameNumber, const uint8_t* const* pixelData);
 	void finalize() const;
 
 private:
-	AVFrame* m_videoFrame;
+	AVFrame* m_VideoFrame;
 	AVCodecContext* m_Cctx;
 	AVStream* m_VideoStream;
 	AVOutputFormat* m_OFormat;

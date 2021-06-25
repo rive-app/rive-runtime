@@ -32,13 +32,14 @@ public:
 	                   int minDuration = 0,
 	                   int maxDuration = 0,
 	                   int fps = 0) :
-	    m_MinDuration(minDuration), m_MaxDuration(maxDuration)
+	    m_MinDuration(minDuration),
+	    m_MaxDuration(maxDuration),
+	    m_RiveFile(getRiveFile(path.c_str())),
+	    m_Artboard(getArtboard(artboardName.c_str())),
+	    m_Animation(getAnimation(animationName.c_str())),
+	    m_AnimationInstance(new rive::LinearAnimationInstance(m_Animation)),
+	    m_WatermarkImage(getWatermark(watermark.c_str()))
 	{
-		m_RiveFile = getRiveFile(path.c_str());
-		m_Artboard = getArtboard(artboardName.c_str());
-		m_Animation = getAnimation(animationName.c_str());
-		m_Animation_instance = new rive::LinearAnimationInstance(m_Animation);
-		m_WatermarkImage = getWatermark(watermark.c_str());
 		initializeDimensions(
 		    width, height, smallExtentTarget, maxWidth, maxHeight);
 		m_RasterSurface = SkSurface::MakeRaster(SkImageInfo::Make(
@@ -51,7 +52,12 @@ public:
 		auto durationFrames = m_Animation->durationSeconds() * m_Fps;
 		m_Duration = valueOrDefault(duration, durationFrames);
 	}
-	virtual ~RiveFrameExtractor() {}
+	virtual ~RiveFrameExtractor()
+	{
+		delete m_AnimationInstance;
+		// Deleting the file will clean up also artboard and animation.
+		delete m_RiveFile;
+	}
 	virtual void extractFrames(int numLoops);
 
 	float fps() const { return m_Fps; }
@@ -67,10 +73,10 @@ protected:
 	int m_MinDuration;
 	int m_MaxDuration;
 	int m_Width;
-	rive::Artboard* m_Artboard;
 	rive::File* m_RiveFile;
+	rive::Artboard* m_Artboard;
 	rive::LinearAnimation* m_Animation;
-	rive::LinearAnimationInstance* m_Animation_instance;
+	rive::LinearAnimationInstance* m_AnimationInstance;
 	sk_sp<SkImage> m_WatermarkImage;
 	sk_sp<SkSurface> m_RasterSurface;
 	SkCanvas* m_RasterCanvas;

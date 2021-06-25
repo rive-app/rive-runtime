@@ -72,7 +72,6 @@ TEST_CASE("file with animation can be read", "[file]")
 	auto walkAnimation = artboard->animation("walk");
 	REQUIRE(walkAnimation != nullptr);
 	REQUIRE(walkAnimation->numKeyedObjects() == 22);
-	
 
 	delete file;
 	delete[] bytes;
@@ -107,6 +106,8 @@ TEST_CASE("artboards can be counted and accessed via index or name", "[file]")
 	// Artboards can be accessed by name
 	REQUIRE(file->artboard("Blue") != nullptr);
 
+	delete file;
+	delete[] bytes;
 }
 
 TEST_CASE("dependencies are as expected", "[file]")

@@ -101,8 +101,8 @@ TEST_CASE("Generate a zip archive containing a PNG sequence from a riv file",
 	extractor->takeSnapshot(snapshotPath);
 	extractor->extractFrames(args.numLoops());
 
-	std::ifstream videoFile(destination);
-	REQUIRE(videoFile.good());
+	std::ifstream zipFile(destination);
+	REQUIRE(zipFile.good());
 	int removeErr = 0;
 	removeErr = std::remove(destination.c_str());
 	REQUIRE(removeErr == 0);

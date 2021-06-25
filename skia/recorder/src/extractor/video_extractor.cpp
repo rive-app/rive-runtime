@@ -36,10 +36,7 @@ VideoExtractor::VideoExtractor(const std::string& path,
 
 VideoExtractor::~VideoExtractor()
 {
-	if (m_movieWriter)
-	{
-		delete m_movieWriter;
-	}
+	delete m_movieWriter;
 }
 
 void VideoExtractor::extractFrames(int numLoops)
