@@ -1,3 +1,8 @@
+![Build Status](https://github.com/rive-app/rive-cpp/actions/workflows/tests.yml/badge.svg) 
+![Discord badge](https://img.shields.io/discord/532365473602600965)
+![Twitter handle](https://img.shields.io/twitter/follow/rive_app.svg?style=social&label=Follow)
+
+
 # rive-cpp
 C++ runtime for [Rive](https://rive.app). Provides these runtime features:
 - Loading Artboards and their contents from **.riv** files.
