@@ -6,6 +6,14 @@ MovieWriter::MovieWriter(const std::string& destination,
                          int height,
                          int fps,
                          int bitrate) :
+    m_VideoFrame(nullptr),
+    m_Cctx(nullptr),
+    m_VideoStream(nullptr),
+    m_OFormat(nullptr),
+    m_OFctx(nullptr),
+    m_Codec(nullptr),
+    m_SwsCtx(nullptr),
+    m_PixelFormat(AV_PIX_FMT_YUV420P),
     m_DestinationPath(destination),
     m_Width(width),
     m_Height(height),
@@ -17,9 +25,7 @@ MovieWriter::MovieWriter(const std::string& destination,
 
 MovieWriter::~MovieWriter()
 {
-	av_free(m_Codec);
 	sws_freeContext(m_SwsCtx);
-	avformat_close_input(&m_OFctx);
 	avformat_free_context(m_OFctx);
 	avcodec_free_context(&m_Cctx);
 }

@@ -509,7 +509,7 @@ TEST_CASE("Generate a video from a riv file", "[video]")
 	auto snapshotPath = args.snapshotPath();
 	extractor->takeSnapshot(snapshotPath);
 	extractor->extractFrames(args.numLoops());
-	
+
 	int removeErr = 1;
 	std::ifstream videoFile(destination);
 	REQUIRE(videoFile.good());
@@ -522,5 +522,65 @@ TEST_CASE("Generate a video from a riv file", "[video]")
 	REQUIRE(removeErr == 0);
 
 	// TODO: Run mediainfo to validate this?
+	delete extractor;
+}
+
+TEST_CASE("Generate a video when posting to Community", "[community]")
+{
+	// This is the 'typical' payload when trying to generate a Community video.
+	const char* argsVector[] = {"rive_recorder",
+	                            "-s",
+	                            "./static/animations.riv",
+	                            "-d",
+	                            "./static/animations.out.mp4",
+	                            "--max-height",
+	                            "1440",
+	                            "--max-width",
+	                            "1440",
+	                            "--min-duration",
+	                            "3",
+	                            "--max-duration",
+	                            "30",
+	                            "--snapshot-path",
+	                            "./static/snapshot.png",
+	                            "-t",
+	                            "animations",
+	                            "-a",
+	                            "1s_oneShot",
+	                            "-w",
+	                            "./static/watermark.png",
+	                            "--width",
+	                            "0",
+	                            "--height",
+	                            "0",
+	                            "--fps",
+	                            "0.0",
+	                            "--bitrate",
+	                            "0",
+	                            "--num-loops",
+	                            "1",
+	                            "--format",
+	                            "h264"};
+	unsigned int argc = sizeof(argsVector) / sizeof(argsVector[0]);
+	RecorderArguments args(argc, argsVector);
+
+	auto destination = args.destination();
+	auto extractor = (VideoExtractor*)makeExtractor(args);
+
+	auto snapshotPath = args.snapshotPath();
+	extractor->takeSnapshot(snapshotPath);
+	extractor->extractFrames(args.numLoops());
+
+	int removeErr = 1;
+	std::ifstream videoFile(destination);
+	REQUIRE(videoFile.good());
+	removeErr = std::remove(destination.c_str());
+	REQUIRE(removeErr == 0);
+
+	std::ifstream snapshotFile(snapshotPath);
+	REQUIRE(snapshotFile.good());
+	removeErr = std::remove(snapshotPath.c_str());
+	REQUIRE(removeErr == 0);
+
 	delete extractor;
 }
