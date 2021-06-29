@@ -1,19 +1,34 @@
 #include "writer.hpp"
 #include <sstream>
 
-MovieWriter::MovieWriter(const std::string& _destination,
-                         int _width,
-                         int _height,
-                         int _fps,
-                         int _bitrate)
+MovieWriter::MovieWriter(const std::string& destination,
+                         int width,
+                         int height,
+                         int fps,
+                         int bitrate) :
+    m_VideoFrame(nullptr),
+    m_Cctx(nullptr),
+    m_VideoStream(nullptr),
+    m_OFormat(nullptr),
+    m_OFctx(nullptr),
+    m_Codec(nullptr),
+    m_SwsCtx(nullptr),
+    m_PixelFormat(AV_PIX_FMT_YUV420P),
+    m_DestinationPath(destination),
+    m_Width(width),
+    m_Height(height),
+    m_Fps(fps),
+    m_Bitrate(bitrate)
 {
-	m_DestinationPath = _destination;
-	m_Width = _width;
-	m_Height = _height;
-	m_Fps = _fps;
-	m_Bitrate = _bitrate;
 	initialize();
 };
+
+MovieWriter::~MovieWriter()
+{
+	sws_freeContext(m_SwsCtx);
+	avformat_free_context(m_OFctx);
+	avcodec_free_context(&m_Cctx);
+}
 
 void MovieWriter::initialize()
 {
@@ -144,19 +159,19 @@ void MovieWriter::initialize()
 		throw std::invalid_argument(std::string("Failed to open codec ") +
 		                            destPath);
 	}
-	// initialise_av_frame();
+	av_dict_free(&codec_options);
 }
 
 void MovieWriter::initialise_av_frame()
 {
 	// Init some ffmpeg data to hold our encoded frames (convert them to the
 	// right format).
-	m_videoFrame = av_frame_alloc();
-	m_videoFrame->format = m_PixelFormat;
-	m_videoFrame->width = m_Width;
-	m_videoFrame->height = m_Height;
+	m_VideoFrame = av_frame_alloc();
+	m_VideoFrame->format = m_PixelFormat;
+	m_VideoFrame->width = m_Width;
+	m_VideoFrame->height = m_Height;
 	int err;
-	if ((err = av_frame_get_buffer(m_videoFrame, 32)) < 0)
+	if ((err = av_frame_get_buffer(m_VideoFrame, 32)) < 0)
 	{
 		std::ostringstream errorStream;
 		errorStream << "Failed to allocate buffer for frame with error " << err;
@@ -223,19 +238,19 @@ void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
 	          inLinesize,
 	          0,
 	          m_Height,
-	          m_videoFrame->data,
-	          m_videoFrame->linesize);
+	          m_VideoFrame->data,
+	          m_VideoFrame->linesize);
 
 	// This was kind of a guess... works ok (time seems to elapse properly
 	// when playing back and durations look right). PTS is still somewhat of
 	// a mystery to me, I think it just needs to be monotonically
 	// incrementing but there's some extra voodoo where it won't work if you
 	// just use the frame number. I used to understand this stuff...
-	m_videoFrame->pts = frameNumber * m_VideoStream->time_base.den /
+	m_VideoFrame->pts = frameNumber * m_VideoStream->time_base.den /
 	                    (m_VideoStream->time_base.num * m_Fps);
 
 	int err;
-	if ((err = avcodec_send_frame(m_Cctx, m_videoFrame)) < 0)
+	if ((err = avcodec_send_frame(m_Cctx, m_VideoFrame)) < 0)
 	{
 		std::ostringstream errorStream;
 		errorStream << "Failed to send frame " << err;
@@ -271,7 +286,7 @@ void MovieWriter::writeFrame(int frameNumber, const uint8_t* const* pixelData)
 		// printf(errorstring);
 	}
 
-	av_frame_free(&m_videoFrame);
+	av_frame_free(&m_VideoFrame);
 	printf(".");
 	fflush(stdout);
 }

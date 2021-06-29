@@ -2,6 +2,14 @@
 
 using namespace rive;
 
+BlendState::~BlendState()
+{
+	for (auto anim : m_Animations)
+	{
+		delete anim;
+	}
+}
+
 void BlendState::addAnimation(BlendAnimation* animation)
 {
 	// Assert it's not already contained.

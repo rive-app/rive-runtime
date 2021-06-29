@@ -212,12 +212,12 @@ RiveFrameExtractor::getAnimation(const char* animation_name) const
 
 void RiveFrameExtractor::advanceFrame() const
 {
-	m_Animation_instance->advance(m_IFps);
+	m_AnimationInstance->advance(m_IFps);
 }
 
 void RiveFrameExtractor::restart() const
 {
-	m_Animation_instance->time(m_Animation->startSeconds());
+	m_AnimationInstance->time(m_Animation->startSeconds());
 }
 
 sk_sp<SkImage>
@@ -237,7 +237,7 @@ RiveFrameExtractor::getSnapshot(SkColor clearColor = SK_ColorBLACK) const
 	               rive::Alignment::center,
 	               rive::AABB(0, 0, width(), height()),
 	               m_Artboard->bounds());
-	m_Animation_instance->apply(m_Artboard);
+	m_AnimationInstance->apply(m_Artboard);
 	m_Artboard->advance(0.0f);
 	m_Artboard->draw(&renderer);
 	renderer.restore();

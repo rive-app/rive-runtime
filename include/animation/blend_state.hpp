@@ -19,6 +19,7 @@ namespace rive
 		void addAnimation(BlendAnimation* animation);
 
 	public:
+		~BlendState();
 		inline const std::vector<BlendAnimation*>& animations() const
 		{
 			return m_Animations;
