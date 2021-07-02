@@ -11,7 +11,7 @@ TEST_CASE("Missing arguments throws ValidationError")
 	                  args::ValidationError);
 }
 
-TEST_CASE("Only required arguments, rest is default")
+TEST_CASE("Only required arguments, rest is default", "[mostly_default]")
 {
 	const char* argsVector[] = {"rive_recorder",
 	                            "-s",
@@ -41,7 +41,7 @@ TEST_CASE("Only required arguments, rest is default")
 	REQUIRE(args.renderFormat() == RenderFormat::h264);
 }
 
-TEST_CASE("Format is read from parameters")
+TEST_CASE("Format is read from parameters", "[format_from_params]")
 {
 	const char* argsVector[] = {"rive_recorder",
 	                            "-s",
@@ -56,7 +56,7 @@ TEST_CASE("Format is read from parameters")
 	REQUIRE(args.renderFormat() == RenderFormat::pngSequence);
 }
 
-TEST_CASE("Reads the correct arguments and defaults")
+TEST_CASE("Reads the correct arguments and defaults", "[args_and_defs]")
 {
 	const char* argsVector[] = {"rive_recorder",
 	                            "-s",

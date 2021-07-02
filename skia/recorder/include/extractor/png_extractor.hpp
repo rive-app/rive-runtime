@@ -4,8 +4,7 @@
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #include "miniz.h"
 #include "extractor/extractor.hpp"
-#include <fstream>
-#include <cstdio>
+
 class PNGExtractor : public RiveFrameExtractor
 {
 public:
@@ -22,44 +21,30 @@ public:
 	             int duration = 0,
 	             int minDuration = 0,
 	             int maxDuration = 0,
-	             int fps = 0) :
-	    RiveFrameExtractor(path,
-	                       artboardName,
-	                       animationName,
-	                       watermark,
-	                       destination,
-	                       width,
-	                       height,
-	                       smallExtentTarget,
-	                       maxWidth,
-	                       maxHeight,
-	                       duration,
-	                       minDuration,
-	                       maxDuration,
-	                       fps),
-	    m_DestinationPath(destination)
-	{
-	}
+	             int fps = 0);
 	virtual ~PNGExtractor() {}
 
-	void onNextFrame(int frameNumber)
+	void extractFrames(int numLoops) override;
+	void onNextFrame(int frameNumber) override;
+
+	static int numDigits(unsigned number)
 	{
-		// Make sure we have a transparent background.
-		sk_sp<SkData> png = this->getSkData(SK_ColorTRANSPARENT);
-		auto buffer = png->data();
-		auto size = png->size();
-		auto pngName = std::to_string(frameNumber) + ".png";
-		mz_zip_add_mem_to_archive_file_in_place(m_DestinationPath.c_str(),
-		                                        pngName.c_str(),
-		                                        buffer,
-		                                        size,
-		                                        0,
-		                                        0,
-		                                        MZ_BEST_COMPRESSION);
+		int digits = 0;
+		unsigned temp = number;
+		while (temp)
+		{
+			temp /= 10;
+			digits++;
+		}
+
+		return digits;
 	}
 
 private:
 	std::string m_DestinationPath;
+	unsigned m_Digits;
+
+	std::string zeroPadded(unsigned frameNumber);
 };
 
 #endif
