@@ -94,7 +94,7 @@ public:
 
 		args::MapFlag<std::string, RenderFormat> formatMapping(
 		    optional,
-		    "Output Formmat",
+		    "Output Format",
 		    "Maps the format string (e.g. 264) to its enum",
 		    {"format"},
 		    m_renderFormatMap,
