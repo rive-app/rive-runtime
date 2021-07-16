@@ -10,6 +10,7 @@ class Property {
   final Definition definition;
   String initialValue;
   String initialValueRuntime;
+  bool isVirtual = false;
   bool animates = false;
   String group;
   Key key;
@@ -66,6 +67,8 @@ class Property {
     if (a is bool) {
       animates = a;
     }
+    dynamic virtualValue = data['virtual'];
+    isVirtual = virtualValue is bool && virtualValue;
     dynamic g = data['group'];
     if (g is String) {
       group = g;
@@ -226,6 +229,9 @@ class Property {
     }
     if (!isCoop) {
       data['coop'] = false;
+    }
+    if (isVirtual) {
+      data['virtual'] = true;
     }
     return data;
   }

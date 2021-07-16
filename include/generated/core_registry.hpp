@@ -45,6 +45,9 @@
 #include "bones/tendon.hpp"
 #include "bones/weight.hpp"
 #include "component.hpp"
+#include "constraints/constraint.hpp"
+#include "constraints/ik_constraint.hpp"
+#include "constraints/targeted_constraint.hpp"
 #include "container_component.hpp"
 #include "draw_rules.hpp"
 #include "draw_target.hpp"
@@ -86,6 +89,8 @@ namespace rive
 			{
 				case DrawTargetBase::typeKey:
 					return new DrawTarget();
+				case IKConstraintBase::typeKey:
+					return new IKConstraint();
 				case AnimationStateBase::typeKey:
 					return new AnimationState();
 				case KeyedObjectBase::typeKey:
@@ -227,6 +232,12 @@ namespace rive
 				case DrawTargetBase::placementValuePropertyKey:
 					object->as<DrawTargetBase>()->placementValue(value);
 					break;
+				case TargetedConstraintBase::targetIdPropertyKey:
+					object->as<TargetedConstraintBase>()->targetId(value);
+					break;
+				case IKConstraintBase::parentBoneCountPropertyKey:
+					object->as<IKConstraintBase>()->parentBoneCount(value);
+					break;
 				case AnimationStateBase::animationIdPropertyKey:
 					object->as<AnimationStateBase>()->animationId(value);
 					break;
@@ -354,6 +365,9 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
+				case ConstraintBase::strengthPropertyKey:
+					object->as<ConstraintBase>()->strength(value);
+					break;
 				case StateMachineNumberBase::valuePropertyKey:
 					object->as<StateMachineNumberBase>()->value(value);
 					break;
@@ -560,25 +574,13 @@ namespace rive
 					break;
 			}
 		}
-		static void setColor(Core* object, int propertyKey, int value)
-		{
-			switch (propertyKey)
-			{
-				case KeyFrameColorBase::valuePropertyKey:
-					object->as<KeyFrameColorBase>()->value(value);
-					break;
-				case SolidColorBase::colorValuePropertyKey:
-					object->as<SolidColorBase>()->colorValue(value);
-					break;
-				case GradientStopBase::colorValuePropertyKey:
-					object->as<GradientStopBase>()->colorValue(value);
-					break;
-			}
-		}
 		static void setBool(Core* object, int propertyKey, bool value)
 		{
 			switch (propertyKey)
 			{
+				case IKConstraintBase::invertDirectionPropertyKey:
+					object->as<IKConstraintBase>()->invertDirection(value);
+					break;
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 					object->as<LinearAnimationBase>()->enableWorkArea(value);
 					break;
@@ -599,6 +601,21 @@ namespace rive
 					break;
 				case ClippingShapeBase::isVisiblePropertyKey:
 					object->as<ClippingShapeBase>()->isVisible(value);
+					break;
+			}
+		}
+		static void setColor(Core* object, int propertyKey, int value)
+		{
+			switch (propertyKey)
+			{
+				case KeyFrameColorBase::valuePropertyKey:
+					object->as<KeyFrameColorBase>()->value(value);
+					break;
+				case SolidColorBase::colorValuePropertyKey:
+					object->as<SolidColorBase>()->colorValue(value);
+					break;
+				case GradientStopBase::colorValuePropertyKey:
+					object->as<GradientStopBase>()->colorValue(value);
 					break;
 			}
 		}
@@ -625,6 +642,10 @@ namespace rive
 					return object->as<DrawTargetBase>()->drawableId();
 				case DrawTargetBase::placementValuePropertyKey:
 					return object->as<DrawTargetBase>()->placementValue();
+				case TargetedConstraintBase::targetIdPropertyKey:
+					return object->as<TargetedConstraintBase>()->targetId();
+				case IKConstraintBase::parentBoneCountPropertyKey:
+					return object->as<IKConstraintBase>()->parentBoneCount();
 				case AnimationStateBase::animationIdPropertyKey:
 					return object->as<AnimationStateBase>()->animationId();
 				case KeyedObjectBase::objectIdPropertyKey:
@@ -714,6 +735,8 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
+				case ConstraintBase::strengthPropertyKey:
+					return object->as<ConstraintBase>()->strength();
 				case StateMachineNumberBase::valuePropertyKey:
 					return object->as<StateMachineNumberBase>()->value();
 				case TransitionNumberConditionBase::valuePropertyKey:
@@ -855,23 +878,12 @@ namespace rive
 			}
 			return 0.0f;
 		}
-		static int getColor(Core* object, int propertyKey)
-		{
-			switch (propertyKey)
-			{
-				case KeyFrameColorBase::valuePropertyKey:
-					return object->as<KeyFrameColorBase>()->value();
-				case SolidColorBase::colorValuePropertyKey:
-					return object->as<SolidColorBase>()->colorValue();
-				case GradientStopBase::colorValuePropertyKey:
-					return object->as<GradientStopBase>()->colorValue();
-			}
-			return 0;
-		}
 		static bool getBool(Core* object, int propertyKey)
 		{
 			switch (propertyKey)
 			{
+				case IKConstraintBase::invertDirectionPropertyKey:
+					return object->as<IKConstraintBase>()->invertDirection();
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 					return object->as<LinearAnimationBase>()->enableWorkArea();
 				case StateMachineBoolBase::valuePropertyKey:
@@ -889,6 +901,19 @@ namespace rive
 			}
 			return false;
 		}
+		static int getColor(Core* object, int propertyKey)
+		{
+			switch (propertyKey)
+			{
+				case KeyFrameColorBase::valuePropertyKey:
+					return object->as<KeyFrameColorBase>()->value();
+				case SolidColorBase::colorValuePropertyKey:
+					return object->as<SolidColorBase>()->colorValue();
+				case GradientStopBase::colorValuePropertyKey:
+					return object->as<GradientStopBase>()->colorValue();
+			}
+			return 0;
+		}
 		static int propertyFieldId(int propertyKey)
 		{
 			switch (propertyKey)
@@ -900,6 +925,8 @@ namespace rive
 				case ComponentBase::parentIdPropertyKey:
 				case DrawTargetBase::drawableIdPropertyKey:
 				case DrawTargetBase::placementValuePropertyKey:
+				case TargetedConstraintBase::targetIdPropertyKey:
+				case IKConstraintBase::parentBoneCountPropertyKey:
 				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
 				case BlendAnimationBase::animationIdPropertyKey:
@@ -941,6 +968,7 @@ namespace rive
 				case CubicWeightBase::outValuesPropertyKey:
 				case CubicWeightBase::outIndicesPropertyKey:
 					return CoreUintType::id;
+				case ConstraintBase::strengthPropertyKey:
 				case StateMachineNumberBase::valuePropertyKey:
 				case TransitionNumberConditionBase::valuePropertyKey:
 				case CubicInterpolatorBase::x1PropertyKey:
@@ -1010,10 +1038,7 @@ namespace rive
 				case TendonBase::txPropertyKey:
 				case TendonBase::tyPropertyKey:
 					return CoreDoubleType::id;
-				case KeyFrameColorBase::valuePropertyKey:
-				case SolidColorBase::colorValuePropertyKey:
-				case GradientStopBase::colorValuePropertyKey:
-					return CoreColorType::id;
+				case IKConstraintBase::invertDirectionPropertyKey:
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 				case StateMachineBoolBase::valuePropertyKey:
 				case ShapePaintBase::isVisiblePropertyKey:
@@ -1022,6 +1047,10 @@ namespace rive
 				case RectangleBase::linkCornerRadiusPropertyKey:
 				case ClippingShapeBase::isVisiblePropertyKey:
 					return CoreBoolType::id;
+				case KeyFrameColorBase::valuePropertyKey:
+				case SolidColorBase::colorValuePropertyKey:
+				case GradientStopBase::colorValuePropertyKey:
+					return CoreColorType::id;
 				default:
 					return -1;
 			}

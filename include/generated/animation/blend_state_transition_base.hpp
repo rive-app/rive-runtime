@@ -48,6 +48,13 @@ namespace rive
 			exitBlendAnimationIdChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const BlendStateTransitionBase& object)
+		{
+			m_ExitBlendAnimationId = object.m_ExitBlendAnimationId;
+			StateTransition::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

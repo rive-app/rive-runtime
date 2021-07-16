@@ -44,6 +44,13 @@ namespace rive
 			valueChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const BlendAnimation1DBase& object)
+		{
+			m_Value = object.m_Value;
+			BlendAnimation::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)

@@ -1,4 +1,5 @@
 #include "animation/blend_state.hpp"
+#include "animation/blend_animation.hpp"
 
 using namespace rive;
 

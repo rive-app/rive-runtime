@@ -33,7 +33,6 @@ namespace rive
 
 	private:
 		bool m_IsVisible = true;
-
 	public:
 		virtual bool isVisible() const { return m_IsVisible; }
 		void isVisible(bool value)

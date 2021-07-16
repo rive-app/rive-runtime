@@ -27,6 +27,16 @@
         "int": 14,
         "string": "y"
       }
+    },
+    "styleValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 176,
+        "string": "style"
+      },
+      "description": "Display style of the node in the editor. 0 for group and 1 for target.",
+      "runtime": false
     }
   }
 }

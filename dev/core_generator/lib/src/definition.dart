@@ -172,10 +172,10 @@ class Definition {
       // Write getter/setters.
       code.writeln('public:');
       for (final property in properties) {
-        code.writeln(
-            'inline ${property.type.cppGetterName} ${property.name}() const ' +
-                (property.isGetOverride ? 'override' : '') +
-                '{ return m_${property.capitalizedName}; }');
+        code.writeln((property.isVirtual ? 'virtual' : 'inline') +
+            ' ${property.type.cppGetterName} ${property.name}() const ' +
+            (property.isGetOverride ? 'override' : '') +
+            '{ return m_${property.capitalizedName}; }');
 
         code.writeln('void ${property.name}(${property.type.cppName} value) ' +
             (property.isSetOverride ? 'override' : '') +

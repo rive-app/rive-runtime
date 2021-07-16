@@ -46,6 +46,13 @@ namespace rive
 			inputIdChanged();
 		}
 
+		Core* clone() const override;
+		void copy(const BlendState1DBase& object)
+		{
+			m_InputId = object.m_InputId;
+			BlendState::copy(object);
+		}
+
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
 		{
 			switch (propertyKey)
