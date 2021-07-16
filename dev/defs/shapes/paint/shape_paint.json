@@ -14,7 +14,7 @@
         "int": 41,
         "string": "isVisible"
       },
-      "virtual": true,
+      "virtual": true
     }
   }
 }
