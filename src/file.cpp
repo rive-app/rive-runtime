@@ -146,6 +146,26 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 			importStack.readNullObject();
 			continue;
 		}
+		if (object->import(importStack) == StatusCode::Ok)
+		{
+			switch (object->coreType())
+			{
+				case Backboard::typeKey:
+					m_Backboard = object->as<Backboard>();
+					break;
+				case Artboard::typeKey:
+					m_Artboards.push_back(object->as<Artboard>());
+					break;
+			}
+		}
+		else
+		{
+			fprintf(stderr,
+			        "Failed to import object of type %d\n",
+			        object->coreType());
+			delete object;
+			continue;
+		}
 		ImportStackObject* stackObject = nullptr;
 		auto stackType = object->coreType();
 
@@ -213,18 +233,6 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 		{
 			// Some previous stack item didn't resolve.
 			return ImportResult::malformed;
-		}
-		if (object->import(importStack) == StatusCode::Ok)
-		{
-			switch (object->coreType())
-			{
-				case Backboard::typeKey:
-					m_Backboard = object->as<Backboard>();
-					break;
-				case Artboard::typeKey:
-					m_Artboards.push_back(object->as<Artboard>());
-					break;
-			}
 		}
 	}
 

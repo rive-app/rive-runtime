@@ -62,6 +62,14 @@ bool Component::addDirt(ComponentDirt value, bool recurse)
 
 StatusCode Component::import(ImportStack& importStack)
 {
+	if (is<Artboard>())
+	{
+		// Artboards are always their first object.
+		assert(as<Artboard>()->objects().size() == 0);
+		as<Artboard>()->addObject(this);
+		return Super::import(importStack);
+	}
+
 	auto artboardImporter =
 	    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
 	if (artboardImporter == nullptr)
