@@ -5,6 +5,19 @@
 #include <sstream>
 #include "math/mat2d.hpp"
 
+bool aboutEqual(const rive::Mat2D& a, const rive::Mat2D& b)
+{
+	const float epsilon = 0.0001f;
+	for (int i = 0; i < 6; i++)
+	{
+		if (std::fabs(a[i] - b[i]) > epsilon)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 namespace Catch
 {
 	template <> struct StringMaker<rive::Mat2D>

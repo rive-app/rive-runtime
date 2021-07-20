@@ -37,4 +37,5 @@ bool TransitionNumberCondition::evaluate(const SMIInput* inputInstance) const
 		case TransitionConditionOp::greaterThan:
 			return numberInput->value() > value();
 	}
+	return false;
 }
