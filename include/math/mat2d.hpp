@@ -2,6 +2,7 @@
 #define _RIVE_MAT2D_HPP_
 
 #include <cstddef>
+#include <stdio.h>
 
 namespace rive
 {
@@ -15,6 +16,7 @@ namespace rive
 	public:
 		Mat2D();
 		Mat2D(const Mat2D& copy);
+		Mat2D(float x1, float y1, float x2, float y2, float tx, float ty);
 
 		inline const float* values() const { return m_Buffer; }
 

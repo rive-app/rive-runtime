@@ -7,7 +7,15 @@ using namespace rive;
 
 Mat2D::Mat2D() : m_Buffer{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f} {}
 
-Mat2D::Mat2D(const Mat2D& copy) : m_Buffer{copy[0], copy[1], copy[2], copy[3], copy[4], copy[5]} {}
+Mat2D::Mat2D(const Mat2D& copy) :
+    m_Buffer{copy[0], copy[1], copy[2], copy[3], copy[4], copy[5]}
+{
+}
+
+Mat2D::Mat2D(float x1, float y1, float x2, float y2, float tx, float ty) :
+    m_Buffer{x1, y1, x2, y2, tx, ty}
+{
+}
 
 void Mat2D::fromRotation(Mat2D& result, float rad)
 {
@@ -34,8 +42,8 @@ void Mat2D::scale(Mat2D& result, const Mat2D& mat, const Vec2D& vec)
 
 void Mat2D::multiply(Mat2D& result, const Mat2D& a, const Mat2D& b)
 {
-	float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5], b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3], b4 = b[4],
-	      b5 = b[5];
+	float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5],
+	      b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3], b4 = b[4], b5 = b[5];
 	result[0] = a0 * b0 + a2 * b1;
 	result[1] = a1 * b0 + a3 * b1;
 	result[2] = a0 * b2 + a2 * b3;

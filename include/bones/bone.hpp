@@ -19,6 +19,7 @@ namespace rive
 		inline const std::vector<Bone*> childBones() { return m_ChildBones; }
 
 		void addChildBone(Bone* bone);
+		void tipWorldTranslation(Vec2D& result);
 
 	private:
 		void lengthChanged() override;

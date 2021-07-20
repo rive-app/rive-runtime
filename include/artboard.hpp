@@ -22,6 +22,7 @@ namespace rive
 	{
 		friend class File;
 		friend class ArtboardImporter;
+		friend class Component;
 
 	private:
 		std::vector<Core*> m_Objects;

@@ -1,5 +1,7 @@
 #include "transform_component.hpp"
 #include "shapes/clipping_shape.hpp"
+#include "math/vec2d.hpp"
+#include "constraints/constraint.hpp"
 
 using namespace rive;
 
@@ -61,6 +63,11 @@ void TransformComponent::updateWorldTransform()
 	{
 		Mat2D::copy(m_WorldTransform, m_Transform);
 	}
+
+	for (auto constraint : m_Constraints)
+	{
+		constraint->constrain(this);
+	}
 }
 
 void TransformComponent::update(ComponentDirt value)
@@ -89,10 +96,24 @@ const Mat2D& TransformComponent::worldTransform() const
 	return m_WorldTransform;
 }
 
+Mat2D& TransformComponent::mutableWorldTransform() { return m_WorldTransform; }
+Mat2D& TransformComponent::mutableTransform() { return m_Transform; }
+
 void TransformComponent::rotationChanged() { markTransformDirty(); }
 void TransformComponent::scaleXChanged() { markTransformDirty(); }
 void TransformComponent::scaleYChanged() { markTransformDirty(); }
 void TransformComponent::opacityChanged()
 {
 	addDirt(ComponentDirt::RenderOpacity, true);
+}
+
+void TransformComponent::worldTranslation(Vec2D& result) const
+{
+	result[0] = m_WorldTransform[4];
+	result[1] = m_WorldTransform[5];
+}
+
+void TransformComponent::addConstraint(Constraint* constraint)
+{
+	m_Constraints.push_back(constraint);
 }

@@ -1,4 +1,5 @@
 #include "bones/bone.hpp"
+#include "math/vec2d.hpp"
 
 using namespace rive;
 
@@ -26,3 +27,10 @@ void Bone::lengthChanged()
 float Bone::x() const { return parent()->as<Bone>()->length(); }
 
 float Bone::y() const { return 0.0f; }
+
+void Bone::tipWorldTranslation(Vec2D& result)
+{
+	result[0] = length();
+	result[1] = 0.0f;
+	Vec2D::transform(result, result, worldTransform());
+}
