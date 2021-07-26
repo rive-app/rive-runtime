@@ -82,12 +82,6 @@ StatusCode IKConstraint::onAddedClean(CoreContext* context)
 	return Super::onAddedClean(context);
 }
 
-void IKConstraint::buildDependencies()
-{
-	Super::buildDependencies();
-	parent()->addDependent(this);
-}
-
 void IKConstraint::markConstraintDirty()
 {
 	Super::markConstraintDirty();

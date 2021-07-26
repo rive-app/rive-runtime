@@ -30,7 +30,6 @@ namespace rive
 	public:
 		void markConstraintDirty() override;
 		StatusCode onAddedClean(CoreContext* context) override;
-		void buildDependencies() override;
 		void constrain(TransformComponent* component) override;
 	};
 } // namespace rive

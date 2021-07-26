@@ -46,6 +46,7 @@
 #include "bones/weight.hpp"
 #include "component.hpp"
 #include "constraints/constraint.hpp"
+#include "constraints/distance_constraint.hpp"
 #include "constraints/ik_constraint.hpp"
 #include "constraints/targeted_constraint.hpp"
 #include "container_component.hpp"
@@ -89,6 +90,8 @@ namespace rive
 			{
 				case DrawTargetBase::typeKey:
 					return new DrawTarget();
+				case DistanceConstraintBase::typeKey:
+					return new DistanceConstraint();
 				case IKConstraintBase::typeKey:
 					return new IKConstraint();
 				case AnimationStateBase::typeKey:
@@ -235,6 +238,9 @@ namespace rive
 				case TargetedConstraintBase::targetIdPropertyKey:
 					object->as<TargetedConstraintBase>()->targetId(value);
 					break;
+				case DistanceConstraintBase::modeValuePropertyKey:
+					object->as<DistanceConstraintBase>()->modeValue(value);
+					break;
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					object->as<IKConstraintBase>()->parentBoneCount(value);
 					break;
@@ -367,6 +373,9 @@ namespace rive
 			{
 				case ConstraintBase::strengthPropertyKey:
 					object->as<ConstraintBase>()->strength(value);
+					break;
+				case DistanceConstraintBase::distancePropertyKey:
+					object->as<DistanceConstraintBase>()->distance(value);
 					break;
 				case StateMachineNumberBase::valuePropertyKey:
 					object->as<StateMachineNumberBase>()->value(value);
@@ -644,6 +653,8 @@ namespace rive
 					return object->as<DrawTargetBase>()->placementValue();
 				case TargetedConstraintBase::targetIdPropertyKey:
 					return object->as<TargetedConstraintBase>()->targetId();
+				case DistanceConstraintBase::modeValuePropertyKey:
+					return object->as<DistanceConstraintBase>()->modeValue();
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					return object->as<IKConstraintBase>()->parentBoneCount();
 				case AnimationStateBase::animationIdPropertyKey:
@@ -737,6 +748,8 @@ namespace rive
 			{
 				case ConstraintBase::strengthPropertyKey:
 					return object->as<ConstraintBase>()->strength();
+				case DistanceConstraintBase::distancePropertyKey:
+					return object->as<DistanceConstraintBase>()->distance();
 				case StateMachineNumberBase::valuePropertyKey:
 					return object->as<StateMachineNumberBase>()->value();
 				case TransitionNumberConditionBase::valuePropertyKey:
@@ -926,6 +939,7 @@ namespace rive
 				case DrawTargetBase::drawableIdPropertyKey:
 				case DrawTargetBase::placementValuePropertyKey:
 				case TargetedConstraintBase::targetIdPropertyKey:
+				case DistanceConstraintBase::modeValuePropertyKey:
 				case IKConstraintBase::parentBoneCountPropertyKey:
 				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
@@ -969,6 +983,7 @@ namespace rive
 				case CubicWeightBase::outIndicesPropertyKey:
 					return CoreUintType::id;
 				case ConstraintBase::strengthPropertyKey:
+				case DistanceConstraintBase::distancePropertyKey:
 				case StateMachineNumberBase::valuePropertyKey:
 				case TransitionNumberConditionBase::valuePropertyKey:
 				case CubicInterpolatorBase::x1PropertyKey:

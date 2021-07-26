@@ -12,6 +12,7 @@ namespace rive
 		StatusCode onAddedClean(CoreContext* context) override;
 		virtual void markConstraintDirty();
 		virtual void constrain(TransformComponent* component) = 0;
+		void buildDependencies() override;
 	};
 } // namespace rive
 

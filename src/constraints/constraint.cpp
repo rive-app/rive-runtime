@@ -23,3 +23,9 @@ void Constraint::markConstraintDirty()
 }
 
 void Constraint::strengthChanged() { markConstraintDirty(); }
+
+void Constraint::buildDependencies()
+{
+	Super::buildDependencies();
+	parent()->addDependent(this);
+}
