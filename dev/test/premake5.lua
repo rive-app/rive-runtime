@@ -20,7 +20,6 @@ project("tests")
 kind "ConsoleApp"
 language "C++"
 cppdialect "C++17"
-toolset "clang"
 targetdir "build/bin/%{cfg.buildcfg}"
 objdir "build/obj/%{cfg.buildcfg}"
 
