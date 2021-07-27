@@ -5,6 +5,7 @@ project "rive_skia_renderer"
 kind "StaticLib"
 language "C++"
 cppdialect "C++17"
+toolset "clang"
 targetdir "bin/%{cfg.buildcfg}"
 objdir "obj/%{cfg.buildcfg}"
 includedirs {"../include", "../../../include", "../../dependencies/skia", "../../dependencies/skia/include/core",

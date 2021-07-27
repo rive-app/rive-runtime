@@ -5,6 +5,7 @@ project "rive_thumbnail_generator"
 kind "ConsoleApp"
 language "C++"
 cppdialect "C++17"
+toolset "clang"
 targetdir "bin/%{cfg.buildcfg}"
 objdir "obj/%{cfg.buildcfg}"
 includedirs {"../../../include", "../../renderer/include", "../../dependencies/skia",
