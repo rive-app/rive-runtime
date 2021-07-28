@@ -29,3 +29,10 @@ void Constraint::buildDependencies()
 	Super::buildDependencies();
 	parent()->addDependent(this);
 }
+
+void Constraint::onDirty(ComponentDirt dirt)
+{
+	// Whenever the constraint gets any dirt, make sure to mark the constrained
+	// component dirty.
+	markConstraintDirty();
+}

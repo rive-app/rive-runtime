@@ -13,6 +13,7 @@ namespace rive
 		virtual void markConstraintDirty();
 		virtual void constrain(TransformComponent* component) = 0;
 		void buildDependencies() override;
+		void onDirty(ComponentDirt dirt) override;
 	};
 } // namespace rive
 
