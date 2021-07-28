@@ -13,7 +13,6 @@ project "rive_viewer"
 kind "ConsoleApp"
 language "C++"
 cppdialect "C++17"
-toolset "clang"
 targetdir "bin/%{cfg.buildcfg}"
 objdir "obj/%{cfg.buildcfg}"
 includedirs {"../include", "../../../include", "../../renderer/include", "../../dependencies/glfw/include",
