@@ -1,5 +1,6 @@
 #include "bones/bone.hpp"
 #include "math/vec2d.hpp"
+#include <algorithm>
 
 using namespace rive;
 
@@ -33,4 +34,12 @@ void Bone::tipWorldTranslation(Vec2D& result)
 	result[0] = length();
 	result[1] = 0.0f;
 	Vec2D::transform(result, result, worldTransform());
+}
+
+void Bone::addPeerConstraint(Constraint* peer)
+{
+	assert(std::find(m_PeerConstraints.begin(),
+	                 m_PeerConstraints.end(),
+	                 peer) == m_PeerConstraints.end());
+	m_PeerConstraints.push_back(peer);
 }

@@ -37,6 +37,7 @@ StatusCode IKConstraint::onAddedClean(CoreContext* context)
 	{
 		boneCount--;
 		bone = bone->parent()->as<Bone>();
+		bone->addPeerConstraint(this);
 		bones.push_back(bone);
 	}
 	int numBones = (int)bones.size();

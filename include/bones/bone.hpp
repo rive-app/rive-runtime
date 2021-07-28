@@ -6,10 +6,13 @@
 
 namespace rive
 {
+	class Constraint;
 	class Bone : public BoneBase
 	{
+
 	private:
 		std::vector<Bone*> m_ChildBones;
+		std::vector<Constraint*> m_PeerConstraints;
 
 	public:
 		StatusCode onAddedClean(CoreContext* context) override;
@@ -20,6 +23,11 @@ namespace rive
 
 		void addChildBone(Bone* bone);
 		void tipWorldTranslation(Vec2D& result);
+		void addPeerConstraint(Constraint* peer);
+		const std::vector<Constraint*>& peerConstraints() const
+		{
+			return m_PeerConstraints;
+		}
 
 	private:
 		void lengthChanged() override;

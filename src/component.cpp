@@ -28,8 +28,11 @@ StatusCode Component::onAddedDirty(CoreContext* context)
 void Component::addDependent(Component* component)
 {
 	// Make it's not already a dependent.
-	assert(std::find(m_Dependents.begin(), m_Dependents.end(), component) ==
-	       m_Dependents.end());
+	if (std::find(m_Dependents.begin(), m_Dependents.end(), component) !=
+	    m_Dependents.end())
+	{
+		return;
+	}
 	m_Dependents.push_back(component);
 }
 

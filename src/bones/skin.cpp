@@ -3,6 +3,7 @@
 #include "bones/skinnable.hpp"
 #include "bones/tendon.hpp"
 #include "shapes/path_vertex.hpp"
+#include "constraints/constraint.hpp"
 
 using namespace rive;
 
@@ -50,7 +51,12 @@ void Skin::buildDependencies()
 	// depend on bones from tendons
 	for (auto tendon : m_Tendons)
 	{
-		tendon->bone()->addDependent(this);
+		auto bone = tendon->bone();
+		bone->addDependent(this);
+		for (auto constraint : bone->peerConstraints())
+		{
+			constraint->parent()->addDependent(this);
+		}
 	}
 
 	// Make sure no-one is calling this twice.

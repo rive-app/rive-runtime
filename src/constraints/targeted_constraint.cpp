@@ -26,5 +26,8 @@ void TargetedConstraint::buildDependencies()
 {
 	// Targeted constraints must have their constrained component (parent)
 	// update after the target.
-	m_Target->addDependent(parent());
+	if (m_Target != nullptr)
+	{
+		m_Target->addDependent(parent());
+	}
 }
