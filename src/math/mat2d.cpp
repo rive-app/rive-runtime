@@ -104,7 +104,7 @@ void Mat2D::compose(Mat2D& result, const TransformComponents& components)
 {
 	float r = components.rotation();
 
-	if (r != 0.0)
+	if (r != 0.0f)
 	{
 		Mat2D::fromRotation(result, r);
 	}
@@ -119,7 +119,7 @@ void Mat2D::compose(Mat2D& result, const TransformComponents& components)
 	Mat2D::scale(result, result, scale);
 
 	float sk = components.skew();
-	if (sk != 0.0)
+	if (sk != 0.0f)
 	{
 		result[2] = result[0] * sk + result[2];
 		result[3] = result[1] * sk + result[3];

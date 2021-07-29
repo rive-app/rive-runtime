@@ -5,22 +5,6 @@
 
 using namespace rive;
 
-static Mat2D identity;
-static const Mat2D& getParentWorld(const TransformComponent& component)
-{
-	auto parent = component.parent();
-	if (parent->is<Artboard>())
-	{
-		// TODO: when we have symbols working artboards will need to store their
-		// world transform (probably should just become TransformComponents).
-		return identity;
-	}
-	else
-	{
-		return parent->as<TransformComponent>()->worldTransform();
-	}
-}
-
 StatusCode IKConstraint::onAddedClean(CoreContext* context)
 {
 	if (!parent()->is<Bone>())
@@ -221,6 +205,7 @@ void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation)
 	{
 		Mat2D::fromRotation(transform, rotation);
 	}
+
 	// Translate
 	transform[4] = c.x();
 	transform[5] = c.y();

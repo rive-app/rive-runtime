@@ -2,6 +2,8 @@
 #include "container_component.hpp"
 #include "transform_component.hpp"
 #include "core_context.hpp"
+#include "artboard.hpp"
+#include "math/mat2d.hpp"
 
 using namespace rive;
 
@@ -35,4 +37,20 @@ void Constraint::onDirty(ComponentDirt dirt)
 	// Whenever the constraint gets any dirt, make sure to mark the constrained
 	// component dirty.
 	markConstraintDirty();
+}
+
+static Mat2D identity;
+const Mat2D& rive::getParentWorld(const TransformComponent& component)
+{
+	auto parent = component.parent();
+	if (parent->is<Artboard>())
+	{
+		// TODO: when we have symbols working artboards will need to store their
+		// world transform (probably should just become TransformComponent).
+		return identity;
+	}
+	else
+	{
+		return parent->as<TransformComponent>()->worldTransform();
+	}
 }

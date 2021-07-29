@@ -5,6 +5,8 @@
 namespace rive
 {
 	class TransformComponent;
+	class Mat2D;
+
 	class Constraint : public ConstraintBase
 	{
 	public:
@@ -15,6 +17,8 @@ namespace rive
 		void buildDependencies() override;
 		void onDirty(ComponentDirt dirt) override;
 	};
+
+	const Mat2D& getParentWorld(const TransformComponent& component);
 } // namespace rive
 
 #endif

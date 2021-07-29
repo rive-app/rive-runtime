@@ -49,6 +49,7 @@
 #include "constraints/distance_constraint.hpp"
 #include "constraints/ik_constraint.hpp"
 #include "constraints/targeted_constraint.hpp"
+#include "constraints/transform_constraint.hpp"
 #include "container_component.hpp"
 #include "draw_rules.hpp"
 #include "draw_target.hpp"
@@ -94,6 +95,8 @@ namespace rive
 					return new DistanceConstraint();
 				case IKConstraintBase::typeKey:
 					return new IKConstraint();
+				case TransformConstraintBase::typeKey:
+					return new TransformConstraint();
 				case AnimationStateBase::typeKey:
 					return new AnimationState();
 				case KeyedObjectBase::typeKey:
@@ -243,6 +246,14 @@ namespace rive
 					break;
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					object->as<IKConstraintBase>()->parentBoneCount(value);
+					break;
+				case TransformConstraintBase::sourceSpaceValuePropertyKey:
+					object->as<TransformConstraintBase>()->sourceSpaceValue(
+					    value);
+					break;
+				case TransformConstraintBase::destSpaceValuePropertyKey:
+					object->as<TransformConstraintBase>()->destSpaceValue(
+					    value);
 					break;
 				case AnimationStateBase::animationIdPropertyKey:
 					object->as<AnimationStateBase>()->animationId(value);
@@ -657,6 +668,12 @@ namespace rive
 					return object->as<DistanceConstraintBase>()->modeValue();
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					return object->as<IKConstraintBase>()->parentBoneCount();
+				case TransformConstraintBase::sourceSpaceValuePropertyKey:
+					return object->as<TransformConstraintBase>()
+					    ->sourceSpaceValue();
+				case TransformConstraintBase::destSpaceValuePropertyKey:
+					return object->as<TransformConstraintBase>()
+					    ->destSpaceValue();
 				case AnimationStateBase::animationIdPropertyKey:
 					return object->as<AnimationStateBase>()->animationId();
 				case KeyedObjectBase::objectIdPropertyKey:
@@ -941,6 +958,8 @@ namespace rive
 				case TargetedConstraintBase::targetIdPropertyKey:
 				case DistanceConstraintBase::modeValuePropertyKey:
 				case IKConstraintBase::parentBoneCountPropertyKey:
+				case TransformConstraintBase::sourceSpaceValuePropertyKey:
+				case TransformConstraintBase::destSpaceValuePropertyKey:
 				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
 				case BlendAnimationBase::animationIdPropertyKey:
