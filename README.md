@@ -15,7 +15,9 @@ C++ runtime for [Rive](https://rive.app). Provides these runtime features:
 We use [premake5](https://premake.github.io/). The Rive dev team primarily works on MacOS. There is some work done by the community to also support Windows and Linux. PRs welcomed for specific platforms you with to support! We encourage you to use premake as it's highly extensible and configurable for a variety of platforms.
 
 ## Build
-In the ```rive``` directory, run ```build.sh``` to debug build and ```build.sh release``` for a release build.
+In the ```rive-cpp``` directory, run ```build.sh``` to debug build and ```build.sh release``` for a release build.
+
+If you've put the `premake5` executable in the `rive-cpp/build` folder, you can run it with `PATH=.:$PATH ./build.sh`
 
 ## Testing
 Uses the [Catch2](https://github.com/catchorg/Catch2) testing framework.
@@ -26,6 +28,8 @@ cd dev
 ```
 
 In the ```dev``` directory, run ```test.sh``` to compile and execute the tests.
+
+(if you've installed `premake5` in `rive-cpp/build`, you can run it with `PATH=../../build:$PATH ./test.sh`)
 
 The tests live in ```rive/test```. To add new tests, create a new ```xxx_test.cpp``` file here. The test harness will automatically pick up the new file.
 
