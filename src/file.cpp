@@ -30,11 +30,11 @@ using namespace rive;
 static Core* readRuntimeObject(BinaryReader& reader,
                                const RuntimeHeader& header)
 {
-	auto coreObjectKey = reader.readVarUint();
+	auto coreObjectKey = reader.readVarUint64();
 	auto object = CoreRegistry::makeCoreInstance((int)coreObjectKey);
 	while (true)
 	{
-		auto propertyKey = reader.readVarUint();
+		auto propertyKey = reader.readVarUint64();
 		if (propertyKey == 0)
 		{
 			// Terminator. https://media.giphy.com/media/7TtvTUMm9mp20/giphy.gif

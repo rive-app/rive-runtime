@@ -23,12 +23,12 @@ namespace rive
 
         size_t lengthInBytes() const;
 
-        uint64_t readVarUint();
         std::string readString();
         double readFloat64();
         float readFloat32();
         uint8_t readByte();
         uint32_t readUint32();
+        uint64_t readVarUint64(); // Reads a LEB128 encoded uint64_t
 	};
 } // namespace rive
 

@@ -27,7 +27,7 @@ void BinaryReader::overflow()
 	m_Position = m_End;
 }
 
-uint64_t BinaryReader::readVarUint()
+uint64_t BinaryReader::readVarUint64()
 {
 	uint64_t value;
 	auto readBytes = decode_uint_leb(m_Position, m_End, &value);
@@ -42,7 +42,7 @@ uint64_t BinaryReader::readVarUint()
 
 std::string BinaryReader::readString()
 {
-	uint64_t length = readVarUint();
+	uint64_t length = readVarUint64();
 	if (didOverflow())
 	{
 		return std::string();
