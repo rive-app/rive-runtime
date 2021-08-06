@@ -11,7 +11,7 @@ project "rive"
 
     files {"../src/**.cpp"}
 
-    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti"}
+    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
 
     filter "system:windows"
         defines {"_USE_MATH_DEFINES"}

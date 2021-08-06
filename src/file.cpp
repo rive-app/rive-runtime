@@ -25,6 +25,17 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
+#if !defined(RIVE_FMT_U64)
+    #if defined(__ANDROID__)
+        #define RIVE_FMT_U64 "%llu"
+        #define RIVE_FMT_I64 "%lld"
+    #else
+        #include <inttypes.h>
+        #define RIVE_FMT_U64 "%" PRIu64
+        #define RIVE_FMT_I64 "%" PRId64
+    #endif
+#endif
+
 // Import a single Rive runtime object.
 // Used by the file importer.
 static Core* readRuntimeObject(BinaryReader& reader,
@@ -62,7 +73,7 @@ static Core* readRuntimeObject(BinaryReader& reader,
 				// Still couldn't find it, give up.
 				fprintf(
 				    stderr,
-				    "Unknown property key %llu, missing from property ToC.\n",
+				    "Unknown property key " RIVE_FMT_U64 ", missing from property ToC.\n",
 				    propertyKey);
 				delete object;
 				return nullptr;
@@ -88,7 +99,7 @@ static Core* readRuntimeObject(BinaryReader& reader,
 	if (object == nullptr)
 	{
 		// fprintf(stderr,
-		//         "File contains an unknown object with coreType %llu, which "
+		//         "File contains an unknown object with coreType " RIVE_FMT_U64 ", which "
 		//         "this runtime doesn't understand.\n",
 		//         coreObjectKey);
 		return nullptr;
