@@ -93,7 +93,7 @@ class Definition {
   String get name => _name;
 
   String get localCodeFilename => '${stripExtension(_filename)}_base.hpp';
-  String get concreteCodeFilename => '${stripExtension(_filename)}.hpp';
+  String get concreteCodeFilename => 'rive/${stripExtension(_filename)}.hpp';
   String get localCppCodeFilename => '${stripExtension(_filename)}_base.cpp';
 
   /// Generates cpp header code based on the Definition
@@ -102,14 +102,17 @@ class Definition {
     StringBuffer code = StringBuffer();
 
     var includes = <String>{
-      defineContextExtension ? 'core.hpp' : _extensionOf.concreteCodeFilename
+      defineContextExtension
+          ? 'rive/core.hpp'
+          : _extensionOf.concreteCodeFilename
     };
     for (final property in properties) {
       if (property.type.include != null) {
         includes.add(property.type.include);
       }
-      includes.add(
-          'core/field_types/' + property.type.snakeRuntimeCoreName + '.hpp');
+      includes.add('rive/core/field_types/' +
+          property.type.snakeRuntimeCoreName +
+          '.hpp');
     }
 
     var sortedIncludes = includes.toList()..sort();
@@ -247,7 +250,7 @@ class Definition {
     if (!concreteFile.existsSync()) {
       StringBuffer concreteCode = StringBuffer();
       concreteFile.createSync(recursive: true);
-      concreteCode.writeln('#include "generated/$localCodeFilename"');
+      concreteCode.writeln('#include "rive/generated/$localCodeFilename"');
       concreteCode.writeln('#include <stdio.h>');
       concreteCode.writeln('namespace rive {');
       concreteCode.writeln('''class $_name : public ${_name}Base {
@@ -261,7 +264,7 @@ class Definition {
     }
     if (!_isAbstract) {
       StringBuffer cppCode = StringBuffer();
-      cppCode.writeln('#include "generated/$localCodeFilename"');
+      cppCode.writeln('#include "rive/generated/$localCodeFilename"');
       cppCode.writeln('#include "$concreteCodeFilename"');
       cppCode.writeln();
       cppCode.writeln('using namespace rive;');
