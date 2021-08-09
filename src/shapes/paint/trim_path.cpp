@@ -98,7 +98,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 				{
 					startLength = 0;
 					endLength -= pathLength;
-					path->trim(startLength, endLength, false, m_TrimmedPath);
+					path->trim(startLength, endLength, true, m_TrimmedPath);
 				}
 			}
 		}
