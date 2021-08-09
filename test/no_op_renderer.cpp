@@ -1,5 +1,5 @@
 #include "no_op_renderer.hpp"
-#include "renderer.hpp"
+#include <rive/renderer.hpp>
 
 namespace rive
 {

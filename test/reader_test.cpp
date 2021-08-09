@@ -1,5 +1,5 @@
-#include "catch.hpp"
-#include "core/reader.h"
+#include <catch.hpp>
+#include <rive/core/reader.h>
 
 TEST_CASE("uint leb decoder", "[reader]")
 {

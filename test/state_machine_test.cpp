@@ -1,17 +1,17 @@
+#include <rive/core/binary_reader.hpp>
+#include <rive/file.hpp>
+#include <rive/animation/state_machine_bool.hpp>
+#include <rive/animation/state_machine_layer.hpp>
+#include <rive/animation/animation_state.hpp>
+#include <rive/animation/entry_state.hpp>
+#include <rive/animation/state_transition.hpp>
+#include <rive/animation/state_machine_instance.hpp>
+#include <rive/animation/state_machine_input_instance.hpp>
+#include <rive/animation/blend_state_1d.hpp>
+#include <rive/animation/blend_animation_1d.hpp>
+#include <rive/animation/blend_state_direct.hpp>
+#include <rive/animation/blend_state_transition.hpp>
 #include "catch.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
-#include "animation/state_machine_bool.hpp"
-#include "animation/state_machine_layer.hpp"
-#include "animation/animation_state.hpp"
-#include "animation/entry_state.hpp"
-#include "animation/state_transition.hpp"
-#include "animation/state_machine_instance.hpp"
-#include "animation/state_machine_input_instance.hpp"
-#include "animation/blend_state_1d.hpp"
-#include "animation/blend_animation_1d.hpp"
-#include "animation/blend_state_direct.hpp"
-#include "animation/blend_state_transition.hpp"
 #include <cstdio>
 
 TEST_CASE("file with state machine be read", "[file]")

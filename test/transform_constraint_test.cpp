@@ -1,10 +1,10 @@
-#include "rive_testing.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
+#include <rive/core/binary_reader.hpp>
+#include <rive/file.hpp>
+#include <rive/node.hpp>
+#include <rive/bones/bone.hpp>
+#include <rive/shapes/shape.hpp>
 #include "no_op_renderer.hpp"
-#include "node.hpp"
-#include "bones/bone.hpp"
-#include "shapes/shape.hpp"
+#include "rive_testing.hpp"
 #include <cstdio>
 
 TEST_CASE("transform constraint updates world transform", "[file]")

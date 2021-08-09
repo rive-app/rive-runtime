@@ -1,14 +1,14 @@
-#include "artboard.hpp"
-#include "catch.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
-#include "math/circle_constant.hpp"
+#include <rive/artboard.hpp>
+#include <rive/core/binary_reader.hpp>
+#include <rive/file.hpp>
+#include <rive/math/circle_constant.hpp>
+#include <rive/node.hpp>
+#include <rive/shapes/ellipse.hpp>
+#include <rive/shapes/path_composer.hpp>
+#include <rive/shapes/rectangle.hpp>
+#include <rive/shapes/shape.hpp>
 #include "no_op_renderer.hpp"
-#include "node.hpp"
-#include "shapes/ellipse.hpp"
-#include "shapes/path_composer.hpp"
-#include "shapes/rectangle.hpp"
-#include "shapes/shape.hpp"
+#include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("rectangle path builds expected commands", "[path]")

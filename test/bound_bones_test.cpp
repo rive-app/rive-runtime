@@ -1,15 +1,15 @@
-#include "bones/skin.hpp"
-#include "bones/tendon.hpp"
-#include "catch.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
+#include <rive/bones/skin.hpp>
+#include <rive/bones/tendon.hpp>
+#include <rive/core/binary_reader.hpp>
+#include <rive/file.hpp>
+#include <rive/node.hpp>
+#include <rive/shapes/clipping_shape.hpp>
+#include <rive/shapes/path_vertex.hpp>
+#include <rive/shapes/points_path.hpp>
+#include <rive/shapes/rectangle.hpp>
+#include <rive/shapes/shape.hpp>
 #include "no_op_renderer.hpp"
-#include "node.hpp"
-#include "shapes/clipping_shape.hpp"
-#include "shapes/path_vertex.hpp"
-#include "shapes/points_path.hpp"
-#include "shapes/rectangle.hpp"
-#include "shapes/shape.hpp"
+#include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("bound bones load correctly", "[bones]")

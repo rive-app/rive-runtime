@@ -1,11 +1,10 @@
+#include <rive/core/binary_reader.hpp>
+#include <rive/file.hpp>
+#include <rive/constraints/distance_constraint.hpp>
+#include <rive/node.hpp>
+#include <rive/math/vec2d.hpp>
+#include <rive/shapes/shape.hpp>
 #include "rive_testing.hpp"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
-
-#include "constraints/distance_constraint.hpp"
-#include "node.hpp"
-#include "math/vec2d.hpp"
-#include "shapes/shape.hpp"
 #include <cstdio>
 
 TEST_CASE("distance constraints moves items as expected", "[file]")

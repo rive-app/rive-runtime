@@ -1,9 +1,9 @@
 #ifndef _CATCH_RIVE_TESTING_
 #define _CATCH_RIVE_TESTING_
 
-#include "catch.hpp"
+#include <catch.hpp>
 #include <sstream>
-#include "math/mat2d.hpp"
+#include <rive/math/mat2d.hpp>
 
 bool aboutEqual(const rive::Mat2D& a, const rive::Mat2D& b);
 

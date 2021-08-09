@@ -1,7 +1,7 @@
-#include "catch.hpp"
-#include "animation/loop.hpp"
-#include "animation/linear_animation.hpp"
-#include "animation/linear_animation_instance.hpp"
+#include <rive/animation/loop.hpp>
+#include <rive/animation/linear_animation.hpp>
+#include <rive/animation/linear_animation_instance.hpp>
+#include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("LinearAnimationInstance oneShot", "[animation]")

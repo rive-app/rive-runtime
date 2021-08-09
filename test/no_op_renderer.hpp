@@ -1,6 +1,6 @@
 #ifndef _RIVE_NOOP_RENDERER_HPP_
 #define _RIVE_NOOP_RENDERER_HPP_
-#include "renderer.hpp"
+#include <rive/renderer.hpp>
 #include <vector>
 
 namespace rive

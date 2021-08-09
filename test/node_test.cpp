@@ -1,5 +1,5 @@
-#include "catch.hpp"
-#include "node.hpp"
+#include <catch.hpp>
+#include <rive/node.hpp>
 
 TEST_CASE("Node instances", "[core]") { REQUIRE(rive::Node().x() == 0.0f); }
 

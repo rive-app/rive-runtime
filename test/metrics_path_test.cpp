@@ -1,5 +1,5 @@
-#include "catch.hpp"
-#include "shapes/metrics_path.hpp"
+#include <catch.hpp>
+#include <rive/shapes/metrics_path.hpp>
 
 TEST_CASE("path metrics compute correctly", "[bezier]")
 {
