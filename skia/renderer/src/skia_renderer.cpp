@@ -1,8 +1,8 @@
 #include "skia_renderer.hpp"
 #include "SkGradientShader.h"
 #include "SkPath.h"
-#include "math/vec2d.hpp"
-#include "shapes/paint/color.hpp"
+#include "rive/math/vec2d.hpp"
+#include "rive/shapes/paint/color.hpp"
 #include "to_skia.hpp"
 
 using namespace rive;

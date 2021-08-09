@@ -4,7 +4,7 @@
 #include "SkCanvas.h"
 #include "SkPaint.h"
 #include "SkPath.h"
-#include "renderer.hpp"
+#include "rive/renderer.hpp"
 #include <vector>
 
 namespace rive

@@ -2,11 +2,11 @@
 #define _RIVE_TO_SKIA_HPP_
 
 #include "SkPaint.h"
-#include "math/mat2d.hpp"
-#include "math/vec2d.hpp"
-#include "shapes/paint/stroke_cap.hpp"
-#include "shapes/paint/stroke_join.hpp"
-#include "shapes/paint/blend_mode.hpp"
+#include "rive/math/mat2d.hpp"
+#include "rive/math/vec2d.hpp"
+#include "rive/shapes/paint/stroke_cap.hpp"
+#include "rive/shapes/paint/stroke_join.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
 
 namespace rive
 {
