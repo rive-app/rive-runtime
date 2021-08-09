@@ -1,9 +1,9 @@
-#include "component.hpp"
-#include "artboard.hpp"
-#include "container_component.hpp"
-#include "core_context.hpp"
-#include "importers/artboard_importer.hpp"
-#include "importers/import_stack.hpp"
+#include "rive/component.hpp"
+#include "rive/artboard.hpp"
+#include "rive/container_component.hpp"
+#include "rive/core_context.hpp"
+#include "rive/importers/artboard_importer.hpp"
+#include "rive/importers/import_stack.hpp"
 #include <algorithm>
 
 using namespace rive;

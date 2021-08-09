@@ -1,8 +1,8 @@
-#include "animation/keyed_property.hpp"
-#include "animation/keyed_object.hpp"
-#include "animation/keyframe.hpp"
-#include "importers/import_stack.hpp"
-#include "importers/keyed_object_importer.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyframe.hpp"
+#include "rive/importers/import_stack.hpp"
+#include "rive/importers/keyed_object_importer.hpp"
 
 using namespace rive;
 

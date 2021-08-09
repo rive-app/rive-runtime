@@ -1,5 +1,5 @@
-#include "generated/bones/skin_base.hpp"
-#include "bones/skin.hpp"
+#include "rive/generated/bones/skin_base.hpp"
+#include "rive/bones/skin.hpp"
 
 using namespace rive;
 

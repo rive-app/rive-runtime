@@ -1,8 +1,8 @@
-#include "shapes/shape.hpp"
-#include "shapes/clipping_shape.hpp"
-#include "shapes/paint/blend_mode.hpp"
-#include "shapes/paint/shape_paint.hpp"
-#include "shapes/path_composer.hpp"
+#include "rive/shapes/shape.hpp"
+#include "rive/shapes/clipping_shape.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/shapes/path_composer.hpp"
 #include <algorithm>
 
 using namespace rive;

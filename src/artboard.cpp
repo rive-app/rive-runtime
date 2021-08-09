@@ -1,13 +1,13 @@
-#include "artboard.hpp"
-#include "animation/animation.hpp"
-#include "dependency_sorter.hpp"
-#include "draw_rules.hpp"
-#include "draw_target.hpp"
-#include "draw_target_placement.hpp"
-#include "drawable.hpp"
-#include "node.hpp"
-#include "renderer.hpp"
-#include "shapes/paint/shape_paint.hpp"
+#include "rive/artboard.hpp"
+#include "rive/animation/animation.hpp"
+#include "rive/dependency_sorter.hpp"
+#include "rive/draw_rules.hpp"
+#include "rive/draw_target.hpp"
+#include "rive/draw_target_placement.hpp"
+#include "rive/drawable.hpp"
+#include "rive/node.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 #include <unordered_map>
 
 using namespace rive;

@@ -1,6 +1,6 @@
-#include "constraints/transform_constraint.hpp"
-#include "transform_component.hpp"
-#include "math/mat2d.hpp"
+#include "rive/constraints/transform_constraint.hpp"
+#include "rive/transform_component.hpp"
+#include "rive/math/mat2d.hpp"
 #include <cmath>
 
 using namespace rive;

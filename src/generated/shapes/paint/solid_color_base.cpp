@@ -1,5 +1,5 @@
-#include "generated/shapes/paint/solid_color_base.hpp"
-#include "shapes/paint/solid_color.hpp"
+#include "rive/generated/shapes/paint/solid_color_base.hpp"
+#include "rive/shapes/paint/solid_color.hpp"
 
 using namespace rive;
 

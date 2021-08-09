@@ -1,5 +1,5 @@
-#include "generated/shapes/paint/fill_base.hpp"
-#include "shapes/paint/fill.hpp"
+#include "rive/generated/shapes/paint/fill_base.hpp"
+#include "rive/shapes/paint/fill.hpp"
 
 using namespace rive;
 

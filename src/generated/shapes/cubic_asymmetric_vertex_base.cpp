@@ -1,5 +1,5 @@
-#include "generated/shapes/cubic_asymmetric_vertex_base.hpp"
-#include "shapes/cubic_asymmetric_vertex.hpp"
+#include "rive/generated/shapes/cubic_asymmetric_vertex_base.hpp"
+#include "rive/shapes/cubic_asymmetric_vertex.hpp"
 
 using namespace rive;
 

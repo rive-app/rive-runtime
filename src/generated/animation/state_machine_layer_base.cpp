@@ -1,5 +1,5 @@
-#include "generated/animation/state_machine_layer_base.hpp"
-#include "animation/state_machine_layer.hpp"
+#include "rive/generated/animation/state_machine_layer_base.hpp"
+#include "rive/animation/state_machine_layer.hpp"
 
 using namespace rive;
 

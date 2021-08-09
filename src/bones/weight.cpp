@@ -1,6 +1,6 @@
-#include "bones/weight.hpp"
-#include "container_component.hpp"
-#include "shapes/path_vertex.hpp"
+#include "rive/bones/weight.hpp"
+#include "rive/container_component.hpp"
+#include "rive/shapes/path_vertex.hpp"
 
 using namespace rive;
 

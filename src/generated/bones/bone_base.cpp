@@ -1,5 +1,5 @@
-#include "generated/bones/bone_base.hpp"
-#include "bones/bone.hpp"
+#include "rive/generated/bones/bone_base.hpp"
+#include "rive/bones/bone.hpp"
 
 using namespace rive;
 

@@ -1,10 +1,10 @@
-#include "artboard.hpp"
-#include "animation/blend_state_transition.hpp"
-#include "animation/blend_state_instance.hpp"
-#include "animation/blend_state_1d.hpp"
-#include "animation/blend_state_direct.hpp"
-#include "animation/blend_state_1d_instance.hpp"
-#include "animation/blend_state_direct_instance.hpp"
+#include "rive/artboard.hpp"
+#include "rive/animation/blend_state_transition.hpp"
+#include "rive/animation/blend_state_instance.hpp"
+#include "rive/animation/blend_state_1d.hpp"
+#include "rive/animation/blend_state_direct.hpp"
+#include "rive/animation/blend_state_1d_instance.hpp"
+#include "rive/animation/blend_state_direct_instance.hpp"
 
 using namespace rive;
 

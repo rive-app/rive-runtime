@@ -1,5 +1,5 @@
-#include "shapes/points_path.hpp"
-#include "bones/skin.hpp"
+#include "rive/shapes/points_path.hpp"
+#include "rive/bones/skin.hpp"
 
 using namespace rive;
 

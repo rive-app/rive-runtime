@@ -1,9 +1,9 @@
-#include "animation/keyframe.hpp"
-#include "animation/cubic_interpolator.hpp"
-#include "animation/keyed_property.hpp"
-#include "core_context.hpp"
-#include "importers/import_stack.hpp"
-#include "importers/keyed_property_importer.hpp"
+#include "rive/animation/keyframe.hpp"
+#include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/core_context.hpp"
+#include "rive/importers/import_stack.hpp"
+#include "rive/importers/keyed_property_importer.hpp"
 
 using namespace rive;
 

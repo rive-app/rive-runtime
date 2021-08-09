@@ -1,9 +1,9 @@
-#include "constraints/constraint.hpp"
-#include "container_component.hpp"
-#include "transform_component.hpp"
-#include "core_context.hpp"
-#include "artboard.hpp"
-#include "math/mat2d.hpp"
+#include "rive/constraints/constraint.hpp"
+#include "rive/container_component.hpp"
+#include "rive/transform_component.hpp"
+#include "rive/core_context.hpp"
+#include "rive/artboard.hpp"
+#include "rive/math/mat2d.hpp"
 
 using namespace rive;
 

@@ -1,5 +1,5 @@
-#include "generated/animation/keyed_property_base.hpp"
-#include "animation/keyed_property.hpp"
+#include "rive/generated/animation/keyed_property_base.hpp"
+#include "rive/animation/keyed_property.hpp"
 
 using namespace rive;
 

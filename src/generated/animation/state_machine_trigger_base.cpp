@@ -1,5 +1,5 @@
-#include "generated/animation/state_machine_trigger_base.hpp"
-#include "animation/state_machine_trigger.hpp"
+#include "rive/generated/animation/state_machine_trigger_base.hpp"
+#include "rive/animation/state_machine_trigger.hpp"
 
 using namespace rive;
 

@@ -1,4 +1,4 @@
-#include "animation/blend_animation_1d.hpp"
+#include "rive/animation/blend_animation_1d.hpp"
 
 using namespace rive;
 

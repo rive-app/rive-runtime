@@ -1,5 +1,5 @@
-#include "generated/shapes/paint/gradient_stop_base.hpp"
-#include "shapes/paint/gradient_stop.hpp"
+#include "rive/generated/shapes/paint/gradient_stop_base.hpp"
+#include "rive/shapes/paint/gradient_stop.hpp"
 
 using namespace rive;
 

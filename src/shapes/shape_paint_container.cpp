@@ -1,11 +1,11 @@
-#include "shapes/shape_paint_container.hpp"
-#include "artboard.hpp"
-#include "component.hpp"
-#include "renderer.hpp"
-#include "shapes/metrics_path.hpp"
-#include "shapes/paint/fill.hpp"
-#include "shapes/paint/stroke.hpp"
-#include "shapes/shape.hpp"
+#include "rive/shapes/shape_paint_container.hpp"
+#include "rive/artboard.hpp"
+#include "rive/component.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/metrics_path.hpp"
+#include "rive/shapes/paint/fill.hpp"
+#include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/shape.hpp"
 
 using namespace rive;
 ShapePaintContainer* ShapePaintContainer::from(Component* component)

@@ -1,5 +1,5 @@
-#include "generated/constraints/distance_constraint_base.hpp"
-#include "constraints/distance_constraint.hpp"
+#include "rive/generated/constraints/distance_constraint_base.hpp"
+#include "rive/constraints/distance_constraint.hpp"
 
 using namespace rive;
 

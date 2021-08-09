@@ -1,8 +1,8 @@
-#include "animation/state_machine_input_instance.hpp"
-#include "animation/state_machine_bool.hpp"
-#include "animation/state_machine_number.hpp"
-#include "animation/state_machine_trigger.hpp"
-#include "animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/animation/state_machine_bool.hpp"
+#include "rive/animation/state_machine_number.hpp"
+#include "rive/animation/state_machine_trigger.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 
 using namespace rive;
 

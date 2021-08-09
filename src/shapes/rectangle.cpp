@@ -1,4 +1,4 @@
-#include "shapes/rectangle.hpp"
+#include "rive/shapes/rectangle.hpp"
 
 using namespace rive;
 

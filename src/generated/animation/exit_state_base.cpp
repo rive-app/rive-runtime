@@ -1,5 +1,5 @@
-#include "generated/animation/exit_state_base.hpp"
-#include "animation/exit_state.hpp"
+#include "rive/generated/animation/exit_state_base.hpp"
+#include "rive/animation/exit_state.hpp"
 
 using namespace rive;
 

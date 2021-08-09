@@ -1,7 +1,7 @@
-#include "shapes/paint/shape_paint.hpp"
-#include "shapes/shape_paint_container.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/shapes/shape_paint_container.hpp"
 
-#include "renderer.hpp"
+#include "rive/renderer.hpp"
 
 using namespace rive;
 

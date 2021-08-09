@@ -1,8 +1,8 @@
-#include "drawable.hpp"
-#include "artboard.hpp"
-#include "shapes/clipping_shape.hpp"
-#include "shapes/path_composer.hpp"
-#include "shapes/shape.hpp"
+#include "rive/drawable.hpp"
+#include "rive/artboard.hpp"
+#include "rive/shapes/clipping_shape.hpp"
+#include "rive/shapes/path_composer.hpp"
+#include "rive/shapes/shape.hpp"
 
 using namespace rive;
 

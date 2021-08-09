@@ -1,5 +1,5 @@
-#include "math/vec2d.hpp"
-#include "math/mat2d.hpp"
+#include "rive/math/vec2d.hpp"
+#include "rive/math/mat2d.hpp"
 #include <cmath>
 
 using namespace rive;

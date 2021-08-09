@@ -1,7 +1,7 @@
-#include "draw_rules.hpp"
-#include "artboard.hpp"
-#include "core_context.hpp"
-#include "draw_target.hpp"
+#include "rive/draw_rules.hpp"
+#include "rive/artboard.hpp"
+#include "rive/core_context.hpp"
+#include "rive/draw_target.hpp"
 
 using namespace rive;
 

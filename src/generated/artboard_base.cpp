@@ -1,5 +1,5 @@
-#include "generated/artboard_base.hpp"
-#include "artboard.hpp"
+#include "rive/generated/artboard_base.hpp"
+#include "rive/artboard.hpp"
 
 using namespace rive;
 

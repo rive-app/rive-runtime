@@ -1,10 +1,10 @@
-#include "animation/layer_state.hpp"
-#include "animation/transition_bool_condition.hpp"
-#include "importers/import_stack.hpp"
-#include "importers/state_machine_layer_importer.hpp"
-#include "generated/animation/state_machine_layer_base.hpp"
-#include "animation/state_transition.hpp"
-#include "animation/system_state_instance.hpp"
+#include "rive/animation/layer_state.hpp"
+#include "rive/animation/transition_bool_condition.hpp"
+#include "rive/importers/import_stack.hpp"
+#include "rive/importers/state_machine_layer_importer.hpp"
+#include "rive/generated/animation/state_machine_layer_base.hpp"
+#include "rive/animation/state_transition.hpp"
+#include "rive/animation/system_state_instance.hpp"
 
 using namespace rive;
 

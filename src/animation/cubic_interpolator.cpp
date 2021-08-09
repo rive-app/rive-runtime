@@ -1,7 +1,7 @@
-#include "animation/cubic_interpolator.hpp"
-#include "artboard.hpp"
-#include "importers/artboard_importer.hpp"
-#include "importers/import_stack.hpp"
+#include "rive/animation/cubic_interpolator.hpp"
+#include "rive/artboard.hpp"
+#include "rive/importers/artboard_importer.hpp"
+#include "rive/importers/import_stack.hpp"
 #include <cmath>
 
 using namespace rive;

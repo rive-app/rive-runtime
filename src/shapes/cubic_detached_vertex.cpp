@@ -1,5 +1,5 @@
-#include "shapes/cubic_detached_vertex.hpp"
-#include "math/vec2d.hpp"
+#include "rive/shapes/cubic_detached_vertex.hpp"
+#include "rive/math/vec2d.hpp"
 #include <cmath>
 
 using namespace rive;

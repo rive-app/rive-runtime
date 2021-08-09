@@ -1,5 +1,5 @@
-#include "generated/animation/any_state_base.hpp"
-#include "animation/any_state.hpp"
+#include "rive/generated/animation/any_state_base.hpp"
+#include "rive/animation/any_state.hpp"
 
 using namespace rive;
 

@@ -1,5 +1,5 @@
-#include "generated/backboard_base.hpp"
-#include "backboard.hpp"
+#include "rive/generated/backboard_base.hpp"
+#include "rive/backboard.hpp"
 
 using namespace rive;
 

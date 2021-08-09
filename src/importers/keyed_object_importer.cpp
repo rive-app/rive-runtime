@@ -1,7 +1,7 @@
-#include "importers/keyed_object_importer.hpp"
-#include "animation/keyed_object.hpp"
-#include "animation/keyed_property.hpp"
-#include "artboard.hpp"
+#include "rive/importers/keyed_object_importer.hpp"
+#include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/artboard.hpp"
 
 using namespace rive;
 

@@ -1,11 +1,11 @@
-#include "shapes/path.hpp"
-#include "math/circle_constant.hpp"
-#include "renderer.hpp"
-#include "shapes/cubic_vertex.hpp"
-#include "shapes/cubic_detached_vertex.hpp"
-#include "shapes/path_vertex.hpp"
-#include "shapes/shape.hpp"
-#include "shapes/straight_vertex.hpp"
+#include "rive/shapes/path.hpp"
+#include "rive/math/circle_constant.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/cubic_vertex.hpp"
+#include "rive/shapes/cubic_detached_vertex.hpp"
+#include "rive/shapes/path_vertex.hpp"
+#include "rive/shapes/shape.hpp"
+#include "rive/shapes/straight_vertex.hpp"
 #include <cassert>
 
 using namespace rive;

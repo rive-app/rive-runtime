@@ -1,5 +1,5 @@
-#include "core/binary_reader.hpp"
-#include "core/reader.h"
+#include "rive/core/binary_reader.hpp"
+#include "rive/core/reader.h"
 #include <vector>
 
 using namespace rive;

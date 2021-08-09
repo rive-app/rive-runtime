@@ -1,8 +1,8 @@
-#include "animation/state_machine.hpp"
-#include "artboard.hpp"
-#include "importers/artboard_importer.hpp"
-#include "animation/state_machine_layer.hpp"
-#include "animation/state_machine_input.hpp"
+#include "rive/animation/state_machine.hpp"
+#include "rive/artboard.hpp"
+#include "rive/importers/artboard_importer.hpp"
+#include "rive/animation/state_machine_layer.hpp"
+#include "rive/animation/state_machine_input.hpp"
 
 using namespace rive;
 

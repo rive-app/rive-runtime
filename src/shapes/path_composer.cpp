@@ -1,8 +1,8 @@
-#include "shapes/path_composer.hpp"
-#include "artboard.hpp"
-#include "renderer.hpp"
-#include "shapes/path.hpp"
-#include "shapes/shape.hpp"
+#include "rive/shapes/path_composer.hpp"
+#include "rive/artboard.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/path.hpp"
+#include "rive/shapes/shape.hpp"
 
 using namespace rive;
 

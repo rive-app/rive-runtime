@@ -1,4 +1,4 @@
-#include "shapes/paint/color.hpp"
+#include "rive/shapes/paint/color.hpp"
 #include <stdio.h>
 
 namespace rive

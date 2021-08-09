@@ -1,7 +1,7 @@
-#include "shapes/paint/stroke.hpp"
-#include "shapes/paint/stroke_cap.hpp"
-#include "shapes/paint/stroke_effect.hpp"
-#include "shapes/paint/stroke_join.hpp"
+#include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/stroke_cap.hpp"
+#include "rive/shapes/paint/stroke_effect.hpp"
+#include "rive/shapes/paint/stroke_join.hpp"
 
 using namespace rive;
 

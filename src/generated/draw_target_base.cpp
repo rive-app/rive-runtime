@@ -1,5 +1,5 @@
-#include "generated/draw_target_base.hpp"
-#include "draw_target.hpp"
+#include "rive/generated/draw_target_base.hpp"
+#include "rive/draw_target.hpp"
 
 using namespace rive;
 

@@ -1,9 +1,9 @@
-#include "bones/skin.hpp"
-#include "bones/bone.hpp"
-#include "bones/skinnable.hpp"
-#include "bones/tendon.hpp"
-#include "shapes/path_vertex.hpp"
-#include "constraints/constraint.hpp"
+#include "rive/bones/skin.hpp"
+#include "rive/bones/bone.hpp"
+#include "rive/bones/skinnable.hpp"
+#include "rive/bones/tendon.hpp"
+#include "rive/shapes/path_vertex.hpp"
+#include "rive/constraints/constraint.hpp"
 
 using namespace rive;
 

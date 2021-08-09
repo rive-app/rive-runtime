@@ -1,5 +1,5 @@
-#include "generated/draw_rules_base.hpp"
-#include "draw_rules.hpp"
+#include "rive/generated/draw_rules_base.hpp"
+#include "rive/draw_rules.hpp"
 
 using namespace rive;
 

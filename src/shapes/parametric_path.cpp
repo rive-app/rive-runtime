@@ -1,4 +1,4 @@
-#include "shapes/parametric_path.hpp"
+#include "rive/shapes/parametric_path.hpp"
 
 using namespace rive;
 

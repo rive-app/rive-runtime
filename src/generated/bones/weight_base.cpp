@@ -1,5 +1,5 @@
-#include "generated/bones/weight_base.hpp"
-#include "bones/weight.hpp"
+#include "rive/generated/bones/weight_base.hpp"
+#include "rive/bones/weight.hpp"
 
 using namespace rive;
 

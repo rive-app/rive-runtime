@@ -1,4 +1,4 @@
-#include "shapes/straight_vertex.hpp"
+#include "rive/shapes/straight_vertex.hpp"
 
 using namespace rive;
 

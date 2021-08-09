@@ -1,5 +1,5 @@
-#include "generated/animation/transition_trigger_condition_base.hpp"
-#include "animation/transition_trigger_condition.hpp"
+#include "rive/generated/animation/transition_trigger_condition_base.hpp"
+#include "rive/animation/transition_trigger_condition.hpp"
 
 using namespace rive;
 

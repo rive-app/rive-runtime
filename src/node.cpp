@@ -1,4 +1,4 @@
-#include "node.hpp"
+#include "rive/node.hpp"
 
 using namespace rive;
 

@@ -1,11 +1,11 @@
-#include "shapes/paint/linear_gradient.hpp"
-#include "math/vec2d.hpp"
-#include "node.hpp"
-#include "renderer.hpp"
-#include "shapes/paint/color.hpp"
-#include "shapes/paint/gradient_stop.hpp"
-#include "shapes/shape_paint_container.hpp"
-#include "shapes/paint/shape_paint.hpp"
+#include "rive/shapes/paint/linear_gradient.hpp"
+#include "rive/math/vec2d.hpp"
+#include "rive/node.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/paint/color.hpp"
+#include "rive/shapes/paint/gradient_stop.hpp"
+#include "rive/shapes/shape_paint_container.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 #include <algorithm>
 
 using namespace rive;

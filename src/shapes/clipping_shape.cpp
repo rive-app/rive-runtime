@@ -1,10 +1,10 @@
-#include "shapes/clipping_shape.hpp"
-#include "artboard.hpp"
-#include "core_context.hpp"
-#include "node.hpp"
-#include "renderer.hpp"
-#include "shapes/path_composer.hpp"
-#include "shapes/shape.hpp"
+#include "rive/shapes/clipping_shape.hpp"
+#include "rive/artboard.hpp"
+#include "rive/core_context.hpp"
+#include "rive/node.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/path_composer.hpp"
+#include "rive/shapes/shape.hpp"
 
 using namespace rive;
 

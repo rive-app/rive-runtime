@@ -1,8 +1,8 @@
-#include "artboard.hpp"
-#include "animation/blend_animation.hpp"
-#include "animation/layer_state.hpp"
-#include "importers/layer_state_importer.hpp"
-#include "importers/artboard_importer.hpp"
+#include "rive/artboard.hpp"
+#include "rive/animation/blend_animation.hpp"
+#include "rive/animation/layer_state.hpp"
+#include "rive/importers/layer_state_importer.hpp"
+#include "rive/importers/artboard_importer.hpp"
 
 using namespace rive;
 

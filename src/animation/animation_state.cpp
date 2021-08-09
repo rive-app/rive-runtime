@@ -1,9 +1,9 @@
-#include "animation/animation_state.hpp"
-#include "animation/linear_animation.hpp"
-#include "animation/animation_state_instance.hpp"
-#include "animation/system_state_instance.hpp"
-#include "core_context.hpp"
-#include "artboard.hpp"
+#include "rive/animation/animation_state.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/animation_state_instance.hpp"
+#include "rive/animation/system_state_instance.hpp"
+#include "rive/core_context.hpp"
+#include "rive/artboard.hpp"
 
 using namespace rive;
 

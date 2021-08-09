@@ -1,6 +1,6 @@
-#include "shapes/paint/trim_path.hpp"
-#include "shapes/metrics_path.hpp"
-#include "shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/trim_path.hpp"
+#include "rive/shapes/metrics_path.hpp"
+#include "rive/shapes/paint/stroke.hpp"
 
 using namespace rive;
 

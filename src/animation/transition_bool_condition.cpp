@@ -1,7 +1,7 @@
-#include "animation/transition_bool_condition.hpp"
-#include "animation/state_machine_input_instance.hpp"
-#include "animation/state_machine_bool.hpp"
-#include "animation/transition_condition_op.hpp"
+#include "rive/animation/transition_bool_condition.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/animation/state_machine_bool.hpp"
+#include "rive/animation/transition_condition_op.hpp"
 
 using namespace rive;
 

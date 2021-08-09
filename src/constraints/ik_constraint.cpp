@@ -1,6 +1,6 @@
-#include "constraints/ik_constraint.hpp"
-#include "bones/bone.hpp"
-#include "artboard.hpp"
+#include "rive/constraints/ik_constraint.hpp"
+#include "rive/bones/bone.hpp"
+#include "rive/artboard.hpp"
 #include <algorithm>
 
 using namespace rive;

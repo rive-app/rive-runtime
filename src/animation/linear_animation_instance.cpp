@@ -1,6 +1,6 @@
-#include "animation/linear_animation_instance.hpp"
-#include "animation/linear_animation.hpp"
-#include "animation/loop.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/loop.hpp"
 #include <cmath>
 
 using namespace rive;

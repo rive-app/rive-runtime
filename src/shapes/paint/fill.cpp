@@ -1,4 +1,4 @@
-#include "shapes/paint/fill.hpp"
+#include "rive/shapes/paint/fill.hpp"
 
 using namespace rive;
 

@@ -1,5 +1,5 @@
-#include "generated/shapes/polygon_base.hpp"
-#include "shapes/polygon.hpp"
+#include "rive/generated/shapes/polygon_base.hpp"
+#include "rive/shapes/polygon.hpp"
 
 using namespace rive;
 

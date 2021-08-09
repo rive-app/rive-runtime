@@ -1,6 +1,6 @@
-#include "shapes/paint/shape_paint_mutator.hpp"
-#include "component.hpp"
-#include "shapes/paint/shape_paint.hpp"
+#include "rive/shapes/paint/shape_paint_mutator.hpp"
+#include "rive/component.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 
 using namespace rive;
 

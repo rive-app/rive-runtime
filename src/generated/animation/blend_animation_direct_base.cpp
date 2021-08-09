@@ -1,5 +1,5 @@
-#include "generated/animation/blend_animation_direct_base.hpp"
-#include "animation/blend_animation_direct.hpp"
+#include "rive/generated/animation/blend_animation_direct_base.hpp"
+#include "rive/animation/blend_animation_direct.hpp"
 
 using namespace rive;
 

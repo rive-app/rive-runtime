@@ -1,5 +1,5 @@
-#include "shapes/star.hpp"
-#include "shapes/straight_vertex.hpp"
+#include "rive/shapes/star.hpp"
+#include "rive/shapes/straight_vertex.hpp"
 #include <cmath>
 #include <cstdio>
 

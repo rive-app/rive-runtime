@@ -1,5 +1,5 @@
-#include "dependency_sorter.hpp"
-#include "component.hpp"
+#include "rive/dependency_sorter.hpp"
+#include "rive/component.hpp"
 
 using namespace rive;
 

@@ -1,5 +1,5 @@
-#include "generated/shapes/ellipse_base.hpp"
-#include "shapes/ellipse.hpp"
+#include "rive/generated/shapes/ellipse_base.hpp"
+#include "rive/shapes/ellipse.hpp"
 
 using namespace rive;
 

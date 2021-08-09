@@ -1,4 +1,4 @@
-#include "animation/system_state_instance.hpp"
+#include "rive/animation/system_state_instance.hpp"
 using namespace rive;
 
 SystemStateInstance::SystemStateInstance(const LayerState* layerState) :

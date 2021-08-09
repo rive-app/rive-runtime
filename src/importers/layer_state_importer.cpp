@@ -1,8 +1,8 @@
-#include "importers/layer_state_importer.hpp"
-#include "animation/state_transition.hpp"
-#include "animation/layer_state.hpp"
-#include "animation/blend_state.hpp"
-#include "animation/blend_state_transition.hpp"
+#include "rive/importers/layer_state_importer.hpp"
+#include "rive/animation/state_transition.hpp"
+#include "rive/animation/layer_state.hpp"
+#include "rive/animation/blend_state.hpp"
+#include "rive/animation/blend_state_transition.hpp"
 
 using namespace rive;
 

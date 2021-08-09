@@ -1,5 +1,5 @@
-#include "generated/shapes/rectangle_base.hpp"
-#include "shapes/rectangle.hpp"
+#include "rive/generated/shapes/rectangle_base.hpp"
+#include "rive/shapes/rectangle.hpp"
 
 using namespace rive;
 

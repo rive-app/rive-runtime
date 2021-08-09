@@ -1,5 +1,5 @@
-#include "generated/animation/keyframe_color_base.hpp"
-#include "animation/keyframe_color.hpp"
+#include "rive/generated/animation/keyframe_color_base.hpp"
+#include "rive/animation/keyframe_color.hpp"
 
 using namespace rive;
 

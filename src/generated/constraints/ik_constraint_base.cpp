@@ -1,5 +1,5 @@
-#include "generated/constraints/ik_constraint_base.hpp"
-#include "constraints/ik_constraint.hpp"
+#include "rive/generated/constraints/ik_constraint_base.hpp"
+#include "rive/constraints/ik_constraint.hpp"
 
 using namespace rive;
 

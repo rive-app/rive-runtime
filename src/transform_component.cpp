@@ -1,7 +1,7 @@
-#include "transform_component.hpp"
-#include "shapes/clipping_shape.hpp"
-#include "math/vec2d.hpp"
-#include "constraints/constraint.hpp"
+#include "rive/transform_component.hpp"
+#include "rive/shapes/clipping_shape.hpp"
+#include "rive/math/vec2d.hpp"
+#include "rive/constraints/constraint.hpp"
 
 using namespace rive;
 

@@ -1,8 +1,8 @@
-#include "animation/linear_animation.hpp"
-#include "animation/keyed_object.hpp"
-#include "artboard.hpp"
-#include "importers/artboard_importer.hpp"
-#include "importers/import_stack.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/keyed_object.hpp"
+#include "rive/artboard.hpp"
+#include "rive/importers/artboard_importer.hpp"
+#include "rive/importers/import_stack.hpp"
 
 using namespace rive;
 

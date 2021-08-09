@@ -1,5 +1,5 @@
-#include "generated/animation/state_transition_base.hpp"
-#include "animation/state_transition.hpp"
+#include "rive/generated/animation/state_transition_base.hpp"
+#include "rive/animation/state_transition.hpp"
 
 using namespace rive;
 

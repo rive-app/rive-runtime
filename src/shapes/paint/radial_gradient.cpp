@@ -1,5 +1,5 @@
-#include "shapes/paint/radial_gradient.hpp"
-#include "renderer.hpp"
+#include "rive/shapes/paint/radial_gradient.hpp"
+#include "rive/renderer.hpp"
 
 using namespace rive;
 
