@@ -1,7 +1,7 @@
 #ifndef _RIVE_ROOT_BONE_BASE_HPP_
 #define _RIVE_ROOT_BONE_BASE_HPP_
-#include "bones/bone.hpp"
-#include "core/field_types/core_double_type.hpp"
+#include "rive/bones/bone.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
 	class RootBoneBase : public Bone

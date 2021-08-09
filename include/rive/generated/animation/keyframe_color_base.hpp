@@ -1,7 +1,7 @@
 #ifndef _RIVE_KEY_FRAME_COLOR_BASE_HPP_
 #define _RIVE_KEY_FRAME_COLOR_BASE_HPP_
-#include "animation/keyframe.hpp"
-#include "core/field_types/core_color_type.hpp"
+#include "rive/animation/keyframe.hpp"
+#include "rive/core/field_types/core_color_type.hpp"
 namespace rive
 {
 	class KeyFrameColorBase : public KeyFrame

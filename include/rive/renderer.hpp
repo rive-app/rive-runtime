@@ -1,13 +1,13 @@
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
 
-#include "command_path.hpp"
-#include "layout.hpp"
-#include "math/aabb.hpp"
-#include "math/mat2d.hpp"
-#include "shapes/paint/blend_mode.hpp"
-#include "shapes/paint/stroke_cap.hpp"
-#include "shapes/paint/stroke_join.hpp"
+#include "rive/command_path.hpp"
+#include "rive/layout.hpp"
+#include "rive/math/aabb.hpp"
+#include "rive/math/mat2d.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/stroke_cap.hpp"
+#include "rive/shapes/paint/stroke_join.hpp"
 #include <cmath>
 #include <stdio.h>
 

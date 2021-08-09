@@ -1,8 +1,8 @@
 #ifndef _RIVE_CORE_HPP_
 #define _RIVE_CORE_HPP_
 
-#include "core/binary_reader.hpp"
-#include "status_code.hpp"
+#include "rive/core/binary_reader.hpp"
+#include "rive/status_code.hpp"
 #include <cassert>
 
 namespace rive

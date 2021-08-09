@@ -1,6 +1,6 @@
 #ifndef _RIVE_IMPORT_STACK_HPP_
 #define _RIVE_IMPORT_STACK_HPP_
-#include "status_code.hpp"
+#include "rive/status_code.hpp"
 #include <algorithm>
 #include <unordered_map>
 #include <vector>

@@ -1,7 +1,7 @@
 #ifndef _RIVE_RUNTIME_HEADER_HPP_
 #define _RIVE_RUNTIME_HEADER_HPP_
 
-#include "core/binary_reader.hpp"
+#include "rive/core/binary_reader.hpp"
 #include <unordered_map>
 
 namespace rive

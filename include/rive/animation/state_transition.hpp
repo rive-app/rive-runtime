@@ -1,7 +1,7 @@
 #ifndef _RIVE_STATE_TRANSITION_HPP_
 #define _RIVE_STATE_TRANSITION_HPP_
-#include "animation/state_transition_flags.hpp"
-#include "generated/animation/state_transition_base.hpp"
+#include "rive/animation/state_transition_flags.hpp"
+#include "rive/generated/animation/state_transition_base.hpp"
 #include <stdio.h>
 #include <vector>
 

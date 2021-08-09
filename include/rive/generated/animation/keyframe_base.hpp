@@ -1,7 +1,7 @@
 #ifndef _RIVE_KEY_FRAME_BASE_HPP_
 #define _RIVE_KEY_FRAME_BASE_HPP_
-#include "core.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/core.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class KeyFrameBase : public Core

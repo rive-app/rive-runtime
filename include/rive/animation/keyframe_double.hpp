@@ -1,6 +1,6 @@
 #ifndef _RIVE_KEY_FRAME_DOUBLE_HPP_
 #define _RIVE_KEY_FRAME_DOUBLE_HPP_
-#include "generated/animation/keyframe_double_base.hpp"
+#include "rive/generated/animation/keyframe_double_base.hpp"
 namespace rive
 {
 	class KeyFrameDouble : public KeyFrameDoubleBase

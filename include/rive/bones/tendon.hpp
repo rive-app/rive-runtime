@@ -1,8 +1,8 @@
 #ifndef _RIVE_TENDON_HPP_
 #define _RIVE_TENDON_HPP_
 
-#include "generated/bones/tendon_base.hpp"
-#include "math/mat2d.hpp"
+#include "rive/generated/bones/tendon_base.hpp"
+#include "rive/math/mat2d.hpp"
 #include <stdio.h>
 
 namespace rive

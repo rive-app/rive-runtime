@@ -1,9 +1,9 @@
 #ifndef _RIVE_LINEAR_ANIMATION_BASE_HPP_
 #define _RIVE_LINEAR_ANIMATION_BASE_HPP_
-#include "animation/animation.hpp"
-#include "core/field_types/core_bool_type.hpp"
-#include "core/field_types/core_double_type.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/animation/animation.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class LinearAnimationBase : public Animation

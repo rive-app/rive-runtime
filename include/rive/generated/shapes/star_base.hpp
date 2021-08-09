@@ -1,7 +1,7 @@
 #ifndef _RIVE_STAR_BASE_HPP_
 #define _RIVE_STAR_BASE_HPP_
-#include "core/field_types/core_double_type.hpp"
-#include "shapes/polygon.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/shapes/polygon.hpp"
 namespace rive
 {
 	class StarBase : public Polygon

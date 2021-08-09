@@ -1,6 +1,6 @@
 #ifndef _RIVE_KEYED_OBJECT_HPP_
 #define _RIVE_KEYED_OBJECT_HPP_
-#include "generated/animation/keyed_object_base.hpp"
+#include "rive/generated/animation/keyed_object_base.hpp"
 #include <vector>
 namespace rive
 {

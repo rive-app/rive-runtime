@@ -1,7 +1,7 @@
 #ifndef _RIVE_ANIMATION_STATE_BASE_HPP_
 #define _RIVE_ANIMATION_STATE_BASE_HPP_
-#include "animation/layer_state.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/animation/layer_state.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class AnimationStateBase : public LayerState

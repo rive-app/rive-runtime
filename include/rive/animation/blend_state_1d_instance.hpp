@@ -1,9 +1,9 @@
 #ifndef _RIVE_BLEND_STATE_1D_INSTANCE_HPP_
 #define _RIVE_BLEND_STATE_1D_INSTANCE_HPP_
 
-#include "animation/blend_state_instance.hpp"
-#include "animation/blend_state_1d.hpp"
-#include "animation/blend_animation_1d.hpp"
+#include "rive/animation/blend_state_instance.hpp"
+#include "rive/animation/blend_state_1d.hpp"
+#include "rive/animation/blend_animation_1d.hpp"
 
 namespace rive
 {

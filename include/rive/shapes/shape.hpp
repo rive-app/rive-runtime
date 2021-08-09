@@ -1,8 +1,8 @@
 #ifndef _RIVE_SHAPE_HPP_
 #define _RIVE_SHAPE_HPP_
-#include "generated/shapes/shape_base.hpp"
-#include "shapes/path_composer.hpp"
-#include "shapes/shape_paint_container.hpp"
+#include "rive/generated/shapes/shape_base.hpp"
+#include "rive/shapes/path_composer.hpp"
+#include "rive/shapes/shape_paint_container.hpp"
 #include <vector>
 
 namespace rive

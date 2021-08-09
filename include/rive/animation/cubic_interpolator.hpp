@@ -1,6 +1,6 @@
 #ifndef _RIVE_CUBIC_INTERPOLATOR_HPP_
 #define _RIVE_CUBIC_INTERPOLATOR_HPP_
-#include "generated/animation/cubic_interpolator_base.hpp"
+#include "rive/generated/animation/cubic_interpolator_base.hpp"
 namespace rive
 {
 	class CubicInterpolator : public CubicInterpolatorBase

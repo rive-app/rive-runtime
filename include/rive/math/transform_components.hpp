@@ -1,7 +1,7 @@
 #ifndef _RIVE_TRANSFORMCOMPONENTS_HPP_
 #define _RIVE_TRANSFORMCOMPONENTS_HPP_
 
-#include "vec2d.hpp"
+#include "rive/math/vec2d.hpp"
 #include <cstddef>
 
 namespace rive

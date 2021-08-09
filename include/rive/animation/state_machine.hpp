@@ -1,6 +1,6 @@
 #ifndef _RIVE_STATE_MACHINE_HPP_
 #define _RIVE_STATE_MACHINE_HPP_
-#include "generated/animation/state_machine_base.hpp"
+#include "rive/generated/animation/state_machine_base.hpp"
 #include <stdio.h>
 #include <vector>
 

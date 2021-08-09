@@ -1,6 +1,6 @@
 #ifndef _RIVE_CONTAINER_COMPONENT_BASE_HPP_
 #define _RIVE_CONTAINER_COMPONENT_BASE_HPP_
-#include "component.hpp"
+#include "rive/component.hpp"
 namespace rive
 {
 	class ContainerComponentBase : public Component

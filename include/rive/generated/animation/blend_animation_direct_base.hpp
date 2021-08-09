@@ -1,7 +1,7 @@
 #ifndef _RIVE_BLEND_ANIMATION_DIRECT_BASE_HPP_
 #define _RIVE_BLEND_ANIMATION_DIRECT_BASE_HPP_
-#include "animation/blend_animation.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/animation/blend_animation.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class BlendAnimationDirectBase : public BlendAnimation

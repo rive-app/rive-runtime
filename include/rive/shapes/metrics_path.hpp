@@ -1,8 +1,8 @@
 #ifndef _RIVE_METRICS_PATH_HPP_
 #define _RIVE_METRICS_PATH_HPP_
 
-#include "command_path.hpp"
-#include "math/vec2d.hpp"
+#include "rive/command_path.hpp"
+#include "rive/math/vec2d.hpp"
 #include <cassert>
 #include <vector>
 

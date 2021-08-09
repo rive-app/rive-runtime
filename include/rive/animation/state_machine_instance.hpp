@@ -3,7 +3,7 @@
 
 #include <string>
 #include <stddef.h>
-#include "animation/linear_animation_instance.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 
 namespace rive
 {

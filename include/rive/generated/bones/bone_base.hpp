@@ -1,7 +1,7 @@
 #ifndef _RIVE_BONE_BASE_HPP_
 #define _RIVE_BONE_BASE_HPP_
-#include "bones/skeletal_component.hpp"
-#include "core/field_types/core_double_type.hpp"
+#include "rive/bones/skeletal_component.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
 	class BoneBase : public SkeletalComponent

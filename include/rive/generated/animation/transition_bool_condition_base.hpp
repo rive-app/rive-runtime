@@ -1,6 +1,6 @@
 #ifndef _RIVE_TRANSITION_BOOL_CONDITION_BASE_HPP_
 #define _RIVE_TRANSITION_BOOL_CONDITION_BASE_HPP_
-#include "animation/transition_value_condition.hpp"
+#include "rive/animation/transition_value_condition.hpp"
 namespace rive
 {
 	class TransitionBoolConditionBase : public TransitionValueCondition

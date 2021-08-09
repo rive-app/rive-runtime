@@ -1,8 +1,8 @@
 #ifndef _RIVE_STATE_MACHINE_COMPONENT_BASE_HPP_
 #define _RIVE_STATE_MACHINE_COMPONENT_BASE_HPP_
 #include <string>
-#include "core.hpp"
-#include "core/field_types/core_string_type.hpp"
+#include "rive/core.hpp"
+#include "rive/core/field_types/core_string_type.hpp"
 namespace rive
 {
 	class StateMachineComponentBase : public Core

@@ -1,6 +1,6 @@
 #ifndef _RIVE_PATH_COMPOSER_HPP_
 #define _RIVE_PATH_COMPOSER_HPP_
-#include "component.hpp"
+#include "rive/component.hpp"
 namespace rive
 {
 	class Shape;

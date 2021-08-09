@@ -1,8 +1,8 @@
 #ifndef _RIVE_GRADIENT_STOP_BASE_HPP_
 #define _RIVE_GRADIENT_STOP_BASE_HPP_
-#include "component.hpp"
-#include "core/field_types/core_color_type.hpp"
-#include "core/field_types/core_double_type.hpp"
+#include "rive/component.hpp"
+#include "rive/core/field_types/core_color_type.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
 	class GradientStopBase : public Component

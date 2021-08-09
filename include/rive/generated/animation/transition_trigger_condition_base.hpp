@@ -1,6 +1,6 @@
 #ifndef _RIVE_TRANSITION_TRIGGER_CONDITION_BASE_HPP_
 #define _RIVE_TRANSITION_TRIGGER_CONDITION_BASE_HPP_
-#include "animation/transition_condition.hpp"
+#include "rive/animation/transition_condition.hpp"
 namespace rive
 {
 	class TransitionTriggerConditionBase : public TransitionCondition

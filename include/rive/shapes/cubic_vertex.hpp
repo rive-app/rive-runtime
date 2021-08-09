@@ -1,7 +1,7 @@
 #ifndef _RIVE_CUBIC_VERTEX_HPP_
 #define _RIVE_CUBIC_VERTEX_HPP_
-#include "generated/shapes/cubic_vertex_base.hpp"
-#include "math/vec2d.hpp"
+#include "rive/generated/shapes/cubic_vertex_base.hpp"
+#include "rive/math/vec2d.hpp"
 
 namespace rive
 {

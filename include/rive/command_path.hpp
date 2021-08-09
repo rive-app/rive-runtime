@@ -1,7 +1,7 @@
 #ifndef _RIVE_COMMAND_PATH_HPP_
 #define _RIVE_COMMAND_PATH_HPP_
 
-#include "math/mat2d.hpp"
+#include "rive/math/mat2d.hpp"
 
 namespace rive
 {

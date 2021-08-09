@@ -1,7 +1,7 @@
 #ifndef _RIVE_COMPONENT_HPP_
 #define _RIVE_COMPONENT_HPP_
-#include "component_dirt.hpp"
-#include "generated/component_base.hpp"
+#include "rive/component_dirt.hpp"
+#include "rive/generated/component_base.hpp"
 
 #include <vector>
 

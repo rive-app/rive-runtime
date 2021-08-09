@@ -1,7 +1,7 @@
 #ifndef _RIVE_TRANSFORM_COMPONENT_HPP_
 #define _RIVE_TRANSFORM_COMPONENT_HPP_
-#include "generated/transform_component_base.hpp"
-#include "math/mat2d.hpp"
+#include "rive/generated/transform_component_base.hpp"
+#include "rive/math/mat2d.hpp"
 
 namespace rive
 {

@@ -1,8 +1,8 @@
 #ifndef _RIVE_DRAW_TARGET_HPP_
 #define _RIVE_DRAW_TARGET_HPP_
 
-#include "draw_target_placement.hpp"
-#include "generated/draw_target_base.hpp"
+#include "rive/draw_target_placement.hpp"
+#include "rive/generated/draw_target_base.hpp"
 #include <stdio.h>
 
 namespace rive

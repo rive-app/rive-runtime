@@ -1,6 +1,6 @@
 #ifndef _RIVE_DRAW_RULES_HPP_
 #define _RIVE_DRAW_RULES_HPP_
-#include "generated/draw_rules_base.hpp"
+#include "rive/generated/draw_rules_base.hpp"
 #include <stdio.h>
 namespace rive
 {

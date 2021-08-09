@@ -1,6 +1,6 @@
 #ifndef _RIVE_BLEND_STATE_DIRECT_BASE_HPP_
 #define _RIVE_BLEND_STATE_DIRECT_BASE_HPP_
-#include "animation/blend_state.hpp"
+#include "rive/animation/blend_state.hpp"
 namespace rive
 {
 	class BlendStateDirectBase : public BlendState

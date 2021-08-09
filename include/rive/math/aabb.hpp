@@ -1,8 +1,8 @@
 #ifndef _RIVE_AABB_HPP_
 #define _RIVE_AABB_HPP_
 
-#include "mat2d.hpp"
-#include "vec2d.hpp"
+#include "rive/math/mat2d.hpp"
+#include "rive/math/vec2d.hpp"
 #include <cstddef>
 
 namespace rive

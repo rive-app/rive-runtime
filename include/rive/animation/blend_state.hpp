@@ -1,6 +1,6 @@
 #ifndef _RIVE_BLEND_STATE_HPP_
 #define _RIVE_BLEND_STATE_HPP_
-#include "generated/animation/blend_state_base.hpp"
+#include "rive/generated/animation/blend_state_base.hpp"
 #include <stdio.h>
 #include <vector>
 #include <algorithm>

@@ -1,7 +1,7 @@
 #ifndef _RIVE_PATH_HPP_
 #define _RIVE_PATH_HPP_
-#include "generated/shapes/path_base.hpp"
-#include "math/mat2d.hpp"
+#include "rive/generated/shapes/path_base.hpp"
+#include "rive/math/mat2d.hpp"
 #include <vector>
 
 namespace rive

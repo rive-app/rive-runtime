@@ -1,12 +1,12 @@
 #ifndef _RIVE_ARTBOARD_HPP_
 #define _RIVE_ARTBOARD_HPP_
-#include "animation/linear_animation.hpp"
-#include "animation/state_machine.hpp"
-#include "core_context.hpp"
-#include "generated/artboard_base.hpp"
-#include "math/aabb.hpp"
-#include "renderer.hpp"
-#include "shapes/shape_paint_container.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/state_machine.hpp"
+#include "rive/core_context.hpp"
+#include "rive/generated/artboard_base.hpp"
+#include "rive/math/aabb.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/shape_paint_container.hpp"
 #include <vector>
 namespace rive
 {

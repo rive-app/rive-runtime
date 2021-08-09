@@ -3,9 +3,9 @@
 
 #include <string>
 #include <vector>
-#include "animation/state_instance.hpp"
-#include "animation/blend_state.hpp"
-#include "animation/linear_animation_instance.hpp"
+#include "rive/animation/state_instance.hpp"
+#include "rive/animation/blend_state.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 
 namespace rive
 {

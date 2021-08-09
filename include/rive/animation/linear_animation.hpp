@@ -1,7 +1,7 @@
 #ifndef _RIVE_LINEAR_ANIMATION_HPP_
 #define _RIVE_LINEAR_ANIMATION_HPP_
-#include "animation/loop.hpp"
-#include "generated/animation/linear_animation_base.hpp"
+#include "rive/animation/loop.hpp"
+#include "rive/generated/animation/linear_animation_base.hpp"
 #include <vector>
 namespace rive
 {

@@ -1,8 +1,8 @@
 #ifndef _RIVE_RECTANGLE_BASE_HPP_
 #define _RIVE_RECTANGLE_BASE_HPP_
-#include "core/field_types/core_bool_type.hpp"
-#include "core/field_types/core_double_type.hpp"
-#include "shapes/parametric_path.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/shapes/parametric_path.hpp"
 namespace rive
 {
 	class RectangleBase : public ParametricPath

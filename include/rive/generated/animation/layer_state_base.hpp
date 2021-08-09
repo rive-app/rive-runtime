@@ -1,6 +1,6 @@
 #ifndef _RIVE_LAYER_STATE_BASE_HPP_
 #define _RIVE_LAYER_STATE_BASE_HPP_
-#include "animation/state_machine_layer_component.hpp"
+#include "rive/animation/state_machine_layer_component.hpp"
 namespace rive
 {
 	class LayerStateBase : public StateMachineLayerComponent

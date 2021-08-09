@@ -1,7 +1,7 @@
 #ifndef _RIVE_POINTS_PATH_HPP_
 #define _RIVE_POINTS_PATH_HPP_
-#include "bones/skinnable.hpp"
-#include "generated/shapes/points_path_base.hpp"
+#include "rive/bones/skinnable.hpp"
+#include "rive/generated/shapes/points_path_base.hpp"
 namespace rive
 {
 	class PointsPath : public PointsPathBase, public Skinnable

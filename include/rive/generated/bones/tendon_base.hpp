@@ -1,8 +1,8 @@
 #ifndef _RIVE_TENDON_BASE_HPP_
 #define _RIVE_TENDON_BASE_HPP_
-#include "component.hpp"
-#include "core/field_types/core_double_type.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/component.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class TendonBase : public Component

@@ -1,7 +1,7 @@
 #ifndef _RIVE_FILL_BASE_HPP_
 #define _RIVE_FILL_BASE_HPP_
-#include "core/field_types/core_uint_type.hpp"
-#include "shapes/paint/shape_paint.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 namespace rive
 {
 	class FillBase : public ShapePaint

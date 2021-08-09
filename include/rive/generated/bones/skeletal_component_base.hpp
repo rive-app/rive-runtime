@@ -1,6 +1,6 @@
 #ifndef _RIVE_SKELETAL_COMPONENT_BASE_HPP_
 #define _RIVE_SKELETAL_COMPONENT_BASE_HPP_
-#include "transform_component.hpp"
+#include "rive/transform_component.hpp"
 namespace rive
 {
 	class SkeletalComponentBase : public TransformComponent

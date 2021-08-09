@@ -1,6 +1,6 @@
 #ifndef _RIVE_STATE_MACHINE_BOOL_HPP_
 #define _RIVE_STATE_MACHINE_BOOL_HPP_
-#include "generated/animation/state_machine_bool_base.hpp"
+#include "rive/generated/animation/state_machine_bool_base.hpp"
 #include <stdio.h>
 namespace rive
 {

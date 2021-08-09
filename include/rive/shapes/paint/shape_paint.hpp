@@ -1,10 +1,10 @@
 #ifndef _RIVE_SHAPE_PAINT_HPP_
 #define _RIVE_SHAPE_PAINT_HPP_
-#include "generated/shapes/paint/shape_paint_base.hpp"
-#include "renderer.hpp"
-#include "shapes/paint/blend_mode.hpp"
-#include "shapes/paint/shape_paint_mutator.hpp"
-#include "shapes/path_space.hpp"
+#include "rive/generated/shapes/paint/shape_paint_base.hpp"
+#include "rive/renderer.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/shape_paint_mutator.hpp"
+#include "rive/shapes/path_space.hpp"
 namespace rive
 {
 	class RenderPaint;

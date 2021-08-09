@@ -1,6 +1,6 @@
 #ifndef _RIVE_STAR_HPP_
 #define _RIVE_STAR_HPP_
-#include "generated/shapes/star_base.hpp"
+#include "rive/generated/shapes/star_base.hpp"
 #include <stdio.h>
 namespace rive
 {

@@ -1,7 +1,7 @@
 #ifndef _RIVE_SHAPE_PAINT_CONTAINER_HPP_
 #define _RIVE_SHAPE_PAINT_CONTAINER_HPP_
-#include "shapes/paint/blend_mode.hpp"
-#include "shapes/path_space.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/path_space.hpp"
 #include <vector>
 
 namespace rive

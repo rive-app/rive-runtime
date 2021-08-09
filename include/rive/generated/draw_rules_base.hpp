@@ -1,7 +1,7 @@
 #ifndef _RIVE_DRAW_RULES_BASE_HPP_
 #define _RIVE_DRAW_RULES_BASE_HPP_
-#include "container_component.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/container_component.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class DrawRulesBase : public ContainerComponent

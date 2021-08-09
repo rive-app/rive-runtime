@@ -1,6 +1,6 @@
 #ifndef _RIVE_BLEND_ANIMATION_DIRECT_HPP_
 #define _RIVE_BLEND_ANIMATION_DIRECT_HPP_
-#include "generated/animation/blend_animation_direct_base.hpp"
+#include "rive/generated/animation/blend_animation_direct_base.hpp"
 #include <stdio.h>
 namespace rive
 {

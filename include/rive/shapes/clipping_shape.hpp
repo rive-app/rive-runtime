@@ -1,6 +1,6 @@
 #ifndef _RIVE_CLIPPING_SHAPE_HPP_
 #define _RIVE_CLIPPING_SHAPE_HPP_
-#include "generated/shapes/clipping_shape_base.hpp"
+#include "rive/generated/shapes/clipping_shape_base.hpp"
 #include <stdio.h>
 #include <vector>
 

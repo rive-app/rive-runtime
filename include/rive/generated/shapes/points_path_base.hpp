@@ -1,7 +1,7 @@
 #ifndef _RIVE_POINTS_PATH_BASE_HPP_
 #define _RIVE_POINTS_PATH_BASE_HPP_
-#include "core/field_types/core_bool_type.hpp"
-#include "shapes/path.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
+#include "rive/shapes/path.hpp"
 namespace rive
 {
 	class PointsPathBase : public Path

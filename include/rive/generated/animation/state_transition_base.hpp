@@ -1,7 +1,7 @@
 #ifndef _RIVE_STATE_TRANSITION_BASE_HPP_
 #define _RIVE_STATE_TRANSITION_BASE_HPP_
-#include "animation/state_machine_layer_component.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/animation/state_machine_layer_component.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class StateTransitionBase : public StateMachineLayerComponent

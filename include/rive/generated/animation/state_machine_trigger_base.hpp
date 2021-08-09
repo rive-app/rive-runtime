@@ -1,6 +1,6 @@
 #ifndef _RIVE_STATE_MACHINE_TRIGGER_BASE_HPP_
 #define _RIVE_STATE_MACHINE_TRIGGER_BASE_HPP_
-#include "animation/state_machine_input.hpp"
+#include "rive/animation/state_machine_input.hpp"
 namespace rive
 {
 	class StateMachineTriggerBase : public StateMachineInput

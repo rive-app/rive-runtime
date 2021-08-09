@@ -2,8 +2,8 @@
 #define _RIVE_ANIMATION_STATE_INSTANCE_HPP_
 
 #include <string>
-#include "animation/state_instance.hpp"
-#include "animation/linear_animation_instance.hpp"
+#include "rive/animation/state_instance.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 
 namespace rive
 {

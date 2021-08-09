@@ -1,6 +1,6 @@
 #ifndef _RIVE_BONE_HPP_
 #define _RIVE_BONE_HPP_
-#include "generated/bones/bone_base.hpp"
+#include "rive/generated/bones/bone_base.hpp"
 #include <stdio.h>
 #include <vector>
 

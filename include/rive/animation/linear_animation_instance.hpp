@@ -1,6 +1,6 @@
 #ifndef _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
 #define _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
-#include "artboard.hpp"
+#include "rive/artboard.hpp"
 
 namespace rive
 {

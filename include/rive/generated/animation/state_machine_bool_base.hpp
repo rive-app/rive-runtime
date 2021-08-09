@@ -1,7 +1,7 @@
 #ifndef _RIVE_STATE_MACHINE_BOOL_BASE_HPP_
 #define _RIVE_STATE_MACHINE_BOOL_BASE_HPP_
-#include "animation/state_machine_input.hpp"
-#include "core/field_types/core_bool_type.hpp"
+#include "rive/animation/state_machine_input.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
 namespace rive
 {
 	class StateMachineBoolBase : public StateMachineInput

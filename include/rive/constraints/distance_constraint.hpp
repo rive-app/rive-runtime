@@ -1,6 +1,6 @@
 #ifndef _RIVE_DISTANCE_CONSTRAINT_HPP_
 #define _RIVE_DISTANCE_CONSTRAINT_HPP_
-#include "generated/constraints/distance_constraint_base.hpp"
+#include "rive/generated/constraints/distance_constraint_base.hpp"
 #include <stdio.h>
 namespace rive
 {

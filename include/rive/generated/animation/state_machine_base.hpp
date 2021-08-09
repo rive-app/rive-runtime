@@ -1,6 +1,6 @@
 #ifndef _RIVE_STATE_MACHINE_BASE_HPP_
 #define _RIVE_STATE_MACHINE_BASE_HPP_
-#include "animation/animation.hpp"
+#include "rive/animation/animation.hpp"
 namespace rive
 {
 	class StateMachineBase : public Animation

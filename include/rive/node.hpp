@@ -1,6 +1,6 @@
 #ifndef _RIVE_NODE_HPP_
 #define _RIVE_NODE_HPP_
-#include "generated/node_base.hpp"
+#include "rive/generated/node_base.hpp"
 
 namespace rive
 {

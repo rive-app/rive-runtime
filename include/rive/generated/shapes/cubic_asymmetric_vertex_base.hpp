@@ -1,7 +1,7 @@
 #ifndef _RIVE_CUBIC_ASYMMETRIC_VERTEX_BASE_HPP_
 #define _RIVE_CUBIC_ASYMMETRIC_VERTEX_BASE_HPP_
-#include "core/field_types/core_double_type.hpp"
-#include "shapes/cubic_vertex.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/shapes/cubic_vertex.hpp"
 namespace rive
 {
 	class CubicAsymmetricVertexBase : public CubicVertex

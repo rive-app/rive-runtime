@@ -1,7 +1,7 @@
 #ifndef _RIVE_NODE_BASE_HPP_
 #define _RIVE_NODE_BASE_HPP_
-#include "core/field_types/core_double_type.hpp"
-#include "transform_component.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/transform_component.hpp"
 namespace rive
 {
 	class NodeBase : public TransformComponent

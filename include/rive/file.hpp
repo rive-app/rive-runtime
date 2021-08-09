@@ -1,10 +1,10 @@
 #ifndef _RIVE_FILE_HPP_
 #define _RIVE_FILE_HPP_
 
-#include "artboard.hpp"
-#include "backboard.hpp"
-#include "core/binary_reader.hpp"
-#include "runtime_header.hpp"
+#include "rive/artboard.hpp"
+#include "rive/backboard.hpp"
+#include "rive/core/binary_reader.hpp"
+#include "rive/runtime_header.hpp"
 #include <vector>
 
 ///

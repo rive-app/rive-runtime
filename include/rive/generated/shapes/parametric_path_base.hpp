@@ -1,7 +1,7 @@
 #ifndef _RIVE_PARAMETRIC_PATH_BASE_HPP_
 #define _RIVE_PARAMETRIC_PATH_BASE_HPP_
-#include "core/field_types/core_double_type.hpp"
-#include "shapes/path.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/shapes/path.hpp"
 namespace rive
 {
 	class ParametricPathBase : public Path

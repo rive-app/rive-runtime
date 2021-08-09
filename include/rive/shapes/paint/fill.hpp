@@ -1,7 +1,7 @@
 #ifndef _RIVE_FILL_HPP_
 #define _RIVE_FILL_HPP_
-#include "generated/shapes/paint/fill_base.hpp"
-#include "shapes/path_space.hpp"
+#include "rive/generated/shapes/paint/fill_base.hpp"
+#include "rive/shapes/path_space.hpp"
 namespace rive
 {
 	class Fill : public FillBase

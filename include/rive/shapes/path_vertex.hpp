@@ -1,8 +1,8 @@
 #ifndef _RIVE_PATH_VERTEX_HPP_
 #define _RIVE_PATH_VERTEX_HPP_
-#include "bones/weight.hpp"
-#include "generated/shapes/path_vertex_base.hpp"
-#include "math/mat2d.hpp"
+#include "rive/bones/weight.hpp"
+#include "rive/generated/shapes/path_vertex_base.hpp"
+#include "rive/math/mat2d.hpp"
 namespace rive
 {
 	class PathVertex : public PathVertexBase

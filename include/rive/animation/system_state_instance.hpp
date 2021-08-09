@@ -2,7 +2,7 @@
 #define _RIVE_SYSTEM_STATE_INSTANCE_HPP_
 
 #include <string>
-#include "animation/state_instance.hpp"
+#include "rive/animation/state_instance.hpp"
 
 namespace rive
 {

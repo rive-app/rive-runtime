@@ -1,7 +1,7 @@
 #ifndef _RIVE_TRANSITION_NUMBER_CONDITION_BASE_HPP_
 #define _RIVE_TRANSITION_NUMBER_CONDITION_BASE_HPP_
-#include "animation/transition_value_condition.hpp"
-#include "core/field_types/core_double_type.hpp"
+#include "rive/animation/transition_value_condition.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
 	class TransitionNumberConditionBase : public TransitionValueCondition

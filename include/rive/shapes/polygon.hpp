@@ -1,8 +1,8 @@
 #ifndef _RIVE_POLYGON_HPP_
 #define _RIVE_POLYGON_HPP_
-#include "generated/shapes/polygon_base.hpp"
-#include "shapes/path_vertex.hpp"
-#include "shapes/straight_vertex.hpp"
+#include "rive/generated/shapes/polygon_base.hpp"
+#include "rive/shapes/path_vertex.hpp"
+#include "rive/shapes/straight_vertex.hpp"
 #include <vector>
 namespace rive
 {

@@ -1,7 +1,7 @@
 #ifndef _RIVE_SKIN_BASE_HPP_
 #define _RIVE_SKIN_BASE_HPP_
-#include "container_component.hpp"
-#include "core/field_types/core_double_type.hpp"
+#include "rive/container_component.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
 	class SkinBase : public ContainerComponent

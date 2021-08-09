@@ -1,6 +1,6 @@
 #ifndef _RIVE_EXIT_STATE_BASE_HPP_
 #define _RIVE_EXIT_STATE_BASE_HPP_
-#include "animation/layer_state.hpp"
+#include "rive/animation/layer_state.hpp"
 namespace rive
 {
 	class ExitStateBase : public LayerState

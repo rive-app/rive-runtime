@@ -1,7 +1,7 @@
 #ifndef _RIVE_TRANSITION_IMPORTER_HPP_
 #define _RIVE_TRANSITION_IMPORTER_HPP_
 
-#include "importers/import_stack.hpp"
+#include "rive/importers/import_stack.hpp"
 
 namespace rive
 {

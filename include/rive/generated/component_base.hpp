@@ -1,9 +1,9 @@
 #ifndef _RIVE_COMPONENT_BASE_HPP_
 #define _RIVE_COMPONENT_BASE_HPP_
 #include <string>
-#include "core.hpp"
-#include "core/field_types/core_string_type.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/core.hpp"
+#include "rive/core/field_types/core_string_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class ComponentBase : public Core

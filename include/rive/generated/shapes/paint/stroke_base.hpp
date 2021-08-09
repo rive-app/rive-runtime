@@ -1,9 +1,9 @@
 #ifndef _RIVE_STROKE_BASE_HPP_
 #define _RIVE_STROKE_BASE_HPP_
-#include "core/field_types/core_bool_type.hpp"
-#include "core/field_types/core_double_type.hpp"
-#include "core/field_types/core_uint_type.hpp"
-#include "shapes/paint/shape_paint.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 namespace rive
 {
 	class StrokeBase : public ShapePaint

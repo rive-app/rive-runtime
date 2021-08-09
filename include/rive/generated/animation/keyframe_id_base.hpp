@@ -1,7 +1,7 @@
 #ifndef _RIVE_KEY_FRAME_ID_BASE_HPP_
 #define _RIVE_KEY_FRAME_ID_BASE_HPP_
-#include "animation/keyframe.hpp"
-#include "core/field_types/core_uint_type.hpp"
+#include "rive/animation/keyframe.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 	class KeyFrameIdBase : public KeyFrame

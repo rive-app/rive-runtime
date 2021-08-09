@@ -1,6 +1,6 @@
 #ifndef _RIVE_EXIT_STATE_HPP_
 #define _RIVE_EXIT_STATE_HPP_
-#include "generated/animation/exit_state_base.hpp"
+#include "rive/generated/animation/exit_state_base.hpp"
 #include <stdio.h>
 namespace rive
 {

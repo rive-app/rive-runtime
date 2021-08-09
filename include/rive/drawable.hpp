@@ -1,7 +1,7 @@
 #ifndef _RIVE_DRAWABLE_HPP_
 #define _RIVE_DRAWABLE_HPP_
-#include "generated/drawable_base.hpp"
-#include "renderer.hpp"
+#include "rive/generated/drawable_base.hpp"
+#include "rive/renderer.hpp"
 #include <vector>
 
 namespace rive

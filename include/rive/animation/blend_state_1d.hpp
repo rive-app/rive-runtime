@@ -1,6 +1,6 @@
 #ifndef _RIVE_BLEND_STATE1_D_HPP_
 #define _RIVE_BLEND_STATE1_D_HPP_
-#include "generated/animation/blend_state_1d_base.hpp"
+#include "rive/generated/animation/blend_state_1d_base.hpp"
 
 namespace rive
 {

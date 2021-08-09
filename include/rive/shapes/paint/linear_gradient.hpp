@@ -1,8 +1,8 @@
 #ifndef _RIVE_LINEAR_GRADIENT_HPP_
 #define _RIVE_LINEAR_GRADIENT_HPP_
-#include "generated/shapes/paint/linear_gradient_base.hpp"
-#include "math/vec2d.hpp"
-#include "shapes/paint/shape_paint_mutator.hpp"
+#include "rive/generated/shapes/paint/linear_gradient_base.hpp"
+#include "rive/math/vec2d.hpp"
+#include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include <vector>
 namespace rive
 {
