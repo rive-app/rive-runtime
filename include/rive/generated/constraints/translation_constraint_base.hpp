@@ -1,15 +1,15 @@
-#ifndef _RIVE_TRANSFORM_CONSTRAINT_BASE_HPP_
-#define _RIVE_TRANSFORM_CONSTRAINT_BASE_HPP_
-#include "rive/constraints/transform_space_constraint.hpp"
+#ifndef _RIVE_TRANSLATION_CONSTRAINT_BASE_HPP_
+#define _RIVE_TRANSLATION_CONSTRAINT_BASE_HPP_
+#include "rive/constraints/transform_component_constraint_y.hpp"
 namespace rive
 {
-	class TransformConstraintBase : public TransformSpaceConstraint
+	class TranslationConstraintBase : public TransformComponentConstraintY
 	{
 	protected:
-		typedef TransformSpaceConstraint Super;
+		typedef TransformComponentConstraintY Super;
 
 	public:
-		static const uint16_t typeKey = 83;
+		static const uint16_t typeKey = 87;
 
 		/// Helper to quickly determine if a core object extends another without
 		/// RTTI at runtime.
@@ -17,7 +17,9 @@ namespace rive
 		{
 			switch (typeKey)
 			{
-				case TransformConstraintBase::typeKey:
+				case TranslationConstraintBase::typeKey:
+				case TransformComponentConstraintYBase::typeKey:
+				case TransformComponentConstraintBase::typeKey:
 				case TransformSpaceConstraintBase::typeKey:
 				case TargetedConstraintBase::typeKey:
 				case ConstraintBase::typeKey:

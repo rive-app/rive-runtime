@@ -9,9 +9,10 @@
     "invertDirection": {
       "type": "bool",
       "initialValue": "false",
+      "animates": true,
       "key": {
         "int": 174,
-        "string": "invertdirection"
+        "string": "invert_direction"
       },
       "description": "True when the direction taken towards the target should be inverted from the default."
     },

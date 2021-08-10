@@ -16,6 +16,7 @@
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyed_property.hpp"
 #include "rive/animation/keyframe.hpp"
+#include "rive/animation/keyframe_bool.hpp"
 #include "rive/animation/keyframe_color.hpp"
 #include "rive/animation/keyframe_double.hpp"
 #include "rive/animation/keyframe_id.hpp"
@@ -48,8 +49,14 @@
 #include "rive/constraints/constraint.hpp"
 #include "rive/constraints/distance_constraint.hpp"
 #include "rive/constraints/ik_constraint.hpp"
+#include "rive/constraints/rotation_constraint.hpp"
+#include "rive/constraints/scale_constraint.hpp"
 #include "rive/constraints/targeted_constraint.hpp"
+#include "rive/constraints/transform_component_constraint.hpp"
+#include "rive/constraints/transform_component_constraint_y.hpp"
 #include "rive/constraints/transform_constraint.hpp"
+#include "rive/constraints/transform_space_constraint.hpp"
+#include "rive/constraints/translation_constraint.hpp"
 #include "rive/container_component.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
@@ -95,8 +102,14 @@ namespace rive
 					return new DistanceConstraint();
 				case IKConstraintBase::typeKey:
 					return new IKConstraint();
+				case TranslationConstraintBase::typeKey:
+					return new TranslationConstraint();
 				case TransformConstraintBase::typeKey:
 					return new TransformConstraint();
+				case ScaleConstraintBase::typeKey:
+					return new ScaleConstraint();
+				case RotationConstraintBase::typeKey:
+					return new RotationConstraint();
 				case AnimationStateBase::typeKey:
 					return new AnimationState();
 				case KeyedObjectBase::typeKey:
@@ -111,6 +124,8 @@ namespace rive
 					return new KeyedProperty();
 				case KeyFrameIdBase::typeKey:
 					return new KeyFrameId();
+				case KeyFrameBoolBase::typeKey:
+					return new KeyFrameBool();
 				case TransitionNumberConditionBase::typeKey:
 					return new TransitionNumberCondition();
 				case AnyStateBase::typeKey:
@@ -244,16 +259,21 @@ namespace rive
 				case DistanceConstraintBase::modeValuePropertyKey:
 					object->as<DistanceConstraintBase>()->modeValue(value);
 					break;
+				case TransformSpaceConstraintBase::sourceSpaceValuePropertyKey:
+					object->as<TransformSpaceConstraintBase>()
+					    ->sourceSpaceValue(value);
+					break;
+				case TransformSpaceConstraintBase::destSpaceValuePropertyKey:
+					object->as<TransformSpaceConstraintBase>()->destSpaceValue(
+					    value);
+					break;
+				case TransformComponentConstraintBase::
+				    minMaxSpaceValuePropertyKey:
+					object->as<TransformComponentConstraintBase>()
+					    ->minMaxSpaceValue(value);
+					break;
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					object->as<IKConstraintBase>()->parentBoneCount(value);
-					break;
-				case TransformConstraintBase::sourceSpaceValuePropertyKey:
-					object->as<TransformConstraintBase>()->sourceSpaceValue(
-					    value);
-					break;
-				case TransformConstraintBase::destSpaceValuePropertyKey:
-					object->as<TransformConstraintBase>()->destSpaceValue(
-					    value);
 					break;
 				case AnimationStateBase::animationIdPropertyKey:
 					object->as<AnimationStateBase>()->animationId(value);
@@ -387,6 +407,30 @@ namespace rive
 					break;
 				case DistanceConstraintBase::distancePropertyKey:
 					object->as<DistanceConstraintBase>()->distance(value);
+					break;
+				case TransformComponentConstraintBase::copyFactorPropertyKey:
+					object->as<TransformComponentConstraintBase>()->copyFactor(
+					    value);
+					break;
+				case TransformComponentConstraintBase::minValuePropertyKey:
+					object->as<TransformComponentConstraintBase>()->minValue(
+					    value);
+					break;
+				case TransformComponentConstraintBase::maxValuePropertyKey:
+					object->as<TransformComponentConstraintBase>()->maxValue(
+					    value);
+					break;
+				case TransformComponentConstraintYBase::copyFactorYPropertyKey:
+					object->as<TransformComponentConstraintYBase>()
+					    ->copyFactorY(value);
+					break;
+				case TransformComponentConstraintYBase::minValueYPropertyKey:
+					object->as<TransformComponentConstraintYBase>()->minValueY(
+					    value);
+					break;
+				case TransformComponentConstraintYBase::maxValueYPropertyKey:
+					object->as<TransformComponentConstraintYBase>()->maxValueY(
+					    value);
 					break;
 				case StateMachineNumberBase::valuePropertyKey:
 					object->as<StateMachineNumberBase>()->value(value);
@@ -598,8 +642,37 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
+				case TransformComponentConstraintBase::offsetPropertyKey:
+					object->as<TransformComponentConstraintBase>()->offset(
+					    value);
+					break;
+				case TransformComponentConstraintBase::doesCopyPropertyKey:
+					object->as<TransformComponentConstraintBase>()->doesCopy(
+					    value);
+					break;
+				case TransformComponentConstraintBase::minPropertyKey:
+					object->as<TransformComponentConstraintBase>()->min(value);
+					break;
+				case TransformComponentConstraintBase::maxPropertyKey:
+					object->as<TransformComponentConstraintBase>()->max(value);
+					break;
+				case TransformComponentConstraintYBase::doesCopyYPropertyKey:
+					object->as<TransformComponentConstraintYBase>()->doesCopyY(
+					    value);
+					break;
+				case TransformComponentConstraintYBase::minYPropertyKey:
+					object->as<TransformComponentConstraintYBase>()->minY(
+					    value);
+					break;
+				case TransformComponentConstraintYBase::maxYPropertyKey:
+					object->as<TransformComponentConstraintYBase>()->maxY(
+					    value);
+					break;
 				case IKConstraintBase::invertDirectionPropertyKey:
 					object->as<IKConstraintBase>()->invertDirection(value);
+					break;
+				case KeyFrameBoolBase::valuePropertyKey:
+					object->as<KeyFrameBoolBase>()->value(value);
 					break;
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 					object->as<LinearAnimationBase>()->enableWorkArea(value);
@@ -666,14 +739,18 @@ namespace rive
 					return object->as<TargetedConstraintBase>()->targetId();
 				case DistanceConstraintBase::modeValuePropertyKey:
 					return object->as<DistanceConstraintBase>()->modeValue();
+				case TransformSpaceConstraintBase::sourceSpaceValuePropertyKey:
+					return object->as<TransformSpaceConstraintBase>()
+					    ->sourceSpaceValue();
+				case TransformSpaceConstraintBase::destSpaceValuePropertyKey:
+					return object->as<TransformSpaceConstraintBase>()
+					    ->destSpaceValue();
+				case TransformComponentConstraintBase::
+				    minMaxSpaceValuePropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->minMaxSpaceValue();
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					return object->as<IKConstraintBase>()->parentBoneCount();
-				case TransformConstraintBase::sourceSpaceValuePropertyKey:
-					return object->as<TransformConstraintBase>()
-					    ->sourceSpaceValue();
-				case TransformConstraintBase::destSpaceValuePropertyKey:
-					return object->as<TransformConstraintBase>()
-					    ->destSpaceValue();
 				case AnimationStateBase::animationIdPropertyKey:
 					return object->as<AnimationStateBase>()->animationId();
 				case KeyedObjectBase::objectIdPropertyKey:
@@ -767,6 +844,24 @@ namespace rive
 					return object->as<ConstraintBase>()->strength();
 				case DistanceConstraintBase::distancePropertyKey:
 					return object->as<DistanceConstraintBase>()->distance();
+				case TransformComponentConstraintBase::copyFactorPropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->copyFactor();
+				case TransformComponentConstraintBase::minValuePropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->minValue();
+				case TransformComponentConstraintBase::maxValuePropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->maxValue();
+				case TransformComponentConstraintYBase::copyFactorYPropertyKey:
+					return object->as<TransformComponentConstraintYBase>()
+					    ->copyFactorY();
+				case TransformComponentConstraintYBase::minValueYPropertyKey:
+					return object->as<TransformComponentConstraintYBase>()
+					    ->minValueY();
+				case TransformComponentConstraintYBase::maxValueYPropertyKey:
+					return object->as<TransformComponentConstraintYBase>()
+					    ->maxValueY();
 				case StateMachineNumberBase::valuePropertyKey:
 					return object->as<StateMachineNumberBase>()->value();
 				case TransitionNumberConditionBase::valuePropertyKey:
@@ -912,8 +1007,31 @@ namespace rive
 		{
 			switch (propertyKey)
 			{
+				case TransformComponentConstraintBase::offsetPropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->offset();
+				case TransformComponentConstraintBase::doesCopyPropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->doesCopy();
+				case TransformComponentConstraintBase::minPropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->min();
+				case TransformComponentConstraintBase::maxPropertyKey:
+					return object->as<TransformComponentConstraintBase>()
+					    ->max();
+				case TransformComponentConstraintYBase::doesCopyYPropertyKey:
+					return object->as<TransformComponentConstraintYBase>()
+					    ->doesCopyY();
+				case TransformComponentConstraintYBase::minYPropertyKey:
+					return object->as<TransformComponentConstraintYBase>()
+					    ->minY();
+				case TransformComponentConstraintYBase::maxYPropertyKey:
+					return object->as<TransformComponentConstraintYBase>()
+					    ->maxY();
 				case IKConstraintBase::invertDirectionPropertyKey:
 					return object->as<IKConstraintBase>()->invertDirection();
+				case KeyFrameBoolBase::valuePropertyKey:
+					return object->as<KeyFrameBoolBase>()->value();
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 					return object->as<LinearAnimationBase>()->enableWorkArea();
 				case StateMachineBoolBase::valuePropertyKey:
@@ -957,9 +1075,11 @@ namespace rive
 				case DrawTargetBase::placementValuePropertyKey:
 				case TargetedConstraintBase::targetIdPropertyKey:
 				case DistanceConstraintBase::modeValuePropertyKey:
+				case TransformSpaceConstraintBase::sourceSpaceValuePropertyKey:
+				case TransformSpaceConstraintBase::destSpaceValuePropertyKey:
+				case TransformComponentConstraintBase::
+				    minMaxSpaceValuePropertyKey:
 				case IKConstraintBase::parentBoneCountPropertyKey:
-				case TransformConstraintBase::sourceSpaceValuePropertyKey:
-				case TransformConstraintBase::destSpaceValuePropertyKey:
 				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
 				case BlendAnimationBase::animationIdPropertyKey:
@@ -1003,6 +1123,12 @@ namespace rive
 					return CoreUintType::id;
 				case ConstraintBase::strengthPropertyKey:
 				case DistanceConstraintBase::distancePropertyKey:
+				case TransformComponentConstraintBase::copyFactorPropertyKey:
+				case TransformComponentConstraintBase::minValuePropertyKey:
+				case TransformComponentConstraintBase::maxValuePropertyKey:
+				case TransformComponentConstraintYBase::copyFactorYPropertyKey:
+				case TransformComponentConstraintYBase::minValueYPropertyKey:
+				case TransformComponentConstraintYBase::maxValueYPropertyKey:
 				case StateMachineNumberBase::valuePropertyKey:
 				case TransitionNumberConditionBase::valuePropertyKey:
 				case CubicInterpolatorBase::x1PropertyKey:
@@ -1072,7 +1198,15 @@ namespace rive
 				case TendonBase::txPropertyKey:
 				case TendonBase::tyPropertyKey:
 					return CoreDoubleType::id;
+				case TransformComponentConstraintBase::offsetPropertyKey:
+				case TransformComponentConstraintBase::doesCopyPropertyKey:
+				case TransformComponentConstraintBase::minPropertyKey:
+				case TransformComponentConstraintBase::maxPropertyKey:
+				case TransformComponentConstraintYBase::doesCopyYPropertyKey:
+				case TransformComponentConstraintYBase::minYPropertyKey:
+				case TransformComponentConstraintYBase::maxYPropertyKey:
 				case IKConstraintBase::invertDirectionPropertyKey:
+				case KeyFrameBoolBase::valuePropertyKey:
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 				case StateMachineBoolBase::valuePropertyKey:
 				case ShapePaintBase::isVisiblePropertyKey:
