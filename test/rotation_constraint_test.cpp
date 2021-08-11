@@ -8,9 +8,9 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("translation constraint updates world transform", "[file]")
+TEST_CASE("rotation constraint updates world transform", "[file]")
 {
-	FILE* fp = fopen("../../test/assets/translation_constraint.riv", "r");
+	FILE* fp = fopen("../../test/assets/rotation_constraint.riv", "r");
 	REQUIRE(fp != nullptr);
 
 	fseek(fp, 0, SEEK_END);
@@ -35,14 +35,12 @@ TEST_CASE("translation constraint updates world transform", "[file]")
 	auto rectangle = artboard->find<rive::TransformComponent>("rect");
 
 	artboard->advance(0.0f);
-
 	rive::TransformComponents targetComponents;
 	rive::Mat2D::decompose(targetComponents, target->worldTransform());
 	rive::TransformComponents rectComponents;
 	rive::Mat2D::decompose(rectComponents, rectangle->worldTransform());
 
-	REQUIRE(targetComponents.x() == rectComponents.x());
-	REQUIRE(targetComponents.y() == rectComponents.y());
+	REQUIRE(targetComponents.rotation() == rectComponents.rotation());
 
 	delete file;
 	delete[] bytes;
