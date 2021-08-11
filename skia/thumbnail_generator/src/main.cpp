@@ -2,9 +2,9 @@
 #include "SkImage.h"
 #include "SkStream.h"
 #include "SkSurface.h"
-#include "core/binary_reader.hpp"
-#include "file.hpp"
-#include "math/aabb.hpp"
+#include "rive/core/binary_reader.hpp"
+#include "rive/file.hpp"
+#include "rive/math/aabb.hpp"
 #include "skia_renderer.hpp"
 #include <cstdio>
 #include <stdio.h>
