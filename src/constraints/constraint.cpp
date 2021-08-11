@@ -2,7 +2,6 @@
 #include "rive/container_component.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/core_context.hpp"
-#include "rive/artboard.hpp"
 #include "rive/math/mat2d.hpp"
 
 using namespace rive;
@@ -43,14 +42,9 @@ static Mat2D identity;
 const Mat2D& rive::getParentWorld(const TransformComponent& component)
 {
 	auto parent = component.parent();
-	if (parent->is<Artboard>())
+	if (parent->is<WorldTransformComponent>())
 	{
-		// TODO: when we have symbols working artboards will need to store their
-		// world transform (probably should just become TransformComponent).
-		return identity;
+		return parent->as<WorldTransformComponent>()->worldTransform();
 	}
-	else
-	{
-		return parent->as<TransformComponent>()->worldTransform();
-	}
+	return identity;
 }
