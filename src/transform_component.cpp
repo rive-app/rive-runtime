@@ -1,4 +1,5 @@
 #include "rive/transform_component.hpp"
+#include "rive/world_transform_component.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/constraints/constraint.hpp"
@@ -8,8 +9,8 @@ using namespace rive;
 StatusCode TransformComponent::onAddedClean(CoreContext* context)
 {
 	m_ParentTransformComponent =
-	    parent() != nullptr && parent()->is<TransformComponent>()
-	        ? parent()->as<TransformComponent>()
+	    parent() != nullptr && parent()->is<WorldTransformComponent>()
+	        ? parent()->as<WorldTransformComponent>()
 	        : nullptr;
 	return StatusCode::Ok;
 }
@@ -29,11 +30,6 @@ void TransformComponent::markTransformDirty()
 		return;
 	}
 	markWorldTransformDirty();
-}
-
-void TransformComponent::markWorldTransformDirty()
-{
-	addDirt(ComponentDirt::WorldTransform, true);
 }
 
 void TransformComponent::updateTransform()
@@ -91,27 +87,12 @@ void TransformComponent::update(ComponentDirt value)
 }
 
 const Mat2D& TransformComponent::transform() const { return m_Transform; }
-const Mat2D& TransformComponent::worldTransform() const
-{
-	return m_WorldTransform;
-}
 
-Mat2D& TransformComponent::mutableWorldTransform() { return m_WorldTransform; }
 Mat2D& TransformComponent::mutableTransform() { return m_Transform; }
 
 void TransformComponent::rotationChanged() { markTransformDirty(); }
 void TransformComponent::scaleXChanged() { markTransformDirty(); }
 void TransformComponent::scaleYChanged() { markTransformDirty(); }
-void TransformComponent::opacityChanged()
-{
-	addDirt(ComponentDirt::RenderOpacity, true);
-}
-
-void TransformComponent::worldTranslation(Vec2D& result) const
-{
-	result[0] = m_WorldTransform[4];
-	result[1] = m_WorldTransform[5];
-}
 
 void TransformComponent::addConstraint(Constraint* constraint)
 {
