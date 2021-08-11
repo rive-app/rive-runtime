@@ -21,6 +21,7 @@ namespace rive
 				case BoneBase::typeKey:
 				case SkeletalComponentBase::typeKey:
 				case TransformComponentBase::typeKey:
+				case WorldTransformComponentBase::typeKey:
 				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
 					return true;

@@ -5,7 +5,7 @@
     "string": "transformcomponent"
   },
   "abstract": true,
-  "extends": "container_component.json",
+  "extends": "world_transform_component.json",
   "properties": {
     "rotation": {
       "type": "double",
@@ -34,15 +34,6 @@
       "key": {
         "int": 17,
         "string": "sy"
-      }
-    },
-    "opacity": {
-      "type": "double",
-      "initialValue": "1",
-      "animates": true,
-      "key": {
-        "int": 18,
-        "string": "opacity"
       }
     }
   }

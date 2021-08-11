@@ -423,7 +423,10 @@ bool Artboard::advance(double elapsedSeconds) { return updateComponents(); }
 void Artboard::draw(Renderer* renderer)
 {
 	renderer->save();
-	renderer->clipPath(m_ClipPath->renderPath());
+	if (clip())
+	{
+		renderer->clipPath(m_ClipPath->renderPath());
+	}
 
 	Mat2D artboardTransform;
 	artboardTransform[4] = width() * originX();

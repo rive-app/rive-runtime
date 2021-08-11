@@ -4,8 +4,17 @@
     "int": 1,
     "string": "artboard"
   },
-  "extends": "container_component.json",
+  "extends": "world_transform_component.json",
   "properties": {
+    "clip": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 196,
+        "string": "clip"
+      },
+      "description": "True when the artboard bounds clip its contents."
+    },
     "width": {
       "type": "double",
       "initialValue": "0",

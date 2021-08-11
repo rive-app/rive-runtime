@@ -87,6 +87,7 @@
 #include "rive/shapes/straight_vertex.hpp"
 #include "rive/shapes/triangle.hpp"
 #include "rive/transform_component.hpp"
+#include "rive/world_transform_component.hpp"
 namespace rive
 {
 	class CoreRegistry
@@ -489,6 +490,9 @@ namespace rive
 				case TrimPathBase::offsetPropertyKey:
 					object->as<TrimPathBase>()->offset(value);
 					break;
+				case WorldTransformComponentBase::opacityPropertyKey:
+					object->as<WorldTransformComponentBase>()->opacity(value);
+					break;
 				case TransformComponentBase::rotationPropertyKey:
 					object->as<TransformComponentBase>()->rotation(value);
 					break;
@@ -497,9 +501,6 @@ namespace rive
 					break;
 				case TransformComponentBase::scaleYPropertyKey:
 					object->as<TransformComponentBase>()->scaleY(value);
-					break;
-				case TransformComponentBase::opacityPropertyKey:
-					object->as<TransformComponentBase>()->opacity(value);
 					break;
 				case NodeBase::xPropertyKey:
 					object->as<NodeBase>()->x(value);
@@ -694,6 +695,9 @@ namespace rive
 					break;
 				case ClippingShapeBase::isVisiblePropertyKey:
 					object->as<ClippingShapeBase>()->isVisible(value);
+					break;
+				case ArtboardBase::clipPropertyKey:
+					object->as<ArtboardBase>()->clip(value);
 					break;
 			}
 		}
@@ -900,14 +904,14 @@ namespace rive
 					return object->as<TrimPathBase>()->end();
 				case TrimPathBase::offsetPropertyKey:
 					return object->as<TrimPathBase>()->offset();
+				case WorldTransformComponentBase::opacityPropertyKey:
+					return object->as<WorldTransformComponentBase>()->opacity();
 				case TransformComponentBase::rotationPropertyKey:
 					return object->as<TransformComponentBase>()->rotation();
 				case TransformComponentBase::scaleXPropertyKey:
 					return object->as<TransformComponentBase>()->scaleX();
 				case TransformComponentBase::scaleYPropertyKey:
 					return object->as<TransformComponentBase>()->scaleY();
-				case TransformComponentBase::opacityPropertyKey:
-					return object->as<TransformComponentBase>()->opacity();
 				case NodeBase::xPropertyKey:
 					return object->as<NodeBase>()->x();
 				case NodeBase::yPropertyKey:
@@ -1046,6 +1050,8 @@ namespace rive
 					return object->as<RectangleBase>()->linkCornerRadius();
 				case ClippingShapeBase::isVisiblePropertyKey:
 					return object->as<ClippingShapeBase>()->isVisible();
+				case ArtboardBase::clipPropertyKey:
+					return object->as<ArtboardBase>()->clip();
 			}
 			return false;
 		}
@@ -1148,10 +1154,10 @@ namespace rive
 				case TrimPathBase::startPropertyKey:
 				case TrimPathBase::endPropertyKey:
 				case TrimPathBase::offsetPropertyKey:
+				case WorldTransformComponentBase::opacityPropertyKey:
 				case TransformComponentBase::rotationPropertyKey:
 				case TransformComponentBase::scaleXPropertyKey:
 				case TransformComponentBase::scaleYPropertyKey:
-				case TransformComponentBase::opacityPropertyKey:
 				case NodeBase::xPropertyKey:
 				case NodeBase::yPropertyKey:
 				case PathVertexBase::xPropertyKey:
@@ -1214,6 +1220,7 @@ namespace rive
 				case PointsPathBase::isClosedPropertyKey:
 				case RectangleBase::linkCornerRadiusPropertyKey:
 				case ClippingShapeBase::isVisiblePropertyKey:
+				case ArtboardBase::clipPropertyKey:
 					return CoreBoolType::id;
 				case KeyFrameColorBase::valuePropertyKey:
 				case SolidColorBase::colorValuePropertyKey:

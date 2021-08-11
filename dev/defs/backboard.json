@@ -23,7 +23,7 @@
         "int": 44,
         "string": "mainArtboardId"
       },
-      "description": "Identifier used to track the  main artboard (this is the default one that shows up in runtimes unless specified).",
+      "description": "Identifier used to track the main artboard (this is the default one that shows up in runtimes unless specified).",
       "runtime": false
     },
     "colorValue": {

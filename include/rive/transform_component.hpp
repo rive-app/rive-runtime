@@ -6,13 +6,13 @@
 namespace rive
 {
 	class Constraint;
+	class WorldTransformComponent;
 	class TransformComponent : public TransformComponentBase
 	{
 	private:
 		Mat2D m_Transform;
-		Mat2D m_WorldTransform;
 		float m_RenderOpacity = 0.0f;
-		TransformComponent* m_ParentTransformComponent = nullptr;
+		WorldTransformComponent* m_ParentTransformComponent = nullptr;
 		std::vector<Constraint*> m_Constraints;
 
 	public:
@@ -28,21 +28,17 @@ namespace rive
 		void updateTransform();
 		void updateWorldTransform();
 		void markTransformDirty();
-		void markWorldTransformDirty();
-		void worldTranslation(Vec2D& result) const;
 
 		/// Opacity inherited by any child of this transform component. This'll
 		/// later get overridden by effect layers.
-		virtual float childOpacity() { return m_RenderOpacity; }
+		float childOpacity() override { return m_RenderOpacity; }
 		float renderOpacity() const { return m_RenderOpacity; }
 
 		const Mat2D& transform() const;
-		const Mat2D& worldTransform() const;
 
 		/// Explicitly dangerous. Use transform/worldTransform when you don't
 		/// need to transform things outside of their hierarchy.
 		Mat2D& mutableTransform();
-		Mat2D& mutableWorldTransform();
 
 		virtual float x() const = 0;
 		virtual float y() const = 0;
@@ -50,7 +46,6 @@ namespace rive
 		void rotationChanged() override;
 		void scaleXChanged() override;
 		void scaleYChanged() override;
-		void opacityChanged() override;
 
 		void addConstraint(Constraint* constraint);
 	};

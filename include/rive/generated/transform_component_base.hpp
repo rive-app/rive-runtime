@@ -1,13 +1,13 @@
 #ifndef _RIVE_TRANSFORM_COMPONENT_BASE_HPP_
 #define _RIVE_TRANSFORM_COMPONENT_BASE_HPP_
-#include "rive/container_component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/world_transform_component.hpp"
 namespace rive
 {
-	class TransformComponentBase : public ContainerComponent
+	class TransformComponentBase : public WorldTransformComponent
 	{
 	protected:
-		typedef ContainerComponent Super;
+		typedef WorldTransformComponent Super;
 
 	public:
 		static const uint16_t typeKey = 38;
@@ -19,6 +19,7 @@ namespace rive
 			switch (typeKey)
 			{
 				case TransformComponentBase::typeKey:
+				case WorldTransformComponentBase::typeKey:
 				case ContainerComponentBase::typeKey:
 				case ComponentBase::typeKey:
 					return true;
@@ -32,13 +33,11 @@ namespace rive
 		static const uint16_t rotationPropertyKey = 15;
 		static const uint16_t scaleXPropertyKey = 16;
 		static const uint16_t scaleYPropertyKey = 17;
-		static const uint16_t opacityPropertyKey = 18;
 
 	private:
 		float m_Rotation = 0.0f;
 		float m_ScaleX = 1.0f;
 		float m_ScaleY = 1.0f;
-		float m_Opacity = 1.0f;
 	public:
 		inline float rotation() const { return m_Rotation; }
 		void rotation(float value)
@@ -73,24 +72,12 @@ namespace rive
 			scaleYChanged();
 		}
 
-		inline float opacity() const { return m_Opacity; }
-		void opacity(float value)
-		{
-			if (m_Opacity == value)
-			{
-				return;
-			}
-			m_Opacity = value;
-			opacityChanged();
-		}
-
 		void copy(const TransformComponentBase& object)
 		{
 			m_Rotation = object.m_Rotation;
 			m_ScaleX = object.m_ScaleX;
 			m_ScaleY = object.m_ScaleY;
-			m_Opacity = object.m_Opacity;
-			ContainerComponent::copy(object);
+			WorldTransformComponent::copy(object);
 		}
 
 		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -106,18 +93,14 @@ namespace rive
 				case scaleYPropertyKey:
 					m_ScaleY = CoreDoubleType::deserialize(reader);
 					return true;
-				case opacityPropertyKey:
-					m_Opacity = CoreDoubleType::deserialize(reader);
-					return true;
 			}
-			return ContainerComponent::deserialize(propertyKey, reader);
+			return WorldTransformComponent::deserialize(propertyKey, reader);
 		}
 
 	protected:
 		virtual void rotationChanged() {}
 		virtual void scaleXChanged() {}
 		virtual void scaleYChanged() {}
-		virtual void opacityChanged() {}
 	};
 } // namespace rive
 
