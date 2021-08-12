@@ -26,14 +26,19 @@
 using namespace rive;
 
 #if !defined(RIVE_FMT_U64)
-    #if defined(__ANDROID__)
-        #define RIVE_FMT_U64 "%llu"
-        #define RIVE_FMT_I64 "%lld"
-    #else
-        #include <inttypes.h>
-        #define RIVE_FMT_U64 "%" PRIu64
-        #define RIVE_FMT_I64 "%" PRId64
-    #endif
+	#if defined(__ANDROID__)
+		#if INTPTR_MAX == INT64_MAX
+			#define RIVE_FMT_U64 "%lu"
+			#define RIVE_FMT_I64 "%ld"
+		#else 
+			#define RIVE_FMT_U64 "%llu"
+			#define RIVE_FMT_I64 "%lld"
+		#endif
+	#else
+		#include <inttypes.h>
+		#define RIVE_FMT_U64 "%" PRIu64
+		#define RIVE_FMT_I64 "%" PRId64
+	#endif
 #endif
 
 // Import a single Rive runtime object.
