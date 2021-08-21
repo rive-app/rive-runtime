@@ -42,10 +42,9 @@ jobs:
           choco install wget
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
           unzip premake-5.0.0-alpha16-windows.zip
-          mkdir bin
-          sudo chmod a+x premake5.exe
-          sudo mkdir -p $HOME/.local/bin
-          sudo mv premake5.exe $HOME/.local/bin
+          chmod a+x premake5.exe
+          mkdir -p $HOME/.local/bin
+          mv premake5.exe $HOME/.local/bin
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Build
