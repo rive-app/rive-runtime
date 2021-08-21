@@ -7,6 +7,10 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        platform: [linux]
+
     steps:
       - uses: actions/checkout@v2
 
@@ -67,7 +71,7 @@ jobs:
 
     strategy:
       matrix:
-        platform: [macOS, iOS]
+        platform: [macOS]
 
     steps:
       - uses: actions/checkout@v2
