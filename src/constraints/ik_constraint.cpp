@@ -1,10 +1,8 @@
 #include "rive/constraints/ik_constraint.hpp"
 #include "rive/bones/bone.hpp"
 #include "rive/artboard.hpp"
-#include <algorithm>
-
-#define _USE_MATH_DEFINES
 #include <math.h> // M_PI
+#include <algorithm>
 
 using namespace rive;
 
