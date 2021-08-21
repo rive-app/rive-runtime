@@ -1,5 +1,7 @@
 #include "rive/shapes/metrics_path.hpp"
 #include "rive/renderer.hpp"
+
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 using namespace rive;

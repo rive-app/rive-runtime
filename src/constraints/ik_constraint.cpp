@@ -3,6 +3,9 @@
 #include "rive/artboard.hpp"
 #include <algorithm>
 
+#define _USE_MATH_DEFINES
+#include <math.h> // M_PI
+
 using namespace rive;
 
 StatusCode IKConstraint::onAddedClean(CoreContext* context)
