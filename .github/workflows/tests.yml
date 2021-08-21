@@ -38,8 +38,8 @@ jobs:
       - name: Download Premake5
         shell: powershell
         run: |
-          echo GITHUB_WORKSPACE is $GITHUB_WORKSPACE
-          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip -P $GITHUB_WORKSPACE
+          echo GITHUB_WORKSPACE is ${{ github.workspace }}
+          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip -OutFile ${{ github.workspace }}/premake-5.0.0-alpha16-windows.zip
 
       - name: Install
         shell: bash
