@@ -39,7 +39,8 @@ jobs:
         shell: powershell
         run: |
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
-          unzip premake-5.0.0-alpha16-windows.zip
+          ls -la
+          unzip ./premake-5.0.0-alpha16-windows.zip
           chmod a+x premake5.exe
           mkdir -p $HOME/.local/bin
           mv premake5.exe $HOME/.local/bin
