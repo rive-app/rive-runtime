@@ -18,7 +18,7 @@ then
 
 elif [ "$OPTION" = "release" ]
 then
-    premake5 gmake2 && time make config=release -j7
+    premake5 gmake2 && make config=release -j7
 else
     premake5 gmake2 && make -j7
 fi
