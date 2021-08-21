@@ -83,7 +83,7 @@ jobs:
           ./build.sh release
 
       - name: Tests
-        if: matrix.platform == "macOS"
+        if: matrix.platform == 'macOS'
         run: |
           echo Testing for ${{matrix.platform}}
           cd dev
