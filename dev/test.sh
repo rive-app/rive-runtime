@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -e
+
 pushd test &>/dev/null
 
 OPTION=$1
