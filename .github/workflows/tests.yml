@@ -4,20 +4,89 @@ on:
   push:
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
-      
-      - name: Perform tests
+
+      - name: Install Premake5
         run: |
           sudo apt update && sudo apt-get -y install build-essential cmake wget clang
-          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha15/premake-5.0.0-alpha15-linux.tar.gz
+          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-linux.tar.gz
           tar -xvf premake-5.0.0-alpha15-linux.tar.gz
           mkdir bin
           cp premake5 bin/premake5
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
+
+      - name: Build
+        run: |
+          ./build.sh
+          ./build.sh release
+
+      - name: Tests
+        if: matrix.platform == "platform2"
+        run: |
+          cd dev
+          ./test.sh
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Premake5
+        run: |
+          sudo apt update && sudo apt-get -y install build-essential cmake wget clang
+          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
+          tar -xvf premake-5.0.0-alpha15-linux.tar.gz
+          mkdir bin
+          cp premake5 bin/premake5
+          sudo chmod a+x premake5
+          sudo mkdir -p $HOME/.local/bin
+          sudo mv premake5 $HOME/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build
+        run: |
+          ./build.sh
+          ./build.sh release
+
+      - name: Tests
+        if: matrix.platform == "platform2"
+        run: |
+          cd dev
+          ./test.sh
+
+  build-macos:
+    runs-on: macOS-latest
+
+    strategy:
+      matrix:
+        platform: [macOS, iOS]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Premake5
+        run: |
+          sudo apt update && sudo apt-get -y install build-essential cmake wget clang
+          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-macosx.tar.gz
+          tar -xvf premake-5.0.0-alpha15-linux.tar.gz
+          mkdir bin
+          cp premake5 bin/premake5
+          sudo chmod a+x premake5
+          sudo mv premake5 /usr/local/bin
+
+      - name: Build
+        run: |
+          ./build.sh
+          ./build.sh release
+
+      - name: Tests
+        if: matrix.platform == "macOS"
+        run: |
+          echo Testing for ${{matrix.platform}}
           cd dev
           ./test.sh
