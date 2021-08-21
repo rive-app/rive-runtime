@@ -36,14 +36,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
-
-      - name: Download package
-        uses: wei/wget@v1
-        with:
-          args: https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
+      # - uses: Vampire/setup-wsl@v1
 
       - name: Install
         run: |
+          choco install wget
+          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
           tar -xvf premake-5.0.0-alpha16-windows.tar.gz
           mkdir bin
           cp premake5 bin/premake5
