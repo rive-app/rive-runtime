@@ -26,7 +26,6 @@ jobs:
           ./build.sh release
 
       - name: Tests
-        if: matrix.platform == "platform2"
         run: |
           cd dev
           ./test.sh
@@ -54,7 +53,6 @@ jobs:
           ./build.sh release
 
       - name: Tests
-        if: matrix.platform == "platform2"
         run: |
           cd dev
           ./test.sh
