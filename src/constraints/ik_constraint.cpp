@@ -1,7 +1,7 @@
+#include <math.h> // M_PI
 #include "rive/constraints/ik_constraint.hpp"
 #include "rive/bones/bone.hpp"
 #include "rive/artboard.hpp"
-#include <math.h> // M_PI
 #include <algorithm>
 
 using namespace rive;
