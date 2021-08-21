@@ -41,7 +41,7 @@ jobs:
       - name: Install
         shell: bash
         run: |
-          echo choco install wget
+          choco install wget
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
           tar -xvf premake-5.0.0-alpha16-windows.tar.gz
           mkdir bin
