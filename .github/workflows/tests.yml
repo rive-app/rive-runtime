@@ -17,8 +17,6 @@ jobs:
         run: |
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-linux.tar.gz
           tar -xvf premake-5.0.0-alpha16-linux.tar.gz
-          mkdir bin
-          cp premake5 bin/premake5
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
@@ -43,12 +41,11 @@ jobs:
         run: |
           choco install wget
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
-          tar -xvf premake-5.0.0-alpha16-windows.tar.gz
+          unzip premake-5.0.0-alpha16-windows.zip
           mkdir bin
-          cp premake5 bin/premake5
-          sudo chmod a+x premake5
+          sudo chmod a+x premake5.exe
           sudo mkdir -p $HOME/.local/bin
-          sudo mv premake5 $HOME/.local/bin
+          sudo mv premake5.exe $HOME/.local/bin
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Build
@@ -77,8 +74,6 @@ jobs:
         run: |
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-macosx.tar.gz
           tar -xvf premake-5.0.0-alpha16-macosx.tar.gz
-          mkdir bin
-          cp premake5 bin/premake5
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
