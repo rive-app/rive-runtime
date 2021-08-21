@@ -39,7 +39,7 @@ jobs:
         run: |
           sudo apt update && sudo apt-get -y install build-essential cmake wget clang
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
-          tar -xvf premake-5.0.0-alpha16-linux.tar.gz
+          tar -xvf premake-5.0.0-alpha16-windows.tar.gz
           mkdir bin
           cp premake5 bin/premake5
           sudo chmod a+x premake5
@@ -71,7 +71,7 @@ jobs:
         run: |
           sudo apt update && sudo apt-get -y install build-essential cmake wget clang
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-macosx.tar.gz
-          tar -xvf premake-5.0.0-alpha16-linux.tar.gz
+          tar -xvf premake-5.0.0-alpha16-macosx.tar.gz
           mkdir bin
           cp premake5 bin/premake5
           sudo chmod a+x premake5
