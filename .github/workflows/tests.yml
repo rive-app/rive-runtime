@@ -39,8 +39,9 @@ jobs:
       # - uses: Vampire/setup-wsl@v1
 
       - name: Install
+        shell: bash
         run: |
-          choco install wget
+          echo choco install wget
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
           tar -xvf premake-5.0.0-alpha16-windows.tar.gz
           mkdir bin
@@ -51,11 +52,13 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Build
+        shell: bash
         run: |
           ./build.sh
           ./build.sh release
 
       - name: Tests
+        shell: bash
         run: |
           cd dev
           ./test.sh
