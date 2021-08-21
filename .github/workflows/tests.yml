@@ -39,6 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      # Using wget from powershell take no time (using choco to install it takes 1-2 minutes)
       - name: Download Premake5
         shell: powershell
         run: |
@@ -46,7 +47,7 @@ jobs:
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip -OutFile ${{ github.workspace }}/premake-5.0.0-alpha16-windows.zip
 
       - name: Install
-        shell: bash
+        shell: bash # mingw
         run: |
           unzip premake-5.0.0-alpha16-windows.zip
           chmod a+x premake5.exe
@@ -55,16 +56,16 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Build
-        shell: bash
+        shell: bash #mingw
         run: |
           ./build.sh
           ./build.sh release
 
-      - name: Tests
-        shell: bash
-        run: |
-          cd dev
-          ./test.sh
+      # - name: Tests
+      #   shell: bash
+      #   run: |
+      #     cd dev
+      #     ./test.sh
 
   build-macos:
     runs-on: macOS-latest

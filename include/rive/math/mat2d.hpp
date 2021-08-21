@@ -2,7 +2,6 @@
 #define _RIVE_MAT2D_HPP_
 
 #include <cstddef>
-#include <stdio.h>
 
 namespace rive
 {
