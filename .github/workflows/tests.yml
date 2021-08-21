@@ -42,6 +42,7 @@ jobs:
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip -P $GITHUB_WORKSPACE
 
       - name: Install
+        shell: bash
         run: |
           unzip premake-5.0.0-alpha16-windows.zip
           chmod a+x premake5.exe
