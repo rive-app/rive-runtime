@@ -280,23 +280,22 @@ void IKConstraint::constrain(TransformComponent* component)
 			break;
 		}
 	}
-
 	// At the end, mix the FK angle with the IK angle by strength
 	if (strength() != 1.0f)
 	{
 		for (BoneChainLink& fk : m_FkChain)
 		{
 			float fromAngle =
-			    std::fmod(fk.transformComponents.rotation(), (float)M_PI_2);
-			float toAngle = std::fmod(fk.angle, (float)M_PI_2);
+			    std::fmod(fk.transformComponents.rotation(), (float)M_PI * 2);
+			float toAngle = std::fmod(fk.angle, (float)M_PI * 2);
 			float diff = toAngle - fromAngle;
 			if (diff > M_PI)
 			{
-				diff -= M_PI_2;
+				diff -= M_PI * 2;
 			}
 			else if (diff < -M_PI)
 			{
-				diff += M_PI_2;
+				diff += M_PI * 2;
 			}
 			float angle = fromAngle + diff * strength();
 			constrainRotation(fk, angle);
