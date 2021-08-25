@@ -34,16 +34,16 @@ void TransformConstraint::constrain(TransformComponent* component)
 	Mat2D::decompose(m_ComponentsA, transformA);
 	Mat2D::decompose(m_ComponentsB, transformB);
 
-	float angleA = std::fmod(m_ComponentsA.rotation(), (float)M_PI_2);
-	float angleB = std::fmod(m_ComponentsB.rotation(), (float)M_PI_2);
+	float angleA = std::fmod(m_ComponentsA.rotation(), (float)M_PI * 2);
+	float angleB = std::fmod(m_ComponentsB.rotation(), (float)M_PI * 2);
 	float diff = angleB - angleA;
 	if (diff > M_PI)
 	{
-		diff -= M_PI_2;
+		diff -= M_PI * 2;
 	}
 	else if (diff < -M_PI)
 	{
-		diff += M_PI_2;
+		diff += M_PI * 2;
 	}
 
 	float t = strength();
