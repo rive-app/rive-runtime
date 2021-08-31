@@ -49,6 +49,13 @@ namespace rive
 		float yy() const { return m_Buffer[3]; }
 		float tx() const { return m_Buffer[4]; }
 		float ty() const { return m_Buffer[5]; }
+
+		void xx(float value) { m_Buffer[0] = value; }
+		void xy(float value) { m_Buffer[1] = value; }
+		void yx(float value) { m_Buffer[2] = value; }
+		void yy(float value) { m_Buffer[3] = value; }
+		void tx(float value) { m_Buffer[4] = value; }
+		void ty(float value) { m_Buffer[5] = value; }
 	};
 
 	inline Mat2D operator*(const Mat2D& a, const Mat2D& b)

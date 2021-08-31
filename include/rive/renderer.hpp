@@ -61,10 +61,11 @@ namespace rive
 		virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
 		virtual void clipPath(RenderPath* path) = 0;
 
-		void align(Fit fit,
-		           const Alignment& alignment,
-		           const AABB& frame,
-		           const AABB& content)
+		void computeAlignment(Mat2D& result,
+		                      Fit fit,
+		                      const Alignment& alignment,
+		                      const AABB& frame,
+		                      const AABB& content)
 		{
 			float contentWidth = content[2] - content[0];
 			float contentHeight = content[3] - content[1];
@@ -136,9 +137,17 @@ namespace rive
 			translateBack[4] = x;
 			translateBack[5] = y;
 
-			Mat2D result;
 			Mat2D::multiply(result, translation, scale);
 			Mat2D::multiply(result, result, translateBack);
+		}
+
+		void align(Fit fit,
+		           const Alignment& alignment,
+		           const AABB& frame,
+		           const AABB& content)
+		{
+			Mat2D result;
+			computeAlignment(result, fit, alignment, frame, content);
 			transform(result);
 		}
 	};
