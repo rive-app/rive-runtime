@@ -61,6 +61,7 @@
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
+#include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/cubic_asymmetric_vertex.hpp"
@@ -111,6 +112,10 @@ namespace rive
 					return new ScaleConstraint();
 				case RotationConstraintBase::typeKey:
 					return new RotationConstraint();
+				case NodeBase::typeKey:
+					return new Node();
+				case NestedArtboardBase::typeKey:
+					return new NestedArtboard();
 				case AnimationStateBase::typeKey:
 					return new AnimationState();
 				case KeyedObjectBase::typeKey:
@@ -179,8 +184,6 @@ namespace rive
 					return new TrimPath();
 				case FillBase::typeKey:
 					return new Fill();
-				case NodeBase::typeKey:
-					return new Node();
 				case ShapeBase::typeKey:
 					return new Shape();
 				case StraightVertexBase::typeKey:
@@ -276,6 +279,15 @@ namespace rive
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					object->as<IKConstraintBase>()->parentBoneCount(value);
 					break;
+				case DrawableBase::blendModeValuePropertyKey:
+					object->as<DrawableBase>()->blendModeValue(value);
+					break;
+				case DrawableBase::drawableFlagsPropertyKey:
+					object->as<DrawableBase>()->drawableFlags(value);
+					break;
+				case NestedArtboardBase::artboardIdPropertyKey:
+					object->as<NestedArtboardBase>()->artboardId(value);
+					break;
 				case AnimationStateBase::animationIdPropertyKey:
 					object->as<AnimationStateBase>()->animationId(value);
 					break;
@@ -358,12 +370,6 @@ namespace rive
 				case PathBase::pathFlagsPropertyKey:
 					object->as<PathBase>()->pathFlags(value);
 					break;
-				case DrawableBase::blendModeValuePropertyKey:
-					object->as<DrawableBase>()->blendModeValue(value);
-					break;
-				case DrawableBase::drawableFlagsPropertyKey:
-					object->as<DrawableBase>()->drawableFlags(value);
-					break;
 				case ClippingShapeBase::sourceIdPropertyKey:
 					object->as<ClippingShapeBase>()->sourceId(value);
 					break;
@@ -433,6 +439,24 @@ namespace rive
 					object->as<TransformComponentConstraintYBase>()->maxValueY(
 					    value);
 					break;
+				case WorldTransformComponentBase::opacityPropertyKey:
+					object->as<WorldTransformComponentBase>()->opacity(value);
+					break;
+				case TransformComponentBase::rotationPropertyKey:
+					object->as<TransformComponentBase>()->rotation(value);
+					break;
+				case TransformComponentBase::scaleXPropertyKey:
+					object->as<TransformComponentBase>()->scaleX(value);
+					break;
+				case TransformComponentBase::scaleYPropertyKey:
+					object->as<TransformComponentBase>()->scaleY(value);
+					break;
+				case NodeBase::xPropertyKey:
+					object->as<NodeBase>()->x(value);
+					break;
+				case NodeBase::yPropertyKey:
+					object->as<NodeBase>()->y(value);
+					break;
 				case StateMachineNumberBase::valuePropertyKey:
 					object->as<StateMachineNumberBase>()->value(value);
 					break;
@@ -489,24 +513,6 @@ namespace rive
 					break;
 				case TrimPathBase::offsetPropertyKey:
 					object->as<TrimPathBase>()->offset(value);
-					break;
-				case WorldTransformComponentBase::opacityPropertyKey:
-					object->as<WorldTransformComponentBase>()->opacity(value);
-					break;
-				case TransformComponentBase::rotationPropertyKey:
-					object->as<TransformComponentBase>()->rotation(value);
-					break;
-				case TransformComponentBase::scaleXPropertyKey:
-					object->as<TransformComponentBase>()->scaleX(value);
-					break;
-				case TransformComponentBase::scaleYPropertyKey:
-					object->as<TransformComponentBase>()->scaleY(value);
-					break;
-				case NodeBase::xPropertyKey:
-					object->as<NodeBase>()->x(value);
-					break;
-				case NodeBase::yPropertyKey:
-					object->as<NodeBase>()->y(value);
 					break;
 				case PathVertexBase::xPropertyKey:
 					object->as<PathVertexBase>()->x(value);
@@ -755,6 +761,12 @@ namespace rive
 					    ->minMaxSpaceValue();
 				case IKConstraintBase::parentBoneCountPropertyKey:
 					return object->as<IKConstraintBase>()->parentBoneCount();
+				case DrawableBase::blendModeValuePropertyKey:
+					return object->as<DrawableBase>()->blendModeValue();
+				case DrawableBase::drawableFlagsPropertyKey:
+					return object->as<DrawableBase>()->drawableFlags();
+				case NestedArtboardBase::artboardIdPropertyKey:
+					return object->as<NestedArtboardBase>()->artboardId();
 				case AnimationStateBase::animationIdPropertyKey:
 					return object->as<AnimationStateBase>()->animationId();
 				case KeyedObjectBase::objectIdPropertyKey:
@@ -811,10 +823,6 @@ namespace rive
 					return object->as<FillBase>()->fillRule();
 				case PathBase::pathFlagsPropertyKey:
 					return object->as<PathBase>()->pathFlags();
-				case DrawableBase::blendModeValuePropertyKey:
-					return object->as<DrawableBase>()->blendModeValue();
-				case DrawableBase::drawableFlagsPropertyKey:
-					return object->as<DrawableBase>()->drawableFlags();
 				case ClippingShapeBase::sourceIdPropertyKey:
 					return object->as<ClippingShapeBase>()->sourceId();
 				case ClippingShapeBase::fillRulePropertyKey:
@@ -866,6 +874,18 @@ namespace rive
 				case TransformComponentConstraintYBase::maxValueYPropertyKey:
 					return object->as<TransformComponentConstraintYBase>()
 					    ->maxValueY();
+				case WorldTransformComponentBase::opacityPropertyKey:
+					return object->as<WorldTransformComponentBase>()->opacity();
+				case TransformComponentBase::rotationPropertyKey:
+					return object->as<TransformComponentBase>()->rotation();
+				case TransformComponentBase::scaleXPropertyKey:
+					return object->as<TransformComponentBase>()->scaleX();
+				case TransformComponentBase::scaleYPropertyKey:
+					return object->as<TransformComponentBase>()->scaleY();
+				case NodeBase::xPropertyKey:
+					return object->as<NodeBase>()->x();
+				case NodeBase::yPropertyKey:
+					return object->as<NodeBase>()->y();
 				case StateMachineNumberBase::valuePropertyKey:
 					return object->as<StateMachineNumberBase>()->value();
 				case TransitionNumberConditionBase::valuePropertyKey:
@@ -904,18 +924,6 @@ namespace rive
 					return object->as<TrimPathBase>()->end();
 				case TrimPathBase::offsetPropertyKey:
 					return object->as<TrimPathBase>()->offset();
-				case WorldTransformComponentBase::opacityPropertyKey:
-					return object->as<WorldTransformComponentBase>()->opacity();
-				case TransformComponentBase::rotationPropertyKey:
-					return object->as<TransformComponentBase>()->rotation();
-				case TransformComponentBase::scaleXPropertyKey:
-					return object->as<TransformComponentBase>()->scaleX();
-				case TransformComponentBase::scaleYPropertyKey:
-					return object->as<TransformComponentBase>()->scaleY();
-				case NodeBase::xPropertyKey:
-					return object->as<NodeBase>()->x();
-				case NodeBase::yPropertyKey:
-					return object->as<NodeBase>()->y();
 				case PathVertexBase::xPropertyKey:
 					return object->as<PathVertexBase>()->x();
 				case PathVertexBase::yPropertyKey:
@@ -1086,6 +1094,9 @@ namespace rive
 				case TransformComponentConstraintBase::
 				    minMaxSpaceValuePropertyKey:
 				case IKConstraintBase::parentBoneCountPropertyKey:
+				case DrawableBase::blendModeValuePropertyKey:
+				case DrawableBase::drawableFlagsPropertyKey:
+				case NestedArtboardBase::artboardIdPropertyKey:
 				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
 				case BlendAnimationBase::animationIdPropertyKey:
@@ -1113,8 +1124,6 @@ namespace rive
 				case TrimPathBase::modeValuePropertyKey:
 				case FillBase::fillRulePropertyKey:
 				case PathBase::pathFlagsPropertyKey:
-				case DrawableBase::blendModeValuePropertyKey:
-				case DrawableBase::drawableFlagsPropertyKey:
 				case ClippingShapeBase::sourceIdPropertyKey:
 				case ClippingShapeBase::fillRulePropertyKey:
 				case PolygonBase::pointsPropertyKey:
@@ -1135,6 +1144,12 @@ namespace rive
 				case TransformComponentConstraintYBase::copyFactorYPropertyKey:
 				case TransformComponentConstraintYBase::minValueYPropertyKey:
 				case TransformComponentConstraintYBase::maxValueYPropertyKey:
+				case WorldTransformComponentBase::opacityPropertyKey:
+				case TransformComponentBase::rotationPropertyKey:
+				case TransformComponentBase::scaleXPropertyKey:
+				case TransformComponentBase::scaleYPropertyKey:
+				case NodeBase::xPropertyKey:
+				case NodeBase::yPropertyKey:
 				case StateMachineNumberBase::valuePropertyKey:
 				case TransitionNumberConditionBase::valuePropertyKey:
 				case CubicInterpolatorBase::x1PropertyKey:
@@ -1154,12 +1169,6 @@ namespace rive
 				case TrimPathBase::startPropertyKey:
 				case TrimPathBase::endPropertyKey:
 				case TrimPathBase::offsetPropertyKey:
-				case WorldTransformComponentBase::opacityPropertyKey:
-				case TransformComponentBase::rotationPropertyKey:
-				case TransformComponentBase::scaleXPropertyKey:
-				case TransformComponentBase::scaleYPropertyKey:
-				case NodeBase::xPropertyKey:
-				case NodeBase::yPropertyKey:
 				case PathVertexBase::xPropertyKey:
 				case PathVertexBase::yPropertyKey:
 				case StraightVertexBase::radiusPropertyKey:
