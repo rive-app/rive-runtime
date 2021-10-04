@@ -36,6 +36,7 @@ namespace rive
 		CommandPath* m_ClipPath = nullptr;
 		Drawable* m_FirstDrawable = nullptr;
 		bool m_IsInstance = false;
+		bool m_FrameOrigin = true;
 
 		void sortDependencies();
 		void sortDrawOrder();
@@ -99,6 +100,18 @@ namespace rive
 
 		/// Returns true if the artboard is an instance of another
 		bool isInstance() const { return m_IsInstance; }
+
+		/// Returns true when the artboard will shift the origin from the top
+		/// left to the relative width/height of the artboard itself. This is
+		/// what the editor does visually when you change the origin value to
+		/// give context as to where the origin lies within the framed bounds.
+		bool frameOrigin() const { return m_FrameOrigin; }
+		/// When composing multiple artboards together in a common world-space,
+		/// it may be desireable to have them share the same space regardless of
+		/// origin offset from the bounding artboard. Set frameOrigin to false
+		/// to move the bounds relative to the origin instead of the origin
+		/// relative to the bounds.
+		void frameOrigin(bool value);
 	};
 } // namespace rive
 

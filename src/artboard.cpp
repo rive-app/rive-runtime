@@ -369,7 +369,15 @@ void Artboard::update(ComponentDirt value)
 	if (hasDirt(value, ComponentDirt::Path))
 	{
 		m_ClipPath->reset();
-		m_ClipPath->addRect(0.0f, 0.0f, width(), height());
+		if (m_FrameOrigin)
+		{
+			m_ClipPath->addRect(0.0f, 0.0f, width(), height());
+		}
+		else
+		{
+			m_ClipPath->addRect(
+			    -width() * originX(), -height() * originY(), width(), height());
+		}
 		m_BackgroundPath->addRect(
 		    -width() * originX(), -height() * originY(), width(), height());
 	}
@@ -428,10 +436,13 @@ void Artboard::draw(Renderer* renderer)
 		renderer->clipPath(m_ClipPath->renderPath());
 	}
 
-	Mat2D artboardTransform;
-	artboardTransform[4] = width() * originX();
-	artboardTransform[5] = height() * originY();
-	renderer->transform(artboardTransform);
+	if (m_FrameOrigin)
+	{
+		Mat2D artboardTransform;
+		artboardTransform[4] = width() * originX();
+		artboardTransform[5] = height() * originY();
+		renderer->transform(artboardTransform);
+	}
 	for (auto shapePaint : m_ShapePaints)
 	{
 		shapePaint->draw(renderer, m_BackgroundPath);
@@ -515,6 +526,7 @@ StateMachine* Artboard::stateMachine(size_t index) const
 Artboard* Artboard::instance() const
 {
 	auto artboardClone = clone()->as<Artboard>();
+	artboardClone->m_FrameOrigin = m_FrameOrigin;
 
 	artboardClone->m_Objects.push_back(artboardClone);
 
@@ -546,4 +558,14 @@ Artboard* Artboard::instance() const
 	artboardClone->m_IsInstance = true;
 
 	return artboardClone;
+}
+
+void Artboard::frameOrigin(bool value)
+{
+	if (value == m_FrameOrigin)
+	{
+		return;
+	}
+	m_FrameOrigin = value;
+	addDirt(ComponentDirt::Path);
 }
