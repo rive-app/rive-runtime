@@ -112,6 +112,8 @@ namespace rive
 		/// to move the bounds relative to the origin instead of the origin
 		/// relative to the bounds.
 		void frameOrigin(bool value);
+
+		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive
 

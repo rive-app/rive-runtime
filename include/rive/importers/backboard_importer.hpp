@@ -8,6 +8,7 @@
 namespace rive
 {
 	class Artboard;
+	class NestedArtboard;
 	class Backboard;
 	class BackboardImporter : public ImportStackObject
 	{

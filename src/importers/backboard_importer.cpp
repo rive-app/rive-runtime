@@ -17,6 +17,7 @@ void BackboardImporter::addArtboard(Artboard* artboard)
 {
 	m_ArtboardLookup[m_NextArtboardId++] = artboard;
 }
+
 void BackboardImporter::addMissingArtboard() { m_NextArtboardId++; }
 
 StatusCode BackboardImporter::resolve()
@@ -27,12 +28,11 @@ StatusCode BackboardImporter::resolve()
 		if (itr != m_ArtboardLookup.end())
 		{
 			auto artboard = itr->second;
-			/*
-			if (artboard is RuntimeArtboard)
+			if (artboard != nullptr)
 			{
-			    (nestedArtboard as RuntimeNestedArtboard).sourceArtboard =
-			artboard;
-			}*/
+				nestedArtboard->nest(artboard);
+			}
 		}
 	}
+	return StatusCode::Ok;
 }

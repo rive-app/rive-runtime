@@ -6,7 +6,18 @@ namespace rive
 {
 	class NestedArtboard : public NestedArtboardBase
 	{
+
+	private:
+		Artboard* m_NestedInstance = nullptr;
+
 	public:
+		~NestedArtboard();
+		void draw(Renderer* renderer) override;
+
+		void nest(Artboard* artboard);
+
+		StatusCode import(ImportStack& importStack) override;
+		Core* clone() const override;
 	};
 } // namespace rive
 
