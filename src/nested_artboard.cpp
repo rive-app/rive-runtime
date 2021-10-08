@@ -3,6 +3,7 @@
 #include "rive/backboard.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/nested_animation.hpp"
 
 using namespace rive;
 
@@ -16,13 +17,12 @@ NestedArtboard::~NestedArtboard()
 Core* NestedArtboard::clone() const
 {
 	NestedArtboard* nestedArtboard =
-	    static_cast<NestedArtboard*>(Super::clone());
+	    static_cast<NestedArtboard*>(NestedArtboardBase::clone());
 	if (m_NestedInstance == nullptr)
 	{
 		return nestedArtboard;
 	}
 	nestedArtboard->nest(m_NestedInstance->instance());
-	// TODO: delete nestedArtboard on delete if it's an instance.
 	return nestedArtboard;
 }
 
@@ -59,4 +59,28 @@ StatusCode NestedArtboard::import(ImportStack& importStack)
 	}
 	backboardImporter->addNestedArtboard(this);
 	return Super::import(importStack);
+}
+
+void NestedArtboard::addNestedAnimation(NestedAnimation* nestedAnimation)
+{
+	m_NestedAnimations.push_back(nestedAnimation);
+}
+
+StatusCode NestedArtboard::onAddedClean(CoreContext* context)
+{
+	// N.B. The nested instance will be null here for the source artboards.
+	// Instances will have a nestedInstance available. This is a good thing as
+	// it ensures that we only instance animations in artboard instances. It
+	// does require that we always use an artboard instance (not just the source
+	// artboard) when working with nested artboards, but in general this is good
+	// practice for any loaded Rive file.
+
+	if (m_NestedInstance != nullptr)
+	{
+		for (auto animation : m_NestedAnimations)
+		{
+			animation->initializeAnimation(m_NestedInstance);
+		}
+	}
+	return Super::onAddedClean(context);
 }

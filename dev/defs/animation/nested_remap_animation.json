@@ -1,0 +1,20 @@
+{
+  "name": "NestedRemapAnimation",
+  "key": {
+    "int": 98,
+    "string": "nested_remap_animation"
+  },
+  "extends": "animation/nested_linear_animation.json",
+  "properties": {
+    "time": {
+      "type": "double",
+      "initialValue": "0.0",
+      "animates": true,
+      "key": {
+        "int": 202,
+        "string": "time"
+      },
+      "description": "Time value in seconds for the nested linear animation."
+    }
+  }
+}

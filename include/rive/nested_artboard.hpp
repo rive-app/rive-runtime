@@ -4,15 +4,19 @@
 #include <stdio.h>
 namespace rive
 {
+	class NestedAnimation;
 	class NestedArtboard : public NestedArtboardBase
 	{
 
 	private:
 		Artboard* m_NestedInstance = nullptr;
+		std::vector<NestedAnimation*> m_NestedAnimations;
 
 	public:
 		~NestedArtboard();
+		StatusCode onAddedClean(CoreContext* context) override;
 		void draw(Renderer* renderer) override;
+		void addNestedAnimation(NestedAnimation* nestedAnimation);
 
 		void nest(Artboard* artboard);
 

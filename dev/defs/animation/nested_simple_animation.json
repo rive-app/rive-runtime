@@ -1,0 +1,30 @@
+{
+  "name": "NestedSimpleAnimation",
+  "key": {
+    "int": 96,
+    "string": "nested_simple_animation"
+  },
+  "extends": "animation/nested_linear_animation.json",
+  "properties": {
+    "speed": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 199,
+        "string": "speed"
+      },
+      "description": "Speed to play the nested animation at."
+    },
+    "isPlaying": {
+      "type": "bool",
+      "initialValue": "false",
+      "animates": true,
+      "key": {
+        "int": 201,
+        "string": "is_playing"
+      },
+      "description": "Enumerated backing value for playback state."
+    }
+  }
+}

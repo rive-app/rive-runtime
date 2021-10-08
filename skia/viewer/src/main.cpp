@@ -56,7 +56,10 @@ void initStateMachine(int index)
 		fprintf(stderr, "failed to import file\n");
 		return;
 	}
-	artboard = file->artboard();
+	auto sourceArtboard = file->artboard();
+	// Artboard should always be instance and hence must be deleted.
+	delete artboard;
+	artboard = sourceArtboard->instance();
 	artboard->advance(0.0f);
 
 	delete animationInstance;
@@ -90,7 +93,10 @@ void initAnimation(int index)
 		fprintf(stderr, "failed to import file\n");
 		return;
 	}
-	artboard = file->artboard();
+	auto sourceArtboard = file->artboard();
+	// Artboard should always be instance and hence must be deleted.
+	delete artboard;
+	artboard = sourceArtboard->instance();
 	artboard->advance(0.0f);
 
 	delete animationInstance;

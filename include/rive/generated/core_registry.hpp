@@ -22,6 +22,10 @@
 #include "rive/animation/keyframe_id.hpp"
 #include "rive/animation/layer_state.hpp"
 #include "rive/animation/linear_animation.hpp"
+#include "rive/animation/nested_linear_animation.hpp"
+#include "rive/animation/nested_remap_animation.hpp"
+#include "rive/animation/nested_simple_animation.hpp"
+#include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_component.hpp"
@@ -61,6 +65,7 @@
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
+#include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
 #include "rive/shapes/clipping_shape.hpp"
@@ -116,6 +121,8 @@ namespace rive
 					return new Node();
 				case NestedArtboardBase::typeKey:
 					return new NestedArtboard();
+				case NestedSimpleAnimationBase::typeKey:
+					return new NestedSimpleAnimation();
 				case AnimationStateBase::typeKey:
 					return new AnimationState();
 				case KeyedObjectBase::typeKey:
@@ -158,10 +165,14 @@ namespace rive
 					return new StateMachineTrigger();
 				case BlendStateDirectBase::typeKey:
 					return new BlendStateDirect();
+				case NestedStateMachineBase::typeKey:
+					return new NestedStateMachine();
 				case ExitStateBase::typeKey:
 					return new ExitState();
 				case BlendState1DBase::typeKey:
 					return new BlendState1D();
+				case NestedRemapAnimationBase::typeKey:
+					return new NestedRemapAnimation();
 				case TransitionBoolConditionBase::typeKey:
 					return new TransitionBoolCondition();
 				case BlendStateTransitionBase::typeKey:
@@ -287,6 +298,9 @@ namespace rive
 					break;
 				case NestedArtboardBase::artboardIdPropertyKey:
 					object->as<NestedArtboardBase>()->artboardId(value);
+					break;
+				case NestedAnimationBase::animationIdPropertyKey:
+					object->as<NestedAnimationBase>()->animationId(value);
 					break;
 				case AnimationStateBase::animationIdPropertyKey:
 					object->as<AnimationStateBase>()->animationId(value);
@@ -457,6 +471,12 @@ namespace rive
 				case NodeBase::yPropertyKey:
 					object->as<NodeBase>()->y(value);
 					break;
+				case NestedLinearAnimationBase::mixPropertyKey:
+					object->as<NestedLinearAnimationBase>()->mix(value);
+					break;
+				case NestedSimpleAnimationBase::speedPropertyKey:
+					object->as<NestedSimpleAnimationBase>()->speed(value);
+					break;
 				case StateMachineNumberBase::valuePropertyKey:
 					object->as<StateMachineNumberBase>()->value(value);
 					break;
@@ -480,6 +500,9 @@ namespace rive
 					break;
 				case LinearAnimationBase::speedPropertyKey:
 					object->as<LinearAnimationBase>()->speed(value);
+					break;
+				case NestedRemapAnimationBase::timePropertyKey:
+					object->as<NestedRemapAnimationBase>()->time(value);
 					break;
 				case BlendAnimation1DBase::valuePropertyKey:
 					object->as<BlendAnimation1DBase>()->value(value);
@@ -678,6 +701,9 @@ namespace rive
 				case IKConstraintBase::invertDirectionPropertyKey:
 					object->as<IKConstraintBase>()->invertDirection(value);
 					break;
+				case NestedSimpleAnimationBase::isPlayingPropertyKey:
+					object->as<NestedSimpleAnimationBase>()->isPlaying(value);
+					break;
 				case KeyFrameBoolBase::valuePropertyKey:
 					object->as<KeyFrameBoolBase>()->value(value);
 					break;
@@ -767,6 +793,8 @@ namespace rive
 					return object->as<DrawableBase>()->drawableFlags();
 				case NestedArtboardBase::artboardIdPropertyKey:
 					return object->as<NestedArtboardBase>()->artboardId();
+				case NestedAnimationBase::animationIdPropertyKey:
+					return object->as<NestedAnimationBase>()->animationId();
 				case AnimationStateBase::animationIdPropertyKey:
 					return object->as<AnimationStateBase>()->animationId();
 				case KeyedObjectBase::objectIdPropertyKey:
@@ -886,6 +914,10 @@ namespace rive
 					return object->as<NodeBase>()->x();
 				case NodeBase::yPropertyKey:
 					return object->as<NodeBase>()->y();
+				case NestedLinearAnimationBase::mixPropertyKey:
+					return object->as<NestedLinearAnimationBase>()->mix();
+				case NestedSimpleAnimationBase::speedPropertyKey:
+					return object->as<NestedSimpleAnimationBase>()->speed();
 				case StateMachineNumberBase::valuePropertyKey:
 					return object->as<StateMachineNumberBase>()->value();
 				case TransitionNumberConditionBase::valuePropertyKey:
@@ -902,6 +934,8 @@ namespace rive
 					return object->as<KeyFrameDoubleBase>()->value();
 				case LinearAnimationBase::speedPropertyKey:
 					return object->as<LinearAnimationBase>()->speed();
+				case NestedRemapAnimationBase::timePropertyKey:
+					return object->as<NestedRemapAnimationBase>()->time();
 				case BlendAnimation1DBase::valuePropertyKey:
 					return object->as<BlendAnimation1DBase>()->value();
 				case LinearGradientBase::startXPropertyKey:
@@ -1042,6 +1076,8 @@ namespace rive
 					    ->maxY();
 				case IKConstraintBase::invertDirectionPropertyKey:
 					return object->as<IKConstraintBase>()->invertDirection();
+				case NestedSimpleAnimationBase::isPlayingPropertyKey:
+					return object->as<NestedSimpleAnimationBase>()->isPlaying();
 				case KeyFrameBoolBase::valuePropertyKey:
 					return object->as<KeyFrameBoolBase>()->value();
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
@@ -1097,6 +1133,7 @@ namespace rive
 				case DrawableBase::blendModeValuePropertyKey:
 				case DrawableBase::drawableFlagsPropertyKey:
 				case NestedArtboardBase::artboardIdPropertyKey:
+				case NestedAnimationBase::animationIdPropertyKey:
 				case AnimationStateBase::animationIdPropertyKey:
 				case KeyedObjectBase::objectIdPropertyKey:
 				case BlendAnimationBase::animationIdPropertyKey:
@@ -1150,6 +1187,8 @@ namespace rive
 				case TransformComponentBase::scaleYPropertyKey:
 				case NodeBase::xPropertyKey:
 				case NodeBase::yPropertyKey:
+				case NestedLinearAnimationBase::mixPropertyKey:
+				case NestedSimpleAnimationBase::speedPropertyKey:
 				case StateMachineNumberBase::valuePropertyKey:
 				case TransitionNumberConditionBase::valuePropertyKey:
 				case CubicInterpolatorBase::x1PropertyKey:
@@ -1158,6 +1197,7 @@ namespace rive
 				case CubicInterpolatorBase::y2PropertyKey:
 				case KeyFrameDoubleBase::valuePropertyKey:
 				case LinearAnimationBase::speedPropertyKey:
+				case NestedRemapAnimationBase::timePropertyKey:
 				case BlendAnimation1DBase::valuePropertyKey:
 				case LinearGradientBase::startXPropertyKey:
 				case LinearGradientBase::startYPropertyKey:
@@ -1221,6 +1261,7 @@ namespace rive
 				case TransformComponentConstraintYBase::minYPropertyKey:
 				case TransformComponentConstraintYBase::maxYPropertyKey:
 				case IKConstraintBase::invertDirectionPropertyKey:
+				case NestedSimpleAnimationBase::isPlayingPropertyKey:
 				case KeyFrameBoolBase::valuePropertyKey:
 				case LinearAnimationBase::enableWorkAreaPropertyKey:
 				case StateMachineBoolBase::valuePropertyKey:

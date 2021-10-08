@@ -90,7 +90,6 @@ StatusCode Artboard::initialize()
 			return code;
 		}
 	}
-
 	// Store a map of the drawRules to make it easier to lookup the matching
 	// rule for a transform component.
 	std::unordered_map<Core*, DrawRules*> componentDrawRules;
@@ -557,8 +556,10 @@ Artboard* Artboard::instance() const
 		delete artboardClone;
 		artboardClone = nullptr;
 	}
-
-	artboardClone->m_IsInstance = true;
+	else
+	{
+		artboardClone->m_IsInstance = true;
+	}
 
 	return artboardClone;
 }

@@ -35,6 +35,7 @@ namespace rive
 	private:
 		std::string m_Name = "";
 		int m_ParentId = 0;
+
 	public:
 		inline const std::string& name() const { return m_Name; }
 		void name(std::string value)
