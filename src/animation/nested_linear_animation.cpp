@@ -4,7 +4,6 @@
 using namespace rive;
 
 NestedLinearAnimation::~NestedLinearAnimation() { delete m_AnimationInstance; }
-void NestedLinearAnimation::advance(float elapsedSeconds, Artboard* artboard) {}
 
 void NestedLinearAnimation::initializeAnimation(Artboard* artboard)
 {

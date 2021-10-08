@@ -11,6 +11,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/nested_artboard.hpp"
 #include <unordered_map>
 
 using namespace rive;
@@ -109,21 +110,28 @@ StatusCode Artboard::initialize()
 		{
 			return code;
 		}
-		if (object->is<DrawRules>())
+		switch (object->coreType())
 		{
-			DrawRules* rules = reinterpret_cast<DrawRules*>(object);
-			Core* component = resolve(rules->parentId());
-			if (component != nullptr)
+			case DrawRulesBase::typeKey:
 			{
-				componentDrawRules[component] = rules;
+				DrawRules* rules = reinterpret_cast<DrawRules*>(object);
+				Core* component = resolve(rules->parentId());
+				if (component != nullptr)
+				{
+					componentDrawRules[component] = rules;
+				}
+				else
+				{
+					fprintf(stderr,
+					        "Artboard::initialize - Draw rule targets missing "
+					        "component width id %d\n",
+					        rules->parentId());
+				}
+				break;
 			}
-			else
-			{
-				fprintf(stderr,
-				        "Artboard::initialize - Draw rule targets missing "
-				        "component width id %d\n",
-				        rules->parentId());
-			}
+			case NestedArtboardBase::typeKey:
+				m_NestedArtboards.push_back(object->as<NestedArtboard>());
+				break;
 		}
 	}
 
@@ -143,8 +151,8 @@ StatusCode Artboard::initialize()
 		}
 	}
 
-	// Multi-level references have been built up, now we can actually mark
-	// what's dependent on what.
+	// Multi-level references have been built up, now we can
+	// actually mark what's dependent on what.
 	for (auto object : m_Objects)
 	{
 		if (object == nullptr)
@@ -176,8 +184,8 @@ StatusCode Artboard::initialize()
 	sortDependencies();
 
 	DrawTarget root;
-	// Build up the draw order. Look for draw targets and build their
-	// dependencies.
+	// Build up the draw order. Look for draw targets and build
+	// their dependencies.
 	for (auto object : m_Objects)
 	{
 		if (object == nullptr)
@@ -192,8 +200,9 @@ StatusCode Artboard::initialize()
 			auto dependentRules = target->drawable()->flattenedDrawRules;
 			if (dependentRules != nullptr)
 			{
-				// Because we don't store targets on rules, we need to find the
-				// targets that belong to this rule here.
+				// Because we don't store targets on rules, we need
+				// to find the targets that belong to this rule
+				// here.
 				for (auto object : m_Objects)
 				{
 					if (object != nullptr && object->is<DrawTarget>())
@@ -335,6 +344,11 @@ void Artboard::addStateMachine(StateMachine* object)
 	m_StateMachines.push_back(object);
 }
 
+void Artboard::addNestedArtboard(NestedArtboard* artboard)
+{
+	m_NestedArtboards.push_back(artboard);
+}
+
 Core* Artboard::resolve(int id) const
 {
 	if (id < 0 || id >= static_cast<int>(m_Objects.size()))
@@ -348,9 +362,9 @@ void Artboard::onComponentDirty(Component* component)
 {
 	m_Dirt |= ComponentDirt::Components;
 
-	/// If the order of the component is less than the current dirt depth,
-	/// update the dirt depth so that the update loop can break out early
-	/// and re-run (something up the tree is dirty).
+	/// If the order of the component is less than the current dirt
+	/// depth, update the dirt depth so that the update loop can break
+	/// out early and re-run (something up the tree is dirty).
 	if (component->graphOrder() < m_DirtDepth)
 	{
 		m_DirtDepth = component->graphOrder();
@@ -394,7 +408,7 @@ bool Artboard::updateComponents()
 		auto count = m_DependencyOrder.size();
 		while (hasDirt(ComponentDirt::Components) && step < maxSteps)
 		{
-			// m_Dirt = m_Dirt & ~ComponentDirt::Components;
+			m_Dirt = m_Dirt & ~ComponentDirt::Components;
 
 			// Track dirt depth here so that if something else marks
 			// dirty, we restart.
@@ -410,13 +424,13 @@ bool Artboard::updateComponents()
 				component->m_Dirt = ComponentDirt::None;
 				component->update(d);
 
-				// If the update changed the dirt depth by adding dirt to
-				// something before us (in the DAG), early out and re-run
-				// the update.
+				// If the update changed the dirt depth by adding dirt
+				// to something before us (in the DAG), early out and
+				// re-run the update.
 				if (m_DirtDepth < i)
 				{
-					// We put this in here just to know if we need to keep
-					// this around...
+					// We put this in here just to know if we need to
+					// keep this around...
 					assert(false);
 					break;
 				}
@@ -428,7 +442,14 @@ bool Artboard::updateComponents()
 	return false;
 }
 
-bool Artboard::advance(double elapsedSeconds) { return updateComponents(); }
+bool Artboard::advance(double elapsedSeconds)
+{
+	for (auto nestedArtboard : m_NestedArtboards)
+	{
+		nestedArtboard->advance(elapsedSeconds);
+	}
+	return updateComponents();
+}
 
 void Artboard::draw(Renderer* renderer)
 {
@@ -530,16 +551,15 @@ Artboard* Artboard::instance() const
 	auto artboardClone = clone()->as<Artboard>();
 	artboardClone->m_FrameOrigin = m_FrameOrigin;
 
-	artboardClone->m_Objects.push_back(artboardClone);
+	std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
+	cloneObjects.push_back(artboardClone);
 
 	// Skip first object (artboard).
 	auto itr = m_Objects.begin();
 	while (++itr != m_Objects.end())
 	{
 		auto object = *itr;
-
-		artboardClone->m_Objects.push_back(object == nullptr ? nullptr
-		                                                     : object->clone());
+		cloneObjects.push_back(object == nullptr ? nullptr : object->clone());
 	}
 
 	for (auto animation : m_Animations)

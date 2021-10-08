@@ -7,18 +7,12 @@ namespace rive
 	class LinearAnimationInstance;
 	class NestedLinearAnimation : public NestedLinearAnimationBase
 	{
-	private:
-		LinearAnimationInstance* m_AnimationInstance = nullptr;
-
 	protected:
-		LinearAnimationInstance* animationInstance()
-		{
-			return m_AnimationInstance;
-		}
+		LinearAnimationInstance* m_AnimationInstance = nullptr;
 
 	public:
 		~NestedLinearAnimation();
-		void advance(float elapsedSeconds, Artboard* artboard) override;
+
 		void initializeAnimation(Artboard* artboard) override;
 	};
 } // namespace rive

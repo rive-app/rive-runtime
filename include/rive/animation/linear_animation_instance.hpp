@@ -67,6 +67,7 @@ namespace rive
 		float totalTime() const { return m_TotalTime; }
 		float lastTotalTime() const { return m_LastTotalTime; }
 		float spilledTime() const { return m_SpilledTime; }
+		float durationSeconds() const;
 
 		// Returns either the animation's default or overridden loop values
 		Loop loop() { return (Loop)loopValue(); }

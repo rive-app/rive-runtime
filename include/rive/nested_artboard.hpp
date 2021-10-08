@@ -22,6 +22,7 @@ namespace rive
 
 		StatusCode import(ImportStack& importStack) override;
 		Core* clone() const override;
+		bool advance(float elapsedSeconds);
 	};
 } // namespace rive
 

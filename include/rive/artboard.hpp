@@ -15,6 +15,7 @@ namespace rive
 	class Node;
 	class DrawTarget;
 	class ArtboardImporter;
+	class NestedArtboard;
 
 	class Artboard : public ArtboardBase,
 	                 public CoreContext,
@@ -31,6 +32,8 @@ namespace rive
 		std::vector<Component*> m_DependencyOrder;
 		std::vector<Drawable*> m_Drawables;
 		std::vector<DrawTarget*> m_DrawTargets;
+		std::vector<NestedArtboard*> m_NestedArtboards;
+
 		unsigned int m_DirtDepth = 0;
 		CommandPath* m_BackgroundPath = nullptr;
 		CommandPath* m_ClipPath = nullptr;
@@ -47,6 +50,7 @@ namespace rive
 		void addObject(Core* object);
 		void addAnimation(LinearAnimation* object);
 		void addStateMachine(StateMachine* object);
+		void addNestedArtboard(NestedArtboard* object);
 
 	public:
 		~Artboard();

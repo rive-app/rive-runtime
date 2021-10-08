@@ -158,3 +158,8 @@ void LinearAnimationInstance::loopValue(int value)
 	}
 	m_LoopValue = value;
 }
+
+float LinearAnimationInstance::durationSeconds() const
+{
+	return m_Animation->durationSeconds();
+}

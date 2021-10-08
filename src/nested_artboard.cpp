@@ -58,6 +58,7 @@ StatusCode NestedArtboard::import(ImportStack& importStack)
 		return StatusCode::MissingObject;
 	}
 	backboardImporter->addNestedArtboard(this);
+
 	return Super::import(importStack);
 }
 
@@ -74,7 +75,6 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
 	// does require that we always use an artboard instance (not just the source
 	// artboard) when working with nested artboards, but in general this is good
 	// practice for any loaded Rive file.
-
 	if (m_NestedInstance != nullptr)
 	{
 		for (auto animation : m_NestedAnimations)
@@ -83,4 +83,17 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
 		}
 	}
 	return Super::onAddedClean(context);
+}
+
+bool NestedArtboard::advance(float elapsedSeconds)
+{
+	if (m_NestedInstance == nullptr)
+	{
+		return false;
+	}
+	for (auto animation : m_NestedAnimations)
+	{
+		animation->advance(elapsedSeconds, m_NestedInstance);
+	}
+	return m_NestedInstance->advance(elapsedSeconds);
 }
