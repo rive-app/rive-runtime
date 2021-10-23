@@ -71,3 +71,5 @@ skia/**/build/bin
 /skia/dependencies/libzip
 /skia/dependencies/libzip_build
 /skia/viewer/imgui.ini
+/skia/viewer/build/macosx
+/skia/thumbnail_generator/build/macosx

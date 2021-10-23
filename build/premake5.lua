@@ -5,8 +5,8 @@ project "rive"
     kind "StaticLib"
     language "C++"
     cppdialect "C++17"
-    targetdir "bin/%{cfg.buildcfg}"
-    objdir "obj/%{cfg.buildcfg}"
+    targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
+    objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
     includedirs {"../include"}
 
     files {"../src/**.cpp"}
@@ -15,6 +15,9 @@ project "rive"
 
     filter "system:windows"
         defines {"_USE_MATH_DEFINES"}
+
+    filter "system:ios"
+        buildoptions {"-arch armv7 -arch arm64 -arch x64 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
 
     filter "configurations:debug"
         defines {"DEBUG"}

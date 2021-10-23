@@ -13,8 +13,8 @@ project "rive_viewer"
 kind "ConsoleApp"
 language "C++"
 cppdialect "C++17"
-targetdir "bin/%{cfg.buildcfg}"
-objdir "obj/%{cfg.buildcfg}"
+targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
+objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
 includedirs {"../include", "../../../include", "../../renderer/include", "../../dependencies/glfw/include",
              "../../dependencies/skia", "../../dependencies/skia/include/core",
              "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
@@ -22,8 +22,8 @@ includedirs {"../include", "../../../include", "../../renderer/include", "../../
              "../../dependencies/gl3w/build/include"}
 
 links {"Cocoa.framework", "IOKit.framework", "CoreVideo.framework", "rive", "skia", "rive_skia_renderer", "glfw3"}
-libdirs {"../../../build/bin/%{cfg.buildcfg}", "../../dependencies/glfw_build/src",
-         "../../dependencies/skia/out/Static", "../../renderer/build/bin/%{cfg.buildcfg}"}
+libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/glfw_build/src",
+         "../../dependencies/skia/out/static", "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"}
 
 files {"../src/**.cpp", "../../dependencies/gl3w/build/src/gl3w.c",
        "../../dependencies/imgui/backends/imgui_impl_glfw.cpp",

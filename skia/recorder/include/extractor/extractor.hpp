@@ -1,11 +1,11 @@
 #ifndef EXTRACTOR_HPP
 #define EXTRACTOR_HPP
 
-#include "animation/animation.hpp"
-#include "animation/linear_animation_instance.hpp"
-#include "animation/linear_animation.hpp"
-#include "artboard.hpp"
-#include "file.hpp"
+#include "rive/animation/animation.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/artboard.hpp"
+#include "rive/file.hpp"
 #include "SkData.h"
 #include "skia_renderer.hpp"
 #include "SkImage.h"

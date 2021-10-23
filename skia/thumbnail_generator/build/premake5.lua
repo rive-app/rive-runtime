@@ -5,8 +5,8 @@ project "rive_thumbnail_generator"
 kind "ConsoleApp"
 language "C++"
 cppdialect "C++17"
-targetdir "bin/%{cfg.buildcfg}"
-objdir "obj/%{cfg.buildcfg}"
+targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
+objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
 includedirs {"../../../include", "../../renderer/include", "../../dependencies/skia",
              "../../dependencies/skia/include/core", "../../dependencies/skia/include/effects",
              "../../dependencies/skia/include/gpu", "../../dependencies/skia/include/config"}
@@ -17,8 +17,8 @@ else
     links {"rive", "skia", "rive_skia_renderer"}
 end
 
-libdirs {"../../../build/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static",
-         "../../renderer/build/bin/%{cfg.buildcfg}"}
+libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static",
+         "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"}
 
 files {"../src/**.cpp"}
 
