@@ -37,6 +37,10 @@ void Shape::pathChanged()
 
 void Shape::draw(Renderer* renderer)
 {
+	if (renderOpacity() == 0.0f)
+	{
+		return;
+	}
 	auto shouldRestore = clip(renderer);
 
 	for (auto shapePaint : m_ShapePaints)
