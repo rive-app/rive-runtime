@@ -15,7 +15,8 @@ do
     esac
 done
 
-OPTION=$1
+# make sure argument is lowercase
+OPTION="$(echo $1 | tr '[A-Z]' '[a-z]')"
 
 if [ "$OPTION" = 'help' ]
 then

@@ -25,7 +25,7 @@ project "rive_skia_renderer"
     buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
 
     filter {"system:ios", "options:variant=system" }
-        buildoptions {"-arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
+        buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
     
     filter {"system:ios", "options:variant=emulator" }
         buildoptions {"-arch x86_64"}

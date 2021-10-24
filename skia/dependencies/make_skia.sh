@@ -139,7 +139,7 @@ bin/gn gen out/iossim --type=static_library --args=" \
 ninja -C out/iossim
 
 # make fat library, note that the ios64 library is already fat with arm64 and arm64e so we don't specify arch there.
-xcrun -sdk iphoneos lipo -create -arch x86_64 out/iossim/libskia.a -arch armv7 out/ios32/libskia.a out/ios64/libskia.a -output libskia_ios.a
+xcrun -sdk iphoneos lipo -create -arch x86_64 out/iossim/libskia.a -arch armv7 out/ios32/libskia.a out/ios64/libskia.a -output out/libskia_ios.a
 
 
 # build static for host
