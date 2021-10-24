@@ -17,36 +17,49 @@ done
 
 OPTION=$1
 
-PREMAKE=(premake5 gmake2)
-
-case $platform in 
-    ios)
-    echo "Building for iOS"
-    export IOS_SYSROOT=$(xcrun --sdk iphoneos --show-sdk-path)
-    PREMAKE+=( --os=ios )
-    ;;
-esac
-
 if [ "$OPTION" = 'help' ]
 then
     echo build.sh - build debug library
     echo build.sh clean - clean the build
     echo build.sh release - build release library 
     echo build.sh release -p ios - build release ios library 
-elif [ "$OPTION" = "clean" ]
-then
-    echo Cleaning project ...
-    "${PREMAKE[@]}"
-    make clean
-    make clean config=release
-elif [ "$OPTION" = "release" ]
-then
-echo "RELEASE!"
-    "${PREMAKE[@]}"
-    CFLAGS="$CFLAGS" make config=release -j7
+    exit
 else
-    "${PREMAKE[@]}"
-    CFLAGS="$CFLAGS" make -j7
+    build() {
+        PREMAKE="premake5 gmake2 $1"
+        eval $PREMAKE
+        if [ "$OPTION" = "clean" ]
+        then
+            echo Cleaning project ...
+            make clean
+            make clean config=release
+        elif [ "$OPTION" = "release" ]
+        then
+            make config=release -j7
+        else
+            make -j7
+        fi
+    }
+
+    case $platform in 
+        ios)
+            echo "Building for iOS"
+            export IOS_SYSROOT=$(xcrun --sdk iphoneos --show-sdk-path)
+            build "--os=ios"
+            build "--os=ios --variant=emulator"
+            if [ "$OPTION" = "release" ]
+            then
+                config="release"
+            else
+                config="debug"
+            fi
+            # replace ios/bin/$config/librive.a with fat version including simulator
+            xcrun -sdk iphoneos lipo -create -arch x86_64 ios_sim/bin/$config/librive.a ios/bin/$config/librive.a -output ios/bin/$config/librive.a
+        ;;
+        *)
+            build
+        ;;
+    esac
 fi
 
 popd &>/dev/null
