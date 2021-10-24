@@ -28,7 +28,7 @@ project "rive_skia_renderer"
         buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
     
     filter {"system:ios", "options:variant=emulator" }
-        buildoptions {"-arch x86_64"}
+        buildoptions {"-mios-version-min=10.0 -arch x86_64 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
 

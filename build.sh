@@ -46,6 +46,7 @@ else
             echo "Building for iOS"
             export IOS_SYSROOT=$(xcrun --sdk iphoneos --show-sdk-path)
             build "--os=ios"
+            export IOS_SYSROOT=$(xcrun --sdk iphonesimulator --show-sdk-path)
             build "--os=ios --variant=emulator"
             if [ "$OPTION" = "clean" ]
             then
