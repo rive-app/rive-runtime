@@ -30,7 +30,6 @@ else
         eval $PREMAKE
         if [ "$OPTION" = "clean" ]
         then
-            echo Cleaning project ...
             make clean
             make clean config=release
         elif [ "$OPTION" = "release" ]
@@ -47,14 +46,18 @@ else
             export IOS_SYSROOT=$(xcrun --sdk iphoneos --show-sdk-path)
             build "--os=ios"
             build "--os=ios --variant=emulator"
-            if [ "$OPTION" = "release" ]
+            if [ "$OPTION" = "clean" ]
+            then
+                exit
+            elif [ "$OPTION" = "release" ]
             then
                 config="release"
             else
                 config="debug"
             fi
-            # replace ios/bin/$config/librive.a with fat version including simulator
-            xcrun -sdk iphoneos lipo -create -arch x86_64 ios_sim/bin/$config/librive.a ios/bin/$config/librive.a -output ios/bin/$config/librive.a
+            xcrun -sdk iphoneos lipo -create -arch x86_64 ios_sim/bin/$config/librive.a ios/bin/$config/librive.a -output ios/bin/$config/librive_fat.a
+            # print all the available architectures
+            lipo -info ios/bin/$config/librive_fat.a
         ;;
         *)
             build
