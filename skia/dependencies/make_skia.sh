@@ -33,6 +33,7 @@ python tools/git-sync-deps
 bin/gn gen out/ios64 --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"arm64\" \
+    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
@@ -69,6 +70,7 @@ ninja -C out/ios64
 bin/gn gen out/ios32 --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"arm\" \
+    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
@@ -105,6 +107,7 @@ ninja -C out/ios32
 bin/gn gen out/iossim --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"x64\" \
+    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
