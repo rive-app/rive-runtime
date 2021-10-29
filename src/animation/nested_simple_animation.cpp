@@ -9,7 +9,7 @@ void NestedSimpleAnimation::advance(float elapsedSeconds, Artboard* artboard)
 	{
 		if (isPlaying())
 		{
-			m_AnimationInstance->advance(elapsedSeconds);
+			m_AnimationInstance->advance(elapsedSeconds * speed());
 		}
 		m_AnimationInstance->apply(artboard, mix());
 	}
