@@ -33,7 +33,7 @@ python tools/git-sync-deps
 bin/gn gen out/ios64 --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"arm64\" \
-    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\"] \
+    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
@@ -70,7 +70,7 @@ ninja -C out/ios64
 bin/gn gen out/ios32 --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"arm\" \
-    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\"] \
+    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
@@ -107,7 +107,7 @@ ninja -C out/ios32
 bin/gn gen out/iossim --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"x64\" \
-    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\"] \
+    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
