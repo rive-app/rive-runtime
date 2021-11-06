@@ -93,7 +93,7 @@ namespace rive
 
 	class SkiaRenderer : public Renderer
 	{
-	private:
+	protected:
 		SkCanvas* m_Canvas;
 
 	public:

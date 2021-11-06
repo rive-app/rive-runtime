@@ -2,38 +2,16 @@
 
 set -e
 
-# Requires depot_tools and git: 
-#   https://skia.org/user/download
-# Build notes:
-#   https://skia.org/user/build
-# GLFW requires CMake
-
-SKIA_REPO=https://github.com/rive-app/skia
-SKIA_STABLE_BRANCH=rive
-
-# -----------------------------
-# Get & Build Skia
-# -----------------------------
-if [ ! -d skia ]; then
-	echo "Cloning Skia."
-    git clone $SKIA_REPO skia
-else
-    echo "Already have Skia, update it."
-    cd skia && git checkout master && git fetch && git pull
-    cd ..
-fi
+./get_skia.sh
 
 cd skia
 
-# switch to a stable branch
-echo "Checking out stable branch $SKIA_STABLE_BRANCH"
-git checkout $SKIA_STABLE_BRANCH
 
 python tools/git-sync-deps
 bin/gn gen out/ios64 --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"arm64\" \
-    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
+    extra_cflags=[\"-fno-rtti\", \"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
@@ -70,7 +48,7 @@ ninja -C out/ios64
 bin/gn gen out/ios32 --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"arm\" \
-    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
+    extra_cflags=[\"-fno-rtti\", \"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
@@ -107,7 +85,7 @@ ninja -C out/ios32
 bin/gn gen out/iossim --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"x64\" \
-    extra_cflags=[\"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
+    extra_cflags=[\"-fno-rtti\", \"-fembed-bitcode\", \"-mios-version-min=10.0\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
@@ -149,7 +127,7 @@ xcrun -sdk iphoneos lipo -create -arch x86_64 out/iossim/libskia.a -arch armv7 o
 bin/gn gen out/static --type=static_library --args=" \
     is_official_build=true \
     skia_use_angle=false \
-    extra_cflags=[\"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
+    extra_cflags=[\"-fno-rtti\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"] \
     skia_use_dng_sdk=false \
     skia_use_egl=false \
     skia_use_expat=false \
