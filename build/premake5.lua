@@ -11,7 +11,13 @@ project "rive"
 
     files {"../src/**.cpp"}
 
-    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format", "-flto=full"}
+    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
+
+    filter {"system:macosx" }
+        buildoptions {"-flto=full"}
+
+    filter {"system:ios" }
+        buildoptions {"-flto=full"}
 
     filter "system:windows"
         defines {"_USE_MATH_DEFINES"}

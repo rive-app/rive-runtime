@@ -73,3 +73,4 @@ skia/**/build/bin
 /skia/viewer/imgui.ini
 /skia/viewer/build/macosx
 /skia/thumbnail_generator/build/macosx
+/build/macosx
