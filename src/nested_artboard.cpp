@@ -97,3 +97,13 @@ bool NestedArtboard::advance(float elapsedSeconds)
 	}
 	return m_NestedInstance->advance(elapsedSeconds);
 }
+
+void NestedArtboard::update(ComponentDirt value)
+{
+	Super::update(value);
+	if (hasDirt(value, ComponentDirt::WorldTransform) &&
+	    m_NestedInstance != nullptr)
+	{
+		m_NestedInstance->opacity(renderOpacity());
+	}
+}
