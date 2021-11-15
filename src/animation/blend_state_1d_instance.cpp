@@ -44,10 +44,14 @@ void BlendState1DInstance::advance(float seconds, SMIInput** inputs)
 	BlendStateInstance<BlendState1D, BlendAnimation1D>::advance(seconds,
 	                                                            inputs);
 
-	auto inputInstance = inputs[state()->as<BlendState1D>()->inputId()];
-
-	auto numberInput = reinterpret_cast<const SMINumber*>(inputInstance);
-	auto value = numberInput->value();
+	auto id = state()->as<BlendState1D>()->inputId();
+	float value = 0.0f;
+	if (id >= 0)
+	{
+		auto inputInstance = inputs[state()->as<BlendState1D>()->inputId()];
+		auto numberInput = reinterpret_cast<const SMINumber*>(inputInstance);
+		value = numberInput->value();
+	}
 	int index = animationIndex(value);
 	auto animationsCount = static_cast<int>(m_AnimationInstances.size());
 	m_To = index >= 0 && index < animationsCount ? &m_AnimationInstances[index]
