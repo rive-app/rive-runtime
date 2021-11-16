@@ -22,7 +22,13 @@ project "rive_skia_renderer"
 
     files {"../src/**.cpp"}
 
-    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format", "-flto=full"}
+    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
+
+    filter {"system:macosx" }
+        buildoptions {"-flto=full"}
+
+    filter {"system:ios" }
+        buildoptions {"-flto=full"}
 
     filter {"system:ios", "options:variant=system" }
         buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
