@@ -1,0 +1,19 @@
+{
+  "name": "FileAssetContents",
+  "key": {
+    "int": 106,
+    "string": "file_asset_contents"
+  },
+  "properties": {
+    "bytes": {
+      "type": "Bytes",
+      "initialValue": "[]",
+      "key": {
+        "int": 212,
+        "string": "bytes"
+      },
+      "description": "Byte data of the file.",
+      "coop": false
+    }
+  }
+}

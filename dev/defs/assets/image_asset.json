@@ -1,0 +1,8 @@
+{
+  "name": "ImageAsset",
+  "key": {
+    "int": 105,
+    "string": "imageasset"
+  },
+  "extends": "assets/drawable_asset.json"
+}

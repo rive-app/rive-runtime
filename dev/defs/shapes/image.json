@@ -1,0 +1,21 @@
+{
+  "name": "Image",
+  "key": {
+    "int": 100,
+    "string": "image"
+  },
+  "extends": "drawable.json",
+  "properties": {
+    "assetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 206,
+        "string": "assetid"
+      },
+      "description": "Image drawable for an image asset"
+    }
+  }
+}

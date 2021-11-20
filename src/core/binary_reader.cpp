@@ -59,6 +59,19 @@ std::string BinaryReader::readString()
 	return std::string(rawValue.data(), length);
 }
 
+std::vector<uint8_t> BinaryReader::readBytes()
+{
+	uint64_t length = readVarUint64();
+	if (didOverflow())
+	{
+		return std::vector<uint8_t>();
+	}
+
+	uint8_t* start = m_Position;
+	m_Position += length;
+	return std::vector<uint8_t>(start, start + length);
+}
+
 double BinaryReader::readFloat64()
 {
 	double value;

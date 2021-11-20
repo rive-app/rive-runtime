@@ -41,6 +41,12 @@
 #include "rive/animation/transition_trigger_condition.hpp"
 #include "rive/animation/transition_value_condition.hpp"
 #include "rive/artboard.hpp"
+#include "rive/assets/asset.hpp"
+#include "rive/assets/drawable_asset.hpp"
+#include "rive/assets/file_asset.hpp"
+#include "rive/assets/file_asset_contents.hpp"
+#include "rive/assets/folder.hpp"
+#include "rive/assets/image_asset.hpp"
 #include "rive/backboard.hpp"
 #include "rive/bones/bone.hpp"
 #include "rive/bones/cubic_weight.hpp"
@@ -74,6 +80,7 @@
 #include "rive/shapes/cubic_mirrored_vertex.hpp"
 #include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/ellipse.hpp"
+#include "rive/shapes/image.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/gradient_stop.hpp"
 #include "rive/shapes/paint/linear_gradient.hpp"
@@ -217,6 +224,8 @@ namespace rive
 					return new Polygon();
 				case StarBase::typeKey:
 					return new Star();
+				case ImageBase::typeKey:
+					return new Image();
 				case CubicDetachedVertexBase::typeKey:
 					return new CubicDetachedVertex();
 				case DrawRulesBase::typeKey:
@@ -237,6 +246,12 @@ namespace rive
 					return new Tendon();
 				case CubicWeightBase::typeKey:
 					return new CubicWeight();
+				case FolderBase::typeKey:
+					return new Folder();
+				case ImageAssetBase::typeKey:
+					return new ImageAsset();
+				case FileAssetContentsBase::typeKey:
+					return new FileAssetContents();
 			}
 			return nullptr;
 		}
@@ -252,6 +267,9 @@ namespace rive
 					break;
 				case AnimationBase::namePropertyKey:
 					object->as<AnimationBase>()->name(value);
+					break;
+				case AssetBase::namePropertyKey:
+					object->as<AssetBase>()->name(value);
 					break;
 			}
 		}
@@ -393,6 +411,9 @@ namespace rive
 				case PolygonBase::pointsPropertyKey:
 					object->as<PolygonBase>()->points(value);
 					break;
+				case ImageBase::assetIdPropertyKey:
+					object->as<ImageBase>()->assetId(value);
+					break;
 				case DrawRulesBase::drawTargetIdPropertyKey:
 					object->as<DrawRulesBase>()->drawTargetId(value);
 					break;
@@ -416,6 +437,9 @@ namespace rive
 					break;
 				case CubicWeightBase::outIndicesPropertyKey:
 					object->as<CubicWeightBase>()->outIndices(value);
+					break;
+				case FileAssetBase::assetIdPropertyKey:
+					object->as<FileAssetBase>()->assetId(value);
 					break;
 			}
 		}
@@ -666,6 +690,12 @@ namespace rive
 				case TendonBase::tyPropertyKey:
 					object->as<TendonBase>()->ty(value);
 					break;
+				case DrawableAssetBase::heightPropertyKey:
+					object->as<DrawableAssetBase>()->height(value);
+					break;
+				case DrawableAssetBase::widthPropertyKey:
+					object->as<DrawableAssetBase>()->width(value);
+					break;
 			}
 		}
 		static void setBool(Core* object, int propertyKey, bool value)
@@ -748,6 +778,16 @@ namespace rive
 					break;
 			}
 		}
+		static void
+		setBytes(Core* object, int propertyKey, std::vector<uint8_t> value)
+		{
+			switch (propertyKey)
+			{
+				case FileAssetContentsBase::bytesPropertyKey:
+					object->as<FileAssetContentsBase>()->bytes(value);
+					break;
+			}
+		}
 		static std::string getString(Core* object, int propertyKey)
 		{
 			switch (propertyKey)
@@ -758,6 +798,8 @@ namespace rive
 					return object->as<StateMachineComponentBase>()->name();
 				case AnimationBase::namePropertyKey:
 					return object->as<AnimationBase>()->name();
+				case AssetBase::namePropertyKey:
+					return object->as<AssetBase>()->name();
 			}
 			return "";
 		}
@@ -857,6 +899,8 @@ namespace rive
 					return object->as<ClippingShapeBase>()->fillRule();
 				case PolygonBase::pointsPropertyKey:
 					return object->as<PolygonBase>()->points();
+				case ImageBase::assetIdPropertyKey:
+					return object->as<ImageBase>()->assetId();
 				case DrawRulesBase::drawTargetIdPropertyKey:
 					return object->as<DrawRulesBase>()->drawTargetId();
 				case WeightBase::valuesPropertyKey:
@@ -873,6 +917,8 @@ namespace rive
 					return object->as<CubicWeightBase>()->outValues();
 				case CubicWeightBase::outIndicesPropertyKey:
 					return object->as<CubicWeightBase>()->outIndices();
+				case FileAssetBase::assetIdPropertyKey:
+					return object->as<FileAssetBase>()->assetId();
 			}
 			return 0;
 		}
@@ -1046,6 +1092,10 @@ namespace rive
 					return object->as<TendonBase>()->tx();
 				case TendonBase::tyPropertyKey:
 					return object->as<TendonBase>()->ty();
+				case DrawableAssetBase::heightPropertyKey:
+					return object->as<DrawableAssetBase>()->height();
+				case DrawableAssetBase::widthPropertyKey:
+					return object->as<DrawableAssetBase>()->width();
 			}
 			return 0.0f;
 		}
@@ -1112,6 +1162,15 @@ namespace rive
 			}
 			return 0;
 		}
+		static std::vector<uint8_t> getBytes(Core* object, int propertyKey)
+		{
+			switch (propertyKey)
+			{
+				case FileAssetContentsBase::bytesPropertyKey:
+					return object->as<FileAssetContentsBase>()->bytes();
+			}
+			return std::vector<uint8_t>();
+		}
 		static int propertyFieldId(int propertyKey)
 		{
 			switch (propertyKey)
@@ -1119,6 +1178,7 @@ namespace rive
 				case ComponentBase::namePropertyKey:
 				case StateMachineComponentBase::namePropertyKey:
 				case AnimationBase::namePropertyKey:
+				case AssetBase::namePropertyKey:
 					return CoreStringType::id;
 				case ComponentBase::parentIdPropertyKey:
 				case DrawTargetBase::drawableIdPropertyKey:
@@ -1164,6 +1224,7 @@ namespace rive
 				case ClippingShapeBase::sourceIdPropertyKey:
 				case ClippingShapeBase::fillRulePropertyKey:
 				case PolygonBase::pointsPropertyKey:
+				case ImageBase::assetIdPropertyKey:
 				case DrawRulesBase::drawTargetIdPropertyKey:
 				case WeightBase::valuesPropertyKey:
 				case WeightBase::indicesPropertyKey:
@@ -1172,6 +1233,7 @@ namespace rive
 				case CubicWeightBase::inIndicesPropertyKey:
 				case CubicWeightBase::outValuesPropertyKey:
 				case CubicWeightBase::outIndicesPropertyKey:
+				case FileAssetBase::assetIdPropertyKey:
 					return CoreUintType::id;
 				case ConstraintBase::strengthPropertyKey:
 				case DistanceConstraintBase::distancePropertyKey:
@@ -1252,6 +1314,8 @@ namespace rive
 				case TendonBase::yyPropertyKey:
 				case TendonBase::txPropertyKey:
 				case TendonBase::tyPropertyKey:
+				case DrawableAssetBase::heightPropertyKey:
+				case DrawableAssetBase::widthPropertyKey:
 					return CoreDoubleType::id;
 				case TransformComponentConstraintBase::offsetPropertyKey:
 				case TransformComponentConstraintBase::doesCopyPropertyKey:
@@ -1276,6 +1340,8 @@ namespace rive
 				case SolidColorBase::colorValuePropertyKey:
 				case GradientStopBase::colorValuePropertyKey:
 					return CoreColorType::id;
+				case FileAssetContentsBase::bytesPropertyKey:
+					return CoreBytesType::id;
 				default:
 					return -1;
 			}

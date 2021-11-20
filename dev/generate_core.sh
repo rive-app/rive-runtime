@@ -1,6 +1,6 @@
 
 if [[ ! -f "./bin/core_generator" || "$1" == "build" ]]; then
     mkdir -p ./bin
-    dart2native ./core_generator/lib/main.dart -o ./bin/core_generator
+    dart compile exe ./core_generator/lib/main.dart -o ./bin/core_generator
 fi
 ./bin/core_generator

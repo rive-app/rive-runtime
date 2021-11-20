@@ -2,13 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:colorize/colorize.dart';
-// import 'package:core_generator/src/field_type.dart';
 import 'package:core_generator/src/comment.dart';
+import 'package:core_generator/src/configuration.dart';
+import 'package:core_generator/src/cpp_formatter.dart';
 import 'package:core_generator/src/field_type.dart';
 import 'package:core_generator/src/key.dart';
-import 'package:core_generator/src/cpp_formatter.dart';
 import 'package:core_generator/src/property.dart';
-import 'package:core_generator/src/configuration.dart';
 
 String stripExtension(String filename) {
   var index = filename.lastIndexOf('.');
@@ -167,7 +166,10 @@ class Definition {
             property.initialValue ??
             property.type.defaultValue;
         if (initialize != null) {
-          code.write(' = ${property.type.convertCpp(initialize)}');
+          var converted = property.type.convertCpp(initialize);
+          if (converted != null) {
+            code.write(' = $converted');
+          }
         }
         code.write(';');
       }
