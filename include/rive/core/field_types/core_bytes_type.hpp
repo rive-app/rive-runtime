@@ -2,6 +2,7 @@
 #define _RIVE_CORE_BYTES_TYPE_HPP_
 
 #include <vector>
+#include <cstdint>
 
 namespace rive
 {
