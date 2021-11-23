@@ -90,7 +90,7 @@ libdirs {
     "../../dependencies/FFmpeg/libswscale",
     "../../dependencies/FFmpeg/libswresample",
     "../../dependencies/x264/lib",
-    "../../dependencies/skia/out/Static",
+    "../../dependencies/skia/out/static",
     "../../dependencies/libzip_build/lib",
     "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}",
     "/usr/local/lib",

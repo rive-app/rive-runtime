@@ -14,10 +14,10 @@ includedirs {"../../../include", "../../renderer/include", "../../dependencies/s
 if os.host() == "macosx" then
     links {"Cocoa.framework",  "rive", "skia", "rive_skia_renderer"}
 else 
-    links {"rive", "skia", "rive_skia_renderer"}
+    links {"rive", "skia", "rive_skia_renderer", "GL"}
 end
 
-libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static",
+libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/static",
          "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"}
 
 files {"../src/**.cpp"}

@@ -18,7 +18,7 @@ project "rive_skia_renderer"
         links {"rive", "skia"}
     end
 
-    libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/Static"}
+    libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/static"}
 
     files {"../src/**.cpp"}
 
