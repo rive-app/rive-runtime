@@ -4,9 +4,18 @@
 #include <stdio.h>
 namespace rive
 {
+	class RenderImage;
 	class ImageAsset : public ImageAssetBase
 	{
+	private:
+		RenderImage* m_RenderImage;
+
 	public:
+		ImageAsset();
+		~ImageAsset();
+
+		void decode(const uint8_t* bytes) override;
+		RenderImage* renderImage() const { return m_RenderImage; }
 	};
 } // namespace rive
 

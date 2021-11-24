@@ -35,6 +35,9 @@ The tests live in ```rive/test```. To add new tests, create a new ```xxx_test.cp
 
 There's a VSCode command provided to ```run tests``` from the Tasks: Run Task command palette. 
 
+## Code Formatting
+rive-cpp uses clang-format, you can install it with brew on MacOS: ```brew install clang-format```.
+
 ## Memory Checks
 Note that if you're on MacOS you'll want to install valgrind, which is somewhat complicated these days. This is the easiest solution (please PR a better one when it becomes available).
 ```

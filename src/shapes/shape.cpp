@@ -82,7 +82,7 @@ void Shape::buildDependencies()
 	// blend mode changes.
 	for (auto paint : m_ShapePaints)
 	{
-		paint->blendMode((BlendMode)blendModeValue());
+		paint->blendMode(blendMode());
 	}
 }
 

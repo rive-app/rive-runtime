@@ -1,13 +1,20 @@
 #ifndef _RIVE_IMAGE_HPP_
 #define _RIVE_IMAGE_HPP_
 #include "rive/generated/shapes/image_base.hpp"
-#include <stdio.h>
+#include "rive/assets/file_asset_referencer.hpp"
 namespace rive
 {
-	class Image : public ImageBase
+	class ImageAsset;
+	class Image : public ImageBase, public FileAssetReferencer
 	{
+	private:
+		ImageAsset* m_ImageAsset = nullptr;
+
 	public:
+		ImageAsset* imageAsset() const { return m_ImageAsset; }
 		void draw(Renderer* renderer) override;
+		StatusCode import(ImportStack& importStack) override;
+		void assets(const std::vector<FileAsset*>& assets) override;
 	};
 } // namespace rive
 

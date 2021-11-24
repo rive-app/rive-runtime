@@ -23,6 +23,7 @@ namespace rive
 		Drawable* next = nullptr;
 
 	public:
+		BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
 		bool clip(Renderer* renderer) const;
 		virtual void draw(Renderer* renderer) = 0;
 		void addClippingShape(ClippingShape* shape);
