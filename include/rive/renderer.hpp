@@ -10,6 +10,7 @@
 #include "rive/shapes/paint/stroke_join.hpp"
 #include <cmath>
 #include <stdio.h>
+#include <cstdint>
 
 namespace rive
 {
