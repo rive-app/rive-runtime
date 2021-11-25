@@ -14,7 +14,7 @@ namespace rive
 		ImageAsset();
 		~ImageAsset();
 
-		void decode(const uint8_t* bytes) override;
+		void decode(const uint8_t* bytes, std::size_t size) override;
 		RenderImage* renderImage() const { return m_RenderImage; }
 	};
 } // namespace rive

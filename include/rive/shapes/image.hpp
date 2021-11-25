@@ -15,6 +15,7 @@ namespace rive
 		void draw(Renderer* renderer) override;
 		StatusCode import(ImportStack& importStack) override;
 		void assets(const std::vector<FileAsset*>& assets) override;
+		Core* clone() const override;
 	};
 } // namespace rive
 

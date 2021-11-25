@@ -8,12 +8,25 @@ using namespace rive;
 
 void Image::draw(Renderer* renderer)
 {
-	if (renderOpacity() == 0.0f)
+	if (m_ImageAsset == nullptr || renderOpacity() == 0.0f)
 	{
 		return;
 	}
-	renderer->drawImage(
-	    m_ImageAsset->renderImage(), blendMode(), renderOpacity());
+	renderer->save();
+
+	auto renderImage = m_ImageAsset->renderImage();
+	auto width = renderImage->width();
+	auto height = renderImage->height();
+
+	const Mat2D& transform = worldTransform();
+	renderer->transform(transform);
+
+	Mat2D originTranslation(
+	    1.0f, 0.0f, 0.0f, 1.0f, -width / 2.0f, -height / 2.0f);
+	renderer->transform(originTranslation);
+
+	renderer->drawImage(renderImage, blendMode(), renderOpacity());
+	renderer->restore();
 }
 
 StatusCode Image::import(ImportStack& importStack)
@@ -40,4 +53,11 @@ void Image::assets(const std::vector<FileAsset*>& assets)
 	{
 		m_ImageAsset = asset->as<ImageAsset>();
 	}
+}
+
+Core* Image::clone() const
+{
+	Image* twin = ImageBase::clone()->as<Image>();
+	twin->m_ImageAsset = m_ImageAsset;
+	return twin;
 }

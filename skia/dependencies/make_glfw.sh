@@ -19,7 +19,7 @@ else
     cd ..
 fi
 
-mkdir glfw_build
+mkdir -p glfw_build
 cd glfw_build
 cmake ../glfw -DBUILD_SHARED_LIBS=OFF
 make

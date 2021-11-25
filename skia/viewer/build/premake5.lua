@@ -32,7 +32,6 @@ files {"../src/**.cpp", "../../dependencies/gl3w/build/src/gl3w.c",
        "../../dependencies/imgui/imgui_draw.cpp"}
 
 buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-flto=full"}
--- linkoptions {"-Oz", "-flto=full"}
 filter "configurations:debug"
 defines {"DEBUG"}
 symbols "On"

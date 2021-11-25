@@ -7,7 +7,7 @@ namespace rive
 	class FileAsset : public FileAssetBase
 	{
 	public:
-		virtual void decode(const uint8_t* bytes) = 0;
+		virtual void decode(const uint8_t* bytes, std::size_t size) = 0;
 		StatusCode import(ImportStack& importStack) override;
 	};
 } // namespace rive

@@ -143,8 +143,34 @@ void SkiaRenderer::clipPath(RenderPath* path)
 	m_Canvas->clipPath(reinterpret_cast<SkiaRenderPath*>(path)->path(), true);
 }
 
+void SkiaRenderer::drawImage(RenderImage* image,
+                             BlendMode blendMode,
+                             float opacity)
+{
+	SkPaint paint;
+	paint.setAlphaf(opacity);
+	paint.setBlendMode(ToSkia::convert(blendMode));
+	auto skiaImage = reinterpret_cast<SkiaRenderImage*>(image);
+	SkSamplingOptions samplingOptions(SkFilterMode::kLinear,
+	                                  SkMipmapMode::kNone);
+	m_Canvas->drawImage(
+	    skiaImage->skImage(), 0.0f, 0.0f, samplingOptions, &paint);
+}
+
+bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size)
+{
+
+	sk_sp<SkData> data = SkData::MakeWithoutCopy(bytes, size);
+	m_SkImage = SkImage::MakeFromEncoded(data);
+	m_Width = m_SkImage->width();
+	m_Height = m_SkImage->height();
+	printf("DECODING IMAGE! %i %i\n", m_Width, m_Height);
+	return true;
+}
+
 namespace rive
 {
 	RenderPath* makeRenderPath() { return new SkiaRenderPath(); }
 	RenderPaint* makeRenderPaint() { return new SkiaRenderPaint(); }
+	RenderImage* makeRenderImage() { return new SkiaRenderImage(); }
 } // namespace rive

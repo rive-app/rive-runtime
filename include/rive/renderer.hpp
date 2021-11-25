@@ -47,7 +47,7 @@ namespace rive
 
 	public:
 		virtual ~RenderImage() {}
-		virtual bool decode(const uint8_t* bytes) = 0;
+		virtual bool decode(const uint8_t* bytes, std::size_t size) = 0;
 		int width() const { return m_Width; }
 		int height() const { return m_Height; }
 	};

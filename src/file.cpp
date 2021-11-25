@@ -7,6 +7,7 @@
 #include "rive/generated/core_registry.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/importers/file_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
@@ -250,6 +251,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 				stackObject =
 				    new StateTransitionImporter(object->as<StateTransition>());
 				stackType = StateTransition::typeKey;
+				break;
+			case ImageAsset::typeKey:
+				stackObject = new FileAssetImporter(object->as<FileAsset>());
+				stackType = FileAsset::typeKey;
 				break;
 		}
 		if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)
