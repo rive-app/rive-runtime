@@ -8,7 +8,10 @@ namespace rive
 	class NoOpRenderImage : public RenderImage
 	{
 	public:
-		bool decode(const uint8_t* bytes) override { return true; }
+		bool decode(const uint8_t* bytes, std::size_t size) override
+		{
+			return true;
+		}
 	};
 
 	class NoOpRenderPaint : public RenderPaint
