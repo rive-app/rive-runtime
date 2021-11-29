@@ -6,7 +6,12 @@ using namespace rive;
 ImageAsset::ImageAsset() : m_RenderImage(makeRenderImage()) {}
 
 ImageAsset::~ImageAsset() { delete m_RenderImage; }
-void ImageAsset::decode(const uint8_t* bytes, std::size_t size)
+bool ImageAsset::decode(const uint8_t* bytes, std::size_t size)
 {
-	m_RenderImage->decode(bytes, size);
+#ifdef TESTING
+	decodedByteSize = size;
+#endif
+	return m_RenderImage->decode(bytes, size);
 }
+
+std::string ImageAsset::fileExtension() { return "png"; }

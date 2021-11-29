@@ -5,6 +5,7 @@
 #include "rive/backboard.hpp"
 #include "rive/core/binary_reader.hpp"
 #include "rive/runtime_header.hpp"
+#include "rive/file_asset_resolver.hpp"
 #include <vector>
 
 ///
@@ -45,6 +46,12 @@ namespace rive
 		/// Rive components and animations.
 		std::vector<Artboard*> m_Artboards;
 
+		/// The helper used to resolve assets when they're not provided in-band
+		/// with the file.
+		FileAssetResolver* m_AssetResolver;
+
+		File(FileAssetResolver* assetResolver);
+
 	public:
 		~File();
 
@@ -53,8 +60,12 @@ namespace rive
 		/// @param reader a pointer to a binary reader attached to the file.
 		/// @param importedFile a handle to a file that will contain the
 		/// imported data.
+		/// @param assetResolver is an optional helper to resolve assets which
+		/// cannot be found in-band.
 		/// @returns whether the import was successful or an error occurred.
-		static ImportResult import(BinaryReader& reader, File** importedFile);
+		static ImportResult import(BinaryReader& reader,
+		                           File** importedFile,
+		                           FileAssetResolver* assetResolver = nullptr);
 
 		/// @returns the file's backboard. All files have exactly one backboard.
 		Backboard* backboard() const;

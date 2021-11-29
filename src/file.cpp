@@ -117,6 +117,8 @@ static Core* readRuntimeObject(BinaryReader& reader,
 	return object;
 }
 
+File::File(FileAssetResolver* assetResolver) : m_AssetResolver(assetResolver) {}
+
 File::~File()
 {
 	for (auto artboard : m_Artboards)
@@ -127,7 +129,9 @@ File::~File()
 }
 
 // Import a Rive file from a file handle
-ImportResult File::import(BinaryReader& reader, File** importedFile)
+ImportResult File::import(BinaryReader& reader,
+                          File** importedFile,
+                          FileAssetResolver* assetResolver)
 {
 	RuntimeHeader header;
 	if (!RuntimeHeader::read(reader, header))
@@ -145,7 +149,7 @@ ImportResult File::import(BinaryReader& reader, File** importedFile)
 		        minorVersion);
 		return ImportResult::unsupportedVersion;
 	}
-	auto file = new File();
+	auto file = new File(assetResolver);
 	auto result = file->read(reader, header);
 	if (result != ImportResult::success)
 	{
@@ -253,7 +257,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 				stackType = StateTransition::typeKey;
 				break;
 			case ImageAsset::typeKey:
-				stackObject = new FileAssetImporter(object->as<FileAsset>());
+				stackObject = new FileAssetImporter(object->as<FileAsset>(),
+				                                    m_AssetResolver);
 				stackType = FileAsset::typeKey;
 				break;
 		}

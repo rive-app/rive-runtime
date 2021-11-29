@@ -16,3 +16,17 @@ StatusCode FileAsset::import(ImportStack& importStack)
 
 	return Super::import(importStack);
 }
+
+std::string FileAsset::uniqueFilename()
+{
+	// remove final extension
+	std::string uniqueFilename = name();
+	std::size_t finalDot = uniqueFilename.rfind('.');
+
+	if (finalDot != std::string::npos)
+	{
+		uniqueFilename = uniqueFilename.substr(0, finalDot);
+	}
+	return uniqueFilename + "-" + std::to_string(assetId()) + "." +
+	       fileExtension();
+}
