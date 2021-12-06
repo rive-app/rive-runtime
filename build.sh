@@ -4,7 +4,6 @@ set -e
 
 pushd build &>/dev/null
 
-
 while getopts p: flag
 do
     case "${flag}" in
@@ -23,10 +22,12 @@ then
     echo build.sh - build debug library
     echo build.sh clean - clean the build
     echo build.sh release - build release library 
-    echo build.sh release -p ios - build release ios library 
+    echo build.sh -p ios release - build release ios library 
+    echo build.sh -p android release - build release android library 
     exit
 else
     build() {
+        echo "Building Rive for platform=$platform option=$OPTION"
         PREMAKE="premake5 gmake2 $1"
         eval $PREMAKE
         if [ "$OPTION" = "clean" ]
@@ -60,6 +61,9 @@ else
             xcrun -sdk iphoneos lipo -create -arch x86_64 ios_sim/bin/$config/librive.a ios/bin/$config/librive.a -output ios/bin/$config/librive_fat.a
             # print all the available architectures
             lipo -info ios/bin/$config/librive_fat.a
+        ;;
+        android)
+            build "--os=android"
         ;;
         *)
             build
