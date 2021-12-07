@@ -7,18 +7,25 @@ language "C++"
 cppdialect "C++17"
 targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
 objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
-includedirs {"../../../include", "../../renderer/include", "../../dependencies/skia",
-             "../../dependencies/skia/include/core", "../../dependencies/skia/include/effects",
-             "../../dependencies/skia/include/gpu", "../../dependencies/skia/include/config"}
+includedirs {
+    "../../../include", "../../renderer/include", "../../dependencies/skia",
+    "../../dependencies/skia/include/core",
+    "../../dependencies/skia/include/effects",
+    "../../dependencies/skia/include/gpu",
+    "../../dependencies/skia/include/config"
+}
 
 if os.host() == "macosx" then
-    links {"Cocoa.framework",  "rive", "skia", "rive_skia_renderer"}
-else 
-    links {"rive", "skia", "rive_skia_renderer", "GL"}
+    links {"Cocoa.framework", "rive", "skia", "rive_skia_renderer"}
+else
+    links {"rive", "rive_skia_renderer", "skia", "GL"}
 end
 
-libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/static",
-         "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"}
+libdirs {
+    "../../../build/%{cfg.system}/bin/%{cfg.buildcfg}",
+    "../../dependencies/skia/out/static",
+    "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"
+}
 
 files {"../src/**.cpp"}
 
