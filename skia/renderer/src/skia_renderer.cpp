@@ -164,7 +164,6 @@ bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size)
 	m_SkImage = SkImage::MakeFromEncoded(data);
 	m_Width = m_SkImage->width();
 	m_Height = m_SkImage->height();
-	printf("DECODING IMAGE! %i %i\n", m_Width, m_Height);
 	return true;
 }
 
