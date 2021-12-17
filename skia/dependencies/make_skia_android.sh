@@ -1,5 +1,4 @@
 #!/bin/sh
-
 set -e
 
 ./get_skia.sh
@@ -16,8 +15,6 @@ if [ "$ARCH" != "x86" ] &&
     printf "Invalid architecture: '%s'. Choose one between 'x86', 'x64', 'arm', or 'arm64'" "$ARCH"
     exit 1
 fi
-
-python tools/git-sync-deps
 
 # Useful for debugging:
 # bin/gn args --list out/${ARCH}
