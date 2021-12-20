@@ -66,9 +66,6 @@ else
             else
                 config="debug"
             fi
-            xcrun -sdk iphoneos lipo -create -arch x86_64 ios_sim/bin/$config/librive_skia_renderer.a ios/bin/$config/librive_skia_renderer.a -output ios/bin/$config/librive_skia_renderer_fat.a
-            # print all the available architectures
-            lipo -info ios/bin/$config/librive_skia_renderer_fat.a
         ;;
         android)
 
