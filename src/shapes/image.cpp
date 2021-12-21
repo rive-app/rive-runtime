@@ -12,10 +12,13 @@ void Image::draw(Renderer* renderer)
 	{
 		return;
 	}
-	renderer->save();
 
-	// Clip and tell it we're already saved (avoids extra save op).
-	clip(renderer, false);
+	if (!clip(renderer))
+	{
+		// We didn't clip, so make sure to save as we'll be doing some
+		// transformations.
+		renderer->save();
+	}
 
 	auto renderImage = m_ImageAsset->renderImage();
 	auto width = renderImage->width();

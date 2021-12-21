@@ -24,7 +24,7 @@ namespace rive
 
 	public:
 		BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
-		bool clip(Renderer* renderer, bool needsSave = true) const;
+		bool clip(Renderer* renderer) const;
 		virtual void draw(Renderer* renderer) = 0;
 		void addClippingShape(ClippingShape* shape);
 		inline const std::vector<ClippingShape*>& clippingShapes() const

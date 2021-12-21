@@ -11,17 +11,14 @@ void Drawable::addClippingShape(ClippingShape* shape)
 	m_ClippingShapes.push_back(shape);
 }
 
-bool Drawable::clip(Renderer* renderer, bool needsSave) const
+bool Drawable::clip(Renderer* renderer) const
 {
 	if (m_ClippingShapes.size() == 0)
 	{
 		return false;
 	}
 
-	if (needsSave)
-	{
-		renderer->save();
-	}
+	renderer->save();
 
 	for (auto clippingShape : m_ClippingShapes)
 	{
