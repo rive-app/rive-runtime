@@ -14,6 +14,9 @@ void Image::draw(Renderer* renderer)
 	}
 	renderer->save();
 
+	// Clip and tell it we're already saved (avoids extra save op).
+	clip(renderer, false);
+
 	auto renderImage = m_ImageAsset->renderImage();
 	auto width = renderImage->width();
 	auto height = renderImage->height();
@@ -26,6 +29,7 @@ void Image::draw(Renderer* renderer)
 	renderer->transform(originTranslation);
 
 	renderer->drawImage(renderImage, blendMode(), renderOpacity());
+
 	renderer->restore();
 }
 
