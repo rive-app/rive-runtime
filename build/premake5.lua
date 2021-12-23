@@ -26,7 +26,7 @@ project "rive"
         buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
     
     filter {"system:ios", "options:variant=emulator" }
-        buildoptions {"-mios-version-min=10.0 -arch arm64 -arch x86_64 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
+        buildoptions {"-mios-version-min=10.0 -arch arm64 -arch x86_64 -arch i386 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
 

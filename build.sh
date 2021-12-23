@@ -57,9 +57,6 @@ else
         else
             config="debug"
         fi
-        xcrun -sdk iphoneos lipo -create -arch x86_64 ios_sim/bin/$config/librive.a ios/bin/$config/librive.a -output ios/bin/$config/librive_fat.a
-        # print all the available architectures
-        lipo -info ios/bin/$config/librive_fat.a
         ;;
     # Android supports ABIs via a custom platform format:
     #   e.g. 'android.x86', 'android.x64', etc.
