@@ -3,76 +3,83 @@ set -e
 
 # build main rive
 cd ../..
-./build.sh $@
+./build.sh "$@"
 
 # build skia renderer
 cd skia/renderer
 
 pushd build &>/dev/null
 
-
-while getopts p: flag
-do
+while getopts p: flag; do
     case "${flag}" in
-        p) 
-            shift 2
-            platform=${OPTARG}
-            ;;
+    p)
+        shift 2
+        platform=${OPTARG}
+        ;;
+
+    \?) help ;;
     esac
 done
 
 # make sure argument is lowercase
-OPTION="$(echo $1 | tr '[A-Z]' '[a-z]')"
+OPTION="$(echo "$1" | tr '[A-Z]' '[a-z]')"
 
-if [ "$OPTION" = 'help' ]
-then
+help() {
     echo build.sh - build debug library
     echo build.sh clean - clean the build
-    echo build.sh release - build release library 
-    echo build.sh -p ios release - build release ios library 
-    echo build.sh -p android release - build release android library 
-    exit
+    echo build.sh release - build release library
+    echo build.sh -p ios release - build release ios library
+    echo build.sh -p android release - build release android library
+    exit 1
+}
+
+if [ "$OPTION" = 'help' ]; then
+    help
 else
     build() {
         echo "Building Skia Renderer for $platform option=$OPTION"
 
         PREMAKE="premake5 gmake2 $1"
-        eval $PREMAKE
-        if [ "$OPTION" = "clean" ]
-        then
+        eval "$PREMAKE"
+        if [ "$OPTION" = "clean" ]; then
             make clean
             make clean config=release
-        elif [ "$OPTION" = "release" ]
-        then
+        elif [ "$OPTION" = "release" ]; then
             make config=release -j7
         else
             make -j7
         fi
     }
 
-    case $platform in 
-        ios)
-            echo "Building for iOS"
-            export IOS_SYSROOT=$(xcrun --sdk iphoneos --show-sdk-path)
-            build "--os=ios"
-            export IOS_SYSROOT=$(xcrun --sdk iphonesimulator --show-sdk-path)
-            build "--os=ios --variant=emulator"
-            if [ "$OPTION" = "clean" ]
-            then
-                exit
-            elif [ "$OPTION" = "release" ]
-            then
-                config="release"
-            else
-                config="debug"
-            fi
+    case $platform in
+    ios)
+        echo "Building for iOS"
+        export IOS_SYSROOT=$(xcrun --sdk iphoneos --show-sdk-path)
+        build "--os=ios"
+        export IOS_SYSROOT=$(xcrun --sdk iphonesimulator --show-sdk-path)
+        build "--os=ios --variant=emulator"
+        if [ "$OPTION" = "clean" ]; then
+            exit
+        elif [ "$OPTION" = "release" ]; then
+            config="release"
+        else
+            config="debug"
+        fi
+        xcrun -sdk iphoneos lipo -create -arch x86_64 ios_sim/bin/$config/librive_skia_renderer.a ios/bin/$config/librive_skia_renderer.a -output ios/bin/$config/librive_skia_renderer_fat.a
+        # print all the available architectures
+        lipo -info ios/bin/$config/librive_skia_renderer_fat.a
         ;;
-        android)
-
-            build "--os=android"
+    # Android supports ABIs via a custom platform format:
+    #   e.g. 'android.x86', 'android.x64', etc.
+    android*)
+        echo "Building for ${platform}"
+        # Extract ABI from this opt by splitting on '.' character
+        IFS="." read -ra strarr <<<"$platform"
+        ARCH=${strarr[1]}
+        build "--os=android --arch=${ARCH}"
         ;;
-        *)
-            build
+    *)
+        build
         ;;
     esac
 fi

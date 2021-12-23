@@ -37,6 +37,24 @@ project "rive_skia_renderer"
         buildoptions {"-mios-version-min=10.0 -arch x86_64 -arch arm64 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
+    
+    -- Is there a way to pass 'arch' as a variable here?
+    filter { "system:android", "options:arch=x86" }
+        targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"
+        objdir "%{cfg.system}/x86/obj/%{cfg.buildcfg}"
+
+    filter { "system:android", "options:arch=x64" }
+        targetdir "%{cfg.system}/x64/bin/%{cfg.buildcfg}"
+        objdir "%{cfg.system}/x64/obj/%{cfg.buildcfg}"
+
+    filter { "system:android", "options:arch=arm" }
+        targetdir "%{cfg.system}/arm/bin/%{cfg.buildcfg}"
+        objdir "%{cfg.system}/arm/obj/%{cfg.buildcfg}"
+
+    filter { "system:android", "options:arch=arm64" }
+        targetdir "%{cfg.system}/arm64/bin/%{cfg.buildcfg}"
+        objdir "%{cfg.system}/arm64/obj/%{cfg.buildcfg}"
+
 
     filter "configurations:debug"
         defines {"DEBUG"}
@@ -55,4 +73,17 @@ newoption {
         { "emulator",  "Builds for an emulator/simulator for the provided system" }
     },
     default = "system"
+}
+
+newoption {
+    trigger = "arch",
+    value = "ABI",
+    description = "The ABI with the right toolchain for this build, generally with Android",
+    allowed = {
+        { "x86" },
+        { "x64" },
+        { "arm" },
+        { "arm64" }
+    }
+
 }

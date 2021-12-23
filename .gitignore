@@ -64,6 +64,9 @@ skia/dependencies/glfw_build
 skia/dependencies/FFmpeg
 skia/dependencies/x264
 skia/renderer/build/bin
+skia/renderer/build/obj
+skia/renderer/build/macosx
+skia/renderer/build/android
 skia/**/build/bin
 /skia/dependencies/glfw
 /skia/dependencies/gl3w
@@ -74,3 +77,4 @@ skia/**/build/bin
 /skia/viewer/build/macosx
 /skia/thumbnail_generator/build/macosx
 /build/macosx
+/build/android
