@@ -52,10 +52,6 @@ else
         build "--os=ios --variant=emulator"
         if [ "$OPTION" = "clean" ]; then
             exit
-        elif [ "$OPTION" = "release" ]; then
-            config="release"
-        else
-            config="debug"
         fi
         ;;
     # Android supports ABIs via a custom platform format:
