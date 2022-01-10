@@ -23,5 +23,5 @@ cd FFmpeg
 git checkout n4.3.1
 
 ./configure  --disable-debug --enable-gpl --enable-libx264 --enable-pthreads --enable-static --extra-cflags=-I../x264/include --extra-ldflags=-L../x264/lib --extra-libs=-ldl
-make
+make -j8
 cd ..
