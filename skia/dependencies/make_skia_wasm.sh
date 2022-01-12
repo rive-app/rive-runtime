@@ -21,7 +21,7 @@ bin/gn gen out/wasm --type=static_library --args=" \
     target_cpu=\"wasm\" \
     skia_use_angle=false \
     skia_use_webgl=true \
-    extra_cflags=[\"-s\", \"-msimd128\", \"-fno-rtti\", \"-flto=full\", \"-DSK_RELEASE\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\", \"-DSK_SUPPORT_GPU=1\", \"-DSK_GL\", \"-DSK_DISABLE_TRACING\", \"-DSK_NO_FONTS\", \"-DSK_FORCE_8_BYTE_ALIGNMENT\"] \
+    extra_cflags=[\"-s\", \"-fno-rtti\", \"-flto=full\", \"-DSK_RELEASE\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\", \"-DSK_SUPPORT_GPU=1\", \"-DSK_GL\", \"-DSK_DISABLE_TRACING\", \"-DSK_NO_FONTS\", \"-DSK_FORCE_8_BYTE_ALIGNMENT\"] \
     skia_enable_fontmgr_custom_embedded=false \
     skia_enable_fontmgr_custom_empty=false \
     skia_use_dng_sdk=false \
