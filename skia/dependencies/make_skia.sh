@@ -20,7 +20,6 @@ bin/gn gen out/ios64 --type=static_library --args=" \
     skia_enable_gpu=true \
     skia_use_libpng_encode=true \
     skia_use_libpng_decode=true \
-    skia_skip_codesign=true \
     
     skia_use_angle=false \
     skia_use_dng_sdk=false \
