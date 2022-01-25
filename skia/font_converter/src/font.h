@@ -29,7 +29,7 @@ public:
         fGlyphs.clear();
     }
 
-    void load(sk_sp<SkTypeface>, const std::string& chars);
+    void load(sk_sp<SkTypeface>, const char text[], size_t length);
 
     sk_sp<SkData> encode() const;
     bool decode(const void*, size_t);

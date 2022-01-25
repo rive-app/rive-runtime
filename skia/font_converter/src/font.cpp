@@ -90,15 +90,13 @@ struct GlyphRec {
     // uint16_t x,y x,y x,y
 };
 
-void RiveFont::load(sk_sp<SkTypeface> tf, const std::string& str) {
+void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len) {
     this->clear();
 
     SkFont font(std::move(tf), 1.0f);
 
-    size_t len = str.size();
     uint16_t glyphIDs[len];
-    int glyphCount = font.textToGlyphs(str.data(), len, SkTextEncoding::kUTF8,
-                                      glyphIDs, len);
+    int glyphCount = font.textToGlyphs(str, len, SkTextEncoding::kUTF8, glyphIDs, len);
     assert(glyphCount == (int)len);
     
     struct Rec {
@@ -107,14 +105,27 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const std::string& str) {
         uint16_t dstGlyph;
     };
     std::vector<Rec> rec;
-    uint16_t newGlyphID = 1;
+    uint16_t newDstGlyphID = 1;    // leave room for glyphID==0 for missing glyph
+    // build vector of unique chars
     for (size_t i = 0; i < len; ++i) {
         uint16_t code = str[i];
         auto iter = std::find_if(rec.begin(), rec.end(), [code](const auto& r) {
             return r.charCode == code;
         });
         if (iter == rec.end()) {
-            rec.push_back({code, glyphIDs[i], glyphIDs[i] == 0 ? glyphIDs[i] : newGlyphID++});
+            // gonna add code -- now see if its glyph is unique
+            uint16_t srcGlyph = glyphIDs[i];
+            auto it2 = std::find_if(rec.begin(), rec.end(), [srcGlyph](const auto& r) {
+                return r.srcGlyph == srcGlyph;
+            });
+            uint16_t dstGlyph;
+            if (it2 == rec.end()) {
+                // srcGlyph is unique (or zero)
+                dstGlyph = srcGlyph ? newDstGlyphID++ : 0;
+            } else {
+                dstGlyph = it2->dstGlyph;   // reuse prev dstGlyph
+            }
+            rec.push_back({code, srcGlyph, dstGlyph});
         }
     }
 
@@ -122,7 +133,7 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const std::string& str) {
         return a.charCode < b.charCode;
     });
     for (const auto& r : rec) {
-        printf("'%c' %d -> %d\n", r.charCode, r.srcGlyph, r.dstGlyph);
+        printf("'%c' [%d] %d -> %d\n", r.charCode, r.charCode, r.srcGlyph, r.dstGlyph);
         fCMap.push_back({r.charCode, r.dstGlyph});
     }
 
@@ -141,12 +152,12 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const std::string& str) {
     };
 
     append_glyph(0);    // missing glyph
-    assert(newGlyphID == rec.size() + 1);
-    for (size_t i = 0; i < rec.size(); ++i) {
-        const auto& r = rec[i];
-        assert(r.dstGlyph == i + 1);
-        assert(r.srcGlyph != 0);
-        append_glyph(r.srcGlyph);
+    for (int i = 1; i < newDstGlyphID; ++i) {   // walk through our glyphs
+        auto iter = std::find_if(rec.begin(), rec.end(), [i](const auto& r) {
+            return r.dstGlyph == i;
+        });
+        assert(iter != rec.end());
+        append_glyph(iter->srcGlyph);
     }
 }
 

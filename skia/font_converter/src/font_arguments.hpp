@@ -12,29 +12,28 @@ class FontArguments
 
 public:
 	FontArguments(int argc, const char** argv)
-	{
-		// PARSE INPUT
-		m_Parser = new args::ArgumentParser(
-		    "Record playback of a Rive file as a movie, gif, etc (eventually "
-		    "should support image sequences saved in a zip/archive too).",
-		    "Experimental....");
+        : m_Parser(
+		    "Convert a font file into the rive format.",
+		    "Experimental....")
+    {
 		args::HelpFlag help(
-		    *m_Parser, "help", "Display this help menu", {'h', "help"});
-		args::Group required(
-		    *m_Parser, "required arguments:", args::Group::Validators::All);
-		args::Group optional(*m_Parser,
+		    m_Parser, "help", "Display this help menu", {'h', "help"});
+		args::Group required(m_Parser, "required arguments:", args::Group::Validators::All);
+		args::Group optional(m_Parser,
 		                     "optional arguments:",
 		                     args::Group::Validators::DontCare);
 
 		args::ValueFlag<std::string> source(
 		    required, "path", "source filename", {'s', "source"});
-		args::ValueFlag<std::string> destination(
-		    required, "path", "destination filename", {'d', "destination"});
+        args::ValueFlag<std::string> destination(
+            required, "path", "destination filename", {'d', "destination"});
+        args::ValueFlag<std::string> charset(
+            optional, "path", "charset filename", {'c', "charset"});
 
-		args::CompletionFlag completion(*m_Parser, {"complete"});
+		args::CompletionFlag completion(m_Parser, {"complete"});
 		try
 		{
-			m_Parser->ParseCLI(argc, argv);
+			m_Parser.ParseCLI(argc, argv);
 		}
 		catch (const std::invalid_argument e)
 		{
@@ -65,23 +64,18 @@ public:
 		}
 
 		m_Destination = args::get(destination);
-		m_Source = args::get(source);
-	}
-
-	~FontArguments()
-	{
-		if (m_Parser != nullptr)
-		{
-			delete m_Parser;
-		}
-	}
+        m_Source = args::get(source);
+        m_Charset = args::get(charset);
+    }
 
 	const std::string& destination() const { return m_Destination; }
-	const std::string& source() const { return m_Source; }
+    const std::string& source() const { return m_Source; }
+    const std::string& charset() const { return m_Charset; }
 
 private:
-	args::ArgumentParser* m_Parser;
+	args::ArgumentParser m_Parser;
 	std::string m_Destination;
 	std::string m_Source;
+    std::string m_Charset;
 };
 #endif
