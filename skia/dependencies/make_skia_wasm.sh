@@ -10,7 +10,7 @@ set -e
 
 ./get_skia.sh
 
-cd skia
+cd skia_rive_optimized
 
 # build static for host
 bin/gn gen out/wasm --type=static_library --args=" \

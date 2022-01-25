@@ -3,7 +3,7 @@ set -e
 
 ./get_skia.sh
 
-cd skia
+cd skia_rive_optimized
 
 
 ARCH=$1

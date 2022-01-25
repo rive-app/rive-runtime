@@ -7,26 +7,30 @@ set -e
 # Build notes:
 #   https://skia.org/user/build
 # GLFW requires CMake
+getSkia () {
+    SKIA_REPO=$1
+    SKIA_STABLE_BRANCH=$2
+    FOLDER_NAME=$3
+    # -----------------------------
+    # Get & Build Skia
+    # -----------------------------
+    if [ ! -d $FOLDER_NAME ]; then
+        echo "Cloning Skia into $FOLDER_NAME."
+        git clone $SKIA_REPO $FOLDER_NAME
+    else
+        echo "Already have Skia in $FOLDER_NAME, update it."
+        cd $FOLDER_NAME && git fetch && git pull
+        cd ..
+    fi
 
-SKIA_REPO=https://github.com/rive-app/skia
-SKIA_STABLE_BRANCH=rive
+    cd $FOLDER_NAME
 
-# -----------------------------
-# Get & Build Skia
-# -----------------------------
-if [ ! -d skia ]; then
-	echo "Cloning Skia."
-    git clone $SKIA_REPO skia
-else
-    echo "Already have Skia, update it."
-    cd skia && git fetch && git pull
-    cd ..
-fi
+    # switch to a stable branch
+    echo "Checking out stable branch $SKIA_STABLE_BRANCH"
+    git checkout $SKIA_STABLE_BRANCH
 
-cd skia
+    python tools/git-sync-deps
+}
 
-# switch to a stable branch
-echo "Checking out stable branch $SKIA_STABLE_BRANCH"
-git checkout $SKIA_STABLE_BRANCH
-
-python tools/git-sync-deps
+getSkia https://github.com/rive-app/skia rive skia_rive_optimized
+getSkia https://github.com/google/skia chrome/m99 skia
