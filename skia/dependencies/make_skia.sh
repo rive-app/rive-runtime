@@ -4,8 +4,8 @@ set -e
 
 ./get_skia.sh
 
+# use Rive optimized/stripped Skia for iOS static libs.
 cd skia_rive_optimized
-
 
 python tools/git-sync-deps
 bin/gn gen out/ios64 --type=static_library --args=" \
@@ -206,6 +206,7 @@ ninja -C out/iossim_arm64
 xcrun -sdk iphoneos lipo -create -arch armv7 out/ios32/libskia.a out/ios64/libskia.a -output out/libskia_ios.a
 xcrun -sdk iphoneos lipo -create -arch x86_64 out/iossim_x64/libskia.a -arch i386 out/iossim_x86/libskia.a out/iossim_arm64/libskia.a -output out/libskia_ios_sim.a
 
+# build regular/full skia
 cd ../skia
 
 # build static for host
