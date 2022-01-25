@@ -216,7 +216,7 @@ bin/gn gen out/static --type=static_library --args=" \
     skia_use_gl=true \
     skia_use_zlib=true \
     skia_enable_gpu=true \
-    skia_enable_fontmgr_empty=true \
+    skia_enable_fontmgr_empty=false \
     skia_use_libpng_encode=true \
     skia_use_libpng_decode=true \
     skia_enable_skgpu_v1=true \
