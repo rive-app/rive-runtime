@@ -28,9 +28,10 @@ getSkia () {
     # switch to a stable branch
     echo "Checking out stable branch $SKIA_STABLE_BRANCH"
     git checkout $SKIA_STABLE_BRANCH
-
     python tools/git-sync-deps
+    cd .. 
 }
 
 getSkia https://github.com/rive-app/skia rive skia_rive_optimized
+
 getSkia https://github.com/google/skia chrome/m99 skia
