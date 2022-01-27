@@ -68,6 +68,8 @@ skia/renderer/build/obj
 skia/renderer/build/macosx
 skia/renderer/build/android
 skia/**/build/bin
+skia/**/build/macosx
+skia/**/build/android
 /skia/dependencies/glfw
 /skia/dependencies/gl3w
 /skia/dependencies/imgui
