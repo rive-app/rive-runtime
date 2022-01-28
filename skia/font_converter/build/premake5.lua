@@ -12,10 +12,6 @@ includedirs {
     "../../../include",
     "../../renderer/include",
     "../../dependencies/skia",
-    -- "../../dependencies/skia/include/core",
-    -- "../../dependencies/skia/include/effects",
-    -- "../../dependencies/skia/include/gpu",
-    -- "../../dependencies/skia/include/config",
     "/usr/local/include",
     "/usr/include",
 }
