@@ -8,9 +8,7 @@ project "rive_skia_renderer"
     toolset "clang"
     targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
     objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
-    includedirs {"../include", "../../../include", "../../dependencies/skia", "../../dependencies/skia/include/core",
-             "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
-             "../../dependencies/skia/include/config"}
+    includedirs {"../include", "../../../include"}
 
     if os.host() == "macosx" then
         links {"Cocoa.framework", "rive", "skia"}
@@ -18,7 +16,7 @@ project "rive_skia_renderer"
         links {"rive", "skia"}
     end
 
-    libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/skia/out/static"}
+    libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}"}
 
     files {"../src/**.cpp"}
 
@@ -26,9 +24,23 @@ project "rive_skia_renderer"
 
     filter {"system:macosx" }
         buildoptions {"-flto=full"}
+        includedirs {"../../dependencies/skia", "../../dependencies/skia/include/core",
+             "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
+             "../../dependencies/skia/include/config"}
+        libdirs {"../../dependencies/skia/out/static"}
+
+    filter {"system:linux" }
+        includedirs {"../../dependencies/skia", "../../dependencies/skia/include/core",
+             "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
+             "../../dependencies/skia/include/config"}
+        libdirs {"../../dependencies/skia/out/static"}
 
     filter {"system:ios" }
         buildoptions {"-flto=full"}
+        includedirs {"../../dependencies/skia_rive_optimized", "../../dependencies/skia_rive_optimized/include/core",
+             "../../dependencies/skia_rive_optimized/include/effects", "../../dependencies/skia_rive_optimized/include/gpu",
+             "../../dependencies/skia_rive_optimized/include/config"}
+        libdirs {"../../dependencies/skia_rive_optimized/out/static"}
 
     filter {"system:ios", "options:variant=system" }
         buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
@@ -37,8 +49,14 @@ project "rive_skia_renderer"
         buildoptions {"-mios-version-min=10.0 -arch x86_64 -arch arm64 -arch i386 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
-    
+
     -- Is there a way to pass 'arch' as a variable here?
+    filter { "system:android" }
+        includedirs {"../../dependencies/skia_rive_optimized", "../../dependencies/skia_rive_optimized/include/core",
+             "../../dependencies/skia_rive_optimized/include/effects", "../../dependencies/skia_rive_optimized/include/gpu",
+             "../../dependencies/skia_rive_optimized/include/config"}
+        libdirs {"../../dependencies/skia_rive_optimized/out/static"}
+
     filter { "system:android", "options:arch=x86" }
         targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}/x86/obj/%{cfg.buildcfg}"
