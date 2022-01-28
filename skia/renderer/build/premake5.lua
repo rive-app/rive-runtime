@@ -55,25 +55,27 @@ project "rive_skia_renderer"
         includedirs {"../../dependencies/skia_rive_optimized", "../../dependencies/skia_rive_optimized/include/core",
              "../../dependencies/skia_rive_optimized/include/effects", "../../dependencies/skia_rive_optimized/include/gpu",
              "../../dependencies/skia_rive_optimized/include/config"}
-        libdirs {"../../dependencies/skia_rive_optimized/out/static"}
+        
+        filter { "system:android", "options:arch=x86" }
+            targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"
+            objdir "%{cfg.system}/x86/obj/%{cfg.buildcfg}"
+            libdirs {"../../dependencies/skia_rive_optimized/out/x86"}
 
-    filter { "system:android", "options:arch=x86" }
-        targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"
-        objdir "%{cfg.system}/x86/obj/%{cfg.buildcfg}"
+        filter { "system:android", "options:arch=x64" }
+            targetdir "%{cfg.system}/x64/bin/%{cfg.buildcfg}"
+            objdir "%{cfg.system}/x64/obj/%{cfg.buildcfg}"
+            libdirs {"../../dependencies/skia_rive_optimized/out/x64"}
 
-    filter { "system:android", "options:arch=x64" }
-        targetdir "%{cfg.system}/x64/bin/%{cfg.buildcfg}"
-        objdir "%{cfg.system}/x64/obj/%{cfg.buildcfg}"
+        filter { "system:android", "options:arch=arm" }
+            targetdir "%{cfg.system}/arm/bin/%{cfg.buildcfg}"
+            objdir "%{cfg.system}/arm/obj/%{cfg.buildcfg}"
+            libdirs {"../../dependencies/skia_rive_optimized/out/arm"}
 
-    filter { "system:android", "options:arch=arm" }
-        targetdir "%{cfg.system}/arm/bin/%{cfg.buildcfg}"
-        objdir "%{cfg.system}/arm/obj/%{cfg.buildcfg}"
-
-    filter { "system:android", "options:arch=arm64" }
-        targetdir "%{cfg.system}/arm64/bin/%{cfg.buildcfg}"
-        objdir "%{cfg.system}/arm64/obj/%{cfg.buildcfg}"
-
-
+        filter { "system:android", "options:arch=arm64" }
+            targetdir "%{cfg.system}/arm64/bin/%{cfg.buildcfg}"
+            objdir "%{cfg.system}/arm64/obj/%{cfg.buildcfg}"
+            libdirs {"../../dependencies/skia_rive_optimized/out/arm64"}
+            
     filter "configurations:debug"
         defines {"DEBUG"}
         symbols "On"
