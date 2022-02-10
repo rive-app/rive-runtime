@@ -5,5 +5,5 @@ using namespace rive;
 
 void RadialGradient::makeGradient(const Vec2D& start, const Vec2D& end)
 {
-	renderPaint()->radialGradient(start[0], start[1], end[0], end[1]);
+    renderPaint()->radialGradient(start[0], start[1], end[0], end[1]);
 }

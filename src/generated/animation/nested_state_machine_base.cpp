@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NestedStateMachineBase::clone() const
 {
-	auto cloned = new NestedStateMachine();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new NestedStateMachine();
+    cloned->copy(*this);
+    return cloned;
 }

@@ -6,13 +6,13 @@ using namespace rive;
 
 StatusCode FileAssetContents::import(ImportStack& importStack)
 {
-	auto fileAssetImporter =
-	    importStack.latest<FileAssetImporter>(FileAsset::typeKey);
-	if (fileAssetImporter == nullptr)
-	{
-		return StatusCode::MissingObject;
-	}
-	fileAssetImporter->loadContents(*this);
+    auto fileAssetImporter =
+        importStack.latest<FileAssetImporter>(FileAsset::typeKey);
+    if (fileAssetImporter == nullptr)
+    {
+        return StatusCode::MissingObject;
+    }
+    fileAssetImporter->loadContents(*this);
 
-	return Super::import(importStack);
+    return Super::import(importStack);
 }

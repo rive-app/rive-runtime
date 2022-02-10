@@ -10,56 +10,56 @@ using namespace rive;
 
 LayerState::~LayerState()
 {
-	for (auto transition : m_Transitions)
-	{
-		delete transition;
-	}
+    for (auto transition : m_Transitions)
+    {
+        delete transition;
+    }
 }
 
 StatusCode LayerState::onAddedDirty(CoreContext* context)
 {
-	StatusCode code;
-	for (auto transition : m_Transitions)
-	{
-		if ((code = transition->onAddedDirty(context)) != StatusCode::Ok)
-		{
-			return code;
-		}
-	}
-	return StatusCode::Ok;
+    StatusCode code;
+    for (auto transition : m_Transitions)
+    {
+        if ((code = transition->onAddedDirty(context)) != StatusCode::Ok)
+        {
+            return code;
+        }
+    }
+    return StatusCode::Ok;
 }
 
 StatusCode LayerState::onAddedClean(CoreContext* context)
 {
-	StatusCode code;
-	for (auto transition : m_Transitions)
-	{
-		if ((code = transition->onAddedClean(context)) != StatusCode::Ok)
-		{
-			return code;
-		}
-	}
-	return StatusCode::Ok;
+    StatusCode code;
+    for (auto transition : m_Transitions)
+    {
+        if ((code = transition->onAddedClean(context)) != StatusCode::Ok)
+        {
+            return code;
+        }
+    }
+    return StatusCode::Ok;
 }
 
 StatusCode LayerState::import(ImportStack& importStack)
 {
-	auto layerImporter = importStack.latest<StateMachineLayerImporter>(
-	    StateMachineLayerBase::typeKey);
-	if (layerImporter == nullptr)
-	{
-		return StatusCode::MissingObject;
-	}
-	layerImporter->addState(this);
-	return Super::import(importStack);
+    auto layerImporter = importStack.latest<StateMachineLayerImporter>(
+        StateMachineLayerBase::typeKey);
+    if (layerImporter == nullptr)
+    {
+        return StatusCode::MissingObject;
+    }
+    layerImporter->addState(this);
+    return Super::import(importStack);
 }
 
 void LayerState::addTransition(StateTransition* transition)
 {
-	m_Transitions.push_back(transition);
+    m_Transitions.push_back(transition);
 }
 
 StateInstance* LayerState::makeInstance() const
 {
-	return new SystemStateInstance(this);
+    return new SystemStateInstance(this);
 }

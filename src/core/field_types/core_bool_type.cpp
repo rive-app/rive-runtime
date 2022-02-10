@@ -5,5 +5,5 @@ using namespace rive;
 
 bool CoreBoolType::deserialize(BinaryReader& reader)
 {
-	return reader.readByte() == 1;
+    return reader.readByte() == 1;
 }

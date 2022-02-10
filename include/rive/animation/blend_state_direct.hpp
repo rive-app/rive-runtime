@@ -4,11 +4,11 @@
 #include <stdio.h>
 namespace rive
 {
-	class BlendStateDirect : public BlendStateDirectBase
-	{
-	public:
-		StateInstance* makeInstance() const override;
-	};
+    class BlendStateDirect : public BlendStateDirectBase
+    {
+    public:
+        StateInstance* makeInstance() const override;
+    };
 } // namespace rive
 
 #endif

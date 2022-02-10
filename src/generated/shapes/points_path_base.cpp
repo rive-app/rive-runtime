@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* PointsPathBase::clone() const
 {
-	auto cloned = new PointsPath();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new PointsPath();
+    cloned->copy(*this);
+    return cloned;
 }

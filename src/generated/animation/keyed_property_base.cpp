@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* KeyedPropertyBase::clone() const
 {
-	auto cloned = new KeyedProperty();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new KeyedProperty();
+    cloned->copy(*this);
+    return cloned;
 }

@@ -3,15 +3,15 @@
 #include "rive/generated/shapes/paint/gradient_stop_base.hpp"
 namespace rive
 {
-	class GradientStop : public GradientStopBase
-	{
-	public:
-		StatusCode onAddedDirty(CoreContext* context) override;
+    class GradientStop : public GradientStopBase
+    {
+    public:
+        StatusCode onAddedDirty(CoreContext* context) override;
 
-	protected:
-		void colorValueChanged() override;
-		void positionChanged() override;
-	};
+    protected:
+        void colorValueChanged() override;
+        void positionChanged() override;
+    };
 } // namespace rive
 
 #endif

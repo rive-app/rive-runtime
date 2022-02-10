@@ -5,14 +5,14 @@
 
 namespace rive
 {
-	class TransitionValueCondition : public TransitionValueConditionBase
-	{
-	public:
-		TransitionConditionOp op() const
-		{
-			return (TransitionConditionOp)opValue();
-		}
-	};
+    class TransitionValueCondition : public TransitionValueConditionBase
+    {
+    public:
+        TransitionConditionOp op() const
+        {
+            return (TransitionConditionOp)opValue();
+        }
+    };
 } // namespace rive
 
 #endif

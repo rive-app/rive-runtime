@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ImageAssetBase::clone() const
 {
-	auto cloned = new ImageAsset();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new ImageAsset();
+    cloned->copy(*this);
+    return cloned;
 }

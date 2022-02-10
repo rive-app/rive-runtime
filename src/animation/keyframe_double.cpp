@@ -10,23 +10,23 @@ using namespace rive;
 
 static void applyDouble(Core* object, int propertyKey, float mix, float value)
 {
-	if (mix == 1.0f)
-	{
-		CoreRegistry::setDouble(object, propertyKey, value);
-	}
-	else
-	{
-		float mixi = 1.0 - mix;
-		CoreRegistry::setDouble(
-		    object,
-		    propertyKey,
-		    CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
-	}
+    if (mix == 1.0f)
+    {
+        CoreRegistry::setDouble(object, propertyKey, value);
+    }
+    else
+    {
+        float mixi = 1.0 - mix;
+        CoreRegistry::setDouble(
+            object,
+            propertyKey,
+            CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
+    }
 }
 
 void KeyFrameDouble::apply(Core* object, int propertyKey, float mix)
 {
-	applyDouble(object, propertyKey, mix, value());
+    applyDouble(object, propertyKey, mix, value());
 }
 
 void KeyFrameDouble::applyInterpolation(Core* object,
@@ -35,15 +35,15 @@ void KeyFrameDouble::applyInterpolation(Core* object,
                                         const KeyFrame* nextFrame,
                                         float mix)
 {
-	auto kfd = nextFrame->as<KeyFrameDouble>();
-	const KeyFrameDouble& nextDouble = *kfd;
-	float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
+    auto kfd = nextFrame->as<KeyFrameDouble>();
+    const KeyFrameDouble& nextDouble = *kfd;
+    float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
 
-	if (CubicInterpolator* cubic = interpolator())
-	{
-		f = cubic->transform(f);
-	}
+    if (CubicInterpolator* cubic = interpolator())
+    {
+        f = cubic->transform(f);
+    }
 
-	applyDouble(
-	    object, propertyKey, mix, value() + (nextDouble.value() - value()) * f);
+    applyDouble(
+        object, propertyKey, mix, value() + (nextDouble.value() - value()) * f);
 }

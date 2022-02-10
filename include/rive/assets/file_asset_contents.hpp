@@ -4,11 +4,11 @@
 
 namespace rive
 {
-	class FileAssetContents : public FileAssetContentsBase
-	{
-	public:
-		StatusCode import(ImportStack& importStack) override;
-	};
+    class FileAssetContents : public FileAssetContentsBase
+    {
+    public:
+        StatusCode import(ImportStack& importStack) override;
+    };
 } // namespace rive
 
 #endif

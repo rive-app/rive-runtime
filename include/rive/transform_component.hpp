@@ -5,50 +5,50 @@
 
 namespace rive
 {
-	class Constraint;
-	class WorldTransformComponent;
-	class TransformComponent : public TransformComponentBase
-	{
-	private:
-		Mat2D m_Transform;
-		float m_RenderOpacity = 0.0f;
-		WorldTransformComponent* m_ParentTransformComponent = nullptr;
-		std::vector<Constraint*> m_Constraints;
+    class Constraint;
+    class WorldTransformComponent;
+    class TransformComponent : public TransformComponentBase
+    {
+    private:
+        Mat2D m_Transform;
+        float m_RenderOpacity = 0.0f;
+        WorldTransformComponent* m_ParentTransformComponent = nullptr;
+        std::vector<Constraint*> m_Constraints;
 
-	public:
+    public:
 #ifdef TESTING
-		const std::vector<Constraint*>& constraints() const
-		{
-			return m_Constraints;
-		}
+        const std::vector<Constraint*>& constraints() const
+        {
+            return m_Constraints;
+        }
 #endif
-		StatusCode onAddedClean(CoreContext* context) override;
-		void buildDependencies() override;
-		void update(ComponentDirt value) override;
-		void updateTransform();
-		void updateWorldTransform();
-		void markTransformDirty();
+        StatusCode onAddedClean(CoreContext* context) override;
+        void buildDependencies() override;
+        void update(ComponentDirt value) override;
+        void updateTransform();
+        void updateWorldTransform();
+        void markTransformDirty();
 
-		/// Opacity inherited by any child of this transform component. This'll
-		/// later get overridden by effect layers.
-		float childOpacity() override { return m_RenderOpacity; }
-		float renderOpacity() const { return m_RenderOpacity; }
+        /// Opacity inherited by any child of this transform component. This'll
+        /// later get overridden by effect layers.
+        float childOpacity() override { return m_RenderOpacity; }
+        float renderOpacity() const { return m_RenderOpacity; }
 
-		const Mat2D& transform() const;
+        const Mat2D& transform() const;
 
-		/// Explicitly dangerous. Use transform/worldTransform when you don't
-		/// need to transform things outside of their hierarchy.
-		Mat2D& mutableTransform();
+        /// Explicitly dangerous. Use transform/worldTransform when you don't
+        /// need to transform things outside of their hierarchy.
+        Mat2D& mutableTransform();
 
-		virtual float x() const = 0;
-		virtual float y() const = 0;
+        virtual float x() const = 0;
+        virtual float y() const = 0;
 
-		void rotationChanged() override;
-		void scaleXChanged() override;
-		void scaleYChanged() override;
+        void rotationChanged() override;
+        void scaleXChanged() override;
+        void scaleYChanged() override;
 
-		void addConstraint(Constraint* constraint);
-	};
+        void addConstraint(Constraint* constraint);
+    };
 } // namespace rive
 
 #endif

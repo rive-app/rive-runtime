@@ -14,7 +14,7 @@ SMIInput::SMIInput(const StateMachineInput* input,
 
 uint16_t SMIInput::inputCoreType() const { return m_Input->coreType(); }
 
-const std::string& SMIInput::name() const { return m_Input->name(); } 
+const std::string& SMIInput::name() const { return m_Input->name(); }
 
 void SMIInput::valueChanged() { m_MachineInstance->markNeedsAdvance(); }
 
@@ -28,12 +28,12 @@ SMIBool::SMIBool(const StateMachineBool* input,
 
 void SMIBool::value(bool newValue)
 {
-	if (m_Value == newValue)
-	{
-		return;
-	}
-	m_Value = newValue;
-	valueChanged();
+    if (m_Value == newValue)
+    {
+        return;
+    }
+    m_Value = newValue;
+    valueChanged();
 }
 
 // number
@@ -45,12 +45,12 @@ SMINumber::SMINumber(const StateMachineNumber* input,
 
 void SMINumber::value(float newValue)
 {
-	if (m_Value == newValue)
-	{
-		return;
-	}
-	m_Value = newValue;
-	valueChanged();
+    if (m_Value == newValue)
+    {
+        return;
+    }
+    m_Value = newValue;
+    valueChanged();
 }
 
 // trigger
@@ -62,10 +62,10 @@ SMITrigger::SMITrigger(const StateMachineTrigger* input,
 
 void SMITrigger::fire()
 {
-	if (m_Fired)
-	{
-		return;
-	}
-	m_Fired = true;
-	valueChanged();
+    if (m_Fired)
+    {
+        return;
+    }
+    m_Fired = true;
+    valueChanged();
 }

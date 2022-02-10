@@ -5,22 +5,22 @@
 
 namespace rive
 {
-	class TransformComponent;
-	class WorldTransformComponent : public WorldTransformComponentBase
-	{
-		friend class TransformComponent;
+    class TransformComponent;
+    class WorldTransformComponent : public WorldTransformComponentBase
+    {
+        friend class TransformComponent;
 
-	protected:
-		Mat2D m_WorldTransform;
+    protected:
+        Mat2D m_WorldTransform;
 
-	public:
-		void markWorldTransformDirty();
-		virtual float childOpacity();
-		Mat2D& mutableWorldTransform();
-		const Mat2D& worldTransform() const;
-		void worldTranslation(Vec2D& result) const;
-		void opacityChanged() override;
-	};
+    public:
+        void markWorldTransformDirty();
+        virtual float childOpacity();
+        Mat2D& mutableWorldTransform();
+        const Mat2D& worldTransform() const;
+        void worldTranslation(Vec2D& result) const;
+        void opacityChanged() override;
+    };
 } // namespace rive
 
 #endif

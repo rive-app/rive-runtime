@@ -4,21 +4,21 @@
 #include <stdio.h>
 namespace rive
 {
-	class LinearAnimation;
-	class Artboard;
-	class StateMachineLayerImporter;
+    class LinearAnimation;
+    class Artboard;
+    class StateMachineLayerImporter;
 
-	class AnimationState : public AnimationStateBase
-	{
-		friend class StateMachineLayerImporter;
+    class AnimationState : public AnimationStateBase
+    {
+        friend class StateMachineLayerImporter;
 
-	private:
-		LinearAnimation* m_Animation = nullptr;
+    private:
+        LinearAnimation* m_Animation = nullptr;
 
-	public:
-		const LinearAnimation* animation() const { return m_Animation; }
-		StateInstance* makeInstance() const override;
-	};
+    public:
+        const LinearAnimation* animation() const { return m_Animation; }
+        StateInstance* makeInstance() const override;
+    };
 } // namespace rive
 
 #endif

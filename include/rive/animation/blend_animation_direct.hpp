@@ -4,13 +4,13 @@
 #include <stdio.h>
 namespace rive
 {
-	class BlendAnimationDirect : public BlendAnimationDirectBase
-	{
-	public:
-		StatusCode onAddedDirty(CoreContext* context) override;
-		StatusCode onAddedClean(CoreContext* context) override;
-		StatusCode import(ImportStack& importStack) override;
-	};
+    class BlendAnimationDirect : public BlendAnimationDirectBase
+    {
+    public:
+        StatusCode onAddedDirty(CoreContext* context) override;
+        StatusCode onAddedClean(CoreContext* context) override;
+        StatusCode import(ImportStack& importStack) override;
+    };
 } // namespace rive
 
 #endif

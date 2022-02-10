@@ -3,12 +3,12 @@
 
 namespace rive
 {
-	class BinaryReader;
-	class CoreUintType
-	{
-	public:
-		static const int id = 0;
-		static unsigned int deserialize(BinaryReader& reader);
-	};
+    class BinaryReader;
+    class CoreUintType
+    {
+    public:
+        static const int id = 0;
+        static unsigned int deserialize(BinaryReader& reader);
+    };
 } // namespace rive
 #endif

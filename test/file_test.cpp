@@ -9,180 +9,180 @@
 
 TEST_CASE("file can be read", "[file]")
 {
-	FILE* fp = fopen("../../test/assets/two_artboards.riv", "r");
-	REQUIRE(fp != nullptr);
+    FILE* fp = fopen("../../test/assets/two_artboards.riv", "r");
+    REQUIRE(fp != nullptr);
 
-	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	uint8_t* bytes = new uint8_t[length];
-	REQUIRE(fread(bytes, 1, length, fp) == length);
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
+    fseek(fp, 0, SEEK_END);
+    auto length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    uint8_t* bytes = new uint8_t[length];
+    REQUIRE(fread(bytes, 1, length, fp) == length);
+    auto reader = rive::BinaryReader(bytes, length);
+    rive::File* file = nullptr;
+    auto result = rive::File::import(reader, &file);
 
-	REQUIRE(result == rive::ImportResult::success);
-	REQUIRE(file != nullptr);
-	REQUIRE(file->artboard() != nullptr);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
+    REQUIRE(file->artboard() != nullptr);
 
-	// Default artboard should be named Two.
-	REQUIRE(file->artboard()->name() == "Two");
+    // Default artboard should be named Two.
+    REQUIRE(file->artboard()->name() == "Two");
 
-	// There should be a second artboard named One.
-	REQUIRE(file->artboard("One") != nullptr);
+    // There should be a second artboard named One.
+    REQUIRE(file->artboard("One") != nullptr);
 
-	delete file;
-	delete[] bytes;
+    delete file;
+    delete[] bytes;
 }
 
 TEST_CASE("file with animation can be read", "[file]")
 {
-	FILE* fp = fopen("../../test/assets/juice.riv", "r");
-	REQUIRE(fp != nullptr);
+    FILE* fp = fopen("../../test/assets/juice.riv", "r");
+    REQUIRE(fp != nullptr);
 
-	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	uint8_t* bytes = new uint8_t[length];
-	REQUIRE(fread(bytes, 1, length, fp) == length);
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
+    fseek(fp, 0, SEEK_END);
+    auto length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    uint8_t* bytes = new uint8_t[length];
+    REQUIRE(fread(bytes, 1, length, fp) == length);
+    auto reader = rive::BinaryReader(bytes, length);
+    rive::File* file = nullptr;
+    auto result = rive::File::import(reader, &file);
 
-	REQUIRE(result == rive::ImportResult::success);
-	REQUIRE(file != nullptr);
-	REQUIRE(file->artboard() != nullptr);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
+    REQUIRE(file->artboard() != nullptr);
 
-	auto artboard = file->artboard();
-	REQUIRE(artboard->name() == "New Artboard");
+    auto artboard = file->artboard();
+    REQUIRE(artboard->name() == "New Artboard");
 
-	auto shin = artboard->find("shin_right");
-	REQUIRE(shin != nullptr);
-	REQUIRE(shin->is<rive::Node>());
+    auto shin = artboard->find("shin_right");
+    REQUIRE(shin != nullptr);
+    REQUIRE(shin->is<rive::Node>());
 
-	auto shinNode = shin->as<rive::Node>();
-	REQUIRE(shinNode->parent() != nullptr);
-	REQUIRE(shinNode->parent()->name() == "leg_right");
-	REQUIRE(shinNode->parent()->parent() != nullptr);
-	REQUIRE(shinNode->parent()->parent()->name() == "root");
-	REQUIRE(shinNode->parent()->parent() != nullptr);
-	REQUIRE(shinNode->parent()->parent()->parent() != nullptr);
-	REQUIRE(shinNode->parent()->parent()->parent() == artboard);
+    auto shinNode = shin->as<rive::Node>();
+    REQUIRE(shinNode->parent() != nullptr);
+    REQUIRE(shinNode->parent()->name() == "leg_right");
+    REQUIRE(shinNode->parent()->parent() != nullptr);
+    REQUIRE(shinNode->parent()->parent()->name() == "root");
+    REQUIRE(shinNode->parent()->parent() != nullptr);
+    REQUIRE(shinNode->parent()->parent()->parent() != nullptr);
+    REQUIRE(shinNode->parent()->parent()->parent() == artboard);
 
-	auto walkAnimation = artboard->animation("walk");
-	REQUIRE(walkAnimation != nullptr);
-	REQUIRE(walkAnimation->numKeyedObjects() == 22);
+    auto walkAnimation = artboard->animation("walk");
+    REQUIRE(walkAnimation != nullptr);
+    REQUIRE(walkAnimation->numKeyedObjects() == 22);
 
-	delete file;
-	delete[] bytes;
+    delete file;
+    delete[] bytes;
 }
 
 TEST_CASE("artboards can be counted and accessed via index or name", "[file]")
 {
-	FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
-	REQUIRE(fp != nullptr);
+    FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
+    REQUIRE(fp != nullptr);
 
-	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	uint8_t* bytes = new uint8_t[length];
-	REQUIRE(fread(bytes, 1, length, fp) == length);
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
+    fseek(fp, 0, SEEK_END);
+    auto length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    uint8_t* bytes = new uint8_t[length];
+    REQUIRE(fread(bytes, 1, length, fp) == length);
+    auto reader = rive::BinaryReader(bytes, length);
+    rive::File* file = nullptr;
+    auto result = rive::File::import(reader, &file);
 
-	REQUIRE(result == rive::ImportResult::success);
-	REQUIRE(file != nullptr);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
 
-	// The default artboard can be accessed
-	REQUIRE(file->artboard() != nullptr);
+    // The default artboard can be accessed
+    REQUIRE(file->artboard() != nullptr);
 
-	// The artboards caqn be counted
-	REQUIRE(file->artboardCount() == 1);
+    // The artboards caqn be counted
+    REQUIRE(file->artboardCount() == 1);
 
-	// Artboards can be access by index
-	REQUIRE(file->artboard(0) != nullptr);
+    // Artboards can be access by index
+    REQUIRE(file->artboard(0) != nullptr);
 
-	// Artboards can be accessed by name
-	REQUIRE(file->artboard("Blue") != nullptr);
+    // Artboards can be accessed by name
+    REQUIRE(file->artboard("Blue") != nullptr);
 
-	delete file;
-	delete[] bytes;
+    delete file;
+    delete[] bytes;
 }
 
 TEST_CASE("dependencies are as expected", "[file]")
 {
-	// ┌────┐
-	// │Blue│
-	// └────┘
-	//    │ ┌───┐
-	//    └▶│ A │
-	//      └───┘
-	//        │ ┌───┐
-	//        └▶│ B │
-	//          └───┘
-	//            │ ┌───┐
-	//            ├▶│ C │
-	//            │ └───┘
-	//            │ ┌─────────┐
-	//            └▶│Rectangle│
-	//              └─────────┘
-	//                   │ ┌──────────────┐
-	//                   └▶│Rectangle Path│
-	//                     └──────────────┘
-	FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
-	REQUIRE(fp != nullptr);
+    // ┌────┐
+    // │Blue│
+    // └────┘
+    //    │ ┌───┐
+    //    └▶│ A │
+    //      └───┘
+    //        │ ┌───┐
+    //        └▶│ B │
+    //          └───┘
+    //            │ ┌───┐
+    //            ├▶│ C │
+    //            │ └───┘
+    //            │ ┌─────────┐
+    //            └▶│Rectangle│
+    //              └─────────┘
+    //                   │ ┌──────────────┐
+    //                   └▶│Rectangle Path│
+    //                     └──────────────┘
+    FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
+    REQUIRE(fp != nullptr);
 
-	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	uint8_t* bytes = new uint8_t[length];
-	REQUIRE(fread(bytes, 1, length, fp) == length);
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
+    fseek(fp, 0, SEEK_END);
+    auto length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    uint8_t* bytes = new uint8_t[length];
+    REQUIRE(fread(bytes, 1, length, fp) == length);
+    auto reader = rive::BinaryReader(bytes, length);
+    rive::File* file = nullptr;
+    auto result = rive::File::import(reader, &file);
 
-	REQUIRE(result == rive::ImportResult::success);
-	REQUIRE(file != nullptr);
-	REQUIRE(file->artboard() != nullptr);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
+    REQUIRE(file->artboard() != nullptr);
 
-	auto artboard = file->artboard();
-	REQUIRE(artboard->name() == "Blue");
+    auto artboard = file->artboard();
+    REQUIRE(artboard->name() == "Blue");
 
-	auto nodeA = artboard->find<rive::Node>("A");
-	auto nodeB = artboard->find<rive::Node>("B");
-	auto nodeC = artboard->find<rive::Node>("C");
-	auto shape = artboard->find<rive::Shape>("Rectangle");
-	auto path = artboard->find<rive::Path>("Rectangle Path");
-	REQUIRE(nodeA != nullptr);
-	REQUIRE(nodeB != nullptr);
-	REQUIRE(nodeC != nullptr);
-	REQUIRE(shape != nullptr);
-	REQUIRE(path != nullptr);
+    auto nodeA = artboard->find<rive::Node>("A");
+    auto nodeB = artboard->find<rive::Node>("B");
+    auto nodeC = artboard->find<rive::Node>("C");
+    auto shape = artboard->find<rive::Shape>("Rectangle");
+    auto path = artboard->find<rive::Path>("Rectangle Path");
+    REQUIRE(nodeA != nullptr);
+    REQUIRE(nodeB != nullptr);
+    REQUIRE(nodeC != nullptr);
+    REQUIRE(shape != nullptr);
+    REQUIRE(path != nullptr);
 
-	REQUIRE(nodeA->parent() == artboard);
-	REQUIRE(nodeB->parent() == nodeA);
-	REQUIRE(nodeC->parent() == nodeB);
-	REQUIRE(shape->parent() == nodeB);
-	REQUIRE(path->parent() == shape);
+    REQUIRE(nodeA->parent() == artboard);
+    REQUIRE(nodeB->parent() == nodeA);
+    REQUIRE(nodeC->parent() == nodeB);
+    REQUIRE(shape->parent() == nodeB);
+    REQUIRE(path->parent() == shape);
 
-	REQUIRE(nodeB->dependents().size() == 2);
+    REQUIRE(nodeB->dependents().size() == 2);
 
-	REQUIRE(artboard->graphOrder() == 0);
-	REQUIRE(nodeA->graphOrder() > artboard->graphOrder());
-	REQUIRE(nodeB->graphOrder() > nodeA->graphOrder());
-	REQUIRE(nodeC->graphOrder() > nodeB->graphOrder());
-	REQUIRE(shape->graphOrder() > nodeB->graphOrder());
-	REQUIRE(path->graphOrder() > shape->graphOrder());
+    REQUIRE(artboard->graphOrder() == 0);
+    REQUIRE(nodeA->graphOrder() > artboard->graphOrder());
+    REQUIRE(nodeB->graphOrder() > nodeA->graphOrder());
+    REQUIRE(nodeC->graphOrder() > nodeB->graphOrder());
+    REQUIRE(shape->graphOrder() > nodeB->graphOrder());
+    REQUIRE(path->graphOrder() > shape->graphOrder());
 
-	artboard->advance(0.0f);
+    artboard->advance(0.0f);
 
-	auto world = shape->worldTransform();
-	REQUIRE(world[4] == 39.203125f);
-	REQUIRE(world[5] == 29.535156f);
+    auto world = shape->worldTransform();
+    REQUIRE(world[4] == 39.203125f);
+    REQUIRE(world[5] == 29.535156f);
 
-	delete file;
-	delete[] bytes;
+    delete file;
+    delete[] bytes;
 }
 
 // TODO:

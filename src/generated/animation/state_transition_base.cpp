@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* StateTransitionBase::clone() const
 {
-	auto cloned = new StateTransition();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new StateTransition();
+    cloned->copy(*this);
+    return cloned;
 }

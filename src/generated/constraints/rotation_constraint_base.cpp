@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* RotationConstraintBase::clone() const
 {
-	auto cloned = new RotationConstraint();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new RotationConstraint();
+    cloned->copy(*this);
+    return cloned;
 }

@@ -4,10 +4,10 @@
 #include <stdio.h>
 namespace rive
 {
-	class DrawableAsset : public DrawableAssetBase
-	{
-	public:
-	};
+    class DrawableAsset : public DrawableAssetBase
+    {
+    public:
+    };
 } // namespace rive
 
 #endif

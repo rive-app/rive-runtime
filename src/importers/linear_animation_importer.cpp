@@ -12,5 +12,5 @@ LinearAnimationImporter::LinearAnimationImporter(LinearAnimation* animation) :
 
 void LinearAnimationImporter::addKeyedObject(KeyedObject* object)
 {
-	m_Animation->addKeyedObject(object);
+    m_Animation->addKeyedObject(object);
 }

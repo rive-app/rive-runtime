@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionNumberConditionBase::clone() const
 {
-	auto cloned = new TransitionNumberCondition();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new TransitionNumberCondition();
+    cloned->copy(*this);
+    return cloned;
 }

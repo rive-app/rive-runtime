@@ -7,29 +7,29 @@
 
 namespace rive
 {
-	class BlendAnimation;
-	class LayerStateImporter;
+    class BlendAnimation;
+    class LayerStateImporter;
 
-	class BlendState : public BlendStateBase
-	{
-		friend class LayerStateImporter;
+    class BlendState : public BlendStateBase
+    {
+        friend class LayerStateImporter;
 
-	private:
-		std::vector<BlendAnimation*> m_Animations;
-		void addAnimation(BlendAnimation* animation);
+    private:
+        std::vector<BlendAnimation*> m_Animations;
+        void addAnimation(BlendAnimation* animation);
 
-	public:
-		~BlendState();
-		inline const std::vector<BlendAnimation*>& animations() const
-		{
-			return m_Animations;
-		}
+    public:
+        ~BlendState();
+        inline const std::vector<BlendAnimation*>& animations() const
+        {
+            return m_Animations;
+        }
 
 #ifdef TESTING
-		size_t animationCount() { return m_Animations.size(); }
-		BlendAnimation* animation(size_t index) { return m_Animations[index]; }
+        size_t animationCount() { return m_Animations.size(); }
+        BlendAnimation* animation(size_t index) { return m_Animations[index]; }
 #endif
-	};
+    };
 } // namespace rive
 
 #endif

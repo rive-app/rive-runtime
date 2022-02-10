@@ -3,12 +3,12 @@
 
 namespace rive
 {
-	class FileAsset;
-	class FileAssetReferencer
-	{
-	public:
-		virtual void assets(const std::vector<FileAsset*>& assets) = 0;
-	};
+    class FileAsset;
+    class FileAssetReferencer
+    {
+    public:
+        virtual void assets(const std::vector<FileAsset*>& assets) = 0;
+    };
 } // namespace rive
 
 #endif

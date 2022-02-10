@@ -4,15 +4,15 @@
 #include <stdio.h>
 namespace rive
 {
-	class RootBone : public RootBoneBase
-	{
-	public:
-		StatusCode onAddedClean(CoreContext* context) override;
+    class RootBone : public RootBoneBase
+    {
+    public:
+        StatusCode onAddedClean(CoreContext* context) override;
 
-	protected:
-		void xChanged() override;
-		void yChanged() override;
-	};
+    protected:
+        void xChanged() override;
+        void yChanged() override;
+    };
 } // namespace rive
 
 #endif

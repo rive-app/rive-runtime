@@ -3,14 +3,14 @@
 #include "rive/generated/shapes/cubic_mirrored_vertex_base.hpp"
 namespace rive
 {
-	class CubicMirroredVertex : public CubicMirroredVertexBase
-	{
-	protected:
-		void computeIn() override;
-		void computeOut() override;
-		void rotationChanged() override;
-		void distanceChanged() override;
-	};
+    class CubicMirroredVertex : public CubicMirroredVertexBase
+    {
+    protected:
+        void computeIn() override;
+        void computeOut() override;
+        void rotationChanged() override;
+        void distanceChanged() override;
+    };
 } // namespace rive
 
 #endif

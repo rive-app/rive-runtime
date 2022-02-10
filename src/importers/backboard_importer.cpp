@@ -11,44 +11,44 @@ BackboardImporter::BackboardImporter(Backboard* backboard) :
 }
 void BackboardImporter::addNestedArtboard(NestedArtboard* artboard)
 {
-	m_NestedArtboards.push_back(artboard);
+    m_NestedArtboards.push_back(artboard);
 }
 
 void BackboardImporter::addFileAsset(FileAsset* asset)
 {
-	m_FileAssets.push_back(asset);
+    m_FileAssets.push_back(asset);
 }
 
 void BackboardImporter::addFileAssetReferencer(FileAssetReferencer* referencer)
 {
-	m_FileAssetReferencers.push_back(referencer);
+    m_FileAssetReferencers.push_back(referencer);
 }
 
 void BackboardImporter::addArtboard(Artboard* artboard)
 {
-	m_ArtboardLookup[m_NextArtboardId++] = artboard;
+    m_ArtboardLookup[m_NextArtboardId++] = artboard;
 }
 
 void BackboardImporter::addMissingArtboard() { m_NextArtboardId++; }
 
 StatusCode BackboardImporter::resolve()
 {
-	for (auto nestedArtboard : m_NestedArtboards)
-	{
-		auto itr = m_ArtboardLookup.find(nestedArtboard->artboardId());
-		if (itr != m_ArtboardLookup.end())
-		{
-			auto artboard = itr->second;
-			if (artboard != nullptr)
-			{
-				nestedArtboard->nest(artboard);
-			}
-		}
-	}
+    for (auto nestedArtboard : m_NestedArtboards)
+    {
+        auto itr = m_ArtboardLookup.find(nestedArtboard->artboardId());
+        if (itr != m_ArtboardLookup.end())
+        {
+            auto artboard = itr->second;
+            if (artboard != nullptr)
+            {
+                nestedArtboard->nest(artboard);
+            }
+        }
+    }
 
-	for (auto referencer : m_FileAssetReferencers)
-	{
-		referencer->assets(m_FileAssets);
-	}
-	return StatusCode::Ok;
+    for (auto referencer : m_FileAssetReferencers)
+    {
+        referencer->assets(m_FileAssets);
+    }
+    return StatusCode::Ok;
 }

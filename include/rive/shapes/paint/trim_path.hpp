@@ -6,24 +6,24 @@
 
 namespace rive
 {
-	class TrimPath : public TrimPathBase, public StrokeEffect
-	{
-	private:
-		RenderPath* m_TrimmedPath;
-		RenderPath* m_RenderPath = nullptr;
+    class TrimPath : public TrimPathBase, public StrokeEffect
+    {
+    private:
+        RenderPath* m_TrimmedPath;
+        RenderPath* m_RenderPath = nullptr;
 
-	public:
-		TrimPath();
-		~TrimPath();
-		StatusCode onAddedClean(CoreContext* context) override;
-		RenderPath* effectPath(MetricsPath* source) override;
-		void invalidateEffect() override;
+    public:
+        TrimPath();
+        ~TrimPath();
+        StatusCode onAddedClean(CoreContext* context) override;
+        RenderPath* effectPath(MetricsPath* source) override;
+        void invalidateEffect() override;
 
-		void startChanged() override;
-		void endChanged() override;
-		void offsetChanged() override;
-		void modeValueChanged() override;
-	};
+        void startChanged() override;
+        void endChanged() override;
+        void offsetChanged() override;
+        void modeValueChanged() override;
+    };
 } // namespace rive
 
 #endif

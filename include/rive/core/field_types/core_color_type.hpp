@@ -3,12 +3,12 @@
 
 namespace rive
 {
-	class BinaryReader;
-	class CoreColorType
-	{
-	public:
-		static const int id = 3;
-		static int deserialize(BinaryReader& reader);
-	};
+    class BinaryReader;
+    class CoreColorType
+    {
+    public:
+        static const int id = 3;
+        static int deserialize(BinaryReader& reader);
+    };
 } // namespace rive
 #endif

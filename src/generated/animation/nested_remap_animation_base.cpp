@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NestedRemapAnimationBase::clone() const
 {
-	auto cloned = new NestedRemapAnimation();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new NestedRemapAnimation();
+    cloned->copy(*this);
+    return cloned;
 }

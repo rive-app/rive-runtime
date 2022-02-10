@@ -4,12 +4,12 @@
 #include <stdio.h>
 namespace rive
 {
-	class NestedStateMachine : public NestedStateMachineBase
-	{
-	public:
-		void advance(float elapsedSeconds, Artboard* artboard) override;
-		void initializeAnimation(Artboard* artboard) override;
-	};
+    class NestedStateMachine : public NestedStateMachineBase
+    {
+    public:
+        void advance(float elapsedSeconds, Artboard* artboard) override;
+        void initializeAnimation(Artboard* artboard) override;
+    };
 } // namespace rive
 
 #endif

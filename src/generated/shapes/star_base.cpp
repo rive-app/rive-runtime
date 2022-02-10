@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* StarBase::clone() const
 {
-	auto cloned = new Star();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new Star();
+    cloned->copy(*this);
+    return cloned;
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* BackboardBase::clone() const
 {
-	auto cloned = new Backboard();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new Backboard();
+    cloned->copy(*this);
+    return cloned;
 }

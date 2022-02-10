@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* StateMachineNumberBase::clone() const
 {
-	auto cloned = new StateMachineNumber();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new StateMachineNumber();
+    cloned->copy(*this);
+    return cloned;
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TrimPathBase::clone() const
 {
-	auto cloned = new TrimPath();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new TrimPath();
+    cloned->copy(*this);
+    return cloned;
 }

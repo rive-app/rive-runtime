@@ -5,87 +5,88 @@
 #include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
-	class NestedSimpleAnimationBase : public NestedLinearAnimation
-	{
-	protected:
-		typedef NestedLinearAnimation Super;
+    class NestedSimpleAnimationBase : public NestedLinearAnimation
+    {
+    protected:
+        typedef NestedLinearAnimation Super;
 
-	public:
-		static const uint16_t typeKey = 96;
+    public:
+        static const uint16_t typeKey = 96;
 
-		/// Helper to quickly determine if a core object extends another without
-		/// RTTI at runtime.
-		bool isTypeOf(uint16_t typeKey) const override
-		{
-			switch (typeKey)
-			{
-				case NestedSimpleAnimationBase::typeKey:
-				case NestedLinearAnimationBase::typeKey:
-				case NestedAnimationBase::typeKey:
-				case ComponentBase::typeKey:
-					return true;
-				default:
-					return false;
-			}
-		}
+        /// Helper to quickly determine if a core object extends another without
+        /// RTTI at runtime.
+        bool isTypeOf(uint16_t typeKey) const override
+        {
+            switch (typeKey)
+            {
+                case NestedSimpleAnimationBase::typeKey:
+                case NestedLinearAnimationBase::typeKey:
+                case NestedAnimationBase::typeKey:
+                case ComponentBase::typeKey:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
-		uint16_t coreType() const override { return typeKey; }
+        uint16_t coreType() const override { return typeKey; }
 
-		static const uint16_t speedPropertyKey = 199;
-		static const uint16_t isPlayingPropertyKey = 201;
+        static const uint16_t speedPropertyKey = 199;
+        static const uint16_t isPlayingPropertyKey = 201;
 
-	private:
-		float m_Speed = 1.0f;
-		bool m_IsPlaying = false;
-	public:
-		inline float speed() const { return m_Speed; }
-		void speed(float value)
-		{
-			if (m_Speed == value)
-			{
-				return;
-			}
-			m_Speed = value;
-			speedChanged();
-		}
+    private:
+        float m_Speed = 1.0f;
+        bool m_IsPlaying = false;
 
-		inline bool isPlaying() const { return m_IsPlaying; }
-		void isPlaying(bool value)
-		{
-			if (m_IsPlaying == value)
-			{
-				return;
-			}
-			m_IsPlaying = value;
-			isPlayingChanged();
-		}
+    public:
+        inline float speed() const { return m_Speed; }
+        void speed(float value)
+        {
+            if (m_Speed == value)
+            {
+                return;
+            }
+            m_Speed = value;
+            speedChanged();
+        }
 
-		Core* clone() const override;
-		void copy(const NestedSimpleAnimationBase& object)
-		{
-			m_Speed = object.m_Speed;
-			m_IsPlaying = object.m_IsPlaying;
-			NestedLinearAnimation::copy(object);
-		}
+        inline bool isPlaying() const { return m_IsPlaying; }
+        void isPlaying(bool value)
+        {
+            if (m_IsPlaying == value)
+            {
+                return;
+            }
+            m_IsPlaying = value;
+            isPlayingChanged();
+        }
 
-		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-		{
-			switch (propertyKey)
-			{
-				case speedPropertyKey:
-					m_Speed = CoreDoubleType::deserialize(reader);
-					return true;
-				case isPlayingPropertyKey:
-					m_IsPlaying = CoreBoolType::deserialize(reader);
-					return true;
-			}
-			return NestedLinearAnimation::deserialize(propertyKey, reader);
-		}
+        Core* clone() const override;
+        void copy(const NestedSimpleAnimationBase& object)
+        {
+            m_Speed = object.m_Speed;
+            m_IsPlaying = object.m_IsPlaying;
+            NestedLinearAnimation::copy(object);
+        }
 
-	protected:
-		virtual void speedChanged() {}
-		virtual void isPlayingChanged() {}
-	};
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+        {
+            switch (propertyKey)
+            {
+                case speedPropertyKey:
+                    m_Speed = CoreDoubleType::deserialize(reader);
+                    return true;
+                case isPlayingPropertyKey:
+                    m_IsPlaying = CoreBoolType::deserialize(reader);
+                    return true;
+            }
+            return NestedLinearAnimation::deserialize(propertyKey, reader);
+        }
+
+    protected:
+        virtual void speedChanged() {}
+        virtual void isPlayingChanged() {}
+    };
 } // namespace rive
 
 #endif

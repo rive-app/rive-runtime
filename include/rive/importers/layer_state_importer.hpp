@@ -5,20 +5,20 @@
 
 namespace rive
 {
-	class LayerState;
-	class StateTransition;
-	class BlendAnimation;
+    class LayerState;
+    class StateTransition;
+    class BlendAnimation;
 
-	class LayerStateImporter : public ImportStackObject
-	{
-	private:
-		LayerState* m_State;
+    class LayerStateImporter : public ImportStackObject
+    {
+    private:
+        LayerState* m_State;
 
-	public:
-		LayerStateImporter(LayerState* state);
-		void addTransition(StateTransition* transition);
-		bool addBlendAnimation(BlendAnimation* animation);
-		StatusCode resolve() override;
-	};
+    public:
+        LayerStateImporter(LayerState* state);
+        void addTransition(StateTransition* transition);
+        bool addBlendAnimation(BlendAnimation* animation);
+        StatusCode resolve() override;
+    };
 } // namespace rive
 #endif

@@ -5,17 +5,17 @@
 
 namespace rive
 {
-	class Core;
-	class KeyedObject;
-	class KeyedProperty;
-	class KeyedObjectImporter : public ImportStackObject
-	{
-	private:
-		KeyedObject* m_KeyedObject;
+    class Core;
+    class KeyedObject;
+    class KeyedProperty;
+    class KeyedObjectImporter : public ImportStackObject
+    {
+    private:
+        KeyedObject* m_KeyedObject;
 
-	public:
-		KeyedObjectImporter(KeyedObject* keyedObject);
-		void addKeyedProperty(KeyedProperty* property);
-	};
+    public:
+        KeyedObjectImporter(KeyedObject* keyedObject);
+        void addKeyedProperty(KeyedProperty* property);
+    };
 } // namespace rive
 #endif

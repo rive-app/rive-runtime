@@ -4,12 +4,12 @@
 #include <stdio.h>
 namespace rive
 {
-	class BlendAnimation1D : public BlendAnimation1DBase
-	{
-	public:
-		StatusCode onAddedDirty(CoreContext* context) override;
-		StatusCode onAddedClean(CoreContext* context) override;
-	};
+    class BlendAnimation1D : public BlendAnimation1DBase
+    {
+    public:
+        StatusCode onAddedDirty(CoreContext* context) override;
+        StatusCode onAddedClean(CoreContext* context) override;
+    };
 } // namespace rive
 
 #endif

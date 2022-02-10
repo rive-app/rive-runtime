@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* RootBoneBase::clone() const
 {
-	auto cloned = new RootBone();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new RootBone();
+    cloned->copy(*this);
+    return cloned;
 }

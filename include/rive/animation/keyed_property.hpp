@@ -4,21 +4,22 @@
 #include <vector>
 namespace rive
 {
-	class KeyFrame;
-	class KeyedProperty : public KeyedPropertyBase
-	{
-	private:
-		std::vector<KeyFrame*> m_KeyFrames;
-	public:
-		~KeyedProperty();
-		void addKeyFrame(KeyFrame* keyframe);
-		StatusCode onAddedClean(CoreContext* context) override;
-		StatusCode onAddedDirty(CoreContext* context) override;
+    class KeyFrame;
+    class KeyedProperty : public KeyedPropertyBase
+    {
+    private:
+        std::vector<KeyFrame*> m_KeyFrames;
 
-		void apply(Core* object, float time, float mix);
-		
-		StatusCode import(ImportStack& importStack) override;
-	};
+    public:
+        ~KeyedProperty();
+        void addKeyFrame(KeyFrame* keyframe);
+        StatusCode onAddedClean(CoreContext* context) override;
+        StatusCode onAddedDirty(CoreContext* context) override;
+
+        void apply(Core* object, float time, float mix);
+
+        StatusCode import(ImportStack& importStack) override;
+    };
 } // namespace rive
 
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 void KeyFrameId::apply(Core* object, int propertyKey, float mix)
 {
-	CoreRegistry::setUint(object, propertyKey, value());
+    CoreRegistry::setUint(object, propertyKey, value());
 }
 
 void KeyFrameId::applyInterpolation(Core* object,
@@ -14,5 +14,5 @@ void KeyFrameId::applyInterpolation(Core* object,
                                     const KeyFrame* nextFrame,
                                     float mix)
 {
-	CoreRegistry::setUint(object, propertyKey, value());
+    CoreRegistry::setUint(object, propertyKey, value());
 }

@@ -5,23 +5,23 @@ using namespace rive;
 
 void NestedRemapAnimation::timeChanged()
 {
-	if (m_AnimationInstance != nullptr)
-	{
-		m_AnimationInstance->time(m_AnimationInstance->durationSeconds() *
-		                          time());
-	}
+    if (m_AnimationInstance != nullptr)
+    {
+        m_AnimationInstance->time(m_AnimationInstance->durationSeconds() *
+                                  time());
+    }
 }
 
 void NestedRemapAnimation::initializeAnimation(Artboard* artboard)
 {
-	Super::initializeAnimation(artboard);
-	timeChanged();
+    Super::initializeAnimation(artboard);
+    timeChanged();
 }
 
 void NestedRemapAnimation::advance(float elapsedSeconds, Artboard* artboard)
 {
-	if (m_AnimationInstance != nullptr)
-	{
-		m_AnimationInstance->apply(artboard, mix());
-	}
+    if (m_AnimationInstance != nullptr)
+    {
+        m_AnimationInstance->apply(artboard, mix());
+    }
 }

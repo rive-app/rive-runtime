@@ -5,91 +5,92 @@
 #include "rive/shapes/parametric_path.hpp"
 namespace rive
 {
-	class PolygonBase : public ParametricPath
-	{
-	protected:
-		typedef ParametricPath Super;
+    class PolygonBase : public ParametricPath
+    {
+    protected:
+        typedef ParametricPath Super;
 
-	public:
-		static const uint16_t typeKey = 51;
+    public:
+        static const uint16_t typeKey = 51;
 
-		/// Helper to quickly determine if a core object extends another without
-		/// RTTI at runtime.
-		bool isTypeOf(uint16_t typeKey) const override
-		{
-			switch (typeKey)
-			{
-				case PolygonBase::typeKey:
-				case ParametricPathBase::typeKey:
-				case PathBase::typeKey:
-				case NodeBase::typeKey:
-				case TransformComponentBase::typeKey:
-				case WorldTransformComponentBase::typeKey:
-				case ContainerComponentBase::typeKey:
-				case ComponentBase::typeKey:
-					return true;
-				default:
-					return false;
-			}
-		}
+        /// Helper to quickly determine if a core object extends another without
+        /// RTTI at runtime.
+        bool isTypeOf(uint16_t typeKey) const override
+        {
+            switch (typeKey)
+            {
+                case PolygonBase::typeKey:
+                case ParametricPathBase::typeKey:
+                case PathBase::typeKey:
+                case NodeBase::typeKey:
+                case TransformComponentBase::typeKey:
+                case WorldTransformComponentBase::typeKey:
+                case ContainerComponentBase::typeKey:
+                case ComponentBase::typeKey:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
-		uint16_t coreType() const override { return typeKey; }
+        uint16_t coreType() const override { return typeKey; }
 
-		static const uint16_t pointsPropertyKey = 125;
-		static const uint16_t cornerRadiusPropertyKey = 126;
+        static const uint16_t pointsPropertyKey = 125;
+        static const uint16_t cornerRadiusPropertyKey = 126;
 
-	private:
-		int m_Points = 5;
-		float m_CornerRadius = 0.0f;
-	public:
-		inline int points() const { return m_Points; }
-		void points(int value)
-		{
-			if (m_Points == value)
-			{
-				return;
-			}
-			m_Points = value;
-			pointsChanged();
-		}
+    private:
+        int m_Points = 5;
+        float m_CornerRadius = 0.0f;
 
-		inline float cornerRadius() const { return m_CornerRadius; }
-		void cornerRadius(float value)
-		{
-			if (m_CornerRadius == value)
-			{
-				return;
-			}
-			m_CornerRadius = value;
-			cornerRadiusChanged();
-		}
+    public:
+        inline int points() const { return m_Points; }
+        void points(int value)
+        {
+            if (m_Points == value)
+            {
+                return;
+            }
+            m_Points = value;
+            pointsChanged();
+        }
 
-		Core* clone() const override;
-		void copy(const PolygonBase& object)
-		{
-			m_Points = object.m_Points;
-			m_CornerRadius = object.m_CornerRadius;
-			ParametricPath::copy(object);
-		}
+        inline float cornerRadius() const { return m_CornerRadius; }
+        void cornerRadius(float value)
+        {
+            if (m_CornerRadius == value)
+            {
+                return;
+            }
+            m_CornerRadius = value;
+            cornerRadiusChanged();
+        }
 
-		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-		{
-			switch (propertyKey)
-			{
-				case pointsPropertyKey:
-					m_Points = CoreUintType::deserialize(reader);
-					return true;
-				case cornerRadiusPropertyKey:
-					m_CornerRadius = CoreDoubleType::deserialize(reader);
-					return true;
-			}
-			return ParametricPath::deserialize(propertyKey, reader);
-		}
+        Core* clone() const override;
+        void copy(const PolygonBase& object)
+        {
+            m_Points = object.m_Points;
+            m_CornerRadius = object.m_CornerRadius;
+            ParametricPath::copy(object);
+        }
 
-	protected:
-		virtual void pointsChanged() {}
-		virtual void cornerRadiusChanged() {}
-	};
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+        {
+            switch (propertyKey)
+            {
+                case pointsPropertyKey:
+                    m_Points = CoreUintType::deserialize(reader);
+                    return true;
+                case cornerRadiusPropertyKey:
+                    m_CornerRadius = CoreDoubleType::deserialize(reader);
+                    return true;
+            }
+            return ParametricPath::deserialize(propertyKey, reader);
+        }
+
+    protected:
+        virtual void pointsChanged() {}
+        virtual void cornerRadiusChanged() {}
+    };
 } // namespace rive
 
 #endif

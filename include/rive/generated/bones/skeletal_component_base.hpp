@@ -3,35 +3,35 @@
 #include "rive/transform_component.hpp"
 namespace rive
 {
-	class SkeletalComponentBase : public TransformComponent
-	{
-	protected:
-		typedef TransformComponent Super;
+    class SkeletalComponentBase : public TransformComponent
+    {
+    protected:
+        typedef TransformComponent Super;
 
-	public:
-		static const uint16_t typeKey = 39;
+    public:
+        static const uint16_t typeKey = 39;
 
-		/// Helper to quickly determine if a core object extends another without
-		/// RTTI at runtime.
-		bool isTypeOf(uint16_t typeKey) const override
-		{
-			switch (typeKey)
-			{
-				case SkeletalComponentBase::typeKey:
-				case TransformComponentBase::typeKey:
-				case WorldTransformComponentBase::typeKey:
-				case ContainerComponentBase::typeKey:
-				case ComponentBase::typeKey:
-					return true;
-				default:
-					return false;
-			}
-		}
+        /// Helper to quickly determine if a core object extends another without
+        /// RTTI at runtime.
+        bool isTypeOf(uint16_t typeKey) const override
+        {
+            switch (typeKey)
+            {
+                case SkeletalComponentBase::typeKey:
+                case TransformComponentBase::typeKey:
+                case WorldTransformComponentBase::typeKey:
+                case ContainerComponentBase::typeKey:
+                case ComponentBase::typeKey:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
-		uint16_t coreType() const override { return typeKey; }
+        uint16_t coreType() const override { return typeKey; }
 
-	protected:
-	};
+    protected:
+    };
 } // namespace rive
 
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* EllipseBase::clone() const
 {
-	auto cloned = new Ellipse();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new Ellipse();
+    cloned->copy(*this);
+    return cloned;
 }

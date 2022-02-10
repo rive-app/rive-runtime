@@ -4,13 +4,13 @@
 
 namespace rive
 {
-	class BlendState1D : public BlendState1DBase
-	{
-	public:
-		StatusCode import(ImportStack& importStack) override;
+    class BlendState1D : public BlendState1DBase
+    {
+    public:
+        StatusCode import(ImportStack& importStack) override;
 
-		StateInstance* makeInstance() const override;
-	};
+        StateInstance* makeInstance() const override;
+    };
 } // namespace rive
 
 #endif

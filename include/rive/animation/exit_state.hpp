@@ -4,10 +4,10 @@
 #include <stdio.h>
 namespace rive
 {
-	class ExitState : public ExitStateBase
-	{
-	public:
-	};
+    class ExitState : public ExitStateBase
+    {
+    public:
+    };
 } // namespace rive
 
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* StraightVertexBase::clone() const
 {
-	auto cloned = new StraightVertex();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new StraightVertex();
+    cloned->copy(*this);
+    return cloned;
 }

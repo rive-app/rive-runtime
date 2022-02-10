@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* EntryStateBase::clone() const
 {
-	auto cloned = new EntryState();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new EntryState();
+    cloned->copy(*this);
+    return cloned;
 }

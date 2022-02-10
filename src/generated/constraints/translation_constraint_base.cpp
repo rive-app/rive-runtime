@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TranslationConstraintBase::clone() const
 {
-	auto cloned = new TranslationConstraint();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new TranslationConstraint();
+    cloned->copy(*this);
+    return cloned;
 }

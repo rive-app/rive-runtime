@@ -9,10 +9,10 @@ using namespace rive;
 
 StateInstance* AnimationState::makeInstance() const
 {
-	if (animation() == nullptr)
-	{
-		// Failed to load at runtime/some new type we don't understand.
-		return new SystemStateInstance(this);
-	}
-	return new AnimationStateInstance(this);
+    if (animation() == nullptr)
+    {
+        // Failed to load at runtime/some new type we don't understand.
+        return new SystemStateInstance(this);
+    }
+    return new AnimationStateInstance(this);
 }

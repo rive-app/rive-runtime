@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DrawRulesBase::clone() const
 {
-	auto cloned = new DrawRules();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new DrawRules();
+    cloned->copy(*this);
+    return cloned;
 }

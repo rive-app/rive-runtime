@@ -4,9 +4,9 @@
 #include <stdio.h>
 namespace rive
 {
-	class StateMachineTrigger : public StateMachineTriggerBase
-	{
-	};
+    class StateMachineTrigger : public StateMachineTriggerBase
+    {
+    };
 } // namespace rive
 
 #endif

@@ -5,18 +5,18 @@
 
 namespace rive
 {
-	class StateTransition;
-	class TransitionCondition;
+    class StateTransition;
+    class TransitionCondition;
 
-	class StateTransitionImporter : public ImportStackObject
-	{
-	private:
-		StateTransition* m_Transition;
+    class StateTransitionImporter : public ImportStackObject
+    {
+    private:
+        StateTransition* m_Transition;
 
-	public:
-		StateTransitionImporter(StateTransition* transition);
-		void addCondition(TransitionCondition* condition);
-		StatusCode resolve() override;
-	};
+    public:
+        StateTransitionImporter(StateTransition* transition);
+        void addCondition(TransitionCondition* condition);
+        StatusCode resolve() override;
+    };
 } // namespace rive
 #endif

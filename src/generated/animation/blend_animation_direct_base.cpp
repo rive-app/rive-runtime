@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* BlendAnimationDirectBase::clone() const
 {
-	auto cloned = new BlendAnimationDirect();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new BlendAnimationDirect();
+    cloned->copy(*this);
+    return cloned;
 }

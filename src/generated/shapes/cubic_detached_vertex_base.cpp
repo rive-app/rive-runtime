@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* CubicDetachedVertexBase::clone() const
 {
-	auto cloned = new CubicDetachedVertex();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new CubicDetachedVertex();
+    cloned->copy(*this);
+    return cloned;
 }

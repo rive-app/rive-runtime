@@ -13,47 +13,47 @@ StateMachineLayerImporter::StateMachineLayerImporter(StateMachineLayer* layer,
 }
 void StateMachineLayerImporter::addState(LayerState* state)
 {
-	m_Layer->addState(state);
+    m_Layer->addState(state);
 }
 
 StatusCode StateMachineLayerImporter::resolve()
 {
 
-	for (auto state : m_Layer->m_States)
-	{
-		if (state->is<AnimationState>())
-		{
-			auto animationState = state->as<AnimationState>();
+    for (auto state : m_Layer->m_States)
+    {
+        if (state->is<AnimationState>())
+        {
+            auto animationState = state->as<AnimationState>();
 
-			if (animationState->animationId() != -1)
-			{
-				animationState->m_Animation =
-				    m_Artboard->animation(animationState->animationId());
-				if (animationState->m_Animation == nullptr)
-				{
-					return StatusCode::MissingObject;
-				}
-			}
-		}
-		for (auto transition : state->m_Transitions)
-		{
-			if (transition->stateToId() < 0 ||
-			    transition->stateToId() > m_Layer->m_States.size())
-			{
-				return StatusCode::InvalidObject;
-			}
-			transition->m_StateTo = m_Layer->m_States[transition->stateToId()];
-		}
-	}
-	return StatusCode::Ok;
+            if (animationState->animationId() != -1)
+            {
+                animationState->m_Animation =
+                    m_Artboard->animation(animationState->animationId());
+                if (animationState->m_Animation == nullptr)
+                {
+                    return StatusCode::MissingObject;
+                }
+            }
+        }
+        for (auto transition : state->m_Transitions)
+        {
+            if (transition->stateToId() < 0 ||
+                transition->stateToId() > m_Layer->m_States.size())
+            {
+                return StatusCode::InvalidObject;
+            }
+            transition->m_StateTo = m_Layer->m_States[transition->stateToId()];
+        }
+    }
+    return StatusCode::Ok;
 }
 
 bool StateMachineLayerImporter::readNullObject()
 {
-	// Add an 'empty' generic state that can be transitioned to/from but doesn't
-	// effectively do anything. This allows us to deal with unexpected new state
-	// types the runtime won't be able to understand. It'll still be able to
-	// make use of the state but it won't do anything visually.
-	addState(new LayerState());
-	return true;
+    // Add an 'empty' generic state that can be transitioned to/from but doesn't
+    // effectively do anything. This allows us to deal with unexpected new state
+    // types the runtime won't be able to understand. It'll still be able to
+    // make use of the state but it won't do anything visually.
+    addState(new LayerState());
+    return true;
 }

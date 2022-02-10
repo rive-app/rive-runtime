@@ -6,21 +6,21 @@ using namespace rive;
 
 static void applyColor(Core* object, int propertyKey, float mix, int value)
 {
-	if (mix == 1.0f)
-	{
-		CoreRegistry::setColor(object, propertyKey, value);
-	}
-	else
-	{
-		auto mixedColor =
-		    colorLerp(CoreRegistry::getColor(object, propertyKey), value, mix);
-		CoreRegistry::setColor(object, propertyKey, mixedColor);
-	}
+    if (mix == 1.0f)
+    {
+        CoreRegistry::setColor(object, propertyKey, value);
+    }
+    else
+    {
+        auto mixedColor =
+            colorLerp(CoreRegistry::getColor(object, propertyKey), value, mix);
+        CoreRegistry::setColor(object, propertyKey, mixedColor);
+    }
 }
 
 void KeyFrameColor::apply(Core* object, int propertyKey, float mix)
 {
-	applyColor(object, propertyKey, mix, value());
+    applyColor(object, propertyKey, mix, value());
 }
 
 void KeyFrameColor::applyInterpolation(Core* object,
@@ -29,15 +29,15 @@ void KeyFrameColor::applyInterpolation(Core* object,
                                        const KeyFrame* nextFrame,
                                        float mix)
 {
-	auto kfc = nextFrame->as<KeyFrameColor>();
-	const KeyFrameColor& nextColor = *kfc;
-	float f = (currentTime - seconds()) / (nextColor.seconds() - seconds());
+    auto kfc = nextFrame->as<KeyFrameColor>();
+    const KeyFrameColor& nextColor = *kfc;
+    float f = (currentTime - seconds()) / (nextColor.seconds() - seconds());
 
-	if (CubicInterpolator* cubic = interpolator())
-	{
-		f = cubic->transform(f);
-	}
+    if (CubicInterpolator* cubic = interpolator())
+    {
+        f = cubic->transform(f);
+    }
 
-	applyColor(
-	    object, propertyKey, mix, colorLerp(value(), nextColor.value(), f));
+    applyColor(
+        object, propertyKey, mix, colorLerp(value(), nextColor.value(), f));
 }

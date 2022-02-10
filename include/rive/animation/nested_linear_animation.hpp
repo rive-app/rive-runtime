@@ -4,17 +4,17 @@
 #include <stdio.h>
 namespace rive
 {
-	class LinearAnimationInstance;
-	class NestedLinearAnimation : public NestedLinearAnimationBase
-	{
-	protected:
-		LinearAnimationInstance* m_AnimationInstance = nullptr;
+    class LinearAnimationInstance;
+    class NestedLinearAnimation : public NestedLinearAnimationBase
+    {
+    protected:
+        LinearAnimationInstance* m_AnimationInstance = nullptr;
 
-	public:
-		~NestedLinearAnimation();
+    public:
+        ~NestedLinearAnimation();
 
-		void initializeAnimation(Artboard* artboard) override;
-	};
+        void initializeAnimation(Artboard* artboard) override;
+    };
 } // namespace rive
 
 #endif

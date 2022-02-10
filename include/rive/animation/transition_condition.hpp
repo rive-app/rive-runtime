@@ -4,28 +4,28 @@
 
 namespace rive
 {
-	class StateMachineInput;
-	class SMIInput;
+    class StateMachineInput;
+    class SMIInput;
 
-	class TransitionCondition : public TransitionConditionBase
-	{
-	public:
-		StatusCode onAddedDirty(CoreContext* context) override;
-		StatusCode onAddedClean(CoreContext* context) override;
+    class TransitionCondition : public TransitionConditionBase
+    {
+    public:
+        StatusCode onAddedDirty(CoreContext* context) override;
+        StatusCode onAddedClean(CoreContext* context) override;
 
-		StatusCode import(ImportStack& importStack) override;
+        StatusCode import(ImportStack& importStack) override;
 
-		virtual bool evaluate(const SMIInput* inputInstance) const
-		{
-			return true;
-		}
+        virtual bool evaluate(const SMIInput* inputInstance) const
+        {
+            return true;
+        }
 
-	protected:
-		virtual bool validateInputType(const StateMachineInput* input) const
-		{
-			return true;
-		}
-	};
+    protected:
+        virtual bool validateInputType(const StateMachineInput* input) const
+        {
+            return true;
+        }
+    };
 } // namespace rive
 
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScaleConstraintBase::clone() const
 {
-	auto cloned = new ScaleConstraint();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new ScaleConstraint();
+    cloned->copy(*this);
+    return cloned;
 }

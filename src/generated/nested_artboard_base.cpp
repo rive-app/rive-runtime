@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NestedArtboardBase::clone() const
 {
-	auto cloned = new NestedArtboard();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new NestedArtboard();
+    cloned->copy(*this);
+    return cloned;
 }

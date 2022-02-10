@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* RectangleBase::clone() const
 {
-	auto cloned = new Rectangle();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new Rectangle();
+    cloned->copy(*this);
+    return cloned;
 }

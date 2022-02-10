@@ -4,65 +4,66 @@
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
-	class KeyedPropertyBase : public Core
-	{
-	protected:
-		typedef Core Super;
+    class KeyedPropertyBase : public Core
+    {
+    protected:
+        typedef Core Super;
 
-	public:
-		static const uint16_t typeKey = 26;
+    public:
+        static const uint16_t typeKey = 26;
 
-		/// Helper to quickly determine if a core object extends another without
-		/// RTTI at runtime.
-		bool isTypeOf(uint16_t typeKey) const override
-		{
-			switch (typeKey)
-			{
-				case KeyedPropertyBase::typeKey:
-					return true;
-				default:
-					return false;
-			}
-		}
+        /// Helper to quickly determine if a core object extends another without
+        /// RTTI at runtime.
+        bool isTypeOf(uint16_t typeKey) const override
+        {
+            switch (typeKey)
+            {
+                case KeyedPropertyBase::typeKey:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
-		uint16_t coreType() const override { return typeKey; }
+        uint16_t coreType() const override { return typeKey; }
 
-		static const uint16_t propertyKeyPropertyKey = 53;
+        static const uint16_t propertyKeyPropertyKey = 53;
 
-	private:
-		int m_PropertyKey = Core::invalidPropertyKey;
-	public:
-		inline int propertyKey() const { return m_PropertyKey; }
-		void propertyKey(int value)
-		{
-			if (m_PropertyKey == value)
-			{
-				return;
-			}
-			m_PropertyKey = value;
-			propertyKeyChanged();
-		}
+    private:
+        int m_PropertyKey = Core::invalidPropertyKey;
 
-		Core* clone() const override;
-		void copy(const KeyedPropertyBase& object)
-		{
-			m_PropertyKey = object.m_PropertyKey;
-		}
+    public:
+        inline int propertyKey() const { return m_PropertyKey; }
+        void propertyKey(int value)
+        {
+            if (m_PropertyKey == value)
+            {
+                return;
+            }
+            m_PropertyKey = value;
+            propertyKeyChanged();
+        }
 
-		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-		{
-			switch (propertyKey)
-			{
-				case propertyKeyPropertyKey:
-					m_PropertyKey = CoreUintType::deserialize(reader);
-					return true;
-			}
-			return false;
-		}
+        Core* clone() const override;
+        void copy(const KeyedPropertyBase& object)
+        {
+            m_PropertyKey = object.m_PropertyKey;
+        }
 
-	protected:
-		virtual void propertyKeyChanged() {}
-	};
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+        {
+            switch (propertyKey)
+            {
+                case propertyKeyPropertyKey:
+                    m_PropertyKey = CoreUintType::deserialize(reader);
+                    return true;
+            }
+            return false;
+        }
+
+    protected:
+        virtual void propertyKeyChanged() {}
+    };
 } // namespace rive
 
 #endif

@@ -6,30 +6,30 @@
 
 namespace rive
 {
-	class ShapePaint;
-	class Component;
+    class ShapePaint;
+    class Component;
 
-	class CommandPath;
+    class CommandPath;
 
-	class ShapePaintContainer
-	{
-		friend class ShapePaint;
+    class ShapePaintContainer
+    {
+        friend class ShapePaint;
 
-	protected:
-		PathSpace m_DefaultPathSpace = PathSpace::Neither;
-		std::vector<ShapePaint*> m_ShapePaints;
-		void addPaint(ShapePaint* paint);
+    protected:
+        PathSpace m_DefaultPathSpace = PathSpace::Neither;
+        std::vector<ShapePaint*> m_ShapePaints;
+        void addPaint(ShapePaint* paint);
 
-		// TODO: void draw(Renderer* renderer, PathComposer& composer);
-	public:
-		static ShapePaintContainer* from(Component* component);
+        // TODO: void draw(Renderer* renderer, PathComposer& composer);
+    public:
+        static ShapePaintContainer* from(Component* component);
 
-		PathSpace pathSpace() const;
+        PathSpace pathSpace() const;
 
-		void invalidateStrokeEffects();
+        void invalidateStrokeEffects();
 
-		CommandPath* makeCommandPath(PathSpace space);
-	};
+        CommandPath* makeCommandPath(PathSpace space);
+    };
 } // namespace rive
 
 #endif

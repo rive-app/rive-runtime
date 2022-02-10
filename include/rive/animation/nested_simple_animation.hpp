@@ -4,11 +4,11 @@
 #include <stdio.h>
 namespace rive
 {
-	class NestedSimpleAnimation : public NestedSimpleAnimationBase
-	{
-	public:
-		void advance(float elapsedSeconds, Artboard* artboard) override;
-	};
+    class NestedSimpleAnimation : public NestedSimpleAnimationBase
+    {
+    public:
+        void advance(float elapsedSeconds, Artboard* artboard) override;
+    };
 } // namespace rive
 
 #endif

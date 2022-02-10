@@ -4,27 +4,27 @@
 #include <stdio.h>
 namespace rive
 {
-	class NestedAnimation;
-	class NestedArtboard : public NestedArtboardBase
-	{
+    class NestedAnimation;
+    class NestedArtboard : public NestedArtboardBase
+    {
 
-	private:
-		Artboard* m_NestedInstance = nullptr;
-		std::vector<NestedAnimation*> m_NestedAnimations;
+    private:
+        Artboard* m_NestedInstance = nullptr;
+        std::vector<NestedAnimation*> m_NestedAnimations;
 
-	public:
-		~NestedArtboard();
-		StatusCode onAddedClean(CoreContext* context) override;
-		void draw(Renderer* renderer) override;
-		void addNestedAnimation(NestedAnimation* nestedAnimation);
+    public:
+        ~NestedArtboard();
+        StatusCode onAddedClean(CoreContext* context) override;
+        void draw(Renderer* renderer) override;
+        void addNestedAnimation(NestedAnimation* nestedAnimation);
 
-		void nest(Artboard* artboard);
+        void nest(Artboard* artboard);
 
-		StatusCode import(ImportStack& importStack) override;
-		Core* clone() const override;
-		bool advance(float elapsedSeconds);
-		void update(ComponentDirt value) override;
-	};
+        StatusCode import(ImportStack& importStack) override;
+        Core* clone() const override;
+        bool advance(float elapsedSeconds);
+        void update(ComponentDirt value) override;
+    };
 } // namespace rive
 
 #endif

@@ -10,7 +10,7 @@ StateTransitionImporter::StateTransitionImporter(StateTransition* transition) :
 }
 void StateTransitionImporter::addCondition(TransitionCondition* condition)
 {
-	m_Transition->addCondition(condition);
+    m_Transition->addCondition(condition);
 }
 
 StatusCode StateTransitionImporter::resolve() { return StatusCode::Ok; }

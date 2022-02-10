@@ -4,69 +4,70 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 namespace rive
 {
-	class FillBase : public ShapePaint
-	{
-	protected:
-		typedef ShapePaint Super;
+    class FillBase : public ShapePaint
+    {
+    protected:
+        typedef ShapePaint Super;
 
-	public:
-		static const uint16_t typeKey = 20;
+    public:
+        static const uint16_t typeKey = 20;
 
-		/// Helper to quickly determine if a core object extends another without
-		/// RTTI at runtime.
-		bool isTypeOf(uint16_t typeKey) const override
-		{
-			switch (typeKey)
-			{
-				case FillBase::typeKey:
-				case ShapePaintBase::typeKey:
-				case ContainerComponentBase::typeKey:
-				case ComponentBase::typeKey:
-					return true;
-				default:
-					return false;
-			}
-		}
+        /// Helper to quickly determine if a core object extends another without
+        /// RTTI at runtime.
+        bool isTypeOf(uint16_t typeKey) const override
+        {
+            switch (typeKey)
+            {
+                case FillBase::typeKey:
+                case ShapePaintBase::typeKey:
+                case ContainerComponentBase::typeKey:
+                case ComponentBase::typeKey:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
-		uint16_t coreType() const override { return typeKey; }
+        uint16_t coreType() const override { return typeKey; }
 
-		static const uint16_t fillRulePropertyKey = 40;
+        static const uint16_t fillRulePropertyKey = 40;
 
-	private:
-		int m_FillRule = 0;
-	public:
-		inline int fillRule() const { return m_FillRule; }
-		void fillRule(int value)
-		{
-			if (m_FillRule == value)
-			{
-				return;
-			}
-			m_FillRule = value;
-			fillRuleChanged();
-		}
+    private:
+        int m_FillRule = 0;
 
-		Core* clone() const override;
-		void copy(const FillBase& object)
-		{
-			m_FillRule = object.m_FillRule;
-			ShapePaint::copy(object);
-		}
+    public:
+        inline int fillRule() const { return m_FillRule; }
+        void fillRule(int value)
+        {
+            if (m_FillRule == value)
+            {
+                return;
+            }
+            m_FillRule = value;
+            fillRuleChanged();
+        }
 
-		bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-		{
-			switch (propertyKey)
-			{
-				case fillRulePropertyKey:
-					m_FillRule = CoreUintType::deserialize(reader);
-					return true;
-			}
-			return ShapePaint::deserialize(propertyKey, reader);
-		}
+        Core* clone() const override;
+        void copy(const FillBase& object)
+        {
+            m_FillRule = object.m_FillRule;
+            ShapePaint::copy(object);
+        }
 
-	protected:
-		virtual void fillRuleChanged() {}
-	};
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+        {
+            switch (propertyKey)
+            {
+                case fillRulePropertyKey:
+                    m_FillRule = CoreUintType::deserialize(reader);
+                    return true;
+            }
+            return ShapePaint::deserialize(propertyKey, reader);
+        }
+
+    protected:
+        virtual void fillRuleChanged() {}
+    };
 } // namespace rive
 
 #endif

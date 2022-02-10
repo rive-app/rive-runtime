@@ -5,24 +5,24 @@
 
 namespace rive
 {
-	class Core;
-	class Artboard;
-	class LinearAnimation;
-	class StateMachine;
-	class ArtboardImporter : public ImportStackObject
-	{
-	private:
-		Artboard* m_Artboard;
+    class Core;
+    class Artboard;
+    class LinearAnimation;
+    class StateMachine;
+    class ArtboardImporter : public ImportStackObject
+    {
+    private:
+        Artboard* m_Artboard;
 
-	public:
-		ArtboardImporter(Artboard* artboard);
-		void addComponent(Core* object);
-		void addAnimation(LinearAnimation* animation);
-		void addStateMachine(StateMachine* stateMachine);
-		StatusCode resolve() override;
-		const Artboard* artboard() const { return m_Artboard; }
+    public:
+        ArtboardImporter(Artboard* artboard);
+        void addComponent(Core* object);
+        void addAnimation(LinearAnimation* animation);
+        void addStateMachine(StateMachine* stateMachine);
+        StatusCode resolve() override;
+        const Artboard* artboard() const { return m_Artboard; }
 
-		bool readNullObject() override;
-	};
+        bool readNullObject() override;
+    };
 } // namespace rive
 #endif

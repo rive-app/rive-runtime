@@ -4,10 +4,10 @@
 #include <stdio.h>
 namespace rive
 {
-	class SkeletalComponent : public SkeletalComponentBase
-	{
-	public:
-	};
+    class SkeletalComponent : public SkeletalComponentBase
+    {
+    public:
+    };
 } // namespace rive
 
 #endif

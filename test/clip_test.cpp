@@ -10,36 +10,36 @@
 
 TEST_CASE("clipping loads correctly", "[clipping]")
 {
-	FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
-	REQUIRE(fp != nullptr);
+    FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
+    REQUIRE(fp != nullptr);
 
-	fseek(fp, 0, SEEK_END);
-	auto length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	uint8_t* bytes = new uint8_t[length];
-	REQUIRE(fread(bytes, 1, length, fp) == length);
-	auto reader = rive::BinaryReader(bytes, length);
-	rive::File* file = nullptr;
-	auto result = rive::File::import(reader, &file);
+    fseek(fp, 0, SEEK_END);
+    auto length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    uint8_t* bytes = new uint8_t[length];
+    REQUIRE(fread(bytes, 1, length, fp) == length);
+    auto reader = rive::BinaryReader(bytes, length);
+    rive::File* file = nullptr;
+    auto result = rive::File::import(reader, &file);
 
-	REQUIRE(result == rive::ImportResult::success);
-	REQUIRE(file != nullptr);
-	REQUIRE(file->artboard() != nullptr);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
+    REQUIRE(file->artboard() != nullptr);
 
-	auto node = file->artboard()->find("TopEllipse");
-	REQUIRE(node != nullptr);
-	REQUIRE(node->is<rive::Shape>());
+    auto node = file->artboard()->find("TopEllipse");
+    REQUIRE(node != nullptr);
+    REQUIRE(node->is<rive::Shape>());
 
-	auto shape = node->as<rive::Shape>();
-	REQUIRE(shape->clippingShapes().size() == 2);
-	REQUIRE(shape->clippingShapes()[0]->source()->name() == "ClipRect2");
-	REQUIRE(shape->clippingShapes()[1]->source()->name() == "BabyEllipse");
+    auto shape = node->as<rive::Shape>();
+    REQUIRE(shape->clippingShapes().size() == 2);
+    REQUIRE(shape->clippingShapes()[0]->source()->name() == "ClipRect2");
+    REQUIRE(shape->clippingShapes()[1]->source()->name() == "BabyEllipse");
 
-	file->artboard()->updateComponents();
+    file->artboard()->updateComponents();
 
-	rive::NoOpRenderer renderer;
-	file->artboard()->draw(&renderer);
+    rive::NoOpRenderer renderer;
+    file->artboard()->draw(&renderer);
 
-	delete file;
-	delete[] bytes;
+    delete file;
+    delete[] bytes;
 }

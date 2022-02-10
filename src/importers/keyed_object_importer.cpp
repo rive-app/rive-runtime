@@ -12,5 +12,5 @@ KeyedObjectImporter::KeyedObjectImporter(KeyedObject* keyedObject) :
 
 void KeyedObjectImporter::addKeyedProperty(KeyedProperty* property)
 {
-	m_KeyedObject->addKeyedProperty(property);
+    m_KeyedObject->addKeyedProperty(property);
 }

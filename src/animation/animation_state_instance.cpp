@@ -12,12 +12,12 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state) :
 
 void AnimationStateInstance::advance(float seconds, SMIInput** inputs)
 {
-	m_KeepGoing = m_AnimationInstance.advance(seconds);
+    m_KeepGoing = m_AnimationInstance.advance(seconds);
 }
 
 void AnimationStateInstance::apply(Artboard* artboard, float mix)
 {
-	m_AnimationInstance.apply(artboard, mix);
+    m_AnimationInstance.apply(artboard, mix);
 }
 
 bool AnimationStateInstance::keepGoing() const { return m_KeepGoing; }

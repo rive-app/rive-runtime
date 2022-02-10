@@ -13,22 +13,22 @@ FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
 
 void FileAssetImporter::loadContents(const FileAssetContents& contents)
 {
-	const std::vector<uint8_t>& data = contents.bytes();
-	if (m_FileAsset->decode(&data[0], data.size()))
-	{
-		m_LoadedContents = true;
-	}
+    const std::vector<uint8_t>& data = contents.bytes();
+    if (m_FileAsset->decode(&data[0], data.size()))
+    {
+        m_LoadedContents = true;
+    }
 }
 
 StatusCode FileAssetImporter::resolve()
 {
-	if (!m_LoadedContents && m_FileAssetResolver != nullptr)
-	{
-		// Contents weren't available in-band, or they couldn't be decoded. Try
-		// to find them out of band.
-		m_FileAssetResolver->loadContents(*m_FileAsset);
-	}
+    if (!m_LoadedContents && m_FileAssetResolver != nullptr)
+    {
+        // Contents weren't available in-band, or they couldn't be decoded. Try
+        // to find them out of band.
+        m_FileAssetResolver->loadContents(*m_FileAsset);
+    }
 
-	// Note that it's ok for an asset to not resolve (or to resolve async).
-	return StatusCode::Ok;
+    // Note that it's ok for an asset to not resolve (or to resolve async).
+    return StatusCode::Ok;
 }

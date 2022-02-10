@@ -5,15 +5,15 @@
 
 namespace rive
 {
-	class FileAsset : public FileAssetBase
-	{
-	public:
-		virtual bool decode(const uint8_t* bytes, std::size_t size) = 0;
-		virtual std::string fileExtension() = 0;
-		StatusCode import(ImportStack& importStack) override;
+    class FileAsset : public FileAssetBase
+    {
+    public:
+        virtual bool decode(const uint8_t* bytes, std::size_t size) = 0;
+        virtual std::string fileExtension() = 0;
+        StatusCode import(ImportStack& importStack) override;
 
-		std::string uniqueFilename();
-	};
+        std::string uniqueFilename();
+    };
 } // namespace rive
 
 #endif

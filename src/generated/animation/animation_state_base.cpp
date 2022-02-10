@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* AnimationStateBase::clone() const
 {
-	auto cloned = new AnimationState();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new AnimationState();
+    cloned->copy(*this);
+    return cloned;
 }

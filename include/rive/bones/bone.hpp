@@ -6,32 +6,32 @@
 
 namespace rive
 {
-	class Constraint;
-	class Bone : public BoneBase
-	{
+    class Constraint;
+    class Bone : public BoneBase
+    {
 
-	private:
-		std::vector<Bone*> m_ChildBones;
-		std::vector<Constraint*> m_PeerConstraints;
+    private:
+        std::vector<Bone*> m_ChildBones;
+        std::vector<Constraint*> m_PeerConstraints;
 
-	public:
-		StatusCode onAddedClean(CoreContext* context) override;
-		float x() const override;
-		float y() const override;
+    public:
+        StatusCode onAddedClean(CoreContext* context) override;
+        float x() const override;
+        float y() const override;
 
-		inline const std::vector<Bone*> childBones() { return m_ChildBones; }
+        inline const std::vector<Bone*> childBones() { return m_ChildBones; }
 
-		void addChildBone(Bone* bone);
-		void tipWorldTranslation(Vec2D& result);
-		void addPeerConstraint(Constraint* peer);
-		const std::vector<Constraint*>& peerConstraints() const
-		{
-			return m_PeerConstraints;
-		}
+        void addChildBone(Bone* bone);
+        void tipWorldTranslation(Vec2D& result);
+        void addPeerConstraint(Constraint* peer);
+        const std::vector<Constraint*>& peerConstraints() const
+        {
+            return m_PeerConstraints;
+        }
 
-	private:
-		void lengthChanged() override;
-	};
+    private:
+        void lengthChanged() override;
+    };
 } // namespace rive
 
 #endif

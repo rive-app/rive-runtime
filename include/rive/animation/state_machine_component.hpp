@@ -4,10 +4,10 @@
 #include <stdio.h>
 namespace rive
 {
-	class StateMachineComponent : public StateMachineComponentBase
-	{
-	public:
-	};
+    class StateMachineComponent : public StateMachineComponentBase
+    {
+    public:
+    };
 } // namespace rive
 
 #endif

@@ -4,11 +4,11 @@
 #include <stdio.h>
 namespace rive
 {
-	class TranslationConstraint : public TranslationConstraintBase
-	{
-	public:
-		void constrain(TransformComponent* component) override;
-	};
+    class TranslationConstraint : public TranslationConstraintBase
+    {
+    public:
+        void constrain(TransformComponent* component) override;
+    };
 } // namespace rive
 
 #endif

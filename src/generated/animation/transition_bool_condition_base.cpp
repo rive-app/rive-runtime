@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionBoolConditionBase::clone() const
 {
-	auto cloned = new TransitionBoolCondition();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new TransitionBoolCondition();
+    cloned->copy(*this);
+    return cloned;
 }

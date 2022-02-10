@@ -8,5 +8,5 @@ using namespace rive;
 
 StateInstance* BlendStateDirect::makeInstance() const
 {
-	return new BlendStateDirectInstance(this);
+    return new BlendStateDirectInstance(this);
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FolderBase::clone() const
 {
-	auto cloned = new Folder();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new Folder();
+    cloned->copy(*this);
+    return cloned;
 }

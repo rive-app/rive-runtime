@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* KeyedObjectBase::clone() const
 {
-	auto cloned = new KeyedObject();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new KeyedObject();
+    cloned->copy(*this);
+    return cloned;
 }

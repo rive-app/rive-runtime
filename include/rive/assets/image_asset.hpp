@@ -6,23 +6,23 @@
 
 namespace rive
 {
-	class RenderImage;
-	class ImageAsset : public ImageAssetBase
-	{
-	private:
-		RenderImage* m_RenderImage;
+    class RenderImage;
+    class ImageAsset : public ImageAssetBase
+    {
+    private:
+        RenderImage* m_RenderImage;
 
-	public:
-		ImageAsset();
-		~ImageAsset();
+    public:
+        ImageAsset();
+        ~ImageAsset();
 
 #ifdef TESTING
-		std::size_t decodedByteSize = 0;
+        std::size_t decodedByteSize = 0;
 #endif
-		bool decode(const uint8_t* bytes, std::size_t size) override;
-		std::string fileExtension() override;
-		RenderImage* renderImage() const { return m_RenderImage; }
-	};
+        bool decode(const uint8_t* bytes, std::size_t size) override;
+        std::string fileExtension() override;
+        RenderImage* renderImage() const { return m_RenderImage; }
+    };
 } // namespace rive
 
 #endif

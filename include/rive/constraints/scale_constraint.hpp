@@ -5,15 +5,15 @@
 #include <stdio.h>
 namespace rive
 {
-	class ScaleConstraint : public ScaleConstraintBase
-	{
-	private:
-		TransformComponents m_ComponentsA;
-		TransformComponents m_ComponentsB;
+    class ScaleConstraint : public ScaleConstraintBase
+    {
+    private:
+        TransformComponents m_ComponentsA;
+        TransformComponents m_ComponentsB;
 
-	public:
-		void constrain(TransformComponent* component) override;
-	};
+    public:
+        void constrain(TransformComponent* component) override;
+    };
 } // namespace rive
 
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* CubicAsymmetricVertexBase::clone() const
 {
-	auto cloned = new CubicAsymmetricVertex();
-	cloned->copy(*this);
-	return cloned;
+    auto cloned = new CubicAsymmetricVertex();
+    cloned->copy(*this);
+    return cloned;
 }

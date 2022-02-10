@@ -4,10 +4,10 @@
 #include <stdio.h>
 namespace rive
 {
-	class AnyState : public AnyStateBase
-	{
-	public:
-	};
+    class AnyState : public AnyStateBase
+    {
+    public:
+    };
 } // namespace rive
 
 #endif
