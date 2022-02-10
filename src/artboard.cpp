@@ -487,9 +487,6 @@ void Artboard::draw(Renderer* renderer)
 AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }
 
 bool Artboard::isTranslucent() const {
-    // What does it mean to have a m_FrameOrigin? Does that mean we'll not draw inside
-    // our bounds()? If that's true, will that make the client think we're translucent?
-
     constexpr float effectlyOpaqueAlpha = 0.999f;   // will turn into 0xFF when drawn
     for (const auto sp : m_ShapePaints) {
         if (sp->renderOpacity() >= effectlyOpaqueAlpha) {
