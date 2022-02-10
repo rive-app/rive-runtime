@@ -128,6 +128,9 @@ void LinearGradient::endYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::opacityChanged() { markGradientDirty(); }
 
 bool LinearGradient::onIsTranslucent() const {
+    if (opacity() < 1) {
+        return true;
+    }
     for (const auto stop : m_Stops) {
         unsigned alpha = stop->colorValue() >> 24;  // helper for this?
         if (alpha != 0xFF) {

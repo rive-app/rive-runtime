@@ -491,7 +491,7 @@ bool Artboard::isTranslucent(const LinearAnimation* anim) const {
     // For now we're conservative/lazy -- if we see that any of our paints are animated
     // we assume that might make it non-opaque, so we early out
     for (const auto obj : anim->m_KeyedObjects) {
-        auto ptr = this->resolve(obj->objectId());
+        const auto ptr = this->resolve(obj->objectId());
         for (const auto sp : m_ShapePaints) {
             if (ptr == sp) {
                 return true;
