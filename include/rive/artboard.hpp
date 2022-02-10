@@ -74,6 +74,7 @@ namespace rive
         const std::vector<Core*>& objects() const { return m_Objects; }
 
         AABB bounds() const;
+        bool isTranslucent() const;
 
         template <typename T = Component> T* find(std::string name)
         {
