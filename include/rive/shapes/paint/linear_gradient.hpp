@@ -31,6 +31,7 @@ namespace rive
         void opacityChanged() override;
         void renderOpacityChanged() override;
         virtual void makeGradient(const Vec2D& start, const Vec2D& end);
+        bool onIsTranslucent() const override;
     };
 } // namespace rive
 

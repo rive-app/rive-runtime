@@ -40,6 +40,10 @@ namespace rive
         /// ShapePaint. It'll be one of SolidColor, LinearGradient, or
         /// RadialGradient.
         Component* paint() const { return m_PaintMutator->component(); }
+        
+        bool isTranslucent() const {
+            return m_PaintMutator->isTranslucent();
+        }
     };
 } // namespace rive
 

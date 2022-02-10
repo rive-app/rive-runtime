@@ -13,6 +13,7 @@ namespace rive
     private:
         std::vector<KeyedObject*> m_KeyedObjects;
 
+        friend class Artboard;
     public:
         ~LinearAnimation();
         StatusCode onAddedDirty(CoreContext* context) override;

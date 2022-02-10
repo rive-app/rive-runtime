@@ -12,6 +12,7 @@ namespace rive
     protected:
         void renderOpacityChanged() override;
         void colorValueChanged() override;
+        bool onIsTranslucent() const override;
     };
 } // namespace rive
 

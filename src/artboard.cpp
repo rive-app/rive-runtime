@@ -6,6 +6,7 @@
 #include "rive/draw_target.hpp"
 #include "rive/draw_target_placement.hpp"
 #include "rive/drawable.hpp"
+#include "rive/animation/keyed_object.hpp"
 #include "rive/node.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
@@ -486,11 +487,23 @@ void Artboard::draw(Renderer* renderer)
 
 AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }
 
-bool Artboard::isTranslucent() const {
-    constexpr float effectlyOpaqueAlpha = 0.999f;   // will turn into 0xFF when drawn
+bool Artboard::isTranslucent(const LinearAnimation* anim) const {
+    // For now we're conservative/lazy -- if we see that any of our paints are animated
+    // we assume that might make it non-opaque, so we early out
+    for (const auto obj : anim->m_KeyedObjects) {
+        auto ptr = this->resolve(obj->objectId());
+        for (const auto sp : m_ShapePaints) {
+            if (ptr == sp) {
+                return true;
+            }
+        }
+    }
+
+    // If we get here, we have no animations, so just check our paints for opacity
+
     for (const auto sp : m_ShapePaints) {
-        if (sp->renderOpacity() >= effectlyOpaqueAlpha) {
-            return false;   // one opaque background fill is all we need to be opaque
+        if (!sp->isTranslucent()) {
+            return false;   // one opaque fill is sufficient to be opaque
         }
     }
     return true;

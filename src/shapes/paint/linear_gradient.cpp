@@ -126,3 +126,13 @@ void LinearGradient::startYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endXChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::opacityChanged() { markGradientDirty(); }
+
+bool LinearGradient::onIsTranslucent() const {
+    for (const auto stop : m_Stops) {
+        unsigned alpha = stop->colorValue() >> 24;  // helper for this?
+        if (alpha != 0xFF) {
+            return true;
+        }
+    }
+    return false;   // all of our stops are opaque
+}

@@ -21,11 +21,17 @@ namespace rive
 
         RenderPaint* renderPaint() const { return m_RenderPaint; }
 
+        virtual bool onIsTranslucent() const = 0;
+
     public:
         float renderOpacity() const { return m_RenderOpacity; }
         void renderOpacity(float value);
 
         Component* component() const { return m_Component; }
+        
+        bool isTranslucent() const {
+            return m_RenderOpacity < 1 || this->onIsTranslucent();
+        }
     };
 } // namespace rive
 #endif
