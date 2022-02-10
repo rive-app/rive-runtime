@@ -487,12 +487,6 @@ void Artboard::draw(Renderer* renderer)
 AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }
 
 bool Artboard::isTranslucent() const {
-    if (clip()) {
-        // can we query to know if the path contains our bounds?
-        // if so, we could effectively ignore it (and not return true)
-        return true;
-    }
-
     // What does it mean to have a m_FrameOrigin? Does that mean we'll not draw inside
     // our bounds()? If that's true, will that make the client think we're translucent?
 
