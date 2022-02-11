@@ -32,7 +32,7 @@ void SolidColor::renderOpacityChanged()
 
 void SolidColor::colorValueChanged() { renderOpacityChanged(); }
 
-bool SolidColor::onIsTranslucent() const {
+bool SolidColor::internalIsTranslucent() const {
     unsigned alpha = colorValue() >> 24;
     return alpha != 0xFF;
 }

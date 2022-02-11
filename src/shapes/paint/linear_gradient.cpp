@@ -127,7 +127,7 @@ void LinearGradient::endXChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::opacityChanged() { markGradientDirty(); }
 
-bool LinearGradient::onIsTranslucent() const {
+bool LinearGradient::internalIsTranslucent() const {
     if (opacity() < 1) {
         return true;
     }
