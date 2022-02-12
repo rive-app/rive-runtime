@@ -132,8 +132,7 @@ bool LinearGradient::internalIsTranslucent() const {
         return true;
     }
     for (const auto stop : m_Stops) {
-        unsigned alpha = stop->colorValue() >> 24;  // helper for this?
-        if (alpha != 0xFF) {
+        if (colorAlpha(stop->colorValue()) != 0xFF) {
             return true;
         }
     }

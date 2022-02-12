@@ -1,6 +1,7 @@
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
 
+#include "rive/shapes/paint/color.hpp"
 #include "rive/command_path.hpp"
 #include "rive/layout.hpp"
 #include "rive/math/aabb.hpp"
@@ -26,7 +27,7 @@ namespace rive
     {
     public:
         virtual void style(RenderPaintStyle style) = 0;
-        virtual void color(unsigned int value) = 0;
+        virtual void color(ColorInt value) = 0;
         virtual void thickness(float value) = 0;
         virtual void join(StrokeJoin value) = 0;
         virtual void cap(StrokeCap value) = 0;
@@ -34,7 +35,7 @@ namespace rive
 
         virtual void linearGradient(float sx, float sy, float ex, float ey) = 0;
         virtual void radialGradient(float sx, float sy, float ex, float ey) = 0;
-        virtual void addStop(unsigned int color, float stop) = 0;
+        virtual void addStop(ColorInt color, float stop) = 0;
         virtual void completeGradient() = 0;
         virtual ~RenderPaint() {}
     };

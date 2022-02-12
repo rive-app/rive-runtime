@@ -10,43 +10,43 @@ namespace rive
                0xFFFFFFFF;
     }
 
-    unsigned int colorRed(unsigned int value)
+    unsigned int colorRed(ColorInt value)
     {
         return (0x00ff0000 & value) >> 16;
     }
 
-    unsigned int colorGreen(unsigned int value)
+    unsigned int colorGreen(ColorInt value)
     {
         return (0x0000ff00 & value) >> 8;
     }
 
-    unsigned int colorBlue(unsigned int value)
+    unsigned int colorBlue(ColorInt value)
     {
         return (0x000000ff & value) >> 0;
     }
 
-    unsigned int colorAlpha(unsigned int value)
+    unsigned int colorAlpha(ColorInt value)
     {
         return (0xff000000 & value) >> 24;
     }
 
-    float colorOpacity(unsigned int value)
+    float colorOpacity(ColorInt value)
     {
         return (float)colorAlpha(value) / 0xFF;
     }
 
-    unsigned int colorWithAlpha(unsigned int value, unsigned int a)
+    ColorInt colorWithAlpha(ColorInt value, unsigned int a)
     {
         return colorARGB(
             a, colorRed(value), colorGreen(value), colorBlue(value));
     }
 
-    unsigned int colorWithOpacity(unsigned int value, float opacity)
+    ColorInt colorWithOpacity(ColorInt value, float opacity)
     {
         return colorWithAlpha(value, std::round(255.0 * opacity));
     }
 
-    unsigned int colorModulateOpacity(unsigned int value, float opacity)
+    ColorInt colorModulateOpacity(ColorInt value, float opacity)
     {
         return colorWithAlpha(
             value, std::round(255.0f * colorOpacity(value) * opacity));
@@ -57,7 +57,7 @@ namespace rive
         return a * (1.0f - mix) + b * mix;
     }
 
-    unsigned int colorLerp(unsigned int from, unsigned int to, float mix)
+    ColorInt colorLerp(ColorInt from, ColorInt to, float mix)
     {
         return colorARGB(lerp(colorAlpha(from), colorAlpha(to), mix),
                          lerp(colorRed(from), colorRed(to), mix),
