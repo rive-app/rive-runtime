@@ -66,7 +66,13 @@ namespace rive
         void onDirty(ComponentDirt dirt) override;
 
         bool advance(double elapsedSeconds);
-        void draw(Renderer* renderer, bool drawBackground = true);
+        
+        enum class DrawOption {
+            kNormal,
+            kHideBG,
+            kHideFG,
+        };
+        void draw(Renderer* renderer, DrawOption = DrawOption::kNormal);
 
         CommandPath* clipPath() const { return m_ClipPath; }
         CommandPath* backgroundPath() const { return m_BackgroundPath; }

@@ -452,7 +452,7 @@ bool Artboard::advance(double elapsedSeconds)
     return updateComponents();
 }
 
-void Artboard::draw(Renderer* renderer, bool drawBackground)
+void Artboard::draw(Renderer* renderer, DrawOption option)
 {
     renderer->save();
     if (clip())
@@ -468,7 +468,7 @@ void Artboard::draw(Renderer* renderer, bool drawBackground)
         renderer->transform(artboardTransform);
     }
 
-    if (drawBackground)
+    if (option != DrawOption::kHideBG)
     {
         for (auto shapePaint : m_ShapePaints)
         {
@@ -476,14 +476,17 @@ void Artboard::draw(Renderer* renderer, bool drawBackground)
         }
     }
 
-    for (auto drawable = m_FirstDrawable; drawable != nullptr;
-         drawable = drawable->prev)
+    if (option != DrawOption::kHideFG)
     {
-        if (drawable->isHidden())
+        for (auto drawable = m_FirstDrawable; drawable != nullptr;
+             drawable = drawable->prev)
         {
-            continue;
+            if (drawable->isHidden())
+            {
+                continue;
+            }
+            drawable->draw(renderer);
         }
-        drawable->draw(renderer);
     }
 
     renderer->restore();
