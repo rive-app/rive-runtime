@@ -452,7 +452,7 @@ bool Artboard::advance(double elapsedSeconds)
     return updateComponents();
 }
 
-void Artboard::draw(Renderer* renderer)
+void Artboard::draw(Renderer* renderer, bool drawBackground)
 {
     renderer->save();
     if (clip())
@@ -467,9 +467,13 @@ void Artboard::draw(Renderer* renderer)
         artboardTransform[5] = height() * originY();
         renderer->transform(artboardTransform);
     }
-    for (auto shapePaint : m_ShapePaints)
+
+    if (drawBackground)
     {
-        shapePaint->draw(renderer, m_BackgroundPath);
+        for (auto shapePaint : m_ShapePaints)
+        {
+            shapePaint->draw(renderer, m_BackgroundPath);
+        }
     }
 
     for (auto drawable = m_FirstDrawable; drawable != nullptr;

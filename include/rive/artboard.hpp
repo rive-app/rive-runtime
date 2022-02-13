@@ -66,7 +66,7 @@ namespace rive
         void onDirty(ComponentDirt dirt) override;
 
         bool advance(double elapsedSeconds);
-        void draw(Renderer* renderer);
+        void draw(Renderer* renderer, bool drawBackground = true);
 
         CommandPath* clipPath() const { return m_ClipPath; }
         CommandPath* backgroundPath() const { return m_BackgroundPath; }
