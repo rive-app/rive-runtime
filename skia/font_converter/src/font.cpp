@@ -1,3 +1,4 @@
+#include <cassert>
 #include "font.h"
 #include "include/core/SkFont.h"
 

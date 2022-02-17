@@ -34,6 +34,7 @@ else
         "skia",
         "z",
         "dl",
+        "GL"
     }
 end 
 
