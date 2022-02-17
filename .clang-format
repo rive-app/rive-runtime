@@ -19,17 +19,16 @@ AlignAfterOpenBracket: Align
 BreakBeforeBraces: Custom
 SortIncludes: false
 BraceWrapping:
-  AfterEnum: true
-  AfterClass: true
-  AfterControlStatement: true
-  AfterNamespace: true
-  AfterFunction: true
-  AfterStruct: true
-  SplitEmptyFunction: true
+  AfterEnum: false
+  AfterClass: false
+  AfterControlStatement: MultiLine
+  AfterNamespace: false
+  AfterFunction: false
+  AfterStruct: false
+  SplitEmptyFunction: false
   AfterObjCDeclaration: true
-  AfterStruct: true
-  AfterUnion: true
-  AfterExternBlock: true
-  BeforeCatch: true
-  BeforeElse: true
-  AfterCaseLabel: true
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+  AfterCaseLabel: false
