@@ -38,7 +38,9 @@ namespace rive {
         /// RadialGradient.
         Component* paint() const { return m_PaintMutator->component(); }
 
-        bool isTranslucent() const { return m_PaintMutator->isTranslucent(); }
+        bool isTranslucent() const {
+            return !this->isVisible() || m_PaintMutator->isTranslucent();
+        }
     };
 } // namespace rive
 
