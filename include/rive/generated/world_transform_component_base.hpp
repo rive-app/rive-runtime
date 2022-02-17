@@ -2,10 +2,8 @@
 #define _RIVE_WORLD_TRANSFORM_COMPONENT_BASE_HPP_
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive
-{
-    class WorldTransformComponentBase : public ContainerComponent
-    {
+namespace rive {
+    class WorldTransformComponentBase : public ContainerComponent {
     protected:
         typedef ContainerComponent Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case WorldTransformComponentBase::typeKey:
                 case ContainerComponentBase::typeKey:
                 case ComponentBase::typeKey:
@@ -36,26 +32,21 @@ namespace rive
 
     public:
         inline float opacity() const { return m_Opacity; }
-        void opacity(float value)
-        {
-            if (m_Opacity == value)
-            {
+        void opacity(float value) {
+            if (m_Opacity == value) {
                 return;
             }
             m_Opacity = value;
             opacityChanged();
         }
 
-        void copy(const WorldTransformComponentBase& object)
-        {
+        void copy(const WorldTransformComponentBase& object) {
             m_Opacity = object.m_Opacity;
             ContainerComponent::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case opacityPropertyKey:
                     m_Opacity = CoreDoubleType::deserialize(reader);
                     return true;

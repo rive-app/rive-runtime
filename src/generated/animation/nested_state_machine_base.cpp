@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* NestedStateMachineBase::clone() const
-{
+Core* NestedStateMachineBase::clone() const {
     auto cloned = new NestedStateMachine();
     cloned->copy(*this);
     return cloned;

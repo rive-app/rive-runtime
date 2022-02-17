@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* FolderBase::clone() const
-{
+Core* FolderBase::clone() const {
     auto cloned = new Folder();
     cloned->copy(*this);
     return cloned;

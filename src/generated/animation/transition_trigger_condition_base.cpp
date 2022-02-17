@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* TransitionTriggerConditionBase::clone() const
-{
+Core* TransitionTriggerConditionBase::clone() const {
     auto cloned = new TransitionTriggerCondition();
     cloned->copy(*this);
     return cloned;

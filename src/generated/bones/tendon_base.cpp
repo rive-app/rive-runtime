@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* TendonBase::clone() const
-{
+Core* TendonBase::clone() const {
     auto cloned = new Tendon();
     cloned->copy(*this);
     return cloned;

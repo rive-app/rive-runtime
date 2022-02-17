@@ -3,13 +3,11 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive
-{
+namespace rive {
     class StateMachineInput;
     class StateMachineLayer;
     class StateMachine;
-    class StateMachineImporter : public ImportStackObject
-    {
+    class StateMachineImporter : public ImportStackObject {
     private:
         StateMachine* m_StateMachine;
 

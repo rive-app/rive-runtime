@@ -4,29 +4,25 @@
 
 using namespace rive;
 
-void CubicMirroredVertex::computeIn()
-{
+void CubicMirroredVertex::computeIn() {
     Vec2D::add(
         m_InPoint,
         Vec2D(x(), y()),
         Vec2D(cos(rotation()) * -distance(), sin(rotation()) * -distance()));
 }
 
-void CubicMirroredVertex::computeOut()
-{
+void CubicMirroredVertex::computeOut() {
     Vec2D::add(
         m_OutPoint,
         Vec2D(x(), y()),
         Vec2D(cos(rotation()) * distance(), sin(rotation()) * distance()));
 }
 
-void CubicMirroredVertex::rotationChanged()
-{
+void CubicMirroredVertex::rotationChanged() {
     m_InValid = m_OutValid = false;
     markPathDirty();
 }
-void CubicMirroredVertex::distanceChanged()
-{
+void CubicMirroredVertex::distanceChanged() {
     m_InValid = m_OutValid = false;
     markPathDirty();
 }

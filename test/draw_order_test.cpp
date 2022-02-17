@@ -8,8 +8,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("draw rules load and sort correctly", "[draw rules]")
-{
+TEST_CASE("draw rules load and sort correctly", "[draw rules]") {
     FILE* fp = fopen("../../test/assets/draw_rule_cycle.riv", "r");
     REQUIRE(fp != nullptr);
 

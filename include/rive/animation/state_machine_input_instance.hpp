@@ -4,8 +4,7 @@
 #include <string>
 #include <stdint.h>
 
-namespace rive
-{
+namespace rive {
     class StateMachineInstance;
     class StateMachineInput;
     class StateMachineBool;
@@ -14,8 +13,7 @@ namespace rive
     class TransitionTriggerCondition;
     class StateMachineLayerInstance;
 
-    class SMIInput
-    {
+    class SMIInput {
         friend class StateMachineInstance;
         friend class StateMachineLayerInstance;
 
@@ -39,8 +37,7 @@ namespace rive
         uint16_t inputCoreType() const;
     };
 
-    class SMIBool : public SMIInput
-    {
+    class SMIBool : public SMIInput {
         friend class StateMachineInstance;
 
     private:
@@ -54,8 +51,7 @@ namespace rive
         void value(bool newValue);
     };
 
-    class SMINumber : public SMIInput
-    {
+    class SMINumber : public SMIInput {
         friend class StateMachineInstance;
 
     private:
@@ -69,8 +65,7 @@ namespace rive
         void value(float newValue);
     };
 
-    class SMITrigger : public SMIInput
-    {
+    class SMITrigger : public SMIInput {
         friend class StateMachineInstance;
         friend class TransitionTriggerCondition;
 

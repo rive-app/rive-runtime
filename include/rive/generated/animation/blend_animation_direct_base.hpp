@@ -2,10 +2,8 @@
 #define _RIVE_BLEND_ANIMATION_DIRECT_BASE_HPP_
 #include "rive/animation/blend_animation.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class BlendAnimationDirectBase : public BlendAnimation
-    {
+namespace rive {
+    class BlendAnimationDirectBase : public BlendAnimation {
     protected:
         typedef BlendAnimation Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case BlendAnimationDirectBase::typeKey:
                 case BlendAnimationBase::typeKey:
                     return true;
@@ -35,10 +31,8 @@ namespace rive
 
     public:
         inline int inputId() const { return m_InputId; }
-        void inputId(int value)
-        {
-            if (m_InputId == value)
-            {
+        void inputId(int value) {
+            if (m_InputId == value) {
                 return;
             }
             m_InputId = value;
@@ -46,16 +40,13 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const BlendAnimationDirectBase& object)
-        {
+        void copy(const BlendAnimationDirectBase& object) {
             m_InputId = object.m_InputId;
             BlendAnimation::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case inputIdPropertyKey:
                     m_InputId = CoreUintType::deserialize(reader);
                     return true;

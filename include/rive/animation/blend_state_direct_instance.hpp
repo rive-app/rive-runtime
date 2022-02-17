@@ -5,11 +5,9 @@
 #include "rive/animation/blend_state_direct.hpp"
 #include "rive/animation/blend_animation_direct.hpp"
 
-namespace rive
-{
+namespace rive {
     class BlendStateDirectInstance
-        : public BlendStateInstance<BlendStateDirect, BlendAnimationDirect>
-    {
+        : public BlendStateInstance<BlendStateDirect, BlendAnimationDirect> {
     public:
         BlendStateDirectInstance(const BlendStateDirect* blendState);
         void advance(float seconds, SMIInput** inputs) override;

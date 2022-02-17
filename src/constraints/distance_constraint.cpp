@@ -5,17 +5,10 @@
 
 using namespace rive;
 
-enum class Mode
-{
-    Closer = 0,
-    Further = 1,
-    Exact = 2
-};
+enum class Mode { Closer = 0, Further = 1, Exact = 2 };
 
-void DistanceConstraint::constrain(TransformComponent* component)
-{
-    if (m_Target == nullptr)
-    {
+void DistanceConstraint::constrain(TransformComponent* component) {
+    if (m_Target == nullptr) {
         return;
     }
 
@@ -28,25 +21,21 @@ void DistanceConstraint::constrain(TransformComponent* component)
     Vec2D toTarget;
     Vec2D::subtract(toTarget, ourTranslation, targetTranslation);
     float currentDistance = Vec2D::length(toTarget);
-    switch (static_cast<Mode>(modeValue()))
-    {
+    switch (static_cast<Mode>(modeValue())) {
         case Mode::Closer:
-            if (currentDistance < distance())
-            {
+            if (currentDistance < distance()) {
                 return;
             }
             break;
         case Mode::Further:
-            if (currentDistance > distance())
-            {
+            if (currentDistance > distance()) {
                 return;
             }
             break;
         default:
             break;
     }
-    if (currentDistance < 0.001f)
-    {
+    if (currentDistance < 0.001f) {
         return;
     }
 

@@ -49,21 +49,17 @@ using namespace rive;
 // Import a single Rive runtime object.
 // Used by the file importer.
 static Core* readRuntimeObject(BinaryReader& reader,
-                               const RuntimeHeader& header)
-{
+                               const RuntimeHeader& header) {
     auto coreObjectKey = reader.readVarUint64();
     auto object = CoreRegistry::makeCoreInstance((int)coreObjectKey);
-    while (true)
-    {
+    while (true) {
         auto propertyKey = reader.readVarUint64();
-        if (propertyKey == 0)
-        {
+        if (propertyKey == 0) {
             // Terminator. https://media.giphy.com/media/7TtvTUMm9mp20/giphy.gif
             break;
         }
 
-        if (reader.didOverflow())
-        {
+        if (reader.didOverflow()) {
             delete object;
             return nullptr;
         }
@@ -72,14 +68,12 @@ static Core* readRuntimeObject(BinaryReader& reader,
             // We have an unknown object or property, first see if core knows
             // the property type.
             int id = CoreRegistry::propertyFieldId((int)propertyKey);
-            if (id == -1)
-            {
+            if (id == -1) {
                 // No, check if it's in toc.
                 id = header.propertyFieldId((int)propertyKey);
             }
 
-            if (id == -1)
-            {
+            if (id == -1) {
                 // Still couldn't find it, give up.
                 fprintf(stderr,
                         "Unknown property key " RIVE_FMT_U64
@@ -89,8 +83,7 @@ static Core* readRuntimeObject(BinaryReader& reader,
                 return nullptr;
             }
 
-            switch (id)
-            {
+            switch (id) {
                 case CoreUintType::id:
                     CoreUintType::deserialize(reader);
                     break;
@@ -106,8 +99,7 @@ static Core* readRuntimeObject(BinaryReader& reader,
             }
         }
     }
-    if (object == nullptr)
-    {
+    if (object == nullptr) {
         // fprintf(stderr,
         //         "File contains an unknown object with coreType " RIVE_FMT_U64
         //         ", which " "this runtime doesn't understand.\n",
@@ -119,10 +111,8 @@ static Core* readRuntimeObject(BinaryReader& reader,
 
 File::File(FileAssetResolver* assetResolver) : m_AssetResolver(assetResolver) {}
 
-File::~File()
-{
-    for (auto artboard : m_Artboards)
-    {
+File::~File() {
+    for (auto artboard : m_Artboards) {
         delete artboard;
     }
     delete m_Backboard;
@@ -131,16 +121,13 @@ File::~File()
 // Import a Rive file from a file handle
 ImportResult File::import(BinaryReader& reader,
                           File** importedFile,
-                          FileAssetResolver* assetResolver)
-{
+                          FileAssetResolver* assetResolver) {
     RuntimeHeader header;
-    if (!RuntimeHeader::read(reader, header))
-    {
+    if (!RuntimeHeader::read(reader, header)) {
         fprintf(stderr, "Bad header\n");
         return ImportResult::malformed;
     }
-    if (header.majorVersion() != majorVersion)
-    {
+    if (header.majorVersion() != majorVersion) {
         fprintf(stderr,
                 "Unsupported version %u.%u expected %u.%u.\n",
                 header.majorVersion(),
@@ -151,8 +138,7 @@ ImportResult File::import(BinaryReader& reader,
     }
     auto file = new File(assetResolver);
     auto result = file->read(reader, header);
-    if (result != ImportResult::success)
-    {
+    if (result != ImportResult::success) {
         delete file;
         return result;
     }
@@ -160,21 +146,16 @@ ImportResult File::import(BinaryReader& reader,
     return result;
 }
 
-ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
-{
+ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
     ImportStack importStack;
-    while (!reader.reachedEnd())
-    {
+    while (!reader.reachedEnd()) {
         auto object = readRuntimeObject(reader, header);
-        if (object == nullptr)
-        {
+        if (object == nullptr) {
             importStack.readNullObject();
             continue;
         }
-        if (object->import(importStack) == StatusCode::Ok)
-        {
-            switch (object->coreType())
-            {
+        if (object->import(importStack) == StatusCode::Ok) {
+            switch (object->coreType()) {
                 case Backboard::typeKey:
                     m_Backboard = object->as<Backboard>();
                     break;
@@ -182,9 +163,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     m_Artboards.push_back(object->as<Artboard>());
                     break;
             }
-        }
-        else
-        {
+        } else {
             fprintf(stderr,
                     "Failed to import object of type %d\n",
                     object->coreType());
@@ -194,8 +173,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         ImportStackObject* stackObject = nullptr;
         auto stackType = object->coreType();
 
-        switch (stackType)
-        {
+        switch (stackType) {
             case Backboard::typeKey:
                 stackObject = new BackboardImporter(object->as<Backboard>());
                 break;
@@ -210,12 +188,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject =
                     new KeyedObjectImporter(object->as<KeyedObject>());
                 break;
-            case KeyedProperty::typeKey:
-            {
+            case KeyedProperty::typeKey: {
                 auto importer = importStack.latest<LinearAnimationImporter>(
                     LinearAnimation::typeKey);
-                if (importer == nullptr)
-                {
+                if (importer == nullptr) {
                     return ImportResult::malformed;
                 }
                 stackObject = new KeyedPropertyImporter(
@@ -226,12 +202,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject =
                     new StateMachineImporter(object->as<StateMachine>());
                 break;
-            case StateMachineLayer::typeKey:
-            {
+            case StateMachineLayer::typeKey: {
                 auto artboardImporter =
                     importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-                if (artboardImporter == nullptr)
-                {
+                if (artboardImporter == nullptr) {
                     return ImportResult::malformed;
                 }
 
@@ -262,8 +236,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackType = FileAsset::typeKey;
                 break;
         }
-        if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)
-        {
+        if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok) {
             // Some previous stack item didn't resolve.
             return ImportResult::malformed;
         }
@@ -275,31 +248,24 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 
 Backboard* File::backboard() const { return m_Backboard; }
 
-Artboard* File::artboard(std::string name) const
-{
-    for (auto artboard : m_Artboards)
-    {
-        if (artboard->name() == name)
-        {
+Artboard* File::artboard(std::string name) const {
+    for (auto artboard : m_Artboards) {
+        if (artboard->name() == name) {
             return artboard;
         }
     }
     return nullptr;
 }
 
-Artboard* File::artboard() const
-{
-    if (m_Artboards.empty())
-    {
+Artboard* File::artboard() const {
+    if (m_Artboards.empty()) {
         return nullptr;
     }
     return m_Artboards[0];
 }
 
-Artboard* File::artboard(size_t index) const
-{
-    if (index >= m_Artboards.size())
-    {
+Artboard* File::artboard(size_t index) const {
+    if (index >= m_Artboards.size()) {
         return nullptr;
     }
     return m_Artboards[index];

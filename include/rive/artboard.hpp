@@ -8,8 +8,7 @@
 #include "rive/renderer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include <vector>
-namespace rive
-{
+namespace rive {
     class File;
     class Drawable;
     class Node;
@@ -19,8 +18,7 @@ namespace rive
 
     class Artboard : public ArtboardBase,
                      public CoreContext,
-                     public ShapePaintContainer
-    {
+                     public ShapePaintContainer {
         friend class File;
         friend class ArtboardImporter;
         friend class Component;
@@ -66,7 +64,7 @@ namespace rive
         void onDirty(ComponentDirt dirt) override;
 
         bool advance(double elapsedSeconds);
-        
+
         enum class DrawOption {
             kNormal,
             kHideBG,
@@ -82,13 +80,10 @@ namespace rive
         AABB bounds() const;
         bool isTranslucent(const LinearAnimation*) const;
 
-        template <typename T = Component> T* find(std::string name)
-        {
-            for (auto object : m_Objects)
-            {
+        template <typename T = Component> T* find(std::string name) {
+            for (auto object : m_Objects) {
                 if (object != nullptr && object->is<T>() &&
-                    object->as<T>()->name() == name)
-                {
+                    object->as<T>()->name() == name) {
                     return reinterpret_cast<T*>(object);
                 }
             }

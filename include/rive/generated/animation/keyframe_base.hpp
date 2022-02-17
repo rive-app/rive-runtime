@@ -2,10 +2,8 @@
 #define _RIVE_KEY_FRAME_BASE_HPP_
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class KeyFrameBase : public Core
-    {
+namespace rive {
+    class KeyFrameBase : public Core {
     protected:
         typedef Core Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case KeyFrameBase::typeKey:
                     return true;
                 default:
@@ -38,10 +34,8 @@ namespace rive
 
     public:
         inline int frame() const { return m_Frame; }
-        void frame(int value)
-        {
-            if (m_Frame == value)
-            {
+        void frame(int value) {
+            if (m_Frame == value) {
                 return;
             }
             m_Frame = value;
@@ -49,10 +43,8 @@ namespace rive
         }
 
         inline int interpolationType() const { return m_InterpolationType; }
-        void interpolationType(int value)
-        {
-            if (m_InterpolationType == value)
-            {
+        void interpolationType(int value) {
+            if (m_InterpolationType == value) {
                 return;
             }
             m_InterpolationType = value;
@@ -60,27 +52,22 @@ namespace rive
         }
 
         inline int interpolatorId() const { return m_InterpolatorId; }
-        void interpolatorId(int value)
-        {
-            if (m_InterpolatorId == value)
-            {
+        void interpolatorId(int value) {
+            if (m_InterpolatorId == value) {
                 return;
             }
             m_InterpolatorId = value;
             interpolatorIdChanged();
         }
 
-        void copy(const KeyFrameBase& object)
-        {
+        void copy(const KeyFrameBase& object) {
             m_Frame = object.m_Frame;
             m_InterpolationType = object.m_InterpolationType;
             m_InterpolatorId = object.m_InterpolatorId;
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case framePropertyKey:
                     m_Frame = CoreUintType::deserialize(reader);
                     return true;

@@ -7,18 +7,14 @@ using namespace rive;
 
 KeyedPropertyImporter::KeyedPropertyImporter(LinearAnimation* animation,
                                              KeyedProperty* keyedProperty) :
-    m_Animation(animation), m_KeyedProperty(keyedProperty)
-{
-}
+    m_Animation(animation), m_KeyedProperty(keyedProperty) {}
 
-void KeyedPropertyImporter::addKeyFrame(KeyFrame* keyFrame)
-{
+void KeyedPropertyImporter::addKeyFrame(KeyFrame* keyFrame) {
     keyFrame->computeSeconds(m_Animation->fps());
     m_KeyedProperty->addKeyFrame(keyFrame);
 }
 
-bool KeyedPropertyImporter::readNullObject()
-{
+bool KeyedPropertyImporter::readNullObject() {
     // We don't need to add the null keyframe as nothing references them, but we
     // do need to not allow the null to propagate up.
     return true;

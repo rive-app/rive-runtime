@@ -7,8 +7,7 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("two bone ik places bones correctly", "[file]")
-{
+TEST_CASE("two bone ik places bones correctly", "[file]") {
     FILE* fp = fopen("../../test/assets/two_bone_ik.riv", "r");
     REQUIRE(fp != nullptr);
 

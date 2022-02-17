@@ -6,11 +6,8 @@
 using namespace rive;
 
 LinearAnimationImporter::LinearAnimationImporter(LinearAnimation* animation) :
-    m_Animation(animation)
-{
-}
+    m_Animation(animation) {}
 
-void LinearAnimationImporter::addKeyedObject(KeyedObject* object)
-{
+void LinearAnimationImporter::addKeyedObject(KeyedObject* object) {
     m_Animation->addKeyedObject(object);
 }

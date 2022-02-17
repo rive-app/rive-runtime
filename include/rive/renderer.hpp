@@ -13,18 +13,12 @@
 #include <stdio.h>
 #include <cstdint>
 
-namespace rive
-{
+namespace rive {
     class Vec2D;
 
-    enum class RenderPaintStyle
-    {
-        stroke,
-        fill
-    };
+    enum class RenderPaintStyle { stroke, fill };
 
-    class RenderPaint
-    {
+    class RenderPaint {
     public:
         virtual void style(RenderPaintStyle style) = 0;
         virtual void color(ColorInt value) = 0;
@@ -40,8 +34,7 @@ namespace rive
         virtual ~RenderPaint() {}
     };
 
-    class RenderImage
-    {
+    class RenderImage {
     protected:
         int m_Width = 0;
         int m_Height = 0;
@@ -53,12 +46,10 @@ namespace rive
         int height() const { return m_Height; }
     };
 
-    class RenderPath : public CommandPath
-    {
+    class RenderPath : public CommandPath {
     public:
         RenderPath* renderPath() override { return this; }
-        void addPath(CommandPath* path, const Mat2D& transform) override
-        {
+        void addPath(CommandPath* path, const Mat2D& transform) override {
             addRenderPath(path->renderPath(), transform);
         }
 
@@ -66,8 +57,7 @@ namespace rive
                                    const Mat2D& transform) = 0;
     };
 
-    class Renderer
-    {
+    class Renderer {
     public:
         virtual ~Renderer() {}
         virtual void save() = 0;
@@ -82,8 +72,7 @@ namespace rive
                               Fit fit,
                               const Alignment& alignment,
                               const AABB& frame,
-                              const AABB& content)
-        {
+                              const AABB& content) {
             float contentWidth = content[2] - content[0];
             float contentHeight = content[3] - content[1];
             float x = -content[0] - contentWidth / 2.0 -
@@ -93,47 +82,39 @@ namespace rive
 
             float scaleX = 1.0, scaleY = 1.0;
 
-            switch (fit)
-            {
-                case Fit::fill:
-                {
+            switch (fit) {
+                case Fit::fill: {
                     scaleX = frame.width() / contentWidth;
                     scaleY = frame.height() / contentHeight;
                     break;
                 }
-                case Fit::contain:
-                {
+                case Fit::contain: {
                     float minScale = std::fmin(frame.width() / contentWidth,
                                                frame.height() / contentHeight);
                     scaleX = scaleY = minScale;
                     break;
                 }
-                case Fit::cover:
-                {
+                case Fit::cover: {
                     float maxScale = std::fmax(frame.width() / contentWidth,
                                                frame.height() / contentHeight);
                     scaleX = scaleY = maxScale;
                     break;
                 }
-                case Fit::fitHeight:
-                {
+                case Fit::fitHeight: {
                     float minScale = frame.height() / contentHeight;
                     scaleX = scaleY = minScale;
                     break;
                 }
-                case Fit::fitWidth:
-                {
+                case Fit::fitWidth: {
                     float minScale = frame.width() / contentWidth;
                     scaleX = scaleY = minScale;
                     break;
                 }
-                case Fit::none:
-                {
+                case Fit::none: {
                     scaleX = scaleY = 1.0;
                     break;
                 }
-                case Fit::scaleDown:
-                {
+                case Fit::scaleDown: {
                     float minScale = std::fmin(frame.width() / contentWidth,
                                                frame.height() / contentHeight);
                     scaleX = scaleY = minScale < 1.0 ? minScale : 1.0;
@@ -161,8 +142,7 @@ namespace rive
         void align(Fit fit,
                    const Alignment& alignment,
                    const AABB& frame,
-                   const AABB& content)
-        {
+                   const AABB& content) {
             Mat2D result;
             computeAlignment(result, fit, alignment, frame, content);
             transform(result);

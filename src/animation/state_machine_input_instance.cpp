@@ -8,9 +8,7 @@ using namespace rive;
 
 SMIInput::SMIInput(const StateMachineInput* input,
                    StateMachineInstance* machineInstance) :
-    m_MachineInstance(machineInstance), m_Input(input)
-{
-}
+    m_MachineInstance(machineInstance), m_Input(input) {}
 
 uint16_t SMIInput::inputCoreType() const { return m_Input->coreType(); }
 
@@ -22,14 +20,10 @@ void SMIInput::valueChanged() { m_MachineInstance->markNeedsAdvance(); }
 
 SMIBool::SMIBool(const StateMachineBool* input,
                  StateMachineInstance* machineInstance) :
-    SMIInput(input, machineInstance), m_Value(input->value())
-{
-}
+    SMIInput(input, machineInstance), m_Value(input->value()) {}
 
-void SMIBool::value(bool newValue)
-{
-    if (m_Value == newValue)
-    {
+void SMIBool::value(bool newValue) {
+    if (m_Value == newValue) {
         return;
     }
     m_Value = newValue;
@@ -39,14 +33,10 @@ void SMIBool::value(bool newValue)
 // number
 SMINumber::SMINumber(const StateMachineNumber* input,
                      StateMachineInstance* machineInstance) :
-    SMIInput(input, machineInstance), m_Value(input->value())
-{
-}
+    SMIInput(input, machineInstance), m_Value(input->value()) {}
 
-void SMINumber::value(float newValue)
-{
-    if (m_Value == newValue)
-    {
+void SMINumber::value(float newValue) {
+    if (m_Value == newValue) {
         return;
     }
     m_Value = newValue;
@@ -56,14 +46,10 @@ void SMINumber::value(float newValue)
 // trigger
 SMITrigger::SMITrigger(const StateMachineTrigger* input,
                        StateMachineInstance* machineInstance) :
-    SMIInput(input, machineInstance)
-{
-}
+    SMIInput(input, machineInstance) {}
 
-void SMITrigger::fire()
-{
-    if (m_Fired)
-    {
+void SMITrigger::fire() {
+    if (m_Fired) {
         return;
     }
     m_Fired = true;

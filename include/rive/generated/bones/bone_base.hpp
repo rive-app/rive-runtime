@@ -2,10 +2,8 @@
 #define _RIVE_BONE_BASE_HPP_
 #include "rive/bones/skeletal_component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive
-{
-    class BoneBase : public SkeletalComponent
-    {
+namespace rive {
+    class BoneBase : public SkeletalComponent {
     protected:
         typedef SkeletalComponent Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case BoneBase::typeKey:
                 case SkeletalComponentBase::typeKey:
                 case TransformComponentBase::typeKey:
@@ -39,10 +35,8 @@ namespace rive
 
     public:
         inline float length() const { return m_Length; }
-        void length(float value)
-        {
-            if (m_Length == value)
-            {
+        void length(float value) {
+            if (m_Length == value) {
                 return;
             }
             m_Length = value;
@@ -50,16 +44,13 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const BoneBase& object)
-        {
+        void copy(const BoneBase& object) {
             m_Length = object.m_Length;
             SkeletalComponent::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case lengthPropertyKey:
                     m_Length = CoreDoubleType::deserialize(reader);
                     return true;

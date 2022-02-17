@@ -3,7 +3,6 @@
 
 using namespace rive;
 
-bool CoreBoolType::deserialize(BinaryReader& reader)
-{
+bool CoreBoolType::deserialize(BinaryReader& reader) {
     return reader.readByte() == 1;
 }

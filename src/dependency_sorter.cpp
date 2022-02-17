@@ -3,21 +3,17 @@
 
 using namespace rive;
 
-void DependencySorter::sort(Component* root, std::vector<Component*>& order)
-{
+void DependencySorter::sort(Component* root, std::vector<Component*>& order) {
     order.clear();
     visit(root, order);
 }
 
 bool DependencySorter::visit(Component* component,
-                             std::vector<Component*>& order)
-{
-    if (m_Perm.find(component) != m_Perm.end())
-    {
+                             std::vector<Component*>& order) {
+    if (m_Perm.find(component) != m_Perm.end()) {
         return true;
     }
-    if (m_Temp.find(component) != m_Temp.end())
-    {
+    if (m_Temp.find(component) != m_Temp.end()) {
         fprintf(stderr, "Dependency cycle!\n");
         return false;
     }
@@ -25,10 +21,8 @@ bool DependencySorter::visit(Component* component,
     m_Temp.emplace(component);
 
     auto dependents = component->dependents();
-    for (auto dependent : dependents)
-    {
-        if (!visit(dependent, order))
-        {
+    for (auto dependent : dependents) {
+        if (!visit(dependent, order)) {
             return false;
         }
     }

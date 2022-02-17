@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* ScaleConstraintBase::clone() const
-{
+Core* ScaleConstraintBase::clone() const {
     auto cloned = new ScaleConstraint();
     cloned->copy(*this);
     return cloned;

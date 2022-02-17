@@ -7,10 +7,8 @@ using namespace rive;
 TrimPath::TrimPath() : m_TrimmedPath(makeRenderPath()) {}
 TrimPath::~TrimPath() { delete m_TrimmedPath; }
 
-StatusCode TrimPath::onAddedClean(CoreContext* context)
-{
-    if (!parent()->is<Stroke>())
-    {
+StatusCode TrimPath::onAddedClean(CoreContext* context) {
+    if (!parent()->is<Stroke>()) {
         return StatusCode::InvalidObject;
     }
 
@@ -19,10 +17,8 @@ StatusCode TrimPath::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-RenderPath* TrimPath::effectPath(MetricsPath* source)
-{
-    if (m_RenderPath != nullptr)
-    {
+RenderPath* TrimPath::effectPath(MetricsPath* source) {
+    if (m_RenderPath != nullptr) {
         return m_RenderPath;
     }
 
@@ -31,86 +27,70 @@ RenderPath* TrimPath::effectPath(MetricsPath* source)
 
     m_TrimmedPath->reset();
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
-    switch (modeValue())
-    {
-        case 1:
-        {
+    switch (modeValue()) {
+        case 1: {
             float totalLength = source->length();
             auto startLength = totalLength * (start() + renderOffset);
             auto endLength = totalLength * (end() + renderOffset);
 
-            if (endLength < startLength)
-            {
+            if (endLength < startLength) {
                 float swap = startLength;
                 startLength = endLength;
                 endLength = swap;
             }
 
-            if (startLength > totalLength)
-            {
+            if (startLength > totalLength) {
                 startLength -= totalLength;
                 endLength -= totalLength;
             }
 
             int i = 0, subPathCount = (int)subPaths.size();
-            while (endLength > 0)
-            {
+            while (endLength > 0) {
                 auto path = subPaths[i % subPathCount];
                 auto pathLength = path->length();
 
-                if (startLength < pathLength)
-                {
+                if (startLength < pathLength) {
                     path->trim(startLength, endLength, true, m_TrimmedPath);
                     endLength -= pathLength;
                     startLength = 0;
-                }
-                else
-                {
+                } else {
                     startLength -= pathLength;
                     endLength -= pathLength;
                 }
                 i++;
             }
-        }
-        break;
+        } break;
 
-        case 2:
-        {
-            for (auto path : subPaths)
-            {
+        case 2: {
+            for (auto path : subPaths) {
                 auto pathLength = path->length();
                 auto startLength = pathLength * (start() + renderOffset);
                 auto endLength = pathLength * (end() + renderOffset);
-                if (endLength < startLength)
-                {
+                if (endLength < startLength) {
                     auto length = startLength;
                     startLength = endLength;
                     endLength = length;
                 }
 
-                if (startLength > pathLength)
-                {
+                if (startLength > pathLength) {
                     startLength -= pathLength;
                     endLength -= pathLength;
                 }
                 path->trim(startLength, endLength, true, m_TrimmedPath);
-                while (endLength > pathLength)
-                {
+                while (endLength > pathLength) {
                     startLength = 0;
                     endLength -= pathLength;
                     path->trim(startLength, endLength, true, m_TrimmedPath);
                 }
             }
-        }
-        break;
+        } break;
     }
 
     m_RenderPath = m_TrimmedPath;
     return m_RenderPath;
 }
 
-void TrimPath::invalidateEffect()
-{
+void TrimPath::invalidateEffect() {
     m_RenderPath = nullptr;
     parent()->as<Stroke>()->parent()->addDirt(ComponentDirt::Paint);
 }

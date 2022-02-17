@@ -6,25 +6,19 @@
 
 using namespace rive;
 
-void TranslationConstraint::constrain(TransformComponent* component)
-{
+void TranslationConstraint::constrain(TransformComponent* component) {
     Mat2D& transformA = component->mutableWorldTransform();
     Vec2D translationA(transformA[4], transformA[5]);
     Vec2D translationB;
-    if (m_Target == nullptr)
-    {
+    if (m_Target == nullptr) {
         Vec2D::copy(translationB, translationA);
-    }
-    else
-    {
+    } else {
         Mat2D transformB(m_Target->worldTransform());
-        if (sourceSpace() == TransformSpace::local)
-        {
+        if (sourceSpace() == TransformSpace::local) {
             const Mat2D& targetParentWorld = getParentWorld(*m_Target);
 
             Mat2D inverse;
-            if (!Mat2D::invert(inverse, targetParentWorld))
-            {
+            if (!Mat2D::invert(inverse, targetParentWorld)) {
                 return;
             }
             Mat2D::multiply(transformB, inverse, transformB);
@@ -32,37 +26,28 @@ void TranslationConstraint::constrain(TransformComponent* component)
         translationB[0] = transformB[4];
         translationB[1] = transformB[5];
 
-        if (!doesCopy())
-        {
+        if (!doesCopy()) {
             translationB[0] =
                 destSpace() == TransformSpace::local ? 0.0f : translationA[0];
-        }
-        else
-        {
+        } else {
             translationB[0] *= copyFactor();
-            if (offset())
-            {
+            if (offset()) {
                 translationB[0] += component->x();
             }
         }
 
-        if (!doesCopyY())
-        {
+        if (!doesCopyY()) {
             translationB[1] =
                 destSpace() == TransformSpace::local ? 0.0f : translationA[1];
-        }
-        else
-        {
+        } else {
             translationB[1] *= copyFactorY();
 
-            if (offset())
-            {
+            if (offset()) {
                 translationB[1] += component->y();
             }
         }
 
-        if (destSpace() == TransformSpace::local)
-        {
+        if (destSpace() == TransformSpace::local) {
             // Destination space is in parent transform coordinates.
             Vec2D::transform(
                 translationB, translationB, getParentWorld(*component));
@@ -70,36 +55,29 @@ void TranslationConstraint::constrain(TransformComponent* component)
     }
 
     bool clampLocal = minMaxSpace() == TransformSpace::local;
-    if (clampLocal)
-    {
+    if (clampLocal) {
         // Apply min max in local space, so transform to local coordinates
         // first.
         Mat2D invert;
-        if (!Mat2D::invert(invert, getParentWorld(*component)))
-        {
+        if (!Mat2D::invert(invert, getParentWorld(*component))) {
             return;
         }
         // Get our target world coordinates in parent local.
         Vec2D::transform(translationB, translationB, invert);
     }
-    if (max() && translationB[0] > maxValue())
-    {
+    if (max() && translationB[0] > maxValue()) {
         translationB[0] = maxValue();
     }
-    if (min() && translationB[0] < minValue())
-    {
+    if (min() && translationB[0] < minValue()) {
         translationB[0] = minValue();
     }
-    if (maxY() && translationB[1] > maxValueY())
-    {
+    if (maxY() && translationB[1] > maxValueY()) {
         translationB[1] = maxValueY();
     }
-    if (minY() && translationB[1] < minValueY())
-    {
+    if (minY() && translationB[1] < minValueY()) {
         translationB[1] = minValueY();
     }
-    if (clampLocal)
-    {
+    if (clampLocal) {
         // Transform back to world.
         Vec2D::transform(
             translationB, translationB, getParentWorld(*component));

@@ -3,11 +3,9 @@
 #include "rive/constraints/transform_component_constraint.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive
-{
+namespace rive {
     class TransformComponentConstraintYBase
-        : public TransformComponentConstraint
-    {
+        : public TransformComponentConstraint {
     protected:
         typedef TransformComponentConstraint Super;
 
@@ -16,10 +14,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case TransformComponentConstraintYBase::typeKey:
                 case TransformComponentConstraintBase::typeKey:
                 case TransformSpaceConstraintBase::typeKey:
@@ -51,10 +47,8 @@ namespace rive
 
     public:
         inline float copyFactorY() const { return m_CopyFactorY; }
-        void copyFactorY(float value)
-        {
-            if (m_CopyFactorY == value)
-            {
+        void copyFactorY(float value) {
+            if (m_CopyFactorY == value) {
                 return;
             }
             m_CopyFactorY = value;
@@ -62,10 +56,8 @@ namespace rive
         }
 
         inline float minValueY() const { return m_MinValueY; }
-        void minValueY(float value)
-        {
-            if (m_MinValueY == value)
-            {
+        void minValueY(float value) {
+            if (m_MinValueY == value) {
                 return;
             }
             m_MinValueY = value;
@@ -73,10 +65,8 @@ namespace rive
         }
 
         inline float maxValueY() const { return m_MaxValueY; }
-        void maxValueY(float value)
-        {
-            if (m_MaxValueY == value)
-            {
+        void maxValueY(float value) {
+            if (m_MaxValueY == value) {
                 return;
             }
             m_MaxValueY = value;
@@ -84,10 +74,8 @@ namespace rive
         }
 
         inline bool doesCopyY() const { return m_DoesCopyY; }
-        void doesCopyY(bool value)
-        {
-            if (m_DoesCopyY == value)
-            {
+        void doesCopyY(bool value) {
+            if (m_DoesCopyY == value) {
                 return;
             }
             m_DoesCopyY = value;
@@ -95,10 +83,8 @@ namespace rive
         }
 
         inline bool minY() const { return m_MinY; }
-        void minY(bool value)
-        {
-            if (m_MinY == value)
-            {
+        void minY(bool value) {
+            if (m_MinY == value) {
                 return;
             }
             m_MinY = value;
@@ -106,18 +92,15 @@ namespace rive
         }
 
         inline bool maxY() const { return m_MaxY; }
-        void maxY(bool value)
-        {
-            if (m_MaxY == value)
-            {
+        void maxY(bool value) {
+            if (m_MaxY == value) {
                 return;
             }
             m_MaxY = value;
             maxYChanged();
         }
 
-        void copy(const TransformComponentConstraintYBase& object)
-        {
+        void copy(const TransformComponentConstraintYBase& object) {
             m_CopyFactorY = object.m_CopyFactorY;
             m_MinValueY = object.m_MinValueY;
             m_MaxValueY = object.m_MaxValueY;
@@ -127,10 +110,8 @@ namespace rive
             TransformComponentConstraint::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case copyFactorYPropertyKey:
                     m_CopyFactorY = CoreDoubleType::deserialize(reader);
                     return true;

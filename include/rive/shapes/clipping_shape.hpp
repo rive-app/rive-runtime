@@ -4,13 +4,11 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class Shape;
     class Node;
     class RenderPath;
-    class ClippingShape : public ClippingShapeBase
-    {
+    class ClippingShape : public ClippingShapeBase {
     private:
         std::vector<Shape*> m_Shapes;
         Node* m_Source = nullptr;

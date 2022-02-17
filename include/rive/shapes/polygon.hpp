@@ -4,10 +4,8 @@
 #include "rive/shapes/path_vertex.hpp"
 #include "rive/shapes/straight_vertex.hpp"
 #include <vector>
-namespace rive
-{
-    class Polygon : public PolygonBase
-    {
+namespace rive {
+    class Polygon : public PolygonBase {
     protected:
         std::vector<StraightVertex> m_PolygonVertices;
 

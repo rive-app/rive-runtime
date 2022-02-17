@@ -3,19 +3,13 @@
 
 #include "rive/math/mat2d.hpp"
 
-namespace rive
-{
-    enum class FillRule
-    {
-        nonZero,
-        evenOdd
-    };
+namespace rive {
+    enum class FillRule { nonZero, evenOdd };
 
     class RenderPath;
 
     /// Abstract path used to build up commands used for rendering.
-    class CommandPath
-    {
+    class CommandPath {
     public:
         virtual ~CommandPath() {}
         virtual void reset() = 0;
@@ -28,8 +22,7 @@ namespace rive
         cubicTo(float ox, float oy, float ix, float iy, float x, float y) = 0;
         virtual void close() = 0;
 
-        void addRect(float x, float y, float width, float height)
-        {
+        void addRect(float x, float y, float width, float height) {
             moveTo(x, y);
             lineTo(x + width, y);
             lineTo(x + width, y + height);

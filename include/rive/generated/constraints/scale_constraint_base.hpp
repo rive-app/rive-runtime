@@ -1,10 +1,8 @@
 #ifndef _RIVE_SCALE_CONSTRAINT_BASE_HPP_
 #define _RIVE_SCALE_CONSTRAINT_BASE_HPP_
 #include "rive/constraints/transform_component_constraint_y.hpp"
-namespace rive
-{
-    class ScaleConstraintBase : public TransformComponentConstraintY
-    {
+namespace rive {
+    class ScaleConstraintBase : public TransformComponentConstraintY {
     protected:
         typedef TransformComponentConstraintY Super;
 
@@ -13,10 +11,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case ScaleConstraintBase::typeKey:
                 case TransformComponentConstraintYBase::typeKey:
                 case TransformComponentConstraintBase::typeKey:

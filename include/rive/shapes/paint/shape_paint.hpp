@@ -5,12 +5,10 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include "rive/shapes/path_space.hpp"
-namespace rive
-{
+namespace rive {
     class RenderPaint;
     class ShapePaintMutator;
-    class ShapePaint : public ShapePaintBase
-    {
+    class ShapePaint : public ShapePaintBase {
     protected:
         RenderPaint* m_RenderPaint = nullptr;
         ShapePaintMutator* m_PaintMutator = nullptr;
@@ -20,8 +18,7 @@ namespace rive
         StatusCode onAddedClean(CoreContext* context) override;
 
         float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
-        void renderOpacity(float value)
-        {
+        void renderOpacity(float value) {
             m_PaintMutator->renderOpacity(value);
         }
 
@@ -40,10 +37,8 @@ namespace rive
         /// ShapePaint. It'll be one of SolidColor, LinearGradient, or
         /// RadialGradient.
         Component* paint() const { return m_PaintMutator->component(); }
-        
-        bool isTranslucent() const {
-            return m_PaintMutator->isTranslucent();
-        }
+
+        bool isTranslucent() const { return m_PaintMutator->isTranslucent(); }
     };
 } // namespace rive
 

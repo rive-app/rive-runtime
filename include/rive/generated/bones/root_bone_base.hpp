@@ -2,10 +2,8 @@
 #define _RIVE_ROOT_BONE_BASE_HPP_
 #include "rive/bones/bone.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive
-{
-    class RootBoneBase : public Bone
-    {
+namespace rive {
+    class RootBoneBase : public Bone {
     protected:
         typedef Bone Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case RootBoneBase::typeKey:
                 case BoneBase::typeKey:
                 case SkeletalComponentBase::typeKey:
@@ -42,10 +38,8 @@ namespace rive
 
     public:
         inline float x() const override { return m_X; }
-        void x(float value)
-        {
-            if (m_X == value)
-            {
+        void x(float value) {
+            if (m_X == value) {
                 return;
             }
             m_X = value;
@@ -53,10 +47,8 @@ namespace rive
         }
 
         inline float y() const override { return m_Y; }
-        void y(float value)
-        {
-            if (m_Y == value)
-            {
+        void y(float value) {
+            if (m_Y == value) {
                 return;
             }
             m_Y = value;
@@ -64,17 +56,14 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const RootBoneBase& object)
-        {
+        void copy(const RootBoneBase& object) {
             m_X = object.m_X;
             m_Y = object.m_Y;
             Bone::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case xPropertyKey:
                     m_X = CoreDoubleType::deserialize(reader);
                     return true;

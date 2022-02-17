@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* EntryStateBase::clone() const
-{
+Core* EntryStateBase::clone() const {
     auto cloned = new EntryState();
     cloned->copy(*this);
     return cloned;

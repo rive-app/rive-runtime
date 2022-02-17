@@ -3,10 +3,8 @@
 #include "rive/constraints/targeted_constraint.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class DistanceConstraintBase : public TargetedConstraint
-    {
+namespace rive {
+    class DistanceConstraintBase : public TargetedConstraint {
     protected:
         typedef TargetedConstraint Super;
 
@@ -15,10 +13,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case DistanceConstraintBase::typeKey:
                 case TargetedConstraintBase::typeKey:
                 case ConstraintBase::typeKey:
@@ -40,10 +36,8 @@ namespace rive
 
     public:
         inline float distance() const { return m_Distance; }
-        void distance(float value)
-        {
-            if (m_Distance == value)
-            {
+        void distance(float value) {
+            if (m_Distance == value) {
                 return;
             }
             m_Distance = value;
@@ -51,10 +45,8 @@ namespace rive
         }
 
         inline int modeValue() const { return m_ModeValue; }
-        void modeValue(int value)
-        {
-            if (m_ModeValue == value)
-            {
+        void modeValue(int value) {
+            if (m_ModeValue == value) {
                 return;
             }
             m_ModeValue = value;
@@ -62,17 +54,14 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const DistanceConstraintBase& object)
-        {
+        void copy(const DistanceConstraintBase& object) {
             m_Distance = object.m_Distance;
             m_ModeValue = object.m_ModeValue;
             TargetedConstraint::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case distancePropertyKey:
                     m_Distance = CoreDoubleType::deserialize(reader);
                     return true;

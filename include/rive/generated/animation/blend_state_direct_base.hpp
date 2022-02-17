@@ -1,10 +1,8 @@
 #ifndef _RIVE_BLEND_STATE_DIRECT_BASE_HPP_
 #define _RIVE_BLEND_STATE_DIRECT_BASE_HPP_
 #include "rive/animation/blend_state.hpp"
-namespace rive
-{
-    class BlendStateDirectBase : public BlendState
-    {
+namespace rive {
+    class BlendStateDirectBase : public BlendState {
     protected:
         typedef BlendState Super;
 
@@ -13,10 +11,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case BlendStateDirectBase::typeKey:
                 case BlendStateBase::typeKey:
                 case LayerStateBase::typeKey:

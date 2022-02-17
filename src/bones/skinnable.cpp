@@ -3,10 +3,8 @@
 
 using namespace rive;
 
-Skinnable* Skinnable::from(Component* component)
-{
-    switch (component->coreType())
-    {
+Skinnable* Skinnable::from(Component* component) {
+    switch (component->coreType()) {
         case PointsPath::typeKey:
             return component->as<PointsPath>();
             break;

@@ -4,17 +4,14 @@
 
 using namespace rive;
 
-Triangle::Triangle()
-{
+Triangle::Triangle() {
     addVertex(&m_Vertex1);
     addVertex(&m_Vertex2);
     addVertex(&m_Vertex3);
 }
 
-void Triangle::update(ComponentDirt value)
-{
-    if (hasDirt(value, ComponentDirt::Path))
-    {
+void Triangle::update(ComponentDirt value) {
+    if (hasDirt(value, ComponentDirt::Path)) {
         auto ox = -originX() * width();
         auto oy = -originY() * height();
 

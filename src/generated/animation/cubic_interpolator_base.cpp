@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* CubicInterpolatorBase::clone() const
-{
+Core* CubicInterpolatorBase::clone() const {
     auto cloned = new CubicInterpolator();
     cloned->copy(*this);
     return cloned;

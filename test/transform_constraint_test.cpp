@@ -7,8 +7,7 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("transform constraint updates world transform", "[file]")
-{
+TEST_CASE("transform constraint updates world transform", "[file]") {
     FILE* fp = fopen("../../test/assets/transform_constraint.riv", "r");
     REQUIRE(fp != nullptr);
 

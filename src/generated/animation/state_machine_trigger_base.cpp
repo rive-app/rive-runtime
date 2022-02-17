@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* StateMachineTriggerBase::clone() const
-{
+Core* StateMachineTriggerBase::clone() const {
     auto cloned = new StateMachineTrigger();
     cloned->copy(*this);
     return cloned;

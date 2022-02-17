@@ -4,15 +4,13 @@
 #include <string>
 #include <stddef.h>
 
-namespace rive
-{
+namespace rive {
     class LayerState;
     class SMIInput;
     class Artboard;
 
     /// Represents an instance of a state tracked by the State Machine.
-    class StateInstance
-    {
+    class StateInstance {
     private:
         const LayerState* m_LayerState;
 

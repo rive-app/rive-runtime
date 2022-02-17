@@ -7,26 +7,22 @@ using namespace rive;
 
 ShapePaint::~ShapePaint() { delete m_RenderPaint; }
 
-StatusCode ShapePaint::onAddedClean(CoreContext* context)
-{
+StatusCode ShapePaint::onAddedClean(CoreContext* context) {
     auto container = ShapePaintContainer::from(parent());
-    if (container == nullptr)
-    {
+    if (container == nullptr) {
         return StatusCode::MissingObject;
     }
     container->addPaint(this);
     return StatusCode::Ok;
 }
 
-RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator)
-{
+RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator) {
     assert(m_RenderPaint == nullptr);
     m_PaintMutator = mutator;
     return m_RenderPaint = makeRenderPaint();
 }
 
-void ShapePaint::blendMode(BlendMode value)
-{
+void ShapePaint::blendMode(BlendMode value) {
     assert(m_RenderPaint != nullptr);
     m_RenderPaint->blendMode(value);
 }

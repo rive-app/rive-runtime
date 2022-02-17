@@ -3,14 +3,12 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive
-{
+namespace rive {
     class LayerState;
     class StateTransition;
     class BlendAnimation;
 
-    class LayerStateImporter : public ImportStackObject
-    {
+    class LayerStateImporter : public ImportStackObject {
     private:
         LayerState* m_State;
 

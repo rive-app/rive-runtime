@@ -3,11 +3,9 @@
 
 #include <string>
 
-namespace rive
-{
+namespace rive {
     class BinaryReader;
-    class CoreStringType
-    {
+    class CoreStringType {
     public:
         static const int id = 1;
         static std::string deserialize(BinaryReader& reader);

@@ -4,10 +4,8 @@
 #include "rive/math/vec2d.hpp"
 #include <stdio.h>
 
-namespace rive
-{
-    class Weight : public WeightBase
-    {
+namespace rive {
+    class Weight : public WeightBase {
     private:
         Vec2D m_Translation;
 

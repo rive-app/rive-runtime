@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* RadialGradientBase::clone() const
-{
+Core* RadialGradientBase::clone() const {
     auto cloned = new RadialGradient();
     cloned->copy(*this);
     return cloned;

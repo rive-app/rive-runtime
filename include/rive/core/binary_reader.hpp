@@ -5,10 +5,8 @@
 #include <string>
 #include <vector>
 
-namespace rive
-{
-    class BinaryReader
-    {
+namespace rive {
+    class BinaryReader {
     private:
         uint8_t* m_Position;
         uint8_t* m_End;

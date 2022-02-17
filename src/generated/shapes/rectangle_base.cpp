@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* RectangleBase::clone() const
-{
+Core* RectangleBase::clone() const {
     auto cloned = new Rectangle();
     cloned->copy(*this);
     return cloned;

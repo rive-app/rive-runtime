@@ -1,12 +1,10 @@
 #ifndef _RIVE_SHAPE_PAINT_MUTATOR_HPP_
 #define _RIVE_SHAPE_PAINT_MUTATOR_HPP_
 
-namespace rive
-{
+namespace rive {
     class Component;
     class RenderPaint;
-    class ShapePaintMutator
-    {
+    class ShapePaintMutator {
     private:
         float m_RenderOpacity = 1.0f;
         RenderPaint* m_RenderPaint = nullptr;
@@ -28,7 +26,7 @@ namespace rive
         void renderOpacity(float value);
 
         Component* component() const { return m_Component; }
-        
+
         bool isTranslucent() const {
             return m_RenderOpacity < 1 || this->internalIsTranslucent();
         }

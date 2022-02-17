@@ -3,14 +3,12 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive
-{
+namespace rive {
     class Core;
     class Artboard;
     class LinearAnimation;
     class StateMachine;
-    class ArtboardImporter : public ImportStackObject
-    {
+    class ArtboardImporter : public ImportStackObject {
     private:
         Artboard* m_Artboard;
 

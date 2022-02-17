@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* StraightVertexBase::clone() const
-{
+Core* StraightVertexBase::clone() const {
     auto cloned = new StraightVertex();
     cloned->copy(*this);
     return cloned;

@@ -4,32 +4,23 @@
 using namespace rive;
 
 BlendState1DInstance::BlendState1DInstance(const BlendState1D* blendState) :
-    BlendStateInstance<BlendState1D, BlendAnimation1D>(blendState)
-{
-}
+    BlendStateInstance<BlendState1D, BlendAnimation1D>(blendState) {}
 
-int BlendState1DInstance::animationIndex(float value)
-{
+int BlendState1DInstance::animationIndex(float value) {
     int idx = 0;
     int mid = 0;
     float closestValue = 0;
     int start = 0;
     int end = static_cast<int>(m_AnimationInstances.size()) - 1;
 
-    while (start <= end)
-    {
+    while (start <= end) {
         mid = (start + end) >> 1;
         closestValue = m_AnimationInstances[mid].blendAnimation()->value();
-        if (closestValue < value)
-        {
+        if (closestValue < value) {
             start = mid + 1;
-        }
-        else if (closestValue > value)
-        {
+        } else if (closestValue > value) {
             end = mid - 1;
-        }
-        else
-        {
+        } else {
             idx = start = mid;
             break;
         }
@@ -39,15 +30,13 @@ int BlendState1DInstance::animationIndex(float value)
     return idx;
 }
 
-void BlendState1DInstance::advance(float seconds, SMIInput** inputs)
-{
+void BlendState1DInstance::advance(float seconds, SMIInput** inputs) {
     BlendStateInstance<BlendState1D, BlendAnimation1D>::advance(seconds,
                                                                 inputs);
 
     auto id = state()->as<BlendState1D>()->inputId();
     float value = 0.0f;
-    if (id >= 0)
-    {
+    if (id >= 0) {
         auto inputInstance = inputs[state()->as<BlendState1D>()->inputId()];
         auto numberInput = reinterpret_cast<const SMINumber*>(inputInstance);
         value = numberInput->value();
@@ -65,29 +54,20 @@ void BlendState1DInstance::advance(float seconds, SMIInput** inputs)
     auto fromValue =
         m_From == nullptr ? 0.0f : m_From->blendAnimation()->value();
 
-    if (m_To == nullptr || m_From == nullptr || toValue == fromValue)
-    {
+    if (m_To == nullptr || m_From == nullptr || toValue == fromValue) {
         mix = mixFrom = 1.0f;
-    }
-    else
-    {
+    } else {
         mix = (value - fromValue) / (toValue - fromValue);
         mixFrom = 1.0f - mix;
     }
 
-    for (auto& animation : m_AnimationInstances)
-    {
+    for (auto& animation : m_AnimationInstances) {
         auto animationValue = animation.blendAnimation()->value();
-        if (m_To != nullptr && animationValue == toValue)
-        {
+        if (m_To != nullptr && animationValue == toValue) {
             animation.mix(mix);
-        }
-        else if (m_From != nullptr && animationValue == fromValue)
-        {
+        } else if (m_From != nullptr && animationValue == fromValue) {
             animation.mix(mixFrom);
-        }
-        else
-        {
+        } else {
             animation.mix(0.0f);
         }
     }

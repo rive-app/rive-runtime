@@ -3,12 +3,9 @@
 
 using namespace rive;
 
-void NestedSimpleAnimation::advance(float elapsedSeconds, Artboard* artboard)
-{
-    if (m_AnimationInstance != nullptr)
-    {
-        if (isPlaying())
-        {
+void NestedSimpleAnimation::advance(float elapsedSeconds, Artboard* artboard) {
+    if (m_AnimationInstance != nullptr) {
+        if (isPlaying()) {
             m_AnimationInstance->advance(elapsedSeconds * speed());
         }
         m_AnimationInstance->apply(artboard, mix());

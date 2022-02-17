@@ -2,10 +2,8 @@
 #define _RIVE_TRANSITION_CONDITION_BASE_HPP_
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class TransitionConditionBase : public Core
-    {
+namespace rive {
+    class TransitionConditionBase : public Core {
     protected:
         typedef Core Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case TransitionConditionBase::typeKey:
                     return true;
                 default:
@@ -34,25 +30,20 @@ namespace rive
 
     public:
         inline int inputId() const { return m_InputId; }
-        void inputId(int value)
-        {
-            if (m_InputId == value)
-            {
+        void inputId(int value) {
+            if (m_InputId == value) {
                 return;
             }
             m_InputId = value;
             inputIdChanged();
         }
 
-        void copy(const TransitionConditionBase& object)
-        {
+        void copy(const TransitionConditionBase& object) {
             m_InputId = object.m_InputId;
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case inputIdPropertyKey:
                     m_InputId = CoreUintType::deserialize(reader);
                     return true;

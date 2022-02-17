@@ -5,8 +5,7 @@
 
 using namespace rive;
 
-StatusCode Tendon::onAddedDirty(CoreContext* context)
-{
+StatusCode Tendon::onAddedDirty(CoreContext* context) {
     Mat2D bind;
     bind[0] = xx();
     bind[1] = xy();
@@ -15,19 +14,16 @@ StatusCode Tendon::onAddedDirty(CoreContext* context)
     bind[4] = tx();
     bind[5] = ty();
 
-    if (!Mat2D::invert(m_InverseBind, bind))
-    {
+    if (!Mat2D::invert(m_InverseBind, bind)) {
         return StatusCode::FailedInversion;
     }
 
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
+    if (code != StatusCode::Ok) {
         return code;
     }
     auto coreObject = context->resolve(boneId());
-    if (coreObject == nullptr || !coreObject->is<Bone>())
-    {
+    if (coreObject == nullptr || !coreObject->is<Bone>()) {
         return StatusCode::MissingObject;
     }
 
@@ -36,10 +32,8 @@ StatusCode Tendon::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-StatusCode Tendon::onAddedClean(CoreContext* context)
-{
-    if (!parent()->is<Skin>())
-    {
+StatusCode Tendon::onAddedClean(CoreContext* context) {
+    if (!parent()->is<Skin>()) {
         return StatusCode::MissingObject;
     }
 

@@ -2,11 +2,9 @@
 #define _RIVE_IMAGE_HPP_
 #include "rive/generated/shapes/image_base.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
-namespace rive
-{
+namespace rive {
     class ImageAsset;
-    class Image : public ImageBase, public FileAssetReferencer
-    {
+    class Image : public ImageBase, public FileAssetReferencer {
     private:
         ImageAsset* m_ImageAsset = nullptr;
 

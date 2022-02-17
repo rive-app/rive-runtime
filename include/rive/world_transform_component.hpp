@@ -3,11 +3,9 @@
 #include "rive/generated/world_transform_component_base.hpp"
 #include "rive/math/mat2d.hpp"
 
-namespace rive
-{
+namespace rive {
     class TransformComponent;
-    class WorldTransformComponent : public WorldTransformComponentBase
-    {
+    class WorldTransformComponent : public WorldTransformComponentBase {
         friend class TransformComponent;
 
     protected:

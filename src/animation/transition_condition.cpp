@@ -6,22 +6,18 @@
 
 using namespace rive;
 
-StatusCode TransitionCondition::onAddedDirty(CoreContext* context)
-{
+StatusCode TransitionCondition::onAddedDirty(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-StatusCode TransitionCondition::onAddedClean(CoreContext* context)
-{
+StatusCode TransitionCondition::onAddedClean(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-StatusCode TransitionCondition::import(ImportStack& importStack)
-{
+StatusCode TransitionCondition::import(ImportStack& importStack) {
     auto stateMachineImporter =
         importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
+    if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
 
@@ -39,8 +35,7 @@ StatusCode TransitionCondition::import(ImportStack& importStack)
 
     auto transitionImporter =
         importStack.latest<StateTransitionImporter>(StateTransition::typeKey);
-    if (transitionImporter == nullptr)
-    {
+    if (transitionImporter == nullptr) {
         return StatusCode::MissingObject;
     }
     transitionImporter->addCondition(this);

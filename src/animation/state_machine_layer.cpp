@@ -8,25 +8,19 @@
 
 using namespace rive;
 
-StateMachineLayer::~StateMachineLayer()
-{
-    for (auto state : m_States)
-    {
+StateMachineLayer::~StateMachineLayer() {
+    for (auto state : m_States) {
         delete state;
     }
 }
 
-StatusCode StateMachineLayer::onAddedDirty(CoreContext* context)
-{
+StatusCode StateMachineLayer::onAddedDirty(CoreContext* context) {
     StatusCode code;
-    for (auto state : m_States)
-    {
-        if ((code = state->onAddedDirty(context)) != StatusCode::Ok)
-        {
+    for (auto state : m_States) {
+        if ((code = state->onAddedDirty(context)) != StatusCode::Ok) {
             return code;
         }
-        switch (state->coreType())
-        {
+        switch (state->coreType()) {
             case AnyState::typeKey:
                 m_Any = state->as<AnyState>();
                 break;
@@ -38,8 +32,7 @@ StatusCode StateMachineLayer::onAddedDirty(CoreContext* context)
                 break;
         }
     }
-    if (m_Any == nullptr || m_Entry == nullptr || m_Exit == nullptr)
-    {
+    if (m_Any == nullptr || m_Entry == nullptr || m_Exit == nullptr) {
         // The layer is corrupt, we must have all three of these states.
         return StatusCode::InvalidObject;
     }
@@ -47,13 +40,10 @@ StatusCode StateMachineLayer::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-StatusCode StateMachineLayer::onAddedClean(CoreContext* context)
-{
+StatusCode StateMachineLayer::onAddedClean(CoreContext* context) {
     StatusCode code;
-    for (auto state : m_States)
-    {
-        if ((code = state->onAddedClean(context)) != StatusCode::Ok)
-        {
+    for (auto state : m_States) {
+        if ((code = state->onAddedClean(context)) != StatusCode::Ok) {
             return code;
         }
     }
@@ -61,17 +51,14 @@ StatusCode StateMachineLayer::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void StateMachineLayer::addState(LayerState* state)
-{
+void StateMachineLayer::addState(LayerState* state) {
     m_States.push_back(state);
 }
 
-StatusCode StateMachineLayer::import(ImportStack& importStack)
-{
+StatusCode StateMachineLayer::import(ImportStack& importStack) {
     auto stateMachineImporter =
         importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
+    if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
     stateMachineImporter->addLayer(this);

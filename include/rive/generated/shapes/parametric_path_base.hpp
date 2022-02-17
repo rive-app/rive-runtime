@@ -2,10 +2,8 @@
 #define _RIVE_PARAMETRIC_PATH_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/shapes/path.hpp"
-namespace rive
-{
-    class ParametricPathBase : public Path
-    {
+namespace rive {
+    class ParametricPathBase : public Path {
     protected:
         typedef Path Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case ParametricPathBase::typeKey:
                 case PathBase::typeKey:
                 case NodeBase::typeKey:
@@ -46,10 +42,8 @@ namespace rive
 
     public:
         inline float width() const { return m_Width; }
-        void width(float value)
-        {
-            if (m_Width == value)
-            {
+        void width(float value) {
+            if (m_Width == value) {
                 return;
             }
             m_Width = value;
@@ -57,10 +51,8 @@ namespace rive
         }
 
         inline float height() const { return m_Height; }
-        void height(float value)
-        {
-            if (m_Height == value)
-            {
+        void height(float value) {
+            if (m_Height == value) {
                 return;
             }
             m_Height = value;
@@ -68,10 +60,8 @@ namespace rive
         }
 
         inline float originX() const { return m_OriginX; }
-        void originX(float value)
-        {
-            if (m_OriginX == value)
-            {
+        void originX(float value) {
+            if (m_OriginX == value) {
                 return;
             }
             m_OriginX = value;
@@ -79,18 +69,15 @@ namespace rive
         }
 
         inline float originY() const { return m_OriginY; }
-        void originY(float value)
-        {
-            if (m_OriginY == value)
-            {
+        void originY(float value) {
+            if (m_OriginY == value) {
                 return;
             }
             m_OriginY = value;
             originYChanged();
         }
 
-        void copy(const ParametricPathBase& object)
-        {
+        void copy(const ParametricPathBase& object) {
             m_Width = object.m_Width;
             m_Height = object.m_Height;
             m_OriginX = object.m_OriginX;
@@ -98,10 +85,8 @@ namespace rive
             Path::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case widthPropertyKey:
                     m_Width = CoreDoubleType::deserialize(reader);
                     return true;

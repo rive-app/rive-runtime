@@ -2,10 +2,8 @@
 #define _RIVE_CUBIC_ASYMMETRIC_VERTEX_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/shapes/cubic_vertex.hpp"
-namespace rive
-{
-    class CubicAsymmetricVertexBase : public CubicVertex
-    {
+namespace rive {
+    class CubicAsymmetricVertexBase : public CubicVertex {
     protected:
         typedef CubicVertex Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case CubicAsymmetricVertexBase::typeKey:
                 case CubicVertexBase::typeKey:
                 case PathVertexBase::typeKey:
@@ -42,10 +38,8 @@ namespace rive
 
     public:
         inline float rotation() const { return m_Rotation; }
-        void rotation(float value)
-        {
-            if (m_Rotation == value)
-            {
+        void rotation(float value) {
+            if (m_Rotation == value) {
                 return;
             }
             m_Rotation = value;
@@ -53,10 +47,8 @@ namespace rive
         }
 
         inline float inDistance() const { return m_InDistance; }
-        void inDistance(float value)
-        {
-            if (m_InDistance == value)
-            {
+        void inDistance(float value) {
+            if (m_InDistance == value) {
                 return;
             }
             m_InDistance = value;
@@ -64,10 +56,8 @@ namespace rive
         }
 
         inline float outDistance() const { return m_OutDistance; }
-        void outDistance(float value)
-        {
-            if (m_OutDistance == value)
-            {
+        void outDistance(float value) {
+            if (m_OutDistance == value) {
                 return;
             }
             m_OutDistance = value;
@@ -75,18 +65,15 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const CubicAsymmetricVertexBase& object)
-        {
+        void copy(const CubicAsymmetricVertexBase& object) {
             m_Rotation = object.m_Rotation;
             m_InDistance = object.m_InDistance;
             m_OutDistance = object.m_OutDistance;
             CubicVertex::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case rotationPropertyKey:
                     m_Rotation = CoreDoubleType::deserialize(reader);
                     return true;

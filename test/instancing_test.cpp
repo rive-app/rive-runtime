@@ -8,8 +8,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("cloning an ellipse works", "[instancing]")
-{
+TEST_CASE("cloning an ellipse works", "[instancing]") {
     FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -39,8 +38,7 @@ TEST_CASE("cloning an ellipse works", "[instancing]")
     delete[] bytes;
 }
 
-TEST_CASE("instancing artboard clones clipped properties", "[instancing]")
-{
+TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
     FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -82,8 +80,7 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]")
     delete[] bytes;
 }
 
-TEST_CASE("instancing artboard doesn't clone animations", "[instancing]")
-{
+TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     FILE* fp = fopen("../../test/assets/juice.riv", "r");
     REQUIRE(fp != nullptr);
 

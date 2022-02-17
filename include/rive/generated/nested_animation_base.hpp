@@ -2,10 +2,8 @@
 #define _RIVE_NESTED_ANIMATION_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class NestedAnimationBase : public Component
-    {
+namespace rive {
+    class NestedAnimationBase : public Component {
     protected:
         typedef Component Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case NestedAnimationBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;
@@ -35,26 +31,21 @@ namespace rive
 
     public:
         inline int animationId() const { return m_AnimationId; }
-        void animationId(int value)
-        {
-            if (m_AnimationId == value)
-            {
+        void animationId(int value) {
+            if (m_AnimationId == value) {
                 return;
             }
             m_AnimationId = value;
             animationIdChanged();
         }
 
-        void copy(const NestedAnimationBase& object)
-        {
+        void copy(const NestedAnimationBase& object) {
             m_AnimationId = object.m_AnimationId;
             Component::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case animationIdPropertyKey:
                     m_AnimationId = CoreUintType::deserialize(reader);
                     return true;

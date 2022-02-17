@@ -1,10 +1,8 @@
 #ifndef _RIVE_NESTED_STATE_MACHINE_BASE_HPP_
 #define _RIVE_NESTED_STATE_MACHINE_BASE_HPP_
 #include "rive/nested_animation.hpp"
-namespace rive
-{
-    class NestedStateMachineBase : public NestedAnimation
-    {
+namespace rive {
+    class NestedStateMachineBase : public NestedAnimation {
     protected:
         typedef NestedAnimation Super;
 
@@ -13,10 +11,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case NestedStateMachineBase::typeKey:
                 case NestedAnimationBase::typeKey:
                 case ComponentBase::typeKey:

@@ -6,15 +6,12 @@
 
 using namespace rive;
 
-void Image::draw(Renderer* renderer)
-{
-    if (m_ImageAsset == nullptr || renderOpacity() == 0.0f)
-    {
+void Image::draw(Renderer* renderer) {
+    if (m_ImageAsset == nullptr || renderOpacity() == 0.0f) {
         return;
     }
 
-    if (!clip(renderer))
-    {
+    if (!clip(renderer)) {
         // We didn't clip, so make sure to save as we'll be doing some
         // transformations.
         renderer->save();
@@ -36,12 +33,10 @@ void Image::draw(Renderer* renderer)
     renderer->restore();
 }
 
-StatusCode Image::import(ImportStack& importStack)
-{
+StatusCode Image::import(ImportStack& importStack) {
     auto backboardImporter =
         importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
-    {
+    if (backboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }
     backboardImporter->addFileAssetReferencer(this);
@@ -49,21 +44,17 @@ StatusCode Image::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-void Image::assets(const std::vector<FileAsset*>& assets)
-{
-    if (assetId() < 0 || assetId() >= assets.size())
-    {
+void Image::assets(const std::vector<FileAsset*>& assets) {
+    if (assetId() < 0 || assetId() >= assets.size()) {
         return;
     }
     auto asset = assets[assetId()];
-    if (asset->is<ImageAsset>())
-    {
+    if (asset->is<ImageAsset>()) {
         m_ImageAsset = asset->as<ImageAsset>();
     }
 }
 
-Core* Image::clone() const
-{
+Core* Image::clone() const {
     Image* twin = ImageBase::clone()->as<Image>();
     twin->m_ImageAsset = m_ImageAsset;
     return twin;

@@ -17,13 +17,10 @@
 
 using namespace rive;
 
-Artboard::~Artboard()
-{
-    for (auto object : m_Objects)
-    {
+Artboard::~Artboard() {
+    for (auto object : m_Objects) {
         // First object is artboard
-        if (object == this)
-        {
+        if (object == this) {
             continue;
         }
         delete object;
@@ -32,14 +29,11 @@ Artboard::~Artboard()
     // Instances reference back to the original artboard's animations and state
     // machines, so don't delete them here, they'll get cleaned up when the
     // source is deleted.
-    if (!m_IsInstance)
-    {
-        for (auto object : m_Animations)
-        {
+    if (!m_IsInstance) {
+        for (auto object : m_Animations) {
             delete object;
         }
-        for (auto object : m_StateMachines)
-        {
+        for (auto object : m_StateMachines) {
             delete object;
         }
     }
@@ -48,14 +42,12 @@ Artboard::~Artboard()
     delete m_BackgroundPath;
 }
 
-static bool canContinue(StatusCode code)
-{
+static bool canContinue(StatusCode code) {
     // We currently only cease loading on invalid object.
     return code != StatusCode::InvalidObject;
 }
 
-StatusCode Artboard::initialize()
-{
+StatusCode Artboard::initialize() {
     StatusCode code;
 
     m_BackgroundPath = makeCommandPath(PathSpace::Neither);
@@ -64,31 +56,24 @@ StatusCode Artboard::initialize()
     // onAddedDirty guarantees that all objects are now available so they can be
     // looked up by index/id. This is where nodes find their parents, but they
     // can't assume that their parent's parent will have resolved yet.
-    for (auto object : m_Objects)
-    {
-        if (object == nullptr)
-        {
+    for (auto object : m_Objects) {
+        if (object == nullptr) {
             // objects can be null if they were not understood by this runtime.
             continue;
         }
-        if (!canContinue(code = object->onAddedDirty(this)))
-        {
+        if (!canContinue(code = object->onAddedDirty(this))) {
             return code;
         }
     }
 
-    for (auto object : m_Animations)
-    {
-        if (!canContinue(code = object->onAddedDirty(this)))
-        {
+    for (auto object : m_Animations) {
+        if (!canContinue(code = object->onAddedDirty(this))) {
             return code;
         }
     }
 
-    for (auto object : m_StateMachines)
-    {
-        if (!canContinue(code = object->onAddedDirty(this)))
-        {
+    for (auto object : m_StateMachines) {
+        if (!canContinue(code = object->onAddedDirty(this))) {
             return code;
         }
     }
@@ -101,28 +86,20 @@ StatusCode Artboard::initialize()
     // assume that they have resolved too. This is where the whole hierarchy is
     // linked up and we can traverse it to find other references (my parent's
     // parent should be type X can be checked now).
-    for (auto object : m_Objects)
-    {
-        if (object == nullptr)
-        {
+    for (auto object : m_Objects) {
+        if (object == nullptr) {
             continue;
         }
-        if (!canContinue(code = object->onAddedClean(this)))
-        {
+        if (!canContinue(code = object->onAddedClean(this))) {
             return code;
         }
-        switch (object->coreType())
-        {
-            case DrawRulesBase::typeKey:
-            {
+        switch (object->coreType()) {
+            case DrawRulesBase::typeKey: {
                 DrawRules* rules = reinterpret_cast<DrawRules*>(object);
                 Core* component = resolve(rules->parentId());
-                if (component != nullptr)
-                {
+                if (component != nullptr) {
                     componentDrawRules[component] = rules;
-                }
-                else
-                {
+                } else {
                     fprintf(stderr,
                             "Artboard::initialize - Draw rule targets missing "
                             "component width id %d\n",
@@ -136,36 +113,28 @@ StatusCode Artboard::initialize()
         }
     }
 
-    for (auto object : m_Animations)
-    {
-        if (!canContinue(code = object->onAddedClean(this)))
-        {
+    for (auto object : m_Animations) {
+        if (!canContinue(code = object->onAddedClean(this))) {
             return code;
         }
     }
 
-    for (auto object : m_StateMachines)
-    {
-        if (!canContinue(code = object->onAddedClean(this)))
-        {
+    for (auto object : m_StateMachines) {
+        if (!canContinue(code = object->onAddedClean(this))) {
             return code;
         }
     }
 
     // Multi-level references have been built up, now we can
     // actually mark what's dependent on what.
-    for (auto object : m_Objects)
-    {
-        if (object == nullptr)
-        {
+    for (auto object : m_Objects) {
+        if (object == nullptr) {
             continue;
         }
-        if (object->is<Component>())
-        {
+        if (object->is<Component>()) {
             object->as<Component>()->buildDependencies();
         }
-        if (object->is<Drawable>())
-        {
+        if (object->is<Drawable>()) {
             Drawable* drawable = object->as<Drawable>();
             m_Drawables.push_back(drawable);
 
@@ -173,8 +142,7 @@ StatusCode Artboard::initialize()
                  parent = parent->parent())
             {
                 auto itr = componentDrawRules.find(parent);
-                if (itr != componentDrawRules.end())
-                {
+                if (itr != componentDrawRules.end()) {
                     drawable->flattenedDrawRules = itr->second;
                     break;
                 }
@@ -187,30 +155,23 @@ StatusCode Artboard::initialize()
     DrawTarget root;
     // Build up the draw order. Look for draw targets and build
     // their dependencies.
-    for (auto object : m_Objects)
-    {
-        if (object == nullptr)
-        {
+    for (auto object : m_Objects) {
+        if (object == nullptr) {
             continue;
         }
-        if (object->is<DrawTarget>())
-        {
+        if (object->is<DrawTarget>()) {
             DrawTarget* target = object->as<DrawTarget>();
             root.addDependent(target);
 
             auto dependentRules = target->drawable()->flattenedDrawRules;
-            if (dependentRules != nullptr)
-            {
+            if (dependentRules != nullptr) {
                 // Because we don't store targets on rules, we need
                 // to find the targets that belong to this rule
                 // here.
-                for (auto object : m_Objects)
-                {
-                    if (object != nullptr && object->is<DrawTarget>())
-                    {
+                for (auto object : m_Objects) {
+                    if (object != nullptr && object->is<DrawTarget>()) {
                         DrawTarget* dependentTarget = object->as<DrawTarget>();
-                        if (dependentTarget->parent() == dependentRules)
-                        {
+                        if (dependentTarget->parent() == dependentRules) {
                             dependentTarget->addDependent(target);
                         }
                     }
@@ -223,92 +184,70 @@ StatusCode Artboard::initialize()
     sorter.sort(&root, drawTargetOrder);
     auto itr = drawTargetOrder.begin();
     itr++;
-    while (itr != drawTargetOrder.end())
-    {
+    while (itr != drawTargetOrder.end()) {
         m_DrawTargets.push_back(reinterpret_cast<DrawTarget*>(*itr++));
     }
 
     return StatusCode::Ok;
 }
 
-void Artboard::sortDrawOrder()
-{
-    for (auto target : m_DrawTargets)
-    {
+void Artboard::sortDrawOrder() {
+    for (auto target : m_DrawTargets) {
         target->first = target->last = nullptr;
     }
 
     m_FirstDrawable = nullptr;
     Drawable* lastDrawable = nullptr;
-    for (auto drawable : m_Drawables)
-    {
+    for (auto drawable : m_Drawables) {
         auto rules = drawable->flattenedDrawRules;
-        if (rules != nullptr && rules->activeTarget() != nullptr)
-        {
+        if (rules != nullptr && rules->activeTarget() != nullptr) {
 
             auto target = rules->activeTarget();
-            if (target->first == nullptr)
-            {
+            if (target->first == nullptr) {
                 target->first = target->last = drawable;
                 drawable->prev = drawable->next = nullptr;
-            }
-            else
-            {
+            } else {
                 target->last->next = drawable;
                 drawable->prev = target->last;
                 target->last = drawable;
                 drawable->next = nullptr;
             }
-        }
-        else
-        {
+        } else {
             drawable->prev = lastDrawable;
             drawable->next = nullptr;
-            if (lastDrawable == nullptr)
-            {
+            if (lastDrawable == nullptr) {
                 lastDrawable = m_FirstDrawable = drawable;
-            }
-            else
-            {
+            } else {
                 lastDrawable->next = drawable;
                 lastDrawable = drawable;
             }
         }
     }
 
-    for (auto rule : m_DrawTargets)
-    {
-        if (rule->first == nullptr)
-        {
+    for (auto rule : m_DrawTargets) {
+        if (rule->first == nullptr) {
             continue;
         }
         auto targetDrawable = rule->drawable();
-        switch (rule->placement())
-        {
-            case DrawTargetPlacement::before:
-            {
-                if (targetDrawable->prev != nullptr)
-                {
+        switch (rule->placement()) {
+            case DrawTargetPlacement::before: {
+                if (targetDrawable->prev != nullptr) {
                     targetDrawable->prev->next = rule->first;
                     rule->first->prev = targetDrawable->prev;
                 }
-                if (targetDrawable == m_FirstDrawable)
-                {
+                if (targetDrawable == m_FirstDrawable) {
                     m_FirstDrawable = rule->first;
                 }
                 targetDrawable->prev = rule->last;
                 rule->last->next = targetDrawable;
                 break;
             }
-            case DrawTargetPlacement::after:
-            {
-                if (targetDrawable->next != nullptr)
-                {
+            case DrawTargetPlacement::after: {
+                if (targetDrawable->next != nullptr) {
                     targetDrawable->next->prev = rule->last;
                     rule->last->next = targetDrawable->next;
                 }
-                if (targetDrawable == lastDrawable)
-                {
+                if (targetDrawable == lastDrawable) {
                     lastDrawable = rule->last;
                 }
                 targetDrawable->next = rule->first;
@@ -321,13 +260,11 @@ void Artboard::sortDrawOrder()
     m_FirstDrawable = lastDrawable;
 }
 
-void Artboard::sortDependencies()
-{
+void Artboard::sortDependencies() {
     DependencySorter sorter;
     sorter.sort(this, m_DependencyOrder);
     unsigned int graphOrder = 0;
-    for (auto component : m_DependencyOrder)
-    {
+    for (auto component : m_DependencyOrder) {
         component->m_GraphOrder = graphOrder++;
     }
     m_Dirt |= ComponentDirt::Components;
@@ -335,63 +272,49 @@ void Artboard::sortDependencies()
 
 void Artboard::addObject(Core* object) { m_Objects.push_back(object); }
 
-void Artboard::addAnimation(LinearAnimation* object)
-{
+void Artboard::addAnimation(LinearAnimation* object) {
     m_Animations.push_back(object);
 }
 
-void Artboard::addStateMachine(StateMachine* object)
-{
+void Artboard::addStateMachine(StateMachine* object) {
     m_StateMachines.push_back(object);
 }
 
-void Artboard::addNestedArtboard(NestedArtboard* artboard)
-{
+void Artboard::addNestedArtboard(NestedArtboard* artboard) {
     m_NestedArtboards.push_back(artboard);
 }
 
-Core* Artboard::resolve(int id) const
-{
-    if (id < 0 || id >= static_cast<int>(m_Objects.size()))
-    {
+Core* Artboard::resolve(int id) const {
+    if (id < 0 || id >= static_cast<int>(m_Objects.size())) {
         return nullptr;
     }
     return m_Objects[id];
 }
 
-void Artboard::onComponentDirty(Component* component)
-{
+void Artboard::onComponentDirty(Component* component) {
     m_Dirt |= ComponentDirt::Components;
 
     /// If the order of the component is less than the current dirt
     /// depth, update the dirt depth so that the update loop can break
     /// out early and re-run (something up the tree is dirty).
-    if (component->graphOrder() < m_DirtDepth)
-    {
+    if (component->graphOrder() < m_DirtDepth) {
         m_DirtDepth = component->graphOrder();
     }
 }
 
-void Artboard::onDirty(ComponentDirt dirt)
-{
+void Artboard::onDirty(ComponentDirt dirt) {
     m_Dirt |= ComponentDirt::Components;
 }
 
-void Artboard::update(ComponentDirt value)
-{
-    if (hasDirt(value, ComponentDirt::DrawOrder))
-    {
+void Artboard::update(ComponentDirt value) {
+    if (hasDirt(value, ComponentDirt::DrawOrder)) {
         sortDrawOrder();
     }
-    if (hasDirt(value, ComponentDirt::Path))
-    {
+    if (hasDirt(value, ComponentDirt::Path)) {
         m_ClipPath->reset();
-        if (m_FrameOrigin)
-        {
+        if (m_FrameOrigin) {
             m_ClipPath->addRect(0.0f, 0.0f, width(), height());
-        }
-        else
-        {
+        } else {
             m_ClipPath->addRect(
                 -width() * originX(), -height() * originY(), width(), height());
         }
@@ -400,26 +323,21 @@ void Artboard::update(ComponentDirt value)
     }
 }
 
-bool Artboard::updateComponents()
-{
-    if (hasDirt(ComponentDirt::Components))
-    {
+bool Artboard::updateComponents() {
+    if (hasDirt(ComponentDirt::Components)) {
         const int maxSteps = 100;
         int step = 0;
         auto count = m_DependencyOrder.size();
-        while (hasDirt(ComponentDirt::Components) && step < maxSteps)
-        {
+        while (hasDirt(ComponentDirt::Components) && step < maxSteps) {
             m_Dirt = m_Dirt & ~ComponentDirt::Components;
 
             // Track dirt depth here so that if something else marks
             // dirty, we restart.
-            for (unsigned int i = 0; i < count; i++)
-            {
+            for (unsigned int i = 0; i < count; i++) {
                 auto component = m_DependencyOrder[i];
                 m_DirtDepth = i;
                 auto d = component->m_Dirt;
-                if (d == ComponentDirt::None)
-                {
+                if (d == ComponentDirt::None) {
                     continue;
                 }
                 component->m_Dirt = ComponentDirt::None;
@@ -428,8 +346,7 @@ bool Artboard::updateComponents()
                 // If the update changed the dirt depth by adding dirt
                 // to something before us (in the DAG), early out and
                 // re-run the update.
-                if (m_DirtDepth < i)
-                {
+                if (m_DirtDepth < i) {
                     // We put this in here just to know if we need to
                     // keep this around...
                     assert(false);
@@ -443,46 +360,37 @@ bool Artboard::updateComponents()
     return false;
 }
 
-bool Artboard::advance(double elapsedSeconds)
-{
-    for (auto nestedArtboard : m_NestedArtboards)
-    {
+bool Artboard::advance(double elapsedSeconds) {
+    for (auto nestedArtboard : m_NestedArtboards) {
         nestedArtboard->advance(elapsedSeconds);
     }
     return updateComponents();
 }
 
-void Artboard::draw(Renderer* renderer, DrawOption option)
-{
+void Artboard::draw(Renderer* renderer, DrawOption option) {
     renderer->save();
-    if (clip())
-    {
+    if (clip()) {
         renderer->clipPath(m_ClipPath->renderPath());
     }
 
-    if (m_FrameOrigin)
-    {
+    if (m_FrameOrigin) {
         Mat2D artboardTransform;
         artboardTransform[4] = width() * originX();
         artboardTransform[5] = height() * originY();
         renderer->transform(artboardTransform);
     }
 
-    if (option != DrawOption::kHideBG)
-    {
-        for (auto shapePaint : m_ShapePaints)
-        {
+    if (option != DrawOption::kHideBG) {
+        for (auto shapePaint : m_ShapePaints) {
             shapePaint->draw(renderer, m_BackgroundPath);
         }
     }
 
-    if (option != DrawOption::kHideFG)
-    {
+    if (option != DrawOption::kHideFG) {
         for (auto drawable = m_FirstDrawable; drawable != nullptr;
              drawable = drawable->prev)
         {
-            if (drawable->isHidden())
-            {
+            if (drawable->isHidden()) {
                 continue;
             }
             drawable->draw(renderer);
@@ -495,8 +403,8 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
 AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }
 
 bool Artboard::isTranslucent(const LinearAnimation* anim) const {
-    // For now we're conservative/lazy -- if we see that any of our paints are animated
-    // we assume that might make it non-opaque, so we early out
+    // For now we're conservative/lazy -- if we see that any of our paints are
+    // animated we assume that might make it non-opaque, so we early out
     for (const auto obj : anim->m_KeyedObjects) {
         const auto ptr = this->resolve(obj->objectId());
         for (const auto sp : m_ShapePaints) {
@@ -506,78 +414,64 @@ bool Artboard::isTranslucent(const LinearAnimation* anim) const {
         }
     }
 
-    // If we get here, we have no animations, so just check our paints for opacity
+    // If we get here, we have no animations, so just check our paints for
+    // opacity
 
     for (const auto sp : m_ShapePaints) {
         if (!sp->isTranslucent()) {
-            return false;   // one opaque fill is sufficient to be opaque
+            return false; // one opaque fill is sufficient to be opaque
         }
     }
     return true;
 }
 
-LinearAnimation* Artboard::firstAnimation() const
-{
-    if (m_Animations.empty())
-    {
+LinearAnimation* Artboard::firstAnimation() const {
+    if (m_Animations.empty()) {
         return nullptr;
     }
     return m_Animations.front();
 }
 
-LinearAnimation* Artboard::animation(std::string name) const
-{
-    for (auto animation : m_Animations)
-    {
-        if (animation->name() == name)
-        {
+LinearAnimation* Artboard::animation(std::string name) const {
+    for (auto animation : m_Animations) {
+        if (animation->name() == name) {
             return animation;
         }
     }
     return nullptr;
 }
 
-LinearAnimation* Artboard::animation(size_t index) const
-{
-    if (index >= m_Animations.size())
-    {
+LinearAnimation* Artboard::animation(size_t index) const {
+    if (index >= m_Animations.size()) {
         return nullptr;
     }
     return m_Animations[index];
 }
 
-StateMachine* Artboard::firstStateMachine() const
-{
-    if (m_StateMachines.empty())
-    {
+StateMachine* Artboard::firstStateMachine() const {
+    if (m_StateMachines.empty()) {
         return nullptr;
     }
     return m_StateMachines.front();
 }
 
-StateMachine* Artboard::stateMachine(std::string name) const
-{
-    for (auto machine : m_StateMachines)
-    {
-        if (machine->name() == name)
-        {
+StateMachine* Artboard::stateMachine(std::string name) const {
+    for (auto machine : m_StateMachines) {
+        if (machine->name() == name) {
             return machine;
         }
     }
     return nullptr;
 }
 
-StateMachine* Artboard::stateMachine(size_t index) const
-{
-    if (index >= m_StateMachines.size())
-    {
+StateMachine* Artboard::stateMachine(size_t index) const {
+    if (index >= m_StateMachines.size()) {
         return nullptr;
     }
     return m_StateMachines[index];
 }
 
-Artboard* Artboard::instance() const
-{
+Artboard* Artboard::instance() const {
     auto artboardClone = clone()->as<Artboard>();
     artboardClone->m_FrameOrigin = m_FrameOrigin;
 
@@ -586,60 +480,47 @@ Artboard* Artboard::instance() const
 
     // Skip first object (artboard).
     auto itr = m_Objects.begin();
-    while (++itr != m_Objects.end())
-    {
+    while (++itr != m_Objects.end()) {
         auto object = *itr;
         cloneObjects.push_back(object == nullptr ? nullptr : object->clone());
     }
 
-    for (auto animation : m_Animations)
-    {
+    for (auto animation : m_Animations) {
         artboardClone->m_Animations.push_back(animation);
     }
-    for (auto stateMachine : m_StateMachines)
-    {
+    for (auto stateMachine : m_StateMachines) {
         artboardClone->m_StateMachines.push_back(stateMachine);
     }
 
-    if (artboardClone->initialize() != StatusCode::Ok)
-    {
+    if (artboardClone->initialize() != StatusCode::Ok) {
         delete artboardClone;
         artboardClone = nullptr;
-    }
-    else
-    {
+    } else {
         artboardClone->m_IsInstance = true;
     }
 
     return artboardClone;
 }
 
-void Artboard::frameOrigin(bool value)
-{
-    if (value == m_FrameOrigin)
-    {
+void Artboard::frameOrigin(bool value) {
+    if (value == m_FrameOrigin) {
         return;
     }
     m_FrameOrigin = value;
     addDirt(ComponentDirt::Path);
 }
 
-StatusCode Artboard::import(ImportStack& importStack)
-{
+StatusCode Artboard::import(ImportStack& importStack) {
     auto backboardImporter =
         importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
-    {
+    if (backboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }
 
     StatusCode result = Super::import(importStack);
-    if (result == StatusCode::Ok)
-    {
+    if (result == StatusCode::Ok) {
         backboardImporter->addArtboard(this);
-    }
-    else
-    {
+    } else {
         backboardImporter->addMissingArtboard();
     }
     return result;

@@ -4,11 +4,9 @@
 #include <vector>
 #include <cstdint>
 
-namespace rive
-{
+namespace rive {
     class BinaryReader;
-    class CoreBytesType
-    {
+    class CoreBytesType {
     public:
         static const int id = 1;
         static std::vector<uint8_t> deserialize(BinaryReader& reader);

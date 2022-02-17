@@ -4,13 +4,10 @@
 
 using namespace rive;
 
-StatusCode NestedAnimation::onAddedDirty(CoreContext* context)
-{
+StatusCode NestedAnimation::onAddedDirty(CoreContext* context) {
     StatusCode code = Super::onAddedDirty(context);
-    if (code == StatusCode::Ok)
-    {
-        if (!parent()->is<NestedArtboard>())
-        {
+    if (code == StatusCode::Ok) {
+        if (!parent()->is<NestedArtboard>()) {
             return StatusCode::InvalidObject;
         }
         auto nestedArtboard = parent()->as<NestedArtboard>();

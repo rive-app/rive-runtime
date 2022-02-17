@@ -2,10 +2,8 @@
 #define _RIVE_KEY_FRAME_COLOR_BASE_HPP_
 #include "rive/animation/keyframe.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
-namespace rive
-{
-    class KeyFrameColorBase : public KeyFrame
-    {
+namespace rive {
+    class KeyFrameColorBase : public KeyFrame {
     protected:
         typedef KeyFrame Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case KeyFrameColorBase::typeKey:
                 case KeyFrameBase::typeKey:
                     return true;
@@ -35,10 +31,8 @@ namespace rive
 
     public:
         inline int value() const { return m_Value; }
-        void value(int value)
-        {
-            if (m_Value == value)
-            {
+        void value(int value) {
+            if (m_Value == value) {
                 return;
             }
             m_Value = value;
@@ -46,16 +40,13 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const KeyFrameColorBase& object)
-        {
+        void copy(const KeyFrameColorBase& object) {
             m_Value = object.m_Value;
             KeyFrame::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case valuePropertyKey:
                     m_Value = CoreColorType::deserialize(reader);
                     return true;

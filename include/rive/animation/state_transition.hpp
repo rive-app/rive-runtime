@@ -5,8 +5,7 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class LayerState;
     class StateMachineLayerImporter;
     class StateTransitionImporter;
@@ -16,21 +15,14 @@ namespace rive
     class LinearAnimation;
     class LinearAnimationInstance;
 
-    enum class AllowTransition : unsigned char
-    {
-        no,
-        waitingForExit,
-        yes
-    };
+    enum class AllowTransition : unsigned char { no, waitingForExit, yes };
 
-    class StateTransition : public StateTransitionBase
-    {
+    class StateTransition : public StateTransitionBase {
         friend class StateMachineLayerImporter;
         friend class StateTransitionImporter;
 
     private:
-        StateTransitionFlags transitionFlags() const
-        {
+        StateTransitionFlags transitionFlags() const {
             return static_cast<StateTransitionFlags>(flags());
         }
         LayerState* m_StateTo = nullptr;
@@ -47,8 +39,7 @@ namespace rive
 
         /// Whether the transition is marked disabled (usually done in the
         /// editor).
-        bool isDisabled() const
-        {
+        bool isDisabled() const {
             return (transitionFlags() & StateTransitionFlags::Disabled) ==
                    StateTransitionFlags::Disabled;
         }
@@ -61,16 +52,14 @@ namespace rive
 
         /// Whether the animation is held at exit or if it keeps advancing
         /// during mixing.
-        bool pauseOnExit() const
-        {
+        bool pauseOnExit() const {
             return (transitionFlags() & StateTransitionFlags::PauseOnExit) ==
                    StateTransitionFlags::PauseOnExit;
         }
 
         /// Whether exit time is enabled. All other conditions still apply, the
         /// exit time is effectively an AND with the rest of the conditions.
-        bool enableExitTime() const
-        {
+        bool enableExitTime() const {
             return (transitionFlags() & StateTransitionFlags::EnableExitTime) ==
                    StateTransitionFlags::EnableExitTime;
         }
@@ -78,10 +67,8 @@ namespace rive
         StatusCode import(ImportStack& importStack) override;
 
         size_t conditionCount() const { return m_Conditions.size(); }
-        TransitionCondition* condition(size_t index) const
-        {
-            if (index < m_Conditions.size())
-            {
+        TransitionCondition* condition(size_t index) const {
+            if (index < m_Conditions.size()) {
                 return m_Conditions[index];
             }
             return nullptr;

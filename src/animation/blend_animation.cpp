@@ -6,30 +6,24 @@
 
 using namespace rive;
 
-StatusCode BlendAnimation::import(ImportStack& importStack)
-{
+StatusCode BlendAnimation::import(ImportStack& importStack) {
     auto importer =
         importStack.latest<LayerStateImporter>(LayerStateBase::typeKey);
-    if (importer == nullptr)
-    {
+    if (importer == nullptr) {
         return StatusCode::MissingObject;
-    }
-    else if (!importer->addBlendAnimation(this))
-    {
+    } else if (!importer->addBlendAnimation(this)) {
         return StatusCode::InvalidObject;
     }
 
     auto artboardImporter =
         importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
-    {
+    if (artboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }
 
     auto artboard = artboardImporter->artboard();
     auto animationCount = artboard->animationCount();
-    if (animationId() >= 0 && animationId() < animationCount)
-    {
+    if (animationId() >= 0 && animationId() < animationCount) {
         m_Animation = artboardImporter->artboard()->animation(animationId());
     }
 

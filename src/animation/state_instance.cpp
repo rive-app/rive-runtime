@@ -2,9 +2,7 @@
 using namespace rive;
 
 StateInstance::StateInstance(const LayerState* layerState) :
-    m_LayerState(layerState)
-{
-}
+    m_LayerState(layerState) {}
 
 StateInstance::~StateInstance() {}
 

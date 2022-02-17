@@ -2,10 +2,8 @@
 #define _RIVE_POINTS_PATH_HPP_
 #include "rive/bones/skinnable.hpp"
 #include "rive/generated/shapes/points_path_base.hpp"
-namespace rive
-{
-    class PointsPath : public PointsPathBase, public Skinnable
-    {
+namespace rive {
+    class PointsPath : public PointsPathBase, public Skinnable {
     public:
         bool isPathClosed() const override { return isClosed(); }
         void buildDependencies() override;

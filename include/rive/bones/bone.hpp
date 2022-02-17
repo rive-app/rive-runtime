@@ -4,11 +4,9 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class Constraint;
-    class Bone : public BoneBase
-    {
+    class Bone : public BoneBase {
 
     private:
         std::vector<Bone*> m_ChildBones;
@@ -24,8 +22,7 @@ namespace rive
         void addChildBone(Bone* bone);
         void tipWorldTranslation(Vec2D& result);
         void addPeerConstraint(Constraint* peer);
-        const std::vector<Constraint*>& peerConstraints() const
-        {
+        const std::vector<Constraint*>& peerConstraints() const {
             return m_PeerConstraints;
         }
 

@@ -2,12 +2,10 @@
 #define _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
 #include "rive/artboard.hpp"
 
-namespace rive
-{
+namespace rive {
     class LinearAnimation;
 
-    class LinearAnimationInstance
-    {
+    class LinearAnimationInstance {
     private:
         const LinearAnimation* m_Animation = nullptr;
         float m_Time;
@@ -37,14 +35,10 @@ namespace rive
 
         // Update the direction of the animation instance, positive value for
         // forwards Negative for backwards
-        void direction(int direction)
-        {
-            if (direction > 0)
-            {
+        void direction(int direction) {
+            if (direction > 0) {
                 m_Direction = 1;
-            }
-            else
-            {
+            } else {
                 m_Direction = -1;
             }
         }
@@ -55,8 +49,7 @@ namespace rive
         // Applies the animation instance to an artboard. The mix (a value
         // between 0 and 1) is the strength at which the animation is mixed with
         // other animations applied to the artboard.
-        void apply(Artboard* artboard, float mix = 1.0f) const
-        {
+        void apply(Artboard* artboard, float mix = 1.0f) const {
             m_Animation->apply(artboard, m_Time, mix);
         }
 

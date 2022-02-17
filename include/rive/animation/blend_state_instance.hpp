@@ -7,13 +7,11 @@
 #include "rive/animation/blend_state.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 
-namespace rive
-{
+namespace rive {
     class AnimationState;
 
     template <class K, class T> class BlendStateInstance;
-    template <class T> class BlendStateAnimationInstance
-    {
+    template <class T> class BlendStateAnimationInstance {
         template <class A, class B> friend class BlendStateInstance;
 
     private:
@@ -23,31 +21,26 @@ namespace rive
 
     public:
         const T* blendAnimation() const { return m_BlendAnimation; }
-        const LinearAnimationInstance* animationInstance() const
-        {
+        const LinearAnimationInstance* animationInstance() const {
             return &m_AnimationInstance;
         }
 
         BlendStateAnimationInstance(const T* blendAnimation) :
             m_BlendAnimation(blendAnimation),
-            m_AnimationInstance(blendAnimation->animation())
-        {
-        }
+            m_AnimationInstance(blendAnimation->animation()) {}
 
         void mix(float value) { m_Mix = value; }
     };
 
-    template <class K, class T> class BlendStateInstance : public StateInstance
-    {
+    template <class K, class T>
+    class BlendStateInstance : public StateInstance {
     protected:
         std::vector<BlendStateAnimationInstance<T>> m_AnimationInstances;
         bool m_KeepGoing = true;
 
     public:
-        BlendStateInstance(const K* blendState) : StateInstance(blendState)
-        {
-            for (auto blendAnimation : blendState->animations())
-            {
+        BlendStateInstance(const K* blendState) : StateInstance(blendState) {
+            for (auto blendAnimation : blendState->animations()) {
                 m_AnimationInstances.emplace_back(
                     BlendStateAnimationInstance<T>(
                         static_cast<T*>(blendAnimation)));
@@ -56,22 +49,17 @@ namespace rive
 
         bool keepGoing() const override { return m_KeepGoing; }
 
-        void advance(float seconds, SMIInput** inputs) override
-        {
+        void advance(float seconds, SMIInput** inputs) override {
             m_KeepGoing = false;
-            for (auto& animation : m_AnimationInstances)
-            {
-                if (animation.m_AnimationInstance.advance(seconds))
-                {
+            for (auto& animation : m_AnimationInstances) {
+                if (animation.m_AnimationInstance.advance(seconds)) {
                     m_KeepGoing = true;
                 }
             }
         }
 
-        void apply(Artboard* artboard, float mix) override
-        {
-            for (auto& animation : m_AnimationInstances)
-            {
+        void apply(Artboard* artboard, float mix) override {
+            for (auto& animation : m_AnimationInstances) {
                 float m = mix * animation.m_Mix;
                 animation.m_AnimationInstance.apply(artboard, m);
             }
@@ -79,12 +67,9 @@ namespace rive
 
         // Find the animationInstance that corresponds to the blendAnimation.
         const LinearAnimationInstance*
-        animationInstance(const BlendAnimation* blendAnimation) const
-        {
-            for (auto& animation : m_AnimationInstances)
-            {
-                if (animation.m_BlendAnimation == blendAnimation)
-                {
+        animationInstance(const BlendAnimation* blendAnimation) const {
+            for (auto& animation : m_AnimationInstances) {
+                if (animation.m_BlendAnimation == blendAnimation) {
                     return animation.animationInstance();
                 }
             }

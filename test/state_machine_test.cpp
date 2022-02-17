@@ -14,8 +14,7 @@
 #include "catch.hpp"
 #include <cstdio>
 
-TEST_CASE("file with state machine be read", "[file]")
-{
+TEST_CASE("file with state machine be read", "[file]") {
     FILE* fp = fopen("../../test/assets/rocket.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -57,11 +56,9 @@ TEST_CASE("file with state machine be read", "[file]")
     REQUIRE(layer->exitState() != nullptr);
 
     int foundAnimationStates = 0;
-    for (int i = 0; i < layer->stateCount(); i++)
-    {
+    for (int i = 0; i < layer->stateCount(); i++) {
         auto state = layer->state(i);
-        if (state->is<rive::AnimationState>())
-        {
+        if (state->is<rive::AnimationState>()) {
             foundAnimationStates++;
             REQUIRE(state->as<rive::AnimationState>()->animation() != nullptr);
         }
@@ -78,8 +75,7 @@ TEST_CASE("file with state machine be read", "[file]")
 
     auto idleState = stateTo->as<rive::AnimationState>();
     REQUIRE(idleState->transitionCount() == 2);
-    for (int i = 0; i < idleState->transitionCount(); i++)
-    {
+    for (int i = 0; i < idleState->transitionCount(); i++) {
         auto transition = idleState->transition(i);
         if (transition->stateTo()
                 ->as<rive::AnimationState>()
@@ -103,8 +99,7 @@ TEST_CASE("file with state machine be read", "[file]")
     delete[] bytes;
 }
 
-TEST_CASE("file with blend states loads correctly", "[file]")
-{
+TEST_CASE("file with blend states loads correctly", "[file]") {
     FILE* fp = fopen("../../test/assets/blend_test.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -175,8 +170,7 @@ TEST_CASE("file with blend states loads correctly", "[file]")
     delete[] bytes;
 }
 
-TEST_CASE("animation state with no animation doesn't crash", "[file]")
-{
+TEST_CASE("animation state with no animation doesn't crash", "[file]") {
     FILE* fp = fopen("../../test/assets/multiple_state_machines.riv", "r");
     REQUIRE(fp != nullptr);
 

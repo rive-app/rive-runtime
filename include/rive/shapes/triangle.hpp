@@ -3,10 +3,8 @@
 #include "rive/generated/shapes/triangle_base.hpp"
 #include "rive/shapes/straight_vertex.hpp"
 
-namespace rive
-{
-    class Triangle : public TriangleBase
-    {
+namespace rive {
+    class Triangle : public TriangleBase {
     private:
         StraightVertex m_Vertex1, m_Vertex2, m_Vertex3;
 

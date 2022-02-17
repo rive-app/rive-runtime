@@ -7,13 +7,10 @@
 
 using namespace rive;
 
-StatusCode KeyFrame::onAddedDirty(CoreContext* context)
-{
-    if (interpolatorId() > 0)
-    {
+StatusCode KeyFrame::onAddedDirty(CoreContext* context) {
+    if (interpolatorId() > 0) {
         auto coreObject = context->resolve(interpolatorId());
-        if (coreObject == nullptr || !coreObject->is<CubicInterpolator>())
-        {
+        if (coreObject == nullptr || !coreObject->is<CubicInterpolator>()) {
             return StatusCode::MissingObject;
         }
         m_Interpolator = coreObject->as<CubicInterpolator>();
@@ -24,12 +21,10 @@ StatusCode KeyFrame::onAddedDirty(CoreContext* context)
 
 void KeyFrame::computeSeconds(int fps) { m_Seconds = frame() / (float)fps; }
 
-StatusCode KeyFrame::import(ImportStack& importStack)
-{
+StatusCode KeyFrame::import(ImportStack& importStack) {
     auto importer =
         importStack.latest<KeyedPropertyImporter>(KeyedProperty::typeKey);
-    if (importer == nullptr)
-    {
+    if (importer == nullptr) {
         return StatusCode::MissingObject;
     }
     importer->addKeyFrame(this);

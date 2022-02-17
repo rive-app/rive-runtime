@@ -2,10 +2,8 @@
 #define _RIVE_LINEAR_GRADIENT_BASE_HPP_
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive
-{
-    class LinearGradientBase : public ContainerComponent
-    {
+namespace rive {
+    class LinearGradientBase : public ContainerComponent {
     protected:
         typedef ContainerComponent Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case LinearGradientBase::typeKey:
                 case ContainerComponentBase::typeKey:
                 case ComponentBase::typeKey:
@@ -44,10 +40,8 @@ namespace rive
 
     public:
         inline float startX() const { return m_StartX; }
-        void startX(float value)
-        {
-            if (m_StartX == value)
-            {
+        void startX(float value) {
+            if (m_StartX == value) {
                 return;
             }
             m_StartX = value;
@@ -55,10 +49,8 @@ namespace rive
         }
 
         inline float startY() const { return m_StartY; }
-        void startY(float value)
-        {
-            if (m_StartY == value)
-            {
+        void startY(float value) {
+            if (m_StartY == value) {
                 return;
             }
             m_StartY = value;
@@ -66,10 +58,8 @@ namespace rive
         }
 
         inline float endX() const { return m_EndX; }
-        void endX(float value)
-        {
-            if (m_EndX == value)
-            {
+        void endX(float value) {
+            if (m_EndX == value) {
                 return;
             }
             m_EndX = value;
@@ -77,10 +67,8 @@ namespace rive
         }
 
         inline float endY() const { return m_EndY; }
-        void endY(float value)
-        {
-            if (m_EndY == value)
-            {
+        void endY(float value) {
+            if (m_EndY == value) {
                 return;
             }
             m_EndY = value;
@@ -88,10 +76,8 @@ namespace rive
         }
 
         inline float opacity() const { return m_Opacity; }
-        void opacity(float value)
-        {
-            if (m_Opacity == value)
-            {
+        void opacity(float value) {
+            if (m_Opacity == value) {
                 return;
             }
             m_Opacity = value;
@@ -99,8 +85,7 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const LinearGradientBase& object)
-        {
+        void copy(const LinearGradientBase& object) {
             m_StartX = object.m_StartX;
             m_StartY = object.m_StartY;
             m_EndX = object.m_EndX;
@@ -109,10 +94,8 @@ namespace rive
             ContainerComponent::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case startXPropertyKey:
                     m_StartX = CoreDoubleType::deserialize(reader);
                     return true;

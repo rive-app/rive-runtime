@@ -14,12 +14,9 @@ LinearAnimationInstance::LinearAnimationInstance(
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),
     m_SpilledTime(0.0f),
-    m_Direction(1)
-{
-}
+    m_Direction(1) {}
 
-bool LinearAnimationInstance::advance(float elapsedSeconds)
-{
+bool LinearAnimationInstance::advance(float elapsedSeconds) {
     const LinearAnimation& animation = *m_Animation;
     m_Time += elapsedSeconds * animation.speed() * m_Direction;
     m_LastTotalTime = m_TotalTime;
@@ -38,19 +35,15 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
     bool didLoop = false;
     m_SpilledTime = 0.0f;
 
-    switch (loop())
-    {
+    switch (loop()) {
         case Loop::oneShot:
-            if (m_Direction == 1 && frames > end)
-            {
+            if (m_Direction == 1 && frames > end) {
                 keepGoing = false;
                 m_SpilledTime = (frames - end) / fps;
                 frames = end;
                 m_Time = frames / fps;
                 didLoop = true;
-            }
-            else if (m_Direction == -1 && frames < start)
-            {
+            } else if (m_Direction == -1 && frames < start) {
                 keepGoing = false;
                 m_SpilledTime = (start - frames) / fps;
                 frames = start;
@@ -59,17 +52,14 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
             }
             break;
         case Loop::loop:
-            if (m_Direction == 1 && frames >= end)
-            {
+            if (m_Direction == 1 && frames >= end) {
                 m_SpilledTime = (frames - end) / fps;
                 frames = m_Time * fps;
                 frames = start + std::fmod(frames - start, range);
 
                 m_Time = frames / fps;
                 didLoop = true;
-            }
-            else if (m_Direction == -1 && frames <= start)
-            {
+            } else if (m_Direction == -1 && frames <= start) {
 
                 m_SpilledTime = (start - frames) / fps;
                 frames = m_Time * fps;
@@ -79,26 +69,20 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
             }
             break;
         case Loop::pingPong:
-            while (true)
-            {
-                if (m_Direction == 1 && frames >= end)
-                {
+            while (true) {
+                if (m_Direction == 1 && frames >= end) {
                     m_SpilledTime = (frames - end) / fps;
                     m_Direction = -1;
                     frames = end + (end - frames);
                     m_Time = frames / fps;
                     didLoop = true;
-                }
-                else if (m_Direction == -1 && frames < start)
-                {
+                } else if (m_Direction == -1 && frames < start) {
                     m_SpilledTime = (start - frames) / fps;
                     m_Direction = 1;
                     frames = start + (start - frames);
                     m_Time = frames / fps;
                     didLoop = true;
-                }
-                else
-                {
+                } else {
                     // we're within the range, we can stop fixing. We do this in
                     // a loop to fix conditions when time has advanced so far
                     // that we've ping-ponged back and forth a few times in a
@@ -114,10 +98,8 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
     return keepGoing;
 }
 
-void LinearAnimationInstance::time(float value)
-{
-    if (m_Time == value)
-    {
+void LinearAnimationInstance::time(float value) {
+    if (m_Time == value) {
         return;
     }
     m_Time = value;
@@ -136,30 +118,24 @@ void LinearAnimationInstance::time(float value)
 }
 
 // Returns either the animation's default or overridden loop values
-int LinearAnimationInstance::loopValue()
-{
-    if (m_LoopValue != -1)
-    {
+int LinearAnimationInstance::loopValue() {
+    if (m_LoopValue != -1) {
         return m_LoopValue;
     }
     return m_Animation->loopValue();
 }
 
 // Override the animation's loop value
-void LinearAnimationInstance::loopValue(int value)
-{
-    if (m_LoopValue == value)
-    {
+void LinearAnimationInstance::loopValue(int value) {
+    if (m_LoopValue == value) {
         return;
     }
-    if (m_LoopValue == -1 && m_Animation->loopValue() == value)
-    {
+    if (m_LoopValue == -1 && m_Animation->loopValue() == value) {
         return;
     }
     m_LoopValue = value;
 }
 
-float LinearAnimationInstance::durationSeconds() const
-{
+float LinearAnimationInstance::durationSeconds() const {
     return m_Animation->durationSeconds();
 }

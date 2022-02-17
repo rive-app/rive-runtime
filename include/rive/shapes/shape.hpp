@@ -5,12 +5,10 @@
 #include "rive/shapes/shape_paint_container.hpp"
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class Path;
     class PathComposer;
-    class Shape : public ShapeBase, public ShapePaintContainer
-    {
+    class Shape : public ShapeBase, public ShapePaintContainer {
     private:
         PathComposer m_PathComposer;
         std::vector<Path*> m_Paths;
@@ -28,8 +26,7 @@ namespace rive
         void update(ComponentDirt value) override;
         void draw(Renderer* renderer) override;
 
-        PathComposer* pathComposer() const
-        {
+        PathComposer* pathComposer() const {
             return (PathComposer*)&m_PathComposer;
         }
 

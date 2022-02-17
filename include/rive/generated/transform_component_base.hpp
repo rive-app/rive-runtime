@@ -2,10 +2,8 @@
 #define _RIVE_TRANSFORM_COMPONENT_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/world_transform_component.hpp"
-namespace rive
-{
-    class TransformComponentBase : public WorldTransformComponent
-    {
+namespace rive {
+    class TransformComponentBase : public WorldTransformComponent {
     protected:
         typedef WorldTransformComponent Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case TransformComponentBase::typeKey:
                 case WorldTransformComponentBase::typeKey:
                 case ContainerComponentBase::typeKey:
@@ -41,10 +37,8 @@ namespace rive
 
     public:
         inline float rotation() const { return m_Rotation; }
-        void rotation(float value)
-        {
-            if (m_Rotation == value)
-            {
+        void rotation(float value) {
+            if (m_Rotation == value) {
                 return;
             }
             m_Rotation = value;
@@ -52,10 +46,8 @@ namespace rive
         }
 
         inline float scaleX() const { return m_ScaleX; }
-        void scaleX(float value)
-        {
-            if (m_ScaleX == value)
-            {
+        void scaleX(float value) {
+            if (m_ScaleX == value) {
                 return;
             }
             m_ScaleX = value;
@@ -63,28 +55,23 @@ namespace rive
         }
 
         inline float scaleY() const { return m_ScaleY; }
-        void scaleY(float value)
-        {
-            if (m_ScaleY == value)
-            {
+        void scaleY(float value) {
+            if (m_ScaleY == value) {
                 return;
             }
             m_ScaleY = value;
             scaleYChanged();
         }
 
-        void copy(const TransformComponentBase& object)
-        {
+        void copy(const TransformComponentBase& object) {
             m_Rotation = object.m_Rotation;
             m_ScaleX = object.m_ScaleX;
             m_ScaleY = object.m_ScaleY;
             WorldTransformComponent::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case rotationPropertyKey:
                     m_Rotation = CoreDoubleType::deserialize(reader);
                     return true;

@@ -1,13 +1,11 @@
 #ifndef _RIVE_PATH_COMPOSER_HPP_
 #define _RIVE_PATH_COMPOSER_HPP_
 #include "rive/component.hpp"
-namespace rive
-{
+namespace rive {
     class Shape;
     class CommandPath;
     class RenderPath;
-    class PathComposer : public Component
-    {
+    class PathComposer : public Component {
     private:
         Shape* m_Shape;
         CommandPath* m_LocalPath = nullptr;

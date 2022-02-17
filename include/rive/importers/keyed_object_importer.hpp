@@ -3,13 +3,11 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive
-{
+namespace rive {
     class Core;
     class KeyedObject;
     class KeyedProperty;
-    class KeyedObjectImporter : public ImportStackObject
-    {
+    class KeyedObjectImporter : public ImportStackObject {
     private:
         KeyedObject* m_KeyedObject;
 

@@ -4,11 +4,9 @@
 #include "rive/generated/assets/image_asset_base.hpp"
 #include <string>
 
-namespace rive
-{
+namespace rive {
     class RenderImage;
-    class ImageAsset : public ImageAssetBase
-    {
+    class ImageAsset : public ImageAssetBase {
     private:
         RenderImage* m_RenderImage;
 

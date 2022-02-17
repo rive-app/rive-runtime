@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* TriangleBase::clone() const
-{
+Core* TriangleBase::clone() const {
     auto cloned = new Triangle();
     cloned->copy(*this);
     return cloned;

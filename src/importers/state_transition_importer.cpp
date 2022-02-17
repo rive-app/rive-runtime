@@ -5,11 +5,8 @@
 using namespace rive;
 
 StateTransitionImporter::StateTransitionImporter(StateTransition* transition) :
-    m_Transition(transition)
-{
-}
-void StateTransitionImporter::addCondition(TransitionCondition* condition)
-{
+    m_Transition(transition) {}
+void StateTransitionImporter::addCondition(TransitionCondition* condition) {
     m_Transition->addCondition(condition);
 }
 

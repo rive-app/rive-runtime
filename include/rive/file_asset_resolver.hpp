@@ -4,11 +4,9 @@
 #include <cstdint>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class FileAsset;
-    class FileAssetResolver
-    {
+    class FileAssetResolver {
     public:
         /// Expected to be overridden to find asset contents when not provided
         /// in band.

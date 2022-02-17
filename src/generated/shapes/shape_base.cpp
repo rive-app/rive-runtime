@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* ShapeBase::clone() const
-{
+Core* ShapeBase::clone() const {
     auto cloned = new Shape();
     cloned->copy(*this);
     return cloned;

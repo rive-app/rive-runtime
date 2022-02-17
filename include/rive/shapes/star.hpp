@@ -2,10 +2,8 @@
 #define _RIVE_STAR_HPP_
 #include "rive/generated/shapes/star_base.hpp"
 #include <stdio.h>
-namespace rive
-{
-    class Star : public StarBase
-    {
+namespace rive {
+    class Star : public StarBase {
     public:
         Star();
         void update(ComponentDirt value) override;

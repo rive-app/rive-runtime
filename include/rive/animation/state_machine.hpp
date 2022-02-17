@@ -4,13 +4,11 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class StateMachineLayer;
     class StateMachineInput;
     class StateMachineImporter;
-    class StateMachine : public StateMachineBase
-    {
+    class StateMachine : public StateMachineBase {
         friend class StateMachineImporter;
 
     private:

@@ -3,8 +3,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace rive
-{
+namespace rive {
     using ColorInt = uint32_t;
 
     ColorInt colorARGB(int a, int r, int g, int b);

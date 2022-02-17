@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* KeyFrameIdBase::clone() const
-{
+Core* KeyFrameIdBase::clone() const {
     auto cloned = new KeyFrameId();
     cloned->copy(*this);
     return cloned;

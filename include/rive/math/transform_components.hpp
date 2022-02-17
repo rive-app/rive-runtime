@@ -4,10 +4,8 @@
 #include "rive/math/vec2d.hpp"
 #include <cstddef>
 
-namespace rive
-{
-    class TransformComponents
-    {
+namespace rive {
+    class TransformComponents {
     private:
         float m_X;
         float m_Y;
@@ -23,18 +21,14 @@ namespace rive
             m_ScaleX(1.0f),
             m_ScaleY(1.0f),
             m_Rotation(0.0f),
-            m_Skew(0.0f)
-        {
-        }
+            m_Skew(0.0f) {}
         TransformComponents(const TransformComponents& copy) :
             m_X(copy.m_X),
             m_Y(copy.m_Y),
             m_ScaleX(copy.m_ScaleX),
             m_ScaleY(copy.m_ScaleY),
             m_Rotation(copy.m_Rotation),
-            m_Skew(copy.m_Skew)
-        {
-        }
+            m_Skew(copy.m_Skew) {}
 
         float x() const { return m_X; }
         void x(float value) { m_X = value; }
@@ -49,20 +43,17 @@ namespace rive
         float skew() const { return m_Skew; }
         void skew(float value) { m_Skew = value; }
 
-        void translation(Vec2D& result) const
-        {
+        void translation(Vec2D& result) const {
             result[0] = m_X;
             result[1] = m_Y;
         }
-        void scale(Vec2D& result) const
-        {
+        void scale(Vec2D& result) const {
             result[0] = m_ScaleX;
             result[1] = m_ScaleY;
         }
 
         static void copy(TransformComponents& result,
-                         const TransformComponents& a)
-        {
+                         const TransformComponents& a) {
             result.m_X = a.m_X;
             result.m_Y = a.m_Y;
             result.m_ScaleX = a.m_ScaleX;

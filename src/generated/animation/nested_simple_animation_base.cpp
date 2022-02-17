@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* NestedSimpleAnimationBase::clone() const
-{
+Core* NestedSimpleAnimationBase::clone() const {
     auto cloned = new NestedSimpleAnimation();
     cloned->copy(*this);
     return cloned;

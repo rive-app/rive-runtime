@@ -5,13 +5,11 @@
 
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class ContainerComponent;
     class Artboard;
 
-    class Component : public ComponentBase
-    {
+    class Component : public ComponentBase {
         friend class Artboard;
 
     private:
@@ -28,8 +26,7 @@ namespace rive
         inline Artboard* artboard() const { return m_Artboard; }
         StatusCode onAddedDirty(CoreContext* context) override;
         inline ContainerComponent* parent() const { return m_Parent; }
-        const std::vector<Component*>& dependents() const
-        {
+        const std::vector<Component*>& dependents() const {
             return m_Dependents;
         }
         void addDependent(Component* component);
@@ -44,12 +41,10 @@ namespace rive
 
         unsigned int graphOrder() const { return m_GraphOrder; }
         bool addDirt(ComponentDirt value, bool recurse = false);
-        inline bool hasDirt(ComponentDirt flag) const
-        {
+        inline bool hasDirt(ComponentDirt flag) const {
             return (m_Dirt & flag) == flag;
         }
-        static inline bool hasDirt(ComponentDirt value, ComponentDirt flag)
-        {
+        static inline bool hasDirt(ComponentDirt value, ComponentDirt flag) {
             return (value & flag) != ComponentDirt::None;
         }
 

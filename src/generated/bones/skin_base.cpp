@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* SkinBase::clone() const
-{
+Core* SkinBase::clone() const {
     auto cloned = new Skin();
     cloned->copy(*this);
     return cloned;

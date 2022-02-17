@@ -12,8 +12,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("bound bones load correctly", "[bones]")
-{
+TEST_CASE("bound bones load correctly", "[bones]") {
     FILE* fp = fopen("../../test/assets/off_road_car.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -44,8 +43,7 @@ TEST_CASE("bound bones load correctly", "[bones]")
     REQUIRE(pointsPath->skin()->tendons()[0]->bone() != nullptr);
     REQUIRE(pointsPath->skin()->tendons()[1]->bone() != nullptr);
 
-    for (auto vertex : path->vertices())
-    {
+    for (auto vertex : path->vertices()) {
         REQUIRE(vertex->weight() != nullptr);
     }
 

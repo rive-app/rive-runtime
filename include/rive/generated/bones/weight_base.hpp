@@ -2,10 +2,8 @@
 #define _RIVE_WEIGHT_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class WeightBase : public Component
-    {
+namespace rive {
+    class WeightBase : public Component {
     protected:
         typedef Component Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case WeightBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;
@@ -37,10 +33,8 @@ namespace rive
 
     public:
         inline int values() const { return m_Values; }
-        void values(int value)
-        {
-            if (m_Values == value)
-            {
+        void values(int value) {
+            if (m_Values == value) {
                 return;
             }
             m_Values = value;
@@ -48,10 +42,8 @@ namespace rive
         }
 
         inline int indices() const { return m_Indices; }
-        void indices(int value)
-        {
-            if (m_Indices == value)
-            {
+        void indices(int value) {
+            if (m_Indices == value) {
                 return;
             }
             m_Indices = value;
@@ -59,17 +51,14 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const WeightBase& object)
-        {
+        void copy(const WeightBase& object) {
             m_Values = object.m_Values;
             m_Indices = object.m_Indices;
             Component::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case valuesPropertyKey:
                     m_Values = CoreUintType::deserialize(reader);
                     return true;

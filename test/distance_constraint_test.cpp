@@ -7,8 +7,7 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("distance constraints moves items as expected", "[file]")
-{
+TEST_CASE("distance constraints moves items as expected", "[file]") {
     FILE* fp = fopen("../../test/assets/distance_constraint.riv", "r");
     REQUIRE(fp != nullptr);
 

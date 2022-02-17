@@ -2,10 +2,8 @@
 #define _RIVE_TRANSFORM_SPACE_CONSTRAINT_BASE_HPP_
 #include "rive/constraints/targeted_constraint.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class TransformSpaceConstraintBase : public TargetedConstraint
-    {
+namespace rive {
+    class TransformSpaceConstraintBase : public TargetedConstraint {
     protected:
         typedef TargetedConstraint Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case TransformSpaceConstraintBase::typeKey:
                 case TargetedConstraintBase::typeKey:
                 case ConstraintBase::typeKey:
@@ -39,10 +35,8 @@ namespace rive
 
     public:
         inline int sourceSpaceValue() const { return m_SourceSpaceValue; }
-        void sourceSpaceValue(int value)
-        {
-            if (m_SourceSpaceValue == value)
-            {
+        void sourceSpaceValue(int value) {
+            if (m_SourceSpaceValue == value) {
                 return;
             }
             m_SourceSpaceValue = value;
@@ -50,27 +44,22 @@ namespace rive
         }
 
         inline int destSpaceValue() const { return m_DestSpaceValue; }
-        void destSpaceValue(int value)
-        {
-            if (m_DestSpaceValue == value)
-            {
+        void destSpaceValue(int value) {
+            if (m_DestSpaceValue == value) {
                 return;
             }
             m_DestSpaceValue = value;
             destSpaceValueChanged();
         }
 
-        void copy(const TransformSpaceConstraintBase& object)
-        {
+        void copy(const TransformSpaceConstraintBase& object) {
             m_SourceSpaceValue = object.m_SourceSpaceValue;
             m_DestSpaceValue = object.m_DestSpaceValue;
             TargetedConstraint::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case sourceSpaceValuePropertyKey:
                     m_SourceSpaceValue = CoreUintType::deserialize(reader);
                     return true;

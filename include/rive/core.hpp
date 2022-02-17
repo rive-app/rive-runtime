@@ -5,12 +5,10 @@
 #include "rive/status_code.hpp"
 #include <cassert>
 
-namespace rive
-{
+namespace rive {
     class CoreContext;
     class ImportStack;
-    class Core
-    {
+    class Core {
     public:
         static const int invalidPropertyKey = 0;
         virtual ~Core() {}
@@ -19,12 +17,10 @@ namespace rive
         virtual bool deserialize(uint16_t propertyKey,
                                  BinaryReader& reader) = 0;
 
-        template <typename T> inline bool is() const
-        {
+        template <typename T> inline bool is() const {
             return isTypeOf(T::typeKey);
         }
-        template <typename T> inline T* as()
-        {
+        template <typename T> inline T* as() {
             assert(is<T>());
             return reinterpret_cast<T*>(this);
         }
@@ -32,8 +28,7 @@ namespace rive
         /// Make a shallow copy of the object.
         virtual Core* clone() const { return nullptr; }
 
-        template <typename T> inline const T* as() const
-        {
+        template <typename T> inline const T* as() const {
             assert(is<T>());
             return reinterpret_cast<const T*>(this);
         }
@@ -43,8 +38,7 @@ namespace rive
         /// to look up objects referenced by id, but not assume that they in
         /// turn have resolved their references yet. Called during
         /// load/instance.
-        virtual StatusCode onAddedDirty(CoreContext* context)
-        {
+        virtual StatusCode onAddedDirty(CoreContext* context) {
             return StatusCode::Ok;
         }
 
@@ -52,13 +46,11 @@ namespace rive
         /// called. This is an opportunity to reference things referenced by
         /// dependencies. (A path should be able to find a Shape somewhere in
         /// its hierarchy, which may be multiple levels up).
-        virtual StatusCode onAddedClean(CoreContext* context)
-        {
+        virtual StatusCode onAddedClean(CoreContext* context) {
             return StatusCode::Ok;
         }
 
-        virtual StatusCode import(ImportStack& importStack)
-        {
+        virtual StatusCode import(ImportStack& importStack) {
             return StatusCode::Ok;
         }
     };

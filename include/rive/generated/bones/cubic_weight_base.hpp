@@ -2,10 +2,8 @@
 #define _RIVE_CUBIC_WEIGHT_BASE_HPP_
 #include "rive/bones/weight.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class CubicWeightBase : public Weight
-    {
+namespace rive {
+    class CubicWeightBase : public Weight {
     protected:
         typedef Weight Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case CubicWeightBase::typeKey:
                 case WeightBase::typeKey:
                 case ComponentBase::typeKey:
@@ -42,10 +38,8 @@ namespace rive
 
     public:
         inline int inValues() const { return m_InValues; }
-        void inValues(int value)
-        {
-            if (m_InValues == value)
-            {
+        void inValues(int value) {
+            if (m_InValues == value) {
                 return;
             }
             m_InValues = value;
@@ -53,10 +47,8 @@ namespace rive
         }
 
         inline int inIndices() const { return m_InIndices; }
-        void inIndices(int value)
-        {
-            if (m_InIndices == value)
-            {
+        void inIndices(int value) {
+            if (m_InIndices == value) {
                 return;
             }
             m_InIndices = value;
@@ -64,10 +56,8 @@ namespace rive
         }
 
         inline int outValues() const { return m_OutValues; }
-        void outValues(int value)
-        {
-            if (m_OutValues == value)
-            {
+        void outValues(int value) {
+            if (m_OutValues == value) {
                 return;
             }
             m_OutValues = value;
@@ -75,10 +65,8 @@ namespace rive
         }
 
         inline int outIndices() const { return m_OutIndices; }
-        void outIndices(int value)
-        {
-            if (m_OutIndices == value)
-            {
+        void outIndices(int value) {
+            if (m_OutIndices == value) {
                 return;
             }
             m_OutIndices = value;
@@ -86,8 +74,7 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const CubicWeightBase& object)
-        {
+        void copy(const CubicWeightBase& object) {
             m_InValues = object.m_InValues;
             m_InIndices = object.m_InIndices;
             m_OutValues = object.m_OutValues;
@@ -95,10 +82,8 @@ namespace rive
             Weight::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case inValuesPropertyKey:
                     m_InValues = CoreUintType::deserialize(reader);
                     return true;

@@ -3,10 +3,8 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/world_transform_component.hpp"
-namespace rive
-{
-    class ArtboardBase : public WorldTransformComponent
-    {
+namespace rive {
+    class ArtboardBase : public WorldTransformComponent {
     protected:
         typedef WorldTransformComponent Super;
 
@@ -15,10 +13,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case ArtboardBase::typeKey:
                 case WorldTransformComponentBase::typeKey:
                 case ContainerComponentBase::typeKey:
@@ -50,10 +46,8 @@ namespace rive
 
     public:
         inline bool clip() const { return m_Clip; }
-        void clip(bool value)
-        {
-            if (m_Clip == value)
-            {
+        void clip(bool value) {
+            if (m_Clip == value) {
                 return;
             }
             m_Clip = value;
@@ -61,10 +55,8 @@ namespace rive
         }
 
         inline float width() const { return m_Width; }
-        void width(float value)
-        {
-            if (m_Width == value)
-            {
+        void width(float value) {
+            if (m_Width == value) {
                 return;
             }
             m_Width = value;
@@ -72,10 +64,8 @@ namespace rive
         }
 
         inline float height() const { return m_Height; }
-        void height(float value)
-        {
-            if (m_Height == value)
-            {
+        void height(float value) {
+            if (m_Height == value) {
                 return;
             }
             m_Height = value;
@@ -83,10 +73,8 @@ namespace rive
         }
 
         inline float x() const { return m_X; }
-        void x(float value)
-        {
-            if (m_X == value)
-            {
+        void x(float value) {
+            if (m_X == value) {
                 return;
             }
             m_X = value;
@@ -94,10 +82,8 @@ namespace rive
         }
 
         inline float y() const { return m_Y; }
-        void y(float value)
-        {
-            if (m_Y == value)
-            {
+        void y(float value) {
+            if (m_Y == value) {
                 return;
             }
             m_Y = value;
@@ -105,10 +91,8 @@ namespace rive
         }
 
         inline float originX() const { return m_OriginX; }
-        void originX(float value)
-        {
-            if (m_OriginX == value)
-            {
+        void originX(float value) {
+            if (m_OriginX == value) {
                 return;
             }
             m_OriginX = value;
@@ -116,10 +100,8 @@ namespace rive
         }
 
         inline float originY() const { return m_OriginY; }
-        void originY(float value)
-        {
-            if (m_OriginY == value)
-            {
+        void originY(float value) {
+            if (m_OriginY == value) {
                 return;
             }
             m_OriginY = value;
@@ -127,8 +109,7 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const ArtboardBase& object)
-        {
+        void copy(const ArtboardBase& object) {
             m_Clip = object.m_Clip;
             m_Width = object.m_Width;
             m_Height = object.m_Height;
@@ -139,10 +120,8 @@ namespace rive
             WorldTransformComponent::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case clipPropertyKey:
                     m_Clip = CoreBoolType::deserialize(reader);
                     return true;

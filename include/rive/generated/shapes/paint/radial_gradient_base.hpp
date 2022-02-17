@@ -1,10 +1,8 @@
 #ifndef _RIVE_RADIAL_GRADIENT_BASE_HPP_
 #define _RIVE_RADIAL_GRADIENT_BASE_HPP_
 #include "rive/shapes/paint/linear_gradient.hpp"
-namespace rive
-{
-    class RadialGradientBase : public LinearGradient
-    {
+namespace rive {
+    class RadialGradientBase : public LinearGradient {
     protected:
         typedef LinearGradient Super;
 
@@ -13,10 +11,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case RadialGradientBase::typeKey:
                 case LinearGradientBase::typeKey:
                 case ContainerComponentBase::typeKey:

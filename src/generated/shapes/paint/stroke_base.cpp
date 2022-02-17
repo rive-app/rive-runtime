@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* StrokeBase::clone() const
-{
+Core* StrokeBase::clone() const {
     auto cloned = new Stroke();
     cloned->copy(*this);
     return cloned;

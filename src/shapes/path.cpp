@@ -12,21 +12,17 @@ using namespace rive;
 
 Path::~Path() { delete m_CommandPath; }
 
-StatusCode Path::onAddedDirty(CoreContext* context)
-{
+StatusCode Path::onAddedDirty(CoreContext* context) {
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
+    if (code != StatusCode::Ok) {
         return code;
     }
     return StatusCode::Ok;
 }
 
-StatusCode Path::onAddedClean(CoreContext* context)
-{
+StatusCode Path::onAddedClean(CoreContext* context) {
     StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok)
-    {
+    if (code != StatusCode::Ok) {
         return code;
     }
 
@@ -34,8 +30,7 @@ StatusCode Path::onAddedClean(CoreContext* context)
     for (auto currentParent = parent(); currentParent != nullptr;
          currentParent = currentParent->parent())
     {
-        if (currentParent->is<Shape>())
-        {
+        if (currentParent->is<Shape>()) {
             m_Shape = currentParent->as<Shape>();
             m_Shape->addPath(this);
             return StatusCode::Ok;
@@ -45,8 +40,7 @@ StatusCode Path::onAddedClean(CoreContext* context)
     return StatusCode::MissingObject;
 }
 
-void Path::buildDependencies()
-{
+void Path::buildDependencies() {
     Super::buildDependencies();
     // Make sure this is called once the shape has all of the paints added
     // (paints get added during the added cycle so buildDependencies is a good
@@ -60,13 +54,11 @@ const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
 static void buildPath(CommandPath& commandPath,
                       bool isClosed,
-                      const std::vector<PathVertex*>& vertices)
-{
+                      const std::vector<PathVertex*>& vertices) {
     commandPath.reset();
 
     auto length = vertices.size();
-    if (length < 2)
-    {
+    if (length < 2) {
         return;
     }
     auto firstPoint = vertices[0];
@@ -79,8 +71,7 @@ static void buildPath(CommandPath& commandPath,
     float startInX, startInY;
     bool startIsCubic;
 
-    if (firstPoint->is<CubicVertex>())
-    {
+    if (firstPoint->is<CubicVertex>()) {
         auto cubic = firstPoint->as<CubicVertex>();
         startIsCubic = prevIsCubic = true;
         auto inPoint = cubic->renderIn();
@@ -91,14 +82,11 @@ static void buildPath(CommandPath& commandPath,
         outY = outPoint[1];
         auto translation = cubic->renderTranslation();
         commandPath.moveTo(startX = translation[0], startY = translation[1]);
-    }
-    else
-    {
+    } else {
         startIsCubic = prevIsCubic = false;
         auto point = *firstPoint->as<StraightVertex>();
 
-        if (auto radius = point.radius(); radius > 0.0f)
-        {
+        if (auto radius = point.radius(); radius > 0.0f) {
             auto prev = vertices[length - 1];
 
             Vec2D pos = point.renderTranslation();
@@ -149,21 +137,17 @@ static void buildPath(CommandPath& commandPath,
                                 outX = posNext[0],
                                 outY = posNext[1]);
             prevIsCubic = false;
-        }
-        else
-        {
+        } else {
             auto translation = point.renderTranslation();
             commandPath.moveTo(startInX = startX = outX = translation[0],
                                startInY = startY = outY = translation[1]);
         }
     }
 
-    for (size_t i = 1; i < length; i++)
-    {
+    for (size_t i = 1; i < length; i++) {
         auto vertex = vertices[i];
 
-        if (vertex->is<CubicVertex>())
-        {
+        if (vertex->is<CubicVertex>()) {
             auto cubic = vertex->as<CubicVertex>();
             auto inPoint = cubic->renderIn();
             auto translation = cubic->renderTranslation();
@@ -179,14 +163,11 @@ static void buildPath(CommandPath& commandPath,
             auto outPoint = cubic->renderOut();
             outX = outPoint[0];
             outY = outPoint[1];
-        }
-        else
-        {
+        } else {
             auto point = *vertex->as<StraightVertex>();
             Vec2D pos = point.renderTranslation();
 
-            if (auto radius = point.radius(); radius > 0.0f)
-            {
+            if (auto radius = point.radius(); radius > 0.0f) {
                 Vec2D toPrev;
                 Vec2D::subtract(toPrev, Vec2D(outX, outY), pos);
                 auto toPrevLength = Vec2D::length(toPrev);
@@ -210,17 +191,14 @@ static void buildPath(CommandPath& commandPath,
 
                 Vec2D translation;
                 Vec2D::scaleAndAdd(translation, pos, toPrev, renderRadius);
-                if (prevIsCubic)
-                {
+                if (prevIsCubic) {
                     commandPath.cubicTo(outX,
                                         outY,
                                         translation[0],
                                         translation[1],
                                         translation[0],
                                         translation[1]);
-                }
-                else
-                {
+                } else {
                     commandPath.lineTo(translation[0], translation[1]);
                 }
 
@@ -241,9 +219,7 @@ static void buildPath(CommandPath& commandPath,
                                     outX = posNext[0],
                                     outY = posNext[1]);
                 prevIsCubic = false;
-            }
-            else if (prevIsCubic)
-            {
+            } else if (prevIsCubic) {
                 float x = pos[0];
                 float y = pos[1];
                 commandPath.cubicTo(outX, outY, x, y, x, y);
@@ -251,51 +227,39 @@ static void buildPath(CommandPath& commandPath,
                 prevIsCubic = false;
                 outX = x;
                 outY = y;
-            }
-            else
-            {
+            } else {
                 commandPath.lineTo(outX = pos[0], outY = pos[1]);
             }
         }
     }
-    if (isClosed)
-    {
-        if (prevIsCubic || startIsCubic)
-        {
+    if (isClosed) {
+        if (prevIsCubic || startIsCubic) {
             commandPath.cubicTo(outX, outY, startInX, startInY, startX, startY);
-        }
-        else
-        {
+        } else {
             commandPath.lineTo(startX, startY);
         }
         commandPath.close();
     }
 }
 
-void Path::markPathDirty()
-{
+void Path::markPathDirty() {
     addDirt(ComponentDirt::Path);
-    if (m_Shape != nullptr)
-    {
+    if (m_Shape != nullptr) {
         m_Shape->pathChanged();
     }
 }
 
-void Path::onDirty(ComponentDirt value)
-{
-    if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
-    {
+void Path::onDirty(ComponentDirt value) {
+    if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr) {
         m_Shape->pathChanged();
     }
 }
 
-void Path::update(ComponentDirt value)
-{
+void Path::update(ComponentDirt value) {
     Super::update(value);
 
     assert(m_CommandPath != nullptr);
-    if (hasDirt(value, ComponentDirt::Path))
-    {
+    if (hasDirt(value, ComponentDirt::Path)) {
         buildPath(*m_CommandPath, isPathClosed(), m_Vertices);
     }
     // if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
@@ -309,8 +273,7 @@ void Path::update(ComponentDirt value)
 
 #ifdef ENABLE_QUERY_FLAT_VERTICES
 
-class DisplayCubicVertex : public CubicVertex
-{
+class DisplayCubicVertex : public CubicVertex {
 public:
     DisplayCubicVertex(const Vec2D& in,
                        const Vec2D& out,
@@ -329,23 +292,19 @@ public:
     void computeOut() override {}
 };
 
-FlattenedPath* Path::makeFlat(bool transformToParent)
-{
-    if (m_Vertices.empty())
-    {
+FlattenedPath* Path::makeFlat(bool transformToParent) {
+    if (m_Vertices.empty()) {
         return nullptr;
     }
 
     // Path transform always puts the path into world space.
     auto transform = pathTransform();
 
-    if (transformToParent && parent()->is<TransformComponent>())
-    {
+    if (transformToParent && parent()->is<TransformComponent>()) {
         // Put the transform in parent space.
         auto world = parent()->as<TransformComponent>()->worldTransform();
         Mat2D inverseWorld;
-        if (!Mat2D::invert(inverseWorld, world))
-        {
+        if (!Mat2D::invert(inverseWorld, world)) {
             Mat2D::identity(inverseWorld);
         }
         Mat2D::multiply(transform, inverseWorld, transform);
@@ -355,18 +314,14 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
     auto length = m_Vertices.size();
     PathVertex* previous = isPathClosed() ? m_Vertices[length - 1] : nullptr;
     bool deletePrevious = false;
-    for (size_t i = 0; i < length; i++)
-    {
+    for (size_t i = 0; i < length; i++) {
         auto vertex = m_Vertices[i];
 
-        switch (vertex->coreType())
-        {
-            case StraightVertex::typeKey:
-            {
+        switch (vertex->coreType()) {
+            case StraightVertex::typeKey: {
                 auto point = *vertex->as<StraightVertex>();
                 if (point.radius() > 0.0f &&
-                    (isPathClosed() || (i != 0 && i != length - 1)))
-                {
+                    (isPathClosed() || (i != 0 && i != length - 1))) {
                     auto next = m_Vertices[(i + 1) % length];
 
                     Vec2D prevPoint =
@@ -415,8 +370,7 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
                         new DisplayCubicVertex(in, translation, translation);
 
                     flat->addVertex(v2, transform);
-                    if (deletePrevious)
-                    {
+                    if (deletePrevious) {
                         delete previous;
                     }
                     previous = v2;
@@ -425,8 +379,7 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
                 }
             }
             default:
-                if (deletePrevious)
-                {
+                if (deletePrevious) {
                     delete previous;
                 }
                 previous = vertex;
@@ -435,19 +388,16 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
                 break;
         }
     }
-    if (deletePrevious)
-    {
+    if (deletePrevious) {
         delete previous;
     }
     return flat;
 }
 
-void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform)
-{
+void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform) {
     // To make this easy and relatively clean we just transform the vertices.
     // Requires the vertex to be passed in as a clone.
-    if (vertex->is<CubicVertex>())
-    {
+    if (vertex->is<CubicVertex>()) {
         auto cubic = vertex->as<CubicVertex>();
 
         // Cubics need to be transformed so we create a Display version which
@@ -459,9 +409,7 @@ void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform)
 
         auto displayCubic = new DisplayCubicVertex(in, out, translation);
         m_Vertices.push_back(displayCubic);
-    }
-    else
-    {
+    } else {
         auto point = new PathVertex();
         Vec2D translation;
         Vec2D::transform(translation, vertex->renderTranslation(), transform);
@@ -471,10 +419,8 @@ void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform)
     }
 }
 
-FlattenedPath::~FlattenedPath()
-{
-    for (auto vertex : m_Vertices)
-    {
+FlattenedPath::~FlattenedPath() {
+    for (auto vertex : m_Vertices) {
         delete vertex;
     }
 }

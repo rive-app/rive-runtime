@@ -8,25 +8,21 @@ using namespace rive;
 
 ArtboardImporter::ArtboardImporter(Artboard* artboard) : m_Artboard(artboard) {}
 
-void ArtboardImporter::addComponent(Core* object)
-{
+void ArtboardImporter::addComponent(Core* object) {
     m_Artboard->addObject(object);
 }
 
-void ArtboardImporter::addAnimation(LinearAnimation* animation)
-{
+void ArtboardImporter::addAnimation(LinearAnimation* animation) {
     m_Artboard->addAnimation(animation);
 }
 
-void ArtboardImporter::addStateMachine(StateMachine* stateMachine)
-{
+void ArtboardImporter::addStateMachine(StateMachine* stateMachine) {
     m_Artboard->addStateMachine(stateMachine);
 }
 
 StatusCode ArtboardImporter::resolve() { return m_Artboard->initialize(); }
 
-bool ArtboardImporter::readNullObject()
-{
+bool ArtboardImporter::readNullObject() {
     addComponent(nullptr);
     return true;
 }

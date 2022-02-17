@@ -10,8 +10,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("image assets loads correctly", "[assets]")
-{
+TEST_CASE("image assets loads correctly", "[assets]") {
     FILE* fp = fopen("../../test/assets/walle.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -59,8 +58,7 @@ TEST_CASE("image assets loads correctly", "[assets]")
     delete[] bytes;
 }
 
-TEST_CASE("out of band image assets loads correctly", "[assets]")
-{
+TEST_CASE("out of band image assets loads correctly", "[assets]") {
     std::string filename = "../../test/assets/out_of_band/walle.riv";
     rive::RelativeLocalAssetResolver resolver(filename);
 

@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* StateTransitionBase::clone() const
-{
+Core* StateTransitionBase::clone() const {
     auto cloned = new StateTransition();
     cloned->copy(*this);
     return cloned;

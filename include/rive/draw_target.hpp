@@ -5,12 +5,10 @@
 #include "rive/generated/draw_target_base.hpp"
 #include <stdio.h>
 
-namespace rive
-{
+namespace rive {
     class Drawable;
     class Artboard;
-    class DrawTarget : public DrawTargetBase
-    {
+    class DrawTarget : public DrawTargetBase {
         friend class Artboard;
 
     private:
@@ -25,8 +23,7 @@ namespace rive
         StatusCode onAddedDirty(CoreContext* context) override;
         StatusCode onAddedClean(CoreContext* context) override;
 
-        DrawTargetPlacement placement() const
-        {
+        DrawTargetPlacement placement() const {
             return (DrawTargetPlacement)placementValue();
         }
 

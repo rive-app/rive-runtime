@@ -2,10 +2,8 @@
 #define _RIVE_DRAWABLE_BASE_HPP_
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/node.hpp"
-namespace rive
-{
-    class DrawableBase : public Node
-    {
+namespace rive {
+    class DrawableBase : public Node {
     protected:
         typedef Node Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case DrawableBase::typeKey:
                 case NodeBase::typeKey:
                 case TransformComponentBase::typeKey:
@@ -41,10 +37,8 @@ namespace rive
 
     public:
         inline int blendModeValue() const { return m_BlendModeValue; }
-        void blendModeValue(int value)
-        {
-            if (m_BlendModeValue == value)
-            {
+        void blendModeValue(int value) {
+            if (m_BlendModeValue == value) {
                 return;
             }
             m_BlendModeValue = value;
@@ -52,27 +46,22 @@ namespace rive
         }
 
         inline int drawableFlags() const { return m_DrawableFlags; }
-        void drawableFlags(int value)
-        {
-            if (m_DrawableFlags == value)
-            {
+        void drawableFlags(int value) {
+            if (m_DrawableFlags == value) {
                 return;
             }
             m_DrawableFlags = value;
             drawableFlagsChanged();
         }
 
-        void copy(const DrawableBase& object)
-        {
+        void copy(const DrawableBase& object) {
             m_BlendModeValue = object.m_BlendModeValue;
             m_DrawableFlags = object.m_DrawableFlags;
             Node::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case blendModeValuePropertyKey:
                     m_BlendModeValue = CoreUintType::deserialize(reader);
                     return true;

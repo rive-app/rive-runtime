@@ -6,21 +6,17 @@ using namespace rive;
 
 void Bone::addChildBone(Bone* bone) { m_ChildBones.push_back(bone); }
 
-StatusCode Bone::onAddedClean(CoreContext* context)
-{
+StatusCode Bone::onAddedClean(CoreContext* context) {
     Super::onAddedClean(context);
-    if (!parent()->is<Bone>())
-    {
+    if (!parent()->is<Bone>()) {
         return StatusCode::MissingObject;
     }
     parent()->as<Bone>()->addChildBone(this);
     return StatusCode::Ok;
 }
 
-void Bone::lengthChanged()
-{
-    for (auto bone : m_ChildBones)
-    {
+void Bone::lengthChanged() {
+    for (auto bone : m_ChildBones) {
         bone->markTransformDirty();
     }
 }
@@ -29,15 +25,13 @@ float Bone::x() const { return parent()->as<Bone>()->length(); }
 
 float Bone::y() const { return 0.0f; }
 
-void Bone::tipWorldTranslation(Vec2D& result)
-{
+void Bone::tipWorldTranslation(Vec2D& result) {
     result[0] = length();
     result[1] = 0.0f;
     Vec2D::transform(result, result, worldTransform());
 }
 
-void Bone::addPeerConstraint(Constraint* peer)
-{
+void Bone::addPeerConstraint(Constraint* peer) {
     assert(std::find(m_PeerConstraints.begin(),
                      m_PeerConstraints.end(),
                      peer) == m_PeerConstraints.end());

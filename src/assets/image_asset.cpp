@@ -6,8 +6,7 @@ using namespace rive;
 ImageAsset::ImageAsset() : m_RenderImage(makeRenderImage()) {}
 
 ImageAsset::~ImageAsset() { delete m_RenderImage; }
-bool ImageAsset::decode(const uint8_t* bytes, std::size_t size)
-{
+bool ImageAsset::decode(const uint8_t* bytes, std::size_t size) {
 #ifdef TESTING
     decodedByteSize = size;
 #endif

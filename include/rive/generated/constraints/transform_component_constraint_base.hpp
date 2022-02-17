@@ -4,10 +4,8 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class TransformComponentConstraintBase : public TransformSpaceConstraint
-    {
+namespace rive {
+    class TransformComponentConstraintBase : public TransformSpaceConstraint {
     protected:
         typedef TransformSpaceConstraint Super;
 
@@ -16,10 +14,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case TransformComponentConstraintBase::typeKey:
                 case TransformSpaceConstraintBase::typeKey:
                 case TargetedConstraintBase::typeKey:
@@ -54,10 +50,8 @@ namespace rive
 
     public:
         inline int minMaxSpaceValue() const { return m_MinMaxSpaceValue; }
-        void minMaxSpaceValue(int value)
-        {
-            if (m_MinMaxSpaceValue == value)
-            {
+        void minMaxSpaceValue(int value) {
+            if (m_MinMaxSpaceValue == value) {
                 return;
             }
             m_MinMaxSpaceValue = value;
@@ -65,10 +59,8 @@ namespace rive
         }
 
         inline float copyFactor() const { return m_CopyFactor; }
-        void copyFactor(float value)
-        {
-            if (m_CopyFactor == value)
-            {
+        void copyFactor(float value) {
+            if (m_CopyFactor == value) {
                 return;
             }
             m_CopyFactor = value;
@@ -76,10 +68,8 @@ namespace rive
         }
 
         inline float minValue() const { return m_MinValue; }
-        void minValue(float value)
-        {
-            if (m_MinValue == value)
-            {
+        void minValue(float value) {
+            if (m_MinValue == value) {
                 return;
             }
             m_MinValue = value;
@@ -87,10 +77,8 @@ namespace rive
         }
 
         inline float maxValue() const { return m_MaxValue; }
-        void maxValue(float value)
-        {
-            if (m_MaxValue == value)
-            {
+        void maxValue(float value) {
+            if (m_MaxValue == value) {
                 return;
             }
             m_MaxValue = value;
@@ -98,10 +86,8 @@ namespace rive
         }
 
         inline bool offset() const { return m_Offset; }
-        void offset(bool value)
-        {
-            if (m_Offset == value)
-            {
+        void offset(bool value) {
+            if (m_Offset == value) {
                 return;
             }
             m_Offset = value;
@@ -109,10 +95,8 @@ namespace rive
         }
 
         inline bool doesCopy() const { return m_DoesCopy; }
-        void doesCopy(bool value)
-        {
-            if (m_DoesCopy == value)
-            {
+        void doesCopy(bool value) {
+            if (m_DoesCopy == value) {
                 return;
             }
             m_DoesCopy = value;
@@ -120,10 +104,8 @@ namespace rive
         }
 
         inline bool min() const { return m_Min; }
-        void min(bool value)
-        {
-            if (m_Min == value)
-            {
+        void min(bool value) {
+            if (m_Min == value) {
                 return;
             }
             m_Min = value;
@@ -131,18 +113,15 @@ namespace rive
         }
 
         inline bool max() const { return m_Max; }
-        void max(bool value)
-        {
-            if (m_Max == value)
-            {
+        void max(bool value) {
+            if (m_Max == value) {
                 return;
             }
             m_Max = value;
             maxChanged();
         }
 
-        void copy(const TransformComponentConstraintBase& object)
-        {
+        void copy(const TransformComponentConstraintBase& object) {
             m_MinMaxSpaceValue = object.m_MinMaxSpaceValue;
             m_CopyFactor = object.m_CopyFactor;
             m_MinValue = object.m_MinValue;
@@ -154,10 +133,8 @@ namespace rive
             TransformSpaceConstraint::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case minMaxSpaceValuePropertyKey:
                     m_MinMaxSpaceValue = CoreUintType::deserialize(reader);
                     return true;

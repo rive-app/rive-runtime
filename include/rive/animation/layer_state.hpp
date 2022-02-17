@@ -4,15 +4,13 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class StateTransition;
     class LayerStateImporter;
     class StateMachineLayerImporter;
     class StateInstance;
 
-    class LayerState : public LayerStateBase
-    {
+    class LayerState : public LayerStateBase {
         friend class LayerStateImporter;
         friend class StateMachineLayerImporter;
 
@@ -28,10 +26,8 @@ namespace rive
         StatusCode import(ImportStack& importStack) override;
 
         size_t transitionCount() const { return m_Transitions.size(); }
-        StateTransition* transition(size_t index) const
-        {
-            if (index < m_Transitions.size())
-            {
+        StateTransition* transition(size_t index) const {
+            if (index < m_Transitions.size()) {
                 return m_Transitions[index];
             }
             return nullptr;

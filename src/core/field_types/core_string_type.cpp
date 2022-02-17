@@ -3,7 +3,6 @@
 
 using namespace rive;
 
-std::string CoreStringType::deserialize(BinaryReader& reader)
-{
+std::string CoreStringType::deserialize(BinaryReader& reader) {
     return reader.readString();
 }

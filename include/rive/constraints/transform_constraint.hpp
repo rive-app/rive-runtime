@@ -4,10 +4,8 @@
 #include "rive/math/transform_components.hpp"
 
 #include <stdio.h>
-namespace rive
-{
-    class TransformConstraint : public TransformConstraintBase
-    {
+namespace rive {
+    class TransformConstraint : public TransformConstraintBase {
     private:
         TransformComponents m_ComponentsA;
         TransformComponents m_ComponentsB;

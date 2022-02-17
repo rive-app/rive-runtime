@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* GradientStopBase::clone() const
-{
+Core* GradientStopBase::clone() const {
     auto cloned = new GradientStop();
     cloned->copy(*this);
     return cloned;

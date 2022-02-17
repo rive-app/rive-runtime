@@ -1,11 +1,9 @@
 #ifndef _RIVE_CORE_UINT_TYPE_HPP_
 #define _RIVE_CORE_UINT_TYPE_HPP_
 
-namespace rive
-{
+namespace rive {
     class BinaryReader;
-    class CoreUintType
-    {
+    class CoreUintType {
     public:
         static const int id = 0;
         static unsigned int deserialize(BinaryReader& reader);

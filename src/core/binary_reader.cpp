@@ -8,12 +8,9 @@ BinaryReader::BinaryReader(uint8_t* bytes, size_t length) :
     m_Position(bytes),
     m_End(bytes + length),
     m_Overflowed(false),
-    m_Length(length)
-{
-}
+    m_Length(length) {}
 
-bool BinaryReader::reachedEnd() const
-{
+bool BinaryReader::reachedEnd() const {
     return m_Position == m_End || didOverflow();
 }
 
@@ -21,18 +18,15 @@ size_t BinaryReader::lengthInBytes() const { return m_Length; }
 
 bool BinaryReader::didOverflow() const { return m_Overflowed; }
 
-void BinaryReader::overflow()
-{
+void BinaryReader::overflow() {
     m_Overflowed = true;
     m_Position = m_End;
 }
 
-uint64_t BinaryReader::readVarUint64()
-{
+uint64_t BinaryReader::readVarUint64() {
     uint64_t value;
     auto readBytes = decode_uint_leb(m_Position, m_End, &value);
-    if (readBytes == 0)
-    {
+    if (readBytes == 0) {
         overflow();
         return 0;
     }
@@ -40,18 +34,15 @@ uint64_t BinaryReader::readVarUint64()
     return value;
 }
 
-std::string BinaryReader::readString()
-{
+std::string BinaryReader::readString() {
     uint64_t length = readVarUint64();
-    if (didOverflow())
-    {
+    if (didOverflow()) {
         return std::string();
     }
 
     std::vector<char> rawValue(length + 1);
     auto readBytes = decode_string(length, m_Position, m_End, &rawValue[0]);
-    if (readBytes != length)
-    {
+    if (readBytes != length) {
         overflow();
         return std::string();
     }
@@ -59,11 +50,9 @@ std::string BinaryReader::readString()
     return std::string(rawValue.data(), length);
 }
 
-std::vector<uint8_t> BinaryReader::readBytes()
-{
+std::vector<uint8_t> BinaryReader::readBytes() {
     uint64_t length = readVarUint64();
-    if (didOverflow())
-    {
+    if (didOverflow()) {
         return std::vector<uint8_t>();
     }
 
@@ -72,12 +61,10 @@ std::vector<uint8_t> BinaryReader::readBytes()
     return std::vector<uint8_t>(start, start + length);
 }
 
-double BinaryReader::readFloat64()
-{
+double BinaryReader::readFloat64() {
     double value;
     auto readBytes = decode_double(m_Position, m_End, &value);
-    if (readBytes == 0)
-    {
+    if (readBytes == 0) {
         overflow();
         return 0.0;
     }
@@ -85,12 +72,10 @@ double BinaryReader::readFloat64()
     return value;
 }
 
-float BinaryReader::readFloat32()
-{
+float BinaryReader::readFloat32() {
     float value;
     auto readBytes = decode_float(m_Position, m_End, &value);
-    if (readBytes == 0)
-    {
+    if (readBytes == 0) {
         overflow();
         return 0.0f;
     }
@@ -98,22 +83,18 @@ float BinaryReader::readFloat32()
     return value;
 }
 
-uint8_t BinaryReader::readByte()
-{
-    if (m_End - m_Position < 1)
-    {
+uint8_t BinaryReader::readByte() {
+    if (m_End - m_Position < 1) {
         overflow();
         return 0;
     }
     return *m_Position++;
 }
 
-uint32_t BinaryReader::readUint32()
-{
+uint32_t BinaryReader::readUint32() {
     uint32_t value;
     auto readBytes = decode_uint_32(m_Position, m_End, &value);
-    if (readBytes == 0)
-    {
+    if (readBytes == 0) {
         overflow();
         return 0;
     }

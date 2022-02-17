@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* BlendStateDirectBase::clone() const
-{
+Core* BlendStateDirectBase::clone() const {
     auto cloned = new BlendStateDirect();
     cloned->copy(*this);
     return cloned;

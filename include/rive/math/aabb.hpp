@@ -5,16 +5,12 @@
 #include "rive/math/vec2d.hpp"
 #include <cstddef>
 
-namespace rive
-{
-    class AABB
-    {
+namespace rive {
+    class AABB {
     public:
-        union
-        {
+        union {
             float buffer[4];
-            struct
-            {
+            struct {
                 float minX, minY, maxX, maxY;
             };
         };

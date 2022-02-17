@@ -3,25 +3,20 @@
 
 using namespace rive;
 
-void NestedRemapAnimation::timeChanged()
-{
-    if (m_AnimationInstance != nullptr)
-    {
+void NestedRemapAnimation::timeChanged() {
+    if (m_AnimationInstance != nullptr) {
         m_AnimationInstance->time(m_AnimationInstance->durationSeconds() *
                                   time());
     }
 }
 
-void NestedRemapAnimation::initializeAnimation(Artboard* artboard)
-{
+void NestedRemapAnimation::initializeAnimation(Artboard* artboard) {
     Super::initializeAnimation(artboard);
     timeChanged();
 }
 
-void NestedRemapAnimation::advance(float elapsedSeconds, Artboard* artboard)
-{
-    if (m_AnimationInstance != nullptr)
-    {
+void NestedRemapAnimation::advance(float elapsedSeconds, Artboard* artboard) {
+    if (m_AnimationInstance != nullptr) {
         m_AnimationInstance->apply(artboard, mix());
     }
 }

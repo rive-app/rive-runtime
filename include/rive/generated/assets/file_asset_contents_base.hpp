@@ -3,10 +3,8 @@
 #include <vector>
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
-namespace rive
-{
-    class FileAssetContentsBase : public Core
-    {
+namespace rive {
+    class FileAssetContentsBase : public Core {
     protected:
         typedef Core Super;
 
@@ -15,10 +13,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case FileAssetContentsBase::typeKey:
                     return true;
                 default:
@@ -35,10 +31,8 @@ namespace rive
 
     public:
         inline const std::vector<uint8_t>& bytes() const { return m_Bytes; }
-        void bytes(std::vector<uint8_t> value)
-        {
-            if (m_Bytes == value)
-            {
+        void bytes(std::vector<uint8_t> value) {
+            if (m_Bytes == value) {
                 return;
             }
             m_Bytes = value;
@@ -46,15 +40,12 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const FileAssetContentsBase& object)
-        {
+        void copy(const FileAssetContentsBase& object) {
             m_Bytes = object.m_Bytes;
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case bytesPropertyKey:
                     m_Bytes = CoreBytesType::deserialize(reader);
                     return true;

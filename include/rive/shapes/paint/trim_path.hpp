@@ -4,10 +4,8 @@
 #include "rive/shapes/paint/stroke_effect.hpp"
 #include <stdio.h>
 
-namespace rive
-{
-    class TrimPath : public TrimPathBase, public StrokeEffect
-    {
+namespace rive {
+    class TrimPath : public TrimPathBase, public StrokeEffect {
     private:
         RenderPath* m_TrimmedPath;
         RenderPath* m_RenderPath = nullptr;

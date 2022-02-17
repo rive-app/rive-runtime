@@ -7,10 +7,8 @@
 
 using namespace rive;
 
-void SkiaRenderPath::fillRule(FillRule value)
-{
-    switch (value)
-    {
+void SkiaRenderPath::fillRule(FillRule value) {
+    switch (value) {
         case FillRule::evenOdd:
             m_Path.setFillType(SkPathFillType::kEvenOdd);
             break;
@@ -21,8 +19,7 @@ void SkiaRenderPath::fillRule(FillRule value)
 }
 
 void SkiaRenderPath::reset() { m_Path.reset(); }
-void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
-{
+void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform) {
     m_Path.addPath(reinterpret_cast<SkiaRenderPath*>(path)->m_Path,
                    ToSkia::convert(transform));
 }
@@ -30,18 +27,15 @@ void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
 void SkiaRenderPath::moveTo(float x, float y) { m_Path.moveTo(x, y); }
 void SkiaRenderPath::lineTo(float x, float y) { m_Path.lineTo(x, y); }
 void SkiaRenderPath::cubicTo(
-    float ox, float oy, float ix, float iy, float x, float y)
-{
+    float ox, float oy, float ix, float iy, float x, float y) {
     m_Path.cubicTo(ox, oy, ix, iy, x, y);
 }
 void SkiaRenderPath::close() { m_Path.close(); }
 
 SkiaRenderPaint::SkiaRenderPaint() { m_Paint.setAntiAlias(true); }
 
-void SkiaRenderPaint::style(RenderPaintStyle style)
-{
-    switch (style)
-    {
+void SkiaRenderPaint::style(RenderPaintStyle style) {
+    switch (style) {
         case RenderPaintStyle::fill:
             m_Paint.setStyle(SkPaint::Style::kFill_Style);
             break;
@@ -52,47 +46,38 @@ void SkiaRenderPaint::style(RenderPaintStyle style)
 }
 void SkiaRenderPaint::color(unsigned int value) { m_Paint.setColor(value); }
 void SkiaRenderPaint::thickness(float value) { m_Paint.setStrokeWidth(value); }
-void SkiaRenderPaint::join(StrokeJoin value)
-{
+void SkiaRenderPaint::join(StrokeJoin value) {
     m_Paint.setStrokeJoin(ToSkia::convert(value));
 }
-void SkiaRenderPaint::cap(StrokeCap value)
-{
+void SkiaRenderPaint::cap(StrokeCap value) {
     m_Paint.setStrokeCap(ToSkia::convert(value));
 }
 
-void SkiaRenderPaint::linearGradient(float sx, float sy, float ex, float ey)
-{
+void SkiaRenderPaint::linearGradient(float sx, float sy, float ex, float ey) {
     m_GradientBuilder = new SkiaLinearGradientBuilder(sx, sy, ex, ey);
 }
-void SkiaRenderPaint::radialGradient(float sx, float sy, float ex, float ey)
-{
+void SkiaRenderPaint::radialGradient(float sx, float sy, float ex, float ey) {
     m_GradientBuilder = new SkiaRadialGradientBuilder(sx, sy, ex, ey);
 }
-void SkiaRenderPaint::addStop(unsigned int color, float stop)
-{
+void SkiaRenderPaint::addStop(unsigned int color, float stop) {
     m_GradientBuilder->stops.emplace_back(GradientStop(color, stop));
 }
-void SkiaRenderPaint::completeGradient()
-{
+void SkiaRenderPaint::completeGradient() {
     m_GradientBuilder->make(m_Paint);
     delete m_GradientBuilder;
 }
 
-void SkiaRenderPaint::blendMode(BlendMode value)
-{
+void SkiaRenderPaint::blendMode(BlendMode value) {
     m_Paint.setBlendMode(ToSkia::convert(value));
 }
 
-void SkiaRadialGradientBuilder::make(SkPaint& paint)
-{
+void SkiaRadialGradientBuilder::make(SkPaint& paint) {
     int numStops = stops.size();
 
     SkColor colors[numStops];
     SkScalar pos[numStops];
 
-    for (int i = 0; i < numStops; i++)
-    {
+    for (int i = 0; i < numStops; i++) {
         const GradientStop& stop = stops[i];
         colors[i] = SkColor(stop.color);
         pos[i] = stop.stop;
@@ -109,15 +94,13 @@ void SkiaRadialGradientBuilder::make(SkPaint& paint)
                                                  nullptr));
 }
 
-void SkiaLinearGradientBuilder::make(SkPaint& paint)
-{
+void SkiaLinearGradientBuilder::make(SkPaint& paint) {
     int numStops = stops.size();
     SkPoint points[2] = {SkPoint::Make(sx, sy), SkPoint::Make(ex, ey)};
     SkColor colors[numStops];
     SkScalar pos[numStops];
 
-    for (int i = 0; i < numStops; i++)
-    {
+    for (int i = 0; i < numStops; i++) {
         const GradientStop& stop = stops[i];
         colors[i] = SkColor(stop.color);
         pos[i] = stop.stop;
@@ -128,25 +111,21 @@ void SkiaLinearGradientBuilder::make(SkPaint& paint)
 
 void SkiaRenderer::save() { m_Canvas->save(); }
 void SkiaRenderer::restore() { m_Canvas->restore(); }
-void SkiaRenderer::transform(const Mat2D& transform)
-{
+void SkiaRenderer::transform(const Mat2D& transform) {
     m_Canvas->concat(ToSkia::convert(transform));
 }
-void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
-{
+void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
     m_Canvas->drawPath(reinterpret_cast<SkiaRenderPath*>(path)->path(),
                        reinterpret_cast<SkiaRenderPaint*>(paint)->paint());
 }
 
-void SkiaRenderer::clipPath(RenderPath* path)
-{
+void SkiaRenderer::clipPath(RenderPath* path) {
     m_Canvas->clipPath(reinterpret_cast<SkiaRenderPath*>(path)->path(), true);
 }
 
 void SkiaRenderer::drawImage(RenderImage* image,
                              BlendMode blendMode,
-                             float opacity)
-{
+                             float opacity) {
     SkPaint paint;
     paint.setAlphaf(opacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
@@ -157,8 +136,7 @@ void SkiaRenderer::drawImage(RenderImage* image,
         skiaImage->skImage(), 0.0f, 0.0f, samplingOptions, &paint);
 }
 
-bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size)
-{
+bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size) {
 
     sk_sp<SkData> data = SkData::MakeWithoutCopy(bytes, size);
     m_SkImage = SkImage::MakeFromEncoded(data);
@@ -167,8 +145,7 @@ bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size)
     return true;
 }
 
-namespace rive
-{
+namespace rive {
     RenderPath* makeRenderPath() { return new SkiaRenderPath(); }
     RenderPaint* makeRenderPaint() { return new SkiaRenderPaint(); }
     RenderImage* makeRenderImage() { return new SkiaRenderImage(); }

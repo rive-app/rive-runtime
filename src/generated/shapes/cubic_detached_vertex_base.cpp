@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* CubicDetachedVertexBase::clone() const
-{
+Core* CubicDetachedVertexBase::clone() const {
     auto cloned = new CubicDetachedVertex();
     cloned->copy(*this);
     return cloned;

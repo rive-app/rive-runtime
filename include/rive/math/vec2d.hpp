@@ -3,11 +3,9 @@
 
 #include <cstddef>
 
-namespace rive
-{
+namespace rive {
     class Mat2D;
-    class Vec2D
-    {
+    class Vec2D {
     private:
         float m_Buffer[2];
 
@@ -39,33 +37,28 @@ namespace rive
         static void negate(Vec2D& o, const Vec2D& a);
     };
 
-    inline Vec2D operator*(const Mat2D& a, const Vec2D& b)
-    {
+    inline Vec2D operator*(const Mat2D& a, const Vec2D& b) {
         Vec2D result;
         Vec2D::transform(result, b, a);
         return result;
     }
 
-    inline Vec2D operator-(const Vec2D& a, const Vec2D& b)
-    {
+    inline Vec2D operator-(const Vec2D& a, const Vec2D& b) {
         Vec2D result;
         Vec2D::subtract(result, a, b);
         return result;
     }
 
-    inline Vec2D operator+(const Vec2D& a, const Vec2D& b)
-    {
+    inline Vec2D operator+(const Vec2D& a, const Vec2D& b) {
         Vec2D result;
         Vec2D::add(result, a, b);
         return result;
     }
 
-    inline bool operator==(const Vec2D& a, const Vec2D& b)
-    {
+    inline bool operator==(const Vec2D& a, const Vec2D& b) {
         return a[0] == b[0] && a[1] == b[1];
     }
-    inline bool operator!=(const Vec2D& a, const Vec2D& b)
-    {
+    inline bool operator!=(const Vec2D& a, const Vec2D& b) {
         return a[0] != b[0] || a[1] != b[1];
     }
 } // namespace rive

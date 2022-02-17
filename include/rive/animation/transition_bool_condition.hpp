@@ -2,10 +2,8 @@
 #define _RIVE_TRANSITION_BOOL_CONDITION_HPP_
 #include "rive/generated/animation/transition_bool_condition_base.hpp"
 #include <stdio.h>
-namespace rive
-{
-    class TransitionBoolCondition : public TransitionBoolConditionBase
-    {
+namespace rive {
+    class TransitionBoolCondition : public TransitionBoolConditionBase {
     public:
         bool evaluate(const SMIInput* inputInstance) const override;
 

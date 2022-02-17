@@ -11,8 +11,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("rectangle path builds expected commands", "[path]")
-{
+TEST_CASE("rectangle path builds expected commands", "[path]") {
     rive::Artboard* artboard = new rive::Artboard();
     rive::Shape* shape = new rive::Shape();
     rive::Rectangle* rectangle = new rive::Rectangle();
@@ -49,8 +48,7 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
     delete artboard;
 }
 
-TEST_CASE("rounded rectangle path builds expected commands", "[path]")
-{
+TEST_CASE("rounded rectangle path builds expected commands", "[path]") {
     rive::Artboard* artboard = new rive::Artboard();
     rive::Shape* shape = new rive::Shape();
     rive::Rectangle* rectangle = new rive::Rectangle();
@@ -114,8 +112,7 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
     delete artboard;
 }
 
-TEST_CASE("ellipse path builds expected commands", "[path]")
-{
+TEST_CASE("ellipse path builds expected commands", "[path]") {
     rive::Artboard* artboard = new rive::Artboard();
     rive::Ellipse* ellipse = new rive::Ellipse();
     rive::Shape* shape = new rive::Shape();

@@ -6,32 +6,26 @@
 
 using namespace rive;
 
-StateInstance* BlendState1D::makeInstance() const
-{
+StateInstance* BlendState1D::makeInstance() const {
     return new BlendState1DInstance(this);
 }
 
-StatusCode BlendState1D::import(ImportStack& importStack)
-{
+StatusCode BlendState1D::import(ImportStack& importStack) {
     auto stateMachineImporter =
         importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
+    if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
     // A negative inputId means it wasn't set, we actually allow this as the
     // editor does too.
-    if (inputId() >= 0)
-    {
+    if (inputId() >= 0) {
         // Make sure the inputId doesn't overflow the input buffer.
-        if (inputId() >= stateMachineImporter->stateMachine()->inputCount())
-        {
+        if (inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
             return StatusCode::InvalidObject;
         }
         auto input =
             stateMachineImporter->stateMachine()->input((size_t)inputId());
-        if (input == nullptr || !input->is<StateMachineNumber>())
-        {
+        if (input == nullptr || !input->is<StateMachineNumber>()) {
             return StatusCode::InvalidObject;
         }
     }

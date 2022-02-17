@@ -1,13 +1,11 @@
 #ifndef _RIVE_SKINNABLE_HPP_
 #define _RIVE_SKINNABLE_HPP_
 
-namespace rive
-{
+namespace rive {
     class Skin;
     class Component;
 
-    class Skinnable
-    {
+    class Skinnable {
         friend class Skin;
 
     private:

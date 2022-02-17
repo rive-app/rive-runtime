@@ -3,17 +3,16 @@
 #include "rive/animation/loop.hpp"
 #include "rive/generated/animation/linear_animation_base.hpp"
 #include <vector>
-namespace rive
-{
+namespace rive {
     class Artboard;
     class KeyedObject;
 
-    class LinearAnimation : public LinearAnimationBase
-    {
+    class LinearAnimation : public LinearAnimationBase {
     private:
         std::vector<KeyedObject*> m_KeyedObjects;
 
         friend class Artboard;
+
     public:
         ~LinearAnimation();
         StatusCode onAddedDirty(CoreContext* context) override;

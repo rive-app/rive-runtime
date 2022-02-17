@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* TrimPathBase::clone() const
-{
+Core* TrimPathBase::clone() const {
     auto cloned = new TrimPath();
     cloned->copy(*this);
     return cloned;

@@ -2,10 +2,8 @@
 #define _RIVE_STRAIGHT_VERTEX_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/shapes/path_vertex.hpp"
-namespace rive
-{
-    class StraightVertexBase : public PathVertex
-    {
+namespace rive {
+    class StraightVertexBase : public PathVertex {
     protected:
         typedef PathVertex Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case StraightVertexBase::typeKey:
                 case PathVertexBase::typeKey:
                 case ContainerComponentBase::typeKey:
@@ -37,10 +33,8 @@ namespace rive
 
     public:
         inline float radius() const { return m_Radius; }
-        void radius(float value)
-        {
-            if (m_Radius == value)
-            {
+        void radius(float value) {
+            if (m_Radius == value) {
                 return;
             }
             m_Radius = value;
@@ -48,16 +42,13 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const StraightVertexBase& object)
-        {
+        void copy(const StraightVertexBase& object) {
             m_Radius = object.m_Radius;
             PathVertex::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case radiusPropertyKey:
                     m_Radius = CoreDoubleType::deserialize(reader);
                     return true;

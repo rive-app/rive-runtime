@@ -1,10 +1,8 @@
 #ifndef _RIVE_BACKBOARD_BASE_HPP_
 #define _RIVE_BACKBOARD_BASE_HPP_
 #include "rive/core.hpp"
-namespace rive
-{
-    class BackboardBase : public Core
-    {
+namespace rive {
+    class BackboardBase : public Core {
     protected:
         typedef Core Super;
 
@@ -13,10 +11,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case BackboardBase::typeKey:
                     return true;
                 default:
@@ -29,10 +25,8 @@ namespace rive
         Core* clone() const override;
         void copy(const BackboardBase& object) {}
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
             }
             return false;
         }

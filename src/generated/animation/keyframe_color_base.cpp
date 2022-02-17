@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* KeyFrameColorBase::clone() const
-{
+Core* KeyFrameColorBase::clone() const {
     auto cloned = new KeyFrameColor();
     cloned->copy(*this);
     return cloned;

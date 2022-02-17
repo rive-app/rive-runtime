@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* KeyFrameDoubleBase::clone() const
-{
+Core* KeyFrameDoubleBase::clone() const {
     auto cloned = new KeyFrameDouble();
     cloned->copy(*this);
     return cloned;

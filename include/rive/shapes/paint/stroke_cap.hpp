@@ -1,10 +1,8 @@
 #ifndef _RIVE_STROKE_CAP_HPP_
 #define _RIVE_STROKE_CAP_HPP_
-namespace rive
-{
+namespace rive {
     /// Style used for stroke line endings.
-    enum class StrokeCap : unsigned int
-    {
+    enum class StrokeCap : unsigned int {
         /// Flat edge at the start/end of the stroke.
         butt = 0,
 

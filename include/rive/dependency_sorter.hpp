@@ -4,11 +4,9 @@
 #include <unordered_set>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class Component;
-    class DependencySorter
-    {
+    class DependencySorter {
     private:
         std::unordered_set<Component*> m_Perm;
         std::unordered_set<Component*> m_Temp;

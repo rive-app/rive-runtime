@@ -6,21 +6,16 @@
 #include <cassert>
 #include <vector>
 
-namespace rive
-{
+namespace rive {
 
-    struct CubicSegment
-    {
+    struct CubicSegment {
         float t;
         float length;
         CubicSegment(float tValue, float lengthValue) :
-            t(tValue), length(lengthValue)
-        {
-        }
+            t(tValue), length(lengthValue) {}
     };
 
-    struct PathPart
-    {
+    struct PathPart {
         static const unsigned char line = 0;
         /// Type is 0 when this is a line segment, it's 1 or greater when it's a
         /// cubic. When it's a cubic it also represents the index in
@@ -36,13 +31,10 @@ namespace rive
         unsigned char numSegments;
 
         PathPart(unsigned char t, unsigned char l) :
-            type(t), offset(l), numSegments(0)
-        {
-        }
+            type(t), offset(l), numSegments(0) {}
     };
 
-    class MetricsPath : public CommandPath
-    {
+    class MetricsPath : public CommandPath {
     private:
         std::vector<Vec2D> m_Points;
         std::vector<Vec2D> m_TransformedPoints;
@@ -85,21 +77,18 @@ namespace rive
                             RenderPath* result);
     };
 
-    class OnlyMetricsPath : public MetricsPath
-    {
+    class OnlyMetricsPath : public MetricsPath {
     public:
         void fillRule(FillRule value) override {}
 
-        RenderPath* renderPath() override
-        {
+        RenderPath* renderPath() override {
             // Should never be used for actual rendering.
             assert(false);
             return nullptr;
         }
     };
 
-    class RenderMetricsPath : public MetricsPath
-    {
+    class RenderMetricsPath : public MetricsPath {
     private:
         RenderPath* m_RenderPath;
 

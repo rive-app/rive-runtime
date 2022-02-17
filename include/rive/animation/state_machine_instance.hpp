@@ -5,8 +5,7 @@
 #include <stddef.h>
 #include "rive/animation/linear_animation_instance.hpp"
 
-namespace rive
-{
+namespace rive {
     class StateMachine;
     class LayerState;
     class SMIInput;
@@ -17,8 +16,7 @@ namespace rive
 
     class StateMachineLayerInstance;
 
-    class StateMachineInstance
-    {
+    class StateMachineInstance {
         friend class SMIInput;
 
     private:

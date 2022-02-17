@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* FileAssetContentsBase::clone() const
-{
+Core* FileAssetContentsBase::clone() const {
     auto cloned = new FileAssetContents();
     cloned->copy(*this);
     return cloned;

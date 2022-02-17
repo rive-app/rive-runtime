@@ -1,10 +1,8 @@
 #ifndef _RIVE_EXIT_STATE_BASE_HPP_
 #define _RIVE_EXIT_STATE_BASE_HPP_
 #include "rive/animation/layer_state.hpp"
-namespace rive
-{
-    class ExitStateBase : public LayerState
-    {
+namespace rive {
+    class ExitStateBase : public LayerState {
     protected:
         typedef LayerState Super;
 
@@ -13,10 +11,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case ExitStateBase::typeKey:
                 case LayerStateBase::typeKey:
                 case StateMachineLayerComponentBase::typeKey:

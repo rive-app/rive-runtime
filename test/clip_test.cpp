@@ -8,8 +8,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("clipping loads correctly", "[clipping]")
-{
+TEST_CASE("clipping loads correctly", "[clipping]") {
     FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
     REQUIRE(fp != nullptr);
 

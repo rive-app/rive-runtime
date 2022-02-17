@@ -3,27 +3,22 @@
 
 using namespace rive;
 
-StatusCode GradientStop::onAddedDirty(CoreContext* context)
-{
+StatusCode GradientStop::onAddedDirty(CoreContext* context) {
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
+    if (code != StatusCode::Ok) {
         return code;
     }
 
-    if (!parent()->is<LinearGradient>())
-    {
+    if (!parent()->is<LinearGradient>()) {
         return StatusCode::MissingObject;
     }
     parent()->as<LinearGradient>()->addStop(this);
     return StatusCode::Ok;
 }
 
-void GradientStop::colorValueChanged()
-{
+void GradientStop::colorValueChanged() {
     parent()->as<LinearGradient>()->markGradientDirty();
 }
-void GradientStop::positionChanged()
-{
+void GradientStop::positionChanged() {
     parent()->as<LinearGradient>()->markStopsDirty();
 }

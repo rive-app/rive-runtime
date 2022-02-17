@@ -2,10 +2,8 @@
 #define _RIVE_KEYED_OBJECT_BASE_HPP_
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class KeyedObjectBase : public Core
-    {
+namespace rive {
+    class KeyedObjectBase : public Core {
     protected:
         typedef Core Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case KeyedObjectBase::typeKey:
                     return true;
                 default:
@@ -34,10 +30,8 @@ namespace rive
 
     public:
         inline int objectId() const { return m_ObjectId; }
-        void objectId(int value)
-        {
-            if (m_ObjectId == value)
-            {
+        void objectId(int value) {
+            if (m_ObjectId == value) {
                 return;
             }
             m_ObjectId = value;
@@ -45,15 +39,12 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const KeyedObjectBase& object)
-        {
+        void copy(const KeyedObjectBase& object) {
             m_ObjectId = object.m_ObjectId;
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case objectIdPropertyKey:
                     m_ObjectId = CoreUintType::deserialize(reader);
                     return true;

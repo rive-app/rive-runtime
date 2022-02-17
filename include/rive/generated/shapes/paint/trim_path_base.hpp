@@ -3,10 +3,8 @@
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class TrimPathBase : public Component
-    {
+namespace rive {
+    class TrimPathBase : public Component {
     protected:
         typedef Component Super;
 
@@ -15,10 +13,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case TrimPathBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;
@@ -42,10 +38,8 @@ namespace rive
 
     public:
         inline float start() const { return m_Start; }
-        void start(float value)
-        {
-            if (m_Start == value)
-            {
+        void start(float value) {
+            if (m_Start == value) {
                 return;
             }
             m_Start = value;
@@ -53,10 +47,8 @@ namespace rive
         }
 
         inline float end() const { return m_End; }
-        void end(float value)
-        {
-            if (m_End == value)
-            {
+        void end(float value) {
+            if (m_End == value) {
                 return;
             }
             m_End = value;
@@ -64,10 +56,8 @@ namespace rive
         }
 
         inline float offset() const { return m_Offset; }
-        void offset(float value)
-        {
-            if (m_Offset == value)
-            {
+        void offset(float value) {
+            if (m_Offset == value) {
                 return;
             }
             m_Offset = value;
@@ -75,10 +65,8 @@ namespace rive
         }
 
         inline int modeValue() const { return m_ModeValue; }
-        void modeValue(int value)
-        {
-            if (m_ModeValue == value)
-            {
+        void modeValue(int value) {
+            if (m_ModeValue == value) {
                 return;
             }
             m_ModeValue = value;
@@ -86,8 +74,7 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const TrimPathBase& object)
-        {
+        void copy(const TrimPathBase& object) {
             m_Start = object.m_Start;
             m_End = object.m_End;
             m_Offset = object.m_Offset;
@@ -95,10 +82,8 @@ namespace rive
             Component::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case startPropertyKey:
                     m_Start = CoreDoubleType::deserialize(reader);
                     return true;

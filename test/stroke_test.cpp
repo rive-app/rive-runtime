@@ -10,8 +10,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("stroke can be looked up at runtime", "[file]")
-{
+TEST_CASE("stroke can be looked up at runtime", "[file]") {
     FILE* fp = fopen("../../test/assets/stroke_name_test.riv", "r");
     REQUIRE(fp != nullptr);
 

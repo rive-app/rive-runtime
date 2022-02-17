@@ -3,13 +3,11 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive
-{
+namespace rive {
     class Core;
     class LinearAnimation;
     class KeyedObject;
-    class LinearAnimationImporter : public ImportStackObject
-    {
+    class LinearAnimationImporter : public ImportStackObject {
     private:
         LinearAnimation* m_Animation;
 

@@ -5,13 +5,11 @@
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 
-namespace rive
-{
+namespace rive {
     class AnimationState;
 
     /// Represents an instance of an animation state.
-    class AnimationStateInstance : public StateInstance
-    {
+    class AnimationStateInstance : public StateInstance {
     private:
         LinearAnimationInstance m_AnimationInstance;
         bool m_KeepGoing;
@@ -24,13 +22,11 @@ namespace rive
 
         bool keepGoing() const override;
 
-        const LinearAnimationInstance* animationInstance() const
-        {
+        const LinearAnimationInstance* animationInstance() const {
             return &m_AnimationInstance;
         }
 
-        LinearAnimationInstance* animationInstance()
-        {
+        LinearAnimationInstance* animationInstance() {
             return &m_AnimationInstance;
         }
     };

@@ -2,10 +2,8 @@
 #define _RIVE_FILL_BASE_HPP_
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
-namespace rive
-{
-    class FillBase : public ShapePaint
-    {
+namespace rive {
+    class FillBase : public ShapePaint {
     protected:
         typedef ShapePaint Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case FillBase::typeKey:
                 case ShapePaintBase::typeKey:
                 case ContainerComponentBase::typeKey:
@@ -37,10 +33,8 @@ namespace rive
 
     public:
         inline int fillRule() const { return m_FillRule; }
-        void fillRule(int value)
-        {
-            if (m_FillRule == value)
-            {
+        void fillRule(int value) {
+            if (m_FillRule == value) {
                 return;
             }
             m_FillRule = value;
@@ -48,16 +42,13 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const FillBase& object)
-        {
+        void copy(const FillBase& object) {
             m_FillRule = object.m_FillRule;
             ShapePaint::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case fillRulePropertyKey:
                     m_FillRule = CoreUintType::deserialize(reader);
                     return true;

@@ -3,10 +3,8 @@
 #include "rive/constraints/targeted_constraint.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class IKConstraintBase : public TargetedConstraint
-    {
+namespace rive {
+    class IKConstraintBase : public TargetedConstraint {
     protected:
         typedef TargetedConstraint Super;
 
@@ -15,10 +13,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case IKConstraintBase::typeKey:
                 case TargetedConstraintBase::typeKey:
                 case ConstraintBase::typeKey:
@@ -40,10 +36,8 @@ namespace rive
 
     public:
         inline bool invertDirection() const { return m_InvertDirection; }
-        void invertDirection(bool value)
-        {
-            if (m_InvertDirection == value)
-            {
+        void invertDirection(bool value) {
+            if (m_InvertDirection == value) {
                 return;
             }
             m_InvertDirection = value;
@@ -51,10 +45,8 @@ namespace rive
         }
 
         inline int parentBoneCount() const { return m_ParentBoneCount; }
-        void parentBoneCount(int value)
-        {
-            if (m_ParentBoneCount == value)
-            {
+        void parentBoneCount(int value) {
+            if (m_ParentBoneCount == value) {
                 return;
             }
             m_ParentBoneCount = value;
@@ -62,17 +54,14 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const IKConstraintBase& object)
-        {
+        void copy(const IKConstraintBase& object) {
             m_InvertDirection = object.m_InvertDirection;
             m_ParentBoneCount = object.m_ParentBoneCount;
             TargetedConstraint::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case invertDirectionPropertyKey:
                     m_InvertDirection = CoreBoolType::deserialize(reader);
                     return true;

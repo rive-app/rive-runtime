@@ -2,10 +2,8 @@
 #define _RIVE_NESTED_ANIMATION_HPP_
 #include "rive/generated/nested_animation_base.hpp"
 #include <stdio.h>
-namespace rive
-{
-    class NestedAnimation : public NestedAnimationBase
-    {
+namespace rive {
+    class NestedAnimation : public NestedAnimationBase {
     public:
         StatusCode onAddedDirty(CoreContext* context) override;
 

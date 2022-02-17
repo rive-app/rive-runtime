@@ -7,23 +7,17 @@ using namespace rive;
 
 FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
                                      FileAssetResolver* assetResolver) :
-    m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver)
-{
-}
+    m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver) {}
 
-void FileAssetImporter::loadContents(const FileAssetContents& contents)
-{
+void FileAssetImporter::loadContents(const FileAssetContents& contents) {
     const std::vector<uint8_t>& data = contents.bytes();
-    if (m_FileAsset->decode(&data[0], data.size()))
-    {
+    if (m_FileAsset->decode(&data[0], data.size())) {
         m_LoadedContents = true;
     }
 }
 
-StatusCode FileAssetImporter::resolve()
-{
-    if (!m_LoadedContents && m_FileAssetResolver != nullptr)
-    {
+StatusCode FileAssetImporter::resolve() {
+    if (!m_LoadedContents && m_FileAssetResolver != nullptr) {
         // Contents weren't available in-band, or they couldn't be decoded. Try
         // to find them out of band.
         m_FileAssetResolver->loadContents(*m_FileAsset);

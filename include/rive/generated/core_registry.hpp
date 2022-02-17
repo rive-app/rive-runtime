@@ -101,15 +101,11 @@
 #include "rive/shapes/triangle.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/world_transform_component.hpp"
-namespace rive
-{
-    class CoreRegistry
-    {
+namespace rive {
+    class CoreRegistry {
     public:
-        static Core* makeCoreInstance(int typeKey)
-        {
-            switch (typeKey)
-            {
+        static Core* makeCoreInstance(int typeKey) {
+            switch (typeKey) {
                 case DrawTargetBase::typeKey:
                     return new DrawTarget();
                 case DistanceConstraintBase::typeKey:
@@ -255,10 +251,9 @@ namespace rive
             }
             return nullptr;
         }
-        static void setString(Core* object, int propertyKey, std::string value)
-        {
-            switch (propertyKey)
-            {
+        static void
+        setString(Core* object, int propertyKey, std::string value) {
+            switch (propertyKey) {
                 case ComponentBase::namePropertyKey:
                     object->as<ComponentBase>()->name(value);
                     break;
@@ -273,10 +268,8 @@ namespace rive
                     break;
             }
         }
-        static void setUint(Core* object, int propertyKey, int value)
-        {
-            switch (propertyKey)
-            {
+        static void setUint(Core* object, int propertyKey, int value) {
+            switch (propertyKey) {
                 case ComponentBase::parentIdPropertyKey:
                     object->as<ComponentBase>()->parentId(value);
                     break;
@@ -443,10 +436,8 @@ namespace rive
                     break;
             }
         }
-        static void setDouble(Core* object, int propertyKey, float value)
-        {
-            switch (propertyKey)
-            {
+        static void setDouble(Core* object, int propertyKey, float value) {
+            switch (propertyKey) {
                 case ConstraintBase::strengthPropertyKey:
                     object->as<ConstraintBase>()->strength(value);
                     break;
@@ -698,10 +689,8 @@ namespace rive
                     break;
             }
         }
-        static void setBool(Core* object, int propertyKey, bool value)
-        {
-            switch (propertyKey)
-            {
+        static void setBool(Core* object, int propertyKey, bool value) {
+            switch (propertyKey) {
                 case TransformComponentConstraintBase::offsetPropertyKey:
                     object->as<TransformComponentConstraintBase>()->offset(
                         value);
@@ -763,10 +752,8 @@ namespace rive
                     break;
             }
         }
-        static void setColor(Core* object, int propertyKey, int value)
-        {
-            switch (propertyKey)
-            {
+        static void setColor(Core* object, int propertyKey, int value) {
+            switch (propertyKey) {
                 case KeyFrameColorBase::valuePropertyKey:
                     object->as<KeyFrameColorBase>()->value(value);
                     break;
@@ -779,19 +766,15 @@ namespace rive
             }
         }
         static void
-        setBytes(Core* object, int propertyKey, std::vector<uint8_t> value)
-        {
-            switch (propertyKey)
-            {
+        setBytes(Core* object, int propertyKey, std::vector<uint8_t> value) {
+            switch (propertyKey) {
                 case FileAssetContentsBase::bytesPropertyKey:
                     object->as<FileAssetContentsBase>()->bytes(value);
                     break;
             }
         }
-        static std::string getString(Core* object, int propertyKey)
-        {
-            switch (propertyKey)
-            {
+        static std::string getString(Core* object, int propertyKey) {
+            switch (propertyKey) {
                 case ComponentBase::namePropertyKey:
                     return object->as<ComponentBase>()->name();
                 case StateMachineComponentBase::namePropertyKey:
@@ -803,10 +786,8 @@ namespace rive
             }
             return "";
         }
-        static int getUint(Core* object, int propertyKey)
-        {
-            switch (propertyKey)
-            {
+        static int getUint(Core* object, int propertyKey) {
+            switch (propertyKey) {
                 case ComponentBase::parentIdPropertyKey:
                     return object->as<ComponentBase>()->parentId();
                 case DrawTargetBase::drawableIdPropertyKey:
@@ -922,10 +903,8 @@ namespace rive
             }
             return 0;
         }
-        static float getDouble(Core* object, int propertyKey)
-        {
-            switch (propertyKey)
-            {
+        static float getDouble(Core* object, int propertyKey) {
+            switch (propertyKey) {
                 case ConstraintBase::strengthPropertyKey:
                     return object->as<ConstraintBase>()->strength();
                 case DistanceConstraintBase::distancePropertyKey:
@@ -1099,10 +1078,8 @@ namespace rive
             }
             return 0.0f;
         }
-        static bool getBool(Core* object, int propertyKey)
-        {
-            switch (propertyKey)
-            {
+        static bool getBool(Core* object, int propertyKey) {
+            switch (propertyKey) {
                 case TransformComponentConstraintBase::offsetPropertyKey:
                     return object->as<TransformComponentConstraintBase>()
                         ->offset();
@@ -1149,10 +1126,8 @@ namespace rive
             }
             return false;
         }
-        static int getColor(Core* object, int propertyKey)
-        {
-            switch (propertyKey)
-            {
+        static int getColor(Core* object, int propertyKey) {
+            switch (propertyKey) {
                 case KeyFrameColorBase::valuePropertyKey:
                     return object->as<KeyFrameColorBase>()->value();
                 case SolidColorBase::colorValuePropertyKey:
@@ -1162,19 +1137,15 @@ namespace rive
             }
             return 0;
         }
-        static std::vector<uint8_t> getBytes(Core* object, int propertyKey)
-        {
-            switch (propertyKey)
-            {
+        static std::vector<uint8_t> getBytes(Core* object, int propertyKey) {
+            switch (propertyKey) {
                 case FileAssetContentsBase::bytesPropertyKey:
                     return object->as<FileAssetContentsBase>()->bytes();
             }
             return std::vector<uint8_t>();
         }
-        static int propertyFieldId(int propertyKey)
-        {
-            switch (propertyKey)
-            {
+        static int propertyFieldId(int propertyKey) {
+            switch (propertyKey) {
                 case ComponentBase::namePropertyKey:
                 case StateMachineComponentBase::namePropertyKey:
                 case AnimationBase::namePropertyKey:

@@ -1,8 +1,7 @@
 #include <catch.hpp>
 #include <rive/core/reader.h>
 
-TEST_CASE("uint leb decoder", "[reader]")
-{
+TEST_CASE("uint leb decoder", "[reader]") {
     uint64_t result;
 
     uint8_t encoded1[] = {0x01};
@@ -18,8 +17,7 @@ TEST_CASE("uint leb decoder", "[reader]")
     REQUIRE(result == 624485);
 }
 
-TEST_CASE("string decoder", "[reader]")
-{
+TEST_CASE("string decoder", "[reader]") {
     char* str = strdup("New Artboard");
     uint8_t str_bytes[] = {
         0x4E, 0x65, 0x77, 0x20, 0x41, 0x72, 0x74, 0x62, 0x6F, 0x61, 0x72, 0x64};
@@ -36,8 +34,7 @@ TEST_CASE("string decoder", "[reader]")
     delete decoded_str;
 }
 
-TEST_CASE("double decoder", "[reader]")
-{
+TEST_CASE("double decoder", "[reader]") {
     double decoded_num;
     uint64_t bytes_read;
 
@@ -63,8 +60,7 @@ TEST_CASE("double decoder", "[reader]")
     REQUIRE(bytes_read == 0);
 }
 
-TEST_CASE("float decoder", "[reader]")
-{
+TEST_CASE("float decoder", "[reader]") {
     float decoded_num;
     uint64_t bytes_read;
 
@@ -89,8 +85,7 @@ TEST_CASE("float decoder", "[reader]")
     REQUIRE(bytes_read == 0);
 }
 
-TEST_CASE("byte decoder", "[reader")
-{
+TEST_CASE("byte decoder", "[reader") {
     uint8_t decoded_byte;
     // luigi: commented this out as it was giving a warning (I added -Wall to
     // the compiler flags). Warning was:

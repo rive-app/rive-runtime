@@ -1,10 +1,8 @@
 #ifndef _RIVE_STATE_MACHINE_TRIGGER_BASE_HPP_
 #define _RIVE_STATE_MACHINE_TRIGGER_BASE_HPP_
 #include "rive/animation/state_machine_input.hpp"
-namespace rive
-{
-    class StateMachineTriggerBase : public StateMachineInput
-    {
+namespace rive {
+    class StateMachineTriggerBase : public StateMachineInput {
     protected:
         typedef StateMachineInput Super;
 
@@ -13,10 +11,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case StateMachineTriggerBase::typeKey:
                 case StateMachineInputBase::typeKey:
                 case StateMachineComponentBase::typeKey:

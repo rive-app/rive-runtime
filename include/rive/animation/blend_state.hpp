@@ -5,13 +5,11 @@
 #include <vector>
 #include <algorithm>
 
-namespace rive
-{
+namespace rive {
     class BlendAnimation;
     class LayerStateImporter;
 
-    class BlendState : public BlendStateBase
-    {
+    class BlendState : public BlendStateBase {
         friend class LayerStateImporter;
 
     private:
@@ -20,8 +18,7 @@ namespace rive
 
     public:
         ~BlendState();
-        inline const std::vector<BlendAnimation*>& animations() const
-        {
+        inline const std::vector<BlendAnimation*>& animations() const {
             return m_Animations;
         }
 

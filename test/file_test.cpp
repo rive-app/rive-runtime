@@ -7,8 +7,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("file can be read", "[file]")
-{
+TEST_CASE("file can be read", "[file]") {
     FILE* fp = fopen("../../test/assets/two_artboards.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -35,8 +34,7 @@ TEST_CASE("file can be read", "[file]")
     delete[] bytes;
 }
 
-TEST_CASE("file with animation can be read", "[file]")
-{
+TEST_CASE("file with animation can be read", "[file]") {
     FILE* fp = fopen("../../test/assets/juice.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -77,8 +75,7 @@ TEST_CASE("file with animation can be read", "[file]")
     delete[] bytes;
 }
 
-TEST_CASE("artboards can be counted and accessed via index or name", "[file]")
-{
+TEST_CASE("artboards can be counted and accessed via index or name", "[file]") {
     FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
     REQUIRE(fp != nullptr);
 
@@ -110,8 +107,7 @@ TEST_CASE("artboards can be counted and accessed via index or name", "[file]")
     delete[] bytes;
 }
 
-TEST_CASE("dependencies are as expected", "[file]")
-{
+TEST_CASE("dependencies are as expected", "[file]") {
     // ┌────┐
     // │Blue│
     // └────┘

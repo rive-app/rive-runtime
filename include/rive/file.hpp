@@ -11,13 +11,11 @@
 ///
 /// Default namespace for Rive Cpp runtime code.
 ///
-namespace rive
-{
+namespace rive {
     ///
     /// Tracks the success/failure result when importing a Rive file.
     ///
-    enum class ImportResult
-    {
+    enum class ImportResult {
         /// Indicates that a file's been successfully imported.
         success,
         /// Indicates that the Rive file is not supported by this runtime.
@@ -29,8 +27,7 @@ namespace rive
     ///
     /// A Rive file.
     ///
-    class File
-    {
+    class File {
     public:
         /// Major version number supported by the runtime.
         static const int majorVersion = 7;

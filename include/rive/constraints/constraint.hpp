@@ -2,13 +2,11 @@
 #define _RIVE_CONSTRAINT_HPP_
 #include "rive/generated/constraints/constraint_base.hpp"
 #include <stdio.h>
-namespace rive
-{
+namespace rive {
     class TransformComponent;
     class Mat2D;
 
-    class Constraint : public ConstraintBase
-    {
+    class Constraint : public ConstraintBase {
     public:
         void strengthChanged() override;
         StatusCode onAddedClean(CoreContext* context) override;

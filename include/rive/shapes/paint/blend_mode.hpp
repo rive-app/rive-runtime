@@ -1,9 +1,7 @@
 #ifndef _RIVE_BLEND_MODE_HPP_
 #define _RIVE_BLEND_MODE_HPP_
-namespace rive
-{
-    enum class BlendMode : unsigned int
-    {
+namespace rive {
+    enum class BlendMode : unsigned int {
         srcOver = 3,
         screen = 14,
         overlay = 15,

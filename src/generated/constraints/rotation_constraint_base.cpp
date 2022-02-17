@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* RotationConstraintBase::clone() const
-{
+Core* RotationConstraintBase::clone() const {
     auto cloned = new RotationConstraint();
     cloned->copy(*this);
     return cloned;

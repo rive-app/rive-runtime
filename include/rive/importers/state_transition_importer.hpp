@@ -3,13 +3,11 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive
-{
+namespace rive {
     class StateTransition;
     class TransitionCondition;
 
-    class StateTransitionImporter : public ImportStackObject
-    {
+    class StateTransitionImporter : public ImportStackObject {
     private:
         StateTransition* m_Transition;
 

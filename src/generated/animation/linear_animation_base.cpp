@@ -3,8 +3,7 @@
 
 using namespace rive;
 
-Core* LinearAnimationBase::clone() const
-{
+Core* LinearAnimationBase::clone() const {
     auto cloned = new LinearAnimation();
     cloned->copy(*this);
     return cloned;

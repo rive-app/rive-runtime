@@ -2,10 +2,8 @@
 #define _RIVE_BLEND_ANIMATION1_DBASE_HPP_
 #include "rive/animation/blend_animation.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive
-{
-    class BlendAnimation1DBase : public BlendAnimation
-    {
+namespace rive {
+    class BlendAnimation1DBase : public BlendAnimation {
     protected:
         typedef BlendAnimation Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case BlendAnimation1DBase::typeKey:
                 case BlendAnimationBase::typeKey:
                     return true;
@@ -35,10 +31,8 @@ namespace rive
 
     public:
         inline float value() const { return m_Value; }
-        void value(float value)
-        {
-            if (m_Value == value)
-            {
+        void value(float value) {
+            if (m_Value == value) {
                 return;
             }
             m_Value = value;
@@ -46,16 +40,13 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const BlendAnimation1DBase& object)
-        {
+        void copy(const BlendAnimation1DBase& object) {
             m_Value = object.m_Value;
             BlendAnimation::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case valuePropertyKey:
                     m_Value = CoreDoubleType::deserialize(reader);
                     return true;

@@ -3,12 +3,10 @@
 
 #include <cstddef>
 
-namespace rive
-{
+namespace rive {
     class Vec2D;
     class TransformComponents;
-    class Mat2D
-    {
+    class Mat2D {
     private:
         float m_Buffer[6];
 
@@ -22,8 +20,7 @@ namespace rive
         float& operator[](std::size_t idx) { return m_Buffer[idx]; }
         const float& operator[](std::size_t idx) const { return m_Buffer[idx]; }
 
-        static void identity(Mat2D& result)
-        {
+        static void identity(Mat2D& result) {
             result[0] = 1.0f;
             result[1] = 0.0f;
             result[2] = 0.0f;
@@ -57,15 +54,13 @@ namespace rive
         void ty(float value) { m_Buffer[5] = value; }
     };
 
-    inline Mat2D operator*(const Mat2D& a, const Mat2D& b)
-    {
+    inline Mat2D operator*(const Mat2D& a, const Mat2D& b) {
         Mat2D result;
         Mat2D::multiply(result, a, b);
         return result;
     }
 
-    inline bool operator==(const Mat2D& a, const Mat2D& b)
-    {
+    inline bool operator==(const Mat2D& a, const Mat2D& b) {
         return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] &&
                a[4] == b[4] && a[5] == b[5];
     }

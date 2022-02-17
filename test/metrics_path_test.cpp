@@ -1,8 +1,7 @@
 #include <catch.hpp>
 #include <rive/shapes/metrics_path.hpp>
 
-TEST_CASE("path metrics compute correctly", "[bezier]")
-{
+TEST_CASE("path metrics compute correctly", "[bezier]") {
     // TODO: fix these based on new logic
     // Make a square with sides length 10.
     // rive::OnlyMetricsPath path;

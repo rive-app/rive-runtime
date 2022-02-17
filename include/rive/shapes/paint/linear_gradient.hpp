@@ -4,13 +4,11 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include <vector>
-namespace rive
-{
+namespace rive {
     class Node;
     class GradientStop;
 
-    class LinearGradient : public LinearGradientBase, public ShapePaintMutator
-    {
+    class LinearGradient : public LinearGradientBase, public ShapePaintMutator {
     private:
         std::vector<GradientStop*> m_Stops;
         Node* m_ShapePaintContainer = nullptr;

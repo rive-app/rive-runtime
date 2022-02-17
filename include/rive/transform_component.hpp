@@ -3,12 +3,10 @@
 #include "rive/generated/transform_component_base.hpp"
 #include "rive/math/mat2d.hpp"
 
-namespace rive
-{
+namespace rive {
     class Constraint;
     class WorldTransformComponent;
-    class TransformComponent : public TransformComponentBase
-    {
+    class TransformComponent : public TransformComponentBase {
     private:
         Mat2D m_Transform;
         float m_RenderOpacity = 0.0f;
@@ -17,8 +15,7 @@ namespace rive
 
     public:
 #ifdef TESTING
-        const std::vector<Constraint*>& constraints() const
-        {
+        const std::vector<Constraint*>& constraints() const {
             return m_Constraints;
         }
 #endif

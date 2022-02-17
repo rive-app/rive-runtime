@@ -3,10 +3,8 @@
 #include <string>
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
-namespace rive
-{
-    class AssetBase : public Core
-    {
+namespace rive {
+    class AssetBase : public Core {
     protected:
         typedef Core Super;
 
@@ -15,10 +13,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case AssetBase::typeKey:
                     return true;
                 default:
@@ -35,10 +31,8 @@ namespace rive
 
     public:
         inline const std::string& name() const { return m_Name; }
-        void name(std::string value)
-        {
-            if (m_Name == value)
-            {
+        void name(std::string value) {
+            if (m_Name == value) {
                 return;
             }
             m_Name = value;
@@ -47,10 +41,8 @@ namespace rive
 
         void copy(const AssetBase& object) { m_Name = object.m_Name; }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case namePropertyKey:
                     m_Name = CoreStringType::deserialize(reader);
                     return true;

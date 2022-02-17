@@ -2,11 +2,9 @@
 #define _RIVE_NESTED_ARTBOARD_HPP_
 #include "rive/generated/nested_artboard_base.hpp"
 #include <stdio.h>
-namespace rive
-{
+namespace rive {
     class NestedAnimation;
-    class NestedArtboard : public NestedArtboardBase
-    {
+    class NestedArtboard : public NestedArtboardBase {
 
     private:
         Artboard* m_NestedInstance = nullptr;

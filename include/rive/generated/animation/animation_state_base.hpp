@@ -2,10 +2,8 @@
 #define _RIVE_ANIMATION_STATE_BASE_HPP_
 #include "rive/animation/layer_state.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive
-{
-    class AnimationStateBase : public LayerState
-    {
+namespace rive {
+    class AnimationStateBase : public LayerState {
     protected:
         typedef LayerState Super;
 
@@ -14,10 +12,8 @@ namespace rive
 
         /// Helper to quickly determine if a core object extends another without
         /// RTTI at runtime.
-        bool isTypeOf(uint16_t typeKey) const override
-        {
-            switch (typeKey)
-            {
+        bool isTypeOf(uint16_t typeKey) const override {
+            switch (typeKey) {
                 case AnimationStateBase::typeKey:
                 case LayerStateBase::typeKey:
                 case StateMachineLayerComponentBase::typeKey:
@@ -36,10 +32,8 @@ namespace rive
 
     public:
         inline int animationId() const { return m_AnimationId; }
-        void animationId(int value)
-        {
-            if (m_AnimationId == value)
-            {
+        void animationId(int value) {
+            if (m_AnimationId == value) {
                 return;
             }
             m_AnimationId = value;
@@ -47,16 +41,13 @@ namespace rive
         }
 
         Core* clone() const override;
-        void copy(const AnimationStateBase& object)
-        {
+        void copy(const AnimationStateBase& object) {
             m_AnimationId = object.m_AnimationId;
             LayerState::copy(object);
         }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-        {
-            switch (propertyKey)
-            {
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+            switch (propertyKey) {
                 case animationIdPropertyKey:
                     m_AnimationId = CoreUintType::deserialize(reader);
                     return true;

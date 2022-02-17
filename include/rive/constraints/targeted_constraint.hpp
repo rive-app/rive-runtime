@@ -2,11 +2,9 @@
 #define _RIVE_TARGETED_CONSTRAINT_HPP_
 #include "rive/generated/constraints/targeted_constraint_base.hpp"
 #include <stdio.h>
-namespace rive
-{
+namespace rive {
     class TransformComponent;
-    class TargetedConstraint : public TargetedConstraintBase
-    {
+    class TargetedConstraint : public TargetedConstraintBase {
     protected:
         TransformComponent* m_Target = nullptr;
 

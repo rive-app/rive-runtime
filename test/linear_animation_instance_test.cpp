@@ -4,8 +4,7 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("LinearAnimationInstance oneShot", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance oneShot", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -33,8 +32,7 @@ TEST_CASE("LinearAnimationInstance oneShot", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -78,8 +76,7 @@ TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance loop ->", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance loop ->", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -107,8 +104,7 @@ TEST_CASE("LinearAnimationInstance loop ->", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance loop <-", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance loop <-", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -146,8 +142,7 @@ TEST_CASE("LinearAnimationInstance loop <-", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 50
     linearAnimation->workStart(4);
@@ -198,8 +193,7 @@ TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -228,8 +222,7 @@ TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -270,8 +263,7 @@ TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance override loop", "[animation]")
-{
+TEST_CASE("LinearAnimationInstance override loop", "[animation]") {
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);

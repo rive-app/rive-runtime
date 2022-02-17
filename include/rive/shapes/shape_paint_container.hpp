@@ -4,15 +4,13 @@
 #include "rive/shapes/path_space.hpp"
 #include <vector>
 
-namespace rive
-{
+namespace rive {
     class ShapePaint;
     class Component;
 
     class CommandPath;
 
-    class ShapePaintContainer
-    {
+    class ShapePaintContainer {
         friend class ShapePaint;
 
     protected:

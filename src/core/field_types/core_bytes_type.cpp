@@ -3,7 +3,6 @@
 
 using namespace rive;
 
-std::vector<uint8_t> CoreBytesType::deserialize(BinaryReader& reader)
-{
+std::vector<uint8_t> CoreBytesType::deserialize(BinaryReader& reader) {
     return reader.readBytes();
 }
