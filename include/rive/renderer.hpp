@@ -37,6 +37,39 @@ namespace rive {
         size_t count() const { return m_Count; }
     };
 
+    class RenderFont {
+    public:
+        struct AxisInfo {
+            uint32_t    tag;
+            float       min;
+            float       def;    // default value
+            float       max;
+        };
+        
+        virtual int countAxes() const { return 0; }
+        virtual std::vector<AxisInfo> getAxes() const { return std::vector<AxisInfo>; }
+        
+        // TODO: getGlyphPath(index) -> rawpath
+    };
+
+    struct RenderTextRun {
+        rcp<RenderFont> font;
+        float           size;
+        uint32_t        textCount;  // number of unichars in this run in text[]
+    };
+
+    struct RenderGlyphRun {
+        rcp<RenderFont>         font;
+        float                   size;
+
+        size_t                  startTextIndex;
+        std::vector<uint16_t>   glyphs;
+        std::vector<float>      xpos;   // xpos.size() == glyphs.size() + 1
+    };
+
+    extern std::vector<RenderGlyphRun> shapeText(const uint32_t text[], size_t textCount,
+                                                 const RenderTextRun[], size_t runCount);
+
     enum class RenderPaintStyle { stroke, fill };
 
     enum class RenderTileMode {
