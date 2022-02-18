@@ -21,12 +21,8 @@ void Image::draw(Renderer* renderer) {
     auto width = renderImage->width();
     auto height = renderImage->height();
 
-    const Mat2D& transform = worldTransform();
-    renderer->transform(transform);
-
-    Mat2D originTranslation(
-        1.0f, 0.0f, 0.0f, 1.0f, -width / 2.0f, -height / 2.0f);
-    renderer->transform(originTranslation);
+    renderer->transform(worldTransform());
+    renderer->translate(-width / 2.0f, -height / 2.0f);
 
     renderer->drawImage(renderImage, blendMode(), renderOpacity());
 

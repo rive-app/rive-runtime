@@ -44,8 +44,7 @@ void Shape::draw(Renderer* renderer) {
         bool paintsInLocal =
             (shapePaint->pathSpace() & PathSpace::Local) == PathSpace::Local;
         if (paintsInLocal) {
-            const Mat2D& transform = worldTransform();
-            renderer->transform(transform);
+            renderer->transform(worldTransform());
         }
         shapePaint->draw(renderer,
                          paintsInLocal ? m_PathComposer.localPath()

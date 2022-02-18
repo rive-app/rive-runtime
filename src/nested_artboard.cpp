@@ -34,10 +34,8 @@ void NestedArtboard::draw(Renderer* renderer) {
     }
     renderer->save();
     renderer->transform(worldTransform());
-    Mat2D translation;
-    translation[4] = -m_NestedInstance->originX() * m_NestedInstance->width();
-    translation[5] = -m_NestedInstance->originY() * m_NestedInstance->height();
-    renderer->transform(translation);
+    renderer->translate(-m_NestedInstance->originX() * m_NestedInstance->width(),
+                        -m_NestedInstance->originY() * m_NestedInstance->height());
     m_NestedInstance->draw(renderer);
     renderer->restore();
 }
