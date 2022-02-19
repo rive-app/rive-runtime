@@ -54,14 +54,14 @@ static void computeHull(const Vec2D& from,
                         const Vec2D& to,
                         float t,
                         Vec2D* hull) {
-    Vec2D::lerp(hull[0], from, fromOut, t);
-    Vec2D::lerp(hull[1], fromOut, toIn, t);
-    Vec2D::lerp(hull[2], toIn, to, t);
+    hull[0] = Vec2D::lerp(from, fromOut, t);
+    hull[1] = Vec2D::lerp(fromOut, toIn, t);
+    hull[2] = Vec2D::lerp(toIn, to, t);
 
-    Vec2D::lerp(hull[3], hull[0], hull[1], t);
-    Vec2D::lerp(hull[4], hull[1], hull[2], t);
+    hull[3] = Vec2D::lerp(hull[0], hull[1], t);
+    hull[4] = Vec2D::lerp(hull[1], hull[2], t);
 
-    Vec2D::lerp(hull[5], hull[3], hull[4], t);
+    hull[5] = Vec2D::lerp(hull[3], hull[4], t);
 }
 
 static const float minSegmentLength = 0.05f;
@@ -75,9 +75,8 @@ static bool shouldSplitCubic(const Vec2D& from,
                              const Vec2D& fromOut,
                              const Vec2D& toIn,
                              const Vec2D& to) {
-    Vec2D oneThird, twoThird;
-    Vec2D::lerp(oneThird, from, to, 1.0f / 3.0f);
-    Vec2D::lerp(twoThird, from, to, 2.0f / 3.0f);
+    const Vec2D oneThird = Vec2D::lerp(from, to, 1.0f / 3.0f),
+                twoThird = Vec2D::lerp(from, to, 2.0f / 3.0f);
     return tooFar(fromOut, oneThird) || tooFar(toIn, twoThird);
 }
 
@@ -131,7 +130,7 @@ float MetricsPath::computeLength(const Mat2D& transform) {
     // another transform).
     m_TransformedPoints.resize(m_Points.size());
     for (size_t i = 0, l = m_Points.size(); i < l; i++) {
-        Vec2D::transform(m_TransformedPoints[i], m_Points[i], transform);
+        m_TransformedPoints[i] = Vec2D::transform(m_Points[i], transform);
     }
 
     // Should never have subPaths with more subPaths (Skia allows this but for
@@ -271,14 +270,12 @@ void MetricsPath::extractSubPart(
         case PathPart::line: {
             const Vec2D& from = m_TransformedPoints[part.offset - 1];
             const Vec2D& to = m_TransformedPoints[part.offset];
-            Vec2D dir;
-            Vec2D::subtract(dir, to, from);
+            Vec2D dir = to - from;
             if (moveTo) {
-                Vec2D point;
-                Vec2D::scaleAndAdd(point, from, dir, startT);
+                Vec2D point = from + dir * startT;
                 result->moveTo(point[0], point[1]);
             }
-            Vec2D::scaleAndAdd(dir, from, dir, endT);
+            dir = from + dir * endT;
             result->lineTo(dir[0], dir[1]);
 
             break;

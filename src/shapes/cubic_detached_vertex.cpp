@@ -4,18 +4,26 @@
 
 using namespace rive;
 
+static Vec2D get_point(const CubicDetachedVertex& v) {
+    return Vec2D(v.x(), v.y());
+}
+
+static Vec2D in_vector(const CubicDetachedVertex& v) {
+    return Vec2D(cos(v.inRotation()) * v.inDistance(),
+                 sin(v.inRotation()) * v.inDistance());
+}
+
+static Vec2D out_vector(const CubicDetachedVertex& v) {
+    return Vec2D(cos(v.outRotation()) * v.outDistance(),
+                 sin(v.outRotation()) * v.outDistance());
+}
+
 void CubicDetachedVertex::computeIn() {
-    Vec2D::add(m_InPoint,
-               Vec2D(x(), y()),
-               Vec2D(cos(inRotation()) * inDistance(),
-                     sin(inRotation()) * inDistance()));
+    m_InPoint = get_point(*this) + in_vector(*this);
 }
 
 void CubicDetachedVertex::computeOut() {
-    Vec2D::add(m_OutPoint,
-               Vec2D(x(), y()),
-               Vec2D(cos(outRotation()) * outDistance(),
-                     sin(outRotation()) * outDistance()));
+    m_OutPoint = get_point(*this) + out_vector(*this);
 }
 
 void CubicDetachedVertex::inRotationChanged() {

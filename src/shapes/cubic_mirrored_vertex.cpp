@@ -4,18 +4,21 @@
 
 using namespace rive;
 
+static Vec2D get_point(const CubicMirroredVertex& v) {
+    return Vec2D(v.x(), v.y());
+}
+
+static Vec2D get_vector(const CubicMirroredVertex& v) {
+    return Vec2D(cos(v.rotation()) * v.distance(),
+                 sin(v.rotation()) * v.distance());
+}
+
 void CubicMirroredVertex::computeIn() {
-    Vec2D::add(
-        m_InPoint,
-        Vec2D(x(), y()),
-        Vec2D(cos(rotation()) * -distance(), sin(rotation()) * -distance()));
+    m_InPoint = get_point(*this) - get_vector(*this);
 }
 
 void CubicMirroredVertex::computeOut() {
-    Vec2D::add(
-        m_OutPoint,
-        Vec2D(x(), y()),
-        Vec2D(cos(rotation()) * distance(), sin(rotation()) * distance()));
+    m_OutPoint = get_point(*this) + get_vector(*this);
 }
 
 void CubicMirroredVertex::rotationChanged() {

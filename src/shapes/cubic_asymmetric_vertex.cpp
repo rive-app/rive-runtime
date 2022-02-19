@@ -4,18 +4,26 @@
 
 using namespace rive;
 
+static Vec2D get_point(const CubicAsymmetricVertex& v) {
+    return Vec2D(v.x(), v.y());
+}
+
+static Vec2D in_vector(const CubicAsymmetricVertex& v) {
+    return Vec2D(cos(v.rotation()) * v.inDistance(),
+                 sin(v.rotation()) * v.inDistance());
+}
+
+static Vec2D out_vector(const CubicAsymmetricVertex& v) {
+    return Vec2D(cos(v.rotation()) * v.outDistance(),
+                 sin(v.rotation()) * v.outDistance());
+}
+
 void CubicAsymmetricVertex::computeIn() {
-    Vec2D::add(m_InPoint,
-               Vec2D(x(), y()),
-               Vec2D(cos(rotation()) * -inDistance(),
-                     sin(rotation()) * -inDistance()));
+    m_InPoint = get_point(*this) - in_vector(*this);
 }
 
 void CubicAsymmetricVertex::computeOut() {
-    Vec2D::add(m_OutPoint,
-               Vec2D(x(), y()),
-               Vec2D(cos(rotation()) * outDistance(),
-                     sin(rotation()) * outDistance()));
+    m_OutPoint = get_point(*this) + out_vector(*this);
 }
 
 void CubicAsymmetricVertex::rotationChanged() {

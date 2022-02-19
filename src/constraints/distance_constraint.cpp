@@ -18,9 +18,8 @@ void DistanceConstraint::constrain(TransformComponent* component) {
     Vec2D ourTranslation;
     component->worldTranslation(ourTranslation);
 
-    Vec2D toTarget;
-    Vec2D::subtract(toTarget, ourTranslation, targetTranslation);
-    float currentDistance = Vec2D::length(toTarget);
+    Vec2D toTarget = ourTranslation - targetTranslation;
+    float currentDistance = toTarget.length();
     switch (static_cast<Mode>(modeValue())) {
         case Mode::Closer:
             if (currentDistance < distance()) {
@@ -39,13 +38,11 @@ void DistanceConstraint::constrain(TransformComponent* component) {
         return;
     }
 
-    Vec2D::scale(toTarget, toTarget, 1.0f / currentDistance);
-    Vec2D::scale(toTarget, toTarget, distance());
+    toTarget *= (distance() / currentDistance);
 
     Mat2D& world = component->mutableWorldTransform();
-    Vec2D position;
-    Vec2D::add(position, targetTranslation, toTarget);
-    Vec2D::lerp(position, ourTranslation, position, strength());
+    Vec2D position = targetTranslation + toTarget;
+    position = Vec2D::lerp(ourTranslation, position, strength());
     world[4] = position[0];
     world[5] = position[1];
 }

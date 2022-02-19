@@ -79,12 +79,10 @@ void IKConstraint::solve1(BoneChainLink* fk1,
     Vec2D pBT(worldTargetTranslation);
 
     // To target in worldspace
-    Vec2D toTarget;
-    Vec2D::subtract(toTarget, pBT, pA);
+    const Vec2D toTarget = pBT - pA;
 
     // Note this is directional, hence not transformMat2d
-    Vec2D toTargetLocal;
-    Vec2D::transformDir(toTargetLocal, toTarget, iworld);
+    Vec2D toTargetLocal = Vec2D::transformDir(toTarget, iworld);
     float r = std::atan2(toTargetLocal[1], toTargetLocal[0]);
 
     constrainRotation(*fk1, r);
@@ -106,21 +104,18 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     b2->tipWorldTranslation(pB);
     Vec2D pBT(worldTargetTranslation);
 
-    Vec2D::transform(pA, pA, iworld);
-    Vec2D::transform(pC, pC, iworld);
-    Vec2D::transform(pB, pB, iworld);
-    Vec2D::transform(pBT, pBT, iworld);
+    pA  = Vec2D::transform(pA, iworld);
+    pC  = Vec2D::transform(pC, iworld);
+    pB  = Vec2D::transform(pB, iworld);
+    pBT = Vec2D::transform(pBT, iworld);
 
     // http://mathworld.wolfram.com/LawofCosines.html
-    Vec2D av, bv, cv;
-    Vec2D::subtract(av, pB, pC);
-    float a = Vec2D::length(av);
-
-    Vec2D::subtract(bv, pC, pA);
-    float b = Vec2D::length(bv);
-
-    Vec2D::subtract(cv, pBT, pA);
-    float c = Vec2D::length(cv);
+    Vec2D av = pB  - pC,
+          bv = pC  - pA,
+          cv = pBT - pA;
+    float a = av.length(),
+          b = bv.length(),
+          c = cv.length();
 
     float A = std::acos(std::max(
         -1.0f, std::min(1.0f, (-a * a + b * b + c * c) / (2.0f * b * c))));
@@ -136,10 +131,7 @@ void IKConstraint::solve2(BoneChainLink* fk1,
         firstChild->bone->worldTranslation(pC);
         b2->tipWorldTranslation(pB);
 
-        Vec2D avec;
-        Vec2D::subtract(avec, pB, pC);
-        Vec2D avLocal;
-        Vec2D::transformDir(avLocal, avec, secondChildWorldInverse);
+        Vec2D avLocal = Vec2D::transformDir(pB - pC, secondChildWorldInverse);
         float angleCorrection = -std::atan2(avLocal[1], avLocal[0]);
 
         if (invertDirection()) {

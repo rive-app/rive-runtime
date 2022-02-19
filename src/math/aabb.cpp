@@ -76,15 +76,10 @@ float AABB::perimeter() const {
 }
 
 void AABB::transform(AABB& out, const AABB& a, const Mat2D& matrix) {
-    Vec2D p1(a[0], a[1]);
-    Vec2D p2(a[2], a[1]);
-    Vec2D p3(a[2], a[3]);
-    Vec2D p4(a[0], a[3]);
-
-    Vec2D::transform(p1, p1, matrix);
-    Vec2D::transform(p2, p2, matrix);
-    Vec2D::transform(p3, p3, matrix);
-    Vec2D::transform(p4, p4, matrix);
+    const auto p1 = Vec2D::transform({a[0], a[1]}, matrix);
+    const auto p2 = Vec2D::transform({a[2], a[1]}, matrix);
+    const auto p3 = Vec2D::transform({a[2], a[3]}, matrix);
+    const auto p4 = Vec2D::transform({a[0], a[3]}, matrix);
 
     out[0] = std::fmin(p1[0], std::fmin(p2[0], std::fmin(p3[0], p4[0])));
     out[1] = std::fmin(p1[1], std::fmin(p2[1], std::fmin(p3[1], p4[1])));
