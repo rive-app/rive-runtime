@@ -25,42 +25,9 @@ namespace rive {
         virtual void close() override;
     };
 
-    struct GradientStop {
-        unsigned int color;
-        float stop;
-        GradientStop(unsigned int color, float stop) :
-            color(color), stop(stop) {}
-    };
-
-    class SkiaGradientBuilder {
-    public:
-        std::vector<GradientStop> stops;
-        float sx, sy, ex, ey;
-        virtual ~SkiaGradientBuilder() {}
-        SkiaGradientBuilder(float sx, float sy, float ex, float ey) :
-            sx(sx), sy(sy), ex(ex), ey(ey) {}
-
-        virtual void make(SkPaint& paint) = 0;
-    };
-
-    class SkiaRadialGradientBuilder : public SkiaGradientBuilder {
-    public:
-        SkiaRadialGradientBuilder(float sx, float sy, float ex, float ey) :
-            SkiaGradientBuilder(sx, sy, ex, ey) {}
-        void make(SkPaint& paint) override;
-    };
-
-    class SkiaLinearGradientBuilder : public SkiaGradientBuilder {
-    public:
-        SkiaLinearGradientBuilder(float sx, float sy, float ex, float ey) :
-            SkiaGradientBuilder(sx, sy, ex, ey) {}
-        void make(SkPaint& paint) override;
-    };
-
     class SkiaRenderPaint : public RenderPaint {
     private:
         SkPaint m_Paint;
-        SkiaGradientBuilder* m_GradientBuilder;
 
     public:
         const SkPaint& paint() const { return m_Paint; }
@@ -71,11 +38,7 @@ namespace rive {
         void join(StrokeJoin value) override;
         void cap(StrokeCap value) override;
         void blendMode(BlendMode value) override;
-
-        void linearGradient(float sx, float sy, float ex, float ey) override;
-        void radialGradient(float sx, float sy, float ex, float ey) override;
-        void addStop(unsigned int color, float stop) override;
-        void completeGradient() override;
+        void shader(rcp<RenderShader>) override;
     };
 
     class SkiaRenderImage : public RenderImage {

@@ -7,6 +7,30 @@
 
 using namespace rive;
 
+static SkTileMode to_skia(RenderTileMode rtm) {
+    switch (rtm) {
+        case RenderTileMode::clamp:  return SkTileMode::kClamp;
+        case RenderTileMode::repeat: return SkTileMode::kRepeat;
+        case RenderTileMode::mirror: return SkTileMode::kMirror;
+        case RenderTileMode::decal:  return SkTileMode::kDecal;
+    }
+    assert(false);
+    return SkTileMode::kClamp;
+}
+
+static SkMatrix to_skia(const Mat2D& m) {
+    return SkMatrix::MakeAll(m[0], m[2], m[4],
+                             m[1], m[3], m[5],
+                             0,    0,    1);
+}
+
+class SkiaRenderShader : public RenderShader {
+public:
+    SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}
+
+    sk_sp<SkShader> shader;
+};
+
 void SkiaRenderPath::fillRule(FillRule value) {
     switch (value) {
         case FillRule::evenOdd:
@@ -53,60 +77,13 @@ void SkiaRenderPaint::cap(StrokeCap value) {
     m_Paint.setStrokeCap(ToSkia::convert(value));
 }
 
-void SkiaRenderPaint::linearGradient(float sx, float sy, float ex, float ey) {
-    m_GradientBuilder = new SkiaLinearGradientBuilder(sx, sy, ex, ey);
-}
-void SkiaRenderPaint::radialGradient(float sx, float sy, float ex, float ey) {
-    m_GradientBuilder = new SkiaRadialGradientBuilder(sx, sy, ex, ey);
-}
-void SkiaRenderPaint::addStop(unsigned int color, float stop) {
-    m_GradientBuilder->stops.emplace_back(GradientStop(color, stop));
-}
-void SkiaRenderPaint::completeGradient() {
-    m_GradientBuilder->make(m_Paint);
-    delete m_GradientBuilder;
-}
-
 void SkiaRenderPaint::blendMode(BlendMode value) {
     m_Paint.setBlendMode(ToSkia::convert(value));
 }
 
-void SkiaRadialGradientBuilder::make(SkPaint& paint) {
-    int numStops = stops.size();
-
-    SkColor colors[numStops];
-    SkScalar pos[numStops];
-
-    for (int i = 0; i < numStops; i++) {
-        const GradientStop& stop = stops[i];
-        colors[i] = SkColor(stop.color);
-        pos[i] = stop.stop;
-    }
-
-    float radius = Vec2D::distance(Vec2D(sx, sy), Vec2D(ex, ey));
-    paint.setShader(SkGradientShader::MakeRadial(SkPoint::Make(sx, sy),
-                                                 radius,
-                                                 colors,
-                                                 pos,
-                                                 numStops,
-                                                 SkTileMode::kClamp,
-                                                 0,
-                                                 nullptr));
-}
-
-void SkiaLinearGradientBuilder::make(SkPaint& paint) {
-    int numStops = stops.size();
-    SkPoint points[2] = {SkPoint::Make(sx, sy), SkPoint::Make(ex, ey)};
-    SkColor colors[numStops];
-    SkScalar pos[numStops];
-
-    for (int i = 0; i < numStops; i++) {
-        const GradientStop& stop = stops[i];
-        colors[i] = SkColor(stop.color);
-        pos[i] = stop.stop;
-    }
-    paint.setShader(SkGradientShader::MakeLinear(
-        points, colors, pos, numStops, SkTileMode::kClamp, 0, nullptr));
+void SkiaRenderPaint::shader(rcp<RenderShader> rsh) {
+    SkiaRenderShader* sksh = (SkiaRenderShader*)rsh.get();
+    m_Paint.setShader(sksh ? sksh->shader : nullptr);
 }
 
 void SkiaRenderer::save() { m_Canvas->save(); }
@@ -149,4 +126,39 @@ namespace rive {
     RenderPath* makeRenderPath() { return new SkiaRenderPath(); }
     RenderPaint* makeRenderPaint() { return new SkiaRenderPaint(); }
     RenderImage* makeRenderImage() { return new SkiaRenderImage(); }
+
+    rcp<RenderShader> makeLinearGradient(float sx, float sy, float ex, float ey,
+                                         const ColorInt colors[], const float stops[],
+                                         int count, RenderTileMode mode,
+                                         const Mat2D* localm)
+    {
+        const SkPoint pts[] = { {sx, sy}, {ex, ey} };
+        const SkMatrix lm = localm ? to_skia(*localm) : SkMatrix();
+        auto sh = SkGradientShader::MakeLinear(pts, (const SkColor*)colors, stops, count,
+                                               to_skia(mode), 0, &lm);
+        return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
+    }
+
+    rcp<RenderShader> makeRadialGradient(float cx, float cy, float radius,
+                                         const ColorInt colors[], const float stops[],
+                                         int count, RenderTileMode mode,
+                                         const Mat2D* localm)
+    {
+        const SkMatrix lm = localm ? to_skia(*localm) : SkMatrix();
+        auto sh = SkGradientShader::MakeRadial({cx, cy}, radius,
+                                               (const SkColor*)colors, stops, count,
+                                               to_skia(mode), 0, &lm);
+        return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
+    }
+
+    rcp<RenderShader> makeSweepGradient(float cx, float cy,
+                                        const ColorInt colors[], const float stops[],
+                                        int count, RenderTileMode mode,
+                                        const Mat2D* localm)
+   {
+       const SkMatrix lm = localm ? to_skia(*localm) : SkMatrix();
+       auto sh = SkGradientShader::MakeSweep(cx, cy, (const SkColor*)colors, stops, count,
+                                             0, &lm);
+       return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
+   }
 } // namespace rive
