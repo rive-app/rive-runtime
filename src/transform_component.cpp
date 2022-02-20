@@ -28,23 +28,18 @@ void TransformComponent::markTransformDirty() {
 }
 
 void TransformComponent::updateTransform() {
-    if (rotation() != 0) {
-        Mat2D::fromRotation(m_Transform, rotation());
-    } else {
-        Mat2D::identity(m_Transform);
-    }
+    m_Transform = Mat2D::fromRotation(rotation());
     m_Transform[4] = x();
     m_Transform[5] = y();
-    Mat2D::scaleByValues(m_Transform, scaleX(), scaleY());
+    m_Transform.scaleByValues(scaleX(), scaleY());
 }
 
 void TransformComponent::updateWorldTransform() {
     if (m_ParentTransformComponent != nullptr) {
-        Mat2D::multiply(m_WorldTransform,
-                        m_ParentTransformComponent->m_WorldTransform,
-                        m_Transform);
+        m_WorldTransform = m_ParentTransformComponent->m_WorldTransform
+                         * m_Transform;
     } else {
-        Mat2D::copy(m_WorldTransform, m_Transform);
+        m_WorldTransform = m_Transform;
     }
 
     for (auto constraint : m_Constraints) {

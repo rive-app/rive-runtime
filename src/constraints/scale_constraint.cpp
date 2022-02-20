@@ -10,16 +10,16 @@ void ScaleConstraint::constrain(TransformComponent* component) {
     Mat2D transformB;
     Mat2D::decompose(m_ComponentsA, transformA);
     if (m_Target == nullptr) {
-        Mat2D::copy(transformB, transformA);
+        transformB = transformA;
         TransformComponents::copy(m_ComponentsB, m_ComponentsA);
     } else {
-        Mat2D::copy(transformB, m_Target->worldTransform());
+        transformB = m_Target->worldTransform();
         if (sourceSpace() == TransformSpace::local) {
             Mat2D inverse;
             if (!Mat2D::invert(inverse, getParentWorld(*m_Target))) {
                 return;
             }
-            Mat2D::multiply(transformB, inverse, transformB);
+            transformB = inverse * transformB;
         }
         Mat2D::decompose(m_ComponentsB, transformB);
 
@@ -53,7 +53,7 @@ void ScaleConstraint::constrain(TransformComponent* component) {
             // the world for interpolation.
 
             Mat2D::compose(transformB, m_ComponentsB);
-            Mat2D::multiply(transformB, getParentWorld(*component), transformB);
+            transformB = getParentWorld(*component) * transformB;
             Mat2D::decompose(m_ComponentsB, transformB);
         }
     }
@@ -67,7 +67,7 @@ void ScaleConstraint::constrain(TransformComponent* component) {
         if (!Mat2D::invert(inverse, getParentWorld(*component))) {
             return;
         }
-        Mat2D::multiply(transformB, inverse, transformB);
+        transformB = inverse * transformB;
         Mat2D::decompose(m_ComponentsB, transformB);
     }
     if (max() && m_ComponentsB.scaleX() > maxValue()) {
@@ -85,7 +85,7 @@ void ScaleConstraint::constrain(TransformComponent* component) {
     if (clamplocal) {
         // Transform back to world.
         Mat2D::compose(transformB, m_ComponentsB);
-        Mat2D::multiply(transformB, getParentWorld(*component), transformB);
+        transformB = getParentWorld(*component) * transformB;
         Mat2D::decompose(m_ComponentsB, transformB);
     }
 

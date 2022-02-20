@@ -77,16 +77,8 @@ void Renderer::computeAlignment(Mat2D& result,
                    (alignment.x() * frame.width() / 2.0);
     translation[5] = frame[1] + frame.height() / 2.0 +
                    (alignment.y() * frame.height() / 2.0);
-    Mat2D scale;
-    scale[0] = scaleX;
-    scale[3] = scaleY;
 
-    Mat2D translateBack;
-    translateBack[4] = x;
-    translateBack[5] = y;
-
-    Mat2D::multiply(result, translation, scale);
-    Mat2D::multiply(result, result, translateBack);
+    result = translation * Mat2D::fromScale(scaleX, scaleY) * Mat2D::fromTranslate(x, y);
 }
 
 void Renderer::align(Fit fit,

@@ -284,9 +284,9 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
         auto world = parent()->as<TransformComponent>()->worldTransform();
         Mat2D inverseWorld;
         if (!Mat2D::invert(inverseWorld, world)) {
-            Mat2D::identity(inverseWorld);
+            inverseWorld = Mat2D();
         }
-        Mat2D::multiply(transform, inverseWorld, transform);
+        transform = inverseWorld * transform;
     }
 
     FlattenedPath* flat = new FlattenedPath();
@@ -374,15 +374,15 @@ void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform) {
 
         // Cubics need to be transformed so we create a Display version which
         // has set in/out values.
-        const auto in = Vec2D::transform(cubic->renderIn(), transform);
-        const auto out = Vec2D::transform(cubic->renderOut(), transform);
-        const auto translation = Vec2D::transform(cubic->renderTranslation(), transform);
+        const auto in = transform * cubic->renderIn();
+        const auto out = transform * cubic->renderOut();
+        const auto translation = transform * cubic->renderTranslation();
 
         auto displayCubic = new DisplayCubicVertex(in, out, translation);
         m_Vertices.push_back(displayCubic);
     } else {
         auto point = new PathVertex();
-        Vec2D translation = Vec2D::transform(vertex->renderTranslation(), transform);
+        Vec2D translation = transform * vertex->renderTranslation();
         point->x(translation[0]);
         point->y(translation[1]);
         m_Vertices.push_back(point);

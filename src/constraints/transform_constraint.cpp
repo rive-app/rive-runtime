@@ -19,11 +19,11 @@ void TransformConstraint::constrain(TransformComponent* component) {
         if (!Mat2D::invert(inverse, targetParentWorld)) {
             return;
         }
-        Mat2D::multiply(transformB, inverse, transformB);
+        transformB = inverse * transformB;
     }
     if (destSpace() == TransformSpace::local) {
         const Mat2D& targetParentWorld = getParentWorld(*component);
-        Mat2D::multiply(transformB, targetParentWorld, transformB);
+        transformB = targetParentWorld * transformB;
     }
 
     Mat2D::decompose(m_ComponentsA, transformA);

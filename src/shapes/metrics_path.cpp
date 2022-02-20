@@ -130,7 +130,7 @@ float MetricsPath::computeLength(const Mat2D& transform) {
     // another transform).
     m_TransformedPoints.resize(m_Points.size());
     for (size_t i = 0, l = m_Points.size(); i < l; i++) {
-        m_TransformedPoints[i] = Vec2D::transform(m_Points[i], transform);
+        m_TransformedPoints[i] = transform * m_Points[i];
     }
 
     // Should never have subPaths with more subPaths (Skia allows this but for

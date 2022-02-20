@@ -75,9 +75,7 @@ void LinearGradient::update(ComponentDirt value) {
             // Get the start and end of the gradient in world coordinates (world
             // transform of the shape).
             const Mat2D& world = m_ShapePaintContainer->worldTransform();
-            Vec2D worldStart = Vec2D::transform(start, world);
-            Vec2D worldEnd = Vec2D::transform(end, world);
-            makeGradient(worldStart, worldEnd);
+            makeGradient(world * start, world * end);
         } else {
             makeGradient(start, end);
         }

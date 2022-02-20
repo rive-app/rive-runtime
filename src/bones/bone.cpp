@@ -26,7 +26,7 @@ float Bone::x() const { return parent()->as<Bone>()->length(); }
 float Bone::y() const { return 0.0f; }
 
 void Bone::tipWorldTranslation(Vec2D& result) {
-    result = Vec2D::transform({length(), 0}, worldTransform());
+    result = worldTransform() * Vec2D(length(), 0);
 }
 
 void Bone::addPeerConstraint(Constraint* peer) {

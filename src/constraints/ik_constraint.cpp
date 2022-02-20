@@ -104,10 +104,10 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     b2->tipWorldTranslation(pB);
     Vec2D pBT(worldTargetTranslation);
 
-    pA  = Vec2D::transform(pA, iworld);
-    pC  = Vec2D::transform(pC, iworld);
-    pB  = Vec2D::transform(pB, iworld);
-    pBT = Vec2D::transform(pBT, iworld);
+    pA  = iworld * pA;
+    pC  = iworld * pC;
+    pB  = iworld * pB;
+    pBT = iworld * pBT;
 
     // http://mathworld.wolfram.com/LawofCosines.html
     Vec2D av = pB  - pC,
@@ -153,9 +153,7 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     constrainRotation(*firstChild, r2);
     if (firstChild != fk2) {
         Bone* bone = fk2->bone;
-        Mat2D::multiply(bone->mutableWorldTransform(),
-                        getParentWorld(*bone),
-                        bone->transform());
+        bone->mutableWorldTransform() = getParentWorld(*bone) * bone->transform();
     }
 
     // Simple storage, need this for interpolation.
@@ -169,11 +167,7 @@ void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation) {
     Mat2D& transform = bone->mutableTransform();
     TransformComponents& c = fk.transformComponents;
 
-    if (rotation == 0.0f) {
-        Mat2D::identity(transform);
-    } else {
-        Mat2D::fromRotation(transform, rotation);
-    }
+    transform = Mat2D::fromRotation(rotation);
 
     // Translate
     transform[4] = c.x();
@@ -193,7 +187,7 @@ void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation) {
         transform[3] = transform[1] * skew + transform[3];
     }
 
-    Mat2D::multiply(bone->mutableWorldTransform(), parentWorld, transform);
+    bone->mutableWorldTransform() = parentWorld * transform;
 }
 
 void IKConstraint::constrain(TransformComponent* component) {
@@ -211,8 +205,7 @@ void IKConstraint::constrain(TransformComponent* component) {
         Mat2D::invert(item.parentWorldInverse, parentWorld);
 
         Mat2D& boneTransform = bone->mutableTransform();
-        Mat2D::multiply(
-            boneTransform, item.parentWorldInverse, bone->worldTransform());
+        boneTransform = item.parentWorldInverse * bone->worldTransform();
         Mat2D::decompose(item.transformComponents, boneTransform);
     }
 

@@ -11,7 +11,7 @@ void TranslationConstraint::constrain(TransformComponent* component) {
     Vec2D translationA(transformA[4], transformA[5]);
     Vec2D translationB;
     if (m_Target == nullptr) {
-        Vec2D::copy(translationB, translationA);
+        translationB = translationA;
     } else {
         Mat2D transformB(m_Target->worldTransform());
         if (sourceSpace() == TransformSpace::local) {
@@ -21,7 +21,7 @@ void TranslationConstraint::constrain(TransformComponent* component) {
             if (!Mat2D::invert(inverse, targetParentWorld)) {
                 return;
             }
-            Mat2D::multiply(transformB, inverse, transformB);
+            transformB = inverse * transformB;
         }
         translationB[0] = transformB[4];
         translationB[1] = transformB[5];
@@ -49,7 +49,7 @@ void TranslationConstraint::constrain(TransformComponent* component) {
 
         if (destSpace() == TransformSpace::local) {
             // Destination space is in parent transform coordinates.
-            translationB = Vec2D::transform(translationB, getParentWorld(*component));
+            translationB = getParentWorld(*component) * translationB;
         }
     }
 
@@ -62,7 +62,7 @@ void TranslationConstraint::constrain(TransformComponent* component) {
             return;
         }
         // Get our target world coordinates in parent local.
-        translationB = Vec2D::transform(translationB, invert);
+        translationB = invert * translationB;
     }
     if (max() && translationB[0] > maxValue()) {
         translationB[0] = maxValue();
@@ -78,7 +78,7 @@ void TranslationConstraint::constrain(TransformComponent* component) {
     }
     if (clampLocal) {
         // Transform back to world.
-        translationB = Vec2D::transform(translationB, getParentWorld(*component));
+        translationB = getParentWorld(*component) * translationB;
     }
 
     float t = strength();

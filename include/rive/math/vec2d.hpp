@@ -11,7 +11,7 @@ namespace rive {
 
     public:
         Vec2D() : m_Buffer{0.0f, 0.0f} {}
-        Vec2D(const Vec2D& copy) : m_Buffer{copy.m_Buffer[0], copy.m_Buffer[1]} {}
+        Vec2D(const Vec2D&) = default;
         Vec2D(float x, float y) : m_Buffer{x, y} {}
 
         float x() const { return m_Buffer[0]; }
@@ -33,19 +33,28 @@ namespace rive {
             m_Buffer[0] *= s;
             m_Buffer[1] *= s;
         }
-    
-        static Vec2D transform(const Vec2D& a, const Mat2D& m);
-        static Vec2D transformDir(const Vec2D& a, const Mat2D& m);
-        static float distance(const Vec2D& a, const Vec2D& b);
-        static float distanceSquared(const Vec2D& a, const Vec2D& b);
-        static void copy(Vec2D& result, const Vec2D& a);
-        static float dot(const Vec2D& a, const Vec2D& b);
+
+        friend inline Vec2D operator-(const Vec2D& a, const Vec2D& b) {
+            return {a[0] - b[0], a[1] - b[1]};
+        }
+
         static Vec2D lerp(const Vec2D& a, const Vec2D& b, float f);
+        static Vec2D transformDir(const Vec2D& a, const Mat2D& m);
+
+        static float dot(Vec2D a, Vec2D b) {
+            return a[0] * b[0] + a[1] * b[1];
+        }
         static Vec2D scaleAndAdd(Vec2D a, Vec2D b, float scale) {
             return {
                 a[0] + b[0] * scale,
                 a[1] + b[1] * scale,
             };
+        }
+        static float distance(const Vec2D& a, const Vec2D& b) {
+            return (a - b).length();
+        }
+        static float distanceSquared(const Vec2D& a, const Vec2D& b) {
+            return (a - b).lengthSquared();
         }
     };
 
@@ -57,14 +66,6 @@ namespace rive {
     }
     inline Vec2D operator/(const Vec2D& v, float s) {
         return { v[0] / s, v[1] / s };
-    }
-
-    inline Vec2D operator*(const Mat2D& a, const Vec2D& b) {
-        return Vec2D::transform(b, a);
-    }
-
-    inline Vec2D operator-(const Vec2D& a, const Vec2D& b) {
-        return {a[0] - b[0], a[1] - b[1]};
     }
 
     inline Vec2D operator+(const Vec2D& a, const Vec2D& b) {

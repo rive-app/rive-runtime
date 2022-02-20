@@ -1,43 +1,43 @@
 #ifndef _RIVE_MAT2D_HPP_
 #define _RIVE_MAT2D_HPP_
 
+#include "rive/math/vec2d.hpp"
 #include <cstddef>
 
 namespace rive {
-    class Vec2D;
     class TransformComponents;
     class Mat2D {
     private:
         float m_Buffer[6];
 
     public:
-        Mat2D();
-        Mat2D(const Mat2D& copy);
-        Mat2D(float x1, float y1, float x2, float y2, float tx, float ty);
+        Mat2D() : m_Buffer{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f} {}
+        Mat2D(const Mat2D& copy) = default;
+        Mat2D(float x1, float y1, float x2, float y2, float tx, float ty)
+            : m_Buffer{x1, y1, x2, y2, tx, ty}
+        {}
 
         inline const float* values() const { return m_Buffer; }
 
         float& operator[](std::size_t idx) { return m_Buffer[idx]; }
         const float& operator[](std::size_t idx) const { return m_Buffer[idx]; }
 
-        static void identity(Mat2D& result) {
-            result[0] = 1.0f;
-            result[1] = 0.0f;
-            result[2] = 0.0f;
-            result[3] = 1.0f;
-            result[4] = 0.0f;
-            result[5] = 0.0f;
+        static Mat2D fromRotation(float rad);
+        static Mat2D fromScale(float sx, float sy) {
+            return {sx, 0, 0, sy, 0, 0};
+        }
+        static Mat2D fromTranslate(float tx, float ty) {
+            return {1, 0, 0, 1, tx, ty};
         }
 
-        static void fromRotation(Mat2D& result, float rad);
-        static void scale(Mat2D& result, const Mat2D& mat, const Vec2D& vec);
-        static void multiply(Mat2D& result, const Mat2D& a, const Mat2D& b);
+        void scaleByValues(float sx, float sy);
+
+        static Mat2D scale(const Mat2D& mat, const Vec2D& vec);
+        static Mat2D multiply(const Mat2D& a, const Mat2D& b);
         static bool invert(Mat2D& result, const Mat2D& a);
-        static void copy(Mat2D& result, const Mat2D& a);
         static void decompose(TransformComponents& result, const Mat2D& m);
         static void compose(Mat2D& result,
                             const TransformComponents& components);
-        static void scaleByValues(Mat2D& result, float sx, float sy);
 
         float xx() const { return m_Buffer[0]; }
         float xy() const { return m_Buffer[1]; }
@@ -54,10 +54,15 @@ namespace rive {
         void ty(float value) { m_Buffer[5] = value; }
     };
 
+    inline Vec2D operator*(const Mat2D& m, Vec2D v) {
+        return {
+            m[0] * v.x() + m[2] * v.y() + m[4],
+            m[1] * v.x() + m[3] * v.y() + m[5],
+        };
+    }
+
     inline Mat2D operator*(const Mat2D& a, const Mat2D& b) {
-        Mat2D result;
-        Mat2D::multiply(result, a, b);
-        return result;
+        return Mat2D::multiply(a, b);
     }
 
     inline bool operator==(const Mat2D& a, const Mat2D& b) {

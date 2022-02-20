@@ -29,10 +29,8 @@ StatusCode Skin::onAddedClean(CoreContext* context) {
 
 void Skin::update(ComponentDirt value) {
     int bidx = 6;
-    Mat2D world;
     for (auto tendon : m_Tendons) {
-        Mat2D::multiply(
-            world, tendon->bone()->worldTransform(), tendon->inverseBind());
+        auto world = tendon->bone()->worldTransform() * tendon->inverseBind();
         m_BoneTransforms[bidx++] = world[0];
         m_BoneTransforms[bidx++] = world[1];
         m_BoneTransforms[bidx++] = world[2];

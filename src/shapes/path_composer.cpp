@@ -34,13 +34,11 @@ void PathComposer::update(ComponentDirt value) {
             auto world = m_Shape->worldTransform();
             Mat2D inverseWorld;
             if (!Mat2D::invert(inverseWorld, world)) {
-                Mat2D::identity(inverseWorld);
+                inverseWorld = Mat2D();
             }
             // Get all the paths into local shape space.
             for (auto path : m_Shape->paths()) {
-                Mat2D localTransform;
-                const Mat2D& transform = path->pathTransform();
-                Mat2D::multiply(localTransform, inverseWorld, transform);
+                const auto localTransform = inverseWorld * path->pathTransform();
                 m_LocalPath->addPath(path->commandPath(), localTransform);
             }
         }
