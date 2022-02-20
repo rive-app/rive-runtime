@@ -45,6 +45,8 @@ int stateMachineIndex = -1;
 
 sk_sp<SkImage> gImage;
 
+extern void drawtext(rive::Factory*, rive::Renderer*);
+
 static void delete_file() {
     stateMachineIndex = -1;
     animationIndex = -1;
@@ -346,6 +348,10 @@ int main() {
             if (gImage) {
                 canvas->drawImage(gImage, 0, 0);
             }
+        }
+        if (true) {
+            rive::SkiaRenderer renderer(canvas);
+            drawtext(&skiaFactory, &renderer);
         }
         context->flush();
 
