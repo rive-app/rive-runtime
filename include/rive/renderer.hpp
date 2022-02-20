@@ -4,6 +4,7 @@
 #include "rive/shapes/paint/color.hpp"
 #include "rive/command_path.hpp"
 #include "rive/layout.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -18,6 +19,44 @@ namespace rive {
 
     enum class RenderPaintStyle { stroke, fill };
 
+    enum class RenderTileMode {
+        clamp,
+        repeat,
+        mirror,
+        decal,  // fill outside the domain with transparent
+    };
+
+    /*
+     *  Base class for Render objects that specify the src colors.
+     *
+     *  Shaders are immutable, and sharable between multiple paints, etc.
+     *
+     *  It is common that a shader may be created with a 'localMatrix'. If this is
+     *  not null, then it is applied to the shader's domain before the Renderer's CTM.
+     */
+    class RenderShader : public RefCnt {};
+
+    extern rcp<RenderShader> makeLinearGradient(float sx, float sy,
+                                                float ex, float ey,
+                                                const ColorInt colors[],    // [count]
+                                                const float stops[],        // [count]
+                                                int count,
+                                                RenderTileMode,
+                                                const Mat2D* localMatrix = nullptr);
+
+    extern rcp<RenderShader> makeRadialGradient(float cx, float cy, float radius,
+                                                const ColorInt colors[],    // [count]
+                                                const float stops[],        // [count]
+                                                int count,
+                                                RenderTileMode,
+                                                const Mat2D* localMatrix = nullptr);
+
+    extern rcp<RenderShader> makeSweepGradient(float cx, float cy,
+                                               const ColorInt colors[],    // [count]
+                                               const float stops[],        // [count]
+                                               int count,
+                                               const Mat2D* localMatrix = nullptr);
+
     class RenderPaint {
     public:
         virtual void style(RenderPaintStyle style) = 0;
@@ -26,11 +65,8 @@ namespace rive {
         virtual void join(StrokeJoin value) = 0;
         virtual void cap(StrokeCap value) = 0;
         virtual void blendMode(BlendMode value) = 0;
+        virtual void shader(rcp<RenderShader>) = 0;
 
-        virtual void linearGradient(float sx, float sy, float ex, float ey) = 0;
-        virtual void radialGradient(float sx, float sy, float ex, float ey) = 0;
-        virtual void addStop(ColorInt color, float stop) = 0;
-        virtual void completeGradient() = 0;
         virtual ~RenderPaint() {}
     };
 
@@ -44,6 +80,11 @@ namespace rive {
         virtual bool decode(const uint8_t* bytes, std::size_t size) = 0;
         int width() const { return m_Width; }
         int height() const { return m_Height; }
+        
+        rcp<RenderShader> makeShader(RenderTileMode tx, RenderTileMode ty,
+                                     const Mat2D* localMatrix = nullptr) const {
+            return nullptr; // defaults to no shader
+        }
     };
 
     class RenderPath : public CommandPath {

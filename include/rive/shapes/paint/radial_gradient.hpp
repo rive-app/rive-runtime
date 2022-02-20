@@ -4,7 +4,8 @@
 namespace rive {
     class RadialGradient : public RadialGradientBase {
     public:
-        void makeGradient(const Vec2D& start, const Vec2D& end) override;
+        void makeGradient(Vec2D start, Vec2D end,
+                          const ColorInt[], const float[], size_t count) override;
     };
 } // namespace rive
 

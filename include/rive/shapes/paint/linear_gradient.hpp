@@ -2,8 +2,10 @@
 #define _RIVE_LINEAR_GRADIENT_HPP_
 #include "rive/generated/shapes/paint/linear_gradient_base.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include <vector>
+
 namespace rive {
     class Node;
     class GradientStop;
@@ -28,8 +30,10 @@ namespace rive {
         void endYChanged() override;
         void opacityChanged() override;
         void renderOpacityChanged() override;
-        virtual void makeGradient(const Vec2D& start, const Vec2D& end);
         bool internalIsTranslucent() const override;
+
+        virtual void makeGradient(Vec2D start, Vec2D end,
+                                  const ColorInt[], const float[], size_t count);
     };
 } // namespace rive
 

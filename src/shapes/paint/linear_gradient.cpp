@@ -65,7 +65,6 @@ void LinearGradient::update(ComponentDirt value) {
                     ComponentDirt::Transform) ||
         (paintsInWorldSpace && worldTransformed);
     if (rebuildGradient) {
-        auto paint = renderPaint();
         Vec2D start(startX(), startY());
         Vec2D end(endX(), endY());
         // Check if we need to update the world space gradient (if there's no
@@ -75,23 +74,29 @@ void LinearGradient::update(ComponentDirt value) {
             // Get the start and end of the gradient in world coordinates (world
             // transform of the shape).
             const Mat2D& world = m_ShapePaintContainer->worldTransform();
-            makeGradient(world * start, world * end);
-        } else {
-            makeGradient(start, end);
+            start = world * start;
+            end = world * end;
         }
+
         // build up the color and positions lists
-        double ro = opacity() * renderOpacity();
-        for (auto stop : m_Stops) {
-            paint->addStop(
-                colorModulateOpacity((unsigned int)stop->colorValue(), ro),
-                stop->position());
+        const double ro = opacity() * renderOpacity();
+        const auto count = m_Stops.size();
+        std::vector<ColorInt> colors(count);
+        std::vector<float> stops(count);
+        for (size_t i = 0; i < count; ++i) {
+            colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
+            stops[i] = m_Stops[i]->position();
         }
-        paint->completeGradient();
+        
+        makeGradient(start, end, colors.data(), stops.data(), count);
     }
 }
 
-void LinearGradient::makeGradient(const Vec2D& start, const Vec2D& end) {
-    renderPaint()->linearGradient(start[0], start[1], end[0], end[1]);
+void LinearGradient::makeGradient(Vec2D start, Vec2D end,
+                                  const ColorInt colors[], const float stops[], size_t count) {
+    auto paint = renderPaint();
+    paint->shader(makeLinearGradient(start[0], start[1], end[0], end[1],
+                                     colors, stops, count, RenderTileMode::clamp));
 }
 
 void LinearGradient::markGradientDirty() { addDirt(ComponentDirt::Paint); }

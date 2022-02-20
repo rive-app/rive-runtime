@@ -3,6 +3,9 @@
 
 using namespace rive;
 
-void RadialGradient::makeGradient(const Vec2D& start, const Vec2D& end) {
-    renderPaint()->radialGradient(start[0], start[1], end[0], end[1]);
+void RadialGradient::makeGradient(Vec2D start, Vec2D end,
+                                  const ColorInt colors[], const float stops[], size_t count) {
+    auto paint = renderPaint();
+    paint->shader(makeRadialGradient(start[0], start[1], end[0],
+                                     colors, stops, count, RenderTileMode::clamp));
 }
