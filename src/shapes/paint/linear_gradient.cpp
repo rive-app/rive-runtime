@@ -81,14 +81,14 @@ void LinearGradient::update(ComponentDirt value) {
         // build up the color and positions lists
         const double ro = opacity() * renderOpacity();
         const auto count = m_Stops.size();
-        std::vector<ColorInt> colors(count);
-        std::vector<float> stops(count);
+        ColorInt colors[count];
+        float stops[count];
         for (size_t i = 0; i < count; ++i) {
             colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
             stops[i] = m_Stops[i]->position();
         }
         
-        makeGradient(start, end, colors.data(), stops.data(), count);
+        makeGradient(start, end, colors, stops, count);
     }
 }
 
