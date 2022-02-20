@@ -19,6 +19,16 @@ In the ```rive-cpp``` directory, run ```build.sh``` to debug build and ```build.
 
 If you've put the `premake5` executable in the `rive-cpp/build` folder, you can run it with `PATH=.:$PATH ./build.sh`
 
+## Building skia projects
+```
+cd skia/dependencies
+./make_skia.sh      // this will invoke get_skia.sh
+```
+To build viewer (plus you'll needed CMake installed)
+```
+./make_viewer_dependencies.sh
+```
+
 ## Testing
 Uses the [Catch2](https://github.com/catchorg/Catch2) testing framework.
 
