@@ -34,7 +34,7 @@ else
         "skia",
         "z",
         "dl",
-        "GL"
+        "fontconfig"
     }
 end 
 
