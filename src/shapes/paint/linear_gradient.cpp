@@ -81,6 +81,7 @@ void LinearGradient::update(ComponentDirt value) {
         // build up the color and positions lists
         const double ro = opacity() * renderOpacity();
         const auto count = m_Stops.size();
+        // TODO: replace these with stack-alloc helpers?
         ColorInt colors[count];
         float stops[count];
         for (size_t i = 0; i < count; ++i) {
