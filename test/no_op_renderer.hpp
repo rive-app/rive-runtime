@@ -9,6 +9,9 @@ namespace rive {
         bool decode(const uint8_t* bytes, std::size_t size) override {
             return true;
         }
+        rcp<RenderShader> makeShader(RenderTileMode, RenderTileMode, const Mat2D*) const override {
+            return nullptr;
+        }
     };
 
     class NoOpRenderPaint : public RenderPaint {
