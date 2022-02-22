@@ -48,6 +48,8 @@ namespace rive {
     public:
         sk_sp<SkImage> skImage() const { return m_SkImage; };
         bool decode(const uint8_t* bytes, std::size_t size) override;
+        rcp<RenderShader> makeShader(RenderTileMode tx, RenderTileMode ty,
+                                     const Mat2D* localMatrix) const override;
     };
 
     class SkiaRenderer : public Renderer {

@@ -12,26 +12,24 @@ namespace rive {
     class ToSkia {
     public:
         static SkMatrix convert(const rive::Mat2D& m) {
-            SkMatrix skMatrix;
-            skMatrix.set9((SkScalar[9])
-                          // Skia Matrix is row major
-                          {// Row 1
-                           m[0],
-                           m[2],
-                           m[4],
-                           // Row 2
-                           m[1],
-                           m[3],
-                           m[5],
-                           // Row 3
-                           0.0,
-                           0.0,
-                           1.0});
-            return skMatrix;
+            return SkMatrix::MakeAll(m[0], m[2], m[4],
+                                     m[1], m[3], m[5],
+                                     0,    0,    1);
         }
 
         static SkPoint convert(const rive::Vec2D& point) {
             return SkPoint::Make(point[0], point[1]);
+        }
+
+        static SkTileMode convert(RenderTileMode rtm) {
+            switch (rtm) {
+                case RenderTileMode::clamp:  return SkTileMode::kClamp;
+                case RenderTileMode::repeat: return SkTileMode::kRepeat;
+                case RenderTileMode::mirror: return SkTileMode::kMirror;
+                case RenderTileMode::decal:  return SkTileMode::kDecal;
+            }
+            assert(false);
+            return SkTileMode::kClamp;
         }
 
         static SkPaint::Cap convert(rive::StrokeCap cap) {

@@ -81,10 +81,8 @@ namespace rive {
         int width() const { return m_Width; }
         int height() const { return m_Height; }
         
-        rcp<RenderShader> makeShader(RenderTileMode tx, RenderTileMode ty,
-                                     const Mat2D* localMatrix = nullptr) const {
-            return nullptr; // defaults to no shader
-        }
+        virtual rcp<RenderShader> makeShader(RenderTileMode tx, RenderTileMode ty,
+                                             const Mat2D* localMatrix = nullptr) const = 0;
     };
 
     class RenderPath : public CommandPath {

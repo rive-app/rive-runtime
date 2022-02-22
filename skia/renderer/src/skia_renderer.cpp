@@ -7,23 +7,6 @@
 
 using namespace rive;
 
-static SkTileMode to_skia(RenderTileMode rtm) {
-    switch (rtm) {
-        case RenderTileMode::clamp:  return SkTileMode::kClamp;
-        case RenderTileMode::repeat: return SkTileMode::kRepeat;
-        case RenderTileMode::mirror: return SkTileMode::kMirror;
-        case RenderTileMode::decal:  return SkTileMode::kDecal;
-    }
-    assert(false);
-    return SkTileMode::kClamp;
-}
-
-static SkMatrix to_skia(const Mat2D& m) {
-    return SkMatrix::MakeAll(m[0], m[2], m[4],
-                             m[1], m[3], m[5],
-                             0,    0,    1);
-}
-
 class SkiaRenderShader : public RenderShader {
 public:
     SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}
@@ -122,6 +105,14 @@ bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size) {
     return true;
 }
 
+rcp<RenderShader> SkiaRenderImage::makeShader(RenderTileMode tx, RenderTileMode ty,
+                                              const Mat2D* localMatrix) const {
+    const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
+    const SkSamplingOptions options(SkFilterMode::kLinear);
+    auto sh = m_SkImage->makeShader(ToSkia::convert(tx), ToSkia::convert(ty), options, &lm);
+    return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
+}
+
 namespace rive {
     RenderPath* makeRenderPath() { return new SkiaRenderPath(); }
     RenderPaint* makeRenderPaint() { return new SkiaRenderPaint(); }
@@ -133,9 +124,9 @@ namespace rive {
                                          const Mat2D* localm)
     {
         const SkPoint pts[] = { {sx, sy}, {ex, ey} };
-        const SkMatrix lm = localm ? to_skia(*localm) : SkMatrix();
+        const SkMatrix lm = localm ? ToSkia::convert(*localm) : SkMatrix();
         auto sh = SkGradientShader::MakeLinear(pts, (const SkColor*)colors, stops, count,
-                                               to_skia(mode), 0, &lm);
+                                               ToSkia::convert(mode), 0, &lm);
         return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
     }
 
@@ -144,10 +135,10 @@ namespace rive {
                                          int count, RenderTileMode mode,
                                          const Mat2D* localm)
     {
-        const SkMatrix lm = localm ? to_skia(*localm) : SkMatrix();
+        const SkMatrix lm = localm ? ToSkia::convert(*localm) : SkMatrix();
         auto sh = SkGradientShader::MakeRadial({cx, cy}, radius,
                                                (const SkColor*)colors, stops, count,
-                                               to_skia(mode), 0, &lm);
+                                               ToSkia::convert(mode), 0, &lm);
         return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
     }
 
@@ -156,7 +147,7 @@ namespace rive {
                                         int count, RenderTileMode mode,
                                         const Mat2D* localm)
    {
-       const SkMatrix lm = localm ? to_skia(*localm) : SkMatrix();
+       const SkMatrix lm = localm ? ToSkia::convert(*localm) : SkMatrix();
        auto sh = SkGradientShader::MakeSweep(cx, cy, (const SkColor*)colors, stops, count,
                                              0, &lm);
        return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
