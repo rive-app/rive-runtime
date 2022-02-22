@@ -1,30 +1,14 @@
-#include <rive/core/binary_reader.hpp>
-#include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/bones/bone.hpp>
 #include <rive/shapes/shape.hpp>
 #include "no_op_renderer.hpp"
+#include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <cstdio>
 
 TEST_CASE("two bone ik places bones correctly", "[file]") {
-    FILE* fp = fopen("../../test/assets/two_bone_ik.riv", "r");
-    REQUIRE(fp != nullptr);
-
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
-
-    auto artboard = file->artboard();
+    RiveFileReader reader("../../test/assets/two_bone_ik.riv");
+    auto artboard = reader.file()->artboard();
 
     REQUIRE(artboard->find<rive::Shape>("circle a") != nullptr);
     auto circleA = artboard->find<rive::Shape>("circle a");
@@ -94,7 +78,4 @@ TEST_CASE("two bone ik places bones correctly", "[file]") {
                                    0.882367908954620361328125f,
                                    240.1275634765625f,
                                    225.07647705078125f)));
-
-    delete file;
-    delete[] bytes;
 }

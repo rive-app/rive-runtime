@@ -4,54 +4,24 @@
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
 #include "no_op_renderer.hpp"
+#include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("file can be read", "[file]") {
-    FILE* fp = fopen("../../test/assets/two_artboards.riv", "r");
-    REQUIRE(fp != nullptr);
-
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
+    RiveFileReader reader("../../test/assets/two_artboards.riv");
 
     // Default artboard should be named Two.
-    REQUIRE(file->artboard()->name() == "Two");
+    REQUIRE(reader.file()->artboard()->name() == "Two");
 
     // There should be a second artboard named One.
-    REQUIRE(file->artboard("One") != nullptr);
-
-    delete file;
-    delete[] bytes;
+    REQUIRE(reader.file()->artboard("One") != nullptr);
 }
 
 TEST_CASE("file with animation can be read", "[file]") {
-    FILE* fp = fopen("../../test/assets/juice.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/juice.riv");
 
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
-
-    auto artboard = file->artboard();
+    auto artboard = reader.file()->artboard();
     REQUIRE(artboard->name() == "New Artboard");
 
     auto shin = artboard->find("shin_right");
@@ -70,29 +40,11 @@ TEST_CASE("file with animation can be read", "[file]") {
     auto walkAnimation = artboard->animation("walk");
     REQUIRE(walkAnimation != nullptr);
     REQUIRE(walkAnimation->numKeyedObjects() == 22);
-
-    delete file;
-    delete[] bytes;
 }
 
 TEST_CASE("artboards can be counted and accessed via index or name", "[file]") {
-    FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
-    REQUIRE(fp != nullptr);
-
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-
-    // The default artboard can be accessed
-    REQUIRE(file->artboard() != nullptr);
+    RiveFileReader reader("../../test/assets/dependency_test.riv");
+    auto file = reader.file();
 
     // The artboards caqn be counted
     REQUIRE(file->artboardCount() == 1);
@@ -102,9 +54,6 @@ TEST_CASE("artboards can be counted and accessed via index or name", "[file]") {
 
     // Artboards can be accessed by name
     REQUIRE(file->artboard("Blue") != nullptr);
-
-    delete file;
-    delete[] bytes;
 }
 
 TEST_CASE("dependencies are as expected", "[file]") {
@@ -126,23 +75,9 @@ TEST_CASE("dependencies are as expected", "[file]") {
     //                   │ ┌──────────────┐
     //                   └▶│Rectangle Path│
     //                     └──────────────┘
-    FILE* fp = fopen("../../test/assets/dependency_test.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/dependency_test.riv");
 
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
-
-    auto artboard = file->artboard();
+    auto artboard = reader.file()->artboard();
     REQUIRE(artboard->name() == "Blue");
 
     auto nodeA = artboard->find<rive::Node>("A");
@@ -176,9 +111,6 @@ TEST_CASE("dependencies are as expected", "[file]") {
     auto world = shape->worldTransform();
     REQUIRE(world[4] == 39.203125f);
     REQUIRE(world[5] == 29.535156f);
-
-    delete file;
-    delete[] bytes;
 }
 
 // TODO:
