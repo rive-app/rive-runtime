@@ -1,6 +1,7 @@
 #include "skia_renderer.hpp"
 #include "SkGradientShader.h"
 #include "SkPath.h"
+#include "SkVertices.h"
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "to_skia.hpp"
@@ -44,6 +45,13 @@ public:
     SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}
 
     sk_sp<SkShader> shader;
+};
+
+class SkiaRenderMesh : public RenderMesh {
+public:
+    SkiaRenderMesh(sk_sp<SkVertices> vt) : vertices(std::move(vt)) {}
+
+    sk_sp<SkVertices> vertices;
 };
 
 void SkiaRenderPath::fillRule(FillRule value) {
@@ -128,6 +136,20 @@ void SkiaRenderer::drawImage(RenderImage* image,
         skiaImage->skImage(), 0.0f, 0.0f, samplingOptions, &paint);
 }
 
+void SkiaRenderer::drawMesh(const RenderMesh* mesh,
+                            const RenderShader* shader,
+                            BlendMode mode,
+                            float opacity) {
+    auto skmesh = reinterpret_cast<const SkiaRenderMesh*>(mesh);
+    auto skshader = reinterpret_cast<const SkiaRenderShader*>(shader);
+
+    SkPaint paint;
+    paint.setBlendMode(ToSkia::convert(mode));
+    paint.setAlphaf(opacity);
+    paint.setShader(skshader->shader);
+    m_Canvas->drawVertices(skmesh->vertices, SkBlendMode::kModulate, paint);
+}
+
 bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size) {
 
     sk_sp<SkData> data = SkData::MakeWithoutCopy(bytes, size);
@@ -194,4 +216,17 @@ namespace rive {
                                              0, &lm);
        return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
    }
+
+    rcp<RenderMesh> makeMesh(RenderMesh::Type meshType,
+                             int vertexCount, const float vertices[], const float texCoords[],
+                             int indexCount, const uint16_t indices[])
+    {
+        const SkColor* colors = nullptr;
+        auto vt = SkVertices::MakeCopy(ToSkia::convert(meshType), vertexCount,
+                                       (const SkPoint*)vertices,
+                                       (const SkPoint*)texCoords,
+                                       colors,
+                                       indexCount, indices);
+        return rcp<RenderMesh>(new SkiaRenderMesh(std::move(vt)));
+    }
 } // namespace rive

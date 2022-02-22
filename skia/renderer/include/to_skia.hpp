@@ -93,6 +93,16 @@ namespace rive {
             }
             return SkBlendMode::kSrcOver;
         }
+        
+        static SkVertices::VertexMode convert(rive::RenderMesh::Type t) {
+            switch (t) {
+                case rive::RenderMesh::triangles: return SkVertices::kTriangles_VertexMode;
+                case rive::RenderMesh::strip:     return SkVertices::kTriangleStrip_VertexMode;
+                case rive::RenderMesh::fan:       return SkVertices::kTriangleFan_VertexMode;
+            }
+            assert(false);
+            return SkVertices::kTriangles_VertexMode;
+        }
     };
 } // namespace rive
 #endif

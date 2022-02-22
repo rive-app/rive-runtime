@@ -70,6 +70,31 @@ namespace rive {
                                                int count,
                                                const Mat2D* localMatrix = nullptr);
 
+    class RenderMesh : public RefCnt {
+    public:
+        enum Type {
+            triangles,
+            strip,
+            fan,
+        };
+    };
+
+    /*  Copies the data provided, and returns a reusable RenderMesh object which can
+     *  be drawn in drawMesh(...).
+     *
+     *  vertexCount is the number of vertex points (i.e. pairs of x,y)
+     *  vertices[] and texCoords[] are x,y interleaved
+     *  Note: texCoords[] are normalized (0..1), but can be outside of that range.
+     *        if they are out of range, the shader (in drawMesh) will handle tiling
+     */
+    extern rcp<RenderMesh> makeMesh(RenderMesh::Type,
+                                    int vertexCount,
+                                    const float vertices[],     //  x0,  y0,  x1,  y1, ...
+                                    const float texCoords[],    // tx0, ty0, tx1, ty1, ...
+                                    int indexCount,
+                                    const uint16_t indices[]);
+
+
     class RenderPaint {
     public:
         virtual void style(RenderPaintStyle style) = 0;
@@ -117,8 +142,8 @@ namespace rive {
         virtual void transform(const Mat2D& transform) = 0;
         virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
         virtual void clipPath(RenderPath* path) = 0;
-        virtual void
-        drawImage(RenderImage* image, BlendMode value, float opacity) = 0;
+        virtual void drawImage(RenderImage*, BlendMode, float opacity) = 0;
+        virtual void drawMesh(const RenderMesh*, const RenderShader*, BlendMode, float opacity) = 0;
 
         // helpers
 

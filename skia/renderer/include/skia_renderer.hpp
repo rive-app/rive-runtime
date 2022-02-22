@@ -61,10 +61,10 @@ namespace rive {
         void save() override;
         void restore() override;
         void transform(const Mat2D& transform) override;
-        void drawPath(RenderPath* path, RenderPaint* paint) override;
-        void
-        drawImage(RenderImage* image, BlendMode value, float opacity) override;
         void clipPath(RenderPath* path) override;
+        void drawPath(RenderPath* path, RenderPaint* paint) override;
+        void drawImage(RenderImage*, BlendMode, float opacity) override;
+        void drawMesh(const RenderMesh*, const RenderShader*, BlendMode, float opacity) override;
     };
 } // namespace rive
 #endif
