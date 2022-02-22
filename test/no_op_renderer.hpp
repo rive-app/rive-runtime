@@ -87,6 +87,7 @@ namespace rive {
         void drawImage(RenderImage* image,
                        BlendMode value,
                        float opacity) override {}
+        void drawMesh(const RenderMesh*, const RenderShader*, BlendMode, float) override {}
     };
 
 } // namespace rive
