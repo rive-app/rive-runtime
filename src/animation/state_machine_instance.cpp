@@ -272,7 +272,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine) :
 }
 
 StateMachineInstance::~StateMachineInstance() {
-    for (int i = 0; i < m_InputCount; i++) {
+    // TODO: can this and others be rewritten as for (auto inst : m_InputInstances) ?
+    for (size_t i = 0; i < m_InputCount; i++) {
         delete m_InputInstances[i];
     }
     delete[] m_InputInstances;

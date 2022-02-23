@@ -13,7 +13,7 @@ TEST_CASE("cloning an ellipse works", "[instancing]") {
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
+    const size_t length = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
@@ -43,7 +43,7 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
+    const size_t length = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
@@ -85,7 +85,7 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
+    const size_t length = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
@@ -107,7 +107,7 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     // Make sure no animations were deleted by deleting the instance.
     REQUIRE(rive::LinearAnimation::deleteCount == 0);
 
-    size_t numberOfAnimations = file->artboard()->animationCount();
+    int numberOfAnimations = file->artboard()->animationCount();
     delete file;
     // Now the animations should've been deleted.
     REQUIRE(rive::LinearAnimation::deleteCount == numberOfAnimations);

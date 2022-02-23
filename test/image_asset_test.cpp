@@ -51,7 +51,7 @@ TEST_CASE("out of band image assets loads correctly", "[assets]") {
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
+    const size_t length = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
