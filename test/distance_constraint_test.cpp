@@ -4,27 +4,14 @@
 #include <rive/node.hpp>
 #include <rive/math/vec2d.hpp>
 #include <rive/shapes/shape.hpp>
+#include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <cstdio>
 
 TEST_CASE("distance constraints moves items as expected", "[file]") {
-    FILE* fp = fopen("../../test/assets/distance_constraint.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/distance_constraint.riv");
 
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
-
-    auto artboard = file->artboard();
+    auto artboard = reader.file()->artboard();
 
     REQUIRE(artboard->find<rive::Shape>("A") != nullptr);
     auto a = artboard->find<rive::Shape>("A");
@@ -47,7 +34,4 @@ TEST_CASE("distance constraints moves items as expected", "[file]") {
     a->worldTranslation(at);
     rive::Vec2D expectedTranslation(259.2808837890625, 62.87000274658203);
     REQUIRE(rive::Vec2D::distance(at, expectedTranslation) < 0.001f);
-
-    delete file;
-    delete[] bytes;
 }

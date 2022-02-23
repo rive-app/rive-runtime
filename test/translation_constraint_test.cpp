@@ -5,27 +5,14 @@
 #include <rive/shapes/shape.hpp>
 #include <rive/math/transform_components.hpp>
 #include "no_op_renderer.hpp"
+#include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <cstdio>
 
 TEST_CASE("translation constraint updates world transform", "[file]") {
-    FILE* fp = fopen("../../test/assets/translation_constraint.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/translation_constraint.riv");
 
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
-
-    auto artboard = file->artboard();
+    auto artboard = reader.file()->artboard();
 
     REQUIRE(artboard->find<rive::TransformComponent>("target") != nullptr);
     auto target = artboard->find<rive::TransformComponent>("target");
@@ -42,7 +29,4 @@ TEST_CASE("translation constraint updates world transform", "[file]") {
 
     REQUIRE(targetComponents.x() == rectComponents.x());
     REQUIRE(targetComponents.y() == rectComponents.y());
-
-    delete file;
-    delete[] bytes;
 }

@@ -5,26 +5,14 @@
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
 #include "no_op_renderer.hpp"
+#include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("clipping loads correctly", "[clipping]") {
-    FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/circle_clips.riv");
 
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
-
+    auto file = reader.file();
     auto node = file->artboard()->find("TopEllipse");
     REQUIRE(node != nullptr);
     REQUIRE(node->is<rive::Shape>());
@@ -38,7 +26,4 @@ TEST_CASE("clipping loads correctly", "[clipping]") {
 
     rive::NoOpRenderer renderer;
     file->artboard()->draw(&renderer);
-
-    delete file;
-    delete[] bytes;
 }

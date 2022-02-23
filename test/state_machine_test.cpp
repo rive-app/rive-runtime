@@ -12,24 +12,13 @@
 #include <rive/animation/blend_state_direct.hpp>
 #include <rive/animation/blend_state_transition.hpp>
 #include "catch.hpp"
+#include "rive_file_reader.hpp"
 #include <cstdio>
 
 TEST_CASE("file with state machine be read", "[file]") {
-    FILE* fp = fopen("../../test/assets/rocket.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/rocket.riv");
 
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    auto artboard = file->artboard();
+    auto artboard = reader.file()->artboard();
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->animationCount() == 3);
     REQUIRE(artboard->stateMachineCount() == 1);
@@ -94,27 +83,12 @@ TEST_CASE("file with state machine be read", "[file]") {
     REQUIRE(smi.getBool("Press") != nullptr);
     REQUIRE(smi.stateChangedCount() == 0);
     REQUIRE(smi.currentAnimationCount() == 0);
-
-    delete file;
-    delete[] bytes;
 }
 
 TEST_CASE("file with blend states loads correctly", "[file]") {
-    FILE* fp = fopen("../../test/assets/blend_test.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/blend_test.riv");
 
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    auto artboard = file->artboard();
+    auto artboard = reader.file()->artboard();
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->animationCount() == 4);
     REQUIRE(artboard->stateMachineCount() == 2);
@@ -165,27 +139,12 @@ TEST_CASE("file with blend states loads correctly", "[file]") {
     REQUIRE(blendStateA->transition(0)
                 ->as<rive::BlendStateTransition>()
                 ->exitBlendAnimation() != nullptr);
-
-    delete file;
-    delete[] bytes;
 }
 
 TEST_CASE("animation state with no animation doesn't crash", "[file]") {
-    FILE* fp = fopen("../../test/assets/multiple_state_machines.riv", "r");
-    REQUIRE(fp != nullptr);
+    RiveFileReader reader("../../test/assets/multiple_state_machines.riv");
 
-    fseek(fp, 0, SEEK_END);
-    auto length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    auto artboard = file->artboard();
+    auto artboard = reader.file()->artboard();
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->animationCount() == 1);
     REQUIRE(artboard->stateMachineCount() == 4);
@@ -208,7 +167,4 @@ TEST_CASE("animation state with no animation doesn't crash", "[file]") {
 
     rive::StateMachineInstance smi(stateMachine);
     smi.advance(artboard, 0.0f);
-
-    delete file;
-    delete[] bytes;
 }
