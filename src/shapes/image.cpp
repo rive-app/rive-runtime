@@ -41,7 +41,7 @@ StatusCode Image::import(ImportStack& importStack) {
 }
 
 void Image::assets(const std::vector<FileAsset*>& assets) {
-    if (assetId() < 0 || assetId() >= assets.size()) {
+    if ((size_t)assetId() >= assets.size()) {
         return;
     }
     auto asset = assets[assetId()];

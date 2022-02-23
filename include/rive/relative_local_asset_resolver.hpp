@@ -28,7 +28,7 @@ namespace rive {
             FILE* fp = fopen(filename.c_str(), "r");
 
             fseek(fp, 0, SEEK_END);
-            auto length = ftell(fp);
+            const size_t length = ftell(fp);
             fseek(fp, 0, SEEK_SET);
             uint8_t* bytes = new uint8_t[length];
             if (fread(bytes, 1, length, fp) == length) {

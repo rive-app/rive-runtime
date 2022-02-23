@@ -21,8 +21,7 @@ StatusCode BlendAnimationDirect::import(ImportStack& importStack) {
     }
 
     // Make sure the inputId doesn't overflow the input buffer.
-    if (inputId() < 0 ||
-        inputId() >= stateMachineImporter->stateMachine()->inputCount())
+    if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
     {
         return StatusCode::InvalidObject;
     }

@@ -20,7 +20,7 @@ StatusCode BlendState1D::import(ImportStack& importStack) {
     // editor does too.
     if (inputId() >= 0) {
         // Make sure the inputId doesn't overflow the input buffer.
-        if (inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
+        if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
             return StatusCode::InvalidObject;
         }
         auto input =
