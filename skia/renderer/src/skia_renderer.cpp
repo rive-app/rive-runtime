@@ -217,12 +217,12 @@ namespace rive {
        return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
    }
 
-    rcp<RenderMesh> makeMesh(RenderMesh::Type meshType,
-                             int vertexCount, const float vertices[], const float texCoords[],
+    rcp<RenderMesh> makeMesh(int vertexCount, const float vertices[], const float texCoords[],
                              int indexCount, const uint16_t indices[])
     {
         const SkColor* colors = nullptr;
-        auto vt = SkVertices::MakeCopy(ToSkia::convert(meshType), vertexCount,
+        auto mode = SkVertices::kTriangles_VertexMode;
+        auto vt = SkVertices::MakeCopy(mode, vertexCount,
                                        (const SkPoint*)vertices,
                                        (const SkPoint*)texCoords,
                                        colors,

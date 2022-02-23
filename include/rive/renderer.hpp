@@ -70,14 +70,7 @@ namespace rive {
                                                int count,
                                                const Mat2D* localMatrix = nullptr);
 
-    class RenderMesh : public RefCnt {
-    public:
-        enum Type {
-            triangles,
-            strip,
-            fan,
-        };
-    };
+    class RenderMesh : public RefCnt {};
 
     /*  Copies the data provided, and returns a reusable RenderMesh object which can
      *  be drawn in drawMesh(...).
@@ -87,8 +80,7 @@ namespace rive {
      *  Note: texCoords[] are normalized (0..1), but can be outside of that range.
      *        if they are out of range, the shader (in drawMesh) will handle tiling
      */
-    extern rcp<RenderMesh> makeMesh(RenderMesh::Type,
-                                    int vertexCount,
+    extern rcp<RenderMesh> makeMesh(int vertexCount,
                                     const float vertices[],     //  x0,  y0,  x1,  y1, ...
                                     const float texCoords[],    // tx0, ty0, tx1, ty1, ...
                                     int indexCount,
