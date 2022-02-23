@@ -28,9 +28,8 @@ StatusCode StateMachineLayerImporter::resolve() {
             }
         }
         for (auto transition : state->m_Transitions) {
-            if (transition->stateToId() < 0 ||
-                transition->stateToId() > m_Layer->m_States.size())
-            {
+            // TODO: do we mean >= ???
+            if ((size_t)transition->stateToId() > m_Layer->m_States.size()) {
                 return StatusCode::InvalidObject;
             }
             transition->m_StateTo = m_Layer->m_States[transition->stateToId()];

@@ -22,8 +22,8 @@ StatusCode BlendAnimation::import(ImportStack& importStack) {
     }
 
     auto artboard = artboardImporter->artboard();
-    auto animationCount = artboard->animationCount();
-    if (animationId() >= 0 && animationId() < animationCount) {
+    size_t animationCount = artboard->animationCount();
+    if ((size_t)animationId() < animationCount) {
         m_Animation = artboardImporter->artboard()->animation(animationId());
     }
 

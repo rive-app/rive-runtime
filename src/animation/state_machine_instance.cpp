@@ -238,7 +238,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine) :
     m_Machine(machine) {
     m_InputCount = machine->inputCount();
     m_InputInstances = new SMIInput*[m_InputCount];
-    for (int i = 0; i < m_InputCount; i++) {
+    for (size_t i = 0; i < m_InputCount; i++) {
         auto input = machine->input(i);
         if (input == nullptr) {
             m_InputInstances[i] = nullptr;
@@ -266,7 +266,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine) :
 
     m_LayerCount = machine->layerCount();
     m_Layers = new StateMachineLayerInstance[m_LayerCount];
-    for (int i = 0; i < m_LayerCount; i++) {
+    for (size_t i = 0; i < m_LayerCount; i++) {
         m_Layers[i].init(machine->layer(i));
     }
 }
@@ -281,14 +281,14 @@ StateMachineInstance::~StateMachineInstance() {
 
 bool StateMachineInstance::advance(Artboard* artboard, float seconds) {
     m_NeedsAdvance = false;
-    for (int i = 0; i < m_LayerCount; i++) {
+    for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].advance(
                 artboard, seconds, m_InputInstances, m_InputCount)) {
             m_NeedsAdvance = true;
         }
     }
 
-    for (int i = 0; i < m_InputCount; i++) {
+    for (size_t i = 0; i < m_InputCount; i++) {
         m_InputInstances[i]->advanced();
     }
 
@@ -306,7 +306,7 @@ SMIInput* StateMachineInstance::input(size_t index) const {
 }
 
 SMIBool* StateMachineInstance::getBool(std::string name) const {
-    for (int i = 0; i < m_InputCount; i++) {
+    for (size_t i = 0; i < m_InputCount; i++) {
         auto input = m_InputInstances[i]->input();
         if (input->is<StateMachineBool>() && input->name() == name) {
             return static_cast<SMIBool*>(m_InputInstances[i]);
@@ -316,7 +316,7 @@ SMIBool* StateMachineInstance::getBool(std::string name) const {
 }
 
 SMINumber* StateMachineInstance::getNumber(std::string name) const {
-    for (int i = 0; i < m_InputCount; i++) {
+    for (size_t i = 0; i < m_InputCount; i++) {
         auto input = m_InputInstances[i]->input();
         if (input->is<StateMachineNumber>() && input->name() == name) {
             return static_cast<SMINumber*>(m_InputInstances[i]);
@@ -325,7 +325,7 @@ SMINumber* StateMachineInstance::getNumber(std::string name) const {
     return nullptr;
 }
 SMITrigger* StateMachineInstance::getTrigger(std::string name) const {
-    for (int i = 0; i < m_InputCount; i++) {
+    for (size_t i = 0; i < m_InputCount; i++) {
         auto input = m_InputInstances[i]->input();
         if (input->is<StateMachineTrigger>() && input->name() == name) {
             return static_cast<SMITrigger*>(m_InputInstances[i]);
@@ -336,7 +336,7 @@ SMITrigger* StateMachineInstance::getTrigger(std::string name) const {
 
 size_t StateMachineInstance::stateChangedCount() const {
     size_t count = 0;
-    for (int i = 0; i < m_LayerCount; i++) {
+    for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].stateChangedOnAdvance()) {
             count++;
         }
@@ -347,7 +347,7 @@ size_t StateMachineInstance::stateChangedCount() const {
 const LayerState*
 StateMachineInstance::stateChangedByIndex(size_t index) const {
     size_t count = 0;
-    for (int i = 0; i < m_LayerCount; i++) {
+    for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].stateChangedOnAdvance()) {
             if (count == index) {
                 return m_Layers[i].currentState();
@@ -360,7 +360,7 @@ StateMachineInstance::stateChangedByIndex(size_t index) const {
 
 const size_t StateMachineInstance::currentAnimationCount() const {
     size_t count = 0;
-    for (int i = 0; i < m_LayerCount; i++) {
+    for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].currentAnimation() != nullptr) {
             count++;
         }
@@ -371,7 +371,7 @@ const size_t StateMachineInstance::currentAnimationCount() const {
 const LinearAnimationInstance*
 StateMachineInstance::currentAnimationByIndex(size_t index) const {
     size_t count = 0;
-    for (int i = 0; i < m_LayerCount; i++) {
+    for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].currentAnimation() != nullptr) {
             if (count == index) {
                 return m_Layers[i].currentAnimation();

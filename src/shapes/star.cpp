@@ -23,7 +23,7 @@ void Star::buildPolygon() {
     auto angle = -M_PI / 2;
     auto inc = 2 * M_PI / length;
 
-    for (int i = 0; i < length; i += 2) {
+    for (std::size_t i = 0; i < length; i += 2) {
         {
             StraightVertex& vertex = m_PolygonVertices[i];
             vertex.x(ox + cos(angle) * halfWidth);

@@ -30,8 +30,8 @@ StatusCode LayerStateImporter::resolve() {
             }
 
             auto blendStateTransition = transition->as<BlendStateTransition>();
-            auto exitId = blendStateTransition->exitBlendAnimationId();
-            if (exitId >= 0 && exitId < blendState->m_Animations.size()) {
+            size_t exitId = blendStateTransition->exitBlendAnimationId();
+            if (exitId < blendState->m_Animations.size()) {
                 blendStateTransition->m_ExitBlendAnimation =
                     blendState->m_Animations[exitId];
             }
