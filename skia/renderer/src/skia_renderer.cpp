@@ -7,6 +7,38 @@
 
 using namespace rive;
 
+class SkiaBuffer : public RenderBuffer {
+    const size_t m_ElemSize;
+    void* m_Buffer;
+public:
+    SkiaBuffer(const void* src, size_t count, size_t elemSize)
+        : RenderBuffer(count)
+        , m_ElemSize(elemSize)
+    {
+        size_t bytes = count * elemSize;
+        m_Buffer = malloc(bytes);
+        memcpy(m_Buffer, src, bytes);
+    }
+    
+    ~SkiaBuffer() {
+        free(m_Buffer);
+    }
+
+    const float* f32s() {
+        assert(m_ElemSize == sizeof(float));
+        return static_cast<const float*>(m_Buffer);
+    }
+
+    const uint16_t* u16s() const {
+        assert(m_ElemSize == sizeof(uint16_t));
+        return static_cast<const uint16_t*>(m_Buffer);
+    }
+};
+
+template <typename T> rcp<RenderBuffer> make_buffer(const T src[], size_t count) {
+    return rcp<RenderBuffer>(new SkiaBuffer(src, count, sizeof(T)));
+}
+
 class SkiaRenderShader : public RenderShader {
 public:
     SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}
@@ -114,6 +146,16 @@ rcp<RenderShader> SkiaRenderImage::makeShader(RenderTileMode tx, RenderTileMode 
 }
 
 namespace rive {
+    rcp<RenderBuffer> makeBufferU16(const uint16_t src[], size_t count) {
+        return make_buffer<uint16_t>(src, count);
+    }
+    rcp<RenderBuffer> makeBufferU32(const uint32_t src[], size_t count) {
+        return make_buffer<uint32_t>(src, count);
+    }
+    rcp<RenderBuffer> makeBufferF32(const float src[], size_t count) {
+        return make_buffer<float>(src, count);
+    }
+
     RenderPath* makeRenderPath() { return new SkiaRenderPath(); }
     RenderPaint* makeRenderPaint() { return new SkiaRenderPaint(); }
     RenderImage* makeRenderImage() { return new SkiaRenderImage(); }

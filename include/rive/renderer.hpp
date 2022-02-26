@@ -17,6 +17,19 @@
 namespace rive {
     class Vec2D;
 
+    // A render buffer holds an immutable array of values
+    class RenderBuffer : public RefCnt {
+        const size_t m_Count;
+    public:
+        RenderBuffer(size_t count) : m_Count(count) {}
+
+        size_t count() const { return m_Count; }
+    };
+
+    extern rcp<RenderBuffer> makeBufferU16(const uint16_t[], size_t count);
+    extern rcp<RenderBuffer> makeBufferU32(const uint32_t[], size_t count);
+    extern rcp<RenderBuffer> makeBufferF32(const float[], size_t count);
+
     enum class RenderPaintStyle { stroke, fill };
 
     enum class RenderTileMode {
