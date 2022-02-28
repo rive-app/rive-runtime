@@ -16,6 +16,7 @@ namespace rive {
             switch (typeKey) {
                 case StraightVertexBase::typeKey:
                 case PathVertexBase::typeKey:
+                case VertexBase::typeKey:
                 case ContainerComponentBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;

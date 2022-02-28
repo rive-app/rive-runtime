@@ -17,6 +17,7 @@ namespace rive {
                 case CubicMirroredVertexBase::typeKey:
                 case CubicVertexBase::typeKey:
                 case PathVertexBase::typeKey:
+                case VertexBase::typeKey:
                 case ContainerComponentBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;

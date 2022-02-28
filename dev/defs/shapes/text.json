@@ -1,5 +1,6 @@
 {
   "name": "Text",
+  "runtime": false,
   "key": {
     "int": 110,
     "string": "text"

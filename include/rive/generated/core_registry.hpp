@@ -75,12 +75,15 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
 #include "rive/shapes/clipping_shape.hpp"
+#include "rive/shapes/contour_mesh_vertex.hpp"
 #include "rive/shapes/cubic_asymmetric_vertex.hpp"
 #include "rive/shapes/cubic_detached_vertex.hpp"
 #include "rive/shapes/cubic_mirrored_vertex.hpp"
 #include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/ellipse.hpp"
 #include "rive/shapes/image.hpp"
+#include "rive/shapes/mesh.hpp"
+#include "rive/shapes/mesh_vertex.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/gradient_stop.hpp"
 #include "rive/shapes/paint/linear_gradient.hpp"
@@ -99,6 +102,7 @@
 #include "rive/shapes/star.hpp"
 #include "rive/shapes/straight_vertex.hpp"
 #include "rive/shapes/triangle.hpp"
+#include "rive/shapes/vertex.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/world_transform_component.hpp"
 namespace rive {
@@ -198,14 +202,20 @@ namespace rive {
                     return new TrimPath();
                 case FillBase::typeKey:
                     return new Fill();
+                case MeshVertexBase::typeKey:
+                    return new MeshVertex();
                 case ShapeBase::typeKey:
                     return new Shape();
                 case StraightVertexBase::typeKey:
                     return new StraightVertex();
                 case CubicAsymmetricVertexBase::typeKey:
                     return new CubicAsymmetricVertex();
+                case MeshBase::typeKey:
+                    return new Mesh();
                 case PointsPathBase::typeKey:
                     return new PointsPath();
+                case ContourMeshVertexBase::typeKey:
+                    return new ContourMeshVertex();
                 case RectangleBase::typeKey:
                     return new Rectangle();
                 case CubicMirroredVertexBase::typeKey:
@@ -552,11 +562,17 @@ namespace rive {
                 case TrimPathBase::offsetPropertyKey:
                     object->as<TrimPathBase>()->offset(value);
                     break;
-                case PathVertexBase::xPropertyKey:
-                    object->as<PathVertexBase>()->x(value);
+                case VertexBase::xPropertyKey:
+                    object->as<VertexBase>()->x(value);
                     break;
-                case PathVertexBase::yPropertyKey:
-                    object->as<PathVertexBase>()->y(value);
+                case VertexBase::yPropertyKey:
+                    object->as<VertexBase>()->y(value);
+                    break;
+                case MeshVertexBase::uPropertyKey:
+                    object->as<MeshVertexBase>()->u(value);
+                    break;
+                case MeshVertexBase::vPropertyKey:
+                    object->as<MeshVertexBase>()->v(value);
                     break;
                 case StraightVertexBase::radiusPropertyKey:
                     object->as<StraightVertexBase>()->radius(value);
@@ -768,6 +784,9 @@ namespace rive {
         static void
         setBytes(Core* object, int propertyKey, std::vector<uint8_t> value) {
             switch (propertyKey) {
+                case MeshBase::triangleIndexBytesPropertyKey:
+                    object->as<MeshBase>()->triangleIndexBytes(value);
+                    break;
                 case FileAssetContentsBase::bytesPropertyKey:
                     object->as<FileAssetContentsBase>()->bytes(value);
                     break;
@@ -983,10 +1002,14 @@ namespace rive {
                     return object->as<TrimPathBase>()->end();
                 case TrimPathBase::offsetPropertyKey:
                     return object->as<TrimPathBase>()->offset();
-                case PathVertexBase::xPropertyKey:
-                    return object->as<PathVertexBase>()->x();
-                case PathVertexBase::yPropertyKey:
-                    return object->as<PathVertexBase>()->y();
+                case VertexBase::xPropertyKey:
+                    return object->as<VertexBase>()->x();
+                case VertexBase::yPropertyKey:
+                    return object->as<VertexBase>()->y();
+                case MeshVertexBase::uPropertyKey:
+                    return object->as<MeshVertexBase>()->u();
+                case MeshVertexBase::vPropertyKey:
+                    return object->as<MeshVertexBase>()->v();
                 case StraightVertexBase::radiusPropertyKey:
                     return object->as<StraightVertexBase>()->radius();
                 case CubicAsymmetricVertexBase::rotationPropertyKey:
@@ -1139,6 +1162,8 @@ namespace rive {
         }
         static std::vector<uint8_t> getBytes(Core* object, int propertyKey) {
             switch (propertyKey) {
+                case MeshBase::triangleIndexBytesPropertyKey:
+                    return object->as<MeshBase>()->triangleIndexBytes();
                 case FileAssetContentsBase::bytesPropertyKey:
                     return object->as<FileAssetContentsBase>()->bytes();
             }
@@ -1242,8 +1267,10 @@ namespace rive {
                 case TrimPathBase::startPropertyKey:
                 case TrimPathBase::endPropertyKey:
                 case TrimPathBase::offsetPropertyKey:
-                case PathVertexBase::xPropertyKey:
-                case PathVertexBase::yPropertyKey:
+                case VertexBase::xPropertyKey:
+                case VertexBase::yPropertyKey:
+                case MeshVertexBase::uPropertyKey:
+                case MeshVertexBase::vPropertyKey:
                 case StraightVertexBase::radiusPropertyKey:
                 case CubicAsymmetricVertexBase::rotationPropertyKey:
                 case CubicAsymmetricVertexBase::inDistancePropertyKey:
@@ -1311,6 +1338,7 @@ namespace rive {
                 case SolidColorBase::colorValuePropertyKey:
                 case GradientStopBase::colorValuePropertyKey:
                     return CoreColorType::id;
+                case MeshBase::triangleIndexBytesPropertyKey:
                 case FileAssetContentsBase::bytesPropertyKey:
                     return CoreBytesType::id;
                 default:
