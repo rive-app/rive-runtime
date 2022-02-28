@@ -26,7 +26,8 @@ namespace rive {
         void xChanged() override;
         void yChanged() override;
 
-        void deform(Mat2D& worldTransform, float* boneTransforms) override;
+        void deform(const Mat2D& worldTransform,
+                    const float* boneTransforms) override;
     };
 } // namespace rive
 

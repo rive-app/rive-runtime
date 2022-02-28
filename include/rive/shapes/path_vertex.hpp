@@ -14,7 +14,8 @@ namespace rive {
     public:
         StatusCode onAddedDirty(CoreContext* context) override;
         template <typename T> T* weight() { return m_Weight->as<T>(); }
-        virtual void deform(Mat2D& worldTransform, float* boneTransforms);
+        virtual void deform(const Mat2D& worldTransform,
+                            const float* boneTransforms);
         bool hasWeight() { return m_Weight != nullptr; }
         Vec2D renderTranslation();
 

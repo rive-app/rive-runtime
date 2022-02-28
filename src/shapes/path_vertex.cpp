@@ -34,7 +34,8 @@ void PathVertex::markPathDirty() {
 void PathVertex::xChanged() { markPathDirty(); }
 void PathVertex::yChanged() { markPathDirty(); }
 
-void PathVertex::deform(Mat2D& worldTransform, float* boneTransforms) {
+void PathVertex::deform(const Mat2D& worldTransform,
+                        const float* boneTransforms) {
     Weight::deform(x(),
                    y(),
                    m_Weight->indices(),
