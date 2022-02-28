@@ -30,6 +30,8 @@ class Definition {
   Key _key;
   bool _isAbstract = false;
   bool _editorOnly = false;
+  bool _forRuntime = true;
+  bool get forRuntime => _forRuntime;
   factory Definition(String filename) {
     var definition = definitions[filename];
     if (definition != null) {
@@ -60,6 +62,10 @@ class Definition {
     dynamic nameValue = data['name'];
     if (nameValue is String) {
       _name = nameValue;
+    }
+    dynamic forRuntime = data['runtime'];
+    if (forRuntime is bool) {
+      _forRuntime = forRuntime;
     }
     dynamic abstractValue = data['abstract'];
     if (abstractValue is bool) {
@@ -97,6 +103,9 @@ class Definition {
 
   /// Generates cpp header code based on the Definition
   Future<void> generateCode() async {
+    if (!_forRuntime) {
+      return;
+    }
     bool defineContextExtension = _extensionOf?._name == null;
     StringBuffer code = StringBuffer();
 
@@ -368,7 +377,9 @@ class Definition {
 
     StringBuffer ctxCode = StringBuffer('');
     var includes = <String>{};
-    for (final definition in definitions.values) {
+    var runtimeDefinitions =
+        definitions.values.where((definition) => definition.forRuntime);
+    for (final definition in runtimeDefinitions) {
       includes.add(definition.concreteCodeFilename);
     }
     var includeList = includes.toList()..sort();
@@ -379,7 +390,7 @@ class Definition {
         'public:');
     ctxCode.writeln('static Core* makeCoreInstance(int typeKey) {'
         'switch(typeKey) {');
-    for (final definition in definitions.values) {
+    for (final definition in runtimeDefinitions) {
       if (definition._isAbstract) {
         continue;
       }
@@ -389,7 +400,7 @@ class Definition {
     ctxCode.writeln('} return nullptr; }');
 
     var usedFieldTypes = <FieldType, List<Property>>{};
-    for (final definition in definitions.values) {
+    for (final definition in runtimeDefinitions) {
       for (final property in definition.properties) {
         usedFieldTypes[property.type] ??= [];
         usedFieldTypes[property.type].add(property);
