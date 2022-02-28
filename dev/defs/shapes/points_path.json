@@ -22,6 +22,7 @@
         "int": 74,
         "string": "editingmode"
       },
+      "description": "We use this to track the edit-time state of the PointsPath for the VertexEditor.",
       "runtime": false,
       "coop": false
     }

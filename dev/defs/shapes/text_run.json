@@ -1,0 +1,29 @@
+{
+  "name": "TextRun",
+  "key": {
+    "int": 113,
+    "string": "textrun"
+  },
+  "extends": "drawable.json",
+  "properties": {
+    "pointSize": {
+      "type": "double",
+      "initialValue": "16",
+      "animates": true,
+      "key": {
+        "int": 221,
+        "string": "point_size"
+      },
+      "description": "The point size for text styled by this run."
+    },
+    "textLength": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 222,
+        "string": "text_length"
+      },
+      "description": "The length of the text styled by this run."
+    }
+  }
+}

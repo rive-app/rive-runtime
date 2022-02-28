@@ -5,29 +5,6 @@
     "string": "pathvertex"
   },
   "abstract": true,
-  "extends": "container_component.json",
-  "properties": {
-    "x": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "group": "position",
-      "key": {
-        "int": 24,
-        "string": "x"
-      },
-      "description": "X value for the translation of the vertex."
-    },
-    "y": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "group": "position",
-      "key": {
-        "int": 25,
-        "string": "y"
-      },
-      "description": "Y value for the translation of the vertex."
-    }
-  }
+  "extends": "shapes/vertex.json",
+  "genericPassThrough": "bones/weight.json"
 }
