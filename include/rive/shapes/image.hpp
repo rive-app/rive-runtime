@@ -4,11 +4,15 @@
 #include "rive/assets/file_asset_referencer.hpp"
 namespace rive {
     class ImageAsset;
+    class Mesh;
     class Image : public ImageBase, public FileAssetReferencer {
     private:
         ImageAsset* m_ImageAsset = nullptr;
+        Mesh* m_Mesh = nullptr;
 
     public:
+        Mesh* mesh() const;
+        void setMesh(Mesh* mesh);
         ImageAsset* imageAsset() const { return m_ImageAsset; }
         void draw(Renderer* renderer) override;
         StatusCode import(ImportStack& importStack) override;

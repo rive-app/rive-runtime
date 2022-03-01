@@ -5,6 +5,8 @@
 namespace rive {
     class MeshVertex : public MeshVertexBase {
     public:
+        void markGeometryDirty() override;
+        StatusCode onAddedDirty(CoreContext* context) override;
     };
 } // namespace rive
 

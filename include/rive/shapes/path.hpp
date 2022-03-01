@@ -39,7 +39,6 @@ namespace rive {
     public:
         ~Path();
         Shape* shape() const { return m_Shape; }
-        StatusCode onAddedDirty(CoreContext* context) override;
         StatusCode onAddedClean(CoreContext* context) override;
         void buildDependencies() override;
         virtual const Mat2D& pathTransform() const;

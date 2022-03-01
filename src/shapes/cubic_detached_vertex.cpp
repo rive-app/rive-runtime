@@ -28,17 +28,17 @@ void CubicDetachedVertex::computeOut() {
 
 void CubicDetachedVertex::inRotationChanged() {
     m_InValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }
 void CubicDetachedVertex::inDistanceChanged() {
     m_InValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }
 void CubicDetachedVertex::outRotationChanged() {
     m_OutValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }
 void CubicDetachedVertex::outDistanceChanged() {
     m_OutValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }

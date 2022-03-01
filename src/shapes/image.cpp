@@ -55,3 +55,6 @@ Core* Image::clone() const {
     twin->m_ImageAsset = m_ImageAsset;
     return twin;
 }
+
+void Image::setMesh(Mesh* mesh) { m_Mesh = mesh; }
+Mesh* Image::mesh() const { return m_Mesh; }

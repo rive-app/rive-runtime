@@ -3,13 +3,6 @@
 
 using namespace rive;
 
-Vec2D PathVertex::renderTranslation() {
-    if (hasWeight()) {
-        return m_Weight->translation();
-    }
-    return Vec2D(x(), y());
-}
-
 StatusCode PathVertex::onAddedDirty(CoreContext* context) {
     StatusCode code = Super::onAddedDirty(context);
     if (code != StatusCode::Ok) {
@@ -22,25 +15,11 @@ StatusCode PathVertex::onAddedDirty(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void PathVertex::markPathDirty() {
+void PathVertex::markGeometryDirty() {
     if (parent() == nullptr) {
         // This is an acceptable condition as the parametric paths create points
         // that are not part of the core context.
         return;
     }
     parent()->as<Path>()->markPathDirty();
-}
-
-void PathVertex::xChanged() { markPathDirty(); }
-void PathVertex::yChanged() { markPathDirty(); }
-
-void PathVertex::deform(const Mat2D& worldTransform,
-                        const float* boneTransforms) {
-    Weight::deform(x(),
-                   y(),
-                   m_Weight->indices(),
-                   m_Weight->values(),
-                   worldTransform,
-                   boneTransforms,
-                   m_Weight->translation());
 }

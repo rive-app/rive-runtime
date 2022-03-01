@@ -23,9 +23,9 @@ void CubicMirroredVertex::computeOut() {
 
 void CubicMirroredVertex::rotationChanged() {
     m_InValid = m_OutValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }
 void CubicMirroredVertex::distanceChanged() {
     m_InValid = m_OutValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }

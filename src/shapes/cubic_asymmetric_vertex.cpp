@@ -29,13 +29,13 @@ void CubicAsymmetricVertex::computeOut() {
 void CubicAsymmetricVertex::rotationChanged() {
     m_InValid = false;
     m_OutValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }
 void CubicAsymmetricVertex::inDistanceChanged() {
     m_InValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }
 void CubicAsymmetricVertex::outDistanceChanged() {
     m_OutValid = false;
-    markPathDirty();
+    markGeometryDirty();
 }

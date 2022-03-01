@@ -2,4 +2,4 @@
 
 using namespace rive;
 
-void StraightVertex::radiusChanged() { markPathDirty(); }
+void StraightVertex::radiusChanged() { markGeometryDirty(); }
