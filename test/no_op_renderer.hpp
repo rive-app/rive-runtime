@@ -84,10 +84,15 @@ namespace rive {
         void transform(const Mat2D& transform) override {}
         void drawPath(RenderPath* path, RenderPaint* paint) override {}
         void clipPath(RenderPath* path) override {}
-        void drawImage(RenderImage* image,
+        void drawImage(const RenderImage* image,
                        BlendMode value,
                        float opacity) override {}
-        void drawMesh(const RenderMesh*, const RenderShader*, BlendMode, float) override {}
+        void drawImageMesh(const RenderImage*,
+                           rcp<RenderBuffer> vertices,
+                           rcp<RenderBuffer> uvCoords,
+                           rcp<RenderBuffer> indices,
+                           BlendMode,
+                           float opacity) override {}
     };
 
 } // namespace rive
