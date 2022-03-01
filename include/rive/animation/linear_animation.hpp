@@ -28,6 +28,10 @@ namespace rive {
         float endSeconds() const;
         float durationSeconds() const;
 
+        /// Convert a global clock to local seconds (takes into consideration
+        /// work area start/end, speed, looping).
+        float globalToLocalSeconds(float seconds) const;
+
 #ifdef TESTING
         size_t numKeyedObjects() { return m_KeyedObjects.size(); }
         // Used in testing to check how many animations gets deleted.

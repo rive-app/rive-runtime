@@ -68,3 +68,20 @@ float LinearAnimation::endSeconds() const {
 float LinearAnimation::durationSeconds() const {
     return endSeconds() - startSeconds();
 }
+
+float LinearAnimation::globalToLocalSeconds(float seconds) const {
+    switch (loop()) {
+        case Loop::oneShot:
+            return seconds + startSeconds();
+        case Loop::loop:
+            return std::fmod(seconds, (endSeconds() - startSeconds())) +
+                   startSeconds();
+        case Loop::pingPong:
+            float localTime =
+                std::fmod(seconds, (endSeconds() - startSeconds()));
+            int direction =
+                ((int)(seconds / (endSeconds() - startSeconds()))) % 2;
+            return direction == 0 ? localTime + startSeconds()
+                                  : endSeconds() - localTime;
+    }
+}

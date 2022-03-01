@@ -5,8 +5,9 @@ using namespace rive;
 
 void NestedRemapAnimation::timeChanged() {
     if (m_AnimationInstance != nullptr) {
-        m_AnimationInstance->time(m_AnimationInstance->durationSeconds() *
-                                  time());
+        m_AnimationInstance->time(
+            m_AnimationInstance->animation()->globalToLocalSeconds(
+                m_AnimationInstance->durationSeconds() * time()));
     }
 }
 
