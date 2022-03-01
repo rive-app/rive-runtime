@@ -25,7 +25,7 @@ public:
         free(m_Buffer);
     }
 
-    const float* f32s() {
+    const float* f32s() const {
         assert(m_ElemSize == sizeof(float));
         return static_cast<const float*>(m_Buffer);
     }
@@ -33,6 +33,14 @@ public:
     const uint16_t* u16s() const {
         assert(m_ElemSize == sizeof(uint16_t));
         return static_cast<const uint16_t*>(m_Buffer);
+    }
+    
+    const SkPoint* points() const {
+        return reinterpret_cast<const SkPoint*>(this->f32s());
+    }
+
+    static const SkiaBuffer* Cast(const RenderBuffer* buffer) {
+        return reinterpret_cast<const SkiaBuffer*>(buffer);
     }
 };
 
@@ -45,13 +53,6 @@ public:
     SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}
 
     sk_sp<SkShader> shader;
-};
-
-class SkiaRenderMesh : public RenderMesh {
-public:
-    SkiaRenderMesh(sk_sp<SkVertices> vt) : vertices(std::move(vt)) {}
-
-    sk_sp<SkVertices> vertices;
 };
 
 void SkiaRenderPath::fillRule(FillRule value) {
@@ -123,31 +124,52 @@ void SkiaRenderer::clipPath(RenderPath* path) {
     m_Canvas->clipPath(reinterpret_cast<SkiaRenderPath*>(path)->path(), true);
 }
 
-void SkiaRenderer::drawImage(RenderImage* image,
+void SkiaRenderer::drawImage(const RenderImage* image,
                              BlendMode blendMode,
                              float opacity) {
     SkPaint paint;
     paint.setAlphaf(opacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
-    auto skiaImage = reinterpret_cast<SkiaRenderImage*>(image);
-    SkSamplingOptions samplingOptions(SkFilterMode::kLinear,
-                                      SkMipmapMode::kNone);
-    m_Canvas->drawImage(
-        skiaImage->skImage(), 0.0f, 0.0f, samplingOptions, &paint);
+    auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image);
+    SkSamplingOptions sampling(SkFilterMode::kLinear);
+    m_Canvas->drawImage(skiaImage->skImage(), 0.0f, 0.0f, sampling, &paint);
 }
 
-void SkiaRenderer::drawMesh(const RenderMesh* mesh,
-                            const RenderShader* shader,
-                            BlendMode mode,
-                            float opacity) {
-    auto skmesh = reinterpret_cast<const SkiaRenderMesh*>(mesh);
-    auto skshader = reinterpret_cast<const SkiaRenderShader*>(shader);
+void SkiaRenderer::drawImageMesh(const RenderImage* image,
+                                 rcp<RenderBuffer> vertices,
+                                 rcp<RenderBuffer> uvCoords,
+                                 rcp<RenderBuffer> indices,
+                                 BlendMode blendMode,
+                                 float opacity) {
+    // need our vertices and uvs to agree
+    assert(vertices->count() == uvCoords->count());
+    // vertices and uvs are arrays of floats, so we need their counts to be even,
+    // since we treat them as arrays of points
+    assert((vertices->count() & 1) == 0);
+
+    auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image)->skImage();
+    const SkSamplingOptions sampling(SkFilterMode::kLinear);
+    auto shader = skiaImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp,
+                                        sampling, nullptr);
 
     SkPaint paint;
-    paint.setBlendMode(ToSkia::convert(mode));
     paint.setAlphaf(opacity);
-    paint.setShader(skshader->shader);
-    m_Canvas->drawVertices(skmesh->vertices, SkBlendMode::kModulate, paint);
+    paint.setBlendMode(ToSkia::convert(blendMode));
+    paint.setShader(shader);
+
+    const SkColor* no_colors = nullptr;
+    auto vertexMode = SkVertices::kTriangles_VertexMode;
+    const int vertexCount = vertices->count() >> 1;
+    auto vt = SkVertices::MakeCopy(vertexMode,
+                                   vertexCount,
+                                   SkiaBuffer::Cast(vertices.get())->points(),
+                                   SkiaBuffer::Cast(uvCoords.get())->points(),
+                                   no_colors,
+                                   indices->count(),
+                                   SkiaBuffer::Cast(indices.get())->u16s());
+
+    // The blend mode is ignored if we don't have colors && uvs
+    m_Canvas->drawVertices(vt, SkBlendMode::kModulate, paint);
 }
 
 bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size) {
@@ -216,17 +238,4 @@ namespace rive {
                                              0, &lm);
        return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
    }
-
-    rcp<RenderMesh> makeMesh(int vertexCount, const float vertices[], const float texCoords[],
-                             int indexCount, const uint16_t indices[])
-    {
-        const SkColor* colors = nullptr;
-        auto mode = SkVertices::kTriangles_VertexMode;
-        auto vt = SkVertices::MakeCopy(mode, vertexCount,
-                                       (const SkPoint*)vertices,
-                                       (const SkPoint*)texCoords,
-                                       colors,
-                                       indexCount, indices);
-        return rcp<RenderMesh>(new SkiaRenderMesh(std::move(vt)));
-    }
 } // namespace rive

@@ -117,7 +117,7 @@ namespace rive {
         virtual void transform(const Mat2D& transform) = 0;
         virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
         virtual void clipPath(RenderPath* path) = 0;
-        virtual void drawImage(RenderImage*, BlendMode, float opacity) = 0;
+        virtual void drawImage(const RenderImage*, BlendMode, float opacity) = 0;
         virtual void drawImageMesh(const RenderImage*,
                                    rcp<RenderBuffer> vertices_f32,
                                    rcp<RenderBuffer> uvCoords_f32,
