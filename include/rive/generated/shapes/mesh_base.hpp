@@ -28,31 +28,21 @@ namespace rive {
 
         static const uint16_t triangleIndexBytesPropertyKey = 223;
 
-    private:
-        std::vector<uint8_t> m_TriangleIndexBytes;
-
     public:
-        inline const std::vector<uint8_t>& triangleIndexBytes() const {
-            return m_TriangleIndexBytes;
-        }
-        void triangleIndexBytes(std::vector<uint8_t> value) {
-            if (m_TriangleIndexBytes == value) {
-                return;
-            }
-            m_TriangleIndexBytes = value;
-            triangleIndexBytesChanged();
-        }
+        virtual void decodeTriangleIndexBytes(std::vector<uint8_t> value) = 0;
+        virtual void copyTriangleIndexBytes(const MeshBase& object) = 0;
 
         Core* clone() const override;
         void copy(const MeshBase& object) {
-            m_TriangleIndexBytes = object.m_TriangleIndexBytes;
+            copyTriangleIndexBytes(object);
             ContainerComponent::copy(object);
         }
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
                 case triangleIndexBytesPropertyKey:
-                    m_TriangleIndexBytes = CoreBytesType::deserialize(reader);
+                    decodeTriangleIndexBytes(
+                        CoreBytesType::deserialize(reader));
                     return true;
             }
             return ContainerComponent::deserialize(propertyKey, reader);

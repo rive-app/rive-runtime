@@ -784,9 +784,6 @@ namespace rive {
         static void
         setBytes(Core* object, int propertyKey, std::vector<uint8_t> value) {
             switch (propertyKey) {
-                case MeshBase::triangleIndexBytesPropertyKey:
-                    object->as<MeshBase>()->triangleIndexBytes(value);
-                    break;
                 case FileAssetContentsBase::bytesPropertyKey:
                     object->as<FileAssetContentsBase>()->bytes(value);
                     break;
@@ -1162,8 +1159,6 @@ namespace rive {
         }
         static std::vector<uint8_t> getBytes(Core* object, int propertyKey) {
             switch (propertyKey) {
-                case MeshBase::triangleIndexBytesPropertyKey:
-                    return object->as<MeshBase>()->triangleIndexBytes();
                 case FileAssetContentsBase::bytesPropertyKey:
                     return object->as<FileAssetContentsBase>()->bytes();
             }

@@ -29,6 +29,7 @@
     },
     "triangleIndexBytes": {
       "type": "Bytes",
+      "encoded": true,
       "key": {
         "int": 223,
         "string": "triangleindexbytes"

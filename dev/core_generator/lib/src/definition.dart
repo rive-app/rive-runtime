@@ -165,10 +165,17 @@ class Definition {
         code.writeln('static const uint16_t ${property.name}PropertyKey = '
             '${property.key.intValue};');
       }
-      code.writeln('private:');
+      if (properties.any((prop) => !prop.isEncoded)) {
+        code.writeln('private:');
+      }
 
       // Write fields.
       for (final property in properties) {
+        if (property.isEncoded) {
+          // Encoded properties don't store data, it's up to the implementation
+          // to decode and store what it needs.
+          continue;
+        }
         code.writeln('${property.type.cppName} m_${property.capitalizedName}');
 
         var initialize = property.initialValueRuntime ??
@@ -186,19 +193,37 @@ class Definition {
       // Write getter/setters.
       code.writeln('public:');
       for (final property in properties) {
-        code.writeln((property.isVirtual ? 'virtual' : 'inline') +
-            ' ${property.type.cppGetterName} ${property.name}() const ' +
-            (property.isGetOverride ? 'override' : '') +
-            '{ return m_${property.capitalizedName}; }');
+        if (property.isEncoded) {
+          // Encoded properties just have a pure virtual decoder that needs to
+          // be implemented. Also requires an implemention of copyPropertyName
+          // as that will no longer automatically be copied by the generated
+          // code.
+          code.writeln((property.isSetOverride ? '' : 'virtual ') +
+              'void decode${property.capitalizedName}' +
+              '(${property.type.cppName} value) ' +
+              (property.isSetOverride ? 'override' : '') +
+              '= 0;');
+          code.writeln((property.isSetOverride ? '' : 'virtual ') +
+              'void copy${property.capitalizedName}' +
+              '(const ${_name}Base& object) ' +
+              (property.isSetOverride ? 'override' : '') +
+              '= 0;');
+        } else {
+          code.writeln((property.isVirtual ? 'virtual' : 'inline') +
+              ' ${property.type.cppGetterName} ${property.name}() const ' +
+              (property.isGetOverride ? 'override' : '') +
+              '{ return m_${property.capitalizedName}; }');
 
-        code.writeln('void ${property.name}(${property.type.cppName} value) ' +
-            (property.isSetOverride ? 'override' : '') +
-            '{'
-                'if(m_${property.capitalizedName} == value)'
-                '{return;}'
-                'm_${property.capitalizedName} = value;'
-                '${property.name}Changed();'
-                '}');
+          code.writeln(
+              'void ${property.name}(${property.type.cppName} value) ' +
+                  (property.isSetOverride ? 'override' : '') +
+                  '{'
+                      'if(m_${property.capitalizedName} == value)'
+                      '{return;}'
+                      'm_${property.capitalizedName} = value;'
+                      '${property.name}Changed();'
+                      '}');
+        }
 
         code.writeln();
       }
@@ -211,8 +236,12 @@ class Definition {
     if (properties.isNotEmpty || _extensionOf == null) {
       code.writeln('void copy(const ${_name}Base& object) {');
       for (final property in properties) {
-        code.writeln('m_${property.capitalizedName} = '
-            'object.m_${property.capitalizedName};');
+        if (property.isEncoded) {
+          code.writeln('copy${property.capitalizedName}(object);');
+        } else {
+          code.writeln('m_${property.capitalizedName} = '
+              'object.m_${property.capitalizedName};');
+        }
       }
       if (_extensionOf != null) {
         code.writeln('${_extensionOf.name}::'
@@ -227,8 +256,13 @@ class Definition {
       code.writeln('switch (propertyKey){');
       for (final property in properties) {
         code.writeln('case ${property.name}PropertyKey:');
-        code.writeln('m_${property.capitalizedName} = '
-            '${property.type.runtimeCoreType}::deserialize(reader);');
+        if (property.isEncoded) {
+          code.writeln('decode${property.capitalizedName}'
+              '(${property.type.runtimeCoreType}::deserialize(reader));');
+        } else {
+          code.writeln('m_${property.capitalizedName} = '
+              '${property.type.runtimeCoreType}::deserialize(reader);');
+        }
         code.writeln('return true;');
       }
       code.writeln('}');
@@ -400,18 +434,23 @@ class Definition {
     ctxCode.writeln('} return nullptr; }');
 
     var usedFieldTypes = <FieldType, List<Property>>{};
+    var getSetFieldTypes = <FieldType, List<Property>>{};
     for (final definition in runtimeDefinitions) {
       for (final property in definition.properties) {
         usedFieldTypes[property.type] ??= [];
         usedFieldTypes[property.type].add(property);
+        if (!property.isEncoded) {
+          getSetFieldTypes[property.type] ??= [];
+          getSetFieldTypes[property.type].add(property);
+        }
       }
     }
-    for (final fieldType in usedFieldTypes.keys) {
+    for (final fieldType in getSetFieldTypes.keys) {
       ctxCode
           .writeln('static void set${fieldType.capitalizedName}(Core* object, '
               'int propertyKey, ${fieldType.cppName} value){');
       ctxCode.writeln('switch (propertyKey) {');
-      var properties = usedFieldTypes[fieldType];
+      var properties = getSetFieldTypes[fieldType];
       for (final property in properties) {
         ctxCode.writeln('case ${property.definition.name}Base'
             '::${property.name}PropertyKey:');
@@ -421,12 +460,12 @@ class Definition {
       }
       ctxCode.writeln('}}');
     }
-    for (final fieldType in usedFieldTypes.keys) {
+    for (final fieldType in getSetFieldTypes.keys) {
       ctxCode.writeln(
           'static ${fieldType.cppName} get${fieldType.capitalizedName}('
           'Core* object, int propertyKey){');
       ctxCode.writeln('switch (propertyKey) {');
-      var properties = usedFieldTypes[fieldType];
+      var properties = getSetFieldTypes[fieldType];
       for (final property in properties) {
         ctxCode.writeln('case ${property.definition.name}Base'
             '::${property.name}PropertyKey:');
@@ -451,25 +490,7 @@ class Definition {
     }
 
     ctxCode.writeln('default: return -1;}}');
-    /*Core makeCoreInstance(int typeKey) {
-    switch (typeKey) {
-      case KeyedObjectBase.typeKey:
-        return KeyedObject();
-      case KeyedPropertyBase.typeKey:
-        return KeyedProperty();*/
-    // Put our fields in.
-    // var usedFieldTypes = <FieldType>{};
-    // for (final definition in definitions.values) {
-    //   for (final property in definition.properties) {
-    //     usedFieldTypes.add(property.type);
-    //   }
-    // }
-    // // Find fields we use.
 
-    // for (final fieldType in usedFieldTypes) {
-    //   ctxCode.writeln('static ${fieldType.runtimeCoreType} '
-    //       '${fieldType.uncapitalizedName}Type;');
-    // }
     ctxCode.writeln('};}');
 
     var output = generatedHppPath;

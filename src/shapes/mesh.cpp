@@ -22,3 +22,11 @@ StatusCode Mesh::onAddedDirty(CoreContext* context) {
 
     return StatusCode::Ok;
 }
+
+void Mesh::decodeTriangleIndexBytes(std::vector<uint8_t> value) {
+    // decode the triangle index bytes
+}
+
+void Mesh::copyTriangleIndexBytes(const MeshBase& object) {
+    // copy the triangle indices from object
+}
