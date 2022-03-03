@@ -5,7 +5,10 @@
 
 using namespace rive;
 
-BinaryReader::BinaryReader(uint8_t* bytes, size_t length) :
+BinaryReader::BinaryReader(Span<const uint8_t> span) :
+    BinaryReader(span.begin(), span.size()) {}
+
+BinaryReader::BinaryReader(const uint8_t* bytes, size_t length) :
     m_Position(bytes),
     m_End(bytes + length),
     m_Overflowed(false),
@@ -57,7 +60,7 @@ Span<const uint8_t> BinaryReader::readBytes() {
         return Span<const uint8_t>(m_Position, 0);
     }
 
-    uint8_t* start = m_Position;
+    const uint8_t* start = m_Position;
     m_Position += length;
     return Span<const uint8_t>(start, length);
 }

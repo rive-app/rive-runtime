@@ -1,5 +1,7 @@
 #include "rive/shapes/mesh.hpp"
 #include "rive/shapes/image.hpp"
+#include <limits>
+#include <cassert>
 
 using namespace rive;
 
@@ -25,8 +27,17 @@ StatusCode Mesh::onAddedDirty(CoreContext* context) {
 
 void Mesh::decodeTriangleIndexBytes(Span<const uint8_t> value) {
     // decode the triangle index bytes
+    rcp<IndexBuffer> buffer = rcp<IndexBuffer>(new IndexBuffer());
+
+    BinaryReader reader(value);
+    while (!reader.reachedEnd()) {
+        uint64_t index = reader.readVarUint64();
+        assert(index < std::numeric_limits<uint16_t>::max());
+        buffer->push_back(index);
+    }
+    m_IndexBuffer = buffer;
 }
 
 void Mesh::copyTriangleIndexBytes(const MeshBase& object) {
-    // copy the triangle indices from object
+    m_IndexBuffer = object.as<Mesh>()->m_IndexBuffer;
 }
