@@ -2,7 +2,6 @@
 #define _RIVE_TRANSFORMCOMPONENTS_HPP_
 
 #include "rive/math/vec2d.hpp"
-#include <cstddef>
 
 namespace rive {
     class TransformComponents {

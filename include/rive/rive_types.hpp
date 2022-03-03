@@ -34,7 +34,7 @@
 
 // We really like these headers, so we include them all the time.
 
-#include <assert.h>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 

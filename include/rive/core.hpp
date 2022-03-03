@@ -1,9 +1,9 @@
 #ifndef _RIVE_CORE_HPP_
 #define _RIVE_CORE_HPP_
 
+#include "rive/rive_types.hpp"
 #include "rive/core/binary_reader.hpp"
 #include "rive/status_code.hpp"
-#include <cassert>
 
 namespace rive {
     class CoreContext;

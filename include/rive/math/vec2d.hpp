@@ -1,7 +1,7 @@
 #ifndef _RIVE_VEC2D_HPP_
 #define _RIVE_VEC2D_HPP_
 
-#include <cstddef>
+#include "rive/rive_types.hpp"
 
 namespace rive {
     class Mat2D;
