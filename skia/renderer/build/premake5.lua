@@ -81,7 +81,7 @@ project "rive_skia_renderer"
         symbols "On"
 
     filter "configurations:release"
-        defines {"RELEASE"}
+        defines {"RELEASE", "NDEBUG"}
         optimize "On"
 
 newoption {
