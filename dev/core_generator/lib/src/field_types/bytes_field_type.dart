@@ -10,7 +10,7 @@ class BytesFieldType extends FieldType {
         );
 
   @override
-  String get defaultValue => 'Span<const uint8_t>(nullptr, 0)';
+  String get defaultValue => 'Span()';
 
   @override
   String get cppGetterName => 'Span<const uint8_t>';
