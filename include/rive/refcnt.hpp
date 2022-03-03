@@ -5,7 +5,7 @@
 #ifndef _RIVE_REFCNT_HPP_
 #define _RIVE_REFCNT_HPP_
 
-#include <assert.h>
+#include "rive/rive_types.hpp"
 
 #include <atomic>
 #include <cstddef>
