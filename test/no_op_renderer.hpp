@@ -6,7 +6,7 @@
 namespace rive {
     class NoOpRenderImage : public RenderImage {
     public:
-        bool decode(const uint8_t* bytes, std::size_t size) override {
+        bool decode(Span<const uint8_t>) override {
             return true;
         }
         rcp<RenderShader> makeShader(RenderTileMode, RenderTileMode, const Mat2D*) const override {

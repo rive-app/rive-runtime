@@ -12,7 +12,7 @@ TEST_CASE("span", "[basics]") {
     Span<int> span;
     REQUIRE(span.empty());
     REQUIRE(span.size() == 0);
-    REQUIRE(span.totalBytes() == 0);
+    REQUIRE(span.size_bytes() == 0);
     REQUIRE(span.begin() == span.end());
 
     int array[] = { 0, 1, 2, 3, 4, 5, 6,7 ,8, 9 };
@@ -21,7 +21,7 @@ TEST_CASE("span", "[basics]") {
     REQUIRE(!span.empty());
     REQUIRE(span.data() == array);
     REQUIRE(span.size() == 4);
-    REQUIRE(span.totalBytes() == 4 * sizeof(int));
+    REQUIRE(span.size_bytes() == 4 * sizeof(int));
     REQUIRE(span.begin() + span.size() == span.end());
     
     int counter = 0;

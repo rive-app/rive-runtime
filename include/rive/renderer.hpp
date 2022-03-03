@@ -5,6 +5,7 @@
 #include "rive/command_path.hpp"
 #include "rive/layout.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -26,9 +27,9 @@ namespace rive {
         size_t count() const { return m_Count; }
     };
 
-    extern rcp<RenderBuffer> makeBufferU16(const uint16_t[], size_t count);
-    extern rcp<RenderBuffer> makeBufferU32(const uint32_t[], size_t count);
-    extern rcp<RenderBuffer> makeBufferF32(const float[], size_t count);
+    extern rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>);
+    extern rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>);
+    extern rcp<RenderBuffer> makeBufferF32(Span<const float>);
 
     enum class RenderPaintStyle { stroke, fill };
 
@@ -90,7 +91,7 @@ namespace rive {
 
     public:
         virtual ~RenderImage() {}
-        virtual bool decode(const uint8_t* bytes, std::size_t size) = 0;
+        virtual bool decode(Span<const uint8_t>) = 0;
         int width() const { return m_Width; }
         int height() const { return m_Height; }
         

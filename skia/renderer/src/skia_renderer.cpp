@@ -44,8 +44,8 @@ public:
     }
 };
 
-template <typename T> rcp<RenderBuffer> make_buffer(const T src[], size_t count) {
-    return rcp<RenderBuffer>(new SkiaBuffer(src, count, sizeof(T)));
+template <typename T> rcp<RenderBuffer> make_buffer(Span<T> span) {
+    return rcp<RenderBuffer>(new SkiaBuffer(span.data(), span.size(), sizeof(T)));
 }
 
 class SkiaRenderShader : public RenderShader {
@@ -172,9 +172,10 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     m_Canvas->drawVertices(vt, SkBlendMode::kModulate, paint);
 }
 
-bool SkiaRenderImage::decode(const uint8_t* bytes, std::size_t size) {
+bool SkiaRenderImage::decode(Span<const uint8_t> encodedData) {
 
-    sk_sp<SkData> data = SkData::MakeWithoutCopy(bytes, size);
+    sk_sp<SkData> data = SkData::MakeWithoutCopy(encodedData.data(),
+                                                 encodedData.size());
     m_SkImage = SkImage::MakeFromEncoded(data);
     m_Width = m_SkImage->width();
     m_Height = m_SkImage->height();
@@ -191,13 +192,13 @@ rcp<RenderShader> SkiaRenderImage::makeShader(RenderTileMode tx, RenderTileMode 
 
 namespace rive {
     rcp<RenderBuffer> makeBufferU16(const uint16_t src[], size_t count) {
-        return make_buffer<uint16_t>(src, count);
+        return make_buffer(Span{src, count});
     }
     rcp<RenderBuffer> makeBufferU32(const uint32_t src[], size_t count) {
-        return make_buffer<uint32_t>(src, count);
+        return make_buffer(Span{src, count});
     }
     rcp<RenderBuffer> makeBufferF32(const float src[], size_t count) {
-        return make_buffer<float>(src, count);
+        return make_buffer(Span{src, count});
     }
 
     RenderPath* makeRenderPath() { return new SkiaRenderPath(); }

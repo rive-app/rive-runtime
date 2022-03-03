@@ -42,7 +42,14 @@ public:
     constexpr T& front() const { return (*this)[0]; }
     constexpr T& back()  const { return (*this)[m_Size-1]; }
 
-    constexpr size_t totalBytes() const { return m_Size * sizeof(T); }
+    // returns byte-size of the entire span
+    constexpr size_t size_bytes() const { return m_Size * sizeof(T); }
+
+    constexpr int count() const {
+        const int n = static_cast<int>(m_Size);
+        assert(n >= 0);
+        return n;
+    }
 
     constexpr Span<T> subset(size_t offset, size_t size) const {
         assert(offset <= m_Size);
