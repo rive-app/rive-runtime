@@ -11,7 +11,7 @@ namespace rive {
     public:
         const std::vector<uint8_t>& bytes() const;
         StatusCode import(ImportStack& importStack) override;
-        void decodeBytes(Span<uint8_t> value) override;
+        void decodeBytes(const Span<uint8_t>& value) override;
         void copyBytes(const FileAssetContentsBase& object) override;
     };
 } // namespace rive

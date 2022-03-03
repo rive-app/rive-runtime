@@ -23,7 +23,7 @@ StatusCode Mesh::onAddedDirty(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void Mesh::decodeTriangleIndexBytes(Span<uint8_t> value) {
+void Mesh::decodeTriangleIndexBytes(const Span<uint8_t>& value) {
     // decode the triangle index bytes
 }
 

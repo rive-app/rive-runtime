@@ -27,7 +27,7 @@ namespace rive {
         static const uint16_t bytesPropertyKey = 212;
 
     public:
-        virtual void decodeBytes(Span<uint8_t> value) = 0;
+        virtual void decodeBytes(const Span<uint8_t>& value) = 0;
         virtual void copyBytes(const FileAssetContentsBase& object) = 0;
 
         Core* clone() const override;

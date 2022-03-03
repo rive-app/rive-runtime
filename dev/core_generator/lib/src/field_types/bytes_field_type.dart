@@ -5,7 +5,7 @@ class BytesFieldType extends FieldType {
       : super(
           'Bytes',
           'CoreBytesType',
-          cppName: 'Span<uint8_t>',
+          cppName: 'const Span<uint8_t>&',
           include: 'rive/span.hpp',
         );
 
