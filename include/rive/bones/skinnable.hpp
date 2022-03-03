@@ -1,6 +1,8 @@
 #ifndef _RIVE_SKINNABLE_HPP_
 #define _RIVE_SKINNABLE_HPP_
 
+#include "rive/rive_types.hpp"
+
 namespace rive {
     class Skin;
     class Component;

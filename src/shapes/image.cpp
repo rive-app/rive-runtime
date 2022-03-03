@@ -3,6 +3,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/shapes/mesh.hpp"
 
 using namespace rive;
 
@@ -24,7 +25,11 @@ void Image::draw(Renderer* renderer) {
     renderer->transform(worldTransform());
     renderer->translate(-width / 2.0f, -height / 2.0f);
 
-    renderer->drawImage(renderImage, blendMode(), renderOpacity());
+    if (m_Mesh != nullptr) {
+        m_Mesh->draw(renderer, renderImage, blendMode(), renderOpacity());
+    } else {
+        renderer->drawImage(renderImage, blendMode(), renderOpacity());
+    }
 
     renderer->restore();
 }

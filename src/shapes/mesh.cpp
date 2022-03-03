@@ -1,13 +1,11 @@
 #include "rive/shapes/mesh.hpp"
 #include "rive/shapes/image.hpp"
+#include "rive/shapes/mesh_vertex.hpp"
 #include <limits>
-#include <cassert>
 
 using namespace rive;
 
-void Mesh::markDrawableDirty() {
-    // TODO: add dirty for rebuilding vertex buffer (including deform).
-}
+void Mesh::markDrawableDirty() { m_VertexRenderBuffer = nullptr; }
 
 void Mesh::addVertex(MeshVertex* vertex) { m_Vertices.push_back(vertex); }
 
@@ -28,6 +26,11 @@ StatusCode Mesh::onAddedDirty(CoreContext* context) {
 }
 
 StatusCode Mesh::onAddedClean(CoreContext* context) {
+    // Make sure Core found indices in the file for this Mesh.
+    if (m_IndexBuffer == nullptr) {
+        return StatusCode::InvalidObject;
+    }
+
     // Check the indices are all in range. We should consider having a better
     // error reporting system to the implementor.
     for (auto index : *m_IndexBuffer) {
@@ -53,4 +56,50 @@ void Mesh::decodeTriangleIndexBytes(Span<const uint8_t> value) {
 
 void Mesh::copyTriangleIndexBytes(const MeshBase& object) {
     m_IndexBuffer = object.as<Mesh>()->m_IndexBuffer;
+}
+
+void Mesh::markSkinDirty() {}
+
+void Mesh::buildDependencies() {
+    Super::buildDependencies();
+
+    // TODO: This logic really needs to move to a "intializeGraphics/Renderer"
+    // method that is passed a reference to the Renderer.
+
+    // TODO: if this is an instance, share the index and uv buffer from the
+    // source. Consider storing an m_SourceMesh.
+
+    std::vector<float> uv = std::vector<float>(m_Vertices.size() * 2);
+    std::size_t index = 0;
+
+    for (auto vertex : m_Vertices) {
+        uv[index++] = vertex->u();
+        uv[index++] = vertex->v();
+    }
+    m_UVRenderBuffer = makeBufferF32(uv.data(), uv.size());
+    m_IndexRenderBuffer =
+        makeBufferU16(m_IndexBuffer->data(), m_IndexBuffer->size());
+}
+
+void Mesh::draw(Renderer* renderer,
+                const RenderImage* image,
+                BlendMode blendMode,
+                float opacity) {
+    if (m_VertexRenderBuffer == nullptr) {
+
+        std::vector<float> vertices = std::vector<float>(m_Vertices.size() * 2);
+        std::size_t index = 0;
+        for (auto vertex : m_Vertices) {
+            vertices[index++] = vertex->x();
+            vertices[index++] = vertex->y();
+        }
+        m_VertexRenderBuffer = makeBufferF32(vertices.data(), vertices.size());
+    }
+
+    renderer->drawImageMesh(image,
+                            m_VertexRenderBuffer,
+                            m_UVRenderBuffer,
+                            m_IndexRenderBuffer,
+                            blendMode,
+                            opacity);
 }

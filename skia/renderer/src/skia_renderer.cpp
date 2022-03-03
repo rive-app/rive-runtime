@@ -11,19 +11,16 @@ using namespace rive;
 class SkiaBuffer : public RenderBuffer {
     const size_t m_ElemSize;
     void* m_Buffer;
+
 public:
-    SkiaBuffer(const void* src, size_t count, size_t elemSize)
-        : RenderBuffer(count)
-        , m_ElemSize(elemSize)
-    {
+    SkiaBuffer(const void* src, size_t count, size_t elemSize) :
+        RenderBuffer(count), m_ElemSize(elemSize) {
         size_t bytes = count * elemSize;
         m_Buffer = malloc(bytes);
         memcpy(m_Buffer, src, bytes);
     }
-    
-    ~SkiaBuffer() {
-        free(m_Buffer);
-    }
+
+    ~SkiaBuffer() { free(m_Buffer); }
 
     const float* f32s() const {
         assert(m_ElemSize == sizeof(float));
@@ -34,7 +31,7 @@ public:
         assert(m_ElemSize == sizeof(uint16_t));
         return static_cast<const uint16_t*>(m_Buffer);
     }
-    
+
     const SkPoint* points() const {
         return reinterpret_cast<const SkPoint*>(this->f32s());
     }
@@ -45,7 +42,8 @@ public:
 };
 
 template <typename T> rcp<RenderBuffer> make_buffer(Span<T> span) {
-    return rcp<RenderBuffer>(new SkiaBuffer(span.data(), span.size(), sizeof(T)));
+    return rcp<RenderBuffer>(
+        new SkiaBuffer(span.data(), span.size(), sizeof(T)));
 }
 
 class SkiaRenderShader : public RenderShader {
@@ -143,20 +141,21 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
                                  float opacity) {
     // need our vertices and uvs to agree
     assert(vertices->count() == uvCoords->count());
-    // vertices and uvs are arrays of floats, so we need their counts to be even,
-    // since we treat them as arrays of points
+    // vertices and uvs are arrays of floats, so we need their counts to be
+    // even, since we treat them as arrays of points
     assert((vertices->count() & 1) == 0);
 
     // We do this because our UVs are normalized, but Skia expects them to be
     // sized to the shader (i.e. 0..width, 0..height).
     // To accomdate this, we effectively scaling the image down to 0..1 to
     // match the scale of the UVs.
-    const auto scale = SkMatrix::Scale(1.0f/image->width(), 1.0f/image->height());
+    const auto scale =
+        SkMatrix::Scale(1.0f / image->width(), 1.0f / image->height());
 
     auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image)->skImage();
     const SkSamplingOptions sampling(SkFilterMode::kLinear);
-    auto shader = skiaImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp,
-                                        sampling, &scale);
+    auto shader = skiaImage->makeShader(
+        SkTileMode::kClamp, SkTileMode::kClamp, sampling, &scale);
 
     SkPaint paint;
     paint.setAlphaf(opacity);
@@ -166,6 +165,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     const SkColor* no_colors = nullptr;
     auto vertexMode = SkVertices::kTriangles_VertexMode;
     const int vertexCount = vertices->count() >> 1;
+    // clang-format off
     auto vt = SkVertices::MakeCopy(vertexMode,
                                    vertexCount,
                                    SkiaBuffer::Cast(vertices.get())->points(),
@@ -173,6 +173,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
                                    no_colors,
                                    indices->count(),
                                    SkiaBuffer::Cast(indices.get())->u16s());
+    // clang-format on
 
     // The blend mode is ignored if we don't have colors && uvs
     m_Canvas->drawVertices(vt, SkBlendMode::kModulate, paint);
@@ -180,19 +181,22 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
 
 bool SkiaRenderImage::decode(Span<const uint8_t> encodedData) {
 
-    sk_sp<SkData> data = SkData::MakeWithoutCopy(encodedData.data(),
-                                                 encodedData.size());
+    sk_sp<SkData> data =
+        SkData::MakeWithoutCopy(encodedData.data(), encodedData.size());
     m_SkImage = SkImage::MakeFromEncoded(data);
     m_Width = m_SkImage->width();
     m_Height = m_SkImage->height();
     return true;
 }
 
-rcp<RenderShader> SkiaRenderImage::makeShader(RenderTileMode tx, RenderTileMode ty,
+rcp<RenderShader> SkiaRenderImage::makeShader(RenderTileMode tx,
+                                              RenderTileMode ty,
                                               const Mat2D* localMatrix) const {
-    const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
+    const SkMatrix lm =
+        localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
     const SkSamplingOptions options(SkFilterMode::kLinear);
-    auto sh = m_SkImage->makeShader(ToSkia::convert(tx), ToSkia::convert(ty), options, &lm);
+    auto sh = m_SkImage->makeShader(
+        ToSkia::convert(tx), ToSkia::convert(ty), options, &lm);
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 
@@ -211,38 +215,57 @@ namespace rive {
     RenderPaint* makeRenderPaint() { return new SkiaRenderPaint(); }
     RenderImage* makeRenderImage() { return new SkiaRenderImage(); }
 
-    rcp<RenderShader> makeLinearGradient(float sx, float sy, float ex, float ey,
-                                         const ColorInt colors[], const float stops[],
-                                         int count, RenderTileMode mode,
-                                         const Mat2D* localm)
-    {
-        const SkPoint pts[] = { {sx, sy}, {ex, ey} };
+    rcp<RenderShader> makeLinearGradient(float sx,
+                                         float sy,
+                                         float ex,
+                                         float ey,
+                                         const ColorInt colors[],
+                                         const float stops[],
+                                         int count,
+                                         RenderTileMode mode,
+                                         const Mat2D* localm) {
+        const SkPoint pts[] = {{sx, sy}, {ex, ey}};
         const SkMatrix lm = localm ? ToSkia::convert(*localm) : SkMatrix();
-        auto sh = SkGradientShader::MakeLinear(pts, (const SkColor*)colors, stops, count,
-                                               ToSkia::convert(mode), 0, &lm);
+        auto sh = SkGradientShader::MakeLinear(pts,
+                                               (const SkColor*)colors,
+                                               stops,
+                                               count,
+                                               ToSkia::convert(mode),
+                                               0,
+                                               &lm);
         return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
     }
 
-    rcp<RenderShader> makeRadialGradient(float cx, float cy, float radius,
-                                         const ColorInt colors[], const float stops[],
-                                         int count, RenderTileMode mode,
-                                         const Mat2D* localm)
-    {
+    rcp<RenderShader> makeRadialGradient(float cx,
+                                         float cy,
+                                         float radius,
+                                         const ColorInt colors[],
+                                         const float stops[],
+                                         int count,
+                                         RenderTileMode mode,
+                                         const Mat2D* localm) {
         const SkMatrix lm = localm ? ToSkia::convert(*localm) : SkMatrix();
-        auto sh = SkGradientShader::MakeRadial({cx, cy}, radius,
-                                               (const SkColor*)colors, stops, count,
-                                               ToSkia::convert(mode), 0, &lm);
+        auto sh = SkGradientShader::MakeRadial({cx, cy},
+                                               radius,
+                                               (const SkColor*)colors,
+                                               stops,
+                                               count,
+                                               ToSkia::convert(mode),
+                                               0,
+                                               &lm);
         return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
     }
 
-    rcp<RenderShader> makeSweepGradient(float cx, float cy,
-                                        const ColorInt colors[], const float stops[],
-                                        int count, RenderTileMode mode,
-                                        const Mat2D* localm)
-   {
-       const SkMatrix lm = localm ? ToSkia::convert(*localm) : SkMatrix();
-       auto sh = SkGradientShader::MakeSweep(cx, cy, (const SkColor*)colors, stops, count,
-                                             0, &lm);
-       return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
-   }
+    rcp<RenderShader> makeSweepGradient(float cx,
+                                        float cy,
+                                        const ColorInt colors[],
+                                        const float stops[],
+                                        int count,
+                                        RenderTileMode mode,
+                                        const Mat2D* localm) {
+        const SkMatrix lm = localm ? ToSkia::convert(*localm) : SkMatrix();
+        auto sh = SkGradientShader::MakeSweep(
+            cx, cy, (const SkColor*)colors, stops, count, 0, &lm);
+        return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
+    }
 } // namespace rive
