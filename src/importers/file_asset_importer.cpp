@@ -2,6 +2,8 @@
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/file_asset_resolver.hpp"
+#include "rive/span.hpp"
+#include <cstdint>
 
 using namespace rive;
 
@@ -10,8 +12,8 @@ FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
     m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver) {}
 
 void FileAssetImporter::loadContents(const FileAssetContents& contents) {
-    const std::vector<uint8_t>& data = contents.bytes();
-    if (m_FileAsset->decode(&data[0], data.size())) {
+    Span<const uint8_t> data = contents.bytes();
+    if (m_FileAsset->decode(data.begin(), data.size())) {
         m_LoadedContents = true;
     }
 }

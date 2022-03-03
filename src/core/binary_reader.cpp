@@ -51,15 +51,15 @@ std::string BinaryReader::readString() {
     return std::string(rawValue.data(), length);
 }
 
-Span<uint8_t> BinaryReader::readBytes() {
+Span<const uint8_t> BinaryReader::readBytes() {
     uint64_t length = readVarUint64();
     if (didOverflow()) {
-        return Span<uint8_t>(m_Position, 0);
+        return Span<const uint8_t>(m_Position, 0);
     }
 
     uint8_t* start = m_Position;
     m_Position += length;
-    return Span<uint8_t>(start, length);
+    return Span<const uint8_t>(start, length);
 }
 
 double BinaryReader::readFloat64() {

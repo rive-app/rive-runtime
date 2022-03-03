@@ -9,7 +9,7 @@ namespace rive {
     class CoreBytesType {
     public:
         static const int id = 1;
-        static Span<uint8_t> deserialize(BinaryReader& reader);
+        static Span<const uint8_t> deserialize(BinaryReader& reader);
     };
 } // namespace rive
 #endif

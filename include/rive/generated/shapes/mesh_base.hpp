@@ -29,7 +29,7 @@ namespace rive {
         static const uint16_t triangleIndexBytesPropertyKey = 223;
 
     public:
-        virtual void decodeTriangleIndexBytes(const Span<uint8_t>& value) = 0;
+        virtual void decodeTriangleIndexBytes(Span<const uint8_t> value) = 0;
         virtual void copyTriangleIndexBytes(const MeshBase& object) = 0;
 
         Core* clone() const override;

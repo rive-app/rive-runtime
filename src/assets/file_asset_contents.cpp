@@ -15,7 +15,7 @@ StatusCode FileAssetContents::import(ImportStack& importStack) {
     return Super::import(importStack);
 }
 
-void FileAssetContents::decodeBytes(const Span<uint8_t>& value) {
+void FileAssetContents::decodeBytes(Span<const uint8_t> value) {
     m_Bytes = std::vector(value.begin(), value.end());
 }
 
@@ -24,4 +24,6 @@ void FileAssetContents::copyBytes(const FileAssetContentsBase& object) {
     assert(false);
 }
 
-const std::vector<uint8_t>& FileAssetContents::bytes() const { return m_Bytes; }
+const Span<const uint8_t> FileAssetContents::bytes() const {
+    return Span<const uint8_t>(&m_Bytes[0], m_Bytes.size());
+}

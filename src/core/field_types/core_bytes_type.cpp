@@ -3,6 +3,6 @@
 
 using namespace rive;
 
-Span<uint8_t> CoreBytesType::deserialize(BinaryReader& reader) {
+Span<const uint8_t> CoreBytesType::deserialize(BinaryReader& reader) {
     return reader.readBytes();
 }
