@@ -20,9 +20,22 @@ StatusCode Mesh::onAddedDirty(CoreContext* context) {
     if (!parent()->is<Image>()) {
         return StatusCode::MissingObject;
     }
+
+    // All good, tell the image it has a mesh.
     parent()->as<Image>()->setMesh(this);
 
     return StatusCode::Ok;
+}
+
+StatusCode Mesh::onAddedClean(CoreContext* context) {
+    // Check the indices are all in range. We should consider having a better
+    // error reporting system to the implementor.
+    for (auto index : *m_IndexBuffer) {
+        if (index >= m_Vertices.size()) {
+            return StatusCode::InvalidObject;
+        }
+    }
+    return Super::onAddedClean(context);
 }
 
 void Mesh::decodeTriangleIndexBytes(Span<const uint8_t> value) {

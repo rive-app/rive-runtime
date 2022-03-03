@@ -16,6 +16,7 @@ namespace rive {
 
     public:
         StatusCode onAddedDirty(CoreContext* context) override;
+        StatusCode onAddedClean(CoreContext* context) override;
         void markDrawableDirty();
         void addVertex(MeshVertex* vertex);
         void decodeTriangleIndexBytes(Span<const uint8_t> value) override;
