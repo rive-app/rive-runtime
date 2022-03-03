@@ -197,14 +197,14 @@ rcp<RenderShader> SkiaRenderImage::makeShader(RenderTileMode tx, RenderTileMode 
 }
 
 namespace rive {
-    rcp<RenderBuffer> makeBufferU16(const uint16_t src[], size_t count) {
-        return make_buffer(Span{src, count});
+    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t> data) {
+        return make_buffer(data);
     }
-    rcp<RenderBuffer> makeBufferU32(const uint32_t src[], size_t count) {
-        return make_buffer(Span{src, count});
+    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t> data) {
+        return make_buffer(data);
     }
-    rcp<RenderBuffer> makeBufferF32(const float src[], size_t count) {
-        return make_buffer(Span{src, count});
+    rcp<RenderBuffer> makeBufferF32(Span<const float> data) {
+        return make_buffer(data);
     }
 
     RenderPath* makeRenderPath() { return new SkiaRenderPath(); }
