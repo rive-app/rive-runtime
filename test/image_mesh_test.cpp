@@ -62,4 +62,8 @@ TEST_CASE("duplicating a mesh shares the indices", "[mesh]") {
     // Important part, make sure they're all actually the same reference.
     REQUIRE(tape1->mesh()->indices() == tape2->mesh()->indices());
     REQUIRE(tape2->mesh()->indices() == tape3->mesh()->indices());
+
+    delete instance1;
+    delete instance2;
+    delete instance3;
 }
