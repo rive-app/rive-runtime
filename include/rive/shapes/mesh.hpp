@@ -28,6 +28,7 @@ namespace rive {
         void decodeTriangleIndexBytes(Span<const uint8_t> value) override;
         void copyTriangleIndexBytes(const MeshBase& object) override;
         void buildDependencies() override;
+        void update(ComponentDirt value) override;
         void draw(Renderer* renderer,
                   const RenderImage* image,
                   BlendMode blendMode,
@@ -35,6 +36,7 @@ namespace rive {
 
         void updateVertexRenderBuffer(Renderer* renderer);
         void markSkinDirty() override;
+
 #ifdef TESTING
         std::vector<MeshVertex*>& vertices() { return m_Vertices; }
         rcp<IndexBuffer> indices() { return m_IndexBuffer; }

@@ -18,6 +18,9 @@ namespace rive {
         /// Path is dirty and needs to be rebuilt.
         Path = 1 << 3,
 
+        /// Skin needs to recompute bone transformations.
+        Skin = 1 << 3,
+
         /// Vertices have changed, re-order cached lists.
         Vertices = 1 << 4,
 

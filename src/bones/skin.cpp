@@ -2,6 +2,7 @@
 #include "rive/bones/bone.hpp"
 #include "rive/bones/skinnable.hpp"
 #include "rive/bones/tendon.hpp"
+#include "rive/shapes/vertex.hpp"
 #include "rive/shapes/path_vertex.hpp"
 #include "rive/constraints/constraint.hpp"
 
@@ -63,7 +64,7 @@ void Skin::buildDependencies() {
     m_BoneTransforms[5] = 0;
 }
 
-void Skin::deform(std::vector<PathVertex*>& vertices) {
+void Skin::deform(Span<Vertex*> vertices) {
     for (auto vertex : vertices) {
         vertex->deform(m_WorldTransform, m_BoneTransforms);
     }

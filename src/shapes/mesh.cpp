@@ -1,11 +1,20 @@
 #include "rive/shapes/mesh.hpp"
 #include "rive/shapes/image.hpp"
+#include "rive/shapes/vertex.hpp"
 #include "rive/shapes/mesh_vertex.hpp"
+#include "rive/bones/skin.hpp"
+#include "rive/span.hpp"
 #include <limits>
 
 using namespace rive;
 
-void Mesh::markDrawableDirty() { m_VertexRenderBuffer = nullptr; }
+/// Called whenever a vertex moves (x/y change).
+void Mesh::markDrawableDirty() {
+    if (skin() != nullptr) {
+        skin()->addDirt(ComponentDirt::Skin);
+    }
+    addDirt(ComponentDirt::Vertices);
+}
 
 void Mesh::addVertex(MeshVertex* vertex) { m_Vertices.push_back(vertex); }
 
@@ -58,10 +67,15 @@ void Mesh::copyTriangleIndexBytes(const MeshBase& object) {
     m_IndexBuffer = object.as<Mesh>()->m_IndexBuffer;
 }
 
-void Mesh::markSkinDirty() {}
+/// Called whenever a bone moves that is connected to the skin.
+void Mesh::markSkinDirty() { addDirt(ComponentDirt::Vertices); }
 
 void Mesh::buildDependencies() {
     Super::buildDependencies();
+    if (skin() != nullptr) {
+        skin()->addDependent(this);
+    }
+    parent()->addDependent(this);
 
     // TODO: This logic really needs to move to a "intializeGraphics/Renderer"
     // method that is passed a reference to the Renderer.
@@ -81,6 +95,17 @@ void Mesh::buildDependencies() {
         makeBufferU16(m_IndexBuffer->data(), m_IndexBuffer->size());
 }
 
+void Mesh::update(ComponentDirt value) {
+    if (hasDirt(value, ComponentDirt::Vertices)) {
+        if (skin() != nullptr) {
+            skin()->deform(
+                Span((Vertex**)m_Vertices.data(), m_Vertices.size()));
+        }
+        m_VertexRenderBuffer = nullptr;
+    }
+    Super::update(value);
+}
+
 void Mesh::draw(Renderer* renderer,
                 const RenderImage* image,
                 BlendMode blendMode,
@@ -90,12 +115,17 @@ void Mesh::draw(Renderer* renderer,
         std::vector<float> vertices = std::vector<float>(m_Vertices.size() * 2);
         std::size_t index = 0;
         for (auto vertex : m_Vertices) {
-            vertices[index++] = vertex->x();
-            vertices[index++] = vertex->y();
+            auto translation = vertex->renderTranslation();
+            vertices[index++] = translation[0];
+            vertices[index++] = translation[1];
         }
         m_VertexRenderBuffer = makeBufferF32(vertices.data(), vertices.size());
     }
 
+    if (skin() == nullptr) {
+        renderer->transform(
+            parent()->as<WorldTransformComponent>()->worldTransform());
+    }
     renderer->drawImageMesh(image,
                             m_VertexRenderBuffer,
                             m_UVRenderBuffer,

@@ -22,12 +22,11 @@ void Image::draw(Renderer* renderer) {
     auto width = renderImage->width();
     auto height = renderImage->height();
 
-    renderer->transform(worldTransform());
-    renderer->translate(-width / 2.0f, -height / 2.0f);
-
     if (m_Mesh != nullptr) {
         m_Mesh->draw(renderer, renderImage, blendMode(), renderOpacity());
     } else {
+        renderer->transform(worldTransform());
+        renderer->translate(-width / 2.0f, -height / 2.0f);
         renderer->drawImage(renderImage, blendMode(), renderOpacity());
     }
 

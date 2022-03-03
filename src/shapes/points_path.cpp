@@ -1,5 +1,8 @@
 #include "rive/shapes/points_path.hpp"
+#include "rive/shapes/vertex.hpp"
+#include "rive/shapes/path_vertex.hpp"
 #include "rive/bones/skin.hpp"
+#include "rive/span.hpp"
 
 using namespace rive;
 
@@ -20,14 +23,14 @@ const Mat2D& PointsPath::pathTransform() const {
 
 void PointsPath::update(ComponentDirt value) {
     if (hasDirt(value, ComponentDirt::Path) && skin() != nullptr) {
-        skin()->deform(m_Vertices);
+        skin()->deform(Span((Vertex**)m_Vertices.data(), m_Vertices.size()));
     }
     Super::update(value);
 }
 
 void PointsPath::markPathDirty() {
     if (skin() != nullptr) {
-        skin()->addDirt(ComponentDirt::Path);
+        skin()->addDirt(ComponentDirt::Skin);
     }
     Super::markPathDirty();
 }

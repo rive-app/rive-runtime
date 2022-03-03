@@ -2,12 +2,13 @@
 #define _RIVE_SKIN_HPP_
 #include "rive/generated/bones/skin_base.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/span.hpp"
 #include <stdio.h>
 #include <vector>
 
 namespace rive {
     class Tendon;
-    class PathVertex;
+    class Vertex;
     class Skinnable;
 
     class Skin : public SkinBase {
@@ -28,7 +29,7 @@ namespace rive {
     public:
         StatusCode onAddedClean(CoreContext* context) override;
         void buildDependencies() override;
-        void deform(std::vector<PathVertex*>& vertices);
+        void deform(Span<Vertex*> vertices);
         void onDirty(ComponentDirt dirt) override;
         void update(ComponentDirt value) override;
 

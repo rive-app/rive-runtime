@@ -1,6 +1,6 @@
 #include "rive/bones/weight.hpp"
 #include "rive/container_component.hpp"
-#include "rive/shapes/path_vertex.hpp"
+#include "rive/shapes/vertex.hpp"
 
 using namespace rive;
 
@@ -9,11 +9,11 @@ StatusCode Weight::onAddedDirty(CoreContext* context) {
     if (code != StatusCode::Ok) {
         return code;
     }
-    if (!parent()->is<PathVertex>()) {
+    if (!parent()->is<Vertex>()) {
         return StatusCode::MissingObject;
     }
 
-    parent()->as<PathVertex>()->weight(this);
+    parent()->as<Vertex>()->weight(this);
 
     return StatusCode::Ok;
 }
