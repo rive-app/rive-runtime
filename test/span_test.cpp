@@ -9,9 +9,9 @@
 using namespace rive;
 
 namespace {
-class baseclass {};
-class subclass : public baseclass {};
-}
+    class baseclass {};
+    class subclass : public baseclass {};
+} // namespace
 
 static void function(Span<int> span) {}
 static void function(Span<baseclass*> span) {}
@@ -24,15 +24,15 @@ TEST_CASE("basics", "[span]") {
     REQUIRE(span.size_bytes() == 0);
     REQUIRE(span.begin() == span.end());
 
-    int array[] = { 0, 1, 2, 3, 4, 5, 6,7 ,8, 9 };
+    int array[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-    span = { array, 4 };
+    span = {array, 4};
     REQUIRE(!span.empty());
     REQUIRE(span.data() == array);
     REQUIRE(span.size() == 4);
     REQUIRE(span.size_bytes() == 4 * sizeof(int));
     REQUIRE(span.begin() + span.size() == span.end());
-    
+
     int counter = 0;
     int sum = 0;
     for (auto s : span) {

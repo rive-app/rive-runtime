@@ -90,9 +90,9 @@ void Mesh::buildDependencies() {
         uv[index++] = vertex->u();
         uv[index++] = vertex->v();
     }
-    m_UVRenderBuffer = makeBufferF32(uv.data(), uv.size());
-    m_IndexRenderBuffer =
-        makeBufferU16(m_IndexBuffer->data(), m_IndexBuffer->size());
+    m_UVRenderBuffer = makeBufferF32(Span<const float>(uv.data(), uv.size()));
+    m_IndexRenderBuffer = makeBufferU16(
+        Span((const uint16_t*)m_IndexBuffer->data(), m_IndexBuffer->size()));
 }
 
 void Mesh::update(ComponentDirt value) {
@@ -119,7 +119,8 @@ void Mesh::draw(Renderer* renderer,
             vertices[index++] = translation[0];
             vertices[index++] = translation[1];
         }
-        m_VertexRenderBuffer = makeBufferF32(vertices.data(), vertices.size());
+        m_VertexRenderBuffer =
+            makeBufferF32(Span((const float*)vertices.data(), vertices.size()));
     }
 
     if (skin() == nullptr) {

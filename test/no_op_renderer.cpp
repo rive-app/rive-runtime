@@ -38,13 +38,7 @@ namespace rive {
         return nullptr;
     }
 
-    rcp<RenderBuffer> makeBufferU16(const uint16_t[], size_t count) {
-        return nullptr;
-    }
-    rcp<RenderBuffer> makeBufferU32(const uint32_t[], size_t count) {
-        return nullptr;
-    }
-    rcp<RenderBuffer> makeBufferF32(const float[], size_t count) {
-        return nullptr;
-    }
+    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) { return nullptr; }
+    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) { return nullptr; }
+    rcp<RenderBuffer> makeBufferF32(Span<const float>) { return nullptr; }
 } // namespace rive
