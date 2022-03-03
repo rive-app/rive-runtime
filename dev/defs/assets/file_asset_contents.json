@@ -18,6 +18,7 @@
     },
     "bytes": {
       "type": "Bytes",
+      "encoded": true,
       "key": {
         "int": 212,
         "string": "bytes"

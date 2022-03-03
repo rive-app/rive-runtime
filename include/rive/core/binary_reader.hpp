@@ -4,6 +4,7 @@
 
 #include <string>
 #include <vector>
+#include "rive/span.hpp"
 
 namespace rive {
     class BinaryReader {
@@ -23,7 +24,7 @@ namespace rive {
         size_t lengthInBytes() const;
 
         std::string readString();
-        std::vector<uint8_t> readBytes();
+        Span<uint8_t> readBytes();
         double readFloat64();
         float readFloat32();
         uint8_t readByte();

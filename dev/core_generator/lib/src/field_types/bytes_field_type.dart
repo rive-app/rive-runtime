@@ -5,15 +5,15 @@ class BytesFieldType extends FieldType {
       : super(
           'Bytes',
           'CoreBytesType',
-          cppName: 'std::vector<uint8_t>',
-          include: '<vector>',
+          cppName: 'Span<uint8_t>',
+          include: 'rive/span.hpp',
         );
 
   @override
-  String get defaultValue => 'std::vector<uint8_t>()';
+  String get defaultValue => 'Span<uint8_t>(nullptr, 0)';
 
   @override
-  String get cppGetterName => 'const std::vector<uint8_t>&';
+  String get cppGetterName => 'const Span<uint8_t>&';
 
   @override
   String convertCpp(String value) {

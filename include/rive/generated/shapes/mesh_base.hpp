@@ -1,8 +1,8 @@
 #ifndef _RIVE_MESH_BASE_HPP_
 #define _RIVE_MESH_BASE_HPP_
-#include <vector>
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
+#include "rive/span.hpp"
 namespace rive {
     class MeshBase : public ContainerComponent {
     protected:
@@ -29,7 +29,7 @@ namespace rive {
         static const uint16_t triangleIndexBytesPropertyKey = 223;
 
     public:
-        virtual void decodeTriangleIndexBytes(std::vector<uint8_t> value) = 0;
+        virtual void decodeTriangleIndexBytes(Span<uint8_t> value) = 0;
         virtual void copyTriangleIndexBytes(const MeshBase& object) = 0;
 
         Core* clone() const override;

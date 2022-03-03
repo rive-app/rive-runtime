@@ -14,3 +14,14 @@ StatusCode FileAssetContents::import(ImportStack& importStack) {
 
     return Super::import(importStack);
 }
+
+void FileAssetContents::decodeBytes(Span<uint8_t> value) {
+    m_Bytes = std::vector(value.begin(), value.end());
+}
+
+void FileAssetContents::copyBytes(const FileAssetContentsBase& object) {
+    // Should never be called.
+    assert(false);
+}
+
+const std::vector<uint8_t>& FileAssetContents::bytes() const { return m_Bytes; }

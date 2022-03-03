@@ -781,14 +781,6 @@ namespace rive {
                     break;
             }
         }
-        static void
-        setBytes(Core* object, int propertyKey, std::vector<uint8_t> value) {
-            switch (propertyKey) {
-                case FileAssetContentsBase::bytesPropertyKey:
-                    object->as<FileAssetContentsBase>()->bytes(value);
-                    break;
-            }
-        }
         static std::string getString(Core* object, int propertyKey) {
             switch (propertyKey) {
                 case ComponentBase::namePropertyKey:
@@ -1156,13 +1148,6 @@ namespace rive {
                     return object->as<GradientStopBase>()->colorValue();
             }
             return 0;
-        }
-        static std::vector<uint8_t> getBytes(Core* object, int propertyKey) {
-            switch (propertyKey) {
-                case FileAssetContentsBase::bytesPropertyKey:
-                    return object->as<FileAssetContentsBase>()->bytes();
-            }
-            return std::vector<uint8_t>();
         }
         static int propertyFieldId(int propertyKey) {
             switch (propertyKey) {

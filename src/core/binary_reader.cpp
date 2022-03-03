@@ -1,5 +1,6 @@
 #include "rive/core/binary_reader.hpp"
 #include "rive/core/reader.h"
+#include "rive/span.hpp"
 #include <vector>
 
 using namespace rive;
@@ -50,15 +51,15 @@ std::string BinaryReader::readString() {
     return std::string(rawValue.data(), length);
 }
 
-std::vector<uint8_t> BinaryReader::readBytes() {
+Span<uint8_t> BinaryReader::readBytes() {
     uint64_t length = readVarUint64();
     if (didOverflow()) {
-        return std::vector<uint8_t>();
+        return Span<uint8_t>(m_Position, 0);
     }
 
     uint8_t* start = m_Position;
     m_Position += length;
-    return std::vector<uint8_t>(start, start + length);
+    return Span<uint8_t>(start, length);
 }
 
 double BinaryReader::readFloat64() {

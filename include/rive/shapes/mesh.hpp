@@ -1,6 +1,7 @@
 #ifndef _RIVE_MESH_HPP_
 #define _RIVE_MESH_HPP_
 #include "rive/generated/shapes/mesh_base.hpp"
+#include "rive/span.hpp"
 
 namespace rive {
     class MeshVertex;
@@ -12,7 +13,7 @@ namespace rive {
         StatusCode onAddedDirty(CoreContext* context) override;
         void markDrawableDirty();
         void addVertex(MeshVertex* vertex);
-        void decodeTriangleIndexBytes(std::vector<uint8_t> value) override;
+        void decodeTriangleIndexBytes(Span<uint8_t> value) override;
         void copyTriangleIndexBytes(const MeshBase& object) override;
 #ifdef TESTING
         std::vector<MeshVertex*>& vertices() { return m_Vertices; }
