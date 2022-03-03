@@ -147,10 +147,16 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     // since we treat them as arrays of points
     assert((vertices->count() & 1) == 0);
 
+    // We do this because our UVs are normalized, but Skia expects them to be
+    // sized to the shader (i.e. 0..width, 0..height).
+    // To accomdate this, we effectively scaling the image down to 0..1 to
+    // match the scale of the UVs.
+    const auto scale = SkMatrix::Scale(1.0f/image->width(), 1.0f/image->height());
+
     auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image)->skImage();
     const SkSamplingOptions sampling(SkFilterMode::kLinear);
     auto shader = skiaImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp,
-                                        sampling, nullptr);
+                                        sampling, &scale);
 
     SkPaint paint;
     paint.setAlphaf(opacity);
