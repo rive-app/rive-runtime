@@ -8,7 +8,16 @@
 
 using namespace rive;
 
-TEST_CASE("span", "[basics]") {
+namespace {
+class baseclass {};
+class subclass : public baseclass {};
+}
+
+static void function(Span<int> span) {}
+static void function(Span<baseclass*> span) {}
+static void function(Span<subclass*> span) {}
+
+TEST_CASE("basics", "[span]") {
     Span<int> span;
     REQUIRE(span.empty());
     REQUIRE(span.size() == 0);
@@ -41,4 +50,14 @@ TEST_CASE("span", "[basics]") {
     sub = sub.subset(1, 0);
     REQUIRE(sub.empty());
     REQUIRE(sub.size() == 0);
+}
+
+TEST_CASE("vector-integration", "[span]") {
+    std::vector<int> vi;
+    std::vector<baseclass*> vb;
+    std::vector<subclass*> vs;
+
+    function(vi);
+    function(vb);
+    function(vs);
 }

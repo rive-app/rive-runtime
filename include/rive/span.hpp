@@ -5,9 +5,8 @@
 #ifndef _RIVE_SPAN_HPP_
 #define _RIVE_SPAN_HPP_
 
-#include <assert.h>
-#include <cstddef>
-#include <type_traits>
+#include "rive/rive_types.hpp"
+#include <vector>
 
 /*
  *  Span : cheap impl of std::span (which is C++20)
@@ -26,6 +25,10 @@ public:
     Span(T* ptr, size_t size) : m_Ptr(ptr), m_Size(size) {
         assert(ptr <= ptr + size);
     }
+
+    // We don't modify vec, but we don't want to say const, since that would
+    // change .data() to return const T*, and we don't want to change it.
+    Span(std::vector<T>& vec) : Span(vec.data(), vec.size()) {}
 
     constexpr T& operator[](size_t index) const {
         assert(index < m_Size);

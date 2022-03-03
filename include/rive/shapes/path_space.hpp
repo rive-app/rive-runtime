@@ -1,7 +1,7 @@
 #ifndef _RIVE_PATH_SPACE_HPP_
 #define _RIVE_PATH_SPACE_HPP_
 
-#include <type_traits>
+#include "rive/rive_types.hpp"
 
 namespace rive {
     enum class PathSpace : unsigned char {
