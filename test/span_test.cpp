@@ -2,8 +2,9 @@
  * Copyright 2022 Rive
  */
 
-#include <rive/span.hpp>
 #include <catch.hpp>
+#include <rive/span.hpp>
+
 #include <cstdio>
 #include <vector>
 
