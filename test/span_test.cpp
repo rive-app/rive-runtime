@@ -2,11 +2,10 @@
  * Copyright 2022 Rive
  */
 
-#include <cstdio>
-#include <vector>
-
 #include <rive/span.hpp>
 #include <catch.hpp>
+#include <cstdio>
+#include <vector>
 
 using namespace rive;
 
@@ -55,9 +54,6 @@ TEST_CASE("const-and-containers", "[span]") {
     int array[] = {1, 2, 3, 4};
     funca({array, 4});
     funcb({array, 4});
-
-    std::vector<const int> cv;
-    funcb(toSpan(cv));
 
     std::vector<int> v;
     funca(toSpan(v));
