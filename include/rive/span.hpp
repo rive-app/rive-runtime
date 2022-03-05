@@ -6,7 +6,6 @@
 #define _RIVE_SPAN_HPP_
 
 #include "rive/rive_types.hpp"
-#include <vector>
 
 /*
  *  Span : cheap impl of std::span (which is C++20)
@@ -26,9 +25,11 @@ public:
         assert(ptr <= ptr + size);
     }
 
-    // We don't modify vec, but we don't want to say const, since that would
-    // change .data() to return const T*, and we don't want to change it.
-    Span(std::vector<T>& vec) : Span(vec.data(), vec.size()) {}
+    // Handle Span<foo> --> Span<const foo>
+    template <typename U,
+              typename = typename std::enable_if<std::is_same<const U, T>::value>::type>
+    constexpr Span(const Span<U>& that) : Span(that.data(), that.size()) {}
+    constexpr Span(const Span&) = default;
 
     constexpr T& operator[](size_t index) const {
         assert(index < m_Size);
@@ -60,6 +61,12 @@ public:
         return {m_Ptr + offset, size};
     }
 };
+
+template <typename Container>
+inline auto toSpan(Container& c)
+        -> Span<typename std::remove_reference<decltype(*(c.data()))>::type> {
+    return {c.data(), c.size()};
+}
 
 } // namespace rive
 

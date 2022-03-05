@@ -9,7 +9,7 @@ namespace rive {
         std::vector<uint8_t> m_Bytes;
 
     public:
-        const Span<const uint8_t> bytes() const;
+        Span<const uint8_t> bytes() const;
         StatusCode import(ImportStack& importStack) override;
         void decodeBytes(Span<const uint8_t> value) override;
         void copyBytes(const FileAssetContentsBase& object) override;

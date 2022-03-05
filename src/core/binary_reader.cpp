@@ -62,7 +62,7 @@ Span<const uint8_t> BinaryReader::readBytes() {
 
     const uint8_t* start = m_Position;
     m_Position += length;
-    return Span<const uint8_t>(start, length);
+    return {start, length};
 }
 
 double BinaryReader::readFloat64() {

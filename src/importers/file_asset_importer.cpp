@@ -12,7 +12,7 @@ FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
     m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver) {}
 
 void FileAssetImporter::loadContents(const FileAssetContents& contents) {
-    Span<const uint8_t> data = contents.bytes();
+    auto data = contents.bytes();
     if (m_FileAsset->decode(data.begin(), data.size())) {
         m_LoadedContents = true;
     }

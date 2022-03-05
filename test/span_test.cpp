@@ -8,15 +8,6 @@
 
 using namespace rive;
 
-namespace {
-    class baseclass {};
-    class subclass : public baseclass {};
-} // namespace
-
-static void function(Span<int> span) {}
-static void function(Span<baseclass*> span) {}
-static void function(Span<subclass*> span) {}
-
 TEST_CASE("basics", "[span]") {
     Span<int> span;
     REQUIRE(span.empty());
@@ -52,12 +43,21 @@ TEST_CASE("basics", "[span]") {
     REQUIRE(sub.size() == 0);
 }
 
-TEST_CASE("vector-integration", "[span]") {
-    std::vector<int> vi;
-    std::vector<baseclass*> vb;
-    std::vector<subclass*> vs;
+static void funca(Span<int> span) {}
+static void funcb(Span<const int> span) {}
 
-    function(vi);
-    function(vb);
-    function(vs);
+TEST_CASE("const-and-containers", "[span]") {
+    const int carray[] = {1, 2, 3, 4};
+    funcb({carray, 4});
+
+    int array[] = {1, 2, 3, 4};
+    funca({array, 4});
+    funcb({array, 4});
+
+    std::vector<const int> cv;
+    funcb(ToSpan(cv));
+
+    std::vector<int> v;
+    funca(ToSpan(v));
+    funcb(ToSpan(v));
 }

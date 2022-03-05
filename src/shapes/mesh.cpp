@@ -90,16 +90,14 @@ void Mesh::buildDependencies() {
         uv[index++] = vertex->u();
         uv[index++] = vertex->v();
     }
-    m_UVRenderBuffer = makeBufferF32(Span<const float>(uv.data(), uv.size()));
-    m_IndexRenderBuffer = makeBufferU16(
-        Span((const uint16_t*)m_IndexBuffer->data(), m_IndexBuffer->size()));
+    m_UVRenderBuffer = makeBufferF32(toSpan(uv));
+    m_IndexRenderBuffer = makeBufferU16(toSpan(*m_IndexBuffer));
 }
 
 void Mesh::update(ComponentDirt value) {
     if (hasDirt(value, ComponentDirt::Vertices)) {
         if (skin() != nullptr) {
-            skin()->deform(
-                Span((Vertex**)m_Vertices.data(), m_Vertices.size()));
+            skin()->deform({(Vertex**)m_Vertices.data(), m_Vertices.size()});
         }
         m_VertexRenderBuffer = nullptr;
     }
@@ -112,15 +110,14 @@ void Mesh::draw(Renderer* renderer,
                 float opacity) {
     if (m_VertexRenderBuffer == nullptr) {
 
-        std::vector<float> vertices = std::vector<float>(m_Vertices.size() * 2);
+        std::vector<float> vertices(m_Vertices.size() * 2);
         std::size_t index = 0;
         for (auto vertex : m_Vertices) {
             auto translation = vertex->renderTranslation();
             vertices[index++] = translation[0];
             vertices[index++] = translation[1];
         }
-        m_VertexRenderBuffer =
-            makeBufferF32(Span((const float*)vertices.data(), vertices.size()));
+        m_VertexRenderBuffer = makeBufferF32(toSpan(vertices));
     }
 
     if (skin() == nullptr) {
