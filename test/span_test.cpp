@@ -2,11 +2,11 @@
  * Copyright 2022 Rive
  */
 
-#include <catch.hpp>
-#include <rive/span.hpp>
-
 #include <cstdio>
 #include <vector>
+
+#include <rive/span.hpp>
+#include <catch.hpp>
 
 using namespace rive;
 
