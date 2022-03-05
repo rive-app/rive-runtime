@@ -5,6 +5,7 @@
 #include <rive/span.hpp>
 #include <catch.hpp>
 #include <cstdio>
+#include <vector>
 
 using namespace rive;
 
