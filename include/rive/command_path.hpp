@@ -22,6 +22,10 @@ namespace rive {
         cubicTo(float ox, float oy, float ix, float iy, float x, float y) = 0;
         virtual void close() = 0;
 
+        virtual RenderPath* renderPath() = 0;
+
+        // non-virtual helpers
+
         void addRect(float x, float y, float width, float height) {
             moveTo(x, y);
             lineTo(x + width, y);
@@ -29,8 +33,12 @@ namespace rive {
             lineTo(x, y + height);
             close();
         }
-
-        virtual RenderPath* renderPath() = 0;
+        
+        void move(Vec2D v) { this->moveTo(v.x(), v.y()); }
+        void line(Vec2D v) { this->lineTo(v.x(), v.y()); }
+        void cubic(Vec2D a, Vec2D b, Vec2D c) {
+            this->cubicTo(a.x(), a.y(), b.x(), b.y(), c.x(), c.y());
+        }
     };
 } // namespace rive
 #endif
