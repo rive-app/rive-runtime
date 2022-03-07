@@ -10,9 +10,9 @@ namespace rive {
         float m_Buffer[2];
 
     public:
-        Vec2D() : m_Buffer{0.0f, 0.0f} {}
-        Vec2D(const Vec2D&) = default;
-        Vec2D(float x, float y) : m_Buffer{x, y} {}
+        constexpr Vec2D() : m_Buffer{0.0f, 0.0f} {}
+        constexpr Vec2D(float x, float y) : m_Buffer{x, y} {}
+        constexpr Vec2D(const Vec2D&) = default;
 
         float x() const { return m_Buffer[0]; }
         float y() const { return m_Buffer[1]; }

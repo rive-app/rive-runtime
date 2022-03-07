@@ -3,35 +3,6 @@
 
 using namespace rive;
 
-AABB::AABB() : buffer{0} {}
-
-AABB::AABB(const AABB& copy) {
-    buffer[0] = copy.buffer[0];
-    buffer[1] = copy.buffer[1];
-    buffer[2] = copy.buffer[2];
-    buffer[3] = copy.buffer[3];
-}
-
-AABB::AABB(float minX, float minY, float maxX, float maxY) :
-    buffer{minX, minY, maxX, maxY} {}
-
-void AABB::center(Vec2D& out, const AABB& a) {
-    out[0] = (a[0] + a[2]) * 0.5f;
-    out[1] = (a[1] + a[3]) * 0.5f;
-}
-
-void AABB::size(Vec2D& out, const AABB& a) {
-    out[0] = a[2] - a[0];
-    out[1] = a[3] - a[1];
-}
-
-void AABB::extents(Vec2D& out, const AABB& a) {
-    out[0] = (a[2] - a[0]) * 0.5;
-    out[1] = (a[3] - a[1]) * 0.5;
-}
-
-void AABB::combine(AABB& out, const AABB& a, const AABB& b) {}
-
 bool AABB::contains(const AABB& a, const AABB& b) {
     return a[0] <= b[0] && a[1] <= b[1] && b[2] <= a[2] && b[3] <= a[3];
 }
@@ -59,20 +30,6 @@ bool AABB::testOverlap(const AABB& a, const AABB& b) {
     }
 
     return true;
-}
-
-bool AABB::areIdentical(const AABB& a, const AABB& b) {
-    return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3];
-}
-
-float AABB::width() const { return buffer[2] - buffer[0]; }
-
-float AABB::height() const { return buffer[3] - buffer[1]; }
-
-float AABB::perimeter() const {
-    float wx = buffer[2] - buffer[0];
-    float wy = buffer[3] - buffer[1];
-    return 2.0 * (wx + wy);
 }
 
 void AABB::transform(AABB& out, const AABB& a, const Mat2D& matrix) {

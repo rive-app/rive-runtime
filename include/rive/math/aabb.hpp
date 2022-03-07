@@ -16,19 +16,28 @@ namespace rive {
         };
 
     public:
-        AABB();
-        AABB(const AABB& copy);
-        AABB(float minX, float minY, float maxX, float maxY);
+        AABB() : buffer{0} {}
+        AABB(const AABB& o) :
+            minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY)
+        {}
+        
+        AABB(float minX, float minY, float maxX, float maxY) :
+            minX(minX), minY(minY), maxX(maxX), maxY(maxY)
+        {}
+
+        bool operator==(const AABB& o) const {
+            return minX == o.minX && minY == o.minY &&
+                   maxX == o.maxX && maxY == o.maxY;
+        }
+        bool operator!=(const AABB& o) const {
+            return !(*this == o);
+        }
 
         inline const float* values() const { return buffer; }
 
         float& operator[](std::size_t idx) { return buffer[idx]; }
         const float& operator[](std::size_t idx) const { return buffer[idx]; }
 
-        static void center(Vec2D& out, const AABB& a);
-        static void size(Vec2D& out, const AABB& a);
-        static void extents(Vec2D& out, const AABB& a);
-        static void combine(AABB& out, const AABB& a, const AABB& b);
         static bool contains(const AABB& a, const AABB& b);
         static bool isValid(const AABB& a);
         static bool testOverlap(const AABB& a, const AABB& b);
@@ -40,10 +49,15 @@ namespace rive {
         float right() const { return maxX; }
         float bottom() const { return maxY; }
 
-        float width() const;
-        float height() const;
-        float perimeter() const;
-        
+        float width() const { return maxX - minX; }
+        float height() const { return maxY - minY; }
+        Vec2D size() const {
+            return {width(), height()};
+        }
+        Vec2D center() const {
+            return {(minX + maxX) * 0.5f, (minY + maxY) * 0.5f};
+        }
+
         AABB inset(float dx, float dy) const {
             AABB r = {minX + dx, minY + dy, maxX - dx, maxY - dy};
             assert(r.width() >= 0);
