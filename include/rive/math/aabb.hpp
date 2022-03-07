@@ -35,9 +35,24 @@ namespace rive {
         static bool areIdentical(const AABB& a, const AABB& b);
         static void transform(AABB& out, const AABB& a, const Mat2D& matrix);
 
+        float left() const { return minX; }
+        float top() const { return minY; }
+        float right() const { return maxX; }
+        float bottom() const { return maxY; }
+
         float width() const;
         float height() const;
         float perimeter() const;
+        
+        AABB inset(float dx, float dy) const {
+            AABB r = {minX + dx, minY + dy, maxX - dx, maxY - dy};
+            assert(r.width() >= 0);
+            assert(r.height() >= 0);
+            return r;
+        }
+        AABB offset(float dx, float dy) const {
+            return {minX + dx, minY + dy, maxX + dx, maxY + dy};
+        }
     };
 } // namespace rive
 #endif
