@@ -184,9 +184,19 @@ bool SkiaRenderImage::decode(Span<const uint8_t> encodedData) {
     sk_sp<SkData> data =
         SkData::MakeWithoutCopy(encodedData.data(), encodedData.size());
     m_SkImage = SkImage::MakeFromEncoded(data);
-    m_Width = m_SkImage->width();
-    m_Height = m_SkImage->height();
-    return true;
+    
+    // Our optimized skia buld seems to have broken lazy-image decode.
+    // As a work-around for now, force the image to be decoded.
+    if (m_SkImage) {
+        m_SkImage = m_SkImage->makeRasterImage();
+    }
+    
+    if (m_SkImage) {
+        m_Width = m_SkImage->width();
+        m_Height = m_SkImage->height();
+        return true;
+    }
+    return false;
 }
 
 rcp<RenderShader> SkiaRenderImage::makeShader(RenderTileMode tx,
