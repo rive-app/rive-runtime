@@ -56,6 +56,17 @@ namespace rive {
         static float distanceSquared(const Vec2D& a, const Vec2D& b) {
             return (a - b).lengthSquared();
         }
+
+        Vec2D& operator+=(Vec2D v) {
+            m_Buffer[0] += v[0];
+            m_Buffer[1] += v[1];
+            return *this;
+        }
+        Vec2D& operator-=(Vec2D v) {
+            m_Buffer[0] -= v[0];
+            m_Buffer[1] -= v[1];
+            return *this;
+        }
     };
 
     inline Vec2D operator*(const Vec2D& v, float s) {

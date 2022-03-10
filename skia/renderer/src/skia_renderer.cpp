@@ -133,6 +133,8 @@ void SkiaRenderer::drawImage(const RenderImage* image,
     m_Canvas->drawImage(skiaImage->skImage(), 0.0f, 0.0f, sampling, &paint);
 }
 
+#define SKIA_BUG_13047
+
 void SkiaRenderer::drawImageMesh(const RenderImage* image,
                                  rcp<RenderBuffer> vertices,
                                  rcp<RenderBuffer> uvCoords,
@@ -145,17 +147,32 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     // even, since we treat them as arrays of points
     assert((vertices->count() & 1) == 0);
 
+    const int vertexCount = vertices->count() >> 1;
+
+    SkMatrix scaleM;
+
+    const SkPoint* uvs = SkiaBuffer::Cast(uvCoords.get())->points();
+
+#ifdef SKIA_BUG_13047
+    // The local matrix is ignored for drawVertices, so we have to manually scale
+    // the UVs to match Skia's convention...
+    std::vector<SkPoint> scaledUVs(vertexCount);
+    for (int i = 0; i < vertexCount; ++i) {
+        scaledUVs[i] = {uvs[i].fX * image->width(), uvs[i].fY * image->height()};
+    }
+    uvs = scaledUVs.data();
+#else
     // We do this because our UVs are normalized, but Skia expects them to be
     // sized to the shader (i.e. 0..width, 0..height).
     // To accomdate this, we effectively scaling the image down to 0..1 to
     // match the scale of the UVs.
-    const auto scale =
-        SkMatrix::Scale(1.0f / image->width(), 1.0f / image->height());
+    scaleM = SkMatrix::Scale(2.0f / image->width(), 2.0f / image->height());
+#endif
 
     auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image)->skImage();
     const SkSamplingOptions sampling(SkFilterMode::kLinear);
     auto shader = skiaImage->makeShader(
-        SkTileMode::kClamp, SkTileMode::kClamp, sampling, &scale);
+        SkTileMode::kClamp, SkTileMode::kClamp, sampling, &scaleM);
 
     SkPaint paint;
     paint.setAlphaf(opacity);
@@ -164,12 +181,11 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
 
     const SkColor* no_colors = nullptr;
     auto vertexMode = SkVertices::kTriangles_VertexMode;
-    const int vertexCount = vertices->count() >> 1;
     // clang-format off
     auto vt = SkVertices::MakeCopy(vertexMode,
                                    vertexCount,
                                    SkiaBuffer::Cast(vertices.get())->points(),
-                                   SkiaBuffer::Cast(uvCoords.get())->points(),
+                                   uvs,
                                    no_colors,
                                    indices->count(),
                                    SkiaBuffer::Cast(indices.get())->u16s());
