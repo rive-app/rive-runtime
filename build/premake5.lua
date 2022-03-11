@@ -5,6 +5,7 @@ project "rive"
     kind "StaticLib"
     language "C++"
     cppdialect "C++17"
+    toolset "clang"
     targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
     objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
     includedirs {"../include"}
