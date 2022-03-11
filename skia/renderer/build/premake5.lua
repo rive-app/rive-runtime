@@ -12,6 +12,16 @@ project "rive_skia_renderer"
 
     if os.host() == "macosx" then
         links {"Cocoa.framework", "rive", "skia"}
+    elseif os.host() == "windows" then
+        architecture "x64"
+        links {
+            "rive",
+            "skia.lib",
+            "opengl32.lib"
+        }
+        defines {"_USE_MATH_DEFINES"}
+        staticruntime "on"  -- Match Skia's /MT flag for link compatibility
+        runtime "Release"  -- Use /MT even in debug (/MTd is incompatible with Skia)
     else
         links {"rive", "skia"}
     end
@@ -29,7 +39,7 @@ project "rive_skia_renderer"
              "../../dependencies/skia/include/config"}
         libdirs {"../../dependencies/skia/out/static"}
 
-    filter {"system:linux" }
+    filter {"system:linux or windows" }
         includedirs {"../../dependencies/skia", "../../dependencies/skia/include/core",
              "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
              "../../dependencies/skia/include/config"}

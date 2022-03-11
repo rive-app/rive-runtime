@@ -1,4 +1,5 @@
 #include "skia_renderer.hpp"
+#include "SkData.h"
 #include "SkGradientShader.h"
 #include "SkPath.h"
 #include "SkVertices.h"

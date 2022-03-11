@@ -21,7 +21,10 @@ project "rive"
         buildoptions {"-flto=full"}
 
     filter "system:windows"
+        architecture "x64"
         defines {"_USE_MATH_DEFINES"}
+        staticruntime "on"  -- Match Skia's /MT flag for link compatibility
+        runtime "Release"  -- Use /MT even in debug (/MTd is incompatible with Skia)
 
     filter {"system:ios", "options:variant=system" }
         buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
