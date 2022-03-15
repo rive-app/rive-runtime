@@ -6,9 +6,13 @@
 #include "rive/core_context.hpp"
 #include "rive/generated/artboard_base.hpp"
 #include "rive/hit_info.hpp"
+#include "rive/message.hpp"
+#include "rive/pointer_event.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
+
+#include <queue>
 #include <vector>
 
 namespace rive {
@@ -40,6 +44,8 @@ namespace rive {
         bool m_IsInstance = false;
         bool m_FrameOrigin = true;
 
+        std::queue<Message> m_MessageQueue;
+
         void sortDependencies();
         void sortDrawOrder();
 
@@ -50,6 +56,8 @@ namespace rive {
         void addAnimation(LinearAnimation* object);
         void addStateMachine(StateMachine* object);
         void addNestedArtboard(NestedArtboard* object);
+
+        void testing_only_enque_message(const Message&);
 
     public:
         ~Artboard();
@@ -69,6 +77,24 @@ namespace rive {
         void onDirty(ComponentDirt dirt) override;
 
         bool advance(double elapsedSeconds);
+
+        // Call this to forward pointer events to the artboard
+        // They will be processed when advance() is called.
+        //
+        void postPointerEvent(const PointerEvent&);
+
+        // Returns true iff calling popMessage() will return true.
+        bool hasMessages() const;
+        
+        // If there are any queued messages...
+        //   copies the first message into msg parameter
+        //   removes that message from the queue
+        //   returns true
+        // else
+        //   ignores msg parameter
+        //   returns false
+        //
+        bool nextMessage(Message* msg);
 
         enum class DrawOption {
             kNormal,

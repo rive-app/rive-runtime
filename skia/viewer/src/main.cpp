@@ -129,6 +129,61 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
     initAnimation(0);
 }
 
+// returns the mouse position, transforming it through the inverse of
+// the canvas' CTM -- which may have been altered to scale/translate
+// the artboard into the window.
+//
+static void post_mouse_event(rive::Artboard* artboard, const SkMatrix& ctm) {
+    static ImVec2 gPrevMousePos = {-1000, -1000};
+    const auto mouse = ImGui::GetMousePos();
+
+    static bool gPrevMouseButtonDown = false;
+    const bool isDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+
+    if (mouse.x == gPrevMousePos.x &&
+        mouse.y == gPrevMousePos.y &&
+        isDown == gPrevMouseButtonDown)
+    {
+        return;
+    }
+    
+    auto evtType = rive::PointerEventType::move;
+    if (isDown && !gPrevMouseButtonDown) {
+        evtType = rive::PointerEventType::down; // we just went down
+    } else if (!isDown && gPrevMouseButtonDown) {
+        evtType = rive::PointerEventType::up; // we just went up
+    }
+
+    gPrevMousePos = mouse;
+    gPrevMouseButtonDown = isDown;
+
+    SkMatrix inv;
+    (void)ctm.invert(&inv);
+    
+    // scale by 2 for the DPI of a high-res monitor
+    const auto pt = inv.mapXY(mouse.x * 2, mouse.y * 2);
+    
+    const int pointerIndex = 0; // til we track more than one button/mouse
+    rive::PointerEvent evt = {
+        evtType,
+        {pt.fX, pt.fY},
+        pointerIndex,
+    };
+    artboard->postPointerEvent(evt);
+}
+
+static void test_messages(rive::Artboard* artboard) {
+    rive::Message msg;
+    int i = 0;
+    bool hasAny = artboard->hasMessages();
+
+    while (artboard->nextMessage(&msg)) {
+        printf("-- message[%d]: '%s'\n", i, msg.m_Str.c_str());
+        i += 1;
+    }
+    assert((hasAny && i > 0) || (!hasAny && i == 0));
+}
+
 int main() {
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize glfw.\n");
@@ -244,6 +299,9 @@ int main() {
                            rive::Alignment::center,
                            rive::AABB(0, 0, width, height),
                            artboard->bounds());
+
+            post_mouse_event(artboard, canvas->getTotalMatrix());
+
             artboard->draw(&renderer);
             renderer.restore();
         }
@@ -334,6 +392,8 @@ int main() {
                 ImGui::Columns(1);
             }
             ImGui::End();
+            
+            test_messages(artboard);
         } else {
             ImGui::Text("Drop a .riv file to preview.");
         }

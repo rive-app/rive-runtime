@@ -543,3 +543,60 @@ StatusCode Artboard::import(ImportStack& importStack) {
     }
     return result;
 }
+
+void Artboard::postPointerEvent(const PointerEvent& evt) {
+    if (true) {
+        static bool gButtonIsDown;
+
+        switch (evt.m_Type) {
+            case PointerEventType::down:
+                assert(!gButtonIsDown);
+                gButtonIsDown = true;
+                break;
+            case PointerEventType::up:
+                assert(gButtonIsDown);
+                gButtonIsDown = false;
+                break;
+            default: break;
+        }
+
+#if 0
+        const char* typeNames[] = {
+            "down", "move", "up  ",
+        };
+        printf("pointer: %s [%g %g] %s\n",
+               typeNames[(int)evt.m_Type],
+               evt.m_Position.x(), evt.m_Position.y(),
+               gButtonIsDown ? "DOWN" : "UP");
+#endif
+    }
+
+#if 0
+    // TESTING ONLY
+    // This is the sort of message that the Artboard would post...
+    // e.g. if the down AND up were inside the same clickable shape.
+    if (evt.m_Type == PointerEventType::up) {
+        Message msg;
+        msg.m_Str = "ClickEvent";
+        this->testing_only_enque_message(msg);
+    }
+#endif
+}
+
+void Artboard::testing_only_enque_message(const Message& msg) {
+    m_MessageQueue.push(msg);
+}
+
+bool Artboard::hasMessages() const {
+    return !m_MessageQueue.empty();
+}
+
+bool Artboard::nextMessage(Message* msg) {
+    if (m_MessageQueue.empty()) {
+        return false;
+    } else {
+        *msg = m_MessageQueue.front();
+        m_MessageQueue.pop();
+        return true;
+    }
+}
