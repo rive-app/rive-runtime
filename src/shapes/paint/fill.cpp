@@ -16,5 +16,5 @@ void Fill::draw(Renderer* renderer, CommandPath* path) {
     }
     auto renderPath = path->renderPath();
     renderPath->fillRule((FillRule)fillRule());
-    renderer->drawPath(renderPath, m_RenderPaint);
+    renderer->drawPath(renderPath, renderPaint());
 }

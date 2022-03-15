@@ -9,14 +9,17 @@ namespace rive {
     class FileAsset;
     class FileAssetContents;
     class FileAssetResolver;
+    class Factory;
+
     class FileAssetImporter : public ImportStackObject {
     private:
         bool m_LoadedContents = false;
         FileAsset* m_FileAsset;
         FileAssetResolver* m_FileAssetResolver;
+        Factory* m_Factory;
 
     public:
-        FileAssetImporter(FileAsset* fileAsset, FileAssetResolver* assetResolver);
+        FileAssetImporter(FileAsset*, FileAssetResolver*, Factory*);
         void loadContents(const FileAssetContents& contents);
         StatusCode resolve() override;
     };

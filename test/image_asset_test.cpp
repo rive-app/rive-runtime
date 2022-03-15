@@ -5,6 +5,7 @@
 #include <rive/shapes/image.hpp>
 #include <rive/assets/image_asset.hpp>
 #include <rive/relative_local_asset_resolver.hpp>
+#include "no_op_factory.hpp"
 #include "no_op_renderer.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -41,10 +42,12 @@ TEST_CASE("image assets loads correctly", "[assets]") {
 }
 
 TEST_CASE("out of band image assets loads correctly", "[assets]") {
+    rive::NoOpFactory gEmptyFactory;
+    
     std::string filename = "../../test/assets/out_of_band/walle.riv";
-    rive::RelativeLocalAssetResolver resolver(filename);
+    rive::RelativeLocalAssetResolver resolver(filename, &gEmptyFactory);
 
-    auto file = ReadRiveFile(filename.c_str(), &resolver);
+    auto file = ReadRiveFile(filename.c_str(), &gEmptyFactory, &resolver);
 
     auto node = file->artboard()->find("walle");
     REQUIRE(node != nullptr);

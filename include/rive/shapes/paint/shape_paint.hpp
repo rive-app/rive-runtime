@@ -10,11 +10,10 @@ namespace rive {
     class ShapePaintMutator;
     class ShapePaint : public ShapePaintBase {
     protected:
-        RenderPaint* m_RenderPaint = nullptr;
+        std::unique_ptr<RenderPaint> m_RenderPaint;
         ShapePaintMutator* m_PaintMutator = nullptr;
 
     public:
-        ~ShapePaint();
         StatusCode onAddedClean(CoreContext* context) override;
 
         float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
@@ -31,6 +30,8 @@ namespace rive {
 
         virtual void draw(Renderer* renderer, CommandPath* path) = 0;
 
+        RenderPaint* renderPaint() { return m_RenderPaint.get(); }
+    
         /// Get the component that represents the ShapePaintMutator for this
         /// ShapePaint. It'll be one of SolidColor, LinearGradient, or
         /// RadialGradient.

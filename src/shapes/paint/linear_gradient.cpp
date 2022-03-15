@@ -1,5 +1,7 @@
 #include "rive/shapes/paint/linear_gradient.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/artboard.hpp"
+#include "rive/factory.hpp"
 #include "rive/node.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/color.hpp"
@@ -92,8 +94,8 @@ void LinearGradient::update(ComponentDirt value) {
 
 void LinearGradient::makeGradient(
     Vec2D start, Vec2D end, const ColorInt colors[], const float stops[], size_t count) {
-    auto paint = renderPaint();
-    paint->shader(makeLinearGradient(
+    auto factory = artboard()->factory();
+    renderPaint()->shader(factory->makeLinearGradient(
         start[0], start[1], end[0], end[1], colors, stops, count, RenderTileMode::clamp));
 }
 

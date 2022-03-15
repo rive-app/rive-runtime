@@ -521,6 +521,7 @@ std::unique_ptr<ArtboardInstance> Artboard::instance() const {
     std::unique_ptr<ArtboardInstance> artboardClone(new ArtboardInstance);
     artboardClone->copy(*this);
 
+    artboardClone->m_Factory = m_Factory;
     artboardClone->m_FrameOrigin = m_FrameOrigin;
 
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;

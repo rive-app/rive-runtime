@@ -108,12 +108,18 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
     return object;
 }
 
-File::File(FileAssetResolver* assetResolver) : m_AssetResolver(assetResolver) {}
+File::File(Factory* factory, FileAssetResolver* assetResolver)
+    : m_Factory(factory)
+    , m_AssetResolver(assetResolver)
+{
+    assert(factory);
+}
 
 File::~File() {}
 
 std::unique_ptr<File>
-File::import(Span<const uint8_t> bytes, ImportResult* result, FileAssetResolver* assetResolver) {
+File::import(Span<const uint8_t> bytes, Factory* factory,
+             ImportResult* result, FileAssetResolver* assetResolver) {
     BinaryReader reader(bytes);
     RuntimeHeader header;
     if (!RuntimeHeader::read(reader, header)) {
@@ -135,7 +141,7 @@ File::import(Span<const uint8_t> bytes, ImportResult* result, FileAssetResolver*
         }
         return nullptr;
     }
-    auto file = std::unique_ptr<File>(new File(assetResolver));
+    auto file = std::unique_ptr<File>(new File(factory, assetResolver));
     auto readResult = file->read(reader, header);
     if (readResult != ImportResult::success) {
         file.reset(nullptr);
@@ -159,9 +165,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                 case Backboard::typeKey:
                     m_Backboard.reset(object->as<Backboard>());
                     break;
-                case Artboard::typeKey:
-                    m_Artboards.push_back(std::unique_ptr<Artboard>(object->as<Artboard>()));
-                    break;
+                case Artboard::typeKey: {
+                    Artboard* ab = object->as<Artboard>();
+                    ab->m_Factory = m_Factory;
+                    m_Artboards.push_back(std::unique_ptr<Artboard>(ab));
+                } break;
             }
         } else {
             fprintf(stderr, "Failed to import object of type %d\n", object->coreType());
@@ -226,7 +234,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                 stackObject = new StateMachineEventImporter(object->as<StateMachineEvent>());
                 break;
             case ImageAsset::typeKey:
-                stackObject = new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver);
+                stackObject = new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver, m_Factory);
                 stackType = FileAsset::typeKey;
                 break;
         }

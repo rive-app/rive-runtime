@@ -7,12 +7,15 @@
 
 using namespace rive;
 
-FileAssetImporter::FileAssetImporter(FileAsset* fileAsset, FileAssetResolver* assetResolver) :
-    m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver) {}
+FileAssetImporter::FileAssetImporter(FileAsset* fileAsset, FileAssetResolver* assetResolver, Factory* factory) :
+    m_FileAsset(fileAsset),
+    m_FileAssetResolver(assetResolver),
+    m_Factory(factory)
+{}
 
 void FileAssetImporter::loadContents(const FileAssetContents& contents) {
     auto data = contents.bytes();
-    if (m_FileAsset->decode(data.begin(), data.size())) {
+    if (m_FileAsset->decode(data, m_Factory)) {
         m_LoadedContents = true;
     }
 }
