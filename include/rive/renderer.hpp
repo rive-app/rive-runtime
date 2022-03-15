@@ -8,6 +8,7 @@
 #include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/math/raw_path.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
@@ -143,6 +144,11 @@ namespace rive {
                    const AABB& frame,
                    const AABB& content);
     };
+
+    // Returns a full-formed RenderPath -- can be treated as immutable
+    extern RenderPath* makeRenderPath(Span<const Vec2D> points,
+                                      Span<const uint8_t> verbs,
+                                      FillRule);
 
     extern RenderPath* makeRenderPath();
     extern RenderPaint* makeRenderPaint();

@@ -32,6 +32,15 @@ namespace rive {
             return SkTileMode::kClamp;
         }
 
+        static SkPathFillType convert(FillRule value) {
+            switch (value) {
+                case FillRule::evenOdd: return SkPathFillType::kEvenOdd;
+                case FillRule::nonZero: return SkPathFillType::kWinding;
+            }
+            assert(false);
+            return SkPathFillType::kWinding;
+        }
+
         static SkPaint::Cap convert(rive::StrokeCap cap) {
             switch (cap) {
                 case rive::StrokeCap::butt:

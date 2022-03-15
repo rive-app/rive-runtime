@@ -14,6 +14,9 @@ namespace rive {
         SkPath m_Path;
 
     public:
+        SkiaRenderPath() {}
+        SkiaRenderPath(SkPath&& path) : m_Path(std::move(path)) {}
+
         const SkPath& path() const { return m_Path; }
         void reset() override;
         void addRenderPath(RenderPath* path, const Mat2D& transform) override;

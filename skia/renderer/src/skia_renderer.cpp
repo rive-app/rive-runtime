@@ -54,14 +54,7 @@ public:
 };
 
 void SkiaRenderPath::fillRule(FillRule value) {
-    switch (value) {
-        case FillRule::evenOdd:
-            m_Path.setFillType(SkPathFillType::kEvenOdd);
-            break;
-        case FillRule::nonZero:
-            m_Path.setFillType(SkPathFillType::kWinding);
-            break;
-    }
+    m_Path.setFillType(ToSkia::convert(value));
 }
 
 void SkiaRenderPath::reset() { m_Path.reset(); }
@@ -235,6 +228,14 @@ namespace rive {
     }
     rcp<RenderBuffer> makeBufferF32(Span<const float> data) {
         return make_buffer(data);
+    }
+
+    RenderPath* makeRenderPath(Span<const Vec2D> points, Span<const uint8_t> verbs,
+                               FillRule fillrule) {
+        return new SkiaRenderPath(SkPath::Make((const SkPoint*)points.data(), points.size(),
+                                               verbs.data(), verbs.size(),
+                                               nullptr, 0,  // conics
+                                               ToSkia::convert(fillrule), false));
     }
 
     RenderPath* makeRenderPath() { return new SkiaRenderPath(); }
