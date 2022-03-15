@@ -1,3 +1,4 @@
+#include "rive/math/hit_test.hpp"
 #include "rive/shapes/image.hpp"
 #include "rive/backboard.hpp"
 #include "rive/importers/backboard_importer.hpp"
@@ -32,6 +33,28 @@ void Image::draw(Renderer* renderer) {
 
     renderer->restore();
 }
+
+Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform) {
+    // TODO: handle clip?
+
+    auto renderImage = m_ImageAsset->renderImage();
+    auto width = renderImage->width();
+    auto height = renderImage->height();
+
+    if (m_Mesh) {
+        printf("Missing mesh\n");
+        // TODO: hittest mesh
+    } else {
+        auto mx = xform * worldTransform() * Mat2D::fromTranslate(-width*0.5f, -height*0.5f);
+        HitTester tester(hinfo->area);
+        tester.addRect(AABB(0, 0, width, height), mx);
+        if (tester.test()) {
+            return this;
+        }
+    }
+    return nullptr;
+}
+
 
 StatusCode Image::import(ImportStack& importStack) {
     auto backboardImporter =

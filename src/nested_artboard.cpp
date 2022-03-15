@@ -28,16 +28,32 @@ void NestedArtboard::nest(Artboard* artboard) {
     m_NestedInstance->advance(0.0f);
 }
 
+static Mat2D makeTranslate(const Artboard* artboard) {
+    return Mat2D::fromTranslate(-artboard->originX() * artboard->width(),
+                                -artboard->originY() * artboard->height());
+}
+
 void NestedArtboard::draw(Renderer* renderer) {
     if (m_NestedInstance == nullptr) {
         return;
     }
     renderer->save();
-    renderer->transform(worldTransform());
-    renderer->translate(-m_NestedInstance->originX() * m_NestedInstance->width(),
-                        -m_NestedInstance->originY() * m_NestedInstance->height());
+    renderer->transform(worldTransform() * makeTranslate(m_NestedInstance));
     m_NestedInstance->draw(renderer);
     renderer->restore();
+}
+
+Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform) {
+    if (m_NestedInstance == nullptr) {
+        return nullptr;
+    }
+    hinfo->mounts.push_back(this);
+    auto mx = xform * worldTransform() * makeTranslate(m_NestedInstance);
+    if (auto c = m_NestedInstance->hitTest(hinfo, &mx)) {
+        return c;
+    }
+    hinfo->mounts.pop_back();
+    return nullptr;
 }
 
 StatusCode NestedArtboard::import(ImportStack& importStack) {

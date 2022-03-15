@@ -1,3 +1,5 @@
+#include "rive/hittest_command_path.hpp"
+#include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -55,6 +57,48 @@ void Shape::draw(Renderer* renderer) {
     if (shouldRestore) {
         renderer->restore();
     }
+}
+
+Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform) {
+    if (renderOpacity() == 0.0f) {
+        return nullptr;
+    }
+    
+    // TODO: clip:
+
+    const bool shapeIsLocal = (pathSpace() & PathSpace::Local) == PathSpace::Local;
+
+    for (auto rit = m_ShapePaints.rbegin(); rit != m_ShapePaints.rend(); ++rit) {
+        auto shapePaint = *rit;
+        if (shapePaint->isTranslucent()) {
+            continue;
+        }
+        if (!shapePaint->isVisible()) {
+            continue;
+        }
+
+        auto paintIsLocal = (shapePaint->pathSpace() & PathSpace::Local) == PathSpace::Local;
+
+        auto mx = xform;
+        if (paintIsLocal) {
+            mx *= worldTransform();
+        }
+        
+        HitTestCommandPath tester(hinfo->area);
+        
+        for (auto path : m_Paths) {
+            if (shapeIsLocal) {
+                tester.setXform(xform * path->pathTransform());
+            } else {
+                tester.setXform(mx * path->pathTransform());
+            }
+            path->buildPath(tester);
+        }
+        if (tester.wasHit()) {
+            return this;
+        }
+    }
+    return nullptr;
 }
 
 void Shape::buildDependencies() {

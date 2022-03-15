@@ -1,13 +1,16 @@
 #ifndef _RIVE_ARTBOARD_HPP_
 #define _RIVE_ARTBOARD_HPP_
+
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/core_context.hpp"
 #include "rive/generated/artboard_base.hpp"
+#include "rive/hit_info.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include <vector>
+
 namespace rive {
     class File;
     class Drawable;
@@ -55,6 +58,10 @@ namespace rive {
         StatusCode initialize();
 
         Core* resolve(int id) const override;
+
+        // EXPERIMENTAL -- for internal testing only for now.
+        // DO NOT RELY ON THIS as it may change/disappear in the future.
+        Core* hitTest(HitInfo*, const Mat2D* = nullptr);
 
         void onComponentDirty(Component* component);
 

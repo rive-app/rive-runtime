@@ -1,7 +1,10 @@
 #ifndef _RIVE_NESTED_ARTBOARD_HPP_
 #define _RIVE_NESTED_ARTBOARD_HPP_
+
 #include "rive/generated/nested_artboard_base.hpp"
+#include "rive/hit_info.hpp"
 #include <stdio.h>
+
 namespace rive {
     class NestedAnimation;
     class NestedArtboard : public NestedArtboardBase {
@@ -14,6 +17,7 @@ namespace rive {
         ~NestedArtboard();
         StatusCode onAddedClean(CoreContext* context) override;
         void draw(Renderer* renderer) override;
+        Core* hitTest(HitInfo*, const Mat2D&) override;
         void addNestedAnimation(NestedAnimation* nestedAnimation);
 
         void nest(Artboard* artboard);

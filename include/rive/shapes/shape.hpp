@@ -1,5 +1,7 @@
 #ifndef _RIVE_SHAPE_HPP_
 #define _RIVE_SHAPE_HPP_
+
+#include "rive/hit_info.hpp"
 #include "rive/generated/shapes/shape_base.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
@@ -25,6 +27,7 @@ namespace rive {
 
         void update(ComponentDirt value) override;
         void draw(Renderer* renderer) override;
+        Core* hitTest(HitInfo*, const Mat2D&) override;
 
         PathComposer* pathComposer() const {
             return (PathComposer*)&m_PathComposer;

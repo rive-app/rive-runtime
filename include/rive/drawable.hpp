@@ -1,6 +1,7 @@
 #ifndef _RIVE_DRAWABLE_HPP_
 #define _RIVE_DRAWABLE_HPP_
 #include "rive/generated/drawable_base.hpp"
+#include "rive/hit_info.hpp"
 #include "rive/renderer.hpp"
 #include <vector>
 
@@ -24,6 +25,7 @@ namespace rive {
         BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
         bool clip(Renderer* renderer) const;
         virtual void draw(Renderer* renderer) = 0;
+        virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;
         void addClippingShape(ClippingShape* shape);
         inline const std::vector<ClippingShape*>& clippingShapes() const {
             return m_ClippingShapes;

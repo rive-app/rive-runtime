@@ -13,6 +13,8 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_artboard.hpp"
+
+#include <stack>
 #include <unordered_map>
 
 using namespace rive;
@@ -362,6 +364,37 @@ bool Artboard::advance(double elapsedSeconds) {
         nestedArtboard->advance(elapsedSeconds);
     }
     return updateComponents();
+}
+
+Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform) {
+    if (clip()) {
+        // TODO: can we get the rawpath for the clip?
+    }
+
+    auto mx = xform ? *xform : Mat2D();
+    if (m_FrameOrigin) {
+        mx *= Mat2D::fromTranslate(width() * originX(), height() * originY());
+    }
+
+    Drawable* last = m_FirstDrawable;
+    if (last) {
+        // walk to the end, so we can visit in reverse-order
+        while (last->prev) {
+            last = last->prev;
+        }
+    }
+    for (auto drawable = last; drawable; drawable = drawable->next) {
+        if (drawable->isHidden()) {
+            continue;
+        }
+        if (auto c = drawable->hitTest(hinfo, mx)) {
+            return c;
+        }
+    }
+    
+    // TODO: should we hit-test the background?
+    
+    return nullptr;
 }
 
 void Artboard::draw(Renderer* renderer, DrawOption option) {
