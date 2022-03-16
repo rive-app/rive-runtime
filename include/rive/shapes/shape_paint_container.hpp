@@ -26,7 +26,7 @@ namespace rive {
 
         void invalidateStrokeEffects();
 
-        CommandPath* makeCommandPath(PathSpace space);
+        std::unique_ptr<CommandPath> makeCommandPath(PathSpace space);
     };
 } // namespace rive
 

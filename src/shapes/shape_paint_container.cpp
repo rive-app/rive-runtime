@@ -40,7 +40,7 @@ void ShapePaintContainer::invalidateStrokeEffects() {
     }
 }
 
-CommandPath* ShapePaintContainer::makeCommandPath(PathSpace space) {
+std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace space) {
     // Force a render path if we specifically request to use it for clipping or
     // this shape is used for clipping.
     bool needForRender = ((space | m_DefaultPathSpace) & PathSpace::Clipping) ==
@@ -62,10 +62,10 @@ CommandPath* ShapePaintContainer::makeCommandPath(PathSpace space) {
     }
 
     if (needForEffects && needForRender) {
-        return new RenderMetricsPath();
+        return std::unique_ptr<CommandPath>(new RenderMetricsPath());
     } else if (needForEffects) {
-        return new OnlyMetricsPath();
+        return std::unique_ptr<CommandPath>(new OnlyMetricsPath());
     } else {
-        return rive::makeRenderPath();
+        return std::unique_ptr<CommandPath>(rive::makeRenderPath());
     }
 }

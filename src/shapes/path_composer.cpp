@@ -9,10 +9,6 @@ using namespace rive;
 static Mat2D identity;
 
 PathComposer::PathComposer(Shape* shape) : m_Shape(shape) {}
-PathComposer::~PathComposer() {
-    delete m_LocalPath;
-    delete m_WorldPath;
-}
 
 void PathComposer::buildDependencies() {
     assert(m_Shape != nullptr);

@@ -10,8 +10,6 @@
 
 using namespace rive;
 
-Path::~Path() { delete m_CommandPath; }
-
 StatusCode Path::onAddedClean(CoreContext* context) {
     StatusCode code = Super::onAddedClean(context);
     if (code != StatusCode::Ok) {

@@ -37,6 +37,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <type_traits>
 
 #endif  // rive_types

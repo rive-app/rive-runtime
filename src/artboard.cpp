@@ -37,9 +37,6 @@ Artboard::~Artboard() {
             delete object;
         }
     }
-
-    delete m_ClipPath;
-    delete m_BackgroundPath;
 }
 
 static bool canContinue(StatusCode code) {
@@ -382,7 +379,7 @@ void Artboard::draw(Renderer* renderer, DrawOption option) {
 
     if (option != DrawOption::kHideBG) {
         for (auto shapePaint : m_ShapePaints) {
-            shapePaint->draw(renderer, m_BackgroundPath);
+            shapePaint->draw(renderer, backgroundPath());
         }
     }
 

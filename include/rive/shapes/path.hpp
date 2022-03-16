@@ -1,12 +1,12 @@
 #ifndef _RIVE_PATH_HPP_
 #define _RIVE_PATH_HPP_
+#include "rive/command_path.hpp"
 #include "rive/generated/shapes/path_base.hpp"
 #include "rive/math/mat2d.hpp"
 #include <vector>
 
 namespace rive {
     class Shape;
-    class CommandPath;
     class PathVertex;
 
 #ifdef ENABLE_QUERY_FLAT_VERTICES
@@ -33,16 +33,15 @@ namespace rive {
     class Path : public PathBase {
     protected:
         Shape* m_Shape = nullptr;
-        CommandPath* m_CommandPath = nullptr;
+        std::unique_ptr<CommandPath> m_CommandPath;
         std::vector<PathVertex*> m_Vertices;
 
     public:
-        ~Path();
         Shape* shape() const { return m_Shape; }
         StatusCode onAddedClean(CoreContext* context) override;
         void buildDependencies() override;
         virtual const Mat2D& pathTransform() const;
-        CommandPath* commandPath() const { return m_CommandPath; }
+        CommandPath* commandPath() const { return m_CommandPath.get(); }
         void update(ComponentDirt value) override;
 
         void addVertex(PathVertex* vertex);

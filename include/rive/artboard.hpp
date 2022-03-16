@@ -33,8 +33,8 @@ namespace rive {
         std::vector<NestedArtboard*> m_NestedArtboards;
 
         unsigned int m_DirtDepth = 0;
-        CommandPath* m_BackgroundPath = nullptr;
-        CommandPath* m_ClipPath = nullptr;
+        std::unique_ptr<CommandPath> m_BackgroundPath;
+        std::unique_ptr<CommandPath> m_ClipPath;
         Drawable* m_FirstDrawable = nullptr;
         bool m_IsInstance = false;
         bool m_FrameOrigin = true;
@@ -72,8 +72,8 @@ namespace rive {
         };
         void draw(Renderer* renderer, DrawOption = DrawOption::kNormal);
 
-        CommandPath* clipPath() const { return m_ClipPath; }
-        CommandPath* backgroundPath() const { return m_BackgroundPath; }
+        CommandPath* clipPath() const { return m_ClipPath.get(); }
+        CommandPath* backgroundPath() const { return m_BackgroundPath.get(); }
 
         const std::vector<Core*>& objects() const { return m_Objects; }
 
