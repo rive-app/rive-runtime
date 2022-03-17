@@ -6,6 +6,17 @@
 
 using namespace rive;
 
+void IKConstraint::buildDependencies() {
+    Super::buildDependencies();
+
+    // IK Constraint needs to depend on the target so that world transform
+    // changes can propagate to the bones (and they can be reset before IK
+    // runs).
+    if (m_Target != nullptr) {
+        m_Target->addDependent(this);
+    }
+}
+
 StatusCode IKConstraint::onAddedClean(CoreContext* context) {
     if (!parent()->is<Bone>()) {
         return StatusCode::InvalidObject;
@@ -104,18 +115,14 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     b2->tipWorldTranslation(pB);
     Vec2D pBT(worldTargetTranslation);
 
-    pA  = iworld * pA;
-    pC  = iworld * pC;
-    pB  = iworld * pB;
+    pA = iworld * pA;
+    pC = iworld * pC;
+    pB = iworld * pB;
     pBT = iworld * pBT;
 
     // http://mathworld.wolfram.com/LawofCosines.html
-    Vec2D av = pB  - pC,
-          bv = pC  - pA,
-          cv = pBT - pA;
-    float a = av.length(),
-          b = bv.length(),
-          c = cv.length();
+    Vec2D av = pB - pC, bv = pC - pA, cv = pBT - pA;
+    float a = av.length(), b = bv.length(), c = cv.length();
 
     float A = std::acos(std::max(
         -1.0f, std::min(1.0f, (-a * a + b * b + c * c) / (2.0f * b * c))));
@@ -153,7 +160,8 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     constrainRotation(*firstChild, r2);
     if (firstChild != fk2) {
         Bone* bone = fk2->bone;
-        bone->mutableWorldTransform() = getParentWorld(*bone) * bone->transform();
+        bone->mutableWorldTransform() =
+            getParentWorld(*bone) * bone->transform();
     }
 
     // Simple storage, need this for interpolation.
