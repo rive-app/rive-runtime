@@ -42,10 +42,11 @@ void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
-static void buildPath(CommandPath& commandPath,
-                      bool isClosed,
-                      const std::vector<PathVertex*>& vertices) {
+void Path::buildPath(CommandPath& commandPath) const {
     commandPath.reset();
+    
+    const bool isClosed = isPathClosed();
+    const std::vector<PathVertex*>& vertices = m_Vertices;
 
     auto length = vertices.size();
     if (length < 2) {
@@ -234,7 +235,7 @@ void Path::update(ComponentDirt value) {
 
     assert(m_CommandPath != nullptr);
     if (hasDirt(value, ComponentDirt::Path)) {
-        buildPath(*m_CommandPath, isPathClosed(), m_Vertices);
+        buildPath(*m_CommandPath);
     }
     // if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
     // {

@@ -56,6 +56,9 @@ namespace rive {
 #ifdef TESTING
         std::vector<PathVertex*>& vertices() { return m_Vertices; }
 #endif
+
+        // pour ourselves into a command-path
+        void buildPath(CommandPath&) const;
     };
 } // namespace rive
 
