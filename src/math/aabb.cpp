@@ -43,3 +43,21 @@ void AABB::transform(AABB& out, const AABB& a, const Mat2D& matrix) {
     out[2] = std::fmax(p1[0], std::fmax(p2[0], std::fmax(p3[0], p4[0])));
     out[3] = std::fmax(p1[1], std::fmax(p2[1], std::fmax(p3[1], p4[1])));
 }
+
+static inline float graphics_roundf(float x) {
+    return std::floor(x + 0.5f);
+}
+
+static inline int graphics_round(float x) {
+    return (int)graphics_roundf(x);
+}
+
+IAABB AABB::round() const {
+    return {
+        graphics_round(left()),
+        graphics_round(top()),
+        graphics_round(right()),
+        graphics_round(bottom()),
+    };
+}
+

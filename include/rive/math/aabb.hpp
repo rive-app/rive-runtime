@@ -6,6 +6,21 @@
 #include <cstddef>
 
 namespace rive {
+    struct IAABB {
+        int32_t left, top, right, bottom;
+        
+        constexpr int width() const { return right - left; }
+        constexpr int height() const { return bottom - top; }
+        constexpr bool empty() const { return width() <= 0 || height() <= 0; }
+
+        IAABB inset(int dx, int dy) const {
+            return {left + dx, top + dy, right - dx, bottom - dy};
+        }
+        IAABB offset(int dx, int dy) const {
+            return {left + dx, top + dy, right + dx, bottom + dy};
+        }
+    };
+
     class AABB {
     public:
         union {
@@ -20,9 +35,13 @@ namespace rive {
         AABB(const AABB& o) :
             minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY)
         {}
-        
+
         AABB(float minX, float minY, float maxX, float maxY) :
             minX(minX), minY(minY), maxX(maxX), maxY(maxY)
+        {}
+
+        AABB(const IAABB& o) :
+            AABB((float)o.left, (float)o.top, (float)o.right, (float)o.bottom)
         {}
 
         bool operator==(const AABB& o) const {
@@ -67,6 +86,9 @@ namespace rive {
         AABB offset(float dx, float dy) const {
             return {minX + dx, minY + dy, maxX + dx, maxY + dy};
         }
+
+        IAABB round() const;
     };
+
 } // namespace rive
 #endif
