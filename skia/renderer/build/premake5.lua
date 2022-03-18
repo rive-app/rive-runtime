@@ -60,6 +60,9 @@ project "rive_skia_renderer"
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
 
+    filter { "system:android", "configurations:release" }
+        buildoptions {"-flto=full"}
+
     -- Is there a way to pass 'arch' as a variable here?
     filter { "system:android" }
         includedirs {"../../dependencies/skia_rive_optimized", "../../dependencies/skia_rive_optimized/include/core",

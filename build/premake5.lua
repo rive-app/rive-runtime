@@ -34,6 +34,9 @@ project "rive"
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
 
+    filter { "system:android", "configurations:release" }
+        buildoptions {"-flto=full"}
+
     -- Is there a way to pass 'arch' as a variable here?
     filter { "system:android", "options:arch=x86" }
         targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"
