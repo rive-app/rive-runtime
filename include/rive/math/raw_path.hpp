@@ -8,6 +8,7 @@
 #include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/math/path_types.hpp"
 #include "rive/math/vec2d.hpp"
 
 #include <cmath>
@@ -16,23 +17,6 @@
 #include <vector>
 
 namespace rive {
-
-enum class PathDirection {
-    cw,
-    ccw,
-    // aliases
-    clockwise = cw,
-    counterclockwise = ccw,
-};
-
-enum class PathVerb : uint8_t {
-    move,
-    line,
-    quad,
-    conic_unused,   // so we match skia's order
-    cubic,
-    close,
-};
 
 class RawPath {
 public:

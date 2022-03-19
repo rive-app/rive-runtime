@@ -2,10 +2,9 @@
 #define _RIVE_COMMAND_PATH_HPP_
 
 #include "rive/math/mat2d.hpp"
+#include "rive/math/path_types.hpp"
 
 namespace rive {
-    enum class FillRule { nonZero, evenOdd };
-
     class RenderPath;
 
     /// Abstract path used to build up commands used for rendering.
