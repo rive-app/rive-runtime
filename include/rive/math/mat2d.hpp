@@ -32,6 +32,11 @@ namespace rive {
 
         void scaleByValues(float sx, float sy);
 
+        Mat2D& operator*=(const Mat2D& rhs) {
+            *this = Mat2D::multiply(*this, rhs);
+            return *this;
+        }
+
         static Mat2D scale(const Mat2D& mat, const Vec2D& vec);
         static Mat2D multiply(const Mat2D& a, const Mat2D& b);
         static bool invert(Mat2D& result, const Mat2D& a);
