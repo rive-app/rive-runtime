@@ -165,11 +165,9 @@ void HitTester::reset() {
     m_DW.clear();
 }
 
-void HitTester::reset(const IAABB& clip, FillRule rule) {
+void HitTester::reset(const IAABB& clip) {
     m_offset = Vec2D{ (float)clip.left, (float)clip.top };
     m_height = (float)clip.height();
-
-    m_WindingMask = (rule == rive::FillRule::nonZero) ? -1 : 1;
 
     m_IWidth = clip.width();
     m_IHeight = clip.height();
@@ -320,20 +318,16 @@ void HitTester::addRect(const AABB& rect, const Mat2D& xform, PathDirection dir)
     close();
 }
 
-bool HitTester::test() {
+bool HitTester::test(FillRule rule) {
     if (!m_ExpectsMove) {
         this->close();
     }
 
-    const int* row = m_DW.data();
-    int winding = 0;
-    for (int y = 0; y < m_IHeight; ++y) {
-        int w = 0;
-        for (int x = 0; x < m_IWidth; ++x) {
-            w += *row++;
-            winding |= w & m_WindingMask;
-        }
+    const int mask = (rule == rive::FillRule::nonZero) ? -1 : 1;
+
+    int nonzero = 0;
+    for (auto m : m_DW) {
+        nonzero |= (m & mask);
     }
-    this->reset();
-    return winding != 0;
+    return nonzero != 0;
 }

@@ -11,7 +11,7 @@ HitTestCommandPath::HitTestCommandPath(const IAABB& area) : m_Area(area) {
 }
 
 bool HitTestCommandPath::wasHit() {
-    return m_Tester.test();
+    return m_Tester.test(m_FillRule);
 }
 
 void HitTestCommandPath::reset() {
@@ -19,6 +19,7 @@ void HitTestCommandPath::reset() {
 }
 
 void HitTestCommandPath::fillRule(FillRule value) {
+    // remember this here, and pass it to test()
     m_FillRule = value;
 }
 

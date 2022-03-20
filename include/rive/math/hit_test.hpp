@@ -20,7 +20,6 @@ class HitTester {
     Vec2D            m_offset;
     float            m_height;
     int              m_IWidth, m_IHeight;
-    int              m_WindingMask;
     bool             m_ExpectsMove;
 
     void recurse_cubic(Vec2D b, Vec2D c, Vec2D d, int count);
@@ -30,7 +29,7 @@ public:
     HitTester(const IAABB& area) { reset(area); }
 
     void reset();
-    void reset(const IAABB& area, FillRule = rive::FillRule::nonZero);
+    void reset(const IAABB& area);
 
     void move(Vec2D);
     void line(Vec2D);
@@ -40,7 +39,7 @@ public:
     
     void addRect(const AABB&, const Mat2D&, PathDirection = PathDirection::ccw);
 
-    bool test();    // calls reset() afterwards
+    bool test(FillRule = rive::FillRule::nonZero);
 };
 
 }
