@@ -41,7 +41,7 @@ namespace rive {
         void addRect(const AABB&, const Mat2D&, PathDirection = PathDirection::ccw);
 
         bool test(FillRule = rive::FillRule::nonZero);
-        
+
         static bool testMesh(Vec2D point, Span<Vec2D> verts, Span<uint16_t> indices);
         static bool testMesh(const IAABB&, Span<Vec2D> verts, Span<uint16_t> indices);
     };

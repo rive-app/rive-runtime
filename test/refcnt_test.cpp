@@ -11,10 +11,8 @@ using namespace rive;
 class MyRefCnt : public RefCnt {
 public:
     MyRefCnt() {}
-    
-    void require_count(int value) {
-        REQUIRE(this->debugging_refcnt() == value);
-    }
+
+    void require_count(int value) { REQUIRE(this->debugging_refcnt() == value); }
 };
 
 TEST_CASE("refcnt", "[basics]") {
@@ -65,4 +63,3 @@ TEST_CASE("rcp", "[basics]") {
     r1.reset();
     REQUIRE(r1.get() == nullptr);
 }
-

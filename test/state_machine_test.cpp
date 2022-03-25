@@ -66,11 +66,7 @@ TEST_CASE("file with state machine be read", "[file]") {
     REQUIRE(idleState->transitionCount() == 2);
     for (int i = 0; i < idleState->transitionCount(); i++) {
         auto transition = idleState->transition(i);
-        if (transition->stateTo()
-                ->as<rive::AnimationState>()
-                ->animation()
-                ->name() == "Roll_over")
-        {
+        if (transition->stateTo()->as<rive::AnimationState>()->animation()->name() == "Roll_over") {
             // Check the condition
             REQUIRE(transition->conditionCount() == 1);
         }
@@ -136,9 +132,8 @@ TEST_CASE("file with blend states loads correctly", "[file]") {
 
     REQUIRE(blendStateA->transitionCount() == 1);
     REQUIRE(blendStateA->transition(0)->is<rive::BlendStateTransition>());
-    REQUIRE(blendStateA->transition(0)
-                ->as<rive::BlendStateTransition>()
-                ->exitBlendAnimation() != nullptr);
+    REQUIRE(blendStateA->transition(0)->as<rive::BlendStateTransition>()->exitBlendAnimation() !=
+            nullptr);
 }
 
 TEST_CASE("animation state with no animation doesn't crash", "[file]") {

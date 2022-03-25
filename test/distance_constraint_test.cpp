@@ -22,8 +22,7 @@ TEST_CASE("distance constraints moves items as expected", "[file]") {
     REQUIRE(a->constraints().size() == 1);
     REQUIRE(a->constraints()[0]->is<rive::DistanceConstraint>());
 
-    auto distanceConstraint =
-        a->constraints()[0]->as<rive::DistanceConstraint>();
+    auto distanceConstraint = a->constraints()[0]->as<rive::DistanceConstraint>();
     REQUIRE(distanceConstraint->modeValue() == 1);
 
     b->x(259.31f);

@@ -37,8 +37,8 @@ namespace rive {
             minX(minX), minY(minY), maxX(maxX), maxY(maxY) {}
 
         AABB(const IAABB& o) : AABB((float)o.left, (float)o.top, (float)o.right, (float)o.bottom) {}
-        
-        AABB(Span<Vec2D>);  // computes the union of all points, or 0,0,0,0
+
+        AABB(Span<Vec2D>); // computes the union of all points, or 0,0,0,0
 
         bool operator==(const AABB& o) const {
             return minX == o.minX && minY == o.minY && maxX == o.maxX && maxY == o.maxY;

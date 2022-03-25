@@ -22,8 +22,8 @@ const SkPath* RiveFont::path(uint16_t glyph) const {
     return p.isEmpty() ? nullptr : &p;
 }
 
-#define kSignature  0x23581321
-#define kVersion    1
+#define kSignature 0x23581321
+#define kVersion 1
 
 constexpr uint32_t Tag(unsigned a, unsigned b, unsigned c, unsigned d) {
     assert((a & 0xFF) == a);
@@ -36,15 +36,15 @@ constexpr uint32_t Tag(unsigned a, unsigned b, unsigned c, unsigned d) {
 static inline void tag_to_str(uint32_t tag, char str[5]) {
     str[0] = (tag >> 24) & 0xFF;
     str[1] = (tag >> 16) & 0xFF;
-    str[2] = (tag >>  8) & 0xFF;
-    str[3] = (tag >>  0) & 0xFF;
+    str[2] = (tag >> 8) & 0xFF;
+    str[3] = (tag >> 0) & 0xFF;
     str[4] = 0;
 }
 
-constexpr uint32_t kOffsets_TableTag  = Tag('p', 'o', 'f', 'f');
-constexpr uint32_t kPaths_TableTag    = Tag('p', 'a', 't', 'h');
-constexpr uint32_t kCMap_TableTag     = Tag('c', 'm', 'a', 'p');
-constexpr uint32_t kInfo_TableTag     = Tag('i', 'n', 'f', 'o');
+constexpr uint32_t kOffsets_TableTag = Tag('p', 'o', 'f', 'f');
+constexpr uint32_t kPaths_TableTag = Tag('p', 'a', 't', 'h');
+constexpr uint32_t kCMap_TableTag = Tag('c', 'm', 'a', 'p');
+constexpr uint32_t kInfo_TableTag = Tag('i', 'n', 'f', 'o');
 constexpr uint32_t kAdvances_TableTag = Tag('h', 'a', 'd', 'v');
 
 struct TableDir {
@@ -59,9 +59,7 @@ struct FontHead {
     uint32_t tableCount;
     // TableDir[dirCount]
 
-    const TableDir* dir() const {
-        return (const TableDir*)(this + 1);
-    }
+    const TableDir* dir() const { return (const TableDir*)(this + 1); }
 
     const void* findTable(uint32_t tag) const {
         auto dir = this->dir();
@@ -75,8 +73,8 @@ struct FontHead {
 };
 
 struct InfoTable {
-    uint16_t    glyphCount;
-    uint16_t    upem;
+    uint16_t glyphCount;
+    uint16_t upem;
 };
 
 struct GlyphOffsetTable {
@@ -99,20 +97,19 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len) {
     uint16_t glyphIDs[len];
     int glyphCount = font.textToGlyphs(str, len, SkTextEncoding::kUTF8, glyphIDs, len);
     assert(glyphCount == (int)len);
-    
+
     struct Rec {
         uint16_t charCode;
         uint16_t srcGlyph;
         uint16_t dstGlyph;
     };
     std::vector<Rec> rec;
-    uint16_t newDstGlyphID = 1;    // leave room for glyphID==0 for missing glyph
+    uint16_t newDstGlyphID = 1; // leave room for glyphID==0 for missing glyph
     // build vector of unique chars
     for (size_t i = 0; i < len; ++i) {
         uint16_t code = str[i];
-        auto iter = std::find_if(rec.begin(), rec.end(), [code](const auto& r) {
-            return r.charCode == code;
-        });
+        auto iter = std::find_if(
+            rec.begin(), rec.end(), [code](const auto& r) { return r.charCode == code; });
         if (iter == rec.end()) {
             // gonna add code -- now see if its glyph is unique
             uint16_t srcGlyph = glyphIDs[i];
@@ -124,39 +121,36 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len) {
                 // srcGlyph is unique (or zero)
                 dstGlyph = srcGlyph ? newDstGlyphID++ : 0;
             } else {
-                dstGlyph = it2->dstGlyph;   // reuse prev dstGlyph
+                dstGlyph = it2->dstGlyph; // reuse prev dstGlyph
             }
             rec.push_back({code, srcGlyph, dstGlyph});
         }
     }
 
-    std::sort(rec.begin(), rec.end(), [](const Rec& a, const Rec& b) {
-        return a.charCode < b.charCode;
-    });
+    std::sort(
+        rec.begin(), rec.end(), [](const Rec& a, const Rec& b) { return a.charCode < b.charCode; });
     for (const auto& r : rec) {
         printf("'%c' [%d] %d -> %d\n", r.charCode, r.charCode, r.srcGlyph, r.dstGlyph);
         fCMap.push_back({r.charCode, r.dstGlyph});
     }
 
-    std::sort(rec.begin(), rec.end(), [](const Rec& a, const Rec& b) {
-        return a.dstGlyph < b.dstGlyph;
-    });
+    std::sort(
+        rec.begin(), rec.end(), [](const Rec& a, const Rec& b) { return a.dstGlyph < b.dstGlyph; });
 
     font.setLinearMetrics(true);
     auto append_glyph = [&](uint16_t srcGlyph) {
         float width;
         font.getWidths(&srcGlyph, 1, &width);
         SkPath path;
-        font.getPath(srcGlyph, &path);   // returns false if glyph is bitmap
+        font.getPath(srcGlyph, &path); // returns false if glyph is bitmap
 
         fGlyphs.push_back({std::move(path), width});
     };
 
-    append_glyph(0);    // missing glyph
-    for (int i = 1; i < newDstGlyphID; ++i) {   // walk through our glyphs
-        auto iter = std::find_if(rec.begin(), rec.end(), [i](const auto& r) {
-            return r.dstGlyph == i;
-        });
+    append_glyph(0);                          // missing glyph
+    for (int i = 1; i < newDstGlyphID; ++i) { // walk through our glyphs
+        auto iter =
+            std::find_if(rec.begin(), rec.end(), [i](const auto& r) { return r.dstGlyph == i; });
         assert(iter != rec.end());
         append_glyph(iter->srcGlyph);
     }
@@ -164,10 +158,10 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len) {
 
 struct ByteBuilder {
     std::vector<uint8_t> bytes;
-    
+
     uint32_t length() const { return bytes.size(); }
-    
-    uint8_t  add8(size_t x) {
+
+    uint8_t add8(size_t x) {
         assert((x & 0xFF) == x);
         uint8_t b = (uint8_t)x;
         bytes.push_back(b);
@@ -200,13 +194,9 @@ struct ByteBuilder {
     template <typename T> void add(const std::vector<T>& v) {
         this->add(v.data(), v.size() * sizeof(T));
     }
-    void add(const ByteBuilder& bb) {
-        this->add(bb.bytes.data(), bb.bytes.size());
-    }
-    void add(sk_sp<SkData> data) {
-        this->add(data->data(), data->size());
-    }
-    
+    void add(const ByteBuilder& bb) { this->add(bb.bytes.data(), bb.bytes.size()); }
+    void add(sk_sp<SkData> data) { this->add(data->data(), data->size()); }
+
     void padTo16() {
         if (bytes.size() & 1) {
             this->add8(0);
@@ -217,13 +207,13 @@ struct ByteBuilder {
             this->add8(0);
         }
     }
-    
+
     void set32(size_t offset, uint32_t value) {
         assert(offset + 4 <= bytes.size());
         assert((offset & 3) == 0);
         memcpy(bytes.data() + offset, &value, 4);
     }
-    
+
     sk_sp<SkData> detach() {
         auto data = SkData::MakeWithCopy(bytes.data(), bytes.size());
         bytes.clear();
@@ -232,14 +222,14 @@ struct ByteBuilder {
 };
 
 void encode_path(ByteBuilder* bb, const SkPath& path, float scale) {
-    std::vector<uint8_t>  varray;
+    std::vector<uint8_t> varray;
     std::vector<uint16_t> parray;
-    
+
     auto add_point = [&](SkPoint p) {
         parray.push_back(SkScalarRoundToInt(p.fX * scale));
         parray.push_back(SkScalarRoundToInt(p.fY * scale));
     };
-    
+
     SkPath::RawIter iter(path);
     for (;;) {
         SkPoint pts[4];
@@ -256,15 +246,18 @@ void encode_path(ByteBuilder* bb, const SkPath& path, float scale) {
                 add_point(pts[1]);
                 break;
             case SkPathVerb::kQuad:
-                add_point(pts[1]); add_point(pts[2]);
+                add_point(pts[1]);
+                add_point(pts[2]);
                 break;
             case SkPathVerb::kCubic:
-                add_point(pts[1]); add_point(pts[2]); add_point(pts[3]);
+                add_point(pts[1]);
+                add_point(pts[2]);
+                add_point(pts[3]);
                 break;
             case SkPathVerb::kClose:
                 break;
             default:
-                assert(false);  // unsupported
+                assert(false); // unsupported
         }
     }
     assert((int)varray.size() == path.countVerbs());
@@ -289,8 +282,8 @@ void encode_path(ByteBuilder* bb, const SkPath& path, float scale) {
 
     bb->addU16(varray.size());
     assert((parray.size() & 1) == 0);
-    bb->addU16(parray.size() / 2);  // #points == 2 * #values
-    
+    bb->addU16(parray.size() / 2); // #points == 2 * #values
+
     bb->add(varray);
     bb->padTo16();
     bb->add(parray);
@@ -311,9 +304,7 @@ sk_sp<SkData> RiveFont::encode() const {
         InfoTable itable;
         itable.glyphCount = fGlyphs.size();
         itable.upem = upem;
-        dir.push_back({
-            kInfo_TableTag, SkData::MakeWithCopy(&itable, sizeof(itable))
-        });
+        dir.push_back({kInfo_TableTag, SkData::MakeWithCopy(&itable, sizeof(itable))});
     }
 
     {
@@ -324,7 +315,7 @@ sk_sp<SkData> RiveFont::encode() const {
             cmap.addU16(cm.fChar);
             cmap.addU16(cm.fGlyph);
         }
-        dir.push_back({ kCMap_TableTag, cmap.detach() });
+        dir.push_back({kCMap_TableTag, cmap.detach()});
     }
 
     // todo: store offset[i] for glyph[i+1] since first offset is always 0
@@ -337,18 +328,16 @@ sk_sp<SkData> RiveFont::encode() const {
             paths.padTo16();
             advances.addU16(SkScalarRoundToInt(g.fAdvance * scale));
         }
-        offsets.push_back(paths.length());  // store N+1 offsets
+        offsets.push_back(paths.length()); // store N+1 offsets
 
-        dir.push_back({
-            kOffsets_TableTag, SkData::MakeWithCopy(offsets.data(), offsets.size() * 4)
-        });
-        dir.push_back({ kPaths_TableTag, paths.detach() });
-        dir.push_back({ kAdvances_TableTag, advances.detach() });
+        dir.push_back(
+            {kOffsets_TableTag, SkData::MakeWithCopy(offsets.data(), offsets.size() * 4)});
+        dir.push_back({kPaths_TableTag, paths.detach()});
+        dir.push_back({kAdvances_TableTag, advances.detach()});
     }
 
-    std::sort(dir.begin(), dir.end(), [](const DirRec& a, const DirRec& b) {
-        return a.tag < b.tag;
-    });
+    std::sort(
+        dir.begin(), dir.end(), [](const DirRec& a, const DirRec& b) { return a.tag < b.tag; });
 
     ByteBuilder header;
     header.addU32(kSignature);
@@ -356,7 +345,7 @@ sk_sp<SkData> RiveFont::encode() const {
     header.addU32(dir.size());
     for (auto& d : dir) {
         header.addU32(d.tag);
-        header.addU32(0);       // offset -- fill in later
+        header.addU32(0); // offset -- fill in later
         header.addU32(d.data->size());
     }
 
@@ -382,29 +371,26 @@ struct Reader {
         fCurr = fStart;
         fStop = fStart + length;
     }
-    
+
     bool isAvailable(size_t n) const { return fCurr + n <= fStop; }
     size_t available() const { return fStop - fCurr; }
-    
+
     template <typename T> const T* skip(size_t size) {
         assert(this->isAvailable(size));
         const char* p = fCurr;
         fCurr += size;
         return reinterpret_cast<const T*>(p);
     }
-    
-    template <typename T> const T* skip() {
-        return this->skip<T>(sizeof(T));
-    }
 
-    void skip(size_t size) {
-    }
+    template <typename T> const T* skip() { return this->skip<T>(sizeof(T)); }
+
+    void skip(size_t size) {}
 
     uint8_t u8() {
         assert(this->isAvailable(1));
         return *fCurr++;
     }
-    
+
     int16_t s16() {
         assert(this->isAvailable(2));
         int16_t s;
@@ -426,13 +412,13 @@ struct Reader {
         fCurr += 4;
         return s;
     }
-    
+
     void read(void* dst, size_t size) {
         assert(this->isAvailable(size));
         memcpy(dst, fCurr, size);
         fCurr += size;
     }
-    
+
     void skipPad16() {
         size_t amount = fCurr - fStart;
         if (amount & 1) {
@@ -446,11 +432,21 @@ static int compute_point_count(const uint8_t verbs[], int verbCount) {
     int count = 0;
     for (int i = 0; i < verbCount; ++i) {
         switch ((SkPathVerb)verbs[i]) {
-            case SkPathVerb::kMove:  count += 1; break;
-            case SkPathVerb::kLine:  count += 1; break;
-            case SkPathVerb::kQuad:  count += 2; break;
-            case SkPathVerb::kCubic: count += 3; break;
-            case SkPathVerb::kClose: count += 0; break;
+            case SkPathVerb::kMove:
+                count += 1;
+                break;
+            case SkPathVerb::kLine:
+                count += 1;
+                break;
+            case SkPathVerb::kQuad:
+                count += 2;
+                break;
+            case SkPathVerb::kCubic:
+                count += 3;
+                break;
+            case SkPathVerb::kClose:
+                count += 0;
+                break;
             default:
                 assert(false);
                 return -1;
@@ -476,14 +472,11 @@ static SkPath decode_path(const void* data, size_t length, float scale) {
 
     SkPoint pts[pointCount];
     for (int i = 0; i < pointCount; ++i) {
-        pts[i] = { pts16[0] * scale, pts16[1] * scale };
+        pts[i] = {pts16[0] * scale, pts16[1] * scale};
         pts16 += 2;
     }
 
-    return SkPath::Make(pts, pointCount,
-                        verbs, verbCount,
-                        nullptr, 0,
-                        SkPathFillType::kWinding);
+    return SkPath::Make(pts, pointCount, verbs, verbCount, nullptr, 0, SkPathFillType::kWinding);
 }
 
 bool RiveFont::decode(const void* data, size_t length) {
@@ -501,15 +494,20 @@ bool RiveFont::decode(const void* data, size_t length) {
         for (unsigned i = 0; i < font->tableCount; ++i) {
             char str[5];
             tag_to_str(dir[i].tag, str);
-            printf("[%d] {%0x08 %s %10d} %d %d\n", i, dir[i].tag, str, dir[i].tag,
-                   dir[i].offset, dir[i].length);
+            printf("[%d] {%0x08 %s %10d} %d %d\n",
+                   i,
+                   dir[i].tag,
+                   str,
+                   dir[i].tag,
+                   dir[i].offset,
+                   dir[i].length);
         }
     }
 
-    auto info     = (const InfoTable*)font->findTable(kInfo_TableTag);
-    auto cmap     = (const uint16_t*)font->findTable(kCMap_TableTag);
-    auto paths    = (const char*)font->findTable(kPaths_TableTag);
-    auto offsets  = (const uint32_t*)font->findTable(kOffsets_TableTag);
+    auto info = (const InfoTable*)font->findTable(kInfo_TableTag);
+    auto cmap = (const uint16_t*)font->findTable(kCMap_TableTag);
+    auto paths = (const char*)font->findTable(kPaths_TableTag);
+    auto offsets = (const uint32_t*)font->findTable(kOffsets_TableTag);
     auto advances = (const uint16_t*)font->findTable(kAdvances_TableTag);
 
     const int glyphCount = info->glyphCount;
@@ -524,19 +522,17 @@ bool RiveFont::decode(const void* data, size_t length) {
 
         fCMap.push_back({c, g});
     }
-    
+
     const float scale = 1.0f / (float)info->upem;
 
     for (int i = 0; i < glyphCount; ++i) {
         float adv = advances[i] * scale;
         uint32_t start = offsets[i];
-        uint32_t end = offsets[i+1];
+        uint32_t end = offsets[i + 1];
         assert(start <= end);
 
-        fGlyphs.push_back({
-            (start == end) ? SkPath() : decode_path(paths + start, end - start, scale),
-            adv
-        });
+        fGlyphs.push_back(
+            {(start == end) ? SkPath() : decode_path(paths + start, end - start, scale), adv});
     }
     return true;
 }

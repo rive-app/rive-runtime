@@ -373,7 +373,8 @@ bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> in
         const auto bounds = AABB(verts);
 
         if (bounds.bottom() <= area.top || area.bottom <= bounds.top() ||
-            bounds.right() <= area.left || area.right <= bounds.left()) {
+            bounds.right() <= area.left || area.right <= bounds.left())
+        {
             return false;
         }
     }

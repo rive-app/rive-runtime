@@ -12,10 +12,10 @@ class RiveFont {
         uint16_t fGlyph;
     };
     std::vector<Pair> fCMap;
-    
+
     struct Glyph {
-        SkPath  fPath;
-        float   fAdvance;
+        SkPath fPath;
+        float fAdvance;
     };
     std::vector<Glyph> fGlyphs;
 

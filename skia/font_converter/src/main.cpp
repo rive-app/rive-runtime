@@ -10,29 +10,29 @@
 #include <vector>
 
 static std::vector<char> readFile(const char path[]) {
-	FILE* fp = fopen(path, "r");
+    FILE* fp = fopen(path, "r");
 
-	if (fp == nullptr) {
-		fclose(fp);
-		std::ostringstream errorStream;
-		errorStream << "Failed to open file " << path;
-		throw std::invalid_argument(errorStream.str());
-	}
-	fseek(fp, 0, SEEK_END);
-	size_t length = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
+    if (fp == nullptr) {
+        fclose(fp);
+        std::ostringstream errorStream;
+        errorStream << "Failed to open file " << path;
+        throw std::invalid_argument(errorStream.str());
+    }
+    fseek(fp, 0, SEEK_END);
+    size_t length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
 
     std::vector<char> data;
     data.resize(length);
 
-	if (fread(data.data(), 1, length, fp) != length) {
-		fclose(fp);
-		std::ostringstream errorStream;
-		errorStream << "Failed to read file into bytes array " << path;
-		throw std::invalid_argument(errorStream.str());
-	}
+    if (fread(data.data(), 1, length, fp) != length) {
+        fclose(fp);
+        std::ostringstream errorStream;
+        errorStream << "Failed to read file into bytes array " << path;
+        throw std::invalid_argument(errorStream.str());
+    }
 
-	fclose(fp);
+    fclose(fp);
     return data;
 }
 
@@ -51,8 +51,8 @@ static std::vector<char> build_default_charset() {
 }
 
 int main(int argc, const char* argv[]) {
-	try {
-		FontArguments args(argc, argv);
+    try {
+        FontArguments args(argc, argv);
         sk_sp<SkTypeface> typeface;
 
         auto src = readFile(args.source().c_str());
@@ -73,29 +73,21 @@ int main(int argc, const char* argv[]) {
 
         RiveFont font;
         font.load(typeface, charset.data(), charset.size());
-        
+
         auto dst = font.encode();
 
         writeFile(args.destination().c_str(), dst->data(), dst->size());
+    } catch (const args::Completion& e) {
+        return 0;
+    } catch (const args::Help&) {
+        return 0;
+    } catch (const args::ParseError& e) {
+        return 1;
+    } catch (args::ValidationError e) {
+        return 1;
     }
-	catch (const args::Completion& e)
-	{
-		return 0;
-	}
-	catch (const args::Help&)
-	{
-		return 0;
-	}
-	catch (const args::ParseError& e)
-	{
-		return 1;
-	}
-	catch (args::ValidationError e)
-	{
-		return 1;
-	}
 
-	return 0;
+    return 0;
 }
 
 #endif

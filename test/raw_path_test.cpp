@@ -13,14 +13,14 @@ using namespace rive;
 
 TEST_CASE("rawpath-basics", "[rawpath]") {
     RawPath path;
-    
+
     REQUIRE(path.empty());
     REQUIRE(path.bounds() == AABB{0, 0, 0, 0});
-    
+
     path.move({1, 2});
     REQUIRE(!path.empty());
     REQUIRE(path.bounds() == AABB{1, 2, 1, 2});
-    
+
     path = RawPath();
     REQUIRE(path.empty());
     REQUIRE(path.bounds() == AABB{0, 0, 0, 0});
@@ -34,22 +34,25 @@ TEST_CASE("rawpath-basics", "[rawpath]") {
 
 TEST_CASE("rawpath-add-helpers", "[rawpath]") {
     RawPath path;
-    
+
     path.addRect({1, 1, 5, 6});
     REQUIRE(!path.empty());
     REQUIRE(path.bounds() == AABB{1, 1, 5, 6});
     REQUIRE(path.points().size() == 4);
-    REQUIRE(path.verbs().size() == 5);  // move, line, line, line, close
+    REQUIRE(path.verbs().size() == 5); // move, line, line, line, close
 
     path = RawPath();
     path.addOval({0, 0, 3, 6});
     REQUIRE(!path.empty());
     REQUIRE(path.bounds() == AABB{0, 0, 3, 6});
     REQUIRE(path.points().size() == 13);
-    REQUIRE(path.verbs().size() == 6);  // move, cubic, cubic, cubic, cubic, close
+    REQUIRE(path.verbs().size() == 6); // move, cubic, cubic, cubic, cubic, close
 
     const Vec2D pts[] = {
-        {1, 2}, {4, 5}, {3, 2}, {100, -100},
+        {1, 2},
+        {4, 5},
+        {3, 2},
+        {100, -100},
     };
     constexpr auto size = sizeof(pts) / sizeof(pts[0]);
 
@@ -59,7 +62,7 @@ TEST_CASE("rawpath-add-helpers", "[rawpath]") {
         REQUIRE(path.bounds() == AABB{1, -100, 100, 5});
         REQUIRE(path.points().size() == size);
         REQUIRE(path.verbs().size() == size + isClosed);
-        
+
         for (size_t i = 0; i < size; ++i) {
             REQUIRE(path.points()[i] == pts[i]);
         }

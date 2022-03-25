@@ -6,9 +6,7 @@
 namespace rive {
     class NoOpRenderImage : public RenderImage {
     public:
-        bool decode(Span<const uint8_t>) override {
-            return true;
-        }
+        bool decode(Span<const uint8_t>) override { return true; }
         rcp<RenderShader> makeShader(RenderTileMode, RenderTileMode, const Mat2D*) const override {
             return nullptr;
         }
@@ -41,13 +39,8 @@ namespace rive {
     public:
         std::vector<NoOpPathCommand> commands;
         void reset() override {
-            commands.emplace_back((NoOpPathCommand){NoOpPathCommandType::Reset,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f});
+            commands.emplace_back(
+                (NoOpPathCommand){NoOpPathCommandType::Reset, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
         }
 
         void fillRule(FillRule value) override {}
@@ -55,26 +48,20 @@ namespace rive {
         void addRenderPath(RenderPath* path, const Mat2D& transform) override {}
 
         void moveTo(float x, float y) override {
-            commands.emplace_back((NoOpPathCommand){
-                NoOpPathCommandType::MoveTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
+            commands.emplace_back(
+                (NoOpPathCommand){NoOpPathCommandType::MoveTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
         }
         void lineTo(float x, float y) override {
-            commands.emplace_back((NoOpPathCommand){
-                NoOpPathCommandType::LineTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
+            commands.emplace_back(
+                (NoOpPathCommand){NoOpPathCommandType::LineTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
         }
-        void cubicTo(
-            float ox, float oy, float ix, float iy, float x, float y) override {
-            commands.emplace_back((NoOpPathCommand){
-                NoOpPathCommandType::CubicTo, x, y, ix, iy, ox, oy});
+        void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override {
+            commands.emplace_back(
+                (NoOpPathCommand){NoOpPathCommandType::CubicTo, x, y, ix, iy, ox, oy});
         }
         void close() override {
-            commands.emplace_back((NoOpPathCommand){NoOpPathCommandType::Close,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f,
-                                                    0.0f});
+            commands.emplace_back(
+                (NoOpPathCommand){NoOpPathCommandType::Close, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
         }
     };
 
@@ -84,9 +71,7 @@ namespace rive {
         void transform(const Mat2D& transform) override {}
         void drawPath(RenderPath* path, RenderPaint* paint) override {}
         void clipPath(RenderPath* path) override {}
-        void drawImage(const RenderImage* image,
-                       BlendMode value,
-                       float opacity) override {}
+        void drawImage(const RenderImage* image, BlendMode value, float opacity) override {}
         void drawImageMesh(const RenderImage*,
                            rcp<RenderBuffer> vertices,
                            rcp<RenderBuffer> uvCoords,

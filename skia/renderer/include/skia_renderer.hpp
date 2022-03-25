@@ -23,8 +23,7 @@ namespace rive {
         void fillRule(FillRule value) override;
         void moveTo(float x, float y) override;
         void lineTo(float x, float y) override;
-        void cubicTo(
-            float ox, float oy, float ix, float iy, float x, float y) override;
+        void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
         virtual void close() override;
     };
 
@@ -51,8 +50,8 @@ namespace rive {
     public:
         sk_sp<SkImage> skImage() const { return m_SkImage; };
         bool decode(Span<const uint8_t>) override;
-        rcp<RenderShader> makeShader(RenderTileMode tx, RenderTileMode ty,
-                                     const Mat2D* localMatrix) const override;
+        rcp<RenderShader>
+        makeShader(RenderTileMode tx, RenderTileMode ty, const Mat2D* localMatrix) const override;
     };
 
     class SkiaRenderer : public Renderer {

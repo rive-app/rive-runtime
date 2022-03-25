@@ -19,12 +19,10 @@ TEST_CASE("uint leb decoder", "[reader]") {
 
 TEST_CASE("string decoder", "[reader]") {
     char* str = strdup("New Artboard");
-    uint8_t str_bytes[] = {
-        0x4E, 0x65, 0x77, 0x20, 0x41, 0x72, 0x74, 0x62, 0x6F, 0x61, 0x72, 0x64};
+    uint8_t str_bytes[] = {0x4E, 0x65, 0x77, 0x20, 0x41, 0x72, 0x74, 0x62, 0x6F, 0x61, 0x72, 0x64};
     // Length of string + 1 is needed to add the null terminator
     char* decoded_str = (char*)malloc((13) * sizeof(char));
-    uint64_t bytes_read =
-        decode_string(12, str_bytes, str_bytes + 12, decoded_str);
+    uint64_t bytes_read = decode_string(12, str_bytes, str_bytes + 12, decoded_str);
     REQUIRE(strcmp(str, decoded_str) == 0);
     REQUIRE(bytes_read == 12);
 
@@ -48,15 +46,12 @@ TEST_CASE("double decoder", "[reader]") {
     REQUIRE(decoded_num == 3.14159);
     REQUIRE(bytes_read == 8);
 
-    uint8_t num_bytes_neg_euler[] = {
-        0x96, 0xB4, 0xE2, 0x1B, 0x0A, 0xBF, 0x05, 0xC0};
-    bytes_read = decode_double(
-        num_bytes_neg_euler, num_bytes_neg_euler + 8, &decoded_num);
+    uint8_t num_bytes_neg_euler[] = {0x96, 0xB4, 0xE2, 0x1B, 0x0A, 0xBF, 0x05, 0xC0};
+    bytes_read = decode_double(num_bytes_neg_euler, num_bytes_neg_euler + 8, &decoded_num);
     REQUIRE(decoded_num == -2.718281);
     REQUIRE(bytes_read == 8);
 
-    bytes_read = decode_double(
-        num_bytes_neg_euler, num_bytes_neg_euler + 7, &decoded_num);
+    bytes_read = decode_double(num_bytes_neg_euler, num_bytes_neg_euler + 7, &decoded_num);
     REQUIRE(bytes_read == 0);
 }
 
@@ -75,13 +70,11 @@ TEST_CASE("float decoder", "[reader]") {
     REQUIRE(bytes_read == 4);
 
     uint8_t num_bytes_neg_euler[] = {0x51, 0xF8, 0x2D, 0xC0};
-    bytes_read = decode_float(
-        num_bytes_neg_euler, num_bytes_neg_euler + 4, &decoded_num);
+    bytes_read = decode_float(num_bytes_neg_euler, num_bytes_neg_euler + 4, &decoded_num);
     REQUIRE(decoded_num == -2.718281f);
     REQUIRE(bytes_read == 4);
 
-    bytes_read = decode_float(
-        num_bytes_neg_euler, num_bytes_neg_euler + 3, &decoded_num);
+    bytes_read = decode_float(num_bytes_neg_euler, num_bytes_neg_euler + 3, &decoded_num);
     REQUIRE(bytes_read == 0);
 }
 

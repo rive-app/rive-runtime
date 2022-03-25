@@ -32,12 +32,10 @@ TEST_CASE("two bone ik places bones correctly", "[file]") {
     // ensure that circle a is dependent upon the tip of the ik chain (bone b).
     // circle b is a child of bone b so it'll be there anyway, but may as well
     // validate.
-    REQUIRE(std::find(boneB->dependents().begin(),
-                      boneB->dependents().end(),
-                      circleA) != boneB->dependents().end());
-    REQUIRE(std::find(boneB->dependents().begin(),
-                      boneB->dependents().end(),
-                      circleB) != boneB->dependents().end());
+    REQUIRE(std::find(boneB->dependents().begin(), boneB->dependents().end(), circleA) !=
+            boneB->dependents().end());
+    REQUIRE(std::find(boneB->dependents().begin(), boneB->dependents().end(), circleB) !=
+            boneB->dependents().end());
 
     animation->apply(artboard, 0.0f, 1.0f);
     artboard->advance(0.0f);
@@ -106,12 +104,10 @@ TEST_CASE("ik keeps working after a lot of iterations", "[file]") {
     // ensure that circle a is dependent upon the tip of the ik chain (bone b).
     // circle b is a child of bone b so it'll be there anyway, but may as well
     // validate.
-    REQUIRE(std::find(boneB->dependents().begin(),
-                      boneB->dependents().end(),
-                      circleA) != boneB->dependents().end());
-    REQUIRE(std::find(boneB->dependents().begin(),
-                      boneB->dependents().end(),
-                      circleB) != boneB->dependents().end());
+    REQUIRE(std::find(boneB->dependents().begin(), boneB->dependents().end(), circleA) !=
+            boneB->dependents().end());
+    REQUIRE(std::find(boneB->dependents().begin(), boneB->dependents().end(), circleB) !=
+            boneB->dependents().end());
 
     for (int i = 0; i < 1000; i++) {
         animation->apply(artboard, 0.0f, 1.0f);

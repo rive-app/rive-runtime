@@ -33,8 +33,7 @@ TEST_CASE("rectangle path builds expected commands", "[path]") {
 
     REQUIRE(rectangle->commandPath() != nullptr);
 
-    auto path =
-        reinterpret_cast<rive::NoOpRenderPath*>(rectangle->commandPath());
+    auto path = reinterpret_cast<rive::NoOpRenderPath*>(rectangle->commandPath());
 
     REQUIRE(path->commands.size() == 7);
     REQUIRE(path->commands[0].command == rive::NoOpPathCommandType::Reset);
@@ -71,8 +70,7 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]") {
 
     REQUIRE(rectangle->commandPath() != nullptr);
 
-    auto path =
-        reinterpret_cast<rive::NoOpRenderPath*>(rectangle->commandPath());
+    auto path = reinterpret_cast<rive::NoOpRenderPath*>(rectangle->commandPath());
 
     // reset
     // moveTo

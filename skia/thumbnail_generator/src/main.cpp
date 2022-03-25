@@ -63,8 +63,7 @@ int main(int argc, char* argv[]) {
 
     int width = 256, height = 256;
 
-    sk_sp<SkSurface> rasterSurface =
-        SkSurface::MakeRasterN32Premul(width, height);
+    sk_sp<SkSurface> rasterSurface = SkSurface::MakeRasterN32Premul(width, height);
     SkCanvas* rasterCanvas = rasterSurface->getCanvas();
 
     rive::SkiaRenderer renderer(rasterCanvas);

@@ -12,9 +12,7 @@ namespace rive {
     class ToSkia {
     public:
         static SkMatrix convert(const rive::Mat2D& m) {
-            return SkMatrix::MakeAll(m[0], m[2], m[4],
-                                     m[1], m[3], m[5],
-                                     0,    0,    1);
+            return SkMatrix::MakeAll(m[0], m[2], m[4], m[1], m[3], m[5], 0, 0, 1);
         }
 
         static SkPoint convert(const rive::Vec2D& point) {
@@ -23,10 +21,14 @@ namespace rive {
 
         static SkTileMode convert(RenderTileMode rtm) {
             switch (rtm) {
-                case RenderTileMode::clamp:  return SkTileMode::kClamp;
-                case RenderTileMode::repeat: return SkTileMode::kRepeat;
-                case RenderTileMode::mirror: return SkTileMode::kMirror;
-                case RenderTileMode::decal:  return SkTileMode::kDecal;
+                case RenderTileMode::clamp:
+                    return SkTileMode::kClamp;
+                case RenderTileMode::repeat:
+                    return SkTileMode::kRepeat;
+                case RenderTileMode::mirror:
+                    return SkTileMode::kMirror;
+                case RenderTileMode::decal:
+                    return SkTileMode::kDecal;
             }
             assert(false);
             return SkTileMode::kClamp;
@@ -34,8 +36,10 @@ namespace rive {
 
         static SkPathFillType convert(FillRule value) {
             switch (value) {
-                case FillRule::evenOdd: return SkPathFillType::kEvenOdd;
-                case FillRule::nonZero: return SkPathFillType::kWinding;
+                case FillRule::evenOdd:
+                    return SkPathFillType::kEvenOdd;
+                case FillRule::nonZero:
+                    return SkPathFillType::kWinding;
             }
             assert(false);
             return SkPathFillType::kWinding;

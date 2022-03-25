@@ -100,9 +100,8 @@ void initAnimation(int index) {
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
 
-    auto animation = index >= 0 && index < artboard->animationCount()
-                         ? artboard->animation(index)
-                         : nullptr;
+    auto animation =
+        index >= 0 && index < artboard->animationCount() ? artboard->animation(index) : nullptr;
     if (animation != nullptr) {
         animationInstance = new rive::LinearAnimationInstance(animation);
     }
@@ -110,9 +109,7 @@ void initAnimation(int index) {
     currentFile = file;
 }
 
-void glfwErrorCallback(int error, const char* description) {
-    puts(description);
-}
+void glfwErrorCallback(int error, const char* description) { puts(description); }
 
 void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
     // Just get the last dropped file for now...
@@ -186,9 +183,7 @@ int main() {
         glfwGetFramebufferSize(window, &width, &height);
 
         // Update surface.
-        if (surface == nullptr || width != lastScreenWidth ||
-            height != lastScreenHeight)
-        {
+        if (surface == nullptr || width != lastScreenWidth || height != lastScreenHeight) {
             lastScreenWidth = width;
             lastScreenHeight = height;
 
@@ -211,13 +206,12 @@ int main() {
                                                       framebufferInfo);
 
             delete surface;
-            surface = SkSurface::MakeFromBackendRenderTarget(
-                          context.get(),
-                          backendRenderTarget,
-                          kBottomLeft_GrSurfaceOrigin,
-                          colorType,
-                          nullptr,
-                          nullptr)
+            surface = SkSurface::MakeFromBackendRenderTarget(context.get(),
+                                                             backendRenderTarget,
+                                                             kBottomLeft_GrSurfaceOrigin,
+                                                             colorType,
+                                                             nullptr,
+                                                             nullptr)
                           .release();
             if (surface == nullptr) {
                 fprintf(stderr, "Failed to create Skia surface\n");
@@ -266,8 +260,7 @@ int main() {
                     "Animations",
                     &animationIndex,
                     [](void* data, int index, const char** name) {
-                        const char* animationName =
-                            artboard->animation(index)->name().c_str();
+                        const char* animationName = artboard->animation(index)->name().c_str();
                         *name = animationName;
                         return true;
                     },
@@ -282,8 +275,7 @@ int main() {
                     "State Machines",
                     &stateMachineIndex,
                     [](void* data, int index, const char** name) {
-                        const char* machineName =
-                            artboard->stateMachine(index)->name().c_str();
+                        const char* machineName = artboard->stateMachine(index)->name().c_str();
                         *name = machineName;
                         return true;
                     },
@@ -302,39 +294,33 @@ int main() {
                 for (int i = 0; i < stateMachineInstance->inputCount(); i++) {
                     auto inputInstance = stateMachineInstance->input(i);
 
-                    if (inputInstance->input()->is<rive::StateMachineNumber>())
-                    {
+                    if (inputInstance->input()->is<rive::StateMachineNumber>()) {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
                         char label[256];
                         snprintf(label, 256, "##%u", i);
 
-                        auto number =
-                            static_cast<rive::SMINumber*>(inputInstance);
+                        auto number = static_cast<rive::SMINumber*>(inputInstance);
                         float v = number->value();
                         ImGui::InputFloat(label, &v, 1.0f, 2.0f, "%.3f");
                         number->value(v);
                         ImGui::NextColumn();
-                    } else if (inputInstance->input()
-                                   ->is<rive::StateMachineTrigger>()) {
+                    } else if (inputInstance->input()->is<rive::StateMachineTrigger>()) {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
                         char label[256];
                         snprintf(label, 256, "Fire##%u", i);
                         if (ImGui::Button(label)) {
-                            auto trigger =
-                                static_cast<rive::SMITrigger*>(inputInstance);
+                            auto trigger = static_cast<rive::SMITrigger*>(inputInstance);
                             trigger->fire();
                         }
                         ImGui::NextColumn();
-                    } else if (inputInstance->input()
-                                   ->is<rive::StateMachineBool>()) {
+                    } else if (inputInstance->input()->is<rive::StateMachineBool>()) {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
                         char label[256];
                         snprintf(label, 256, "##%u", i);
-                        auto boolInput =
-                            static_cast<rive::SMIBool*>(inputInstance);
+                        auto boolInput = static_cast<rive::SMIBool*>(inputInstance);
                         bool value = boolInput->value();
 
                         ImGui::Checkbox(label, &value);
