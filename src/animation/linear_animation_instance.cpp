@@ -5,12 +5,9 @@
 
 using namespace rive;
 
-LinearAnimationInstance::LinearAnimationInstance(
-    const LinearAnimation* animation) :
+LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animation) :
     m_Animation(animation),
-    m_Time(animation->enableWorkArea()
-               ? (float)animation->workStart() / animation->fps()
-               : 0),
+    m_Time(animation->enableWorkArea() ? (float)animation->workStart() / animation->fps() : 0),
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),
     m_SpilledTime(0.0f),
@@ -27,8 +24,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds) {
     float frames = m_Time * fps;
 
     int start = animation.enableWorkArea() ? animation.workStart() : 0;
-    int end =
-        animation.enableWorkArea() ? animation.workEnd() : animation.duration();
+    int end = animation.enableWorkArea() ? animation.workEnd() : animation.duration();
     int range = end - start;
 
     bool keepGoing = true;
@@ -107,8 +103,7 @@ void LinearAnimationInstance::time(float value) {
     // can track change even when setting time.
     auto diff = m_TotalTime - m_LastTotalTime;
 
-    int start = (m_Animation->enableWorkArea() ? m_Animation->workStart() : 0) *
-                m_Animation->fps();
+    int start = (m_Animation->enableWorkArea() ? m_Animation->workStart() : 0) * m_Animation->fps();
     m_TotalTime = value - start;
     m_LastTotalTime = m_TotalTime - diff;
 
@@ -136,6 +131,4 @@ void LinearAnimationInstance::loopValue(int value) {
     m_LoopValue = value;
 }
 
-float LinearAnimationInstance::durationSeconds() const {
-    return m_Animation->durationSeconds();
-}
+float LinearAnimationInstance::durationSeconds() const { return m_Animation->durationSeconds(); }

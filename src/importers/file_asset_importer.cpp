@@ -7,8 +7,7 @@
 
 using namespace rive;
 
-FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
-                                     FileAssetResolver* assetResolver) :
+FileAssetImporter::FileAssetImporter(FileAsset* fileAsset, FileAssetResolver* assetResolver) :
     m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver) {}
 
 void FileAssetImporter::loadContents(const FileAssetContents& contents) {

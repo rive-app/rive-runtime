@@ -8,9 +8,7 @@ using namespace rive;
 
 ArtboardImporter::ArtboardImporter(Artboard* artboard) : m_Artboard(artboard) {}
 
-void ArtboardImporter::addComponent(Core* object) {
-    m_Artboard->addObject(object);
-}
+void ArtboardImporter::addComponent(Core* object) { m_Artboard->addObject(object); }
 
 void ArtboardImporter::addAnimation(LinearAnimation* animation) {
     m_Artboard->addAnimation(animation);

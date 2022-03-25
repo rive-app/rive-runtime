@@ -22,9 +22,7 @@ namespace rive {
         void addChildBone(Bone* bone);
         void tipWorldTranslation(Vec2D& result);
         void addPeerConstraint(Constraint* peer);
-        const std::vector<Constraint*>& peerConstraints() const {
-            return m_PeerConstraints;
-        }
+        const std::vector<Constraint*>& peerConstraints() const { return m_PeerConstraints; }
 
     private:
         void lengthChanged() override;

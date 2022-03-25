@@ -31,8 +31,7 @@ int BlendState1DInstance::animationIndex(float value) {
 }
 
 void BlendState1DInstance::advance(float seconds, SMIInput** inputs) {
-    BlendStateInstance<BlendState1D, BlendAnimation1D>::advance(seconds,
-                                                                inputs);
+    BlendStateInstance<BlendState1D, BlendAnimation1D>::advance(seconds, inputs);
 
     auto id = state()->as<BlendState1D>()->inputId();
     float value = 0.0f;
@@ -43,16 +42,13 @@ void BlendState1DInstance::advance(float seconds, SMIInput** inputs) {
     }
     int index = animationIndex(value);
     auto animationsCount = static_cast<int>(m_AnimationInstances.size());
-    m_To = index >= 0 && index < animationsCount ? &m_AnimationInstances[index]
-                                                 : nullptr;
-    m_From = index - 1 >= 0 && index - 1 < animationsCount
-                 ? &m_AnimationInstances[index - 1]
-                 : nullptr;
+    m_To = index >= 0 && index < animationsCount ? &m_AnimationInstances[index] : nullptr;
+    m_From =
+        index - 1 >= 0 && index - 1 < animationsCount ? &m_AnimationInstances[index - 1] : nullptr;
 
     float mix, mixFrom;
     auto toValue = m_To == nullptr ? 0.0f : m_To->blendAnimation()->value();
-    auto fromValue =
-        m_From == nullptr ? 0.0f : m_From->blendAnimation()->value();
+    auto fromValue = m_From == nullptr ? 0.0f : m_From->blendAnimation()->value();
 
     if (m_To == nullptr || m_From == nullptr || toValue == fromValue) {
         mix = mixFrom = 1.0f;

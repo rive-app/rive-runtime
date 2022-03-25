@@ -26,14 +26,12 @@ void RotationConstraint::constrain(TransformComponent* component) {
         Mat2D::decompose(m_ComponentsB, transformB);
 
         if (!doesCopy()) {
-            m_ComponentsB.rotation(destSpace() == TransformSpace::local
-                                       ? 0.0f
-                                       : m_ComponentsA.rotation());
+            m_ComponentsB.rotation(destSpace() == TransformSpace::local ? 0.0f
+                                                                        : m_ComponentsA.rotation());
         } else {
             m_ComponentsB.rotation(m_ComponentsB.rotation() * copyFactor());
             if (offset()) {
-                m_ComponentsB.rotation(m_ComponentsB.rotation() +
-                                       component->rotation());
+                m_ComponentsB.rotation(m_ComponentsB.rotation() + component->rotation());
             }
         }
 

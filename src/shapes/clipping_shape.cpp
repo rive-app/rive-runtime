@@ -38,8 +38,7 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context) {
             while (component != nullptr) {
                 if (component == m_Source) {
                     auto shape = core->as<Shape>();
-                    shape->addDefaultPathSpace(PathSpace::World |
-                                               PathSpace::Clipping);
+                    shape->addDefaultPathSpace(PathSpace::World | PathSpace::Clipping);
                     m_Shapes.push_back(shape);
                     break;
                 }
@@ -82,8 +81,7 @@ void ClippingShape::update(ComponentDirt value) {
         m_RenderPath->fillRule((FillRule)fillRule());
         for (auto shape : m_Shapes) {
             if (!shape->isHidden()) {
-                m_RenderPath->addPath(shape->pathComposer()->worldPath(),
-                                      identity);
+                m_RenderPath->addPath(shape->pathComposer()->worldPath(), identity);
             }
         }
     }

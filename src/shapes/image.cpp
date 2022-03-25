@@ -45,7 +45,7 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform) {
         printf("Missing mesh\n");
         // TODO: hittest mesh
     } else {
-        auto mx = xform * worldTransform() * Mat2D::fromTranslate(-width*0.5f, -height*0.5f);
+        auto mx = xform * worldTransform() * Mat2D::fromTranslate(-width * 0.5f, -height * 0.5f);
         HitTester tester(hinfo->area);
         tester.addRect(AABB(0, 0, width, height), mx);
         if (tester.test()) {
@@ -55,10 +55,8 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform) {
     return nullptr;
 }
 
-
 StatusCode Image::import(ImportStack& importStack) {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }

@@ -6,6 +6,4 @@
 
 using namespace rive;
 
-StateInstance* BlendStateDirect::makeInstance() const {
-    return new BlendStateDirectInstance(this);
-}
+StateInstance* BlendStateDirect::makeInstance() const { return new BlendStateDirectInstance(this); }

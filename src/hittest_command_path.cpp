@@ -6,17 +6,11 @@
 
 using namespace rive;
 
-HitTestCommandPath::HitTestCommandPath(const IAABB& area) : m_Area(area) {
-    m_Tester.reset(m_Area);
-}
+HitTestCommandPath::HitTestCommandPath(const IAABB& area) : m_Area(area) { m_Tester.reset(m_Area); }
 
-bool HitTestCommandPath::wasHit() {
-    return m_Tester.test(m_FillRule);
-}
+bool HitTestCommandPath::wasHit() { return m_Tester.test(m_FillRule); }
 
-void HitTestCommandPath::reset() {
-    m_Tester.reset(m_Area);
-}
+void HitTestCommandPath::reset() { m_Tester.reset(m_Area); }
 
 void HitTestCommandPath::fillRule(FillRule value) {
     // remember this here, and pass it to test()
@@ -34,20 +28,12 @@ RenderPath* HitTestCommandPath::renderPath() {
     return nullptr;
 }
 
-void HitTestCommandPath::moveTo(float x, float y) {
-    m_Tester.move(m_Xform * Vec2D(x, y));
-}
+void HitTestCommandPath::moveTo(float x, float y) { m_Tester.move(m_Xform * Vec2D(x, y)); }
 
-void HitTestCommandPath::lineTo(float x, float y) {
-    m_Tester.line(m_Xform * Vec2D(x, y));
-}
+void HitTestCommandPath::lineTo(float x, float y) { m_Tester.line(m_Xform * Vec2D(x, y)); }
 
 void HitTestCommandPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y) {
-    m_Tester.cubic(m_Xform * Vec2D(ox, oy),
-                   m_Xform * Vec2D(ix, iy),
-                   m_Xform * Vec2D( x,  y));
+    m_Tester.cubic(m_Xform * Vec2D(ox, oy), m_Xform * Vec2D(ix, iy), m_Xform * Vec2D(x, y));
 }
 
-void HitTestCommandPath::close() {
-    m_Tester.close();
-}
+void HitTestCommandPath::close() { m_Tester.close(); }

@@ -10,12 +10,12 @@
 
 namespace rive {
 
-class NestedArtboard;
+    class NestedArtboard;
 
-struct HitInfo {
-    IAABB                        area;      // input
-    std::vector<NestedArtboard*> mounts;    // output
-};
+    struct HitInfo {
+        IAABB area;                          // input
+        std::vector<NestedArtboard*> mounts; // output
+    };
 
-}
+} // namespace rive
 #endif

@@ -13,9 +13,7 @@ const int SubdivisionMaxIterations = 10;
 
 // Returns x(t) given t, x1, and x2, or y(t) given t, y1, and y2.
 static float calcBezier(float aT, float aA1, float aA2) {
-    return (((1.0f - 3.0f * aA2 + 3.0f * aA1) * aT +
-             (3.0f * aA2 - 6.0f * aA1)) *
-                aT +
+    return (((1.0f - 3.0f * aA2 + 3.0f * aA1) * aT + (3.0f * aA2 - 6.0f * aA1)) * aT +
             (3.0f * aA1)) *
            aT;
 }
@@ -38,16 +36,14 @@ float CubicInterpolator::getT(float x) const {
     int currentSample = 1;
     int lastSample = SplineTableSize - 1;
 
-    for (; currentSample != lastSample && m_Values[currentSample] <= x;
-         ++currentSample)
-    {
+    for (; currentSample != lastSample && m_Values[currentSample] <= x; ++currentSample) {
         intervalStart += SampleStepSize;
     }
     --currentSample;
 
     // Interpolate to provide an initial guess for t
-    float dist = (x - m_Values[currentSample]) /
-                 (m_Values[currentSample + 1] - m_Values[currentSample]);
+    float dist =
+        (x - m_Values[currentSample]) / (m_Values[currentSample + 1] - m_Values[currentSample]);
     float guessForT = intervalStart + dist * SampleStepSize;
 
     float _x1 = x1(), _x2 = x2();
@@ -77,19 +73,15 @@ float CubicInterpolator::getT(float x) const {
             } else {
                 intervalStart = currentT;
             }
-        } while (std::abs(currentX) > SubdivisionPrecision &&
-                 ++i < SubdivisionMaxIterations);
+        } while (std::abs(currentX) > SubdivisionPrecision && ++i < SubdivisionMaxIterations);
         return currentT;
     }
 }
 
-float CubicInterpolator::transform(float mix) const {
-    return calcBezier(getT(mix), y1(), y2());
-}
+float CubicInterpolator::transform(float mix) const { return calcBezier(getT(mix), y1(), y2()); }
 
 StatusCode CubicInterpolator::import(ImportStack& importStack) {
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }

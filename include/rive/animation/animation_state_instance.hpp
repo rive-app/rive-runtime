@@ -22,13 +22,9 @@ namespace rive {
 
         bool keepGoing() const override;
 
-        const LinearAnimationInstance* animationInstance() const {
-            return &m_AnimationInstance;
-        }
+        const LinearAnimationInstance* animationInstance() const { return &m_AnimationInstance; }
 
-        LinearAnimationInstance* animationInstance() {
-            return &m_AnimationInstance;
-        }
+        LinearAnimationInstance* animationInstance() { return &m_AnimationInstance; }
     };
 } // namespace rive
 #endif

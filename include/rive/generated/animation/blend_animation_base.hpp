@@ -38,9 +38,7 @@ namespace rive {
             animationIdChanged();
         }
 
-        void copy(const BlendAnimationBase& object) {
-            m_AnimationId = object.m_AnimationId;
-        }
+        void copy(const BlendAnimationBase& object) { m_AnimationId = object.m_AnimationId; }
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {

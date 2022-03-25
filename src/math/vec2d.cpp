@@ -10,9 +10,7 @@ Vec2D Vec2D::transformDir(const Vec2D& a, const Mat2D& m) {
         m[1] * a.x() + m[3] * a.y(),
     };
 }
-float Vec2D::length() const {
-    return std::sqrt(lengthSquared());
-}
+float Vec2D::length() const { return std::sqrt(lengthSquared()); }
 
 Vec2D Vec2D::normalized() const {
     auto len2 = lengthSquared();

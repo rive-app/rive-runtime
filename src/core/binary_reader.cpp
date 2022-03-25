@@ -5,18 +5,12 @@
 
 using namespace rive;
 
-BinaryReader::BinaryReader(Span<const uint8_t> span) :
-    BinaryReader(span.begin(), span.size()) {}
+BinaryReader::BinaryReader(Span<const uint8_t> span) : BinaryReader(span.begin(), span.size()) {}
 
 BinaryReader::BinaryReader(const uint8_t* bytes, size_t length) :
-    m_Position(bytes),
-    m_End(bytes + length),
-    m_Overflowed(false),
-    m_Length(length) {}
+    m_Position(bytes), m_End(bytes + length), m_Overflowed(false), m_Length(length) {}
 
-bool BinaryReader::reachedEnd() const {
-    return m_Position == m_End || didOverflow();
-}
+bool BinaryReader::reachedEnd() const { return m_Position == m_End || didOverflow(); }
 
 size_t BinaryReader::lengthInBytes() const { return m_Length; }
 

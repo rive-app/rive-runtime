@@ -9,9 +9,7 @@ using namespace rive;
 StateMachineLayerImporter::StateMachineLayerImporter(StateMachineLayer* layer,
                                                      const Artboard* artboard) :
     m_Layer(layer), m_Artboard(artboard) {}
-void StateMachineLayerImporter::addState(LayerState* state) {
-    m_Layer->addState(state);
-}
+void StateMachineLayerImporter::addState(LayerState* state) { m_Layer->addState(state); }
 
 StatusCode StateMachineLayerImporter::resolve() {
 
@@ -20,8 +18,7 @@ StatusCode StateMachineLayerImporter::resolve() {
             auto animationState = state->as<AnimationState>();
 
             if (animationState->animationId() != -1) {
-                animationState->m_Animation =
-                    m_Artboard->animation(animationState->animationId());
+                animationState->m_Animation = m_Artboard->animation(animationState->animationId());
                 if (animationState->m_Animation == nullptr) {
                     return StatusCode::MissingObject;
                 }

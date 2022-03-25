@@ -13,12 +13,11 @@ namespace rive {
 
     class HitTestCommandPath : public CommandPath {
         HitTester m_Tester;
-        Mat2D     m_Xform;
-        IAABB     m_Area;
-        FillRule  m_FillRule = FillRule::nonZero;
+        Mat2D m_Xform;
+        IAABB m_Area;
+        FillRule m_FillRule = FillRule::nonZero;
 
     public:
-
         HitTestCommandPath(const IAABB& area);
 
         // can call this between calls to move/line/etc.
@@ -34,8 +33,7 @@ namespace rive {
 
         void moveTo(float x, float y) override;
         void lineTo(float x, float y) override;
-        void
-        cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
+        void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
         void close() override;
     };
 } // namespace rive

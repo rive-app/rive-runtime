@@ -43,14 +43,12 @@ void Shape::draw(Renderer* renderer) {
             continue;
         }
         renderer->save();
-        bool paintsInLocal =
-            (shapePaint->pathSpace() & PathSpace::Local) == PathSpace::Local;
+        bool paintsInLocal = (shapePaint->pathSpace() & PathSpace::Local) == PathSpace::Local;
         if (paintsInLocal) {
             renderer->transform(worldTransform());
         }
         shapePaint->draw(renderer,
-                         paintsInLocal ? m_PathComposer.localPath()
-                                       : m_PathComposer.worldPath());
+                         paintsInLocal ? m_PathComposer.localPath() : m_PathComposer.worldPath());
         renderer->restore();
     }
 
@@ -63,7 +61,7 @@ Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform) {
     if (renderOpacity() == 0.0f) {
         return nullptr;
     }
-    
+
     // TODO: clip:
 
     const bool shapeIsLocal = (pathSpace() & PathSpace::Local) == PathSpace::Local;
@@ -83,9 +81,9 @@ Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform) {
         if (paintIsLocal) {
             mx *= worldTransform();
         }
-        
+
         HitTestCommandPath tester(hinfo->area);
-        
+
         for (auto path : m_Paths) {
             if (shapeIsLocal) {
                 tester.setXform(xform * path->pathTransform());
@@ -116,9 +114,7 @@ void Shape::buildDependencies() {
     }
 }
 
-void Shape::addDefaultPathSpace(PathSpace space) {
-    m_DefaultPathSpace |= space;
-}
+void Shape::addDefaultPathSpace(PathSpace space) { m_DefaultPathSpace |= space; }
 
 StatusCode Shape::onAddedDirty(CoreContext* context) {
     auto code = Super::onAddedDirty(context);

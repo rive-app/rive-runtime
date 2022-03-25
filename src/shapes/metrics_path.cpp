@@ -38,8 +38,7 @@ void MetricsPath::lineTo(float x, float y) {
     m_Points.emplace_back(Vec2D(x, y));
 }
 
-void MetricsPath::cubicTo(
-    float ox, float oy, float ix, float iy, float x, float y) {
+void MetricsPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y) {
     m_Parts.push_back(PathPart(1, m_Points.size()));
     m_Points.emplace_back(Vec2D(ox, oy));
     m_Points.emplace_back(Vec2D(ix, iy));
@@ -71,10 +70,8 @@ static bool tooFar(const Vec2D& a, const Vec2D& b) {
     return std::max(std::abs(a[0] - b[0]), std::abs(a[1] - b[1])) > distTooFar;
 }
 
-static bool shouldSplitCubic(const Vec2D& from,
-                             const Vec2D& fromOut,
-                             const Vec2D& toIn,
-                             const Vec2D& to) {
+static bool
+shouldSplitCubic(const Vec2D& from, const Vec2D& fromOut, const Vec2D& toIn, const Vec2D& to) {
     const Vec2D oneThird = Vec2D::lerp(from, to, 1.0f / 3.0f),
                 twoThird = Vec2D::lerp(from, to, 2.0f / 3.0f);
     return tooFar(fromOut, oneThird) || tooFar(toIn, twoThird);
@@ -95,16 +92,10 @@ static float segmentCubic(const Vec2D& from,
         Vec2D hull[6];
         computeHull(from, fromOut, toIn, to, 0.5f, hull);
 
-        runningLength = segmentCubic(from,
-                                     hull[0],
-                                     hull[3],
-                                     hull[5],
-                                     runningLength,
-                                     t1,
-                                     halfT,
-                                     segments);
-        runningLength = segmentCubic(
-            hull[5], hull[4], hull[2], to, runningLength, halfT, t2, segments);
+        runningLength =
+            segmentCubic(from, hull[0], hull[3], hull[5], runningLength, t1, halfT, segments);
+        runningLength =
+            segmentCubic(hull[5], hull[4], hull[2], to, runningLength, halfT, t2, segments);
     } else {
         float length = Vec2D::distance(from, to);
         runningLength += length;
@@ -167,8 +158,8 @@ float MetricsPath::computeLength(const Mat2D& transform) {
 
                 int index = (int)m_CubicSegments.size();
                 part.type = index + 1;
-                float partLength = segmentCubic(
-                    from, fromOut, toIn, to, 0.0f, 0.0f, 1.0f, m_CubicSegments);
+                float partLength =
+                    segmentCubic(from, fromOut, toIn, to, 0.0f, 0.0f, 1.0f, m_CubicSegments);
                 m_Lengths.push_back(partLength);
                 length += partLength;
                 part.numSegments = m_CubicSegments.size() - index;
@@ -180,10 +171,7 @@ float MetricsPath::computeLength(const Mat2D& transform) {
     return length;
 }
 
-void MetricsPath::trim(float startLength,
-                       float endLength,
-                       bool moveTo,
-                       RenderPath* result) {
+void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPath* result) {
     assert(endLength >= startLength);
     if (!m_Paths.empty()) {
         m_Paths.front()->trim(startLength, endLength, moveTo, result);
@@ -246,12 +234,8 @@ void MetricsPath::trim(float startLength,
                     const Vec2D& point1 = m_TransformedPoints[part.offset];
                     const Vec2D& point2 = m_TransformedPoints[part.offset + 1];
                     const Vec2D& point3 = m_TransformedPoints[part.offset + 2];
-                    result->cubicTo(point1[0],
-                                    point1[1],
-                                    point2[0],
-                                    point2[1],
-                                    point3[0],
-                                    point3[1]);
+                    result->cubicTo(
+                        point1[0], point1[1], point2[0], point2[1], point3[0], point3[1]);
                     break;
                 }
             }
@@ -289,20 +273,17 @@ void MetricsPath::extractSubPart(
             float length = m_Lengths[index];
             if (startT != 0.0f) {
                 float startLength = startT * length;
-                for (int si = startingSegmentIndex; si < endingSegmentIndex;
-                     si++) {
+                for (int si = startingSegmentIndex; si < endingSegmentIndex; si++) {
                     const CubicSegment& segment = m_CubicSegments[si];
                     if (segment.length >= startLength) {
                         if (si == startingSegmentIndex) {
                             startT = segment.t * (startLength / segment.length);
                         } else {
-                            float previousLength =
-                                m_CubicSegments[si - 1].length;
+                            float previousLength = m_CubicSegments[si - 1].length;
 
-                            float t = (startLength - previousLength) /
-                                      (segment.length - previousLength);
-                            startT =
-                                lerp(m_CubicSegments[si - 1].t, segment.t, t);
+                            float t =
+                                (startLength - previousLength) / (segment.length - previousLength);
+                            startT = lerp(m_CubicSegments[si - 1].t, segment.t, t);
                         }
                         // Help out the ending segment finder by setting its
                         // start to where we landed while finding the first
@@ -315,20 +296,17 @@ void MetricsPath::extractSubPart(
 
             if (endT != 1.0f) {
                 float endLength = endT * length;
-                for (int si = startEndSegmentIndex; si < endingSegmentIndex;
-                     si++) {
+                for (int si = startEndSegmentIndex; si < endingSegmentIndex; si++) {
                     const CubicSegment& segment = m_CubicSegments[si];
                     if (segment.length >= endLength) {
                         if (si == startingSegmentIndex) {
                             endT = segment.t * (endLength / segment.length);
                         } else {
-                            float previousLength =
-                                m_CubicSegments[si - 1].length;
+                            float previousLength = m_CubicSegments[si - 1].length;
 
-                            float t = (endLength - previousLength) /
-                                      (segment.length - previousLength);
-                            endT =
-                                lerp(m_CubicSegments[si - 1].t, segment.t, t);
+                            float t =
+                                (endLength - previousLength) / (segment.length - previousLength);
+                            endT = lerp(m_CubicSegments[si - 1].t, segment.t, t);
                         }
                         break;
                     }
@@ -348,12 +326,8 @@ void MetricsPath::extractSubPart(
                 if (moveTo) {
                     result->moveTo(from[0], from[1]);
                 }
-                result->cubicTo(hull[0][0],
-                                hull[0][1],
-                                hull[3][0],
-                                hull[3][1],
-                                hull[5][0],
-                                hull[5][1]);
+                result->cubicTo(
+                    hull[0][0], hull[0][1], hull[3][0], hull[3][1], hull[5][0], hull[5][1]);
             } else {
                 // Split at start since it's non 0.
                 computeHull(from, fromOut, toIn, to, startT, hull);
@@ -364,28 +338,15 @@ void MetricsPath::extractSubPart(
                 if (endT == 1.0f) {
                     // End is 1, so no further split is necessary just cubicTo
                     // the remaining right side.
-                    result->cubicTo(hull[4][0],
-                                    hull[4][1],
-                                    hull[2][0],
-                                    hull[2][1],
-                                    to[0],
-                                    to[1]);
+                    result->cubicTo(hull[4][0], hull[4][1], hull[2][0], hull[2][1], to[0], to[1]);
                 } else {
                     // End is not 1, so split again and cubic to the left side
                     // of the split and remap endT to the new curve range
-                    computeHull(hull[5],
-                                hull[4],
-                                hull[2],
-                                to,
-                                (endT - startT) / (1.0f - startT),
-                                hull);
+                    computeHull(
+                        hull[5], hull[4], hull[2], to, (endT - startT) / (1.0f - startT), hull);
 
-                    result->cubicTo(hull[0][0],
-                                    hull[0][1],
-                                    hull[3][0],
-                                    hull[3][1],
-                                    hull[5][0],
-                                    hull[5][1]);
+                    result->cubicTo(
+                        hull[0][0], hull[0][1], hull[3][0], hull[3][1], hull[5][0], hull[5][1]);
                 }
             }
             break;
@@ -416,8 +377,7 @@ void RenderMetricsPath::lineTo(float x, float y) {
     m_RenderPath->lineTo(x, y);
 }
 
-void RenderMetricsPath::cubicTo(
-    float ox, float oy, float ix, float iy, float x, float y) {
+void RenderMetricsPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y) {
     MetricsPath::cubicTo(ox, oy, ix, iy, x, y);
     m_RenderPath->cubicTo(ox, oy, ix, iy, x, y);
 }
@@ -427,6 +387,4 @@ void RenderMetricsPath::close() {
     m_RenderPath->close();
 }
 
-void RenderMetricsPath::fillRule(FillRule value) {
-    m_RenderPath->fillRule(value);
-}
+void RenderMetricsPath::fillRule(FillRule value) { m_RenderPath->fillRule(value); }

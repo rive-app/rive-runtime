@@ -24,26 +24,22 @@ void ScaleConstraint::constrain(TransformComponent* component) {
         Mat2D::decompose(m_ComponentsB, transformB);
 
         if (!doesCopy()) {
-            m_ComponentsB.scaleX(destSpace() == TransformSpace::local
-                                     ? 1.0f
-                                     : m_ComponentsA.scaleX());
+            m_ComponentsB.scaleX(destSpace() == TransformSpace::local ? 1.0f
+                                                                      : m_ComponentsA.scaleX());
         } else {
             m_ComponentsB.scaleX(m_ComponentsB.scaleX() * copyFactor());
             if (offset()) {
-                m_ComponentsB.scaleX(m_ComponentsB.scaleX() *
-                                     component->scaleX());
+                m_ComponentsB.scaleX(m_ComponentsB.scaleX() * component->scaleX());
             }
         }
 
         if (!doesCopyY()) {
-            m_ComponentsB.scaleY(destSpace() == TransformSpace::local
-                                     ? 1.0f
-                                     : m_ComponentsA.scaleY());
+            m_ComponentsB.scaleY(destSpace() == TransformSpace::local ? 1.0f
+                                                                      : m_ComponentsA.scaleY());
         } else {
             m_ComponentsB.scaleY(m_ComponentsB.scaleY() * copyFactorY());
             if (offset()) {
-                m_ComponentsB.scaleY(m_ComponentsB.scaleY() *
-                                     component->scaleY());
+                m_ComponentsB.scaleY(m_ComponentsB.scaleY() * component->scaleY());
             }
         }
 
@@ -95,10 +91,8 @@ void ScaleConstraint::constrain(TransformComponent* component) {
     m_ComponentsB.rotation(m_ComponentsA.rotation());
     m_ComponentsB.x(m_ComponentsA.x());
     m_ComponentsB.y(m_ComponentsA.y());
-    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti +
-                         m_ComponentsB.scaleX() * t);
-    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti +
-                         m_ComponentsB.scaleY() * t);
+    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti + m_ComponentsB.scaleX() * t);
+    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti + m_ComponentsB.scaleY() * t);
     m_ComponentsB.skew(m_ComponentsA.skew());
 
     Mat2D::compose(component->mutableWorldTransform(), m_ComponentsB);

@@ -11,17 +11,11 @@ void WorldTransformComponent::markWorldTransformDirty() {
     addDirt(ComponentDirt::WorldTransform, true);
 }
 
-const Mat2D& WorldTransformComponent::worldTransform() const {
-    return m_WorldTransform;
-}
+const Mat2D& WorldTransformComponent::worldTransform() const { return m_WorldTransform; }
 
-Mat2D& WorldTransformComponent::mutableWorldTransform() {
-    return m_WorldTransform;
-}
+Mat2D& WorldTransformComponent::mutableWorldTransform() { return m_WorldTransform; }
 
-void WorldTransformComponent::opacityChanged() {
-    addDirt(ComponentDirt::RenderOpacity, true);
-}
+void WorldTransformComponent::opacityChanged() { addDirt(ComponentDirt::RenderOpacity, true); }
 
 void WorldTransformComponent::worldTranslation(Vec2D& result) const {
     result[0] = m_WorldTransform[4];

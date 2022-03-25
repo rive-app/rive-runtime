@@ -26,8 +26,7 @@ namespace rive {
     protected:
         void valueChanged();
 
-        SMIInput(const StateMachineInput* input,
-                 StateMachineInstance* machineInstance);
+        SMIInput(const StateMachineInput* input, StateMachineInstance* machineInstance);
 
     public:
         virtual ~SMIInput() {}
@@ -43,8 +42,7 @@ namespace rive {
     private:
         bool m_Value;
 
-        SMIBool(const StateMachineBool* input,
-                StateMachineInstance* machineInstance);
+        SMIBool(const StateMachineBool* input, StateMachineInstance* machineInstance);
 
     public:
         bool value() const { return m_Value; }
@@ -57,8 +55,7 @@ namespace rive {
     private:
         float m_Value;
 
-        SMINumber(const StateMachineNumber* input,
-                  StateMachineInstance* machineInstance);
+        SMINumber(const StateMachineNumber* input, StateMachineInstance* machineInstance);
 
     public:
         float value() const { return m_Value; }
@@ -72,8 +69,7 @@ namespace rive {
     private:
         bool m_Fired = false;
 
-        SMITrigger(const StateMachineTrigger* input,
-                   StateMachineInstance* machineInstance);
+        SMITrigger(const StateMachineTrigger* input, StateMachineInstance* machineInstance);
         void advanced() override { m_Fired = false; }
 
     public:

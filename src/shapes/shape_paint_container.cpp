@@ -20,9 +20,7 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component) {
     return nullptr;
 }
 
-void ShapePaintContainer::addPaint(ShapePaint* paint) {
-    m_ShapePaints.push_back(paint);
-}
+void ShapePaintContainer::addPaint(ShapePaint* paint) { m_ShapePaints.push_back(paint); }
 
 PathSpace ShapePaintContainer::pathSpace() const {
     PathSpace space = m_DefaultPathSpace;
@@ -43,14 +41,13 @@ void ShapePaintContainer::invalidateStrokeEffects() {
 std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace space) {
     // Force a render path if we specifically request to use it for clipping or
     // this shape is used for clipping.
-    bool needForRender = ((space | m_DefaultPathSpace) & PathSpace::Clipping) ==
-                         PathSpace::Clipping;
+    bool needForRender =
+        ((space | m_DefaultPathSpace) & PathSpace::Clipping) == PathSpace::Clipping;
 
     bool needForEffects = false;
 
     for (auto paint : m_ShapePaints) {
-        if (space != PathSpace::Neither &&
-            (space & paint->pathSpace()) != space) {
+        if (space != PathSpace::Neither && (space & paint->pathSpace()) != space) {
             continue;
         }
 

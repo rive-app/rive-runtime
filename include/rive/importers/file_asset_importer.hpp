@@ -16,8 +16,7 @@ namespace rive {
         FileAssetResolver* m_FileAssetResolver;
 
     public:
-        FileAssetImporter(FileAsset* fileAsset,
-                          FileAssetResolver* assetResolver);
+        FileAssetImporter(FileAsset* fileAsset, FileAssetResolver* assetResolver);
         void loadContents(const FileAssetContents& contents);
         StatusCode resolve() override;
     };

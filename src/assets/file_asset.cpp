@@ -5,8 +5,7 @@
 using namespace rive;
 
 StatusCode FileAsset::import(ImportStack& importStack) {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }
@@ -23,6 +22,5 @@ std::string FileAsset::uniqueFilename() {
     if (finalDot != std::string::npos) {
         uniqueFilename = uniqueFilename.substr(0, finalDot);
     }
-    return uniqueFilename + "-" + std::to_string(assetId()) + "." +
-           fileExtension();
+    return uniqueFilename + "-" + std::to_string(assetId()) + "." + fileExtension();
 }

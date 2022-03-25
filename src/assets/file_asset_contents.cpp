@@ -5,8 +5,7 @@
 using namespace rive;
 
 StatusCode FileAssetContents::import(ImportStack& importStack) {
-    auto fileAssetImporter =
-        importStack.latest<FileAssetImporter>(FileAsset::typeKey);
+    auto fileAssetImporter = importStack.latest<FileAssetImporter>(FileAsset::typeKey);
     if (fileAssetImporter == nullptr) {
         return StatusCode::MissingObject;
     }
@@ -24,6 +23,4 @@ void FileAssetContents::copyBytes(const FileAssetContentsBase& object) {
     assert(false);
 }
 
-Span<const uint8_t> FileAssetContents::bytes() const {
-    return toSpan(m_Bytes);
-}
+Span<const uint8_t> FileAssetContents::bytes() const { return toSpan(m_Bytes); }

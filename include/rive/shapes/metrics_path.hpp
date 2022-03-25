@@ -11,8 +11,7 @@ namespace rive {
     struct CubicSegment {
         float t;
         float length;
-        CubicSegment(float tValue, float lengthValue) :
-            t(tValue), length(lengthValue) {}
+        CubicSegment(float tValue, float lengthValue) : t(tValue), length(lengthValue) {}
     };
 
     struct PathPart {
@@ -30,8 +29,7 @@ namespace rive {
         // this part.
         unsigned char numSegments;
 
-        PathPart(unsigned char t, unsigned char l) :
-            type(t), offset(l), numSegments(0) {}
+        PathPart(unsigned char t, unsigned char l) : type(t), offset(l), numSegments(0) {}
     };
 
     class MetricsPath : public CommandPath {
@@ -51,8 +49,7 @@ namespace rive {
         void reset() override;
         void moveTo(float x, float y) override;
         void lineTo(float x, float y) override;
-        void cubicTo(
-            float ox, float oy, float ix, float iy, float x, float y) override;
+        void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
         void close() override;
 
         float length() const { return m_ComputedLength; }
@@ -60,21 +57,14 @@ namespace rive {
         /// Add commands to the result RenderPath that will draw the segment
         /// from startLength to endLength of this MetricsPath. Requires
         /// computeLength be called prior to trimming.
-        void trim(float startLength,
-                  float endLength,
-                  bool moveTo,
-                  RenderPath* result);
+        void trim(float startLength, float endLength, bool moveTo, RenderPath* result);
 
     private:
         float computeLength(const Mat2D& transform);
 
         /// Extract a single segment from startT to endT as render commands
         /// added to result.
-        void extractSubPart(int index,
-                            float startT,
-                            float endT,
-                            bool moveTo,
-                            RenderPath* result);
+        void extractSubPart(int index, float startT, float endT, bool moveTo, RenderPath* result);
     };
 
     class OnlyMetricsPath : public MetricsPath {
@@ -102,8 +92,7 @@ namespace rive {
         void reset() override;
         void moveTo(float x, float y) override;
         void lineTo(float x, float y) override;
-        void cubicTo(
-            float ox, float oy, float ix, float iy, float x, float y) override;
+        void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
         void close() override;
     };
 } // namespace rive

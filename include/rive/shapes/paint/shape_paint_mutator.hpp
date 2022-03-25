@@ -27,9 +27,7 @@ namespace rive {
 
         Component* component() const { return m_Component; }
 
-        bool isTranslucent() const {
-            return m_RenderOpacity < 1 || this->internalIsTranslucent();
-        }
+        bool isTranslucent() const { return m_RenderOpacity < 1 || this->internalIsTranslucent(); }
     };
 } // namespace rive
 #endif

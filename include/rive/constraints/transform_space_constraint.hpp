@@ -6,12 +6,8 @@
 namespace rive {
     class TransformSpaceConstraint : public TransformSpaceConstraintBase {
     public:
-        TransformSpace sourceSpace() const {
-            return (TransformSpace)sourceSpaceValue();
-        }
-        TransformSpace destSpace() const {
-            return (TransformSpace)destSpaceValue();
-        }
+        TransformSpace sourceSpace() const { return (TransformSpace)sourceSpaceValue(); }
+        TransformSpace destSpace() const { return (TransformSpace)destSpaceValue(); }
     };
 } // namespace rive
 

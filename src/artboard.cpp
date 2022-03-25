@@ -138,8 +138,7 @@ StatusCode Artboard::initialize() {
             m_Drawables.push_back(drawable);
 
             for (ContainerComponent* parent = drawable; parent != nullptr;
-                 parent = parent->parent())
-            {
+                 parent = parent->parent()) {
                 auto itr = componentDrawRules.find(parent);
                 if (itr != componentDrawRules.end()) {
                     drawable->flattenedDrawRules = itr->second;
@@ -271,13 +270,9 @@ void Artboard::sortDependencies() {
 
 void Artboard::addObject(Core* object) { m_Objects.push_back(object); }
 
-void Artboard::addAnimation(LinearAnimation* object) {
-    m_Animations.push_back(object);
-}
+void Artboard::addAnimation(LinearAnimation* object) { m_Animations.push_back(object); }
 
-void Artboard::addStateMachine(StateMachine* object) {
-    m_StateMachines.push_back(object);
-}
+void Artboard::addStateMachine(StateMachine* object) { m_StateMachines.push_back(object); }
 
 void Artboard::addNestedArtboard(NestedArtboard* artboard) {
     m_NestedArtboards.push_back(artboard);
@@ -301,9 +296,7 @@ void Artboard::onComponentDirty(Component* component) {
     }
 }
 
-void Artboard::onDirty(ComponentDirt dirt) {
-    m_Dirt |= ComponentDirt::Components;
-}
+void Artboard::onDirty(ComponentDirt dirt) { m_Dirt |= ComponentDirt::Components; }
 
 void Artboard::update(ComponentDirt value) {
     if (hasDirt(value, ComponentDirt::DrawOrder)) {
@@ -314,11 +307,9 @@ void Artboard::update(ComponentDirt value) {
         if (m_FrameOrigin) {
             m_ClipPath->addRect(0.0f, 0.0f, width(), height());
         } else {
-            m_ClipPath->addRect(
-                -width() * originX(), -height() * originY(), width(), height());
+            m_ClipPath->addRect(-width() * originX(), -height() * originY(), width(), height());
         }
-        m_BackgroundPath->addRect(
-            -width() * originX(), -height() * originY(), width(), height());
+        m_BackgroundPath->addRect(-width() * originX(), -height() * originY(), width(), height());
     }
 }
 
@@ -391,9 +382,9 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform) {
             return c;
         }
     }
-    
+
     // TODO: should we hit-test the background?
-    
+
     return nullptr;
 }
 
@@ -417,9 +408,7 @@ void Artboard::draw(Renderer* renderer, DrawOption option) {
     }
 
     if (option != DrawOption::kHideFG) {
-        for (auto drawable = m_FirstDrawable; drawable != nullptr;
-             drawable = drawable->prev)
-        {
+        for (auto drawable = m_FirstDrawable; drawable != nullptr; drawable = drawable->prev) {
             if (drawable->isHidden()) {
                 continue;
             }
@@ -541,8 +530,7 @@ void Artboard::frameOrigin(bool value) {
 }
 
 StatusCode Artboard::import(ImportStack& importStack) {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }

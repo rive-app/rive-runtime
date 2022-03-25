@@ -64,8 +64,7 @@ namespace rive {
             }
 
             std::vector<int> propertyKeys;
-            for (int propertyKey = (int)reader.readVarUint64();
-                 propertyKey != 0;
+            for (int propertyKey = (int)reader.readVarUint64(); propertyKey != 0;
                  propertyKey = (int)reader.readVarUint64())
             {
                 propertyKeys.push_back(propertyKey);

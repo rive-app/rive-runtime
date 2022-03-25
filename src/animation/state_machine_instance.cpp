@@ -56,23 +56,18 @@ namespace rive {
         }
 
         void updateMix(float seconds) {
-            if (m_Transition != nullptr && m_StateFrom != nullptr &&
-                m_Transition->duration() != 0)
+            if (m_Transition != nullptr && m_StateFrom != nullptr && m_Transition->duration() != 0)
             {
                 m_Mix = std::min(
                     1.0f,
                     std::max(0.0f,
-                             (m_Mix + seconds / m_Transition->mixTime(
-                                                    m_StateFrom->state()))));
+                             (m_Mix + seconds / m_Transition->mixTime(m_StateFrom->state()))));
             } else {
                 m_Mix = 1.0f;
             }
         }
 
-        bool advance(Artboard* artboard,
-                     float seconds,
-                     SMIInput** inputs,
-                     size_t inputCount) {
+        bool advance(Artboard* artboard, float seconds, SMIInput** inputs, size_t inputCount) {
             m_StateChangedOnAdvance = false;
 
             if (m_CurrentState != nullptr) {
@@ -81,8 +76,7 @@ namespace rive {
 
             updateMix(seconds);
 
-            if (m_StateFrom != nullptr && m_Mix < 1.0f && !m_HoldAnimationFrom)
-            {
+            if (m_StateFrom != nullptr && m_Mix < 1.0f && !m_HoldAnimationFrom) {
                 // This didn't advance during our updateState, but it should now
                 // that we realize we need to mix it in.
                 m_StateFrom->advance(seconds, inputs);
@@ -125,32 +119,24 @@ namespace rive {
         }
 
         bool changeState(const LayerState* stateTo) {
-            if ((m_CurrentState == nullptr
-                     ? nullptr
-                     : m_CurrentState->state()) == stateTo) {
+            if ((m_CurrentState == nullptr ? nullptr : m_CurrentState->state()) == stateTo) {
                 return false;
             }
-            m_CurrentState =
-                stateTo == nullptr ? nullptr : stateTo->makeInstance();
+            m_CurrentState = stateTo == nullptr ? nullptr : stateTo->makeInstance();
             return true;
         }
 
-        bool tryChangeState(StateInstance* stateFromInstance,
-                            SMIInput** inputs,
-                            bool ignoreTriggers) {
+        bool
+        tryChangeState(StateInstance* stateFromInstance, SMIInput** inputs, bool ignoreTriggers) {
             if (stateFromInstance == nullptr) {
                 return false;
             }
             auto stateFrom = stateFromInstance->state();
             auto outState = m_CurrentState;
-            for (size_t i = 0, length = stateFrom->transitionCount();
-                 i < length;
-                 i++) {
+            for (size_t i = 0, length = stateFrom->transitionCount(); i < length; i++) {
                 auto transition = stateFrom->transition(i);
-                auto allowed = transition->allowed(
-                    stateFromInstance, inputs, ignoreTriggers);
-                if (allowed == AllowTransition::yes &&
-                    changeState(transition->stateTo())) {
+                auto allowed = transition->allowed(stateFromInstance, inputs, ignoreTriggers);
+                if (allowed == AllowTransition::yes && changeState(transition->stateTo())) {
                     m_StateChangedOnAdvance = true;
                     // state actually has changed
                     m_Transition = transition;
@@ -163,13 +149,11 @@ namespace rive {
                     // If we had an exit time and wanted to pause on exit, make
                     // sure to hold the exit time. Delegate this to the
                     // transition by telling it that it was completed.
-                    if (outState != nullptr &&
-                        transition->applyExitCondition(outState)) {
+                    if (outState != nullptr && transition->applyExitCondition(outState)) {
                         // Make sure we apply this state. This only returns true
                         // when it's an animation state instance.
                         auto instance =
-                            static_cast<AnimationStateInstance*>(m_StateFrom)
-                                ->animationInstance();
+                            static_cast<AnimationStateInstance*>(m_StateFrom)->animationInstance();
 
                         m_HoldAnimation = instance->animation();
                         m_HoldTime = instance->time();
@@ -180,13 +164,11 @@ namespace rive {
                     if (m_Mix != 0.0f) {
                         m_HoldAnimationFrom = transition->pauseOnExit();
                     }
-                    if (m_StateFrom != nullptr &&
-                        m_StateFrom->state()->is<AnimationState>() &&
+                    if (m_StateFrom != nullptr && m_StateFrom->state()->is<AnimationState>() &&
                         m_CurrentState != nullptr)
                     {
                         auto instance =
-                            static_cast<AnimationStateInstance*>(m_StateFrom)
-                                ->animationInstance();
+                            static_cast<AnimationStateInstance*>(m_StateFrom)->animationInstance();
 
                         auto spilledTime = instance->spilledTime();
                         m_CurrentState->advance(spilledTime, inputs);
@@ -219,23 +201,19 @@ namespace rive {
         bool stateChangedOnAdvance() const { return m_StateChangedOnAdvance; }
 
         const LayerState* currentState() {
-            return m_CurrentState == nullptr ? nullptr
-                                             : m_CurrentState->state();
+            return m_CurrentState == nullptr ? nullptr : m_CurrentState->state();
         }
 
         const LinearAnimationInstance* currentAnimation() const {
-            if (m_CurrentState == nullptr ||
-                !m_CurrentState->state()->is<AnimationState>()) {
+            if (m_CurrentState == nullptr || !m_CurrentState->state()->is<AnimationState>()) {
                 return nullptr;
             }
-            return static_cast<AnimationStateInstance*>(m_CurrentState)
-                ->animationInstance();
+            return static_cast<AnimationStateInstance*>(m_CurrentState)->animationInstance();
         }
     };
 } // namespace rive
 
-StateMachineInstance::StateMachineInstance(const StateMachine* machine) :
-    m_Machine(machine) {
+StateMachineInstance::StateMachineInstance(const StateMachine* machine) : m_Machine(machine) {
     m_InputCount = machine->inputCount();
     m_InputInstances = new SMIInput*[m_InputCount];
     for (size_t i = 0; i < m_InputCount; i++) {
@@ -246,16 +224,13 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine) :
         }
         switch (input->coreType()) {
             case StateMachineBool::typeKey:
-                m_InputInstances[i] =
-                    new SMIBool(input->as<StateMachineBool>(), this);
+                m_InputInstances[i] = new SMIBool(input->as<StateMachineBool>(), this);
                 break;
             case StateMachineNumber::typeKey:
-                m_InputInstances[i] =
-                    new SMINumber(input->as<StateMachineNumber>(), this);
+                m_InputInstances[i] = new SMINumber(input->as<StateMachineNumber>(), this);
                 break;
             case StateMachineTrigger::typeKey:
-                m_InputInstances[i] =
-                    new SMITrigger(input->as<StateMachineTrigger>(), this);
+                m_InputInstances[i] = new SMITrigger(input->as<StateMachineTrigger>(), this);
                 break;
             default:
                 // Sanity check.
@@ -283,8 +258,7 @@ StateMachineInstance::~StateMachineInstance() {
 bool StateMachineInstance::advance(Artboard* artboard, float seconds) {
     m_NeedsAdvance = false;
     for (size_t i = 0; i < m_LayerCount; i++) {
-        if (m_Layers[i].advance(
-                artboard, seconds, m_InputInstances, m_InputCount)) {
+        if (m_Layers[i].advance(artboard, seconds, m_InputInstances, m_InputCount)) {
             m_NeedsAdvance = true;
         }
     }
@@ -345,8 +319,7 @@ size_t StateMachineInstance::stateChangedCount() const {
     return count;
 }
 
-const LayerState*
-StateMachineInstance::stateChangedByIndex(size_t index) const {
+const LayerState* StateMachineInstance::stateChangedByIndex(size_t index) const {
     size_t count = 0;
     for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].stateChangedOnAdvance()) {
@@ -369,8 +342,7 @@ const size_t StateMachineInstance::currentAnimationCount() const {
     return count;
 }
 
-const LinearAnimationInstance*
-StateMachineInstance::currentAnimationByIndex(size_t index) const {
+const LinearAnimationInstance* StateMachineInstance::currentAnimationByIndex(size_t index) const {
     size_t count = 0;
     for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].currentAnimation() != nullptr) {

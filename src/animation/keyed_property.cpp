@@ -12,9 +12,7 @@ KeyedProperty::~KeyedProperty() {
     }
 }
 
-void KeyedProperty::addKeyFrame(KeyFrame* keyframe) {
-    m_KeyFrames.push_back(keyframe);
-}
+void KeyedProperty::addKeyFrame(KeyFrame* keyframe) { m_KeyFrames.push_back(keyframe); }
 
 void KeyedProperty::apply(Core* object, float seconds, float mix) {
     assert(!m_KeyFrames.empty());
@@ -52,8 +50,7 @@ void KeyedProperty::apply(Core* object, float seconds, float mix) {
                 if (fromFrame->interpolationType() == 0) {
                     fromFrame->apply(object, pk, mix);
                 } else {
-                    fromFrame->applyInterpolation(
-                        object, pk, seconds, toFrame, mix);
+                    fromFrame->applyInterpolation(object, pk, seconds, toFrame, mix);
                 }
             }
         } else {
@@ -83,8 +80,7 @@ StatusCode KeyedProperty::onAddedClean(CoreContext* context) {
 }
 
 StatusCode KeyedProperty::import(ImportStack& importStack) {
-    auto importer =
-        importStack.latest<KeyedObjectImporter>(KeyedObjectBase::typeKey);
+    auto importer = importStack.latest<KeyedObjectImporter>(KeyedObjectBase::typeKey);
     if (importer == nullptr) {
         return StatusCode::MissingObject;
     }

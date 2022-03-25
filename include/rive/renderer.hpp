@@ -22,6 +22,7 @@ namespace rive {
     // A render buffer holds an immutable array of values
     class RenderBuffer : public RefCnt {
         const size_t m_Count;
+
     public:
         RenderBuffer(size_t count) : m_Count(count) {}
 
@@ -38,7 +39,7 @@ namespace rive {
         clamp,
         repeat,
         mirror,
-        decal,  // fill outside the domain with transparent
+        decal, // fill outside the domain with transparent
     };
 
     /*
@@ -51,24 +52,29 @@ namespace rive {
      */
     class RenderShader : public RefCnt {};
 
-    extern rcp<RenderShader> makeLinearGradient(float sx, float sy,
-                                                float ex, float ey,
-                                                const ColorInt colors[],    // [count]
-                                                const float stops[],        // [count]
+    extern rcp<RenderShader> makeLinearGradient(float sx,
+                                                float sy,
+                                                float ex,
+                                                float ey,
+                                                const ColorInt colors[], // [count]
+                                                const float stops[],     // [count]
                                                 int count,
                                                 RenderTileMode,
                                                 const Mat2D* localMatrix = nullptr);
 
-    extern rcp<RenderShader> makeRadialGradient(float cx, float cy, float radius,
-                                                const ColorInt colors[],    // [count]
-                                                const float stops[],        // [count]
+    extern rcp<RenderShader> makeRadialGradient(float cx,
+                                                float cy,
+                                                float radius,
+                                                const ColorInt colors[], // [count]
+                                                const float stops[],     // [count]
                                                 int count,
                                                 RenderTileMode,
                                                 const Mat2D* localMatrix = nullptr);
 
-    extern rcp<RenderShader> makeSweepGradient(float cx, float cy,
-                                               const ColorInt colors[],    // [count]
-                                               const float stops[],        // [count]
+    extern rcp<RenderShader> makeSweepGradient(float cx,
+                                               float cy,
+                                               const ColorInt colors[], // [count]
+                                               const float stops[],     // [count]
                                                int count,
                                                const Mat2D* localMatrix = nullptr);
 
@@ -95,8 +101,9 @@ namespace rive {
         virtual bool decode(Span<const uint8_t>) = 0;
         int width() const { return m_Width; }
         int height() const { return m_Height; }
-        
-        virtual rcp<RenderShader> makeShader(RenderTileMode tx, RenderTileMode ty,
+
+        virtual rcp<RenderShader> makeShader(RenderTileMode tx,
+                                             RenderTileMode ty,
                                              const Mat2D* localMatrix = nullptr) const = 0;
     };
 
@@ -107,8 +114,7 @@ namespace rive {
             addRenderPath(path->renderPath(), transform);
         }
 
-        virtual void addRenderPath(RenderPath* path,
-                                   const Mat2D& transform) = 0;
+        virtual void addRenderPath(RenderPath* path, const Mat2D& transform) = 0;
     };
 
     class Renderer {
@@ -139,16 +145,12 @@ namespace rive {
                               const AABB& frame,
                               const AABB& content);
 
-        void align(Fit fit,
-                   const Alignment& alignment,
-                   const AABB& frame,
-                   const AABB& content);
+        void align(Fit fit, const Alignment& alignment, const AABB& frame, const AABB& content);
     };
 
     // Returns a full-formed RenderPath -- can be treated as immutable
-    extern RenderPath* makeRenderPath(Span<const Vec2D> points,
-                                      Span<const uint8_t> verbs,
-                                      FillRule);
+    extern RenderPath*
+    makeRenderPath(Span<const Vec2D> points, Span<const uint8_t> verbs, FillRule);
 
     extern RenderPath* makeRenderPath();
     extern RenderPaint* makeRenderPaint();

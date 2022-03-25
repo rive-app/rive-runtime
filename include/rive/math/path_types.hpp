@@ -9,27 +9,27 @@
 
 namespace rive {
 
-enum class FillRule {
-    nonZero,
-    evenOdd,
-};
+    enum class FillRule {
+        nonZero,
+        evenOdd,
+    };
 
-enum class PathDirection {
-    cw,
-    ccw,
-    // aliases
-    clockwise = cw,
-    counterclockwise = ccw,
-};
+    enum class PathDirection {
+        cw,
+        ccw,
+        // aliases
+        clockwise = cw,
+        counterclockwise = ccw,
+    };
 
-enum class PathVerb : uint8_t {
-    move,
-    line,
-    quad,
-    conic_unused,   // so we match skia's order
-    cubic,
-    close,
-};
+    enum class PathVerb : uint8_t {
+        move,
+        line,
+        quad,
+        conic_unused, // so we match skia's order
+        cubic,
+        close,
+    };
 
-}
+} // namespace rive
 #endif

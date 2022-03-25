@@ -6,13 +6,10 @@
 
 using namespace rive;
 
-StateInstance* BlendState1D::makeInstance() const {
-    return new BlendState1DInstance(this);
-}
+StateInstance* BlendState1D::makeInstance() const { return new BlendState1DInstance(this); }
 
 StatusCode BlendState1D::import(ImportStack& importStack) {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
+    auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);
     if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
@@ -23,8 +20,7 @@ StatusCode BlendState1D::import(ImportStack& importStack) {
         if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
             return StatusCode::InvalidObject;
         }
-        auto input =
-            stateMachineImporter->stateMachine()->input((size_t)inputId());
+        auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
         if (input == nullptr || !input->is<StateMachineNumber>()) {
             return StatusCode::InvalidObject;
         }

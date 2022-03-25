@@ -31,9 +31,7 @@ namespace rive {
         int m_ExitBlendAnimationId = -1;
 
     public:
-        inline int exitBlendAnimationId() const {
-            return m_ExitBlendAnimationId;
-        }
+        inline int exitBlendAnimationId() const { return m_ExitBlendAnimationId; }
         void exitBlendAnimationId(int value) {
             if (m_ExitBlendAnimationId == value) {
                 return;

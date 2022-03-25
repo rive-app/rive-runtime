@@ -46,9 +46,8 @@ namespace rive {
 
         /// Returns AllowTransition::yes when this transition can be taken from
         /// stateFrom with the given inputs.
-        AllowTransition allowed(StateInstance* stateFrom,
-                                SMIInput** inputs,
-                                bool ignoreTriggers) const;
+        AllowTransition
+        allowed(StateInstance* stateFrom, SMIInput** inputs, bool ignoreTriggers) const;
 
         /// Whether the animation is held at exit or if it keeps advancing
         /// during mixing.
@@ -83,8 +82,7 @@ namespace rive {
         /// true if you want the returned time to be relative to the entire
         /// animation. Set absolute to false if you want it relative to the work
         /// area.
-        float exitTimeSeconds(const LayerState* stateFrom,
-                              bool absolute = false) const;
+        float exitTimeSeconds(const LayerState* stateFrom, bool absolute = false) const;
 
         /// Provide the animation instance to use for computing percentage
         /// durations for exit time.
@@ -93,8 +91,7 @@ namespace rive {
 
         /// Provide the animation to use for computing percentage durations for
         /// exit time.
-        virtual const LinearAnimation*
-        exitTimeAnimation(const LayerState* from) const;
+        virtual const LinearAnimation* exitTimeAnimation(const LayerState* from) const;
 
         /// Retruns true when we need to hold the exit time, also applies the
         /// correct time to the animation instance in the stateFrom, when

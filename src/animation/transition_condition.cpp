@@ -6,17 +6,12 @@
 
 using namespace rive;
 
-StatusCode TransitionCondition::onAddedDirty(CoreContext* context) {
-    return StatusCode::Ok;
-}
+StatusCode TransitionCondition::onAddedDirty(CoreContext* context) { return StatusCode::Ok; }
 
-StatusCode TransitionCondition::onAddedClean(CoreContext* context) {
-    return StatusCode::Ok;
-}
+StatusCode TransitionCondition::onAddedClean(CoreContext* context) { return StatusCode::Ok; }
 
 StatusCode TransitionCondition::import(ImportStack& importStack) {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
+    auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);
     if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
@@ -25,14 +20,11 @@ StatusCode TransitionCondition::import(ImportStack& importStack) {
     if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
         return StatusCode::InvalidObject;
     }
-    if (!validateInputType(
-            stateMachineImporter->stateMachine()->input((size_t)inputId())))
-    {
+    if (!validateInputType(stateMachineImporter->stateMachine()->input((size_t)inputId()))) {
         return StatusCode::InvalidObject;
     }
 
-    auto transitionImporter =
-        importStack.latest<StateTransitionImporter>(StateTransition::typeKey);
+    auto transitionImporter = importStack.latest<StateTransitionImporter>(StateTransition::typeKey);
     if (transitionImporter == nullptr) {
         return StatusCode::MissingObject;
     }

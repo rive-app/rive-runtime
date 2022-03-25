@@ -50,22 +50,19 @@ namespace rive {
         Filthy = 0xFFFF
     };
 
-    inline constexpr ComponentDirt operator&(ComponentDirt lhs,
-                                             ComponentDirt rhs) {
+    inline constexpr ComponentDirt operator&(ComponentDirt lhs, ComponentDirt rhs) {
         return static_cast<ComponentDirt>(
             static_cast<std::underlying_type<ComponentDirt>::type>(lhs) &
             static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
     }
 
-    inline constexpr ComponentDirt operator^(ComponentDirt lhs,
-                                             ComponentDirt rhs) {
+    inline constexpr ComponentDirt operator^(ComponentDirt lhs, ComponentDirt rhs) {
         return static_cast<ComponentDirt>(
             static_cast<std::underlying_type<ComponentDirt>::type>(lhs) ^
             static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
     }
 
-    inline constexpr ComponentDirt operator|(ComponentDirt lhs,
-                                             ComponentDirt rhs) {
+    inline constexpr ComponentDirt operator|(ComponentDirt lhs, ComponentDirt rhs) {
         return static_cast<ComponentDirt>(
             static_cast<std::underlying_type<ComponentDirt>::type>(lhs) |
             static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
@@ -77,25 +74,25 @@ namespace rive {
     }
 
     inline ComponentDirt& operator|=(ComponentDirt& lhs, ComponentDirt rhs) {
-        lhs = static_cast<ComponentDirt>(
-            static_cast<std::underlying_type<ComponentDirt>::type>(lhs) |
-            static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
+        lhs =
+            static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) |
+                                       static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 
         return lhs;
     }
 
     inline ComponentDirt& operator&=(ComponentDirt& lhs, ComponentDirt rhs) {
-        lhs = static_cast<ComponentDirt>(
-            static_cast<std::underlying_type<ComponentDirt>::type>(lhs) &
-            static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
+        lhs =
+            static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) &
+                                       static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 
         return lhs;
     }
 
     inline ComponentDirt& operator^=(ComponentDirt& lhs, ComponentDirt rhs) {
-        lhs = static_cast<ComponentDirt>(
-            static_cast<std::underlying_type<ComponentDirt>::type>(lhs) ^
-            static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
+        lhs =
+            static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) ^
+                                       static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 
         return lhs;
     }

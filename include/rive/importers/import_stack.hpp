@@ -35,8 +35,7 @@ namespace rive {
                 auto stackObject = itr->second;
 
                 // Remove it from latests.
-                auto itr = std::find(
-                    m_LastAdded.begin(), m_LastAdded.end(), stackObject);
+                auto itr = std::find(m_LastAdded.begin(), m_LastAdded.end(), stackObject);
                 if (itr != m_LastAdded.end()) {
                     m_LastAdded.erase(itr);
                 }
@@ -76,8 +75,7 @@ namespace rive {
         }
 
         bool readNullObject() {
-            for (auto itr = m_LastAdded.rbegin(); itr != m_LastAdded.rend();
-                 itr++) {
+            for (auto itr = m_LastAdded.rbegin(); itr != m_LastAdded.rend(); itr++) {
                 if ((*itr)->readNullObject()) {
                     return true;
                 }

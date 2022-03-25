@@ -29,10 +29,7 @@ namespace rive {
         void copyTriangleIndexBytes(const MeshBase& object) override;
         void buildDependencies() override;
         void update(ComponentDirt value) override;
-        void draw(Renderer* renderer,
-                  const RenderImage* image,
-                  BlendMode blendMode,
-                  float opacity);
+        void draw(Renderer* renderer, const RenderImage* image, BlendMode blendMode, float opacity);
 
         void updateVertexRenderBuffer(Renderer* renderer);
         void markSkinDirty() override;

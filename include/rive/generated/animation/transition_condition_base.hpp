@@ -38,9 +38,7 @@ namespace rive {
             inputIdChanged();
         }
 
-        void copy(const TransitionConditionBase& object) {
-            m_InputId = object.m_InputId;
-        }
+        void copy(const TransitionConditionBase& object) { m_InputId = object.m_InputId; }
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {

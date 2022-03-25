@@ -13,8 +13,7 @@ NestedArtboard::~NestedArtboard() {
     }
 }
 Core* NestedArtboard::clone() const {
-    NestedArtboard* nestedArtboard =
-        static_cast<NestedArtboard*>(NestedArtboardBase::clone());
+    NestedArtboard* nestedArtboard = static_cast<NestedArtboard*>(NestedArtboardBase::clone());
     if (m_NestedInstance == nullptr) {
         return nestedArtboard;
     }
@@ -57,8 +56,7 @@ Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform) {
 }
 
 StatusCode NestedArtboard::import(ImportStack& importStack) {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }
@@ -98,9 +96,7 @@ bool NestedArtboard::advance(float elapsedSeconds) {
 
 void NestedArtboard::update(ComponentDirt value) {
     Super::update(value);
-    if (hasDirt(value, ComponentDirt::WorldTransform) &&
-        m_NestedInstance != nullptr)
-    {
+    if (hasDirt(value, ComponentDirt::WorldTransform) && m_NestedInstance != nullptr) {
         m_NestedInstance->opacity(renderOpacity());
     }
 }

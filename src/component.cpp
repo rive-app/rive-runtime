@@ -24,9 +24,7 @@ StatusCode Component::onAddedDirty(CoreContext* context) {
 
 void Component::addDependent(Component* component) {
     // Make it's not already a dependent.
-    if (std::find(m_Dependents.begin(), m_Dependents.end(), component) !=
-        m_Dependents.end())
-    {
+    if (std::find(m_Dependents.begin(), m_Dependents.end(), component) != m_Dependents.end()) {
         return;
     }
     m_Dependents.push_back(component);
@@ -63,8 +61,7 @@ StatusCode Component::import(ImportStack& importStack) {
         return Super::import(importStack);
     }
 
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }

@@ -41,8 +41,7 @@ namespace rive {
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
                 case triangleIndexBytesPropertyKey:
-                    decodeTriangleIndexBytes(
-                        CoreBytesType::deserialize(reader));
+                    decodeTriangleIndexBytes(CoreBytesType::deserialize(reader));
                     return true;
             }
             return ContainerComponent::deserialize(propertyKey, reader);

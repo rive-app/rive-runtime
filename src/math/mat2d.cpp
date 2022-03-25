@@ -6,8 +6,7 @@
 using namespace rive;
 
 Mat2D Mat2D::fromRotation(float rad) {
-    float s = 0,
-          c = 1;
+    float s = 0, c = 1;
     if (rad != 0) {
         s = sin(rad);
         c = cos(rad);
@@ -16,16 +15,20 @@ Mat2D Mat2D::fromRotation(float rad) {
 }
 
 Mat2D Mat2D::scale(const Mat2D& mat, const Vec2D& vec) {
-    const float v0 = vec[0],
-                v1 = vec[1];
+    const float v0 = vec[0], v1 = vec[1];
     return {
-        mat[0] * v0, mat[1] * v0, mat[2] * v1, mat[3] * v1, mat[4], mat[5],
+        mat[0] * v0,
+        mat[1] * v0,
+        mat[2] * v1,
+        mat[3] * v1,
+        mat[4],
+        mat[5],
     };
 }
 
 Mat2D Mat2D::multiply(const Mat2D& a, const Mat2D& b) {
-    float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5],
-          b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3], b4 = b[4], b5 = b[5];
+    float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5], b0 = b[0], b1 = b[1],
+          b2 = b[2], b3 = b[3], b4 = b[4], b5 = b[5];
     return {
         a0 * b0 + a2 * b1,
         a1 * b0 + a3 * b1,

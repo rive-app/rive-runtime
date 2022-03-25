@@ -11,12 +11,9 @@ void BackboardImporter::addNestedArtboard(NestedArtboard* artboard) {
     m_NestedArtboards.push_back(artboard);
 }
 
-void BackboardImporter::addFileAsset(FileAsset* asset) {
-    m_FileAssets.push_back(asset);
-}
+void BackboardImporter::addFileAsset(FileAsset* asset) { m_FileAssets.push_back(asset); }
 
-void BackboardImporter::addFileAssetReferencer(
-    FileAssetReferencer* referencer) {
+void BackboardImporter::addFileAssetReferencer(FileAssetReferencer* referencer) {
     m_FileAssetReferencers.push_back(referencer);
 }
 

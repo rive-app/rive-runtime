@@ -4,11 +4,6 @@
 #include "rive/rive_types.hpp"
 
 namespace rive {
-    enum class StatusCode : unsigned char {
-        Ok,
-        MissingObject,
-        InvalidObject,
-        FailedInversion
-    };
+    enum class StatusCode : unsigned char { Ok, MissingObject, InvalidObject, FailedInversion };
 }
 #endif

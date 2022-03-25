@@ -16,9 +16,5 @@ StatusCode GradientStop::onAddedDirty(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void GradientStop::colorValueChanged() {
-    parent()->as<LinearGradient>()->markGradientDirty();
-}
-void GradientStop::positionChanged() {
-    parent()->as<LinearGradient>()->markStopsDirty();
-}
+void GradientStop::colorValueChanged() { parent()->as<LinearGradient>()->markGradientDirty(); }
+void GradientStop::positionChanged() { parent()->as<LinearGradient>()->markStopsDirty(); }

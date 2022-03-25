@@ -4,12 +4,9 @@
 #include "rive/transform_space.hpp"
 #include <stdio.h>
 namespace rive {
-    class TransformComponentConstraint
-        : public TransformComponentConstraintBase {
+    class TransformComponentConstraint : public TransformComponentConstraintBase {
     public:
-        TransformSpace minMaxSpace() const {
-            return (TransformSpace)minMaxSpaceValue();
-        }
+        TransformSpace minMaxSpace() const { return (TransformSpace)minMaxSpaceValue(); }
     };
 } // namespace rive
 

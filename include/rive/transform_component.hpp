@@ -15,9 +15,7 @@ namespace rive {
 
     public:
 #ifdef TESTING
-        const std::vector<Constraint*>& constraints() const {
-            return m_Constraints;
-        }
+        const std::vector<Constraint*>& constraints() const { return m_Constraints; }
 #endif
         StatusCode onAddedClean(CoreContext* context) override;
         void buildDependencies() override;

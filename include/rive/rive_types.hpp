@@ -15,21 +15,21 @@
 // ... they just can't set them inconsistently.
 
 #ifdef NDEBUG
-    // we're in release mode
-    #ifdef DEBUG
-        #error "can't define both DEBUG and NDEBUG"
-    #endif
-    #ifndef RELEASE
-        #define RELEASE
-    #endif
+// we're in release mode
+#ifdef DEBUG
+#error "can't define both DEBUG and NDEBUG"
+#endif
+#ifndef RELEASE
+#define RELEASE
+#endif
 #else
-    // we're in debug mode
-    #ifdef RELEASE
-        #error "can't define RELEASE and not NDEBUG"
-    #endif
-    #ifndef DEBUG
-        #define DEBUG
-    #endif
+// we're in debug mode
+#ifdef RELEASE
+#error "can't define RELEASE and not NDEBUG"
+#endif
+#ifndef DEBUG
+#define DEBUG
+#endif
 #endif
 
 // We really like these headers, so we include them all the time.
@@ -40,4 +40,4 @@
 #include <memory>
 #include <type_traits>
 
-#endif  // rive_types
+#endif // rive_types

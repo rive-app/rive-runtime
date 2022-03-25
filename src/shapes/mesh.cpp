@@ -104,10 +104,7 @@ void Mesh::update(ComponentDirt value) {
     Super::update(value);
 }
 
-void Mesh::draw(Renderer* renderer,
-                const RenderImage* image,
-                BlendMode blendMode,
-                float opacity) {
+void Mesh::draw(Renderer* renderer, const RenderImage* image, BlendMode blendMode, float opacity) {
     if (m_VertexRenderBuffer == nullptr) {
 
         std::vector<float> vertices(m_Vertices.size() * 2);
@@ -121,13 +118,8 @@ void Mesh::draw(Renderer* renderer,
     }
 
     if (skin() == nullptr) {
-        renderer->transform(
-            parent()->as<WorldTransformComponent>()->worldTransform());
+        renderer->transform(parent()->as<WorldTransformComponent>()->worldTransform());
     }
-    renderer->drawImageMesh(image,
-                            m_VertexRenderBuffer,
-                            m_UVRenderBuffer,
-                            m_IndexRenderBuffer,
-                            blendMode,
-                            opacity);
+    renderer->drawImageMesh(
+        image, m_VertexRenderBuffer, m_UVRenderBuffer, m_IndexRenderBuffer, blendMode, opacity);
 }

@@ -22,8 +22,7 @@ StatusCode KeyFrame::onAddedDirty(CoreContext* context) {
 void KeyFrame::computeSeconds(int fps) { m_Seconds = frame() / (float)fps; }
 
 StatusCode KeyFrame::import(ImportStack& importStack) {
-    auto importer =
-        importStack.latest<KeyedPropertyImporter>(KeyedProperty::typeKey);
+    auto importer = importStack.latest<KeyedPropertyImporter>(KeyedProperty::typeKey);
     if (importer == nullptr) {
         return StatusCode::MissingObject;
     }

@@ -29,9 +29,7 @@ namespace rive {
         void draw(Renderer* renderer) override;
         Core* hitTest(HitInfo*, const Mat2D&) override;
 
-        PathComposer* pathComposer() const {
-            return (PathComposer*)&m_PathComposer;
-        }
+        PathComposer* pathComposer() const { return (PathComposer*)&m_PathComposer; }
 
         void pathChanged();
         void addDefaultPathSpace(PathSpace space);

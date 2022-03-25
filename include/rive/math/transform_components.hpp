@@ -15,12 +15,7 @@ namespace rive {
 
     public:
         TransformComponents() :
-            m_X(0.0f),
-            m_Y(0.0f),
-            m_ScaleX(1.0f),
-            m_ScaleY(1.0f),
-            m_Rotation(0.0f),
-            m_Skew(0.0f) {}
+            m_X(0.0f), m_Y(0.0f), m_ScaleX(1.0f), m_ScaleY(1.0f), m_Rotation(0.0f), m_Skew(0.0f) {}
         TransformComponents(const TransformComponents& copy) :
             m_X(copy.m_X),
             m_Y(copy.m_Y),
@@ -51,8 +46,7 @@ namespace rive {
             result[1] = m_ScaleY;
         }
 
-        static void copy(TransformComponents& result,
-                         const TransformComponents& a) {
+        static void copy(TransformComponents& result, const TransformComponents& a) {
             result.m_X = a.m_X;
             result.m_Y = a.m_Y;
             result.m_ScaleX = a.m_ScaleX;

@@ -32,8 +32,8 @@ namespace rive {
         void renderOpacityChanged() override;
         bool internalIsTranslucent() const override;
 
-        virtual void makeGradient(Vec2D start, Vec2D end,
-                                  const ColorInt[], const float[], size_t count);
+        virtual void
+        makeGradient(Vec2D start, Vec2D end, const ColorInt[], const float[], size_t count);
     };
 } // namespace rive
 

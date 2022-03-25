@@ -11,7 +11,7 @@ AABB RawPath::bounds() const {
     if (this->empty()) {
         return {0, 0, 0, 0};
     }
-    
+
     float l, t, r, b;
     l = r = m_Points[0].x();
     t = b = m_Points[0].y();
@@ -28,8 +28,8 @@ AABB RawPath::bounds() const {
 
 void RawPath::move(Vec2D a) {
     const auto n = m_Verbs.size();
-    if (n > 0 && m_Verbs[n-1] == PathVerb::move) {
-        m_Points[n-1] = a;  // replace previous move position
+    if (n > 0 && m_Verbs[n - 1] == PathVerb::move) {
+        m_Points[n - 1] = a; // replace previous move position
     } else {
         m_Points.push_back(a);
         m_Verbs.push_back(PathVerb::move);
@@ -56,7 +56,7 @@ void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c) {
 
 void RawPath::close() {
     const auto n = m_Verbs.size();
-    if (n > 0 && m_Verbs[n-1] != PathVerb::close) {
+    if (n > 0 && m_Verbs[n - 1] != PathVerb::close) {
         m_Verbs.push_back(PathVerb::close);
     }
 }
@@ -115,11 +115,19 @@ void RawPath::addOval(const AABB& r, PathDirection dir) {
     constexpr float C = 0.5519150244935105707435627f;
     // precompute clockwise unit circle, starting and ending at {1, 0}
     constexpr rive::Vec2D unit[] = {
-        { 1,  0}, { 1,  C}, { C,  1}, // quadrant 1 ( 4:30)
-        { 0,  1}, {-C,  1}, {-1,  C}, // quadrant 2 ( 7:30)
-        {-1,  0}, {-1, -C}, {-C, -1}, // quadrant 3 (10:30)
-        { 0, -1}, { C, -1}, { 1, -C}, // quadrant 4 ( 1:30)
-        { 1,  0},
+        {1, 0},
+        {1, C},
+        {C, 1}, // quadrant 1 ( 4:30)
+        {0, 1},
+        {-C, 1},
+        {-1, C}, // quadrant 2 ( 7:30)
+        {-1, 0},
+        {-1, -C},
+        {-C, -1}, // quadrant 3 (10:30)
+        {0, -1},
+        {C, -1},
+        {1, -C}, // quadrant 4 ( 1:30)
+        {1, 0},
     };
 
     const auto center = r.center();
@@ -138,12 +146,12 @@ void RawPath::addOval(const AABB& r, PathDirection dir) {
     if (dir == PathDirection::clockwise) {
         move(map(unit[0]));
         for (int i = 1; i <= 12; i += 3) {
-            cubic(map(unit[i+0]), map(unit[i+1]), map(unit[i+2]));
+            cubic(map(unit[i + 0]), map(unit[i + 1]), map(unit[i + 2]));
         }
     } else {
         move(map(unit[12]));
         for (int i = 11; i >= 0; i -= 3) {
-            cubic(map(unit[i-0]), map(unit[i-1]), map(unit[i-2]));
+            cubic(map(unit[i - 0]), map(unit[i - 1]), map(unit[i - 2]));
         }
     }
     close();
@@ -153,7 +161,7 @@ void RawPath::addPoly(Span<const Vec2D> span, bool isClosed) {
     if (span.size() == 0) {
         return;
     }
-    
+
     // should we permit must moveTo() or just moveTo()/close() ?
 
     m_Points.reserve(span.size() + isClosed);

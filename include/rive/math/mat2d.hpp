@@ -13,9 +13,8 @@ namespace rive {
     public:
         Mat2D() : m_Buffer{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f} {}
         Mat2D(const Mat2D& copy) = default;
-        Mat2D(float x1, float y1, float x2, float y2, float tx, float ty)
-            : m_Buffer{x1, y1, x2, y2, tx, ty}
-        {}
+        Mat2D(float x1, float y1, float x2, float y2, float tx, float ty) :
+            m_Buffer{x1, y1, x2, y2, tx, ty} {}
 
         inline const float* values() const { return m_Buffer; }
 
@@ -23,12 +22,8 @@ namespace rive {
         const float& operator[](std::size_t idx) const { return m_Buffer[idx]; }
 
         static Mat2D fromRotation(float rad);
-        static Mat2D fromScale(float sx, float sy) {
-            return {sx, 0, 0, sy, 0, 0};
-        }
-        static Mat2D fromTranslate(float tx, float ty) {
-            return {1, 0, 0, 1, tx, ty};
-        }
+        static Mat2D fromScale(float sx, float sy) { return {sx, 0, 0, sy, 0, 0}; }
+        static Mat2D fromTranslate(float tx, float ty) { return {1, 0, 0, 1, tx, ty}; }
 
         void scaleByValues(float sx, float sy);
 
@@ -41,8 +36,7 @@ namespace rive {
         static Mat2D multiply(const Mat2D& a, const Mat2D& b);
         static bool invert(Mat2D& result, const Mat2D& a);
         static void decompose(TransformComponents& result, const Mat2D& m);
-        static void compose(Mat2D& result,
-                            const TransformComponents& components);
+        static void compose(Mat2D& result, const TransformComponents& components);
 
         float xx() const { return m_Buffer[0]; }
         float xy() const { return m_Buffer[1]; }
@@ -66,13 +60,11 @@ namespace rive {
         };
     }
 
-    inline Mat2D operator*(const Mat2D& a, const Mat2D& b) {
-        return Mat2D::multiply(a, b);
-    }
+    inline Mat2D operator*(const Mat2D& a, const Mat2D& b) { return Mat2D::multiply(a, b); }
 
     inline bool operator==(const Mat2D& a, const Mat2D& b) {
-        return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] &&
-               a[4] == b[4] && a[5] == b[5];
+        return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4] &&
+               a[5] == b[5];
     }
 } // namespace rive
 #endif

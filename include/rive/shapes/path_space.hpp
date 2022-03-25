@@ -13,48 +13,41 @@ namespace rive {
     };
 
     inline constexpr PathSpace operator&(PathSpace lhs, PathSpace rhs) {
-        return static_cast<PathSpace>(
-            static_cast<std::underlying_type<PathSpace>::type>(lhs) &
-            static_cast<std::underlying_type<PathSpace>::type>(rhs));
+        return static_cast<PathSpace>(static_cast<std::underlying_type<PathSpace>::type>(lhs) &
+                                      static_cast<std::underlying_type<PathSpace>::type>(rhs));
     }
 
     inline constexpr PathSpace operator^(PathSpace lhs, PathSpace rhs) {
-        return static_cast<PathSpace>(
-            static_cast<std::underlying_type<PathSpace>::type>(lhs) ^
-            static_cast<std::underlying_type<PathSpace>::type>(rhs));
+        return static_cast<PathSpace>(static_cast<std::underlying_type<PathSpace>::type>(lhs) ^
+                                      static_cast<std::underlying_type<PathSpace>::type>(rhs));
     }
 
     inline constexpr PathSpace operator|(PathSpace lhs, PathSpace rhs) {
-        return static_cast<PathSpace>(
-            static_cast<std::underlying_type<PathSpace>::type>(lhs) |
-            static_cast<std::underlying_type<PathSpace>::type>(rhs));
+        return static_cast<PathSpace>(static_cast<std::underlying_type<PathSpace>::type>(lhs) |
+                                      static_cast<std::underlying_type<PathSpace>::type>(rhs));
     }
 
     inline constexpr PathSpace operator~(PathSpace rhs) {
-        return static_cast<PathSpace>(
-            ~static_cast<std::underlying_type<PathSpace>::type>(rhs));
+        return static_cast<PathSpace>(~static_cast<std::underlying_type<PathSpace>::type>(rhs));
     }
 
     inline PathSpace& operator|=(PathSpace& lhs, PathSpace rhs) {
-        lhs = static_cast<PathSpace>(
-            static_cast<std::underlying_type<PathSpace>::type>(lhs) |
-            static_cast<std::underlying_type<PathSpace>::type>(rhs));
+        lhs = static_cast<PathSpace>(static_cast<std::underlying_type<PathSpace>::type>(lhs) |
+                                     static_cast<std::underlying_type<PathSpace>::type>(rhs));
 
         return lhs;
     }
 
     inline PathSpace& operator&=(PathSpace& lhs, PathSpace rhs) {
-        lhs = static_cast<PathSpace>(
-            static_cast<std::underlying_type<PathSpace>::type>(lhs) &
-            static_cast<std::underlying_type<PathSpace>::type>(rhs));
+        lhs = static_cast<PathSpace>(static_cast<std::underlying_type<PathSpace>::type>(lhs) &
+                                     static_cast<std::underlying_type<PathSpace>::type>(rhs));
 
         return lhs;
     }
 
     inline PathSpace& operator^=(PathSpace& lhs, PathSpace rhs) {
-        lhs = static_cast<PathSpace>(
-            static_cast<std::underlying_type<PathSpace>::type>(lhs) ^
-            static_cast<std::underlying_type<PathSpace>::type>(rhs));
+        lhs = static_cast<PathSpace>(static_cast<std::underlying_type<PathSpace>::type>(lhs) ^
+                                     static_cast<std::underlying_type<PathSpace>::type>(rhs));
 
         return lhs;
     }

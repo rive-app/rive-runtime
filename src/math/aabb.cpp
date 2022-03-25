@@ -10,8 +10,8 @@ bool AABB::contains(const AABB& a, const AABB& b) {
 bool AABB::isValid(const AABB& a) {
     float dx = a[2] - a[0];
     float dy = a[3] - a[1];
-    return dx >= 0.0f && dy >= 0.0f && std::isfinite(a[0]) &&
-           std::isfinite(a[1]) && std::isfinite(a[2]) && std::isfinite(a[3]);
+    return dx >= 0.0f && dy >= 0.0f && std::isfinite(a[0]) && std::isfinite(a[1]) &&
+           std::isfinite(a[2]) && std::isfinite(a[3]);
 }
 
 bool AABB::testOverlap(const AABB& a, const AABB& b) {
@@ -44,13 +44,9 @@ void AABB::transform(AABB& out, const AABB& a, const Mat2D& matrix) {
     out[3] = std::fmax(p1[1], std::fmax(p2[1], std::fmax(p3[1], p4[1])));
 }
 
-static inline float graphics_roundf(float x) {
-    return std::floor(x + 0.5f);
-}
+static inline float graphics_roundf(float x) { return std::floor(x + 0.5f); }
 
-static inline int graphics_round(float x) {
-    return (int)graphics_roundf(x);
-}
+static inline int graphics_round(float x) { return (int)graphics_roundf(x); }
 
 IAABB AABB::round() const {
     return {
@@ -60,4 +56,3 @@ IAABB AABB::round() const {
         graphics_round(bottom()),
     };
 }
-

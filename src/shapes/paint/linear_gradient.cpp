@@ -33,8 +33,7 @@ void LinearGradient::buildDependencies() {
         // that can return a world transform. We store the container just for
         // doing the transform to world in update. If it's the artboard, then
         // we're already in world so no need to transform.
-        m_ShapePaintContainer =
-            parentsParent->is<Node>() ? parentsParent->as<Node>() : nullptr;
+        m_ShapePaintContainer = parentsParent->is<Node>() ? parentsParent->as<Node>() : nullptr;
         parentsParent->addDependent(this);
     }
 }
@@ -54,15 +53,13 @@ void LinearGradient::update(ComponentDirt value) {
 
     bool worldTransformed = hasDirt(value, ComponentDirt::WorldTransform);
 
-    bool paintsInWorldSpace =
-        parent()->as<ShapePaint>()->pathSpace() == PathSpace::World;
+    bool paintsInWorldSpace = parent()->as<ShapePaint>()->pathSpace() == PathSpace::World;
     // We rebuild the gradient if the gradient is dirty or we paint in world
     // space and the world space transform has changed, or the local transform
     // has changed. Local transform changes when a stop moves in local space.
     bool rebuildGradient =
         hasDirt(value,
-                ComponentDirt::Paint | ComponentDirt::RenderOpacity |
-                    ComponentDirt::Transform) ||
+                ComponentDirt::Paint | ComponentDirt::RenderOpacity | ComponentDirt::Transform) ||
         (paintsInWorldSpace && worldTransformed);
     if (rebuildGradient) {
         Vec2D start(startX(), startY());
@@ -88,22 +85,20 @@ void LinearGradient::update(ComponentDirt value) {
             colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
             stops[i] = m_Stops[i]->position();
         }
-        
+
         makeGradient(start, end, colors, stops, count);
     }
 }
 
-void LinearGradient::makeGradient(Vec2D start, Vec2D end,
-                                  const ColorInt colors[], const float stops[], size_t count) {
+void LinearGradient::makeGradient(
+    Vec2D start, Vec2D end, const ColorInt colors[], const float stops[], size_t count) {
     auto paint = renderPaint();
-    paint->shader(makeLinearGradient(start[0], start[1], end[0], end[1],
-                                     colors, stops, count, RenderTileMode::clamp));
+    paint->shader(makeLinearGradient(
+        start[0], start[1], end[0], end[1], colors, stops, count, RenderTileMode::clamp));
 }
 
 void LinearGradient::markGradientDirty() { addDirt(ComponentDirt::Paint); }
-void LinearGradient::markStopsDirty() {
-    addDirt(ComponentDirt::Paint | ComponentDirt::Stops);
-}
+void LinearGradient::markStopsDirty() { addDirt(ComponentDirt::Paint | ComponentDirt::Stops); }
 
 void LinearGradient::renderOpacityChanged() { markGradientDirty(); }
 

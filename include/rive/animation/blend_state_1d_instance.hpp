@@ -6,8 +6,7 @@
 #include "rive/animation/blend_animation_1d.hpp"
 
 namespace rive {
-    class BlendState1DInstance
-        : public BlendStateInstance<BlendState1D, BlendAnimation1D> {
+    class BlendState1DInstance : public BlendStateInstance<BlendState1D, BlendAnimation1D> {
     private:
         BlendStateAnimationInstance<BlendAnimation1D>* m_From = nullptr;
         BlendStateAnimationInstance<BlendAnimation1D>* m_To = nullptr;

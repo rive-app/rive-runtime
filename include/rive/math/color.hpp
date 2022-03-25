@@ -18,8 +18,7 @@ namespace rive {
         Color(int r, int g, int b, int a) :
             m_Buffer{r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f} {}
 
-        Color(int r, int g, int b) :
-            m_Buffer{r / 255.0f, g / 255.0f, b / 255.0f, 1.0f} {}
+        Color(int r, int g, int b) : m_Buffer{r / 255.0f, g / 255.0f, b / 255.0f, 1.0f} {}
 
         Color(float rgba) : m_Buffer{rgba, rgba, rgba, rgba} {}
 
@@ -28,8 +27,8 @@ namespace rive {
         float& operator[](std::size_t idx) { return m_Buffer[idx]; }
         const float& operator[](std::size_t idx) const { return m_Buffer[idx]; }
         bool operator==(const Color& b) const {
-            return m_Buffer[0] == b[0] && m_Buffer[1] == b[1] &&
-                   m_Buffer[2] == b[2] && m_Buffer[3] == b[3];
+            return m_Buffer[0] == b[0] && m_Buffer[1] == b[1] && m_Buffer[2] == b[2] &&
+                   m_Buffer[3] == b[3];
         }
 
         void set(float r, float g, float b, float a) {
@@ -42,8 +41,7 @@ namespace rive {
         void lerp(const Color& second, float amount) {
             float iamount = 1.0f - amount;
             for (int i = 0; i < 4; i++) {
-                m_Buffer[i] =
-                    second.m_Buffer[i] * amount + m_Buffer[i] * iamount;
+                m_Buffer[i] = second.m_Buffer[i] * amount + m_Buffer[i] * iamount;
             }
         }
 

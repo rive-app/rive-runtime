@@ -8,14 +8,12 @@
 namespace rive {
     struct IAABB {
         int32_t left, top, right, bottom;
-        
+
         constexpr int width() const { return right - left; }
         constexpr int height() const { return bottom - top; }
         constexpr bool empty() const { return width() <= 0 || height() <= 0; }
 
-        IAABB inset(int dx, int dy) const {
-            return {left + dx, top + dy, right - dx, bottom - dy};
-        }
+        IAABB inset(int dx, int dy) const { return {left + dx, top + dy, right - dx, bottom - dy}; }
         IAABB offset(int dx, int dy) const {
             return {left + dx, top + dy, right + dx, bottom + dy};
         }
@@ -32,25 +30,17 @@ namespace rive {
 
     public:
         AABB() : buffer{0} {}
-        AABB(const AABB& o) :
-            minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY)
-        {}
+        AABB(const AABB& o) : minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY) {}
 
         AABB(float minX, float minY, float maxX, float maxY) :
-            minX(minX), minY(minY), maxX(maxX), maxY(maxY)
-        {}
+            minX(minX), minY(minY), maxX(maxX), maxY(maxY) {}
 
-        AABB(const IAABB& o) :
-            AABB((float)o.left, (float)o.top, (float)o.right, (float)o.bottom)
-        {}
+        AABB(const IAABB& o) : AABB((float)o.left, (float)o.top, (float)o.right, (float)o.bottom) {}
 
         bool operator==(const AABB& o) const {
-            return minX == o.minX && minY == o.minY &&
-                   maxX == o.maxX && maxY == o.maxY;
+            return minX == o.minX && minY == o.minY && maxX == o.maxX && maxY == o.maxY;
         }
-        bool operator!=(const AABB& o) const {
-            return !(*this == o);
-        }
+        bool operator!=(const AABB& o) const { return !(*this == o); }
 
         inline const float* values() const { return buffer; }
 
@@ -70,12 +60,8 @@ namespace rive {
 
         float width() const { return maxX - minX; }
         float height() const { return maxY - minY; }
-        Vec2D size() const {
-            return {width(), height()};
-        }
-        Vec2D center() const {
-            return {(minX + maxX) * 0.5f, (minY + maxY) * 0.5f};
-        }
+        Vec2D size() const { return {width(), height()}; }
+        Vec2D center() const { return {(minX + maxX) * 0.5f, (minY + maxY) * 0.5f}; }
 
         AABB inset(float dx, float dy) const {
             AABB r = {minX + dx, minY + dy, maxX - dx, maxY - dy};

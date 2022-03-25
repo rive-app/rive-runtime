@@ -11,19 +11,14 @@ namespace rive {
 
     public:
         inline float seconds() const { return m_Seconds; }
-        inline CubicInterpolator* interpolator() const {
-            return m_Interpolator;
-        }
+        inline CubicInterpolator* interpolator() const { return m_Interpolator; }
 
         void computeSeconds(int fps);
 
         StatusCode onAddedDirty(CoreContext* context) override;
         virtual void apply(Core* object, int propertyKey, float mix) = 0;
-        virtual void applyInterpolation(Core* object,
-                                        int propertyKey,
-                                        float seconds,
-                                        const KeyFrame* nextFrame,
-                                        float mix) = 0;
+        virtual void applyInterpolation(
+            Core* object, int propertyKey, float seconds, const KeyFrame* nextFrame, float mix) = 0;
 
         StatusCode import(ImportStack& importStack) override;
     };

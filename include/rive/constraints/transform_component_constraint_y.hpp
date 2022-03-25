@@ -3,8 +3,7 @@
 #include "rive/generated/constraints/transform_component_constraint_y_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class TransformComponentConstraintY
-        : public TransformComponentConstraintYBase {
+    class TransformComponentConstraintY : public TransformComponentConstraintYBase {
     public:
     };
 } // namespace rive

@@ -3,16 +3,11 @@
 
 using namespace rive;
 
-StateMachineImporter::StateMachineImporter(StateMachine* machine) :
-    m_StateMachine(machine) {}
+StateMachineImporter::StateMachineImporter(StateMachine* machine) : m_StateMachine(machine) {}
 
-void StateMachineImporter::addLayer(StateMachineLayer* layer) {
-    m_StateMachine->addLayer(layer);
-}
+void StateMachineImporter::addLayer(StateMachineLayer* layer) { m_StateMachine->addLayer(layer); }
 
-void StateMachineImporter::addInput(StateMachineInput* input) {
-    m_StateMachine->addInput(input);
-}
+void StateMachineImporter::addInput(StateMachineInput* input) { m_StateMachine->addInput(input); }
 
 bool StateMachineImporter::readNullObject() {
     // Hard assumption that we won't add new layer types...

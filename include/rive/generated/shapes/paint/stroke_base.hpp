@@ -67,9 +67,7 @@ namespace rive {
             joinChanged();
         }
 
-        inline bool transformAffectsStroke() const {
-            return m_TransformAffectsStroke;
-        }
+        inline bool transformAffectsStroke() const { return m_TransformAffectsStroke; }
         void transformAffectsStroke(bool value) {
             if (m_TransformAffectsStroke == value) {
                 return;
@@ -99,8 +97,7 @@ namespace rive {
                     m_Join = CoreUintType::deserialize(reader);
                     return true;
                 case transformAffectsStrokePropertyKey:
-                    m_TransformAffectsStroke =
-                        CoreBoolType::deserialize(reader);
+                    m_TransformAffectsStroke = CoreBoolType::deserialize(reader);
                     return true;
             }
             return ShapePaint::deserialize(propertyKey, reader);

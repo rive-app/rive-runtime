@@ -18,9 +18,7 @@ namespace rive {
         StatusCode onAddedClean(CoreContext* context) override;
 
         float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
-        void renderOpacity(float value) {
-            m_PaintMutator->renderOpacity(value);
-        }
+        void renderOpacity(float value) { m_PaintMutator->renderOpacity(value); }
 
         void blendMode(BlendMode value);
 
@@ -38,9 +36,7 @@ namespace rive {
         /// RadialGradient.
         Component* paint() const { return m_PaintMutator->component(); }
 
-        bool isTranslucent() const {
-            return !this->isVisible() || m_PaintMutator->isTranslucent();
-        }
+        bool isTranslucent() const { return !this->isVisible() || m_PaintMutator->isTranslucent(); }
     };
 } // namespace rive
 

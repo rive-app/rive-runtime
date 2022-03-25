@@ -10,27 +10,19 @@
 
 using namespace rive;
 
-static inline float graphics_roundf(float x) {
-    return std::floor(x + 0.5f);
-}
+static inline float graphics_roundf(float x) { return std::floor(x + 0.5f); }
 
-static inline int graphics_round(float x) {
-    return (int)graphics_roundf(x);
-}
+static inline int graphics_round(float x) { return (int)graphics_roundf(x); }
 
 struct Point {
     float x, y;
-    
+
     Point() {}
     Point(float xx, float yy) : x(xx), y(yy) {}
     Point(const Vec2D& src) : x(src.x()), y(src.y()) {}
 
-    Point operator+(Point v) const {
-        return { x + v.x, y + v.y };
-    }
-    Point operator-(Point v) const {
-        return { x - v.x, y - v.y };
-    }
+    Point operator+(Point v) const { return {x + v.x, y + v.y}; }
+    Point operator-(Point v) const { return {x - v.x, y - v.y}; }
 
     Point& operator+=(Point v) {
         *this = *this + v;
@@ -41,24 +33,16 @@ struct Point {
         return *this;
     }
 
-    friend Point operator*(Point v, float s) {
-        return { v.x * s, v.y * s };
-    }
-    friend Point operator*(float s, Point v) {
-        return { v.x * s, v.y * s };
-    }
+    friend Point operator*(Point v, float s) { return {v.x * s, v.y * s}; }
+    friend Point operator*(float s, Point v) { return {v.x * s, v.y * s}; }
 };
 
-template <typename T> T lerp(T a, T b, float t) {
-    return a + (b - a) * t;
-}
+template <typename T> T lerp(T a, T b, float t) { return a + (b - a) * t; }
 
-template <typename T> T ave(T a, T b) {
-    return lerp(a, b, 0.5f);
-}
+template <typename T> T ave(T a, T b) { return lerp(a, b, 0.5f); }
 
-static void append_line(const float height, Point p0, Point p1, float m,
-                        int winding, int delta[], int iwidth) {
+static void
+append_line(const float height, Point p0, Point p1, float m, int winding, int delta[], int iwidth) {
     assert(winding == 1 || winding == -1);
 
     int top = graphics_round(p0.y);
@@ -109,7 +93,7 @@ static void clip_line(const float height, Point p0, Point p1, int delta[], const
         p1.x += m * (height - p1.y);
         p1.y = height;
     }
-    
+
     assert(p0.y <= p1.y);
     assert(p0.y >= 0);
     assert(p1.y <= height);
@@ -117,18 +101,18 @@ static void clip_line(const float height, Point p0, Point p1, int delta[], const
     append_line(height, p0, p1, m, winding, delta, iwidth);
 }
 
-#define MAX_CURVE_SEGMENTS  (1 << 8)
+#define MAX_CURVE_SEGMENTS (1 << 8)
 
 static int compute_cubic_segments(Point a, Point b, Point c, Point d) {
     Point abc = a - b - b + c;
     Point bcd = b - c - c + d;
     float dx = std::max(std::abs(abc.x), std::abs(bcd.x));
     float dy = std::max(std::abs(abc.y), std::abs(bcd.y));
-    float dist = sqrtf(dx*dx + dy*dy);
+    float dist = sqrtf(dx * dx + dy * dy);
     // count = sqrt(6*dist / 8*tol)
     // tol = 0.25
     // count = sqrt(3*dist)
-    float count = sqrtf(3*dist);
+    float count = sqrtf(3 * dist);
     return std::max(1, std::min((int)ceilf(count), MAX_CURVE_SEGMENTS));
 }
 
@@ -138,7 +122,7 @@ static int compute_cubic_segments(Point a, Point b, Point c, Point d) {
 //
 struct CubicCoeff {
     Point A, B, C, D;
-    
+
     // a(1-t)^3 + 3bt(1-t)^2 + 3ct^2(1-t) + dt^3
     // a - 3at + 3at^2 -  at^3      a(1 - 3t + 3t^2 - t^3)
     //     3bt - 6bt^2 + 3bt^3     3b(     t - 2t^2 + t^3)
@@ -148,25 +132,21 @@ struct CubicCoeff {
     // D  + Ct  + Bt^2  + At^3
     //
     CubicCoeff(Point a, Point b, Point c, Point d) {
-        A = (d - a) + 3.0f*(b - c);
-        B = 3.0f*((c - b) + (a - b));
-        C = 3.0f*(b - a);
+        A = (d - a) + 3.0f * (b - c);
+        B = 3.0f * ((c - b) + (a - b));
+        C = 3.0f * (b - a);
         D = a;
     }
-    
-    Point eval(float t) const {
-        return ((A*t + B)*t + C)*t + D;
-    }
+
+    Point eval(float t) const { return ((A * t + B) * t + C) * t + D; }
 };
 
 ////////////////////////////////////////////
 
-void HitTester::reset() {
-    m_DW.clear();
-}
+void HitTester::reset() { m_DW.clear(); }
 
 void HitTester::reset(const IAABB& clip) {
-    m_offset = Vec2D{ (float)clip.left, (float)clip.top };
+    m_offset = Vec2D{(float)clip.left, (float)clip.top};
     m_height = (float)clip.height();
 
     m_IWidth = clip.width();
@@ -198,7 +178,6 @@ void HitTester::line(Vec2D v) {
 void HitTester::quad(Vec2D b, Vec2D c) {
     assert(!m_ExpectsMove);
 
-
     m_Prev = c;
 }
 
@@ -210,14 +189,14 @@ static bool quickRejectCubic(float height, Point a, Point b, Point c, Point d) {
 
 struct CubicChop {
     Vec2D storage[7];
-    
+
     CubicChop(Vec2D a, Vec2D b, Vec2D c, Vec2D d) {
         auto ab = ave(a, b);
         auto bc = ave(b, c);
         auto cd = ave(c, d);
         auto abc = ave(ab, bc);
         auto bcd = ave(bc, cd);
-        
+
         storage[0] = a;
         storage[1] = ab;
         storage[2] = abc;
@@ -226,7 +205,7 @@ struct CubicChop {
         storage[5] = cd;
         storage[6] = d;
     }
-    
+
     Vec2D operator[](unsigned index) const {
         assert(index < 7);
         return storage[index];
@@ -242,14 +221,14 @@ struct CubicChop {
 // The key win is quickRejectCubic. This is how we save time over just
 // evaluating the cubic up front.
 //
-#define MAX_LOCAL_SEGMENTS  16
+#define MAX_LOCAL_SEGMENTS 16
 
 void HitTester::recurse_cubic(Vec2D b, Vec2D c, Vec2D d, int count) {
     if (quickRejectCubic(m_height, m_Prev, b, c, d)) {
         m_Prev = d;
         return;
     }
-    
+
     if (count > MAX_LOCAL_SEGMENTS) {
         CubicChop chop(m_Prev, b, c, d);
         const int newCount = (count + 1) >> 1;
@@ -279,12 +258,12 @@ void HitTester::cubic(Vec2D b, Vec2D c, Vec2D d) {
     b = b - m_offset;
     c = c - m_offset;
     d = d - m_offset;
-    
+
     if (quickRejectCubic(m_height, m_Prev, b, c, d)) {
         m_Prev = d;
         return;
     }
-    
+
     const int count = compute_cubic_segments(m_Prev, b, c, d);
 
     this->recurse_cubic(b, c, d, count);
@@ -299,10 +278,10 @@ void HitTester::close() {
 
 void HitTester::addRect(const AABB& rect, const Mat2D& xform, PathDirection dir) {
     const Vec2D pts[] = {
-        xform * Vec2D{rect.left(),  rect.top()},
+        xform * Vec2D{rect.left(), rect.top()},
         xform * Vec2D{rect.right(), rect.top()},
         xform * Vec2D{rect.right(), rect.bottom()},
-        xform * Vec2D{rect.left(),  rect.bottom()},
+        xform * Vec2D{rect.left(), rect.bottom()},
     };
 
     move(pts[0]);

@@ -7,6 +7,5 @@ NestedLinearAnimation::~NestedLinearAnimation() { delete m_AnimationInstance; }
 
 void NestedLinearAnimation::initializeAnimation(Artboard* artboard) {
     assert(m_AnimationInstance == nullptr);
-    m_AnimationInstance =
-        new LinearAnimationInstance(artboard->animation(animationId()));
+    m_AnimationInstance = new LinearAnimationInstance(artboard->animation(animationId()));
 }

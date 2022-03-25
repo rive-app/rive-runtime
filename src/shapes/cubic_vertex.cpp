@@ -53,8 +53,7 @@ void CubicVertex::yChanged() {
     m_InValid = m_OutValid = false;
 }
 
-void CubicVertex::deform(const Mat2D& worldTransform,
-                         const float* boneTransforms) {
+void CubicVertex::deform(const Mat2D& worldTransform, const float* boneTransforms) {
     Super::deform(worldTransform, boneTransforms);
 
     auto cubicWeight = weight<CubicWeight>();

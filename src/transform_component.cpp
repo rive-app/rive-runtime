@@ -7,10 +7,9 @@
 using namespace rive;
 
 StatusCode TransformComponent::onAddedClean(CoreContext* context) {
-    m_ParentTransformComponent =
-        parent() != nullptr && parent()->is<WorldTransformComponent>()
-            ? parent()->as<WorldTransformComponent>()
-            : nullptr;
+    m_ParentTransformComponent = parent() != nullptr && parent()->is<WorldTransformComponent>()
+                                     ? parent()->as<WorldTransformComponent>()
+                                     : nullptr;
     return StatusCode::Ok;
 }
 
@@ -36,8 +35,7 @@ void TransformComponent::updateTransform() {
 
 void TransformComponent::updateWorldTransform() {
     if (m_ParentTransformComponent != nullptr) {
-        m_WorldTransform = m_ParentTransformComponent->m_WorldTransform
-                         * m_Transform;
+        m_WorldTransform = m_ParentTransformComponent->m_WorldTransform * m_Transform;
     } else {
         m_WorldTransform = m_Transform;
     }

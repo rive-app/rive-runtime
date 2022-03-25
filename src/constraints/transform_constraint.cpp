@@ -44,10 +44,8 @@ void TransformConstraint::constrain(TransformComponent* component) {
     m_ComponentsB.rotation(angleA + diff * t);
     m_ComponentsB.x(m_ComponentsA.x() * ti + m_ComponentsB.x() * t);
     m_ComponentsB.y(m_ComponentsA.y() * ti + m_ComponentsB.y() * t);
-    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti +
-                         m_ComponentsB.scaleX() * t);
-    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti +
-                         m_ComponentsB.scaleY() * t);
+    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti + m_ComponentsB.scaleX() * t);
+    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti + m_ComponentsB.scaleY() * t);
     m_ComponentsB.skew(m_ComponentsA.skew() * ti + m_ComponentsB.skew() * t);
 
     Mat2D::compose(component->mutableWorldTransform(), m_ComponentsB);

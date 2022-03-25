@@ -4,9 +4,7 @@
 using namespace rive;
 
 AnimationStateInstance::AnimationStateInstance(const AnimationState* state) :
-    StateInstance(state),
-    m_AnimationInstance(state->animation()),
-    m_KeepGoing(true) {}
+    StateInstance(state), m_AnimationInstance(state->animation()), m_KeepGoing(true) {}
 
 void AnimationStateInstance::advance(float seconds, SMIInput** inputs) {
     m_KeepGoing = m_AnimationInstance.advance(seconds);

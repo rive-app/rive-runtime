@@ -19,9 +19,7 @@ namespace rive {
     class ArtboardImporter;
     class NestedArtboard;
 
-    class Artboard : public ArtboardBase,
-                     public CoreContext,
-                     public ShapePaintContainer {
+    class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer {
         friend class File;
         friend class ArtboardImporter;
         friend class Component;
@@ -89,8 +87,7 @@ namespace rive {
 
         template <typename T = Component> T* find(std::string name) {
             for (auto object : m_Objects) {
-                if (object != nullptr && object->is<T>() &&
-                    object->as<T>()->name() == name) {
+                if (object != nullptr && object->is<T>() && object->as<T>()->name() == name) {
                     return reinterpret_cast<T*>(object);
                 }
             }

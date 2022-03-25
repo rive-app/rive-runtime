@@ -8,8 +8,7 @@ void DependencySorter::sort(Component* root, std::vector<Component*>& order) {
     visit(root, order);
 }
 
-bool DependencySorter::visit(Component* component,
-                             std::vector<Component*>& order) {
+bool DependencySorter::visit(Component* component, std::vector<Component*>& order) {
     if (m_Perm.find(component) != m_Perm.end()) {
         return true;
     }

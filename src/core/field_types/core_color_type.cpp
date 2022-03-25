@@ -3,6 +3,4 @@
 
 using namespace rive;
 
-int CoreColorType::deserialize(BinaryReader& reader) {
-    return reader.readUint32();
-}
+int CoreColorType::deserialize(BinaryReader& reader) { return reader.readUint32(); }

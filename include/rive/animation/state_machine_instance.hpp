@@ -52,8 +52,7 @@ namespace rive {
         SMITrigger* getTrigger(std::string name) const;
 
         const size_t currentAnimationCount() const;
-        const LinearAnimationInstance*
-        currentAnimationByIndex(size_t index) const;
+        const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
 
         // The number of state changes that occurred across all layers on the
         // previous advance.

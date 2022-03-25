@@ -35,8 +35,8 @@ StatusCode LayerState::onAddedClean(CoreContext* context) {
 }
 
 StatusCode LayerState::import(ImportStack& importStack) {
-    auto layerImporter = importStack.latest<StateMachineLayerImporter>(
-        StateMachineLayerBase::typeKey);
+    auto layerImporter =
+        importStack.latest<StateMachineLayerImporter>(StateMachineLayerBase::typeKey);
     if (layerImporter == nullptr) {
         return StatusCode::MissingObject;
     }
@@ -44,10 +44,6 @@ StatusCode LayerState::import(ImportStack& importStack) {
     return Super::import(importStack);
 }
 
-void LayerState::addTransition(StateTransition* transition) {
-    m_Transitions.push_back(transition);
-}
+void LayerState::addTransition(StateTransition* transition) { m_Transitions.push_back(transition); }
 
-StateInstance* LayerState::makeInstance() const {
-    return new SystemStateInstance(this);
-}
+StateInstance* LayerState::makeInstance() const { return new SystemStateInstance(this); }

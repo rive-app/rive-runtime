@@ -14,35 +14,34 @@
 
 namespace rive {
 
-class HitTester {
-    std::vector<int> m_DW;  // width * height delta-windings
-    Vec2D            m_First, m_Prev;
-    Vec2D            m_offset;
-    float            m_height;
-    int              m_IWidth, m_IHeight;
-    bool             m_ExpectsMove;
+    class HitTester {
+        std::vector<int> m_DW; // width * height delta-windings
+        Vec2D m_First, m_Prev;
+        Vec2D m_offset;
+        float m_height;
+        int m_IWidth, m_IHeight;
+        bool m_ExpectsMove;
 
-    void recurse_cubic(Vec2D b, Vec2D c, Vec2D d, int count);
+        void recurse_cubic(Vec2D b, Vec2D c, Vec2D d, int count);
 
-public:
-    HitTester() {}
-    HitTester(const IAABB& area) { reset(area); }
+    public:
+        HitTester() {}
+        HitTester(const IAABB& area) { reset(area); }
 
-    void reset();
-    void reset(const IAABB& area);
+        void reset();
+        void reset(const IAABB& area);
 
-    void move(Vec2D);
-    void line(Vec2D);
-    void quad(Vec2D, Vec2D);
-    void cubic(Vec2D, Vec2D, Vec2D);
-    void close();
-    
-    void addRect(const AABB&, const Mat2D&, PathDirection = PathDirection::ccw);
+        void move(Vec2D);
+        void line(Vec2D);
+        void quad(Vec2D, Vec2D);
+        void cubic(Vec2D, Vec2D, Vec2D);
+        void close();
 
-    bool test(FillRule = rive::FillRule::nonZero);
-};
+        void addRect(const AABB&, const Mat2D&, PathDirection = PathDirection::ccw);
 
-}
+        bool test(FillRule = rive::FillRule::nonZero);
+    };
+
+} // namespace rive
 
 #endif
-

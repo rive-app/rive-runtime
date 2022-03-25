@@ -39,9 +39,7 @@ StatusCode LinearAnimation::onAddedClean(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void LinearAnimation::addKeyedObject(KeyedObject* object) {
-    m_KeyedObjects.push_back(object);
-}
+void LinearAnimation::addKeyedObject(KeyedObject* object) { m_KeyedObjects.push_back(object); }
 
 void LinearAnimation::apply(Artboard* artboard, float time, float mix) const {
     for (auto object : m_KeyedObjects) {
@@ -50,8 +48,7 @@ void LinearAnimation::apply(Artboard* artboard, float time, float mix) const {
 }
 
 StatusCode LinearAnimation::import(ImportStack& importStack) {
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr) {
         return StatusCode::MissingObject;
     }
@@ -65,23 +62,17 @@ float LinearAnimation::startSeconds() const {
 float LinearAnimation::endSeconds() const {
     return (enableWorkArea() ? workEnd() : duration()) / (float)fps();
 }
-float LinearAnimation::durationSeconds() const {
-    return endSeconds() - startSeconds();
-}
+float LinearAnimation::durationSeconds() const { return endSeconds() - startSeconds(); }
 
 float LinearAnimation::globalToLocalSeconds(float seconds) const {
     switch (loop()) {
         case Loop::oneShot:
             return seconds + startSeconds();
         case Loop::loop:
-            return std::fmod(seconds, (endSeconds() - startSeconds())) +
-                   startSeconds();
+            return std::fmod(seconds, (endSeconds() - startSeconds())) + startSeconds();
         case Loop::pingPong:
-            float localTime =
-                std::fmod(seconds, (endSeconds() - startSeconds()));
-            int direction =
-                ((int)(seconds / (endSeconds() - startSeconds()))) % 2;
-            return direction == 0 ? localTime + startSeconds()
-                                  : endSeconds() - localTime;
+            float localTime = std::fmod(seconds, (endSeconds() - startSeconds()));
+            int direction = ((int)(seconds / (endSeconds() - startSeconds()))) % 2;
+            return direction == 0 ? localTime + startSeconds() : endSeconds() - localTime;
     }
 }

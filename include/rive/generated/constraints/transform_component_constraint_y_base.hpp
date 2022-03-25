@@ -4,8 +4,7 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 namespace rive {
-    class TransformComponentConstraintYBase
-        : public TransformComponentConstraint {
+    class TransformComponentConstraintYBase : public TransformComponentConstraint {
     protected:
         typedef TransformComponentConstraint Super;
 
@@ -131,8 +130,7 @@ namespace rive {
                     m_MaxY = CoreBoolType::deserialize(reader);
                     return true;
             }
-            return TransformComponentConstraint::deserialize(propertyKey,
-                                                             reader);
+            return TransformComponentConstraint::deserialize(propertyKey, reader);
         }
 
     protected:

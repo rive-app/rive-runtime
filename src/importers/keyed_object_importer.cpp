@@ -5,8 +5,7 @@
 
 using namespace rive;
 
-KeyedObjectImporter::KeyedObjectImporter(KeyedObject* keyedObject) :
-    m_KeyedObject(keyedObject) {}
+KeyedObjectImporter::KeyedObjectImporter(KeyedObject* keyedObject) : m_KeyedObject(keyedObject) {}
 
 void KeyedObjectImporter::addKeyedProperty(KeyedProperty* property) {
     m_KeyedObject->addKeyedProperty(property);

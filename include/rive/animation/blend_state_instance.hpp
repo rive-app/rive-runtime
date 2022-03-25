@@ -21,19 +21,15 @@ namespace rive {
 
     public:
         const T* blendAnimation() const { return m_BlendAnimation; }
-        const LinearAnimationInstance* animationInstance() const {
-            return &m_AnimationInstance;
-        }
+        const LinearAnimationInstance* animationInstance() const { return &m_AnimationInstance; }
 
         BlendStateAnimationInstance(const T* blendAnimation) :
-            m_BlendAnimation(blendAnimation),
-            m_AnimationInstance(blendAnimation->animation()) {}
+            m_BlendAnimation(blendAnimation), m_AnimationInstance(blendAnimation->animation()) {}
 
         void mix(float value) { m_Mix = value; }
     };
 
-    template <class K, class T>
-    class BlendStateInstance : public StateInstance {
+    template <class K, class T> class BlendStateInstance : public StateInstance {
     protected:
         std::vector<BlendStateAnimationInstance<T>> m_AnimationInstances;
         bool m_KeepGoing = true;
@@ -42,8 +38,7 @@ namespace rive {
         BlendStateInstance(const K* blendState) : StateInstance(blendState) {
             for (auto blendAnimation : blendState->animations()) {
                 m_AnimationInstances.emplace_back(
-                    BlendStateAnimationInstance<T>(
-                        static_cast<T*>(blendAnimation)));
+                    BlendStateAnimationInstance<T>(static_cast<T*>(blendAnimation)));
             }
         }
 

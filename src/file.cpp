@@ -48,8 +48,7 @@ using namespace rive;
 
 // Import a single Rive runtime object.
 // Used by the file importer.
-static Core* readRuntimeObject(BinaryReader& reader,
-                               const RuntimeHeader& header) {
+static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header) {
     auto coreObjectKey = reader.readVarUint64();
     auto object = CoreRegistry::makeCoreInstance((int)coreObjectKey);
     while (true) {
@@ -63,8 +62,7 @@ static Core* readRuntimeObject(BinaryReader& reader,
             delete object;
             return nullptr;
         }
-        if (object == nullptr || !object->deserialize((int)propertyKey, reader))
-        {
+        if (object == nullptr || !object->deserialize((int)propertyKey, reader)) {
             // We have an unknown object or property, first see if core knows
             // the property type.
             int id = CoreRegistry::propertyFieldId((int)propertyKey);
@@ -76,8 +74,7 @@ static Core* readRuntimeObject(BinaryReader& reader,
             if (id == -1) {
                 // Still couldn't find it, give up.
                 fprintf(stderr,
-                        "Unknown property key " RIVE_FMT_U64
-                        ", missing from property ToC.\n",
+                        "Unknown property key " RIVE_FMT_U64 ", missing from property ToC.\n",
                         propertyKey);
                 delete object;
                 return nullptr;
@@ -119,9 +116,8 @@ File::~File() {
 }
 
 // Import a Rive file from a file handle
-ImportResult File::import(BinaryReader& reader,
-                          File** importedFile,
-                          FileAssetResolver* assetResolver) {
+ImportResult
+File::import(BinaryReader& reader, File** importedFile, FileAssetResolver* assetResolver) {
     RuntimeHeader header;
     if (!RuntimeHeader::read(reader, header)) {
         fprintf(stderr, "Bad header\n");
@@ -164,9 +160,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                     break;
             }
         } else {
-            fprintf(stderr,
-                    "Failed to import object of type %d\n",
-                    object->coreType());
+            fprintf(stderr, "Failed to import object of type %d\n", object->coreType());
             delete object;
             continue;
         }
@@ -181,37 +175,32 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                 stackObject = new ArtboardImporter(object->as<Artboard>());
                 break;
             case LinearAnimation::typeKey:
-                stackObject =
-                    new LinearAnimationImporter(object->as<LinearAnimation>());
+                stackObject = new LinearAnimationImporter(object->as<LinearAnimation>());
                 break;
             case KeyedObject::typeKey:
-                stackObject =
-                    new KeyedObjectImporter(object->as<KeyedObject>());
+                stackObject = new KeyedObjectImporter(object->as<KeyedObject>());
                 break;
             case KeyedProperty::typeKey: {
-                auto importer = importStack.latest<LinearAnimationImporter>(
-                    LinearAnimation::typeKey);
+                auto importer =
+                    importStack.latest<LinearAnimationImporter>(LinearAnimation::typeKey);
                 if (importer == nullptr) {
                     return ImportResult::malformed;
                 }
-                stackObject = new KeyedPropertyImporter(
-                    importer->animation(), object->as<KeyedProperty>());
+                stackObject =
+                    new KeyedPropertyImporter(importer->animation(), object->as<KeyedProperty>());
                 break;
             }
             case StateMachine::typeKey:
-                stackObject =
-                    new StateMachineImporter(object->as<StateMachine>());
+                stackObject = new StateMachineImporter(object->as<StateMachine>());
                 break;
             case StateMachineLayer::typeKey: {
-                auto artboardImporter =
-                    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+                auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
                 if (artboardImporter == nullptr) {
                     return ImportResult::malformed;
                 }
 
-                stackObject = new StateMachineLayerImporter(
-                    object->as<StateMachineLayer>(),
-                    artboardImporter->artboard());
+                stackObject = new StateMachineLayerImporter(object->as<StateMachineLayer>(),
+                                                            artboardImporter->artboard());
 
                 break;
             }
@@ -226,13 +215,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                 break;
             case StateTransition::typeKey:
             case BlendStateTransition::typeKey:
-                stackObject =
-                    new StateTransitionImporter(object->as<StateTransition>());
+                stackObject = new StateTransitionImporter(object->as<StateTransition>());
                 stackType = StateTransition::typeKey;
                 break;
             case ImageAsset::typeKey:
-                stackObject = new FileAssetImporter(object->as<FileAsset>(),
-                                                    m_AssetResolver);
+                stackObject = new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver);
                 stackType = FileAsset::typeKey;
                 break;
         }
