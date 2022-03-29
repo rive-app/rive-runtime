@@ -13,6 +13,16 @@
         "int": 141,
         "string": "value"
       }
+    },
+    "playbackValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 232,
+        "string": "playbackvalue"
+      },
+      "runtime": false,
+      "coop": false
     }
   }
 }

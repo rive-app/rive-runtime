@@ -1,0 +1,19 @@
+{
+  "name": "EventBoolChange",
+  "key": {
+    "int": 117,
+    "string": "event_bool_change"
+  },
+  "extends": "animation/event_input_change.json",
+  "properties": {
+    "value": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 228,
+        "string": "value"
+      },
+      "description": "Value to set the input to when the event occurs."
+    }
+  }
+}

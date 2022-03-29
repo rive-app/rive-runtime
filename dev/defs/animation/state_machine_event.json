@@ -1,0 +1,30 @@
+{
+  "name": "StateMachineEvent",
+  "key": {
+    "int": 114,
+    "string": "statemachineevent"
+  },
+  "extends": "animation/state_machine_component.json",
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 224,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the object use as a target fo this event."
+    },
+    "eventTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 225,
+        "string": "eventtypevalue"
+      },
+      "description": "Event type (hover, click, etc)."
+    }
+  }
+}

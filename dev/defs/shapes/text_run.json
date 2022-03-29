@@ -1,11 +1,11 @@
 {
   "name": "TextRun",
-  "runtime": false,
   "key": {
     "int": 113,
     "string": "textrun"
   },
   "extends": "drawable.json",
+  "runtime": false,
   "properties": {
     "pointSize": {
       "type": "double",

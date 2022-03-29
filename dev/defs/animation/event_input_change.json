@@ -1,0 +1,44 @@
+{
+  "name": "EventInputChange",
+  "key": {
+    "int": 116,
+    "string": "event_input_change"
+  },
+  "abstract": true,
+  "properties": {
+    "eventId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 226,
+        "string": "eventid"
+      },
+      "description": "Identifier used to track the StateMachineEvent this result belongs to.",
+      "runtime": false
+    },
+    "inputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 227,
+        "string": "inputid"
+      },
+      "description": "Id of the StateMachineInput referenced."
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 230,
+        "string": "order"
+      },
+      "description": "Order value for condition in a transition.",
+      "runtime": false
+    }
+  }
+}
