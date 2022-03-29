@@ -1,7 +1,31 @@
 #include "rive/math/aabb.hpp"
+#include <algorithm>
 #include <cmath>
 
 using namespace rive;
+
+AABB::AABB(Span<Vec2D> pts) {
+    if (pts.size() == 0) {
+        minX = minY = maxX = maxY = 0;
+        return;
+    }
+
+    float L = pts[0].x(),
+          R = L,
+          T = pts[0].y(),
+          B = T;
+
+    for (size_t i = 1; i < pts.size(); ++i) {
+        L = std::min(L, pts[i].x());
+        R = std::max(R, pts[i].x());
+        T = std::min(T, pts[i].y());
+        B = std::max(B, pts[i].y());
+    }
+    minX = L;
+    maxX = R;
+    minY = T;
+    maxY = B;
+}
 
 bool AABB::contains(const AABB& a, const AABB& b) {
     return a[0] <= b[0] && a[1] <= b[1] && b[2] <= a[2] && b[3] <= a[3];

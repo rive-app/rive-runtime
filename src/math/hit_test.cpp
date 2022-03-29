@@ -310,3 +310,73 @@ bool HitTester::test(FillRule rule) {
     }
     return nonzero != 0;
 }
+
+bool HitTester::testTriangle(const IAABB& area, Vec2D a, Vec2D b, Vec2D c) {
+    // Create mapping from triangle to the "unit" triangle, and look at the
+    // corresponding coordinates for each point in area. If the coordinates
+    // are within the unit triangle, we have a hit.
+
+    const auto ab = b - a;
+    const auto ac = c - a;
+    Mat2D inv, mat(ab.x(), ab.y(), ac.x(), ac.y(), a.x(), a.y());
+    if (!Mat2D::invert(inv, mat)) {
+        return false;
+    }
+
+    // map the upper-left point
+    auto unit = inv * Vec2D{area.left + 0.5f, area.top + 0.5f};
+    float ux = unit.x();
+    float uy = unit.y();
+    const int w = area.width();
+    const int h = area.height();
+
+    for (int y = 0; y < h; ++y) {
+        if (uy >= 0) {
+            for (int x = 0; x < w; ++x) {
+                if (ux >= 0 && (ux + uy) < 1.0f) {
+                    return true;
+                }
+                ux += inv[0];
+            }
+        }
+        uy += inv[1];
+    }
+    return false;
+}
+
+static bool tri_overlap(const AABB& area, Vec2D a, Vec2D b, Vec2D c) {
+    const float L = std::min(a.x(), std::min(b.x(), c.x()));
+    const float R = std::max(a.x(), std::max(b.x(), c.x()));
+    const float T = std::min(a.y(), std::min(b.y(), c.y()));
+    const float B = std::max(a.y(), std::max(b.y(), c.y()));
+    return T < area.bottom() || area.top()  < B ||
+           L < area.right()  || area.left() < R;
+}
+
+bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> indices) {
+    if (verts.size() < 3) {
+        return false;
+    }
+
+    // make a conservative float bounds
+    const AABB farea = AABB(area).inset(-0.5f, -0.5f);
+    // compute bounds of verts
+    const auto bounds = AABB(verts);
+
+    if (bounds.bottom() <= area.top || area.bottom <= bounds.top() ||
+        bounds.right() <= area.left || area.right <= bounds.left()) {
+        return false;
+    }
+
+    for (size_t i = 0; i < indices.size(); i += 3) {
+        const auto a = verts[indices[i + 0]];
+        const auto b = verts[indices[i + 1]];
+        const auto c = verts[indices[i + 2]];
+        if (tri_overlap(farea, a, b, c)) {
+            if (testTriangle(area, a, b, c)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}

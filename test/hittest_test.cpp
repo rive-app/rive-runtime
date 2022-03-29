@@ -37,3 +37,16 @@ TEST_CASE("hittest-basics", "[hittest]") {
     tester.close();
     REQUIRE(tester.test());
 }
+
+TEST_CASE("hittest-mesh", "[hittest]") {
+
+    const IAABB area{10, 10, 12, 12};
+    
+    Vec2D verts[] = {
+        {0, 0}, {20, 10}, {0, 20},
+    };
+    uint16_t indices[] = {
+        0, 1, 2,
+    };
+    REQUIRE(HitTester::testMesh(area, Span(verts, 3), Span(indices, 3)));
+}

@@ -5,6 +5,7 @@
 #ifndef _RIVE_HITTEST_HPP_
 #define _RIVE_HITTEST_HPP_
 
+#include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/path_types.hpp"
 #include "rive/math/vec2d.hpp"
@@ -40,6 +41,9 @@ namespace rive {
         void addRect(const AABB&, const Mat2D&, PathDirection = PathDirection::ccw);
 
         bool test(FillRule = rive::FillRule::nonZero);
+        
+        static bool testTriangle(const IAABB&, Vec2D, Vec2D, Vec2D);
+        static bool testMesh(const IAABB&, Span<Vec2D> verts, Span<uint16_t> indices);
     };
 
 } // namespace rive
