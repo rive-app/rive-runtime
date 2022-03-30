@@ -47,5 +47,4 @@ namespace rive {
     };
 
 } // namespace rive
-
 #endif
