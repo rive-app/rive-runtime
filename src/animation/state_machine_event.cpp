@@ -5,6 +5,10 @@
 
 using namespace rive;
 
+void StateMachineEvent::addInputChange(EventInputChange* inputChange) {
+    m_InputChanges.push_back(inputChange);
+}
+
 StatusCode StateMachineEvent::import(ImportStack& importStack) {
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
     if (stateMachineImporter == nullptr) {

@@ -14,6 +14,7 @@
 #include "rive/importers/keyed_property_importer.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
+#include "rive/importers/state_machine_event_importer.hpp"
 #include "rive/importers/state_machine_layer_importer.hpp"
 #include "rive/importers/layer_state_importer.hpp"
 #include "rive/importers/state_transition_importer.hpp"
@@ -220,6 +221,9 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
             case BlendStateTransition::typeKey:
                 stackObject = new StateTransitionImporter(object->as<StateTransition>());
                 stackType = StateTransition::typeKey;
+                break;
+            case StateMachineEvent::typeKey:
+                stackObject = new StateMachineEventImporter(object->as<StateMachineEvent>());
                 break;
             case ImageAsset::typeKey:
                 stackObject = new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver);
