@@ -9,6 +9,8 @@ void StateMachineImporter::addLayer(StateMachineLayer* layer) { m_StateMachine->
 
 void StateMachineImporter::addInput(StateMachineInput* input) { m_StateMachine->addInput(input); }
 
+void StateMachineImporter::addEvent(StateMachineEvent* event) { m_StateMachine->addEvent(event); }
+
 bool StateMachineImporter::readNullObject() {
     // Hard assumption that we won't add new layer types...
     m_StateMachine->addInput(nullptr);

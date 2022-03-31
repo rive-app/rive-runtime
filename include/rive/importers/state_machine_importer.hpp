@@ -6,6 +6,7 @@
 namespace rive {
     class StateMachineInput;
     class StateMachineLayer;
+    class StateMachineEvent;
     class StateMachine;
     class StateMachineImporter : public ImportStackObject {
     private:
@@ -16,6 +17,7 @@ namespace rive {
         const StateMachine* stateMachine() const { return m_StateMachine; }
         void addLayer(StateMachineLayer* layer);
         void addInput(StateMachineInput* input);
+        void addEvent(StateMachineEvent* event);
         StatusCode resolve() override;
         bool readNullObject() override;
     };

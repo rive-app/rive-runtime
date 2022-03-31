@@ -12,6 +12,10 @@
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/cubic_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
+#include "rive/animation/event_bool_change.hpp"
+#include "rive/animation/event_input_change.hpp"
+#include "rive/animation/event_number_change.hpp"
+#include "rive/animation/event_trigger_change.hpp"
 #include "rive/animation/exit_state.hpp"
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyed_property.hpp"
@@ -29,6 +33,7 @@
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_component.hpp"
+#include "rive/animation/state_machine_event.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_layer_component.hpp"
@@ -128,10 +133,14 @@ namespace rive {
                     return new Node();
                 case NestedArtboardBase::typeKey:
                     return new NestedArtboard();
+                case EventNumberChangeBase::typeKey:
+                    return new EventNumberChange();
                 case NestedSimpleAnimationBase::typeKey:
                     return new NestedSimpleAnimation();
                 case AnimationStateBase::typeKey:
                     return new AnimationState();
+                case StateMachineEventBase::typeKey:
+                    return new StateMachineEvent();
                 case KeyedObjectBase::typeKey:
                     return new KeyedObject();
                 case BlendAnimationDirectBase::typeKey:
@@ -148,8 +157,12 @@ namespace rive {
                     return new KeyFrameBool();
                 case TransitionNumberConditionBase::typeKey:
                     return new TransitionNumberCondition();
+                case EventBoolChangeBase::typeKey:
+                    return new EventBoolChange();
                 case AnyStateBase::typeKey:
                     return new AnyState();
+                case EventTriggerChangeBase::typeKey:
+                    return new EventTriggerChange();
                 case StateMachineLayerBase::typeKey:
                     return new StateMachineLayer();
                 case AnimationBase::typeKey:
@@ -318,8 +331,17 @@ namespace rive {
                 case NestedAnimationBase::animationIdPropertyKey:
                     object->as<NestedAnimationBase>()->animationId(value);
                     break;
+                case EventInputChangeBase::inputIdPropertyKey:
+                    object->as<EventInputChangeBase>()->inputId(value);
+                    break;
                 case AnimationStateBase::animationIdPropertyKey:
                     object->as<AnimationStateBase>()->animationId(value);
+                    break;
+                case StateMachineEventBase::targetIdPropertyKey:
+                    object->as<StateMachineEventBase>()->targetId(value);
+                    break;
+                case StateMachineEventBase::eventTypeValuePropertyKey:
+                    object->as<StateMachineEventBase>()->eventTypeValue(value);
                     break;
                 case KeyedObjectBase::objectIdPropertyKey:
                     object->as<KeyedObjectBase>()->objectId(value);
@@ -483,6 +505,9 @@ namespace rive {
                     break;
                 case NodeBase::yPropertyKey:
                     object->as<NodeBase>()->y(value);
+                    break;
+                case EventNumberChangeBase::valuePropertyKey:
+                    object->as<EventNumberChangeBase>()->value(value);
                     break;
                 case NestedLinearAnimationBase::mixPropertyKey:
                     object->as<NestedLinearAnimationBase>()->mix(value);
@@ -725,6 +750,9 @@ namespace rive {
                 case KeyFrameBoolBase::valuePropertyKey:
                     object->as<KeyFrameBoolBase>()->value(value);
                     break;
+                case EventBoolChangeBase::valuePropertyKey:
+                    object->as<EventBoolChangeBase>()->value(value);
+                    break;
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                     object->as<LinearAnimationBase>()->enableWorkArea(value);
                     break;
@@ -805,8 +833,14 @@ namespace rive {
                     return object->as<NestedArtboardBase>()->artboardId();
                 case NestedAnimationBase::animationIdPropertyKey:
                     return object->as<NestedAnimationBase>()->animationId();
+                case EventInputChangeBase::inputIdPropertyKey:
+                    return object->as<EventInputChangeBase>()->inputId();
                 case AnimationStateBase::animationIdPropertyKey:
                     return object->as<AnimationStateBase>()->animationId();
+                case StateMachineEventBase::targetIdPropertyKey:
+                    return object->as<StateMachineEventBase>()->targetId();
+                case StateMachineEventBase::eventTypeValuePropertyKey:
+                    return object->as<StateMachineEventBase>()->eventTypeValue();
                 case KeyedObjectBase::objectIdPropertyKey:
                     return object->as<KeyedObjectBase>()->objectId();
                 case BlendAnimationBase::animationIdPropertyKey:
@@ -918,6 +952,8 @@ namespace rive {
                     return object->as<NodeBase>()->x();
                 case NodeBase::yPropertyKey:
                     return object->as<NodeBase>()->y();
+                case EventNumberChangeBase::valuePropertyKey:
+                    return object->as<EventNumberChangeBase>()->value();
                 case NestedLinearAnimationBase::mixPropertyKey:
                     return object->as<NestedLinearAnimationBase>()->mix();
                 case NestedSimpleAnimationBase::speedPropertyKey:
@@ -1081,6 +1117,8 @@ namespace rive {
                     return object->as<NestedSimpleAnimationBase>()->isPlaying();
                 case KeyFrameBoolBase::valuePropertyKey:
                     return object->as<KeyFrameBoolBase>()->value();
+                case EventBoolChangeBase::valuePropertyKey:
+                    return object->as<EventBoolChangeBase>()->value();
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                     return object->as<LinearAnimationBase>()->enableWorkArea();
                 case StateMachineBoolBase::valuePropertyKey:
@@ -1131,7 +1169,10 @@ namespace rive {
                 case DrawableBase::drawableFlagsPropertyKey:
                 case NestedArtboardBase::artboardIdPropertyKey:
                 case NestedAnimationBase::animationIdPropertyKey:
+                case EventInputChangeBase::inputIdPropertyKey:
                 case AnimationStateBase::animationIdPropertyKey:
+                case StateMachineEventBase::targetIdPropertyKey:
+                case StateMachineEventBase::eventTypeValuePropertyKey:
                 case KeyedObjectBase::objectIdPropertyKey:
                 case BlendAnimationBase::animationIdPropertyKey:
                 case BlendAnimationDirectBase::inputIdPropertyKey:
@@ -1186,6 +1227,7 @@ namespace rive {
                 case TransformComponentBase::scaleYPropertyKey:
                 case NodeBase::xPropertyKey:
                 case NodeBase::yPropertyKey:
+                case EventNumberChangeBase::valuePropertyKey:
                 case NestedLinearAnimationBase::mixPropertyKey:
                 case NestedSimpleAnimationBase::speedPropertyKey:
                 case StateMachineNumberBase::valuePropertyKey:
@@ -1266,6 +1308,7 @@ namespace rive {
                 case IKConstraintBase::invertDirectionPropertyKey:
                 case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 case KeyFrameBoolBase::valuePropertyKey:
+                case EventBoolChangeBase::valuePropertyKey:
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                 case StateMachineBoolBase::valuePropertyKey:
                 case ShapePaintBase::isVisiblePropertyKey:

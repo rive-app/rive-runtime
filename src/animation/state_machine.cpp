@@ -3,6 +3,7 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_input.hpp"
+#include "rive/animation/state_machine_event.hpp"
 
 using namespace rive;
 
@@ -11,6 +12,9 @@ StateMachine::~StateMachine() {
         delete object;
     }
     for (auto object : m_Layers) {
+        delete object;
+    }
+    for (auto object : m_Events) {
         delete object;
     }
 }
@@ -23,6 +27,11 @@ StatusCode StateMachine::onAddedDirty(CoreContext* context) {
         }
     }
     for (auto object : m_Layers) {
+        if ((code = object->onAddedDirty(context)) != StatusCode::Ok) {
+            return code;
+        }
+    }
+    for (auto object : m_Events) {
         if ((code = object->onAddedDirty(context)) != StatusCode::Ok) {
             return code;
         }
@@ -42,6 +51,11 @@ StatusCode StateMachine::onAddedClean(CoreContext* context) {
             return code;
         }
     }
+    for (auto object : m_Events) {
+        if ((code = object->onAddedClean(context)) != StatusCode::Ok) {
+            return code;
+        }
+    }
     return StatusCode::Ok;
 }
 
@@ -57,6 +71,7 @@ StatusCode StateMachine::import(ImportStack& importStack) {
 void StateMachine::addLayer(StateMachineLayer* layer) { m_Layers.push_back(layer); }
 
 void StateMachine::addInput(StateMachineInput* input) { m_Inputs.push_back(input); }
+void StateMachine::addEvent(StateMachineEvent* event) { m_Events.push_back(event); }
 
 const StateMachineInput* StateMachine::input(std::string name) const {
     for (auto input : m_Inputs) {
@@ -86,6 +101,13 @@ const StateMachineLayer* StateMachine::layer(std::string name) const {
 const StateMachineLayer* StateMachine::layer(size_t index) const {
     if (index < m_Layers.size()) {
         return m_Layers[index];
+    }
+    return nullptr;
+}
+
+const StateMachineEvent* StateMachine::event(size_t index) const {
+    if (index >= 0 && index < m_Events.size()) {
+        return m_Events[index];
     }
     return nullptr;
 }
