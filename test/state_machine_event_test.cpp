@@ -2,6 +2,7 @@
 #include <rive/file.hpp>
 #include <rive/animation/state_machine_bool.hpp>
 #include <rive/animation/state_machine_layer.hpp>
+#include <rive/animation/state_machine_event.hpp>
 #include <rive/animation/animation_state.hpp>
 #include <rive/animation/entry_state.hpp>
 #include <rive/animation/state_transition.hpp>
@@ -27,4 +28,10 @@ TEST_CASE("file with state machine events be read", "[file]") {
 
     REQUIRE(stateMachine->eventCount() == 3);
     REQUIRE(stateMachine->inputCount() == 4);
+
+    // Expect each of the three events to have one input change each.
+    for (int i = 0; i < 3; i++) {
+        auto event = stateMachine->event(i);
+        REQUIRE(event->inputChangeCount() == 1);
+    }
 }

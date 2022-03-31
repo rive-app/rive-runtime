@@ -13,6 +13,7 @@ namespace rive {
         void addInputChange(EventInputChange* inputChange);
 
     public:
+        size_t inputChangeCount() const { return m_InputChanges.size(); }
         StatusCode import(ImportStack& importStack) override;
     };
 } // namespace rive
