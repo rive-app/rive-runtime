@@ -17,3 +17,10 @@ StatusCode StateMachineEvent::import(ImportStack& importStack) {
     stateMachineImporter->addEvent(this);
     return Super::import(importStack);
 }
+
+const EventInputChange* StateMachineEvent::inputChange(size_t index) const {
+    if (index < m_InputChanges.size()) {
+        return m_InputChanges[index];
+    }
+    return nullptr;
+}

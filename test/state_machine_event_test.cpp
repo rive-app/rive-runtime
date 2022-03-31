@@ -12,6 +12,8 @@
 #include <rive/animation/blend_animation_1d.hpp>
 #include <rive/animation/blend_state_direct.hpp>
 #include <rive/animation/blend_state_transition.hpp>
+#include <rive/animation/event_input_change.hpp>
+#include <rive/node.hpp>
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include <cstdio>
@@ -30,8 +32,30 @@ TEST_CASE("file with state machine events be read", "[file]") {
     REQUIRE(stateMachine->inputCount() == 4);
 
     // Expect each of the three events to have one input change each.
-    for (int i = 0; i < 3; i++) {
-        auto event = stateMachine->event(i);
-        REQUIRE(event->inputChangeCount() == 1);
-    }
+    auto event1 = stateMachine->event(0);
+    auto target1 = artboard->resolve(event1->targetId());
+    REQUIRE(target1->is<rive::Node>());
+    REQUIRE(target1->as<rive::Node>()->name() == "HandWickHit");
+    REQUIRE(event1->inputChangeCount() == 1);
+    auto inputChange1 = event1->inputChange(0);
+    REQUIRE(inputChange1 != nullptr);
+    REQUIRE(inputChange1->inputId() == 0);
+
+    auto event2 = stateMachine->event(1);
+    auto target2 = artboard->resolve(event2->targetId());
+    REQUIRE(target2->is<rive::Node>());
+    REQUIRE(target2->as<rive::Node>()->name() == "HandCannonHit");
+    REQUIRE(event2->inputChangeCount() == 1);
+    auto inputChange2 = event2->inputChange(0);
+    REQUIRE(inputChange2 != nullptr);
+    REQUIRE(inputChange2->inputId() == 1);
+
+    auto event3 = stateMachine->event(2);
+    auto target3 = artboard->resolve(event3->targetId());
+    REQUIRE(target3->is<rive::Node>());
+    REQUIRE(target3->as<rive::Node>()->name() == "HandHelmetHit");
+    REQUIRE(event3->inputChangeCount() == 1);
+    auto inputChange3 = event3->inputChange(0);
+    REQUIRE(inputChange3 != nullptr);
+    REQUIRE(inputChange3->inputId() == 2);
 }

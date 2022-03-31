@@ -106,7 +106,7 @@ const StateMachineLayer* StateMachine::layer(size_t index) const {
 }
 
 const StateMachineEvent* StateMachine::event(size_t index) const {
-    if (index >= 0 && index < m_Events.size()) {
+    if (index < m_Events.size()) {
         return m_Events[index];
     }
     return nullptr;
