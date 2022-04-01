@@ -8,6 +8,9 @@
 #include <assert.h>
 #include <cmath>
 
+// Should we make this an option at runtime?
+#define CULL_BOUNDS true
+
 using namespace rive;
 
 static inline float graphics_roundf(float x) { return std::floor(x + 0.5f); }
@@ -313,50 +316,22 @@ bool HitTester::test(FillRule rule) {
 
 /////////////////////////
 
-bool HitTester::testTriangle(const IAABB& area, Vec2D a, Vec2D b, Vec2D c) {
-    // Create mapping from triangle to the "unit" triangle, and look at the
-    // corresponding coordinates for each point in area. If the coordinates
-    // are within the unit triangle, we have a hit.
-
-    const auto ab = b - a;
-    const auto ac = c - a;
-    Mat2D inv, mat(ab.x(), ab.y(), ac.x(), ac.y(), a.x(), a.y());
-    if (!Mat2D::invert(inv, mat)) {
-        return false;
-    }
-
-    // map the upper-left point
-    auto unit = inv * Vec2D{area.left + 0.5f, area.top + 0.5f};
-    float ux = unit.x();
-    float uy = unit.y();
-    const int w = area.width();
-    const int h = area.height();
-
-    for (int y = 0; y < h; ++y) {
-        if (uy >= 0) {
-            for (int x = 0; x < w; ++x) {
-                if (ux >= 0 && (ux + uy) < 1.0f) {
-                    return true;
-                }
-                ux += inv[0];
-            }
-        }
-        uy += inv[1];
-    }
-    return false;
+static bool cross_lt(Vec2D a, Vec2D b) {
+    return a.x() * b.y() < a.y() * b.x();
 }
 
-bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> indices) {
+bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices) {
     if (verts.size() < 3) {
         return false;
     }
 
-    // test against the bounds of the entire mesh
-    if (true) {
+    // Test against the bounds of the entire mesh
+    // Make this optional?
+    if (CULL_BOUNDS) {
         const auto bounds = AABB(verts);
 
-        if (bounds.bottom() <= area.top || area.bottom <= bounds.top() ||
-            bounds.right() <= area.left || area.right <= bounds.left()) {
+        if (bounds.bottom() < pt.y() || pt.y() < bounds.top() ||
+            bounds.right()  < pt.x() || pt.x() < bounds.left()) {
             return false;
         }
     }
@@ -365,7 +340,62 @@ bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> in
         const auto a = verts[indices[i + 0]];
         const auto b = verts[indices[i + 1]];
         const auto c = verts[indices[i + 2]];
-        if (testTriangle(area, a, b, c)) {
+
+        auto pa = a - pt;
+        auto pb = b - pt;
+        auto pc = c - pt;
+        
+        auto ab = cross_lt(pa, pb);
+        auto bc = cross_lt(pb, pc);
+        auto ca = cross_lt(pc, pa);
+
+        if (ab == bc && ab == ca) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> indices) {
+    // this version can give slightly different results, so perhaps we should do this
+    // automatically, ... its just much faster if we do.
+    if (area.width() * area.height() == 1) {
+        return testMesh(Vec2D(area.left, area.top), verts, indices);
+    }
+
+    if (verts.size() < 3) {
+        return false;
+    }
+
+    // Test against the bounds of the entire mesh
+    // Make this optional?
+    if (CULL_BOUNDS) {
+        const auto bounds = AABB(verts);
+
+        if (bounds.bottom() <= area.top || area.bottom <= bounds.top() ||
+            bounds.right() <= area.left || area.right <= bounds.left()) {
+            return false;
+        }
+    }
+
+    std::vector<int> windings(area.width() * area.height());
+    const auto offset = Vec2D((float)area.left, (float)area.top);
+    int* deltas = windings.data();
+    
+    for (size_t i = 0; i < indices.size(); i += 3) {
+        const auto a = verts[indices[i + 0]] - offset;
+        const auto b = verts[indices[i + 1]] - offset;
+        const auto c = verts[indices[i + 2]] - offset;
+        
+        clip_line(area.height(), a, b, deltas, area.width());
+        clip_line(area.height(), b, c, deltas, area.width());
+        clip_line(area.height(), c, a, deltas, area.width());
+
+        int nonzero = 0;
+        for (auto w : windings) {
+            nonzero |= w;
+        }
+        if (nonzero) {
             return true;
         }
     }
