@@ -17,7 +17,7 @@ StatusCode StateMachineLayerImporter::resolve() {
         if (state->is<AnimationState>()) {
             auto animationState = state->as<AnimationState>();
 
-            if (animationState->animationId() != -1) {
+            if (animationState->animationId() < animationCount()) {
                 animationState->m_Animation = m_Artboard->animation(animationState->animationId());
                 if (animationState->m_Animation == nullptr) {
                     return StatusCode::MissingObject;
@@ -25,11 +25,12 @@ StatusCode StateMachineLayerImporter::resolve() {
             }
         }
         for (auto transition : state->m_Transitions) {
-            // TODO: do we mean >= ???
-            if ((size_t)transition->stateToId() > m_Layer->m_States.size()) {
+            if ((size_t)transition->stateToId() < m_Layer->m_States.size()) {
+                transition->m_StateTo = m_Layer->m_States[transition->stateToId()];
+
+            } else {
                 return StatusCode::InvalidObject;
             }
-            transition->m_StateTo = m_Layer->m_States[transition->stateToId()];
         }
     }
     return StatusCode::Ok;
