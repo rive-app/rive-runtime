@@ -17,7 +17,7 @@ StatusCode StateMachineLayerImporter::resolve() {
         if (state->is<AnimationState>()) {
             auto animationState = state->as<AnimationState>();
 
-            if (animationState->animationId() < animationCount()) {
+            if (animationState->animationId() < m_Artboard->animationCount()) {
                 animationState->m_Animation = m_Artboard->animation(animationState->animationId());
                 if (animationState->m_Animation == nullptr) {
                     return StatusCode::MissingObject;
