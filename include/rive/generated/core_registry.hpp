@@ -277,7 +277,7 @@ namespace rive {
                     break;
             }
         }
-        static void setUint(Core* object, int propertyKey, int value) {
+        static void setUint(Core* object, int propertyKey, uint32_t value) {
             switch (propertyKey) {
                 case ComponentBase::parentIdPropertyKey:
                     object->as<ComponentBase>()->parentId(value);
@@ -777,7 +777,7 @@ namespace rive {
             }
             return "";
         }
-        static int getUint(Core* object, int propertyKey) {
+        static uint32_t getUint(Core* object, int propertyKey) {
             switch (propertyKey) {
                 case ComponentBase::parentIdPropertyKey:
                     return object->as<ComponentBase>()->parentId();

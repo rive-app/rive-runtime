@@ -12,8 +12,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 24;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case StrokeBase::typeKey:
@@ -35,8 +35,8 @@ namespace rive {
 
     private:
         float m_Thickness = 1.0f;
-        int m_Cap = 0;
-        int m_Join = 0;
+        uint32_t m_Cap = 0;
+        uint32_t m_Join = 0;
         bool m_TransformAffectsStroke = true;
 
     public:
@@ -49,8 +49,8 @@ namespace rive {
             thicknessChanged();
         }
 
-        inline int cap() const { return m_Cap; }
-        void cap(int value) {
+        inline uint32_t cap() const { return m_Cap; }
+        void cap(uint32_t value) {
             if (m_Cap == value) {
                 return;
             }
@@ -58,8 +58,8 @@ namespace rive {
             capChanged();
         }
 
-        inline int join() const { return m_Join; }
-        void join(int value) {
+        inline uint32_t join() const { return m_Join; }
+        void join(uint32_t value) {
             if (m_Join == value) {
                 return;
             }

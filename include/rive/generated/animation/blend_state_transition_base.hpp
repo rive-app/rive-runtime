@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 78;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case BlendStateTransitionBase::typeKey:
@@ -28,11 +28,11 @@ namespace rive {
         static const uint16_t exitBlendAnimationIdPropertyKey = 171;
 
     private:
-        int m_ExitBlendAnimationId = -1;
+        uint32_t m_ExitBlendAnimationId = -1;
 
     public:
-        inline int exitBlendAnimationId() const { return m_ExitBlendAnimationId; }
-        void exitBlendAnimationId(int value) {
+        inline uint32_t exitBlendAnimationId() const { return m_ExitBlendAnimationId; }
+        void exitBlendAnimationId(uint32_t value) {
             if (m_ExitBlendAnimationId == value) {
                 return;
             }

@@ -11,8 +11,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 44;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TendonBase::typeKey:
@@ -34,7 +34,7 @@ namespace rive {
         static const uint16_t tyPropertyKey = 101;
 
     private:
-        int m_BoneId = -1;
+        uint32_t m_BoneId = -1;
         float m_Xx = 1.0f;
         float m_Yx = 0.0f;
         float m_Xy = 0.0f;
@@ -43,8 +43,8 @@ namespace rive {
         float m_Ty = 0.0f;
 
     public:
-        inline int boneId() const { return m_BoneId; }
-        void boneId(int value) {
+        inline uint32_t boneId() const { return m_BoneId; }
+        void boneId(uint32_t value) {
             if (m_BoneId == value) {
                 return;
             }

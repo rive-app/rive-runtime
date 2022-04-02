@@ -11,8 +11,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 51;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case PolygonBase::typeKey:
@@ -35,12 +35,12 @@ namespace rive {
         static const uint16_t cornerRadiusPropertyKey = 126;
 
     private:
-        int m_Points = 5;
+        uint32_t m_Points = 5;
         float m_CornerRadius = 0.0f;
 
     public:
-        inline int points() const { return m_Points; }
-        void points(int value) {
+        inline uint32_t points() const { return m_Points; }
+        void points(uint32_t value) {
             if (m_Points == value) {
                 return;
             }

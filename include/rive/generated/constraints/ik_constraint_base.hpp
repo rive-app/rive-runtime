@@ -11,8 +11,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 81;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case IKConstraintBase::typeKey:
@@ -32,7 +32,7 @@ namespace rive {
 
     private:
         bool m_InvertDirection = false;
-        int m_ParentBoneCount = 0;
+        uint32_t m_ParentBoneCount = 0;
 
     public:
         inline bool invertDirection() const { return m_InvertDirection; }
@@ -44,8 +44,8 @@ namespace rive {
             invertDirectionChanged();
         }
 
-        inline int parentBoneCount() const { return m_ParentBoneCount; }
-        void parentBoneCount(int value) {
+        inline uint32_t parentBoneCount() const { return m_ParentBoneCount; }
+        void parentBoneCount(uint32_t value) {
             if (m_ParentBoneCount == value) {
                 return;
             }

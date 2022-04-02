@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 29;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case KeyFrameBase::typeKey:
@@ -28,13 +28,13 @@ namespace rive {
         static const uint16_t interpolatorIdPropertyKey = 69;
 
     private:
-        int m_Frame = 0;
-        int m_InterpolationType = 0;
-        int m_InterpolatorId = -1;
+        uint32_t m_Frame = 0;
+        uint32_t m_InterpolationType = 0;
+        uint32_t m_InterpolatorId = -1;
 
     public:
-        inline int frame() const { return m_Frame; }
-        void frame(int value) {
+        inline uint32_t frame() const { return m_Frame; }
+        void frame(uint32_t value) {
             if (m_Frame == value) {
                 return;
             }
@@ -42,8 +42,8 @@ namespace rive {
             frameChanged();
         }
 
-        inline int interpolationType() const { return m_InterpolationType; }
-        void interpolationType(int value) {
+        inline uint32_t interpolationType() const { return m_InterpolationType; }
+        void interpolationType(uint32_t value) {
             if (m_InterpolationType == value) {
                 return;
             }
@@ -51,8 +51,8 @@ namespace rive {
             interpolationTypeChanged();
         }
 
-        inline int interpolatorId() const { return m_InterpolatorId; }
-        void interpolatorId(int value) {
+        inline uint32_t interpolatorId() const { return m_InterpolatorId; }
+        void interpolatorId(uint32_t value) {
             if (m_InterpolatorId == value) {
                 return;
             }

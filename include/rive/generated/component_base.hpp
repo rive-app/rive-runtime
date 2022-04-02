@@ -12,8 +12,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 10;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case ComponentBase::typeKey:
@@ -30,7 +30,7 @@ namespace rive {
 
     private:
         std::string m_Name = "";
-        int m_ParentId = 0;
+        uint32_t m_ParentId = 0;
 
     public:
         inline const std::string& name() const { return m_Name; }
@@ -42,8 +42,8 @@ namespace rive {
             nameChanged();
         }
 
-        inline int parentId() const { return m_ParentId; }
-        void parentId(int value) {
+        inline uint32_t parentId() const { return m_ParentId; }
+        void parentId(uint32_t value) {
             if (m_ParentId == value) {
                 return;
             }

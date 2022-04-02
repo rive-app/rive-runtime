@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 65;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case StateTransitionBase::typeKey:
@@ -30,14 +30,14 @@ namespace rive {
         static const uint16_t exitTimePropertyKey = 160;
 
     private:
-        int m_StateToId = -1;
-        int m_Flags = 0;
-        int m_Duration = 0;
-        int m_ExitTime = 0;
+        uint32_t m_StateToId = -1;
+        uint32_t m_Flags = 0;
+        uint32_t m_Duration = 0;
+        uint32_t m_ExitTime = 0;
 
     public:
-        inline int stateToId() const { return m_StateToId; }
-        void stateToId(int value) {
+        inline uint32_t stateToId() const { return m_StateToId; }
+        void stateToId(uint32_t value) {
             if (m_StateToId == value) {
                 return;
             }
@@ -45,8 +45,8 @@ namespace rive {
             stateToIdChanged();
         }
 
-        inline int flags() const { return m_Flags; }
-        void flags(int value) {
+        inline uint32_t flags() const { return m_Flags; }
+        void flags(uint32_t value) {
             if (m_Flags == value) {
                 return;
             }
@@ -54,8 +54,8 @@ namespace rive {
             flagsChanged();
         }
 
-        inline int duration() const { return m_Duration; }
-        void duration(int value) {
+        inline uint32_t duration() const { return m_Duration; }
+        void duration(uint32_t value) {
             if (m_Duration == value) {
                 return;
             }
@@ -63,8 +63,8 @@ namespace rive {
             durationChanged();
         }
 
-        inline int exitTime() const { return m_ExitTime; }
-        void exitTime(int value) {
+        inline uint32_t exitTime() const { return m_ExitTime; }
+        void exitTime(uint32_t value) {
             if (m_ExitTime == value) {
                 return;
             }

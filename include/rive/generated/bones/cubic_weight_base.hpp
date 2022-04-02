@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 46;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case CubicWeightBase::typeKey:
@@ -31,14 +31,14 @@ namespace rive {
         static const uint16_t outIndicesPropertyKey = 113;
 
     private:
-        int m_InValues = 255;
-        int m_InIndices = 1;
-        int m_OutValues = 255;
-        int m_OutIndices = 1;
+        uint32_t m_InValues = 255;
+        uint32_t m_InIndices = 1;
+        uint32_t m_OutValues = 255;
+        uint32_t m_OutIndices = 1;
 
     public:
-        inline int inValues() const { return m_InValues; }
-        void inValues(int value) {
+        inline uint32_t inValues() const { return m_InValues; }
+        void inValues(uint32_t value) {
             if (m_InValues == value) {
                 return;
             }
@@ -46,8 +46,8 @@ namespace rive {
             inValuesChanged();
         }
 
-        inline int inIndices() const { return m_InIndices; }
-        void inIndices(int value) {
+        inline uint32_t inIndices() const { return m_InIndices; }
+        void inIndices(uint32_t value) {
             if (m_InIndices == value) {
                 return;
             }
@@ -55,8 +55,8 @@ namespace rive {
             inIndicesChanged();
         }
 
-        inline int outValues() const { return m_OutValues; }
-        void outValues(int value) {
+        inline uint32_t outValues() const { return m_OutValues; }
+        void outValues(uint32_t value) {
             if (m_OutValues == value) {
                 return;
             }
@@ -64,8 +64,8 @@ namespace rive {
             outValuesChanged();
         }
 
-        inline int outIndices() const { return m_OutIndices; }
-        void outIndices(int value) {
+        inline uint32_t outIndices() const { return m_OutIndices; }
+        void outIndices(uint32_t value) {
             if (m_OutIndices == value) {
                 return;
             }

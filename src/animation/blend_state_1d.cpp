@@ -13,9 +13,8 @@ StatusCode BlendState1D::import(ImportStack& importStack) {
     if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
-    // A negative inputId means it wasn't set, we actually allow this as the
-    // editor does too.
-    if (inputId() >= 0) {
+
+    if (hasValidInputId()) {
         // Make sure the inputId doesn't overflow the input buffer.
         if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
             return StatusCode::InvalidObject;

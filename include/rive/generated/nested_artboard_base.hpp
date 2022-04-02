@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 92;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case NestedArtboardBase::typeKey:
@@ -32,11 +32,11 @@ namespace rive {
         static const uint16_t artboardIdPropertyKey = 197;
 
     private:
-        int m_ArtboardId = -1;
+        uint32_t m_ArtboardId = -1;
 
     public:
-        inline int artboardId() const { return m_ArtboardId; }
-        void artboardId(int value) {
+        inline uint32_t artboardId() const { return m_ArtboardId; }
+        void artboardId(uint32_t value) {
             if (m_ArtboardId == value) {
                 return;
             }

@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 20;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case FillBase::typeKey:
@@ -29,11 +29,11 @@ namespace rive {
         static const uint16_t fillRulePropertyKey = 40;
 
     private:
-        int m_FillRule = 0;
+        uint32_t m_FillRule = 0;
 
     public:
-        inline int fillRule() const { return m_FillRule; }
-        void fillRule(int value) {
+        inline uint32_t fillRule() const { return m_FillRule; }
+        void fillRule(uint32_t value) {
             if (m_FillRule == value) {
                 return;
             }

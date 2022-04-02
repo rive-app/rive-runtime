@@ -5,6 +5,11 @@
 namespace rive {
     class BlendState1D : public BlendState1DBase {
     public:
+        //  -1 (4294967295) is our flag value for input not set. It means it wasn't set at edit
+        //  time.
+        const uint32_t noInputSpecified = -1;
+        bool hasValidInputId() const { return inputId() != noInputSpecified; }
+
         StatusCode import(ImportStack& importStack) override;
 
         StateInstance* makeInstance() const override;

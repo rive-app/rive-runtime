@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 12;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case PathBase::typeKey:
@@ -31,11 +31,11 @@ namespace rive {
         static const uint16_t pathFlagsPropertyKey = 128;
 
     private:
-        int m_PathFlags = 0;
+        uint32_t m_PathFlags = 0;
 
     public:
-        inline int pathFlags() const { return m_PathFlags; }
-        void pathFlags(int value) {
+        inline uint32_t pathFlags() const { return m_PathFlags; }
+        void pathFlags(uint32_t value) {
             if (m_PathFlags == value) {
                 return;
             }

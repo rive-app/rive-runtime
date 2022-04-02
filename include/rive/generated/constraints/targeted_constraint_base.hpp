@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 80;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TargetedConstraintBase::typeKey:
@@ -28,11 +28,11 @@ namespace rive {
         static const uint16_t targetIdPropertyKey = 173;
 
     private:
-        int m_TargetId = -1;
+        uint32_t m_TargetId = -1;
 
     public:
-        inline int targetId() const { return m_TargetId; }
-        void targetId(int value) {
+        inline uint32_t targetId() const { return m_TargetId; }
+        void targetId(uint32_t value) {
             if (m_TargetId == value) {
                 return;
             }

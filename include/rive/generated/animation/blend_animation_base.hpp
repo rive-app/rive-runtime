@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 74;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case BlendAnimationBase::typeKey:
@@ -26,11 +26,11 @@ namespace rive {
         static const uint16_t animationIdPropertyKey = 165;
 
     private:
-        int m_AnimationId = -1;
+        uint32_t m_AnimationId = -1;
 
     public:
-        inline int animationId() const { return m_AnimationId; }
-        void animationId(int value) {
+        inline uint32_t animationId() const { return m_AnimationId; }
+        void animationId(uint32_t value) {
             if (m_AnimationId == value) {
                 return;
             }

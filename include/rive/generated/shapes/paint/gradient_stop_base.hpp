@@ -11,8 +11,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 19;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case GradientStopBase::typeKey:

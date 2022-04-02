@@ -12,8 +12,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 31;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case LinearAnimationBase::typeKey:
@@ -35,17 +35,17 @@ namespace rive {
         static const uint16_t enableWorkAreaPropertyKey = 62;
 
     private:
-        int m_Fps = 60;
-        int m_Duration = 60;
+        uint32_t m_Fps = 60;
+        uint32_t m_Duration = 60;
         float m_Speed = 1.0f;
-        int m_LoopValue = 0;
-        int m_WorkStart = -1;
-        int m_WorkEnd = -1;
+        uint32_t m_LoopValue = 0;
+        uint32_t m_WorkStart = -1;
+        uint32_t m_WorkEnd = -1;
         bool m_EnableWorkArea = false;
 
     public:
-        inline int fps() const { return m_Fps; }
-        void fps(int value) {
+        inline uint32_t fps() const { return m_Fps; }
+        void fps(uint32_t value) {
             if (m_Fps == value) {
                 return;
             }
@@ -53,8 +53,8 @@ namespace rive {
             fpsChanged();
         }
 
-        inline int duration() const { return m_Duration; }
-        void duration(int value) {
+        inline uint32_t duration() const { return m_Duration; }
+        void duration(uint32_t value) {
             if (m_Duration == value) {
                 return;
             }
@@ -71,8 +71,8 @@ namespace rive {
             speedChanged();
         }
 
-        inline int loopValue() const { return m_LoopValue; }
-        void loopValue(int value) {
+        inline uint32_t loopValue() const { return m_LoopValue; }
+        void loopValue(uint32_t value) {
             if (m_LoopValue == value) {
                 return;
             }
@@ -80,8 +80,8 @@ namespace rive {
             loopValueChanged();
         }
 
-        inline int workStart() const { return m_WorkStart; }
-        void workStart(int value) {
+        inline uint32_t workStart() const { return m_WorkStart; }
+        void workStart(uint32_t value) {
             if (m_WorkStart == value) {
                 return;
             }
@@ -89,8 +89,8 @@ namespace rive {
             workStartChanged();
         }
 
-        inline int workEnd() const { return m_WorkEnd; }
-        void workEnd(int value) {
+        inline uint32_t workEnd() const { return m_WorkEnd; }
+        void workEnd(uint32_t value) {
             if (m_WorkEnd == value) {
                 return;
             }

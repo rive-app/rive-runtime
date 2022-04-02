@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 69;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TransitionValueConditionBase::typeKey:
@@ -27,11 +27,11 @@ namespace rive {
         static const uint16_t opValuePropertyKey = 156;
 
     private:
-        int m_OpValue = 0;
+        uint32_t m_OpValue = 0;
 
     public:
-        inline int opValue() const { return m_OpValue; }
-        void opValue(int value) {
+        inline uint32_t opValue() const { return m_OpValue; }
+        void opValue(uint32_t value) {
             if (m_OpValue == value) {
                 return;
             }

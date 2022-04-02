@@ -5,7 +5,7 @@ class UintFieldType extends FieldType {
       : super(
           'uint',
           'CoreUintType',
-          cppName: 'int',
+          cppName: 'uint32_t',
         );
 
   @override

@@ -12,8 +12,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 85;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TransformComponentConstraintBase::typeKey:
@@ -39,7 +39,7 @@ namespace rive {
         static const uint16_t maxPropertyKey = 191;
 
     private:
-        int m_MinMaxSpaceValue = 0;
+        uint32_t m_MinMaxSpaceValue = 0;
         float m_CopyFactor = 1.0f;
         float m_MinValue = 0.0f;
         float m_MaxValue = 0.0f;
@@ -49,8 +49,8 @@ namespace rive {
         bool m_Max = false;
 
     public:
-        inline int minMaxSpaceValue() const { return m_MinMaxSpaceValue; }
-        void minMaxSpaceValue(int value) {
+        inline uint32_t minMaxSpaceValue() const { return m_MinMaxSpaceValue; }
+        void minMaxSpaceValue(uint32_t value) {
             if (m_MinMaxSpaceValue == value) {
                 return;
             }

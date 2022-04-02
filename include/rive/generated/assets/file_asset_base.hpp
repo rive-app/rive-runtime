@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 103;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case FileAssetBase::typeKey:
@@ -27,11 +27,11 @@ namespace rive {
         static const uint16_t assetIdPropertyKey = 204;
 
     private:
-        int m_AssetId = 0;
+        uint32_t m_AssetId = 0;
 
     public:
-        inline int assetId() const { return m_AssetId; }
-        void assetId(int value) {
+        inline uint32_t assetId() const { return m_AssetId; }
+        void assetId(uint32_t value) {
             if (m_AssetId == value) {
                 return;
             }

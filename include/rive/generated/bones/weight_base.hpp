@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 45;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case WeightBase::typeKey:
@@ -28,12 +28,12 @@ namespace rive {
         static const uint16_t indicesPropertyKey = 103;
 
     private:
-        int m_Values = 255;
-        int m_Indices = 1;
+        uint32_t m_Values = 255;
+        uint32_t m_Indices = 1;
 
     public:
-        inline int values() const { return m_Values; }
-        void values(int value) {
+        inline uint32_t values() const { return m_Values; }
+        void values(uint32_t value) {
             if (m_Values == value) {
                 return;
             }
@@ -41,8 +41,8 @@ namespace rive {
             valuesChanged();
         }
 
-        inline int indices() const { return m_Indices; }
-        void indices(int value) {
+        inline uint32_t indices() const { return m_Indices; }
+        void indices(uint32_t value) {
             if (m_Indices == value) {
                 return;
             }

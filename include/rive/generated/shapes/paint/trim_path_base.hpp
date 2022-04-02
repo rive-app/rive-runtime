@@ -11,8 +11,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 47;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TrimPathBase::typeKey:
@@ -34,7 +34,7 @@ namespace rive {
         float m_Start = 0.0f;
         float m_End = 0.0f;
         float m_Offset = 0.0f;
-        int m_ModeValue = 0;
+        uint32_t m_ModeValue = 0;
 
     public:
         inline float start() const { return m_Start; }
@@ -64,8 +64,8 @@ namespace rive {
             offsetChanged();
         }
 
-        inline int modeValue() const { return m_ModeValue; }
-        void modeValue(int value) {
+        inline uint32_t modeValue() const { return m_ModeValue; }
+        void modeValue(uint32_t value) {
             if (m_ModeValue == value) {
                 return;
             }

@@ -11,8 +11,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 82;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case DistanceConstraintBase::typeKey:
@@ -32,7 +32,7 @@ namespace rive {
 
     private:
         float m_Distance = 100.0f;
-        int m_ModeValue = 0;
+        uint32_t m_ModeValue = 0;
 
     public:
         inline float distance() const { return m_Distance; }
@@ -44,8 +44,8 @@ namespace rive {
             distanceChanged();
         }
 
-        inline int modeValue() const { return m_ModeValue; }
-        void modeValue(int value) {
+        inline uint32_t modeValue() const { return m_ModeValue; }
+        void modeValue(uint32_t value) {
             if (m_ModeValue == value) {
                 return;
             }

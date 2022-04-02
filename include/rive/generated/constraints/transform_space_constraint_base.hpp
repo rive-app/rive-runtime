@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 90;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TransformSpaceConstraintBase::typeKey:
@@ -30,12 +30,12 @@ namespace rive {
         static const uint16_t destSpaceValuePropertyKey = 180;
 
     private:
-        int m_SourceSpaceValue = 0;
-        int m_DestSpaceValue = 0;
+        uint32_t m_SourceSpaceValue = 0;
+        uint32_t m_DestSpaceValue = 0;
 
     public:
-        inline int sourceSpaceValue() const { return m_SourceSpaceValue; }
-        void sourceSpaceValue(int value) {
+        inline uint32_t sourceSpaceValue() const { return m_SourceSpaceValue; }
+        void sourceSpaceValue(uint32_t value) {
             if (m_SourceSpaceValue == value) {
                 return;
             }
@@ -43,8 +43,8 @@ namespace rive {
             sourceSpaceValueChanged();
         }
 
-        inline int destSpaceValue() const { return m_DestSpaceValue; }
-        void destSpaceValue(int value) {
+        inline uint32_t destSpaceValue() const { return m_DestSpaceValue; }
+        void destSpaceValue(uint32_t value) {
             if (m_DestSpaceValue == value) {
                 return;
             }

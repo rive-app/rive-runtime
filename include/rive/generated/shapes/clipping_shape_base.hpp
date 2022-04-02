@@ -11,8 +11,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 42;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case ClippingShapeBase::typeKey:
@@ -30,13 +30,13 @@ namespace rive {
         static const uint16_t isVisiblePropertyKey = 94;
 
     private:
-        int m_SourceId = -1;
-        int m_FillRule = 0;
+        uint32_t m_SourceId = -1;
+        uint32_t m_FillRule = 0;
         bool m_IsVisible = true;
 
     public:
-        inline int sourceId() const { return m_SourceId; }
-        void sourceId(int value) {
+        inline uint32_t sourceId() const { return m_SourceId; }
+        void sourceId(uint32_t value) {
             if (m_SourceId == value) {
                 return;
             }
@@ -44,8 +44,8 @@ namespace rive {
             sourceIdChanged();
         }
 
-        inline int fillRule() const { return m_FillRule; }
-        void fillRule(int value) {
+        inline uint32_t fillRule() const { return m_FillRule; }
+        void fillRule(uint32_t value) {
             if (m_FillRule == value) {
                 return;
             }

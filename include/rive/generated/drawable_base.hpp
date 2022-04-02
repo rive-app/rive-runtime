@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 13;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case DrawableBase::typeKey:
@@ -32,12 +32,12 @@ namespace rive {
         static const uint16_t drawableFlagsPropertyKey = 129;
 
     private:
-        int m_BlendModeValue = 3;
-        int m_DrawableFlags = 0;
+        uint32_t m_BlendModeValue = 3;
+        uint32_t m_DrawableFlags = 0;
 
     public:
-        inline int blendModeValue() const { return m_BlendModeValue; }
-        void blendModeValue(int value) {
+        inline uint32_t blendModeValue() const { return m_BlendModeValue; }
+        void blendModeValue(uint32_t value) {
             if (m_BlendModeValue == value) {
                 return;
             }
@@ -45,8 +45,8 @@ namespace rive {
             blendModeValueChanged();
         }
 
-        inline int drawableFlags() const { return m_DrawableFlags; }
-        void drawableFlags(int value) {
+        inline uint32_t drawableFlags() const { return m_DrawableFlags; }
+        void drawableFlags(uint32_t value) {
             if (m_DrawableFlags == value) {
                 return;
             }

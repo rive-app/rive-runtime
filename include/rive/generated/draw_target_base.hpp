@@ -10,8 +10,8 @@ namespace rive {
     public:
         static const uint16_t typeKey = 48;
 
-        /// Helper to quickly determine if a core object extends another without
-        /// RTTI at runtime.
+        /// Helper to quickly determine if a core object extends another without RTTI
+        /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case DrawTargetBase::typeKey:
@@ -28,12 +28,12 @@ namespace rive {
         static const uint16_t placementValuePropertyKey = 120;
 
     private:
-        int m_DrawableId = -1;
-        int m_PlacementValue = 0;
+        uint32_t m_DrawableId = -1;
+        uint32_t m_PlacementValue = 0;
 
     public:
-        inline int drawableId() const { return m_DrawableId; }
-        void drawableId(int value) {
+        inline uint32_t drawableId() const { return m_DrawableId; }
+        void drawableId(uint32_t value) {
             if (m_DrawableId == value) {
                 return;
             }
@@ -41,8 +41,8 @@ namespace rive {
             drawableIdChanged();
         }
 
-        inline int placementValue() const { return m_PlacementValue; }
-        void placementValue(int value) {
+        inline uint32_t placementValue() const { return m_PlacementValue; }
+        void placementValue(uint32_t value) {
             if (m_PlacementValue == value) {
                 return;
             }
