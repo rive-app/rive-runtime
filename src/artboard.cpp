@@ -490,12 +490,12 @@ StateMachine* Artboard::stateMachine(size_t index) const {
     return m_StateMachines[index];
 }
 
-Artboard* Artboard::instance() const {
-    auto artboardClone = clone()->as<Artboard>();
+std::unique_ptr<Artboard> Artboard::instance() const {
+    std::unique_ptr<Artboard> artboardClone(clone()->as<Artboard>());
     artboardClone->m_FrameOrigin = m_FrameOrigin;
 
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
-    cloneObjects.push_back(artboardClone);
+    cloneObjects.push_back(artboardClone.get());
 
     // Skip first object (artboard).
     auto itr = m_Objects.begin();
@@ -512,7 +512,6 @@ Artboard* Artboard::instance() const {
     }
 
     if (artboardClone->initialize() != StatusCode::Ok) {
-        delete artboardClone;
         artboardClone = nullptr;
     } else {
         artboardClone->m_IsInstance = true;

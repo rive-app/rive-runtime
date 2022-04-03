@@ -108,12 +108,7 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
 
 File::File(FileAssetResolver* assetResolver) : m_AssetResolver(assetResolver) {}
 
-File::~File() {
-    for (auto artboard : m_Artboards) {
-        delete artboard;
-    }
-    delete m_Backboard;
-}
+File::~File() {}
 
 // Import a Rive file from a file handle
 ImportResult
@@ -153,10 +148,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
         if (object->import(importStack) == StatusCode::Ok) {
             switch (object->coreType()) {
                 case Backboard::typeKey:
-                    m_Backboard = object->as<Backboard>();
+                    m_Backboard.reset(object->as<Backboard>());
                     break;
                 case Artboard::typeKey:
-                    m_Artboards.push_back(object->as<Artboard>());
+                    m_Artboards.push_back(std::unique_ptr<Artboard>(object->as<Artboard>()));
                     break;
             }
         } else {
@@ -233,12 +228,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                                                    : ImportResult::malformed;
 }
 
-Backboard* File::backboard() const { return m_Backboard; }
-
 Artboard* File::artboard(std::string name) const {
-    for (auto artboard : m_Artboards) {
+    for (const auto& artboard : m_Artboards) {
         if (artboard->name() == name) {
-            return artboard;
+            return artboard.get();
         }
     }
     return nullptr;
@@ -248,12 +241,12 @@ Artboard* File::artboard() const {
     if (m_Artboards.empty()) {
         return nullptr;
     }
-    return m_Artboards[0];
+    return m_Artboards[0].get();
 }
 
 Artboard* File::artboard(size_t index) const {
     if (index >= m_Artboards.size()) {
         return nullptr;
     }
-    return m_Artboards[index];
+    return m_Artboards[index].get();
 }

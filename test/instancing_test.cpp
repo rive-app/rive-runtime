@@ -74,8 +74,6 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
     rive::NoOpRenderer renderer;
     artboard->draw(&renderer);
 
-    delete artboard;
-
     delete file;
     delete[] bytes;
 }
@@ -103,7 +101,6 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     REQUIRE(file->artboard()->firstAnimation() == artboard->firstAnimation());
 
     rive::LinearAnimation::deleteCount = 0;
-    delete artboard;
     // Make sure no animations were deleted by deleting the instance.
     REQUIRE(rive::LinearAnimation::deleteCount == 0);
 

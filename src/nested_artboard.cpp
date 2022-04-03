@@ -17,7 +17,9 @@ Core* NestedArtboard::clone() const {
     if (m_NestedInstance == nullptr) {
         return nestedArtboard;
     }
-    nestedArtboard->nest(m_NestedInstance->instance());
+    auto ni = m_NestedInstance->instance();
+    assert(ni->isInstance());
+    nestedArtboard->nest(ni.release());
     return nestedArtboard;
 }
 

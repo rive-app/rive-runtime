@@ -132,7 +132,7 @@ namespace rive {
 
         /// Make an instance of this artboard, must be explictly deleted when no
         /// longer needed.
-        Artboard* instance() const;
+        std::unique_ptr<Artboard> instance() const;
 
         /// Returns true if the artboard is an instance of another
         bool isInstance() const { return m_IsInstance; }

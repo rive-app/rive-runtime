@@ -32,8 +32,8 @@
 #include <stdio.h>
 
 std::string filename;
-rive::File* currentFile = nullptr;
-rive::Artboard* artboard = nullptr;
+std::unique_ptr<rive::File> currentFile;
+std::unique_ptr<rive::Artboard> artboard;
 rive::StateMachineInstance* stateMachineInstance = nullptr;
 rive::LinearAnimationInstance* animationInstance = nullptr;
 uint8_t* fileBytes = nullptr;
@@ -54,15 +54,11 @@ void initStateMachine(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    auto sourceArtboard = file->artboard();
-    // Artboard should always be instance and hence must be deleted.
-    delete artboard;
-    artboard = sourceArtboard->instance();
+    artboard = file->artboard()->instance();
     artboard->advance(0.0f);
 
     delete animationInstance;
     delete stateMachineInstance;
-    delete currentFile;
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
 
@@ -73,7 +69,7 @@ void initStateMachine(int index) {
         stateMachineInstance = new rive::StateMachineInstance(stateMachine);
     }
 
-    currentFile = file;
+    currentFile.reset(file);
 }
 
 void initAnimation(int index) {
@@ -88,15 +84,11 @@ void initAnimation(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    auto sourceArtboard = file->artboard();
-    // Artboard should always be instance and hence must be deleted.
-    delete artboard;
-    artboard = sourceArtboard->instance();
+    artboard = file->artboard()->instance();
     artboard->advance(0.0f);
 
     delete animationInstance;
     delete stateMachineInstance;
-    delete currentFile;
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
 
@@ -106,7 +98,7 @@ void initAnimation(int index) {
         animationInstance = new rive::LinearAnimationInstance(animation);
     }
 
-    currentFile = file;
+    currentFile.reset(file);
 }
 
 void glfwErrorCallback(int error, const char* description) { puts(description); }
@@ -287,9 +279,9 @@ int main() {
         if (artboard != nullptr) {
             if (animationInstance != nullptr) {
                 animationInstance->advance(elapsed);
-                animationInstance->apply(artboard);
+                animationInstance->apply(artboard.get());
             } else if (stateMachineInstance != nullptr) {
-                stateMachineInstance->advance(artboard, elapsed);
+                stateMachineInstance->advance(artboard.get(), elapsed);
             }
             artboard->advance(elapsed);
 
@@ -300,7 +292,7 @@ int main() {
                            rive::AABB(0, 0, width, height),
                            artboard->bounds());
 
-            post_mouse_event(artboard, canvas->getTotalMatrix());
+            post_mouse_event(artboard.get(), canvas->getTotalMatrix());
 
             artboard->draw(&renderer);
             renderer.restore();
@@ -322,7 +314,7 @@ int main() {
                         *name = animationName;
                         return true;
                     },
-                    artboard,
+                    artboard.get(),
                     artboard->animationCount(),
                     4))
             {
@@ -337,7 +329,7 @@ int main() {
                         *name = machineName;
                         return true;
                     },
-                    artboard,
+                    artboard.get(),
                     artboard->stateMachineCount(),
                     4))
             {
@@ -393,7 +385,7 @@ int main() {
             }
             ImGui::End();
             
-            test_messages(artboard);
+            test_messages(artboard.get());
         } else {
             ImGui::Text("Drop a .riv file to preview.");
         }
@@ -405,7 +397,6 @@ int main() {
         glfwPollEvents();
     }
 
-    delete currentFile;
     delete[] fileBytes;
 
     // Cleanup Skia.

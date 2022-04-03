@@ -37,11 +37,11 @@ namespace rive {
     private:
         /// The file's backboard. All Rive files have a single backboard
         /// where the artboards live.
-        Backboard* m_Backboard = nullptr;
+        std::unique_ptr<Backboard> m_Backboard;
 
         /// List of artboards in the file. Each artboard encapsulates a set of
         /// Rive components and animations.
-        std::vector<Artboard*> m_Artboards;
+        std::vector<std::unique_ptr<Artboard>> m_Artboards;
 
         /// The helper used to resolve assets when they're not provided in-band
         /// with the file.
@@ -65,7 +65,7 @@ namespace rive {
                                    FileAssetResolver* assetResolver = nullptr);
 
         /// @returns the file's backboard. All files have exactly one backboard.
-        Backboard* backboard() const;
+        Backboard* backboard() const { return m_Backboard.get(); }
 
         /// @returns the default artboard. This is typically the first artboard
         /// found in the file's artboard list.
