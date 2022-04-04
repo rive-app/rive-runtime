@@ -63,7 +63,7 @@ namespace rive {
         ~Artboard();
         StatusCode initialize();
 
-        Core* resolve(int id) const override;
+        Core* resolve(uint32_t id) const override;
 
         // EXPERIMENTAL -- for internal testing only for now.
         // DO NOT RELY ON THIS as it may change/disappear in the future.

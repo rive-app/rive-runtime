@@ -278,7 +278,7 @@ void Artboard::addNestedArtboard(NestedArtboard* artboard) {
     m_NestedArtboards.push_back(artboard);
 }
 
-Core* Artboard::resolve(int id) const {
+Core* Artboard::resolve(uint32_t id) const {
     if (id < 0 || id >= static_cast<int>(m_Objects.size())) {
         return nullptr;
     }
