@@ -23,7 +23,8 @@ jobs:
 
       - name: Build
         run: |
-          make -f rive_windows.make
+          ./build.sh
+          ./build.sh release
 
       - name: Tests
         run: |
