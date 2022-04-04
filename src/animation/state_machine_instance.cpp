@@ -332,7 +332,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             HitShape* hitShape;
             auto itr = hitShapeLookup.find(id);
             if (itr == hitShapeLookup.end()) {
-                auto shape = artboard->resolve(id);
+                auto shape = m_ArtboardInstance->resolve(id);
                 if (shape != nullptr && shape->is<Shape>()) {
                     hitShapeLookup[id] = hitShape = new HitShape(shape->as<Shape>());
                     m_HitShapes.push_back(hitShape);

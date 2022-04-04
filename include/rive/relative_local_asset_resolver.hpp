@@ -25,7 +25,7 @@ namespace rive {
 
         void loadContents(FileAsset& asset) override {
             std::string filename = m_Path + asset.uniqueFilename();
-            FILE* fp = fopen(filename.c_str(), "r");
+            FILE* fp = fopen(filename.c_str(), "rb");
 
             fseek(fp, 0, SEEK_END);
             const size_t length = ftell(fp);

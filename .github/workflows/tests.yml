@@ -13,7 +13,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-
       - name: Install
         run: |
           wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-linux.tar.gz
@@ -23,6 +22,7 @@ jobs:
 
       - name: Build
         run: |
+          ./build.sh clean
           ./build.sh
           ./build.sh release
 
@@ -35,35 +35,31 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1.1
 
-      # Using wget from powershell take no time (using choco to install it takes 1-2 minutes)
-      - name: Download Premake5
+      - name: Download Premake
         shell: powershell
         run: |
           echo GITHUB_WORKSPACE is ${{ github.workspace }}
-          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip -OutFile ${{ github.workspace }}/premake-5.0.0-alpha16-windows.zip
+          wget https://github.com/premake/premake-core/releases/download/v5.0.0-beta1/premake-5.0.0-beta1-windows.zip -OutFile ${{ github.workspace }}\premake-5.0.0-beta1-windows.zip
+          Expand-Archive -LiteralPath ${{ github.workspace }}\premake-5.0.0-beta1-windows.zip -DestinationPath C:\
 
-      - name: Install
-        shell: bash # mingw
+      - name: Build rive.lib
+        shell: powershell
         run: |
-          unzip premake-5.0.0-alpha16-windows.zip
-          chmod a+x premake5.exe
-          mkdir -p $HOME/.local/bin
-          mv premake5.exe $HOME/.local/bin
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          cd build
+          C:\premake5.exe vs2022
+          MSBuild rive.sln /property:Configuration=Debug /property:Platform=x64
+          cd ..
 
-      - name: Build
-        shell: bash #mingw
+      - name: Run rive tests
+        shell: powershell
         run: |
-          ./build.sh
-          ./build.sh release
-
-
-      # - name: Tests
-      #   shell: bash
-      #   run: |
-      #     cd dev
-      #     ./test.sh
+          cd dev/test
+          C:\premake5.exe vs2022
+          MSBuild rive_tests.sln
+          build\bin\debug\tests.exe
 
   build-macos:
     runs-on: macOS-latest

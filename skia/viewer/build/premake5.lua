@@ -23,7 +23,7 @@ includedirs {"../include", "../../../include", "../../renderer/include", "../../
 
 links {"Cocoa.framework", "IOKit.framework", "CoreVideo.framework", "rive", "skia", "rive_skia_renderer", "glfw3"}
 libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/glfw_build/src",
-         "../../dependencies/skia/out/static/%{cfg.buildcfg}", "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"}
+         "../../dependencies/skia/out/static", "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"}
 
 files {"../src/**.cpp", "../../dependencies/gl3w/build/src/gl3w.c",
        "../../dependencies/imgui/backends/imgui_impl_glfw.cpp",
@@ -31,19 +31,16 @@ files {"../src/**.cpp", "../../dependencies/gl3w/build/src/gl3w.c",
        "../../dependencies/imgui/imgui.cpp", "../../dependencies/imgui/imgui_tables.cpp",
        "../../dependencies/imgui/imgui_draw.cpp"}
 
-buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti"}
-
+buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-flto=full", "-g"}
 filter "configurations:debug"
 defines {"DEBUG"}
 symbols "On"
-buildoptions {"-g"}
 
 filter "configurations:release"
 
 defines {"RELEASE"}
 defines {"NDEBUG"}
 optimize "On"
-buildoptions {"-flto=full"}
 
 -- Clean Function --
 newaction {

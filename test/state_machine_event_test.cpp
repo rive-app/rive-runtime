@@ -63,7 +63,7 @@ TEST_CASE("file with state machine events be read", "[file]") {
 TEST_CASE("hit testing via a state machine works", "[file]") {
     RiveFileReader reader("../../test/assets/bullet_man.riv");
 
-    auto artboard = reader.file()->artboard("Bullet Man");
+    auto artboard = reader.file()->artboard("Bullet Man")->instance();
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->stateMachineCount() == 1);
 
