@@ -55,10 +55,8 @@ TEST_CASE("out of band image assets loads correctly", "[assets]") {
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
     auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file, &resolver);
+    auto file = rive::File::import(reader, nullptr, &resolver);
 
-    REQUIRE(result == rive::ImportResult::success);
     REQUIRE(file != nullptr);
     REQUIRE(file->artboard() != nullptr);
 
@@ -88,6 +86,5 @@ TEST_CASE("out of band image assets loads correctly", "[assets]") {
     rive::NoOpRenderer renderer;
     file->artboard()->draw(&renderer);
 
-    delete file;
     delete[] bytes;
 }

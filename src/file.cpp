@@ -111,12 +111,15 @@ File::File(FileAssetResolver* assetResolver) : m_AssetResolver(assetResolver) {}
 File::~File() {}
 
 // Import a Rive file from a file handle
-ImportResult
-File::import(BinaryReader& reader, File** importedFile, FileAssetResolver* assetResolver) {
+std::unique_ptr<File>
+File::import(BinaryReader& reader, ImportResult* result, FileAssetResolver* assetResolver) {
     RuntimeHeader header;
     if (!RuntimeHeader::read(reader, header)) {
         fprintf(stderr, "Bad header\n");
-        return ImportResult::malformed;
+        if (result) {
+            *result = ImportResult::malformed;
+        }
+        return nullptr;
     }
     if (header.majorVersion() != majorVersion) {
         fprintf(stderr,
@@ -125,16 +128,20 @@ File::import(BinaryReader& reader, File** importedFile, FileAssetResolver* asset
                 header.minorVersion(),
                 majorVersion,
                 minorVersion);
-        return ImportResult::unsupportedVersion;
+        if (result) {
+            *result = ImportResult::unsupportedVersion;
+        }
+        return nullptr;
     }
-    auto file = new File(assetResolver);
-    auto result = file->read(reader, header);
-    if (result != ImportResult::success) {
-        delete file;
-        return result;
+    auto file = std::unique_ptr<File>(new File(assetResolver));
+    auto readResult = file->read(reader, header);
+    if (readResult != ImportResult::success) {
+        file.reset(nullptr);
     }
-    *importedFile = file;
-    return result;
+    if (result) {
+        *result = ImportResult::success;
+    }
+    return file;
 }
 
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {

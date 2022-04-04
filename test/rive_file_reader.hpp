@@ -6,7 +6,7 @@
 #include "rive_testing.hpp"
 
 class RiveFileReader {
-    rive::File* m_File = nullptr;
+    std::unique_ptr<rive::File> m_File;
     uint8_t* m_Bytes = nullptr;
     rive::BinaryReader* m_Reader;
 
@@ -21,19 +21,19 @@ public:
         m_Bytes = new uint8_t[length];
         REQUIRE(fread(m_Bytes, 1, length, fp) == length);
         m_Reader = new rive::BinaryReader(m_Bytes, length);
-        auto result = rive::File::import(*m_Reader, &m_File);
+        rive::ImportResult result;
+        m_File = rive::File::import(*m_Reader, &result);
 
         REQUIRE(result == rive::ImportResult::success);
         REQUIRE(m_File != nullptr);
         REQUIRE(m_File->artboard() != nullptr);
     }
     ~RiveFileReader() {
-        delete m_File;
         delete m_Reader;
         delete[] m_Bytes;
     }
 
-    rive::File* file() const { return m_File; }
+    rive::File* file() const { return m_File.get(); }
 };
 
 #endif

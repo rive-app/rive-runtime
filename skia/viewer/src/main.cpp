@@ -47,18 +47,19 @@ void initStateMachine(int index) {
     animationIndex = -1;
     assert(fileBytes != nullptr);
     auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-    if (result != rive::ImportResult::success) {
+    auto file = rive::File::import(reader);
+    if (!file) {
         delete[] fileBytes;
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    artboard = file->artboard()->instance();
-    artboard->advance(0.0f);
-
     delete animationInstance;
     delete stateMachineInstance;
+    currentFile = std::move(file);
+
+    artboard = currentFile->artboard()->instance();
+    artboard->advance(0.0f);
+
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
 
@@ -68,8 +69,6 @@ void initStateMachine(int index) {
     if (stateMachine != nullptr) {
         stateMachineInstance = new rive::StateMachineInstance(stateMachine);
     }
-
-    currentFile.reset(file);
 }
 
 void initAnimation(int index) {
@@ -77,18 +76,19 @@ void initAnimation(int index) {
     stateMachineIndex = -1;
     assert(fileBytes != nullptr);
     auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-    if (result != rive::ImportResult::success) {
+    auto file = rive::File::import(reader);
+    if (!file) {
         delete[] fileBytes;
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    artboard = file->artboard()->instance();
-    artboard->advance(0.0f);
-
     delete animationInstance;
     delete stateMachineInstance;
+    currentFile = std::move(file);
+
+    artboard = currentFile->artboard()->instance();
+    artboard->advance(0.0f);
+
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
 
@@ -97,8 +97,6 @@ void initAnimation(int index) {
     if (animation != nullptr) {
         animationInstance = new rive::LinearAnimationInstance(animation);
     }
-
-    currentFile.reset(file);
 }
 
 void glfwErrorCallback(int error, const char* description) { puts(description); }

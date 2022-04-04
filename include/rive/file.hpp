@@ -55,13 +55,12 @@ namespace rive {
         ///
         /// Imports a Rive file from a binary buffer.
         /// @param reader a pointer to a binary reader attached to the file.
-        /// @param importedFile a handle to a file that will contain the
-        /// imported data.
+        /// @param result is an optional status result.
         /// @param assetResolver is an optional helper to resolve assets which
         /// cannot be found in-band.
-        /// @returns whether the import was successful or an error occurred.
-        static ImportResult import(BinaryReader& reader,
-                                   File** importedFile,
+        /// @returns a pointer to the file, or null on failure.
+        static std::unique_ptr<File> import(BinaryReader& reader,
+                                   ImportResult* result  = nullptr,
                                    FileAssetResolver* assetResolver = nullptr);
 
         /// @returns the file's backboard. All files have exactly one backboard.

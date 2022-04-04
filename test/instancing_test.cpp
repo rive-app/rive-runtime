@@ -18,10 +18,8 @@ TEST_CASE("cloning an ellipse works", "[instancing]") {
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
     auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
+    auto file = rive::File::import(reader);
 
-    REQUIRE(result == rive::ImportResult::success);
     REQUIRE(file != nullptr);
     REQUIRE(file->artboard() != nullptr);
 
@@ -33,8 +31,6 @@ TEST_CASE("cloning an ellipse works", "[instancing]") {
     REQUIRE(node->y() == clonedNode->y());
 
     delete clonedNode;
-
-    delete file;
     delete[] bytes;
 }
 
@@ -48,10 +44,8 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
     auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
+    auto file = rive::File::import(reader);
 
-    REQUIRE(result == rive::ImportResult::success);
     REQUIRE(file != nullptr);
     REQUIRE(file->artboard() != nullptr);
     REQUIRE(!file->artboard()->isInstance());
@@ -74,7 +68,6 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
     rive::NoOpRenderer renderer;
     artboard->draw(&renderer);
 
-    delete file;
     delete[] bytes;
 }
 
@@ -88,10 +81,8 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     uint8_t* bytes = new uint8_t[length];
     REQUIRE(fread(bytes, 1, length, fp) == length);
     auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
+    auto file = rive::File::import(reader);
 
-    REQUIRE(result == rive::ImportResult::success);
     REQUIRE(file != nullptr);
     REQUIRE(file->artboard() != nullptr);
 
@@ -105,7 +96,7 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     REQUIRE(rive::LinearAnimation::deleteCount == 0);
 
     int numberOfAnimations = file->artboard()->animationCount();
-    delete file;
+    file.reset(nullptr);
     // Now the animations should've been deleted.
     REQUIRE(rive::LinearAnimation::deleteCount == numberOfAnimations);
 
