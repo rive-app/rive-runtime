@@ -8,7 +8,12 @@ set -e
 #   https://skia.org/user/build
 # GLFW requires CMake
 
-./get_skia.sh git@github.com:rive-app/skia-experimental.git main skia-experimental
+if [ -z "${PAT_GITHUB}" ]; then
+    SKIA_EXPERIMENTAL_URL=https://${PAT_GITHUB}@github.com/rive-app/skia-experimental.git
+else
+    SKIA_EXPERIMENTAL_URL=git@github.com:rive-app/skia-experimental.git
+fi
+./get_skia.sh ${SKIA_EXPERIMENTAL_URL} main skia-experimental
 
 cd skia-experimental
 
