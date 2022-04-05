@@ -15,10 +15,10 @@ namespace rive {
         bool m_KeepGoing;
 
     public:
-        AnimationStateInstance(const AnimationState* animationState);
+        AnimationStateInstance(const AnimationState* animationState, Artboard* instance);
 
         void advance(float seconds, SMIInput** inputs) override;
-        void apply(Artboard* artboard, float mix) override;
+        void apply(float mix) override;
 
         bool keepGoing() const override;
 

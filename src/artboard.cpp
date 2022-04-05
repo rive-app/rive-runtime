@@ -497,11 +497,13 @@ std::unique_ptr<Artboard> Artboard::instance() const {
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
     cloneObjects.push_back(artboardClone.get());
 
-    // Skip first object (artboard).
-    auto itr = m_Objects.begin();
-    while (++itr != m_Objects.end()) {
-        auto object = *itr;
-        cloneObjects.push_back(object == nullptr ? nullptr : object->clone());
+    if (!m_Objects.empty()) {
+        // Skip first object (artboard).
+        auto itr = m_Objects.begin();
+        while (++itr != m_Objects.end()) {
+            auto object = *itr;
+            cloneObjects.push_back(object == nullptr ? nullptr : object->clone());
+        }
     }
 
     for (auto animation : m_Animations) {

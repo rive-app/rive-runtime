@@ -15,7 +15,7 @@ namespace rive {
 
     public:
         const LinearAnimation* animation() const { return m_Animation; }
-        StateInstance* makeInstance() const override;
+        StateInstance* makeInstance(Artboard*) const override;
     };
 } // namespace rive
 

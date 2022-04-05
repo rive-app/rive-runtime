@@ -92,7 +92,7 @@ void initAnimation(int index) {
     stateMachineInstance = nullptr;
 
     if (index >= 0 && index < artboard->animationCount()) {
-        animationInstance = new rive::LinearAnimationInstance(artboard->animation(index));
+        animationInstance = new rive::LinearAnimationInstance(artboard->animation(index), artboard.get());
     }
 }
 
@@ -271,7 +271,7 @@ int main() {
         if (artboard != nullptr) {
             if (animationInstance != nullptr) {
                 animationInstance->advance(elapsed);
-                animationInstance->apply(artboard.get());
+                animationInstance->apply();
             } else if (stateMachineInstance != nullptr) {
                 stateMachineInstance->advance(elapsed);
             }

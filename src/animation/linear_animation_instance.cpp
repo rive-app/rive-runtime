@@ -5,8 +5,10 @@
 
 using namespace rive;
 
-LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animation) :
+LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animation,
+                                                 Artboard* instance) :
     m_Animation(animation),
+    m_ArtboardInstance(instance),
     m_Time(animation->enableWorkArea() ? (float)animation->workStart() / animation->fps() : 0),
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),

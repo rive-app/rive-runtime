@@ -8,6 +8,7 @@ namespace rive {
     class LinearAnimationInstance {
     private:
         const LinearAnimation* m_Animation = nullptr;
+        Artboard* m_ArtboardInstance;
         float m_Time;
         float m_TotalTime;
         float m_LastTotalTime;
@@ -17,7 +18,7 @@ namespace rive {
         int m_LoopValue = -1;
 
     public:
-        LinearAnimationInstance(const LinearAnimation* animation);
+        LinearAnimationInstance(const LinearAnimation*, Artboard* instance);
 
         // Advance the animation by the specified time. Returns true if the
         // animation will continue to animate after this advance.
@@ -46,11 +47,11 @@ namespace rive {
         // Sets the animation's point in time.
         void time(float value);
 
-        // Applies the animation instance to an artboard. The mix (a value
+        // Applies the animation instance to its artboard instance. The mix (a value
         // between 0 and 1) is the strength at which the animation is mixed with
         // other animations applied to the artboard.
-        void apply(Artboard* artboard, float mix = 1.0f) const {
-            m_Animation->apply(artboard, m_Time, mix);
+        void apply(float mix = 1.0f) const {
+            m_Animation->apply(m_ArtboardInstance, m_Time, mix);
         }
 
         // Set when the animation is advanced, true if the animation has stopped

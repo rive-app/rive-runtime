@@ -3,8 +3,8 @@
 
 using namespace rive;
 
-BlendState1DInstance::BlendState1DInstance(const BlendState1D* blendState) :
-    BlendStateInstance<BlendState1D, BlendAnimation1D>(blendState) {}
+BlendState1DInstance::BlendState1DInstance(const BlendState1D* blendState, Artboard* instance) :
+    BlendStateInstance<BlendState1D, BlendAnimation1D>(blendState, instance) {}
 
 int BlendState1DInstance::animationIndex(float value) {
     int idx = 0;

@@ -12,7 +12,7 @@ namespace rive {
 
         StatusCode import(ImportStack& importStack) override;
 
-        StateInstance* makeInstance() const override;
+        StateInstance* makeInstance(Artboard*) const override;
     };
 } // namespace rive
 

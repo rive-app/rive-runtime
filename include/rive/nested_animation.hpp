@@ -8,7 +8,7 @@ namespace rive {
         StatusCode onAddedDirty(CoreContext* context) override;
 
         // Advance animations and apply them to the artboard.
-        virtual void advance(float elapsedSeconds, Artboard* artboard) = 0;
+        virtual void advance(float elapsedSeconds) = 0;
 
         // Initialize the animation (make instances as necessary) from the
         // source artboard.

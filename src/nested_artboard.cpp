@@ -91,7 +91,7 @@ bool NestedArtboard::advance(float elapsedSeconds) {
         return false;
     }
     for (auto animation : m_NestedAnimations) {
-        animation->advance(elapsedSeconds, m_NestedInstance);
+        animation->advance(elapsedSeconds);
     }
     return m_NestedInstance->advance(elapsedSeconds);
 }

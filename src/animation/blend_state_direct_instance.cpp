@@ -3,8 +3,8 @@
 
 using namespace rive;
 
-BlendStateDirectInstance::BlendStateDirectInstance(const BlendStateDirect* blendState) :
-    BlendStateInstance<BlendStateDirect, BlendAnimationDirect>(blendState) {}
+BlendStateDirectInstance::BlendStateDirectInstance(const BlendStateDirect* blendState, Artboard* instance) :
+    BlendStateInstance<BlendStateDirect, BlendAnimationDirect>(blendState, instance) {}
 
 void BlendStateDirectInstance::advance(float seconds, SMIInput** inputs) {
     BlendStateInstance<BlendStateDirect, BlendAnimationDirect>::advance(seconds, inputs);

@@ -18,7 +18,7 @@ namespace rive {
         StateInstance(const LayerState* layerState);
         virtual ~StateInstance();
         virtual void advance(float seconds, SMIInput** inputs) = 0;
-        virtual void apply(Artboard* artboard, float mix) = 0;
+        virtual void apply(float mix) = 0;
 
         /// Returns true when the State Machine needs to keep advancing this
         /// state.

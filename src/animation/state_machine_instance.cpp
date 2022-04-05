@@ -20,6 +20,7 @@ namespace rive {
     private:
         static const int maxIterations = 100;
         const StateMachineLayer* m_Layer = nullptr;
+        Artboard* m_ArtboardInstance = nullptr;
 
         StateInstance* m_AnyStateInstance = nullptr;
         StateInstance* m_CurrentState = nullptr;
@@ -48,9 +49,10 @@ namespace rive {
             delete m_StateFrom;
         }
 
-        void init(const StateMachineLayer* layer) {
+        void init(const StateMachineLayer* layer, Artboard* instance) {
+            m_ArtboardInstance = instance;
             assert(m_Layer == nullptr);
-            m_AnyStateInstance = layer->anyState()->makeInstance();
+            m_AnyStateInstance = layer->anyState()->makeInstance(instance);
             m_Layer = layer;
             changeState(m_Layer->entryState());
         }
@@ -67,7 +69,7 @@ namespace rive {
             }
         }
 
-        bool advance(Artboard* artboard, float seconds, SMIInput** inputs, size_t inputCount) {
+        bool advance(/*Artboard* artboard, */float seconds, SMIInput** inputs, size_t inputCount) {
             m_StateChangedOnAdvance = false;
 
             if (m_CurrentState != nullptr) {
@@ -83,7 +85,7 @@ namespace rive {
             }
 
             for (int i = 0; updateState(inputs, i != 0); i++) {
-                apply(artboard);
+                apply();
 
                 if (i == maxIterations) {
                     fprintf(stderr, "StateMachine exceeded max iterations.\n");
@@ -91,7 +93,7 @@ namespace rive {
                 }
             }
 
-            apply(artboard);
+            apply();
 
             return m_Mix != 1.0f || m_WaitingForExit ||
                    (m_CurrentState != nullptr && m_CurrentState->keepGoing());
@@ -122,7 +124,7 @@ namespace rive {
             if ((m_CurrentState == nullptr ? nullptr : m_CurrentState->state()) == stateTo) {
                 return false;
             }
-            m_CurrentState = stateTo == nullptr ? nullptr : stateTo->makeInstance();
+            m_CurrentState = stateTo == nullptr ? nullptr : stateTo->makeInstance(m_ArtboardInstance);
             return true;
         }
 
@@ -184,17 +186,17 @@ namespace rive {
             return false;
         }
 
-        void apply(Artboard* artboard) {
+        void apply(/*Artboard* artboard*/) {
             if (m_HoldAnimation != nullptr) {
-                m_HoldAnimation->apply(artboard, m_HoldTime, m_MixFrom);
+                m_HoldAnimation->apply(m_ArtboardInstance, m_HoldTime, m_MixFrom);
                 m_HoldAnimation = nullptr;
             }
 
             if (m_StateFrom != nullptr && m_Mix < 1.0f) {
-                m_StateFrom->apply(artboard, m_MixFrom);
+                m_StateFrom->apply(m_MixFrom);
             }
             if (m_CurrentState != nullptr) {
-                m_CurrentState->apply(artboard, m_Mix);
+                m_CurrentState->apply(m_Mix);
             }
         }
 
@@ -246,7 +248,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine, Artboard
     m_LayerCount = machine->layerCount();
     m_Layers = new StateMachineLayerInstance[m_LayerCount];
     for (size_t i = 0; i < m_LayerCount; i++) {
-        m_Layers[i].init(machine->layer(i));
+        m_Layers[i].init(machine->layer(i), m_ArtboardInstance);
     }
 }
 
@@ -262,7 +264,7 @@ StateMachineInstance::~StateMachineInstance() {
 bool StateMachineInstance::advance(float seconds) {
     m_NeedsAdvance = false;
     for (size_t i = 0; i < m_LayerCount; i++) {
-        if (m_Layers[i].advance(m_ArtboardInstance, seconds, m_InputInstances, m_InputCount)) {
+        if (m_Layers[i].advance(seconds, m_InputInstances, m_InputCount)) {
             m_NeedsAdvance = true;
         }
     }

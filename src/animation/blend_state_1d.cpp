@@ -6,7 +6,9 @@
 
 using namespace rive;
 
-StateInstance* BlendState1D::makeInstance() const { return new BlendState1DInstance(this); }
+StateInstance* BlendState1D::makeInstance(Artboard* instance) const {
+    return new BlendState1DInstance(this, instance);
+}
 
 StatusCode BlendState1D::import(ImportStack& importStack) {
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);

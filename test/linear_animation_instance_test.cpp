@@ -5,6 +5,11 @@
 #include <cstdio>
 
 TEST_CASE("LinearAnimationInstance oneShot", "[animation]") {
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -12,7 +17,7 @@ TEST_CASE("LinearAnimationInstance oneShot", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::oneShot));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
 
     // play from beginning.
     bool continuePlaying = linearAnimationInstance->advance(2.0);
@@ -33,6 +38,9 @@ TEST_CASE("LinearAnimationInstance oneShot", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]") {
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -40,7 +48,7 @@ TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::oneShot));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
     linearAnimationInstance->direction(-1);
     REQUIRE(linearAnimationInstance->time() == 0.0);
 
@@ -77,6 +85,9 @@ TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance loop ->", "[animation]") {
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -84,7 +95,7 @@ TEST_CASE("LinearAnimationInstance loop ->", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
 
     // play from beginning.
     bool continuePlaying = linearAnimationInstance->advance(2.0);
@@ -105,6 +116,9 @@ TEST_CASE("LinearAnimationInstance loop ->", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance loop <-", "[animation]") {
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -112,7 +126,7 @@ TEST_CASE("LinearAnimationInstance loop <-", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
     linearAnimationInstance->direction(-1);
     REQUIRE(linearAnimationInstance->time() == 0.0);
 
@@ -143,6 +157,9 @@ TEST_CASE("LinearAnimationInstance loop <-", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]") {
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 50
     linearAnimation->workStart(4);
@@ -153,7 +170,7 @@ TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
     linearAnimationInstance->direction(-1);
     REQUIRE(linearAnimationInstance->time() == 2.0);
 
@@ -194,6 +211,9 @@ TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]") {
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -201,7 +221,7 @@ TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::pingPong));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
 
     // play from beginning.
     bool continuePlaying = linearAnimationInstance->advance(2.0);
@@ -223,6 +243,9 @@ TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]") {
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -230,7 +253,7 @@ TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::pingPong));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
     linearAnimationInstance->direction(-1);
     REQUIRE(linearAnimationInstance->time() == 0.0);
 
@@ -264,6 +287,9 @@ TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance override loop", "[animation]") {
+    rive::Artboard ab;
+    auto abi = ab.instance();
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -271,7 +297,7 @@ TEST_CASE("LinearAnimationInstance override loop", "[animation]") {
     linearAnimation->loopValue(static_cast<int>(rive::Loop::oneShot));
 
     rive::LinearAnimationInstance* linearAnimationInstance =
-        new rive::LinearAnimationInstance(linearAnimation);
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
 
     // Check the loop value is same as the animation's
     REQUIRE(linearAnimationInstance->loopValue() == linearAnimation->loopValue());
