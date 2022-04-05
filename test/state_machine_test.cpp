@@ -72,7 +72,8 @@ TEST_CASE("file with state machine be read", "[file]") {
         }
     }
 
-    rive::StateMachineInstance smi(artboard->stateMachine("Button"));
+    auto abi = artboard->instance();
+    rive::StateMachineInstance smi(artboard->stateMachine("Button"), abi.get());
     REQUIRE(smi.getBool("Hover")->name() == "Hover");
     REQUIRE(smi.getBool("Press")->name() == "Press");
     REQUIRE(smi.getBool("Hover") != nullptr);
@@ -160,6 +161,6 @@ TEST_CASE("animation state with no animation doesn't crash", "[file]") {
     auto animationState = layer->state(3)->as<rive::AnimationState>();
     REQUIRE(animationState->animation() == nullptr);
 
-    rive::StateMachineInstance smi(stateMachine);
-    smi.advance(artboard, 0.0f);
+    auto abi = artboard->instance();
+    rive::StateMachineInstance(stateMachine, abi.get()).advance(0.0f);
 }

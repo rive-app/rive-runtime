@@ -213,7 +213,11 @@ namespace rive {
     };
 } // namespace rive
 
-StateMachineInstance::StateMachineInstance(const StateMachine* machine) : m_Machine(machine) {
+StateMachineInstance::StateMachineInstance(const StateMachine* machine, Artboard* instance)
+        : m_Machine(machine)
+        , m_ArtboardInstance(instance)
+{
+    assert(instance->isInstance());
     m_InputCount = machine->inputCount();
     m_InputInstances = new SMIInput*[m_InputCount];
     for (size_t i = 0; i < m_InputCount; i++) {
@@ -255,10 +259,10 @@ StateMachineInstance::~StateMachineInstance() {
     delete[] m_Layers;
 }
 
-bool StateMachineInstance::advance(Artboard* artboard, float seconds) {
+bool StateMachineInstance::advance(float seconds) {
     m_NeedsAdvance = false;
     for (size_t i = 0; i < m_LayerCount; i++) {
-        if (m_Layers[i].advance(artboard, seconds, m_InputInstances, m_InputCount)) {
+        if (m_Layers[i].advance(m_ArtboardInstance, seconds, m_InputInstances, m_InputCount)) {
             m_NeedsAdvance = true;
         }
     }

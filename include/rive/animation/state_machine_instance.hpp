@@ -21,6 +21,7 @@ namespace rive {
 
     private:
         const StateMachine* m_Machine;
+        Artboard* m_ArtboardInstance;
         bool m_NeedsAdvance = false;
 
         size_t m_InputCount;
@@ -31,12 +32,12 @@ namespace rive {
         void markNeedsAdvance();
 
     public:
-        StateMachineInstance(const StateMachine* machine);
+        StateMachineInstance(const StateMachine* machine, Artboard* instance);
         ~StateMachineInstance();
 
         // Advance the state machine by the specified time. Returns true if the
         // state machine will continue to animate after this advance.
-        bool advance(Artboard* artboard, float seconds);
+        bool advance(float seconds);
 
         // Returns true when the StateMachineInstance has more data to process.
         bool needsAdvance() const;

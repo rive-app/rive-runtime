@@ -66,7 +66,7 @@ void initStateMachine(int index) {
     stateMachineInstance = nullptr;
 
     if (index >= 0 && index < artboard->stateMachineCount()) {
-        stateMachineInstance = new rive::StateMachineInstance(artboard->stateMachine(index));
+        stateMachineInstance = new rive::StateMachineInstance(artboard->stateMachine(index), artboard.get());
     }
 }
 
@@ -273,7 +273,7 @@ int main() {
                 animationInstance->advance(elapsed);
                 animationInstance->apply(artboard.get());
             } else if (stateMachineInstance != nullptr) {
-                stateMachineInstance->advance(artboard.get(), elapsed);
+                stateMachineInstance->advance(elapsed);
             }
             artboard->advance(elapsed);
 
