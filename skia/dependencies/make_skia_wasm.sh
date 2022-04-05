@@ -8,9 +8,9 @@ set -e
 #   https://skia.org/user/build
 # GLFW requires CMake
 
-./get_skia.sh
+./get_skia.sh git@github.com:rive-app/skia-experimental.git main skia-experimental
 
-cd skia_rive_optimized
+cd skia-experimental
 
 # build static for host
 bin/gn gen out/wasm --type=static_library --args=" \
@@ -53,9 +53,8 @@ bin/gn gen out/wasm --type=static_library --args=" \
     skia_enable_skottie = false \
     skia_enable_tools = false \
     skia_enable_skgpu_v1 = true \
-    skia_enable_skgpu_v2 = false \
     "
-ninja -C out/wasm
+ninja -C out/wasm libskia.a
 du -hs out/wasm/libskia.a
 
 cd ..

@@ -32,6 +32,11 @@ getSkia () {
     cd .. 
 }
 
-getSkia https://github.com/rive-app/skia rive skia_rive_optimized
-
-getSkia https://github.com/google/skia chrome/m99 skia
+if [ $# -eq 0 ]; then
+    # No arguments supplied; checkout the default skia repos.
+    getSkia https://github.com/rive-app/skia rive skia_rive_optimized
+    getSkia https://github.com/google/skia chrome/m99 skia
+else
+    # The caller specified which skia repo to checkout.
+    getSkia $@
+fi
