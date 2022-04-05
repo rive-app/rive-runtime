@@ -13,6 +13,8 @@ if [ "$OPTION" = 'help' ]; then
     echo build.sh release - build release library
 elif [ "$OPTION" = "release" ]; then
     ./build/$system/bin/release/rive_viewer
+elif [ "$OPTION" = "lldb" ]; then
+    lldb build/$system/bin/debug/rive_viewer
 else
     ./build/$system/bin/debug/rive_viewer
 fi
