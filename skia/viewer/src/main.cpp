@@ -36,8 +36,10 @@ std::unique_ptr<rive::File> currentFile;
 std::unique_ptr<rive::Artboard> artboard;
 rive::StateMachineInstance* stateMachineInstance = nullptr;
 rive::LinearAnimationInstance* animationInstance = nullptr;
-uint8_t* fileBytes = nullptr;
-unsigned int fileBytesLength = 0;
+// We hold onto the file's bytes for the lifetime of the file, in case we want
+// to change animations or state-machines, we just rebuild the rive::File from
+// it.
+std::vector<uint8_t> fileBytes;
 
 int animationIndex = 0;
 int stateMachineIndex = -1;
@@ -45,11 +47,11 @@ int stateMachineIndex = -1;
 void initStateMachine(int index) {
     stateMachineIndex = index;
     animationIndex = -1;
-    assert(fileBytes != nullptr);
-    auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
+    assert(fileBytes.size() != 0);
+    rive::BinaryReader reader(rive::toSpan(fileBytes));
     auto file = rive::File::import(reader);
     if (!file) {
-        delete[] fileBytes;
+        fileBytes.clear();
         fprintf(stderr, "failed to import file\n");
         return;
     }
@@ -63,22 +65,19 @@ void initStateMachine(int index) {
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
 
-    auto stateMachine = index >= 0 && index < artboard->stateMachineCount()
-                            ? artboard->stateMachine(index)
-                            : nullptr;
-    if (stateMachine != nullptr) {
-        stateMachineInstance = new rive::StateMachineInstance(stateMachine);
+    if (index >= 0 && index < artboard->stateMachineCount()) {
+        stateMachineInstance = new rive::StateMachineInstance(artboard->stateMachine(index));
     }
 }
 
 void initAnimation(int index) {
     animationIndex = index;
     stateMachineIndex = -1;
-    assert(fileBytes != nullptr);
-    auto reader = rive::BinaryReader(fileBytes, fileBytesLength);
+    assert(fileBytes.size() != 0);
+    rive::BinaryReader reader(rive::toSpan(fileBytes));
     auto file = rive::File::import(reader);
     if (!file) {
-        delete[] fileBytes;
+        fileBytes.clear();
         fprintf(stderr, "failed to import file\n");
         return;
     }
@@ -92,10 +91,8 @@ void initAnimation(int index) {
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
 
-    auto animation =
-        index >= 0 && index < artboard->animationCount() ? artboard->animation(index) : nullptr;
-    if (animation != nullptr) {
-        animationInstance = new rive::LinearAnimationInstance(animation);
+    if (index >= 0 && index < artboard->animationCount()) {
+        animationInstance = new rive::LinearAnimationInstance(artboard->animation(index));
     }
 }
 
@@ -107,12 +104,11 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
 
     FILE* fp = fopen(filename.c_str(), "r");
     fseek(fp, 0, SEEK_END);
-    fileBytesLength = ftell(fp);
+    size_t size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    delete[] fileBytes;
-    fileBytes = new uint8_t[fileBytesLength];
-    if (fread(fileBytes, 1, fileBytesLength, fp) != fileBytesLength) {
-        delete[] fileBytes;
+    fileBytes.resize(size);
+    if (fread(fileBytes.data(), 1, size, fp) != size) {
+        fileBytes.clear();
         fprintf(stderr, "failed to read all of %s\n", filename.c_str());
         return;
     }
@@ -217,7 +213,7 @@ int main() {
     framebufferInfo.fFBOID = 0;
     framebufferInfo.fFormat = GL_RGBA8;
 
-    SkSurface* surface = nullptr;
+    sk_sp<SkSurface> surface;
     SkCanvas* canvas = nullptr;
 
     // Render loop.
@@ -228,7 +224,7 @@ int main() {
         glfwGetFramebufferSize(window, &width, &height);
 
         // Update surface.
-        if (surface == nullptr || width != lastScreenWidth || height != lastScreenHeight) {
+        if (!surface || width != lastScreenWidth || height != lastScreenHeight) {
             lastScreenWidth = width;
             lastScreenHeight = height;
 
@@ -250,15 +246,13 @@ int main() {
                                                       0, // stencil bits
                                                       framebufferInfo);
 
-            delete surface;
             surface = SkSurface::MakeFromBackendRenderTarget(context.get(),
                                                              backendRenderTarget,
                                                              kBottomLeft_GrSurfaceOrigin,
                                                              colorType,
                                                              nullptr,
-                                                             nullptr)
-                          .release();
-            if (surface == nullptr) {
+                                                             nullptr);
+            if (!surface) {
                 fprintf(stderr, "Failed to create Skia surface\n");
                 return 1;
             }
@@ -395,10 +389,8 @@ int main() {
         glfwPollEvents();
     }
 
-    delete[] fileBytes;
-
     // Cleanup Skia.
-    delete surface;
+    surface = nullptr;
     context = nullptr;
 
     ImGui_ImplGlfw_Shutdown();
