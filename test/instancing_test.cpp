@@ -9,7 +9,7 @@
 #include <cstdio>
 
 TEST_CASE("cloning an ellipse works", "[instancing]") {
-    FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
+    FILE* fp = fopen("../../test/assets/circle_clips.riv", "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
@@ -35,7 +35,7 @@ TEST_CASE("cloning an ellipse works", "[instancing]") {
 }
 
 TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
-    FILE* fp = fopen("../../test/assets/circle_clips.riv", "r");
+    FILE* fp = fopen("../../test/assets/circle_clips.riv", "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
@@ -72,7 +72,7 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
 }
 
 TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
-    FILE* fp = fopen("../../test/assets/juice.riv", "r");
+    FILE* fp = fopen("../../test/assets/juice.riv", "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);

@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "must pass source file");
         return 1;
     }
-    FILE* fp = fopen(argv[1], "r");
+    FILE* fp = fopen(argv[1], "rb");
 
     const char* outPath;
     std::string filename;

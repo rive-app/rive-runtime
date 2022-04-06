@@ -102,7 +102,7 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
     // Just get the last dropped file for now...
     filename = paths[count - 1];
 
-    FILE* fp = fopen(filename.c_str(), "r");
+    FILE* fp = fopen(filename.c_str(), "rb");
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
     fseek(fp, 0, SEEK_SET);

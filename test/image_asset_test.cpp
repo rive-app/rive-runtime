@@ -46,7 +46,7 @@ TEST_CASE("out of band image assets loads correctly", "[assets]") {
     std::string filename = "../../test/assets/out_of_band/walle.riv";
     rive::RelativeLocalAssetResolver resolver(filename);
 
-    FILE* fp = fopen(filename.c_str(), "r");
+    FILE* fp = fopen(filename.c_str(), "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);

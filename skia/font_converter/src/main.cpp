@@ -10,7 +10,7 @@
 #include <vector>
 
 static std::vector<char> readFile(const char path[]) {
-    FILE* fp = fopen(path, "r");
+    FILE* fp = fopen(path, "rb");
 
     if (fp == nullptr) {
         fclose(fp);
