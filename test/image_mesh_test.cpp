@@ -31,9 +31,9 @@ TEST_CASE("duplicating a mesh shares the indices", "[mesh]") {
     RiveFileReader reader("../../test/assets/tape.riv");
     auto file = reader.file();
 
-    auto instance1 = file->artboard()->instance();
-    auto instance2 = file->artboard()->instance();
-    auto instance3 = file->artboard()->instance();
+    auto instance1 = file->artboardDefault();
+    auto instance2 = file->artboardDefault();
+    auto instance3 = file->artboardDefault();
 
     auto node1 = instance1->find("Tape body.png");
     auto node2 = instance2->find("Tape body.png");

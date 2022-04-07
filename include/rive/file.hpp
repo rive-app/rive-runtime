@@ -66,8 +66,15 @@ namespace rive {
         /// @returns the file's backboard. All files have exactly one backboard.
         Backboard* backboard() const { return m_Backboard.get(); }
 
-        /// @returns the default artboard. This is typically the first artboard
-        /// found in the file's artboard list.
+        /// @returns the number of artboards in the file.
+        size_t artboardCount() const { return m_Artboards.size(); }
+        std::string artboardNameAt(size_t index) const;
+
+        // Instances
+        std::unique_ptr<ArtboardInstance> artboardDefault() const;
+        std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
+        std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
+
         Artboard* artboard() const;
 
         /// @returns the named artboard. If no artboard is found with that name,
@@ -77,9 +84,6 @@ namespace rive {
         /// @returns the artboard at the specified index, or the nullptr if the
         /// index is out of range.
         Artboard* artboard(size_t index) const;
-
-        /// @returns the number of artboards in the file.
-        size_t artboardCount() const { return m_Artboards.size(); }
 
     private:
         ImportResult read(BinaryReader& reader, const RuntimeHeader& header);

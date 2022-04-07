@@ -24,6 +24,7 @@ namespace rive {
     class NestedArtboard;
     class ArtboardInstance;
     class LinearAnimationInstance;
+    class StateMachineInstance;
 
     class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer {
         friend class File;
@@ -123,18 +124,23 @@ namespace rive {
             return nullptr;
         }
 
+        size_t animationCount() const { return m_Animations.size(); }
+        std::string animationNameAt(size_t index) const;
+
+        size_t stateMachineCount() const { return m_StateMachines.size(); }
+        std::string stateMachineNameAt(size_t index) const;
+
         LinearAnimation* firstAnimation() const;
         LinearAnimation* animation(std::string name) const;
         LinearAnimation* animation(size_t index) const;
-        size_t animationCount() const { return m_Animations.size(); }
 
         StateMachine* firstStateMachine() const;
         StateMachine* stateMachine(std::string name) const;
         StateMachine* stateMachine(size_t index) const;
-        size_t stateMachineCount() const { return m_StateMachines.size(); }
 
         /// Make an instance of this artboard, must be explictly deleted when no
         /// longer needed.
+        // Deprecated...
         std::unique_ptr<ArtboardInstance> instance() const;
 
         /// Returns true if the artboard is an instance of another
@@ -157,6 +163,11 @@ namespace rive {
 
     class ArtboardInstance : public Artboard {
     public:
+        std::unique_ptr<LinearAnimationInstance> animationAt(size_t index);
+        std::unique_ptr<LinearAnimationInstance> animationNamed(std::string name);
+
+        std::unique_ptr<StateMachineInstance> stateMachineAt(size_t index);
+        std::unique_ptr<StateMachineInstance> stateMachineNamed(std::string name);
     };
 } // namespace rive
 

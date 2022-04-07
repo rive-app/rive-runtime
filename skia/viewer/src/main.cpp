@@ -36,6 +36,13 @@ std::unique_ptr<rive::File> currentFile;
 std::unique_ptr<rive::ArtboardInstance> artboardInstance;
 std::unique_ptr<rive::StateMachineInstance> stateMachineInstance;
 std::unique_ptr<rive::LinearAnimationInstance> animationInstance;
+
+// ImGui wants raw pointers to names, but our public API returns
+// names as strings (by value), so we cache these names each time we
+// load a file
+std::vector<std::string> animationNames;
+std::vector<std::string> stateMachineNames;
+
 // We hold onto the file's bytes for the lifetime of the file, in case we want
 // to change animations or state-machines, we just rebuild the rive::File from
 // it.
@@ -43,6 +50,19 @@ std::vector<uint8_t> fileBytes;
 
 int animationIndex = 0;
 int stateMachineIndex = -1;
+
+static void loadNames(const rive::Artboard* ab) {
+    animationNames.clear();
+    stateMachineNames.clear();
+    if (ab) {
+        for (size_t i = 0; i < ab->animationCount(); ++i) {
+            animationNames.push_back(ab->animationNameAt(i));
+        }
+        for (size_t i = 0; i < ab->stateMachineCount(); ++i) {
+            stateMachineNames.push_back(ab->stateMachineNameAt(i));
+        }
+    }
+}
 
 void initStateMachine(int index) {
     stateMachineIndex = index;
@@ -60,11 +80,12 @@ void initStateMachine(int index) {
     artboardInstance = nullptr;
 
     currentFile = std::move(file);
-    artboardInstance = currentFile->artboard()->instance();
+    artboardInstance = currentFile->artboardDefault();
     artboardInstance->advance(0.0f);
+    loadNames(artboardInstance.get());
 
     if (index >= 0 && index < artboardInstance->stateMachineCount()) {
-        stateMachineInstance = std::make_unique<rive::StateMachineInstance>(artboardInstance->stateMachine(index), artboardInstance.get());
+        stateMachineInstance = artboardInstance->stateMachineAt(index);
     }
 }
 
@@ -84,11 +105,12 @@ void initAnimation(int index) {
     artboardInstance = nullptr;
 
     currentFile = std::move(file);
-    artboardInstance = currentFile->artboard()->instance();
+    artboardInstance = currentFile->artboardDefault();
     artboardInstance->advance(0.0f);
+    loadNames(artboardInstance.get());
 
     if (index >= 0 && index < artboardInstance->animationCount()) {
-        animationInstance = std::make_unique<rive::LinearAnimationInstance>(artboardInstance->animation(index), artboardInstance.get());
+        animationInstance = artboardInstance->animationAt(index);
     }
 }
 
@@ -298,12 +320,11 @@ int main() {
                     "Animations",
                     &animationIndex,
                     [](void* data, int index, const char** name) {
-                        const char* animationName = artboardInstance->animation(index)->name().c_str();
-                        *name = animationName;
+                        *name = animationNames[index].c_str();
                         return true;
                     },
                     artboardInstance.get(),
-                    artboardInstance->animationCount(),
+                    animationNames.size(),
                     4))
             {
                 stateMachineIndex = -1;
@@ -313,12 +334,11 @@ int main() {
                     "State Machines",
                     &stateMachineIndex,
                     [](void* data, int index, const char** name) {
-                        const char* machineName = artboardInstance->stateMachine(index)->name().c_str();
-                        *name = machineName;
+                        *name = stateMachineNames[index].c_str();
                         return true;
                     },
                     artboardInstance.get(),
-                    artboardInstance->stateMachineCount(),
+                    stateMachineNames.size(),
                     4))
             {
                 animationIndex = -1;

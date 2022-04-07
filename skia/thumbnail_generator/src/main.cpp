@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Failed to read rive file.\n");
         return 1;
     }
-    auto artboard = file->artboard();
+    auto artboard = file->artboardDefault();
     artboard->advance(0.0f);
 
     delete[] bytes;

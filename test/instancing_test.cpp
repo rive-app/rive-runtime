@@ -50,7 +50,7 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
     REQUIRE(file->artboard() != nullptr);
     REQUIRE(!file->artboard()->isInstance());
 
-    auto artboard = file->artboard()->instance();
+    auto artboard = file->artboardDefault();
 
     REQUIRE(artboard->isInstance());
 
@@ -86,7 +86,7 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     REQUIRE(file != nullptr);
     REQUIRE(file->artboard() != nullptr);
 
-    auto artboard = file->artboard()->instance();
+    auto artboard = file->artboardDefault();
 
     REQUIRE(file->artboard()->animationCount() == artboard->animationCount());
     REQUIRE(file->artboard()->firstAnimation() == artboard->firstAnimation());

@@ -450,6 +450,16 @@ bool Artboard::isTranslucent(const LinearAnimationInstance* inst) const {
     return this->isTranslucent(inst->animation());
 }
 
+std::string Artboard::animationNameAt(size_t index) const {
+    auto la = this->animation(index);
+    return la ? la->name() : nullptr;
+}
+
+std::string Artboard::stateMachineNameAt(size_t index) const {
+    auto sm = this->stateMachine(index);
+    return sm ? sm->name() : nullptr;
+}
+
 LinearAnimation* Artboard::firstAnimation() const {
     if (m_Animations.empty()) {
         return nullptr;
@@ -608,4 +618,33 @@ bool Artboard::nextMessage(Message* msg) {
         m_MessageQueue.pop();
         return true;
     }
+}
+
+////////// ArtboardInstance
+
+#include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+
+std::unique_ptr<LinearAnimationInstance>
+ArtboardInstance::animationAt(size_t index) {
+    auto la = this->animation(index);
+    return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
+}
+
+std::unique_ptr<LinearAnimationInstance>
+ArtboardInstance::animationNamed(std::string name) {
+    auto la = this->animation(name);
+    return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
+}
+
+std::unique_ptr<StateMachineInstance>
+ArtboardInstance::stateMachineAt(size_t index) {
+    auto sm = this->stateMachine(index);
+    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
+}
+
+std::unique_ptr<StateMachineInstance>
+ArtboardInstance::stateMachineNamed(std::string name) {
+    auto sm = this->stateMachine(name);
+    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }
