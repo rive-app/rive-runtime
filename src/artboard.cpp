@@ -31,6 +31,7 @@ Artboard::~Artboard() {
     // Instances reference back to the original artboard's animations and state
     // machines, so don't delete them here, they'll get cleaned up when the
     // source is deleted.
+    // TODO: move this logic into ArtboardInstance destructor???
     if (!m_IsInstance) {
         for (auto object : m_Animations) {
             delete object;
@@ -490,8 +491,10 @@ StateMachine* Artboard::stateMachine(size_t index) const {
     return m_StateMachines[index];
 }
 
-std::unique_ptr<Artboard> Artboard::instance() const {
-    std::unique_ptr<Artboard> artboardClone(clone()->as<Artboard>());
+std::unique_ptr<ArtboardInstance> Artboard::instance() const {
+    std::unique_ptr<ArtboardInstance> artboardClone(new ArtboardInstance);
+    artboardClone->copy(*this);
+
     artboardClone->m_FrameOrigin = m_FrameOrigin;
 
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;

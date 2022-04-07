@@ -22,6 +22,7 @@ namespace rive {
     class DrawTarget;
     class ArtboardImporter;
     class NestedArtboard;
+    class ArtboardInstance;
 
     class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer {
         friend class File;
@@ -132,7 +133,7 @@ namespace rive {
 
         /// Make an instance of this artboard, must be explictly deleted when no
         /// longer needed.
-        std::unique_ptr<Artboard> instance() const;
+        std::unique_ptr<ArtboardInstance> instance() const;
 
         /// Returns true if the artboard is an instance of another
         bool isInstance() const { return m_IsInstance; }
@@ -150,6 +151,10 @@ namespace rive {
         void frameOrigin(bool value);
 
         StatusCode import(ImportStack& importStack) override;
+    };
+
+    class ArtboardInstance : public Artboard {
+    public:
     };
 } // namespace rive
 
