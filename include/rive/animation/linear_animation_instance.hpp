@@ -63,6 +63,12 @@ namespace rive {
         float spilledTime() const { return m_SpilledTime; }
         float durationSeconds() const;
 
+        // Forwarded from animation
+        uint32_t fps() const;
+        uint32_t duration() const;
+        float speed() const;
+        float startSeconds() const;
+    
         // Returns either the animation's default or overridden loop values
         Loop loop() { return (Loop)loopValue(); }
         int loopValue();

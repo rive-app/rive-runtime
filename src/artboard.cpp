@@ -1,6 +1,7 @@
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
 #include "rive/animation/animation.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 #include "rive/dependency_sorter.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
@@ -443,6 +444,10 @@ bool Artboard::isTranslucent(const LinearAnimation* anim) const {
         }
     }
     return true;
+}
+
+bool Artboard::isTranslucent(const LinearAnimationInstance* inst) const {
+    return this->isTranslucent(inst->animation());
 }
 
 LinearAnimation* Artboard::firstAnimation() const {

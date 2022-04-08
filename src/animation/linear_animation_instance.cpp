@@ -114,6 +114,14 @@ void LinearAnimationInstance::time(float value) {
     m_Direction = 1;
 }
 
+uint32_t LinearAnimationInstance::fps() const { return m_Animation->fps(); }
+
+uint32_t LinearAnimationInstance::duration() const { return m_Animation->duration(); }
+
+float LinearAnimationInstance::speed() const { return m_Animation->speed(); }
+
+float LinearAnimationInstance::startSeconds() const { return m_Animation->startSeconds(); }
+
 // Returns either the animation's default or overridden loop values
 int LinearAnimationInstance::loopValue() {
     if (m_LoopValue != -1) {

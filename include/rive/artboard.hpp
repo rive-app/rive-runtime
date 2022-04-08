@@ -23,6 +23,7 @@ namespace rive {
     class ArtboardImporter;
     class NestedArtboard;
     class ArtboardInstance;
+    class LinearAnimationInstance;
 
     class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer {
         friend class File;
@@ -111,6 +112,7 @@ namespace rive {
 
         AABB bounds() const;
         bool isTranslucent(const LinearAnimation*) const;
+        bool isTranslucent(const LinearAnimationInstance*) const;
 
         template <typename T = Component> T* find(std::string name) {
             for (auto object : m_Objects) {
