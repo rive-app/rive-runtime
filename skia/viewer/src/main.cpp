@@ -33,9 +33,9 @@
 
 std::string filename;
 std::unique_ptr<rive::File> currentFile;
-std::unique_ptr<rive::Artboard> artboard;
-rive::StateMachineInstance* stateMachineInstance = nullptr;
-rive::LinearAnimationInstance* animationInstance = nullptr;
+std::unique_ptr<rive::ArtboardInstance> artboardInstance;
+std::unique_ptr<rive::StateMachineInstance> stateMachineInstance;
+std::unique_ptr<rive::LinearAnimationInstance> animationInstance;
 // We hold onto the file's bytes for the lifetime of the file, in case we want
 // to change animations or state-machines, we just rebuild the rive::File from
 // it.
@@ -55,18 +55,16 @@ void initStateMachine(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    delete animationInstance;
-    delete stateMachineInstance;
-    currentFile = std::move(file);
-
-    artboard = currentFile->artboard()->instance();
-    artboard->advance(0.0f);
-
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
+    artboardInstance = nullptr;
 
-    if (index >= 0 && index < artboard->stateMachineCount()) {
-        stateMachineInstance = new rive::StateMachineInstance(artboard->stateMachine(index), artboard.get());
+    currentFile = std::move(file);
+    artboardInstance = currentFile->artboard()->instance();
+    artboardInstance->advance(0.0f);
+
+    if (index >= 0 && index < artboardInstance->stateMachineCount()) {
+        stateMachineInstance = std::make_unique<rive::StateMachineInstance>(artboardInstance->stateMachine(index), artboardInstance.get());
     }
 }
 
@@ -81,18 +79,16 @@ void initAnimation(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    delete animationInstance;
-    delete stateMachineInstance;
-    currentFile = std::move(file);
-
-    artboard = currentFile->artboard()->instance();
-    artboard->advance(0.0f);
-
     animationInstance = nullptr;
     stateMachineInstance = nullptr;
+    artboardInstance = nullptr;
 
-    if (index >= 0 && index < artboard->animationCount()) {
-        animationInstance = new rive::LinearAnimationInstance(artboard->animation(index), artboard.get());
+    currentFile = std::move(file);
+    artboardInstance = currentFile->artboard()->instance();
+    artboardInstance->advance(0.0f);
+
+    if (index >= 0 && index < artboardInstance->animationCount()) {
+        animationInstance = std::make_unique<rive::LinearAnimationInstance>(artboardInstance->animation(index), artboardInstance.get());
     }
 }
 
@@ -268,25 +264,25 @@ int main() {
         paint.setColor(SK_ColorDKGRAY);
         canvas->drawPaint(paint);
 
-        if (artboard != nullptr) {
+        if (artboardInstance != nullptr) {
             if (animationInstance != nullptr) {
                 animationInstance->advance(elapsed);
                 animationInstance->apply();
             } else if (stateMachineInstance != nullptr) {
                 stateMachineInstance->advance(elapsed);
             }
-            artboard->advance(elapsed);
+            artboardInstance->advance(elapsed);
 
             rive::SkiaRenderer renderer(canvas);
             renderer.save();
             renderer.align(rive::Fit::contain,
                            rive::Alignment::center,
                            rive::AABB(0, 0, width, height),
-                           artboard->bounds());
+                           artboardInstance->bounds());
 
-            post_mouse_event(artboard.get(), canvas->getTotalMatrix());
+            post_mouse_event(artboardInstance.get(), canvas->getTotalMatrix());
 
-            artboard->draw(&renderer);
+            artboardInstance->draw(&renderer);
             renderer.restore();
         }
 
@@ -296,18 +292,18 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        if (artboard != nullptr) {
+        if (artboardInstance != nullptr) {
             ImGui::Begin(filename.c_str(), nullptr);
             if (ImGui::ListBox(
                     "Animations",
                     &animationIndex,
                     [](void* data, int index, const char** name) {
-                        const char* animationName = artboard->animation(index)->name().c_str();
+                        const char* animationName = artboardInstance->animation(index)->name().c_str();
                         *name = animationName;
                         return true;
                     },
-                    artboard.get(),
-                    artboard->animationCount(),
+                    artboardInstance.get(),
+                    artboardInstance->animationCount(),
                     4))
             {
                 stateMachineIndex = -1;
@@ -317,12 +313,12 @@ int main() {
                     "State Machines",
                     &stateMachineIndex,
                     [](void* data, int index, const char** name) {
-                        const char* machineName = artboard->stateMachine(index)->name().c_str();
+                        const char* machineName = artboardInstance->stateMachine(index)->name().c_str();
                         *name = machineName;
                         return true;
                     },
-                    artboard.get(),
-                    artboard->stateMachineCount(),
+                    artboardInstance.get(),
+                    artboardInstance->stateMachineCount(),
                     4))
             {
                 animationIndex = -1;
@@ -377,7 +373,7 @@ int main() {
             }
             ImGui::End();
             
-            test_messages(artboard.get());
+            test_messages(artboardInstance.get());
         } else {
             ImGui::Text("Drop a .riv file to preview.");
         }

@@ -50,9 +50,8 @@ int main(int argc, char* argv[]) {
     }
 
     auto reader = rive::BinaryReader(bytes, length);
-    rive::File* file = nullptr;
-    auto result = rive::File::import(reader, &file);
-    if (result != rive::ImportResult::success) {
+    auto file = rive::File::import(reader);
+    if (!file) {
         fprintf(stderr, "Failed to read rive file.\n");
         return 1;
     }
