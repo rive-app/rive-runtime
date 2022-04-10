@@ -8,7 +8,7 @@
 using namespace rive;
 
 StatusCode KeyFrame::onAddedDirty(CoreContext* context) {
-    if (interpolatorId() > 0) {
+    if (interpolatorId() != -1) {
         auto coreObject = context->resolve(interpolatorId());
         if (coreObject == nullptr || !coreObject->is<CubicInterpolator>()) {
             return StatusCode::MissingObject;
