@@ -537,6 +537,7 @@ std::unique_ptr<ArtboardInstance> Artboard::instance() const {
         artboardClone->m_IsInstance = true;
     }
 
+    assert(artboardClone->isInstance());
     return artboardClone;
 }
 

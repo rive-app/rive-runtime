@@ -7,7 +7,7 @@
 namespace rive {
     class LayerState;
     class SMIInput;
-    class Artboard;
+    class ArtboardInstance;
 
     /// Represents an instance of a state tracked by the State Machine.
     class StateInstance {

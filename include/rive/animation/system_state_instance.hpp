@@ -10,7 +10,7 @@ namespace rive {
     /// just a no-op state (perhaps an unknown to this runtime state-type).
     class SystemStateInstance : public StateInstance {
     public:
-        SystemStateInstance(const LayerState* layerState, Artboard* instance);
+        SystemStateInstance(const LayerState* layerState, ArtboardInstance* instance);
 
         void advance(float seconds, SMIInput** inputs) override;
         void apply(float mix) override;

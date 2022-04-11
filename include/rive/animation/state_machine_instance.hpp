@@ -9,7 +9,7 @@ namespace rive {
     class StateMachine;
     class LayerState;
     class SMIInput;
-    class Artboard;
+    class ArtboardInstance;
     class SMIBool;
     class SMINumber;
     class SMITrigger;
@@ -21,7 +21,7 @@ namespace rive {
 
     private:
         const StateMachine* m_Machine;
-        Artboard* m_ArtboardInstance;
+        ArtboardInstance* m_ArtboardInstance;
         bool m_NeedsAdvance = false;
 
         size_t m_InputCount;
@@ -32,7 +32,7 @@ namespace rive {
         void markNeedsAdvance();
 
     public:
-        StateMachineInstance(const StateMachine* machine, Artboard* instance);
+        StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
         ~StateMachineInstance();
 
         // Advance the state machine by the specified time. Returns true if the

@@ -7,7 +7,7 @@
 
 using namespace rive;
 
-StateInstance* AnimationState::makeInstance(Artboard* instance) const {
+StateInstance* AnimationState::makeInstance(ArtboardInstance* instance) const {
     if (animation() == nullptr) {
         // Failed to load at runtime/some new type we don't understand.
         return new SystemStateInstance(this, instance);

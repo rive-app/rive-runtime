@@ -6,6 +6,6 @@
 
 using namespace rive;
 
-StateInstance* BlendStateDirect::makeInstance(Artboard* instance) const {
+StateInstance* BlendStateDirect::makeInstance(ArtboardInstance* instance) const {
     return new BlendStateDirectInstance(this, instance);
 }

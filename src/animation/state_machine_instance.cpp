@@ -20,7 +20,7 @@ namespace rive {
     private:
         static const int maxIterations = 100;
         const StateMachineLayer* m_Layer = nullptr;
-        Artboard* m_ArtboardInstance = nullptr;
+        ArtboardInstance* m_ArtboardInstance = nullptr;
 
         StateInstance* m_AnyStateInstance = nullptr;
         StateInstance* m_CurrentState = nullptr;
@@ -49,7 +49,7 @@ namespace rive {
             delete m_StateFrom;
         }
 
-        void init(const StateMachineLayer* layer, Artboard* instance) {
+        void init(const StateMachineLayer* layer, ArtboardInstance* instance) {
             m_ArtboardInstance = instance;
             assert(m_Layer == nullptr);
             m_AnyStateInstance = layer->anyState()->makeInstance(instance);
@@ -215,7 +215,7 @@ namespace rive {
     };
 } // namespace rive
 
-StateMachineInstance::StateMachineInstance(const StateMachine* machine, Artboard* instance)
+StateMachineInstance::StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance)
         : m_Machine(machine)
         , m_ArtboardInstance(instance)
 {

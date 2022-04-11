@@ -37,7 +37,7 @@ namespace rive {
         bool m_KeepGoing = true;
 
     public:
-        BlendStateInstance(const K* blendState, Artboard* instance) : StateInstance(blendState) {
+        BlendStateInstance(const K* blendState, ArtboardInstance* instance) : StateInstance(blendState) {
             for (auto blendAnimation : blendState->animations()) {
                 m_AnimationInstances.emplace_back(
                     BlendStateAnimationInstance<T>(static_cast<T*>(blendAnimation), instance));

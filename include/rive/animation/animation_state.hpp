@@ -4,7 +4,7 @@
 #include <stdio.h>
 namespace rive {
     class LinearAnimation;
-    class Artboard;
+    class ArtboardInstance;
     class StateMachineLayerImporter;
 
     class AnimationState : public AnimationStateBase {
@@ -15,7 +15,7 @@ namespace rive {
 
     public:
         const LinearAnimation* animation() const { return m_Animation; }
-        StateInstance* makeInstance(Artboard*) const override;
+        StateInstance* makeInstance(ArtboardInstance*) const override;
     };
 } // namespace rive
 

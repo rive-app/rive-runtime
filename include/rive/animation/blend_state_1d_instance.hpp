@@ -13,7 +13,7 @@ namespace rive {
         int animationIndex(float value);
 
     public:
-        BlendState1DInstance(const BlendState1D* blendState, Artboard* instance);
+        BlendState1DInstance(const BlendState1D* blendState, ArtboardInstance* instance);
         void advance(float seconds, SMIInput** inputs) override;
     };
 } // namespace rive

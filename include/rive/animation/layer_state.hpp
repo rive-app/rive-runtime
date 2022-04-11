@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace rive {
-    class Artboard;
+    class ArtboardInstance;
     class StateTransition;
     class LayerStateImporter;
     class StateMachineLayerImporter;
@@ -36,7 +36,7 @@ namespace rive {
 
         /// Make an instance of this state that can be advanced and applied by
         /// the state machine when it is active or being transitioned from.
-        virtual StateInstance* makeInstance(Artboard* instance) const;
+        virtual StateInstance* makeInstance(ArtboardInstance* instance) const;
     };
 } // namespace rive
 

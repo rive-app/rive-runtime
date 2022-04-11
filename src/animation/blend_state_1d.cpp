@@ -6,7 +6,7 @@
 
 using namespace rive;
 
-StateInstance* BlendState1D::makeInstance(Artboard* instance) const {
+StateInstance* BlendState1D::makeInstance(ArtboardInstance* instance) const {
     return new BlendState1DInstance(this, instance);
 }
 
