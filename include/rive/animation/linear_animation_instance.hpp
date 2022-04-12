@@ -68,6 +68,7 @@ namespace rive {
         uint32_t duration() const;
         float speed() const;
         float startSeconds() const;
+        std::string name() const;
     
         // Returns either the animation's default or overridden loop values
         Loop loop() { return (Loop)loopValue(); }

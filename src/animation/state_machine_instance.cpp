@@ -279,6 +279,10 @@ bool StateMachineInstance::advance(float seconds) {
 void StateMachineInstance::markNeedsAdvance() { m_NeedsAdvance = true; }
 bool StateMachineInstance::needsAdvance() const { return m_NeedsAdvance; }
 
+std::string StateMachineInstance::name() const {
+    return m_Machine->name();
+}
+
 SMIInput* StateMachineInstance::input(size_t index) const {
     if (index < m_InputCount) {
         return m_InputInstances[index];

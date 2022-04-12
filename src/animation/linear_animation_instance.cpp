@@ -122,6 +122,10 @@ float LinearAnimationInstance::speed() const { return m_Animation->speed(); }
 
 float LinearAnimationInstance::startSeconds() const { return m_Animation->startSeconds(); }
 
+std::string LinearAnimationInstance::name() const {
+    return m_Animation->name();
+}
+
 // Returns either the animation's default or overridden loop values
 int LinearAnimationInstance::loopValue() {
     if (m_LoopValue != -1) {

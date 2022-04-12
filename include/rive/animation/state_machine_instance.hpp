@@ -52,6 +52,8 @@ namespace rive {
         SMINumber* getNumber(std::string name) const;
         SMITrigger* getTrigger(std::string name) const;
 
+        std::string name() const;
+
         const size_t currentAnimationCount() const;
         const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
 
