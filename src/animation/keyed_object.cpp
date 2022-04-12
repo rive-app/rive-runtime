@@ -50,6 +50,7 @@ StatusCode KeyedObject::import(ImportStack& importStack) {
     if (importer == nullptr) {
         return StatusCode::MissingObject;
     }
-    importer->addKeyedObject(this);
+    // we transfer ownership of ourself to the importer!
+    importer->addKeyedObject(std::unique_ptr<KeyedObject>(this));
     return Super::import(importStack);
 }

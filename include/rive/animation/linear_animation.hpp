@@ -9,15 +9,16 @@ namespace rive {
 
     class LinearAnimation : public LinearAnimationBase {
     private:
-        std::vector<KeyedObject*> m_KeyedObjects;
+        std::vector< std::unique_ptr<KeyedObject> > m_KeyedObjects;
 
         friend class Artboard;
 
     public:
-        ~LinearAnimation();
+        LinearAnimation();
+        ~LinearAnimation() override;
         StatusCode onAddedDirty(CoreContext* context) override;
         StatusCode onAddedClean(CoreContext* context) override;
-        void addKeyedObject(KeyedObject* object);
+        void addKeyedObject(std::unique_ptr<KeyedObject>);
         void apply(Artboard* artboard, float time, float mix = 1.0f) const;
 
         Loop loop() const { return (Loop)loopValue(); }

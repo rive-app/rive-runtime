@@ -10,18 +10,17 @@ using namespace rive;
 int LinearAnimation::deleteCount = 0;
 #endif
 
+LinearAnimation::LinearAnimation() {}
+
 LinearAnimation::~LinearAnimation() {
 #ifdef TESTING
     deleteCount++;
 #endif
-    for (auto object : m_KeyedObjects) {
-        delete object;
-    }
 }
 
 StatusCode LinearAnimation::onAddedDirty(CoreContext* context) {
     StatusCode code;
-    for (auto object : m_KeyedObjects) {
+    for (const auto& object : m_KeyedObjects) {
         if ((code = object->onAddedDirty(context)) != StatusCode::Ok) {
             return code;
         }
@@ -31,7 +30,7 @@ StatusCode LinearAnimation::onAddedDirty(CoreContext* context) {
 
 StatusCode LinearAnimation::onAddedClean(CoreContext* context) {
     StatusCode code;
-    for (auto object : m_KeyedObjects) {
+    for (const auto& object : m_KeyedObjects) {
         if ((code = object->onAddedClean(context)) != StatusCode::Ok) {
             return code;
         }
@@ -39,10 +38,12 @@ StatusCode LinearAnimation::onAddedClean(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void LinearAnimation::addKeyedObject(KeyedObject* object) { m_KeyedObjects.push_back(object); }
+void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object) {
+    m_KeyedObjects.push_back(std::move(object));
+}
 
 void LinearAnimation::apply(Artboard* artboard, float time, float mix) const {
-    for (auto object : m_KeyedObjects) {
+    for (const auto& object : m_KeyedObjects) {
         object->apply(artboard, time, mix);
     }
 }

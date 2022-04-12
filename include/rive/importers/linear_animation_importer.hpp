@@ -14,7 +14,7 @@ namespace rive {
     public:
         LinearAnimation* animation() const { return m_Animation; };
         LinearAnimationImporter(LinearAnimation* animation);
-        void addKeyedObject(KeyedObject* object);
+        void addKeyedObject(std::unique_ptr<KeyedObject>);
     };
 } // namespace rive
 #endif

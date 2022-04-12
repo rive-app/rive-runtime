@@ -437,7 +437,7 @@ AABB Artboard::bounds() const { return AABB(0.0f, 0.0f, width(), height()); }
 bool Artboard::isTranslucent(const LinearAnimation* anim) const {
     // For now we're conservative/lazy -- if we see that any of our paints are
     // animated we assume that might make it non-opaque, so we early out
-    for (const auto obj : anim->m_KeyedObjects) {
+    for (const auto& obj : anim->m_KeyedObjects) {
         const auto ptr = this->resolve(obj->objectId());
         for (const auto sp : m_ShapePaints) {
             if (ptr == sp) {
