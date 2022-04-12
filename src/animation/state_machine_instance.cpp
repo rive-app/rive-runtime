@@ -52,7 +52,7 @@ namespace rive {
         void init(const StateMachineLayer* layer, ArtboardInstance* instance) {
             m_ArtboardInstance = instance;
             assert(m_Layer == nullptr);
-            m_AnyStateInstance = layer->anyState()->makeInstance(instance);
+            m_AnyStateInstance = layer->anyState()->makeInstance(instance).release();
             m_Layer = layer;
             changeState(m_Layer->entryState());
         }
@@ -124,7 +124,7 @@ namespace rive {
             if ((m_CurrentState == nullptr ? nullptr : m_CurrentState->state()) == stateTo) {
                 return false;
             }
-            m_CurrentState = stateTo == nullptr ? nullptr : stateTo->makeInstance(m_ArtboardInstance);
+            m_CurrentState = stateTo == nullptr ? nullptr : stateTo->makeInstance(m_ArtboardInstance).release();
             return true;
         }
 

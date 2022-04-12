@@ -46,6 +46,6 @@ StatusCode LayerState::import(ImportStack& importStack) {
 
 void LayerState::addTransition(StateTransition* transition) { m_Transitions.push_back(transition); }
 
-StateInstance* LayerState::makeInstance(ArtboardInstance* instance) const {
-    return new SystemStateInstance(this, instance);
+std::unique_ptr<StateInstance> LayerState::makeInstance(ArtboardInstance* instance) const {
+    return std::make_unique<SystemStateInstance>(this, instance);
 }

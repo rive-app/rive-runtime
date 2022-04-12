@@ -6,6 +6,6 @@
 
 using namespace rive;
 
-StateInstance* BlendStateDirect::makeInstance(ArtboardInstance* instance) const {
-    return new BlendStateDirectInstance(this, instance);
+std::unique_ptr<StateInstance> BlendStateDirect::makeInstance(ArtboardInstance* instance) const {
+    return std::make_unique<BlendStateDirectInstance>(this, instance);
 }
