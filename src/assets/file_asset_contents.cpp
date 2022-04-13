@@ -1,3 +1,4 @@
+#include <vector>
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/importers/file_asset_importer.hpp"
@@ -15,7 +16,7 @@ StatusCode FileAssetContents::import(ImportStack& importStack) {
 }
 
 void FileAssetContents::decodeBytes(Span<const uint8_t> value) {
-    m_Bytes = std::vector(value.begin(), value.end());
+    m_Bytes = std::vector<uint8_t>(value.begin(), value.end());
 }
 
 void FileAssetContents::copyBytes(const FileAssetContentsBase& object) {
