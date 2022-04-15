@@ -3,7 +3,9 @@
 
 #include <string>
 #include <stddef.h>
+#include <vector>
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/event_type.hpp"
 
 namespace rive {
     class StateMachine;
@@ -13,8 +15,9 @@ namespace rive {
     class SMIBool;
     class SMINumber;
     class SMITrigger;
-
+    class Shape;
     class StateMachineLayerInstance;
+    class HitShape;
 
     class StateMachineInstance {
         friend class SMIInput;
@@ -30,6 +33,9 @@ namespace rive {
         StateMachineLayerInstance* m_Layers;
 
         void markNeedsAdvance();
+
+        std::vector<HitShape*> m_HitShapes;
+        void processEvent(Vec2D position, EventType hitEvent);
 
     public:
         StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);

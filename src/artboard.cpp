@@ -14,6 +14,7 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 
 #include <stack>
 #include <unordered_map>
@@ -287,6 +288,8 @@ Core* Artboard::resolve(uint32_t id) const {
     return m_Objects[id];
 }
 
+uint32_t Artboard::idOf(Core* object) const { return 0; }
+
 void Artboard::onComponentDirty(Component* component) {
     m_Dirt |= ComponentDirt::Components;
 
@@ -506,6 +509,22 @@ StateMachine* Artboard::stateMachine(size_t index) const {
     return m_StateMachines[index];
 }
 
+StateMachineInstance* Artboard::stateMachineInstance(std::string name) {
+    StateMachine* machine = stateMachine(name);
+    if (machine != nullptr) {
+        return new StateMachineInstance(machine, this);
+    }
+    return nullptr;
+}
+
+StateMachineInstance* Artboard::stateMachineInstance(size_t index) {
+    StateMachine* machine = stateMachine(index);
+    if (machine != nullptr) {
+        return new StateMachineInstance(machine, this);
+    }
+    return nullptr;
+}
+
 std::unique_ptr<ArtboardInstance> Artboard::instance() const {
     std::unique_ptr<ArtboardInstance> artboardClone(new ArtboardInstance);
     artboardClone->copy(*this);
@@ -577,7 +596,8 @@ void Artboard::postPointerEvent(const PointerEvent& evt) {
                 assert(gButtonIsDown);
                 gButtonIsDown = false;
                 break;
-            default: break;
+            default:
+                break;
         }
 
 #if 0
@@ -603,13 +623,9 @@ void Artboard::postPointerEvent(const PointerEvent& evt) {
 #endif
 }
 
-void Artboard::testing_only_enque_message(const Message& msg) {
-    m_MessageQueue.push(msg);
-}
+void Artboard::testing_only_enque_message(const Message& msg) { m_MessageQueue.push(msg); }
 
-bool Artboard::hasMessages() const {
-    return !m_MessageQueue.empty();
-}
+bool Artboard::hasMessages() const { return !m_MessageQueue.empty(); }
 
 bool Artboard::nextMessage(Message* msg) {
     if (m_MessageQueue.empty()) {
@@ -626,26 +642,22 @@ bool Artboard::nextMessage(Message* msg) {
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 
-std::unique_ptr<LinearAnimationInstance>
-ArtboardInstance::animationAt(size_t index) {
+std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationAt(size_t index) {
     auto la = this->animation(index);
     return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
 }
 
-std::unique_ptr<LinearAnimationInstance>
-ArtboardInstance::animationNamed(std::string name) {
+std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationNamed(std::string name) {
     auto la = this->animation(name);
     return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
 }
 
-std::unique_ptr<StateMachineInstance>
-ArtboardInstance::stateMachineAt(size_t index) {
+std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineAt(size_t index) {
     auto sm = this->stateMachine(index);
     return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }
 
-std::unique_ptr<StateMachineInstance>
-ArtboardInstance::stateMachineNamed(std::string name) {
+std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineNamed(std::string name) {
     auto sm = this->stateMachine(name);
     return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }

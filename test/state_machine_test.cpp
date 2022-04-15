@@ -73,6 +73,7 @@ TEST_CASE("file with state machine be read", "[file]") {
 
     auto abi = artboard->instance();
     rive::StateMachineInstance smi(artboard->stateMachine("Button"), abi.get());
+
     REQUIRE(smi.getBool("Hover")->name() == "Hover");
     REQUIRE(smi.getBool("Press")->name() == "Press");
     REQUIRE(smi.getBool("Hover") != nullptr);

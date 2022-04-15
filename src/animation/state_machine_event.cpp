@@ -2,6 +2,10 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/generated/animation/state_machine_base.hpp"
+#include "rive/artboard.hpp"
+#include "rive/shapes/shape.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/event_input_change.hpp"
 
 using namespace rive;
 
@@ -23,4 +27,34 @@ const EventInputChange* StateMachineEvent::inputChange(size_t index) const {
         return m_InputChanges[index];
     }
     return nullptr;
+}
+
+StatusCode StateMachineEvent::onAddedClean(CoreContext* context) {
+    auto artboard = static_cast<Artboard*>(context);
+    for (auto core : artboard->objects()) {
+        if (core == nullptr) {
+            continue;
+        }
+        auto target = artboard->resolve(targetId());
+
+        // Iterate artboard to find Shapes that are parented to the target
+        if (core->is<Shape>()) {
+            auto shape = core->as<Shape>();
+            for (ContainerComponent* component = shape; component != nullptr;
+                 component = component->parent()) {
+                if (component == target) {
+                    m_HitShapesIds.push_back(artboard->idOf(shape));
+                    break;
+                }
+            }
+        }
+    }
+
+    return Super::onAddedClean(context);
+}
+
+void StateMachineEvent::performChanges(StateMachineInstance* stateMachineInstance) const {
+    for (auto inputChange : m_InputChanges) {
+        inputChange->perform(stateMachineInstance);
+    }
 }

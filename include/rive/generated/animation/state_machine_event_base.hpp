@@ -28,12 +28,12 @@ namespace rive {
         static const uint16_t eventTypeValuePropertyKey = 225;
 
     private:
-        int m_TargetId = 0;
-        int m_EventTypeValue = 0;
+        uint32_t m_TargetId = 0;
+        uint32_t m_EventTypeValue = 0;
 
     public:
-        inline int targetId() const { return m_TargetId; }
-        void targetId(int value) {
+        inline uint32_t targetId() const { return m_TargetId; }
+        void targetId(uint32_t value) {
             if (m_TargetId == value) {
                 return;
             }
@@ -41,8 +41,8 @@ namespace rive {
             targetIdChanged();
         }
 
-        inline int eventTypeValue() const { return m_EventTypeValue; }
-        void eventTypeValue(int value) {
+        inline uint32_t eventTypeValue() const { return m_EventTypeValue; }
+        void eventTypeValue(uint32_t value) {
             if (m_EventTypeValue == value) {
                 return;
             }
