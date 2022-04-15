@@ -142,16 +142,6 @@ namespace rive {
         StateMachine* stateMachine(std::string name) const;
         StateMachine* stateMachine(size_t index) const;
 
-        /// Make an instance of a state machine given the name of the source state machine in this
-        /// artboard. The StateMachineInstance must be explictly deleted when no longer needed.
-        StateMachineInstance* stateMachineInstance(std::string name);
-
-        /// Make an instance of a state machine given the index of the source state machine in this
-        /// artboard. The StateMachineInstance must be explictly deleted when no longer needed.
-        StateMachineInstance* stateMachineInstance(size_t index);
-
-        size_t stateMachineCount() const { return m_StateMachines.size(); }
-
         /// Make an instance of this artboard, must be explictly deleted when no
         /// longer needed.
         // Deprecated...

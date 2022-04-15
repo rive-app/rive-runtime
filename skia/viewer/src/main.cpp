@@ -324,7 +324,7 @@ int main() {
                                       rive::Fit::contain,
                                       rive::Alignment::center,
                                       rive::AABB(0, 0, width, height),
-                                      artboard->bounds());
+                                      artboardInstance->bounds());
             renderer.transform(viewTransform);
             // Store the inverse view so we can later go from screen to world.
             rive::Mat2D::invert(gInverseViewTransform, viewTransform);

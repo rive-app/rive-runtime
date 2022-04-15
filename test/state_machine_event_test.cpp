@@ -67,7 +67,7 @@ TEST_CASE("hit testing via a state machine works", "[file]") {
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->stateMachineCount() == 1);
 
-    auto stateMachine = artboard->stateMachineInstance(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     REQUIRE(stateMachine != nullptr);
     // Advance artboard once so design time state is effectively in the transforms.
     artboard->advance(0.0f);

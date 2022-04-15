@@ -517,22 +517,6 @@ StateMachine* Artboard::stateMachine(size_t index) const {
     return m_StateMachines[index];
 }
 
-StateMachineInstance* Artboard::stateMachineInstance(std::string name) {
-    StateMachine* machine = stateMachine(name);
-    if (machine != nullptr) {
-        return new StateMachineInstance(machine, this);
-    }
-    return nullptr;
-}
-
-StateMachineInstance* Artboard::stateMachineInstance(size_t index) {
-    StateMachine* machine = stateMachine(index);
-    if (machine != nullptr) {
-        return new StateMachineInstance(machine, this);
-    }
-    return nullptr;
-}
-
 std::unique_ptr<ArtboardInstance> Artboard::instance() const {
     std::unique_ptr<ArtboardInstance> artboardClone(new ArtboardInstance);
     artboardClone->copy(*this);
