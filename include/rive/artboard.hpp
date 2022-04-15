@@ -68,8 +68,8 @@ namespace rive {
 
         Core* resolve(uint32_t id) const override;
 
-        /// Find the index of a component in the artboard the object in the artboard. The artboard
-        /// itself lives at index 0 so we use that as a flag for not found.
+        /// Find the id of a component in the artboard the object in the artboard. The artboard
+        /// itself has id 0 so we use that as a flag for not found.
         uint32_t idOf(Core* object) const;
 
         // EXPERIMENTAL -- for internal testing only for now.
