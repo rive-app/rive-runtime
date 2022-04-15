@@ -31,19 +31,24 @@ const EventInputChange* StateMachineEvent::inputChange(size_t index) const {
 
 StatusCode StateMachineEvent::onAddedClean(CoreContext* context) {
     auto artboard = static_cast<Artboard*>(context);
+    auto target = artboard->resolve(targetId());
+
     for (auto core : artboard->objects()) {
         if (core == nullptr) {
             continue;
         }
-        auto target = artboard->resolve(targetId());
 
         // Iterate artboard to find Shapes that are parented to the target
         if (core->is<Shape>()) {
             auto shape = core->as<Shape>();
+
             for (ContainerComponent* component = shape; component != nullptr;
                  component = component->parent()) {
                 if (component == target) {
-                    m_HitShapesIds.push_back(artboard->idOf(shape));
+                    auto index = artboard->idOf(shape);
+                    if (index != 0) {
+                        m_HitShapesIds.push_back(artboard->idOf(shape));
+                    }
                     break;
                 }
             }

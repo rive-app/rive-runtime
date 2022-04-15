@@ -59,3 +59,25 @@ TEST_CASE("file with state machine events be read", "[file]") {
     REQUIRE(inputChange3 != nullptr);
     REQUIRE(inputChange3->inputId() == 2);
 }
+
+TEST_CASE("hit testing via a state machine works", "[file]") {
+    RiveFileReader reader("../../test/assets/bullet_man.riv");
+
+    auto artboard = reader.file()->artboard("Bullet Man");
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachine = artboard->stateMachineInstance(0);
+    REQUIRE(stateMachine != nullptr);
+    // Advance artboard once so design time state is effectively in the transforms.
+    artboard->advance(0.0f);
+    stateMachine->advance(0.0f);
+    // Don't advance artboard again after applying state machine or our pointerDown will be off. The
+    // coordinates used in this test were from the design-time state.
+
+    auto trigger = stateMachine->getTrigger("Light");
+    REQUIRE(trigger != nullptr);
+    stateMachine->pointerDown(rive::Vec2D(71.0f, 263.0f));
+
+    REQUIRE(trigger->didFire());
+}

@@ -74,6 +74,10 @@ namespace rive {
 
     public:
         void fire();
+
+#ifdef TESTING
+        bool didFire() { return m_Fired; }
+#endif
     };
 } // namespace rive
 #endif

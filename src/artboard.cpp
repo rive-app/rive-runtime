@@ -288,7 +288,15 @@ Core* Artboard::resolve(uint32_t id) const {
     return m_Objects[id];
 }
 
-uint32_t Artboard::idOf(Core* object) const { return 0; }
+uint32_t Artboard::idOf(Core* object) const {
+    auto it = std::find(m_Objects.begin(), m_Objects.end(), object);
+
+    if (it != m_Objects.end()) {
+        return it - m_Objects.begin();
+    } else {
+        return 0;
+    }
+}
 
 void Artboard::onComponentDirty(Component* component) {
     m_Dirt |= ComponentDirt::Components;

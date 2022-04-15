@@ -10,6 +10,7 @@
 namespace rive {
     class Path;
     class PathComposer;
+    class HitTester;
     class Shape : public ShapeBase, public ShapePaintContainer {
     private:
         PathComposer m_PathComposer;
@@ -28,6 +29,7 @@ namespace rive {
         void update(ComponentDirt value) override;
         void draw(Renderer* renderer) override;
         Core* hitTest(HitInfo*, const Mat2D&) override;
+        bool hitTest(const IAABB& area) const;
 
         PathComposer* pathComposer() const { return (PathComposer*)&m_PathComposer; }
 

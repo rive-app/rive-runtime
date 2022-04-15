@@ -57,6 +57,16 @@ void Shape::draw(Renderer* renderer) {
     }
 }
 
+bool Shape::hitTest(const IAABB& area) const {
+    HitTestCommandPath tester(area);
+
+    for (auto path : m_Paths) {
+        tester.setXform(path->pathTransform());
+        path->buildPath(tester);
+    }
+    return tester.wasHit();
+}
+
 Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform) {
     if (renderOpacity() == 0.0f) {
         return nullptr;

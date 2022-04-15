@@ -35,7 +35,8 @@ namespace rive {
         void markNeedsAdvance();
 
         std::vector<HitShape*> m_HitShapes;
-        void processEvent(Vec2D position, EventType hitEvent);
+        /// Provide a hitEvent if you want to process a down or an up for the pointer position too.
+        void processEvent(Vec2D position, EventType hitEvent = EventType::updateHover);
 
     public:
         StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
@@ -71,6 +72,10 @@ namespace rive {
         // previously called advance. If the index of out of range, it returns
         // the empty string.
         const LayerState* stateChangedByIndex(size_t index) const;
+
+        void pointerMove(const Vec2D& position);
+        void pointerDown(const Vec2D& position);
+        void pointerUp(const Vec2D& position);
     };
 } // namespace rive
 #endif
