@@ -93,7 +93,15 @@
         "valarray": "cpp",
         "variant": "cpp",
         "vector": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "*.inc": "cpp",
+        "__bits": "cpp",
+        "cfenv": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "scoped_allocator": "cpp",
+        "span": "cpp",
+        "typeindex": "cpp"
     },
     "git.ignoreLimitWarning": true
 }
