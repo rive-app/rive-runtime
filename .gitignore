@@ -31,9 +31,6 @@
 *.out
 *.app
 
-# test builds
-dev/test/build/bin/*
-
 # aot snapshots
 dev/bin/*
 
@@ -57,6 +54,8 @@ dev/analysis_report
 
 # Build directories
 build/bin
+dev/test/build/bin
+rivinfo/build/macosx
 
 # Skia dependencies
 skia/dependencies/skia
