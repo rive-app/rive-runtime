@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
@@ -13,8 +12,7 @@
 #include <cstdio>
 
 TEST_CASE("image with mesh loads correctly", "[mesh]") {
-    RiveFileReader reader("../../test/assets/tape.riv");
-    auto file = reader.file();
+    auto file = ReadRiveFile("../../test/assets/tape.riv");
 
     auto node = file->artboard()->find("Tape body.png");
     REQUIRE(node != nullptr);
@@ -28,8 +26,7 @@ TEST_CASE("image with mesh loads correctly", "[mesh]") {
 }
 
 TEST_CASE("duplicating a mesh shares the indices", "[mesh]") {
-    RiveFileReader reader("../../test/assets/tape.riv");
-    auto file = reader.file();
+    auto file = ReadRiveFile("../../test/assets/tape.riv");
 
     auto instance1 = file->artboardDefault();
     auto instance2 = file->artboardDefault();

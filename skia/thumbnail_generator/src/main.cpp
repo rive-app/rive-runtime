@@ -2,7 +2,6 @@
 #include "SkImage.h"
 #include "SkStream.h"
 #include "SkSurface.h"
-#include "rive/core/binary_reader.hpp"
 #include "rive/file.hpp"
 #include "rive/math/aabb.hpp"
 #include "skia_renderer.hpp"
@@ -43,22 +42,21 @@ int main(int argc, char* argv[]) {
     fseek(fp, 0, SEEK_END);
     auto length = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    if (fread(bytes, 1, length, fp) != length) {
+    std::vector<uint8_t> bytes(length);
+    if (fread(bytes.data(), 1, length, fp) != length) {
         fprintf(stderr, "Failed to read rive file.\n");
+        fclose(fp);
         return 1;
     }
+    fclose(fp);
 
-    auto reader = rive::BinaryReader(bytes, length);
-    auto file = rive::File::import(reader);
+    auto file = rive::File::import(rive::toSpan(bytes));
     if (!file) {
         fprintf(stderr, "Failed to read rive file.\n");
         return 1;
     }
     auto artboard = file->artboardDefault();
     artboard->advance(0.0f);
-
-    delete[] bytes;
 
     int width = 256, height = 256;
 

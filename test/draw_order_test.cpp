@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
@@ -10,7 +9,7 @@
 #include <cstdio>
 
 TEST_CASE("draw rules load and sort correctly", "[draw rules]") {
-    RiveFileReader reader("../../test/assets/draw_rule_cycle.riv");
+    auto file = ReadRiveFile("../../test/assets/draw_rule_cycle.riv");
 
     // auto file = reader.file();
     // auto node = file->artboard()->node("TopEllipse");

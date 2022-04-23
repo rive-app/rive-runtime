@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/rectangle.hpp>
@@ -9,19 +8,19 @@
 #include <cstdio>
 
 TEST_CASE("file can be read", "[file]") {
-    RiveFileReader reader("../../test/assets/two_artboards.riv");
+    auto file = ReadRiveFile("../../test/assets/two_artboards.riv");
 
     // Default artboard should be named Two.
-    REQUIRE(reader.file()->artboard()->name() == "Two");
+    REQUIRE(file->artboard()->name() == "Two");
 
     // There should be a second artboard named One.
-    REQUIRE(reader.file()->artboard("One") != nullptr);
+    REQUIRE(file->artboard("One") != nullptr);
 }
 
 TEST_CASE("file with animation can be read", "[file]") {
-    RiveFileReader reader("../../test/assets/juice.riv");
+    auto file = ReadRiveFile("../../test/assets/juice.riv");
 
-    auto artboard = reader.file()->artboard();
+    auto artboard = file->artboard();
     REQUIRE(artboard->name() == "New Artboard");
 
     auto shin = artboard->find("shin_right");
@@ -43,8 +42,7 @@ TEST_CASE("file with animation can be read", "[file]") {
 }
 
 TEST_CASE("artboards can be counted and accessed via index or name", "[file]") {
-    RiveFileReader reader("../../test/assets/dependency_test.riv");
-    auto file = reader.file();
+    auto file = ReadRiveFile("../../test/assets/dependency_test.riv");
 
     // The artboards caqn be counted
     REQUIRE(file->artboardCount() == 1);
@@ -75,9 +73,9 @@ TEST_CASE("dependencies are as expected", "[file]") {
     //                   │ ┌──────────────┐
     //                   └▶│Rectangle Path│
     //                     └──────────────┘
-    RiveFileReader reader("../../test/assets/dependency_test.riv");
+    auto file = ReadRiveFile("../../test/assets/dependency_test.riv");
 
-    auto artboard = reader.file()->artboard();
+    auto artboard = file->artboard();
     REQUIRE(artboard->name() == "Blue");
 
     auto nodeA = artboard->find<rive::Node>("A");

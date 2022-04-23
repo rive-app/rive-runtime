@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
@@ -12,8 +11,7 @@
 #include <cstdio>
 
 TEST_CASE("image assets loads correctly", "[assets]") {
-    RiveFileReader reader("../../test/assets/walle.riv");
-    auto file = reader.file();
+    auto file = ReadRiveFile("../../test/assets/walle.riv");
 
     auto node = file->artboard()->find("walle");
     REQUIRE(node != nullptr);
@@ -46,19 +44,7 @@ TEST_CASE("out of band image assets loads correctly", "[assets]") {
     std::string filename = "../../test/assets/out_of_band/walle.riv";
     rive::RelativeLocalAssetResolver resolver(filename);
 
-    FILE* fp = fopen(filename.c_str(), "rb");
-    REQUIRE(fp != nullptr);
-
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    auto file = rive::File::import(reader, nullptr, &resolver);
-
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
+    auto file = ReadRiveFile(filename.c_str(), &resolver);
 
     auto node = file->artboard()->find("walle");
     REQUIRE(node != nullptr);
@@ -85,6 +71,4 @@ TEST_CASE("out of band image assets loads correctly", "[assets]") {
 
     rive::NoOpRenderer renderer;
     file->artboard()->draw(&renderer);
-
-    delete[] bytes;
 }

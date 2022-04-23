@@ -7,8 +7,8 @@
 #include <cstdio>
 
 TEST_CASE("two bone ik places bones correctly", "[file]") {
-    RiveFileReader reader("../../test/assets/two_bone_ik.riv");
-    auto artboard = reader.file()->artboard();
+    auto file = ReadRiveFile("../../test/assets/two_bone_ik.riv");
+    auto artboard = file->artboard();
 
     REQUIRE(artboard->find<rive::Shape>("circle a") != nullptr);
     auto circleA = artboard->find<rive::Shape>("circle a");
@@ -79,8 +79,8 @@ TEST_CASE("two bone ik places bones correctly", "[file]") {
 }
 
 TEST_CASE("ik keeps working after a lot of iterations", "[file]") {
-    RiveFileReader reader("../../test/assets/two_bone_ik.riv");
-    auto artboard = reader.file()->artboard();
+    auto file = ReadRiveFile("../../test/assets/two_bone_ik.riv");
+    auto artboard = file->artboard();
 
     REQUIRE(artboard->find<rive::Shape>("circle a") != nullptr);
     auto circleA = artboard->find<rive::Shape>("circle a");

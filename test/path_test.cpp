@@ -1,5 +1,4 @@
 #include <rive/artboard.hpp>
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/math/circle_constant.hpp>
 #include <rive/node.hpp>

@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/rectangle.hpp>
@@ -12,9 +11,9 @@
 #include <cstdio>
 
 TEST_CASE("stroke can be looked up at runtime", "[file]") {
-    RiveFileReader reader("../../test/assets/stroke_name_test.riv");
+    auto file = ReadRiveFile("../../test/assets/stroke_name_test.riv");
 
-    auto artboard = reader.file()->artboard();
+    auto artboard = file->artboard();
     REQUIRE(artboard->find<rive::Stroke>("white_stroke") != nullptr);
     auto stroke = artboard->find<rive::Stroke>("white_stroke");
     REQUIRE(stroke->paint()->is<rive::SolidColor>());

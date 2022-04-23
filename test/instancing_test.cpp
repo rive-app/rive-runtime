@@ -1,27 +1,15 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
 #include "no_op_renderer.hpp"
+#include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("cloning an ellipse works", "[instancing]") {
-    FILE* fp = fopen("../../test/assets/circle_clips.riv", "rb");
-    REQUIRE(fp != nullptr);
-
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    auto file = rive::File::import(reader);
-
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
+    auto file = ReadRiveFile("../../test/assets/circle_clips.riv");
 
     auto node = file->artboard()->find<rive::Shape>("TopEllipse");
     REQUIRE(node != nullptr);
@@ -31,23 +19,11 @@ TEST_CASE("cloning an ellipse works", "[instancing]") {
     REQUIRE(node->y() == clonedNode->y());
 
     delete clonedNode;
-    delete[] bytes;
 }
 
 TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
-    FILE* fp = fopen("../../test/assets/circle_clips.riv", "rb");
-    REQUIRE(fp != nullptr);
+    auto file = ReadRiveFile("../../test/assets/circle_clips.riv");
 
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    auto file = rive::File::import(reader);
-
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
     REQUIRE(!file->artboard()->isInstance());
 
     auto artboard = file->artboardDefault();
@@ -67,24 +43,10 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
 
     rive::NoOpRenderer renderer;
     artboard->draw(&renderer);
-
-    delete[] bytes;
 }
 
 TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
-    FILE* fp = fopen("../../test/assets/juice.riv", "rb");
-    REQUIRE(fp != nullptr);
-
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    uint8_t* bytes = new uint8_t[length];
-    REQUIRE(fread(bytes, 1, length, fp) == length);
-    auto reader = rive::BinaryReader(bytes, length);
-    auto file = rive::File::import(reader);
-
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
+    auto file = ReadRiveFile("../../test/assets/juice.riv");
 
     auto artboard = file->artboardDefault();
 
@@ -99,6 +61,4 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
     file.reset(nullptr);
     // Now the animations should've been deleted.
     REQUIRE(rive::LinearAnimation::deleteCount == numberOfAnimations);
-
-    delete[] bytes;
 }

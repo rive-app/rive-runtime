@@ -68,8 +68,7 @@ void initStateMachine(int index) {
     stateMachineIndex = index;
     animationIndex = -1;
     assert(fileBytes.size() != 0);
-    rive::BinaryReader reader(rive::toSpan(fileBytes));
-    auto file = rive::File::import(reader);
+    auto file = rive::File::import(rive::toSpan(fileBytes));
     if (!file) {
         fileBytes.clear();
         fprintf(stderr, "failed to import file\n");
@@ -93,8 +92,7 @@ void initAnimation(int index) {
     animationIndex = index;
     stateMachineIndex = -1;
     assert(fileBytes.size() != 0);
-    rive::BinaryReader reader(rive::toSpan(fileBytes));
-    auto file = rive::File::import(reader);
+    auto file = rive::File::import(rive::toSpan(fileBytes));
     if (!file) {
         fileBytes.clear();
         fprintf(stderr, "failed to import file\n");

@@ -1,6 +1,5 @@
 #include <rive/bones/skin.hpp>
 #include <rive/bones/tendon.hpp>
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
@@ -14,9 +13,9 @@
 #include <cstdio>
 
 TEST_CASE("bound bones load correctly", "[bones]") {
-    RiveFileReader reader("../../test/assets/off_road_car.riv");
+    auto file = ReadRiveFile("../../test/assets/off_road_car.riv");
 
-    auto node = reader.file()->artboard()->find("transmission_front_testing");
+    auto node = file->artboard()->find("transmission_front_testing");
     REQUIRE(node != nullptr);
     REQUIRE(node->is<rive::Shape>());
     REQUIRE(node->as<rive::Shape>()->paths().size() == 1);

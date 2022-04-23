@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
@@ -10,9 +9,8 @@
 #include <cstdio>
 
 TEST_CASE("clipping loads correctly", "[clipping]") {
-    RiveFileReader reader("../../test/assets/circle_clips.riv");
+    auto file = ReadRiveFile("../../test/assets/circle_clips.riv");
 
-    auto file = reader.file();
     auto node = file->artboard()->find("TopEllipse");
     REQUIRE(node != nullptr);
     REQUIRE(node->is<rive::Shape>());

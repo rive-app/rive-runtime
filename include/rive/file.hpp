@@ -3,8 +3,6 @@
 
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
-#include "rive/core/binary_reader.hpp"
-#include "rive/runtime_header.hpp"
 #include "rive/file_asset_resolver.hpp"
 #include <vector>
 
@@ -12,6 +10,9 @@
 /// Default namespace for Rive Cpp runtime code.
 ///
 namespace rive {
+    class BinaryReader;
+    class RuntimeHeader;
+
     ///
     /// Tracks the success/failure result when importing a Rive file.
     ///
@@ -54,12 +55,12 @@ namespace rive {
 
         ///
         /// Imports a Rive file from a binary buffer.
-        /// @param reader a pointer to a binary reader attached to the file.
+        /// @param data the raw date of the file.
         /// @param result is an optional status result.
         /// @param assetResolver is an optional helper to resolve assets which
         /// cannot be found in-band.
         /// @returns a pointer to the file, or null on failure.
-        static std::unique_ptr<File> import(BinaryReader& reader,
+        static std::unique_ptr<File> import(Span<const uint8_t> data,
                                    ImportResult* result  = nullptr,
                                    FileAssetResolver* assetResolver = nullptr);
 

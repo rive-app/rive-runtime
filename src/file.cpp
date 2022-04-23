@@ -1,4 +1,5 @@
 #include "rive/file.hpp"
+#include "rive/runtime_header.hpp"
 #include "rive/animation/animation.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
@@ -110,9 +111,9 @@ File::File(FileAssetResolver* assetResolver) : m_AssetResolver(assetResolver) {}
 
 File::~File() {}
 
-// Import a Rive file from a file handle
 std::unique_ptr<File>
-File::import(BinaryReader& reader, ImportResult* result, FileAssetResolver* assetResolver) {
+File::import(Span<const uint8_t> bytes, ImportResult* result, FileAssetResolver* assetResolver) {
+    BinaryReader reader(bytes);
     RuntimeHeader header;
     if (!RuntimeHeader::read(reader, header)) {
         fprintf(stderr, "Bad header\n");

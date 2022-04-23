@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/constraints/ik_constraint.hpp>
 #include <rive/node.hpp>
@@ -11,9 +10,9 @@
 #include <cstdio>
 
 TEST_CASE("ik with skinned bones orders correctly", "[file]") {
-    RiveFileReader reader("../../test/assets/complex_ik_dependency.riv");
+    auto file = ReadRiveFile("../../test/assets/complex_ik_dependency.riv");
 
-    auto artboard = reader.file()->artboard();
+    auto artboard = file->artboard();
 
     REQUIRE(artboard->find<rive::Bone>("One") != nullptr);
     auto one = artboard->find<rive::Bone>("One");

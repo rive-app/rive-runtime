@@ -1,4 +1,3 @@
-#include <rive/core/binary_reader.hpp>
 #include <rive/file.hpp>
 #include <rive/animation/state_machine_bool.hpp>
 #include <rive/animation/state_machine_layer.hpp>
@@ -16,9 +15,9 @@
 #include <cstdio>
 
 TEST_CASE("file with state machine be read", "[file]") {
-    RiveFileReader reader("../../test/assets/rocket.riv");
+    auto file = ReadRiveFile("../../test/assets/rocket.riv");
 
-    auto artboard = reader.file()->artboard();
+    auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->animationCount() == 3);
     REQUIRE(artboard->stateMachineCount() == 1);
@@ -83,9 +82,9 @@ TEST_CASE("file with state machine be read", "[file]") {
 }
 
 TEST_CASE("file with blend states loads correctly", "[file]") {
-    RiveFileReader reader("../../test/assets/blend_test.riv");
+    auto file = ReadRiveFile("../../test/assets/blend_test.riv");
 
-    auto artboard = reader.file()->artboard();
+    auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->animationCount() == 4);
     REQUIRE(artboard->stateMachineCount() == 2);
@@ -138,9 +137,9 @@ TEST_CASE("file with blend states loads correctly", "[file]") {
 }
 
 TEST_CASE("animation state with no animation doesn't crash", "[file]") {
-    RiveFileReader reader("../../test/assets/multiple_state_machines.riv");
+    auto file = ReadRiveFile("../../test/assets/multiple_state_machines.riv");
 
-    auto artboard = reader.file()->artboard();
+    auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->animationCount() == 1);
     REQUIRE(artboard->stateMachineCount() == 4);
