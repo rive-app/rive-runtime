@@ -15,9 +15,11 @@ namespace rive {
     public:
         StateMachineImporter(StateMachine* machine);
         const StateMachine* stateMachine() const { return m_StateMachine; }
-        void addLayer(StateMachineLayer* layer);
-        void addInput(StateMachineInput* input);
-        void addEvent(StateMachineEvent* event);
+
+        void addLayer(std::unique_ptr<StateMachineLayer>);
+        void addInput(std::unique_ptr<StateMachineInput>);
+        void addEvent(std::unique_ptr<StateMachineEvent>);
+
         StatusCode resolve() override;
         bool readNullObject() override;
     };

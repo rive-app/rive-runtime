@@ -58,6 +58,7 @@ StatusCode StateMachineLayer::import(ImportStack& importStack) {
     if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
-    stateMachineImporter->addLayer(this);
+    // WOW -- we're handing off ownership of this!
+    stateMachineImporter->addLayer(std::unique_ptr<StateMachineLayer>(this));
     return Super::import(importStack);
 }

@@ -14,6 +14,7 @@ StatusCode StateMachineInput::import(ImportStack& importStack) {
     if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
-    stateMachineImporter->addInput(this);
+    // WOW -- we're handing off ownership of this!
+    stateMachineImporter->addInput(std::unique_ptr<StateMachineInput>(this));
     return Super::import(importStack);
 }

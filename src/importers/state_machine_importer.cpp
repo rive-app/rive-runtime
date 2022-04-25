@@ -1,15 +1,24 @@
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/animation/state_machine.hpp"
+#include "rive/animation/state_machine_event.hpp"
+#include "rive/animation/state_machine_input.hpp"
+#include "rive/animation/state_machine_layer.hpp"
 
 using namespace rive;
 
 StateMachineImporter::StateMachineImporter(StateMachine* machine) : m_StateMachine(machine) {}
 
-void StateMachineImporter::addLayer(StateMachineLayer* layer) { m_StateMachine->addLayer(layer); }
+void StateMachineImporter::addLayer(std::unique_ptr<StateMachineLayer> layer) {
+    m_StateMachine->addLayer(std::move(layer));
+}
 
-void StateMachineImporter::addInput(StateMachineInput* input) { m_StateMachine->addInput(input); }
+void StateMachineImporter::addInput(std::unique_ptr<StateMachineInput> input) {
+    m_StateMachine->addInput(std::move(input));
+}
 
-void StateMachineImporter::addEvent(StateMachineEvent* event) { m_StateMachine->addEvent(event); }
+void StateMachineImporter::addEvent(std::unique_ptr<StateMachineEvent> event) {
+    m_StateMachine->addEvent(std::move(event));
+}
 
 bool StateMachineImporter::readNullObject() {
     // Hard assumption that we won't add new layer types...

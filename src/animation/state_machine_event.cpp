@@ -18,7 +18,8 @@ StatusCode StateMachineEvent::import(ImportStack& importStack) {
     if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
-    stateMachineImporter->addEvent(this);
+    // Handing off ownership of this!
+    stateMachineImporter->addEvent(std::unique_ptr<StateMachineEvent>(this));
     return Super::import(importStack);
 }
 

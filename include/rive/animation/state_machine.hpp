@@ -13,16 +13,18 @@ namespace rive {
         friend class StateMachineImporter;
 
     private:
-        std::vector<StateMachineLayer*> m_Layers;
-        std::vector<StateMachineInput*> m_Inputs;
-        std::vector<StateMachineEvent*> m_Events;
+        std::vector<std::unique_ptr<StateMachineLayer>> m_Layers;
+        std::vector<std::unique_ptr<StateMachineInput>> m_Inputs;
+        std::vector<std::unique_ptr<StateMachineEvent>> m_Events;
 
-        void addLayer(StateMachineLayer* layer);
-        void addInput(StateMachineInput* input);
-        void addEvent(StateMachineEvent* event);
+        void addLayer(std::unique_ptr<StateMachineLayer>);
+        void addInput(std::unique_ptr<StateMachineInput>);
+        void addEvent(std::unique_ptr<StateMachineEvent>);
 
     public:
+        StateMachine();
         ~StateMachine();
+
         StatusCode import(ImportStack& importStack) override;
 
         size_t layerCount() const { return m_Layers.size(); }
