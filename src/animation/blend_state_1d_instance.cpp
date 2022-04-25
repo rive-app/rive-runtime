@@ -30,7 +30,7 @@ int BlendState1DInstance::animationIndex(float value) {
     return idx;
 }
 
-void BlendState1DInstance::advance(float seconds, SMIInput** inputs) {
+void BlendState1DInstance::advance(float seconds, Span<SMIInput*> inputs) {
     BlendStateInstance<BlendState1D, BlendAnimation1D>::advance(seconds, inputs);
 
     auto blendState = state()->as<BlendState1D>();

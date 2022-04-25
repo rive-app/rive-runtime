@@ -6,7 +6,7 @@ using namespace rive;
 BlendStateDirectInstance::BlendStateDirectInstance(const BlendStateDirect* blendState, ArtboardInstance* instance) :
     BlendStateInstance<BlendStateDirect, BlendAnimationDirect>(blendState, instance) {}
 
-void BlendStateDirectInstance::advance(float seconds, SMIInput** inputs) {
+void BlendStateDirectInstance::advance(float seconds, Span<SMIInput*> inputs) {
     BlendStateInstance<BlendStateDirect, BlendAnimationDirect>::advance(seconds, inputs);
     for (auto& animation : m_AnimationInstances) {
         auto inputInstance = inputs[animation.blendAnimation()->inputId()];

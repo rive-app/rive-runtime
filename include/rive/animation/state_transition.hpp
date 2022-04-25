@@ -47,7 +47,7 @@ namespace rive {
         /// Returns AllowTransition::yes when this transition can be taken from
         /// stateFrom with the given inputs.
         AllowTransition
-        allowed(StateInstance* stateFrom, SMIInput** inputs, bool ignoreTriggers) const;
+        allowed(StateInstance* stateFrom, Span<SMIInput*> inputs, bool ignoreTriggers) const;
 
         /// Whether the animation is held at exit or if it keeps advancing
         /// during mixing.

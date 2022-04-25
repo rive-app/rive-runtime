@@ -27,16 +27,18 @@ namespace rive {
         ArtboardInstance* m_ArtboardInstance;
         bool m_NeedsAdvance = false;
 
-        size_t m_InputCount;
-        SMIInput** m_InputInstances;
+        std::vector<SMIInput*> m_InputInstances;    // we own each pointer
         size_t m_LayerCount;
         StateMachineLayerInstance* m_Layers;
 
         void markNeedsAdvance();
 
-        std::vector<HitShape*> m_HitShapes;
+        std::vector<std::unique_ptr<HitShape>> m_HitShapes;
         /// Provide a hitEvent if you want to process a down or an up for the pointer position too.
         void processEvent(Vec2D position, EventType hitEvent = EventType::updateHover);
+
+        template <typename SMType, typename InstType>
+        InstType* getNamedInput(std::string name) const;
 
     public:
         StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
@@ -52,7 +54,7 @@ namespace rive {
         // Returns a pointer to the instance's stateMachine
         const StateMachine* stateMachine() const { return m_Machine; }
 
-        size_t inputCount() const { return m_InputCount; }
+        size_t inputCount() const { return m_InputInstances.size(); }
         SMIInput* input(size_t index) const;
 
         SMIBool* getBool(std::string name) const;

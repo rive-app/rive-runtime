@@ -46,7 +46,7 @@ namespace rive {
 
         bool keepGoing() const override { return m_KeepGoing; }
 
-        void advance(float seconds, SMIInput** inputs) override {
+        void advance(float seconds, Span<SMIInput*>) override {
             m_KeepGoing = false;
             for (auto& animation : m_AnimationInstances) {
                 if (animation.m_AnimationInstance.advance(seconds)) {

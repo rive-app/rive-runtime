@@ -12,7 +12,7 @@ namespace rive {
     public:
         SystemStateInstance(const LayerState* layerState, ArtboardInstance* instance);
 
-        void advance(float seconds, SMIInput** inputs) override;
+        void advance(float seconds, Span<SMIInput*> inputs) override;
         void apply(float mix) override;
 
         bool keepGoing() const override;

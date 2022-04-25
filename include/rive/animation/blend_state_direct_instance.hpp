@@ -10,7 +10,7 @@ namespace rive {
         : public BlendStateInstance<BlendStateDirect, BlendAnimationDirect> {
     public:
         BlendStateDirectInstance(const BlendStateDirect* blendState, ArtboardInstance* instance);
-        void advance(float seconds, SMIInput** inputs) override;
+        void advance(float seconds, Span<SMIInput*> inputs) override;
     };
 } // namespace rive
 #endif

@@ -74,7 +74,7 @@ namespace rive {
             }
         }
 
-        bool advance(/*Artboard* artboard, */ float seconds, SMIInput** inputs, size_t inputCount) {
+        bool advance(/*Artboard* artboard, */float seconds, Span<SMIInput*> inputs) {
             m_StateChangedOnAdvance = false;
 
             if (m_CurrentState != nullptr) {
@@ -109,7 +109,7 @@ namespace rive {
                    m_Transition->duration() != 0 && m_Mix < 1.0f;
         }
 
-        bool updateState(SMIInput** inputs, bool ignoreTriggers) {
+        bool updateState(Span<SMIInput*> inputs, bool ignoreTriggers) {
             // Don't allow changing state while a transition is taking place
             // (we're mixing one state onto another).
             if (isTransitioning()) {
@@ -135,7 +135,7 @@ namespace rive {
         }
 
         bool
-        tryChangeState(StateInstance* stateFromInstance, SMIInput** inputs, bool ignoreTriggers) {
+        tryChangeState(StateInstance* stateFromInstance, Span<SMIInput*> inputs, bool ignoreTriggers) {
             if (stateFromInstance == nullptr) {
                 return false;
             }
@@ -243,7 +243,7 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
                         position.y() + hitRadius)
                        .round();
 
-    for (auto hitShape : m_HitShapes) {
+    for (const auto& hitShape : m_HitShapes) {
 
         // TODO: quick reject.
 
@@ -287,13 +287,11 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
     m_Machine(machine), m_ArtboardInstance(instance) {
     assert(instance->isInstance());
-
-    m_InputCount = machine->inputCount();
-    m_InputInstances = new SMIInput*[m_InputCount];
-    for (size_t i = 0; i < m_InputCount; i++) {
+    const auto count = machine->inputCount();
+    m_InputInstances.resize(count);
+    for (size_t i = 0; i < count; i++) {
         auto input = machine->input(i);
         if (input == nullptr) {
-            m_InputInstances[i] = nullptr;
             continue;
         }
         switch (input->coreType()) {
@@ -308,7 +306,6 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 break;
             default:
                 // Sanity check.
-                m_InputInstances[i] = nullptr;
                 break;
         }
     }
@@ -334,8 +331,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             if (itr == hitShapeLookup.end()) {
                 auto shape = m_ArtboardInstance->resolve(id);
                 if (shape != nullptr && shape->is<Shape>()) {
-                    hitShapeLookup[id] = hitShape = new HitShape(shape->as<Shape>());
-                    m_HitShapes.push_back(hitShape);
+                    auto hs = std::make_unique<HitShape>(shape->as<Shape>());
+                    hitShapeLookup[id] = hitShape = hs.get();
+                    m_HitShapes.push_back(std::move(hs));
                 } else {
                     // No object or not a shape...
                     continue;
@@ -349,27 +347,22 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 }
 
 StateMachineInstance::~StateMachineInstance() {
-    for (auto hitShape : m_HitShapes) {
-        delete hitShape;
+    for (auto inst : m_InputInstances) {
+        delete inst;
     }
-    // TODO: can this and others be rewritten as for (auto inst : m_InputInstances) ?
-    for (size_t i = 0; i < m_InputCount; i++) {
-        delete m_InputInstances[i];
-    }
-    delete[] m_InputInstances;
     delete[] m_Layers;
 }
 
 bool StateMachineInstance::advance(float seconds) {
     m_NeedsAdvance = false;
     for (size_t i = 0; i < m_LayerCount; i++) {
-        if (m_Layers[i].advance(seconds, m_InputInstances, m_InputCount)) {
+        if (m_Layers[i].advance(seconds, toSpan(m_InputInstances))) {
             m_NeedsAdvance = true;
         }
     }
 
-    for (size_t i = 0; i < m_InputCount; i++) {
-        m_InputInstances[i]->advanced();
+    for (auto inst : m_InputInstances) {
+        inst->advanced();
     }
 
     return m_NeedsAdvance;
@@ -381,39 +374,31 @@ bool StateMachineInstance::needsAdvance() const { return m_NeedsAdvance; }
 std::string StateMachineInstance::name() const { return m_Machine->name(); }
 
 SMIInput* StateMachineInstance::input(size_t index) const {
-    if (index < m_InputCount) {
+    if (index < m_InputInstances.size()) {
         return m_InputInstances[index];
     }
     return nullptr;
 }
 
-SMIBool* StateMachineInstance::getBool(std::string name) const {
-    for (size_t i = 0; i < m_InputCount; i++) {
-        auto input = m_InputInstances[i]->input();
-        if (input->is<StateMachineBool>() && input->name() == name) {
-            return static_cast<SMIBool*>(m_InputInstances[i]);
+template <typename SMType, typename InstType>
+InstType* StateMachineInstance::getNamedInput(std::string name) const {
+    for (const auto inst : m_InputInstances) {
+        auto input = inst->input();
+        if (input->is<SMType>() && input->name() == name) {
+            return static_cast<InstType*>(inst);
         }
     }
     return nullptr;
 }
 
+SMIBool* StateMachineInstance::getBool(std::string name) const {
+    return getNamedInput<StateMachineBool, SMIBool>(name);
+}
 SMINumber* StateMachineInstance::getNumber(std::string name) const {
-    for (size_t i = 0; i < m_InputCount; i++) {
-        auto input = m_InputInstances[i]->input();
-        if (input->is<StateMachineNumber>() && input->name() == name) {
-            return static_cast<SMINumber*>(m_InputInstances[i]);
-        }
-    }
-    return nullptr;
+    return getNamedInput<StateMachineNumber, SMINumber>(name);
 }
 SMITrigger* StateMachineInstance::getTrigger(std::string name) const {
-    for (size_t i = 0; i < m_InputCount; i++) {
-        auto input = m_InputInstances[i]->input();
-        if (input->is<StateMachineTrigger>() && input->name() == name) {
-            return static_cast<SMITrigger*>(m_InputInstances[i]);
-        }
-    }
-    return nullptr;
+    return getNamedInput<StateMachineTrigger, SMITrigger>(name);
 }
 
 size_t StateMachineInstance::stateChangedCount() const {

@@ -10,7 +10,7 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
     m_KeepGoing(true)
 {}
 
-void AnimationStateInstance::advance(float seconds, SMIInput** inputs) {
+void AnimationStateInstance::advance(float seconds, Span<SMIInput*>) {
     m_KeepGoing = m_AnimationInstance.advance(seconds);
 }
 

@@ -17,7 +17,7 @@ namespace rive {
     public:
         AnimationStateInstance(const AnimationState* animationState, ArtboardInstance* instance);
 
-        void advance(float seconds, SMIInput** inputs) override;
+        void advance(float seconds, Span<SMIInput*>) override;
         void apply(float mix) override;
 
         bool keepGoing() const override;

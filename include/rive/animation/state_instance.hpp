@@ -3,6 +3,8 @@
 
 #include <string>
 #include <stddef.h>
+#include "rive/rive_types.hpp"
+#include "rive/span.hpp"
 
 namespace rive {
     class LayerState;
@@ -17,7 +19,7 @@ namespace rive {
     public:
         StateInstance(const LayerState* layerState);
         virtual ~StateInstance();
-        virtual void advance(float seconds, SMIInput** inputs) = 0;
+        virtual void advance(float seconds, Span<SMIInput*> inputs) = 0;
         virtual void apply(float mix) = 0;
 
         /// Returns true when the State Machine needs to keep advancing this

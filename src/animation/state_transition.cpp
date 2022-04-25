@@ -102,7 +102,7 @@ const LinearAnimation* StateTransition::exitTimeAnimation(const LayerState* from
 }
 
 AllowTransition
-StateTransition::allowed(StateInstance* stateFrom, SMIInput** inputs, bool ignoreTriggers) const {
+StateTransition::allowed(StateInstance* stateFrom, Span<SMIInput*> inputs, bool ignoreTriggers) const {
     if (isDisabled()) {
         return AllowTransition::no;
     }
