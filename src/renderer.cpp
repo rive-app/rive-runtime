@@ -3,18 +3,7 @@
 
 using namespace rive;
 
-void Renderer::translate(float tx, float ty) { this->transform(Mat2D(1, 0, 0, 1, tx, ty)); }
-
-void Renderer::scale(float sx, float sy) { this->transform(Mat2D(sx, 0, 0, sy, 0, 0)); }
-
-void Renderer::rotate(float radians) {
-    const float s = std::sin(radians);
-    const float c = std::cos(radians);
-    this->transform(Mat2D(c, s, -s, c, 0, 0));
-}
-
-void Renderer::computeAlignment(
-    Mat2D& result, Fit fit, const Alignment& alignment, const AABB& frame, const AABB& content) {
+Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, const AABB& content) {
     float contentWidth = content[2] - content[0];
     float contentHeight = content[3] - content[1];
     float x = -content[0] - contentWidth / 2.0 - (alignment.x() * contentWidth / 2.0);
@@ -66,11 +55,15 @@ void Renderer::computeAlignment(
     translation[4] = frame[0] + frame.width() / 2.0 + (alignment.x() * frame.width() / 2.0);
     translation[5] = frame[1] + frame.height() / 2.0 + (alignment.y() * frame.height() / 2.0);
 
-    result = translation * Mat2D::fromScale(scaleX, scaleY) * Mat2D::fromTranslate(x, y);
+    return translation * Mat2D::fromScale(scaleX, scaleY) * Mat2D::fromTranslate(x, y);
 }
 
-void Renderer::align(Fit fit, const Alignment& alignment, const AABB& frame, const AABB& content) {
-    Mat2D result;
-    computeAlignment(result, fit, alignment, frame, content);
-    transform(result);
+void Renderer::translate(float tx, float ty) { this->transform(Mat2D(1, 0, 0, 1, tx, ty)); }
+
+void Renderer::scale(float sx, float sy) { this->transform(Mat2D(sx, 0, 0, sy, 0, 0)); }
+
+void Renderer::rotate(float radians) {
+    const float s = std::sin(radians);
+    const float c = std::cos(radians);
+    this->transform(Mat2D(c, s, -s, c, 0, 0));
 }

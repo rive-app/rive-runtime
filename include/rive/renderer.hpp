@@ -19,6 +19,9 @@
 namespace rive {
     class Vec2D;
 
+    // Helper that computes a matrix to "align" content (source) to fit inside frame (destination).
+    Mat2D computeAlignment(Fit, Alignment, const AABB& frame, const AABB& content);
+
     // A render buffer holds an immutable array of values
     class RenderBuffer : public RefCnt {
         const size_t m_Count;
@@ -139,13 +142,9 @@ namespace rive {
         void scale(float sx, float sy);
         void rotate(float radians);
 
-        void computeAlignment(Mat2D& result,
-                              Fit fit,
-                              const Alignment& alignment,
-                              const AABB& frame,
-                              const AABB& content);
-
-        void align(Fit fit, const Alignment& alignment, const AABB& frame, const AABB& content);
+        void align(Fit fit, Alignment alignment, const AABB& frame, const AABB& content) {
+            transform(computeAlignment(fit, alignment, frame, content));
+        }
     };
 
     // Returns a full-formed RenderPath -- can be treated as immutable

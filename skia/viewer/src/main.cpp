@@ -280,12 +280,10 @@ int main() {
             rive::SkiaRenderer renderer(canvas);
             renderer.save();
 
-            rive::Mat2D viewTransform;
-            renderer.computeAlignment(viewTransform,
-                                      rive::Fit::contain,
-                                      rive::Alignment::center,
-                                      rive::AABB(0, 0, width, height),
-                                      artboardInstance->bounds());
+            auto viewTransform = rive::computeAlignment(rive::Fit::contain,
+                                                        rive::Alignment::center,
+                                                        rive::AABB(0, 0, width, height),
+                                                        artboardInstance->bounds());
             renderer.transform(viewTransform);
             // Store the inverse view so we can later go from screen to world.
             rive::Mat2D::invert(gInverseViewTransform, viewTransform);
