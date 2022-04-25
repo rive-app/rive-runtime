@@ -154,51 +154,12 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
     initAnimation(0);
 }
 
-// returns the mouse position, transforming it through the inverse of
-// the canvas' CTM -- which may have been altered to scale/translate
-// the artboard into the window.
-//
-static void post_mouse_event(rive::Artboard* artboard, const SkMatrix& ctm) {
-    static ImVec2 gPrevMousePos = {-1000, -1000};
-    const auto mouse = ImGui::GetMousePos();
-
-    static bool gPrevMouseButtonDown = false;
-    const bool isDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
-
-    if (mouse.x == gPrevMousePos.x && mouse.y == gPrevMousePos.y && isDown == gPrevMouseButtonDown)
-    {
-        return;
-    }
-
-    auto evtType = rive::PointerEventType::move;
-    if (isDown && !gPrevMouseButtonDown) {
-        evtType = rive::PointerEventType::down; // we just went down
-    } else if (!isDown && gPrevMouseButtonDown) {
-        evtType = rive::PointerEventType::up; // we just went up
-    }
-
-    gPrevMousePos = mouse;
-    gPrevMouseButtonDown = isDown;
-
-    SkMatrix inv;
-    (void)ctm.invert(&inv);
-
-    // scale by 2 for the DPI of a high-res monitor
-    const auto pt = inv.mapXY(mouse.x * 2, mouse.y * 2);
-
-    const int pointerIndex = 0; // til we track more than one button/mouse
-    rive::PointerEvent evt = {
-        evtType,
-        {pt.fX, pt.fY},
-        pointerIndex,
-    };
-    artboard->postPointerEvent(evt);
-}
-
 static void test_messages(rive::Artboard* artboard) {
     rive::Message msg;
     int i = 0;
+#ifdef DEBUG
     bool hasAny = artboard->hasMessages();
+#endif
 
     while (artboard->nextMessage(&msg)) {
         printf("-- message[%d]: '%s'\n", i, msg.m_Str.c_str());

@@ -7,7 +7,6 @@
 #include "rive/generated/artboard_base.hpp"
 #include "rive/hit_info.hpp"
 #include "rive/message.hpp"
-#include "rive/pointer_event.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
@@ -84,11 +83,6 @@ namespace rive {
         void onDirty(ComponentDirt dirt) override;
 
         bool advance(double elapsedSeconds);
-
-        // Call this to forward pointer events to the artboard
-        // They will be processed when advance() is called.
-        //
-        void postPointerEvent(const PointerEvent&);
 
         // Returns true iff calling popMessage() will return true.
         bool hasMessages() const;
