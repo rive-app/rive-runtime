@@ -22,5 +22,5 @@ elif [ "$OPTION" = "clean" ]; then
 elif [ "$OPTION" = "release" ]; then
     premake5 gmake && make config=release -j7
 else
-    premake5 gmake && make -j7
+    premake5 gmake && make config=debug -j7
 fi

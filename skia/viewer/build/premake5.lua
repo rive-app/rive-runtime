@@ -10,37 +10,66 @@ location("./")
 dofile(path.join(BASE_DIR, "premake5.lua"))
 
 project "rive_viewer"
-kind "ConsoleApp"
-language "C++"
-cppdialect "C++17"
-targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
-objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
-includedirs {"../include", "../../../include", "../../renderer/include", "../../dependencies/glfw/include",
-             "../../dependencies/skia", "../../dependencies/skia/include/core",
-             "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
-             "../../dependencies/skia/include/config", "../../dependencies/imgui", "../../dependencies",
-             "../../dependencies/gl3w/build/include"}
+    kind "ConsoleApp"
+    language "C++"
+    cppdialect "C++17"
+    targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
+    objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
+    includedirs {
+        "../include",
+        "../../../include",
+        "../../renderer/include",
+        "../../dependencies/glfw/include",
+        "../../dependencies/skia",
+        "../../dependencies/skia/include/core",
+        "../../dependencies/skia/include/effects",
+        "../../dependencies/skia/include/gpu",
+        "../../dependencies/skia/include/config",
+        "../../dependencies/imgui",
+        "../../dependencies",
+        "../../dependencies/gl3w/build/include"
+    }
 
-links {"Cocoa.framework", "IOKit.framework", "CoreVideo.framework", "rive", "skia", "rive_skia_renderer", "glfw3"}
-libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}", "../../dependencies/glfw_build/src",
-         "../../dependencies/skia/out/static", "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"}
+    links {
+        "Cocoa.framework",
+        "IOKit.framework",
+        "CoreVideo.framework",
+        "rive",
+        "skia",
+        "rive_skia_renderer",
+        "glfw3"
+    }
 
-files {"../src/**.cpp", "../../dependencies/gl3w/build/src/gl3w.c",
-       "../../dependencies/imgui/backends/imgui_impl_glfw.cpp",
-       "../../dependencies/imgui/backends/imgui_impl_opengl3.cpp", "../../dependencies/imgui/imgui_widgets.cpp",
-       "../../dependencies/imgui/imgui.cpp", "../../dependencies/imgui/imgui_tables.cpp",
-       "../../dependencies/imgui/imgui_draw.cpp"}
+    libdirs {
+        "../../../build/%{cfg.system}/bin/%{cfg.buildcfg}",
+        "../../dependencies/glfw_build/src",
+        "../../dependencies/skia/out/static",
+        "../../renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}"
+    }
 
-buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-flto=full", "-g"}
-filter "configurations:debug"
-defines {"DEBUG"}
-symbols "On"
+    files {
+        "../src/**.cpp",
+        "../../dependencies/gl3w/build/src/gl3w.c",
+        "../../dependencies/imgui/backends/imgui_impl_glfw.cpp",
+        "../../dependencies/imgui/backends/imgui_impl_opengl3.cpp",
+        "../../dependencies/imgui/imgui_widgets.cpp",
+        "../../dependencies/imgui/imgui.cpp",
+        "../../dependencies/imgui/imgui_tables.cpp",
+        "../../dependencies/imgui/imgui_draw.cpp"
+    }
 
-filter "configurations:release"
+    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti"}
 
-defines {"RELEASE"}
-defines {"NDEBUG"}
-optimize "On"
+    filter "configurations:debug"
+        buildoptions {"-g"}
+        defines {"DEBUG"}
+        symbols "On"
+
+    filter "configurations:release"
+        buildoptions {"-flto=full"}
+        defines {"RELEASE"}
+        defines {"NDEBUG"}
+        optimize "On"
 
 -- Clean Function --
 newaction {

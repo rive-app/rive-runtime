@@ -66,14 +66,6 @@ project "rive"
 
     files {"../src/**.cpp"}
 
-    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
-
-    filter {"system:macosx" }
-        buildoptions {"-flto=full"}
-
-    filter {"system:ios" }
-        buildoptions {"-flto=full"}
-
     filter "system:windows"
         architecture "x64"
         defines {"_USE_MATH_DEFINES"}
@@ -88,9 +80,6 @@ project "rive"
         buildoptions {"-mios-version-min=10.0 -arch arm64 -arch x86_64 -arch i386 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
-
-    filter { "system:android", "configurations:release" }
-        buildoptions {"-flto=full"}
 
     -- Is there a way to pass 'arch' as a variable here?
     filter { "system:android", "options:arch=x86" }
@@ -109,11 +98,15 @@ project "rive"
         targetdir "%{cfg.system}/arm64/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}/arm64/obj/%{cfg.buildcfg}"
 
+    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
+
     filter "configurations:debug"
+        buildoptions {"-g"}
         defines {"DEBUG"}
         symbols "On"
 
     filter "configurations:release"
+        buildoptions {"-flto=full"}
         defines {"RELEASE"}
         defines {"NDEBUG"}
         optimize "On"

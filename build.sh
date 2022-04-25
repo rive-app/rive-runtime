@@ -39,7 +39,7 @@ else
         elif [ "$OPTION" = "release" ]; then
             make config=release -j7
         else
-            make -j7
+            make config=debug -j7
         fi
     }
 
