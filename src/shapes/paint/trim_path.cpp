@@ -1,11 +1,9 @@
 #include "rive/shapes/paint/trim_path.hpp"
 #include "rive/shapes/metrics_path.hpp"
 #include "rive/shapes/paint/stroke.hpp"
+#include "rive/factory.hpp"
 
 using namespace rive;
-
-TrimPath::TrimPath() : m_TrimmedPath(makeRenderPath()) {}
-TrimPath::~TrimPath() { delete m_TrimmedPath; }
 
 StatusCode TrimPath::onAddedClean(CoreContext* context) {
     if (!parent()->is<Stroke>()) {
@@ -17,7 +15,7 @@ StatusCode TrimPath::onAddedClean(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-RenderPath* TrimPath::effectPath(MetricsPath* source) {
+RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory) {
     if (m_RenderPath != nullptr) {
         return m_RenderPath;
     }
@@ -25,7 +23,12 @@ RenderPath* TrimPath::effectPath(MetricsPath* source) {
     // Source is always a containing (shape) path.
     const std::vector<MetricsPath*>& subPaths = source->paths();
 
-    m_TrimmedPath->reset();
+    if (!m_TrimmedPath) {
+        m_TrimmedPath = factory->makeEmptyRenderPath();
+    } else {
+        m_TrimmedPath->reset();
+    }
+
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
     switch (modeValue()) {
         case 1: {
@@ -50,7 +53,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source) {
                 auto pathLength = path->length();
 
                 if (startLength < pathLength) {
-                    path->trim(startLength, endLength, true, m_TrimmedPath);
+                    path->trim(startLength, endLength, true, m_TrimmedPath.get());
                     endLength -= pathLength;
                     startLength = 0;
                 } else {
@@ -76,17 +79,17 @@ RenderPath* TrimPath::effectPath(MetricsPath* source) {
                     startLength -= pathLength;
                     endLength -= pathLength;
                 }
-                path->trim(startLength, endLength, true, m_TrimmedPath);
+                path->trim(startLength, endLength, true, m_TrimmedPath.get());
                 while (endLength > pathLength) {
                     startLength = 0;
                     endLength -= pathLength;
-                    path->trim(startLength, endLength, true, m_TrimmedPath);
+                    path->trim(startLength, endLength, true, m_TrimmedPath.get());
                 }
             }
         } break;
     }
 
-    m_RenderPath = m_TrimmedPath;
+    m_RenderPath = m_TrimmedPath.get();
     return m_RenderPath;
 }
 

@@ -1,12 +1,13 @@
 #ifndef _RIVE_NOOP_RENDERER_HPP_
 #define _RIVE_NOOP_RENDERER_HPP_
+
 #include <rive/renderer.hpp>
+#include <rive/factory.hpp>
 #include <vector>
 
 namespace rive {
     class NoOpRenderImage : public RenderImage {
     public:
-        bool decode(Span<const uint8_t>) override { return true; }
         rcp<RenderShader> makeShader(RenderTileMode, RenderTileMode, const Mat2D*) const override {
             return nullptr;
         }

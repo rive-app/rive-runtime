@@ -1,11 +1,10 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 
-#include "rive/renderer.hpp"
+#include "rive/artboard.hpp"
+#include "rive/factory.hpp"
 
 using namespace rive;
-
-ShapePaint::~ShapePaint() { delete m_RenderPaint; }
 
 StatusCode ShapePaint::onAddedClean(CoreContext* context) {
     auto container = ShapePaintContainer::from(parent());
@@ -19,7 +18,10 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context) {
 RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator) {
     assert(m_RenderPaint == nullptr);
     m_PaintMutator = mutator;
-    return m_RenderPaint = makeRenderPaint();
+
+    auto factory = mutator->component()->artboard()->factory();
+    m_RenderPaint = factory->makeRenderPaint();
+    return m_RenderPaint.get();
 }
 
 void ShapePaint::blendMode(BlendMode value) {

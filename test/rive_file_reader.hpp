@@ -3,9 +3,16 @@
 
 #include <rive/file.hpp>
 #include "rive_testing.hpp"
+#include "no_op_factory.hpp"
 
 static inline std::unique_ptr<rive::File>
-ReadRiveFile(const char path[], rive::FileAssetResolver* resolver = nullptr) {
+ReadRiveFile(const char path[],
+             rive::Factory* factory = nullptr,
+             rive::FileAssetResolver* resolver = nullptr) {
+    if (!factory) {
+        factory = &rive::gNoOpFactory;
+    }
+
     FILE* fp = fopen(path, "rb");
     REQUIRE(fp != nullptr);
 
@@ -17,7 +24,7 @@ ReadRiveFile(const char path[], rive::FileAssetResolver* resolver = nullptr) {
     fclose(fp);
 
     rive::ImportResult result;
-    auto file = rive::File::import(rive::toSpan(bytes), &result, resolver);
+    auto file = rive::File::import(rive::toSpan(bytes), factory, &result, resolver);
     REQUIRE(result == rive::ImportResult::success);
     REQUIRE(file.get() != nullptr);
     REQUIRE(file->artboard() != nullptr);

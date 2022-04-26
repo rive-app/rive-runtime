@@ -1,5 +1,6 @@
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/artboard.hpp"
+#include "rive/factory.hpp"
 #include "rive/component.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/metrics_path.hpp"
@@ -8,6 +9,7 @@
 #include "rive/shapes/shape.hpp"
 
 using namespace rive;
+
 ShapePaintContainer* ShapePaintContainer::from(Component* component) {
     switch (component->coreType()) {
         case Artboard::typeKey:
@@ -58,11 +60,12 @@ std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace spac
         }
     }
 
+    auto factory = getArtboard()->factory();
     if (needForEffects && needForRender) {
-        return std::unique_ptr<CommandPath>(new RenderMetricsPath());
+        return std::unique_ptr<CommandPath>(new RenderMetricsPath(factory->makeEmptyRenderPath()));
     } else if (needForEffects) {
         return std::unique_ptr<CommandPath>(new OnlyMetricsPath());
     } else {
-        return std::unique_ptr<CommandPath>(rive::makeRenderPath());
+        return std::unique_ptr<CommandPath>(factory->makeEmptyRenderPath());
     }
 }

@@ -6,12 +6,14 @@
 #include <rive/shapes/path_composer.hpp>
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
+#include "no_op_factory.hpp"
 #include "no_op_renderer.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("rectangle path builds expected commands", "[path]") {
-    rive::Artboard* artboard = new rive::Artboard();
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard artboard(&emptyFactory);
     rive::Shape* shape = new rive::Shape();
     rive::Rectangle* rectangle = new rive::Rectangle();
 
@@ -21,14 +23,14 @@ TEST_CASE("rectangle path builds expected commands", "[path]") {
     rectangle->height(200.0f);
     rectangle->cornerRadiusTL(0.0f);
 
-    artboard->addObject(artboard);
-    artboard->addObject(shape);
-    artboard->addObject(rectangle);
+    artboard.addObject(&artboard);
+    artboard.addObject(shape);
+    artboard.addObject(rectangle);
     rectangle->parentId(1);
 
-    REQUIRE(artboard->initialize() == rive::StatusCode::Ok);
+    REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
 
-    artboard->advance(0.0f);
+    artboard.advance(0.0f);
 
     REQUIRE(rectangle->commandPath() != nullptr);
 
@@ -42,12 +44,11 @@ TEST_CASE("rectangle path builds expected commands", "[path]") {
     REQUIRE(path->commands[4].command == rive::NoOpPathCommandType::LineTo);
     REQUIRE(path->commands[5].command == rive::NoOpPathCommandType::LineTo);
     REQUIRE(path->commands[6].command == rive::NoOpPathCommandType::Close);
-
-    delete artboard;
 }
 
 TEST_CASE("rounded rectangle path builds expected commands", "[path]") {
-    rive::Artboard* artboard = new rive::Artboard();
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard artboard(&emptyFactory);
     rive::Shape* shape = new rive::Shape();
     rive::Rectangle* rectangle = new rive::Rectangle();
 
@@ -58,14 +59,14 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]") {
     rectangle->cornerRadiusTL(20.0f);
     rectangle->linkCornerRadius(true);
 
-    artboard->addObject(artboard);
-    artboard->addObject(shape);
-    artboard->addObject(rectangle);
+    artboard.addObject(&artboard);
+    artboard.addObject(shape);
+    artboard.addObject(rectangle);
     rectangle->parentId(1);
 
-    artboard->initialize();
+    artboard.initialize();
 
-    artboard->advance(0.0f);
+    artboard.advance(0.0f);
 
     REQUIRE(rectangle->commandPath() != nullptr);
 
@@ -105,12 +106,11 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]") {
     REQUIRE(path->commands[9].command == rive::NoOpPathCommandType::LineTo);
 
     REQUIRE(path->commands[10].command == rive::NoOpPathCommandType::Close);
-
-    delete artboard;
 }
 
 TEST_CASE("ellipse path builds expected commands", "[path]") {
-    rive::Artboard* artboard = new rive::Artboard();
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard artboard(&emptyFactory);
     rive::Ellipse* ellipse = new rive::Ellipse();
     rive::Shape* shape = new rive::Shape();
 
@@ -119,14 +119,14 @@ TEST_CASE("ellipse path builds expected commands", "[path]") {
     ellipse->width(100.0f);
     ellipse->height(200.0f);
 
-    artboard->addObject(artboard);
-    artboard->addObject(shape);
-    artboard->addObject(ellipse);
+    artboard.addObject(&artboard);
+    artboard.addObject(shape);
+    artboard.addObject(ellipse);
     ellipse->parentId(1);
 
-    artboard->initialize();
+    artboard.initialize();
 
-    artboard->advance(0.0f);
+    artboard.advance(0.0f);
 
     REQUIRE(ellipse->commandPath() != nullptr);
 
@@ -187,6 +187,4 @@ TEST_CASE("ellipse path builds expected commands", "[path]") {
     REQUIRE(path->commands[5].y == -100.0f);
 
     REQUIRE(path->commands[6].command == rive::NoOpPathCommandType::Close);
-
-    delete artboard;
 }

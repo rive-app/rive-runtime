@@ -1,13 +1,15 @@
 #include <rive/animation/loop.hpp>
 #include <rive/animation/linear_animation.hpp>
 #include <rive/animation/linear_animation_instance.hpp>
+#include "no_op_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
 TEST_CASE("LinearAnimationInstance oneShot", "[animation]") {
+    rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
     // just to make the animations happy.
-    rive::Artboard ab;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
@@ -38,7 +40,8 @@ TEST_CASE("LinearAnimationInstance oneShot", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]") {
-    rive::Artboard ab;
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
@@ -85,7 +88,8 @@ TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance loop ->", "[animation]") {
-    rive::Artboard ab;
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
@@ -116,7 +120,8 @@ TEST_CASE("LinearAnimationInstance loop ->", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance loop <-", "[animation]") {
-    rive::Artboard ab;
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
@@ -157,7 +162,8 @@ TEST_CASE("LinearAnimationInstance loop <-", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]") {
-    rive::Artboard ab;
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
@@ -211,7 +217,8 @@ TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]") {
-    rive::Artboard ab;
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
@@ -243,7 +250,8 @@ TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]") {
-    rive::Artboard ab;
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
@@ -287,7 +295,8 @@ TEST_CASE("LinearAnimationInstance pingpong <-", "[animation]") {
 }
 
 TEST_CASE("LinearAnimationInstance override loop", "[animation]") {
-    rive::Artboard ab;
+    rive::NoOpFactory emptyFactory;
+    rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();

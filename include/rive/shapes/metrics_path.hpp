@@ -80,12 +80,11 @@ namespace rive {
 
     class RenderMetricsPath : public MetricsPath {
     private:
-        RenderPath* m_RenderPath;
+        std::unique_ptr<RenderPath> m_RenderPath;
 
     public:
-        RenderMetricsPath();
-        ~RenderMetricsPath();
-        RenderPath* renderPath() override { return m_RenderPath; }
+        RenderMetricsPath(std::unique_ptr<RenderPath>);
+        RenderPath* renderPath() override { return m_RenderPath.get(); }
         void addPath(CommandPath* path, const Mat2D& transform) override;
 
         void fillRule(FillRule value) override;

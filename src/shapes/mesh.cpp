@@ -3,6 +3,8 @@
 #include "rive/shapes/vertex.hpp"
 #include "rive/shapes/mesh_vertex.hpp"
 #include "rive/bones/skin.hpp"
+#include "rive/artboard.hpp"
+#include "rive/factory.hpp"
 #include "rive/span.hpp"
 #include <limits>
 
@@ -90,8 +92,10 @@ void Mesh::buildDependencies() {
         uv[index++] = vertex->u();
         uv[index++] = vertex->v();
     }
-    m_UVRenderBuffer = makeBufferF32(toSpan(uv));
-    m_IndexRenderBuffer = makeBufferU16(toSpan(*m_IndexBuffer));
+
+    auto factory = artboard()->factory();
+    m_UVRenderBuffer = factory->makeBufferF32(toSpan(uv));
+    m_IndexRenderBuffer = factory->makeBufferU16(toSpan(*m_IndexBuffer));
 }
 
 void Mesh::update(ComponentDirt value) {
@@ -114,7 +118,9 @@ void Mesh::draw(Renderer* renderer, const RenderImage* image, BlendMode blendMod
             vertices[index++] = translation[0];
             vertices[index++] = translation[1];
         }
-        m_VertexRenderBuffer = makeBufferF32(toSpan(vertices));
+
+        auto factory = artboard()->factory();
+        m_VertexRenderBuffer = factory->makeBufferF32(toSpan(vertices));
     }
 
     if (skin() == nullptr) {
