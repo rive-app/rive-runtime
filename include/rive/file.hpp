@@ -3,7 +3,6 @@
 
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
-#include "rive/factory.hpp"
 #include "rive/file_asset_resolver.hpp"
 #include <vector>
 
@@ -13,7 +12,6 @@
 namespace rive {
     class BinaryReader;
     class RuntimeHeader;
-    class Factory;
 
     ///
     /// Tracks the success/failure result when importing a Rive file.
@@ -46,13 +44,11 @@ namespace rive {
         /// Rive components and animations.
         std::vector<std::unique_ptr<Artboard>> m_Artboards;
 
-        Factory* m_Factory;
-
         /// The helper used to resolve assets when they're not provided in-band
         /// with the file.
         FileAssetResolver* m_AssetResolver;
 
-        File(Factory*, FileAssetResolver*);
+        File(FileAssetResolver* assetResolver);
 
     public:
         ~File();
@@ -65,9 +61,8 @@ namespace rive {
         /// cannot be found in-band.
         /// @returns a pointer to the file, or null on failure.
         static std::unique_ptr<File> import(Span<const uint8_t> data,
-                                            Factory*,
-                                            ImportResult* result  = nullptr,
-                                            FileAssetResolver* assetResolver = nullptr);
+                                   ImportResult* result  = nullptr,
+                                   FileAssetResolver* assetResolver = nullptr);
 
         /// @returns the file's backboard. All files have exactly one backboard.
         Backboard* backboard() const { return m_Backboard.get(); }
@@ -92,7 +87,7 @@ namespace rive {
         Artboard* artboard(size_t index) const;
 
     private:
-        ImportResult read(BinaryReader&, const RuntimeHeader&);
+        ImportResult read(BinaryReader& reader, const RuntimeHeader& header);
     };
 } // namespace rive
 #endif

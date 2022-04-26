@@ -1,6 +1,5 @@
 #ifndef _RIVE_CLIPPING_SHAPE_HPP_
 #define _RIVE_CLIPPING_SHAPE_HPP_
-#include "rive/renderer.hpp"
 #include "rive/generated/shapes/clipping_shape_base.hpp"
 #include <stdio.h>
 #include <vector>
@@ -13,9 +12,10 @@ namespace rive {
     private:
         std::vector<Shape*> m_Shapes;
         Node* m_Source = nullptr;
-        std::unique_ptr<RenderPath> m_RenderPath;
+        RenderPath* m_RenderPath = nullptr;
 
     public:
+        ~ClippingShape();
         Node* source() const { return m_Source; }
         const std::vector<Shape*>& shapes() const { return m_Shapes; }
         StatusCode onAddedClean(CoreContext* context) override;
@@ -23,7 +23,7 @@ namespace rive {
         void buildDependencies() override;
         void update(ComponentDirt value) override;
 
-        RenderPath* renderPath() const { return m_RenderPath.get(); }
+        RenderPath* renderPath() const { return m_RenderPath; }
     };
 } // namespace rive
 

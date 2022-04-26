@@ -1,17 +1,16 @@
 #include "rive/assets/image_asset.hpp"
-#include "rive/artboard.hpp"
-#include "rive/factory.hpp"
+#include "rive/renderer.hpp"
 
 using namespace rive;
 
-ImageAsset::~ImageAsset() {}
+ImageAsset::ImageAsset() : m_RenderImage(makeRenderImage()) {}
 
-bool ImageAsset::decode(Span<const uint8_t> data, Factory* factory) {
+ImageAsset::~ImageAsset() { delete m_RenderImage; }
+bool ImageAsset::decode(const uint8_t* bytes, std::size_t size) {
 #ifdef TESTING
-    decodedByteSize = data.size();
+    decodedByteSize = size;
 #endif
-    m_RenderImage = factory->decodeImage(data);
-    return m_RenderImage != nullptr;
+    return m_RenderImage->decode({bytes, size});
 }
 
 std::string ImageAsset::fileExtension() { return "png"; }

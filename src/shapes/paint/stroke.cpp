@@ -1,4 +1,3 @@
-#include "rive/artboard.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_effect.hpp"
@@ -28,11 +27,10 @@ void Stroke::draw(Renderer* renderer, CommandPath* path) {
 
     if (m_Effect != nullptr) {
         /// We're guaranteed to get a metrics path here if we have an effect.
-        auto factory = artboard()->factory();
-        path = m_Effect->effectPath(reinterpret_cast<MetricsPath*>(path), factory);
+        path = m_Effect->effectPath(reinterpret_cast<MetricsPath*>(path));
     }
 
-    renderer->drawPath(path->renderPath(), renderPaint());
+    renderer->drawPath(path->renderPath(), m_RenderPaint);
 }
 
 void Stroke::thicknessChanged() {

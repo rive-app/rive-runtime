@@ -5,7 +5,6 @@
 #include <vector>
 
 namespace rive {
-    class Artboard;
     class ShapePaint;
     class Component;
 
@@ -15,10 +14,6 @@ namespace rive {
         friend class ShapePaint;
 
     protected:
-        // Need this to access our artboard. We are treated as a mixin, either
-        // as a Shape or Artboard, so both of those will override this.
-        virtual Artboard* getArtboard() = 0;
-    
         PathSpace m_DefaultPathSpace = PathSpace::Neither;
         std::vector<ShapePaint*> m_ShapePaints;
         void addPaint(ShapePaint* paint);

@@ -2,18 +2,19 @@
 #define _RIVE_TRIM_PATH_HPP_
 #include "rive/generated/shapes/paint/trim_path_base.hpp"
 #include "rive/shapes/paint/stroke_effect.hpp"
-#include "rive/renderer.hpp"
 #include <stdio.h>
 
 namespace rive {
     class TrimPath : public TrimPathBase, public StrokeEffect {
     private:
-        std::unique_ptr<RenderPath> m_TrimmedPath;
+        RenderPath* m_TrimmedPath;
         RenderPath* m_RenderPath = nullptr;
 
     public:
+        TrimPath();
+        ~TrimPath();
         StatusCode onAddedClean(CoreContext* context) override;
-        RenderPath* effectPath(MetricsPath* source, Factory*) override;
+        RenderPath* effectPath(MetricsPath* source) override;
         void invalidateEffect() override;
 
         void startChanged() override;

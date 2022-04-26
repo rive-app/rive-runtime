@@ -1,7 +1,6 @@
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/artboard.hpp"
 #include "rive/core_context.hpp"
-#include "rive/factory.hpp"
 #include "rive/node.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/path_composer.hpp"
@@ -48,7 +47,7 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context) {
         }
     }
 
-    m_RenderPath = artboard->factory()->makeEmptyRenderPath();
+    m_RenderPath = rive::makeRenderPath();
 
     return StatusCode::Ok;
 }
@@ -87,3 +86,5 @@ void ClippingShape::update(ComponentDirt value) {
         }
     }
 }
+
+ClippingShape::~ClippingShape() { delete m_RenderPath; }

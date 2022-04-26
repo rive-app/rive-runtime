@@ -354,9 +354,8 @@ void MetricsPath::extractSubPart(
     }
 }
 
-RenderMetricsPath::RenderMetricsPath(std::unique_ptr<RenderPath> path)
-    : m_RenderPath(std::move(path))
-{}
+RenderMetricsPath::RenderMetricsPath() : m_RenderPath(makeRenderPath()) {}
+RenderMetricsPath::~RenderMetricsPath() { delete m_RenderPath; }
 
 void RenderMetricsPath::addPath(CommandPath* path, const Mat2D& transform) {
     MetricsPath::addPath(path, transform);

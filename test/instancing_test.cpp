@@ -3,7 +3,6 @@
 #include <rive/shapes/clipping_shape.hpp>
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
-#include "no_op_factory.hpp"
 #include "no_op_renderer.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>

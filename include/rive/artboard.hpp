@@ -17,7 +17,6 @@
 namespace rive {
     class File;
     class Drawable;
-    class Factory;
     class Node;
     class DrawTarget;
     class ArtboardImporter;
@@ -43,7 +42,6 @@ namespace rive {
         unsigned int m_DirtDepth = 0;
         std::unique_ptr<CommandPath> m_BackgroundPath;
         std::unique_ptr<CommandPath> m_ClipPath;
-        Factory* m_Factory = nullptr;
         Drawable* m_FirstDrawable = nullptr;
         bool m_IsInstance = false;
         bool m_FrameOrigin = true;
@@ -53,11 +51,8 @@ namespace rive {
         void sortDependencies();
         void sortDrawOrder();
 
-        Artboard* getArtboard() override { return this; }
-
 #ifdef TESTING
     public:
-        Artboard(Factory* factory) : m_Factory(factory) {}
 #endif
         void addObject(Core* object);
         void addAnimation(LinearAnimation* object);
@@ -67,18 +62,14 @@ namespace rive {
         void testing_only_enque_message(const Message&);
 
     public:
-        Artboard() {}
         ~Artboard();
         StatusCode initialize();
 
         Core* resolve(uint32_t id) const override;
 
-
         /// Find the id of a component in the artboard the object in the artboard. The artboard
         /// itself has id 0 so we use that as a flag for not found.
         uint32_t idOf(Core* object) const;
-
-        Factory* factory() const { return m_Factory; }
 
         // EXPERIMENTAL -- for internal testing only for now.
         // DO NOT RELY ON THIS as it may change/disappear in the future.
@@ -170,8 +161,6 @@ namespace rive {
 
     class ArtboardInstance : public Artboard {
     public:
-        ArtboardInstance() {}
-
         std::unique_ptr<LinearAnimationInstance> animationAt(size_t index);
         std::unique_ptr<LinearAnimationInstance> animationNamed(std::string name);
 

@@ -1,7 +1,3 @@
-/*
- * Copyright 2022 Rive
- */
-
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
 
@@ -12,10 +8,10 @@
 #include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/math/raw_path.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
-
 #include <cmath>
 #include <stdio.h>
 #include <cstdint>
@@ -36,6 +32,10 @@ namespace rive {
         size_t count() const { return m_Count; }
     };
 
+    extern rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>);
+    extern rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>);
+    extern rcp<RenderBuffer> makeBufferF32(Span<const float>);
+
     enum class RenderPaintStyle { stroke, fill };
 
     enum class RenderTileMode {
@@ -54,6 +54,32 @@ namespace rive {
      *  not null, then it is applied to the shader's domain before the Renderer's CTM.
      */
     class RenderShader : public RefCnt {};
+
+    extern rcp<RenderShader> makeLinearGradient(float sx,
+                                                float sy,
+                                                float ex,
+                                                float ey,
+                                                const ColorInt colors[], // [count]
+                                                const float stops[],     // [count]
+                                                int count,
+                                                RenderTileMode,
+                                                const Mat2D* localMatrix = nullptr);
+
+    extern rcp<RenderShader> makeRadialGradient(float cx,
+                                                float cy,
+                                                float radius,
+                                                const ColorInt colors[], // [count]
+                                                const float stops[],     // [count]
+                                                int count,
+                                                RenderTileMode,
+                                                const Mat2D* localMatrix = nullptr);
+
+    extern rcp<RenderShader> makeSweepGradient(float cx,
+                                               float cy,
+                                               const ColorInt colors[], // [count]
+                                               const float stops[],     // [count]
+                                               int count,
+                                               const Mat2D* localMatrix = nullptr);
 
     class RenderPaint {
     public:
@@ -75,6 +101,7 @@ namespace rive {
 
     public:
         virtual ~RenderImage() {}
+        virtual bool decode(Span<const uint8_t>) = 0;
         int width() const { return m_Width; }
         int height() const { return m_Height; }
 
@@ -119,5 +146,13 @@ namespace rive {
             transform(computeAlignment(fit, alignment, frame, content));
         }
     };
+
+    // Returns a full-formed RenderPath -- can be treated as immutable
+    extern RenderPath*
+    makeRenderPath(Span<const Vec2D> points, Span<const uint8_t> verbs, FillRule);
+
+    extern RenderPath* makeRenderPath();
+    extern RenderPaint* makeRenderPaint();
+    extern RenderImage* makeRenderImage();
 } // namespace rive
 #endif

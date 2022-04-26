@@ -4,7 +4,6 @@
 #include "SkPaint.h"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
-#include "rive/renderer.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
