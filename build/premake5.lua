@@ -102,6 +102,9 @@ project "rive"
 
     filter "configurations:debug"
         buildoptions {"-g"}
+        -- disable this (flto) line to help with debugging
+        -- it is enabled for iOS project
+        buildoptions {"-flto=full"}
         defines {"DEBUG"}
         symbols "On"
 
