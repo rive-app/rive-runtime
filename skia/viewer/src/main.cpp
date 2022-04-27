@@ -45,6 +45,28 @@ std::unique_ptr<rive::Scene> currentScene;
 std::vector<std::string> animationNames;
 std::vector<std::string> stateMachineNames;
 
+#include <time.h>
+double GetSecondsToday() {
+    time_t m_time;
+    time(&m_time);
+    struct tm tstruct;
+    gmtime_r(&m_time, &tstruct);
+
+    int hours = tstruct.tm_hour - 4;
+    if (hours < 0) {
+        hours += 12;
+    } else if (hours >= 12) {
+        hours -= 12;
+    }
+
+    auto secs = (double)hours * 60 * 60 +
+                (double)tstruct.tm_min * 60 +
+                (double)tstruct.tm_sec;
+//    printf("%d %d %d\n", tstruct.tm_sec, tstruct.tm_min, hours);
+//    printf("%g %g %g\n", secs, secs/60, secs/60/60);
+    return secs;
+}
+
 // We hold onto the file's bytes for the lifetime of the file, in case we want
 // to change animations or state-machines, we just rebuild the rive::File from
 // it.
@@ -257,6 +279,11 @@ int main() {
         canvas->drawPaint(paint);
 
         if (currentScene) {
+            // See if we can "set the time" e.g. clock statemachine
+            if (auto num = currentScene->getNumber("isTime")) {
+                num->value(GetSecondsToday()/60/60);
+            }
+
             currentScene->advanceAndApply(elapsed);
 
             rive::SkiaRenderer renderer(canvas);
