@@ -4,10 +4,10 @@
 using namespace rive;
 
 Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, const AABB& content) {
-    float contentWidth = content[2] - content[0];
-    float contentHeight = content[3] - content[1];
-    float x = -content[0] - contentWidth / 2.0 - (alignment.x() * contentWidth / 2.0);
-    float y = -content[1] - contentHeight / 2.0 - (alignment.y() * contentHeight / 2.0);
+    float contentWidth = content.width();
+    float contentHeight = content.height();
+    float x = -content.left() - contentWidth / 2.0 - (alignment.x() * contentWidth / 2.0);
+    float y = -content.top() - contentHeight / 2.0 - (alignment.y() * contentHeight / 2.0);
 
     float scaleX = 1.0, scaleY = 1.0;
 
@@ -52,8 +52,8 @@ Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, co
     }
 
     Mat2D translation;
-    translation[4] = frame[0] + frame.width() / 2.0 + (alignment.x() * frame.width() / 2.0);
-    translation[5] = frame[1] + frame.height() / 2.0 + (alignment.y() * frame.height() / 2.0);
+    translation[4] = frame.left() + frame.width() / 2.0 + (alignment.x() * frame.width() / 2.0);
+    translation[5] = frame.top() + frame.height() / 2.0 + (alignment.y() * frame.height() / 2.0);
 
     return translation * Mat2D::fromScale(scaleX, scaleY) * Mat2D::fromTranslate(x, y);
 }

@@ -22,15 +22,9 @@ namespace rive {
 
     class AABB {
     public:
-        union {
-            float buffer[4];
-            struct {
-                float minX, minY, maxX, maxY;
-            };
-        };
+        float minX, minY, maxX, maxY;
 
-    public:
-        AABB() : buffer{0} {}
+        AABB() : minX(0), minY(0), maxX(0), maxY(0) {}
         AABB(const AABB& o) : minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY) {}
 
         AABB(float minX, float minY, float maxX, float maxY) :
@@ -44,17 +38,6 @@ namespace rive {
             return minX == o.minX && minY == o.minY && maxX == o.maxX && maxY == o.maxY;
         }
         bool operator!=(const AABB& o) const { return !(*this == o); }
-
-        inline const float* values() const { return buffer; }
-
-        float& operator[](std::size_t idx) { return buffer[idx]; }
-        const float& operator[](std::size_t idx) const { return buffer[idx]; }
-
-        static bool contains(const AABB& a, const AABB& b);
-        static bool isValid(const AABB& a);
-        static bool testOverlap(const AABB& a, const AABB& b);
-        static bool areIdentical(const AABB& a, const AABB& b);
-        static void transform(AABB& out, const AABB& a, const Mat2D& matrix);
 
         float left() const { return minX; }
         float top() const { return minY; }
