@@ -4,6 +4,7 @@
 #include "SkSurface.h"
 #include "rive/file.hpp"
 #include "rive/math/aabb.hpp"
+#include "skia_factory.hpp"
 #include "skia_renderer.hpp"
 #include <cstdio>
 #include <stdio.h>
@@ -18,6 +19,8 @@ std::string getFileName(char* path) {
 }
 
 int main(int argc, char* argv[]) {
+    rive::SkiaFactory factory;
+
     if (argc < 2) {
         fprintf(stderr, "must pass source file");
         return 1;
@@ -50,7 +53,7 @@ int main(int argc, char* argv[]) {
     }
     fclose(fp);
 
-    auto file = rive::File::import(rive::toSpan(bytes));
+    auto file = rive::File::import(rive::toSpan(bytes), &factory);
     if (!file) {
         fprintf(stderr, "Failed to read rive file.\n");
         return 1;
