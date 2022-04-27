@@ -18,7 +18,7 @@ void TranslationConstraint::constrain(TransformComponent* component) {
             const Mat2D& targetParentWorld = getParentWorld(*m_Target);
 
             Mat2D inverse;
-            if (!Mat2D::invert(inverse, targetParentWorld)) {
+            if (!targetParentWorld.invert(&inverse)) {
                 return;
             }
             transformB = inverse * transformB;
@@ -55,12 +55,12 @@ void TranslationConstraint::constrain(TransformComponent* component) {
     if (clampLocal) {
         // Apply min max in local space, so transform to local coordinates
         // first.
-        Mat2D invert;
-        if (!Mat2D::invert(invert, getParentWorld(*component))) {
+        Mat2D inverse;
+        if (!getParentWorld(*component).invert(&inverse)) {
             return;
         }
         // Get our target world coordinates in parent local.
-        translationB = invert * translationB;
+        translationB = inverse * translationB;
     }
     if (max() && translationB[0] > maxValue()) {
         translationB[0] = maxValue();

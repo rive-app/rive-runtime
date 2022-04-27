@@ -289,7 +289,7 @@ int main() {
                                                         artboardInstance->bounds());
             renderer.transform(viewTransform);
             // Store the inverse view so we can later go from screen to world.
-            rive::Mat2D::invert(gInverseViewTransform, viewTransform);
+            gInverseViewTransform = viewTransform.invertOrIdentity();
             // post_mouse_event(artboard.get(), canvas->getTotalMatrix());
 
             artboardInstance->draw(&renderer);

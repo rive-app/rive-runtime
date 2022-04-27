@@ -8,20 +8,20 @@ using namespace rive;
 void ScaleConstraint::constrain(TransformComponent* component) {
     const Mat2D& transformA = component->worldTransform();
     Mat2D transformB;
-    Mat2D::decompose(m_ComponentsA, transformA);
+    m_ComponentsA = transformA.decompose();
     if (m_Target == nullptr) {
         transformB = transformA;
-        TransformComponents::copy(m_ComponentsB, m_ComponentsA);
+        m_ComponentsB = m_ComponentsA;
     } else {
         transformB = m_Target->worldTransform();
         if (sourceSpace() == TransformSpace::local) {
             Mat2D inverse;
-            if (!Mat2D::invert(inverse, getParentWorld(*m_Target))) {
+            if (!getParentWorld(*m_Target).invert(&inverse)) {
                 return;
             }
             transformB = inverse * transformB;
         }
-        Mat2D::decompose(m_ComponentsB, transformB);
+        m_ComponentsB = transformB.decompose();
 
         if (!doesCopy()) {
             m_ComponentsB.scaleX(destSpace() == TransformSpace::local ? 1.0f
@@ -48,9 +48,9 @@ void ScaleConstraint::constrain(TransformComponent* component) {
             // the parent local transform and get it in world, then decompose
             // the world for interpolation.
 
-            Mat2D::compose(transformB, m_ComponentsB);
+            transformB = Mat2D::compose(m_ComponentsB);
             transformB = getParentWorld(*component) * transformB;
-            Mat2D::decompose(m_ComponentsB, transformB);
+            m_ComponentsB = transformB.decompose();
         }
     }
 
@@ -58,13 +58,13 @@ void ScaleConstraint::constrain(TransformComponent* component) {
     if (clamplocal) {
         // Apply min max in local space, so transform to local coordinates
         // first.
-        Mat2D::compose(transformB, m_ComponentsB);
+        transformB = Mat2D::compose(m_ComponentsB);
         Mat2D inverse;
-        if (!Mat2D::invert(inverse, getParentWorld(*component))) {
+        if (!getParentWorld(*component).invert(&inverse)) {
             return;
         }
         transformB = inverse * transformB;
-        Mat2D::decompose(m_ComponentsB, transformB);
+        m_ComponentsB = transformB.decompose();
     }
     if (max() && m_ComponentsB.scaleX() > maxValue()) {
         m_ComponentsB.scaleX(maxValue());
@@ -80,9 +80,9 @@ void ScaleConstraint::constrain(TransformComponent* component) {
     }
     if (clamplocal) {
         // Transform back to world.
-        Mat2D::compose(transformB, m_ComponentsB);
+        transformB = Mat2D::compose(m_ComponentsB);
         transformB = getParentWorld(*component) * transformB;
-        Mat2D::decompose(m_ComponentsB, transformB);
+        m_ComponentsB = transformB.decompose();
     }
 
     float t = strength();
@@ -95,5 +95,5 @@ void ScaleConstraint::constrain(TransformComponent* component) {
     m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti + m_ComponentsB.scaleY() * t);
     m_ComponentsB.skew(m_ComponentsA.skew());
 
-    Mat2D::compose(component->mutableWorldTransform(), m_ComponentsB);
+    component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);
 }

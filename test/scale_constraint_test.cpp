@@ -21,10 +21,8 @@ TEST_CASE("scale constraint updates world transform", "[file]") {
 
     artboard->advance(0.0f);
 
-    rive::TransformComponents targetComponents;
-    rive::Mat2D::decompose(targetComponents, target->worldTransform());
-    rive::TransformComponents rectComponents;
-    rive::Mat2D::decompose(rectComponents, rectangle->worldTransform());
+    auto targetComponents = target->worldTransform().decompose();
+    auto rectComponents = rectangle->worldTransform().decompose();
 
     REQUIRE(targetComponents.scaleX() == rectComponents.scaleX());
     REQUIRE(targetComponents.scaleY() == rectComponents.scaleY());

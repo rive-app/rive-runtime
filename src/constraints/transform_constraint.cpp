@@ -16,7 +16,7 @@ void TransformConstraint::constrain(TransformComponent* component) {
         const Mat2D& targetParentWorld = getParentWorld(*m_Target);
 
         Mat2D inverse;
-        if (!Mat2D::invert(inverse, targetParentWorld)) {
+        if (!targetParentWorld.invert(&inverse)) {
             return;
         }
         transformB = inverse * transformB;
@@ -26,8 +26,8 @@ void TransformConstraint::constrain(TransformComponent* component) {
         transformB = targetParentWorld * transformB;
     }
 
-    Mat2D::decompose(m_ComponentsA, transformA);
-    Mat2D::decompose(m_ComponentsB, transformB);
+    m_ComponentsA = transformA.decompose();
+    m_ComponentsB = transformB.decompose();
 
     float angleA = std::fmod(m_ComponentsA.rotation(), (float)M_PI * 2);
     float angleB = std::fmod(m_ComponentsB.rotation(), (float)M_PI * 2);
@@ -48,5 +48,5 @@ void TransformConstraint::constrain(TransformComponent* component) {
     m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti + m_ComponentsB.scaleY() * t);
     m_ComponentsB.skew(m_ComponentsA.skew() * ti + m_ComponentsB.skew() * t);
 
-    Mat2D::compose(component->mutableWorldTransform(), m_ComponentsB);
+    component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);
 }

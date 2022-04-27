@@ -257,11 +257,7 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
     if (transformToParent && parent()->is<TransformComponent>()) {
         // Put the transform in parent space.
         auto world = parent()->as<TransformComponent>()->worldTransform();
-        Mat2D inverseWorld;
-        if (!Mat2D::invert(inverseWorld, world)) {
-            inverseWorld = Mat2D();
-        }
-        transform = inverseWorld * transform;
+        transform = world.invertOrIdentity() * transform;
     }
 
     FlattenedPath* flat = new FlattenedPath();

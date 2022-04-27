@@ -32,11 +32,21 @@ namespace rive {
             return *this;
         }
 
-        static Mat2D scale(const Mat2D& mat, const Vec2D& vec);
+        // If returns true, result holds the inverse.
+        // If returns false, result is unchnaged.
+        bool invert(Mat2D* result) const;
+
+        Mat2D invertOrIdentity() const {
+            Mat2D inverse;          // initialized to identity
+            (void)invert(&inverse); // inverse is unchanged if invert() fails
+            return inverse;
+        }
+    
+        TransformComponents decompose() const;
+        static Mat2D compose(const TransformComponents&);
+        Mat2D scale(Vec2D) const;
+
         static Mat2D multiply(const Mat2D& a, const Mat2D& b);
-        static bool invert(Mat2D& result, const Mat2D& a);
-        static void decompose(TransformComponents& result, const Mat2D& m);
-        static void compose(Mat2D& result, const TransformComponents& components);
 
         float xx() const { return m_Buffer[0]; }
         float xy() const { return m_Buffer[1]; }

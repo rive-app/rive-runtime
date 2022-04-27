@@ -14,7 +14,7 @@ StatusCode Tendon::onAddedDirty(CoreContext* context) {
     bind[4] = tx();
     bind[5] = ty();
 
-    if (!Mat2D::invert(m_InverseBind, bind)) {
+    if (!bind.invert(&m_InverseBind)) {
         return StatusCode::FailedInversion;
     }
 

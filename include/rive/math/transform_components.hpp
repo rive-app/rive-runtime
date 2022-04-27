@@ -37,22 +37,17 @@ namespace rive {
         float skew() const { return m_Skew; }
         void skew(float value) { m_Skew = value; }
 
-        void translation(Vec2D& result) const {
-            result[0] = m_X;
-            result[1] = m_Y;
-        }
-        void scale(Vec2D& result) const {
-            result[0] = m_ScaleX;
-            result[1] = m_ScaleY;
-        }
+        Vec2D translation() const { return {m_X, m_Y}; }
+        Vec2D scale() const { return {m_ScaleX, m_ScaleY}; }
 
-        static void copy(TransformComponents& result, const TransformComponents& a) {
-            result.m_X = a.m_X;
-            result.m_Y = a.m_Y;
-            result.m_ScaleX = a.m_ScaleX;
-            result.m_ScaleY = a.m_ScaleY;
-            result.m_Rotation = a.m_Rotation;
-            result.m_Skew = a.m_Skew;
+        TransformComponents& operator=(const TransformComponents& a) {
+            m_X = a.m_X;
+            m_Y = a.m_Y;
+            m_ScaleX = a.m_ScaleX;
+            m_ScaleY = a.m_ScaleY;
+            m_Rotation = a.m_Rotation;
+            m_Skew = a.m_Skew;
+            return *this;
         }
     };
 } // namespace rive

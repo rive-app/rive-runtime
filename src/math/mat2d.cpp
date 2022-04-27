@@ -14,21 +14,20 @@ Mat2D Mat2D::fromRotation(float rad) {
     return {c, s, -s, c, 0, 0};
 }
 
-Mat2D Mat2D::scale(const Mat2D& mat, const Vec2D& vec) {
-    const float v0 = vec[0], v1 = vec[1];
+Mat2D Mat2D::scale(Vec2D vec) const {
     return {
-        mat[0] * v0,
-        mat[1] * v0,
-        mat[2] * v1,
-        mat[3] * v1,
-        mat[4],
-        mat[5],
+        m_Buffer[0] * vec.x(),
+        m_Buffer[1] * vec.x(),
+        m_Buffer[2] * vec.y(),
+        m_Buffer[3] * vec.y(),
+        m_Buffer[4],
+        m_Buffer[5],
     };
 }
 
 Mat2D Mat2D::multiply(const Mat2D& a, const Mat2D& b) {
-    float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5], b0 = b[0], b1 = b[1],
-          b2 = b[2], b3 = b[3], b4 = b[4], b5 = b[5];
+    float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5],
+          b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3], b4 = b[4], b5 = b[5];
     return {
         a0 * b0 + a2 * b1,
         a1 * b0 + a3 * b1,
@@ -39,8 +38,9 @@ Mat2D Mat2D::multiply(const Mat2D& a, const Mat2D& b) {
     };
 }
 
-bool Mat2D::invert(Mat2D& result, const Mat2D& a) {
-    float aa = a[0], ab = a[1], ac = a[2], ad = a[3], atx = a[4], aty = a[5];
+bool Mat2D::invert(Mat2D* result) const {
+    float aa = m_Buffer[0], ab  = m_Buffer[1], ac  = m_Buffer[2],
+          ad = m_Buffer[3], atx = m_Buffer[4], aty = m_Buffer[5];
 
     float det = aa * ad - ab * ac;
     if (det == 0.0f) {
@@ -48,17 +48,20 @@ bool Mat2D::invert(Mat2D& result, const Mat2D& a) {
     }
     det = 1.0f / det;
 
-    result[0] = ad * det;
-    result[1] = -ab * det;
-    result[2] = -ac * det;
-    result[3] = aa * det;
-    result[4] = (ac * aty - ad * atx) * det;
-    result[5] = (ab * atx - aa * aty) * det;
+    *result = {
+         ad * det,
+        -ab * det,
+        -ac * det,
+         aa * det,
+        (ac * aty - ad * atx) * det,
+        (ab * atx - aa * aty) * det,
+    };
     return true;
 }
 
-void Mat2D::decompose(TransformComponents& result, const Mat2D& m) {
-    float m0 = m[0], m1 = m[1], m2 = m[2], m3 = m[3];
+TransformComponents Mat2D::decompose() const {
+    float m0 = m_Buffer[0], m1 = m_Buffer[1],
+          m2 = m_Buffer[2], m3 = m_Buffer[3];
 
     float rotation = (float)std::atan2(m1, m0);
     float denom = m0 * m0 + m1 * m1;
@@ -66,27 +69,28 @@ void Mat2D::decompose(TransformComponents& result, const Mat2D& m) {
     float scaleY = (m0 * m3 - m2 * m1) / scaleX;
     float skewX = (float)std::atan2(m0 * m2 + m1 * m3, denom);
 
-    result.x(m[4]);
-    result.y(m[5]);
+    TransformComponents result;
+    result.x(m_Buffer[4]);
+    result.y(m_Buffer[5]);
     result.scaleX(scaleX);
     result.scaleY(scaleY);
     result.rotation(rotation);
     result.skew(skewX);
+    return result;
 }
 
-void Mat2D::compose(Mat2D& result, const TransformComponents& components) {
-    result = Mat2D::fromRotation(components.rotation());
+Mat2D Mat2D::compose(const TransformComponents& components) {
+    auto result = Mat2D::fromRotation(components.rotation());
     result[4] = components.x();
     result[5] = components.y();
-    Vec2D scale;
-    components.scale(scale);
-    result = Mat2D::scale(result, scale);
+    result = result.scale(components.scale());
 
     float sk = components.skew();
     if (sk != 0.0f) {
         result[2] = result[0] * sk + result[2];
         result[3] = result[1] * sk + result[3];
     }
+    return result;
 }
 
 void Mat2D::scaleByValues(float sx, float sy) {

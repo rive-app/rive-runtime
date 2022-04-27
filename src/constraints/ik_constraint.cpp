@@ -205,11 +205,11 @@ void IKConstraint::constrain(TransformComponent* component) {
     for (BoneChainLink& item : m_FkChain) {
         auto bone = item.bone;
         const Mat2D& parentWorld = getParentWorld(*bone);
-        Mat2D::invert(item.parentWorldInverse, parentWorld);
+        item.parentWorldInverse = parentWorld.invertOrIdentity();
 
         Mat2D& boneTransform = bone->mutableTransform();
         boneTransform = item.parentWorldInverse * bone->worldTransform();
-        Mat2D::decompose(item.transformComponents, boneTransform);
+        item.transformComponents = boneTransform.decompose();
     }
 
     int count = (int)m_FkChain.size();
@@ -228,7 +228,7 @@ void IKConstraint::constrain(TransformComponent* component) {
                 solve2(item, tip, worldTargetTranslation);
                 for (int j = item->index + 1, end = m_FkChain.size() - 1; j < end; j++) {
                     BoneChainLink& fk = m_FkChain[j];
-                    Mat2D::invert(fk.parentWorldInverse, getParentWorld(*fk.bone));
+                    fk.parentWorldInverse = getParentWorld(*fk.bone).invertOrIdentity();
                 }
             }
             break;
