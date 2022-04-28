@@ -6,13 +6,11 @@
 
 using namespace rive;
 
-KeyedObject::~KeyedObject() {
-    for (auto property : m_KeyedProperties) {
-        delete property;
-    }
-}
-void KeyedObject::addKeyedProperty(KeyedProperty* property) {
-    m_KeyedProperties.push_back(property);
+KeyedObject::KeyedObject() {}
+KeyedObject::~KeyedObject() {}
+
+void KeyedObject::addKeyedProperty(std::unique_ptr<KeyedProperty> property) {
+    m_KeyedProperties.push_back(std::move(property));
 }
 
 StatusCode KeyedObject::onAddedDirty(CoreContext* context) {
@@ -21,7 +19,7 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context) {
         return StatusCode::MissingObject;
     }
 
-    for (auto property : m_KeyedProperties) {
+    for (auto& property : m_KeyedProperties) {
         StatusCode code;
         if ((code = property->onAddedDirty(context)) != StatusCode::Ok) {
             return code;
@@ -31,7 +29,7 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context) {
 }
 
 StatusCode KeyedObject::onAddedClean(CoreContext* context) {
-    for (auto property : m_KeyedProperties) {
+    for (auto& property : m_KeyedProperties) {
         property->onAddedClean(context);
     }
     return StatusCode::Ok;
@@ -42,7 +40,7 @@ void KeyedObject::apply(Artboard* artboard, float time, float mix) {
     if (object == nullptr) {
         return;
     }
-    for (auto property : m_KeyedProperties) {
+    for (auto& property : m_KeyedProperties) {
         property->apply(object, time, mix);
     }
 }

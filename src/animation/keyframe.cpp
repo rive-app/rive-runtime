@@ -26,6 +26,6 @@ StatusCode KeyFrame::import(ImportStack& importStack) {
     if (importer == nullptr) {
         return StatusCode::MissingObject;
     }
-    importer->addKeyFrame(this);
+    importer->addKeyFrame(std::unique_ptr<KeyFrame>(this));
     return Super::import(importStack);
 }

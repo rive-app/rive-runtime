@@ -7,11 +7,12 @@ namespace rive {
     class KeyedProperty;
     class KeyedObject : public KeyedObjectBase {
     private:
-        std::vector<KeyedProperty*> m_KeyedProperties;
+        std::vector<std::unique_ptr<KeyedProperty>> m_KeyedProperties;
 
     public:
+        KeyedObject();
         ~KeyedObject();
-        void addKeyedProperty(KeyedProperty* property);
+        void addKeyedProperty(std::unique_ptr<KeyedProperty>);
 
         StatusCode onAddedDirty(CoreContext* context) override;
         StatusCode onAddedClean(CoreContext* context) override;

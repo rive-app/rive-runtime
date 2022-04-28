@@ -6,13 +6,12 @@
 
 using namespace rive;
 
-KeyedProperty::~KeyedProperty() {
-    for (auto keyframe : m_KeyFrames) {
-        delete keyframe;
-    }
-}
+KeyedProperty::KeyedProperty() {}
+KeyedProperty::~KeyedProperty() {}
 
-void KeyedProperty::addKeyFrame(KeyFrame* keyframe) { m_KeyFrames.push_back(keyframe); }
+void KeyedProperty::addKeyFrame(std::unique_ptr<KeyFrame> keyframe) {
+    m_KeyFrames.push_back(std::move(keyframe));
+}
 
 void KeyedProperty::apply(Core* object, float seconds, float mix) {
     assert(!m_KeyFrames.empty());
@@ -42,8 +41,8 @@ void KeyedProperty::apply(Core* object, float seconds, float mix) {
         m_KeyFrames[0]->apply(object, pk, mix);
     } else {
         if (idx < numKeyFrames) {
-            KeyFrame* fromFrame = m_KeyFrames[idx - 1];
-            KeyFrame* toFrame = m_KeyFrames[idx];
+            KeyFrame* fromFrame = m_KeyFrames[idx - 1].get();
+            KeyFrame* toFrame = m_KeyFrames[idx].get();
             if (seconds == toFrame->seconds()) {
                 toFrame->apply(object, pk, mix);
             } else {
@@ -61,7 +60,7 @@ void KeyedProperty::apply(Core* object, float seconds, float mix) {
 
 StatusCode KeyedProperty::onAddedDirty(CoreContext* context) {
     StatusCode code;
-    for (auto keyframe : m_KeyFrames) {
+    for (auto& keyframe : m_KeyFrames) {
         if ((code = keyframe->onAddedDirty(context)) != StatusCode::Ok) {
             return code;
         }
@@ -71,7 +70,7 @@ StatusCode KeyedProperty::onAddedDirty(CoreContext* context) {
 
 StatusCode KeyedProperty::onAddedClean(CoreContext* context) {
     StatusCode code;
-    for (auto keyframe : m_KeyFrames) {
+    for (auto& keyframe : m_KeyFrames) {
         if ((code = keyframe->onAddedClean(context)) != StatusCode::Ok) {
             return code;
         }
@@ -84,6 +83,6 @@ StatusCode KeyedProperty::import(ImportStack& importStack) {
     if (importer == nullptr) {
         return StatusCode::MissingObject;
     }
-    importer->addKeyedProperty(this);
+    importer->addKeyedProperty(std::unique_ptr<KeyedProperty>(this));
     return Super::import(importStack);
 }

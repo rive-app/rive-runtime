@@ -9,9 +9,9 @@ KeyedPropertyImporter::KeyedPropertyImporter(LinearAnimation* animation,
                                              KeyedProperty* keyedProperty) :
     m_Animation(animation), m_KeyedProperty(keyedProperty) {}
 
-void KeyedPropertyImporter::addKeyFrame(KeyFrame* keyFrame) {
+void KeyedPropertyImporter::addKeyFrame(std::unique_ptr<KeyFrame> keyFrame) {
     keyFrame->computeSeconds(m_Animation->fps());
-    m_KeyedProperty->addKeyFrame(keyFrame);
+    m_KeyedProperty->addKeyFrame(std::move(keyFrame));
 }
 
 bool KeyedPropertyImporter::readNullObject() {

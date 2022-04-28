@@ -6,11 +6,12 @@ namespace rive {
     class KeyFrame;
     class KeyedProperty : public KeyedPropertyBase {
     private:
-        std::vector<KeyFrame*> m_KeyFrames;
+        std::vector<std::unique_ptr<KeyFrame>> m_KeyFrames;
 
     public:
+        KeyedProperty();
         ~KeyedProperty();
-        void addKeyFrame(KeyFrame* keyframe);
+        void addKeyFrame(std::unique_ptr<KeyFrame>);
         StatusCode onAddedClean(CoreContext* context) override;
         StatusCode onAddedDirty(CoreContext* context) override;
 

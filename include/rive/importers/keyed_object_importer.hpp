@@ -13,7 +13,7 @@ namespace rive {
 
     public:
         KeyedObjectImporter(KeyedObject* keyedObject);
-        void addKeyedProperty(KeyedProperty* property);
+        void addKeyedProperty(std::unique_ptr<KeyedProperty>);
     };
 } // namespace rive
 #endif
