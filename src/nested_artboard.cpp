@@ -38,7 +38,11 @@ void NestedArtboard::draw(Renderer* renderer) {
     if (m_NestedInstance == nullptr) {
         return;
     }
-    renderer->save();
+    if (!clip(renderer)) {
+        // We didn't clip, so make sure to save as we'll be doing some
+        // transformations.
+        renderer->save();
+    }
     renderer->transform(worldTransform() * makeTranslate(m_NestedInstance));
     m_NestedInstance->draw(renderer);
     renderer->restore();
