@@ -75,9 +75,9 @@ namespace rive {
         // the empty string.
         const LayerState* stateChangedByIndex(size_t index) const;
 
-        void pointerMove(const Vec2D& position);
-        void pointerDown(const Vec2D& position);
-        void pointerUp(const Vec2D& position);
+        void pointerMove(Vec2D position);
+        void pointerDown(Vec2D position);
+        void pointerUp(Vec2D position);
     };
 } // namespace rive
 #endif

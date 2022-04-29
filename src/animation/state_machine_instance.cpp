@@ -273,13 +273,13 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
     }
 }
 
-void StateMachineInstance::pointerMove(const Vec2D& position) {
+void StateMachineInstance::pointerMove(Vec2D position) {
     processEvent(position, EventType::updateHover);
 }
-void StateMachineInstance::pointerDown(const Vec2D& position) {
+void StateMachineInstance::pointerDown(Vec2D position) {
     processEvent(position, EventType::down);
 }
-void StateMachineInstance::pointerUp(const Vec2D& position) {
+void StateMachineInstance::pointerUp(Vec2D position) {
     processEvent(position, EventType::up);
 }
 
