@@ -3,9 +3,10 @@
 
 using namespace rive;
 
-NestedLinearAnimation::~NestedLinearAnimation() { delete m_AnimationInstance; }
+NestedLinearAnimation::NestedLinearAnimation() {}
+NestedLinearAnimation::~NestedLinearAnimation() {}
 
-void NestedLinearAnimation::initializeAnimation(Artboard* artboard) {
-    assert(m_AnimationInstance == nullptr);
-    m_AnimationInstance = new LinearAnimationInstance(artboard->animation(animationId()), artboard);
+void NestedLinearAnimation::initializeAnimation(ArtboardInstance* artboard) {
+    m_AnimationInstance = std::make_unique<LinearAnimationInstance>(artboard->animation(animationId()),
+                                                                    artboard);
 }
