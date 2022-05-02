@@ -10,7 +10,7 @@ void NestedRemapAnimation::timeChanged() {
     }
 }
 
-void NestedRemapAnimation::initializeAnimation(ArtboardInstance* artboard) {
+void NestedRemapAnimation::initializeAnimation(Artboard* artboard) {
     Super::initializeAnimation(artboard);
     timeChanged();
 }

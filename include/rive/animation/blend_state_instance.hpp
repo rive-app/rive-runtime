@@ -23,7 +23,7 @@ namespace rive {
         const T* blendAnimation() const { return m_BlendAnimation; }
         const LinearAnimationInstance* animationInstance() const { return &m_AnimationInstance; }
 
-        BlendStateAnimationInstance(const T* blendAnimation, ArtboardInstance* instance) :
+        BlendStateAnimationInstance(const T* blendAnimation, Artboard* instance) :
             m_BlendAnimation(blendAnimation),
             m_AnimationInstance(blendAnimation->animation(), instance)
         {}

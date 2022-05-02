@@ -3,8 +3,6 @@
 #include "rive/generated/nested_animation_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class ArtboardInstance;
-
     class NestedAnimation : public NestedAnimationBase {
     public:
         StatusCode onAddedDirty(CoreContext* context) override;
@@ -14,7 +12,7 @@ namespace rive {
 
         // Initialize the animation (make instances as necessary) from the
         // source artboard.
-        virtual void initializeAnimation(ArtboardInstance*) = 0;
+        virtual void initializeAnimation(Artboard* artboard) = 0;
     };
 } // namespace rive
 

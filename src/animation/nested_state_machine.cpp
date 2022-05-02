@@ -4,4 +4,4 @@ using namespace rive;
 
 void NestedStateMachine::advance(float elapsedSeconds) {}
 
-void NestedStateMachine::initializeAnimation(ArtboardInstance*) {}
+void NestedStateMachine::initializeAnimation(Artboard* artboard) {}

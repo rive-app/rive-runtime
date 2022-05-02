@@ -6,13 +6,12 @@ namespace rive {
     class LinearAnimationInstance;
     class NestedLinearAnimation : public NestedLinearAnimationBase {
     protected:
-        std::unique_ptr<LinearAnimationInstance> m_AnimationInstance;
+        LinearAnimationInstance* m_AnimationInstance = nullptr;
 
     public:
-        NestedLinearAnimation();
-        ~NestedLinearAnimation() override;
+        ~NestedLinearAnimation();
 
-        void initializeAnimation(ArtboardInstance*) override;
+        void initializeAnimation(Artboard* artboard) override;
     };
 } // namespace rive
 
