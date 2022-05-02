@@ -8,7 +8,7 @@ namespace rive {
     class LinearAnimationInstance {
     private:
         const LinearAnimation* m_Animation = nullptr;
-        Artboard* m_ArtboardInstance;
+        ArtboardInstance* m_ArtboardInstance;
         float m_Time;
         float m_TotalTime;
         float m_LastTotalTime;
@@ -18,7 +18,7 @@ namespace rive {
         int m_LoopValue = -1;
 
     public:
-        LinearAnimationInstance(const LinearAnimation*, Artboard* instance);
+        LinearAnimationInstance(const LinearAnimation*, ArtboardInstance* instance);
 
         // Advance the animation by the specified time. Returns true if the
         // animation will continue to animate after this advance.

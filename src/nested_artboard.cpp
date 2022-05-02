@@ -82,9 +82,12 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context) {
     // does require that we always use an artboard instance (not just the source
     // artboard) when working with nested artboards, but in general this is good
     // practice for any loaded Rive file.
-    if (m_NestedInstance != nullptr) {
+    assert(m_NestedInstance == nullptr || m_NestedInstance->isInstance());
+
+    if (m_NestedInstance != nullptr && m_NestedInstance->isInstance()) {
+        auto abi = static_cast<ArtboardInstance*>(m_NestedInstance);
         for (auto animation : m_NestedAnimations) {
-            animation->initializeAnimation(m_NestedInstance);
+            animation->initializeAnimation(abi);
         }
     }
     return Super::onAddedClean(context);

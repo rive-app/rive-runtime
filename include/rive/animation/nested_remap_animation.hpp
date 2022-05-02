@@ -7,7 +7,7 @@ namespace rive {
     public:
         void timeChanged() override;
         void advance(float elapsedSeconds) override;
-        void initializeAnimation(Artboard* artboard) override;
+        void initializeAnimation(ArtboardInstance*) override;
     };
 } // namespace rive
 
