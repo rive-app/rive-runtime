@@ -6,14 +6,17 @@
 #include <stdio.h>
 
 namespace rive {
+    class ArtboardInstance;
     class NestedAnimation;
     class NestedArtboard : public NestedArtboardBase {
 
     private:
-        Artboard* m_NestedInstance = nullptr;
+        Artboard* m_Artboard = nullptr; // might point to m_Instance, and might not
+        std::unique_ptr<ArtboardInstance> m_Instance;   // may be null
         std::vector<NestedAnimation*> m_NestedAnimations;
 
     public:
+        NestedArtboard();
         ~NestedArtboard();
         StatusCode onAddedClean(CoreContext* context) override;
         void draw(Renderer* renderer) override;

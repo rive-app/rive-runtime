@@ -7,26 +7,28 @@
 
 using namespace rive;
 
-NestedArtboard::~NestedArtboard() {
-    if (m_NestedInstance->isInstance()) {
-        delete m_NestedInstance;
-    }
-}
+NestedArtboard::NestedArtboard() {}
+NestedArtboard::~NestedArtboard() {}
+
 Core* NestedArtboard::clone() const {
     NestedArtboard* nestedArtboard = static_cast<NestedArtboard*>(NestedArtboardBase::clone());
-    if (m_NestedInstance == nullptr) {
+    if (m_Artboard == nullptr) {
         return nestedArtboard;
     }
-    auto ni = m_NestedInstance->instance();
-    assert(ni->isInstance());
+    auto ni = m_Artboard->instance();
     nestedArtboard->nest(ni.release());
     return nestedArtboard;
 }
 
 void NestedArtboard::nest(Artboard* artboard) {
     assert(artboard != nullptr);
-    m_NestedInstance = artboard;
-    m_NestedInstance->advance(0.0f);
+
+    m_Artboard = artboard;
+    m_Instance = nullptr;
+    if (artboard->isInstance()) {
+        m_Instance.reset(static_cast<ArtboardInstance*>(artboard)); // take ownership
+    }
+    m_Artboard->advance(0.0f);
 }
 
 static Mat2D makeTranslate(const Artboard* artboard) {
@@ -35,7 +37,7 @@ static Mat2D makeTranslate(const Artboard* artboard) {
 }
 
 void NestedArtboard::draw(Renderer* renderer) {
-    if (m_NestedInstance == nullptr) {
+    if (m_Artboard == nullptr) {
         return;
     }
     if (!clip(renderer)) {
@@ -43,18 +45,18 @@ void NestedArtboard::draw(Renderer* renderer) {
         // transformations.
         renderer->save();
     }
-    renderer->transform(worldTransform() * makeTranslate(m_NestedInstance));
-    m_NestedInstance->draw(renderer);
+    renderer->transform(worldTransform() * makeTranslate(m_Artboard));
+    m_Artboard->draw(renderer);
     renderer->restore();
 }
 
 Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform) {
-    if (m_NestedInstance == nullptr) {
+    if (m_Artboard == nullptr) {
         return nullptr;
     }
     hinfo->mounts.push_back(this);
-    auto mx = xform * worldTransform() * makeTranslate(m_NestedInstance);
-    if (auto c = m_NestedInstance->hitTest(hinfo, &mx)) {
+    auto mx = xform * worldTransform() * makeTranslate(m_Artboard);
+    if (auto c = m_Artboard->hitTest(hinfo, &mx)) {
         return c;
     }
     hinfo->mounts.pop_back();
@@ -82,30 +84,29 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context) {
     // does require that we always use an artboard instance (not just the source
     // artboard) when working with nested artboards, but in general this is good
     // practice for any loaded Rive file.
-    assert(m_NestedInstance == nullptr || m_NestedInstance->isInstance());
+    assert(m_Artboard == nullptr || m_Artboard == m_Instance.get());
 
-    if (m_NestedInstance != nullptr && m_NestedInstance->isInstance()) {
-        auto abi = static_cast<ArtboardInstance*>(m_NestedInstance);
+    if (m_Instance) {
         for (auto animation : m_NestedAnimations) {
-            animation->initializeAnimation(abi);
+            animation->initializeAnimation(m_Instance.get());
         }
     }
     return Super::onAddedClean(context);
 }
 
 bool NestedArtboard::advance(float elapsedSeconds) {
-    if (m_NestedInstance == nullptr) {
+    if (m_Artboard == nullptr) {
         return false;
     }
     for (auto animation : m_NestedAnimations) {
         animation->advance(elapsedSeconds);
     }
-    return m_NestedInstance->advance(elapsedSeconds);
+    return m_Artboard->advance(elapsedSeconds);
 }
 
 void NestedArtboard::update(ComponentDirt value) {
     Super::update(value);
-    if (hasDirt(value, ComponentDirt::WorldTransform) && m_NestedInstance != nullptr) {
-        m_NestedInstance->opacity(renderOpacity());
+    if (hasDirt(value, ComponentDirt::WorldTransform) && m_Artboard != nullptr) {
+        m_Artboard->opacity(renderOpacity());
     }
 }
