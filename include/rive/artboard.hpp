@@ -122,7 +122,7 @@ namespace rive {
         bool isTranslucent(const LinearAnimation*) const;
         bool isTranslucent(const LinearAnimationInstance*) const;
 
-        template <typename T = Component> T* find(std::string name) {
+        template <typename T = Component> T* find(const std::string& name) {
             for (auto object : m_Objects) {
                 if (object != nullptr && object->is<T>() && object->as<T>()->name() == name) {
                     return reinterpret_cast<T*>(object);
@@ -138,11 +138,11 @@ namespace rive {
         std::string stateMachineNameAt(size_t index) const;
 
         LinearAnimation* firstAnimation() const;
-        LinearAnimation* animation(std::string name) const;
+        LinearAnimation* animation(const std::string& name) const;
         LinearAnimation* animation(size_t index) const;
 
         StateMachine* firstStateMachine() const;
-        StateMachine* stateMachine(std::string name) const;
+        StateMachine* stateMachine(const std::string& name) const;
         StateMachine* stateMachine(size_t index) const;
 
         /// Make an instance of this artboard, must be explictly deleted when no
@@ -173,10 +173,10 @@ namespace rive {
         ArtboardInstance() {}
 
         std::unique_ptr<LinearAnimationInstance> animationAt(size_t index);
-        std::unique_ptr<LinearAnimationInstance> animationNamed(std::string name);
+        std::unique_ptr<LinearAnimationInstance> animationNamed(const std::string& name);
 
         std::unique_ptr<StateMachineInstance> stateMachineAt(size_t index);
-        std::unique_ptr<StateMachineInstance> stateMachineNamed(std::string name);
+        std::unique_ptr<StateMachineInstance> stateMachineNamed(const std::string& name);
     };
 } // namespace rive
 

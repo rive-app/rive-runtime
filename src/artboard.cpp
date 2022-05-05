@@ -478,7 +478,7 @@ LinearAnimation* Artboard::firstAnimation() const {
     return m_Animations.front();
 }
 
-LinearAnimation* Artboard::animation(std::string name) const {
+LinearAnimation* Artboard::animation(const std::string& name) const {
     for (auto animation : m_Animations) {
         if (animation->name() == name) {
             return animation;
@@ -501,7 +501,7 @@ StateMachine* Artboard::firstStateMachine() const {
     return m_StateMachines.front();
 }
 
-StateMachine* Artboard::stateMachine(std::string name) const {
+StateMachine* Artboard::stateMachine(const std::string& name) const {
     for (auto machine : m_StateMachines) {
         if (machine->name() == name) {
             return machine;
@@ -600,7 +600,7 @@ std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationAt(size_t in
     return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
 }
 
-std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationNamed(std::string name) {
+std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationNamed(const std::string& name) {
     auto la = this->animation(name);
     return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
 }
@@ -610,7 +610,7 @@ std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineAt(size_t in
     return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }
 
-std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineNamed(std::string name) {
+std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineNamed(const std::string& name) {
     auto sm = this->stateMachine(name);
     return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }
