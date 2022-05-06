@@ -7,13 +7,20 @@ using namespace rive;
 
 LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animation,
                                                  ArtboardInstance* instance) :
+    Scene(instance),
     m_Animation(animation),
-    m_ArtboardInstance(instance),
     m_Time(animation->enableWorkArea() ? (float)animation->workStart() / animation->fps() : 0),
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),
     m_SpilledTime(0.0f),
     m_Direction(1) {}
+
+bool LinearAnimationInstance::advanceAndApply(float seconds) {
+    bool more = this->advance(seconds);
+    this->apply();
+    m_ArtboardInstance->advance(seconds);
+    return more;
+}
 
 bool LinearAnimationInstance::advance(float elapsedSeconds) {
     const LinearAnimation& animation = *m_Animation;
@@ -126,8 +133,12 @@ std::string LinearAnimationInstance::name() const {
     return m_Animation->name();
 }
 
+bool LinearAnimationInstance::isTranslucent() const {
+    return m_ArtboardInstance->isTranslucent(this);
+}
+
 // Returns either the animation's default or overridden loop values
-int LinearAnimationInstance::loopValue() {
+int LinearAnimationInstance::loopValue() const {
     if (m_LoopValue != -1) {
         return m_LoopValue;
     }

@@ -22,6 +22,7 @@
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
+#include "rive/playable.hpp"
 #include "rive/math/aabb.hpp"
 #include "skia_factory.hpp"
 #include "skia_renderer.hpp"
@@ -37,8 +38,7 @@ rive::SkiaFactory skiaFactory;
 std::string filename;
 std::unique_ptr<rive::File> currentFile;
 std::unique_ptr<rive::ArtboardInstance> artboardInstance;
-std::unique_ptr<rive::StateMachineInstance> stateMachineInstance;
-std::unique_ptr<rive::LinearAnimationInstance> animationInstance;
+std::unique_ptr<rive::Playable> currentPlayable;
 
 // ImGui wants raw pointers to names, but our public API returns
 // names as strings (by value), so we cache these names each time we
@@ -77,8 +77,7 @@ void initStateMachine(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    animationInstance = nullptr;
-    stateMachineInstance = nullptr;
+    currentPlayable = nullptr;
     artboardInstance = nullptr;
 
     currentFile = std::move(file);
@@ -87,7 +86,8 @@ void initStateMachine(int index) {
     loadNames(artboardInstance.get());
 
     if (index >= 0 && index < artboardInstance->stateMachineCount()) {
-        stateMachineInstance = artboardInstance->stateMachineAt(index);
+        currentPlayable = artboardInstance->stateMachineAt(index);
+        currentPlayable->inputCount();
     }
 }
 
@@ -101,8 +101,7 @@ void initAnimation(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    animationInstance = nullptr;
-    stateMachineInstance = nullptr;
+    currentPlayable = nullptr;
     artboardInstance = nullptr;
 
     currentFile = std::move(file);
@@ -111,7 +110,8 @@ void initAnimation(int index) {
     loadNames(artboardInstance.get());
 
     if (index >= 0 && index < artboardInstance->animationCount()) {
-        animationInstance = artboardInstance->animationAt(index);
+        currentPlayable = artboardInstance->animationAt(index);
+        currentPlayable->inputCount();
     }
 }
 
@@ -121,18 +121,18 @@ static void glfwCursorPosCallback(GLFWwindow* window, double x, double y) {
     float xscale, yscale;
     glfwGetWindowContentScale(window, &xscale, &yscale);
     lastWorldMouse = gInverseViewTransform * rive::Vec2D(x * xscale, y * yscale);
-    if (stateMachineInstance != nullptr) {
-        stateMachineInstance->pointerMove(lastWorldMouse);
+    if (currentPlayable) {
+        currentPlayable->pointerMove(lastWorldMouse);
     }
 }
 void glfwMouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    if (stateMachineInstance != nullptr) {
+    if (currentPlayable) {
         switch (action) {
             case GLFW_PRESS:
-                stateMachineInstance->pointerDown(lastWorldMouse);
+                currentPlayable->pointerDown(lastWorldMouse);
                 break;
             case GLFW_RELEASE:
-                stateMachineInstance->pointerUp(lastWorldMouse);
+                currentPlayable->pointerUp(lastWorldMouse);
                 break;
         }
     }
@@ -271,14 +271,8 @@ int main() {
         paint.setColor(SK_ColorDKGRAY);
         canvas->drawPaint(paint);
 
-        if (artboardInstance != nullptr) {
-            if (animationInstance != nullptr) {
-                animationInstance->advance(elapsed);
-                animationInstance->apply();
-            } else if (stateMachineInstance != nullptr) {
-                stateMachineInstance->advance(elapsed);
-            }
-            artboardInstance->advance(elapsed);
+        if (currentPlayable) {
+            currentPlayable->advanceAndApply(elapsed);
 
             rive::SkiaRenderer renderer(canvas);
             renderer.save();
@@ -286,16 +280,15 @@ int main() {
             auto viewTransform = rive::computeAlignment(rive::Fit::contain,
                                                         rive::Alignment::center,
                                                         rive::AABB(0, 0, width, height),
-                                                        artboardInstance->bounds());
+                                                        currentPlayable->bounds());
             renderer.transform(viewTransform);
             // Store the inverse view so we can later go from screen to world.
             gInverseViewTransform = viewTransform.invertOrIdentity();
             // post_mouse_event(artboard.get(), canvas->getTotalMatrix());
 
-            artboardInstance->draw(&renderer);
+            currentPlayable->draw(&renderer);
             renderer.restore();
         }
-
         context->flush();
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -332,13 +325,13 @@ int main() {
                 animationIndex = -1;
                 initStateMachine(stateMachineIndex);
             }
-            if (stateMachineInstance != nullptr) {
+            if (currentPlayable != nullptr) {
 
                 ImGui::Columns(2);
                 ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.6666);
 
-                for (int i = 0; i < stateMachineInstance->inputCount(); i++) {
-                    auto inputInstance = stateMachineInstance->input(i);
+                for (int i = 0; i < currentPlayable->inputCount(); i++) {
+                    auto inputInstance = currentPlayable->input(i);
 
                     if (inputInstance->input()->is<rive::StateMachineNumber>()) {
                         // ImGui requires names as id's, use ## to hide the

@@ -284,9 +284,10 @@ void StateMachineInstance::pointerUp(Vec2D position) {
 }
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
-                                           ArtboardInstance* instance) :
-    m_Machine(machine), m_ArtboardInstance(instance) {
-    assert(instance->isInstance());
+                                           ArtboardInstance* instance)
+    : Scene(instance)
+    , m_Machine(machine)
+{
     const auto count = machine->inputCount();
     m_InputInstances.resize(count);
     for (size_t i = 0; i < count; i++) {
@@ -366,6 +367,12 @@ bool StateMachineInstance::advance(float seconds) {
     }
 
     return m_NeedsAdvance;
+}
+
+bool StateMachineInstance::advanceAndApply(float seconds) {
+    bool more = this->advance(seconds);
+    m_ArtboardInstance->advance(seconds);
+    return more;
 }
 
 void StateMachineInstance::markNeedsAdvance() { m_NeedsAdvance = true; }

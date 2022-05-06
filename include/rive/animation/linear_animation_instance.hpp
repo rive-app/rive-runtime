@@ -1,14 +1,15 @@
 #ifndef _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
 #define _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
+
 #include "rive/artboard.hpp"
+#include "rive/scene.hpp"
 
 namespace rive {
     class LinearAnimation;
 
-    class LinearAnimationInstance {
+    class LinearAnimationInstance : public Scene {
     private:
         const LinearAnimation* m_Animation = nullptr;
-        ArtboardInstance* m_ArtboardInstance;
         float m_Time;
         float m_TotalTime;
         float m_LastTotalTime;
@@ -17,13 +18,18 @@ namespace rive {
         bool m_DidLoop;
         int m_LoopValue = -1;
 
+    protected:
+        bool isTranslucent() const override;
+        bool advanceAndApply(float seconds) override;
+        std::string name() const override;
+
     public:
-        LinearAnimationInstance(const LinearAnimation*, ArtboardInstance* instance);
+        LinearAnimationInstance(const LinearAnimation*, ArtboardInstance*);
 
         // Advance the animation by the specified time. Returns true if the
         // animation will continue to animate after this advance.
         bool advance(float seconds);
-
+    
         // Returns a pointer to the instance's animation
         const LinearAnimation* animation() const { return m_Animation; }
 
@@ -61,18 +67,17 @@ namespace rive {
         float totalTime() const { return m_TotalTime; }
         float lastTotalTime() const { return m_LastTotalTime; }
         float spilledTime() const { return m_SpilledTime; }
-        float durationSeconds() const;
+        float durationSeconds() const override;
 
         // Forwarded from animation
         uint32_t fps() const;
         uint32_t duration() const;
         float speed() const;
         float startSeconds() const;
-        std::string name() const;
     
         // Returns either the animation's default or overridden loop values
-        Loop loop() { return (Loop)loopValue(); }
-        int loopValue();
+        Loop loop() const override { return (Loop)loopValue(); }
+        int loopValue() const;
         // Override the animation's default loop
         void loopValue(int value);
     };

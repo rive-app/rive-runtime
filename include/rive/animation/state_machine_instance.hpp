@@ -6,6 +6,7 @@
 #include <vector>
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/event_type.hpp"
+#include "rive/scene.hpp"
 
 namespace rive {
     class StateMachine;
@@ -19,12 +20,11 @@ namespace rive {
     class StateMachineLayerInstance;
     class HitShape;
 
-    class StateMachineInstance {
+    class StateMachineInstance : public Scene {
         friend class SMIInput;
 
     private:
         const StateMachine* m_Machine;
-        ArtboardInstance* m_ArtboardInstance;
         bool m_NeedsAdvance = false;
 
         std::vector<SMIInput*> m_InputInstances;    // we own each pointer
@@ -40,9 +40,18 @@ namespace rive {
         template <typename SMType, typename InstType>
         InstType* getNamedInput(const std::string& name) const;
 
+    protected:
+        float durationSeconds() const override { return -1; }
+        bool advanceAndApply(float secs) override;
+        Loop loop() const override { return Loop::oneShot; }
+        // For now play it safe -- unless we can inspect all of our
+        // possible states and animations...
+        bool isTranslucent() const override { return true; }
+        std::string name() const override;
+
     public:
         StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
-        ~StateMachineInstance();
+        ~StateMachineInstance() override;
 
         // Advance the state machine by the specified time. Returns true if the
         // state machine will continue to animate after this advance.
@@ -54,14 +63,11 @@ namespace rive {
         // Returns a pointer to the instance's stateMachine
         const StateMachine* stateMachine() const { return m_Machine; }
 
-        size_t inputCount() const { return m_InputInstances.size(); }
-        SMIInput* input(size_t index) const;
-
-        SMIBool* getBool(const std::string& name) const;
-        SMINumber* getNumber(const std::string& name) const;
-        SMITrigger* getTrigger(const std::string& name) const;
-
-        std::string name() const;
+        size_t inputCount() const override { return m_InputInstances.size(); }
+        SMIInput* input(size_t index) const override;
+        SMIBool* getBool(const std::string& name) const override;
+        SMINumber* getNumber(const std::string& name) const override;
+        SMITrigger* getTrigger(const std::string& name) const override;
 
         const size_t currentAnimationCount() const;
         const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
@@ -75,9 +81,9 @@ namespace rive {
         // the empty string.
         const LayerState* stateChangedByIndex(size_t index) const;
 
-        void pointerMove(Vec2D position);
-        void pointerDown(Vec2D position);
-        void pointerUp(Vec2D position);
+        void pointerMove(Vec2D position) override;
+        void pointerDown(Vec2D position) override;
+        void pointerUp(Vec2D position) override;
     };
 } // namespace rive
 #endif
