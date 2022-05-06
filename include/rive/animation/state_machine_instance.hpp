@@ -38,7 +38,7 @@ namespace rive {
         void processEvent(Vec2D position, EventType hitEvent = EventType::updateHover);
 
         template <typename SMType, typename InstType>
-        InstType* getNamedInput(std::string name) const;
+        InstType* getNamedInput(const std::string& name) const;
 
     public:
         StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
@@ -57,9 +57,9 @@ namespace rive {
         size_t inputCount() const { return m_InputInstances.size(); }
         SMIInput* input(size_t index) const;
 
-        SMIBool* getBool(std::string name) const;
-        SMINumber* getNumber(std::string name) const;
-        SMITrigger* getTrigger(std::string name) const;
+        SMIBool* getBool(const std::string& name) const;
+        SMINumber* getNumber(const std::string& name) const;
+        SMITrigger* getTrigger(const std::string& name) const;
 
         std::string name() const;
 

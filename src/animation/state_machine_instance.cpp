@@ -381,7 +381,7 @@ SMIInput* StateMachineInstance::input(size_t index) const {
 }
 
 template <typename SMType, typename InstType>
-InstType* StateMachineInstance::getNamedInput(std::string name) const {
+InstType* StateMachineInstance::getNamedInput(const std::string& name) const {
     for (const auto inst : m_InputInstances) {
         auto input = inst->input();
         if (input->is<SMType>() && input->name() == name) {
@@ -391,13 +391,13 @@ InstType* StateMachineInstance::getNamedInput(std::string name) const {
     return nullptr;
 }
 
-SMIBool* StateMachineInstance::getBool(std::string name) const {
+SMIBool* StateMachineInstance::getBool(const std::string& name) const {
     return getNamedInput<StateMachineBool, SMIBool>(name);
 }
-SMINumber* StateMachineInstance::getNumber(std::string name) const {
+SMINumber* StateMachineInstance::getNumber(const std::string& name) const {
     return getNamedInput<StateMachineNumber, SMINumber>(name);
 }
-SMITrigger* StateMachineInstance::getTrigger(std::string name) const {
+SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const {
     return getNamedInput<StateMachineTrigger, SMITrigger>(name);
 }
 
