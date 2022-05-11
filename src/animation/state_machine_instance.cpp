@@ -74,7 +74,7 @@ namespace rive {
             }
         }
 
-        bool advance(/*Artboard* artboard, */float seconds, Span<SMIInput*> inputs) {
+        bool advance(/*Artboard* artboard, */ float seconds, Span<SMIInput*> inputs) {
             m_StateChangedOnAdvance = false;
 
             if (m_CurrentState != nullptr) {
@@ -134,8 +134,9 @@ namespace rive {
             return true;
         }
 
-        bool
-        tryChangeState(StateInstance* stateFromInstance, Span<SMIInput*> inputs, bool ignoreTriggers) {
+        bool tryChangeState(StateInstance* stateFromInstance,
+                            Span<SMIInput*> inputs,
+                            bool ignoreTriggers) {
             if (stateFromInstance == nullptr) {
                 return false;
             }
@@ -276,18 +277,12 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
 void StateMachineInstance::pointerMove(Vec2D position) {
     processEvent(position, EventType::updateHover);
 }
-void StateMachineInstance::pointerDown(Vec2D position) {
-    processEvent(position, EventType::down);
-}
-void StateMachineInstance::pointerUp(Vec2D position) {
-    processEvent(position, EventType::up);
-}
+void StateMachineInstance::pointerDown(Vec2D position) { processEvent(position, EventType::down); }
+void StateMachineInstance::pointerUp(Vec2D position) { processEvent(position, EventType::up); }
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
-                                           ArtboardInstance* instance)
-    : Scene(instance)
-    , m_Machine(machine)
-{
+                                           ArtboardInstance* instance) :
+    Scene(instance), m_Machine(machine) {
     const auto count = machine->inputCount();
     m_InputInstances.resize(count);
     for (size_t i = 0; i < count; i++) {

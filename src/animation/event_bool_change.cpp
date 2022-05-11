@@ -18,5 +18,15 @@ void EventBoolChange::perform(StateMachineInstance* stateMachineInstance) const 
     }
     // If it's not null, it must be our correct type (why we validate at load time).
     auto boolInput = reinterpret_cast<SMIBool*>(inputInstance);
-    boolInput->value(value());
+    switch (value()) {
+        case 0:
+            boolInput->value(false);
+            break;
+        case 1:
+            boolInput->value(true);
+            break;
+        default:
+            boolInput->value(!boolInput->value());
+            break;
+    }
 }

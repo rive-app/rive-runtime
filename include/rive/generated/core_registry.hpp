@@ -373,6 +373,9 @@ namespace rive {
                 case TransitionValueConditionBase::opValuePropertyKey:
                     object->as<TransitionValueConditionBase>()->opValue(value);
                     break;
+                case EventBoolChangeBase::valuePropertyKey:
+                    object->as<EventBoolChangeBase>()->value(value);
+                    break;
                 case StateTransitionBase::stateToIdPropertyKey:
                     object->as<StateTransitionBase>()->stateToId(value);
                     break;
@@ -750,9 +753,6 @@ namespace rive {
                 case KeyFrameBoolBase::valuePropertyKey:
                     object->as<KeyFrameBoolBase>()->value(value);
                     break;
-                case EventBoolChangeBase::valuePropertyKey:
-                    object->as<EventBoolChangeBase>()->value(value);
-                    break;
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                     object->as<LinearAnimationBase>()->enableWorkArea(value);
                     break;
@@ -861,6 +861,8 @@ namespace rive {
                     return object->as<KeyFrameIdBase>()->value();
                 case TransitionValueConditionBase::opValuePropertyKey:
                     return object->as<TransitionValueConditionBase>()->opValue();
+                case EventBoolChangeBase::valuePropertyKey:
+                    return object->as<EventBoolChangeBase>()->value();
                 case StateTransitionBase::stateToIdPropertyKey:
                     return object->as<StateTransitionBase>()->stateToId();
                 case StateTransitionBase::flagsPropertyKey:
@@ -1117,8 +1119,6 @@ namespace rive {
                     return object->as<NestedSimpleAnimationBase>()->isPlaying();
                 case KeyFrameBoolBase::valuePropertyKey:
                     return object->as<KeyFrameBoolBase>()->value();
-                case EventBoolChangeBase::valuePropertyKey:
-                    return object->as<EventBoolChangeBase>()->value();
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                     return object->as<LinearAnimationBase>()->enableWorkArea();
                 case StateMachineBoolBase::valuePropertyKey:
@@ -1183,6 +1183,7 @@ namespace rive {
                 case KeyFrameBase::interpolatorIdPropertyKey:
                 case KeyFrameIdBase::valuePropertyKey:
                 case TransitionValueConditionBase::opValuePropertyKey:
+                case EventBoolChangeBase::valuePropertyKey:
                 case StateTransitionBase::stateToIdPropertyKey:
                 case StateTransitionBase::flagsPropertyKey:
                 case StateTransitionBase::durationPropertyKey:
@@ -1308,7 +1309,6 @@ namespace rive {
                 case IKConstraintBase::invertDirectionPropertyKey:
                 case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 case KeyFrameBoolBase::valuePropertyKey:
-                case EventBoolChangeBase::valuePropertyKey:
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                 case StateMachineBoolBase::valuePropertyKey:
                 case ShapePaintBase::isVisiblePropertyKey:

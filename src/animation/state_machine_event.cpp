@@ -48,7 +48,7 @@ StatusCode StateMachineEvent::onAddedClean(CoreContext* context) {
                 if (component == target) {
                     auto index = artboard->idOf(shape);
                     if (index != 0) {
-                        m_HitShapesIds.push_back(artboard->idOf(shape));
+                        m_HitShapesIds.push_back(index);
                     }
                     break;
                 }

@@ -1,7 +1,7 @@
 #ifndef _RIVE_EVENT_BOOL_CHANGE_BASE_HPP_
 #define _RIVE_EVENT_BOOL_CHANGE_BASE_HPP_
 #include "rive/animation/event_input_change.hpp"
-#include "rive/core/field_types/core_bool_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive {
     class EventBoolChangeBase : public EventInputChange {
     protected:
@@ -27,11 +27,11 @@ namespace rive {
         static const uint16_t valuePropertyKey = 228;
 
     private:
-        bool m_Value = true;
+        uint32_t m_Value = 1;
 
     public:
-        inline bool value() const { return m_Value; }
-        void value(bool value) {
+        inline uint32_t value() const { return m_Value; }
+        void value(uint32_t value) {
             if (m_Value == value) {
                 return;
             }
@@ -48,7 +48,7 @@ namespace rive {
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
                 case valuePropertyKey:
-                    m_Value = CoreBoolType::deserialize(reader);
+                    m_Value = CoreUintType::deserialize(reader);
                     return true;
             }
             return EventInputChange::deserialize(propertyKey, reader);

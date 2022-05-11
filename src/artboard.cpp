@@ -68,17 +68,25 @@ StatusCode Artboard::initialize() {
         }
     }
 
-    for (auto object : m_Animations) {
-        if (!canContinue(code = object->onAddedDirty(this))) {
-            return code;
+    // Animations and StateMachines initialize only once on the source/origin
+    // Artboard. Instances will hold references to the original Animations and StateMachines, so
+    // running this code for instances will effectively initialize them twice. This can lead to
+    // unpredictable behaviour. One such example was that resolved objects like event inputs were
+    // being added to lists twice.
+    if (!isInstance()) {
+        for (auto object : m_Animations) {
+            if (!canContinue(code = object->onAddedDirty(this))) {
+                return code;
+            }
+        }
+
+        for (auto object : m_StateMachines) {
+            if (!canContinue(code = object->onAddedDirty(this))) {
+                return code;
+            }
         }
     }
 
-    for (auto object : m_StateMachines) {
-        if (!canContinue(code = object->onAddedDirty(this))) {
-            return code;
-        }
-    }
     // Store a map of the drawRules to make it easier to lookup the matching
     // rule for a transform component.
     std::unordered_map<Core*, DrawRules*> componentDrawRules;
@@ -115,15 +123,17 @@ StatusCode Artboard::initialize() {
         }
     }
 
-    for (auto object : m_Animations) {
-        if (!canContinue(code = object->onAddedClean(this))) {
-            return code;
+    if (!isInstance()) {
+        for (auto object : m_Animations) {
+            if (!canContinue(code = object->onAddedClean(this))) {
+                return code;
+            }
         }
-    }
 
-    for (auto object : m_StateMachines) {
-        if (!canContinue(code = object->onAddedClean(this))) {
-            return code;
+        for (auto object : m_StateMachines) {
+            if (!canContinue(code = object->onAddedClean(this))) {
+                return code;
+            }
         }
     }
 
@@ -523,6 +533,7 @@ std::unique_ptr<ArtboardInstance> Artboard::instance() const {
 
     artboardClone->m_Factory = m_Factory;
     artboardClone->m_FrameOrigin = m_FrameOrigin;
+    artboardClone->m_IsInstance = true;
 
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
     cloneObjects.push_back(artboardClone.get());
@@ -545,8 +556,6 @@ std::unique_ptr<ArtboardInstance> Artboard::instance() const {
 
     if (artboardClone->initialize() != StatusCode::Ok) {
         artboardClone = nullptr;
-    } else {
-        artboardClone->m_IsInstance = true;
     }
 
     assert(artboardClone->isInstance());

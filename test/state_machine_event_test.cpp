@@ -81,3 +81,31 @@ TEST_CASE("hit testing via a state machine works", "[file]") {
 
     REQUIRE(trigger->didFire());
 }
+
+TEST_CASE("hit a toggle boolean event", "[file]") {
+    auto file = ReadRiveFile("../../test/assets/light_switch.riv");
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    artboard->advance(0.0f);
+    stateMachine->advance(0.0f);
+
+    auto switchButton = stateMachine->getBool("On");
+    REQUIRE(switchButton != nullptr);
+    REQUIRE(switchButton->value() == true);
+
+    stateMachine->pointerDown(rive::Vec2D(150.0f, 258.0f));
+    stateMachine->pointerUp(rive::Vec2D(150.0f, 258.0f));
+    // Got toggled off after pressing
+    REQUIRE(switchButton->value() == false);
+
+    stateMachine->pointerDown(rive::Vec2D(150.0f, 258.0f));
+    stateMachine->pointerUp(rive::Vec2D(150.0f, 258.0f));
+    // Got toggled back on after pressing
+    REQUIRE(switchButton->value() == true);
+}

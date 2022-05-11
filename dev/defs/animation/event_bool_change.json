@@ -7,8 +7,8 @@
   "extends": "animation/event_input_change.json",
   "properties": {
     "value": {
-      "type": "bool",
-      "initialValue": "true",
+      "type": "uint",
+      "initialValue": "1",
       "key": {
         "int": 228,
         "string": "value"
