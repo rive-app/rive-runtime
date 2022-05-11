@@ -156,20 +156,6 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
     initAnimation(0);
 }
 
-static void test_messages(rive::Artboard* artboard) {
-    rive::Message msg;
-    int i = 0;
-#ifdef DEBUG
-    bool hasAny = artboard->hasMessages();
-#endif
-
-    while (artboard->nextMessage(&msg)) {
-        printf("-- message[%d]: '%s'\n", i, msg.m_Str.c_str());
-        i += 1;
-    }
-    assert((hasAny && i > 0) || (!hasAny && i == 0));
-}
-
 int main() {
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize glfw.\n");
@@ -372,7 +358,6 @@ int main() {
                 ImGui::Columns(1);
             }
             ImGui::End();
-            test_messages(artboardInstance.get());
 
         } else {
             ImGui::Text("Drop a .riv file to preview.");

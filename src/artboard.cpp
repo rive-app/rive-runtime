@@ -576,20 +576,6 @@ StatusCode Artboard::import(ImportStack& importStack) {
     return result;
 }
 
-void Artboard::testing_only_enque_message(const Message& msg) { m_MessageQueue.push(msg); }
-
-bool Artboard::hasMessages() const { return !m_MessageQueue.empty(); }
-
-bool Artboard::nextMessage(Message* msg) {
-    if (m_MessageQueue.empty()) {
-        return false;
-    } else {
-        *msg = m_MessageQueue.front();
-        m_MessageQueue.pop();
-        return true;
-    }
-}
-
 ////////// ArtboardInstance
 
 #include "rive/animation/linear_animation_instance.hpp"
