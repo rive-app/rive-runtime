@@ -40,15 +40,6 @@ namespace rive {
         template <typename SMType, typename InstType>
         InstType* getNamedInput(const std::string& name) const;
 
-    protected:
-        float durationSeconds() const override { return -1; }
-        bool advanceAndApply(float secs) override;
-        Loop loop() const override { return Loop::oneShot; }
-        // For now play it safe -- unless we can inspect all of our
-        // possible states and animations...
-        bool isTranslucent() const override { return true; }
-        std::string name() const override;
-
     public:
         StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
         ~StateMachineInstance() override;
@@ -81,9 +72,15 @@ namespace rive {
         // the empty string.
         const LayerState* stateChangedByIndex(size_t index) const;
 
+        bool advanceAndApply(float secs) override;
+        std::string name() const override;
         void pointerMove(Vec2D position) override;
         void pointerDown(Vec2D position) override;
         void pointerUp(Vec2D position) override;
+
+        float durationSeconds() const override { return -1; }
+        Loop loop() const override { return Loop::oneShot; }
+        bool isTranslucent() const override { return true; }
     };
 } // namespace rive
 #endif

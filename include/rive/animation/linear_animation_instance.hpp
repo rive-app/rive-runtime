@@ -18,11 +18,6 @@ namespace rive {
         bool m_DidLoop;
         int m_LoopValue = -1;
 
-    protected:
-        bool isTranslucent() const override;
-        bool advanceAndApply(float seconds) override;
-        std::string name() const override;
-
     public:
         LinearAnimationInstance(const LinearAnimation*, ArtboardInstance*);
 
@@ -80,6 +75,10 @@ namespace rive {
         int loopValue() const;
         // Override the animation's default loop
         void loopValue(int value);
+
+        bool isTranslucent() const override;
+        bool advanceAndApply(float seconds) override;
+        std::string name() const override;
     };
 } // namespace rive
 #endif
