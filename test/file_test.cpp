@@ -111,6 +111,14 @@ TEST_CASE("dependencies are as expected", "[file]") {
     REQUIRE(world[5] == 29.535156f);
 }
 
+TEST_CASE("long name in object is parsed correctly", "[file]") {
+    auto file = ReadRiveFile("../../test/assets/long_name.riv");
+    auto artboard = file->artboard();
+
+    // Expect all object in file to be loaded, in this case 7
+    REQUIRE(artboard->objects().size() == 7);
+}
+
 // TODO:
 // ShapePaint (fill/stroke) needs to be implemented in WASM (jsFill/jsStroke) in
 // order to create Paint objects as necessary.
