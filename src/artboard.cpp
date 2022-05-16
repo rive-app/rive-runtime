@@ -528,7 +528,7 @@ StateMachine* Artboard::stateMachine(size_t index) const {
 }
 
 StateMachine* Artboard::defaultStateMachine() const {
-    if (defaultStateMachineId() > m_StateMachines.size()) {
+    if (defaultStateMachineId() >= m_StateMachines.size()) {
         return nullptr;
     }
     return m_StateMachines[defaultStateMachineId()];
@@ -614,5 +614,10 @@ std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineAt(size_t in
 
 std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineNamed(const std::string& name) {
     auto sm = this->stateMachine(name);
+    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
+}
+
+std::unique_ptr<StateMachineInstance> ArtboardInstance::defaultStateMachineInstance() {
+    auto sm = this->defaultStateMachine();
     return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }

@@ -164,6 +164,7 @@ namespace rive {
 
         std::unique_ptr<StateMachineInstance> stateMachineAt(size_t index);
         std::unique_ptr<StateMachineInstance> stateMachineNamed(const std::string& name);
+        std::unique_ptr<StateMachineInstance> defaultStateMachineInstance();
     };
 } // namespace rive
 
