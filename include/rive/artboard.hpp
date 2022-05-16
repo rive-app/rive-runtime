@@ -68,7 +68,6 @@ namespace rive {
 
         Core* resolve(uint32_t id) const override;
 
-
         /// Find the id of a component in the artboard the object in the artboard. The artboard
         /// itself has id 0 so we use that as a flag for not found.
         uint32_t idOf(Core* object) const;
@@ -128,6 +127,10 @@ namespace rive {
         StateMachine* firstStateMachine() const;
         StateMachine* stateMachine(const std::string& name) const;
         StateMachine* stateMachine(size_t index) const;
+
+        /// When provided, the designer has specified that this artboard should
+        /// always autoplay this StateMachine.
+        StateMachine* defaultStateMachine() const;
 
         /// Make an instance of this artboard, must be explictly deleted when no
         /// longer needed.

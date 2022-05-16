@@ -79,6 +79,17 @@
       "description": "Id of the last open animation.",
       "runtime": false,
       "coop": false
+    },
+    "defaultStateMachineId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 236,
+        "string": "defaultStateMachineId"
+      },
+      "description": "The default StateMachine attached to this artboard automatically when it is initialized."
     }
   }
 }

@@ -527,6 +527,13 @@ StateMachine* Artboard::stateMachine(size_t index) const {
     return m_StateMachines[index];
 }
 
+StateMachine* Artboard::defaultStateMachine() const {
+    if (defaultStateMachineId() > m_StateMachines.size()) {
+        return nullptr;
+    }
+    return m_StateMachines[defaultStateMachineId()];
+}
+
 std::unique_ptr<ArtboardInstance> Artboard::instance() const {
     std::unique_ptr<ArtboardInstance> artboardClone(new ArtboardInstance);
     artboardClone->copy(*this);

@@ -2,6 +2,7 @@
 #define _RIVE_ARTBOARD_BASE_HPP_
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/world_transform_component.hpp"
 namespace rive {
     class ArtboardBase : public WorldTransformComponent {
@@ -34,6 +35,7 @@ namespace rive {
         static const uint16_t yPropertyKey = 10;
         static const uint16_t originXPropertyKey = 11;
         static const uint16_t originYPropertyKey = 12;
+        static const uint16_t defaultStateMachineIdPropertyKey = 236;
 
     private:
         bool m_Clip = true;
@@ -43,6 +45,7 @@ namespace rive {
         float m_Y = 0.0f;
         float m_OriginX = 0.0f;
         float m_OriginY = 0.0f;
+        uint32_t m_DefaultStateMachineId = -1;
 
     public:
         inline bool clip() const { return m_Clip; }
@@ -108,6 +111,15 @@ namespace rive {
             originYChanged();
         }
 
+        inline uint32_t defaultStateMachineId() const { return m_DefaultStateMachineId; }
+        void defaultStateMachineId(uint32_t value) {
+            if (m_DefaultStateMachineId == value) {
+                return;
+            }
+            m_DefaultStateMachineId = value;
+            defaultStateMachineIdChanged();
+        }
+
         Core* clone() const override;
         void copy(const ArtboardBase& object) {
             m_Clip = object.m_Clip;
@@ -117,6 +129,7 @@ namespace rive {
             m_Y = object.m_Y;
             m_OriginX = object.m_OriginX;
             m_OriginY = object.m_OriginY;
+            m_DefaultStateMachineId = object.m_DefaultStateMachineId;
             WorldTransformComponent::copy(object);
         }
 
@@ -143,6 +156,9 @@ namespace rive {
                 case originYPropertyKey:
                     m_OriginY = CoreDoubleType::deserialize(reader);
                     return true;
+                case defaultStateMachineIdPropertyKey:
+                    m_DefaultStateMachineId = CoreUintType::deserialize(reader);
+                    return true;
             }
             return WorldTransformComponent::deserialize(propertyKey, reader);
         }
@@ -155,6 +171,7 @@ namespace rive {
         virtual void yChanged() {}
         virtual void originXChanged() {}
         virtual void originYChanged() {}
+        virtual void defaultStateMachineIdChanged() {}
     };
 } // namespace rive
 

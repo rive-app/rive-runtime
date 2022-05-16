@@ -439,6 +439,9 @@ namespace rive {
                 case DrawRulesBase::drawTargetIdPropertyKey:
                     object->as<DrawRulesBase>()->drawTargetId(value);
                     break;
+                case ArtboardBase::defaultStateMachineIdPropertyKey:
+                    object->as<ArtboardBase>()->defaultStateMachineId(value);
+                    break;
                 case WeightBase::valuesPropertyKey:
                     object->as<WeightBase>()->values(value);
                     break;
@@ -905,6 +908,8 @@ namespace rive {
                     return object->as<ImageBase>()->assetId();
                 case DrawRulesBase::drawTargetIdPropertyKey:
                     return object->as<DrawRulesBase>()->drawTargetId();
+                case ArtboardBase::defaultStateMachineIdPropertyKey:
+                    return object->as<ArtboardBase>()->defaultStateMachineId();
                 case WeightBase::valuesPropertyKey:
                     return object->as<WeightBase>()->values();
                 case WeightBase::indicesPropertyKey:
@@ -1205,6 +1210,7 @@ namespace rive {
                 case PolygonBase::pointsPropertyKey:
                 case ImageBase::assetIdPropertyKey:
                 case DrawRulesBase::drawTargetIdPropertyKey:
+                case ArtboardBase::defaultStateMachineIdPropertyKey:
                 case WeightBase::valuesPropertyKey:
                 case WeightBase::indicesPropertyKey:
                 case TendonBase::boneIdPropertyKey:
