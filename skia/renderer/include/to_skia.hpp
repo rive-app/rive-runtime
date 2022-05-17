@@ -1,7 +1,15 @@
+/*
+ * Copyright 2022 Rive
+ */
+
 #ifndef _RIVE_TO_SKIA_HPP_
 #define _RIVE_TO_SKIA_HPP_
 
-#include "SkPaint.h"
+#include "include/core/SkMatrix.h"
+#include "include/core/SkPaint.h"
+#include "include/core/SkPathTypes.h"
+#include "include/core/SkTileMode.h"
+
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/renderer.hpp"

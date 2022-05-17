@@ -34,22 +34,16 @@ project "rive_skia_renderer"
 
     filter {"system:macosx" }
         buildoptions {"-flto=full"}
-        includedirs {"../../dependencies/skia", "../../dependencies/skia/include/core",
-             "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
-             "../../dependencies/skia/include/config"}
+        includedirs {"../../dependencies/skia"}
         libdirs {"../../dependencies/skia/out/static"}
 
     filter {"system:linux or windows" }
-        includedirs {"../../dependencies/skia", "../../dependencies/skia/include/core",
-             "../../dependencies/skia/include/effects", "../../dependencies/skia/include/gpu",
-             "../../dependencies/skia/include/config"}
+        includedirs {"../../dependencies/skia"}
         libdirs {"../../dependencies/skia/out/static"}
 
     filter {"system:ios" }
         buildoptions {"-flto=full"}
-        includedirs {"../../dependencies/skia_rive_optimized", "../../dependencies/skia_rive_optimized/include/core",
-             "../../dependencies/skia_rive_optimized/include/effects", "../../dependencies/skia_rive_optimized/include/gpu",
-             "../../dependencies/skia_rive_optimized/include/config"}
+        includedirs {"../../dependencies/skia_rive_optimized"}
         libdirs {"../../dependencies/skia_rive_optimized/out/static"}
 
     filter {"system:ios", "options:variant=system" }
@@ -65,9 +59,7 @@ project "rive_skia_renderer"
 
     -- Is there a way to pass 'arch' as a variable here?
     filter { "system:android" }
-        includedirs {"../../dependencies/skia_rive_optimized", "../../dependencies/skia_rive_optimized/include/core",
-             "../../dependencies/skia_rive_optimized/include/effects", "../../dependencies/skia_rive_optimized/include/gpu",
-             "../../dependencies/skia_rive_optimized/include/config"}
+        includedirs {"../../dependencies/skia_rive_optimized"}
         
         filter { "system:android", "options:arch=x86" }
             targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"

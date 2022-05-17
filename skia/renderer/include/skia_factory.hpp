@@ -1,3 +1,7 @@
+/*
+ * Copyright 2022 Rive
+ */
+
 #ifndef _RIVE_SKIA_FACTORY_HPP_
 #define _RIVE_SKIA_FACTORY_HPP_
 

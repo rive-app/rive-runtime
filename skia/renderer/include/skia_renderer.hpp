@@ -1,3 +1,7 @@
+/*
+ * Copyright 2022 Rive
+ */
+
 #ifndef _RIVE_SKIA_RENDERER_HPP_
 #define _RIVE_SKIA_RENDERER_HPP_
 

@@ -1,16 +1,21 @@
+/*
+ * Copyright 2022 Rive
+ */
+
 #include "skia_factory.hpp"
 #include "skia_renderer.hpp"
+#include "to_skia.hpp"
 
-#include "SkCanvas.h"
-#include "SkData.h"
-#include "SkGradientShader.h"
-#include "SkImage.h"
-#include "SkPaint.h"
-#include "SkPath.h"
-#include "SkVertices.h"
+#include "include/core/SkCanvas.h"
+#include "include/core/SkData.h"
+#include "include/core/SkImage.h"
+#include "include/core/SkPaint.h"
+#include "include/core/SkPath.h"
+#include "include/core/SkVertices.h"
+#include "include/effects/SkGradientShader.h"
+
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
-#include "to_skia.hpp"
 
 using namespace rive;
 
@@ -58,7 +63,7 @@ private:
 public:
     SkiaRenderImage(sk_sp<SkImage> image);
 
-    sk_sp<SkImage> skImage() const { return m_SkImage; };
+    sk_sp<SkImage> skImage() const { return m_SkImage; }
 
     rcp<RenderShader>
     makeShader(RenderTileMode tx, RenderTileMode ty, const Mat2D* localMatrix) const override;
@@ -76,7 +81,7 @@ public:
         memcpy(m_Buffer, src, bytes);
     }
 
-    ~SkiaBuffer() { free(m_Buffer); }
+    ~SkiaBuffer() override { free(m_Buffer); }
 
     const float* f32s() const {
         assert(m_ElemSize == sizeof(float));
