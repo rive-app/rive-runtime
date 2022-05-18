@@ -43,7 +43,6 @@ void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
 void Path::buildPath(CommandPath& commandPath) const {
-    commandPath.reset();
 
     const bool isClosed = isPathClosed();
     const std::vector<PathVertex*>& vertices = m_Vertices;
@@ -216,6 +215,10 @@ void Path::update(ComponentDirt value) {
 
     assert(m_CommandPath != nullptr);
     if (hasDirt(value, ComponentDirt::Path)) {
+        // Build path doesn't explicitly reset because we use it to concatenate
+        // multiple built paths into a single command path (like the hit
+        // tester).
+        m_CommandPath->reset();
         buildPath(*m_CommandPath);
     }
     // if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
