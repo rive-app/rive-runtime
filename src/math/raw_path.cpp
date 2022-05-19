@@ -3,7 +3,6 @@
  */
 
 #include "rive/math/raw_path.hpp"
-#include <algorithm>
 #include <cmath>
 
 using namespace rive;
