@@ -1,5 +1,6 @@
 #include "rive/shapes/star.hpp"
 #include "rive/shapes/straight_vertex.hpp"
+#include "rive/math/math_types.hpp"
 #include <cmath>
 #include <cstdio>
 
@@ -20,8 +21,8 @@ void Star::buildPolygon() {
     auto oy = -originY() * height() + halfHeight;
 
     std::size_t length = vertexCount();
-    auto angle = -M_PI / 2;
-    auto inc = 2 * M_PI / length;
+    auto angle = -math::PI / 2;
+    auto inc = 2 * math::PI / length;
 
     for (std::size_t i = 0; i < length; i += 2) {
         {

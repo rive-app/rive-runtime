@@ -1,7 +1,7 @@
 #include "rive/constraints/transform_constraint.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/math/mat2d.hpp"
-#include <cmath>
+#include "rive/math/math_types.hpp"
 
 using namespace rive;
 
@@ -29,13 +29,13 @@ void TransformConstraint::constrain(TransformComponent* component) {
     m_ComponentsA = transformA.decompose();
     m_ComponentsB = transformB.decompose();
 
-    float angleA = std::fmod(m_ComponentsA.rotation(), (float)M_PI * 2);
-    float angleB = std::fmod(m_ComponentsB.rotation(), (float)M_PI * 2);
+    float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
+    float angleB = std::fmod(m_ComponentsB.rotation(), math::PI * 2);
     float diff = angleB - angleA;
-    if (diff > M_PI) {
-        diff -= M_PI * 2;
-    } else if (diff < -M_PI) {
-        diff += M_PI * 2;
+    if (diff > math::PI) {
+        diff -= math::PI * 2;
+    } else if (diff < -math::PI) {
+        diff += math::PI * 2;
     }
 
     float t = strength();

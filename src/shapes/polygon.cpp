@@ -1,6 +1,7 @@
 #include "rive/shapes/polygon.hpp"
 #include "rive/shapes/star.hpp"
 #include "rive/shapes/straight_vertex.hpp"
+#include "rive/math/math_types.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -22,8 +23,8 @@ void Polygon::buildPolygon() {
     auto ox = -originX() * width() + halfWidth;
     auto oy = -originY() * height() + halfHeight;
 
-    auto angle = -M_PI / 2;
-    auto inc = 2 * M_PI / points();
+    auto angle = -math::PI / 2;
+    auto inc = 2 * -math::PI / points();
 
     for (StraightVertex& vertex : m_PolygonVertices) {
         vertex.x(ox + cos(angle) * halfWidth);

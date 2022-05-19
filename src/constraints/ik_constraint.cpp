@@ -1,8 +1,8 @@
 #include "rive/constraints/ik_constraint.hpp"
 #include "rive/bones/bone.hpp"
 #include "rive/artboard.hpp"
+#include "rive/math/math_types.hpp"
 #include <algorithm>
-#include <math.h> // M_PI
 
 using namespace rive;
 
@@ -139,17 +139,17 @@ void IKConstraint::solve2(BoneChainLink* fk1,
 
         if (invertDirection()) {
             r1 = std::atan2(cv[1], cv[0]) - A;
-            r2 = -C + M_PI + angleCorrection;
+            r2 = -C + math::PI + angleCorrection;
         } else {
             r1 = A + std::atan2(cv[1], cv[0]);
-            r2 = C - M_PI + angleCorrection;
+            r2 = C - math::PI + angleCorrection;
         }
     } else if (invertDirection()) {
         r1 = std::atan2(cv[1], cv[0]) - A;
-        r2 = -C + M_PI;
+        r2 = -C + math::PI;
     } else {
         r1 = A + std::atan2(cv[1], cv[0]);
-        r2 = C - M_PI;
+        r2 = C - math::PI;
     }
 
     constrainRotation(*fk1, r1);
@@ -237,13 +237,13 @@ void IKConstraint::constrain(TransformComponent* component) {
     // At the end, mix the FK angle with the IK angle by strength
     if (strength() != 1.0f) {
         for (BoneChainLink& fk : m_FkChain) {
-            float fromAngle = std::fmod(fk.transformComponents.rotation(), (float)M_PI * 2);
-            float toAngle = std::fmod(fk.angle, (float)M_PI * 2);
+            float fromAngle = std::fmod(fk.transformComponents.rotation(), math::PI * 2);
+            float toAngle = std::fmod(fk.angle, math::PI * 2);
             float diff = toAngle - fromAngle;
-            if (diff > M_PI) {
-                diff -= M_PI * 2;
-            } else if (diff < -M_PI) {
-                diff += M_PI * 2;
+            if (diff > math::PI) {
+                diff -= math::PI * 2;
+            } else if (diff < -math::PI) {
+                diff += math::PI * 2;
             }
             float angle = fromAngle + diff * strength();
             constrainRotation(fk, angle);
