@@ -1,16 +1,15 @@
 #include "rive/shapes/metrics_path.hpp"
 #include "rive/renderer.hpp"
-#include <math.h>
 
 using namespace rive;
 
-float clamp(float v, float lo, float hi) {
-    if (v < lo) {
-        return lo;
-    } else if (v > hi) {
-        return hi;
-    }
-    return v;
+static float clamp(float v, float lo, float hi) {
+    return std::min(std::max(v, lo), hi);
+}
+
+// Less exact, but faster, than std::lerp
+static float lerp(float from, float to, float f) {
+    return from + f * (to - from);
 }
 
 void MetricsPath::reset() {
@@ -243,8 +242,6 @@ void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPa
         extractSubPart(lastPartIndex, 0.0f, endT, false, result);
     }
 }
-
-float lerp(float from, float to, float f) { return from + f * (to - from); }
 
 void MetricsPath::extractSubPart(
     int index, float startT, float endT, bool moveTo, RenderPath* result) {
