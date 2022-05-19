@@ -16,7 +16,7 @@ template <typename T> bool fitsIn(intmax_t x) {
 }
 
 template <typename T> T castTo(intmax_t x) {
-    assert(sizeof(x) <= 4);    // don't use with 64bit types
+    assert(sizeof(T) <= 4);    // don't cast to 64bit types
     assert(fitsIn<T>(x));
     return static_cast<T>(x);
 }

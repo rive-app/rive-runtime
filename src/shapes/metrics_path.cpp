@@ -1,3 +1,4 @@
+#include "rive/core/type_conversions.hpp"
 #include "rive/shapes/metrics_path.hpp"
 #include "rive/renderer.hpp"
 
@@ -33,12 +34,15 @@ void MetricsPath::moveTo(float x, float y) {
 }
 
 void MetricsPath::lineTo(float x, float y) {
-    m_Parts.push_back(PathPart(0, m_Points.size()));
+    // TODO: resize PathPart to allow for larger offsets
+    auto offset = castTo<uint8_t>(m_Points.size());
+    m_Parts.push_back(PathPart(0, offset));
     m_Points.emplace_back(Vec2D(x, y));
 }
 
 void MetricsPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y) {
-    m_Parts.push_back(PathPart(1, m_Points.size()));
+    auto offset = castTo<uint8_t>(m_Points.size());
+    m_Parts.push_back(PathPart(1, offset));
     m_Points.emplace_back(Vec2D(ox, oy));
     m_Points.emplace_back(Vec2D(ix, iy));
     m_Points.emplace_back(Vec2D(x, y));
@@ -156,12 +160,12 @@ float MetricsPath::computeLength(const Mat2D& transform) {
                 pen = &to;
 
                 int index = (int)m_CubicSegments.size();
-                part.type = index + 1;
+                part.type = castTo<uint8_t>(index + 1);
                 float partLength =
                     segmentCubic(from, fromOut, toIn, to, 0.0f, 0.0f, 1.0f, m_CubicSegments);
                 m_Lengths.push_back(partLength);
                 length += partLength;
-                part.numSegments = m_CubicSegments.size() - index;
+                part.numSegments = castTo<uint8_t>(m_CubicSegments.size() - index);
                 break;
             }
         }

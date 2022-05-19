@@ -58,9 +58,7 @@ void Mesh::decodeTriangleIndexBytes(Span<const uint8_t> value) {
 
     BinaryReader reader(value);
     while (!reader.reachedEnd()) {
-        uint64_t index = reader.readVarUint64();
-        assert(index < std::numeric_limits<uint16_t>::max());
-        buffer->push_back(index);
+        buffer->push_back(reader.readVarUintAs<uint16_t>());
     }
     m_IndexBuffer = buffer;
 }

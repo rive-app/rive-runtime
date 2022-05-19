@@ -66,7 +66,12 @@ project "rive"
 
     files {"../src/**.cpp"}
 
-    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
+    buildoptions {
+        "-Wall", "-fno-exceptions",
+        "-fno-rtti",
+        "-Werror=format",
+        "-Wimplicit-int-conversion",
+    }
 
     filter {"system:macosx" }
         buildoptions {"-flto=full"}
