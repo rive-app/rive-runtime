@@ -6,16 +6,25 @@
 using namespace rive;
 
 BinaryReader::BinaryReader(Span<const uint8_t> bytes) :
-    m_Bytes(bytes), m_Position(bytes.begin()), m_Overflowed(false) {}
+    m_Bytes(bytes), m_Position(bytes.begin()), m_Overflowed(false), m_IntRangeError(false) {}
 
-bool BinaryReader::reachedEnd() const { return m_Position == m_Bytes.end() || didOverflow(); }
+bool BinaryReader::reachedEnd() const {
+    return m_Position == m_Bytes.end() || didOverflow() || didIntRangeError();
+}
 
 size_t BinaryReader::lengthInBytes() const { return m_Bytes.size(); }
 
 bool BinaryReader::didOverflow() const { return m_Overflowed; }
 
+bool BinaryReader::didIntRangeError() const { return m_IntRangeError; }
+
 void BinaryReader::overflow() {
     m_Overflowed = true;
+    m_Position = m_Bytes.end();
+}
+
+void BinaryReader::intRangeError() {
+    m_IntRangeError = true;
     m_Position = m_Bytes.end();
 }
 

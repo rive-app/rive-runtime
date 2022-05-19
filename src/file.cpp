@@ -51,32 +51,32 @@ using namespace rive;
 // Import a single Rive runtime object.
 // Used by the file importer.
 static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header) {
-    auto coreObjectKey = reader.readVarUint64();
-    auto object = CoreRegistry::makeCoreInstance((int)coreObjectKey);
+    auto coreObjectKey = reader.readVarUintAs<int>();
+    auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
     while (true) {
-        auto propertyKey = reader.readVarUint64();
+        auto propertyKey = reader.readVarUintAs<uint16_t>();
         if (propertyKey == 0) {
             // Terminator. https://media.giphy.com/media/7TtvTUMm9mp20/giphy.gif
             break;
         }
 
-        if (reader.didOverflow()) {
+        if (reader.hasError()) {
             delete object;
             return nullptr;
         }
-        if (object == nullptr || !object->deserialize((int)propertyKey, reader)) {
+        if (object == nullptr || !object->deserialize(propertyKey, reader)) {
             // We have an unknown object or property, first see if core knows
             // the property type.
-            int id = CoreRegistry::propertyFieldId((int)propertyKey);
+            int id = CoreRegistry::propertyFieldId(propertyKey);
             if (id == -1) {
                 // No, check if it's in toc.
-                id = header.propertyFieldId((int)propertyKey);
+                id = header.propertyFieldId(propertyKey);
             }
 
             if (id == -1) {
                 // Still couldn't find it, give up.
                 fprintf(stderr,
-                        "Unknown property key " RIVE_FMT_U64 ", missing from property ToC.\n",
+                        "Unknown property key %d, missing from property ToC.\n",
                         propertyKey);
                 delete object;
                 return nullptr;
