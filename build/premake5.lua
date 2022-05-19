@@ -71,6 +71,7 @@ project "rive"
         "-fno-rtti",
         "-Werror=format",
         "-Wimplicit-int-conversion",
+        "-Werror=vla",
     }
 
     filter {"system:macosx" }
