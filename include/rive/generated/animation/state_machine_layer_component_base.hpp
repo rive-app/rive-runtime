@@ -24,11 +24,7 @@ namespace rive {
 
         void copy(const StateMachineLayerComponentBase& object) {}
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-            switch (propertyKey) {
-            }
-            return false;
-        }
+        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override { return false; }
 
     protected:
     };

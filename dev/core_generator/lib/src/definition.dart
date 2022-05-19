@@ -253,19 +253,21 @@ class Definition {
       code.writeln('bool deserialize(uint16_t propertyKey, '
           'BinaryReader& reader) override {');
 
-      code.writeln('switch (propertyKey){');
-      for (final property in properties) {
-        code.writeln('case ${property.name}PropertyKey:');
-        if (property.isEncoded) {
-          code.writeln('decode${property.capitalizedName}'
-              '(${property.type.runtimeCoreType}::deserialize(reader));');
-        } else {
-          code.writeln('m_${property.capitalizedName} = '
-              '${property.type.runtimeCoreType}::deserialize(reader);');
+      if (properties.isNotEmpty) {
+        code.writeln('switch (propertyKey){');
+        for (final property in properties) {
+          code.writeln('case ${property.name}PropertyKey:');
+          if (property.isEncoded) {
+            code.writeln('decode${property.capitalizedName}'
+                '(${property.type.runtimeCoreType}::deserialize(reader));');
+          } else {
+            code.writeln('m_${property.capitalizedName} = '
+                '${property.type.runtimeCoreType}::deserialize(reader);');
+          }
+          code.writeln('return true;');
         }
-        code.writeln('return true;');
+        code.writeln('}');
       }
-      code.writeln('}');
       if (_extensionOf != null) {
         code.writeln('return ${_extensionOf.name}::'
             'deserialize(propertyKey, reader); }');
