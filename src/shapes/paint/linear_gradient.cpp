@@ -80,9 +80,13 @@ void LinearGradient::update(ComponentDirt value) {
         // build up the color and positions lists
         const double ro = opacity() * renderOpacity();
         const auto count = m_Stops.size();
-        // TODO: replace these with stack-alloc helpers?
-        ColorInt colors[count];
-        float stops[count];
+
+        // need some temporary storage. Allocate enough for both arrays
+        assert(sizeof(ColorInt) == sizeof(float));
+        std::vector<ColorInt> storage(count * 2);
+        ColorInt* colors = storage.data();
+        float* stops = (float*)colors + count;
+
         for (size_t i = 0; i < count; ++i) {
             colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
             stops[i] = m_Stops[i]->position();
