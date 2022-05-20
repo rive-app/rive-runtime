@@ -244,8 +244,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
         }
     }
 
-    return importStack.resolve() == StatusCode::Ok ? ImportResult::success
-                                                   : ImportResult::malformed;
+    return !reader.hasError() && importStack.resolve() == StatusCode::Ok
+        ? ImportResult::success : ImportResult::malformed;
 }
 
 Artboard* File::artboard(std::string name) const {
