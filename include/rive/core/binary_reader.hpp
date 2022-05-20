@@ -29,7 +29,6 @@ namespace rive {
 
         std::string readString();
         Span<const uint8_t> readBytes();
-        double readFloat64();
         float readFloat32();
         uint8_t readByte();
         uint32_t readUint32();

@@ -60,7 +60,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds) {
             if (m_Direction == 1 && frames >= end) {
                 m_SpilledTime = (frames - end) / fps;
                 frames = m_Time * fps;
-                frames = start + std::fmod(frames - start, range);
+                frames = start + std::fmod(frames - start, (float)range);
 
                 m_Time = frames / fps;
                 didLoop = true;
@@ -68,7 +68,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds) {
 
                 m_SpilledTime = (start - frames) / fps;
                 frames = m_Time * fps;
-                frames = end - std::abs(std::fmod(start - frames, range));
+                frames = end - std::abs(std::fmod(start - frames, (float)range));
                 m_Time = frames / fps;
                 didLoop = true;
             }

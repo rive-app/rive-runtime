@@ -375,7 +375,7 @@ bool Artboard::updateComponents() {
 
 bool Artboard::advance(double elapsedSeconds) {
     for (auto nestedArtboard : m_NestedArtboards) {
-        nestedArtboard->advance(elapsedSeconds);
+        nestedArtboard->advance((float)elapsedSeconds);
     }
     return updateComponents();
 }

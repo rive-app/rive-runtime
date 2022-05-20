@@ -78,7 +78,7 @@ void LinearGradient::update(ComponentDirt value) {
         }
 
         // build up the color and positions lists
-        const double ro = opacity() * renderOpacity();
+        const auto ro = opacity() * renderOpacity();
         const auto count = m_Stops.size();
 
         // need some temporary storage. Allocate enough for both arrays

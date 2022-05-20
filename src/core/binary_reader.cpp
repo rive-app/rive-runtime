@@ -66,17 +66,6 @@ Span<const uint8_t> BinaryReader::readBytes() {
     return {start, (size_t)length};
 }
 
-double BinaryReader::readFloat64() {
-    double value;
-    auto readBytes = decode_double(m_Position, m_Bytes.end(), &value);
-    if (readBytes == 0) {
-        overflow();
-        return 0.0;
-    }
-    m_Position += readBytes;
-    return value;
-}
-
 float BinaryReader::readFloat32() {
     float value;
     auto readBytes = decode_float(m_Position, m_Bytes.end(), &value);

@@ -32,29 +32,6 @@ TEST_CASE("string decoder", "[reader]") {
     delete decoded_str;
 }
 
-TEST_CASE("double decoder", "[reader]") {
-    double decoded_num;
-    uint64_t bytes_read;
-
-    uint8_t num_bytes_100[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40};
-    bytes_read = decode_double(num_bytes_100, num_bytes_100 + 8, &decoded_num);
-    REQUIRE(decoded_num == 100);
-    REQUIRE(bytes_read == 8);
-
-    uint8_t num_bytes_pi[] = {0x6E, 0x86, 0x1B, 0xF0, 0xF9, 0x21, 0x09, 0x40};
-    bytes_read = decode_double(num_bytes_pi, num_bytes_pi + 8, &decoded_num);
-    REQUIRE(decoded_num == 3.14159);
-    REQUIRE(bytes_read == 8);
-
-    uint8_t num_bytes_neg_euler[] = {0x96, 0xB4, 0xE2, 0x1B, 0x0A, 0xBF, 0x05, 0xC0};
-    bytes_read = decode_double(num_bytes_neg_euler, num_bytes_neg_euler + 8, &decoded_num);
-    REQUIRE(decoded_num == -2.718281);
-    REQUIRE(bytes_read == 8);
-
-    bytes_read = decode_double(num_bytes_neg_euler, num_bytes_neg_euler + 7, &decoded_num);
-    REQUIRE(bytes_read == 0);
-}
-
 TEST_CASE("float decoder", "[reader]") {
     float decoded_num;
     uint64_t bytes_read;

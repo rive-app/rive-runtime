@@ -6,7 +6,7 @@ namespace rive {
     class CoreDoubleType {
     public:
         static const int id = 2;
-        static double deserialize(BinaryReader& reader);
+        static float deserialize(BinaryReader& reader);
     };
 } // namespace rive
 #endif

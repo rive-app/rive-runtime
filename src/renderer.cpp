@@ -6,10 +6,10 @@ using namespace rive;
 Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, const AABB& content) {
     float contentWidth = content.width();
     float contentHeight = content.height();
-    float x = -content.left() - contentWidth / 2.0 - (alignment.x() * contentWidth / 2.0);
-    float y = -content.top() - contentHeight / 2.0 - (alignment.y() * contentHeight / 2.0);
+    float x = -content.left() - contentWidth * 0.5f - (alignment.x() * contentWidth * 0.5f);
+    float y = -content.top() - contentHeight * 0.5f - (alignment.y() * contentHeight * 0.5f);
 
-    float scaleX = 1.0, scaleY = 1.0;
+    float scaleX = 1.0f, scaleY = 1.0f;
 
     switch (fit) {
         case Fit::fill: {
@@ -40,20 +40,20 @@ Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, co
             break;
         }
         case Fit::none: {
-            scaleX = scaleY = 1.0;
+            scaleX = scaleY = 1.0f;
             break;
         }
         case Fit::scaleDown: {
             float minScale =
                 std::fmin(frame.width() / contentWidth, frame.height() / contentHeight);
-            scaleX = scaleY = minScale < 1.0 ? minScale : 1.0;
+            scaleX = scaleY = minScale < 1.0f ? minScale : 1.0f;
             break;
         }
     }
 
     Mat2D translation;
-    translation[4] = frame.left() + frame.width() / 2.0 + (alignment.x() * frame.width() / 2.0);
-    translation[5] = frame.top() + frame.height() / 2.0 + (alignment.y() * frame.height() / 2.0);
+    translation[4] = frame.left() + frame.width() * 0.5f + (alignment.x() * frame.width() * 0.5f);
+    translation[5] = frame.top() + frame.height() * 0.5f + (alignment.y() * frame.height() * 0.5f);
 
     return translation * Mat2D::fromScale(scaleX, scaleY) * Mat2D::fromTranslate(x, y);
 }

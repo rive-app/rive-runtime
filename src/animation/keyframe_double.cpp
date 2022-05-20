@@ -12,7 +12,7 @@ static void applyDouble(Core* object, int propertyKey, float mix, float value) {
     if (mix == 1.0f) {
         CoreRegistry::setDouble(object, propertyKey, value);
     } else {
-        float mixi = 1.0 - mix;
+        float mixi = 1.0f - mix;
         CoreRegistry::setDouble(
             object, propertyKey, CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
     }

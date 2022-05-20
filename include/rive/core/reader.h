@@ -47,22 +47,6 @@ decode_string(uint64_t str_len, const uint8_t* buf, const uint8_t* buf_end, char
     return str_len;
 }
 
-/* Decodes a double (8 bytes)
- */
-inline size_t decode_double(const uint8_t* buf, const uint8_t* buf_end, double* r) {
-    // Return zero bytes read on buffer overflow
-    if (buf_end - buf < ((unsigned)sizeof(double))) {
-        return 0;
-    }
-    if (is_big_endian()) {
-        uint8_t inverted[8] = {buf[7], buf[6], buf[5], buf[4], buf[3], buf[2], buf[1], buf[0]};
-        memcpy(r, inverted, sizeof(double));
-    } else {
-        memcpy(r, buf, sizeof(double));
-    }
-    return sizeof(double);
-}
-
 /* Decodes a float (4 bytes)
  */
 inline size_t decode_float(const uint8_t* buf, const uint8_t* buf_end, float* r) {
