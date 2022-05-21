@@ -237,6 +237,9 @@ namespace rive {
 } // namespace rive
 
 void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
+    position -= Vec2D(m_ArtboardInstance->originX() * m_ArtboardInstance->width(),
+                      m_ArtboardInstance->originY() * m_ArtboardInstance->height());
+
     const int hitRadius = 2;
     auto hitArea = AABB(position.x() - hitRadius,
                         position.y() - hitRadius,
