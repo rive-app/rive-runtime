@@ -23,6 +23,7 @@ namespace rive {
     class NestedArtboard;
     class ArtboardInstance;
     class LinearAnimationInstance;
+    class Scene;
     class StateMachineInstance;
 
     class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer {
@@ -120,17 +121,18 @@ namespace rive {
         size_t stateMachineCount() const { return m_StateMachines.size(); }
         std::string stateMachineNameAt(size_t index) const;
 
-        LinearAnimation* firstAnimation() const;
+        LinearAnimation* firstAnimation() const { return animation(0); }
         LinearAnimation* animation(const std::string& name) const;
         LinearAnimation* animation(size_t index) const;
 
-        StateMachine* firstStateMachine() const;
+        StateMachine* firstStateMachine() const { return stateMachine(0); }
         StateMachine* stateMachine(const std::string& name) const;
         StateMachine* stateMachine(size_t index) const;
 
         /// When provided, the designer has specified that this artboard should
-        /// always autoplay this StateMachine.
-        StateMachine* defaultStateMachine() const;
+        /// always autoplay this StateMachine. Returns -1 if it was not
+        // provided.
+        int defaultStateMachineIndex() const;
 
         /// Make an instance of this artboard, must be explictly deleted when no
         /// longer needed.
@@ -164,7 +166,18 @@ namespace rive {
 
         std::unique_ptr<StateMachineInstance> stateMachineAt(size_t index);
         std::unique_ptr<StateMachineInstance> stateMachineNamed(const std::string& name);
-        std::unique_ptr<StateMachineInstance> defaultStateMachineInstance();
+
+        /// When provided, the designer has specified that this artboard should
+        /// always autoplay this StateMachine instance. If it was not specified,
+        /// this returns nullptr.
+        std::unique_ptr<StateMachineInstance> defaultStateMachine();
+
+        // This attemps to always return *something*, in this search order:
+        // 1. default statemachine instance
+        // 2. first statemachine instance
+        // 3. first animation instance
+        // 4. nullptr
+        std::unique_ptr<Scene> defaultScene();
     };
 } // namespace rive
 

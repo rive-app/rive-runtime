@@ -481,13 +481,6 @@ std::string Artboard::stateMachineNameAt(size_t index) const {
     return sm ? sm->name() : nullptr;
 }
 
-LinearAnimation* Artboard::firstAnimation() const {
-    if (m_Animations.empty()) {
-        return nullptr;
-    }
-    return m_Animations.front();
-}
-
 LinearAnimation* Artboard::animation(const std::string& name) const {
     for (auto animation : m_Animations) {
         if (animation->name() == name) {
@@ -502,13 +495,6 @@ LinearAnimation* Artboard::animation(size_t index) const {
         return nullptr;
     }
     return m_Animations[index];
-}
-
-StateMachine* Artboard::firstStateMachine() const {
-    if (m_StateMachines.empty()) {
-        return nullptr;
-    }
-    return m_StateMachines.front();
 }
 
 StateMachine* Artboard::stateMachine(const std::string& name) const {
@@ -527,11 +513,12 @@ StateMachine* Artboard::stateMachine(size_t index) const {
     return m_StateMachines[index];
 }
 
-StateMachine* Artboard::defaultStateMachine() const {
-    if (defaultStateMachineId() >= m_StateMachines.size()) {
-        return nullptr;
+int Artboard::defaultStateMachineIndex() const {
+    int index = defaultStateMachineId();
+    if ((size_t)index >= m_StateMachines.size()) {
+        index = -1;
     }
-    return m_StateMachines[defaultStateMachineId()];
+    return index;
 }
 
 std::unique_ptr<ArtboardInstance> Artboard::instance() const {
@@ -617,7 +604,18 @@ std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineNamed(const 
     return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }
 
-std::unique_ptr<StateMachineInstance> ArtboardInstance::defaultStateMachineInstance() {
-    auto sm = this->defaultStateMachine();
-    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
+std::unique_ptr<StateMachineInstance> ArtboardInstance::defaultStateMachine() {
+    const int index = this->defaultStateMachineIndex();
+    return index >= 0 ? this->stateMachineAt(index) : nullptr;
+}
+
+std::unique_ptr<Scene> ArtboardInstance::defaultScene() {
+    std::unique_ptr<Scene> scene = this->defaultStateMachine();
+    if (!scene) {
+        scene = this->stateMachineAt(0);
+    }
+    if (!scene) {
+        scene = this->animationAt(0);
+    }
+    return scene;
 }

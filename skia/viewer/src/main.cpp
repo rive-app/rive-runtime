@@ -45,6 +45,8 @@ std::unique_ptr<rive::Scene> currentScene;
 std::vector<std::string> animationNames;
 std::vector<std::string> stateMachineNames;
 
+constexpr int REQUEST_DEFAULT_SCENE = -1;
+
 #include <time.h>
 double GetSecondsToday() {
     time_t m_time;
@@ -89,8 +91,6 @@ static void loadNames(const rive::Artboard* ab) {
 }
 
 void initStateMachine(int index) {
-    stateMachineIndex = index;
-    animationIndex = -1;
     assert(fileBytes.size() != 0);
     auto file = rive::File::import(rive::toSpan(fileBytes), &skiaFactory);
     if (!file) {
@@ -98,6 +98,9 @@ void initStateMachine(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
+
+    stateMachineIndex = -1;
+    animationIndex = -1;
     currentScene = nullptr;
     artboardInstance = nullptr;
 
@@ -106,8 +109,24 @@ void initStateMachine(int index) {
     artboardInstance->advance(0.0f);
     loadNames(artboardInstance.get());
 
-    if (index >= 0 && index < artboardInstance->stateMachineCount()) {
+    if (index < 0) {
+        currentScene = artboardInstance->defaultStateMachine();
+        index = artboardInstance->defaultStateMachineIndex();
+    }
+    if (!currentScene) {
+        if (index >= artboardInstance->stateMachineCount()) {
+            index = 0;
+        }
         currentScene = artboardInstance->stateMachineAt(index);
+    }
+    if (!currentScene) {
+        index = -1;
+        currentScene = artboardInstance->animationAt(0);
+        animationIndex = 0;
+    }
+    stateMachineIndex = index;
+
+    if (currentScene) {
         currentScene->inputCount();
     }
 }
@@ -175,7 +194,7 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
         fprintf(stderr, "failed to read all of %s\n", filename.c_str());
         return;
     }
-    initAnimation(0);
+    initStateMachine(REQUEST_DEFAULT_SCENE);
 }
 
 int main() {
