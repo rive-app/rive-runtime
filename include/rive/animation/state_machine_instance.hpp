@@ -19,6 +19,7 @@ namespace rive {
     class Shape;
     class StateMachineLayerInstance;
     class HitShape;
+    class NestedArtboard;
 
     class StateMachineInstance : public Scene {
         friend class SMIInput;
@@ -27,13 +28,15 @@ namespace rive {
         const StateMachine* m_Machine;
         bool m_NeedsAdvance = false;
 
-        std::vector<SMIInput*> m_InputInstances;    // we own each pointer
+        std::vector<SMIInput*> m_InputInstances; // we own each pointer
         size_t m_LayerCount;
         StateMachineLayerInstance* m_Layers;
 
         void markNeedsAdvance();
 
         std::vector<std::unique_ptr<HitShape>> m_HitShapes;
+        std::vector<NestedArtboard*> m_HitNestedArtboards;
+
         /// Provide a hitEvent if you want to process a down or an up for the pointer position too.
         void processEvent(Vec2D position, EventType hitEvent = EventType::updateHover);
 

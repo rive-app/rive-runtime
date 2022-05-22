@@ -17,6 +17,9 @@
 #include "rive/shapes/shape.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
+#include "rive/nested_artboard.hpp"
+#include "rive/nested_animation.hpp"
+#include "rive/animation/nested_state_machine.hpp"
 #include <unordered_map>
 
 using namespace rive;
@@ -237,8 +240,10 @@ namespace rive {
 } // namespace rive
 
 void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
-    position -= Vec2D(m_ArtboardInstance->originX() * m_ArtboardInstance->width(),
-                      m_ArtboardInstance->originY() * m_ArtboardInstance->height());
+    if (m_ArtboardInstance->frameOrigin()) {
+        position -= Vec2D(m_ArtboardInstance->originX() * m_ArtboardInstance->width(),
+                          m_ArtboardInstance->originY() * m_ArtboardInstance->height());
+    }
 
     const float hitRadius = 2;
     auto hitArea = AABB(position.x - hitRadius,
@@ -272,6 +277,41 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
             if (isOver && hitEvent == event->eventType()) {
                 event->performChanges(this);
                 markNeedsAdvance();
+            }
+        }
+    }
+
+    // TODO: store a hittable abstraction for HitShape and NestedArtboard that
+    // can be sorted by drawOrder so they can be iterated in one loop and early
+    // out if any hit stops propagation (also require the ability to mark a hit
+    // as able to stop propagation)
+    for (auto nestedArtboard : m_HitNestedArtboards) {
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition)) {
+            // Mounted artboard isn't ready or has a 0 scale transform.
+            continue;
+        }
+        // var nestedPosition = nestedArtboard.worldToLocal(position);
+        // if (nestedPosition == null) {
+        //     // Mounted artboard isn't ready or has a 0 scale transform.
+        //     continue;
+        // }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations()) {
+            if (nestedAnimation->is<NestedStateMachine>()) {
+                auto nestedStateMachine = nestedAnimation->as<NestedStateMachine>();
+                switch (hitEvent) {
+                    case EventType::down:
+                        nestedStateMachine->pointerDown(nestedPosition);
+                        break;
+                    case EventType::up:
+                        nestedStateMachine->pointerUp(nestedPosition);
+                        break;
+                    case EventType::updateHover:
+                        nestedStateMachine->pointerMove(nestedPosition);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     }
@@ -341,6 +381,12 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 hitShape = itr->second;
             }
             hitShape->events.push_back(event);
+        }
+    }
+
+    for (auto nestedArtboard : instance->nestedArtboards()) {
+        if (nestedArtboard->hasNestedStateMachines()) {
+            m_HitNestedArtboards.push_back(nestedArtboard);
         }
     }
 }

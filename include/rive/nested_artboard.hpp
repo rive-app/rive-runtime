@@ -29,6 +29,15 @@ namespace rive {
         Core* clone() const override;
         bool advance(float elapsedSeconds);
         void update(ComponentDirt value) override;
+
+        bool hasNestedStateMachines() const;
+        const std::vector<NestedAnimation*>& nestedAnimations() const;
+
+        /// Convert a world space (relative to the artboard that this
+        /// NestedArtboard is a child of) to the local space of the Artboard
+        /// nested within. Returns true when the conversion succeeds, and false
+        /// when one is not possible.
+        bool worldToLocal(Vec2D world, Vec2D* local);
     };
 } // namespace rive
 

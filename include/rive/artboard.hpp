@@ -99,6 +99,7 @@ namespace rive {
         CommandPath* backgroundPath() const { return m_BackgroundPath.get(); }
 
         const std::vector<Core*>& objects() const { return m_Objects; }
+        const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }
 
         AABB bounds() const;
 

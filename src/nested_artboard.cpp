@@ -4,6 +4,8 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_animation.hpp"
+#include "rive/animation/nested_state_machine.hpp"
+#include <cassert>
 
 using namespace rive;
 
@@ -24,6 +26,7 @@ void NestedArtboard::nest(Artboard* artboard) {
     assert(artboard != nullptr);
 
     m_Artboard = artboard;
+    m_Artboard->frameOrigin(false);
     m_Instance = nullptr;
     if (artboard->isInstance()) {
         m_Instance.reset(static_cast<ArtboardInstance*>(artboard)); // take ownership
@@ -45,7 +48,7 @@ void NestedArtboard::draw(Renderer* renderer) {
         // transformations.
         renderer->save();
     }
-    renderer->transform(worldTransform() * makeTranslate(m_Artboard));
+    renderer->transform(worldTransform());
     m_Artboard->draw(renderer);
     renderer->restore();
 }
@@ -109,4 +112,32 @@ void NestedArtboard::update(ComponentDirt value) {
     if (hasDirt(value, ComponentDirt::WorldTransform) && m_Artboard != nullptr) {
         m_Artboard->opacity(renderOpacity());
     }
+}
+
+bool NestedArtboard::hasNestedStateMachines() const {
+    for (auto animation : m_NestedAnimations) {
+        if (animation->is<NestedStateMachine>()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const std::vector<NestedAnimation*>& NestedArtboard::nestedAnimations() const {
+    return m_NestedAnimations;
+}
+
+bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local) {
+    assert(local != nullptr);
+    if (m_Artboard == nullptr) {
+        return false;
+    }
+    Mat2D toMountedArtboard;
+    if (!worldTransform().invert(&toMountedArtboard)) {
+        return false;
+    }
+
+    *local = toMountedArtboard * world;
+
+    return true;
 }
