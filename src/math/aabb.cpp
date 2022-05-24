@@ -10,13 +10,13 @@ AABB::AABB(Span<Vec2D> pts) {
         return;
     }
 
-    float L = pts[0].x(), R = L, T = pts[0].y(), B = T;
+    float L = pts[0].x, R = L, T = pts[0].y, B = T;
 
     for (size_t i = 1; i < pts.size(); ++i) {
-        L = std::min(L, pts[i].x());
-        R = std::max(R, pts[i].x());
-        T = std::min(T, pts[i].y());
-        B = std::max(B, pts[i].y());
+        L = std::min(L, pts[i].x);
+        R = std::max(R, pts[i].x);
+        T = std::min(T, pts[i].y);
+        B = std::max(B, pts[i].y);
     }
     minX = L;
     maxX = R;

@@ -23,25 +23,24 @@ void TranslationConstraint::constrain(TransformComponent* component) {
             }
             transformB = inverse * transformB;
         }
-        translationB[0] = transformB[4];
-        translationB[1] = transformB[5];
+        translationB = transformB.translation();
 
         if (!doesCopy()) {
-            translationB[0] = destSpace() == TransformSpace::local ? 0.0f : translationA[0];
+            translationB.x = destSpace() == TransformSpace::local ? 0.0f : translationA.x;
         } else {
-            translationB[0] *= copyFactor();
+            translationB.x *= copyFactor();
             if (offset()) {
-                translationB[0] += component->x();
+                translationB.x += component->x();
             }
         }
 
         if (!doesCopyY()) {
-            translationB[1] = destSpace() == TransformSpace::local ? 0.0f : translationA[1];
+            translationB.y = destSpace() == TransformSpace::local ? 0.0f : translationA.y;
         } else {
-            translationB[1] *= copyFactorY();
+            translationB.y *= copyFactorY();
 
             if (offset()) {
-                translationB[1] += component->y();
+                translationB.y += component->y();
             }
         }
 
@@ -62,17 +61,17 @@ void TranslationConstraint::constrain(TransformComponent* component) {
         // Get our target world coordinates in parent local.
         translationB = inverse * translationB;
     }
-    if (max() && translationB[0] > maxValue()) {
-        translationB[0] = maxValue();
+    if (max() && translationB.x > maxValue()) {
+        translationB.x = maxValue();
     }
-    if (min() && translationB[0] < minValue()) {
-        translationB[0] = minValue();
+    if (min() && translationB.x < minValue()) {
+        translationB.x = minValue();
     }
-    if (maxY() && translationB[1] > maxValueY()) {
-        translationB[1] = maxValueY();
+    if (maxY() && translationB.y > maxValueY()) {
+        translationB.y = maxValueY();
     }
-    if (minY() && translationB[1] < minValueY()) {
-        translationB[1] = minValueY();
+    if (minY() && translationB.y < minValueY()) {
+        translationB.y = minValueY();
     }
     if (clampLocal) {
         // Transform back to world.
@@ -83,6 +82,6 @@ void TranslationConstraint::constrain(TransformComponent* component) {
     float ti = 1.0f - t;
 
     // Just interpolate world translation
-    transformA[4] = translationA[0] * ti + translationB[0] * t;
-    transformA[5] = translationA[1] * ti + translationB[1] * t;
+    transformA[4] = translationA.x * ti + translationB.x * t;
+    transformA[5] = translationA.y * ti + translationB.y * t;
 }

@@ -70,7 +70,8 @@ static const float minSegmentLength = 0.05f;
 static const float distTooFar = 1.0f;
 
 static bool tooFar(const Vec2D& a, const Vec2D& b) {
-    return std::max(std::abs(a[0] - b[0]), std::abs(a[1] - b[1])) > distTooFar;
+    auto diff = a - b;
+    return std::max(std::abs(diff.x), std::abs(diff.y)) > distTooFar;
 }
 
 static bool

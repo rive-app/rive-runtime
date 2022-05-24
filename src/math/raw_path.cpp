@@ -13,11 +13,11 @@ AABB RawPath::bounds() const {
     }
 
     float l, t, r, b;
-    l = r = m_Points[0].x();
-    t = b = m_Points[0].y();
+    l = r = m_Points[0].x;
+    t = b = m_Points[0].y;
     for (size_t i = 1; i < m_Points.size(); ++i) {
-        const float x = m_Points[i].x();
-        const float y = m_Points[i].y();
+        const float x = m_Points[i].x;
+        const float y = m_Points[i].y;
         l = std::min(l, x);
         r = std::max(r, x);
         t = std::min(t, y);
@@ -68,24 +68,14 @@ RawPath RawPath::transform(const Mat2D& m) const {
 
     path.m_Points.resize(m_Points.size());
     for (size_t i = 0; i < m_Points.size(); ++i) {
-        const float x = m_Points[i].x();
-        const float y = m_Points[i].y();
-        path.m_Points[i] = {
-            m[0] * x + m[2] * y + m[4],
-            m[1] * x + m[3] * y + m[5],
-        };
+        path.m_Points[i] = m * m_Points[i];
     }
     return path;
 }
 
 void RawPath::transformInPlace(const Mat2D& m) {
     for (auto& p : m_Points) {
-        const float x = p.x();
-        const float y = p.y();
-        p = {
-            m[0] * x + m[2] * y + m[4],
-            m[1] * x + m[3] * y + m[5],
-        };
+        p = m * p;
     }
 }
 
@@ -131,13 +121,13 @@ void RawPath::addOval(const AABB& r, PathDirection dir) {
     };
 
     const auto center = r.center();
-    const float dx = center.x();
-    const float dy = center.y();
+    const float dx = center.x;
+    const float dy = center.y;
     const float sx = r.width() * 0.5f;
     const float sy = r.height() * 0.5f;
 
     auto map = [dx, dy, sx, sy](rive::Vec2D p) {
-        return rive::Vec2D(p.x() * sx + dx, p.y() * sy + dy);
+        return rive::Vec2D(p.x * sx + dx, p.y * sy + dy);
     };
 
     m_Points.reserve(13);

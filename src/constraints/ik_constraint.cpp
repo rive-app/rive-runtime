@@ -7,7 +7,7 @@
 using namespace rive;
 
 static float atan2(Vec2D v) {
-    return std::atan2(v.y(), v.x());
+    return std::atan2(v.y, v.x);
 }
 
 void IKConstraint::buildDependencies() {
@@ -87,8 +87,7 @@ void IKConstraint::markConstraintDirty() {
 
 void IKConstraint::solve1(BoneChainLink* fk1, const Vec2D& worldTargetTranslation) {
     Mat2D iworld = fk1->parentWorldInverse;
-    Vec2D pA;
-    fk1->bone->worldTranslation(pA);
+    Vec2D pA = fk1->bone->worldTranslation();
     Vec2D pBT(worldTargetTranslation);
 
     // To target in worldspace
@@ -111,10 +110,9 @@ void IKConstraint::solve2(BoneChainLink* fk1,
 
     const Mat2D& iworld = fk1->parentWorldInverse;
 
-    Vec2D pA, pC, pB;
-    b1->worldTranslation(pA);
-    firstChild->bone->worldTranslation(pC);
-    b2->tipWorldTranslation(pB);
+    Vec2D pA = b1->worldTranslation();
+    Vec2D pC = firstChild->bone->worldTranslation();
+    Vec2D pB = b2->tipWorldTranslation();
     Vec2D pBT(worldTargetTranslation);
 
     pA = iworld * pA;
@@ -135,8 +133,8 @@ void IKConstraint::solve2(BoneChainLink* fk1,
 
         const Mat2D& secondChildWorldInverse = secondChild.parentWorldInverse;
 
-        firstChild->bone->worldTranslation(pC);
-        b2->tipWorldTranslation(pB);
+        pC = firstChild->bone->worldTranslation();
+        pB = b2->tipWorldTranslation();
 
         Vec2D avLocal = Vec2D::transformDir(pB - pC, secondChildWorldInverse);
         float angleCorrection = -atan2(avLocal);
@@ -202,8 +200,7 @@ void IKConstraint::constrain(TransformComponent* component) {
         return;
     }
 
-    Vec2D worldTargetTranslation;
-    m_Target->worldTranslation(worldTargetTranslation);
+    Vec2D worldTargetTranslation = m_Target->worldTranslation();
 
     // Decompose the chain.
     for (BoneChainLink& item : m_FkChain) {

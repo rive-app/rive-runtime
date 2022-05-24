@@ -80,18 +80,14 @@ void Path::buildPath(CommandPath& commandPath) const {
                                                     : prev->renderTranslation()) -
                            pos;
 
-            auto toPrevLength = toPrev.length();
-            toPrev[0] /= toPrevLength;
-            toPrev[1] /= toPrevLength;
+            auto toPrevLength = toPrev.normalizeLength();
 
             auto next = vertices[1];
 
             Vec2D toNext = (next->is<CubicVertex>() ? next->as<CubicVertex>()->renderIn()
                                                     : next->renderTranslation()) -
                            pos;
-            auto toNextLength = toNext.length();
-            toNext[0] /= toNextLength;
-            toNext[1] /= toNextLength;
+            auto toNextLength = toNext.normalizeLength();
 
             float renderRadius = std::min(toPrevLength, std::min(toNextLength, radius));
 
@@ -127,18 +123,14 @@ void Path::buildPath(CommandPath& commandPath) const {
 
             if (auto radius = point.radius(); radius > 0.0f) {
                 Vec2D toPrev = out - pos;
-                auto toPrevLength = toPrev.length();
-                toPrev[0] /= toPrevLength;
-                toPrev[1] /= toPrevLength;
+                auto toPrevLength = toPrev.normalizeLength();
 
                 auto next = vertices[(i + 1) % length];
 
                 Vec2D toNext = (next->is<CubicVertex>() ? next->as<CubicVertex>()->renderIn()
                                                         : next->renderTranslation()) -
                                pos;
-                auto toNextLength = toNext.length();
-                toNext[0] /= toNextLength;
-                toNext[1] /= toNextLength;
+                auto toNextLength = toNext.normalizeLength();
 
                 float renderRadius = std::min(toPrevLength, std::min(toNextLength, radius));
 
@@ -219,8 +211,8 @@ public:
         m_OutPoint = out;
         m_InValid = true;
         m_OutValid = true;
-        x(translation[0]);
-        y(translation[1]);
+        x(translation.x);
+        y(translation.y);
     }
 
     void computeIn() override {}
@@ -263,14 +255,10 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
                     Vec2D pos = point.renderTranslation();
 
                     Vec2D toPrev = prevPoint - pos;
-                    auto toPrevLength = toPrev.length();
-                    toPrev[0] /= toPrevLength;
-                    toPrev[1] /= toPrevLength;
+                    auto toPrevLength = toPrev.normalizeLength();
 
                     Vec2D toNext = nextPoint - pos;
-                    auto toNextLength = toNext.length();
-                    toNext[0] /= toNextLength;
-                    toNext[1] /= toNextLength;
+                    auto toNextLength = toNext.normalizeLength();
 
                     auto renderRadius =
                         std::min(toPrevLength, std::min(toNextLength, point.radius()));
@@ -330,8 +318,8 @@ void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform) {
     } else {
         auto point = new PathVertex();
         Vec2D translation = transform * vertex->renderTranslation();
-        point->x(translation[0]);
-        point->y(translation[1]);
+        point->x(translation.x);
+        point->y(translation.y);
         m_Vertices.push_back(point);
     }
 }

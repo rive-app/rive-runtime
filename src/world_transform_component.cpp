@@ -16,8 +16,3 @@ const Mat2D& WorldTransformComponent::worldTransform() const { return m_WorldTra
 Mat2D& WorldTransformComponent::mutableWorldTransform() { return m_WorldTransform; }
 
 void WorldTransformComponent::opacityChanged() { addDirt(ComponentDirt::RenderOpacity, true); }
-
-void WorldTransformComponent::worldTranslation(Vec2D& result) const {
-    result[0] = m_WorldTransform[4];
-    result[1] = m_WorldTransform[5];
-}

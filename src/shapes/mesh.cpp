@@ -113,8 +113,8 @@ void Mesh::draw(Renderer* renderer, const RenderImage* image, BlendMode blendMod
         std::size_t index = 0;
         for (auto vertex : m_Vertices) {
             auto translation = vertex->renderTranslation();
-            vertices[index++] = translation[0];
-            vertices[index++] = translation[1];
+            vertices[index++] = translation.x;
+            vertices[index++] = translation.y;
         }
 
         auto factory = artboard()->factory();

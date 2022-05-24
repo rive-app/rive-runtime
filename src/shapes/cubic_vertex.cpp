@@ -58,21 +58,15 @@ void CubicVertex::deform(const Mat2D& worldTransform, const float* boneTransform
 
     auto cubicWeight = weight<CubicWeight>();
 
-    auto inp = inPoint();
-    Weight::deform(inp[0],
-                   inp[1],
-                   cubicWeight->inIndices(),
-                   cubicWeight->inValues(),
-                   worldTransform,
-                   boneTransforms,
-                   cubicWeight->inTranslation());
+    cubicWeight->inTranslation() = Weight::deform(inPoint(),
+                                                  cubicWeight->inIndices(),
+                                                  cubicWeight->inValues(),
+                                                  worldTransform,
+                                                  boneTransforms);
 
-    auto outp = outPoint();
-    Weight::deform(outp[0],
-                   outp[1],
-                   cubicWeight->outIndices(),
-                   cubicWeight->outValues(),
-                   worldTransform,
-                   boneTransforms,
-                   cubicWeight->outTranslation());
+    cubicWeight->outTranslation() = Weight::deform(outPoint(),
+                                                   cubicWeight->outIndices(),
+                                                   cubicWeight->outValues(),
+                                                   worldTransform,
+                                                   boneTransforms);
 }

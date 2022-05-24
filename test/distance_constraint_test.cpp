@@ -28,8 +28,7 @@ TEST_CASE("distance constraints moves items as expected", "[file]") {
     b->y(137.87f);
     artboard->advance(0.0f);
 
-    rive::Vec2D at;
-    a->worldTranslation(at);
-    rive::Vec2D expectedTranslation(259.2808837890625, 62.87000274658203);
+    rive::Vec2D at = a->worldTranslation();
+    rive::Vec2D expectedTranslation(259.2808837890625f, 62.87000274658203f);
     REQUIRE(rive::Vec2D::distance(at, expectedTranslation) < 0.001f);
 }

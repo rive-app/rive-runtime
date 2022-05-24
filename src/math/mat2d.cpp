@@ -16,10 +16,10 @@ Mat2D Mat2D::fromRotation(float rad) {
 
 Mat2D Mat2D::scale(Vec2D vec) const {
     return {
-        m_Buffer[0] * vec.x(),
-        m_Buffer[1] * vec.x(),
-        m_Buffer[2] * vec.y(),
-        m_Buffer[3] * vec.y(),
+        m_Buffer[0] * vec.x,
+        m_Buffer[1] * vec.x,
+        m_Buffer[2] * vec.y,
+        m_Buffer[3] * vec.y,
         m_Buffer[4],
         m_Buffer[5],
     };

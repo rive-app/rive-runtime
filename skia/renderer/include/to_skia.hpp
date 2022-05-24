@@ -24,8 +24,8 @@ namespace rive {
             return SkMatrix::MakeAll(m[0], m[2], m[4], m[1], m[3], m[5], 0, 0, 1);
         }
 
-        static SkPoint convert(const rive::Vec2D& point) {
-            return SkPoint::Make(point[0], point[1]);
+        static SkPoint convert(rive::Vec2D point) {
+            return SkPoint::Make(point.x, point.y);
         }
 
         // clang-format off

@@ -55,6 +55,8 @@ namespace rive {
         float tx() const { return m_Buffer[4]; }
         float ty() const { return m_Buffer[5]; }
 
+        Vec2D translation() const { return {m_Buffer[4], m_Buffer[5]}; }
+
         void xx(float value) { m_Buffer[0] = value; }
         void xy(float value) { m_Buffer[1] = value; }
         void yx(float value) { m_Buffer[2] = value; }
@@ -65,8 +67,8 @@ namespace rive {
 
     inline Vec2D operator*(const Mat2D& m, Vec2D v) {
         return {
-            m[0] * v.x() + m[2] * v.y() + m[4],
-            m[1] * v.x() + m[3] * v.y() + m[5],
+            m[0] * v.x + m[2] * v.y + m[4],
+            m[1] * v.x + m[3] * v.y + m[5],
         };
     }
 

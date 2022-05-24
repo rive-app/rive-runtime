@@ -13,11 +13,9 @@ void Vertex::xChanged() { markGeometryDirty(); }
 void Vertex::yChanged() { markGeometryDirty(); }
 
 void Vertex::deform(const Mat2D& worldTransform, const float* boneTransforms) {
-    Weight::deform(x(),
-                   y(),
-                   m_Weight->indices(),
-                   m_Weight->values(),
-                   worldTransform,
-                   boneTransforms,
-                   m_Weight->translation());
+    m_Weight->translation() = Weight::deform(Vec2D(x(), y()),
+                                             m_Weight->indices(),
+                                             m_Weight->values(),
+                                             worldTransform,
+                                             boneTransforms);
 }

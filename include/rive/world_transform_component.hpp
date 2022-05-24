@@ -16,7 +16,7 @@ namespace rive {
         virtual float childOpacity();
         Mat2D& mutableWorldTransform();
         const Mat2D& worldTransform() const;
-        void worldTranslation(Vec2D& result) const;
+        Vec2D worldTranslation() const { return m_WorldTransform.translation(); }
         void opacityChanged() override;
     };
 } // namespace rive

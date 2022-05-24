@@ -22,7 +22,7 @@ struct Point {
 
     Point() {}
     Point(float xx, float yy) : x(xx), y(yy) {}
-    Point(const Vec2D& src) : x(src.x()), y(src.y()) {}
+    Point(const Vec2D& src) : x(src.x), y(src.y) {}
 
     Point operator+(Point v) const { return {x + v.x, y + v.y}; }
     Point operator-(Point v) const { return {x - v.x, y - v.y}; }
@@ -317,7 +317,7 @@ bool HitTester::test(FillRule rule) {
 /////////////////////////
 
 static bool cross_lt(Vec2D a, Vec2D b) {
-    return a.x() * b.y() < a.y() * b.x();
+    return a.x * b.y < a.y * b.x;
 }
 
 bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices) {
@@ -330,8 +330,8 @@ bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices) {
     if (CULL_BOUNDS) {
         const auto bounds = AABB(verts);
 
-        if (bounds.bottom() < pt.y() || pt.y() < bounds.top() ||
-            bounds.right()  < pt.x() || pt.x() < bounds.left()) {
+        if (bounds.bottom() < pt.y || pt.y < bounds.top() ||
+            bounds.right()  < pt.x || pt.x < bounds.left()) {
             return false;
         }
     }

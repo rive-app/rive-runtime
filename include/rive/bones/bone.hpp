@@ -20,7 +20,7 @@ namespace rive {
         inline const std::vector<Bone*> childBones() { return m_ChildBones; }
 
         void addChildBone(Bone* bone);
-        void tipWorldTranslation(Vec2D& result);
+        Vec2D tipWorldTranslation() const;
         void addPeerConstraint(Constraint* peer);
         const std::vector<Constraint*>& peerConstraints() const { return m_PeerConstraints; }
 
