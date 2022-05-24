@@ -229,16 +229,13 @@ void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPa
             const PathPart& part = m_Parts[i];
             switch (part.type) {
                 case PathPart::line: {
-                    const Vec2D& point = m_TransformedPoints[part.offset];
-                    result->lineTo(point[0], point[1]);
+                    result->line(m_TransformedPoints[part.offset]);
                     break;
                 }
                 default: {
-                    const Vec2D& point1 = m_TransformedPoints[part.offset];
-                    const Vec2D& point2 = m_TransformedPoints[part.offset + 1];
-                    const Vec2D& point3 = m_TransformedPoints[part.offset + 2];
-                    result->cubicTo(
-                        point1[0], point1[1], point2[0], point2[1], point3[0], point3[1]);
+                    result->cubic(m_TransformedPoints[part.offset + 0],
+                                  m_TransformedPoints[part.offset + 1],
+                                  m_TransformedPoints[part.offset + 2]);
                     break;
                 }
             }
@@ -253,15 +250,13 @@ void MetricsPath::extractSubPart(
     const PathPart& part = m_Parts[index];
     switch (part.type) {
         case PathPart::line: {
-            const Vec2D& from = m_TransformedPoints[part.offset - 1];
-            const Vec2D& to = m_TransformedPoints[part.offset];
-            Vec2D dir = to - from;
+            const Vec2D from = m_TransformedPoints[part.offset - 1];
+            const Vec2D to = m_TransformedPoints[part.offset];
+            const Vec2D dir = to - from;
             if (moveTo) {
-                Vec2D point = from + dir * startT;
-                result->moveTo(point[0], point[1]);
+                result->move(from + dir * startT);
             }
-            dir = from + dir * endT;
-            result->lineTo(dir[0], dir[1]);
+            result->line(from + dir * endT);
 
             break;
         }
@@ -325,29 +320,27 @@ void MetricsPath::extractSubPart(
                 // Start is 0, so split at end and keep the left side.
                 computeHull(from, fromOut, toIn, to, endT, hull);
                 if (moveTo) {
-                    result->moveTo(from[0], from[1]);
+                    result->move(from);
                 }
-                result->cubicTo(
-                    hull[0][0], hull[0][1], hull[3][0], hull[3][1], hull[5][0], hull[5][1]);
+                result->cubic(hull[0], hull[3], hull[5]);
             } else {
                 // Split at start since it's non 0.
                 computeHull(from, fromOut, toIn, to, startT, hull);
                 if (moveTo) {
                     // Move to first point on the right side.
-                    result->moveTo(hull[5][0], hull[5][1]);
+                    result->move(hull[5]);
                 }
                 if (endT == 1.0f) {
                     // End is 1, so no further split is necessary just cubicTo
                     // the remaining right side.
-                    result->cubicTo(hull[4][0], hull[4][1], hull[2][0], hull[2][1], to[0], to[1]);
+                    result->cubic(hull[4], hull[2], to);
                 } else {
                     // End is not 1, so split again and cubic to the left side
                     // of the split and remap endT to the new curve range
                     computeHull(
                         hull[5], hull[4], hull[2], to, (endT - startT) / (1.0f - startT), hull);
 
-                    result->cubicTo(
-                        hull[0][0], hull[0][1], hull[3][0], hull[3][1], hull[5][0], hull[5][1]);
+                    result->cubic(hull[0], hull[3], hull[5]);
                 }
             }
             break;

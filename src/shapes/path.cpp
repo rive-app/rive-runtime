@@ -54,24 +54,19 @@ void Path::buildPath(CommandPath& commandPath) const {
     auto firstPoint = vertices[0];
 
     // Init out to translation
-    float outX, outY;
+    Vec2D out;
     bool prevIsCubic;
 
-    float startX, startY;
-    float startInX, startInY;
+    Vec2D start, startIn;
     bool startIsCubic;
 
     if (firstPoint->is<CubicVertex>()) {
         auto cubic = firstPoint->as<CubicVertex>();
         startIsCubic = prevIsCubic = true;
-        auto inPoint = cubic->renderIn();
-        startInX = inPoint[0];
-        startInY = inPoint[1];
-        auto outPoint = cubic->renderOut();
-        outX = outPoint[0];
-        outY = outPoint[1];
-        auto translation = cubic->renderTranslation();
-        commandPath.moveTo(startX = translation[0], startY = translation[1]);
+        startIn = cubic->renderIn();
+        out = cubic->renderOut();
+        start = cubic->renderTranslation();
+        commandPath.move(start);
     } else {
         startIsCubic = prevIsCubic = false;
         auto point = *firstPoint->as<StraightVertex>();
@@ -100,24 +95,17 @@ void Path::buildPath(CommandPath& commandPath) const {
 
             float renderRadius = std::min(toPrevLength, std::min(toNextLength, radius));
 
-            Vec2D translation = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
-            commandPath.moveTo(startInX = startX = translation[0],
-                               startInY = startY = translation[1]);
+            startIn = start = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
+            commandPath.move(startIn);
 
             Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, icircleConstant * renderRadius);
             Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, icircleConstant * renderRadius);
-            Vec2D posNext = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
-            commandPath.cubicTo(outPoint[0],
-                                outPoint[1],
-                                inPoint[0],
-                                inPoint[1],
-                                outX = posNext[0],
-                                outY = posNext[1]);
+            out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
+            commandPath.cubic(outPoint, inPoint, out);
             prevIsCubic = false;
         } else {
-            auto translation = point.renderTranslation();
-            commandPath.moveTo(startInX = startX = outX = translation[0],
-                               startInY = startY = outY = translation[1]);
+            startIn = start = out = point.renderTranslation();
+            commandPath.move(out);
         }
     }
 
@@ -129,18 +117,16 @@ void Path::buildPath(CommandPath& commandPath) const {
             auto inPoint = cubic->renderIn();
             auto translation = cubic->renderTranslation();
 
-            commandPath.cubicTo(outX, outY, inPoint[0], inPoint[1], translation[0], translation[1]);
+            commandPath.cubic(out, inPoint, translation);
 
             prevIsCubic = true;
-            auto outPoint = cubic->renderOut();
-            outX = outPoint[0];
-            outY = outPoint[1];
+            out = cubic->renderOut();
         } else {
             auto point = *vertex->as<StraightVertex>();
             Vec2D pos = point.renderTranslation();
 
             if (auto radius = point.radius(); radius > 0.0f) {
-                Vec2D toPrev = Vec2D(outX, outY) - pos;
+                Vec2D toPrev = out - pos;
                 auto toPrevLength = toPrev.length();
                 toPrev[0] /= toPrevLength;
                 toPrev[1] /= toPrevLength;
@@ -158,40 +144,32 @@ void Path::buildPath(CommandPath& commandPath) const {
 
                 Vec2D translation = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
                 if (prevIsCubic) {
-                    commandPath.cubicTo(
-                        outX, outY, translation[0], translation[1], translation[0], translation[1]);
+                    commandPath.cubic(out, translation, translation);
                 } else {
-                    commandPath.lineTo(translation[0], translation[1]);
+                    commandPath.line(translation);
                 }
 
                 Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, icircleConstant * renderRadius);
                 Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, icircleConstant * renderRadius);
-                Vec2D posNext = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
-                commandPath.cubicTo(outPoint[0],
-                                    outPoint[1],
-                                    inPoint[0],
-                                    inPoint[1],
-                                    outX = posNext[0],
-                                    outY = posNext[1]);
+                out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
+                commandPath.cubic(outPoint, inPoint, out);
                 prevIsCubic = false;
             } else if (prevIsCubic) {
-                float x = pos[0];
-                float y = pos[1];
-                commandPath.cubicTo(outX, outY, x, y, x, y);
+                commandPath.cubic(out, pos, pos);
 
                 prevIsCubic = false;
-                outX = x;
-                outY = y;
+                out = pos;
             } else {
-                commandPath.lineTo(outX = pos[0], outY = pos[1]);
+                out = pos;
+                commandPath.line(out);
             }
         }
     }
     if (isClosed) {
         if (prevIsCubic || startIsCubic) {
-            commandPath.cubicTo(outX, outY, startInX, startInY, startX, startY);
+            commandPath.cubic(out, startIn, start);
         } else {
-            commandPath.lineTo(startX, startY);
+            commandPath.line(start);
         }
         commandPath.close();
     }

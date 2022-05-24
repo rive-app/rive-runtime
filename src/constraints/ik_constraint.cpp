@@ -6,6 +6,10 @@
 
 using namespace rive;
 
+static float atan2(Vec2D v) {
+    return std::atan2(v.y(), v.x());
+}
+
 void IKConstraint::buildDependencies() {
     Super::buildDependencies();
 
@@ -92,7 +96,7 @@ void IKConstraint::solve1(BoneChainLink* fk1, const Vec2D& worldTargetTranslatio
 
     // Note this is directional, hence not transformMat2d
     Vec2D toTargetLocal = Vec2D::transformDir(toTarget, iworld);
-    float r = std::atan2(toTargetLocal[1], toTargetLocal[0]);
+    float r = atan2(toTargetLocal);
 
     constrainRotation(*fk1, r);
     fk1->angle = r;
@@ -135,20 +139,20 @@ void IKConstraint::solve2(BoneChainLink* fk1,
         b2->tipWorldTranslation(pB);
 
         Vec2D avLocal = Vec2D::transformDir(pB - pC, secondChildWorldInverse);
-        float angleCorrection = -std::atan2(avLocal[1], avLocal[0]);
+        float angleCorrection = -atan2(avLocal);
 
         if (invertDirection()) {
-            r1 = std::atan2(cv[1], cv[0]) - A;
+            r1 = atan2(cv) - A;
             r2 = -C + math::PI + angleCorrection;
         } else {
-            r1 = A + std::atan2(cv[1], cv[0]);
+            r1 = A + atan2(cv);
             r2 = C - math::PI + angleCorrection;
         }
     } else if (invertDirection()) {
-        r1 = std::atan2(cv[1], cv[0]) - A;
+        r1 = atan2(cv) - A;
         r2 = -C + math::PI;
     } else {
-        r1 = A + std::atan2(cv[1], cv[0]);
+        r1 = A + atan2(cv);
         r2 = C - math::PI;
     }
 
