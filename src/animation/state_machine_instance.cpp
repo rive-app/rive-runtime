@@ -291,11 +291,7 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
             // Mounted artboard isn't ready or has a 0 scale transform.
             continue;
         }
-        // var nestedPosition = nestedArtboard.worldToLocal(position);
-        // if (nestedPosition == null) {
-        //     // Mounted artboard isn't ready or has a 0 scale transform.
-        //     continue;
-        // }
+
         for (auto nestedAnimation : nestedArtboard->nestedAnimations()) {
             if (nestedAnimation->is<NestedStateMachine>()) {
                 auto nestedStateMachine = nestedAnimation->as<NestedStateMachine>();

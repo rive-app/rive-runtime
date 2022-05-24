@@ -123,9 +123,7 @@ bool NestedArtboard::hasNestedStateMachines() const {
     return false;
 }
 
-const std::vector<NestedAnimation*>& NestedArtboard::nestedAnimations() const {
-    return m_NestedAnimations;
-}
+Span<NestedAnimation*> NestedArtboard::nestedAnimations() { return toSpan(m_NestedAnimations); }
 
 bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local) {
     assert(local != nullptr);

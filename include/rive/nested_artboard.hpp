@@ -3,6 +3,7 @@
 
 #include "rive/generated/nested_artboard_base.hpp"
 #include "rive/hit_info.hpp"
+#include "rive/span.hpp"
 #include <stdio.h>
 
 namespace rive {
@@ -11,8 +12,8 @@ namespace rive {
     class NestedArtboard : public NestedArtboardBase {
 
     private:
-        Artboard* m_Artboard = nullptr; // might point to m_Instance, and might not
-        std::unique_ptr<ArtboardInstance> m_Instance;   // may be null
+        Artboard* m_Artboard = nullptr;               // might point to m_Instance, and might not
+        std::unique_ptr<ArtboardInstance> m_Instance; // may be null
         std::vector<NestedAnimation*> m_NestedAnimations;
 
     public:
@@ -31,7 +32,7 @@ namespace rive {
         void update(ComponentDirt value) override;
 
         bool hasNestedStateMachines() const;
-        const std::vector<NestedAnimation*>& nestedAnimations() const;
+        Span<NestedAnimation*> nestedAnimations();
 
         /// Convert a world space (relative to the artboard that this
         /// NestedArtboard is a child of) to the local space of the Artboard
