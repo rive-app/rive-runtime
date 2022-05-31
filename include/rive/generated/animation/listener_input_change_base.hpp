@@ -1,9 +1,9 @@
-#ifndef _RIVE_EVENT_INPUT_CHANGE_BASE_HPP_
-#define _RIVE_EVENT_INPUT_CHANGE_BASE_HPP_
+#ifndef _RIVE_LISTENER_INPUT_CHANGE_BASE_HPP_
+#define _RIVE_LISTENER_INPUT_CHANGE_BASE_HPP_
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive {
-    class EventInputChangeBase : public Core {
+    class ListenerInputChangeBase : public Core {
     protected:
         typedef Core Super;
 
@@ -14,7 +14,7 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case EventInputChangeBase::typeKey:
+                case ListenerInputChangeBase::typeKey:
                     return true;
                 default:
                     return false;
@@ -38,7 +38,7 @@ namespace rive {
             inputIdChanged();
         }
 
-        void copy(const EventInputChangeBase& object) { m_InputId = object.m_InputId; }
+        void copy(const ListenerInputChangeBase& object) { m_InputId = object.m_InputId; }
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {

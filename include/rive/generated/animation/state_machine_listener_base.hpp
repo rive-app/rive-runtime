@@ -1,9 +1,9 @@
-#ifndef _RIVE_STATE_MACHINE_EVENT_BASE_HPP_
-#define _RIVE_STATE_MACHINE_EVENT_BASE_HPP_
+#ifndef _RIVE_STATE_MACHINE_LISTENER_BASE_HPP_
+#define _RIVE_STATE_MACHINE_LISTENER_BASE_HPP_
 #include "rive/animation/state_machine_component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive {
-    class StateMachineEventBase : public StateMachineComponent {
+    class StateMachineListenerBase : public StateMachineComponent {
     protected:
         typedef StateMachineComponent Super;
 
@@ -14,7 +14,7 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case StateMachineEventBase::typeKey:
+                case StateMachineListenerBase::typeKey:
                 case StateMachineComponentBase::typeKey:
                     return true;
                 default:
@@ -25,11 +25,11 @@ namespace rive {
         uint16_t coreType() const override { return typeKey; }
 
         static const uint16_t targetIdPropertyKey = 224;
-        static const uint16_t eventTypeValuePropertyKey = 225;
+        static const uint16_t listenerTypeValuePropertyKey = 225;
 
     private:
         uint32_t m_TargetId = 0;
-        uint32_t m_EventTypeValue = 0;
+        uint32_t m_ListenerTypeValue = 0;
 
     public:
         inline uint32_t targetId() const { return m_TargetId; }
@@ -41,19 +41,19 @@ namespace rive {
             targetIdChanged();
         }
 
-        inline uint32_t eventTypeValue() const { return m_EventTypeValue; }
-        void eventTypeValue(uint32_t value) {
-            if (m_EventTypeValue == value) {
+        inline uint32_t listenerTypeValue() const { return m_ListenerTypeValue; }
+        void listenerTypeValue(uint32_t value) {
+            if (m_ListenerTypeValue == value) {
                 return;
             }
-            m_EventTypeValue = value;
-            eventTypeValueChanged();
+            m_ListenerTypeValue = value;
+            listenerTypeValueChanged();
         }
 
         Core* clone() const override;
-        void copy(const StateMachineEventBase& object) {
+        void copy(const StateMachineListenerBase& object) {
             m_TargetId = object.m_TargetId;
-            m_EventTypeValue = object.m_EventTypeValue;
+            m_ListenerTypeValue = object.m_ListenerTypeValue;
             StateMachineComponent::copy(object);
         }
 
@@ -62,8 +62,8 @@ namespace rive {
                 case targetIdPropertyKey:
                     m_TargetId = CoreUintType::deserialize(reader);
                     return true;
-                case eventTypeValuePropertyKey:
-                    m_EventTypeValue = CoreUintType::deserialize(reader);
+                case listenerTypeValuePropertyKey:
+                    m_ListenerTypeValue = CoreUintType::deserialize(reader);
                     return true;
             }
             return StateMachineComponent::deserialize(propertyKey, reader);
@@ -71,7 +71,7 @@ namespace rive {
 
     protected:
         virtual void targetIdChanged() {}
-        virtual void eventTypeValueChanged() {}
+        virtual void listenerTypeValueChanged() {}
     };
 } // namespace rive
 

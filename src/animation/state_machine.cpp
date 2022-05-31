@@ -3,7 +3,7 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_input.hpp"
-#include "rive/animation/state_machine_event.hpp"
+#include "rive/animation/state_machine_listener.hpp"
 
 using namespace rive;
 
@@ -23,7 +23,7 @@ StatusCode StateMachine::onAddedDirty(CoreContext* context) {
             return code;
         }
     }
-    for (auto& object : m_Events) {
+    for (auto& object : m_Listeners) {
         if ((code = object->onAddedDirty(context)) != StatusCode::Ok) {
             return code;
         }
@@ -43,7 +43,7 @@ StatusCode StateMachine::onAddedClean(CoreContext* context) {
             return code;
         }
     }
-    for (auto& object : m_Events) {
+    for (auto& object : m_Listeners) {
         if ((code = object->onAddedClean(context)) != StatusCode::Ok) {
             return code;
         }
@@ -68,8 +68,8 @@ void StateMachine::addInput(std::unique_ptr<StateMachineInput> input) {
     m_Inputs.push_back(std::move(input));
 }
 
-void StateMachine::addEvent(std::unique_ptr<StateMachineEvent> event) {
-    m_Events.push_back(std::move(event));
+void StateMachine::addListener(std::unique_ptr<StateMachineListener> listener) {
+    m_Listeners.push_back(std::move(listener));
 }
 
 const StateMachineInput* StateMachine::input(std::string name) const {
@@ -104,9 +104,9 @@ const StateMachineLayer* StateMachine::layer(size_t index) const {
     return nullptr;
 }
 
-const StateMachineEvent* StateMachine::event(size_t index) const {
-    if (index < m_Events.size()) {
-        return m_Events[index].get();
+const StateMachineListener* StateMachine::listener(size_t index) const {
+    if (index < m_Listeners.size()) {
+        return m_Listeners[index].get();
     }
     return nullptr;
 }

@@ -1,10 +1,10 @@
 {
-  "name": "EventBoolChange",
+  "name": "ListenerBoolChange",
   "key": {
     "int": 117,
-    "string": "event_bool_change"
+    "string": "listener_bool_change"
   },
-  "extends": "animation/event_input_change.json",
+  "extends": "animation/listener_input_change.json",
   "properties": {
     "value": {
       "type": "uint",
@@ -13,7 +13,7 @@
         "int": 228,
         "string": "value"
       },
-      "description": "Value to set the input to when the event occurs."
+      "description": "Value to set the input to when the listener occurs."
     }
   }
 }

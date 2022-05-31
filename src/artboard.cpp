@@ -71,7 +71,7 @@ StatusCode Artboard::initialize() {
     // Animations and StateMachines initialize only once on the source/origin
     // Artboard. Instances will hold references to the original Animations and StateMachines, so
     // running this code for instances will effectively initialize them twice. This can lead to
-    // unpredictable behaviour. One such example was that resolved objects like event inputs were
+    // unpredictable behaviour. One such example was that resolved objects like listener inputs were
     // being added to lists twice.
     if (!isInstance()) {
         for (auto object : m_Animations) {

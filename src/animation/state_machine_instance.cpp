@@ -13,7 +13,7 @@
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/animation_state_instance.hpp"
-#include "rive/animation/state_machine_event.hpp"
+#include "rive/animation/state_machine_listener.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
@@ -224,9 +224,9 @@ namespace rive {
         }
     };
 
-    /// Representation of a Shape from the Artboard Instance and all the events it
+    /// Representation of a Shape from the Artboard Instance and all the listeners it
     /// triggers. Allows tracking hover and performing hit detection only once on
-    /// shapes that trigger multiple events.
+    /// shapes that trigger multiple listeners.
     class HitShape {
     private:
         Shape* m_Shape;
@@ -235,11 +235,11 @@ namespace rive {
         Shape* shape() const { return m_Shape; }
         HitShape(Shape* shape) : m_Shape(shape) {}
         bool isHovered = false;
-        std::vector<const StateMachineEvent*> events;
+        std::vector<const StateMachineListener*> listeners;
     };
 } // namespace rive
 
-void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
+void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType) {
     if (m_ArtboardInstance->frameOrigin()) {
         position -= Vec2D(m_ArtboardInstance->originX() * m_ArtboardInstance->width(),
                           m_ArtboardInstance->originY() * m_ArtboardInstance->height());
@@ -261,21 +261,21 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
         bool hoverChange = hitShape->isHovered != isOver;
         hitShape->isHovered = isOver;
 
-        // iterate all events associated with this hit shape
-        for (auto event : hitShape->events) {
-            // Always update hover states regardless of which specific event type
+        // iterate all listeners associated with this hit shape
+        for (auto listener : hitShape->listeners) {
+            // Always update hover states regardless of which specific listener type
             // we're trying to trigger.
             if (hoverChange) {
-                if (isOver && event->eventType() == EventType::enter) {
-                    event->performChanges(this);
+                if (isOver && listener->listenerType() == ListenerType::enter) {
+                    listener->performChanges(this);
                     markNeedsAdvance();
-                } else if (!isOver && event->eventType() == EventType::exit) {
-                    event->performChanges(this);
+                } else if (!isOver && listener->listenerType() == ListenerType::exit) {
+                    listener->performChanges(this);
                     markNeedsAdvance();
                 }
             }
-            if (isOver && hitEvent == event->eventType()) {
-                event->performChanges(this);
+            if (isOver && hitType == listener->listenerType()) {
+                listener->performChanges(this);
                 markNeedsAdvance();
             }
         }
@@ -295,14 +295,14 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
         for (auto nestedAnimation : nestedArtboard->nestedAnimations()) {
             if (nestedAnimation->is<NestedStateMachine>()) {
                 auto nestedStateMachine = nestedAnimation->as<NestedStateMachine>();
-                switch (hitEvent) {
-                    case EventType::down:
+                switch (hitType) {
+                    case ListenerType::down:
                         nestedStateMachine->pointerDown(nestedPosition);
                         break;
-                    case EventType::up:
+                    case ListenerType::up:
                         nestedStateMachine->pointerUp(nestedPosition);
                         break;
-                    case EventType::updateHover:
+                    case ListenerType::updateHover:
                         nestedStateMachine->pointerMove(nestedPosition);
                         break;
                     default:
@@ -314,10 +314,14 @@ void StateMachineInstance::processEvent(Vec2D position, EventType hitEvent) {
 }
 
 void StateMachineInstance::pointerMove(Vec2D position) {
-    processEvent(position, EventType::updateHover);
+    updateListeners(position, ListenerType::updateHover);
 }
-void StateMachineInstance::pointerDown(Vec2D position) { processEvent(position, EventType::down); }
-void StateMachineInstance::pointerUp(Vec2D position) { processEvent(position, EventType::up); }
+void StateMachineInstance::pointerDown(Vec2D position) {
+    updateListeners(position, ListenerType::down);
+}
+void StateMachineInstance::pointerUp(Vec2D position) {
+    updateListeners(position, ListenerType::up);
+}
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
@@ -351,16 +355,16 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         m_Layers[i].init(machine->layer(i), m_ArtboardInstance);
     }
 
-    // Initialize events. Store a lookup table of shape id to hit shape
-    // representation (an object that stores all the events triggered by the
-    // shape producing an event).
+    // Initialize listeners. Store a lookup table of shape id to hit shape
+    // representation (an object that stores all the listeners triggered by the
+    // shape producing a listener).
     std::unordered_map<uint32_t, HitShape*> hitShapeLookup;
-    for (std::size_t i = 0; i < machine->eventCount(); i++) {
-        auto event = machine->event(i);
+    for (std::size_t i = 0; i < machine->listenerCount(); i++) {
+        auto listener = machine->listener(i);
 
-        // Iterate actual leaf hittable shapes tied to this event and resolve
+        // Iterate actual leaf hittable shapes tied to this listener and resolve
         // corresponding ones in the artboard instance.
-        for (auto id : event->hitShapeIds()) {
+        for (auto id : listener->hitShapeIds()) {
             HitShape* hitShape;
             auto itr = hitShapeLookup.find(id);
             if (itr == hitShapeLookup.end()) {
@@ -376,7 +380,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             } else {
                 hitShape = itr->second;
             }
-            hitShape->events.push_back(event);
+            hitShape->listeners.push_back(listener);
         }
     }
 

@@ -6,17 +6,6 @@
   },
   "extends": "animation/animation.json",
   "properties": {
-    "editingListValue": {
-      "type": "uint",
-      "initialValue": "0",
-      "key": {
-        "int": 136,
-        "string": "editinglistvalue"
-      },
-      "description": "Backing value for enum representing which list being edited.",
-      "runtime": false,
-      "coop": false
-    },
     "editingLayerId": {
       "type": "Id",
       "initialValue": "Core.missingId",

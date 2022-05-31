@@ -1,21 +1,21 @@
 {
-  "name": "EventInputChange",
+  "name": "ListenerInputChange",
   "key": {
     "int": 116,
-    "string": "event_input_change"
+    "string": "listener_input_change"
   },
   "abstract": true,
   "properties": {
-    "eventId": {
+    "listenerId": {
       "type": "Id",
       "typeRuntime": "uint",
       "initialValue": "Core.missingId",
       "initialValueRuntime": "0",
       "key": {
         "int": 226,
-        "string": "eventid"
+        "string": "listenerId"
       },
-      "description": "Identifier used to track the StateMachineEvent this result belongs to.",
+      "description": "Identifier used to track the StateMachineListener this result belongs to.",
       "runtime": false
     },
     "inputId": {

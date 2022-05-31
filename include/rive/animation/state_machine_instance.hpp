@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <vector>
 #include "rive/animation/linear_animation_instance.hpp"
-#include "rive/event_type.hpp"
+#include "rive/listener_type.hpp"
 #include "rive/scene.hpp"
 
 namespace rive {
@@ -37,8 +37,9 @@ namespace rive {
         std::vector<std::unique_ptr<HitShape>> m_HitShapes;
         std::vector<NestedArtboard*> m_HitNestedArtboards;
 
-        /// Provide a hitEvent if you want to process a down or an up for the pointer position too.
-        void processEvent(Vec2D position, EventType hitEvent = EventType::updateHover);
+        /// Provide a hitListener if you want to process a down or an up for the pointer position
+        /// too.
+        void updateListeners(Vec2D position, ListenerType hitListener = ListenerType::updateHover);
 
         template <typename SMType, typename InstType>
         InstType* getNamedInput(const std::string& name) const;

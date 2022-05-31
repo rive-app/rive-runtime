@@ -1,6 +1,6 @@
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/animation/state_machine.hpp"
-#include "rive/animation/state_machine_event.hpp"
+#include "rive/animation/state_machine_listener.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 
@@ -16,8 +16,8 @@ void StateMachineImporter::addInput(std::unique_ptr<StateMachineInput> input) {
     m_StateMachine->addInput(std::move(input));
 }
 
-void StateMachineImporter::addEvent(std::unique_ptr<StateMachineEvent> event) {
-    m_StateMachine->addEvent(std::move(event));
+void StateMachineImporter::addListener(std::unique_ptr<StateMachineListener> listener) {
+    m_StateMachine->addListener(std::move(listener));
 }
 
 bool StateMachineImporter::readNullObject() {

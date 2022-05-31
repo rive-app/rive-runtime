@@ -14,7 +14,7 @@
 #include "rive/importers/keyed_property_importer.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
-#include "rive/importers/state_machine_event_importer.hpp"
+#include "rive/importers/state_machine_listener_importer.hpp"
 #include "rive/importers/state_machine_layer_importer.hpp"
 #include "rive/importers/layer_state_importer.hpp"
 #include "rive/importers/state_transition_importer.hpp"
@@ -75,9 +75,8 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
 
             if (id == -1) {
                 // Still couldn't find it, give up.
-                fprintf(stderr,
-                        "Unknown property key %d, missing from property ToC.\n",
-                        propertyKey);
+                fprintf(
+                    stderr, "Unknown property key %d, missing from property ToC.\n", propertyKey);
                 delete object;
                 return nullptr;
             }
@@ -108,18 +107,17 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
     return object;
 }
 
-File::File(Factory* factory, FileAssetResolver* assetResolver)
-    : m_Factory(factory)
-    , m_AssetResolver(assetResolver)
-{
+File::File(Factory* factory, FileAssetResolver* assetResolver) :
+    m_Factory(factory), m_AssetResolver(assetResolver) {
     assert(factory);
 }
 
 File::~File() {}
 
-std::unique_ptr<File>
-File::import(Span<const uint8_t> bytes, Factory* factory,
-             ImportResult* result, FileAssetResolver* assetResolver) {
+std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
+                                   Factory* factory,
+                                   ImportResult* result,
+                                   FileAssetResolver* assetResolver) {
     BinaryReader reader(bytes);
     RuntimeHeader header;
     if (!RuntimeHeader::read(reader, header)) {
@@ -230,11 +228,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                 stackObject = new StateTransitionImporter(object->as<StateTransition>());
                 stackType = StateTransition::typeKey;
                 break;
-            case StateMachineEvent::typeKey:
-                stackObject = new StateMachineEventImporter(object->as<StateMachineEvent>());
+            case StateMachineListener::typeKey:
+                stackObject = new StateMachineListenerImporter(object->as<StateMachineListener>());
                 break;
             case ImageAsset::typeKey:
-                stackObject = new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver, m_Factory);
+                stackObject =
+                    new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver, m_Factory);
                 stackType = FileAsset::typeKey;
                 break;
         }
@@ -244,8 +243,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
         }
     }
 
-    return !reader.hasError() && importStack.resolve() == StatusCode::Ok
-        ? ImportResult::success : ImportResult::malformed;
+    return !reader.hasError() && importStack.resolve() == StatusCode::Ok ? ImportResult::success
+                                                                         : ImportResult::malformed;
 }
 
 Artboard* File::artboard(std::string name) const {

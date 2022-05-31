@@ -1,10 +1,10 @@
-#ifndef _RIVE_EVENT_TRIGGER_CHANGE_BASE_HPP_
-#define _RIVE_EVENT_TRIGGER_CHANGE_BASE_HPP_
-#include "rive/animation/event_input_change.hpp"
+#ifndef _RIVE_LISTENER_TRIGGER_CHANGE_BASE_HPP_
+#define _RIVE_LISTENER_TRIGGER_CHANGE_BASE_HPP_
+#include "rive/animation/listener_input_change.hpp"
 namespace rive {
-    class EventTriggerChangeBase : public EventInputChange {
+    class ListenerTriggerChangeBase : public ListenerInputChange {
     protected:
-        typedef EventInputChange Super;
+        typedef ListenerInputChange Super;
 
     public:
         static const uint16_t typeKey = 115;
@@ -13,8 +13,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case EventTriggerChangeBase::typeKey:
-                case EventInputChangeBase::typeKey:
+                case ListenerTriggerChangeBase::typeKey:
+                case ListenerInputChangeBase::typeKey:
                     return true;
                 default:
                     return false;

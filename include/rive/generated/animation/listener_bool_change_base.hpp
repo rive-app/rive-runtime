@@ -1,11 +1,11 @@
-#ifndef _RIVE_EVENT_BOOL_CHANGE_BASE_HPP_
-#define _RIVE_EVENT_BOOL_CHANGE_BASE_HPP_
-#include "rive/animation/event_input_change.hpp"
+#ifndef _RIVE_LISTENER_BOOL_CHANGE_BASE_HPP_
+#define _RIVE_LISTENER_BOOL_CHANGE_BASE_HPP_
+#include "rive/animation/listener_input_change.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive {
-    class EventBoolChangeBase : public EventInputChange {
+    class ListenerBoolChangeBase : public ListenerInputChange {
     protected:
-        typedef EventInputChange Super;
+        typedef ListenerInputChange Super;
 
     public:
         static const uint16_t typeKey = 117;
@@ -14,8 +14,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case EventBoolChangeBase::typeKey:
-                case EventInputChangeBase::typeKey:
+                case ListenerBoolChangeBase::typeKey:
+                case ListenerInputChangeBase::typeKey:
                     return true;
                 default:
                     return false;
@@ -40,9 +40,9 @@ namespace rive {
         }
 
         Core* clone() const override;
-        void copy(const EventBoolChangeBase& object) {
+        void copy(const ListenerBoolChangeBase& object) {
             m_Value = object.m_Value;
-            EventInputChange::copy(object);
+            ListenerInputChange::copy(object);
         }
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
@@ -51,7 +51,7 @@ namespace rive {
                     m_Value = CoreUintType::deserialize(reader);
                     return true;
             }
-            return EventInputChange::deserialize(propertyKey, reader);
+            return ListenerInputChange::deserialize(propertyKey, reader);
         }
 
     protected:

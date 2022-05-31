@@ -1,7 +1,7 @@
-#ifndef _RIVE_EVENT_TYPE_HPP_
-#define _RIVE_EVENT_TYPE_HPP_
+#ifndef _RIVE_LISTENER_TYPE_HPP_
+#define _RIVE_LISTENER_TYPE_HPP_
 namespace rive {
-    enum class EventType : int {
+    enum class ListenerType : int {
         updateHover = -1,
         enter = 0,
         exit = 1,

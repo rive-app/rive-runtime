@@ -1,8 +1,0 @@
-{
-  "name": "EventTriggerChange",
-  "key": {
-    "int": 115,
-    "string": "event_trigger_change"
-  },
-  "extends": "animation/event_input_change.json"
-}

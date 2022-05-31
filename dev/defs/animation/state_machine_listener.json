@@ -1,8 +1,8 @@
 {
-  "name": "StateMachineEvent",
+  "name": "StateMachineListener",
   "key": {
     "int": 114,
-    "string": "statemachineevent"
+    "string": "stateMachineListener"
   },
   "extends": "animation/state_machine_component.json",
   "properties": {
@@ -15,16 +15,16 @@
         "int": 224,
         "string": "targetid"
       },
-      "description": "Identifier used to track the object use as a target fo this event."
+      "description": "Identifier used to track the object use as a target fo this listener."
     },
-    "eventTypeValue": {
+    "listenerTypeValue": {
       "type": "uint",
       "initialValue": "0",
       "key": {
         "int": 225,
-        "string": "eventtypevalue"
+        "string": "listenertypevalue"
       },
-      "description": "Event type (hover, click, etc)."
+      "description": "Listener type (hover, click, etc)."
     }
   }
 }

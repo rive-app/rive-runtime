@@ -1,36 +1,36 @@
-#include "rive/animation/state_machine_event.hpp"
+#include "rive/animation/state_machine_listener.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/generated/animation/state_machine_base.hpp"
 #include "rive/artboard.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/animation/state_machine_instance.hpp"
-#include "rive/animation/event_input_change.hpp"
+#include "rive/animation/listener_input_change.hpp"
 
 using namespace rive;
 
-void StateMachineEvent::addInputChange(EventInputChange* inputChange) {
+void StateMachineListener::addInputChange(ListenerInputChange* inputChange) {
     m_InputChanges.push_back(inputChange);
 }
 
-StatusCode StateMachineEvent::import(ImportStack& importStack) {
+StatusCode StateMachineListener::import(ImportStack& importStack) {
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
     if (stateMachineImporter == nullptr) {
         return StatusCode::MissingObject;
     }
     // Handing off ownership of this!
-    stateMachineImporter->addEvent(std::unique_ptr<StateMachineEvent>(this));
+    stateMachineImporter->addListener(std::unique_ptr<StateMachineListener>(this));
     return Super::import(importStack);
 }
 
-const EventInputChange* StateMachineEvent::inputChange(size_t index) const {
+const ListenerInputChange* StateMachineListener::inputChange(size_t index) const {
     if (index < m_InputChanges.size()) {
         return m_InputChanges[index];
     }
     return nullptr;
 }
 
-StatusCode StateMachineEvent::onAddedClean(CoreContext* context) {
+StatusCode StateMachineListener::onAddedClean(CoreContext* context) {
     auto artboard = static_cast<Artboard*>(context);
     auto target = artboard->resolve(targetId());
 
@@ -59,7 +59,7 @@ StatusCode StateMachineEvent::onAddedClean(CoreContext* context) {
     return Super::onAddedClean(context);
 }
 
-void StateMachineEvent::performChanges(StateMachineInstance* stateMachineInstance) const {
+void StateMachineListener::performChanges(StateMachineInstance* stateMachineInstance) const {
     for (auto inputChange : m_InputChanges) {
         inputChange->perform(stateMachineInstance);
     }

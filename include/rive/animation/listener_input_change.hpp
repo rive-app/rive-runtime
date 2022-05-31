@@ -1,11 +1,11 @@
-#ifndef _RIVE_EVENT_INPUT_CHANGE_HPP_
-#define _RIVE_EVENT_INPUT_CHANGE_HPP_
-#include "rive/generated/animation/event_input_change_base.hpp"
+#ifndef _RIVE_LISTENER_INPUT_CHANGE_HPP_
+#define _RIVE_LISTENER_INPUT_CHANGE_HPP_
+#include "rive/generated/animation/listener_input_change_base.hpp"
 
 namespace rive {
     class StateMachineInstance;
     class StateMachineInput;
-    class EventInputChange : public EventInputChangeBase {
+    class ListenerInputChange : public ListenerInputChangeBase {
     public:
         StatusCode import(ImportStack& importStack) override;
         virtual void perform(StateMachineInstance* stateMachineInstance) const = 0;
