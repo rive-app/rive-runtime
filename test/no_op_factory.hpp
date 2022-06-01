@@ -15,14 +15,14 @@ namespace rive {
                                                      float ex, float ey,
                                                      const ColorInt colors[],    // [count]
                                                      const float stops[],        // [count]
-                                                     int count,
+                                                     size_t count,
                                                      RenderTileMode,
                                                      const Mat2D* localMatrix = nullptr) override;
 
         rcp<RenderShader> makeRadialGradient(float cx, float cy, float radius,
                                                      const ColorInt colors[],    // [count]
                                                      const float stops[],        // [count]
-                                                     int count,
+                                                     size_t count,
                                                      RenderTileMode,
                                                      const Mat2D* localMatrix = nullptr) override;
 

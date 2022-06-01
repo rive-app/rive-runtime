@@ -13,14 +13,14 @@ rcp<RenderShader> NoOpFactory::makeLinearGradient(float sx, float sy,
                                                 float ex, float ey,
                                                 const ColorInt colors[],    // [count]
                                                 const float stops[],        // [count]
-                                                int count,
+                                                size_t count,
                                                 RenderTileMode,
                                                 const Mat2D* localMatrix) { return nullptr; }
 
 rcp<RenderShader> NoOpFactory::makeRadialGradient(float cx, float cy, float radius,
                                                 const ColorInt colors[],    // [count]
                                                 const float stops[],        // [count]
-                                                int count,
+                                                size_t count,
                                                 RenderTileMode,
                                                 const Mat2D* localMatrix) { return nullptr; }
 

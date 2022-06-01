@@ -227,7 +227,7 @@ void IKConstraint::constrain(TransformComponent* component) {
             for (int i = 0; i < last; i++) {
                 BoneChainLink* item = &m_FkChain[i];
                 solve2(item, tip, worldTargetTranslation);
-                for (int j = item->index + 1, end = m_FkChain.size() - 1; j < end; j++) {
+                for (int j = item->index + 1, end = (int)m_FkChain.size() - 1; j < end; j++) {
                     BoneChainLink& fk = m_FkChain[j];
                     fk.parentWorldInverse = getParentWorld(*fk.bone).invertOrIdentity();
                 }

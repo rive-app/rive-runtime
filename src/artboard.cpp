@@ -302,7 +302,7 @@ uint32_t Artboard::idOf(Core* object) const {
     auto it = std::find(m_Objects.begin(), m_Objects.end(), object);
 
     if (it != m_Objects.end()) {
-        return it - m_Objects.begin();
+        return castTo<uint32_t>(it - m_Objects.begin());
     } else {
         return 0;
     }

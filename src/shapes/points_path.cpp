@@ -23,7 +23,7 @@ const Mat2D& PointsPath::pathTransform() const {
 
 void PointsPath::update(ComponentDirt value) {
     if (hasDirt(value, ComponentDirt::Path) && skin() != nullptr) {
-        skin()->deform(Span((Vertex**)m_Vertices.data(), m_Vertices.size()));
+        skin()->deform(Span<Vertex*>((Vertex**)m_Vertices.data(), m_Vertices.size()));
     }
     Super::update(value);
 }

@@ -70,8 +70,8 @@ void Path::buildPath(CommandPath& commandPath) const {
     } else {
         startIsCubic = prevIsCubic = false;
         auto point = *firstPoint->as<StraightVertex>();
-
-        if (auto radius = point.radius(); radius > 0.0f) {
+        auto radius = point.radius();
+        if (radius > 0.0f) {
             auto prev = vertices[length - 1];
 
             Vec2D pos = point.renderTranslation();
@@ -120,8 +120,8 @@ void Path::buildPath(CommandPath& commandPath) const {
         } else {
             auto point = *vertex->as<StraightVertex>();
             Vec2D pos = point.renderTranslation();
-
-            if (auto radius = point.radius(); radius > 0.0f) {
+            auto radius = point.radius();
+            if (radius > 0.0f) {
                 Vec2D toPrev = out - pos;
                 auto toPrevLength = toPrev.normalizeLength();
 

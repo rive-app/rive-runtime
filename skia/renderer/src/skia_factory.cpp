@@ -264,7 +264,7 @@ rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx, float sy,
                                                 float ex, float ey,
                                                 const ColorInt colors[],    // [count]
                                                 const float stops[],        // [count]
-                                                int count,
+                                                size_t count,
                                                 RenderTileMode mode,
                                                 const Mat2D* localMatrix) {
     const SkPoint pts[] = {{sx, sy}, {ex, ey}};
@@ -277,7 +277,7 @@ rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx, float sy,
 rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx, float cy, float radius,
                                                 const ColorInt colors[],    // [count]
                                                 const float stops[],        // [count]
-                                                int count,
+                                                size_t count,
                                                 RenderTileMode mode,
                                                 const Mat2D* localMatrix) {
     const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
