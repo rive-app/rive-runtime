@@ -3,6 +3,8 @@
 
 using namespace rive;
 
+static LinearAnimation emptyAnimation;
+
 AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
                                                ArtboardInstance* instance) :
     StateInstance(state),
@@ -13,7 +15,7 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
     // SystemStateInstance (basically a no-op StateMachine state) which would
     // cause bad casts in parts of the code where we assumed AnimationStates
     // would have create AnimationStateInstances.
-    m_AnimationInstance(state->animationOrEmpty(), instance),
+    m_AnimationInstance(state->animation() ? state->animation() : &emptyAnimation, instance),
     m_KeepGoing(true) {}
 
 void AnimationStateInstance::advance(float seconds, Span<SMIInput*>) {

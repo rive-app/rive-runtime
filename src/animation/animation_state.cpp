@@ -9,9 +9,3 @@ using namespace rive;
 std::unique_ptr<StateInstance> AnimationState::makeInstance(ArtboardInstance* instance) const {
     return std::make_unique<AnimationStateInstance>(this, instance);
 }
-
-static LinearAnimation emptyAnimation;
-
-const LinearAnimation* AnimationState::animationOrEmpty() const {
-    return m_Animation == nullptr ? &emptyAnimation : m_Animation;
-}
