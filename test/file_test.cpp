@@ -8,6 +8,7 @@
 #include <cstdio>
 
 TEST_CASE("file can be read", "[file]") {
+    RenderObjectLeakChecker checker;
     auto file = ReadRiveFile("../../test/assets/two_artboards.riv");
 
     // Default artboard should be named Two.
@@ -18,6 +19,7 @@ TEST_CASE("file can be read", "[file]") {
 }
 
 TEST_CASE("file with animation can be read", "[file]") {
+    RenderObjectLeakChecker checker;
     auto file = ReadRiveFile("../../test/assets/juice.riv");
 
     auto artboard = file->artboard();
@@ -42,6 +44,7 @@ TEST_CASE("file with animation can be read", "[file]") {
 }
 
 TEST_CASE("artboards can be counted and accessed via index or name", "[file]") {
+    RenderObjectLeakChecker checker;
     auto file = ReadRiveFile("../../test/assets/dependency_test.riv");
 
     // The artboards caqn be counted
@@ -55,6 +58,7 @@ TEST_CASE("artboards can be counted and accessed via index or name", "[file]") {
 }
 
 TEST_CASE("dependencies are as expected", "[file]") {
+    RenderObjectLeakChecker checker;
     // ┌────┐
     // │Blue│
     // └────┘
@@ -112,6 +116,7 @@ TEST_CASE("dependencies are as expected", "[file]") {
 }
 
 TEST_CASE("long name in object is parsed correctly", "[file]") {
+    RenderObjectLeakChecker checker;
     auto file = ReadRiveFile("../../test/assets/long_name.riv");
     auto artboard = file->artboard();
 

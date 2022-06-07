@@ -4,6 +4,7 @@
 #include <rive/file.hpp>
 #include "rive_testing.hpp"
 #include "no_op_factory.hpp"
+#include "../src/render_counter.hpp"
 
 static inline std::unique_ptr<rive::File>
 ReadRiveFile(const char path[],
@@ -31,5 +32,22 @@ ReadRiveFile(const char path[],
 
     return file;
 }
+
+class RenderObjectLeakChecker {
+    rive::RenderCounter m_Before;
+
+public:
+    RenderObjectLeakChecker() : m_Before(rive::RenderCounter::globalCounter()) {}
+    ~RenderObjectLeakChecker() {
+        auto after = rive::RenderCounter::globalCounter();
+        for (int i = 0; i <= rive::RenderCounterType::kLastCounterType; ++i) {
+            if (after.counts[i] != m_Before.counts[i]) {
+                m_Before.dump("before");
+                after.dump("after");
+                REQUIRE(false);
+            }
+        }
+    }
+};
 
 #endif

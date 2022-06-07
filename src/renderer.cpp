@@ -67,3 +67,46 @@ void Renderer::rotate(float radians) {
     const float c = std::cos(radians);
     this->transform(Mat2D(c, s, -s, c, 0, 0));
 }
+
+/////////////////////////////////////////
+
+#include "../src/render_counter.hpp"
+
+static RenderCounter gCounter;
+
+const char* gCounterNames[] = {
+    "buffer", "path", "paint", "shader", "image",
+};
+
+void RenderCounter::dump(const char label[]) const {
+    if (label == nullptr) {
+        label = "RenderCounters";
+    }
+    printf("%s:", label);
+    for (int i = 0; i <= kLastCounterType; ++i) {
+        printf(" [%s]:%d", gCounterNames[i], counts[i]);
+    }
+    printf("\n");
+}
+
+RenderCounter& RenderCounter::globalCounter() { return gCounter; }
+
+RenderBuffer::RenderBuffer(size_t count) : m_Count(count) {
+    gCounter.update(kBuffer, 1);
+}
+
+RenderBuffer::~RenderBuffer() {
+    gCounter.update(kBuffer, -1);
+}
+
+RenderShader::RenderShader() { gCounter.update(kShader, 1); }
+RenderShader::~RenderShader() { gCounter.update(kShader, -1); }
+
+RenderPaint::RenderPaint() { gCounter.update(kPaint, 1); }
+RenderPaint::~RenderPaint() { gCounter.update(kPaint, -1); }
+
+RenderImage::RenderImage() { gCounter.update(kImage, 1); }
+RenderImage::~RenderImage() { gCounter.update(kImage, -1); }
+
+RenderPath::RenderPath() { gCounter.update(kPath, 1); }
+RenderPath::~RenderPath() { gCounter.update(kPath, -1); }

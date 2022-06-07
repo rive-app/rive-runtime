@@ -29,6 +29,8 @@
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
 
+#include "../src/render_counter.hpp"
+
 #include <cmath>
 #include <stdio.h>
 
@@ -38,6 +40,14 @@ std::string filename;
 std::unique_ptr<rive::File> currentFile;
 std::unique_ptr<rive::ArtboardInstance> artboardInstance;
 std::unique_ptr<rive::Scene> currentScene;
+
+static void delete_file() {
+    currentScene = nullptr;
+    artboardInstance = nullptr;
+    currentFile = nullptr;
+
+    rive::RenderCounter::globalCounter().dump("After deleting file");
+}
 
 // ImGui wants raw pointers to names, but our public API returns
 // names as strings (by value), so we cache these names each time we
@@ -129,6 +139,8 @@ void initStateMachine(int index) {
     if (currentScene) {
         currentScene->inputCount();
     }
+
+    rive::RenderCounter::globalCounter().dump("After loading file");
 }
 
 void initAnimation(int index) {
@@ -153,6 +165,8 @@ void initAnimation(int index) {
         currentScene = artboardInstance->animationAt(index);
         currentScene->inputCount();
     }
+
+    rive::RenderCounter::globalCounter().dump("After loading file");
 }
 
 rive::Mat2D gInverseViewTransform;
@@ -415,6 +429,8 @@ int main() {
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    delete_file();
 
     // Cleanup Skia.
     surface = nullptr;

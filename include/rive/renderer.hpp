@@ -31,7 +31,8 @@ namespace rive {
         const size_t m_Count;
 
     public:
-        RenderBuffer(size_t count) : m_Count(count) {}
+        RenderBuffer(size_t count);
+        ~RenderBuffer() override;
 
         size_t count() const { return m_Count; }
     };
@@ -53,10 +54,17 @@ namespace rive {
      *  It is common that a shader may be created with a 'localMatrix'. If this is
      *  not null, then it is applied to the shader's domain before the Renderer's CTM.
      */
-    class RenderShader : public RefCnt {};
+    class RenderShader : public RefCnt {
+    public:
+        RenderShader();
+        ~RenderShader() override;
+    };
 
     class RenderPaint {
     public:
+        RenderPaint();
+        virtual ~RenderPaint();
+    
         virtual void style(RenderPaintStyle style) = 0;
         virtual void color(ColorInt value) = 0;
         virtual void thickness(float value) = 0;
@@ -64,8 +72,6 @@ namespace rive {
         virtual void cap(StrokeCap value) = 0;
         virtual void blendMode(BlendMode value) = 0;
         virtual void shader(rcp<RenderShader>) = 0;
-
-        virtual ~RenderPaint() {}
     };
 
     class RenderImage {
@@ -74,7 +80,9 @@ namespace rive {
         int m_Height = 0;
 
     public:
-        virtual ~RenderImage() {}
+        RenderImage();
+        virtual ~RenderImage();
+
         int width() const { return m_Width; }
         int height() const { return m_Height; }
 
@@ -85,6 +93,9 @@ namespace rive {
 
     class RenderPath : public CommandPath {
     public:
+        RenderPath();
+        ~RenderPath() override;
+
         RenderPath* renderPath() override { return this; }
         void addPath(CommandPath* path, const Mat2D& transform) override {
             addRenderPath(path->renderPath(), transform);
