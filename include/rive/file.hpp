@@ -42,6 +42,9 @@ namespace rive {
         /// where the artboards live.
         std::unique_ptr<Backboard> m_Backboard;
 
+        /// We just keep these alive for the life of this File
+        std::vector<std::unique_ptr<FileAsset>> m_FileAssets;
+
         /// List of artboards in the file. Each artboard encapsulates a set of
         /// Rive components and animations.
         std::vector<std::unique_ptr<Artboard>> m_Artboards;

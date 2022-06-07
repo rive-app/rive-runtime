@@ -168,6 +168,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                     ab->m_Factory = m_Factory;
                     m_Artboards.push_back(std::unique_ptr<Artboard>(ab));
                 } break;
+                case ImageAsset::typeKey: {
+                    auto fa = object->as<FileAsset>();
+                    m_FileAssets.push_back(std::unique_ptr<FileAsset>(fa));
+                } break;
             }
         } else {
             fprintf(stderr, "Failed to import object of type %d\n", object->coreType());
