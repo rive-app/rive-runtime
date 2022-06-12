@@ -40,12 +40,19 @@ std::string filename;
 std::unique_ptr<rive::File> currentFile;
 std::unique_ptr<rive::ArtboardInstance> artboardInstance;
 std::unique_ptr<rive::Scene> currentScene;
+int animationIndex = 0;
+int stateMachineIndex = -1;
+
+sk_sp<SkImage> gImage;
 
 static void delete_file() {
+    stateMachineIndex = -1;
+    animationIndex = -1;
     currentScene = nullptr;
     artboardInstance = nullptr;
     currentFile = nullptr;
 
+    // this is just fun, to see our memory usage... not required
     rive::RenderCounter::globalCounter().dump("After deleting file");
 }
 
@@ -84,8 +91,6 @@ double GetSecondsToday() {
 // it.
 std::vector<uint8_t> fileBytes;
 
-int animationIndex = 0;
-int stateMachineIndex = -1;
 
 static void loadNames(const rive::Artboard* ab) {
     animationNames.clear();
@@ -104,16 +109,20 @@ void initStateMachine(int index) {
     assert(fileBytes.size() != 0);
     auto file = rive::File::import(rive::toSpan(fileBytes), &skiaFactory);
     if (!file) {
-        fileBytes.clear();
         fprintf(stderr, "failed to import file\n");
+
+        auto data = SkData::MakeWithCopy(fileBytes.data(), fileBytes.size());
+        gImage = SkImage::MakeFromEncoded(data);
+        if (gImage) {
+            fprintf(stderr, "interpreted as image\n");
+            delete_file();
+        }
+
+        fileBytes.clear();
         return;
     }
 
-    stateMachineIndex = -1;
-    animationIndex = -1;
-    currentScene = nullptr;
-    artboardInstance = nullptr;
-
+    delete_file();
     currentFile = std::move(file);
     artboardInstance = currentFile->artboardDefault();
     artboardInstance->advance(0.0f);
@@ -144,8 +153,6 @@ void initStateMachine(int index) {
 }
 
 void initAnimation(int index) {
-    animationIndex = index;
-    stateMachineIndex = -1;
     assert(fileBytes.size() != 0);
     auto file = rive::File::import(rive::toSpan(fileBytes), &skiaFactory);
     if (!file) {
@@ -153,8 +160,8 @@ void initAnimation(int index) {
         fprintf(stderr, "failed to import file\n");
         return;
     }
-    currentScene = nullptr;
-    artboardInstance = nullptr;
+
+    delete_file();
 
     currentFile = std::move(file);
     artboardInstance = currentFile->artboardDefault();
@@ -162,6 +169,7 @@ void initAnimation(int index) {
     loadNames(artboardInstance.get());
 
     if (index >= 0 && index < artboardInstance->animationCount()) {
+        animationIndex = index;
         currentScene = artboardInstance->animationAt(index);
         currentScene->inputCount();
     }
@@ -333,6 +341,11 @@ int main() {
 
             currentScene->draw(&renderer);
             renderer.restore();
+        } else {
+            // no scene ...
+            if (gImage) {
+                canvas->drawImage(gImage, 0, 0);
+            }
         }
         context->flush();
 
