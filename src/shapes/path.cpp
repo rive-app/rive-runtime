@@ -1,14 +1,25 @@
 #include "rive/shapes/path.hpp"
-#include "rive/math/circle_constant.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/cubic_detached_vertex.hpp"
 #include "rive/shapes/path_vertex.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/shapes/straight_vertex.hpp"
+#include "rive/math/math_types.hpp"
 #include <cassert>
 
 using namespace rive;
+
+/// Compute an ideal control point distance to create a curve of the given
+/// radius.
+static float
+computeIdealControlPointDistance(const Vec2D& toPrev, const Vec2D& toNext, float radius) {
+    // Get the angle between next and prev
+    float angle = fabs(atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
+
+    return (4.0f / 3.0f) * tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) * radius *
+           (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle));
+}
 
 StatusCode Path::onAddedClean(CoreContext* context) {
     StatusCode code = Super::onAddedClean(context);
@@ -89,13 +100,15 @@ void Path::buildPath(CommandPath& commandPath) const {
                            pos;
             auto toNextLength = toNext.normalizeLength();
 
-            float renderRadius = std::min(toPrevLength, std::min(toNextLength, radius));
+            float renderRadius =
+                std::min(toPrevLength / 2.0f, std::min(toNextLength / 2.0f, radius));
+            float idealDistance = computeIdealControlPointDistance(toPrev, toNext, renderRadius);
 
             startIn = start = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
             commandPath.move(startIn);
 
-            Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, icircleConstant * renderRadius);
-            Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, icircleConstant * renderRadius);
+            Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, renderRadius - idealDistance);
+            Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
             out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
             commandPath.cubic(outPoint, inPoint, out);
             prevIsCubic = false;
@@ -122,7 +135,10 @@ void Path::buildPath(CommandPath& commandPath) const {
             Vec2D pos = point.renderTranslation();
             auto radius = point.radius();
             if (radius > 0.0f) {
-                Vec2D toPrev = out - pos;
+                auto prev = vertices[i - 1];
+                Vec2D toPrev = (prev->is<CubicVertex>() ? prev->as<CubicVertex>()->renderOut()
+                                                        : prev->renderTranslation()) -
+                               pos;
                 auto toPrevLength = toPrev.normalizeLength();
 
                 auto next = vertices[(i + 1) % length];
@@ -132,7 +148,10 @@ void Path::buildPath(CommandPath& commandPath) const {
                                pos;
                 auto toNextLength = toNext.normalizeLength();
 
-                float renderRadius = std::min(toPrevLength, std::min(toNextLength, radius));
+                float renderRadius =
+                    std::min(toPrevLength / 2.0f, std::min(toNextLength / 2.0f, radius));
+                float idealDistance =
+                    computeIdealControlPointDistance(toPrev, toNext, renderRadius);
 
                 Vec2D translation = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
                 if (prevIsCubic) {
@@ -141,8 +160,8 @@ void Path::buildPath(CommandPath& commandPath) const {
                     commandPath.line(translation);
                 }
 
-                Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, icircleConstant * renderRadius);
-                Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, icircleConstant * renderRadius);
+                Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, renderRadius - idealDistance);
+                Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
                 out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
                 commandPath.cubic(outPoint, inPoint, out);
                 prevIsCubic = false;
@@ -260,11 +279,13 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
                     Vec2D toNext = nextPoint - pos;
                     auto toNextLength = toNext.normalizeLength();
 
-                    auto renderRadius =
-                        std::min(toPrevLength, std::min(toNextLength, point.radius()));
+                    auto renderRadius = std::min(toPrevLength / 2.0f,
+                                                 std::min(toNextLength / 2.0f, point.radius()));
+                    float idealDistance =
+                        computeIdealControlPointDistance(toPrev, toNext, renderRadius);
                     Vec2D translation = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
 
-                    Vec2D out = Vec2D::scaleAndAdd(pos, toPrev, icircleConstant * renderRadius);
+                    Vec2D out = Vec2D::scaleAndAdd(pos, toPrev, renderRadius - idealDistance);
                     {
                         auto v1 = new DisplayCubicVertex(translation, out, translation);
                         flat->addVertex(v1, transform);
@@ -273,7 +294,7 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
 
                     translation = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
 
-                    Vec2D in = Vec2D::scaleAndAdd(pos, toNext, icircleConstant * renderRadius);
+                    Vec2D in = Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
                     auto v2 = new DisplayCubicVertex(in, translation, translation);
 
                     flat->addVertex(v2, transform);

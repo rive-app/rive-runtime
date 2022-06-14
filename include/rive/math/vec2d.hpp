@@ -46,6 +46,7 @@ namespace rive {
         static Vec2D transformDir(const Vec2D& a, const Mat2D& m);
 
         static float dot(Vec2D a, Vec2D b) { return a.x * b.x + a.y * b.y; }
+        static float cross(Vec2D a, Vec2D b) { return a.x * b.y - a.y * b.x; }
         static Vec2D scaleAndAdd(Vec2D a, Vec2D b, float scale) {
             return {
                 a.x + b.x * scale,
