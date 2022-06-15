@@ -44,6 +44,11 @@ namespace rive {
         Span<const PathVerb> verbs() const { return toSpan(m_Verbs); }
         Span<PathVerb> verbs() { return toSpan(m_Verbs); }
 
+        Span<const uint8_t> verbsU8() const {
+            const uint8_t* ptr = (const uint8_t*)m_Verbs.data();
+            return Span<const uint8_t>(ptr, m_Verbs.size());
+        }
+
         // Syntactic sugar for x,y -vs- vec2d
 
         void moveTo(float x, float y) { move({x, y}); }
