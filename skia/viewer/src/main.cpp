@@ -45,6 +45,9 @@ int stateMachineIndex = -1;
 
 sk_sp<SkImage> gImage;
 
+// Set to true locally for testing
+constexpr bool USE_DRAWTEXT = false;
+
 extern void drawtext(rive::Factory*, rive::Renderer*);
 
 static void delete_file() {
@@ -349,7 +352,7 @@ int main() {
                 canvas->drawImage(gImage, 0, 0);
             }
         }
-        if (true) {
+        if (USE_DRAWTEXT) {
             rive::SkiaRenderer renderer(canvas);
             drawtext(&skiaFactory, &renderer);
         }
