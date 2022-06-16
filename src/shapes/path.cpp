@@ -17,8 +17,9 @@ computeIdealControlPointDistance(const Vec2D& toPrev, const Vec2D& toNext, float
     // Get the angle between next and prev
     float angle = fabs(atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
 
-    return (4.0f / 3.0f) * tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) * radius *
-           (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle));
+    return min(radius,
+               (4.0f / 3.0f) * tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) * radius *
+                   (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle)));
 }
 
 StatusCode Path::onAddedClean(CoreContext* context) {
