@@ -6,7 +6,7 @@
 namespace rive {
     class StateMachineListener;
     class StateMachine;
-    class ListenerInputChange;
+    class ListenerAction;
     class StateMachineListenerImporter : public ImportStackObject {
     private:
         StateMachineListener* m_StateMachineListener;
@@ -14,7 +14,7 @@ namespace rive {
     public:
         StateMachineListenerImporter(StateMachineListener* listener);
         const StateMachineListener* stateMachineListener() const { return m_StateMachineListener; }
-        void addInputChange(ListenerInputChange* change);
+        void addAction(ListenerAction* action);
         StatusCode resolve() override;
     };
 } // namespace rive

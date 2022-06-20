@@ -12,7 +12,8 @@ bool ListenerNumberChange::validateInputType(const StateMachineInput* input) con
     return input == nullptr || input->is<StateMachineNumber>();
 }
 
-void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance) const {
+void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance,
+                                   Vec2D position) const {
     auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr) {
         return;

@@ -22,14 +22,20 @@
 #include "rive/animation/keyframe_id.hpp"
 #include "rive/animation/layer_state.hpp"
 #include "rive/animation/linear_animation.hpp"
+#include "rive/animation/listener_action.hpp"
+#include "rive/animation/listener_align_target.hpp"
 #include "rive/animation/listener_bool_change.hpp"
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/animation/listener_number_change.hpp"
 #include "rive/animation/listener_trigger_change.hpp"
+#include "rive/animation/nested_bool.hpp"
+#include "rive/animation/nested_input.hpp"
 #include "rive/animation/nested_linear_animation.hpp"
+#include "rive/animation/nested_number.hpp"
 #include "rive/animation/nested_remap_animation.hpp"
 #include "rive/animation/nested_simple_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
+#include "rive/animation/nested_trigger.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_component.hpp"
@@ -137,6 +143,8 @@ namespace rive {
                     return new NestedSimpleAnimation();
                 case AnimationStateBase::typeKey:
                     return new AnimationState();
+                case NestedTriggerBase::typeKey:
+                    return new NestedTrigger();
                 case KeyedObjectBase::typeKey:
                     return new KeyedObject();
                 case BlendAnimationDirectBase::typeKey:
@@ -155,6 +163,8 @@ namespace rive {
                     return new KeyFrameBool();
                 case ListenerBoolChangeBase::typeKey:
                     return new ListenerBoolChange();
+                case ListenerAlignTargetBase::typeKey:
+                    return new ListenerAlignTarget();
                 case TransitionNumberConditionBase::typeKey:
                     return new TransitionNumberCondition();
                 case AnyStateBase::typeKey:
@@ -169,6 +179,8 @@ namespace rive {
                     return new CubicInterpolator();
                 case StateTransitionBase::typeKey:
                     return new StateTransition();
+                case NestedBoolBase::typeKey:
+                    return new NestedBool();
                 case KeyFrameDoubleBase::typeKey:
                     return new KeyFrameDouble();
                 case KeyFrameColorBase::typeKey:
@@ -189,6 +201,8 @@ namespace rive {
                     return new NestedStateMachine();
                 case ExitStateBase::typeKey:
                     return new ExitState();
+                case NestedNumberBase::typeKey:
+                    return new NestedNumber();
                 case BlendState1DBase::typeKey:
                     return new BlendState1D();
                 case NestedRemapAnimationBase::typeKey:
@@ -337,6 +351,9 @@ namespace rive {
                 case AnimationStateBase::animationIdPropertyKey:
                     object->as<AnimationStateBase>()->animationId(value);
                     break;
+                case NestedInputBase::inputIdPropertyKey:
+                    object->as<NestedInputBase>()->inputId(value);
+                    break;
                 case KeyedObjectBase::objectIdPropertyKey:
                     object->as<KeyedObjectBase>()->objectId(value);
                     break;
@@ -372,6 +389,9 @@ namespace rive {
                     break;
                 case ListenerBoolChangeBase::valuePropertyKey:
                     object->as<ListenerBoolChangeBase>()->value(value);
+                    break;
+                case ListenerAlignTargetBase::targetIdPropertyKey:
+                    object->as<ListenerAlignTargetBase>()->targetId(value);
                     break;
                 case TransitionValueConditionBase::opValuePropertyKey:
                     object->as<TransitionValueConditionBase>()->opValue(value);
@@ -544,6 +564,9 @@ namespace rive {
                     break;
                 case LinearAnimationBase::speedPropertyKey:
                     object->as<LinearAnimationBase>()->speed(value);
+                    break;
+                case NestedNumberBase::nestedValuePropertyKey:
+                    object->as<NestedNumberBase>()->nestedValue(value);
                     break;
                 case NestedRemapAnimationBase::timePropertyKey:
                     object->as<NestedRemapAnimationBase>()->time(value);
@@ -756,6 +779,9 @@ namespace rive {
                 case KeyFrameBoolBase::valuePropertyKey:
                     object->as<KeyFrameBoolBase>()->value(value);
                     break;
+                case NestedBoolBase::nestedValuePropertyKey:
+                    object->as<NestedBoolBase>()->nestedValue(value);
+                    break;
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                     object->as<LinearAnimationBase>()->enableWorkArea(value);
                     break;
@@ -840,6 +866,8 @@ namespace rive {
                     return object->as<ListenerInputChangeBase>()->inputId();
                 case AnimationStateBase::animationIdPropertyKey:
                     return object->as<AnimationStateBase>()->animationId();
+                case NestedInputBase::inputIdPropertyKey:
+                    return object->as<NestedInputBase>()->inputId();
                 case KeyedObjectBase::objectIdPropertyKey:
                     return object->as<KeyedObjectBase>()->objectId();
                 case BlendAnimationBase::animationIdPropertyKey:
@@ -864,6 +892,8 @@ namespace rive {
                     return object->as<KeyFrameIdBase>()->value();
                 case ListenerBoolChangeBase::valuePropertyKey:
                     return object->as<ListenerBoolChangeBase>()->value();
+                case ListenerAlignTargetBase::targetIdPropertyKey:
+                    return object->as<ListenerAlignTargetBase>()->targetId();
                 case TransitionValueConditionBase::opValuePropertyKey:
                     return object->as<TransitionValueConditionBase>()->opValue();
                 case StateTransitionBase::stateToIdPropertyKey:
@@ -981,6 +1011,8 @@ namespace rive {
                     return object->as<KeyFrameDoubleBase>()->value();
                 case LinearAnimationBase::speedPropertyKey:
                     return object->as<LinearAnimationBase>()->speed();
+                case NestedNumberBase::nestedValuePropertyKey:
+                    return object->as<NestedNumberBase>()->nestedValue();
                 case NestedRemapAnimationBase::timePropertyKey:
                     return object->as<NestedRemapAnimationBase>()->time();
                 case BlendAnimation1DBase::valuePropertyKey:
@@ -1124,6 +1156,8 @@ namespace rive {
                     return object->as<NestedSimpleAnimationBase>()->isPlaying();
                 case KeyFrameBoolBase::valuePropertyKey:
                     return object->as<KeyFrameBoolBase>()->value();
+                case NestedBoolBase::nestedValuePropertyKey:
+                    return object->as<NestedBoolBase>()->nestedValue();
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                     return object->as<LinearAnimationBase>()->enableWorkArea();
                 case StateMachineBoolBase::valuePropertyKey:
@@ -1176,6 +1210,7 @@ namespace rive {
                 case NestedAnimationBase::animationIdPropertyKey:
                 case ListenerInputChangeBase::inputIdPropertyKey:
                 case AnimationStateBase::animationIdPropertyKey:
+                case NestedInputBase::inputIdPropertyKey:
                 case KeyedObjectBase::objectIdPropertyKey:
                 case BlendAnimationBase::animationIdPropertyKey:
                 case BlendAnimationDirectBase::inputIdPropertyKey:
@@ -1188,6 +1223,7 @@ namespace rive {
                 case KeyFrameBase::interpolatorIdPropertyKey:
                 case KeyFrameIdBase::valuePropertyKey:
                 case ListenerBoolChangeBase::valuePropertyKey:
+                case ListenerAlignTargetBase::targetIdPropertyKey:
                 case TransitionValueConditionBase::opValuePropertyKey:
                 case StateTransitionBase::stateToIdPropertyKey:
                 case StateTransitionBase::flagsPropertyKey:
@@ -1245,6 +1281,7 @@ namespace rive {
                 case CubicInterpolatorBase::y2PropertyKey:
                 case KeyFrameDoubleBase::valuePropertyKey:
                 case LinearAnimationBase::speedPropertyKey:
+                case NestedNumberBase::nestedValuePropertyKey:
                 case NestedRemapAnimationBase::timePropertyKey:
                 case BlendAnimation1DBase::valuePropertyKey:
                 case LinearGradientBase::startXPropertyKey:
@@ -1315,6 +1352,7 @@ namespace rive {
                 case IKConstraintBase::invertDirectionPropertyKey:
                 case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 case KeyFrameBoolBase::valuePropertyKey:
+                case NestedBoolBase::nestedValuePropertyKey:
                 case LinearAnimationBase::enableWorkAreaPropertyKey:
                 case StateMachineBoolBase::valuePropertyKey:
                 case ShapePaintBase::isVisiblePropertyKey:

@@ -1,21 +1,21 @@
-#ifndef _RIVE_LISTENER_INPUT_CHANGE_BASE_HPP_
-#define _RIVE_LISTENER_INPUT_CHANGE_BASE_HPP_
-#include "rive/animation/listener_action.hpp"
+#ifndef _RIVE_NESTED_INPUT_BASE_HPP_
+#define _RIVE_NESTED_INPUT_BASE_HPP_
+#include "rive/component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive {
-    class ListenerInputChangeBase : public ListenerAction {
+    class NestedInputBase : public Component {
     protected:
-        typedef ListenerAction Super;
+        typedef Component Super;
 
     public:
-        static const uint16_t typeKey = 116;
+        static const uint16_t typeKey = 121;
 
         /// Helper to quickly determine if a core object extends another without RTTI
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case ListenerInputChangeBase::typeKey:
-                case ListenerActionBase::typeKey:
+                case NestedInputBase::typeKey:
+                case ComponentBase::typeKey:
                     return true;
                 default:
                     return false;
@@ -24,7 +24,7 @@ namespace rive {
 
         uint16_t coreType() const override { return typeKey; }
 
-        static const uint16_t inputIdPropertyKey = 227;
+        static const uint16_t inputIdPropertyKey = 237;
 
     private:
         uint32_t m_InputId = -1;
@@ -39,9 +39,9 @@ namespace rive {
             inputIdChanged();
         }
 
-        void copy(const ListenerInputChangeBase& object) {
+        void copy(const NestedInputBase& object) {
             m_InputId = object.m_InputId;
-            ListenerAction::copy(object);
+            Component::copy(object);
         }
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
@@ -50,7 +50,7 @@ namespace rive {
                     m_InputId = CoreUintType::deserialize(reader);
                     return true;
             }
-            return ListenerAction::deserialize(propertyKey, reader);
+            return Component::deserialize(propertyKey, reader);
         }
 
     protected:

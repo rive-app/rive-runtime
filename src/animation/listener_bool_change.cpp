@@ -11,7 +11,7 @@ bool ListenerBoolChange::validateInputType(const StateMachineInput* input) const
     return input == nullptr || input->is<StateMachineBool>();
 }
 
-void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance) const {
+void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance, Vec2D position) const {
     auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr) {
         return;

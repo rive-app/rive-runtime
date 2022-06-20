@@ -1,11 +1,11 @@
 {
-  "name": "ListenerInputChange",
+  "name": "NestedInput",
   "key": {
-    "int": 116,
-    "string": "listener_input_change"
+    "int": 121,
+    "string": "nestedinput"
   },
   "abstract": true,
-  "extends": "animation/listener_action.json",
+  "extends": "component.json",
   "properties": {
     "inputId": {
       "type": "Id",
@@ -13,10 +13,10 @@
       "initialValue": "Core.missingId",
       "initialValueRuntime": "-1",
       "key": {
-        "int": 227,
+        "int": 237,
         "string": "inputid"
       },
-      "description": "Id of the StateMachineInput referenced."
+      "description": "Identifier used to track the actual backing state machine input."
     }
   }
 }

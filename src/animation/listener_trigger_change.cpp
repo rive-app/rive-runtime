@@ -12,7 +12,8 @@ bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) co
     return input == nullptr || input->is<StateMachineTrigger>();
 }
 
-void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance) const {
+void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
+                                    Vec2D position) const {
     auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr) {
         return;

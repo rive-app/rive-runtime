@@ -5,7 +5,7 @@
     "string": "nestedanimation"
   },
   "abstract": true,
-  "extends": "component.json",
+  "extends": "container_component.json",
   "properties": {
     "animationId": {
       "type": "Id",

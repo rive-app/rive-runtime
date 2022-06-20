@@ -1,0 +1,8 @@
+{
+  "name": "NestedTrigger",
+  "key": {
+    "int": 122,
+    "string": "nestedTrigger"
+  },
+  "extends": "animation/nested_input.json"
+}

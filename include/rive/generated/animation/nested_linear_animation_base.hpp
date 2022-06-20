@@ -16,6 +16,7 @@ namespace rive {
             switch (typeKey) {
                 case NestedLinearAnimationBase::typeKey:
                 case NestedAnimationBase::typeKey:
+                case ContainerComponentBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;
                 default:

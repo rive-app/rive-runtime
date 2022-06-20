@@ -1,0 +1,19 @@
+{
+  "name": "NestedBool",
+  "key": {
+    "int": 123,
+    "string": "nestedBool"
+  },
+  "extends": "animation/nested_input.json",
+  "properties": {
+    "nestedValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "animates": true,
+      "key": {
+        "int": 238,
+        "string": "value"
+      }
+    }
+  }
+}

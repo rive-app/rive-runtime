@@ -6,7 +6,7 @@ namespace rive {
     class ListenerBoolChange : public ListenerBoolChangeBase {
     public:
         bool validateInputType(const StateMachineInput* input) const override;
-        void perform(StateMachineInstance* stateMachineInstance) const override;
+        void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const override;
     };
 } // namespace rive
 

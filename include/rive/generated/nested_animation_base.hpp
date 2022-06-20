@@ -1,11 +1,11 @@
 #ifndef _RIVE_NESTED_ANIMATION_BASE_HPP_
 #define _RIVE_NESTED_ANIMATION_BASE_HPP_
-#include "rive/component.hpp"
+#include "rive/container_component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive {
-    class NestedAnimationBase : public Component {
+    class NestedAnimationBase : public ContainerComponent {
     protected:
-        typedef Component Super;
+        typedef ContainerComponent Super;
 
     public:
         static const uint16_t typeKey = 93;
@@ -15,6 +15,7 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case NestedAnimationBase::typeKey:
+                case ContainerComponentBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;
                 default:
@@ -41,7 +42,7 @@ namespace rive {
 
         void copy(const NestedAnimationBase& object) {
             m_AnimationId = object.m_AnimationId;
-            Component::copy(object);
+            ContainerComponent::copy(object);
         }
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
@@ -50,7 +51,7 @@ namespace rive {
                     m_AnimationId = CoreUintType::deserialize(reader);
                     return true;
             }
-            return Component::deserialize(propertyKey, reader);
+            return ContainerComponent::deserialize(propertyKey, reader);
         }
 
     protected:

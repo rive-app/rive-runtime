@@ -6,8 +6,8 @@ using namespace rive;
 StateMachineListenerImporter::StateMachineListenerImporter(StateMachineListener* listener) :
     m_StateMachineListener(listener) {}
 
-void StateMachineListenerImporter::addInputChange(ListenerInputChange* change) {
-    m_StateMachineListener->addInputChange(change);
+void StateMachineListenerImporter::addAction(ListenerAction* action) {
+    m_StateMachineListener->addAction(action);
 }
 
 StatusCode StateMachineListenerImporter::resolve() { return StatusCode::Ok; }

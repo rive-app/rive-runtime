@@ -17,6 +17,7 @@ namespace rive {
                 case NestedRemapAnimationBase::typeKey:
                 case NestedLinearAnimationBase::typeKey:
                 case NestedAnimationBase::typeKey:
+                case ContainerComponentBase::typeKey:
                 case ComponentBase::typeKey:
                     return true;
                 default:

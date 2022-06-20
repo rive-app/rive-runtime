@@ -267,15 +267,15 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
             // we're trying to trigger.
             if (hoverChange) {
                 if (isOver && listener->listenerType() == ListenerType::enter) {
-                    listener->performChanges(this);
+                    listener->performChanges(this, position);
                     markNeedsAdvance();
                 } else if (!isOver && listener->listenerType() == ListenerType::exit) {
-                    listener->performChanges(this);
+                    listener->performChanges(this, position);
                     markNeedsAdvance();
                 }
             }
             if (isOver && hitType == listener->listenerType()) {
-                listener->performChanges(this);
+                listener->performChanges(this, position);
                 markNeedsAdvance();
             }
         }
@@ -302,7 +302,7 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
                     case ListenerType::up:
                         nestedStateMachine->pointerUp(nestedPosition);
                         break;
-                    case ListenerType::updateHover:
+                    case ListenerType::move:
                         nestedStateMachine->pointerMove(nestedPosition);
                         break;
                     default:
@@ -314,7 +314,7 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
 }
 
 void StateMachineInstance::pointerMove(Vec2D position) {
-    updateListeners(position, ListenerType::updateHover);
+    updateListeners(position, ListenerType::move);
 }
 void StateMachineInstance::pointerDown(Vec2D position) {
     updateListeners(position, ListenerType::down);

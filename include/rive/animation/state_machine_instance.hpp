@@ -39,7 +39,7 @@ namespace rive {
 
         /// Provide a hitListener if you want to process a down or an up for the pointer position
         /// too.
-        void updateListeners(Vec2D position, ListenerType hitListener = ListenerType::updateHover);
+        void updateListeners(Vec2D position, ListenerType hitListener);
 
         template <typename SMType, typename InstType>
         InstType* getNamedInput(const std::string& name) const;
@@ -85,6 +85,10 @@ namespace rive {
         float durationSeconds() const override { return -1; }
         Loop loop() const override { return Loop::oneShot; }
         bool isTranslucent() const override { return true; }
+
+        /// Allow anything referencing a concrete StateMachineInstace access to
+        /// the backing artboard (explicitly not allowed on Scenes).
+        Artboard* artboard() { return m_ArtboardInstance; }
     };
 } // namespace rive
 #endif

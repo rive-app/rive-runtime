@@ -16,6 +16,7 @@ namespace rive {
             switch (typeKey) {
                 case ListenerBoolChangeBase::typeKey:
                 case ListenerInputChangeBase::typeKey:
+                case ListenerActionBase::typeKey:
                     return true;
                 default:
                     return false;

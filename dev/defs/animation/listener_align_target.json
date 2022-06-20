@@ -1,0 +1,21 @@
+{
+  "name": "ListenerAlignTarget",
+  "key": {
+    "int": 126,
+    "string": "listeneraligntarget"
+  },
+  "extends": "animation/listener_action.json",
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 240,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the object use as a target fo this listener action."
+    }
+  }
+}

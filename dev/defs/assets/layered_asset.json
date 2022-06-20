@@ -4,6 +4,6 @@
     "int": 119,
     "string": "layeredasset"
   },
-  "runtime": false,
-  "extends": "assets/drawable_asset.json"
+  "extends": "assets/drawable_asset.json",
+  "runtime": false
 }

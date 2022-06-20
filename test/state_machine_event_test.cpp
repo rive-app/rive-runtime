@@ -36,28 +36,31 @@ TEST_CASE("file with state machine listeners be read", "[file]") {
     auto target1 = artboard->resolve(listener1->targetId());
     REQUIRE(target1->is<rive::Node>());
     REQUIRE(target1->as<rive::Node>()->name() == "HandWickHit");
-    REQUIRE(listener1->inputChangeCount() == 1);
-    auto inputChange1 = listener1->inputChange(0);
+    REQUIRE(listener1->actionCount() == 1);
+    auto inputChange1 = listener1->action(0);
     REQUIRE(inputChange1 != nullptr);
-    REQUIRE(inputChange1->inputId() == 0);
+    REQUIRE(inputChange1->is<rive::ListenerInputChange>());
+    REQUIRE(inputChange1->as<rive::ListenerInputChange>()->inputId() == 0);
 
     auto listener2 = stateMachine->listener(1);
     auto target2 = artboard->resolve(listener2->targetId());
     REQUIRE(target2->is<rive::Node>());
     REQUIRE(target2->as<rive::Node>()->name() == "HandCannonHit");
-    REQUIRE(listener2->inputChangeCount() == 1);
-    auto inputChange2 = listener2->inputChange(0);
+    REQUIRE(listener2->actionCount() == 1);
+    auto inputChange2 = listener2->action(0);
     REQUIRE(inputChange2 != nullptr);
-    REQUIRE(inputChange2->inputId() == 1);
+    REQUIRE(inputChange2->is<rive::ListenerInputChange>());
+    REQUIRE(inputChange2->as<rive::ListenerInputChange>()->inputId() == 1);
 
     auto listener3 = stateMachine->listener(2);
     auto target3 = artboard->resolve(listener3->targetId());
     REQUIRE(target3->is<rive::Node>());
     REQUIRE(target3->as<rive::Node>()->name() == "HandHelmetHit");
-    REQUIRE(listener3->inputChangeCount() == 1);
-    auto inputChange3 = listener3->inputChange(0);
+    REQUIRE(listener3->actionCount() == 1);
+    auto inputChange3 = listener3->action(0);
     REQUIRE(inputChange3 != nullptr);
-    REQUIRE(inputChange3->inputId() == 2);
+    REQUIRE(inputChange3->is<rive::ListenerInputChange>());
+    REQUIRE(inputChange3->as<rive::ListenerInputChange>()->inputId() == 2);
 }
 
 TEST_CASE("hit testing via a state machine works", "[file]") {
