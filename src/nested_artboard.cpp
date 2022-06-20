@@ -27,6 +27,7 @@ void NestedArtboard::nest(Artboard* artboard) {
 
     m_Artboard = artboard;
     m_Artboard->frameOrigin(false);
+    m_Artboard->opacity(renderOpacity());
     m_Instance = nullptr;
     if (artboard->isInstance()) {
         m_Instance.reset(static_cast<ArtboardInstance*>(artboard)); // take ownership
@@ -109,7 +110,7 @@ bool NestedArtboard::advance(float elapsedSeconds) {
 
 void NestedArtboard::update(ComponentDirt value) {
     Super::update(value);
-    if (hasDirt(value, ComponentDirt::WorldTransform) && m_Artboard != nullptr) {
+    if (hasDirt(value, ComponentDirt::RenderOpacity) && m_Artboard != nullptr) {
         m_Artboard->opacity(renderOpacity());
     }
 }
