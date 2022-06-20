@@ -1,11 +1,12 @@
 #!/bin/bash
+set -e
 
 dir=$(pwd)
 
 cd ../renderer
-./build.sh $@
+./build.sh "$@"
 
-cd $dir
+cd "$dir"
 
 cd build
 
