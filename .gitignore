@@ -58,6 +58,7 @@ dev/test/build/bin
 rivinfo/build/macosx
 
 # Skia dependencies
+skia/dependencies/skia_recorder
 skia/dependencies/skia
 skia/dependencies/glfw_build
 skia/dependencies/FFmpeg

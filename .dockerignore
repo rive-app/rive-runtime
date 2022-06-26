@@ -59,6 +59,7 @@ dev/analysis_report
 build/bin
 
 # Skia dependencies
+skia/dependencies/skia_recorder
 skia/dependencies/skia
 skia/dependencies/skia_rive_optimized
 skia/dependencies/glfw_build

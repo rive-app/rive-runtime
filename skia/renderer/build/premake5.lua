@@ -1,6 +1,8 @@
 workspace "rive"
 configurations {"debug", "release"}
 
+SKIA_DIR = os.getenv('SKIA_DIR') or 'skia'
+
 project "rive_skia_renderer"
     kind "StaticLib"
     language "C++"
@@ -34,12 +36,12 @@ project "rive_skia_renderer"
 
     filter {"system:macosx" }
         buildoptions {"-flto=full"}
-        includedirs {"../../dependencies/skia"}
-        libdirs {"../../dependencies/skia/out/static"}
+        includedirs {"../../dependencies/" .. SKIA_DIR}
+        libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/static"}
 
     filter {"system:linux or windows" }
-        includedirs {"../../dependencies/skia"}
-        libdirs {"../../dependencies/skia/out/static"}
+        includedirs {"../../dependencies/" .. SKIA_DIR}
+        libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/static"}
 
     filter {"system:ios" }
         buildoptions {"-flto=full"}
