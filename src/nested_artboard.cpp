@@ -26,6 +26,11 @@ void NestedArtboard::nest(Artboard* artboard) {
     assert(artboard != nullptr);
 
     m_Artboard = artboard;
+    if (!m_Artboard->isInstance()) {
+        // We're just marking the source artboard so we can later instance from
+        // it. No need to advance it or change any of its properties.
+        return;
+    }
     m_Artboard->frameOrigin(false);
     m_Artboard->opacity(renderOpacity());
     m_Instance = nullptr;
