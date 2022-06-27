@@ -6,6 +6,7 @@
 #define _RIVE_SKIA_FACTORY_HPP_
 
 #include "rive/factory.hpp"
+#include <vector>
 
 namespace rive {
 
@@ -38,6 +39,34 @@ class SkiaFactory : public Factory {
     std::unique_ptr<RenderPaint> makeRenderPaint() override;
 
     std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
+
+    //
+    // New virtual for access the platform's codecs
+    //
+
+public:
+    enum class ColorType {
+        rgba,
+        bgra,
+    };
+    enum class AlphaType {
+        premul,
+        opaque,
+    };
+    struct ImageInfo {
+        size_t      rowBytes;   // number of bytes between rows
+        uint32_t    width;      // logical width in pixels
+        uint32_t    height;     // logical height in pixels
+        ColorType   colorType;
+        AlphaType   alphaType;
+    };
+
+    // Clients can override this to provide access to the platform's decoders, rather
+    // than solely relying on the codecs built into Skia. This allows for the Skia impl
+    // to not have to duplicate the code for codecs that the platform may already have.
+    virtual std::vector<uint8_t> platformDecode(Span<const uint8_t>, ImageInfo* info) {
+        return std::vector<uint8_t>();  // empty vector means decode failed
+    }
 };
 
 } // namespace rive

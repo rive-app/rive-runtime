@@ -34,7 +34,35 @@
 #include <cmath>
 #include <stdio.h>
 
-rive::SkiaFactory skiaFactory;
+#include "include/ports/SkImageGeneratorCG.h"
+#include "include/core/SkImageInfo.h"
+// Exercise our platformDecode() virtual by calling CGImageSource
+// ... via SkImageGeneratorCG.
+struct Skia2Factory : public rive::SkiaFactory {
+    std::vector<uint8_t> platformDecode(rive::Span<const uint8_t> span, ImageInfo* info) override {
+        std::vector<uint8_t> pixels;
+        auto data = SkData::MakeWithoutCopy(span.data(), span.size());
+        auto gen = SkImageGeneratorCG::MakeFromEncodedCG(data);
+
+        if (gen) {
+            SkImageInfo skinfo = gen->getInfo();
+            info->width = skinfo.width();
+            info->height = skinfo.height();
+            info->rowBytes = skinfo.minRowBytes();
+            info->colorType = rive::SkiaFactory::ColorType::rgba; // just our choice
+            info->alphaType = skinfo.alphaType() == kOpaque_SkAlphaType ?
+                                    rive::SkiaFactory::AlphaType::opaque :
+                                    rive::SkiaFactory::AlphaType::premul;
+            size_t size = skinfo.computeMinByteSize();
+            pixels.resize(size);
+            skinfo = skinfo.makeColorType(kRGBA_8888_SkColorType);
+            gen->getPixels({skinfo, pixels.data(), info->rowBytes});
+        }
+        return pixels;
+    }
+};
+
+Skia2Factory skiaFactory;
 
 std::string filename;
 std::unique_ptr<rive::File> currentFile;

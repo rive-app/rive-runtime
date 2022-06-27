@@ -314,10 +314,22 @@ std::unique_ptr<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encode
     sk_sp<SkData> data = SkData::MakeWithoutCopy(encoded.data(), encoded.size());
     auto image = SkImage::MakeFromEncoded(data);
 
-    // Our optimized skia buld seems to have broken lazy-image decode.
-    // As a work-around for now, force the image to be decoded.
     if (image) {
+        // Our optimized skia buld seems to have broken lazy-image decode.
+        // As a work-around for now, force the image to be decoded.
         image = image->makeRasterImage();
+    } else {
+        // Skia failed, so let's try the platform
+        ImageInfo info;
+        auto pixels = this->platformDecode(encoded, &info);
+        if (pixels.size() > 0) {
+            auto ct = info.colorType == ColorType::rgba ? kRGBA_8888_SkColorType
+                                                        : kBGRA_8888_SkColorType;
+            auto at = info.alphaType == AlphaType::premul ? kPremul_SkAlphaType
+                                                          : kOpaque_SkAlphaType;
+            auto skinfo = SkImageInfo::Make(info.width, info.height, ct, at);
+            image = SkImage::MakeRasterCopy({skinfo, pixels.data(), info.rowBytes});
+        }
     }
 
     return image ? std::make_unique<SkiaRenderImage>(std::move(image)) : nullptr;
