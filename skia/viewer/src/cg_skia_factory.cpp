@@ -3,10 +3,17 @@
  */
 
 #include "cg_skia_factory.hpp"
-
-#include <ApplicationServices/ApplicationServices.h>
-
+#include "rive/core/type_conversions.hpp"
 #include <vector>
+
+#ifdef RIVE_BUILD_FOR_APPLE
+
+#if defined(RIVE_BUILD_FOR_OSX)
+    #include <ApplicationServices/ApplicationServices.h>
+#elif defined(RIVE_BUILD_FOR_IOS)
+    #include <CoreGraphics/CoreGraphics.h>
+    #include <ImageIO/ImageIO.h>
+#endif
 
 // Helper that remembers to call CFRelease when an object goes out of scope.
 template <typename T> class AutoCF {
@@ -22,7 +29,8 @@ public:
 
 using namespace rive;
 
-std::vector<uint8_t> CGSkiaFactory::platformDecode(rive::Span<const uint8_t> span, ImageInfo* info) {
+std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
+                                                   SkiaFactory::ImageInfo* info) {
     std::vector<uint8_t> pixels;
 
     AutoCF data = CFDataCreateWithBytesNoCopy(nullptr, span.data(), span.size(), nullptr);
@@ -60,8 +68,8 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(rive::Span<const uint8_t> spa
     } else {
         cgInfo |= kCGImageAlphaPremultipliedLast; // premul
     }
-    const int width = CGImageGetWidth(image);
-    const int height = CGImageGetHeight(image);
+    const size_t width = CGImageGetWidth(image);
+    const size_t height = CGImageGetHeight(image);
     const size_t rowBytes = width * 4;  // 4 bytes per pixel
     const size_t size = rowBytes * height;
 
@@ -79,8 +87,10 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(rive::Span<const uint8_t> spa
 
     info->alphaType = isOpaque ? AlphaType::opaque : AlphaType::premul;
     info->colorType = ColorType::rgba;
-    info->width = width;
-    info->height = height;
+    info->width = castTo<uint32_t>(width);
+    info->height = castTo<uint32_t>(height);
     info->rowBytes = rowBytes;
     return pixels;
 };
+
+#endif  // RIVE_BUILD_FOR_APPLE

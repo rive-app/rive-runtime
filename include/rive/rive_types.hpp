@@ -32,6 +32,21 @@
 #endif
 #endif
 
+// Some checks to guess what platform we're building for
+
+#ifdef __APPLE__
+
+    #define RIVE_BUILD_FOR_APPLE
+    #include <TargetConditionals.h>
+
+    #if TARGET_OS_IPHONE
+        #define RIVE_BUILD_FOR_IOS
+    #elif TARGET_OS_MAC
+        #define RIVE_BUILD_FOR_OSX
+    #endif
+
+#endif
+
 // We really like these headers, so we include them all the time.
 
 #include <algorithm>
