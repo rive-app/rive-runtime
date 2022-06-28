@@ -61,27 +61,27 @@ project "rive_skia_renderer"
 
     -- Is there a way to pass 'arch' as a variable here?
     filter { "system:android" }
-        includedirs {"../../dependencies/skia_rive_optimized"}
+        includedirs {"../../dependencies/".. SKIA_DIR}
         
         filter { "system:android", "options:arch=x86" }
             targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/x86/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/skia_rive_optimized/out/x86"}
+            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/x86"}
 
         filter { "system:android", "options:arch=x64" }
             targetdir "%{cfg.system}/x64/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/x64/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/skia_rive_optimized/out/x64"}
+            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/x64"}
 
         filter { "system:android", "options:arch=arm" }
             targetdir "%{cfg.system}/arm/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/arm/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/skia_rive_optimized/out/arm"}
+            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/arm"}
 
         filter { "system:android", "options:arch=arm64" }
             targetdir "%{cfg.system}/arm64/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/arm64/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/skia_rive_optimized/out/arm64"}
+            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/arm64"}
             
     filter "configurations:debug"
         defines {"DEBUG"}

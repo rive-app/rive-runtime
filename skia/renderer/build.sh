@@ -37,7 +37,7 @@ if [ "$OPTION" = 'help' ]; then
     help
 else
     build() {
-        echo "Building Rive for platform=$platform option=$OPTION"
+        echo "Building Rive Renderer for platform=$platform option=$OPTION"
         PREMAKE="premake5 gmake2 $1"
         eval "$PREMAKE"
         if [ "$OPTION" = "clean" ]; then
