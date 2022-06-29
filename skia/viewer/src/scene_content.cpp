@@ -282,9 +282,9 @@ public:
 
 rive::CGSkiaFactory skiaFactory;
 
-std::unique_ptr<ViewerContent> ViewerContent::Scene(const char filename[],
-                                                    rive::Span<const uint8_t> data) {
-    if (auto file = rive::File::import(data, &skiaFactory)) {
+std::unique_ptr<ViewerContent> ViewerContent::Scene(const char filename[]) {
+    auto bytes = LoadFile(filename);
+    if (auto file = rive::File::import(rive::toSpan(bytes), &skiaFactory)) {
         return std::make_unique<SceneContent>(filename, std::move(file));
     }
     return nullptr;

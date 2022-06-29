@@ -14,8 +14,18 @@ namespace rive {
 using Unichar = int32_t;
 using GlyphID = uint16_t;
 
+struct RenderTextRun;
+struct RenderGlyphRun;
+
 class RenderFont : public RefCnt {
 public:
+    struct LineMetrics {
+        float ascent,
+              descent;
+    };
+
+    const LineMetrics& lineMetrics() const { return m_LineMetrics; }
+
     // This is experimental
     // -- may only be needed by Editor
     // -- so it may be removed from here later
@@ -55,6 +65,18 @@ public:
     // relative to (0,0) with the typographic baseline at y = 0.
     //
     virtual RawPath getPath(GlyphID) const = 0;
+
+    std::vector<RenderGlyphRun> shapeText(rive::Span<const rive::Unichar> text,
+                                          rive::Span<const rive::RenderTextRun> runs) const;
+
+protected:
+    RenderFont(const LineMetrics& lm) : m_LineMetrics(lm) {}
+
+    virtual std::vector<RenderGlyphRun> onShapeText(rive::Span<const rive::Unichar> text,
+                                                   rive::Span<const rive::RenderTextRun> runs) const = 0;
+
+private:
+    const LineMetrics m_LineMetrics;
 };
 
 struct RenderTextRun {
@@ -66,10 +88,10 @@ struct RenderTextRun {
 struct RenderGlyphRun {
     rcp<RenderFont>         font;
     float                   size;
-    uint32_t                startTextIndex;
 
-    std::vector<GlyphID>    glyphs;
-    std::vector<float>      xpos;   // xpos.size() == glyphs.size() + 1
+    std::vector<GlyphID>    glyphs;         // [#glyphs]
+    std::vector<uint32_t>   textOffsets;    // [#glyphs]
+    std::vector<float>      xpos;           // [#glyphs + 1]
 };
 
 } // namespace rive

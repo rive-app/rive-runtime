@@ -4,23 +4,38 @@
 
 #include "rive/factory.hpp"
 #include "rive/render_text.hpp"
-#include "skia_rive_fontmgr.hpp"
+#include "renderfont_skia.hpp"
 
-#include "include/core/SkTypeface.h"
+#include "include/core/SkData.h"
 #include "include/core/SkFont.h"
+#include "include/core/SkFontMetrics.h"
 #include "include/core/SkPath.h"
+#include "include/core/SkTypeface.h"
 
-class SkiaRenderFont : public rive::RenderFont {
-public:
-    sk_sp<SkTypeface> m_Typeface;
+static void setupFont(SkFont* font) {
+    font->setLinearMetrics(true);
+    font->setBaselineSnap(false);
+    font->setHinting(SkFontHinting::kNone);
+}
 
-    SkiaRenderFont(sk_sp<SkTypeface> tf) : m_Typeface(std::move(tf)) {}
+static rive::RenderFont::LineMetrics make_lmx(sk_sp<SkTypeface> tf) {
+    SkFont font(tf, 1.0f);
+    setupFont(&font);
+    SkFontMetrics metrics;
+    (void)font.getMetrics(&metrics);
+    return {metrics.fAscent, metrics.fDescent};
+}
 
-    std::vector<Axis> getAxes() const override;
-    std::vector<Coord> getCoords() const override;
-    rive::rcp<rive::RenderFont> makeAtCoords(rive::Span<const Coord>) const override;
-    rive::RawPath getPath(rive::GlyphID) const override;
-};
+SkiaRenderFont::SkiaRenderFont(sk_sp<SkTypeface> tf) :
+    RenderFont(make_lmx(tf)),
+    m_Typeface(std::move(tf))
+{}
+
+rive::rcp<rive::RenderFont> SkiaRenderFont::Decode(rive::Span<const uint8_t> span) {
+    auto tf = SkTypeface::MakeFromData(SkData::MakeWithCopy(span.data(),
+                                                            span.size()));
+    return tf ? rive::rcp<rive::RenderFont>(new SkiaRenderFont(std::move(tf))) : nullptr;
+}
 
 std::vector<rive::RenderFont::Axis> SkiaRenderFont::getAxes() const {
     std::vector<rive::RenderFont::Axis> axes;
@@ -70,12 +85,6 @@ rive::rcp<rive::RenderFont> SkiaRenderFont::makeAtCoords(rive::Span<const Coord>
 
 static inline rive::Vec2D rv(SkPoint p) { return rive::Vec2D(p.fX, p.fY); }
 
-static void setupFont(SkFont* font) {
-    font->setLinearMetrics(true);
-    font->setBaselineSnap(false);
-    font->setHinting(SkFontHinting::kNone);
-}
-
 rive::RawPath SkiaRenderFont::getPath(rive::GlyphID glyph) const {
     SkFont font(m_Typeface, 1.0f);
     setupFont(&font);
@@ -103,62 +112,45 @@ rive::RawPath SkiaRenderFont::getPath(rive::GlyphID glyph) const {
 
 ///////////////////////////////////////////////////////////
 
-rive::rcp<rive::RenderFont> SkiaRiveFontMgr::decodeFont(rive::Span<const uint8_t> data) {
-    auto tf = SkTypeface::MakeDefault(); // ignoring data for now
-    return rive::rcp<rive::RenderFont>(new SkiaRenderFont(std::move(tf)));
-}
-
-rive::rcp<rive::RenderFont> SkiaRiveFontMgr::findFont(const char name[]) {
-    auto tf = SkTypeface::MakeFromName(name, SkFontStyle());
-    if (!tf) {
-        tf = SkTypeface::MakeDefault();
-    }
-    return rive::rcp<rive::RenderFont>(new SkiaRenderFont(std::move(tf)));
-}
-
 static float shapeRun(rive::RenderGlyphRun* grun, const rive::RenderTextRun& trun,
                       const rive::Unichar text[], size_t textOffset, float origin) {
+    const int glyphCount = SkToInt(trun.unicharCount);   // simple shaper, no ligatures
+
     grun->font = trun.font;
     grun->size = trun.size;
-    grun->startTextIndex = textOffset;
-    grun->glyphs.resize(trun.unicharCount);
-    grun->xpos.resize(trun.unicharCount + 1);
 
-    const int count = SkToInt(trun.unicharCount);
+    grun->glyphs.resize(glyphCount);
+    grun->textOffsets.resize(glyphCount);
+    grun->xpos.resize(glyphCount + 1);
 
     SkiaRenderFont* rfont = static_cast<SkiaRenderFont*>(trun.font.get());
-    rfont->m_Typeface->unicharsToGlyphs(text + textOffset, count, grun->glyphs.data());
+    rfont->m_Typeface->unicharsToGlyphs(text + textOffset, glyphCount, grun->glyphs.data());
+
+    // simple shaper, assume one glyph per char
+    for (int i = 0; i < glyphCount; ++i) {
+        grun->textOffsets[i] = textOffset + i;
+    }
 
     SkFont font(rfont->m_Typeface, grun->size);
     setupFont(&font);
 
     // We get 'widths' from skia, but then turn them into xpos
     // this will write count values, but xpos has count+1 slots
-    font.getWidths(grun->glyphs.data(), count, grun->xpos.data());
+    font.getWidths(grun->glyphs.data(), glyphCount, grun->xpos.data());
     for (auto& xp : grun->xpos) {
         auto width = xp;
         xp = origin;
         origin += width;
     }
 
-    return grun->xpos.data()[count];
+    return grun->xpos.data()[glyphCount];
 }
 
 std::vector<rive::RenderGlyphRun>
-SkiaRiveFontMgr::shapeText(rive::Span<const rive::Unichar> text,
-                           rive::Span<const rive::RenderTextRun> truns) {
-    std::vector<rive::RenderGlyphRun> gruns;
+SkiaRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
+                            rive::Span<const rive::RenderTextRun> truns) const {
+    std::vector<rive::RenderGlyphRun> gruns(truns.size());
 
-    // sanity check
-    size_t count = 0;
-    for (const auto& tr : truns) {
-        count += tr.unicharCount;
-    }
-    if (count > text.size()) {
-        return gruns;   // not enough text, so abort
-    }
-
-    gruns.resize(truns.size());
     int i = 0;
     size_t offset = 0;
     float origin = 0;

@@ -5,6 +5,10 @@ BASE_DIR = path.getabsolute("../../../build")
 location("./")
 dofile(path.join(BASE_DIR, "premake5.lua"))
 
+BASE_DIR = path.getabsolute("../../../../../third_party/harfbuzz/build")
+location("./")
+dofile(path.join(BASE_DIR, "premake5.lua"))
+
 BASE_DIR = path.getabsolute("../../renderer/build")
 location("./")
 dofile(path.join(BASE_DIR, "premake5.lua"))
@@ -27,7 +31,8 @@ project "rive_viewer"
         "../../dependencies/skia/include/config",
         "../../dependencies/imgui",
         "../../dependencies",
-        "../../dependencies/gl3w/build/include"
+        "../../dependencies/gl3w/build/include",
+        "../../../../../third_party/externals/harfbuzz/src",
     }
 
     links {
@@ -35,12 +40,14 @@ project "rive_viewer"
         "IOKit.framework",
         "CoreVideo.framework",
         "rive",
+        "rive_harfbuzz",
         "skia",
         "rive_skia_renderer",
         "glfw3"
     }
 
     libdirs {
+        "../../../../../third_party/harfbuzz/build/%{cfg.buildcfg}/bin",
         "../../../build/%{cfg.system}/bin/%{cfg.buildcfg}",
         "../../dependencies/glfw_build/src",
         "../../dependencies/skia/out/static",
@@ -49,6 +56,11 @@ project "rive_viewer"
 
     files {
         "../src/**.cpp",
+
+        "../../renderer/src/line_breaker.cpp",
+        "../../renderer/src/renderfont_hb.cpp",
+        "../../renderer/src/renderfont_skia.cpp",
+
         "../../dependencies/gl3w/build/src/gl3w.c",
         "../../dependencies/imgui/backends/imgui_impl_glfw.cpp",
         "../../dependencies/imgui/backends/imgui_impl_opengl3.cpp",

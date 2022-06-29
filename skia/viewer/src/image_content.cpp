@@ -20,8 +20,8 @@ public:
     void handleImgui() override {}
 };
 
-std::unique_ptr<ViewerContent> ViewerContent::Image(const char filename[],
-                                                    rive::Span<const uint8_t> bytes) {
+std::unique_ptr<ViewerContent> ViewerContent::Image(const char filename[]) {
+    auto bytes = LoadFile(filename);
     auto data = SkData::MakeWithCopy(bytes.data(), bytes.size());
     if (auto image = SkImage::MakeFromEncoded(data)) {
         return std::make_unique<ImageContent>(std::move(image));

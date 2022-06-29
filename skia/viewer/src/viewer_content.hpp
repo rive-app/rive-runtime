@@ -23,15 +23,13 @@ public:
     virtual void handlePointerDown() {}
     virtual void handlePointerUp() {}
 
-    using Factory = std::unique_ptr<ViewerContent> (*)(const char filename[],
-                                                       rive::Span<const uint8_t>);
+    using Factory = std::unique_ptr<ViewerContent> (*)(const char filename[]);
 
     // Searches all handlers and returns a content if it is found.
-    static std::unique_ptr<ViewerContent> FindHandler(const char filename[],
-                                                      rive::Span<const uint8_t> data) {
-        Factory factories[] = { Scene, Image };
+    static std::unique_ptr<ViewerContent> FindHandler(const char filename[]) {
+        Factory factories[] = { Scene, Image, Text };
         for (auto f : factories) {
-            if (auto content = f(filename, data)) {
+            if (auto content = f(filename)) {
                 return content;
             }
         }
@@ -39,8 +37,11 @@ public:
     }
 
     // Private factories...
-    static std::unique_ptr<ViewerContent> Scene(const char[], rive::Span<const uint8_t>);
-    static std::unique_ptr<ViewerContent> Image(const char[], rive::Span<const uint8_t>);
+    static std::unique_ptr<ViewerContent> Scene(const char[]);
+    static std::unique_ptr<ViewerContent> Image(const char[]);
+    static std::unique_ptr<ViewerContent> Text(const char[]);
+
+    static std::vector<uint8_t> LoadFile(const char path[]);
 };
 
 #endif

@@ -29,6 +29,30 @@ int lastScreenWidth = 0, lastScreenHeight = 0;
 
 std::unique_ptr<ViewerContent> gContent;
 
+std::vector<uint8_t> ViewerContent::LoadFile(const char filename[]) {
+    std::vector<uint8_t> bytes;
+
+    FILE* fp = fopen(filename, "rb");
+    if (!fp) {
+        fprintf(stderr, "Can't find file: %s\n", filename);
+        return bytes;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    size_t size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    bytes.resize(size);
+    size_t bytesRead = fread(bytes.data(), 1, size, fp);
+    fclose(fp);
+
+    if (bytesRead != size) {
+        fprintf(stderr, "Failed to read all of %s\n", filename);
+        bytes.resize(0);
+    }
+    return bytes;
+}
+
 static void glfwCursorPosCallback(GLFWwindow* window, double x, double y) {
     if (gContent) {
         float xscale, yscale;
@@ -56,21 +80,7 @@ void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
     // Just get the last dropped file for now...
     const char* filename = paths[count - 1];
 
-    FILE* fp = fopen(filename, "rb");
-    fseek(fp, 0, SEEK_END);
-    size_t size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    std::vector<uint8_t> bytes(size);
-    size_t bytesRead = fread(bytes.data(), 1, size, fp);
-    fclose(fp);
-
-    if (bytesRead != size) {
-        fprintf(stderr, "failed to read all of %s\n", filename);
-        return;
-    }
-
-    auto newContent = ViewerContent::FindHandler(filename, rive::toSpan(bytes));
+    auto newContent = ViewerContent::FindHandler(filename);
     if (newContent) {
         gContent = std::move(newContent);
         gContent->handleResize(lastScreenWidth, lastScreenHeight);

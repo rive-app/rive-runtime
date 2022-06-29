@@ -110,3 +110,26 @@ RenderImage::~RenderImage() { gCounter.update(kImage, -1); }
 
 RenderPath::RenderPath() { gCounter.update(kPath, 1); }
 RenderPath::~RenderPath() { gCounter.update(kPath, -1); }
+
+#include "rive/render_text.hpp"
+
+std::vector<RenderGlyphRun> RenderFont::shapeText(rive::Span<const rive::Unichar> text,
+                                                  rive::Span<const rive::RenderTextRun> runs) const {
+#ifdef DEBUG
+    size_t count = 0;
+    for (const auto& tr : runs) {
+        assert(tr.unicharCount > 0);
+        count += tr.unicharCount;
+    }
+    assert(count <= text.size());
+#endif
+    auto gruns = this->onShapeText(text, runs);
+#ifdef DEBUG
+    for (const auto& gr : gruns) {
+        assert(gr.glyphs.size() > 0);
+        assert(gr.glyphs.size() == gr.textOffsets.size());
+        assert(gr.glyphs.size() + 1 == gr.xpos.size());
+    }
+#endif
+    return gruns;
+}

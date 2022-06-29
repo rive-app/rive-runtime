@@ -10,7 +10,11 @@ project "rive_skia_renderer"
     toolset "clang"
     targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
     objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
-    includedirs {"../include", "../../../include"}
+    includedirs {
+        "../../../../../third_party/externals/harfbuzz/src",
+        "../include",
+        "../../../include"
+    }
 
     if os.host() == "macosx" then
         links {"Cocoa.framework", "rive", "skia"}
@@ -30,7 +34,9 @@ project "rive_skia_renderer"
 
     libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}"}
 
-    files {"../src/**.cpp"}
+    files {
+        "../src/skia_factory.cpp",
+    }
 
     buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
 
@@ -84,6 +90,7 @@ project "rive_skia_renderer"
             libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/arm64"}
             
     filter "configurations:debug"
+        buildoptions {"-g"}
         defines {"DEBUG"}
         symbols "On"
 
