@@ -1,3 +1,6 @@
+/*
+ * Copyright 2022 Rive
+ */
 
 // Makes ure gl3w is included before glfw3
 #include "GL/gl3w.h"
@@ -10,22 +13,8 @@
 #include "SkCanvas.h"
 #include "SkColorSpace.h"
 #include "SkSurface.h"
-#include "SkTypes.h"
+
 #include "gl/GrGLInterface.h"
-
-#include "rive/animation/linear_animation_instance.hpp"
-#include "rive/animation/state_machine_instance.hpp"
-#include "rive/animation/state_machine_input_instance.hpp"
-#include "rive/animation/state_machine_number.hpp"
-#include "rive/animation/state_machine_bool.hpp"
-#include "rive/animation/state_machine_trigger.hpp"
-#include "rive/artboard.hpp"
-#include "rive/file.hpp"
-#include "rive/layout.hpp"
-#include "rive/math/aabb.hpp"
-#include "cg_skia_factory.hpp"
-#include "skia_renderer.hpp"
-
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
 
@@ -34,172 +23,28 @@
 #include <cmath>
 #include <stdio.h>
 
-rive::CGSkiaFactory skiaFactory;
+#include "viewer_content.hpp"
 
-std::string filename;
-std::unique_ptr<rive::File> currentFile;
-std::unique_ptr<rive::ArtboardInstance> artboardInstance;
-std::unique_ptr<rive::Scene> currentScene;
-int animationIndex = 0;
-int stateMachineIndex = -1;
+int lastScreenWidth = 0, lastScreenHeight = 0;
 
-sk_sp<SkImage> gImage;
+std::unique_ptr<ViewerContent> gContent;
 
-// Set to true locally for testing
-constexpr bool USE_DRAWTEXT = false;
-
-extern void drawtext(rive::Factory*, rive::Renderer*);
-
-static void delete_file() {
-    stateMachineIndex = -1;
-    animationIndex = -1;
-    currentScene = nullptr;
-    artboardInstance = nullptr;
-    currentFile = nullptr;
-
-    // this is just fun, to see our memory usage... not required
-    rive::RenderCounter::globalCounter().dump("After deleting file");
-}
-
-// ImGui wants raw pointers to names, but our public API returns
-// names as strings (by value), so we cache these names each time we
-// load a file
-std::vector<std::string> animationNames;
-std::vector<std::string> stateMachineNames;
-
-constexpr int REQUEST_DEFAULT_SCENE = -1;
-
-#include <time.h>
-double GetSecondsToday() {
-    time_t m_time;
-    time(&m_time);
-    struct tm tstruct;
-    gmtime_r(&m_time, &tstruct);
-
-    int hours = tstruct.tm_hour - 4;
-    if (hours < 0) {
-        hours += 12;
-    } else if (hours >= 12) {
-        hours -= 12;
-    }
-
-    auto secs = (double)hours * 60 * 60 +
-                (double)tstruct.tm_min * 60 +
-                (double)tstruct.tm_sec;
-//    printf("%d %d %d\n", tstruct.tm_sec, tstruct.tm_min, hours);
-//    printf("%g %g %g\n", secs, secs/60, secs/60/60);
-    return secs;
-}
-
-// We hold onto the file's bytes for the lifetime of the file, in case we want
-// to change animations or state-machines, we just rebuild the rive::File from
-// it.
-std::vector<uint8_t> fileBytes;
-
-
-static void loadNames(const rive::Artboard* ab) {
-    animationNames.clear();
-    stateMachineNames.clear();
-    if (ab) {
-        for (size_t i = 0; i < ab->animationCount(); ++i) {
-            animationNames.push_back(ab->animationNameAt(i));
-        }
-        for (size_t i = 0; i < ab->stateMachineCount(); ++i) {
-            stateMachineNames.push_back(ab->stateMachineNameAt(i));
-        }
-    }
-}
-
-void initStateMachine(int index) {
-    assert(fileBytes.size() != 0);
-    auto file = rive::File::import(rive::toSpan(fileBytes), &skiaFactory);
-    if (!file) {
-        fprintf(stderr, "failed to import file\n");
-
-        auto data = SkData::MakeWithCopy(fileBytes.data(), fileBytes.size());
-        gImage = SkImage::MakeFromEncoded(data);
-        if (gImage) {
-            fprintf(stderr, "interpreted as image\n");
-            delete_file();
-        }
-
-        fileBytes.clear();
-        return;
-    }
-
-    delete_file();
-    currentFile = std::move(file);
-    artboardInstance = currentFile->artboardDefault();
-    artboardInstance->advance(0.0f);
-    loadNames(artboardInstance.get());
-
-    if (index < 0) {
-        currentScene = artboardInstance->defaultStateMachine();
-        index = artboardInstance->defaultStateMachineIndex();
-    }
-    if (!currentScene) {
-        if (index >= artboardInstance->stateMachineCount()) {
-            index = 0;
-        }
-        currentScene = artboardInstance->stateMachineAt(index);
-    }
-    if (!currentScene) {
-        index = -1;
-        currentScene = artboardInstance->animationAt(0);
-        animationIndex = 0;
-    }
-    stateMachineIndex = index;
-
-    if (currentScene) {
-        currentScene->inputCount();
-    }
-
-    rive::RenderCounter::globalCounter().dump("After loading file");
-}
-
-void initAnimation(int index) {
-    assert(fileBytes.size() != 0);
-    auto file = rive::File::import(rive::toSpan(fileBytes), &skiaFactory);
-    if (!file) {
-        fileBytes.clear();
-        fprintf(stderr, "failed to import file\n");
-        return;
-    }
-
-    delete_file();
-
-    currentFile = std::move(file);
-    artboardInstance = currentFile->artboardDefault();
-    artboardInstance->advance(0.0f);
-    loadNames(artboardInstance.get());
-
-    if (index >= 0 && index < artboardInstance->animationCount()) {
-        animationIndex = index;
-        currentScene = artboardInstance->animationAt(index);
-        currentScene->inputCount();
-    }
-
-    rive::RenderCounter::globalCounter().dump("After loading file");
-}
-
-rive::Mat2D gInverseViewTransform;
-rive::Vec2D lastWorldMouse;
 static void glfwCursorPosCallback(GLFWwindow* window, double x, double y) {
-    float xscale, yscale;
-    glfwGetWindowContentScale(window, &xscale, &yscale);
-    lastWorldMouse = gInverseViewTransform * rive::Vec2D(x * xscale, y * yscale);
-    if (currentScene) {
-        currentScene->pointerMove(lastWorldMouse);
+    if (gContent) {
+        float xscale, yscale;
+        glfwGetWindowContentScale(window, &xscale, &yscale);
+        gContent->handlePointerMove(x * xscale, y * yscale);
     }
 }
+
 void glfwMouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    if (currentScene) {
+    if (gContent) {
         switch (action) {
             case GLFW_PRESS:
-                currentScene->pointerDown(lastWorldMouse);
+                gContent->handlePointerDown();
                 break;
             case GLFW_RELEASE:
-                currentScene->pointerUp(lastWorldMouse);
+                gContent->handlePointerUp();
                 break;
         }
     }
@@ -209,19 +54,29 @@ void glfwErrorCallback(int error, const char* description) { puts(description); 
 
 void glfwDropCallback(GLFWwindow* window, int count, const char** paths) {
     // Just get the last dropped file for now...
-    filename = paths[count - 1];
+    const char* filename = paths[count - 1];
 
-    FILE* fp = fopen(filename.c_str(), "rb");
+    FILE* fp = fopen(filename, "rb");
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    fileBytes.resize(size);
-    if (fread(fileBytes.data(), 1, size, fp) != size) {
-        fileBytes.clear();
-        fprintf(stderr, "failed to read all of %s\n", filename.c_str());
+
+    std::vector<uint8_t> bytes(size);
+    size_t bytesRead = fread(bytes.data(), 1, size, fp);
+    fclose(fp);
+
+    if (bytesRead != size) {
+        fprintf(stderr, "failed to read all of %s\n", filename);
         return;
     }
-    initStateMachine(REQUEST_DEFAULT_SCENE);
+
+    auto newContent = ViewerContent::FindHandler(filename, rive::toSpan(bytes));
+    if (newContent) {
+        gContent = std::move(newContent);
+        gContent->handleResize(lastScreenWidth, lastScreenHeight);
+    } else {
+        fprintf(stderr, "No handler found for %s\n", filename);
+    }
 }
 
 int main() {
@@ -274,7 +129,6 @@ int main() {
 
     // Render loop.
     int width = 0, height = 0;
-    int lastScreenWidth = 0, lastScreenHeight = 0;
     double lastTime = glfwGetTime();
     while (!glfwWindowShouldClose(window)) {
         glfwGetFramebufferSize(window, &width, &height);
@@ -283,6 +137,10 @@ int main() {
         if (!surface || width != lastScreenWidth || height != lastScreenHeight) {
             lastScreenWidth = width;
             lastScreenHeight = height;
+
+            if (gContent) {
+                gContent->handleResize(width, height);
+            }
 
             SkColorType colorType =
                 kRGBA_8888_SkColorType; // GrColorTypeToSkColorType(GrPixelConfigToColorType(kRGBA_8888_GrPixelConfig));
@@ -324,125 +182,18 @@ int main() {
         paint.setColor(SK_ColorDKGRAY);
         canvas->drawPaint(paint);
 
-        if (currentScene) {
-            // See if we can "set the time" e.g. clock statemachine
-            if (auto num = currentScene->getNumber("isTime")) {
-                num->value(GetSecondsToday()/60/60);
-            }
-
-            currentScene->advanceAndApply(elapsed);
-
-            rive::SkiaRenderer renderer(canvas);
-            renderer.save();
-
-            auto viewTransform = rive::computeAlignment(rive::Fit::contain,
-                                                        rive::Alignment::center,
-                                                        rive::AABB(0, 0, width, height),
-                                                        currentScene->bounds());
-            renderer.transform(viewTransform);
-            // Store the inverse view so we can later go from screen to world.
-            gInverseViewTransform = viewTransform.invertOrIdentity();
-            // post_mouse_event(artboard.get(), canvas->getTotalMatrix());
-
-            currentScene->draw(&renderer);
-            renderer.restore();
-        } else {
-            // no scene ...
-            if (gImage) {
-                canvas->drawImage(gImage, 0, 0);
-            }
+        if (gContent) {
+            gContent->handleDraw(canvas, elapsed);
         }
-        if (USE_DRAWTEXT) {
-            rive::SkiaRenderer renderer(canvas);
-            drawtext(&skiaFactory, &renderer);
-        }
+
         context->flush();
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        if (artboardInstance != nullptr) {
-            ImGui::Begin(filename.c_str(), nullptr);
-            if (ImGui::ListBox(
-                    "Animations",
-                    &animationIndex,
-                    [](void* data, int index, const char** name) {
-                        *name = animationNames[index].c_str();
-                        return true;
-                    },
-                    artboardInstance.get(),
-                    animationNames.size(),
-                    4))
-            {
-                stateMachineIndex = -1;
-                initAnimation(animationIndex);
-            }
-            if (ImGui::ListBox(
-                    "State Machines",
-                    &stateMachineIndex,
-                    [](void* data, int index, const char** name) {
-                        *name = stateMachineNames[index].c_str();
-                        return true;
-                    },
-                    artboardInstance.get(),
-                    stateMachineNames.size(),
-                    4))
-            {
-                animationIndex = -1;
-                initStateMachine(stateMachineIndex);
-            }
-            if (currentScene != nullptr) {
-
-                ImGui::Columns(2);
-                ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.6666);
-
-                for (int i = 0; i < currentScene->inputCount(); i++) {
-                    auto inputInstance = currentScene->input(i);
-
-                    if (inputInstance->input()->is<rive::StateMachineNumber>()) {
-                        // ImGui requires names as id's, use ## to hide the
-                        // label but still give it an id.
-                        char label[256];
-                        snprintf(label, 256, "##%u", i);
-
-                        auto number = static_cast<rive::SMINumber*>(inputInstance);
-                        float v = number->value();
-                        ImGui::InputFloat(label, &v, 1.0f, 2.0f, "%.3f");
-                        number->value(v);
-                        ImGui::NextColumn();
-                    } else if (inputInstance->input()->is<rive::StateMachineTrigger>()) {
-                        // ImGui requires names as id's, use ## to hide the
-                        // label but still give it an id.
-                        char label[256];
-                        snprintf(label, 256, "Fire##%u", i);
-                        if (ImGui::Button(label)) {
-                            auto trigger = static_cast<rive::SMITrigger*>(inputInstance);
-                            trigger->fire();
-                        }
-                        ImGui::NextColumn();
-                    } else if (inputInstance->input()->is<rive::StateMachineBool>()) {
-                        // ImGui requires names as id's, use ## to hide the
-                        // label but still give it an id.
-                        char label[256];
-                        snprintf(label, 256, "##%u", i);
-                        auto boolInput = static_cast<rive::SMIBool*>(inputInstance);
-                        bool value = boolInput->value();
-
-                        ImGui::Checkbox(label, &value);
-                        boolInput->value(value);
-                        ImGui::NextColumn();
-                    }
-                    ImGui::Text("%s", inputInstance->input()->name().c_str());
-                    ImGui::NextColumn();
-                }
-
-                ImGui::Columns(1);
-            }
-            ImGui::End();
-
-        } else {
-            ImGui::Text("Drop a .riv file to preview.");
+        if (gContent) {
+           gContent->handleImgui();
         }
 
         ImGui::Render();
@@ -452,7 +203,7 @@ int main() {
         glfwPollEvents();
     }
 
-    delete_file();
+    gContent = nullptr;  // force delete now, so we can clean up
 
     // Cleanup Skia.
     surface = nullptr;
