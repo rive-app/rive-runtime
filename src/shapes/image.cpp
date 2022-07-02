@@ -9,7 +9,10 @@
 using namespace rive;
 
 void Image::draw(Renderer* renderer) {
-    if (m_ImageAsset == nullptr || renderOpacity() == 0.0f) {
+    rive::RenderImage* renderImage;
+    if (m_ImageAsset == nullptr || renderOpacity() == 0.0f ||
+        (renderImage = m_ImageAsset->renderImage()) == nullptr)
+    {
         return;
     }
 
@@ -19,7 +22,6 @@ void Image::draw(Renderer* renderer) {
         renderer->save();
     }
 
-    auto renderImage = m_ImageAsset->renderImage();
     auto width = renderImage->width();
     auto height = renderImage->height();
 
