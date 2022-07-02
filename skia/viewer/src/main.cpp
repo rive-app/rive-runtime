@@ -193,6 +193,7 @@ int main() {
         canvas->drawPaint(paint);
 
         if (gContent) {
+            SkAutoCanvasRestore acr(canvas, true);
             gContent->handleDraw(canvas, elapsed);
         }
 

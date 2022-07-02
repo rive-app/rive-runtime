@@ -11,6 +11,10 @@
 #include "skia_renderer.hpp"
 #include "line_breaker.hpp"
 
+using RenderFontTextRuns = std::vector<rive::RenderTextRun>;
+using RenderFontGlyphRuns = std::vector<rive::RenderGlyphRun>;
+using RenderFontFactory = rive::rcp<rive::RenderFont> (*)(const rive::Span<const uint8_t>);
+
 static bool ws(rive::Unichar c) {
     return c <= ' ';
 }
@@ -75,7 +79,7 @@ typedef rive::rcp<rive::RenderFont> (*RenderFontFactory)(rive::Span<const uint8_
 
 #include "renderfont_skia.hpp"
 #include "renderfont_hb.hpp"
-#include "include/core/SkData.h"
+#include "renderfont_coretext.hpp"
 
 static void draw_line(rive::Factory* factory, rive::Renderer* renderer, float x) {
     auto paint = factory->makeRenderPaint();
@@ -104,16 +108,17 @@ static rive::RenderTextRun append(std::vector<rive::Unichar>* unichars,
 class TextContent : public ViewerContent {
     std::vector<rive::Unichar> m_unichars;
     std::vector<int> m_breaks;
-    std::vector<rive::RenderTextRun> m_truns;
-    std::vector<rive::RenderGlyphRun> m_gruns;
 
-    void make_truns() {
-        auto loader = [](const char filename[]) -> rive::rcp<rive::RenderFont> {
+    std::vector<RenderFontGlyphRuns> m_gruns;
+
+    RenderFontTextRuns make_truns(RenderFontFactory fact) {
+        auto loader = [fact](const char filename[]) -> rive::rcp<rive::RenderFont> {
             auto bytes = ViewerContent::LoadFile(filename);
             if (bytes.size() == 0) {
+                assert(false);
                 return nullptr;
             }
-            return HBRenderFont::Decode(rive::toSpan(bytes));
+            return fact(rive::toSpan(bytes));
         };
 
         const char* fontFiles[] = {
@@ -127,49 +132,65 @@ class TextContent : public ViewerContent {
         assert(font1);
 
         rive::RenderFont::Coord c1 = {'wght', 100.f},
-                                c2 = {'wght', 700.f};
+                                c2 = {'wght', 800.f};
 
-        m_truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "U"));
-        m_truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "neasy"));
-        m_truns.push_back(append(&m_unichars, font1, 30, " fits the crown"));
-        m_truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
-        m_truns.push_back(append(&m_unichars, font0, 30, " lies the head."));
+        RenderFontTextRuns truns;
+
+        truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "U"));
+        truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "neasy"));
+        truns.push_back(append(&m_unichars, font1, 30, " fits the crown"));
+        truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
+        truns.push_back(append(&m_unichars, font0, 30, " lies the head."));
 
         m_breaks = compute_word_breaks(rive::toSpan(m_unichars));
-    }
 
-    void make_gruns() {
-        m_gruns = m_truns[0].font->shapeText(rive::toSpan(m_unichars), rive::toSpan(m_truns));
+        return truns;
     }
 
 public:
     TextContent() {
-        this->make_truns();
+        RenderFontFactory factory[] = {
+            HBRenderFont::Decode,
+            CoreTextRenderFont::Decode,
+        };
+        for (auto f : factory) {
+            auto truns = this->make_truns(f);
+            m_gruns.push_back(truns[0].font->shapeText(rive::toSpan(m_unichars),
+                                                       rive::toSpan(truns)));
+        }
+    }
+
+    void draw(rive::Renderer* renderer, float width, const RenderFontGlyphRuns& gruns) {
+        renderer->save();
+        renderer->translate(10, 0);
+
+        renderer->save();
+        renderer->scale(3, 3);
+
+        auto lines = rive::RenderGlyphLine::BreakLines(rive::toSpan(gruns), rive::toSpan(m_breaks), width);
+
+        drawpara(&skiaFactory, renderer, rive::toSpan(lines), rive::toSpan(gruns), {0, 0});
+        draw_line(&skiaFactory, renderer, width);
+
+        renderer->restore();
+
+        renderer->restore();
     }
 
     void handleDraw(SkCanvas* canvas, double) override {
         rive::SkiaRenderer renderer(canvas);
 
-        this->make_gruns();
-
-        renderer.save();
-        renderer.translate(10, 0);
-
-        renderer.save();
-        renderer.scale(3, 3);
-
         static float width = 300;
         static float dw = 1;
-        width += dw; if (width > 600) { dw = -dw; } if (width < 50) { dw = -dw; }
-        auto lines = rive::RenderGlyphLine::BreakLines(rive::toSpan(m_gruns), rive::toSpan(m_breaks), width);
+        if (false) {
+            width += dw; if (width > 600) { dw = -dw; } if (width < 50) { dw = -dw; }
+        }
 
-        drawpara(&skiaFactory, &renderer, rive::toSpan(lines), rive::toSpan(m_gruns), {0, 0});
+        for (auto& grun : m_gruns) {
+            this->draw(&renderer, width, grun);
+            renderer.translate(1200, 0);
+        }
 
-        draw_line(&skiaFactory, &renderer, width);
-
-        renderer.restore();
-
-        renderer.restore();
     }
 
     void handleResize(int width, int height) override {}

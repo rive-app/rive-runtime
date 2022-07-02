@@ -6,11 +6,10 @@
 
 #include "rive/factory.hpp"
 #include "rive/render_text.hpp"
+#include "renderer_utils.hpp"
 
 #include "hb.h"
 #include "hb-ot.h"
-//#include "harfbuzz/hb.h"
-//#include "harfbuzz/hb-ot.h"
 
 rive::rcp<rive::RenderFont> HBRenderFont::Decode(rive::Span<const uint8_t> span) {
     auto blob = hb_blob_create_or_fail((const char*)span.data(), (unsigned)span.size(),
@@ -119,15 +118,12 @@ std::vector<rive::RenderFont::Coord> HBRenderFont::getCoords() const {
 }
 
 rive::rcp<rive::RenderFont> HBRenderFont::makeAtCoords(rive::Span<const Coord> coords) const {
-    const int count = (int)coords.size();
-    std::vector<hb_variation_t> vars(count);
-    for (int i = 0; i < count; ++i) {
-        vars[i].tag = coords[i].axis;
-        vars[i].value = coords[i].value;
+    AutoSTArray<16, hb_variation_t> vars(coords.size());
+    for (size_t i = 0; i < coords.size(); ++i) {
+        vars[i] = {coords[i].axis, coords[i].value};
     }
-
     auto font = hb_font_create_sub_font(m_Font);
-    hb_font_set_variations(font, vars.data(), count);
+    hb_font_set_variations(font, vars.data(), vars.size());
     return rive::rcp<rive::RenderFont>(new HBRenderFont(font));
 }
 

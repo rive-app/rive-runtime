@@ -58,6 +58,7 @@ project "rive_viewer"
         "../src/**.cpp",
 
         "../../renderer/src/line_breaker.cpp",
+        "../../renderer/src/renderfont_coretext.cpp",
         "../../renderer/src/renderfont_hb.cpp",
         "../../renderer/src/renderfont_skia.cpp",
 

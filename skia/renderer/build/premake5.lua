@@ -36,6 +36,7 @@ project "rive_skia_renderer"
 
     files {
         "../src/skia_factory.cpp",
+        "../src/cg_skia_factory.cpp",
     }
 
     buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}

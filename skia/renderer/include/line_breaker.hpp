@@ -1,3 +1,7 @@
+/*
+ * Copyright 2022 Rive
+ */
+
 #ifndef _RIVE_RENDER_GLYPH_LINE_H_
 #define _RIVE_RENDER_GLYPH_LINE_H_
 

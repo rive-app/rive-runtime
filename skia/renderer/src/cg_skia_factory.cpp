@@ -2,11 +2,13 @@
  * Copyright 2022 Rive
  */
 
-#include "cg_skia_factory.hpp"
 #include "rive/core/type_conversions.hpp"
 #include <vector>
 
 #ifdef RIVE_BUILD_FOR_APPLE
+
+#include "cg_skia_factory.hpp"
+#include "mac_utils.hpp"
 
 #if defined(RIVE_BUILD_FOR_OSX)
     #include <ApplicationServices/ApplicationServices.h>
@@ -14,18 +16,6 @@
     #include <CoreGraphics/CoreGraphics.h>
     #include <ImageIO/ImageIO.h>
 #endif
-
-// Helper that remembers to call CFRelease when an object goes out of scope.
-template <typename T> class AutoCF {
-    T m_Obj;
-public:
-    AutoCF(T obj) : m_Obj(obj) {}
-    ~AutoCF() { if (m_Obj) CFRelease(m_Obj); }
-
-    operator T() const { return m_Obj; }
-    operator bool() const { return m_Obj != nullptr; }
-    T get() const { return m_Obj; }
-};
 
 using namespace rive;
 
