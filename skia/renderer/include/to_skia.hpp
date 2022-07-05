@@ -7,10 +7,12 @@
 
 #include "include/core/SkMatrix.h"
 #include "include/core/SkPaint.h"
+#include "include/core/SkPath.h"
 #include "include/core/SkPathTypes.h"
 #include "include/core/SkTileMode.h"
 
 #include "rive/math/mat2d.hpp"
+#include "rive/math/raw_path.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
@@ -90,6 +92,14 @@ namespace rive {
             }
             assert(false);
             return SkBlendMode::kSrcOver;
+        }
+
+        static SkPath convert(const RawPath& rp) {
+            const auto pts = rp.points();
+            const auto vbs = rp.verbsU8();
+            return SkPath::Make((const SkPoint*)pts.data(), pts.size(),
+                                vbs.data(), vbs.size(),
+                                nullptr, 0, SkPathFillType::kWinding);
         }
         // clang-format off
     };

@@ -23,13 +23,16 @@ namespace rive {
     };
 
     enum class PathVerb : uint8_t {
-        move,
-        line,
-        quad,
-        conic_unused, // so we match skia's order
-        cubic,
-        close,
+        // These deliberately match Skia's values
+        move    = 0,
+        line    = 1,
+        quad    = 2,
+        // conic
+        cubic   = 4,
+        close   = 5,
     };
+
+    int path_verb_to_point_count(PathVerb);
 
 } // namespace rive
 #endif

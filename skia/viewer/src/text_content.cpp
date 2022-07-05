@@ -110,6 +110,8 @@ class TextContent : public ViewerContent {
     std::vector<int> m_breaks;
 
     std::vector<RenderFontGlyphRuns> m_gruns;
+    rive::Mat2D m_xform;
+    float m_width = 300;
 
     RenderFontTextRuns make_truns(RenderFontFactory fact) {
         auto loader = [fact](const char filename[]) -> rive::rcp<rive::RenderFont> {
@@ -158,14 +160,14 @@ public:
             m_gruns.push_back(truns[0].font->shapeText(rive::toSpan(m_unichars),
                                                        rive::toSpan(truns)));
         }
+
+        m_xform = rive::Mat2D::fromTranslate(10, 0)
+                * rive::Mat2D::fromScale(3, 3);
     }
 
     void draw(rive::Renderer* renderer, float width, const RenderFontGlyphRuns& gruns) {
         renderer->save();
-        renderer->translate(10, 0);
-
-        renderer->save();
-        renderer->scale(3, 3);
+        renderer->transform(m_xform);
 
         auto lines = rive::RenderGlyphLine::BreakLines(rive::toSpan(gruns), rive::toSpan(m_breaks), width);
 
@@ -173,30 +175,43 @@ public:
         draw_line(&skiaFactory, renderer, width);
 
         renderer->restore();
-
-        renderer->restore();
     }
 
     void handleDraw(SkCanvas* canvas, double) override {
         rive::SkiaRenderer renderer(canvas);
 
-        static float width = 300;
-        static float dw = 1;
-        if (false) {
-            width += dw; if (width > 600) { dw = -dw; } if (width < 50) { dw = -dw; }
-        }
-
         for (auto& grun : m_gruns) {
-            this->draw(&renderer, width, grun);
+            this->draw(&renderer, m_width, grun);
             renderer.translate(1200, 0);
         }
 
     }
 
     void handleResize(int width, int height) override {}
-    void handleImgui() override {}
+    void handleImgui() override {
+        ImGui::Begin("text", nullptr);
+        ImGui::SliderFloat("Alignment", &m_width, 10, 400); 
+        ImGui::End();
+    }
 };
 
+static bool ends_width(const char str[], const char suffix[]) {
+    size_t ln = strlen(str);
+    size_t lx = strlen(suffix);
+    if (lx > ln) {
+        return false;
+    }
+    for (size_t i = 0; i < lx; ++i) {
+        if (str[ln - lx + i] != suffix[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[]) {
-    return std::make_unique<TextContent>();
+    if (ends_width(filename, ".svg")) {
+        return std::make_unique<TextContent>();
+    }
+    return nullptr;
 }

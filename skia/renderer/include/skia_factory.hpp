@@ -11,6 +11,7 @@
 namespace rive {
 
 class SkiaFactory : public Factory {
+public:
     rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
     rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
     rcp<RenderBuffer> makeBufferF32(Span<const float>) override;
@@ -44,7 +45,6 @@ class SkiaFactory : public Factory {
     // New virtual for access the platform's codecs
     //
 
-public:
     enum class ColorType {
         rgba,
         bgra,

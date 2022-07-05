@@ -75,3 +75,81 @@ TEST_CASE("rawpath-add-helpers", "[rawpath]") {
         }
     }
 }
+
+//////////////////////////////////////////////////////////////////////////
+
+static bool is_move(const RawPath::Iter::Rec& rec) {
+    if (rec.verb == PathVerb::move) {
+        REQUIRE(rec.count == 1);
+        return true;
+    }
+    return false;
+}
+
+static bool is_line(const RawPath::Iter::Rec& rec) {
+    if (rec.verb == PathVerb::line) {
+        REQUIRE(rec.count == 1);
+        return true;
+    }
+    return false;
+}
+
+static bool is_quad(const RawPath::Iter::Rec& rec) {
+    if (rec.verb == PathVerb::quad) {
+        REQUIRE(rec.count == 2);
+        return true;
+    }
+    return false;
+}
+
+static bool is_cubic(const RawPath::Iter::Rec& rec) {
+    if (rec.verb == PathVerb::cubic) {
+        REQUIRE(rec.count == 3);
+        return true;
+    }
+    return false;
+}
+
+static bool is_close(const RawPath::Iter::Rec& rec) {
+    if (rec.verb == PathVerb::close) {
+        REQUIRE(rec.count == 0);
+        return true;
+    }
+    return false;
+}
+
+TEST_CASE("rawpath-iter", "[rawpath]") {
+    auto eq = [](Vec2D p, float x, float y) { return p.x == x && p.y == y; };
+
+    {
+        RawPath rp;
+        RawPath::Iter iter(rp);
+        REQUIRE(iter.next() == false);
+        REQUIRE(iter.next() == false);  // should be safe to call again
+    }
+    {
+        RawPath rp;
+        rp.moveTo(1, 2);
+        rp.lineTo(3, 4);
+        rp.quadTo(5, 6, 7, 8);
+        rp.cubicTo(9, 10, 11, 12, 13, 14);
+        rp.close();
+        RawPath::Iter iter(rp);
+        auto rec = iter.next();
+        REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1,2)));
+        rec = iter.next();
+        REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3,4)));
+        rec = iter.next();
+        REQUIRE((rec && is_quad(rec) && eq(rec.pts[0], 5,6) 
+                                     && eq(rec.pts[1], 7,8)));
+        rec = iter.next();
+        REQUIRE((rec && is_cubic(rec) && eq(rec.pts[0], 9,10) 
+                                      && eq(rec.pts[1], 11,12)
+                                      && eq(rec.pts[2], 13,14)));
+        rec = iter.next();
+        REQUIRE((rec && is_close(rec)));
+        rec = iter.next();
+        REQUIRE(rec == false);
+        REQUIRE(iter.next() == false);  // should be safe to call again
+    }
+}

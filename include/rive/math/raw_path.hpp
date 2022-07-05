@@ -37,6 +37,9 @@ namespace rive {
 
         RawPath transform(const Mat2D&) const;
         void transformInPlace(const Mat2D&);
+        RawPath operator*(const Mat2D& mat) const {
+            return this->transform(mat);
+        }
 
         Span<const Vec2D> points() const { return toSpan(m_Points); }
         Span<Vec2D> points() { return toSpan(m_Points); }
@@ -63,6 +66,27 @@ namespace rive {
         void addRect(const AABB&, PathDirection = PathDirection::cw);
         void addOval(const AABB&, PathDirection = PathDirection::cw);
         void addPoly(Span<const Vec2D>, bool isClosed);
+
+        class Iter {
+            const Vec2D* m_currPts;
+            const PathVerb* m_currVerb;
+            const PathVerb* m_stopVerb; // 1 past last verb
+        public:
+            Iter(const RawPath& path) {
+                m_currPts  = path.m_Points.data();
+                m_currVerb = path.m_Verbs.data();
+                m_stopVerb = path.m_Verbs.data() + path.m_Verbs.size();
+            }
+            
+            struct Rec {
+                const Vec2D* pts;
+                int count;
+                PathVerb verb;
+                
+                operator bool() const { return pts != nullptr; }
+            };
+            Rec next();
+        };
     };
 
 } // namespace rive
