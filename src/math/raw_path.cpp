@@ -185,7 +185,8 @@ int path_verb_to_point_count(PathVerb v) {
 }
 
 RawPath::Iter::Rec RawPath::Iter::next() {
-    Rec rec = {nullptr, 0, PathVerb::move};
+    // initialize with "false"
+    Rec rec = {nullptr, -1, (PathVerb)-1};
 
     if (m_currVerb < m_stopVerb) {
         rec.pts = m_currPts;
