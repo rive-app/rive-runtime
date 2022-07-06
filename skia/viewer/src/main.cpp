@@ -18,8 +18,6 @@
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_opengl3.h"
 
-#include "../src/render_counter.hpp"
-
 #include <cmath>
 #include <stdio.h>
 
@@ -28,30 +26,6 @@
 int lastScreenWidth = 0, lastScreenHeight = 0;
 
 std::unique_ptr<ViewerContent> gContent;
-
-std::vector<uint8_t> ViewerContent::LoadFile(const char filename[]) {
-    std::vector<uint8_t> bytes;
-
-    FILE* fp = fopen(filename, "rb");
-    if (!fp) {
-        fprintf(stderr, "Can't find file: %s\n", filename);
-        return bytes;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    size_t size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    bytes.resize(size);
-    size_t bytesRead = fread(bytes.data(), 1, size, fp);
-    fclose(fp);
-
-    if (bytesRead != size) {
-        fprintf(stderr, "Failed to read all of %s\n", filename);
-        bytes.resize(0);
-    }
-    return bytes;
-}
 
 static void glfwCursorPosCallback(GLFWwindow* window, double x, double y) {
     if (gContent) {

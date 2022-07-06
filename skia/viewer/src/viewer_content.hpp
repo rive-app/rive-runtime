@@ -13,7 +13,7 @@
 
 class ViewerContent {
 public:
-    virtual ~ViewerContent() {}
+    virtual ~ViewerContent();
 
     virtual void handleResize(int width, int height) = 0;
     virtual void handleDraw(SkCanvas* canvas, double elapsed) = 0;
@@ -43,6 +43,7 @@ public:
     static std::unique_ptr<ViewerContent> TextPath(const char[]);
 
     static std::vector<uint8_t> LoadFile(const char path[]);
+    static void DumpCounters(const char label[]);
 };
 
 #endif

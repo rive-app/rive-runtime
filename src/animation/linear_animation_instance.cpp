@@ -1,6 +1,7 @@
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/loop.hpp"
+#include "rive/rive_counter.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -13,7 +14,14 @@ LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animatio
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),
     m_SpilledTime(0.0f),
-    m_Direction(1) {}
+    m_Direction(1)
+{
+    Counter::update(Counter::kLinearAnimationInstance, +1);
+}
+
+LinearAnimationInstance::~LinearAnimationInstance() {
+    Counter::update(Counter::kLinearAnimationInstance, -1);
+}
 
 bool LinearAnimationInstance::advanceAndApply(float seconds) {
     bool more = this->advance(seconds);

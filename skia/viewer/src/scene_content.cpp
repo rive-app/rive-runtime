@@ -12,11 +12,11 @@
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
 #include "rive/math/aabb.hpp"
+
 #include "cg_skia_factory.hpp"
 #include "skia_renderer.hpp"
 #include "viewer_content.hpp"
 
-#include "../src/render_counter.hpp"
 
 // ImGui wants raw pointers to names, but our public API returns
 // names as strings (by value), so we cache these names each time we
@@ -111,7 +111,7 @@ class SceneContent : public ViewerContent {
             m_currentScene->inputCount();
         }
 
-        rive::RenderCounter::globalCounter().dump("After loading file");
+        DumpCounters("After loading file");
     }
 
     void initAnimation(int index) {
@@ -130,7 +130,7 @@ class SceneContent : public ViewerContent {
             m_currentScene->inputCount();
         }
 
-        rive::RenderCounter::globalCounter().dump("After loading file");
+        DumpCounters("After loading file");
     }
 
 public:
@@ -139,10 +139,6 @@ public:
         m_file(std::move(file))
     {
         initStateMachine(REQUEST_DEFAULT_SCENE);
-    }
-
-    ~SceneContent() override {
-        rive::RenderCounter::globalCounter().dump("After deleting file");
     }
 
     void handlePointerMove(float x, float y) override {

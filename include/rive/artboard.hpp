@@ -160,7 +160,8 @@ namespace rive {
 
     class ArtboardInstance : public Artboard {
     public:
-        ArtboardInstance() {}
+        ArtboardInstance();
+        ~ArtboardInstance() override;
 
         std::unique_ptr<LinearAnimationInstance> animationAt(size_t index);
         std::unique_ptr<LinearAnimationInstance> animationNamed(const std::string& name);

@@ -581,8 +581,17 @@ StatusCode Artboard::import(ImportStack& importStack) {
 
 ////////// ArtboardInstance
 
+#include "rive/rive_counter.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+
+ArtboardInstance::ArtboardInstance() {
+    Counter::update(Counter::kArtboardInstance, +1);
+}
+
+ArtboardInstance::~ArtboardInstance() {
+    Counter::update(Counter::kArtboardInstance, -1);
+}
 
 std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationAt(size_t index) {
     auto la = this->animation(index);

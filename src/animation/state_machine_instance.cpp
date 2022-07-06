@@ -20,6 +20,7 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
+#include "rive/rive_counter.hpp"
 #include <unordered_map>
 
 using namespace rive;
@@ -325,7 +326,10 @@ void StateMachineInstance::pointerUp(Vec2D position) {
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
-    Scene(instance), m_Machine(machine) {
+    Scene(instance), m_Machine(machine)
+{
+    Counter::update(Counter::kStateMachineInstance, +1);
+
     const auto count = machine->inputCount();
     m_InputInstances.resize(count);
     for (size_t i = 0; i < count; i++) {
@@ -396,6 +400,8 @@ StateMachineInstance::~StateMachineInstance() {
         delete inst;
     }
     delete[] m_Layers;
+
+    Counter::update(Counter::kStateMachineInstance, -1);
 }
 
 bool StateMachineInstance::advance(float seconds) {
