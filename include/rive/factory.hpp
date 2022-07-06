@@ -6,6 +6,7 @@
 #define _RIVE_FACTORY_HPP_
 
 #include "rive/renderer.hpp"
+#include "rive/render_text.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
@@ -51,6 +52,8 @@ namespace rive {
         virtual std::unique_ptr<RenderPaint> makeRenderPaint() = 0;
 
         virtual std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) = 0;
+
+        virtual rcp<RenderFont> decodeFont(Span<const uint8_t>) { return nullptr; }
     };
 
 } // namespace rive
