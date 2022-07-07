@@ -18,6 +18,7 @@ help() {
     echo build.sh clean - clean the build
     echo build.sh release - build release library
     echo build.sh -p ios release - build release ios library
+    echo build.sh -p ios_sim release - build release ios simulator library
     echo build.sh -p android release - build release android library
     exit 1
 }
@@ -48,6 +49,11 @@ else
         echo "Building for iOS"
         export IOS_SYSROOT=$(xcrun --sdk iphoneos --show-sdk-path)
         build "--os=ios"
+        if [ "$OPTION" = "clean" ]; then
+            exit
+        fi
+        ;;
+    ios_sim)
         export IOS_SYSROOT=$(xcrun --sdk iphonesimulator --show-sdk-path)
         build "--os=ios --variant=emulator"
         if [ "$OPTION" = "clean" ]; then

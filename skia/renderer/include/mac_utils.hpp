@@ -6,7 +6,7 @@
 
 #if defined(RIVE_BUILD_FOR_OSX)
     #include <ApplicationServices/ApplicationServices.h>
-#elif defined(SK_BUILD_FOR_IOS)
+#elif defined(RIVE_BUILD_FOR_IOS)
     #include <CoreFoundation/CoreFoundation.h>
 #endif
 

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -11,6 +11,7 @@ COMPILE_TARGET="${COMPILE_TARGET:-$(uname -s)_$(uname -m)}"
 CACHE_NAME="${CACHE_NAME:=skia}"
 OUTPUT_CACHE="${OUTPUT_CACHE:=out}"
 MAKE_SKIA_FILE="${MAKE_SKIA_FILE:=make_skia_android.sh}"
+ARCHIVE_CONTENTS_NAME="${ARCHIVE_CONTENTS_NAME:=archive_contents}"
 
 # lets just make sure this exists, or fail
 if [[ ! -d $RIVE_RUNTIME_DIR ]]
@@ -25,7 +26,6 @@ SKIA_DIR="$SKIA_DEPENDENCIES_DIR/$SKIA_DIR_NAME"
 
 SKIA_COMMIT_HASH="$(git ls-remote $SKIA_REPO $SKIA_BRANCH | awk '{print $1}')"
 
-ARCHIVE_CONTENTS_NAME=archive_contents
 ARCHIVE_CONTENTS_PATH="$SKIA_DIR/$ARCHIVE_CONTENTS_NAME"
 echo $ARCHIVE_CONTENTS_PATH
 
@@ -60,7 +60,7 @@ pull_cache() {
     mkdir -p $SKIA_DIR
     curl --output $SKIA_DIR/$ARCHIVE_FILE_NAME $ARCHIVE_URL 
     pushd $SKIA_DIR
-    tar -xf $ARCHIVE_FILE_NAME out include archive_contents third_party
+    tar -xf $ARCHIVE_FILE_NAME out include $ARCHIVE_CONTENTS_NAME third_party
 }
 
 is_build_cached_remotely() {

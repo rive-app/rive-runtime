@@ -52,8 +52,8 @@ project "rive_skia_renderer"
 
     filter {"system:ios" }
         buildoptions {"-flto=full"}
-        includedirs {"../../dependencies/skia_rive_optimized"}
-        libdirs {"../../dependencies/skia_rive_optimized/out/static"}
+        includedirs {"../../dependencies/".. SKIA_DIR}
+        libdirs {"../../dependencies/".. SKIA_DIR.. "/out/static"}
 
     filter {"system:ios", "options:variant=system" }
         buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
