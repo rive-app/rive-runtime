@@ -31,6 +31,7 @@ struct Counter {
     static void update(Type ct, int delta) {
         assert(delta == 1 || delta == -1);
         counts[ct] += delta;
+        assert(counts[ct] >= 0);
     }
 };
 

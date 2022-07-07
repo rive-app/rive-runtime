@@ -38,6 +38,10 @@ namespace rive {
 
     public:
         BlendStateInstance(const K* blendState, ArtboardInstance* instance) : StateInstance(blendState) {
+            // Since we return a pointer inside elements (e.g. animationInstance()) its critical
+            // that those pointers stay valid. To ensure that, we reserve the full size up front.
+            m_AnimationInstances.reserve(blendState->animations().size());
+        
             for (auto blendAnimation : blendState->animations()) {
                 m_AnimationInstances.emplace_back(
                     BlendStateAnimationInstance<T>(static_cast<T*>(blendAnimation), instance));
