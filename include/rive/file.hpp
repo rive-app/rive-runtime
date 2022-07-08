@@ -69,7 +69,7 @@ namespace rive {
         /// @returns a pointer to the file, or null on failure.
         static std::unique_ptr<File> import(Span<const uint8_t> data,
                                             Factory*,
-                                            ImportResult* result  = nullptr,
+                                            ImportResult* result = nullptr,
                                             FileAssetResolver* assetResolver = nullptr);
 
         /// @returns the file's backboard. All files have exactly one backboard.

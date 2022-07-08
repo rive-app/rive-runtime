@@ -27,25 +27,28 @@ namespace rive {
         virtual rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) = 0;
         virtual rcp<RenderBuffer> makeBufferF32(Span<const float>) = 0;
 
-        virtual rcp<RenderShader> makeLinearGradient(float sx, float sy,
-                                                     float ex, float ey,
-                                                     const ColorInt colors[],    // [count]
-                                                     const float stops[],        // [count]
+        virtual rcp<RenderShader> makeLinearGradient(float sx,
+                                                     float sy,
+                                                     float ex,
+                                                     float ey,
+                                                     const ColorInt colors[], // [count]
+                                                     const float stops[],     // [count]
                                                      size_t count,
                                                      RenderTileMode,
                                                      const Mat2D* localMatrix = nullptr) = 0;
 
-        virtual rcp<RenderShader> makeRadialGradient(float cx, float cy, float radius,
-                                                     const ColorInt colors[],    // [count]
-                                                     const float stops[],        // [count]
+        virtual rcp<RenderShader> makeRadialGradient(float cx,
+                                                     float cy,
+                                                     float radius,
+                                                     const ColorInt colors[], // [count]
+                                                     const float stops[],     // [count]
                                                      size_t count,
                                                      RenderTileMode,
                                                      const Mat2D* localMatrix = nullptr) = 0;
 
         // Returns a full-formed RenderPath -- can be treated as immutable
-        virtual std::unique_ptr<RenderPath> makeRenderPath(Span<const Vec2D> points,
-                                                           Span<const uint8_t> verbs,
-                                                           FillRule) = 0;
+        virtual std::unique_ptr<RenderPath>
+        makeRenderPath(Span<const Vec2D> points, Span<const uint8_t> verbs, FillRule) = 0;
 
         virtual std::unique_ptr<RenderPath> makeEmptyRenderPath() = 0;
 

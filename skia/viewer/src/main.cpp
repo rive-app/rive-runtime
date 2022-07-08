@@ -178,7 +178,7 @@ int main() {
         ImGui::NewFrame();
 
         if (gContent) {
-           gContent->handleImgui();
+            gContent->handleImgui();
         }
 
         ImGui::Render();
@@ -188,7 +188,7 @@ int main() {
         glfwPollEvents();
     }
 
-    gContent = nullptr;  // force delete now, so we can clean up
+    gContent = nullptr; // force delete now, so we can clean up
 
     // Cleanup Skia.
     surface = nullptr;

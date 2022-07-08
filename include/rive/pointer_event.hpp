@@ -5,20 +5,20 @@
 
 namespace rive {
 
-enum class PointerEventType {
-    down,       // The button has gone from up to down
-    move,       // The pointer's position has changed
-    up,         // The button has gone from down to up
-};
+    enum class PointerEventType {
+        down, // The button has gone from up to down
+        move, // The pointer's position has changed
+        up,   // The button has gone from down to up
+    };
 
-struct PointerEvent {
-    PointerEventType m_Type;
-    Vec2D            m_Position;
-    int              m_PointerIndex;
+    struct PointerEvent {
+        PointerEventType m_Type;
+        Vec2D m_Position;
+        int m_PointerIndex;
 
-    // add more fields as needed
-};
-                              
+        // add more fields as needed
+    };
+
 } // namespace rive
 
 #endif

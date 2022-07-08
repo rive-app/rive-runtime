@@ -18,9 +18,7 @@ namespace rive {
         Factory* m_Factory;
 
     public:
-        RelativeLocalAssetResolver(std::string filename, Factory* factory)
-            : m_Factory(factory)
-        {
+        RelativeLocalAssetResolver(std::string filename, Factory* factory) : m_Factory(factory) {
             std::size_t finalSlash = filename.rfind('/');
 
             if (finalSlash != std::string::npos) {

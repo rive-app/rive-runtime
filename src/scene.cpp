@@ -7,17 +7,11 @@ Scene::Scene(ArtboardInstance* abi) : m_ArtboardInstance(abi) {
     assert(m_ArtboardInstance->isInstance());
 }
 
-float Scene::width() const {
-    return m_ArtboardInstance->width();
-}
+float Scene::width() const { return m_ArtboardInstance->width(); }
 
-float Scene::height() const {
-    return m_ArtboardInstance->height();
-}
+float Scene::height() const { return m_ArtboardInstance->height(); }
 
-void Scene::draw(Renderer* renderer) {
-    m_ArtboardInstance->draw(renderer);
-}
+void Scene::draw(Renderer* renderer) { m_ArtboardInstance->draw(renderer); }
 
 void Scene::pointerDown(Vec2D) {}
 void Scene::pointerMove(Vec2D) {}

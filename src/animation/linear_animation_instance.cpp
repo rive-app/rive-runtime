@@ -14,8 +14,7 @@ LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animatio
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),
     m_SpilledTime(0.0f),
-    m_Direction(1)
-{
+    m_Direction(1) {
     Counter::update(Counter::kLinearAnimationInstance, +1);
 }
 
@@ -28,8 +27,7 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimationInstance const& 
     m_SpilledTime(lhs.m_SpilledTime),
     m_Direction(lhs.m_Direction),
     m_DidLoop(lhs.m_DidLoop),
-    m_LoopValue(lhs.m_LoopValue)
-{
+    m_LoopValue(lhs.m_LoopValue) {
     Counter::update(Counter::kLinearAnimationInstance, +1);
 }
 
@@ -151,9 +149,7 @@ float LinearAnimationInstance::speed() const { return m_Animation->speed(); }
 
 float LinearAnimationInstance::startSeconds() const { return m_Animation->startSeconds(); }
 
-std::string LinearAnimationInstance::name() const {
-    return m_Animation->name();
-}
+std::string LinearAnimationInstance::name() const { return m_Animation->name(); }
 
 bool LinearAnimationInstance::isTranslucent() const {
     return m_ArtboardInstance->isTranslucent(this);

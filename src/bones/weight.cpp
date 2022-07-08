@@ -23,10 +23,10 @@ static int encodedWeightValue(unsigned int index, unsigned int data) {
 }
 
 Vec2D Weight::deform(Vec2D inPoint,
-                    unsigned int indices,
-                    unsigned int weights,
-                    const Mat2D& world,
-                    const float* boneTransforms) {
+                     unsigned int indices,
+                     unsigned int weights,
+                     const Mat2D& world,
+                     const float* boneTransforms) {
     float xx = 0, xy = 0, yx = 0, yy = 0, tx = 0, ty = 0;
     for (int i = 0; i < 4; i++) {
         int weight = encodedWeightValue(i, weights);

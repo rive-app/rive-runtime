@@ -33,7 +33,7 @@ namespace rive {
         uint8_t readByte();
         uint32_t readUint32();
         uint64_t readVarUint64(); // Reads a LEB128 encoded uint64_t
-        
+
         // This will cast the uint read to the requested size, but if the
         // raw value was out-of-range, instead returns 0 and sets the IntRangeError.
         template <typename T> T readVarUintAs() {

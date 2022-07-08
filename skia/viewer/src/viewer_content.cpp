@@ -5,17 +5,22 @@
 #include "viewer_content.hpp"
 #include "rive/rive_counter.hpp"
 
-ViewerContent::~ViewerContent() {
-    DumpCounters("After deleting content");
-}
+ViewerContent::~ViewerContent() { DumpCounters("After deleting content"); }
 
 const char* gCounterNames[] = {
-    "file", "artboard", "animation", "machine",
-    "buffer", "path", "paint", "shader", "image",
+    "file",
+    "artboard",
+    "animation",
+    "machine",
+    "buffer",
+    "path",
+    "paint",
+    "shader",
+    "image",
 };
 
 void ViewerContent::DumpCounters(const char label[]) {
-    assert(sizeof(gCounterNames)/sizeof(gCounterNames[0]) == rive::Counter::kLastType + 1);
+    assert(sizeof(gCounterNames) / sizeof(gCounterNames[0]) == rive::Counter::kLastType + 1);
 
     if (label == nullptr) {
         label = "Counters";

@@ -125,7 +125,7 @@ TEST_CASE("rawpath-iter", "[rawpath]") {
         RawPath rp;
         RawPath::Iter iter(rp);
         REQUIRE(iter.next() == false);
-        REQUIRE(iter.next() == false);  // should be safe to call again
+        REQUIRE(iter.next() == false); // should be safe to call again
     }
     {
         RawPath rp;
@@ -136,20 +136,18 @@ TEST_CASE("rawpath-iter", "[rawpath]") {
         rp.close();
         RawPath::Iter iter(rp);
         auto rec = iter.next();
-        REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1,2)));
+        REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
         rec = iter.next();
-        REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3,4)));
+        REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
         rec = iter.next();
-        REQUIRE((rec && is_quad(rec) && eq(rec.pts[0], 5,6) 
-                                     && eq(rec.pts[1], 7,8)));
+        REQUIRE((rec && is_quad(rec) && eq(rec.pts[0], 5, 6) && eq(rec.pts[1], 7, 8)));
         rec = iter.next();
-        REQUIRE((rec && is_cubic(rec) && eq(rec.pts[0], 9,10) 
-                                      && eq(rec.pts[1], 11,12)
-                                      && eq(rec.pts[2], 13,14)));
+        REQUIRE((rec && is_cubic(rec) && eq(rec.pts[0], 9, 10) && eq(rec.pts[1], 11, 12) &&
+                 eq(rec.pts[2], 13, 14)));
         rec = iter.next();
         REQUIRE((rec && is_close(rec)));
         rec = iter.next();
         REQUIRE(rec == false);
-        REQUIRE(iter.next() == false);  // should be safe to call again
+        REQUIRE(iter.next() == false); // should be safe to call again
     }
 }

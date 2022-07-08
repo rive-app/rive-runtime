@@ -4,10 +4,10 @@
 template <typename T> void checkFits() {
     int64_t min = std::numeric_limits<T>::min();
     int64_t max = std::numeric_limits<T>::max();
-    REQUIRE( rive::fitsIn<T>(max+0));
-    REQUIRE( rive::fitsIn<T>(min-0));
-    REQUIRE(!rive::fitsIn<T>(max+1));
-    REQUIRE(!rive::fitsIn<T>(min-1));
+    REQUIRE(rive::fitsIn<T>(max + 0));
+    REQUIRE(rive::fitsIn<T>(min - 0));
+    REQUIRE(!rive::fitsIn<T>(max + 1));
+    REQUIRE(!rive::fitsIn<T>(min - 1));
 }
 
 TEST_CASE("fitsIn checks", "[type_conversions]") {
@@ -36,9 +36,9 @@ template <typename T> bool checkAs(uint64_t value) {
 
     p = packvarint(storage, value);
     rive::BinaryReader reader(rive::Span(storage, p - storage));
-    
+
     auto newValue = reader.readVarUintAs<T>();
-    
+
     if (reader.hasError()) {
         REQUIRE(newValue == 0);
     }
@@ -47,15 +47,15 @@ template <typename T> bool checkAs(uint64_t value) {
 }
 
 TEST_CASE("range checks", "[binary_reader]") {
-    REQUIRE( checkAs<uint8_t>(100));
-    REQUIRE( checkAs<uint16_t>(100));
-    REQUIRE( checkAs<uint32_t>(100));
+    REQUIRE(checkAs<uint8_t>(100));
+    REQUIRE(checkAs<uint16_t>(100));
+    REQUIRE(checkAs<uint32_t>(100));
 
     REQUIRE(!checkAs<uint8_t>(1000));
-    REQUIRE( checkAs<uint16_t>(1000));
-    REQUIRE( checkAs<uint32_t>(1000));
+    REQUIRE(checkAs<uint16_t>(1000));
+    REQUIRE(checkAs<uint32_t>(1000));
 
     REQUIRE(!checkAs<uint8_t>(100000));
     REQUIRE(!checkAs<uint16_t>(100000));
-    REQUIRE( checkAs<uint32_t>(100000));
+    REQUIRE(checkAs<uint32_t>(100000));
 }

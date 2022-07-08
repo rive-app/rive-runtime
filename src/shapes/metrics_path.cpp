@@ -4,14 +4,10 @@
 
 using namespace rive;
 
-static float clamp(float v, float lo, float hi) {
-    return std::min(std::max(v, lo), hi);
-}
+static float clamp(float v, float lo, float hi) { return std::min(std::max(v, lo), hi); }
 
 // Less exact, but faster, than std::lerp
-static float lerp(float from, float to, float f) {
-    return from + f * (to - from);
-}
+static float lerp(float from, float to, float f) { return from + f * (to - from); }
 
 void MetricsPath::reset() {
     m_ComputedLength = 0.0f;
@@ -349,9 +345,8 @@ void MetricsPath::extractSubPart(
     }
 }
 
-RenderMetricsPath::RenderMetricsPath(std::unique_ptr<RenderPath> path)
-    : m_RenderPath(std::move(path))
-{}
+RenderMetricsPath::RenderMetricsPath(std::unique_ptr<RenderPath> path) :
+    m_RenderPath(std::move(path)) {}
 
 void RenderMetricsPath::addPath(CommandPath* path, const Mat2D& transform) {
     MetricsPath::addPath(path, transform);

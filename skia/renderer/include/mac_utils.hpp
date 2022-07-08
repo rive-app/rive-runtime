@@ -5,9 +5,9 @@
 #include <string>
 
 #if defined(RIVE_BUILD_FOR_OSX)
-    #include <ApplicationServices/ApplicationServices.h>
+#include <ApplicationServices/ApplicationServices.h>
 #elif defined(RIVE_BUILD_FOR_IOS)
-    #include <CoreFoundation/CoreFoundation.h>
+#include <CoreFoundation/CoreFoundation.h>
 #endif
 
 template <size_t N, typename T> class AutoSTArray {
@@ -44,16 +44,20 @@ static inline std::string tag2str(uint32_t tag) {
     std::string str = "abcd";
     str[0] = (tag >> 24) & 0xFF;
     str[1] = (tag >> 16) & 0xFF;
-    str[2] = (tag >>  8) & 0xFF;
-    str[3] = (tag >>  0) & 0xFF;
+    str[2] = (tag >> 8) & 0xFF;
+    str[3] = (tag >> 0) & 0xFF;
     return str;
 }
 
 template <typename T> class AutoCF {
     T m_Obj;
+
 public:
     AutoCF(T obj) : m_Obj(obj) {}
-    ~AutoCF() { if (m_Obj) CFRelease(m_Obj); }
+    ~AutoCF() {
+        if (m_Obj)
+            CFRelease(m_Obj);
+    }
 
     operator T() const { return m_Obj; }
     operator bool() const { return m_Obj != nullptr; }

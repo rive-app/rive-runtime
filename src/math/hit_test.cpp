@@ -316,9 +316,7 @@ bool HitTester::test(FillRule rule) {
 
 /////////////////////////
 
-static bool cross_lt(Vec2D a, Vec2D b) {
-    return a.x * b.y < a.y * b.x;
-}
+static bool cross_lt(Vec2D a, Vec2D b) { return a.x * b.y < a.y * b.x; }
 
 bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices) {
     if (verts.size() < 3) {
@@ -330,8 +328,8 @@ bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices) {
     if (CULL_BOUNDS) {
         const auto bounds = AABB(verts);
 
-        if (bounds.bottom() < pt.y || pt.y < bounds.top() ||
-            bounds.right()  < pt.x || pt.x < bounds.left()) {
+        if (bounds.bottom() < pt.y || pt.y < bounds.top() || bounds.right() < pt.x ||
+            pt.x < bounds.left()) {
             return false;
         }
     }
@@ -344,7 +342,7 @@ bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices) {
         auto pa = a - pt;
         auto pb = b - pt;
         auto pc = c - pt;
-        
+
         auto ab = cross_lt(pa, pb);
         auto bc = cross_lt(pb, pc);
         auto ca = cross_lt(pc, pa);
@@ -382,12 +380,12 @@ bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> in
     std::vector<int> windings(area.width() * area.height());
     const auto offset = Vec2D((float)area.left, (float)area.top);
     int* deltas = windings.data();
-    
+
     for (size_t i = 0; i < indices.size(); i += 3) {
         const auto a = verts[indices[i + 0]] - offset;
         const auto b = verts[indices[i + 1]] - offset;
         const auto c = verts[indices[i + 2]] - offset;
-        
+
         clip_line(area.height(), a, b, deltas, area.width());
         clip_line(area.height(), b, c, deltas, area.width());
         clip_line(area.height(), c, a, deltas, area.width());

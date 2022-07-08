@@ -55,9 +55,7 @@ public:
         printf("%c\n", c);
     }
 
-    void add(const char key[], int value) {
-        this->add(key, std::to_string(value).c_str());
-    }
+    void add(const char key[], int value) { this->add(key, std::to_string(value).c_str()); }
 };
 
 //////////////////////////////////////////////////

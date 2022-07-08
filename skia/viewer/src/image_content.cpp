@@ -9,12 +9,11 @@
 
 class ImageContent : public ViewerContent {
     sk_sp<SkImage> m_image;
+
 public:
     ImageContent(sk_sp<SkImage> image) : m_image(std::move(image)) {}
 
-    void handleDraw(SkCanvas* canvas, double) override {
-        canvas->drawImage(m_image, 0, 0);
-    }
+    void handleDraw(SkCanvas* canvas, double) override { canvas->drawImage(m_image, 0, 0); }
 
     void handleResize(int width, int height) override {}
     void handleImgui() override {}

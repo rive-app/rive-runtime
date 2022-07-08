@@ -14,7 +14,7 @@ void DistanceConstraint::constrain(TransformComponent* component) {
 
     const Vec2D targetTranslation = m_Target->worldTranslation();
     const Vec2D ourTranslation = component->worldTranslation();
-    
+
     Vec2D toTarget = ourTranslation - targetTranslation;
     float currentDistance = toTarget.length();
 

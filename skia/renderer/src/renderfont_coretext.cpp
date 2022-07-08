@@ -12,12 +12,12 @@
 #ifdef RIVE_BUILD_FOR_APPLE
 
 #if defined(RIVE_BUILD_FOR_OSX)
-    #include <ApplicationServices/ApplicationServices.h>
+#include <ApplicationServices/ApplicationServices.h>
 #elif defined(RIVE_BUILD_FOR_IOS)
-    #include <CoreText/CoreText.h>
-    #include <CoreText/CTFontManager.h>
-    #include <CoreGraphics/CoreGraphics.h>
-    #include <CoreFoundation/CoreFoundation.h>
+#include <CoreText/CoreText.h>
+#include <CoreText/CTFontManager.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <CoreFoundation/CoreFoundation.h>
 #endif
 
 constexpr int kStdScale = 2048;
@@ -37,7 +37,7 @@ static std::vector<rive::RenderFont::Axis> compute_axes(CTFontRef font) {
             auto min = find_float(axis, kCTFontVariationAxisMinimumValueKey);
             auto def = find_float(axis, kCTFontVariationAxisDefaultValueKey);
             auto max = find_float(axis, kCTFontVariationAxisMaximumValueKey);
-       //     printf("%08X %g %g %g\n", tag, min, def, max);
+            //     printf("%08X %g %g %g\n", tag, min, def, max);
 
             axes.push_back({tag, min, def, max});
         }
@@ -60,7 +60,7 @@ static std::vector<rive::RenderFont::Coord> compute_coords(CTFontRef font) {
             for (int i = 0; i < count; ++i) {
                 uint32_t tag = number_as_u32((CFNumberRef)keys[i]);
                 float value = number_as_float((CFNumberRef)values[i]);
-//                printf("[%d] %08X %s %g\n", i, tag, tag2str(tag).c_str(), value);
+                //                printf("[%d] %08X %s %g\n", i, tag, tag2str(tag).c_str(), value);
                 coords[i] = {tag, value};
             }
         }
@@ -69,7 +69,7 @@ static std::vector<rive::RenderFont::Coord> compute_coords(CTFontRef font) {
 }
 
 rive::rcp<rive::RenderFont> CoreTextRenderFont::Decode(rive::Span<const uint8_t> span) {
-    AutoCF data = CFDataCreate(nullptr, span.data(), span.size());  // makes a copy
+    AutoCF data = CFDataCreate(nullptr, span.data(), span.size()); // makes a copy
     if (!data) {
         assert(false);
         return nullptr;
@@ -111,26 +111,23 @@ rive::rcp<rive::RenderFont> CoreTextRenderFont::Decode(rive::Span<const uint8_t>
 
 static rive::RenderFont::LineMetrics make_lmx(CTFontRef font) {
     return {
-        (float) -CTFontGetAscent(font) * gInvScale,
-        (float) CTFontGetDescent(font) * gInvScale,
+        (float)-CTFontGetAscent(font) * gInvScale,
+        (float)CTFontGetDescent(font) * gInvScale,
     };
 }
 
-CoreTextRenderFont::CoreTextRenderFont(CTFontRef font,
-                                       std::vector<rive::RenderFont::Axis> axes) :
+CoreTextRenderFont::CoreTextRenderFont(CTFontRef font, std::vector<rive::RenderFont::Axis> axes) :
     rive::RenderFont(make_lmx(font)),
-    m_font(font),                       // we take ownership of font
+    m_font(font), // we take ownership of font
     m_axes(std::move(axes)),
-    m_coords(compute_coords(font))
-{}
+    m_coords(compute_coords(font)) {}
 
-CoreTextRenderFont::~CoreTextRenderFont() {
-    CFRelease(m_font);
-}
+CoreTextRenderFont::~CoreTextRenderFont() { CFRelease(m_font); }
 
 rive::rcp<rive::RenderFont> CoreTextRenderFont::makeAtCoords(rive::Span<const Coord> coords) const {
-    AutoCF vars = CFDictionaryCreateMutable(kCFAllocatorDefault, coords.size(),
-                                             &kCFTypeDictionaryKeyCallBacks,
+    AutoCF vars = CFDictionaryCreateMutable(kCFAllocatorDefault,
+                                            coords.size(),
+                                            &kCFTypeDictionaryKeyCallBacks,
                                             &kCFTypeDictionaryValueCallBacks);
     for (const auto& c : coords) {
         AutoCF tagNum = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &c.axis);
@@ -138,11 +135,10 @@ rive::rcp<rive::RenderFont> CoreTextRenderFont::makeAtCoords(rive::Span<const Co
         CFDictionaryAddValue(vars.get(), tagNum.get(), valueNum.get());
     }
 
-    AutoCF attrs = CFDictionaryCreateMutable(kCFAllocatorDefault, 1,
-                                             &kCFTypeDictionaryKeyCallBacks,
-                                             &kCFTypeDictionaryValueCallBacks);
+    AutoCF attrs = CFDictionaryCreateMutable(
+        kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     CFDictionarySetValue(attrs.get(), kCTFontVariationAttribute, vars.get());
-    
+
     AutoCF desc = (CTFontDescriptorRef)CTFontDescriptorCreateWithAttributes(attrs.get());
 
     auto font = CTFontCreateCopyWithAttributes(m_font, 0, nullptr, desc.get());
@@ -150,7 +146,7 @@ rive::rcp<rive::RenderFont> CoreTextRenderFont::makeAtCoords(rive::Span<const Co
     return rive::rcp<rive::RenderFont>(new CoreTextRenderFont(font, compute_axes(font)));
 }
 
-static void apply_element(void *ctx, const CGPathElement *element) {
+static void apply_element(void* ctx, const CGPathElement* element) {
     auto path = (rive::RawPath*)ctx;
     const CGPoint* points = element->points;
 
@@ -164,14 +160,12 @@ static void apply_element(void *ctx, const CGPathElement *element) {
             break;
 
         case kCGPathElementAddQuadCurveToPoint:
-            path->quadTo(points[0].x, points[0].y,
-                         points[1].x, points[1].y);
+            path->quadTo(points[0].x, points[0].y, points[1].x, points[1].y);
             break;
 
         case kCGPathElementAddCurveToPoint:
-            path->cubicTo(points[0].x, points[0].y,
-                          points[1].x, points[1].y,
-                          points[2].x, points[2].y);
+            path->cubicTo(
+                points[0].x, points[0].y, points[1].x, points[1].y, points[2].x, points[2].y);
             break;
 
         case kCGPathElementCloseSubpath:
@@ -209,8 +203,8 @@ struct AutoUTF16 {
     }
 };
 
-static float add_run(rive::RenderGlyphRun* gr, CTRunRef run,
-                     uint32_t textStart, float textSize, float startX) {
+static float
+add_run(rive::RenderGlyphRun* gr, CTRunRef run, uint32_t textStart, float textSize, float startX) {
     if (auto count = CTRunGetGlyphCount(run)) {
         const float scale = textSize * gInvScale;
 
@@ -250,12 +244,13 @@ CoreTextRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
         CTFontRef font = ((CoreTextRenderFont*)tr.font.get())->m_font;
 
         AutoUTF16 utf16(&text[unicharIndex], tr.unicharCount);
-        AutoCF string = CFStringCreateWithCharactersNoCopy(nullptr, utf16.array.data(),
-                                                           tr.unicharCount, kCFAllocatorNull);
+        AutoCF string = CFStringCreateWithCharactersNoCopy(
+            nullptr, utf16.array.data(), tr.unicharCount, kCFAllocatorNull);
 
-        AutoCF attr = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
-                                               &kCFTypeDictionaryKeyCallBacks,
-                                               &kCFTypeDictionaryValueCallBacks);
+        AutoCF attr = CFDictionaryCreateMutable(kCFAllocatorDefault,
+                                                0,
+                                                &kCFTypeDictionaryKeyCallBacks,
+                                                &kCFTypeDictionaryValueCallBacks);
         CFDictionaryAddValue(attr.get(), kCTFontAttributeName, font);
 
         AutoCF attrString = CFAttributedStringCreate(kCFAllocatorDefault, string.get(), attr.get());
@@ -268,8 +263,11 @@ CoreTextRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
         CFIndex runCount = CFArrayGetCount(run_array);
         for (CFIndex i = 0; i < runCount; ++i) {
             rive::RenderGlyphRun grun;
-            startX = add_run(&grun, (CTRunRef)CFArrayGetValueAtIndex(run_array, i),
-                             unicharIndex, tr.size, startX);
+            startX = add_run(&grun,
+                             (CTRunRef)CFArrayGetValueAtIndex(run_array, i),
+                             unicharIndex,
+                             tr.size,
+                             startX);
             if (grun.glyphs.size() > 0) {
                 grun.font = tr.font;
                 grun.size = tr.size;

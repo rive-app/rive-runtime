@@ -27,7 +27,7 @@ public:
 
     // Searches all handlers and returns a content if it is found.
     static std::unique_ptr<ViewerContent> FindHandler(const char filename[]) {
-        Factory factories[] = { Scene, Image, Text, TextPath };
+        Factory factories[] = {Scene, Image, Text, TextPath};
         for (auto f : factories) {
             if (auto content = f(filename)) {
                 return content;

@@ -41,7 +41,7 @@ namespace rive {
             (void)invert(&inverse); // inverse is unchanged if invert() fails
             return inverse;
         }
-    
+
         TransformComponents decompose() const;
         static Mat2D compose(const TransformComponents&);
         Mat2D scale(Vec2D) const;

@@ -6,9 +6,7 @@
 
 using namespace rive;
 
-static float atan2(Vec2D v) {
-    return std::atan2(v.y, v.x);
-}
+static float atan2(Vec2D v) { return std::atan2(v.y, v.x); }
 
 void IKConstraint::buildDependencies() {
     Super::buildDependencies();

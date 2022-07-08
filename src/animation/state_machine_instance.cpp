@@ -326,8 +326,7 @@ void StateMachineInstance::pointerUp(Vec2D position) {
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
-    Scene(instance), m_Machine(machine)
-{
+    Scene(instance), m_Machine(machine) {
     Counter::update(Counter::kStateMachineInstance, +1);
 
     const auto count = machine->inputCount();

@@ -45,7 +45,7 @@ TEST_CASE("image assets loads correctly", "[assets]") {
 TEST_CASE("out of band image assets loads correctly", "[assets]") {
     RenderObjectLeakChecker checker;
     rive::NoOpFactory gEmptyFactory;
-    
+
     std::string filename = "../../test/assets/out_of_band/walle.riv";
     rive::RelativeLocalAssetResolver resolver(filename, &gEmptyFactory);
 

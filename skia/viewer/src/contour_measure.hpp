@@ -11,6 +11,7 @@ namespace rive {
 
     class ContourMeasure {
         SkContourMeasure* m_meas;
+
     public:
         ContourMeasure(const RawPath& path);
         ~ContourMeasure();
@@ -38,6 +39,6 @@ namespace rive {
 
         RawPath warp(const RawPath&) const;
     };
-}
+} // namespace rive
 
 #endif

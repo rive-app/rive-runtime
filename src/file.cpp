@@ -109,16 +109,13 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
 }
 
 File::File(Factory* factory, FileAssetResolver* assetResolver) :
-    m_Factory(factory), m_AssetResolver(assetResolver)
-{
+    m_Factory(factory), m_AssetResolver(assetResolver) {
     Counter::update(Counter::kFile, +1);
 
     assert(factory);
 }
 
-File::~File() {
-    Counter::update(Counter::kFile, -1);
-}
+File::~File() { Counter::update(Counter::kFile, -1); }
 
 std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
                                    Factory* factory,

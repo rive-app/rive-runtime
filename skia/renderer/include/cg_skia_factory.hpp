@@ -8,10 +8,9 @@
 #include "skia_factory.hpp"
 
 namespace rive {
-struct CGSkiaFactory : public SkiaFactory {
-    std::vector<uint8_t> platformDecode(Span<const uint8_t>,
-                                        SkiaFactory::ImageInfo*) override;
-};
-} // namespace
+    struct CGSkiaFactory : public SkiaFactory {
+        std::vector<uint8_t> platformDecode(Span<const uint8_t>, SkiaFactory::ImageInfo*) override;
+    };
+} // namespace rive
 
 #endif // _RIVE_CGSkiaFactory_HPP_

@@ -9,7 +9,7 @@ namespace rive {
 
     class LinearAnimation : public LinearAnimationBase {
     private:
-        std::vector< std::unique_ptr<KeyedObject> > m_KeyedObjects;
+        std::vector<std::unique_ptr<KeyedObject>> m_KeyedObjects;
 
         friend class Artboard;
 

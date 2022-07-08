@@ -46,8 +46,8 @@ static inline std::string tag2str(uint32_t tag) {
     std::string str = "abcd";
     str[0] = (tag >> 24) & 0xFF;
     str[1] = (tag >> 16) & 0xFF;
-    str[2] = (tag >>  8) & 0xFF;
-    str[3] = (tag >>  0) & 0xFF;
+    str[2] = (tag >> 8) & 0xFF;
+    str[3] = (tag >> 0) & 0xFF;
     return str;
 }
 

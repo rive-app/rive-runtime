@@ -24,12 +24,12 @@ namespace rive {
 
     enum class PathVerb : uint8_t {
         // These deliberately match Skia's values
-        move    = 0,
-        line    = 1,
-        quad    = 2,
+        move = 0,
+        line = 1,
+        quad = 2,
         // conic
-        cubic   = 4,
-        close   = 5,
+        cubic = 4,
+        close = 5,
     };
 
     int path_verb_to_point_count(PathVerb);

@@ -11,10 +11,10 @@
 #include "mac_utils.hpp"
 
 #if defined(RIVE_BUILD_FOR_OSX)
-    #include <ApplicationServices/ApplicationServices.h>
+#include <ApplicationServices/ApplicationServices.h>
 #elif defined(RIVE_BUILD_FOR_IOS)
-    #include <CoreGraphics/CoreGraphics.h>
-    #include <ImageIO/ImageIO.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <ImageIO/ImageIO.h>
 #endif
 
 using namespace rive;
@@ -52,7 +52,7 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
     // Now create a drawing context to produce RGBA pixels
 
     const size_t bitsPerComponent = 8;
-    CGBitmapInfo cgInfo = kCGBitmapByteOrder32Big;    // rgba
+    CGBitmapInfo cgInfo = kCGBitmapByteOrder32Big; // rgba
     if (isOpaque) {
         cgInfo |= kCGImageAlphaNoneSkipLast;
     } else {
@@ -60,13 +60,14 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
     }
     const size_t width = CGImageGetWidth(image);
     const size_t height = CGImageGetHeight(image);
-    const size_t rowBytes = width * 4;  // 4 bytes per pixel
+    const size_t rowBytes = width * 4; // 4 bytes per pixel
     const size_t size = rowBytes * height;
 
     pixels.resize(size);
 
     AutoCF cs = CGColorSpaceCreateDeviceRGB();
-    AutoCF cg = CGBitmapContextCreate(pixels.data(), width, height, bitsPerComponent, rowBytes, cs, cgInfo);
+    AutoCF cg =
+        CGBitmapContextCreate(pixels.data(), width, height, bitsPerComponent, rowBytes, cs, cgInfo);
     if (!cg) {
         pixels.clear();
         return pixels;
@@ -83,4 +84,4 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
     return pixels;
 };
 
-#endif  // RIVE_BUILD_FOR_APPLE
+#endif // RIVE_BUILD_FOR_APPLE

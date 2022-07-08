@@ -15,7 +15,7 @@ namespace rive {
     class SMINumber;
     class SMITrigger;
 
-    class Scene {    
+    class Scene {
     protected:
         ArtboardInstance* m_ArtboardInstance;
 
@@ -23,7 +23,7 @@ namespace rive {
 
     public:
         virtual ~Scene() {}
-    
+
         Scene(Scene const& lhs) : m_ArtboardInstance(lhs.m_ArtboardInstance) {}
 
         float width() const;
@@ -38,7 +38,7 @@ namespace rive {
         virtual bool isTranslucent() const = 0;
         // returns -1 for continuous
         virtual float durationSeconds() const = 0;
-    
+
         // returns true if draw() should be called
         virtual bool advanceAndApply(float elapsedSeconds) = 0;
 

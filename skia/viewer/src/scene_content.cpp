@@ -17,7 +17,6 @@
 #include "skia_renderer.hpp"
 #include "viewer_content.hpp"
 
-
 // ImGui wants raw pointers to names, but our public API returns
 // names as strings (by value), so we cache these names each time we
 // load a file
@@ -40,11 +39,9 @@ double GetSecondsToday() {
         hours -= 12;
     }
 
-    auto secs = (double)hours * 60 * 60 +
-                (double)tstruct.tm_min * 60 +
-                (double)tstruct.tm_sec;
-//    printf("%d %d %d\n", tstruct.tm_sec, tstruct.tm_min, hours);
-//    printf("%g %g %g\n", secs, secs/60, secs/60/60);
+    auto secs = (double)hours * 60 * 60 + (double)tstruct.tm_min * 60 + (double)tstruct.tm_sec;
+    //    printf("%d %d %d\n", tstruct.tm_sec, tstruct.tm_min, hours);
+    //    printf("%g %g %g\n", secs, secs/60, secs/60/60);
     return secs;
 }
 
@@ -52,7 +49,6 @@ double GetSecondsToday() {
 // to change animations or state-machines, we just rebuild the rive::File from
 // it.
 std::vector<uint8_t> fileBytes;
-
 
 static void loadNames(const rive::Artboard* ab) {
     animationNames.clear();
@@ -70,12 +66,12 @@ static void loadNames(const rive::Artboard* ab) {
 class SceneContent : public ViewerContent {
     std::string m_filename;
     std::unique_ptr<rive::File> m_file;
-    
+
     std::unique_ptr<rive::ArtboardInstance> m_artboardInstance;
     std::unique_ptr<rive::Scene> m_currentScene;
     int m_animationIndex = 0;
     int m_stateMachineIndex = -1;
-    
+
     int m_width = 0, m_height = 0;
     rive::Vec2D m_lastPointer;
     rive::Mat2D m_inverseViewTransform;
@@ -135,9 +131,7 @@ class SceneContent : public ViewerContent {
 
 public:
     SceneContent(const char filename[], std::unique_ptr<rive::File> file) :
-        m_filename(filename),
-        m_file(std::move(file))
-    {
+        m_filename(filename), m_file(std::move(file)) {
         initStateMachine(REQUEST_DEFAULT_SCENE);
     }
 
@@ -168,7 +162,7 @@ public:
         if (m_currentScene) {
             // See if we can "set the time" e.g. clock statemachine
             if (auto num = m_currentScene->getNumber("isTime")) {
-                num->value(GetSecondsToday()/60/60);
+                num->value(GetSecondsToday() / 60 / 60);
             }
 
             m_currentScene->advanceAndApply(elapsed);

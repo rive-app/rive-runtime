@@ -24,17 +24,15 @@ void visit(const std::vector<RenderGlyphRun>& gruns, Vec2D origin, Handler proc)
     for (const auto& gr : gruns) {
         for (size_t i = 0; i < gr.glyphs.size(); ++i) {
             auto path = gr.font->getPath(gr.glyphs[i]);
-            auto mx = Mat2D::fromTranslate(origin.x + gr.xpos[i], origin.y)
-                    * Mat2D::fromScale(gr.size, gr.size);
+            auto mx = Mat2D::fromTranslate(origin.x + gr.xpos[i], origin.y) *
+                      Mat2D::fromScale(gr.size, gr.size);
             path.transformInPlace(mx);
             proc(path);
         }
     }
 }
 
-static Vec2D ave(Vec2D a, Vec2D b) {
-    return (a + b) * 0.5f;
-}
+static Vec2D ave(Vec2D a, Vec2D b) { return (a + b) * 0.5f; }
 
 static RawPath make_quad_path(Span<const Vec2D> pts) {
     const int N = pts.size();
@@ -47,9 +45,9 @@ static RawPath make_quad_path(Span<const Vec2D> pts) {
             path.quad(pts[1], pts[2]);
         } else {
             for (int i = 1; i < N - 2; ++i) {
-                path.quad(pts[i], ave(pts[i], pts[i+1]));
+                path.quad(pts[i], ave(pts[i], pts[i + 1]));
             }
-            path.quad(pts[N-2], pts[N-1]);
+            path.quad(pts[N - 2], pts[N - 1]);
         }
     }
     return path;
@@ -96,14 +94,14 @@ static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint)
 
 typedef rcp<RenderFont> (*RenderFontFactory)(Span<const uint8_t>);
 
-static RenderTextRun append(std::vector<Unichar>* unichars, rcp<RenderFont> font,
-                            float size, const char text[]) {
+static RenderTextRun
+append(std::vector<Unichar>* unichars, rcp<RenderFont> font, float size, const char text[]) {
     uint32_t n = 0;
     while (text[n]) {
-        unichars->push_back(text[n]);   // todo: utf8 -> unichar
+        unichars->push_back(text[n]); // todo: utf8 -> unichar
         n += 1;
     }
-    return { std::move(font), size, n };
+    return {std::move(font), size, n};
 }
 
 class TextPathContent : public ViewerContent {
@@ -113,7 +111,7 @@ class TextPathContent : public ViewerContent {
     AABB m_gbounds;
 
     std::vector<Vec2D> m_pathpts;
-    Vec2D m_lastPt = {0,0};
+    Vec2D m_lastPt = {0, 0};
     int m_trackingIndex = -1;
     Mat2D m_trans;
 
@@ -121,11 +119,9 @@ class TextPathContent : public ViewerContent {
     bool m_trackingOneLine = false;
     float m_oneLineX = 0;
 
-    float m_alignment = 0,
-          m_scaleY = 1,
-          m_offsetY = 0,
-          m_windowWidth = 1,    // %
-          m_windowOffset = 0;   // %
+    float m_alignment = 0, m_scaleY = 1, m_offsetY = 0,
+          m_windowWidth = 1, // %
+        m_windowOffset = 0;  // %
 
     RenderFontTextRuns make_truns(RenderFontFactory fact) {
         auto loader = [fact](const char filename[]) -> rcp<RenderFont> {
@@ -147,8 +143,7 @@ class TextPathContent : public ViewerContent {
         assert(font0);
         assert(font1);
 
-        RenderFont::Coord c1 = {'wght', 100.f},
-                          c2 = {'wght', 800.f};
+        RenderFont::Coord c1 = {'wght', 100.f}, c2 = {'wght', 800.f};
 
         RenderFontTextRuns truns;
 
@@ -185,7 +180,7 @@ public:
         m_paint = skiaFactory.makeRenderPaint();
         m_paint->color(0xFFFFFFFF);
 
-        m_pathpts.push_back({ 20, 300});
+        m_pathpts.push_back({20, 300});
         m_pathpts.push_back({220, 100});
         m_pathpts.push_back({420, 500});
         m_pathpts.push_back({620, 100});
@@ -213,15 +208,13 @@ public:
         return n;
     }
 
-    void modify(float amount) {
-        m_paint->color(0xFFFFFFFF); 
-    }
+    void modify(float amount) { m_paint->color(0xFFFFFFFF); }
 
     void draw(Renderer* renderer, const RenderFontGlyphRuns& gruns) {
         auto get_path = [this](const RenderGlyphRun& run, int index, float dx) {
             auto path = run.font->getPath(run.glyphs[index]);
-            path.transformInPlace(Mat2D::fromTranslate(run.xpos[index] + dx, m_offsetY)
-                                * Mat2D::fromScale(run.size, run.size * m_scaleY));
+            path.transformInPlace(Mat2D::fromTranslate(run.xpos[index] + dx, m_offsetY) *
+                                  Mat2D::fromScale(run.size, run.size * m_scaleY));
             return path;
         };
 
@@ -268,10 +261,16 @@ public:
         const float radius = 50;
         if (m_trackingOneLine) {
             float mx = m_oneLineX / m_gbounds.width();
-            const ColorInt colors[] = { 0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF };
-            const float stops[] = { 0, mx / 2, mx, (1 + mx) / 2, 1 };
-            paint->shader(skiaFactory.makeLinearGradient(m_gbounds.left(), 0, m_gbounds.right(), 0,
-                                                         colors, stops, 5, RenderTileMode::clamp));
+            const ColorInt colors[] = {0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF};
+            const float stops[] = {0, mx / 2, mx, (1 + mx) / 2, 1};
+            paint->shader(skiaFactory.makeLinearGradient(m_gbounds.left(),
+                                                         0,
+                                                         m_gbounds.right(),
+                                                         0,
+                                                         colors,
+                                                         stops,
+                                                         5,
+                                                         RenderTileMode::clamp));
         }
 
         auto wrap_path = [](const RawPath& src, float x, float rad) {
@@ -333,9 +332,7 @@ public:
         }
     }
     void handlePointerDown() override {
-        auto close_to = [](Vec2D a, Vec2D b) {
-            return Vec2D::distance(a, b) <= 10;
-        };
+        auto close_to = [](Vec2D a, Vec2D b) { return Vec2D::distance(a, b) <= 10; };
         for (size_t i = 0; i < m_pathpts.size(); ++i) {
             if (close_to(m_lastPt, m_pathpts[i])) {
                 m_trackingIndex = i;
@@ -344,19 +341,17 @@ public:
         }
     }
 
-    void handlePointerUp() override {
-        m_trackingIndex = -1;
-    }
+    void handlePointerUp() override { m_trackingIndex = -1; }
 
     void handleResize(int width, int height) override {}
-    
+
     void handleImgui() override {
         ImGui::Begin("path", nullptr);
-        ImGui::SliderFloat("Alignment", &m_alignment, -3, 4); 
-        ImGui::SliderFloat("Scale Y", &m_scaleY, 0.25f, 3.0f); 
-        ImGui::SliderFloat("Offset Y", &m_offsetY, -100, 100); 
-        ImGui::SliderFloat("Window Offset", &m_windowOffset, -1.1f, 1.1f); 
-        ImGui::SliderFloat("Window Width", &m_windowWidth, 0, 1.2f); 
+        ImGui::SliderFloat("Alignment", &m_alignment, -3, 4);
+        ImGui::SliderFloat("Scale Y", &m_scaleY, 0.25f, 3.0f);
+        ImGui::SliderFloat("Offset Y", &m_offsetY, -100, 100);
+        ImGui::SliderFloat("Window Offset", &m_windowOffset, -1.1f, 1.1f);
+        ImGui::SliderFloat("Window Width", &m_windowWidth, 0, 1.2f);
         ImGui::End();
     }
 };

@@ -9,9 +9,9 @@
 #include "rive/render_text.hpp"
 
 #if defined(RIVE_BUILD_FOR_OSX)
-    #include <ApplicationServices/ApplicationServices.h>
+#include <ApplicationServices/ApplicationServices.h>
 #elif defined(RIVE_BUILD_FOR_IOS)
-    #include <CoreText/CoreText.h>
+#include <CoreText/CoreText.h>
 #endif
 
 class CoreTextRenderFont : public rive::RenderFont {
@@ -28,8 +28,9 @@ public:
     std::vector<Coord> getCoords() const override { return m_coords; }
     rive::rcp<rive::RenderFont> makeAtCoords(rive::Span<const Coord>) const override;
     rive::RawPath getPath(rive::GlyphID) const override;
-    std::vector<rive::RenderGlyphRun> onShapeText(rive::Span<const rive::Unichar>,
-                                                  rive::Span<const rive::RenderTextRun>) const override;
+    std::vector<rive::RenderGlyphRun>
+        onShapeText(rive::Span<const rive::Unichar>,
+                    rive::Span<const rive::RenderTextRun>) const override;
 
     static rive::rcp<rive::RenderFont> Decode(rive::Span<const uint8_t>);
 };

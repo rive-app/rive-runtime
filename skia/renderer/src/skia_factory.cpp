@@ -256,17 +256,17 @@ rcp<RenderBuffer> SkiaFactory::makeBufferU32(Span<const uint32_t> data) {
     return make_buffer(data);
 }
 
-rcp<RenderBuffer> SkiaFactory::makeBufferF32(Span<const float> data) {
-    return make_buffer(data);
-}
+rcp<RenderBuffer> SkiaFactory::makeBufferF32(Span<const float> data) { return make_buffer(data); }
 
-rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx, float sy,
-                                                float ex, float ey,
-                                                const ColorInt colors[],    // [count]
-                                                const float stops[],        // [count]
-                                                size_t count,
-                                                RenderTileMode mode,
-                                                const Mat2D* localMatrix) {
+rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx,
+                                                  float sy,
+                                                  float ex,
+                                                  float ey,
+                                                  const ColorInt colors[], // [count]
+                                                  const float stops[],     // [count]
+                                                  size_t count,
+                                                  RenderTileMode mode,
+                                                  const Mat2D* localMatrix) {
     const SkPoint pts[] = {{sx, sy}, {ex, ey}};
     const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
     auto sh = SkGradientShader::MakeLinear(
@@ -274,12 +274,14 @@ rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx, float sy,
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 
-rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx, float cy, float radius,
-                                                const ColorInt colors[],    // [count]
-                                                const float stops[],        // [count]
-                                                size_t count,
-                                                RenderTileMode mode,
-                                                const Mat2D* localMatrix) {
+rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx,
+                                                  float cy,
+                                                  float radius,
+                                                  const ColorInt colors[], // [count]
+                                                  const float stops[],     // [count]
+                                                  size_t count,
+                                                  RenderTileMode mode,
+                                                  const Mat2D* localMatrix) {
     const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
     auto sh = SkGradientShader::MakeRadial(
         {cx, cy}, radius, (const SkColor*)colors, stops, count, ToSkia::convert(mode), 0, &lm);
@@ -289,17 +291,18 @@ rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx, float cy, float radi
 std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(Span<const Vec2D> points,
                                                         Span<const uint8_t> verbs,
                                                         FillRule fillRule) {
-    const bool isVolatile = false;  // ???
+    const bool isVolatile = false; // ???
     const SkScalar* conicWeights = nullptr;
     const int conicWeightCount = 0;
-    return std::make_unique<SkiaRenderPath>(SkPath::Make(reinterpret_cast<const SkPoint*>(points.data()),
-                                                         points.count(),
-                                                         verbs.data(),
-                                                         verbs.count(),
-                                                         conicWeights,
-                                                         conicWeightCount,
-                                                         ToSkia::convert(fillRule),
-                                                         isVolatile));
+    return std::make_unique<SkiaRenderPath>(
+        SkPath::Make(reinterpret_cast<const SkPoint*>(points.data()),
+                     points.count(),
+                     verbs.data(),
+                     verbs.count(),
+                     conicWeights,
+                     conicWeightCount,
+                     ToSkia::convert(fillRule),
+                     isVolatile));
 }
 
 std::unique_ptr<RenderPath> SkiaFactory::makeEmptyRenderPath() {
@@ -323,10 +326,10 @@ std::unique_ptr<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encode
         ImageInfo info;
         auto pixels = this->platformDecode(encoded, &info);
         if (pixels.size() > 0) {
-            auto ct = info.colorType == ColorType::rgba ? kRGBA_8888_SkColorType
-                                                        : kBGRA_8888_SkColorType;
-            auto at = info.alphaType == AlphaType::premul ? kPremul_SkAlphaType
-                                                          : kOpaque_SkAlphaType;
+            auto ct =
+                info.colorType == ColorType::rgba ? kRGBA_8888_SkColorType : kBGRA_8888_SkColorType;
+            auto at =
+                info.alphaType == AlphaType::premul ? kPremul_SkAlphaType : kOpaque_SkAlphaType;
             auto skinfo = SkImageInfo::Make(info.width, info.height, ct, at);
             image = SkImage::MakeRasterCopy({skinfo, pixels.data(), info.rowBytes});
         }

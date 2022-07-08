@@ -27,13 +27,10 @@ static rive::RenderFont::LineMetrics make_lmx(sk_sp<SkTypeface> tf) {
 }
 
 SkiaRenderFont::SkiaRenderFont(sk_sp<SkTypeface> tf) :
-    RenderFont(make_lmx(tf)),
-    m_Typeface(std::move(tf))
-{}
+    RenderFont(make_lmx(tf)), m_Typeface(std::move(tf)) {}
 
 rive::rcp<rive::RenderFont> SkiaRenderFont::Decode(rive::Span<const uint8_t> span) {
-    auto tf = SkTypeface::MakeFromData(SkData::MakeWithCopy(span.data(),
-                                                            span.size()));
+    auto tf = SkTypeface::MakeFromData(SkData::MakeWithCopy(span.data(), span.size()));
     return tf ? rive::rcp<rive::RenderFont>(new SkiaRenderFont(std::move(tf))) : nullptr;
 }
 
@@ -45,7 +42,7 @@ std::vector<rive::RenderFont::Axis> SkiaRenderFont::getAxes() const {
         (void)m_Typeface->getVariationDesignParameters(src.data(), count);
         axes.resize(count);
         for (int i = 0; i < count; ++i) {
-            axes[i] = { src[i].tag, src[i].min, src[i].def, src[i].max };
+            axes[i] = {src[i].tag, src[i].min, src[i].def, src[i].max};
         }
     }
     return axes;
@@ -58,7 +55,7 @@ std::vector<rive::RenderFont::Coord> SkiaRenderFont::getCoords() const {
 
     std::vector<rive::RenderFont::Coord> coords(count);
     for (int i = 0; i < count; ++i) {
-        coords[i] = { skcoord[i].axis, skcoord[i].value };
+        coords[i] = {skcoord[i].axis, skcoord[i].value};
     }
     return coords;
 }
@@ -98,13 +95,27 @@ rive::RawPath SkiaRenderFont::getPath(rive::GlyphID glyph) const {
     bool done = false;
     while (!done) {
         switch (iter.next(pts)) {
-            case SkPath::kMove_Verb:  rpath.move (rv(pts[0])); break;
-            case SkPath::kLine_Verb:  rpath.line (rv(pts[1])); break;
-            case SkPath::kQuad_Verb:  rpath.quad (rv(pts[1]), rv(pts[2])); break;
-            case SkPath::kConic_Verb: rpath.quad (rv(pts[1]), rv(pts[2])); break;  // TODO: convert
-            case SkPath::kCubic_Verb: rpath.cubic(rv(pts[1]), rv(pts[2]), rv(pts[3])); break;
-            case SkPath::kClose_Verb: rpath.close(); break;
-            case SkPath::kDone_Verb: done = true; break;
+            case SkPath::kMove_Verb:
+                rpath.move(rv(pts[0]));
+                break;
+            case SkPath::kLine_Verb:
+                rpath.line(rv(pts[1]));
+                break;
+            case SkPath::kQuad_Verb:
+                rpath.quad(rv(pts[1]), rv(pts[2]));
+                break;
+            case SkPath::kConic_Verb:
+                rpath.quad(rv(pts[1]), rv(pts[2]));
+                break; // TODO: convert
+            case SkPath::kCubic_Verb:
+                rpath.cubic(rv(pts[1]), rv(pts[2]), rv(pts[3]));
+                break;
+            case SkPath::kClose_Verb:
+                rpath.close();
+                break;
+            case SkPath::kDone_Verb:
+                done = true;
+                break;
         }
     }
     return rpath;
@@ -112,9 +123,12 @@ rive::RawPath SkiaRenderFont::getPath(rive::GlyphID glyph) const {
 
 ///////////////////////////////////////////////////////////
 
-static float shapeRun(rive::RenderGlyphRun* grun, const rive::RenderTextRun& trun,
-                      const rive::Unichar text[], size_t textOffset, float origin) {
-    const int glyphCount = SkToInt(trun.unicharCount);   // simple shaper, no ligatures
+static float shapeRun(rive::RenderGlyphRun* grun,
+                      const rive::RenderTextRun& trun,
+                      const rive::Unichar text[],
+                      size_t textOffset,
+                      float origin) {
+    const int glyphCount = SkToInt(trun.unicharCount); // simple shaper, no ligatures
 
     grun->font = trun.font;
     grun->size = trun.size;

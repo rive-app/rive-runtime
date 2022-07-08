@@ -15,32 +15,34 @@ using RenderFontTextRuns = std::vector<rive::RenderTextRun>;
 using RenderFontGlyphRuns = std::vector<rive::RenderGlyphRun>;
 using RenderFontFactory = rive::rcp<rive::RenderFont> (*)(const rive::Span<const uint8_t>);
 
-static bool ws(rive::Unichar c) {
-    return c <= ' ';
-}
+static bool ws(rive::Unichar c) { return c <= ' '; }
 
 std::vector<int> compute_word_breaks(rive::Span<rive::Unichar> chars) {
     std::vector<int> breaks;
 
     const unsigned len = chars.size();
     for (unsigned i = 0; i < len;) {
-      // skip ws
-      while (i < len && ws(chars[i])) {
-        ++i;
-      }
-      breaks.push_back(i); // word start
-      // skip non-ws
-      while (i < len && !ws(chars[i])) {
-        ++i;
-      }
-      breaks.push_back(i); // word end
+        // skip ws
+        while (i < len && ws(chars[i])) {
+            ++i;
+        }
+        breaks.push_back(i); // word start
+        // skip non-ws
+        while (i < len && !ws(chars[i])) {
+            ++i;
+        }
+        breaks.push_back(i); // word end
     }
-    assert(breaks[breaks.size()-1] == len);
+    assert(breaks[breaks.size() - 1] == len);
     return breaks;
 }
 
-static void drawrun(rive::Factory* factory, rive::Renderer* renderer,
-                    const rive::RenderGlyphRun& run, unsigned startIndex, unsigned endIndex, rive::Vec2D origin) {
+static void drawrun(rive::Factory* factory,
+                    rive::Renderer* renderer,
+                    const rive::RenderGlyphRun& run,
+                    unsigned startIndex,
+                    unsigned endIndex,
+                    rive::Vec2D origin) {
     auto font = run.font.get();
     const auto scale = rive::Mat2D::fromScale(run.size, run.size);
     auto paint = factory->makeRenderPaint();
@@ -51,12 +53,14 @@ static void drawrun(rive::Factory* factory, rive::Renderer* renderer,
         auto trans = rive::Mat2D::fromTranslate(origin.x + run.xpos[i], origin.y);
         auto rawpath = font->getPath(run.glyphs[i]);
         rawpath.transformInPlace(trans * scale);
-        auto path = factory->makeRenderPath(rawpath.points(), rawpath.verbsU8(), rive::FillRule::nonZero);
+        auto path =
+            factory->makeRenderPath(rawpath.points(), rawpath.verbsU8(), rive::FillRule::nonZero);
         renderer->drawPath(path.get(), paint.get());
     }
 }
 
-static void drawpara(rive::Factory* factory, rive::Renderer* renderer,
+static void drawpara(rive::Factory* factory,
+                     rive::Renderer* renderer,
                      rive::Span<const rive::RenderGlyphLine> lines,
                      rive::Span<const rive::RenderGlyphRun> runs,
                      rive::Vec2D origin) {
@@ -66,7 +70,11 @@ static void drawpara(rive::Factory* factory, rive::Renderer* renderer,
         for (int runIndex = line.startRun; runIndex <= line.endRun; ++runIndex) {
             const auto& run = runs[runIndex];
             int endGIndex = runIndex == line.endRun ? line.endIndex : run.glyphs.size();
-            drawrun(factory, renderer, run, startGIndex, endGIndex,
+            drawrun(factory,
+                    renderer,
+                    run,
+                    startGIndex,
+                    endGIndex,
                     {origin.x - x0, origin.y + line.baseline});
             startGIndex = 0;
         }
@@ -96,13 +104,14 @@ static rive::SkiaFactory skiaFactory;
 
 static rive::RenderTextRun append(std::vector<rive::Unichar>* unichars,
                                   rive::rcp<rive::RenderFont> font,
-                                  float size, const char text[]) {
+                                  float size,
+                                  const char text[]) {
     uint32_t n = 0;
     while (text[n]) {
-        unichars->push_back(text[n]);   // todo: utf8 -> unichar
+        unichars->push_back(text[n]); // todo: utf8 -> unichar
         n += 1;
     }
-    return { std::move(font), size, n };
+    return {std::move(font), size, n};
 }
 
 class TextContent : public ViewerContent {
@@ -133,8 +142,7 @@ class TextContent : public ViewerContent {
         assert(font0);
         assert(font1);
 
-        rive::RenderFont::Coord c1 = {'wght', 100.f},
-                                c2 = {'wght', 800.f};
+        rive::RenderFont::Coord c1 = {'wght', 100.f}, c2 = {'wght', 800.f};
 
         RenderFontTextRuns truns;
 
@@ -157,19 +165,19 @@ public:
         };
         for (auto f : factory) {
             auto truns = this->make_truns(f);
-            m_gruns.push_back(truns[0].font->shapeText(rive::toSpan(m_unichars),
-                                                       rive::toSpan(truns)));
+            m_gruns.push_back(
+                truns[0].font->shapeText(rive::toSpan(m_unichars), rive::toSpan(truns)));
         }
 
-        m_xform = rive::Mat2D::fromTranslate(10, 0)
-                * rive::Mat2D::fromScale(3, 3);
+        m_xform = rive::Mat2D::fromTranslate(10, 0) * rive::Mat2D::fromScale(3, 3);
     }
 
     void draw(rive::Renderer* renderer, float width, const RenderFontGlyphRuns& gruns) {
         renderer->save();
         renderer->transform(m_xform);
 
-        auto lines = rive::RenderGlyphLine::BreakLines(rive::toSpan(gruns), rive::toSpan(m_breaks), width);
+        auto lines =
+            rive::RenderGlyphLine::BreakLines(rive::toSpan(gruns), rive::toSpan(m_breaks), width);
 
         drawpara(&skiaFactory, renderer, rive::toSpan(lines), rive::toSpan(gruns), {0, 0});
         draw_line(&skiaFactory, renderer, width);
@@ -184,13 +192,12 @@ public:
             this->draw(&renderer, m_width, grun);
             renderer.translate(1200, 0);
         }
-
     }
 
     void handleResize(int width, int height) override {}
     void handleImgui() override {
         ImGui::Begin("text", nullptr);
-        ImGui::SliderFloat("Alignment", &m_width, 10, 400); 
+        ImGui::SliderFloat("Alignment", &m_width, 10, 400);
         ImGui::End();
     }
 };

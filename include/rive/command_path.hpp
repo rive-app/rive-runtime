@@ -34,9 +34,7 @@ namespace rive {
 
         void move(Vec2D v) { this->moveTo(v.x, v.y); }
         void line(Vec2D v) { this->lineTo(v.x, v.y); }
-        void cubic(Vec2D a, Vec2D b, Vec2D c) {
-            this->cubicTo(a.x, a.y, b.x, b.y, c.x, c.y);
-        }
+        void cubic(Vec2D a, Vec2D b, Vec2D c) { this->cubicTo(a.x, a.y, b.x, b.y, c.x, c.y); }
     };
 } // namespace rive
 #endif

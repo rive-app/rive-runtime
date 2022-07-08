@@ -25,8 +25,9 @@ public:
     std::vector<Coord> getCoords() const override;
     rive::rcp<rive::RenderFont> makeAtCoords(rive::Span<const Coord>) const override;
     rive::RawPath getPath(rive::GlyphID) const override;
-    std::vector<rive::RenderGlyphRun> onShapeText(rive::Span<const rive::Unichar>,
-                                                  rive::Span<const rive::RenderTextRun>) const override;
+    std::vector<rive::RenderGlyphRun>
+        onShapeText(rive::Span<const rive::Unichar>,
+                    rive::Span<const rive::RenderTextRun>) const override;
 
     static rive::rcp<rive::RenderFont> Decode(rive::Span<const uint8_t>);
 };

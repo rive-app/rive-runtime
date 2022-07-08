@@ -39,9 +39,8 @@ class RenderObjectLeakChecker {
 
 public:
     RenderObjectLeakChecker() {
-        std::copy(rive::Counter::counts,
-                  rive::Counter::counts + rive::Counter::kNumTypes,
-                  m_before);
+        std::copy(
+            rive::Counter::counts, rive::Counter::counts + rive::Counter::kNumTypes, m_before);
     }
     ~RenderObjectLeakChecker() {
         const int* after = rive::Counter::counts;

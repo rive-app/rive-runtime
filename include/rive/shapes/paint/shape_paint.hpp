@@ -31,7 +31,7 @@ namespace rive {
         virtual void draw(Renderer* renderer, CommandPath* path) = 0;
 
         RenderPaint* renderPaint() { return m_RenderPaint.get(); }
-    
+
         /// Get the component that represents the ShapePaintMutator for this
         /// ShapePaint. It'll be one of SolidColor, LinearGradient, or
         /// RadialGradient.

@@ -79,9 +79,7 @@ namespace rive {
     inline bool operator==(const Vec2D& a, const Vec2D& b) { return a.x == b.x && a.y == b.y; }
     inline bool operator!=(const Vec2D& a, const Vec2D& b) { return a.x != b.x || a.y != b.y; }
 
-    Vec2D Vec2D::lerp(Vec2D a, Vec2D b, float t) {
-        return a + (b - a) * t;
-    }
+    Vec2D Vec2D::lerp(Vec2D a, Vec2D b, float t) { return a + (b - a) * t; }
 
 } // namespace rive
 #endif

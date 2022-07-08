@@ -64,7 +64,7 @@ namespace rive {
     public:
         RenderPaint();
         virtual ~RenderPaint();
-    
+
         virtual void style(RenderPaintStyle style) = 0;
         virtual void color(ColorInt value) = 0;
         virtual void thickness(float value) = 0;

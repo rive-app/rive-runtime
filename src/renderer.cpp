@@ -69,13 +69,9 @@ void Renderer::rotate(float radians) {
     this->transform(Mat2D(c, s, -s, c, 0, 0));
 }
 
-RenderBuffer::RenderBuffer(size_t count) : m_Count(count) {
-    Counter::update(Counter::kBuffer, 1);
-}
+RenderBuffer::RenderBuffer(size_t count) : m_Count(count) { Counter::update(Counter::kBuffer, 1); }
 
-RenderBuffer::~RenderBuffer() {
-    Counter::update(Counter::kBuffer, -1);
-}
+RenderBuffer::~RenderBuffer() { Counter::update(Counter::kBuffer, -1); }
 
 RenderShader::RenderShader() { Counter::update(Counter::kShader, 1); }
 RenderShader::~RenderShader() { Counter::update(Counter::kShader, -1); }
@@ -91,8 +87,9 @@ RenderPath::~RenderPath() { Counter::update(Counter::kPath, -1); }
 
 #include "rive/render_text.hpp"
 
-std::vector<RenderGlyphRun> RenderFont::shapeText(rive::Span<const rive::Unichar> text,
-                                                  rive::Span<const rive::RenderTextRun> runs) const {
+std::vector<RenderGlyphRun>
+RenderFont::shapeText(rive::Span<const rive::Unichar> text,
+                      rive::Span<const rive::RenderTextRun> runs) const {
 #ifdef DEBUG
     size_t count = 0;
     for (const auto& tr : runs) {

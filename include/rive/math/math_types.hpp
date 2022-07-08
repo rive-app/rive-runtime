@@ -10,10 +10,10 @@
 
 namespace rive {
 
-namespace math {
-    constexpr float PI = 3.14159265f;
-}
+    namespace math {
+        constexpr float PI = 3.14159265f;
+    }
 
-}
+} // namespace rive
 
 #endif

@@ -37,9 +37,7 @@ namespace rive {
 
         RawPath transform(const Mat2D&) const;
         void transformInPlace(const Mat2D&);
-        RawPath operator*(const Mat2D& mat) const {
-            return this->transform(mat);
-        }
+        RawPath operator*(const Mat2D& mat) const { return this->transform(mat); }
 
         Span<const Vec2D> points() const { return toSpan(m_Points); }
         Span<Vec2D> points() { return toSpan(m_Points); }
@@ -73,21 +71,21 @@ namespace rive {
             const PathVerb* m_stopVerb; // 1 past last verb
         public:
             Iter(const RawPath& path) {
-                m_currPts  = path.m_Points.data();
+                m_currPts = path.m_Points.data();
                 m_currVerb = path.m_Verbs.data();
                 m_stopVerb = path.m_Verbs.data() + path.m_Verbs.size();
             }
-            
+
             struct Rec {
                 const Vec2D* pts;
                 int count;
                 PathVerb verb;
-                
+
                 operator bool() const { return pts != nullptr; }
             };
             Rec next();
         };
-    
+
         template <typename Handler> RawPath morph(Handler proc) const {
             RawPath dst;
             // todo: dst.reserve(src.ptCount, src.verbCount);
@@ -98,16 +96,25 @@ namespace rive {
                     pts[i] = proc(rec.pts[i]);
                 }
                 switch (rec.verb) {
-                    case PathVerb::move: dst.move(pts[0]); break;
-                    case PathVerb::line: dst.line(pts[0]); break;
-                    case PathVerb::quad: dst.quad(pts[0], pts[1]); break;
-                    case PathVerb::cubic: dst.cubic(pts[0], pts[1], pts[2]); break;
-                    case PathVerb::close: dst.close(); break;
+                    case PathVerb::move:
+                        dst.move(pts[0]);
+                        break;
+                    case PathVerb::line:
+                        dst.line(pts[0]);
+                        break;
+                    case PathVerb::quad:
+                        dst.quad(pts[0], pts[1]);
+                        break;
+                    case PathVerb::cubic:
+                        dst.cubic(pts[0], pts[1], pts[2]);
+                        break;
+                    case PathVerb::close:
+                        dst.close();
+                        break;
                 }
             }
             return dst;
         }
-
     };
 
 } // namespace rive

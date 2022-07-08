@@ -26,7 +26,7 @@ namespace rive {
         // Advance the animation by the specified time. Returns true if the
         // animation will continue to animate after this advance.
         bool advance(float seconds);
-    
+
         // Returns a pointer to the instance's animation
         const LinearAnimation* animation() const { return m_Animation; }
 
@@ -53,9 +53,7 @@ namespace rive {
         // Applies the animation instance to its artboard instance. The mix (a value
         // between 0 and 1) is the strength at which the animation is mixed with
         // other animations applied to the artboard.
-        void apply(float mix = 1.0f) const {
-            m_Animation->apply(m_ArtboardInstance, m_Time, mix);
-        }
+        void apply(float mix = 1.0f) const { m_Animation->apply(m_ArtboardInstance, m_Time, mix); }
 
         // Set when the animation is advanced, true if the animation has stopped
         // (oneShot), reached the end (loop), or changed direction (pingPong)
@@ -71,7 +69,7 @@ namespace rive {
         uint32_t duration() const;
         float speed() const;
         float startSeconds() const;
-    
+
         // Returns either the animation's default or overridden loop values
         Loop loop() const override { return (Loop)loopValue(); }
         int loopValue() const;
