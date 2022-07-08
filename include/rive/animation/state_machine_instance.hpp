@@ -46,6 +46,7 @@ namespace rive {
 
     public:
         StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
+        StateMachineInstance(StateMachineInstance const&) = delete;
         ~StateMachineInstance() override;
 
         // Advance the state machine by the specified time. Returns true if the

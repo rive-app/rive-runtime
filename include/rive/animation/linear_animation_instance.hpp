@@ -20,6 +20,7 @@ namespace rive {
 
     public:
         LinearAnimationInstance(const LinearAnimation*, ArtboardInstance*);
+        LinearAnimationInstance(LinearAnimationInstance const&);
         ~LinearAnimationInstance() override;
 
         // Advance the animation by the specified time. Returns true if the

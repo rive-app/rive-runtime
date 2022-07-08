@@ -24,6 +24,8 @@ namespace rive {
     public:
         virtual ~Scene() {}
     
+        Scene(Scene const& lhs) : m_ArtboardInstance(lhs.m_ArtboardInstance) {}
+
         float width() const;
         float height() const;
         AABB bounds() const { return {0, 0, this->width(), this->height()}; }

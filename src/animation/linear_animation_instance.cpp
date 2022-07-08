@@ -19,6 +19,20 @@ LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animatio
     Counter::update(Counter::kLinearAnimationInstance, +1);
 }
 
+LinearAnimationInstance::LinearAnimationInstance(LinearAnimationInstance const& lhs) :
+    Scene(lhs),
+    m_Animation(lhs.m_Animation),
+    m_Time(lhs.m_Time),
+    m_TotalTime(lhs.m_TotalTime),
+    m_LastTotalTime(lhs.m_LastTotalTime),
+    m_SpilledTime(lhs.m_SpilledTime),
+    m_Direction(lhs.m_Direction),
+    m_DidLoop(lhs.m_DidLoop),
+    m_LoopValue(lhs.m_LoopValue)
+{
+    Counter::update(Counter::kLinearAnimationInstance, +1);
+}
+
 LinearAnimationInstance::~LinearAnimationInstance() {
     Counter::update(Counter::kLinearAnimationInstance, -1);
 }
