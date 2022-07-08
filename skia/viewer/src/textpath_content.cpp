@@ -75,6 +75,15 @@ static void stroke_path(Renderer* renderer, const RawPath& path, float size, Col
     renderer->drawPath(make_rpath(path).get(), paint.get());
 }
 
+#if 0
+static void draw_line(Renderer* renderer, Vec2D a, Vec2D b, ColorInt color, float width = 1) {
+    RawPath path;
+    path.move(a);
+    path.line(b);
+    stroke_path(renderer, path, width, color);
+}
+#endif
+
 static void fill_rect(Renderer* renderer, const AABB& r, RenderPaint* paint) {
     RawPath rp;
     rp.addRect(r);
@@ -101,11 +110,16 @@ class TextPathContent : public ViewerContent {
     std::vector<Unichar> m_unichars;
     RenderFontGlyphRuns m_gruns;
     std::unique_ptr<RenderPaint> m_paint;
+    AABB m_gbounds;
 
     std::vector<Vec2D> m_pathpts;
     Vec2D m_lastPt = {0,0};
     int m_trackingIndex = -1;
     Mat2D m_trans;
+
+    Mat2D m_oneLineXform;
+    bool m_trackingOneLine = false;
+    float m_oneLineX = 0;
 
     float m_alignment = 0,
           m_scaleY = 1,
@@ -149,8 +163,24 @@ class TextPathContent : public ViewerContent {
 
 public:
     TextPathContent() {
+        auto compute_bounds = [](const std::vector<RenderGlyphRun>& gruns) {
+            AABB bounds = {};
+            for (const auto& gr : gruns) {
+                bounds.minY = std::min(bounds.minY, gr.font->lineMetrics().ascent * gr.size);
+                bounds.maxY = std::max(bounds.maxY, gr.font->lineMetrics().descent * gr.size);
+            }
+            bounds.minX = gruns.front().xpos.front();
+            bounds.maxX = gruns.back().xpos.back();
+            printf("%g %g %g %g\n", bounds.left(), bounds.top(), bounds.right(), bounds.bottom());
+            return bounds;
+        };
+
         auto truns = this->make_truns(CoreTextRenderFont::Decode);
+
         m_gruns = truns[0].font->shapeText(toSpan(m_unichars), toSpan(truns));
+
+        m_gbounds = compute_bounds(m_gruns);
+        m_oneLineXform = Mat2D::fromScale(2.5, 2.5) * Mat2D::fromTranslate(20, 80);
 
         m_paint = skiaFactory.makeRenderPaint();
         m_paint->color(0xFFFFFFFF);
@@ -231,13 +261,72 @@ public:
         renderer->restore();
     }
 
+    void drawOneLine(Renderer* renderer) {
+        auto paint = skiaFactory.makeRenderPaint();
+        paint->color(0xFF88FFFF);
+
+        const float radius = 50;
+        if (m_trackingOneLine) {
+            float mx = m_oneLineX / m_gbounds.width();
+            const ColorInt colors[] = { 0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF };
+            const float stops[] = { 0, mx / 2, mx, (1 + mx) / 2, 1 };
+            paint->shader(skiaFactory.makeLinearGradient(m_gbounds.left(), 0, m_gbounds.right(), 0,
+                                                         colors, stops, 5, RenderTileMode::clamp));
+        }
+
+        auto wrap_path = [](const RawPath& src, float x, float rad) {
+            return src.morph([x, rad](Vec2D p) {
+                Vec2D newpt = p;
+                float min = x - rad, max = x + rad;
+                if (min <= p.x && p.x <= max) {
+                    newpt.y = p.y * 3.5 + 15;
+                    newpt = Vec2D::lerp(newpt, p, std::abs(p.x - x) / rad);
+                }
+                return newpt;
+            });
+        };
+
+        visit(m_gruns, {0, 0}, [&](const RawPath& rp) {
+            const RawPath* ptr = &rp;
+            RawPath storage;
+            if (m_trackingOneLine) {
+                storage = wrap_path(rp, m_oneLineX, radius);
+                ptr = &storage;
+            }
+            renderer->drawPath(make_rpath(*ptr).get(), paint.get());
+        });
+    }
+
     void handleDraw(SkCanvas* canvas, double) override {
         SkiaRenderer renderer(canvas);
 
-       this->draw(&renderer, m_gruns);
+        renderer.save();
+        this->draw(&renderer, m_gruns);
+        renderer.restore();
+
+        renderer.save();
+        renderer.transform(m_oneLineXform);
+        this->drawOneLine(&renderer);
+        renderer.restore();
     }
 
     void handlePointerMove(float x, float y) override {
+        auto contains = [](const AABB& r, Vec2D p) {
+            return r.left() <= p.x && p.x < r.right() && r.top() <= p.y && p.y < r.bottom();
+        };
+
+        // are we on onLine?
+        {
+            m_trackingOneLine = false;
+            auto pos = m_oneLineXform.invertOrIdentity() * Vec2D{x, y};
+            if (contains(m_gbounds.inset(-8, 0), pos)) {
+                m_trackingOneLine = true;
+                m_oneLineX = pos.x;
+                return;
+            }
+        }
+
+        // are we on the path?
         m_lastPt = m_trans.invertOrIdentity() * Vec2D{x, y};
         if (m_trackingIndex >= 0) {
             m_pathpts[m_trackingIndex] = m_lastPt;

@@ -87,6 +87,27 @@ namespace rive {
             };
             Rec next();
         };
+    
+        template <typename Handler> RawPath morph(Handler proc) const {
+            RawPath dst;
+            // todo: dst.reserve(src.ptCount, src.verbCount);
+            RawPath::Iter iter(*this);
+            while (auto rec = iter.next()) {
+                Vec2D pts[3];
+                for (int i = 0; i < rec.count; ++i) {
+                    pts[i] = proc(rec.pts[i]);
+                }
+                switch (rec.verb) {
+                    case PathVerb::move: dst.move(pts[0]); break;
+                    case PathVerb::line: dst.line(pts[0]); break;
+                    case PathVerb::quad: dst.quad(pts[0], pts[1]); break;
+                    case PathVerb::cubic: dst.cubic(pts[0], pts[1], pts[2]); break;
+                    case PathVerb::close: dst.close(); break;
+                }
+            }
+            return dst;
+        }
+
     };
 
 } // namespace rive
