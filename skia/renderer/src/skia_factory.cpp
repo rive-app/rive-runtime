@@ -19,6 +19,8 @@
 
 using namespace rive;
 
+const SkSamplingOptions gSampling(SkFilterMode::kLinear, SkMipmapMode::kLinear);
+
 class SkiaRenderPath : public RenderPath {
 private:
     SkPath m_Path;
@@ -168,8 +170,7 @@ void SkiaRenderer::drawImage(const RenderImage* image, BlendMode blendMode, floa
     paint.setAlphaf(opacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
     auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image);
-    SkSamplingOptions sampling(SkFilterMode::kLinear);
-    m_Canvas->drawImage(skiaImage->skImage(), 0.0f, 0.0f, sampling, &paint);
+    m_Canvas->drawImage(skiaImage->skImage(), 0.0f, 0.0f, gSampling, &paint);
 }
 
 #define SKIA_BUG_13047
@@ -209,8 +210,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
 #endif
 
     auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image)->skImage();
-    const SkSamplingOptions sampling(SkFilterMode::kLinear);
-    auto shader = skiaImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, sampling, &scaleM);
+    auto shader = skiaImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, gSampling, &scaleM);
 
     SkPaint paint;
     paint.setAlphaf(opacity);
@@ -241,8 +241,7 @@ SkiaRenderImage::SkiaRenderImage(sk_sp<SkImage> image) : m_SkImage(std::move(ima
 rcp<RenderShader>
 SkiaRenderImage::makeShader(RenderTileMode tx, RenderTileMode ty, const Mat2D* localMatrix) const {
     const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
-    const SkSamplingOptions options(SkFilterMode::kLinear);
-    auto sh = m_SkImage->makeShader(ToSkia::convert(tx), ToSkia::convert(ty), options, &lm);
+    auto sh = m_SkImage->makeShader(ToSkia::convert(tx), ToSkia::convert(ty), gSampling, &lm);
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 
