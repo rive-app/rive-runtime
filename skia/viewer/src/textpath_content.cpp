@@ -118,6 +118,7 @@ class TextPathContent : public ViewerContent {
     Mat2D m_oneLineXform;
     bool m_trackingOneLine = false;
     float m_oneLineX = 0;
+    float m_flareRadius = 50;
 
     float m_alignment = 0, m_scaleY = 1, m_offsetY = 0,
           m_windowWidth = 1, // %
@@ -258,7 +259,6 @@ public:
         auto paint = skiaFactory.makeRenderPaint();
         paint->color(0xFF88FFFF);
 
-        const float radius = 50;
         if (m_trackingOneLine) {
             float mx = m_oneLineX / m_gbounds.width();
             const ColorInt colors[] = {0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF};
@@ -273,15 +273,26 @@ public:
                                                          RenderTileMode::clamp));
         }
 
+        struct EaseWindow {
+            float center, radius;
+
+            float map(float x) const {
+                float dist = std::abs(center - x);
+                if (dist > radius) {
+                    return 0;
+                }
+                float t = (radius - dist) / radius;
+                return t * t * (3 - 2 * t);
+            }
+        };
+
         auto wrap_path = [](const RawPath& src, float x, float rad) {
             return src.morph([x, rad](Vec2D p) {
                 Vec2D newpt = p;
-                float min = x - rad, max = x + rad;
-                if (min <= p.x && p.x <= max) {
-                    newpt.y = p.y * 3.5 + 15;
-                    newpt = Vec2D::lerp(newpt, p, std::abs(p.x - x) / rad);
-                }
-                return newpt;
+                newpt.y = p.y * 4 + 18;
+
+                const float t = EaseWindow{x, rad}.map(p.x);
+                return Vec2D::lerp(p, newpt, t);
             });
         };
 
@@ -289,7 +300,7 @@ public:
             const RawPath* ptr = &rp;
             RawPath storage;
             if (m_trackingOneLine) {
-                storage = wrap_path(rp, m_oneLineX, radius);
+                storage = wrap_path(rp, m_oneLineX, m_flareRadius);
                 ptr = &storage;
             }
             renderer->drawPath(make_rpath(*ptr).get(), paint.get());
@@ -352,6 +363,7 @@ public:
         ImGui::SliderFloat("Offset Y", &m_offsetY, -100, 100);
         ImGui::SliderFloat("Window Offset", &m_windowOffset, -1.1f, 1.1f);
         ImGui::SliderFloat("Window Width", &m_windowWidth, 0, 1.2f);
+        ImGui::SliderFloat("Flare radius", &m_flareRadius, 10, 100);
         ImGui::End();
     }
 };
