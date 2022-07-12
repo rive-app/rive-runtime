@@ -102,6 +102,8 @@ else
         getSkia
         build_skia_android
         # hmm not the appiest with this guy
-        OUTPUT_CACHE=out/"${CONFIG}"/$ARCH upload_cache
+        if [ "$CONFIG" != "debug" ]; then
+            OUTPUT_CACHE=out/"${CONFIG}"/$ARCH upload_cache
+        fi
     fi
 fi
