@@ -76,10 +76,12 @@ project "rive"
 
     filter {"system:macosx" }
         buildoptions {
-            "-flto=full",
             -- this triggers too much on linux, so just enable here for now
             "-Wimplicit-float-conversion",
         }
+
+    filter { "system:macosx", "configurations:release" }
+        buildoptions {"-flto=full"}
 
     filter {"system:ios" }
         buildoptions {"-flto=full"}
