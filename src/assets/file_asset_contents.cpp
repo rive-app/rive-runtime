@@ -10,7 +10,7 @@ StatusCode FileAssetContents::import(ImportStack& importStack) {
     if (fileAssetImporter == nullptr) {
         return StatusCode::MissingObject;
     }
-    fileAssetImporter->loadContents(*this);
+    fileAssetImporter->loadContents(std::unique_ptr<FileAssetContents>(this));
 
     return Super::import(importStack);
 }

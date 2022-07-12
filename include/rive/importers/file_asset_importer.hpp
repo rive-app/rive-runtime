@@ -17,10 +17,12 @@ namespace rive {
         FileAsset* m_FileAsset;
         FileAssetResolver* m_FileAssetResolver;
         Factory* m_Factory;
+        // we will delete this when we go out of scope
+        std::unique_ptr<FileAssetContents> m_Content;
 
     public:
         FileAssetImporter(FileAsset*, FileAssetResolver*, Factory*);
-        void loadContents(const FileAssetContents& contents);
+        void loadContents(std::unique_ptr<FileAssetContents> contents);
         StatusCode resolve() override;
     };
 } // namespace rive
