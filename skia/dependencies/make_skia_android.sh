@@ -93,15 +93,15 @@ build_skia_android() {
     cd ..
 }
 
-if is_build_cached_locally; then 
+if is_build_cached_locally; then
     echo "Build is cached, nothing to do."
 else
-    if is_build_cached_remotely; then 
+    if is_build_cached_remotely; then
         pull_cache
-    else 
+    else
         getSkia
         build_skia_android
         # hmm not the appiest with this guy
-        OUTPUT_CACHE=out/release/$ARCH upload_cache
-    fi 
+        OUTPUT_CACHE=out/"${CONFIG}"/$ARCH upload_cache
+    fi
 fi
