@@ -9,7 +9,12 @@
 
 using namespace rive;
 
-void StateMachineListener::addAction(ListenerAction* action) { m_Actions.push_back(action); }
+StateMachineListener::StateMachineListener() {}
+StateMachineListener::~StateMachineListener() {}
+
+void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action) {
+    m_Actions.push_back(std::move(action));
+}
 
 StatusCode StateMachineListener::import(ImportStack& importStack) {
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
@@ -23,7 +28,7 @@ StatusCode StateMachineListener::import(ImportStack& importStack) {
 
 const ListenerAction* StateMachineListener::action(size_t index) const {
     if (index < m_Actions.size()) {
-        return m_Actions[index];
+        return m_Actions[index].get();
     }
     return nullptr;
 }
@@ -59,7 +64,7 @@ StatusCode StateMachineListener::onAddedClean(CoreContext* context) {
 
 void StateMachineListener::performChanges(StateMachineInstance* stateMachineInstance,
                                           Vec2D position) const {
-    for (auto action : m_Actions) {
+    for (auto& action : m_Actions) {
         action->perform(stateMachineInstance, position);
     }
 }

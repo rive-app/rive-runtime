@@ -14,7 +14,7 @@ namespace rive {
     public:
         StateMachineListenerImporter(StateMachineListener* listener);
         const StateMachineListener* stateMachineListener() const { return m_StateMachineListener; }
-        void addAction(ListenerAction* action);
+        void addAction(std::unique_ptr<ListenerAction>);
         StatusCode resolve() override;
     };
 } // namespace rive

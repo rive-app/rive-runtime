@@ -14,6 +14,6 @@ StatusCode ListenerAction::import(ImportStack& importStack) {
         return StatusCode::MissingObject;
     }
 
-    stateMachineListenerImporter->addAction(this);
+    stateMachineListenerImporter->addAction(std::unique_ptr<ListenerAction>(this));
     return Super::import(importStack);
 }

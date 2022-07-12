@@ -14,10 +14,13 @@ namespace rive {
 
     private:
         std::vector<uint32_t> m_HitShapesIds;
-        std::vector<ListenerAction*> m_Actions;
-        void addAction(ListenerAction* action);
+        std::vector<std::unique_ptr<ListenerAction>> m_Actions;
+        void addAction(std::unique_ptr<ListenerAction>);
 
     public:
+        StateMachineListener();
+        ~StateMachineListener() override;
+
         ListenerType listenerType() const { return (ListenerType)listenerTypeValue(); }
         size_t actionCount() const { return m_Actions.size(); }
 
