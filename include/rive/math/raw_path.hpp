@@ -70,7 +70,10 @@ namespace rive {
             const PathVerb* m_currVerb;
             const PathVerb* m_stopVerb; // 1 past last verb
         public:
-            Iter(const RawPath& path) {
+            Iter() : m_currPts(nullptr), m_currVerb(nullptr), m_stopVerb(nullptr) {}
+            Iter(const RawPath& path) { this->reset(path); }
+
+            void reset(const RawPath& path) {
                 m_currPts = path.m_Points.data();
                 m_currVerb = path.m_Verbs.data();
                 m_stopVerb = path.m_Verbs.data() + path.m_Verbs.size();
@@ -84,6 +87,8 @@ namespace rive {
                 operator bool() const { return pts != nullptr; }
             };
             Rec next();
+
+            void backUp();
         };
 
         template <typename Handler> RawPath morph(Handler proc) const {

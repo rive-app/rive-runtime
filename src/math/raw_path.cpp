@@ -197,3 +197,9 @@ RawPath::Iter::Rec RawPath::Iter::next() {
     }
     return rec;
 }
+
+void RawPath::Iter::backUp() {
+    --m_currVerb;
+    const int n = path_verb_to_point_count(*m_currVerb);
+    m_currPts -= n;
+}

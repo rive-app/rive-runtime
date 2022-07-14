@@ -118,9 +118,13 @@ static bool is_close(const RawPath::Iter::Rec& rec) {
     return false;
 }
 
-TEST_CASE("rawpath-iter", "[rawpath]") {
-    auto eq = [](Vec2D p, float x, float y) { return p.x == x && p.y == y; };
+// clang-format off
+static inline bool eq(Vec2D p, float x, float y) {
+    return p.x == x && p.y == y;
+}
+// clang-format on
 
+TEST_CASE("rawpath-iter", "[rawpath]") {
     {
         RawPath rp;
         RawPath::Iter iter(rp);
@@ -150,4 +154,68 @@ TEST_CASE("rawpath-iter", "[rawpath]") {
         REQUIRE(rec == false);
         REQUIRE(iter.next() == false); // should be safe to call again
     }
+}
+
+TEST_CASE("reset", "[rawpath]") {
+    RawPath path;
+    path.moveTo(1, 2);
+    path.lineTo(3, 4);
+    RawPath::Iter iter(path);
+    auto rec = iter.next();
+    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
+    rec = iter.next();
+    REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
+    REQUIRE(!iter.next());
+
+    // now change the path (not required for the test per-se)
+    path = RawPath();
+    path.moveTo(0, 0);
+    path.close();
+
+    iter.reset(path);
+    rec = iter.next();
+    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 0, 0)));
+    rec = iter.next();
+    REQUIRE((rec && is_close(rec)));
+    REQUIRE(!iter.next());
+}
+
+TEST_CASE("backup", "[rawpath]") {
+    RawPath rp;
+    rp.moveTo(1, 2);
+    rp.lineTo(3, 4);
+    rp.close();
+    RawPath::Iter iter(rp);
+
+    auto rec = iter.next();
+    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
+    const Vec2D* move_pts = rec.pts;
+
+    rec = iter.next();
+    REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
+    const Vec2D* line_pts = rec.pts;
+
+    rec = iter.next();
+    REQUIRE((rec && is_close(rec)));
+
+    rec = iter.next();
+    REQUIRE(!rec);
+
+    // Now try backing up
+
+    iter.backUp(); // go back to 'close'
+    rec = iter.next();
+    REQUIRE((rec && is_close(rec)));
+
+    iter.backUp(); // go back to 'close'
+    iter.backUp(); // go back to 'line'
+    rec = iter.next();
+    REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
+    REQUIRE(rec.pts == line_pts);
+
+    iter.backUp(); // go back to 'line'
+    iter.backUp(); // go back to 'move'
+    rec = iter.next();
+    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
+    REQUIRE(rec.pts == move_pts);
 }
