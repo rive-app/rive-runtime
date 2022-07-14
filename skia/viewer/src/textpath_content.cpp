@@ -4,10 +4,10 @@
 
 #include "viewer_content.hpp"
 
+#include "rive/math/contour_measure.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
 
-#include "contour_measure.hpp"
 #include "skia_factory.hpp"
 #include "skia_renderer.hpp"
 #include "line_breaker.hpp"
@@ -51,6 +51,12 @@ static RawPath make_quad_path(Span<const Vec2D> pts) {
         }
     }
     return path;
+}
+
+static void warp_in_place(ContourMeasure* meas, RawPath* path) {
+    for (auto& pt : path->points()) {
+        pt = meas->warp(pt);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -225,8 +231,9 @@ public:
         RawPath warp = make_quad_path(toSpan(m_pathpts));
         this->draw_warp(renderer, warp);
 
-        ContourMeasure meas(warp);
-        const float warpLength = meas.length();
+        auto meas = ContourMeasureIter(warp).next();
+
+        const float warpLength = meas->length();
         const float textLength = gruns.back().xpos.back();
         const float offset = (warpLength - textLength) * m_alignment;
 
@@ -246,7 +253,8 @@ public:
                     this->modify(amount);
                 }
 
-                auto path = meas.warp(get_path(gr, i, offset));
+                auto path = get_path(gr, i, offset);
+                warp_in_place(meas.get(), &path);
                 renderer->drawPath(make_rpath(path).get(), m_paint.get());
                 glyphIndex += 1;
                 m_scaleY = scaleY;

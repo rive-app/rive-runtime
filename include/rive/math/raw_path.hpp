@@ -79,6 +79,9 @@ namespace rive {
                 m_stopVerb = path.m_Verbs.data() + path.m_Verbs.size();
             }
 
+            // returns true iff next() will return false
+            bool isDone() const { return m_currVerb >= m_stopVerb; }
+
             struct Rec {
                 const Vec2D* pts;
                 int count;

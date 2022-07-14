@@ -156,6 +156,23 @@ TEST_CASE("rawpath-iter", "[rawpath]") {
     }
 }
 
+TEST_CASE("isDone", "[rawpath::iter]") {
+    RawPath rp;
+    rp.moveTo(1, 2);
+    rp.lineTo(3, 4);
+    RawPath::Iter iter(rp);
+
+    REQUIRE(!iter.isDone()); // moveTo
+    REQUIRE(iter.next());
+
+    REQUIRE(!iter.isDone()); // lineTo
+    REQUIRE(iter.next());
+
+    REQUIRE(iter.isDone()); // now we're done
+    REQUIRE(!iter.next());
+    REQUIRE(iter.isDone()); // ensure we 'still' think we're done
+}
+
 TEST_CASE("reset", "[rawpath]") {
     RawPath path;
     path.moveTo(1, 2);
