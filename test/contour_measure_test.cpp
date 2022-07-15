@@ -76,7 +76,6 @@ TEST_CASE("contour-basics", "[contourmeasure]") {
 }
 
 TEST_CASE("multi-contours", "[contourmeasure]") {
-    return; // disabled for now, strange crash on windows
     const Vec2D pts[] = {
         {0, 0},
         {3, 0},
