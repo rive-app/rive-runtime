@@ -27,13 +27,8 @@ AABB RawPath::bounds() const {
 }
 
 void RawPath::move(Vec2D a) {
-    const auto n = m_Verbs.size();
-    if (n > 0 && m_Verbs[n - 1] == PathVerb::move) {
-        m_Points[n - 1] = a; // replace previous move position
-    } else {
-        m_Points.push_back(a);
-        m_Verbs.push_back(PathVerb::move);
-    }
+    m_Points.push_back(a);
+    m_Verbs.push_back(PathVerb::move);
 }
 
 void RawPath::line(Vec2D a) {
