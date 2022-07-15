@@ -33,6 +33,7 @@ public:
                     rive::Span<const rive::RenderTextRun>) const override;
 
     static rive::rcp<rive::RenderFont> Decode(rive::Span<const uint8_t>);
+    static rive::rcp<rive::RenderFont> FromCT(CTFontRef);
 };
 
 #endif

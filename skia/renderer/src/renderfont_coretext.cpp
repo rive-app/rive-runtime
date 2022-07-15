@@ -68,47 +68,6 @@ static std::vector<rive::RenderFont::Coord> compute_coords(CTFontRef font) {
     return coords;
 }
 
-rive::rcp<rive::RenderFont> CoreTextRenderFont::Decode(rive::Span<const uint8_t> span) {
-    AutoCF data = CFDataCreate(nullptr, span.data(), span.size()); // makes a copy
-    if (!data) {
-        assert(false);
-        return nullptr;
-    }
-
-    AutoCF desc = CTFontManagerCreateFontDescriptorFromData(data.get());
-    if (!desc) {
-        assert(false);
-        return nullptr;
-    }
-
-    CTFontOptions options = kCTFontOptionsPreventAutoActivation;
-
-    // Note: this may set the 'opsz' axis, which we need to undo...
-    auto ctfont = CTFontCreateWithFontDescriptorAndOptions(desc.get(), kStdScale, nullptr, options);
-    if (!ctfont) {
-        assert(false);
-        return nullptr;
-    }
-
-    auto axes = compute_axes(ctfont);
-    if (axes.size() > 0) {
-        constexpr uint32_t kOPSZ = make_tag('o', 'p', 's', 'z');
-        for (const auto& ax : axes) {
-            if (ax.tag == kOPSZ) {
-                auto xform = CGAffineTransformMakeScale(kStdScale / ax.def, kStdScale / ax.def);
-                // Recreate the font at this size, but with a balancing transform,
-                // so we get the 'default' shapes w.r.t. the opsz axis
-                auto newfont = CTFontCreateCopyWithAttributes(ctfont, ax.def, &xform, nullptr);
-                CFRelease(ctfont);
-                ctfont = newfont;
-                break;
-            }
-        }
-    }
-
-    return rive::rcp<rive::RenderFont>(new CoreTextRenderFont(ctfont, std::move(axes)));
-}
-
 static rive::RenderFont::LineMetrics make_lmx(CTFontRef font) {
     return {
         (float)-CTFontGetAscent(font) * gInvScale,
@@ -279,4 +238,64 @@ CoreTextRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
 
     return gruns;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+rive::rcp<rive::RenderFont> CoreTextRenderFont::FromCT(CTFontRef ctfont) {
+    if (!ctfont) {
+        return nullptr;
+    }
+
+    // We always want the ctfont at our magic size
+    if (CTFontGetSize(ctfont) != kStdScale) {
+        ctfont = CTFontCreateCopyWithAttributes(ctfont, kStdScale, nullptr, nullptr);
+    } else {
+        CFRetain(ctfont);
+    }
+
+    // Apple may have secretly set the opsz axis based on the size. We want to undo this
+    // since our stdsize isn't really the size we'll show it at.
+    auto axes = compute_axes(ctfont);
+    if (axes.size() > 0) {
+        constexpr uint32_t kOPSZ = make_tag('o', 'p', 's', 'z');
+        for (const auto& ax : axes) {
+            if (ax.tag == kOPSZ) {
+                auto xform = CGAffineTransformMakeScale(kStdScale / ax.def, kStdScale / ax.def);
+                // Recreate the font at this size, but with a balancing transform,
+                // so we get the 'default' shapes w.r.t. the opsz axis
+                auto newfont = CTFontCreateCopyWithAttributes(ctfont, ax.def, &xform, nullptr);
+                CFRelease(ctfont);
+                ctfont = newfont;
+                break;
+            }
+        }
+    }
+
+    return rive::rcp<rive::RenderFont>(new CoreTextRenderFont(ctfont, std::move(axes)));
+}
+
+rive::rcp<rive::RenderFont> CoreTextRenderFont::Decode(rive::Span<const uint8_t> span) {
+    AutoCF data = CFDataCreate(nullptr, span.data(), span.size()); // makes a copy
+    if (!data) {
+        assert(false);
+        return nullptr;
+    }
+
+    AutoCF desc = CTFontManagerCreateFontDescriptorFromData(data.get());
+    if (!desc) {
+        assert(false);
+        return nullptr;
+    }
+
+    CTFontOptions options = kCTFontOptionsPreventAutoActivation;
+
+    AutoCF ctfont =
+        CTFontCreateWithFontDescriptorAndOptions(desc.get(), kStdScale, nullptr, options);
+    if (!ctfont) {
+        assert(false);
+        return nullptr;
+    }
+    return FromCT(ctfont.get());
+}
+
 #endif

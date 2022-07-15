@@ -67,7 +67,6 @@ public:
 static inline float find_float(CFDictionaryRef dict, const void* key) {
     auto num = (CFNumberRef)CFDictionaryGetValue(dict, key);
     assert(num);
-    assert(CFNumberIsFloatType(num));
     float value = 0;
     CFNumberGetValue(num, kCFNumberFloat32Type, &value);
     return value;
