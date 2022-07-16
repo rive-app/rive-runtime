@@ -1,15 +1,14 @@
 /*
  * Copyright 2022 Rive
  */
-
+#include "rive/rive_types.hpp"
+#if defined(RIVE_BUILD_FOR_APPLE) && defined(RIVE_TEXT)
 #include "renderfont_coretext.hpp"
 #include "mac_utils.hpp"
 
 #include "rive/factory.hpp"
 #include "rive/render_text.hpp"
 #include "rive/core/type_conversions.hpp"
-
-#ifdef RIVE_BUILD_FOR_APPLE
 
 #if defined(RIVE_BUILD_FOR_OSX)
 #include <ApplicationServices/ApplicationServices.h>

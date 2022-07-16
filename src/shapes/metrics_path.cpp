@@ -1,6 +1,7 @@
 #include "rive/core/type_conversions.hpp"
 #include "rive/shapes/metrics_path.hpp"
 #include "rive/renderer.hpp"
+#include "rive/math/cubic_utilities.hpp"
 
 using namespace rive;
 
@@ -46,36 +47,8 @@ void MetricsPath::cubicTo(float ox, float oy, float ix, float iy, float x, float
 
 void MetricsPath::close() {}
 
-static void computeHull(const Vec2D& from,
-                        const Vec2D& fromOut,
-                        const Vec2D& toIn,
-                        const Vec2D& to,
-                        float t,
-                        Vec2D* hull) {
-    hull[0] = Vec2D::lerp(from, fromOut, t);
-    hull[1] = Vec2D::lerp(fromOut, toIn, t);
-    hull[2] = Vec2D::lerp(toIn, to, t);
-
-    hull[3] = Vec2D::lerp(hull[0], hull[1], t);
-    hull[4] = Vec2D::lerp(hull[1], hull[2], t);
-
-    hull[5] = Vec2D::lerp(hull[3], hull[4], t);
-}
-
 static const float minSegmentLength = 0.05f;
 static const float distTooFar = 1.0f;
-
-static bool tooFar(const Vec2D& a, const Vec2D& b) {
-    auto diff = a - b;
-    return std::max(std::abs(diff.x), std::abs(diff.y)) > distTooFar;
-}
-
-static bool
-shouldSplitCubic(const Vec2D& from, const Vec2D& fromOut, const Vec2D& toIn, const Vec2D& to) {
-    const Vec2D oneThird = Vec2D::lerp(from, to, 1.0f / 3.0f),
-                twoThird = Vec2D::lerp(from, to, 2.0f / 3.0f);
-    return tooFar(fromOut, oneThird) || tooFar(toIn, twoThird);
-}
 
 static float segmentCubic(const Vec2D& from,
                           const Vec2D& fromOut,
@@ -86,11 +59,11 @@ static float segmentCubic(const Vec2D& from,
                           float t2,
                           std::vector<CubicSegment>& segments) {
 
-    if (shouldSplitCubic(from, fromOut, toIn, to)) {
+    if (CubicUtilities::shouldSplitCubic(from, fromOut, toIn, to, distTooFar)) {
         float halfT = (t1 + t2) / 2.0f;
 
         Vec2D hull[6];
-        computeHull(from, fromOut, toIn, to, 0.5f, hull);
+        CubicUtilities::computeHull(from, fromOut, toIn, to, 0.5f, hull);
 
         runningLength =
             segmentCubic(from, hull[0], hull[3], hull[5], runningLength, t1, halfT, segments);
@@ -315,14 +288,14 @@ void MetricsPath::extractSubPart(
 
             if (startT == 0.0f) {
                 // Start is 0, so split at end and keep the left side.
-                computeHull(from, fromOut, toIn, to, endT, hull);
+                CubicUtilities::computeHull(from, fromOut, toIn, to, endT, hull);
                 if (moveTo) {
                     result->move(from);
                 }
                 result->cubic(hull[0], hull[3], hull[5]);
             } else {
                 // Split at start since it's non 0.
-                computeHull(from, fromOut, toIn, to, startT, hull);
+                CubicUtilities::computeHull(from, fromOut, toIn, to, startT, hull);
                 if (moveTo) {
                     // Move to first point on the right side.
                     result->move(hull[5]);
@@ -334,7 +307,7 @@ void MetricsPath::extractSubPart(
                 } else {
                     // End is not 1, so split again and cubic to the left side
                     // of the split and remap endT to the new curve range
-                    computeHull(
+                    CubicUtilities::computeHull(
                         hull[5], hull[4], hull[2], to, (endT - startT) / (1.0f - startT), hull);
 
                     result->cubic(hull[0], hull[3], hull[5]);

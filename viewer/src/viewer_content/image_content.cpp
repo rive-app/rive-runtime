@@ -1,8 +1,8 @@
 /*
  * Copyright 2022 Rive
  */
-
-#include "viewer_content.hpp"
+#ifdef RIVE_RENDERER_SKIA
+#include "viewer/viewer_content.hpp"
 
 #include "include/core/SkData.h"
 #include "include/core/SkImage.h"
@@ -13,7 +13,10 @@ class ImageContent : public ViewerContent {
 public:
     ImageContent(sk_sp<SkImage> image) : m_image(std::move(image)) {}
 
-    void handleDraw(SkCanvas* canvas, double) override { canvas->drawImage(m_image, 0, 0); }
+    void handleDraw(rive::Renderer* renderer, double) override {
+        auto canvas = skiaCanvas(renderer);
+        canvas->drawImage(m_image, 0, 0);
+    }
 
     void handleResize(int width, int height) override {}
     void handleImgui() override {}
@@ -27,3 +30,4 @@ std::unique_ptr<ViewerContent> ViewerContent::Image(const char filename[]) {
     }
     return nullptr;
 }
+#endif

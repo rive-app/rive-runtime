@@ -101,7 +101,8 @@
         "concepts": "cpp",
         "scoped_allocator": "cpp",
         "span": "cpp",
-        "typeindex": "cpp"
+        "typeindex": "cpp",
+        "filesystem": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

@@ -2,6 +2,13 @@ workspace "rive"
 configurations {"debug", "release"}
 
 SKIA_DIR = os.getenv('SKIA_DIR') or 'skia'
+dependencies = os.getenv('DEPENDENCIES')
+
+if dependencies ~= nil then
+    SKIA_DIR = dependencies .. '/skia'
+else
+    SKIA_DIR = "../../dependencies/" .. SKIA_DIR
+end
 
 project "rive_skia_renderer"
     kind "StaticLib"
@@ -35,25 +42,24 @@ project "rive_skia_renderer"
     libdirs {"../../../build/%{cfg.system}/bin/%{cfg.buildcfg}"}
 
     files {
-        "../src/skia_factory.cpp",
-        "../src/cg_skia_factory.cpp",
+        "../src/**.cpp"
     }
 
     buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
 
     filter {"system:macosx" }
         buildoptions {"-flto=full"}
-        includedirs {"../../dependencies/" .. SKIA_DIR}
-        libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/static"}
+        includedirs {SKIA_DIR}
+        libdirs {SKIA_DIR.. "/out/static"}
 
     filter {"system:linux or windows" }
-        includedirs {"../../dependencies/" .. SKIA_DIR}
-        libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/static"}
+        includedirs {SKIA_DIR}
+        libdirs {SKIA_DIR.. "/out/static"}
 
     filter {"system:ios" }
         buildoptions {"-flto=full"}
-        includedirs {"../../dependencies/".. SKIA_DIR}
-        libdirs {"../../dependencies/".. SKIA_DIR.. "/out/static"}
+        includedirs {SKIA_DIR}
+        libdirs {SKIA_DIR.. "/out/static"}
 
     filter {"system:ios", "options:variant=system" }
         buildoptions {"-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
@@ -68,27 +74,27 @@ project "rive_skia_renderer"
 
     -- Is there a way to pass 'arch' as a variable here?
     filter { "system:android" }
-        includedirs {"../../dependencies/".. SKIA_DIR}
+        includedirs {SKIA_DIR}
         
         filter { "system:android", "options:arch=x86" }
             targetdir "%{cfg.system}/x86/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/x86/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/x86"}
+            libdirs {SKIA_DIR.. "/out/x86"}
 
         filter { "system:android", "options:arch=x64" }
             targetdir "%{cfg.system}/x64/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/x64/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/x64"}
+            libdirs {SKIA_DIR.. "/out/x64"}
 
         filter { "system:android", "options:arch=arm" }
             targetdir "%{cfg.system}/arm/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/arm/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/arm"}
+            libdirs {SKIA_DIR.. "/out/arm"}
 
         filter { "system:android", "options:arch=arm64" }
             targetdir "%{cfg.system}/arm64/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/arm64/obj/%{cfg.buildcfg}"
-            libdirs {"../../dependencies/" .. SKIA_DIR.. "/out/arm64"}
+            libdirs {SKIA_DIR.. "/out/arm64"}
             
     filter "configurations:debug"
         buildoptions {"-g"}
@@ -98,6 +104,14 @@ project "rive_skia_renderer"
     filter "configurations:release"
         defines {"RELEASE", "NDEBUG"}
         optimize "On"
+
+    filter {"options:with-text" }
+        defines {"RIVE_TEXT"}
+    
+newoption {
+    trigger = "with-text",
+    description = "Enables text experiments"
+}
 
 newoption {
     trigger = "variant",

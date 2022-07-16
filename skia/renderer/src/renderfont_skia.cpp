@@ -1,7 +1,7 @@
 /*
  * Copyright 2022 Rive
  */
-
+#ifdef RIVE_TEXT
 #include "rive/factory.hpp"
 #include "rive/render_text.hpp"
 #include "renderfont_skia.hpp"
@@ -176,3 +176,4 @@ SkiaRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
 
     return gruns;
 }
+#endif

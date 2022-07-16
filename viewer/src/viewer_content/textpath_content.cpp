@@ -2,17 +2,16 @@
  * Copyright 2022 Rive
  */
 
-#include "viewer_content.hpp"
+// Currently only supports skia renderer.
+#ifdef RIVE_RENDERER_SKIA
+#include "viewer/viewer_content.hpp"
 
-#include "rive/math/contour_measure.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
 
-#include "skia_factory.hpp"
-#include "skia_renderer.hpp"
+#include "rive/math/contour_measure.hpp"
 #include "line_breaker.hpp"
 #include "to_skia.hpp"
-
 using namespace rive;
 
 using RenderFontTextRuns = std::vector<RenderTextRun>;
@@ -65,14 +64,13 @@ static void warp_in_place(ContourMeasure* meas, RawPath* path) {
 #include "renderfont_hb.hpp"
 #include "renderfont_coretext.hpp"
 
-static SkiaFactory skiaFactory;
-
 static std::unique_ptr<RenderPath> make_rpath(const RawPath& path) {
-    return skiaFactory.makeRenderPath(path.points(), path.verbsU8(), FillRule::nonZero);
+    return ViewerContent::RiveFactory()->makeRenderPath(
+        path.points(), path.verbsU8(), FillRule::nonZero);
 }
 
 static void stroke_path(Renderer* renderer, const RawPath& path, float size, ColorInt color) {
-    auto paint = skiaFactory.makeRenderPaint();
+    auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
     paint->color(color);
     paint->thickness(size);
     paint->style(RenderPaintStyle::stroke);
@@ -141,8 +139,8 @@ class TextPathContent : public ViewerContent {
         };
 
         const char* fontFiles[] = {
-            "../../test/assets/RobotoFlex.ttf",
-            "../../test/assets/LibreBodoni-Italic-VariableFont_wght.ttf",
+            "../../../test/assets/RobotoFlex.ttf",
+            "../../../test/assets/LibreBodoni-Italic-VariableFont_wght.ttf",
         };
 
         auto font0 = loader(fontFiles[0]);
@@ -184,7 +182,7 @@ public:
         m_gbounds = compute_bounds(m_gruns);
         m_oneLineXform = Mat2D::fromScale(2.5, 2.5) * Mat2D::fromTranslate(20, 80);
 
-        m_paint = skiaFactory.makeRenderPaint();
+        m_paint = ViewerContent::RiveFactory()->makeRenderPaint();
         m_paint->color(0xFFFFFFFF);
 
         m_pathpts.push_back({20, 300});
@@ -199,7 +197,7 @@ public:
     void draw_warp(Renderer* renderer, const RawPath& warp) {
         stroke_path(renderer, warp, 0.5, 0xFF00FF00);
 
-        auto paint = skiaFactory.makeRenderPaint();
+        auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
         paint->color(0xFF008800);
         const float r = 4;
         for (auto p : m_pathpts) {
@@ -264,21 +262,21 @@ public:
     }
 
     void drawOneLine(Renderer* renderer) {
-        auto paint = skiaFactory.makeRenderPaint();
+        auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
         paint->color(0xFF88FFFF);
 
         if (m_trackingOneLine) {
             float mx = m_oneLineX / m_gbounds.width();
             const ColorInt colors[] = {0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF};
             const float stops[] = {0, mx / 2, mx, (1 + mx) / 2, 1};
-            paint->shader(skiaFactory.makeLinearGradient(m_gbounds.left(),
-                                                         0,
-                                                         m_gbounds.right(),
-                                                         0,
-                                                         colors,
-                                                         stops,
-                                                         5,
-                                                         RenderTileMode::clamp));
+            paint->shader(ViewerContent::RiveFactory()->makeLinearGradient(m_gbounds.left(),
+                                                                           0,
+                                                                           m_gbounds.right(),
+                                                                           0,
+                                                                           colors,
+                                                                           stops,
+                                                                           5,
+                                                                           RenderTileMode::clamp));
         }
 
         struct EaseWindow {
@@ -315,17 +313,15 @@ public:
         });
     }
 
-    void handleDraw(SkCanvas* canvas, double) override {
-        SkiaRenderer renderer(canvas);
+    void handleDraw(rive::Renderer* renderer, double) override {
+        renderer->save();
+        this->draw(renderer, m_gruns);
+        renderer->restore();
 
-        renderer.save();
-        this->draw(&renderer, m_gruns);
-        renderer.restore();
-
-        renderer.save();
-        renderer.transform(m_oneLineXform);
-        this->drawOneLine(&renderer);
-        renderer.restore();
+        renderer->save();
+        renderer->transform(m_oneLineXform);
+        this->drawOneLine(renderer);
+        renderer->restore();
     }
 
     void handlePointerMove(float x, float y) override {
@@ -350,7 +346,7 @@ public:
             m_pathpts[m_trackingIndex] = m_lastPt;
         }
     }
-    void handlePointerDown() override {
+    void handlePointerDown(float x, float y) override {
         auto close_to = [](Vec2D a, Vec2D b) { return Vec2D::distance(a, b) <= 10; };
         for (size_t i = 0; i < m_pathpts.size(); ++i) {
             if (close_to(m_lastPt, m_pathpts[i])) {
@@ -360,7 +356,7 @@ public:
         }
     }
 
-    void handlePointerUp() override { m_trackingIndex = -1; }
+    void handlePointerUp(float x, float y) override { m_trackingIndex = -1; }
 
     void handleResize(int width, int height) override {}
 
@@ -379,3 +375,4 @@ public:
 std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) {
     return std::make_unique<TextPathContent>();
 }
+#endif

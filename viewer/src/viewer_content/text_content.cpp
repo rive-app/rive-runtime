@@ -2,13 +2,14 @@
  * Copyright 2022 Rive
  */
 
-#include "viewer_content.hpp"
+// Currently only compatible with the skia renderer because line_breaker is from there.
+#ifdef RIVE_RENDERER_SKIA
+#include "viewer/viewer_content.hpp"
 
+#include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
 
-#include "skia_factory.hpp"
-#include "skia_renderer.hpp"
 #include "line_breaker.hpp"
 
 using RenderFontTextRuns = std::vector<rive::RenderTextRun>;
@@ -100,8 +101,6 @@ static void draw_line(rive::Factory* factory, rive::Renderer* renderer, float x)
     renderer->drawPath(path.get(), paint.get());
 }
 
-static rive::SkiaFactory skiaFactory;
-
 static rive::RenderTextRun append(std::vector<rive::Unichar>* unichars,
                                   rive::rcp<rive::RenderFont> font,
                                   float size,
@@ -133,8 +132,8 @@ class TextContent : public ViewerContent {
         };
 
         const char* fontFiles[] = {
-            "../../test/assets/RobotoFlex.ttf",
-            "../../test/assets/LibreBodoni-Italic-VariableFont_wght.ttf",
+            "../../../test/assets/RobotoFlex.ttf",
+            "../../../test/assets/LibreBodoni-Italic-VariableFont_wght.ttf",
         };
 
         auto font0 = loader(fontFiles[0]);
@@ -179,18 +178,16 @@ public:
         auto lines =
             rive::RenderGlyphLine::BreakLines(rive::toSpan(gruns), rive::toSpan(m_breaks), width);
 
-        drawpara(&skiaFactory, renderer, rive::toSpan(lines), rive::toSpan(gruns), {0, 0});
-        draw_line(&skiaFactory, renderer, width);
+        drawpara(RiveFactory(), renderer, rive::toSpan(lines), rive::toSpan(gruns), {0, 0});
+        draw_line(RiveFactory(), renderer, width);
 
         renderer->restore();
     }
 
-    void handleDraw(SkCanvas* canvas, double) override {
-        rive::SkiaRenderer renderer(canvas);
-
+    void handleDraw(rive::Renderer* renderer, double) override {
         for (auto& grun : m_gruns) {
-            this->draw(&renderer, m_width, grun);
-            renderer.translate(1200, 0);
+            this->draw(renderer, m_width, grun);
+            renderer->translate(1200, 0);
         }
     }
 
@@ -222,3 +219,4 @@ std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[]) {
     }
     return nullptr;
 }
+#endif

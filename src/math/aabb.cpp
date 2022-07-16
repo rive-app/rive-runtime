@@ -36,3 +36,20 @@ IAABB AABB::round() const {
         graphics_round(bottom()),
     };
 }
+
+void AABB::expandTo(AABB& out, const Vec2D& point) { expandTo(out, point.x, point.y); }
+
+void AABB::expandTo(AABB& out, float x, float y) {
+    if (x < out.minX) {
+        out.minX = x;
+    }
+    if (x > out.maxX) {
+        out.maxX = x;
+    }
+    if (y < out.minY) {
+        out.minY = y;
+    }
+    if (y > out.maxY) {
+        out.maxY = y;
+    }
+}

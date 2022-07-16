@@ -5,6 +5,7 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 #include <cstddef>
+#include <limits>
 
 namespace rive {
     struct IAABB {
@@ -60,6 +61,23 @@ namespace rive {
         }
 
         IAABB round() const;
+
+        ///
+        /// Initialize an AABB to values that represent an invalid/collapsed
+        /// AABB that can then expand to points that are added to it.
+        ///
+        inline static AABB forExpansion() {
+            return AABB(std::numeric_limits<float>::max(),
+                        std::numeric_limits<float>::max(),
+                        -std::numeric_limits<float>::max(),
+                        -std::numeric_limits<float>::max());
+        }
+
+        ///
+        /// Grow the AABB to fit the point.
+        ///
+        static void expandTo(AABB& out, const Vec2D& point);
+        static void expandTo(AABB& out, float x, float y);
     };
 
 } // namespace rive
