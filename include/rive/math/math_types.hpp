@@ -14,6 +14,8 @@ namespace rive {
         constexpr float PI = 3.14159265f;
     }
 
+    template <typename T> T lerp(const T& a, const T& b, float t) { return a + (b - a) * t; }
+
 } // namespace rive
 
 #endif

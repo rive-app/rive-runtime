@@ -54,6 +54,16 @@ namespace rive {
     extern int computeApproximatingQuadLineSegments(const Vec2D bezier[3], float invTolerance);
 
     extern int computeApproximatingCubicLineSegments(const Vec2D bezier[4], float invTolerance);
+
+    // Extract a subcurve from the curve (given start and end t-values)
+
+    extern void quad_subdivide(const Vec2D src[3], float t, Vec2D dst[5]);
+    extern void cubic_subdivide(const Vec2D src[4], float t, Vec2D dst[7]);
+
+    extern void line_extract(const Vec2D src[2], float startT, float endT, Vec2D dst[2]);
+    extern void quad_extract(const Vec2D src[3], float startT, float endT, Vec2D dst[3]);
+    extern void cubic_extract(const Vec2D src[4], float startT, float endT, Vec2D dst[4]);
+
 } // namespace rive
 
 #endif

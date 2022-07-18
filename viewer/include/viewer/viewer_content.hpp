@@ -52,6 +52,7 @@ public:
 
     // Private factories...
     static std::unique_ptr<ViewerContent> Scene(const char[]);
+    static std::unique_ptr<ViewerContent> TrimPath(const char[]);
 #ifdef RIVE_RENDERER_SKIA
     // Helper to get the canvas from a rive::Renderer. We know that when we're
     // using the skia renderer our viewer always creates a skia renderer.

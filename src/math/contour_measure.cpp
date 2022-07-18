@@ -10,8 +10,6 @@
 
 using namespace rive;
 
-template <typename T> T lerp(const T& a, const T& b, float t) { return a + (b - a) * t; }
-
 enum SegmentType { // must fit in 2 bits
     kLine,
     kQuad,
@@ -76,6 +74,52 @@ static ContourMeasure::PosTan eval_cubic(const Vec2D pts[], float t) {
     };
 }
 
+void ContourMeasure::Segment::extract(RawPath* dst, const Vec2D pts[]) const {
+    pts += m_ptIndex;
+    switch (m_type) {
+        case SegmentType::kLine:
+            dst->line(pts[1]);
+            break;
+        case SegmentType::kQuad:
+            dst->quad(pts[1], pts[2]);
+            break;
+        case SegmentType::kCubic:
+            dst->cubic(pts[1], pts[2], pts[3]);
+            break;
+    }
+}
+
+void ContourMeasure::Segment::extract(
+    RawPath* dst, float fromT, float toT, const Vec2D pts[], bool moveTo) const {
+    assert(fromT <= toT);
+    pts += m_ptIndex;
+
+    Vec2D tmp[4];
+    switch (m_type) {
+        case SegmentType::kLine:
+            line_extract(pts, fromT, toT, tmp);
+            if (moveTo) {
+                dst->move(tmp[0]);
+            }
+            dst->line(tmp[1]);
+            break;
+        case SegmentType::kQuad:
+            quad_extract(pts, fromT, toT, tmp);
+            if (moveTo) {
+                dst->move(tmp[0]);
+            }
+            dst->quad(tmp[1], tmp[2]);
+            break;
+        case SegmentType::kCubic:
+            cubic_extract(pts, fromT, toT, tmp);
+            if (moveTo) {
+                dst->move(tmp[0]);
+            }
+            dst->cubic(tmp[1], tmp[2], tmp[3]);
+            break;
+    }
+}
+
 ContourMeasure::PosTan ContourMeasure::getPosTan(float distance) const {
     // specal-case end of the contour
     if (distance >= m_length) {
@@ -129,6 +173,70 @@ ContourMeasure::PosTan ContourMeasure::getPosTan(float distance) const {
         assert(seg.m_type == SegmentType::kCubic);
         assert(seg.m_ptIndex + 3 < m_points.size());
         return eval_cubic(&m_points[seg.m_ptIndex], t);
+    }
+}
+
+static const ContourMeasure::Segment* next_segment_beginning(const ContourMeasure::Segment* seg) {
+    auto startingPtIndex = seg->m_ptIndex;
+    do {
+        seg += 1;
+    } while (seg->m_ptIndex == startingPtIndex);
+    return seg;
+}
+
+// Compute the (interpolated) t for a distance within the index'th segment
+static float compute_t(Span<const ContourMeasure::Segment> segs, size_t index, float distance) {
+    const auto seg = segs[index];
+    assert(distance <= seg.m_distance);
+
+    float prevDist = 0, prevT = 0;
+    if (index > 0) {
+        const auto prev = segs[index - 1];
+        prevDist = prev.m_distance;
+        if (prev.m_ptIndex == seg.m_ptIndex) {
+            prevT = prev.getT();
+        }
+    }
+
+    assert(prevDist < seg.m_distance);
+    const auto ratio = (distance - prevDist) / (seg.m_distance - prevDist);
+    return lerp(prevT, seg.getT(), ratio);
+}
+
+void ContourMeasure::getSegment(float startDist,
+                                float endDist,
+                                RawPath* dst,
+                                bool startWithMove) const {
+    // sanitize the inputs
+    startDist = std::max(0.f, startDist);
+    endDist = std::min(m_length, endDist);
+    if (startDist >= endDist) {
+        return;
+    }
+
+    const auto startIndex = this->findSegment(startDist);
+    const auto endIndex = this->findSegment(endDist);
+
+    const auto start = m_segments[startIndex];
+    const auto end = m_segments[endIndex];
+
+    const auto startT = compute_t(toSpan(m_segments), startIndex, startDist);
+    const auto endT = compute_t(toSpan(m_segments), endIndex, endDist);
+
+    if (start.m_ptIndex == end.m_ptIndex) {
+        start.extract(dst, startT, endT, m_points.data(), startWithMove);
+    } else {
+        start.extract(dst, startT, 1, m_points.data(), startWithMove);
+
+        // now scoop up all the segments after start, and before end
+        const auto* seg = next_segment_beginning(&m_segments[startIndex]);
+        while (seg->m_ptIndex != end.m_ptIndex) {
+            seg->extract(dst, m_points.data());
+            seg = next_segment_beginning(seg);
+        }
+        assert(seg->m_ptIndex == end.m_ptIndex);
+
+        end.extract(dst, 0, endT, m_points.data(), false);
     }
 }
 

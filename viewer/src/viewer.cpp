@@ -23,7 +23,7 @@ sk_sp<SkSurface> g_SkiaSurface;
 #include "rive/tess/sokol/sokol_tess_renderer.hpp"
 std::unique_ptr<rive::SokolTessRenderer> g_TessRenderer;
 #endif
-std::unique_ptr<ViewerContent> g_Content;
+std::unique_ptr<ViewerContent> g_Content = ViewerContent::TrimPath("");
 static struct { sg_pass_action pass_action; } state;
 
 void displayStats();

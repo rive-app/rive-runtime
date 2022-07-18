@@ -27,6 +27,10 @@ namespace rive {
             float getT() const { return m_tValue * kInvScaleD30; }
 
             bool operator<(const Segment& other) const { return m_distance < other.m_distance; }
+
+            void
+            extract(RawPath* dst, float fromT, float toT, const Vec2D pts[], bool moveTo) const;
+            void extract(RawPath* dst, const Vec2D pts[]) const;
         };
 
     private:
@@ -49,6 +53,9 @@ namespace rive {
             Vec2D pos, tan;
         };
         PosTan getPosTan(float distance) const;
+
+        void
+        getSegment(float startDistance, float endDistance, RawPath* dst, bool startWithMove) const;
 
         Vec2D warp(Vec2D src) const {
             const auto result = this->getPosTan(src.x);
