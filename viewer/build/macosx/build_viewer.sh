@@ -20,6 +20,9 @@ for var in "$@"; do
     if [[ $var = "metal" ]]; then
         GRAPHICS=metal
     fi
+    if [[ $var = "tess" ]]; then
+        RENDERER=tess
+    fi
     if [[ $var = "skia" ]]; then
         RENDERER=skia
     fi
@@ -37,6 +40,12 @@ if [[ ! -d "$DEPENDENCIES/imgui" ]]; then
     popd
 fi
 
+if [[ $RENDERER = "tess" ]] && [[ ! -d "$DEPENDENCIES/libpng" ]]; then
+    pushd $DEPENDENCIES_SCRIPTS
+    ./get_libpng.sh
+    popd
+fi
+
 pushd ../../../build/macosx
 ./build_rive.sh $CONFIG
 popd
@@ -44,6 +53,12 @@ popd
 if [ $RENDERER = "skia" ]; then
     pushd ../../../skia/renderer/build/macosx
     ./build_skia_renderer.sh text $@
+    popd
+fi
+
+if [ $RENDERER = "tess" ]; then
+    pushd ../../../tess/build/macosx
+    ./build_tess.sh $@
     popd
 fi
 

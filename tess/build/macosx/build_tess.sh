@@ -1,0 +1,53 @@
+#!/bin/sh
+set -e
+
+source ../../../dependencies/macosx/config_directories.sh
+
+if [[ ! -f "$DEPENDENCIES/bin/premake5" ]]; then
+    pushd $DEPENDENCIES_SCRIPTS
+    ./get_premake5.sh
+    popd
+fi
+
+if [[ ! -d "$DEPENDENCIES/sokol" ]]; then
+    pushd $DEPENDENCIES_SCRIPTS
+    ./get_sokol.sh
+    popd
+fi
+
+export PREMAKE=$DEPENDENCIES/bin/premake5
+pushd ..
+
+CONFIG=debug
+GRAPHICS=gl
+
+for var in "$@"; do
+    if [[ $var = "release" ]]; then
+        CONFIG=release
+    fi
+    if [[ $var = "gl" ]]; then
+        GRAPHICS=gl
+    fi
+    if [[ $var = "d3d" ]]; then
+        GRAPHICS=d3d
+    fi
+    if [[ $var = "metal" ]]; then
+        GRAPHICS=metal
+    fi
+done
+
+$PREMAKE --file=./premake5_tess.lua gmake2 --graphics=$GRAPHICS
+
+for var in "$@"; do
+    if [[ $var = "clean" ]]; then
+        make clean
+        make config=release clean
+    fi
+done
+
+# compile shaders
+$DEPENDENCIES/bin/sokol-shdc --input ../src/sokol/shader.glsl --output ../src/sokol/generated/shader.h --slang glsl330:hlsl5:metal_macos
+
+make config=$CONFIG -j$(($(sysctl -n hw.physicalcpu) + 1))
+
+popd

@@ -7,12 +7,20 @@ configurations {
 dependencies = os.getenv('DEPENDENCIES')
 
 rive = '../../'
+rive_tess = '../../tess'
 rive_skia = '../../skia'
 skia = dependencies .. '/skia'
 libpng = dependencies .. '/libpng'
 
+if _OPTIONS.renderer == 'tess' then
+    dofile('premake5_libpng.lua')
+end
+
 project 'rive_viewer'
 do
+    if _OPTIONS.renderer == 'tess' then
+        dependson 'libpng'
+    end
     kind 'ConsoleApp'
     language 'C++'
     cppdialect 'C++17'
@@ -84,6 +92,58 @@ do
             'Metal.framework',
             'MetalKit.framework',
             'QuartzCore.framework'
+        }
+    end
+
+    -- Tess Renderer Configuration
+    filter {
+        'options:renderer=tess'
+    }
+    do
+        includedirs {
+            rive_tess .. '/include',
+            libpng
+        }
+        defines {
+            'RIVE_RENDERER_TESS'
+        }
+        links {
+            'rive_tess_renderer',
+            'libpng',
+            'zlib'
+        }
+        libdirs {
+            rive_tess .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}'
+        }
+    end
+
+    filter {
+        'options:renderer=tess',
+        'options:graphics=gl'
+    }
+    do
+        defines {
+            'SOKOL_GLCORE33'
+        }
+    end
+
+    filter {
+        'options:renderer=tess',
+        'options:graphics=metal'
+    }
+    do
+        defines {
+            'SOKOL_METAL'
+        }
+    end
+
+    filter {
+        'options:renderer=tess',
+        'options:graphics=d3d'
+    }
+    do
+        defines {
+            'SOKOL_D3D11'
         }
     end
 
@@ -207,6 +267,9 @@ do
         allowed = {
             {
                 'skia'
+            },
+            {
+                'tess'
             }
         }
     }
