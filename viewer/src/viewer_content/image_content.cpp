@@ -1,21 +1,19 @@
 /*
  * Copyright 2022 Rive
  */
-#ifdef RIVE_RENDERER_SKIA
-#include "viewer/viewer_content.hpp"
 
-#include "include/core/SkData.h"
-#include "include/core/SkImage.h"
+#include "viewer/viewer_content.hpp"
+#include "rive/factory.hpp"
+#include "rive/renderer.hpp"
 
 class ImageContent : public ViewerContent {
-    sk_sp<SkImage> m_image;
+    std::unique_ptr<rive::RenderImage> m_image;
 
 public:
-    ImageContent(sk_sp<SkImage> image) : m_image(std::move(image)) {}
+    ImageContent(std::unique_ptr<rive::RenderImage> image) : m_image(std::move(image)) {}
 
     void handleDraw(rive::Renderer* renderer, double) override {
-        auto canvas = skiaCanvas(renderer);
-        canvas->drawImage(m_image, 0, 0);
+        renderer->drawImage(m_image.get(), rive::BlendMode::srcOver, 1);
     }
 
     void handleResize(int width, int height) override {}
@@ -24,10 +22,9 @@ public:
 
 std::unique_ptr<ViewerContent> ViewerContent::Image(const char filename[]) {
     auto bytes = LoadFile(filename);
-    auto data = SkData::MakeWithCopy(bytes.data(), bytes.size());
-    if (auto image = SkImage::MakeFromEncoded(data)) {
+    auto image = RiveFactory()->decodeImage(rive::toSpan(bytes));
+    if (image) {
         return std::make_unique<ImageContent>(std::move(image));
     }
     return nullptr;
 }
-#endif

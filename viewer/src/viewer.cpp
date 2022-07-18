@@ -183,6 +183,12 @@ static void event(const sapp_event* ev) {
                 case SAPP_KEYCODE_ESCAPE:
                     sapp_quit();
                     break;
+                case SAPP_KEYCODE_T:
+                    g_Content = ViewerContent::Text(".svg");
+                    break;
+                case SAPP_KEYCODE_P:
+                    g_Content = ViewerContent::TextPath("");
+                    break;
                 default:
                     break;
             }

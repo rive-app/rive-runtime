@@ -2,8 +2,6 @@
  * Copyright 2022 Rive
  */
 
-// Currently only supports skia renderer.
-#ifdef RIVE_RENDERER_SKIA
 #include "viewer/viewer_content.hpp"
 
 #include "rive/refcnt.hpp"
@@ -11,12 +9,19 @@
 #include "rive/math/contour_measure.hpp"
 #include "rive/text/line_breaker.hpp"
 
-#include "to_skia.hpp"
 using namespace rive;
 
 using RenderFontTextRuns = std::vector<RenderTextRun>;
 using RenderFontGlyphRuns = std::vector<RenderGlyphRun>;
 using RenderFontFactory = rcp<RenderFont> (*)(const Span<const uint8_t>);
+
+#ifdef RIVE_RENDERER_SKIA
+#include "renderfont_coretext.hpp"
+static RenderFontFactory gFontFactory = CoreTextRenderFont::Decode;
+#else
+#include "renderfont_hb.hpp"
+static RenderFontFactory gFontFactory = HBRenderFont::Decode;
+#endif
 
 template <typename Handler>
 void visit(const std::vector<RenderGlyphRun>& gruns, Vec2D origin, Handler proc) {
@@ -60,10 +65,6 @@ static void warp_in_place(ContourMeasure* meas, RawPath* path) {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-#include "renderfont_skia.hpp"
-#include "renderfont_hb.hpp"
-#include "renderfont_coretext.hpp"
-
 static std::unique_ptr<RenderPath> make_rpath(const RawPath& path) {
     return ViewerContent::RiveFactory()->makeRenderPath(
         path.points(), path.verbsU8(), FillRule::nonZero);
@@ -77,15 +78,6 @@ static void stroke_path(Renderer* renderer, const RawPath& path, float size, Col
     renderer->drawPath(make_rpath(path).get(), paint.get());
 }
 
-#if 0
-static void draw_line(Renderer* renderer, Vec2D a, Vec2D b, ColorInt color, float width = 1) {
-    RawPath path;
-    path.move(a);
-    path.line(b);
-    stroke_path(renderer, path, width, color);
-}
-#endif
-
 static void fill_rect(Renderer* renderer, const AABB& r, RenderPaint* paint) {
     RawPath rp;
     rp.addRect(r);
@@ -95,8 +87,6 @@ static void fill_rect(Renderer* renderer, const AABB& r, RenderPaint* paint) {
 static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint) {
     fill_rect(renderer, {p.x - r, p.y - r, p.x + r, p.y + r}, paint);
 }
-
-typedef rcp<RenderFont> (*RenderFontFactory)(Span<const uint8_t>);
 
 static RenderTextRun
 append(std::vector<Unichar>* unichars, rcp<RenderFont> font, float size, const char text[]) {
@@ -175,7 +165,7 @@ public:
             return bounds;
         };
 
-        auto truns = this->make_truns(CoreTextRenderFont::Decode);
+        auto truns = this->make_truns(gFontFactory);
 
         m_gruns = truns[0].font->shapeText(toSpan(m_unichars), toSpan(truns));
 
@@ -375,4 +365,3 @@ public:
 std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) {
     return std::make_unique<TextPathContent>();
 }
-#endif

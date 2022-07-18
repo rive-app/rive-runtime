@@ -36,11 +36,9 @@ public:
     static std::unique_ptr<ViewerContent> findHandler(const char filename[]) {
         Factory factories[] = {
             Scene,
-#ifdef RIVE_RENDERER_SKIA
             Image,
             Text,
             TextPath,
-#endif
         };
         for (auto f : factories) {
             if (auto content = f(filename)) {
@@ -51,18 +49,11 @@ public:
     }
 
     // Private factories...
-    static std::unique_ptr<ViewerContent> Scene(const char[]);
-    static std::unique_ptr<ViewerContent> TrimPath(const char[]);
-#ifdef RIVE_RENDERER_SKIA
-    // Helper to get the canvas from a rive::Renderer. We know that when we're
-    // using the skia renderer our viewer always creates a skia renderer.
-    SkCanvas* skiaCanvas(rive::Renderer* renderer) {
-        return static_cast<ViewerSkiaRenderer*>(renderer)->canvas();
-    }
     static std::unique_ptr<ViewerContent> Image(const char[]);
+    static std::unique_ptr<ViewerContent> Scene(const char[]);
     static std::unique_ptr<ViewerContent> Text(const char[]);
     static std::unique_ptr<ViewerContent> TextPath(const char[]);
-#endif
+    static std::unique_ptr<ViewerContent> TrimPath(const char[]);
 
     static std::vector<uint8_t> LoadFile(const char path[]);
     static void DumpCounters(const char label[]);

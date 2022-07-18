@@ -2,8 +2,6 @@
  * Copyright 2022 Rive
  */
 
-// Currently only compatible with the skia renderer because line_breaker is from there.
-#ifdef RIVE_RENDERER_SKIA
 #include "viewer/viewer_content.hpp"
 
 #include "rive/factory.hpp"
@@ -14,6 +12,14 @@
 using RenderFontTextRuns = std::vector<rive::RenderTextRun>;
 using RenderFontGlyphRuns = std::vector<rive::RenderGlyphRun>;
 using RenderFontFactory = rive::rcp<rive::RenderFont> (*)(const rive::Span<const uint8_t>);
+
+#ifdef RIVE_RENDERER_SKIA
+#include "renderfont_coretext.hpp"
+static RenderFontFactory gFontFactory = CoreTextRenderFont::Decode;
+#else
+#include "renderfont_hb.hpp"
+static RenderFontFactory gFontFactory = HBRenderFont::Decode;
+#endif
 
 static bool ws(rive::Unichar c) { return c <= ' '; }
 
@@ -83,12 +89,6 @@ static void drawpara(rive::Factory* factory,
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-typedef rive::rcp<rive::RenderFont> (*RenderFontFactory)(rive::Span<const uint8_t>);
-
-#include "renderfont_skia.hpp"
-#include "renderfont_hb.hpp"
-#include "renderfont_coretext.hpp"
-
 static void draw_line(rive::Factory* factory, rive::Renderer* renderer, float x) {
     auto paint = factory->makeRenderPaint();
     paint->style(rive::RenderPaintStyle::stroke);
@@ -157,15 +157,8 @@ class TextContent : public ViewerContent {
 
 public:
     TextContent() {
-        RenderFontFactory factory[] = {
-            HBRenderFont::Decode,
-            CoreTextRenderFont::Decode,
-        };
-        for (auto f : factory) {
-            auto truns = this->make_truns(f);
-            m_gruns.push_back(
-                truns[0].font->shapeText(rive::toSpan(m_unichars), rive::toSpan(truns)));
-        }
+        auto truns = this->make_truns(gFontFactory);
+        m_gruns.push_back(truns[0].font->shapeText(rive::toSpan(m_unichars), rive::toSpan(truns)));
 
         m_xform = rive::Mat2D::fromTranslate(10, 0) * rive::Mat2D::fromScale(3, 3);
     }
@@ -193,7 +186,7 @@ public:
     void handleResize(int width, int height) override {}
     void handleImgui() override {
         ImGui::Begin("text", nullptr);
-        ImGui::SliderFloat("Alignment", &m_width, 10, 400);
+        ImGui::SliderFloat("Width", &m_width, 10, 400);
         ImGui::End();
     }
 };
@@ -218,4 +211,3 @@ std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[]) {
     }
     return nullptr;
 }
-#endif
