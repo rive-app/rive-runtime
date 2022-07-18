@@ -2,7 +2,7 @@
  * Copyright 2022 Rive
  */
 
-#include "line_breaker.hpp"
+#include "rive/text/line_breaker.hpp"
 
 using namespace rive;
 

@@ -36,7 +36,8 @@ namespace rive {
 
         static std::vector<RenderGlyphLine>
         BreakLines(Span<const RenderGlyphRun> runs, Span<const int> breaks, float width);
-        // Compute vaues for top/baseline/bottom per line
+
+        // Compute values for top/baseline/bottom per line
         static void ComputeLineSpacing(rive::Span<RenderGlyphLine>,
                                        rive::Span<const RenderGlyphRun>);
     };

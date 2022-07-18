@@ -8,9 +8,9 @@
 
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
-
 #include "rive/math/contour_measure.hpp"
-#include "line_breaker.hpp"
+#include "rive/text/line_breaker.hpp"
+
 #include "to_skia.hpp"
 using namespace rive;
 

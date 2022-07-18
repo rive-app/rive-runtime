@@ -9,8 +9,7 @@
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
-
-#include "line_breaker.hpp"
+#include "rive/text/line_breaker.hpp"
 
 using RenderFontTextRuns = std::vector<rive::RenderTextRun>;
 using RenderFontGlyphRuns = std::vector<rive::RenderGlyphRun>;
