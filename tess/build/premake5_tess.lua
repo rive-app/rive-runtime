@@ -54,3 +54,33 @@ project "rive_tess_renderer"
             { "d3d" }
         }
     }
+
+project "rive_tess_tests"
+    kind "ConsoleApp"
+    language "C++"
+    cppdialect "C++17"
+    toolset "clang"
+    targetdir "%{cfg.system}/bin/%{cfg.buildcfg}"
+    objdir "%{cfg.system}/obj/%{cfg.buildcfg}"
+    includedirs {
+        "../../dev/test/include",
+        "../include",
+        rive .. "/include",
+        dependencies .. "/sokol"
+    }
+    files {
+        "../test/**.cpp",
+    }
+    links { "rive_tess_renderer" }
+    buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
+    defines {"TESTING"}
+
+    filter "configurations:debug"
+        buildoptions {"-g"}
+        defines {"DEBUG"}
+        symbols "On"
+
+    filter "configurations:release"
+        buildoptions {"-flto=full"}
+        defines {"RELEASE", "NDEBUG"}
+        optimize "On"

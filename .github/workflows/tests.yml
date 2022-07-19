@@ -89,3 +89,10 @@ jobs:
           echo Testing for ${{matrix.platform}}
           cd dev
           ./test.sh
+
+      - name: Tess Tests
+        if: matrix.platform == 'macOS'
+        run: |
+          echo Testing for ${{matrix.platform}}
+          cd tess/build/macosx
+          ./build_tess.sh test

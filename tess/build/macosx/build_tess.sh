@@ -20,7 +20,7 @@ pushd ..
 
 CONFIG=debug
 GRAPHICS=gl
-
+TEST=false
 for var in "$@"; do
     if [[ $var = "release" ]]; then
         CONFIG=release
@@ -33,6 +33,9 @@ for var in "$@"; do
     fi
     if [[ $var = "metal" ]]; then
         GRAPHICS=metal
+    fi
+    if [[ $var = "test" ]]; then
+        TEST=true
     fi
 done
 
@@ -50,4 +53,7 @@ $DEPENDENCIES/bin/sokol-shdc --input ../src/sokol/shader.glsl --output ../src/so
 
 make config=$CONFIG -j$(($(sysctl -n hw.physicalcpu) + 1))
 
+if [[ $TEST = "true" ]]; then
+    macosx/bin/$CONFIG/rive_tess_tests
+fi
 popd
