@@ -3,7 +3,7 @@
  */
 
 #include "viewer/viewer_content.hpp"
-
+#ifdef RIVE_RENDERER_SKIA
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
@@ -211,3 +211,6 @@ std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[]) {
     }
     return nullptr;
 }
+#else
+std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[]) { return nullptr; }
+#endif

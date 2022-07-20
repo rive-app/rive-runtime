@@ -3,7 +3,7 @@
  */
 
 #include "viewer/viewer_content.hpp"
-
+#ifdef RIVE_RENDERER_SKIA
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
 #include "rive/math/contour_measure.hpp"
@@ -365,3 +365,6 @@ public:
 std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) {
     return std::make_unique<TextPathContent>();
 }
+#else
+std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) { return nullptr; }
+#endif
