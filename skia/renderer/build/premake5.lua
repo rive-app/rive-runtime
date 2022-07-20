@@ -48,7 +48,6 @@ project "rive_skia_renderer"
     buildoptions {"-Wall", "-fno-exceptions", "-fno-rtti", "-Werror=format"}
 
     filter {"system:macosx" }
-        buildoptions {"-flto=full"}
         includedirs {SKIA_DIR}
         libdirs {SKIA_DIR.. "/out/static"}
 
@@ -57,7 +56,6 @@ project "rive_skia_renderer"
         libdirs {SKIA_DIR.. "/out/static"}
 
     filter {"system:ios" }
-        buildoptions {"-flto=full"}
         includedirs {SKIA_DIR}
         libdirs {SKIA_DIR.. "/out/static"}
 
@@ -68,9 +66,6 @@ project "rive_skia_renderer"
         buildoptions {"-mios-version-min=10.0 -arch x86_64 -arch arm64 -arch i386 -isysroot " .. (os.getenv("IOS_SYSROOT") or "")}
         targetdir "%{cfg.system}_sim/bin/%{cfg.buildcfg}"
         objdir "%{cfg.system}_sim/obj/%{cfg.buildcfg}"
-
-    filter { "system:android", "configurations:release" }
-        buildoptions {"-flto=full"}
 
     -- Is there a way to pass 'arch' as a variable here?
     filter { "system:android" }
@@ -102,6 +97,7 @@ project "rive_skia_renderer"
         symbols "On"
 
     filter "configurations:release"
+        buildoptions {"-flto=full"}
         defines {"RELEASE", "NDEBUG"}
         optimize "On"
 
