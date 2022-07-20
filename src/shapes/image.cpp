@@ -40,8 +40,8 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform) {
     // TODO: handle clip?
 
     auto renderImage = m_ImageAsset->renderImage();
-    auto width = renderImage->width();
-    auto height = renderImage->height();
+    int width = renderImage->width();
+    int height = renderImage->height();
 
     if (m_Mesh) {
         printf("Missing mesh\n");
@@ -49,7 +49,7 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform) {
     } else {
         auto mx = xform * worldTransform() * Mat2D::fromTranslate(-width * 0.5f, -height * 0.5f);
         HitTester tester(hinfo->area);
-        tester.addRect(AABB(0, 0, width, height), mx);
+        tester.addRect(AABB(0, 0, (float)width, (float)height), mx);
         if (tester.test()) {
             return this;
         }

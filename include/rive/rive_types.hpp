@@ -56,4 +56,15 @@
 #include <memory>
 #include <type_traits>
 
+// Annotations to assert unreachable control flow.
+#ifdef __GNUC__ // GCC 4.8+, Clang, Intel and others compatible with GCC (-std=c++0x or above)
+#define RIVE_UNREACHABLE __builtin_unreachable()
+#elif _MSC_VER
+#define RIVE_UNREACHABLE __assume(0)
+#else
+#define RIVE_UNREACHABLE                                                                           \
+    do {                                                                                           \
+    } while (0)
+#endif
+
 #endif // rive_types

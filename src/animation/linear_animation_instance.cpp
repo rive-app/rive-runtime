@@ -65,13 +65,13 @@ bool LinearAnimationInstance::advance(float elapsedSeconds) {
             if (m_Direction == 1 && frames > end) {
                 keepGoing = false;
                 m_SpilledTime = (frames - end) / fps;
-                frames = end;
+                frames = (float)end;
                 m_Time = frames / fps;
                 didLoop = true;
             } else if (m_Direction == -1 && frames < start) {
                 keepGoing = false;
                 m_SpilledTime = (start - frames) / fps;
-                frames = start;
+                frames = (float)start;
                 m_Time = frames / fps;
                 didLoop = true;
             }

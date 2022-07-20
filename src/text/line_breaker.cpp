@@ -26,9 +26,9 @@ static int textOffsetToGlyphIndex(const RenderGlyphRun& run, size_t textOffset) 
     auto end = run.textOffsets.end();
     auto iter = std::find(begin, end, textOffset);
     if (iter == end) { // end of run
-        return run.glyphs.size() - 1;
+        return (int)run.glyphs.size() - 1;
     }
-    return iter - begin;
+    return (int)(iter - begin);
 }
 
 std::vector<RenderGlyphLine>
@@ -109,8 +109,8 @@ RenderGlyphLine::BreakLines(Span<const RenderGlyphRun> runs, Span<const int> bre
         }
     }
     // scoop up the last line (if present)
-    const int tailRun = runs.size() - 1;
-    const int tailIndex = runs[tailRun].glyphs.size();
+    const int tailRun = (int)runs.size() - 1;
+    const int tailIndex = (int)runs[tailRun].glyphs.size();
     if (startRun != tailRun || startIndex != tailIndex) {
         const auto startX = runs[startRun].xpos[startIndex];
         lines.push_back(

@@ -358,7 +358,7 @@ bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> in
     // this version can give slightly different results, so perhaps we should do this
     // automatically, ... its just much faster if we do.
     if (area.width() * area.height() == 1) {
-        return testMesh(Vec2D(area.left, area.top), verts, indices);
+        return testMesh(Vec2D((float)area.left, (float)area.top), verts, indices);
     }
 
     if (verts.size() < 3) {
@@ -386,9 +386,9 @@ bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> in
         const auto b = verts[indices[i + 1]] - offset;
         const auto c = verts[indices[i + 2]] - offset;
 
-        clip_line(area.height(), a, b, deltas, area.width());
-        clip_line(area.height(), b, c, deltas, area.width());
-        clip_line(area.height(), c, a, deltas, area.width());
+        clip_line((float)area.height(), a, b, deltas, area.width());
+        clip_line((float)area.height(), b, c, deltas, area.width());
+        clip_line((float)area.height(), c, a, deltas, area.width());
 
         int nonzero = 0;
         for (auto w : windings) {

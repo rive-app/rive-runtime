@@ -22,15 +22,15 @@ namespace rive {
     }
 
     ColorInt colorWithOpacity(ColorInt value, float opacity) {
-        return colorWithAlpha(value, std::round(255.0 * opacity));
+        return colorWithAlpha(value, std::lround(255.f * opacity));
     }
 
     ColorInt colorModulateOpacity(ColorInt value, float opacity) {
-        return colorWithAlpha(value, std::round(255.0f * colorOpacity(value) * opacity));
+        return colorWithAlpha(value, std::lround(255.f * colorOpacity(value) * opacity));
     }
 
     static unsigned int lerp(unsigned int a, unsigned int b, float mix) {
-        return a * (1.0f - mix) + b * mix;
+        return std::lround(a * (1.0f - mix) + b * mix);
     }
 
     ColorInt colorLerp(ColorInt from, ColorInt to, float mix) {

@@ -76,4 +76,5 @@ float LinearAnimation::globalToLocalSeconds(float seconds) const {
             int direction = ((int)(seconds / (endSeconds() - startSeconds()))) % 2;
             return direction == 0 ? localTime + startSeconds() : endSeconds() - localTime;
     }
+    RIVE_UNREACHABLE;
 }
