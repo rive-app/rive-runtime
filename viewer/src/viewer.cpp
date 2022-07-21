@@ -1,6 +1,7 @@
 // Viewer & Rive
 #include "viewer/viewer.hpp"
 #include "viewer/viewer_content.hpp"
+#include "viewer/viewer_host.hpp"
 #include "rive/shapes/paint/color.hpp"
 
 // Graphics and UI abstraction
@@ -14,15 +15,7 @@
 #include <stdio.h>
 #include <memory>
 
-#ifdef RIVE_RENDERER_SKIA
-#include "skia_renderer.hpp"
-sk_sp<GrDirectContext> g_SkiaContext;
-sk_sp<SkSurface> g_SkiaSurface;
-#endif
-#ifdef RIVE_RENDERER_TESS
-#include "rive/tess/sokol/sokol_tess_renderer.hpp"
-std::unique_ptr<rive::SokolTessRenderer> g_TessRenderer;
-#endif
+std::unique_ptr<ViewerHost> g_Host = ViewerHost::Make();
 std::unique_ptr<ViewerContent> g_Content = ViewerContent::TrimPath("");
 static struct { sg_pass_action pass_action; } state;
 
@@ -38,65 +31,29 @@ static void init(void) {
     };
     simgui_setup(&imguiDescriptor);
 
-#if defined(SK_METAL)
-    // Skia is layered behind the Sokol view, so we need to make sure Sokol
-    // clears transparent. Skia will draw the background.
-    state.pass_action =
-        (sg_pass_action){.colors[0] = {.action = SG_ACTION_CLEAR, .value = {0.0f, 0.0, 0.0f, 0.0}}};
-#elif defined(SK_GL)
-    // Skia commands are issued to the same GL context before Sokol, so we need
-    // to make sure Sokol does not clear the buffer.
-    state.pass_action = (sg_pass_action){.colors[0] = {.action = SG_ACTION_DONTCARE}};
-#else
-    // In every other case, Sokol is in full control, so let's clear to our bg
-    // color.
+    // If the host doesn't overwrite this (in init()), Sokol is in full control,
+    // so let's clear to our bg color.
     state.pass_action =
         (sg_pass_action){.colors[0] = {.action = SG_ACTION_CLEAR,
                                        .value = {rive::colorRed(backgroundColor) / 255.0f,
                                                  rive::colorGreen(backgroundColor) / 255.0f,
                                                  rive::colorBlue(backgroundColor) / 255.0f,
                                                  rive::colorOpacity(backgroundColor)}}};
-#endif
 
-#ifdef RIVE_RENDERER_SKIA
-    g_SkiaContext = makeSkiaContext();
-    if (!g_SkiaContext) {
-        fprintf(stderr, "failed to create skia context\n");
+    if (!g_Host->init(&state.pass_action, sapp_width(), sapp_height())) {
+        fprintf(stderr, "failed to initialize host\n");
         sapp_quit();
     }
-#endif
-#ifdef RIVE_RENDERER_TESS
-    g_TessRenderer = std::make_unique<rive::SokolTessRenderer>();
-    g_TessRenderer->orthographicProjection(0.0f, sapp_width(), sapp_height(), 0.0f, 0.0f, 1.0f);
-#endif
 }
 
 static void frame(void) {
-#ifdef RIVE_RENDERER_SKIA
-    g_SkiaContext->resetContext();
-    g_SkiaSurface = makeSkiaSurface(g_SkiaContext.get(), sapp_width(), sapp_height());
-    SkCanvas* canvas = g_SkiaSurface->getCanvas();
-    SkPaint paint;
-    paint.setColor(backgroundColor);
-    canvas->drawPaint(paint);
+    auto dur = sapp_frame_duration();
 
-    rive::SkiaRenderer skiaRenderer(canvas);
-    if (g_Content) {
-        g_Content->handleDraw(&skiaRenderer, sapp_frame_duration());
-    }
-
-    canvas->flush();
-    skiaPresentSurface(g_SkiaSurface);
-    sg_reset_state_cache();
-#endif
+    g_Host->beforeDefaultPass(g_Content.get(), dur);
 
     sg_begin_default_pass(&state.pass_action, sapp_width(), sapp_height());
 
-#ifdef RIVE_RENDERER_TESS
-    if (g_Content) {
-        g_Content->handleDraw(g_TessRenderer.get(), sapp_frame_duration());
-    }
-#endif
+    g_Host->afterDefaultPass(g_Content.get(), dur);
 
     simgui_frame_desc_t imguiDesc = {
         .width = sapp_width(),
@@ -119,10 +76,8 @@ static void frame(void) {
 
 static void cleanup(void) {
     g_Content = nullptr;
-#ifdef RIVE_RENDERER_SKIA
-    g_SkiaSurface = nullptr;
-    g_SkiaContext = nullptr;
-#endif
+    g_Host = nullptr;
+
     simgui_shutdown();
     sg_shutdown();
 }
@@ -135,12 +90,7 @@ static void event(const sapp_event* ev) {
             if (g_Content) {
                 g_Content->handleResize(ev->framebuffer_width, ev->framebuffer_height);
             }
-#ifdef RIVE_RENDERER_TESS
-            if (g_TessRenderer) {
-                g_TessRenderer->orthographicProjection(
-                    0.0f, ev->framebuffer_width, ev->framebuffer_height, 0.0f, 0.0f, 1.0f);
-            }
-#endif
+            g_Host->handleResize(ev->framebuffer_width, ev->framebuffer_height);
             break;
         case SAPP_EVENTTYPE_FILES_DROPPED: {
             // Do this to make sure the graphics is bound.

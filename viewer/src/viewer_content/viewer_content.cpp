@@ -60,13 +60,6 @@ void ViewerContent::DumpCounters(const char label[]) {
     printf("\n");
 }
 
-rive::Factory* ViewerContent::RiveFactory() {
-#ifdef RIVE_RENDERER_TESS
-    static ViewerSokolFactory sokolFactory;
-    return &sokolFactory;
-#endif
-#ifdef RIVE_RENDERER_SKIA
-    static rive::SkiaFactory skiaFactory;
-    return &skiaFactory;
-#endif
-}
+#include "viewer/viewer_host.hpp"
+
+rive::Factory* ViewerContent::RiveFactory() { return ViewerHost::Factory(); }
