@@ -15,7 +15,7 @@
 #include <memory>
 
 #ifdef RIVE_RENDERER_SKIA
-#include "viewer/skia/viewer_skia_renderer.hpp"
+#include "skia_renderer.hpp"
 sk_sp<GrDirectContext> g_SkiaContext;
 sk_sp<SkSurface> g_SkiaSurface;
 #endif
@@ -80,7 +80,7 @@ static void frame(void) {
     paint.setColor(backgroundColor);
     canvas->drawPaint(paint);
 
-    ViewerSkiaRenderer skiaRenderer(canvas);
+    rive::SkiaRenderer skiaRenderer(canvas);
     if (g_Content) {
         g_Content->handleDraw(&skiaRenderer, sapp_frame_duration());
     }

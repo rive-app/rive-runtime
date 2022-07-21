@@ -8,11 +8,6 @@
 #include "rive/span.hpp"
 #include "imgui.h"
 
-#ifdef RIVE_RENDERER_SKIA
-#include "SkCanvas.h"
-#include "viewer/skia/viewer_skia_renderer.hpp"
-#endif
-
 namespace rive {
     class Renderer;
     class Factory;
