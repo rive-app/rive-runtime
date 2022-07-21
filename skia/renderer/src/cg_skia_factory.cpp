@@ -23,17 +23,7 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
                                                    SkiaFactory::ImageInfo* info) {
     std::vector<uint8_t> pixels;
 
-    AutoCF data = CFDataCreateWithBytesNoCopy(nullptr, span.data(), span.size(), nullptr);
-    if (!data) {
-        return pixels;
-    }
-
-    AutoCF source = CGImageSourceCreateWithData(data, nullptr);
-    if (!source) {
-        return pixels;
-    }
-
-    AutoCF image = CGImageSourceCreateImageAtIndex(source, 0, nullptr);
+    AutoCF image = DecodeToCGImage(span);
     if (!image) {
         return pixels;
     }

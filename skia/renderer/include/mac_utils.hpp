@@ -2,12 +2,16 @@
 #define _RIVE_MAC_UTILS_HPP_
 
 #include "rive/rive_types.hpp"
+#include "rive/span.hpp"
 #include <string>
+
+#ifdef RIVE_BUILD_FOR_APPLE
 
 #if defined(RIVE_BUILD_FOR_OSX)
 #include <ApplicationServices/ApplicationServices.h>
 #elif defined(RIVE_BUILD_FOR_IOS)
 #include <CoreFoundation/CoreFoundation.h>
+#include <CoreGraphics/CGImage.h>
 #endif
 
 template <size_t N, typename T> class AutoSTArray {
@@ -59,6 +63,18 @@ public:
             CFRelease(m_Obj);
     }
 
+    AutoCF(const AutoCF&) = delete;
+    void operator=(const AutoCF&) = delete;
+
+    void reset(T obj) {
+        if (obj != m_Obj) {
+            if (m_Obj) {
+                CFRelease(m_Obj);
+            }
+            m_Obj = obj;
+        }
+    }
+
     operator T() const { return m_Obj; }
     operator bool() const { return m_Obj != nullptr; }
     T get() const { return m_Obj; }
@@ -93,4 +109,9 @@ static inline float number_as_float(CFNumberRef num) {
     return value;
 }
 
+namespace rive {
+    CGImageRef DecodeToCGImage(Span<const uint8_t>);
+}
+
+#endif
 #endif
