@@ -289,7 +289,7 @@ rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx,
 }
 
 std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(Span<const Vec2D> points,
-                                                        Span<const uint8_t> verbs,
+                                                        Span<const PathVerb> verbs,
                                                         FillRule fillRule) {
     const bool isVolatile = false; // ???
     const SkScalar* conicWeights = nullptr;
@@ -297,7 +297,7 @@ std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(Span<const Vec2D> points
     return std::make_unique<SkiaRenderPath>(
         SkPath::Make(reinterpret_cast<const SkPoint*>(points.data()),
                      points.count(),
-                     verbs.data(),
+                     (uint8_t*)verbs.data(),
                      verbs.count(),
                      conicWeights,
                      conicWeightCount,

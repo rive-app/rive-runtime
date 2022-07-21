@@ -31,7 +31,7 @@ namespace rive {
                                              const Mat2D* localMatrix = nullptr) override;
 
         std::unique_ptr<RenderPath>
-        makeRenderPath(Span<const Vec2D> points, Span<const uint8_t> verbs, FillRule) override;
+        makeRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule) override;
 
         std::unique_ptr<RenderPath> makeEmptyRenderPath() override;
 

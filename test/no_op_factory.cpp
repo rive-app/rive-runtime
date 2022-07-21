@@ -33,7 +33,7 @@ rcp<RenderShader> NoOpFactory::makeRadialGradient(float cx,
 }
 
 std::unique_ptr<RenderPath>
-NoOpFactory::makeRenderPath(Span<const Vec2D> points, Span<const uint8_t> verbs, FillRule) {
+NoOpFactory::makeRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule) {
     return std::make_unique<NoOpRenderPath>();
 }
 

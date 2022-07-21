@@ -7,6 +7,12 @@
 
 using namespace rive;
 
+RawPath::RawPath(const Vec2D* points,
+                 std::size_t pointCount,
+                 const PathVerb* verbs,
+                 std::size_t verbCount) :
+    m_Points(points, points + pointCount), m_Verbs(verbs, verbs + verbCount) {}
+
 AABB RawPath::bounds() const {
     if (this->empty()) {
         return {0, 0, 0, 0};
@@ -197,4 +203,16 @@ void RawPath::Iter::backUp() {
     --m_currVerb;
     const int n = path_verb_to_point_count(*m_currVerb);
     m_currPts -= n;
+}
+
+void RawPath::reset() {
+    m_Points.clear();
+    m_Points.shrink_to_fit();
+    m_Verbs.clear();
+    m_Verbs.shrink_to_fit();
+}
+
+void RawPath::rewind() {
+    m_Points.clear();
+    m_Verbs.clear();
 }

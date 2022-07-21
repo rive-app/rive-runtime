@@ -23,6 +23,11 @@ namespace rive {
         std::vector<Vec2D> m_Points;
         std::vector<PathVerb> m_Verbs;
 
+        // Construct a RawPath from count points and verbs.
+        RawPath(const Vec2D* points,
+                std::size_t pointCount,
+                const PathVerb* verbs,
+                std::size_t verbCount);
         RawPath() {}
         ~RawPath() {}
 
@@ -34,6 +39,13 @@ namespace rive {
         void quad(Vec2D, Vec2D);
         void cubic(Vec2D, Vec2D, Vec2D);
         void close();
+
+        // Makes the path empty and frees any memory allocated by the drawing
+        // (line, curve, move, close) calls.
+        void reset();
+
+        // Makes the path empty but keeps the memory for the drawing calls reserved.
+        void rewind();
 
         RawPath transform(const Mat2D&) const;
         void transformInPlace(const Mat2D&);

@@ -48,7 +48,7 @@ namespace rive {
 
         // Returns a full-formed RenderPath -- can be treated as immutable
         virtual std::unique_ptr<RenderPath>
-        makeRenderPath(Span<const Vec2D> points, Span<const uint8_t> verbs, FillRule) = 0;
+        makeRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule) = 0;
 
         virtual std::unique_ptr<RenderPath> makeEmptyRenderPath() = 0;
 

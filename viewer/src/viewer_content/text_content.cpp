@@ -60,7 +60,7 @@ static void drawrun(rive::Factory* factory,
         auto rawpath = font->getPath(run.glyphs[i]);
         rawpath.transformInPlace(trans * scale);
         auto path =
-            factory->makeRenderPath(rawpath.points(), rawpath.verbsU8(), rive::FillRule::nonZero);
+            factory->makeRenderPath(rawpath.points(), rawpath.verbs(), rive::FillRule::nonZero);
         renderer->drawPath(path.get(), paint.get());
     }
 }
