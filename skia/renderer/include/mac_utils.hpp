@@ -57,7 +57,7 @@ template <typename T> class AutoCF {
     T m_Obj;
 
 public:
-    AutoCF(T obj) : m_Obj(obj) {}
+    AutoCF(T obj = nullptr) : m_Obj(obj) {}
     ~AutoCF() {
         if (m_Obj)
             CFRelease(m_Obj);
