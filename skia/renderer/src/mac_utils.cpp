@@ -12,17 +12,24 @@
 #endif
 
 CGImageRef rive::DecodeToCGImage(rive::Span<const uint8_t> span) {
-    AutoCF data = CFDataCreateWithBytesNoCopy(nullptr, span.data(), span.size(), nullptr);
+    AutoCF data = CFDataCreate(nullptr, span.data(), span.size());
     if (!data) {
+        printf("CFDataCreate failed\n");
         return nullptr;
     }
 
     AutoCF source = CGImageSourceCreateWithData(data, nullptr);
     if (!source) {
+        printf("CGImageSourceCreateWithData failed\n");
         return nullptr;
     }
 
-    return CGImageSourceCreateImageAtIndex(source, 0, nullptr);
+    auto image = CGImageSourceCreateImageAtIndex(source, 0, nullptr);
+    if (!image) {
+        printf("CGImageSourceCreateImageAtIndex failed\n");
+        return nullptr;
+    }
+    return image;
 }
 
 #endif
