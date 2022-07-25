@@ -1,7 +1,7 @@
 #include <rive/animation/loop.hpp>
 #include <rive/animation/linear_animation.hpp>
 #include <rive/animation/linear_animation_instance.hpp>
-#include "no_op_factory.hpp"
+#include "utils/no_op_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
 

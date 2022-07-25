@@ -7,7 +7,7 @@
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
-#include "no_op_factory.hpp"
+#include "utils/no_op_factory.hpp"
 
 class JSoner {
     std::vector<bool> m_IsArray;

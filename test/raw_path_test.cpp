@@ -4,7 +4,6 @@
 
 #include <rive/math/aabb.hpp>
 #include <rive/math/raw_path.hpp>
-#include "no_op_renderer.hpp"
 
 #include <catch.hpp>
 #include <cstdio>

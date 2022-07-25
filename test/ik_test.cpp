@@ -1,7 +1,7 @@
 #include <rive/node.hpp>
 #include <rive/bones/bone.hpp>
 #include <rive/shapes/shape.hpp>
-#include "no_op_renderer.hpp"
+#include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <cstdio>

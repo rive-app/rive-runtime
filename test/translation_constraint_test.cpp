@@ -3,7 +3,7 @@
 #include <rive/bones/bone.hpp>
 #include <rive/shapes/shape.hpp>
 #include <rive/math/transform_components.hpp>
-#include "no_op_renderer.hpp"
+#include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <cstdio>

@@ -43,7 +43,7 @@ project "rivinfo"
 
     files {
         "../**.cpp",
-        "../../test/no_op_factory.cpp",
+        "../../utils/no_op_factory.cpp",
     }
 
     buildoptions {"-Wall", "-fno-rtti", "-g"}

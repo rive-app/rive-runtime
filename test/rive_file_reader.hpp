@@ -5,14 +5,16 @@
 #include "rive/rive_counter.hpp"
 
 #include "rive_testing.hpp"
-#include "no_op_factory.hpp"
+#include "utils/no_op_factory.hpp"
+
+static rive::NoOpFactory gNoOpFactory;
 
 static inline std::unique_ptr<rive::File>
 ReadRiveFile(const char path[],
              rive::Factory* factory = nullptr,
              rive::FileAssetResolver* resolver = nullptr) {
     if (!factory) {
-        factory = &rive::gNoOpFactory;
+        factory = &gNoOpFactory;
     }
 
     FILE* fp = fopen(path, "rb");

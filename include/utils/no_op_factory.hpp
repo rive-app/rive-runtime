@@ -1,8 +1,11 @@
+/*
+ * Copyright 2022 Rive
+ */
+
 #ifndef _RIVE_NOOP_FACTORY_HPP_
 #define _RIVE_NOOP_FACTORY_HPP_
 
-#include <rive/renderer.hpp>
-#include <rive/factory.hpp>
+#include "rive/factory.hpp"
 
 namespace rive {
 
@@ -35,8 +38,5 @@ namespace rive {
 
         std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
     };
-
-    static NoOpFactory gNoOpFactory;
-
 } // namespace rive
 #endif

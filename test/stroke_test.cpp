@@ -5,7 +5,7 @@
 #include <rive/shapes/paint/stroke.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/shapes/paint/color.hpp>
-#include "no_op_renderer.hpp"
+#include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
