@@ -133,23 +133,24 @@ public:
     }
 
     void handleDraw(rive::Renderer* renderer, double elapsed) override {
+        renderer->save();
+
+        auto viewTransform = rive::computeAlignment(rive::Fit::contain,
+                                                    rive::Alignment::center,
+                                                    rive::AABB(0, 0, m_width, m_height),
+                                                    m_ArtboardInstance->bounds());
+        renderer->transform(viewTransform);
+        // Store the inverse view so we can later go from screen to world.
+        m_InverseViewTransform = viewTransform.invertOrIdentity();
+
         if (m_CurrentScene) {
             m_CurrentScene->advanceAndApply(elapsed);
-
-            renderer->save();
-
-            auto viewTransform = rive::computeAlignment(rive::Fit::contain,
-                                                        rive::Alignment::center,
-                                                        rive::AABB(0, 0, m_width, m_height),
-                                                        m_CurrentScene->bounds());
-            renderer->transform(viewTransform);
-            // Store the inverse view so we can later go from screen to world.
-            m_InverseViewTransform = viewTransform.invertOrIdentity();
-            // post_mouse_event(artboard.get(), canvas->getTotalMatrix());
-
             m_CurrentScene->draw(renderer);
-            renderer->restore();
+        } else {
+            m_ArtboardInstance->draw(renderer); // we're just a still-frame file/artboard
         }
+
+        renderer->restore();
     }
 
     void handleImgui() override {
