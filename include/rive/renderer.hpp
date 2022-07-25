@@ -39,13 +39,6 @@ namespace rive {
 
     enum class RenderPaintStyle { stroke, fill };
 
-    enum class RenderTileMode {
-        clamp,
-        repeat,
-        mirror,
-        decal, // fill outside the domain with transparent
-    };
-
     /*
      *  Base class for Render objects that specify the src colors.
      *
@@ -85,10 +78,6 @@ namespace rive {
 
         int width() const { return m_Width; }
         int height() const { return m_Height; }
-
-        virtual rcp<RenderShader> makeShader(RenderTileMode tx,
-                                             RenderTileMode ty,
-                                             const Mat2D* localMatrix = nullptr) const = 0;
     };
 
     class RenderPath : public CommandPath {

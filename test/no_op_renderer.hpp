@@ -6,12 +6,7 @@
 #include <vector>
 
 namespace rive {
-    class NoOpRenderImage : public RenderImage {
-    public:
-        rcp<RenderShader> makeShader(RenderTileMode, RenderTileMode, const Mat2D*) const override {
-            return nullptr;
-        }
-    };
+    class NoOpRenderImage : public RenderImage {};
 
     class NoOpRenderPaint : public RenderPaint {
     public:

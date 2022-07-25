@@ -17,10 +17,6 @@ namespace rive {
     public:
         SokolRenderImage(sg_image image);
         sg_image image() const { return m_Image; }
-
-        rcp<RenderShader> makeShader(RenderTileMode, RenderTileMode, const Mat2D*) const override {
-            return nullptr;
-        }
     };
 
     class SokolTessRenderer : public TessRenderer {

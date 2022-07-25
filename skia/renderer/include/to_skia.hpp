@@ -29,17 +29,6 @@ namespace rive {
         static SkPoint convert(rive::Vec2D point) { return SkPoint::Make(point.x, point.y); }
 
         // clang-format off
-        static SkTileMode convert(RenderTileMode rtm) {
-            switch (rtm) {
-                case RenderTileMode::clamp:  return SkTileMode::kClamp;
-                case RenderTileMode::repeat: return SkTileMode::kRepeat;
-                case RenderTileMode::mirror: return SkTileMode::kMirror;
-                case RenderTileMode::decal:  return SkTileMode::kDecal;
-            }
-            assert(false);
-            return SkTileMode::kClamp;
-        }
-
         static SkPathFillType convert(FillRule value) {
             switch (value) {
                 case FillRule::evenOdd: return SkPathFillType::kEvenOdd;

@@ -22,18 +22,14 @@ namespace rive {
                                              float ey,
                                              const ColorInt colors[], // [count]
                                              const float stops[],     // [count]
-                                             size_t count,
-                                             RenderTileMode,
-                                             const Mat2D* localMatrix = nullptr) override;
+                                             size_t count) override;
 
         rcp<RenderShader> makeRadialGradient(float cx,
                                              float cy,
                                              float radius,
                                              const ColorInt colors[], // [count]
                                              const float stops[],     // [count]
-                                             size_t count,
-                                             RenderTileMode,
-                                             const Mat2D* localMatrix = nullptr) override;
+                                             size_t count) override;
 
         std::unique_ptr<RenderPath>
         makeRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule) override;

@@ -35,9 +35,7 @@ rcp<RenderShader> SokolFactory::makeLinearGradient(float sx,
                                                    float ey,
                                                    const ColorInt colors[], // [count]
                                                    const float stops[],     // [count]
-                                                   size_t count,
-                                                   RenderTileMode,
-                                                   const Mat2D* localMatrix) {
+                                                   size_t count) {
     return nullptr;
 }
 
@@ -46,9 +44,7 @@ rcp<RenderShader> SokolFactory::makeRadialGradient(float cx,
                                                    float radius,
                                                    const ColorInt colors[], // [count]
                                                    const float stops[],     // [count]
-                                                   size_t count,
-                                                   RenderTileMode,
-                                                   const Mat2D* localMatrix) {
+                                                   size_t count) {
     return nullptr;
 }
 

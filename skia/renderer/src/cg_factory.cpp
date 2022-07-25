@@ -264,11 +264,6 @@ public:
         }
     }
 
-    rcp<RenderShader>
-    makeShader(RenderTileMode tx, RenderTileMode ty, const Mat2D* localMatrix) const override {
-        return rcp<RenderShader>(new CGRenderShader);
-    }
-
     static CGImageRef Cast(const RenderImage* image) {
         return reinterpret_cast<const CGRenderImage*>(image)->m_image.get();
     }
@@ -437,9 +432,7 @@ rcp<RenderShader> CGFactory::makeLinearGradient(float sx,
                                                 float ey,
                                                 const ColorInt colors[], // [count]
                                                 const float stops[],     // [count]
-                                                size_t count,
-                                                RenderTileMode,
-                                                const Mat2D*) {
+                                                size_t count) {
     return rcp<RenderShader>(
         new CGLinearGradientRenderShader(sx, sy, ex, ey, colors, stops, count));
 }
@@ -449,9 +442,7 @@ rcp<RenderShader> CGFactory::makeRadialGradient(float cx,
                                                 float radius,
                                                 const ColorInt colors[], // [count]
                                                 const float stops[],     // [count]
-                                                size_t count,
-                                                RenderTileMode mode,
-                                                const Mat2D* localMatrix) {
+                                                size_t count) {
     return rcp<RenderShader>(
         new CGRadialGradientRenderShader(cx, cy, radius, colors, stops, count));
 }

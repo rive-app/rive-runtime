@@ -33,18 +33,14 @@ namespace rive {
                                                      float ey,
                                                      const ColorInt colors[], // [count]
                                                      const float stops[],     // [count]
-                                                     size_t count,
-                                                     RenderTileMode,
-                                                     const Mat2D* localMatrix = nullptr) = 0;
+                                                     size_t count) = 0;
 
         virtual rcp<RenderShader> makeRadialGradient(float cx,
                                                      float cy,
                                                      float radius,
                                                      const ColorInt colors[], // [count]
                                                      const float stops[],     // [count]
-                                                     size_t count,
-                                                     RenderTileMode,
-                                                     const Mat2D* localMatrix = nullptr) = 0;
+                                                     size_t count) = 0;
 
         // Returns a full-formed RenderPath -- can be treated as immutable
         virtual std::unique_ptr<RenderPath>

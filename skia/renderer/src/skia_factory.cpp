@@ -67,9 +67,6 @@ public:
     SkiaRenderImage(sk_sp<SkImage> image);
 
     sk_sp<SkImage> skImage() const { return m_SkImage; }
-
-    rcp<RenderShader>
-    makeShader(RenderTileMode tx, RenderTileMode ty, const Mat2D* localMatrix) const override;
 };
 
 class SkiaBuffer : public RenderBuffer {
@@ -239,13 +236,6 @@ SkiaRenderImage::SkiaRenderImage(sk_sp<SkImage> image) : m_SkImage(std::move(ima
     m_Height = m_SkImage->height();
 }
 
-rcp<RenderShader>
-SkiaRenderImage::makeShader(RenderTileMode tx, RenderTileMode ty, const Mat2D* localMatrix) const {
-    const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
-    auto sh = m_SkImage->makeShader(ToSkia::convert(tx), ToSkia::convert(ty), gSampling, &lm);
-    return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
-}
-
 // Factory
 
 rcp<RenderBuffer> SkiaFactory::makeBufferU16(Span<const uint16_t> data) {
@@ -264,13 +254,10 @@ rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx,
                                                   float ey,
                                                   const ColorInt colors[], // [count]
                                                   const float stops[],     // [count]
-                                                  size_t count,
-                                                  RenderTileMode mode,
-                                                  const Mat2D* localMatrix) {
+                                                  size_t count) {
     const SkPoint pts[] = {{sx, sy}, {ex, ey}};
-    const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
-    auto sh = SkGradientShader::MakeLinear(
-        pts, (const SkColor*)colors, stops, count, ToSkia::convert(mode), 0, &lm);
+    auto sh =
+        SkGradientShader::MakeLinear(pts, (const SkColor*)colors, stops, count, SkTileMode::kClamp);
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 
@@ -279,12 +266,9 @@ rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx,
                                                   float radius,
                                                   const ColorInt colors[], // [count]
                                                   const float stops[],     // [count]
-                                                  size_t count,
-                                                  RenderTileMode mode,
-                                                  const Mat2D* localMatrix) {
-    const SkMatrix lm = localMatrix ? ToSkia::convert(*localMatrix) : SkMatrix();
+                                                  size_t count) {
     auto sh = SkGradientShader::MakeRadial(
-        {cx, cy}, radius, (const SkColor*)colors, stops, count, ToSkia::convert(mode), 0, &lm);
+        {cx, cy}, radius, (const SkColor*)colors, stops, count, SkTileMode::kClamp);
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 

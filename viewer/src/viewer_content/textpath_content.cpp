@@ -259,14 +259,8 @@ public:
             float mx = m_oneLineX / m_gbounds.width();
             const ColorInt colors[] = {0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF};
             const float stops[] = {0, mx / 2, mx, (1 + mx) / 2, 1};
-            paint->shader(ViewerContent::RiveFactory()->makeLinearGradient(m_gbounds.left(),
-                                                                           0,
-                                                                           m_gbounds.right(),
-                                                                           0,
-                                                                           colors,
-                                                                           stops,
-                                                                           5,
-                                                                           RenderTileMode::clamp));
+            paint->shader(ViewerContent::RiveFactory()->makeLinearGradient(
+                m_gbounds.left(), 0, m_gbounds.right(), 0, colors, stops, 5));
         }
 
         struct EaseWindow {
