@@ -7,7 +7,13 @@
 
 #ifdef RIVE_RENDERER_SKIA
 
+#ifdef RIVE_BUILD_FOR_APPLE
+#include "cg_skia_factory.hpp"
+static rive::CGSkiaFactory skiaFactory;
+#else
 #include "skia_factory.hpp"
+static rive::SkiaFactory skiaFactory;
+#endif
 #include "skia_renderer.hpp"
 
 #include "include/core/SkSurface.h"
@@ -19,6 +25,33 @@
 sk_sp<GrDirectContext> makeSkiaContext();
 sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height);
 void skiaPresentSurface(sk_sp<SkSurface> surface);
+
+// Experimental flag, until we complete coregraphics_host
+#define TEST_CG_RENDERER
+
+#ifdef TEST_CG_RENDERER
+#include "cg_factory.hpp"
+#include "cg_renderer.hpp"
+#include "mac_utils.hpp"
+static void render_with_cg(SkCanvas* canvas, int w, int h, ViewerContent* content, double elapsed) {
+    // cons up a CGContext
+    auto pixels = SkData::MakeUninitialized(w * h * 4);
+    auto bytes = (uint8_t*)pixels->writable_data();
+    std::fill(bytes, bytes + pixels->size(), 0);
+    AutoCF space = CGColorSpaceCreateDeviceRGB();
+    auto info = kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast;
+    AutoCF ctx = CGBitmapContextCreate(bytes, w, h, 8, w * 4, space, info);
+
+    // Wrap it with our renderer
+    rive::CGRenderer renderer(ctx, w, h);
+    content->handleDraw(&renderer, elapsed);
+    CGContextFlush(ctx);
+
+    // Draw the pixels into the canvas
+    auto img = SkImage::MakeRasterData(SkImageInfo::MakeN32Premul(w, h), pixels, w * 4);
+    canvas->drawImage(img, 0, 0, SkSamplingOptions(SkFilterMode::kNearest), nullptr);
+}
+#endif
 
 class SkiaViewerHost : public ViewerHost {
 public:
@@ -59,9 +92,13 @@ public:
         paint.setColor(0xFF161616);
         canvas->drawPaint(paint);
 
-        rive::SkiaRenderer skiaRenderer(canvas);
         if (content) {
+#ifdef TEST_CG_RENDERER
+            render_with_cg(canvas, m_dimensions.width(), m_dimensions.height(), content, elapsed);
+#else
+            rive::SkiaRenderer skiaRenderer(canvas);
             content->handleDraw(&skiaRenderer, elapsed);
+#endif
         }
 
         canvas->flush();
@@ -73,8 +110,12 @@ public:
 std::unique_ptr<ViewerHost> ViewerHost::Make() { return std::make_unique<SkiaViewerHost>(); }
 
 rive::Factory* ViewerHost::Factory() {
-    static rive::SkiaFactory skiaFactory;
+#ifdef TEST_CG_RENDERER
+    static rive::CGFactory gFactory;
+    return &gFactory;
+#else
     return &skiaFactory;
+#endif
 }
 
 #endif

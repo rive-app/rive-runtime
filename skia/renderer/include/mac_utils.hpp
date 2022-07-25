@@ -54,30 +54,51 @@ static inline std::string tag2str(uint32_t tag) {
 }
 
 template <typename T> class AutoCF {
-    T m_Obj;
+    T m_obj;
 
 public:
-    AutoCF(T obj = nullptr) : m_Obj(obj) {}
-    ~AutoCF() {
-        if (m_Obj)
-            CFRelease(m_Obj);
+    AutoCF(T obj = nullptr) : m_obj(obj) {}
+    AutoCF(const AutoCF& other) {
+        if (other.m_obj) {
+            CFRetain(other.m_obj);
+        }
+        m_obj = other.m_obj;
     }
-
-    AutoCF(const AutoCF&) = delete;
-    void operator=(const AutoCF&) = delete;
-
-    void reset(T obj) {
-        if (obj != m_Obj) {
-            if (m_Obj) {
-                CFRelease(m_Obj);
-            }
-            m_Obj = obj;
+    AutoCF(AutoCF&& other) {
+        m_obj = other.m_obj;
+        other.m_obj = nullptr;
+    }
+    ~AutoCF() {
+        if (m_obj) {
+            CFRelease(m_obj);
         }
     }
 
-    operator T() const { return m_Obj; }
-    operator bool() const { return m_Obj != nullptr; }
-    T get() const { return m_Obj; }
+    AutoCF& operator=(const AutoCF& other) {
+        if (m_obj != other.m_obj) {
+            if (other.m_obj) {
+                CFRetain(other.m_obj);
+            }
+            if (m_obj) {
+                CFRelease(m_obj);
+            }
+            m_obj = other.m_obj;
+        }
+        return *this;
+    }
+
+    void reset(T obj) {
+        if (obj != m_obj) {
+            if (m_obj) {
+                CFRelease(m_obj);
+            }
+            m_obj = obj;
+        }
+    }
+
+    operator T() const { return m_obj; }
+    operator bool() const { return m_obj != nullptr; }
+    T get() const { return m_obj; }
 };
 
 static inline float find_float(CFDictionaryRef dict, const void* key) {
@@ -110,8 +131,9 @@ static inline float number_as_float(CFNumberRef num) {
 }
 
 namespace rive {
-    CGImageRef DecodeToCGImage(Span<const uint8_t>);
-}
+    AutoCF<CGImageRef> DecodeToCGImage(Span<const uint8_t>);
+    AutoCF<CGImageRef> FlipCGImageInY(AutoCF<CGImageRef>);
+} // namespace rive
 
 #endif
 #endif
