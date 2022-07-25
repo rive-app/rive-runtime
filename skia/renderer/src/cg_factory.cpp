@@ -17,6 +17,7 @@
 #include <ImageIO/ImageIO.h>
 #endif
 
+#include "utils/factory_utils.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
 
@@ -269,42 +270,6 @@ public:
     }
 };
 
-// todo: move this to common place
-class DataRenderBuffer : public RenderBuffer {
-    const size_t m_elemSize;
-    std::vector<uint32_t> m_storage; // store 32bits for alignment
-
-public:
-    DataRenderBuffer(const void* src, size_t count, size_t elemSize) :
-        RenderBuffer(count), m_elemSize(elemSize) {
-        const size_t bytes = count * elemSize;
-        m_storage.resize((bytes + 3) >> 2); // round up to next 32bit count
-        memcpy(m_storage.data(), src, bytes);
-    }
-
-    const float* f32s() const {
-        assert(m_elemSize == sizeof(float));
-        return reinterpret_cast<const float*>(m_storage.data());
-    }
-
-    const uint16_t* u16s() const {
-        assert(m_elemSize == sizeof(uint16_t));
-        return reinterpret_cast<const uint16_t*>(m_storage.data());
-    }
-
-    const Vec2D* vecs() const { return reinterpret_cast<const Vec2D*>(this->f32s()); }
-
-    size_t elemSize() const { return m_elemSize; }
-
-    static const DataRenderBuffer* Cast(const RenderBuffer* buffer) {
-        return static_cast<const DataRenderBuffer*>(buffer);
-    }
-};
-
-template <typename T> rcp<RenderBuffer> make_buffer(Span<T> span) {
-    return rcp<RenderBuffer>(new DataRenderBuffer(span.data(), span.size(), sizeof(T)));
-}
-
 //////////////////////////////////////////////////////////////////////////
 
 CGRenderer::CGRenderer(CGContextRef ctx, int width, int height) : m_ctx(ctx) {
@@ -420,11 +385,17 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
 
 // Factory
 
-rcp<RenderBuffer> CGFactory::makeBufferU16(Span<const uint16_t> data) { return make_buffer(data); }
+rcp<RenderBuffer> CGFactory::makeBufferU16(Span<const uint16_t> data) {
+    return DataRenderBuffer::Make(data);
+}
 
-rcp<RenderBuffer> CGFactory::makeBufferU32(Span<const uint32_t> data) { return make_buffer(data); }
+rcp<RenderBuffer> CGFactory::makeBufferU32(Span<const uint32_t> data) {
+    return DataRenderBuffer::Make(data);
+}
 
-rcp<RenderBuffer> CGFactory::makeBufferF32(Span<const float> data) { return make_buffer(data); }
+rcp<RenderBuffer> CGFactory::makeBufferF32(Span<const float> data) {
+    return DataRenderBuffer::Make(data);
+}
 
 rcp<RenderShader> CGFactory::makeLinearGradient(float sx,
                                                 float sy,

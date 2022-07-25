@@ -17,6 +17,7 @@
 
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include "utils/factory_utils.hpp"
 
 using namespace rive;
 
@@ -68,41 +69,6 @@ public:
 
     sk_sp<SkImage> skImage() const { return m_SkImage; }
 };
-
-class SkiaBuffer : public RenderBuffer {
-    const size_t m_ElemSize;
-    void* m_Buffer;
-
-public:
-    SkiaBuffer(const void* src, size_t count, size_t elemSize) :
-        RenderBuffer(count), m_ElemSize(elemSize) {
-        size_t bytes = count * elemSize;
-        m_Buffer = malloc(bytes);
-        memcpy(m_Buffer, src, bytes);
-    }
-
-    ~SkiaBuffer() override { free(m_Buffer); }
-
-    const float* f32s() const {
-        assert(m_ElemSize == sizeof(float));
-        return static_cast<const float*>(m_Buffer);
-    }
-
-    const uint16_t* u16s() const {
-        assert(m_ElemSize == sizeof(uint16_t));
-        return static_cast<const uint16_t*>(m_Buffer);
-    }
-
-    const SkPoint* points() const { return reinterpret_cast<const SkPoint*>(this->f32s()); }
-
-    static const SkiaBuffer* Cast(const RenderBuffer* buffer) {
-        return reinterpret_cast<const SkiaBuffer*>(buffer);
-    }
-};
-
-template <typename T> rcp<RenderBuffer> make_buffer(Span<T> span) {
-    return rcp<RenderBuffer>(new SkiaBuffer(span.data(), span.size(), sizeof(T)));
-}
 
 class SkiaRenderShader : public RenderShader {
 public:
@@ -189,7 +155,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
 
     SkMatrix scaleM;
 
-    const SkPoint* uvs = SkiaBuffer::Cast(uvCoords.get())->points();
+    auto uvs = (const SkPoint*)DataRenderBuffer::Cast(uvCoords.get())->vecs();
 
 #ifdef SKIA_BUG_13047
     // The local matrix is ignored for drawVertices, so we have to manually scale
@@ -220,11 +186,11 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     // clang-format off
     auto vt = SkVertices::MakeCopy(vertexMode,
                                    vertexCount,
-                                   SkiaBuffer::Cast(vertices.get())->points(),
+                                   (const SkPoint*)DataRenderBuffer::Cast(vertices.get())->vecs(),
                                    uvs,
                                    no_colors,
                                    indices->count(),
-                                   SkiaBuffer::Cast(indices.get())->u16s());
+                                   DataRenderBuffer::Cast(indices.get())->u16s());
     // clang-format on
 
     // The blend mode is ignored if we don't have colors && uvs
@@ -239,14 +205,16 @@ SkiaRenderImage::SkiaRenderImage(sk_sp<SkImage> image) : m_SkImage(std::move(ima
 // Factory
 
 rcp<RenderBuffer> SkiaFactory::makeBufferU16(Span<const uint16_t> data) {
-    return make_buffer(data);
+    return DataRenderBuffer::Make(data);
 }
 
 rcp<RenderBuffer> SkiaFactory::makeBufferU32(Span<const uint32_t> data) {
-    return make_buffer(data);
+    return DataRenderBuffer::Make(data);
 }
 
-rcp<RenderBuffer> SkiaFactory::makeBufferF32(Span<const float> data) { return make_buffer(data); }
+rcp<RenderBuffer> SkiaFactory::makeBufferF32(Span<const float> data) {
+    return DataRenderBuffer::Make(data);
+}
 
 rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx,
                                                   float sy,
