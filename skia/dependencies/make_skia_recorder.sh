@@ -66,6 +66,6 @@ else
     else 
         getSkia
         build_skia_recorder
-        OUTPUT_CACHE=out upload_cache
+        # OUTPUT_CACHE=out upload_cache
     fi 
 fi
