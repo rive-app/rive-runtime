@@ -148,6 +148,9 @@ class CGRenderShader : public RenderShader {
 public:
     CGRenderShader() {}
 
+    static constexpr int clampOptions =
+        kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation;
+
     virtual void draw(CGContextRef) {}
 };
 
@@ -226,8 +229,7 @@ public:
     }
 
     void draw(CGContextRef ctx) override {
-        CGGradientDrawingOptions options = 0;
-        CGContextDrawRadialGradient(ctx, m_grad, m_center, 0, m_center, m_radius, options);
+        CGContextDrawRadialGradient(ctx, m_grad, m_center, 0, m_center, m_radius, clampOptions);
     }
 };
 
@@ -249,8 +251,7 @@ public:
     }
 
     void draw(CGContextRef ctx) override {
-        CGGradientDrawingOptions options = 0;
-        CGContextDrawLinearGradient(ctx, m_grad, m_start, m_end, options);
+        CGContextDrawLinearGradient(ctx, m_grad, m_start, m_end, clampOptions);
     }
 };
 
@@ -295,6 +296,10 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
     CGContextBeginPath(m_ctx);
     CGContextAddPath(m_ctx, cgpath->path());
     if (auto sh = cgpaint->shader()) {
+        if (cgpaint->isStroke()) {
+            // so we can clip against the "stroke" of the path
+            CGContextReplacePathWithStrokedPath(m_ctx);
+        }
         CGContextSaveGState(m_ctx);
         CGContextClip(m_ctx);
         sh->draw(m_ctx);
