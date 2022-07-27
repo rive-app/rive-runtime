@@ -24,7 +24,6 @@ do
         '../src/**.cpp'
     }
     buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format'}
-    defines {'CONTOUR_RECURSIVE'}
 
     filter 'configurations:debug'
     do

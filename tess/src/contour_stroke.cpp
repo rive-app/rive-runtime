@@ -1,6 +1,6 @@
 #include "rive/math/math_types.hpp"
 #include "rive/tess/contour_stroke.hpp"
-#include "rive/tess/contour_render_path.hpp"
+#include "rive/tess/segmented_contour.hpp"
 #include "rive/math/vec2d.hpp"
 #include <assert.h>
 #include <algorithm>
@@ -22,7 +22,7 @@ void ContourStroke::nextRenderOffset(std::size_t& start, std::size_t& end) {
     end = m_Offsets[m_RenderOffset++];
 }
 
-void ContourStroke::extrude(const ContourRenderPath* renderPath,
+void ContourStroke::extrude(const SegmentedContour* contour,
                             bool isClosed,
                             StrokeJoin join,
                             StrokeCap cap,
@@ -31,8 +31,9 @@ void ContourStroke::extrude(const ContourRenderPath* renderPath,
     // TODO: if transform is identity, no need to copy and transform
     // contourPoints->points.
 
-    const std::vector<Vec2D>& contourPoints = renderPath->contourVertices();
-    std::vector<Vec2D> points(contourPoints);
+    auto contourPoints = contour->contourPoints();
+    std::vector<Vec2D> points(contourPoints.begin(), contourPoints.end());
+
     auto pointCount = points.size();
     if (pointCount < 6) {
         return;
