@@ -90,14 +90,22 @@ project "rive_skia_renderer"
             targetdir "%{cfg.system}/arm64/bin/%{cfg.buildcfg}"
             objdir "%{cfg.system}/arm64/obj/%{cfg.buildcfg}"
             libdirs {SKIA_DIR.. "/out/arm64"}
-            
+
+    filter { "configurations:release", "system:macosx" }
+        buildoptions {"-flto=full"}
+
+    filter { "configurations:release", "system:android" }
+        buildoptions {"-flto=full"}
+
+    filter { "configurations:release", "system:ios" }
+        buildoptions {"-flto=full"}
+
     filter "configurations:debug"
         buildoptions {"-g"}
         defines {"DEBUG"}
         symbols "On"
 
     filter "configurations:release"
-        buildoptions {"-flto=full"}
         defines {"RELEASE", "NDEBUG"}
         optimize "On"
 
