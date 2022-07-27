@@ -28,7 +28,7 @@
     },
     "colorValue": {
       "type": "Color",
-      "initialValue": "0xFF222222",
+      "initialValue": "0xFF1D1D1D",
       "key": {
         "int": 45,
         "string": "colorValue"
