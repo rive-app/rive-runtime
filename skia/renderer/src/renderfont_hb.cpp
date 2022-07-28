@@ -158,6 +158,60 @@ rive::RawPath HBRenderFont::getPath(rive::GlyphID glyph) const {
 
 ///////////////////////////////////////////////////////////
 
+const hb_feature_t gFeatures[] = {
+    {'liga', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
+    {'dlig', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
+    {'kern', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
+};
+constexpr int gNumFeatures = sizeof(gFeatures) / sizeof(gFeatures[0]);
+
+static float shape_run(std::vector<rive::RenderGlyphRun>* gruns,
+                       const rive::Unichar text[],
+                       const rive::RenderTextRun& tr,
+                       unsigned textOffset,
+                       float xpos) {
+    hb_buffer_t* buf = hb_buffer_create();
+    hb_buffer_add_utf32(buf, text, tr.unicharCount, 0, tr.unicharCount);
+
+    hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
+    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
+    hb_buffer_set_language(buf, hb_language_from_string("en", -1));
+
+    auto hbfont = (HBRenderFont*)tr.font.get();
+    hb_shape(hbfont->m_Font, buf, gFeatures, gNumFeatures);
+
+    unsigned int glyph_count;
+    hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
+    hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
+
+    // todo: check for missing glyphs, and perform font-substitution
+
+    rive::RenderGlyphRun gr;
+    gr.font = tr.font;
+    gr.size = tr.size;
+    gr.glyphs.resize(glyph_count);
+    gr.textOffsets.resize(glyph_count);
+    gr.xpos.resize(glyph_count + 1);
+
+    const float scale = tr.size / kStdScale;
+
+    for (unsigned int i = 0; i < glyph_count; i++) {
+        //            hb_position_t x_offset  = glyph_pos[i].x_offset;
+        //            hb_position_t y_offset  = glyph_pos[i].y_offset;
+
+        gr.glyphs[i] = (uint16_t)glyph_info[i].codepoint;
+        gr.textOffsets[i] = textOffset + glyph_info[i].cluster;
+        gr.xpos[i] = xpos;
+
+        xpos += glyph_pos[i].x_advance * scale;
+    }
+    gr.xpos[glyph_count] = xpos;
+    gruns->push_back(std::move(gr));
+
+    hb_buffer_destroy(buf);
+    return xpos;
+}
+
 std::vector<rive::RenderGlyphRun>
 HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
                           rive::Span<const rive::RenderTextRun> truns) const {
@@ -166,59 +220,12 @@ HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
 
     /////////////////
 
-    const hb_feature_t features[] = {
-        {'liga', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-        {'dlig', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-        {'kern', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    };
-    constexpr int numFeatures = sizeof(features) / sizeof(features[0]);
-
     uint32_t unicharIndex = 0;
-    rive::Vec2D origin = {0, 0};
+    float xpos = 0;
     for (const auto& tr : truns) {
-        hb_buffer_t* buf = hb_buffer_create();
-        hb_buffer_add_utf32(
-            buf, (const uint32_t*)&text[unicharIndex], tr.unicharCount, 0, tr.unicharCount);
-
-        hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
-        hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
-        hb_buffer_set_language(buf, hb_language_from_string("en", -1));
-
-        auto hbfont = (HBRenderFont*)tr.font.get();
-        hb_shape(hbfont->m_Font, buf, features, numFeatures);
-
-        unsigned int glyph_count;
-        hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
-        hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
-
-        // todo: check for missing glyphs, and perform font-substitution
-
-        rive::RenderGlyphRun gr;
-        gr.font = tr.font;
-        gr.size = tr.size;
-        gr.glyphs.resize(glyph_count);
-        gr.textOffsets.resize(glyph_count);
-        gr.xpos.resize(glyph_count + 1);
-
-        const float scale = tr.size / kStdScale;
-
-        for (unsigned int i = 0; i < glyph_count; i++) {
-            //            hb_position_t x_offset  = glyph_pos[i].x_offset;
-            //            hb_position_t y_offset  = glyph_pos[i].y_offset;
-
-            gr.glyphs[i] = (uint16_t)glyph_info[i].codepoint;
-            gr.textOffsets[i] = unicharIndex + glyph_info[i].cluster;
-            gr.xpos[i] = origin.x;
-
-            origin.x += glyph_pos[i].x_advance * scale;
-        }
-        gr.xpos[glyph_count] = origin.x;
-        gruns.push_back(std::move(gr));
-
+        xpos = shape_run(&gruns, &text[unicharIndex], tr, unicharIndex, xpos);
         unicharIndex += tr.unicharCount;
-        hb_buffer_destroy(buf);
     }
-
     return gruns;
 }
 #endif
