@@ -168,6 +168,7 @@ public:
     CGRenderPaint() {}
 
     bool isStroke() const { return m_isStroke; }
+    float opacity() const { return m_rgba[3]; }
 
     CGRenderShader* shader() const { return static_cast<CGRenderShader*>(m_shader.get()); }
 
@@ -202,6 +203,19 @@ static CGGradientRef convert(const ColorInt colors[], const float stops[], size_
 
     for (size_t i = 0; i < count; ++i) {
         convertColor(colors[i], &c[i * 4]);
+
+        // Rive wants the colors to be premultiplied *after* interpolation
+        // Unfortunately, CG doesn't know about this option, it just does
+        // a straight interpolation and uses the result (thinking it is
+        // in premul form already). This can lead to artifacts in the drawing
+        // (e.g. sparkles) so as a hack, we premul our color stops up front.
+        // Not exactly correct, but does remove the sparkles.
+        // A better fix might be to write a custom Shading proc... but that
+        // is likely to be be slower (but need to try/time it to know for sure).
+        CGFloat* p = &c[i * 4];
+        p[0] *= p[3];
+        p[1] *= p[3];
+        p[2] *= p[3];
     }
     if (stops) {
         for (size_t i = 0; i < count; ++i) {
@@ -302,11 +316,16 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
         }
         CGContextSaveGState(m_ctx);
         CGContextClip(m_ctx);
+
+        // so the gradient modulates with the color's alpha
+        CGContextSetAlpha(m_ctx, cgpaint->opacity());
+
         sh->draw(m_ctx);
         CGContextRestoreGState(m_ctx);
     } else {
         CGContextDrawPath(m_ctx, cgpath->drawingMode(cgpaint->isStroke()));
     }
+    assert(CGContextIsPathEmpty(m_ctx));
 }
 
 void CGRenderer::clipPath(RenderPath* path) {
