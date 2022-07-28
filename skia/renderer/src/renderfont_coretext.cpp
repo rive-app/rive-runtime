@@ -1,7 +1,10 @@
 /*
  * Copyright 2022 Rive
  */
+
 #include "rive/rive_types.hpp"
+#include "utils/rive_utf.hpp"
+
 #if defined(RIVE_BUILD_FOR_APPLE) && defined(RIVE_TEXT)
 #include "renderfont_coretext.hpp"
 #include "mac_utils.hpp"
@@ -104,6 +107,24 @@ rive::rcp<rive::RenderFont> CoreTextRenderFont::makeAtCoords(rive::Span<const Co
     return rive::rcp<rive::RenderFont>(new CoreTextRenderFont(font, compute_axes(font)));
 }
 
+static CTFontRef font_from_run(CTRunRef run) {
+    auto attr = CTRunGetAttributes(run);
+    assert(attr);
+    CTFontRef ct = (CTFontRef)CFDictionaryGetValue(attr, kCTFontAttributeName);
+    assert(ct);
+    return ct;
+}
+
+static rive::rcp<rive::RenderFont> convert_to_renderfont(CTFontRef ct,
+                                                         rive::rcp<rive::RenderFont> rf) {
+    auto ctrf = static_cast<CoreTextRenderFont*>(rf.get());
+    if (ctrf->m_font == ct) {
+        return rf;
+    }
+    CFRetain(ct);
+    return rive::rcp<rive::RenderFont>(new CoreTextRenderFont(ct, compute_axes(ct)));
+}
+
 static void apply_element(void* ctx, const CGPathElement* element) {
     auto path = (rive::RawPath*)ctx;
     const CGPoint* points = element->points;
@@ -152,11 +173,17 @@ rive::RawPath CoreTextRenderFont::getPath(rive::GlyphID glyph) const {
 ////////////////////////////////////////////////////////////////////////////////////
 
 struct AutoUTF16 {
-    AutoSTArray<1024, uint16_t> array;
+    std::vector<uint16_t> array;
 
-    AutoUTF16(const rive::Unichar uni[], int count) : array(count) {
+    AutoUTF16(const rive::Unichar uni[], int count) {
+        array.reserve(count);
         for (int i = 0; i < count; ++i) {
-            array[i] = rive::castTo<uint16_t>(uni[i]);
+            uint16_t tmp[2];
+            int n = rive::UTF::ToUTF16(uni[i], tmp);
+
+            for (int i = 0; i < n; ++i) {
+                array.push_back(tmp[i]);
+            }
         }
     }
 };
@@ -170,8 +197,6 @@ add_run(rive::RenderGlyphRun* gr, CTRunRef run, uint32_t textStart, float textSi
         gr->xpos.resize(count + 1);
         gr->textOffsets.resize(count);
 
-        const auto txStart = textStart + CTRunGetStringRange(run).location;
-
         CTRunGetGlyphs(run, {0, count}, gr->glyphs.data());
 
         AutoSTArray<1024, CFIndex> indices(count);
@@ -182,7 +207,7 @@ add_run(rive::RenderGlyphRun* gr, CTRunRef run, uint32_t textStart, float textSi
 
         for (CFIndex i = 0; i < count; ++i) {
             gr->xpos[i] = startX;
-            gr->textOffsets[i] = txStart + indices[i];
+            gr->textOffsets[i] = textStart + indices[i]; // utf16 offsets, will fix-up later
             startX += advances[i].width * scale;
         }
         gr->xpos[count] = startX;
@@ -196,14 +221,17 @@ CoreTextRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
     std::vector<rive::RenderGlyphRun> gruns;
     gruns.reserve(truns.size());
 
-    uint32_t unicharIndex = 0;
+    uint32_t textIndex = 0;
     float startX = 0;
     for (const auto& tr : truns) {
         CTFontRef font = ((CoreTextRenderFont*)tr.font.get())->m_font;
 
-        AutoUTF16 utf16(&text[unicharIndex], tr.unicharCount);
+        AutoUTF16 utf16(&text[textIndex], tr.unicharCount);
+        const bool hasSurrogates = utf16.array.size() != tr.unicharCount;
+        assert(!hasSurrogates);
+
         AutoCF string = CFStringCreateWithCharactersNoCopy(
-            nullptr, utf16.array.data(), tr.unicharCount, kCFAllocatorNull);
+            nullptr, utf16.array.data(), utf16.array.size(), kCFAllocatorNull);
 
         AutoCF attr = CFDictionaryCreateMutable(kCFAllocatorDefault,
                                                 0,
@@ -220,19 +248,17 @@ CoreTextRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
         CFArrayRef run_array = CTLineGetGlyphRuns(line.get());
         CFIndex runCount = CFArrayGetCount(run_array);
         for (CFIndex i = 0; i < runCount; ++i) {
+            CTRunRef runref = (CTRunRef)CFArrayGetValueAtIndex(run_array, i);
             rive::RenderGlyphRun grun;
-            startX = add_run(&grun,
-                             (CTRunRef)CFArrayGetValueAtIndex(run_array, i),
-                             unicharIndex,
-                             tr.size,
-                             startX);
+            startX = add_run(&grun, runref, textIndex, tr.size, startX);
             if (grun.glyphs.size() > 0) {
-                grun.font = tr.font;
+                auto ct = font_from_run(runref);
+                grun.font = convert_to_renderfont(ct, tr.font);
                 grun.size = tr.size;
                 gruns.push_back(std::move(grun));
             }
         }
-        unicharIndex += tr.unicharCount;
+        textIndex += tr.unicharCount;
     }
 
     return gruns;

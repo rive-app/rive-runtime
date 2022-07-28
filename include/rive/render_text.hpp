@@ -11,7 +11,7 @@
 
 namespace rive {
 
-    using Unichar = int32_t;
+    using Unichar = uint32_t;
     using GlyphID = uint16_t;
 
     struct RenderTextRun;

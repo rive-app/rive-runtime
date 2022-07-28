@@ -45,6 +45,7 @@ do
 
     files {
         '../src/**.cpp',
+        '../../utils/rive_utf.cpp',
         dependencies .. '/imgui/imgui.cpp',
         dependencies .. '/imgui/imgui_widgets.cpp',
         dependencies .. '/imgui/imgui_tables.cpp',

@@ -3,6 +3,8 @@
  */
 
 #include "viewer/viewer_content.hpp"
+#include "utils/rive_utf.hpp"
+
 #ifdef RIVE_RENDERER_SKIA
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
@@ -90,9 +92,10 @@ static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint)
 
 static RenderTextRun
 append(std::vector<Unichar>* unichars, rcp<RenderFont> font, float size, const char text[]) {
+    const uint8_t* ptr = (const uint8_t*)text;
     uint32_t n = 0;
-    while (text[n]) {
-        unichars->push_back(text[n]); // todo: utf8 -> unichar
+    while (*ptr) {
+        unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
     return {std::move(font), size, n};
@@ -143,7 +146,7 @@ class TextPathContent : public ViewerContent {
         RenderFontTextRuns truns;
 
         truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "U"));
-        truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "neasy"));
+        truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "ne漢字asy"));
         truns.push_back(append(&m_unichars, font1, 30, " fits the crown"));
         truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
         truns.push_back(append(&m_unichars, font0, 30, " lies the head."));

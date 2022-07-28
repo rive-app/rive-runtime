@@ -3,6 +3,8 @@
  */
 
 #include "viewer/viewer_content.hpp"
+#include "utils/rive_utf.hpp"
+
 #ifdef RIVE_RENDERER_SKIA
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
@@ -104,9 +106,10 @@ static rive::RenderTextRun append(std::vector<rive::Unichar>* unichars,
                                   rive::rcp<rive::RenderFont> font,
                                   float size,
                                   const char text[]) {
+    const uint8_t* ptr = (const uint8_t*)text;
     uint32_t n = 0;
-    while (text[n]) {
-        unichars->push_back(text[n]); // todo: utf8 -> unichar
+    while (*ptr) {
+        unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
     return {std::move(font), size, n};
@@ -145,7 +148,7 @@ class TextContent : public ViewerContent {
         RenderFontTextRuns truns;
 
         truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "U"));
-        truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "neasy"));
+        truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "ne漢字asy"));
         truns.push_back(append(&m_unichars, font1, 30, " fits the crown"));
         truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
         truns.push_back(append(&m_unichars, font0, 30, " lies the head."));
