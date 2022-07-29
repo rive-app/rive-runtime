@@ -1,11 +1,13 @@
 /*
  * Copyright 2022 Rive
  */
+
+#include "rive/render_text.hpp"
+
 #ifdef RIVE_TEXT
 #include "renderfont_hb.hpp"
 
 #include "rive/factory.hpp"
-#include "rive/render_text.hpp"
 #include "renderer_utils.hpp"
 
 #include "hb.h"
@@ -291,4 +293,5 @@ HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
     }
     return gruns;
 }
+
 #endif

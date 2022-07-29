@@ -7,6 +7,7 @@ configurations {
 dependencies = os.getenv('DEPENDENCIES')
 
 rive = '../../'
+rive_thirdparty = '../../../../third_party'
 rive_tess = '../../tess'
 rive_skia = '../../skia'
 skia = dependencies .. '/skia'
@@ -27,25 +28,35 @@ do
     toolset 'clang'
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
+
+    defines { "RIVE_TEXT" }
+
     includedirs {
         '../include',
         rive .. '/include',
+        rive .. '/skia/renderer/include',  -- for renderfont backends
+        rive_thirdparty .. '/externals/harfbuzz/src',
         dependencies,
         dependencies .. '/sokol',
         dependencies .. '/imgui'
     }
 
     links {
-        'rive'
+        'rive',
+        'rive_harfbuzz',
     }
 
     libdirs {
-        rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}'
+        rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}',
+        rive_thirdparty .. '/harfbuzz/build/%{cfg.buildcfg}/bin',
     }
 
     files {
         '../src/**.cpp',
         '../../utils/rive_utf.cpp',
+        rive .. '/skia/renderer/src/renderfont_coretext.cpp',
+        rive .. '/skia/renderer/src/renderfont_hb.cpp',
+        rive .. '/utils/rive_utf.cpp',
         dependencies .. '/imgui/imgui.cpp',
         dependencies .. '/imgui/imgui_widgets.cpp',
         dependencies .. '/imgui/imgui_tables.cpp',
@@ -202,19 +213,17 @@ do
             skia .. '/include/effects',
             skia .. '/include/gpu',
             skia .. '/include/config',
-            rive_skia .. '/renderer/include'
         }
         defines {
             'RIVE_RENDERER_SKIA'
         }
         libdirs {
             rive_skia .. '/renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}',
-            '../../../../third_party/harfbuzz/build/%{cfg.buildcfg}/bin'
+            rive_thirdparty .. '/harfbuzz/build/%{cfg.buildcfg}/bin'
         }
         links {
             'skia',
             'rive_skia_renderer',
-            'rive_harfbuzz'
         }
     end
 

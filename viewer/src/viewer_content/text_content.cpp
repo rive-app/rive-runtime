@@ -5,7 +5,6 @@
 #include "viewer/viewer_content.hpp"
 #include "utils/rive_utf.hpp"
 
-#ifdef RIVE_RENDERER_SKIA
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
@@ -14,15 +13,6 @@
 using RenderFontTextRuns = std::vector<rive::RenderTextRun>;
 using RenderFontGlyphRuns = std::vector<rive::RenderGlyphRun>;
 using RenderFontFactory = rive::rcp<rive::RenderFont> (*)(const rive::Span<const uint8_t>);
-
-#ifdef RIVE_RENDERER_SKIA
-#include "renderfont_coretext.hpp"
-static RenderFontFactory gFontFactory = CoreTextRenderFont::Decode;
-#else
-#include "renderfont_hb.hpp"
-static RenderFontFactory gFontFactory = HBRenderFont::Decode;
-#define RIVE_USING_HAFBUZZ_FONTS
-#endif
 
 static bool ws(rive::Unichar c) { return c <= ' '; }
 
@@ -193,11 +183,7 @@ class TextContent : public ViewerContent {
 
 public:
     TextContent() {
-#ifdef RIVE_USING_HAFBUZZ_FONTS
-        HBRenderFont::gFallbackProc = load_fallback_font;
-#endif
-
-        auto truns = this->make_truns(gFontFactory);
+        auto truns = this->make_truns(ViewerContent::DecodeFont);
         m_gruns.push_back(truns[0].font->shapeText(rive::toSpan(m_unichars), rive::toSpan(truns)));
 
         m_xform = rive::Mat2D::fromTranslate(10, 0) * rive::Mat2D::fromScale(3, 3);
@@ -251,6 +237,3 @@ std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[]) {
     }
     return nullptr;
 }
-#else
-std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[]) { return nullptr; }
-#endif

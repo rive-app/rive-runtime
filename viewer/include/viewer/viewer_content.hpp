@@ -6,11 +6,14 @@
 #define _RIVE_VIEWER_CONTENT_HPP_
 
 #include "rive/span.hpp"
+#include "rive/refcnt.hpp"
+
 #include "imgui.h"
 
 namespace rive {
     class Renderer;
     class Factory;
+    class RenderFont;
 } // namespace rive
 
 class ViewerContent {
@@ -55,6 +58,9 @@ public:
 
     // Abstracts which rive Factory is currently used.
     static rive::Factory* RiveFactory();
+
+    // Abstracts which font backend is currently used.
+    static rive::rcp<rive::RenderFont> DecodeFont(rive::Span<const uint8_t>);
 };
 
 #endif

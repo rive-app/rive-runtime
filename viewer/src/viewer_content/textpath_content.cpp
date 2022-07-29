@@ -5,8 +5,8 @@
 #include "viewer/viewer_content.hpp"
 #include "utils/rive_utf.hpp"
 
-#ifdef RIVE_RENDERER_SKIA
 #include "rive/refcnt.hpp"
+#include "rive/factory.hpp"
 #include "rive/render_text.hpp"
 #include "rive/math/contour_measure.hpp"
 #include "rive/text/line_breaker.hpp"
@@ -16,14 +16,6 @@ using namespace rive;
 using RenderFontTextRuns = std::vector<RenderTextRun>;
 using RenderFontGlyphRuns = std::vector<RenderGlyphRun>;
 using RenderFontFactory = rcp<RenderFont> (*)(const Span<const uint8_t>);
-
-#ifdef RIVE_RENDERER_SKIA
-#include "renderfont_coretext.hpp"
-static RenderFontFactory gFontFactory = CoreTextRenderFont::Decode;
-#else
-#include "renderfont_hb.hpp"
-static RenderFontFactory gFontFactory = HBRenderFont::Decode;
-#endif
 
 template <typename Handler>
 void visit(const std::vector<RenderGlyphRun>& gruns, Vec2D origin, Handler proc) {
@@ -168,7 +160,7 @@ public:
             return bounds;
         };
 
-        auto truns = this->make_truns(gFontFactory);
+        auto truns = this->make_truns(ViewerContent::DecodeFont);
 
         m_gruns = truns[0].font->shapeText(toSpan(m_unichars), toSpan(truns));
 
@@ -362,6 +354,3 @@ public:
 std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) {
     return std::make_unique<TextPathContent>();
 }
-#else
-std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) { return nullptr; }
-#endif

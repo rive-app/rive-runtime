@@ -1,9 +1,6 @@
-#ifdef RIVE_RENDERER_TESS
-#include "viewer/tess/viewer_sokol_factory.hpp"
-#endif
-#ifdef RIVE_RENDERER_SKIA
-#include "skia_factory.hpp"
-#endif
+/*
+ * Copyright 2022 Rive
+ */
 
 #include "viewer/viewer_content.hpp"
 #include "rive/rive_counter.hpp"
@@ -63,3 +60,16 @@ void ViewerContent::DumpCounters(const char label[]) {
 #include "viewer/viewer_host.hpp"
 
 rive::Factory* ViewerContent::RiveFactory() { return ViewerHost::Factory(); }
+
+#ifdef RIVE_BUILD_FOR_APPLE
+// note: we can use harfbuzz even on apple ... (if we want)
+#include "renderfont_coretext.hpp"
+rive::rcp<rive::RenderFont> ViewerContent::DecodeFont(rive::Span<const uint8_t> span) {
+    return CoreTextRenderFont::Decode(span);
+}
+#else
+#include "renderfont_hb.hpp"
+rive::rcp<rive::RenderFont> ViewerContent::DecodeFont(rive::Span<const uint8_t> span) {
+    return HBRenderFont::Decode(span);
+}
+#endif
