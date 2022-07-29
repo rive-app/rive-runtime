@@ -11,6 +11,9 @@
 #include "hb.h"
 #include "hb-ot.h"
 
+// Initialized to null. Client can set this to a callback.
+HBRenderFont::FallbackProc HBRenderFont::gFallbackProc;
+
 rive::rcp<rive::RenderFont> HBRenderFont::Decode(rive::Span<const uint8_t> span) {
     auto blob = hb_blob_create_or_fail((const char*)span.data(),
                                        (unsigned)span.size(),
@@ -165,11 +168,8 @@ const hb_feature_t gFeatures[] = {
 };
 constexpr int gNumFeatures = sizeof(gFeatures) / sizeof(gFeatures[0]);
 
-static float shape_run(std::vector<rive::RenderGlyphRun>* gruns,
-                       const rive::Unichar text[],
-                       const rive::RenderTextRun& tr,
-                       unsigned textOffset,
-                       float xpos) {
+static rive::RenderGlyphRun
+shape_run(const rive::Unichar text[], const rive::RenderTextRun& tr, unsigned textOffset) {
     hb_buffer_t* buf = hb_buffer_create();
     hb_buffer_add_utf32(buf, text, tr.unicharCount, 0, tr.unicharCount);
 
@@ -194,22 +194,59 @@ static float shape_run(std::vector<rive::RenderGlyphRun>* gruns,
     gr.xpos.resize(glyph_count + 1);
 
     const float scale = tr.size / kStdScale;
-
     for (unsigned int i = 0; i < glyph_count; i++) {
         //            hb_position_t x_offset  = glyph_pos[i].x_offset;
         //            hb_position_t y_offset  = glyph_pos[i].y_offset;
 
         gr.glyphs[i] = (uint16_t)glyph_info[i].codepoint;
         gr.textOffsets[i] = textOffset + glyph_info[i].cluster;
-        gr.xpos[i] = xpos;
-
-        xpos += glyph_pos[i].x_advance * scale;
+        gr.xpos[i] = glyph_pos[i].x_advance * scale;
     }
-    gr.xpos[glyph_count] = xpos;
-    gruns->push_back(std::move(gr));
-
+    gr.xpos[glyph_count] = 0; // so the next run can line up snug
     hb_buffer_destroy(buf);
-    return xpos;
+    return gr;
+}
+
+static rive::RenderGlyphRun
+extract_subset(const rive::RenderGlyphRun& orig, size_t start, size_t end) {
+    rive::RenderGlyphRun subset;
+    subset.font = std::move(orig.font);
+    subset.size = orig.size;
+    subset.glyphs.insert(subset.glyphs.begin(), &orig.glyphs[start], &orig.glyphs[end]);
+    subset.textOffsets.insert(
+        subset.textOffsets.begin(), &orig.textOffsets[start], &orig.textOffsets[end]);
+    subset.xpos.insert(subset.xpos.begin(), &orig.xpos[start], &orig.xpos[end + 1]);
+    subset.xpos.back() = 0; // since we're now the end of a run
+    return subset;
+}
+
+static void perform_fallback(rive::rcp<rive::RenderFont> fallbackFont,
+                             std::vector<rive::RenderGlyphRun>* gruns,
+                             const rive::Unichar text[],
+                             const rive::RenderGlyphRun& orig) {
+    assert(orig.glyphs.size() > 0);
+
+    const size_t count = orig.glyphs.size();
+    size_t startI = 0;
+    while (startI < count) {
+        size_t endI = startI + 1;
+        if (orig.glyphs[startI] == 0) {
+            while (endI < count && orig.glyphs[endI] == 0) {
+                ++endI;
+            }
+            auto textStart = orig.textOffsets[startI];
+            auto textCount = orig.textOffsets[endI - 1] - textStart + 1;
+            auto tr = rive::RenderTextRun{fallbackFont, orig.size, textCount};
+            auto gr = shape_run(&text[textStart], tr, textStart);
+            gruns->push_back(std::move(gr));
+        } else {
+            while (endI < count && orig.glyphs[endI] != 0) {
+                ++endI;
+            }
+            gruns->push_back(extract_subset(orig, startI, endI));
+        }
+        startI = endI;
+    }
 }
 
 std::vector<rive::RenderGlyphRun>
@@ -221,10 +258,36 @@ HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
     /////////////////
 
     uint32_t unicharIndex = 0;
-    float xpos = 0;
     for (const auto& tr : truns) {
-        xpos = shape_run(&gruns, &text[unicharIndex], tr, unicharIndex, xpos);
+        auto gr = shape_run(&text[unicharIndex], tr, unicharIndex);
         unicharIndex += tr.unicharCount;
+
+        auto end = gr.glyphs.end();
+        auto iter = std::find(gr.glyphs.begin(), end, 0);
+        if (!gFallbackProc || iter == end) {
+            gruns.push_back(std::move(gr));
+        } else {
+            // found at least 1 zero in glyphs, so need to perform font-fallback
+            size_t index = iter - gr.glyphs.begin();
+            rive::Unichar missing = text[gr.textOffsets[index]];
+            // todo: consider sending more chars if that helps choose a font
+            auto fallback = gFallbackProc({&missing, 1});
+            if (fallback) {
+                perform_fallback(fallback, &gruns, text.data(), gr);
+            } else {
+                gruns.push_back(std::move(gr)); // oh well, just keep the missing glyphs
+            }
+        }
+    }
+
+    // now turn the advances (widths) we stored in xpos[] into actual x-positions
+    float pos = 0;
+    for (auto& gr : gruns) {
+        for (auto& xp : gr.xpos) {
+            float adv = xp;
+            xp = pos;
+            pos += adv;
+        }
     }
     return gruns;
 }

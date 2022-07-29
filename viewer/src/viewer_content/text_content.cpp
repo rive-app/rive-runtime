@@ -21,6 +21,7 @@ static RenderFontFactory gFontFactory = CoreTextRenderFont::Decode;
 #else
 #include "renderfont_hb.hpp"
 static RenderFontFactory gFontFactory = HBRenderFont::Decode;
+#define RIVE_USING_HAFBUZZ_FONTS
 #endif
 
 static bool ws(rive::Unichar c) { return c <= ' '; }
@@ -91,6 +92,38 @@ static void drawpara(rive::Factory* factory,
 
 ////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef RIVE_USING_HAFBUZZ_FONTS
+static rive::rcp<rive::RenderFont> load_fallback_font(rive::Span<const rive::Unichar> missing) {
+    static rive::rcp<rive::RenderFont> gFallbackFont;
+
+    printf("missing chars:");
+    for (auto m : missing) {
+        printf(" %X", m);
+    }
+    printf("\n");
+
+    if (!gFallbackFont) {
+        // TODO: make this more sharable for our test apps
+        FILE* fp = fopen("/Users/mike/fonts/Arial Unicode.ttf", "rb");
+        if (!fp) {
+            return nullptr;
+        }
+
+        fseek(fp, 0, SEEK_END);
+        size_t size = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+
+        std::vector<uint8_t> bytes(size);
+        size_t bytesRead = fread(bytes.data(), 1, size, fp);
+        fclose(fp);
+
+        assert(bytesRead == size);
+        gFallbackFont = HBRenderFont::Decode(rive::toSpan(bytes));
+    }
+    return gFallbackFont;
+}
+#endif
+
 static void draw_line(rive::Factory* factory, rive::Renderer* renderer, float x) {
     auto paint = factory->makeRenderPaint();
     paint->style(rive::RenderPaintStyle::stroke);
@@ -160,6 +193,10 @@ class TextContent : public ViewerContent {
 
 public:
     TextContent() {
+#ifdef RIVE_USING_HAFBUZZ_FONTS
+        HBRenderFont::gFallbackProc = load_fallback_font;
+#endif
+
         auto truns = this->make_truns(gFontFactory);
         m_gruns.push_back(truns[0].font->shapeText(rive::toSpan(m_unichars), rive::toSpan(truns)));
 
