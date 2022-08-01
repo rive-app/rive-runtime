@@ -19,6 +19,7 @@
 
 #include "utils/factory_utils.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/core/type_conversions.hpp"
 #include "rive/shapes/paint/color.hpp"
 
 using namespace rive;
@@ -273,15 +274,21 @@ class CGRenderImage : public RenderImage {
 public:
     AutoCF<CGImageRef> m_image;
 
-    CGRenderImage(const Span<const uint8_t> span) : m_image(FlipCGImageInY(DecodeToCGImage(span))) {
+    CGRenderImage(const Span<const uint8_t> span) : m_image(DecodeToCGImage(span)) {
         if (m_image) {
-            m_Width = CGImageGetWidth(m_image.get());
-            m_Height = CGImageGetHeight(m_image.get());
+            m_Width = rive::castTo<uint32_t>(CGImageGetWidth(m_image.get()));
+            m_Height = rive::castTo<uint32_t>(CGImageGetHeight(m_image.get()));
         }
     }
 
-    static CGImageRef Cast(const RenderImage* image) {
-        return reinterpret_cast<const CGRenderImage*>(image)->m_image.get();
+    Mat2D localM2D() const { return Mat2D(1, 0, 0, -1, 0, (float)m_Height); }
+
+    void applyLocalMatrix(CGContextRef ctx) const {
+        CGContextConcatCTM(ctx, CGAffineTransformMake(1, 0, 0, -1, 0, (float)m_Height));
+    }
+
+    static const CGRenderImage* Cast(const RenderImage* image) {
+        return reinterpret_cast<const CGRenderImage*>(image);
     }
 };
 
@@ -291,6 +298,8 @@ CGRenderer::CGRenderer(CGContextRef ctx, int width, int height) : m_ctx(ctx) {
     CGContextSaveGState(ctx);
     Mat2D m(1, 0, 0, -1, 0, height);
     CGContextConcatCTM(ctx, convert(m));
+
+    CGContextSetInterpolationQuality(ctx, kCGInterpolationMedium);
 }
 
 CGRenderer::~CGRenderer() { CGContextRestoreGState(m_ctx); }
@@ -342,7 +351,9 @@ void CGRenderer::drawImage(const RenderImage* image, BlendMode blendMode, float 
     CGContextSaveGState(m_ctx);
     CGContextSetAlpha(m_ctx, opacity);
     CGContextSetBlendMode(m_ctx, convert(blendMode));
-    CGContextDrawImage(m_ctx, bounds, CGRenderImage::Cast(image));
+    auto cgimg = CGRenderImage::Cast(image);
+    cgimg->applyLocalMatrix(m_ctx);
+    CGContextDrawImage(m_ctx, bounds, cgimg->m_image);
     CGContextRestoreGState(m_ctx);
 }
 
@@ -358,6 +369,9 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
                                rcp<RenderBuffer> indices,
                                BlendMode blendMode,
                                float opacity) {
+    auto cgimage = CGRenderImage::Cast(image);
+    auto const localMatrix = cgimage->localM2D();
+
     const float sx = image->width();
     const float sy = image->height();
     auto const bounds = CGRectMake(0, 0, sx, sy);
@@ -397,9 +411,10 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
         const auto v0 = scale(uvs[index0]);
         const auto v1 = scale(uvs[index1]);
         const auto v2 = scale(uvs[index2]);
-        auto mx = basis_matrix(p0, p1, p2) * basis_matrix(v0, v1, v2).invertOrIdentity();
+        auto mx =
+            basis_matrix(p0, p1, p2) * basis_matrix(v0, v1, v2).invertOrIdentity() * localMatrix;
         CGContextConcatCTM(m_ctx, convert(mx));
-        CGContextDrawImage(m_ctx, bounds, CGRenderImage::Cast(image));
+        CGContextDrawImage(m_ctx, bounds, cgimage->m_image);
 
         CGContextRestoreGState(m_ctx);
     }
