@@ -17,8 +17,12 @@
 
 #if !defined(DEBUG) && !defined(NDEBUG)
     // we have to make a decision what mode we're in
-    // xcode seems to be in Release mode in this case ...
-    #define NDEBUG  1
+    // historically this has been to look for NDEBUG, and in its
+    // absence assume we're DEBUG.
+    #define DEBUG  1
+    // fyi - Xcode seems to set DEBUG (or not), so the above guess
+    // doesn't work for them - so our projects may need to explicitly
+    // set NDEBUG in our 'release' builds.
 #endif
 
 #ifdef NDEBUG
