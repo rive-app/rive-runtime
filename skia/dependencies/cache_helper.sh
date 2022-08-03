@@ -20,11 +20,15 @@ then
     exit 1
 fi
 
-# determeined envs
+# computed environment variables
 SKIA_DEPENDENCIES_DIR="$RIVE_RUNTIME_DIR/skia/dependencies"
 SKIA_DIR="$SKIA_DEPENDENCIES_DIR/$SKIA_DIR_NAME"
 
+# gotta switch into a non .git folder to check the remote repo's hash
+# this avoid issues with corrupted git repos throwing irrelevant errors
+pushd ~
 SKIA_COMMIT_HASH="$(git ls-remote $SKIA_REPO $SKIA_BRANCH | awk '{print $1}')"
+popd 
 
 ARCHIVE_CONTENTS_PATH="$SKIA_DIR/$ARCHIVE_CONTENTS_NAME"
 echo $ARCHIVE_CONTENTS_PATH
