@@ -21,7 +21,8 @@
 
 using namespace rive;
 
-const SkSamplingOptions gSampling(SkFilterMode::kLinear, SkMipmapMode::kLinear);
+// skia's has/had bugs in trilerp, so backing down to nearest mip
+const SkSamplingOptions gSampling(SkFilterMode::kLinear, SkMipmapMode::kNearest);
 
 class SkiaRenderPath : public RenderPath {
 private:
