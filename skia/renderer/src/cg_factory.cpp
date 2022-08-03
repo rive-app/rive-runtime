@@ -296,6 +296,7 @@ public:
 
 CGRenderer::CGRenderer(CGContextRef ctx, int width, int height) : m_ctx(ctx) {
     CGContextSaveGState(ctx);
+
     Mat2D m(1, 0, 0, -1, 0, height);
     CGContextConcatCTM(ctx, convert(m));
 
@@ -334,6 +335,7 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
     } else {
         CGContextDrawPath(m_ctx, cgpath->drawingMode(cgpaint->isStroke()));
     }
+
     assert(CGContextIsPathEmpty(m_ctx));
 }
 
