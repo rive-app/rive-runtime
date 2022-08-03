@@ -9,13 +9,13 @@ set -e
 # GLFW requires CMake
 
 if [ -z "${PAT_GITHUB}" ]; then
-    SKIA_EXPERIMENTAL_URL=git@github.com:rive-app/skia-experimental.git
+    SKIA_URL=git@github.com:rive-app/skia.git
 else
-    SKIA_EXPERIMENTAL_URL=https://${PAT_GITHUB}@github.com/rive-app/skia-experimental.git
+    SKIA_URL=https://${PAT_GITHUB}@github.com/rive-app/skia.git
 fi
-./get_skia.sh ${SKIA_EXPERIMENTAL_URL} main skia-experimental
+./get_skia.sh ${SKIA_URL} rive skia_rive_optimized
 
-cd skia-experimental
+cd skia_rive_optimized
 
 # build static for host
 bin/gn gen out/wasm --type=static_library --args=" \
