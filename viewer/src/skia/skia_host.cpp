@@ -29,6 +29,8 @@ void skiaPresentSurface(sk_sp<SkSurface> surface);
 // Experimental flag, until we complete coregraphics_host
 //#define TEST_CG_RENDERER
 
+//#define SW_SKIA_MODE
+
 #ifdef TEST_CG_RENDERER
 #include "cg_factory.hpp"
 #include "cg_renderer.hpp"
@@ -75,7 +77,7 @@ public:
 #elif defined(SK_GL)
         // Skia commands are issued to the same GL context before Sokol, so we need
         // to make sure Sokol does not clear the buffer.
-        *action = (sg_pass_action){.colors[0] = {.action = SG_ACTION_DONTCARE}};
+        *action = (sg_pass_action){.colors[0] = {.action = SG_ACTION_DONTCARE }};
 #endif
 
         m_context = makeSkiaContext();
@@ -95,6 +97,13 @@ public:
         if (content) {
 #ifdef TEST_CG_RENDERER
             render_with_cg(canvas, m_dimensions.width(), m_dimensions.height(), content, elapsed);
+#elif defined(SW_SKIA_MODE)
+            auto info = SkImageInfo::MakeN32Premul(m_dimensions.width(), m_dimensions.height());
+            auto swsurf = SkSurface::MakeRaster(info);
+            rive::SkiaRenderer skiaRenderer(swsurf->getCanvas());
+            content->handleDraw(&skiaRenderer, elapsed);
+            auto img = swsurf->makeImageSnapshot();
+            canvas->drawImage(img, 0, 0, SkSamplingOptions(SkFilterMode::kNearest), nullptr);
 #else
             rive::SkiaRenderer skiaRenderer(canvas);
             content->handleDraw(&skiaRenderer, elapsed);
