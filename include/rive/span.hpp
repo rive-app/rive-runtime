@@ -58,6 +58,16 @@ namespace rive {
             assert(size <= m_Size - offset);
             return {m_Ptr + offset, size};
         }
+
+        // Makes rive::Span std::Container compatible
+        // https://en.cppreference.com/w/cpp/named_req/Container
+        typedef typename std::remove_cv<T>::type value_type;
+        typedef T& reference;
+        typedef T const& const_reference;
+        typedef T* iterator;
+        typedef T const* const_iterator;
+        typedef std::ptrdiff_t difference_type;
+        typedef size_t size_type;
     };
 
     template <typename Container>
