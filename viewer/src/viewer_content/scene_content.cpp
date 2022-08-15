@@ -20,8 +20,21 @@ class SceneContent : public ViewerContent {
     // ImGui wants raw pointers to names, but our public API returns
     // names as strings (by value), so we cache these names each time we
     // load a file
+    std::vector<std::string> artboardNames;
     std::vector<std::string> animationNames;
     std::vector<std::string> stateMachineNames;
+
+    void loadArtboardNames() {
+        if (m_File) {
+            artboardNames.clear();
+            auto abCnt = m_File->artboardCount();
+
+            for (int i = 0; i < abCnt; i++) {
+                auto abName = m_File->artboardNameAt(i);
+                artboardNames.push_back(abName);
+            }
+        }
+    }
 
     void loadNames(const rive::Artboard* ab) {
         animationNames.clear();
@@ -41,21 +54,34 @@ class SceneContent : public ViewerContent {
 
     std::unique_ptr<rive::ArtboardInstance> m_ArtboardInstance;
     std::unique_ptr<rive::Scene> m_CurrentScene;
+    int m_ArtboardIndex = 0;
     int m_AnimationIndex = 0;
     int m_StateMachineIndex = -1;
 
     int m_width = 0, m_height = 0;
     rive::Mat2D m_InverseViewTransform;
 
+    void initArtboard(int index) {
+        if (!m_File)
+            return;
+        loadArtboardNames();
+        m_ArtboardInstance = nullptr;
+
+        m_ArtboardIndex = (index == REQUEST_DEFAULT_SCENE) ? 0 : index;
+        m_ArtboardInstance = m_File->artboardAt(m_ArtboardIndex);
+
+        m_ArtboardInstance->advance(0.0f);
+        loadNames(m_ArtboardInstance.get());
+
+        initStateMachine(REQUEST_DEFAULT_SCENE);
+    }
+
     void initStateMachine(int index) {
         m_StateMachineIndex = -1;
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
-        m_ArtboardInstance = nullptr;
 
-        m_ArtboardInstance = m_File->artboardDefault();
         m_ArtboardInstance->advance(0.0f);
-        loadNames(m_ArtboardInstance.get());
 
         if (index < 0) {
             m_CurrentScene = m_ArtboardInstance->defaultStateMachine();
@@ -85,11 +111,8 @@ class SceneContent : public ViewerContent {
         m_StateMachineIndex = -1;
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
-        m_ArtboardInstance = nullptr;
 
-        m_ArtboardInstance = m_File->artboardDefault();
         m_ArtboardInstance->advance(0.0f);
-        loadNames(m_ArtboardInstance.get());
 
         if (index >= 0 && index < m_ArtboardInstance->animationCount()) {
             m_AnimationIndex = index;
@@ -103,7 +126,7 @@ class SceneContent : public ViewerContent {
 public:
     SceneContent(const char filename[], std::unique_ptr<rive::File> file) :
         m_Filename(filename), m_File(std::move(file)) {
-        initStateMachine(REQUEST_DEFAULT_SCENE);
+        initArtboard(REQUEST_DEFAULT_SCENE);
     }
 
     void handlePointerMove(float x, float y) override {
@@ -156,6 +179,20 @@ public:
     void handleImgui() override {
         if (m_ArtboardInstance != nullptr) {
             ImGui::Begin(m_Filename.c_str(), nullptr);
+            if (ImGui::ListBox(
+                    "Artboard",
+                    &m_ArtboardIndex,
+                    [](void* data, int index, const char** name) {
+                        auto& names = *static_cast<std::vector<std::string>*>(data);
+                        *name = names[index].c_str();
+                        return true;
+                    },
+                    &artboardNames,
+                    artboardNames.size(),
+                    4))
+            {
+                initArtboard(m_ArtboardIndex);
+            }
             if (ImGui::ListBox(
                     "Animations",
                     &m_AnimationIndex,
