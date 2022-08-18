@@ -12,7 +12,7 @@ namespace rive {
 
     public:
         ImageAsset() {}
-        ~ImageAsset();
+        ~ImageAsset() override;
 
 #ifdef TESTING
         std::size_t decodedByteSize = 0;

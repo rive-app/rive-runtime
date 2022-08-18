@@ -11,7 +11,7 @@ namespace rive {
 
     public:
         Polygon();
-        ~Polygon();
+        ~Polygon() override;
         void update(ComponentDirt value) override;
 
     protected:

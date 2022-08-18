@@ -31,7 +31,7 @@ namespace rive {
         void addCondition(TransitionCondition* condition);
 
     public:
-        ~StateTransition();
+        ~StateTransition() override;
         const LayerState* stateTo() const { return m_StateTo; }
 
         StatusCode onAddedDirty(CoreContext* context) override;

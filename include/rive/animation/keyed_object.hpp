@@ -11,7 +11,7 @@ namespace rive {
 
     public:
         KeyedObject();
-        ~KeyedObject();
+        ~KeyedObject() override;
         void addKeyedProperty(std::unique_ptr<KeyedProperty>);
 
         StatusCode onAddedDirty(CoreContext* context) override;

@@ -65,7 +65,7 @@ namespace rive {
         SMINumber* getNumber(const std::string& name) const override;
         SMITrigger* getTrigger(const std::string& name) const override;
 
-        const size_t currentAnimationCount() const;
+        size_t currentAnimationCount() const;
         const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
 
         // The number of state changes that occurred across all layers on the

@@ -22,6 +22,8 @@ namespace rive {
         virtual bool internalIsTranslucent() const = 0;
 
     public:
+        virtual ~ShapePaintMutator() {}
+
         float renderOpacity() const { return m_RenderOpacity; }
         void renderOpacity(float value);
 

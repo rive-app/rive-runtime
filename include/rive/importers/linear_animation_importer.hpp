@@ -12,7 +12,7 @@ namespace rive {
         LinearAnimation* m_Animation;
 
     public:
-        LinearAnimation* animation() const { return m_Animation; };
+        LinearAnimation* animation() const { return m_Animation; }
         LinearAnimationImporter(LinearAnimation* animation);
         void addKeyedObject(std::unique_ptr<KeyedObject>);
     };

@@ -14,10 +14,8 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component) {
     switch (component->coreType()) {
         case Artboard::typeKey:
             return component->as<Artboard>();
-            break;
         case Shape::typeKey:
             return component->as<Shape>();
-            break;
     }
     return nullptr;
 }

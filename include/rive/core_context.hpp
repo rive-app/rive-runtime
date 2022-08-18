@@ -8,6 +8,7 @@ namespace rive {
     class Core;
     class CoreContext {
     public:
+        virtual ~CoreContext() {}
         virtual Core* resolve(uint32_t id) const = 0;
     };
 } // namespace rive

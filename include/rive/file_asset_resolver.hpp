@@ -8,6 +8,8 @@ namespace rive {
     class FileAsset;
     class FileAssetResolver {
     public:
+        virtual ~FileAssetResolver() {}
+
         /// Expected to be overridden to find asset contents when not provided
         /// in band.
         /// @param asset describes the asset that Rive is looking for the

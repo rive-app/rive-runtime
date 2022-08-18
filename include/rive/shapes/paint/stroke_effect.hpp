@@ -10,6 +10,7 @@ namespace rive {
 
     class StrokeEffect {
     public:
+        virtual ~StrokeEffect() {}
         virtual RenderPath* effectPath(MetricsPath* source, Factory*) = 0;
         virtual void invalidateEffect() = 0;
     };

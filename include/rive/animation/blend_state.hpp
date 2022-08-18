@@ -17,7 +17,7 @@ namespace rive {
         void addAnimation(BlendAnimation* animation);
 
     public:
-        ~BlendState();
+        ~BlendState() override;
         inline const std::vector<BlendAnimation*>& animations() const { return m_Animations; }
 
 #ifdef TESTING

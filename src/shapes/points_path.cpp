@@ -6,7 +6,6 @@
 
 using namespace rive;
 
-Mat2D identity;
 void PointsPath::buildDependencies() {
     Super::buildDependencies();
     if (skin() != nullptr) {
@@ -16,6 +15,7 @@ void PointsPath::buildDependencies() {
 
 const Mat2D& PointsPath::pathTransform() const {
     if (skin() != nullptr) {
+        static Mat2D identity;
         return identity;
     }
     return worldTransform();

@@ -8,10 +8,8 @@ Skinnable* Skinnable::from(Component* component) {
     switch (component->coreType()) {
         case PointsPath::typeKey:
             return component->as<PointsPath>();
-            break;
         case Mesh::typeKey:
             return component->as<Mesh>();
-            break;
     }
     return nullptr;
 }

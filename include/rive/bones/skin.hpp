@@ -15,7 +15,7 @@ namespace rive {
         friend class Tendon;
 
     public:
-        ~Skin();
+        ~Skin() override;
 
     private:
         Mat2D m_WorldTransform;

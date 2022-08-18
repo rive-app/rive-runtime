@@ -23,7 +23,7 @@ namespace rive {
 
     public:
         StateMachine();
-        ~StateMachine();
+        ~StateMachine() override;
 
         StatusCode import(ImportStack& importStack) override;
 

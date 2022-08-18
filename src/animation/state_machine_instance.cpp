@@ -306,7 +306,8 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
                     case ListenerType::move:
                         nestedStateMachine->pointerMove(nestedPosition);
                         break;
-                    default:
+                    case ListenerType::enter:
+                    case ListenerType::exit:
                         break;
                 }
             }
@@ -480,7 +481,7 @@ const LayerState* StateMachineInstance::stateChangedByIndex(size_t index) const 
     return nullptr;
 }
 
-const size_t StateMachineInstance::currentAnimationCount() const {
+size_t StateMachineInstance::currentAnimationCount() const {
     size_t count = 0;
     for (size_t i = 0; i < m_LayerCount; i++) {
         if (m_Layers[i].currentAnimation() != nullptr) {

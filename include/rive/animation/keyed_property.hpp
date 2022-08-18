@@ -10,7 +10,7 @@ namespace rive {
 
     public:
         KeyedProperty();
-        ~KeyedProperty();
+        ~KeyedProperty() override;
         void addKeyFrame(std::unique_ptr<KeyFrame>);
         StatusCode onAddedClean(CoreContext* context) override;
         StatusCode onAddedDirty(CoreContext* context) override;

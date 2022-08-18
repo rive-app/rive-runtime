@@ -17,6 +17,8 @@ namespace rive {
         void skin(Skin* skin);
 
     public:
+        virtual ~Skinnable() {}
+
         Skin* skin() const { return m_Skin; }
         virtual void markSkinDirty() = 0;
 

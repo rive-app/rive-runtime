@@ -18,7 +18,7 @@ namespace rive {
 
     public:
         NestedArtboard();
-        ~NestedArtboard();
+        ~NestedArtboard() override;
         StatusCode onAddedClean(CoreContext* context) override;
         void draw(Renderer* renderer) override;
         Core* hitTest(HitInfo*, const Mat2D&) override;

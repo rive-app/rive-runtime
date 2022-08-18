@@ -20,7 +20,7 @@ namespace rive {
         void addTransition(StateTransition* transition);
 
     public:
-        ~LayerState();
+        ~LayerState() override;
         StatusCode onAddedDirty(CoreContext* context) override;
         StatusCode onAddedClean(CoreContext* context) override;
 

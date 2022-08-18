@@ -33,7 +33,8 @@ namespace rive {
         Core* hitTest(HitInfo*, const Mat2D&) override;
         bool hitTest(const IAABB& area) const;
 
-        PathComposer* pathComposer() const { return (PathComposer*)&m_PathComposer; }
+        const PathComposer* pathComposer() const { return &m_PathComposer; }
+        PathComposer* pathComposer() { return &m_PathComposer; }
 
         void pathChanged();
         void addDefaultPathSpace(PathSpace space);

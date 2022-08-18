@@ -22,7 +22,7 @@ namespace rive {
         void addState(LayerState* state);
 
     public:
-        ~StateMachineLayer();
+        ~StateMachineLayer() override;
         StatusCode onAddedDirty(CoreContext* context) override;
         StatusCode onAddedClean(CoreContext* context) override;
 

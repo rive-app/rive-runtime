@@ -5,6 +5,7 @@ namespace rive {
     class FileAsset;
     class FileAssetReferencer {
     public:
+        virtual ~FileAssetReferencer() {}
         virtual void assets(const std::vector<FileAsset*>& assets) = 0;
     };
 } // namespace rive

@@ -27,6 +27,8 @@ namespace rive {
     public:
         static ShapePaintContainer* from(Component* component);
 
+        virtual ~ShapePaintContainer() {}
+
         PathSpace pathSpace() const;
 
         void invalidateStrokeEffects();

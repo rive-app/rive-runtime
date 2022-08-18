@@ -64,7 +64,7 @@ namespace rive {
 
     public:
         Artboard() {}
-        ~Artboard();
+        ~Artboard() override;
         StatusCode initialize();
 
         Core* resolve(uint32_t id) const override;
