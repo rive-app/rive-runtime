@@ -33,8 +33,9 @@ static RawPath make_quad_path(Span<const Vec2D> pts) {
 ////////////////////////////////////////////////////////////////////////////////////
 
 static std::unique_ptr<RenderPath> make_rpath(const RawPath& path) {
-    return ViewerContent::RiveFactory()->makeRenderPath(
-        path.points(), path.verbs(), FillRule::nonZero);
+    return ViewerContent::RiveFactory()->makeRenderPath(path.points(),
+                                                        path.verbs(),
+                                                        FillRule::nonZero);
 }
 
 static void stroke_path(Renderer* renderer, const RawPath& path, float size, ColorInt color) {

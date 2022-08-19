@@ -96,12 +96,8 @@ SkiaRenderPaint::SkiaRenderPaint() { m_Paint.setAntiAlias(true); }
 
 void SkiaRenderPaint::style(RenderPaintStyle style) {
     switch (style) {
-        case RenderPaintStyle::fill:
-            m_Paint.setStyle(SkPaint::Style::kFill_Style);
-            break;
-        case RenderPaintStyle::stroke:
-            m_Paint.setStyle(SkPaint::Style::kStroke_Style);
-            break;
+        case RenderPaintStyle::fill: m_Paint.setStyle(SkPaint::Style::kFill_Style); break;
+        case RenderPaintStyle::stroke: m_Paint.setStyle(SkPaint::Style::kStroke_Style); break;
     }
 }
 void SkiaRenderPaint::color(unsigned int value) { m_Paint.setColor(value); }
@@ -236,8 +232,12 @@ rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx,
                                                   const ColorInt colors[], // [count]
                                                   const float stops[],     // [count]
                                                   size_t count) {
-    auto sh = SkGradientShader::MakeRadial(
-        {cx, cy}, radius, (const SkColor*)colors, stops, count, SkTileMode::kClamp);
+    auto sh = SkGradientShader::MakeRadial({cx, cy},
+                                           radius,
+                                           (const SkColor*)colors,
+                                           stops,
+                                           count,
+                                           SkTileMode::kClamp);
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 

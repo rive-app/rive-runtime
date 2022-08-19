@@ -15,10 +15,8 @@ namespace rive {
             switch (typeKey) {
                 case StateMachineTriggerBase::typeKey:
                 case StateMachineInputBase::typeKey:
-                case StateMachineComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

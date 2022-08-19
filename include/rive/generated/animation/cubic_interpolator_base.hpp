@@ -14,10 +14,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case CubicInterpolatorBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case CubicInterpolatorBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -81,18 +79,10 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case x1PropertyKey:
-                    m_X1 = CoreDoubleType::deserialize(reader);
-                    return true;
-                case y1PropertyKey:
-                    m_Y1 = CoreDoubleType::deserialize(reader);
-                    return true;
-                case x2PropertyKey:
-                    m_X2 = CoreDoubleType::deserialize(reader);
-                    return true;
-                case y2PropertyKey:
-                    m_Y2 = CoreDoubleType::deserialize(reader);
-                    return true;
+                case x1PropertyKey: m_X1 = CoreDoubleType::deserialize(reader); return true;
+                case y1PropertyKey: m_Y1 = CoreDoubleType::deserialize(reader); return true;
+                case x2PropertyKey: m_X2 = CoreDoubleType::deserialize(reader); return true;
+                case y2PropertyKey: m_Y2 = CoreDoubleType::deserialize(reader); return true;
             }
             return false;
         }

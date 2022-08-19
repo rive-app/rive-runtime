@@ -32,11 +32,8 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
     switch (CGImageGetAlphaInfo(image.get())) {
         case kCGImageAlphaNone:
         case kCGImageAlphaNoneSkipFirst:
-        case kCGImageAlphaNoneSkipLast:
-            isOpaque = true;
-            break;
-        default:
-            break;
+        case kCGImageAlphaNoneSkipLast: isOpaque = true; break;
+        default: break;
     }
 
     // Now create a drawing context to produce RGBA pixels

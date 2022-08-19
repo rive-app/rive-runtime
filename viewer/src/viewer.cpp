@@ -130,21 +130,13 @@ static void event(const sapp_event* ev) {
             break;
         case SAPP_EVENTTYPE_KEY_UP:
             switch (ev->key_code) {
-                case SAPP_KEYCODE_ESCAPE:
-                    sapp_quit();
-                    break;
-                case SAPP_KEYCODE_T:
-                    g_Content = ViewerContent::Text(".svg");
-                    break;
-                case SAPP_KEYCODE_P:
-                    g_Content = ViewerContent::TextPath("");
-                    break;
-                default:
-                    break;
+                case SAPP_KEYCODE_ESCAPE: sapp_quit(); break;
+                case SAPP_KEYCODE_T: g_Content = ViewerContent::Text(".svg"); break;
+                case SAPP_KEYCODE_P: g_Content = ViewerContent::TextPath(""); break;
+                default: break;
             }
             break;
-        default:
-            break;
+        default: break;
     }
 }
 

@@ -49,8 +49,9 @@ rcp<RenderShader> SokolFactory::makeRadialGradient(float cx,
 }
 
 // Returns a full-formed RenderPath -- can be treated as immutable
-std::unique_ptr<RenderPath>
-SokolFactory::makeRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule) {
+std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(Span<const Vec2D> points,
+                                                         Span<const PathVerb> verbs,
+                                                         FillRule) {
     return std::make_unique<NoOpRenderPath>();
 }
 

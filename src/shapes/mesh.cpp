@@ -124,6 +124,10 @@ void Mesh::draw(Renderer* renderer, const RenderImage* image, BlendMode blendMod
     if (skin() == nullptr) {
         renderer->transform(parent()->as<WorldTransformComponent>()->worldTransform());
     }
-    renderer->drawImageMesh(
-        image, m_VertexRenderBuffer, m_UVRenderBuffer, m_IndexRenderBuffer, blendMode, opacity);
+    renderer->drawImageMesh(image,
+                            m_VertexRenderBuffer,
+                            m_UVRenderBuffer,
+                            m_IndexRenderBuffer,
+                            blendMode,
+                            opacity);
 }

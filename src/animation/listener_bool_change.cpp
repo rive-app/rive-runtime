@@ -19,14 +19,8 @@ void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance, Vec
     // If it's not null, it must be our correct type (why we validate at load time).
     auto boolInput = reinterpret_cast<SMIBool*>(inputInstance);
     switch (value()) {
-        case 0:
-            boolInput->value(false);
-            break;
-        case 1:
-            boolInput->value(true);
-            break;
-        default:
-            boolInput->value(!boolInput->value());
-            break;
+        case 0: boolInput->value(false); break;
+        case 1: boolInput->value(true); break;
+        default: boolInput->value(!boolInput->value()); break;
     }
 }

@@ -17,10 +17,8 @@ namespace rive {
             switch (typeKey) {
                 case MeshBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

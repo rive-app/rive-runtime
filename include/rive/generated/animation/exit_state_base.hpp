@@ -15,10 +15,8 @@ namespace rive {
             switch (typeKey) {
                 case ExitStateBase::typeKey:
                 case LayerStateBase::typeKey:
-                case StateMachineLayerComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineLayerComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

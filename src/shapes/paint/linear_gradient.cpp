@@ -96,8 +96,11 @@ void LinearGradient::update(ComponentDirt value) {
     }
 }
 
-void LinearGradient::makeGradient(
-    Vec2D start, Vec2D end, const ColorInt colors[], const float stops[], size_t count) {
+void LinearGradient::makeGradient(Vec2D start,
+                                  Vec2D end,
+                                  const ColorInt colors[],
+                                  const float stops[],
+                                  size_t count) {
     auto factory = artboard()->factory();
     renderPaint()->shader(
         factory->makeLinearGradient(start.x, start.y, end.x, end.y, colors, stops, count));

@@ -60,8 +60,9 @@ static void warp_in_place(ContourMeasure* meas, RawPath* path) {
 ////////////////////////////////////////////////////////////////////////////////////
 
 static std::unique_ptr<RenderPath> make_rpath(const RawPath& path) {
-    return ViewerContent::RiveFactory()->makeRenderPath(
-        path.points(), path.verbs(), FillRule::nonZero);
+    return ViewerContent::RiveFactory()->makeRenderPath(path.points(),
+                                                        path.verbs(),
+                                                        FillRule::nonZero);
 }
 
 static void stroke_path(Renderer* renderer, const RawPath& path, float size, ColorInt color) {
@@ -254,8 +255,13 @@ public:
             float mx = m_oneLineX / m_gbounds.width();
             const ColorInt colors[] = {0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF};
             const float stops[] = {0, mx / 2, mx, (1 + mx) / 2, 1};
-            paint->shader(ViewerContent::RiveFactory()->makeLinearGradient(
-                m_gbounds.left(), 0, m_gbounds.right(), 0, colors, stops, 5));
+            paint->shader(ViewerContent::RiveFactory()->makeLinearGradient(m_gbounds.left(),
+                                                                           0,
+                                                                           m_gbounds.right(),
+                                                                           0,
+                                                                           colors,
+                                                                           stops,
+                                                                           5));
         }
 
         struct EaseWindow {

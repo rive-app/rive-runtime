@@ -14,10 +14,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TransitionTriggerConditionBase::typeKey:
-                case TransitionConditionBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case TransitionConditionBase::typeKey: return true;
+                default: return false;
             }
         }
 

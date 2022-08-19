@@ -213,12 +213,8 @@ void IKConstraint::constrain(TransformComponent* component) {
 
     int count = (int)m_FkChain.size();
     switch (count) {
-        case 1:
-            solve1(&m_FkChain[0], worldTargetTranslation);
-            break;
-        case 2:
-            solve2(&m_FkChain[0], &m_FkChain[1], worldTargetTranslation);
-            break;
+        case 1: solve1(&m_FkChain[0], worldTargetTranslation); break;
+        case 2: solve2(&m_FkChain[0], &m_FkChain[1], worldTargetTranslation); break;
         default: {
             auto last = count - 1;
             BoneChainLink* tip = &m_FkChain[last];

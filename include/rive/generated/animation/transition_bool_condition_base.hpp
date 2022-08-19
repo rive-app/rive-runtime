@@ -15,10 +15,8 @@ namespace rive {
             switch (typeKey) {
                 case TransitionBoolConditionBase::typeKey:
                 case TransitionValueConditionBase::typeKey:
-                case TransitionConditionBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case TransitionConditionBase::typeKey: return true;
+                default: return false;
             }
         }
 

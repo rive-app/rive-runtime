@@ -15,10 +15,8 @@ namespace rive {
             switch (typeKey) {
                 case NestedTriggerBase::typeKey:
                 case NestedInputBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

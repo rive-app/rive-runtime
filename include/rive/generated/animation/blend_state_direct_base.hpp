@@ -16,10 +16,8 @@ namespace rive {
                 case BlendStateDirectBase::typeKey:
                 case BlendStateBase::typeKey:
                 case LayerStateBase::typeKey:
-                case StateMachineLayerComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineLayerComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

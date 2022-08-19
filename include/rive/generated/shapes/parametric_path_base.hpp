@@ -20,10 +20,8 @@ namespace rive {
                 case TransformComponentBase::typeKey:
                 case WorldTransformComponentBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -87,12 +85,8 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case widthPropertyKey:
-                    m_Width = CoreDoubleType::deserialize(reader);
-                    return true;
-                case heightPropertyKey:
-                    m_Height = CoreDoubleType::deserialize(reader);
-                    return true;
+                case widthPropertyKey: m_Width = CoreDoubleType::deserialize(reader); return true;
+                case heightPropertyKey: m_Height = CoreDoubleType::deserialize(reader); return true;
                 case originXPropertyKey:
                     m_OriginX = CoreDoubleType::deserialize(reader);
                     return true;

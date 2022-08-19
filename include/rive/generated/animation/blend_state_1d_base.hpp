@@ -17,10 +17,8 @@ namespace rive {
                 case BlendState1DBase::typeKey:
                 case BlendStateBase::typeKey:
                 case LayerStateBase::typeKey:
-                case StateMachineLayerComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineLayerComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -49,9 +47,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case inputIdPropertyKey:
-                    m_InputId = CoreUintType::deserialize(reader);
-                    return true;
+                case inputIdPropertyKey: m_InputId = CoreUintType::deserialize(reader); return true;
             }
             return BlendState::deserialize(propertyKey, reader);
         }

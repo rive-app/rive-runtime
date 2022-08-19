@@ -31,8 +31,9 @@ static int textOffsetToGlyphIndex(const RenderGlyphRun& run, size_t textOffset) 
     return (int)(iter - begin);
 }
 
-std::vector<RenderGlyphLine>
-RenderGlyphLine::BreakLines(Span<const RenderGlyphRun> runs, Span<const int> breaks, float width) {
+std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphRun> runs,
+                                                         Span<const int> breaks,
+                                                         float width) {
     assert(breaks.size() >= 2);
 
     std::vector<RenderGlyphLine> lines;
@@ -85,8 +86,13 @@ RenderGlyphLine::BreakLines(Span<const RenderGlyphRun> runs, Span<const int> bre
 
             // bulid the line
             const auto lineStartX = runs[startRun].xpos[startIndex];
-            lines.push_back(RenderGlyphLine(
-                startRun, startIndex, prevRun, prevIndex, wsRun, wsIndex, lineStartX));
+            lines.push_back(RenderGlyphLine(startRun,
+                                            startIndex,
+                                            prevRun,
+                                            prevIndex,
+                                            wsRun,
+                                            wsIndex,
+                                            lineStartX));
 
             // update for the next line
             xlimit = runs[wsRun].xpos[wsIndex] + width;

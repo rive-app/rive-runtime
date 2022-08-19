@@ -6,10 +6,8 @@ using namespace rive;
 
 Skinnable* Skinnable::from(Component* component) {
     switch (component->coreType()) {
-        case PointsPath::typeKey:
-            return component->as<PointsPath>();
-        case Mesh::typeKey:
-            return component->as<Mesh>();
+        case PointsPath::typeKey: return component->as<PointsPath>();
+        case Mesh::typeKey: return component->as<Mesh>();
     }
     return nullptr;
 }

@@ -19,10 +19,8 @@ namespace rive {
                 case NestedLinearAnimationBase::typeKey:
                 case NestedAnimationBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -63,9 +61,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case speedPropertyKey:
-                    m_Speed = CoreDoubleType::deserialize(reader);
-                    return true;
+                case speedPropertyKey: m_Speed = CoreDoubleType::deserialize(reader); return true;
                 case isPlayingPropertyKey:
                     m_IsPlaying = CoreBoolType::deserialize(reader);
                     return true;

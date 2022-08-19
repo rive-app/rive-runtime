@@ -77,20 +77,17 @@ static ContourMeasure::PosTan eval_cubic(const Vec2D pts[], float t) {
 void ContourMeasure::Segment::extract(RawPath* dst, const Vec2D pts[]) const {
     pts += m_ptIndex;
     switch (m_type) {
-        case SegmentType::kLine:
-            dst->line(pts[1]);
-            break;
-        case SegmentType::kQuad:
-            dst->quad(pts[1], pts[2]);
-            break;
-        case SegmentType::kCubic:
-            dst->cubic(pts[1], pts[2], pts[3]);
-            break;
+        case SegmentType::kLine: dst->line(pts[1]); break;
+        case SegmentType::kQuad: dst->quad(pts[1], pts[2]); break;
+        case SegmentType::kCubic: dst->cubic(pts[1], pts[2], pts[3]); break;
     }
 }
 
-void ContourMeasure::Segment::extract(
-    RawPath* dst, float fromT, float toT, const Vec2D pts[], bool moveTo) const {
+void ContourMeasure::Segment::extract(RawPath* dst,
+                                      float fromT,
+                                      float toT,
+                                      const Vec2D pts[],
+                                      bool moveTo) const {
     assert(fromT <= toT);
     pts += m_ptIndex;
 

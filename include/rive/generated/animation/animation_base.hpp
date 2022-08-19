@@ -15,10 +15,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case AnimationBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case AnimationBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -44,9 +42,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case namePropertyKey:
-                    m_Name = CoreStringType::deserialize(reader);
-                    return true;
+                case namePropertyKey: m_Name = CoreStringType::deserialize(reader); return true;
             }
             return false;
         }

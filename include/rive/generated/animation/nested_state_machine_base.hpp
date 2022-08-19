@@ -16,10 +16,8 @@ namespace rive {
                 case NestedStateMachineBase::typeKey:
                 case NestedAnimationBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

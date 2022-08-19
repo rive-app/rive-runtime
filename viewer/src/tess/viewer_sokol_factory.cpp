@@ -6,12 +6,9 @@
 
 sg_pixel_format SgPixelFormat(Bitmap* bitmap) {
     switch (bitmap->pixelFormat()) {
-        case Bitmap::PixelFormat::R:
-            return SG_PIXELFORMAT_R8;
-        case Bitmap::PixelFormat::RGBA:
-            return SG_PIXELFORMAT_RGBA8;
-        default:
-            return SG_PIXELFORMAT_NONE;
+        case Bitmap::PixelFormat::R: return SG_PIXELFORMAT_R8;
+        case Bitmap::PixelFormat::RGBA: return SG_PIXELFORMAT_RGBA8;
+        default: return SG_PIXELFORMAT_NONE;
     }
 }
 

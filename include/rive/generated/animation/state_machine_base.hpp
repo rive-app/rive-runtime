@@ -14,10 +14,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case StateMachineBase::typeKey:
-                case AnimationBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case AnimationBase::typeKey: return true;
+                default: return false;
             }
         }
 

@@ -14,10 +14,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case KeyFrameBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case KeyFrameBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -68,9 +66,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case framePropertyKey:
-                    m_Frame = CoreUintType::deserialize(reader);
-                    return true;
+                case framePropertyKey: m_Frame = CoreUintType::deserialize(reader); return true;
                 case interpolationTypePropertyKey:
                     m_InterpolationType = CoreUintType::deserialize(reader);
                     return true;

@@ -16,10 +16,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TendonBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -120,27 +118,13 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case boneIdPropertyKey:
-                    m_BoneId = CoreUintType::deserialize(reader);
-                    return true;
-                case xxPropertyKey:
-                    m_Xx = CoreDoubleType::deserialize(reader);
-                    return true;
-                case yxPropertyKey:
-                    m_Yx = CoreDoubleType::deserialize(reader);
-                    return true;
-                case xyPropertyKey:
-                    m_Xy = CoreDoubleType::deserialize(reader);
-                    return true;
-                case yyPropertyKey:
-                    m_Yy = CoreDoubleType::deserialize(reader);
-                    return true;
-                case txPropertyKey:
-                    m_Tx = CoreDoubleType::deserialize(reader);
-                    return true;
-                case tyPropertyKey:
-                    m_Ty = CoreDoubleType::deserialize(reader);
-                    return true;
+                case boneIdPropertyKey: m_BoneId = CoreUintType::deserialize(reader); return true;
+                case xxPropertyKey: m_Xx = CoreDoubleType::deserialize(reader); return true;
+                case yxPropertyKey: m_Yx = CoreDoubleType::deserialize(reader); return true;
+                case xyPropertyKey: m_Xy = CoreDoubleType::deserialize(reader); return true;
+                case yyPropertyKey: m_Yy = CoreDoubleType::deserialize(reader); return true;
+                case txPropertyKey: m_Tx = CoreDoubleType::deserialize(reader); return true;
+                case tyPropertyKey: m_Ty = CoreDoubleType::deserialize(reader); return true;
             }
             return Component::deserialize(propertyKey, reader);
         }

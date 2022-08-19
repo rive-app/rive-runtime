@@ -108,8 +108,9 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len) {
     // build vector of unique chars
     for (size_t i = 0; i < len; ++i) {
         uint16_t code = str[i];
-        auto iter = std::find_if(
-            rec.begin(), rec.end(), [code](const auto& r) { return r.charCode == code; });
+        auto iter = std::find_if(rec.begin(), rec.end(), [code](const auto& r) {
+            return r.charCode == code;
+        });
         if (iter == rec.end()) {
             // gonna add code -- now see if its glyph is unique
             uint16_t srcGlyph = glyphIDs[i];
@@ -127,15 +128,17 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len) {
         }
     }
 
-    std::sort(
-        rec.begin(), rec.end(), [](const Rec& a, const Rec& b) { return a.charCode < b.charCode; });
+    std::sort(rec.begin(), rec.end(), [](const Rec& a, const Rec& b) {
+        return a.charCode < b.charCode;
+    });
     for (const auto& r : rec) {
         printf("'%c' [%d] %d -> %d\n", r.charCode, r.charCode, r.srcGlyph, r.dstGlyph);
         fCMap.push_back({r.charCode, r.dstGlyph});
     }
 
-    std::sort(
-        rec.begin(), rec.end(), [](const Rec& a, const Rec& b) { return a.dstGlyph < b.dstGlyph; });
+    std::sort(rec.begin(), rec.end(), [](const Rec& a, const Rec& b) {
+        return a.dstGlyph < b.dstGlyph;
+    });
 
     font.setLinearMetrics(true);
     auto append_glyph = [&](uint16_t srcGlyph) {
@@ -239,12 +242,8 @@ void encode_path(ByteBuilder* bb, const SkPath& path, float scale) {
         }
         varray.push_back(verb);
         switch ((SkPathVerb)verb) {
-            case SkPathVerb::kMove:
-                add_point(pts[0]);
-                break;
-            case SkPathVerb::kLine:
-                add_point(pts[1]);
-                break;
+            case SkPathVerb::kMove: add_point(pts[0]); break;
+            case SkPathVerb::kLine: add_point(pts[1]); break;
             case SkPathVerb::kQuad:
                 add_point(pts[1]);
                 add_point(pts[2]);
@@ -254,10 +253,8 @@ void encode_path(ByteBuilder* bb, const SkPath& path, float scale) {
                 add_point(pts[2]);
                 add_point(pts[3]);
                 break;
-            case SkPathVerb::kClose:
-                break;
-            default:
-                assert(false); // unsupported
+            case SkPathVerb::kClose: break;
+            default: assert(false); // unsupported
         }
     }
     assert((int)varray.size() == path.countVerbs());
@@ -268,10 +265,8 @@ void encode_path(ByteBuilder* bb, const SkPath& path, float scale) {
             switch ((SkPathVerb)v) {
                 case SkPathVerb::kLine:
                 case SkPathVerb::kQuad:
-                case SkPathVerb::kCubic:
-                    return false;
-                default:
-                    break;
+                case SkPathVerb::kCubic: return false;
+                default: break;
             }
         }
         return true;
@@ -336,8 +331,9 @@ sk_sp<SkData> RiveFont::encode() const {
         dir.push_back({kAdvances_TableTag, advances.detach()});
     }
 
-    std::sort(
-        dir.begin(), dir.end(), [](const DirRec& a, const DirRec& b) { return a.tag < b.tag; });
+    std::sort(dir.begin(), dir.end(), [](const DirRec& a, const DirRec& b) {
+        return a.tag < b.tag;
+    });
 
     ByteBuilder header;
     header.addU32(kSignature);
@@ -432,24 +428,12 @@ static int compute_point_count(const uint8_t verbs[], int verbCount) {
     int count = 0;
     for (int i = 0; i < verbCount; ++i) {
         switch ((SkPathVerb)verbs[i]) {
-            case SkPathVerb::kMove:
-                count += 1;
-                break;
-            case SkPathVerb::kLine:
-                count += 1;
-                break;
-            case SkPathVerb::kQuad:
-                count += 2;
-                break;
-            case SkPathVerb::kCubic:
-                count += 3;
-                break;
-            case SkPathVerb::kClose:
-                count += 0;
-                break;
-            default:
-                assert(false);
-                return -1;
+            case SkPathVerb::kMove: count += 1; break;
+            case SkPathVerb::kLine: count += 1; break;
+            case SkPathVerb::kQuad: count += 2; break;
+            case SkPathVerb::kCubic: count += 3; break;
+            case SkPathVerb::kClose: count += 0; break;
+            default: assert(false); return -1;
         }
     }
     return count;

@@ -17,10 +17,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case LinearAnimationBase::typeKey:
-                case AnimationBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case AnimationBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -121,24 +119,18 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case fpsPropertyKey:
-                    m_Fps = CoreUintType::deserialize(reader);
-                    return true;
+                case fpsPropertyKey: m_Fps = CoreUintType::deserialize(reader); return true;
                 case durationPropertyKey:
                     m_Duration = CoreUintType::deserialize(reader);
                     return true;
-                case speedPropertyKey:
-                    m_Speed = CoreDoubleType::deserialize(reader);
-                    return true;
+                case speedPropertyKey: m_Speed = CoreDoubleType::deserialize(reader); return true;
                 case loopValuePropertyKey:
                     m_LoopValue = CoreUintType::deserialize(reader);
                     return true;
                 case workStartPropertyKey:
                     m_WorkStart = CoreUintType::deserialize(reader);
                     return true;
-                case workEndPropertyKey:
-                    m_WorkEnd = CoreUintType::deserialize(reader);
-                    return true;
+                case workEndPropertyKey: m_WorkEnd = CoreUintType::deserialize(reader); return true;
                 case enableWorkAreaPropertyKey:
                     m_EnableWorkArea = CoreBoolType::deserialize(reader);
                     return true;

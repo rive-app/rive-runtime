@@ -19,18 +19,12 @@ bool TransitionNumberCondition::evaluate(const SMIInput* inputInstance) const {
     auto numberInput = reinterpret_cast<const SMINumber*>(inputInstance);
 
     switch (op()) {
-        case TransitionConditionOp::equal:
-            return numberInput->value() == value();
-        case TransitionConditionOp::notEqual:
-            return numberInput->value() != value();
-        case TransitionConditionOp::lessThanOrEqual:
-            return numberInput->value() <= value();
-        case TransitionConditionOp::lessThan:
-            return numberInput->value() < value();
-        case TransitionConditionOp::greaterThanOrEqual:
-            return numberInput->value() >= value();
-        case TransitionConditionOp::greaterThan:
-            return numberInput->value() > value();
+        case TransitionConditionOp::equal: return numberInput->value() == value();
+        case TransitionConditionOp::notEqual: return numberInput->value() != value();
+        case TransitionConditionOp::lessThanOrEqual: return numberInput->value() <= value();
+        case TransitionConditionOp::lessThan: return numberInput->value() < value();
+        case TransitionConditionOp::greaterThanOrEqual: return numberInput->value() >= value();
+        case TransitionConditionOp::greaterThan: return numberInput->value() > value();
     }
     return false;
 }

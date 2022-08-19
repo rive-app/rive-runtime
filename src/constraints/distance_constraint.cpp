@@ -29,8 +29,7 @@ void DistanceConstraint::constrain(TransformComponent* component) {
                 return;
             }
             break;
-        case Mode::Exact:
-            break;
+        case Mode::Exact: break;
     }
     if (currentDistance < 0.001f) {
         return;

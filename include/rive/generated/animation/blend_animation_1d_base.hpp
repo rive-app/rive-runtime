@@ -15,10 +15,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case BlendAnimation1DBase::typeKey:
-                case BlendAnimationBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case BlendAnimationBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -47,9 +45,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case valuePropertyKey:
-                    m_Value = CoreDoubleType::deserialize(reader);
-                    return true;
+                case valuePropertyKey: m_Value = CoreDoubleType::deserialize(reader); return true;
             }
             return BlendAnimation::deserialize(propertyKey, reader);
         }

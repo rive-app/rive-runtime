@@ -16,10 +16,8 @@ namespace rive {
                 case ImageAssetBase::typeKey:
                 case DrawableAssetBase::typeKey:
                 case FileAssetBase::typeKey:
-                case AssetBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case AssetBase::typeKey: return true;
+                default: return false;
             }
         }
 

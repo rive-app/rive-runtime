@@ -15,10 +15,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case ListenerAlignTargetBase::typeKey:
-                case ListenerActionBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ListenerActionBase::typeKey: return true;
+                default: return false;
             }
         }
 

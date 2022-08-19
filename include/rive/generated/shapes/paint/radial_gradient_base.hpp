@@ -16,10 +16,8 @@ namespace rive {
                 case RadialGradientBase::typeKey:
                 case LinearGradientBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

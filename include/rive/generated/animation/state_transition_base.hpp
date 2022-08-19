@@ -15,10 +15,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case StateTransitionBase::typeKey:
-                case StateMachineLayerComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineLayerComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -86,9 +84,7 @@ namespace rive {
                 case stateToIdPropertyKey:
                     m_StateToId = CoreUintType::deserialize(reader);
                     return true;
-                case flagsPropertyKey:
-                    m_Flags = CoreUintType::deserialize(reader);
-                    return true;
+                case flagsPropertyKey: m_Flags = CoreUintType::deserialize(reader); return true;
                 case durationPropertyKey:
                     m_Duration = CoreUintType::deserialize(reader);
                     return true;

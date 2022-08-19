@@ -13,12 +13,9 @@ Bitmap::Bitmap(uint32_t width, uint32_t height, PixelFormat pixelFormat, const u
 
 size_t Bitmap::bytesPerPixel(PixelFormat format) const {
     switch (format) {
-        case PixelFormat::R:
-            return 1;
-        case PixelFormat::RGB:
-            return 3;
-        case PixelFormat::RGBA:
-            return 4;
+        case PixelFormat::R: return 1;
+        case PixelFormat::RGB: return 3;
+        case PixelFormat::RGBA: return 4;
     }
 }
 

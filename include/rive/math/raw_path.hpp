@@ -116,21 +116,11 @@ namespace rive {
                     pts[i] = proc(rec.pts[i]);
                 }
                 switch (rec.verb) {
-                    case PathVerb::move:
-                        dst.move(pts[0]);
-                        break;
-                    case PathVerb::line:
-                        dst.line(pts[0]);
-                        break;
-                    case PathVerb::quad:
-                        dst.quad(pts[0], pts[1]);
-                        break;
-                    case PathVerb::cubic:
-                        dst.cubic(pts[0], pts[1], pts[2]);
-                        break;
-                    case PathVerb::close:
-                        dst.close();
-                        break;
+                    case PathVerb::move: dst.move(pts[0]); break;
+                    case PathVerb::line: dst.line(pts[0]); break;
+                    case PathVerb::quad: dst.quad(pts[0], pts[1]); break;
+                    case PathVerb::cubic: dst.cubic(pts[0], pts[1], pts[2]); break;
+                    case PathVerb::close: dst.close(); break;
                 }
             }
             return dst;

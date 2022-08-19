@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case ListenerNumberChangeBase::typeKey:
                 case ListenerInputChangeBase::typeKey:
-                case ListenerActionBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ListenerActionBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -48,9 +46,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case valuePropertyKey:
-                    m_Value = CoreDoubleType::deserialize(reader);
-                    return true;
+                case valuePropertyKey: m_Value = CoreDoubleType::deserialize(reader); return true;
             }
             return ListenerInputChange::deserialize(propertyKey, reader);
         }

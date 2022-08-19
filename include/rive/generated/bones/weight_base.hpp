@@ -15,10 +15,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case WeightBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -59,12 +57,8 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case valuesPropertyKey:
-                    m_Values = CoreUintType::deserialize(reader);
-                    return true;
-                case indicesPropertyKey:
-                    m_Indices = CoreUintType::deserialize(reader);
-                    return true;
+                case valuesPropertyKey: m_Values = CoreUintType::deserialize(reader); return true;
+                case indicesPropertyKey: m_Indices = CoreUintType::deserialize(reader); return true;
             }
             return Component::deserialize(propertyKey, reader);
         }

@@ -13,10 +13,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case BackboardBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case BackboardBase::typeKey: return true;
+                default: return false;
             }
         }
 

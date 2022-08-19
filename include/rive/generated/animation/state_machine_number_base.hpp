@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case StateMachineNumberBase::typeKey:
                 case StateMachineInputBase::typeKey:
-                case StateMachineComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -48,9 +46,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case valuePropertyKey:
-                    m_Value = CoreDoubleType::deserialize(reader);
-                    return true;
+                case valuePropertyKey: m_Value = CoreDoubleType::deserialize(reader); return true;
             }
             return StateMachineInput::deserialize(propertyKey, reader);
         }

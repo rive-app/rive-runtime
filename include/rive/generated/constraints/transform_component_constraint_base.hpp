@@ -20,10 +20,8 @@ namespace rive {
                 case TransformSpaceConstraintBase::typeKey:
                 case TargetedConstraintBase::typeKey:
                 case ConstraintBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -147,18 +145,12 @@ namespace rive {
                 case maxValuePropertyKey:
                     m_MaxValue = CoreDoubleType::deserialize(reader);
                     return true;
-                case offsetPropertyKey:
-                    m_Offset = CoreBoolType::deserialize(reader);
-                    return true;
+                case offsetPropertyKey: m_Offset = CoreBoolType::deserialize(reader); return true;
                 case doesCopyPropertyKey:
                     m_DoesCopy = CoreBoolType::deserialize(reader);
                     return true;
-                case minPropertyKey:
-                    m_Min = CoreBoolType::deserialize(reader);
-                    return true;
-                case maxPropertyKey:
-                    m_Max = CoreBoolType::deserialize(reader);
-                    return true;
+                case minPropertyKey: m_Min = CoreBoolType::deserialize(reader); return true;
+                case maxPropertyKey: m_Max = CoreBoolType::deserialize(reader); return true;
             }
             return TransformSpaceConstraint::deserialize(propertyKey, reader);
         }

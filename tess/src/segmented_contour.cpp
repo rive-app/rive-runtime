@@ -88,9 +88,7 @@ void SegmentedContour::contour(const RawPath& rawPath) {
                 segmentCubic(m_pen, rec.pts[0], rec.pts[1], rec.pts[2], 0.0f, 1.0f);
                 m_pen = rec.pts[2];
                 break;
-            case PathVerb::close:
-                close();
-                break;
+            case PathVerb::close: close(); break;
             case PathVerb::quad:
                 // TODO: not currently used by render paths, however might be
                 // necessary for fonts.

@@ -111,13 +111,17 @@ public:
                     p += 2;
                     break;
                 case PathVerb::cubic:
-                    CGPathAddCurveToPoint(
-                        m_path, nullptr, p[0].x, p[0].y, p[1].x, p[1].y, p[2].x, p[2].y);
+                    CGPathAddCurveToPoint(m_path,
+                                          nullptr,
+                                          p[0].x,
+                                          p[0].y,
+                                          p[1].x,
+                                          p[1].y,
+                                          p[2].x,
+                                          p[2].y);
                     p += 3;
                     break;
-                case PathVerb::close:
-                    CGPathCloseSubpath(m_path);
-                    break;
+                case PathVerb::close: CGPathCloseSubpath(m_path); break;
             }
         }
         assert(p == pts.end());
@@ -459,8 +463,9 @@ rcp<RenderShader> CGFactory::makeRadialGradient(float cx,
         new CGRadialGradientRenderShader(cx, cy, radius, colors, stops, count));
 }
 
-std::unique_ptr<RenderPath>
-CGFactory::makeRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule fillRule) {
+std::unique_ptr<RenderPath> CGFactory::makeRenderPath(Span<const Vec2D> points,
+                                                      Span<const PathVerb> verbs,
+                                                      FillRule fillRule) {
     return std::make_unique<CGRenderPath>(points, verbs, fillRule);
 }
 

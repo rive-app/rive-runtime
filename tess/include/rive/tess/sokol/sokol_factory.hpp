@@ -34,8 +34,9 @@ namespace rive {
                                              size_t count) override;
 
         // Returns a full-formed RenderPath -- can be treated as immutable
-        std::unique_ptr<RenderPath>
-        makeRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule) override;
+        std::unique_ptr<RenderPath> makeRenderPath(Span<const Vec2D> points,
+                                                   Span<const PathVerb> verbs,
+                                                   FillRule) override;
 
         std::unique_ptr<RenderPath> makeEmptyRenderPath() override;
 

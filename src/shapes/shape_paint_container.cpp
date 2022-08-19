@@ -12,10 +12,8 @@ using namespace rive;
 
 ShapePaintContainer* ShapePaintContainer::from(Component* component) {
     switch (component->coreType()) {
-        case Artboard::typeKey:
-            return component->as<Artboard>();
-        case Shape::typeKey:
-            return component->as<Shape>();
+        case Artboard::typeKey: return component->as<Artboard>();
+        case Shape::typeKey: return component->as<Shape>();
     }
     return nullptr;
 }

@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case LinearGradientBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -96,18 +94,10 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case startXPropertyKey:
-                    m_StartX = CoreDoubleType::deserialize(reader);
-                    return true;
-                case startYPropertyKey:
-                    m_StartY = CoreDoubleType::deserialize(reader);
-                    return true;
-                case endXPropertyKey:
-                    m_EndX = CoreDoubleType::deserialize(reader);
-                    return true;
-                case endYPropertyKey:
-                    m_EndY = CoreDoubleType::deserialize(reader);
-                    return true;
+                case startXPropertyKey: m_StartX = CoreDoubleType::deserialize(reader); return true;
+                case startYPropertyKey: m_StartY = CoreDoubleType::deserialize(reader); return true;
+                case endXPropertyKey: m_EndX = CoreDoubleType::deserialize(reader); return true;
+                case endYPropertyKey: m_EndY = CoreDoubleType::deserialize(reader); return true;
                 case opacityPropertyKey:
                     m_Opacity = CoreDoubleType::deserialize(reader);
                     return true;

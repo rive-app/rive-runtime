@@ -80,8 +80,7 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 }
                 break;
             }
-            default:
-                break;
+            default: break;
         }
     }
     m_TriangleStrip.push_back(lastA);
@@ -299,8 +298,7 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 }
                 break;
             }
-            default:
-                break;
+            default: break;
         }
     }
 

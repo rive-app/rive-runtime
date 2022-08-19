@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case DrawableAssetBase::typeKey:
                 case FileAssetBase::typeKey:
-                case AssetBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case AssetBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -59,12 +57,8 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case heightPropertyKey:
-                    m_Height = CoreDoubleType::deserialize(reader);
-                    return true;
-                case widthPropertyKey:
-                    m_Width = CoreDoubleType::deserialize(reader);
-                    return true;
+                case heightPropertyKey: m_Height = CoreDoubleType::deserialize(reader); return true;
+                case widthPropertyKey: m_Width = CoreDoubleType::deserialize(reader); return true;
             }
             return FileAsset::deserialize(propertyKey, reader);
         }

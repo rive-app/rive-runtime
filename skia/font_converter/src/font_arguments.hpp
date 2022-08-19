@@ -17,10 +17,14 @@ public:
         args::Group optional(m_Parser, "optional arguments:", args::Group::Validators::DontCare);
 
         args::ValueFlag<std::string> source(required, "path", "source filename", {'s', "source"});
-        args::ValueFlag<std::string> destination(
-            required, "path", "destination filename", {'d', "destination"});
-        args::ValueFlag<std::string> charset(
-            optional, "path", "charset filename", {'c', "charset"});
+        args::ValueFlag<std::string> destination(required,
+                                                 "path",
+                                                 "destination filename",
+                                                 {'d', "destination"});
+        args::ValueFlag<std::string> charset(optional,
+                                             "path",
+                                             "charset filename",
+                                             {'c', "charset"});
 
         args::CompletionFlag completion(m_Parser, {"complete"});
         try {

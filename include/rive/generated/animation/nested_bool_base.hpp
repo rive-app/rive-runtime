@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case NestedBoolBase::typeKey:
                 case NestedInputBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

@@ -76,25 +76,18 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
 
             if (id == -1) {
                 // Still couldn't find it, give up.
-                fprintf(
-                    stderr, "Unknown property key %d, missing from property ToC.\n", propertyKey);
+                fprintf(stderr,
+                        "Unknown property key %d, missing from property ToC.\n",
+                        propertyKey);
                 delete object;
                 return nullptr;
             }
 
             switch (id) {
-                case CoreUintType::id:
-                    CoreUintType::deserialize(reader);
-                    break;
-                case CoreStringType::id:
-                    CoreStringType::deserialize(reader);
-                    break;
-                case CoreDoubleType::id:
-                    CoreDoubleType::deserialize(reader);
-                    break;
-                case CoreColorType::id:
-                    CoreColorType::deserialize(reader);
-                    break;
+                case CoreUintType::id: CoreUintType::deserialize(reader); break;
+                case CoreStringType::id: CoreStringType::deserialize(reader); break;
+                case CoreDoubleType::id: CoreDoubleType::deserialize(reader); break;
+                case CoreColorType::id: CoreColorType::deserialize(reader); break;
             }
         }
     }
@@ -163,9 +156,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
         }
         if (object->import(importStack) == StatusCode::Ok) {
             switch (object->coreType()) {
-                case Backboard::typeKey:
-                    m_Backboard.reset(object->as<Backboard>());
-                    break;
+                case Backboard::typeKey: m_Backboard.reset(object->as<Backboard>()); break;
                 case Artboard::typeKey: {
                     Artboard* ab = object->as<Artboard>();
                     ab->m_Factory = m_Factory;

@@ -297,18 +297,11 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
             if (nestedAnimation->is<NestedStateMachine>()) {
                 auto nestedStateMachine = nestedAnimation->as<NestedStateMachine>();
                 switch (hitType) {
-                    case ListenerType::down:
-                        nestedStateMachine->pointerDown(nestedPosition);
-                        break;
-                    case ListenerType::up:
-                        nestedStateMachine->pointerUp(nestedPosition);
-                        break;
-                    case ListenerType::move:
-                        nestedStateMachine->pointerMove(nestedPosition);
-                        break;
+                    case ListenerType::down: nestedStateMachine->pointerDown(nestedPosition); break;
+                    case ListenerType::up: nestedStateMachine->pointerUp(nestedPosition); break;
+                    case ListenerType::move: nestedStateMachine->pointerMove(nestedPosition); break;
                     case ListenerType::enter:
-                    case ListenerType::exit:
-                        break;
+                    case ListenerType::exit: break;
                 }
             }
         }

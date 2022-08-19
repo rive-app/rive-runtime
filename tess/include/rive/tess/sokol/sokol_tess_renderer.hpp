@@ -25,8 +25,12 @@ namespace rive {
 
     public:
         SokolTessRenderer();
-        void orthographicProjection(
-            float left, float right, float bottom, float top, float near, float far) override;
+        void orthographicProjection(float left,
+                                    float right,
+                                    float bottom,
+                                    float top,
+                                    float near,
+                                    float far) override;
 
         void drawImage(const RenderImage*, BlendMode, float opacity) override;
         void drawImageMesh(const RenderImage*,

@@ -214,8 +214,11 @@ void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPa
     }
 }
 
-void MetricsPath::extractSubPart(
-    int index, float startT, float endT, bool moveTo, RenderPath* result) {
+void MetricsPath::extractSubPart(int index,
+                                 float startT,
+                                 float endT,
+                                 bool moveTo,
+                                 RenderPath* result) {
     assert(startT >= 0.0f && startT <= 1.0f && endT >= 0.0f && endT <= 1.0f);
     const PathPart& part = m_Parts[index];
     switch (part.type) {
@@ -307,8 +310,12 @@ void MetricsPath::extractSubPart(
                 } else {
                     // End is not 1, so split again and cubic to the left side
                     // of the split and remap endT to the new curve range
-                    CubicUtilities::computeHull(
-                        hull[5], hull[4], hull[2], to, (endT - startT) / (1.0f - startT), hull);
+                    CubicUtilities::computeHull(hull[5],
+                                                hull[4],
+                                                hull[2],
+                                                to,
+                                                (endT - startT) / (1.0f - startT),
+                                                hull);
 
                     result->cubic(hull[0], hull[3], hull[5]);
                 }

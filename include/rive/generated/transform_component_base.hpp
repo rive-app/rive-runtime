@@ -17,10 +17,8 @@ namespace rive {
                 case TransformComponentBase::typeKey:
                 case WorldTransformComponentBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -75,12 +73,8 @@ namespace rive {
                 case rotationPropertyKey:
                     m_Rotation = CoreDoubleType::deserialize(reader);
                     return true;
-                case scaleXPropertyKey:
-                    m_ScaleX = CoreDoubleType::deserialize(reader);
-                    return true;
-                case scaleYPropertyKey:
-                    m_ScaleY = CoreDoubleType::deserialize(reader);
-                    return true;
+                case scaleXPropertyKey: m_ScaleX = CoreDoubleType::deserialize(reader); return true;
+                case scaleYPropertyKey: m_ScaleY = CoreDoubleType::deserialize(reader); return true;
             }
             return WorldTransformComponent::deserialize(propertyKey, reader);
         }

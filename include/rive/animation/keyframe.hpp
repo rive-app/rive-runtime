@@ -17,8 +17,11 @@ namespace rive {
 
         StatusCode onAddedDirty(CoreContext* context) override;
         virtual void apply(Core* object, int propertyKey, float mix) = 0;
-        virtual void applyInterpolation(
-            Core* object, int propertyKey, float seconds, const KeyFrame* nextFrame, float mix) = 0;
+        virtual void applyInterpolation(Core* object,
+                                        int propertyKey,
+                                        float seconds,
+                                        const KeyFrame* nextFrame,
+                                        float mix) = 0;
 
         StatusCode import(ImportStack& importStack) override;
     };

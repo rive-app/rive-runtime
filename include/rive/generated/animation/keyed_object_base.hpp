@@ -14,10 +14,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case KeyedObjectBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case KeyedObjectBase::typeKey: return true;
+                default: return false;
             }
         }
 

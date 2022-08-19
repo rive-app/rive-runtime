@@ -67,8 +67,7 @@ float LinearAnimation::durationSeconds() const { return endSeconds() - startSeco
 
 float LinearAnimation::globalToLocalSeconds(float seconds) const {
     switch (loop()) {
-        case Loop::oneShot:
-            return seconds + startSeconds();
+        case Loop::oneShot: return seconds + startSeconds();
         case Loop::loop:
             return std::fmod(seconds, (endSeconds() - startSeconds())) + startSeconds();
         case Loop::pingPong:

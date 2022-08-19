@@ -13,10 +13,8 @@ namespace rive {
         /// at runtime.
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
-                case StateMachineLayerComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineLayerComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

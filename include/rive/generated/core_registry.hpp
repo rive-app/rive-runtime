@@ -121,170 +121,89 @@ namespace rive {
     public:
         static Core* makeCoreInstance(int typeKey) {
             switch (typeKey) {
-                case DrawTargetBase::typeKey:
-                    return new DrawTarget();
-                case DistanceConstraintBase::typeKey:
-                    return new DistanceConstraint();
-                case IKConstraintBase::typeKey:
-                    return new IKConstraint();
-                case TranslationConstraintBase::typeKey:
-                    return new TranslationConstraint();
-                case TransformConstraintBase::typeKey:
-                    return new TransformConstraint();
-                case ScaleConstraintBase::typeKey:
-                    return new ScaleConstraint();
-                case RotationConstraintBase::typeKey:
-                    return new RotationConstraint();
-                case NodeBase::typeKey:
-                    return new Node();
-                case NestedArtboardBase::typeKey:
-                    return new NestedArtboard();
-                case NestedSimpleAnimationBase::typeKey:
-                    return new NestedSimpleAnimation();
-                case AnimationStateBase::typeKey:
-                    return new AnimationState();
-                case NestedTriggerBase::typeKey:
-                    return new NestedTrigger();
-                case KeyedObjectBase::typeKey:
-                    return new KeyedObject();
-                case BlendAnimationDirectBase::typeKey:
-                    return new BlendAnimationDirect();
-                case StateMachineNumberBase::typeKey:
-                    return new StateMachineNumber();
+                case DrawTargetBase::typeKey: return new DrawTarget();
+                case DistanceConstraintBase::typeKey: return new DistanceConstraint();
+                case IKConstraintBase::typeKey: return new IKConstraint();
+                case TranslationConstraintBase::typeKey: return new TranslationConstraint();
+                case TransformConstraintBase::typeKey: return new TransformConstraint();
+                case ScaleConstraintBase::typeKey: return new ScaleConstraint();
+                case RotationConstraintBase::typeKey: return new RotationConstraint();
+                case NodeBase::typeKey: return new Node();
+                case NestedArtboardBase::typeKey: return new NestedArtboard();
+                case NestedSimpleAnimationBase::typeKey: return new NestedSimpleAnimation();
+                case AnimationStateBase::typeKey: return new AnimationState();
+                case NestedTriggerBase::typeKey: return new NestedTrigger();
+                case KeyedObjectBase::typeKey: return new KeyedObject();
+                case BlendAnimationDirectBase::typeKey: return new BlendAnimationDirect();
+                case StateMachineNumberBase::typeKey: return new StateMachineNumber();
                 case TransitionTriggerConditionBase::typeKey:
                     return new TransitionTriggerCondition();
-                case KeyedPropertyBase::typeKey:
-                    return new KeyedProperty();
-                case StateMachineListenerBase::typeKey:
-                    return new StateMachineListener();
-                case KeyFrameIdBase::typeKey:
-                    return new KeyFrameId();
-                case KeyFrameBoolBase::typeKey:
-                    return new KeyFrameBool();
-                case ListenerBoolChangeBase::typeKey:
-                    return new ListenerBoolChange();
-                case ListenerAlignTargetBase::typeKey:
-                    return new ListenerAlignTarget();
-                case TransitionNumberConditionBase::typeKey:
-                    return new TransitionNumberCondition();
-                case AnyStateBase::typeKey:
-                    return new AnyState();
-                case StateMachineLayerBase::typeKey:
-                    return new StateMachineLayer();
-                case AnimationBase::typeKey:
-                    return new Animation();
-                case ListenerNumberChangeBase::typeKey:
-                    return new ListenerNumberChange();
-                case CubicInterpolatorBase::typeKey:
-                    return new CubicInterpolator();
-                case StateTransitionBase::typeKey:
-                    return new StateTransition();
-                case NestedBoolBase::typeKey:
-                    return new NestedBool();
-                case KeyFrameDoubleBase::typeKey:
-                    return new KeyFrameDouble();
-                case KeyFrameColorBase::typeKey:
-                    return new KeyFrameColor();
-                case StateMachineBase::typeKey:
-                    return new StateMachine();
-                case EntryStateBase::typeKey:
-                    return new EntryState();
-                case LinearAnimationBase::typeKey:
-                    return new LinearAnimation();
-                case StateMachineTriggerBase::typeKey:
-                    return new StateMachineTrigger();
-                case ListenerTriggerChangeBase::typeKey:
-                    return new ListenerTriggerChange();
-                case BlendStateDirectBase::typeKey:
-                    return new BlendStateDirect();
-                case NestedStateMachineBase::typeKey:
-                    return new NestedStateMachine();
-                case ExitStateBase::typeKey:
-                    return new ExitState();
-                case NestedNumberBase::typeKey:
-                    return new NestedNumber();
-                case BlendState1DBase::typeKey:
-                    return new BlendState1D();
-                case NestedRemapAnimationBase::typeKey:
-                    return new NestedRemapAnimation();
-                case TransitionBoolConditionBase::typeKey:
-                    return new TransitionBoolCondition();
-                case BlendStateTransitionBase::typeKey:
-                    return new BlendStateTransition();
-                case StateMachineBoolBase::typeKey:
-                    return new StateMachineBool();
-                case BlendAnimation1DBase::typeKey:
-                    return new BlendAnimation1D();
-                case LinearGradientBase::typeKey:
-                    return new LinearGradient();
-                case RadialGradientBase::typeKey:
-                    return new RadialGradient();
-                case StrokeBase::typeKey:
-                    return new Stroke();
-                case SolidColorBase::typeKey:
-                    return new SolidColor();
-                case GradientStopBase::typeKey:
-                    return new GradientStop();
-                case TrimPathBase::typeKey:
-                    return new TrimPath();
-                case FillBase::typeKey:
-                    return new Fill();
-                case MeshVertexBase::typeKey:
-                    return new MeshVertex();
-                case ShapeBase::typeKey:
-                    return new Shape();
-                case StraightVertexBase::typeKey:
-                    return new StraightVertex();
-                case CubicAsymmetricVertexBase::typeKey:
-                    return new CubicAsymmetricVertex();
-                case MeshBase::typeKey:
-                    return new Mesh();
-                case PointsPathBase::typeKey:
-                    return new PointsPath();
-                case ContourMeshVertexBase::typeKey:
-                    return new ContourMeshVertex();
-                case RectangleBase::typeKey:
-                    return new Rectangle();
-                case CubicMirroredVertexBase::typeKey:
-                    return new CubicMirroredVertex();
-                case TriangleBase::typeKey:
-                    return new Triangle();
-                case EllipseBase::typeKey:
-                    return new Ellipse();
-                case ClippingShapeBase::typeKey:
-                    return new ClippingShape();
-                case PolygonBase::typeKey:
-                    return new Polygon();
-                case StarBase::typeKey:
-                    return new Star();
-                case ImageBase::typeKey:
-                    return new Image();
-                case CubicDetachedVertexBase::typeKey:
-                    return new CubicDetachedVertex();
-                case DrawRulesBase::typeKey:
-                    return new DrawRules();
-                case ArtboardBase::typeKey:
-                    return new Artboard();
-                case BackboardBase::typeKey:
-                    return new Backboard();
-                case WeightBase::typeKey:
-                    return new Weight();
-                case BoneBase::typeKey:
-                    return new Bone();
-                case RootBoneBase::typeKey:
-                    return new RootBone();
-                case SkinBase::typeKey:
-                    return new Skin();
-                case TendonBase::typeKey:
-                    return new Tendon();
-                case CubicWeightBase::typeKey:
-                    return new CubicWeight();
-                case FolderBase::typeKey:
-                    return new Folder();
-                case ImageAssetBase::typeKey:
-                    return new ImageAsset();
-                case FileAssetContentsBase::typeKey:
-                    return new FileAssetContents();
+                case KeyedPropertyBase::typeKey: return new KeyedProperty();
+                case StateMachineListenerBase::typeKey: return new StateMachineListener();
+                case KeyFrameIdBase::typeKey: return new KeyFrameId();
+                case KeyFrameBoolBase::typeKey: return new KeyFrameBool();
+                case ListenerBoolChangeBase::typeKey: return new ListenerBoolChange();
+                case ListenerAlignTargetBase::typeKey: return new ListenerAlignTarget();
+                case TransitionNumberConditionBase::typeKey: return new TransitionNumberCondition();
+                case AnyStateBase::typeKey: return new AnyState();
+                case StateMachineLayerBase::typeKey: return new StateMachineLayer();
+                case AnimationBase::typeKey: return new Animation();
+                case ListenerNumberChangeBase::typeKey: return new ListenerNumberChange();
+                case CubicInterpolatorBase::typeKey: return new CubicInterpolator();
+                case StateTransitionBase::typeKey: return new StateTransition();
+                case NestedBoolBase::typeKey: return new NestedBool();
+                case KeyFrameDoubleBase::typeKey: return new KeyFrameDouble();
+                case KeyFrameColorBase::typeKey: return new KeyFrameColor();
+                case StateMachineBase::typeKey: return new StateMachine();
+                case EntryStateBase::typeKey: return new EntryState();
+                case LinearAnimationBase::typeKey: return new LinearAnimation();
+                case StateMachineTriggerBase::typeKey: return new StateMachineTrigger();
+                case ListenerTriggerChangeBase::typeKey: return new ListenerTriggerChange();
+                case BlendStateDirectBase::typeKey: return new BlendStateDirect();
+                case NestedStateMachineBase::typeKey: return new NestedStateMachine();
+                case ExitStateBase::typeKey: return new ExitState();
+                case NestedNumberBase::typeKey: return new NestedNumber();
+                case BlendState1DBase::typeKey: return new BlendState1D();
+                case NestedRemapAnimationBase::typeKey: return new NestedRemapAnimation();
+                case TransitionBoolConditionBase::typeKey: return new TransitionBoolCondition();
+                case BlendStateTransitionBase::typeKey: return new BlendStateTransition();
+                case StateMachineBoolBase::typeKey: return new StateMachineBool();
+                case BlendAnimation1DBase::typeKey: return new BlendAnimation1D();
+                case LinearGradientBase::typeKey: return new LinearGradient();
+                case RadialGradientBase::typeKey: return new RadialGradient();
+                case StrokeBase::typeKey: return new Stroke();
+                case SolidColorBase::typeKey: return new SolidColor();
+                case GradientStopBase::typeKey: return new GradientStop();
+                case TrimPathBase::typeKey: return new TrimPath();
+                case FillBase::typeKey: return new Fill();
+                case MeshVertexBase::typeKey: return new MeshVertex();
+                case ShapeBase::typeKey: return new Shape();
+                case StraightVertexBase::typeKey: return new StraightVertex();
+                case CubicAsymmetricVertexBase::typeKey: return new CubicAsymmetricVertex();
+                case MeshBase::typeKey: return new Mesh();
+                case PointsPathBase::typeKey: return new PointsPath();
+                case ContourMeshVertexBase::typeKey: return new ContourMeshVertex();
+                case RectangleBase::typeKey: return new Rectangle();
+                case CubicMirroredVertexBase::typeKey: return new CubicMirroredVertex();
+                case TriangleBase::typeKey: return new Triangle();
+                case EllipseBase::typeKey: return new Ellipse();
+                case ClippingShapeBase::typeKey: return new ClippingShape();
+                case PolygonBase::typeKey: return new Polygon();
+                case StarBase::typeKey: return new Star();
+                case ImageBase::typeKey: return new Image();
+                case CubicDetachedVertexBase::typeKey: return new CubicDetachedVertex();
+                case DrawRulesBase::typeKey: return new DrawRules();
+                case ArtboardBase::typeKey: return new Artboard();
+                case BackboardBase::typeKey: return new Backboard();
+                case WeightBase::typeKey: return new Weight();
+                case BoneBase::typeKey: return new Bone();
+                case RootBoneBase::typeKey: return new RootBone();
+                case SkinBase::typeKey: return new Skin();
+                case TendonBase::typeKey: return new Tendon();
+                case CubicWeightBase::typeKey: return new CubicWeight();
+                case FolderBase::typeKey: return new Folder();
+                case ImageAssetBase::typeKey: return new ImageAsset();
+                case FileAssetContentsBase::typeKey: return new FileAssetContents();
             }
             return nullptr;
         }
@@ -299,9 +218,7 @@ namespace rive {
                 case AnimationBase::namePropertyKey:
                     object->as<AnimationBase>()->name(value);
                     break;
-                case AssetBase::namePropertyKey:
-                    object->as<AssetBase>()->name(value);
-                    break;
+                case AssetBase::namePropertyKey: object->as<AssetBase>()->name(value); break;
             }
         }
         static void setUint(Core* object, int propertyKey, uint32_t value) {
@@ -429,18 +346,12 @@ namespace rive {
                 case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                     object->as<BlendStateTransitionBase>()->exitBlendAnimationId(value);
                     break;
-                case StrokeBase::capPropertyKey:
-                    object->as<StrokeBase>()->cap(value);
-                    break;
-                case StrokeBase::joinPropertyKey:
-                    object->as<StrokeBase>()->join(value);
-                    break;
+                case StrokeBase::capPropertyKey: object->as<StrokeBase>()->cap(value); break;
+                case StrokeBase::joinPropertyKey: object->as<StrokeBase>()->join(value); break;
                 case TrimPathBase::modeValuePropertyKey:
                     object->as<TrimPathBase>()->modeValue(value);
                     break;
-                case FillBase::fillRulePropertyKey:
-                    object->as<FillBase>()->fillRule(value);
-                    break;
+                case FillBase::fillRulePropertyKey: object->as<FillBase>()->fillRule(value); break;
                 case PathBase::pathFlagsPropertyKey:
                     object->as<PathBase>()->pathFlags(value);
                     break;
@@ -453,24 +364,18 @@ namespace rive {
                 case PolygonBase::pointsPropertyKey:
                     object->as<PolygonBase>()->points(value);
                     break;
-                case ImageBase::assetIdPropertyKey:
-                    object->as<ImageBase>()->assetId(value);
-                    break;
+                case ImageBase::assetIdPropertyKey: object->as<ImageBase>()->assetId(value); break;
                 case DrawRulesBase::drawTargetIdPropertyKey:
                     object->as<DrawRulesBase>()->drawTargetId(value);
                     break;
                 case ArtboardBase::defaultStateMachineIdPropertyKey:
                     object->as<ArtboardBase>()->defaultStateMachineId(value);
                     break;
-                case WeightBase::valuesPropertyKey:
-                    object->as<WeightBase>()->values(value);
-                    break;
+                case WeightBase::valuesPropertyKey: object->as<WeightBase>()->values(value); break;
                 case WeightBase::indicesPropertyKey:
                     object->as<WeightBase>()->indices(value);
                     break;
-                case TendonBase::boneIdPropertyKey:
-                    object->as<TendonBase>()->boneId(value);
-                    break;
+                case TendonBase::boneIdPropertyKey: object->as<TendonBase>()->boneId(value); break;
                 case CubicWeightBase::inValuesPropertyKey:
                     object->as<CubicWeightBase>()->inValues(value);
                     break;
@@ -526,12 +431,8 @@ namespace rive {
                 case TransformComponentBase::scaleYPropertyKey:
                     object->as<TransformComponentBase>()->scaleY(value);
                     break;
-                case NodeBase::xPropertyKey:
-                    object->as<NodeBase>()->x(value);
-                    break;
-                case NodeBase::yPropertyKey:
-                    object->as<NodeBase>()->y(value);
-                    break;
+                case NodeBase::xPropertyKey: object->as<NodeBase>()->x(value); break;
+                case NodeBase::yPropertyKey: object->as<NodeBase>()->y(value); break;
                 case NestedLinearAnimationBase::mixPropertyKey:
                     object->as<NestedLinearAnimationBase>()->mix(value);
                     break;
@@ -598,24 +499,14 @@ namespace rive {
                 case TrimPathBase::startPropertyKey:
                     object->as<TrimPathBase>()->start(value);
                     break;
-                case TrimPathBase::endPropertyKey:
-                    object->as<TrimPathBase>()->end(value);
-                    break;
+                case TrimPathBase::endPropertyKey: object->as<TrimPathBase>()->end(value); break;
                 case TrimPathBase::offsetPropertyKey:
                     object->as<TrimPathBase>()->offset(value);
                     break;
-                case VertexBase::xPropertyKey:
-                    object->as<VertexBase>()->x(value);
-                    break;
-                case VertexBase::yPropertyKey:
-                    object->as<VertexBase>()->y(value);
-                    break;
-                case MeshVertexBase::uPropertyKey:
-                    object->as<MeshVertexBase>()->u(value);
-                    break;
-                case MeshVertexBase::vPropertyKey:
-                    object->as<MeshVertexBase>()->v(value);
-                    break;
+                case VertexBase::xPropertyKey: object->as<VertexBase>()->x(value); break;
+                case VertexBase::yPropertyKey: object->as<VertexBase>()->y(value); break;
+                case MeshVertexBase::uPropertyKey: object->as<MeshVertexBase>()->u(value); break;
+                case MeshVertexBase::vPropertyKey: object->as<MeshVertexBase>()->v(value); break;
                 case StraightVertexBase::radiusPropertyKey:
                     object->as<StraightVertexBase>()->radius(value);
                     break;
@@ -682,63 +573,29 @@ namespace rive {
                 case ArtboardBase::heightPropertyKey:
                     object->as<ArtboardBase>()->height(value);
                     break;
-                case ArtboardBase::xPropertyKey:
-                    object->as<ArtboardBase>()->x(value);
-                    break;
-                case ArtboardBase::yPropertyKey:
-                    object->as<ArtboardBase>()->y(value);
-                    break;
+                case ArtboardBase::xPropertyKey: object->as<ArtboardBase>()->x(value); break;
+                case ArtboardBase::yPropertyKey: object->as<ArtboardBase>()->y(value); break;
                 case ArtboardBase::originXPropertyKey:
                     object->as<ArtboardBase>()->originX(value);
                     break;
                 case ArtboardBase::originYPropertyKey:
                     object->as<ArtboardBase>()->originY(value);
                     break;
-                case BoneBase::lengthPropertyKey:
-                    object->as<BoneBase>()->length(value);
-                    break;
-                case RootBoneBase::xPropertyKey:
-                    object->as<RootBoneBase>()->x(value);
-                    break;
-                case RootBoneBase::yPropertyKey:
-                    object->as<RootBoneBase>()->y(value);
-                    break;
-                case SkinBase::xxPropertyKey:
-                    object->as<SkinBase>()->xx(value);
-                    break;
-                case SkinBase::yxPropertyKey:
-                    object->as<SkinBase>()->yx(value);
-                    break;
-                case SkinBase::xyPropertyKey:
-                    object->as<SkinBase>()->xy(value);
-                    break;
-                case SkinBase::yyPropertyKey:
-                    object->as<SkinBase>()->yy(value);
-                    break;
-                case SkinBase::txPropertyKey:
-                    object->as<SkinBase>()->tx(value);
-                    break;
-                case SkinBase::tyPropertyKey:
-                    object->as<SkinBase>()->ty(value);
-                    break;
-                case TendonBase::xxPropertyKey:
-                    object->as<TendonBase>()->xx(value);
-                    break;
-                case TendonBase::yxPropertyKey:
-                    object->as<TendonBase>()->yx(value);
-                    break;
-                case TendonBase::xyPropertyKey:
-                    object->as<TendonBase>()->xy(value);
-                    break;
-                case TendonBase::yyPropertyKey:
-                    object->as<TendonBase>()->yy(value);
-                    break;
-                case TendonBase::txPropertyKey:
-                    object->as<TendonBase>()->tx(value);
-                    break;
-                case TendonBase::tyPropertyKey:
-                    object->as<TendonBase>()->ty(value);
-                    break;
+                case BoneBase::lengthPropertyKey: object->as<BoneBase>()->length(value); break;
+                case RootBoneBase::xPropertyKey: object->as<RootBoneBase>()->x(value); break;
+                case RootBoneBase::yPropertyKey: object->as<RootBoneBase>()->y(value); break;
+                case SkinBase::xxPropertyKey: object->as<SkinBase>()->xx(value); break;
+                case SkinBase::yxPropertyKey: object->as<SkinBase>()->yx(value); break;
+                case SkinBase::xyPropertyKey: object->as<SkinBase>()->xy(value); break;
+                case SkinBase::yyPropertyKey: object->as<SkinBase>()->yy(value); break;
+                case SkinBase::txPropertyKey: object->as<SkinBase>()->tx(value); break;
+                case SkinBase::tyPropertyKey: object->as<SkinBase>()->ty(value); break;
+                case TendonBase::xxPropertyKey: object->as<TendonBase>()->xx(value); break;
+                case TendonBase::yxPropertyKey: object->as<TendonBase>()->yx(value); break;
+                case TendonBase::xyPropertyKey: object->as<TendonBase>()->xy(value); break;
+                case TendonBase::yyPropertyKey: object->as<TendonBase>()->yy(value); break;
+                case TendonBase::txPropertyKey: object->as<TendonBase>()->tx(value); break;
+                case TendonBase::tyPropertyKey: object->as<TendonBase>()->ty(value); break;
                 case DrawableAssetBase::heightPropertyKey:
                     object->as<DrawableAssetBase>()->height(value);
                     break;
@@ -803,9 +660,7 @@ namespace rive {
                 case ClippingShapeBase::isVisiblePropertyKey:
                     object->as<ClippingShapeBase>()->isVisible(value);
                     break;
-                case ArtboardBase::clipPropertyKey:
-                    object->as<ArtboardBase>()->clip(value);
-                    break;
+                case ArtboardBase::clipPropertyKey: object->as<ArtboardBase>()->clip(value); break;
             }
         }
         static void setColor(Core* object, int propertyKey, int value) {
@@ -823,14 +678,11 @@ namespace rive {
         }
         static std::string getString(Core* object, int propertyKey) {
             switch (propertyKey) {
-                case ComponentBase::namePropertyKey:
-                    return object->as<ComponentBase>()->name();
+                case ComponentBase::namePropertyKey: return object->as<ComponentBase>()->name();
                 case StateMachineComponentBase::namePropertyKey:
                     return object->as<StateMachineComponentBase>()->name();
-                case AnimationBase::namePropertyKey:
-                    return object->as<AnimationBase>()->name();
-                case AssetBase::namePropertyKey:
-                    return object->as<AssetBase>()->name();
+                case AnimationBase::namePropertyKey: return object->as<AnimationBase>()->name();
+                case AssetBase::namePropertyKey: return object->as<AssetBase>()->name();
             }
             return "";
         }
@@ -882,14 +734,12 @@ namespace rive {
                     return object->as<StateMachineListenerBase>()->targetId();
                 case StateMachineListenerBase::listenerTypeValuePropertyKey:
                     return object->as<StateMachineListenerBase>()->listenerTypeValue();
-                case KeyFrameBase::framePropertyKey:
-                    return object->as<KeyFrameBase>()->frame();
+                case KeyFrameBase::framePropertyKey: return object->as<KeyFrameBase>()->frame();
                 case KeyFrameBase::interpolationTypePropertyKey:
                     return object->as<KeyFrameBase>()->interpolationType();
                 case KeyFrameBase::interpolatorIdPropertyKey:
                     return object->as<KeyFrameBase>()->interpolatorId();
-                case KeyFrameIdBase::valuePropertyKey:
-                    return object->as<KeyFrameIdBase>()->value();
+                case KeyFrameIdBase::valuePropertyKey: return object->as<KeyFrameIdBase>()->value();
                 case ListenerBoolChangeBase::valuePropertyKey:
                     return object->as<ListenerBoolChangeBase>()->value();
                 case ListenerAlignTargetBase::targetIdPropertyKey:
@@ -918,34 +768,25 @@ namespace rive {
                     return object->as<BlendState1DBase>()->inputId();
                 case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                     return object->as<BlendStateTransitionBase>()->exitBlendAnimationId();
-                case StrokeBase::capPropertyKey:
-                    return object->as<StrokeBase>()->cap();
-                case StrokeBase::joinPropertyKey:
-                    return object->as<StrokeBase>()->join();
+                case StrokeBase::capPropertyKey: return object->as<StrokeBase>()->cap();
+                case StrokeBase::joinPropertyKey: return object->as<StrokeBase>()->join();
                 case TrimPathBase::modeValuePropertyKey:
                     return object->as<TrimPathBase>()->modeValue();
-                case FillBase::fillRulePropertyKey:
-                    return object->as<FillBase>()->fillRule();
-                case PathBase::pathFlagsPropertyKey:
-                    return object->as<PathBase>()->pathFlags();
+                case FillBase::fillRulePropertyKey: return object->as<FillBase>()->fillRule();
+                case PathBase::pathFlagsPropertyKey: return object->as<PathBase>()->pathFlags();
                 case ClippingShapeBase::sourceIdPropertyKey:
                     return object->as<ClippingShapeBase>()->sourceId();
                 case ClippingShapeBase::fillRulePropertyKey:
                     return object->as<ClippingShapeBase>()->fillRule();
-                case PolygonBase::pointsPropertyKey:
-                    return object->as<PolygonBase>()->points();
-                case ImageBase::assetIdPropertyKey:
-                    return object->as<ImageBase>()->assetId();
+                case PolygonBase::pointsPropertyKey: return object->as<PolygonBase>()->points();
+                case ImageBase::assetIdPropertyKey: return object->as<ImageBase>()->assetId();
                 case DrawRulesBase::drawTargetIdPropertyKey:
                     return object->as<DrawRulesBase>()->drawTargetId();
                 case ArtboardBase::defaultStateMachineIdPropertyKey:
                     return object->as<ArtboardBase>()->defaultStateMachineId();
-                case WeightBase::valuesPropertyKey:
-                    return object->as<WeightBase>()->values();
-                case WeightBase::indicesPropertyKey:
-                    return object->as<WeightBase>()->indices();
-                case TendonBase::boneIdPropertyKey:
-                    return object->as<TendonBase>()->boneId();
+                case WeightBase::valuesPropertyKey: return object->as<WeightBase>()->values();
+                case WeightBase::indicesPropertyKey: return object->as<WeightBase>()->indices();
+                case TendonBase::boneIdPropertyKey: return object->as<TendonBase>()->boneId();
                 case CubicWeightBase::inValuesPropertyKey:
                     return object->as<CubicWeightBase>()->inValues();
                 case CubicWeightBase::inIndicesPropertyKey:
@@ -985,10 +826,8 @@ namespace rive {
                     return object->as<TransformComponentBase>()->scaleX();
                 case TransformComponentBase::scaleYPropertyKey:
                     return object->as<TransformComponentBase>()->scaleY();
-                case NodeBase::xPropertyKey:
-                    return object->as<NodeBase>()->x();
-                case NodeBase::yPropertyKey:
-                    return object->as<NodeBase>()->y();
+                case NodeBase::xPropertyKey: return object->as<NodeBase>()->x();
+                case NodeBase::yPropertyKey: return object->as<NodeBase>()->y();
                 case NestedLinearAnimationBase::mixPropertyKey:
                     return object->as<NestedLinearAnimationBase>()->mix();
                 case NestedSimpleAnimationBase::speedPropertyKey:
@@ -1027,24 +866,16 @@ namespace rive {
                     return object->as<LinearGradientBase>()->endY();
                 case LinearGradientBase::opacityPropertyKey:
                     return object->as<LinearGradientBase>()->opacity();
-                case StrokeBase::thicknessPropertyKey:
-                    return object->as<StrokeBase>()->thickness();
+                case StrokeBase::thicknessPropertyKey: return object->as<StrokeBase>()->thickness();
                 case GradientStopBase::positionPropertyKey:
                     return object->as<GradientStopBase>()->position();
-                case TrimPathBase::startPropertyKey:
-                    return object->as<TrimPathBase>()->start();
-                case TrimPathBase::endPropertyKey:
-                    return object->as<TrimPathBase>()->end();
-                case TrimPathBase::offsetPropertyKey:
-                    return object->as<TrimPathBase>()->offset();
-                case VertexBase::xPropertyKey:
-                    return object->as<VertexBase>()->x();
-                case VertexBase::yPropertyKey:
-                    return object->as<VertexBase>()->y();
-                case MeshVertexBase::uPropertyKey:
-                    return object->as<MeshVertexBase>()->u();
-                case MeshVertexBase::vPropertyKey:
-                    return object->as<MeshVertexBase>()->v();
+                case TrimPathBase::startPropertyKey: return object->as<TrimPathBase>()->start();
+                case TrimPathBase::endPropertyKey: return object->as<TrimPathBase>()->end();
+                case TrimPathBase::offsetPropertyKey: return object->as<TrimPathBase>()->offset();
+                case VertexBase::xPropertyKey: return object->as<VertexBase>()->x();
+                case VertexBase::yPropertyKey: return object->as<VertexBase>()->y();
+                case MeshVertexBase::uPropertyKey: return object->as<MeshVertexBase>()->u();
+                case MeshVertexBase::vPropertyKey: return object->as<MeshVertexBase>()->v();
                 case StraightVertexBase::radiusPropertyKey:
                     return object->as<StraightVertexBase>()->radius();
                 case CubicAsymmetricVertexBase::rotationPropertyKey:
@@ -1075,8 +906,7 @@ namespace rive {
                     return object->as<CubicMirroredVertexBase>()->distance();
                 case PolygonBase::cornerRadiusPropertyKey:
                     return object->as<PolygonBase>()->cornerRadius();
-                case StarBase::innerRadiusPropertyKey:
-                    return object->as<StarBase>()->innerRadius();
+                case StarBase::innerRadiusPropertyKey: return object->as<StarBase>()->innerRadius();
                 case CubicDetachedVertexBase::inRotationPropertyKey:
                     return object->as<CubicDetachedVertexBase>()->inRotation();
                 case CubicDetachedVertexBase::inDistancePropertyKey:
@@ -1085,48 +915,27 @@ namespace rive {
                     return object->as<CubicDetachedVertexBase>()->outRotation();
                 case CubicDetachedVertexBase::outDistancePropertyKey:
                     return object->as<CubicDetachedVertexBase>()->outDistance();
-                case ArtboardBase::widthPropertyKey:
-                    return object->as<ArtboardBase>()->width();
-                case ArtboardBase::heightPropertyKey:
-                    return object->as<ArtboardBase>()->height();
-                case ArtboardBase::xPropertyKey:
-                    return object->as<ArtboardBase>()->x();
-                case ArtboardBase::yPropertyKey:
-                    return object->as<ArtboardBase>()->y();
-                case ArtboardBase::originXPropertyKey:
-                    return object->as<ArtboardBase>()->originX();
-                case ArtboardBase::originYPropertyKey:
-                    return object->as<ArtboardBase>()->originY();
-                case BoneBase::lengthPropertyKey:
-                    return object->as<BoneBase>()->length();
-                case RootBoneBase::xPropertyKey:
-                    return object->as<RootBoneBase>()->x();
-                case RootBoneBase::yPropertyKey:
-                    return object->as<RootBoneBase>()->y();
-                case SkinBase::xxPropertyKey:
-                    return object->as<SkinBase>()->xx();
-                case SkinBase::yxPropertyKey:
-                    return object->as<SkinBase>()->yx();
-                case SkinBase::xyPropertyKey:
-                    return object->as<SkinBase>()->xy();
-                case SkinBase::yyPropertyKey:
-                    return object->as<SkinBase>()->yy();
-                case SkinBase::txPropertyKey:
-                    return object->as<SkinBase>()->tx();
-                case SkinBase::tyPropertyKey:
-                    return object->as<SkinBase>()->ty();
-                case TendonBase::xxPropertyKey:
-                    return object->as<TendonBase>()->xx();
-                case TendonBase::yxPropertyKey:
-                    return object->as<TendonBase>()->yx();
-                case TendonBase::xyPropertyKey:
-                    return object->as<TendonBase>()->xy();
-                case TendonBase::yyPropertyKey:
-                    return object->as<TendonBase>()->yy();
-                case TendonBase::txPropertyKey:
-                    return object->as<TendonBase>()->tx();
-                case TendonBase::tyPropertyKey:
-                    return object->as<TendonBase>()->ty();
+                case ArtboardBase::widthPropertyKey: return object->as<ArtboardBase>()->width();
+                case ArtboardBase::heightPropertyKey: return object->as<ArtboardBase>()->height();
+                case ArtboardBase::xPropertyKey: return object->as<ArtboardBase>()->x();
+                case ArtboardBase::yPropertyKey: return object->as<ArtboardBase>()->y();
+                case ArtboardBase::originXPropertyKey: return object->as<ArtboardBase>()->originX();
+                case ArtboardBase::originYPropertyKey: return object->as<ArtboardBase>()->originY();
+                case BoneBase::lengthPropertyKey: return object->as<BoneBase>()->length();
+                case RootBoneBase::xPropertyKey: return object->as<RootBoneBase>()->x();
+                case RootBoneBase::yPropertyKey: return object->as<RootBoneBase>()->y();
+                case SkinBase::xxPropertyKey: return object->as<SkinBase>()->xx();
+                case SkinBase::yxPropertyKey: return object->as<SkinBase>()->yx();
+                case SkinBase::xyPropertyKey: return object->as<SkinBase>()->xy();
+                case SkinBase::yyPropertyKey: return object->as<SkinBase>()->yy();
+                case SkinBase::txPropertyKey: return object->as<SkinBase>()->tx();
+                case SkinBase::tyPropertyKey: return object->as<SkinBase>()->ty();
+                case TendonBase::xxPropertyKey: return object->as<TendonBase>()->xx();
+                case TendonBase::yxPropertyKey: return object->as<TendonBase>()->yx();
+                case TendonBase::xyPropertyKey: return object->as<TendonBase>()->xy();
+                case TendonBase::yyPropertyKey: return object->as<TendonBase>()->yy();
+                case TendonBase::txPropertyKey: return object->as<TendonBase>()->tx();
+                case TendonBase::tyPropertyKey: return object->as<TendonBase>()->ty();
                 case DrawableAssetBase::heightPropertyKey:
                     return object->as<DrawableAssetBase>()->height();
                 case DrawableAssetBase::widthPropertyKey:
@@ -1172,8 +981,7 @@ namespace rive {
                     return object->as<RectangleBase>()->linkCornerRadius();
                 case ClippingShapeBase::isVisiblePropertyKey:
                     return object->as<ClippingShapeBase>()->isVisible();
-                case ArtboardBase::clipPropertyKey:
-                    return object->as<ArtboardBase>()->clip();
+                case ArtboardBase::clipPropertyKey: return object->as<ArtboardBase>()->clip();
             }
             return false;
         }
@@ -1193,8 +1001,7 @@ namespace rive {
                 case ComponentBase::namePropertyKey:
                 case StateMachineComponentBase::namePropertyKey:
                 case AnimationBase::namePropertyKey:
-                case AssetBase::namePropertyKey:
-                    return CoreStringType::id;
+                case AssetBase::namePropertyKey: return CoreStringType::id;
                 case ComponentBase::parentIdPropertyKey:
                 case DrawTargetBase::drawableIdPropertyKey:
                 case DrawTargetBase::placementValuePropertyKey:
@@ -1254,8 +1061,7 @@ namespace rive {
                 case CubicWeightBase::inIndicesPropertyKey:
                 case CubicWeightBase::outValuesPropertyKey:
                 case CubicWeightBase::outIndicesPropertyKey:
-                case FileAssetBase::assetIdPropertyKey:
-                    return CoreUintType::id;
+                case FileAssetBase::assetIdPropertyKey: return CoreUintType::id;
                 case ConstraintBase::strengthPropertyKey:
                 case DistanceConstraintBase::distancePropertyKey:
                 case TransformComponentConstraintBase::copyFactorPropertyKey:
@@ -1340,8 +1146,7 @@ namespace rive {
                 case TendonBase::txPropertyKey:
                 case TendonBase::tyPropertyKey:
                 case DrawableAssetBase::heightPropertyKey:
-                case DrawableAssetBase::widthPropertyKey:
-                    return CoreDoubleType::id;
+                case DrawableAssetBase::widthPropertyKey: return CoreDoubleType::id;
                 case TransformComponentConstraintBase::offsetPropertyKey:
                 case TransformComponentConstraintBase::doesCopyPropertyKey:
                 case TransformComponentConstraintBase::minPropertyKey:
@@ -1360,17 +1165,13 @@ namespace rive {
                 case PointsPathBase::isClosedPropertyKey:
                 case RectangleBase::linkCornerRadiusPropertyKey:
                 case ClippingShapeBase::isVisiblePropertyKey:
-                case ArtboardBase::clipPropertyKey:
-                    return CoreBoolType::id;
+                case ArtboardBase::clipPropertyKey: return CoreBoolType::id;
                 case KeyFrameColorBase::valuePropertyKey:
                 case SolidColorBase::colorValuePropertyKey:
-                case GradientStopBase::colorValuePropertyKey:
-                    return CoreColorType::id;
+                case GradientStopBase::colorValuePropertyKey: return CoreColorType::id;
                 case MeshBase::triangleIndexBytesPropertyKey:
-                case FileAssetContentsBase::bytesPropertyKey:
-                    return CoreBytesType::id;
-                default:
-                    return -1;
+                case FileAssetContentsBase::bytesPropertyKey: return CoreBytesType::id;
+                default: return -1;
             }
         }
     };

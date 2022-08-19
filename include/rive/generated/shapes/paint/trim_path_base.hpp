@@ -16,10 +16,8 @@ namespace rive {
         bool isTypeOf(uint16_t typeKey) const override {
             switch (typeKey) {
                 case TrimPathBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -84,15 +82,9 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case startPropertyKey:
-                    m_Start = CoreDoubleType::deserialize(reader);
-                    return true;
-                case endPropertyKey:
-                    m_End = CoreDoubleType::deserialize(reader);
-                    return true;
-                case offsetPropertyKey:
-                    m_Offset = CoreDoubleType::deserialize(reader);
-                    return true;
+                case startPropertyKey: m_Start = CoreDoubleType::deserialize(reader); return true;
+                case endPropertyKey: m_End = CoreDoubleType::deserialize(reader); return true;
+                case offsetPropertyKey: m_Offset = CoreDoubleType::deserialize(reader); return true;
                 case modeValuePropertyKey:
                     m_ModeValue = CoreUintType::deserialize(reader);
                     return true;

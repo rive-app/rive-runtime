@@ -19,10 +19,8 @@ namespace rive {
                 case TransformSpaceConstraintBase::typeKey:
                 case TargetedConstraintBase::typeKey:
                 case ConstraintBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

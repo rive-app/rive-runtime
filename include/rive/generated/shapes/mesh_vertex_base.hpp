@@ -17,10 +17,8 @@ namespace rive {
                 case MeshVertexBase::typeKey:
                 case VertexBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -61,12 +59,8 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case uPropertyKey:
-                    m_U = CoreDoubleType::deserialize(reader);
-                    return true;
-                case vPropertyKey:
-                    m_V = CoreDoubleType::deserialize(reader);
-                    return true;
+                case uPropertyKey: m_U = CoreDoubleType::deserialize(reader); return true;
+                case vPropertyKey: m_V = CoreDoubleType::deserialize(reader); return true;
             }
             return Vertex::deserialize(propertyKey, reader);
         }

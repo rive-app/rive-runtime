@@ -30,8 +30,12 @@ namespace rive {
         TessRenderer();
 
         void projection(const Mat4& value);
-        virtual void orthographicProjection(
-            float left, float right, float bottom, float top, float near, float far) = 0;
+        virtual void orthographicProjection(float left,
+                                            float right,
+                                            float bottom,
+                                            float top,
+                                            float near,
+                                            float far) = 0;
 
         ///
         /// Checks if clipping is dirty and clears the clipping flag. Hard

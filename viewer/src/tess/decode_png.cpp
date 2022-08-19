@@ -9,8 +9,9 @@ struct EncodedImageBuffer {
     size_t size;
 };
 
-static void
-ReadDataFromMemory(png_structp png_ptr, png_bytep outBytes, png_size_t byteCountToRead) {
+static void ReadDataFromMemory(png_structp png_ptr,
+                               png_bytep outBytes,
+                               png_size_t byteCountToRead) {
     png_voidp a = png_get_io_ptr(png_ptr);
     if (a == nullptr) {
         return;
@@ -56,8 +57,15 @@ std::unique_ptr<Bitmap> DecodePng(rive::Span<const uint8_t> bytes) {
 
     png_read_info(png_ptr, info_ptr);
 
-    png_get_IHDR(
-        png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, &interlace_type, NULL, NULL);
+    png_get_IHDR(png_ptr,
+                 info_ptr,
+                 &width,
+                 &height,
+                 &bit_depth,
+                 &color_type,
+                 &interlace_type,
+                 NULL,
+                 NULL);
 
     png_set_strip_16(png_ptr);
 
@@ -103,15 +111,9 @@ std::unique_ptr<Bitmap> DecodePng(rive::Span<const uint8_t> bytes) {
     Bitmap::PixelFormat pixelFormat;
     assert(bitDepth == 32 || bitDepth == 24 || bitDepth == 8);
     switch (bitDepth) {
-        case 32:
-            pixelFormat = Bitmap::PixelFormat::RGBA;
-            break;
-        case 24:
-            pixelFormat = Bitmap::PixelFormat::RGB;
-            break;
-        case 8:
-            pixelFormat = Bitmap::PixelFormat::R;
-            break;
+        case 32: pixelFormat = Bitmap::PixelFormat::RGBA; break;
+        case 24: pixelFormat = Bitmap::PixelFormat::RGB; break;
+        case 8: pixelFormat = Bitmap::PixelFormat::R; break;
     }
     return std::make_unique<Bitmap>(width, height, pixelFormat, pixelBuffer);
 }

@@ -13,8 +13,9 @@ static void applyDouble(Core* object, int propertyKey, float mix, float value) {
         CoreRegistry::setDouble(object, propertyKey, value);
     } else {
         float mixi = 1.0f - mix;
-        CoreRegistry::setDouble(
-            object, propertyKey, CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
+        CoreRegistry::setDouble(object,
+                                propertyKey,
+                                CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
     }
 }
 
@@ -22,8 +23,11 @@ void KeyFrameDouble::apply(Core* object, int propertyKey, float mix) {
     applyDouble(object, propertyKey, mix, value());
 }
 
-void KeyFrameDouble::applyInterpolation(
-    Core* object, int propertyKey, float currentTime, const KeyFrame* nextFrame, float mix) {
+void KeyFrameDouble::applyInterpolation(Core* object,
+                                        int propertyKey,
+                                        float currentTime,
+                                        const KeyFrame* nextFrame,
+                                        float mix) {
     auto kfd = nextFrame->as<KeyFrameDouble>();
     const KeyFrameDouble& nextDouble = *kfd;
     float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());

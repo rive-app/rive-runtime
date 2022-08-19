@@ -170,8 +170,9 @@ const hb_feature_t gFeatures[] = {
 };
 constexpr int gNumFeatures = sizeof(gFeatures) / sizeof(gFeatures[0]);
 
-static rive::RenderGlyphRun
-shape_run(const rive::Unichar text[], const rive::RenderTextRun& tr, unsigned textOffset) {
+static rive::RenderGlyphRun shape_run(const rive::Unichar text[],
+                                      const rive::RenderTextRun& tr,
+                                      unsigned textOffset) {
     hb_buffer_t* buf = hb_buffer_create();
     hb_buffer_add_utf32(buf, text, tr.unicharCount, 0, tr.unicharCount);
 
@@ -209,14 +210,16 @@ shape_run(const rive::Unichar text[], const rive::RenderTextRun& tr, unsigned te
     return gr;
 }
 
-static rive::RenderGlyphRun
-extract_subset(const rive::RenderGlyphRun& orig, size_t start, size_t end) {
+static rive::RenderGlyphRun extract_subset(const rive::RenderGlyphRun& orig,
+                                           size_t start,
+                                           size_t end) {
     rive::RenderGlyphRun subset;
     subset.font = std::move(orig.font);
     subset.size = orig.size;
     subset.glyphs.insert(subset.glyphs.begin(), &orig.glyphs[start], &orig.glyphs[end]);
-    subset.textOffsets.insert(
-        subset.textOffsets.begin(), &orig.textOffsets[start], &orig.textOffsets[end]);
+    subset.textOffsets.insert(subset.textOffsets.begin(),
+                              &orig.textOffsets[start],
+                              &orig.textOffsets[end]);
     subset.xpos.insert(subset.xpos.begin(), &orig.xpos[start], &orig.xpos[end + 1]);
     subset.xpos.back() = 0; // since we're now the end of a run
     return subset;

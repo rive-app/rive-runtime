@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case ShapePaintBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

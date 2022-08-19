@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case TransitionNumberConditionBase::typeKey:
                 case TransitionValueConditionBase::typeKey:
-                case TransitionConditionBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case TransitionConditionBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -48,9 +46,7 @@ namespace rive {
 
         bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
             switch (propertyKey) {
-                case valuePropertyKey:
-                    m_Value = CoreDoubleType::deserialize(reader);
-                    return true;
+                case valuePropertyKey: m_Value = CoreDoubleType::deserialize(reader); return true;
             }
             return TransitionValueCondition::deserialize(propertyKey, reader);
         }

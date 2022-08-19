@@ -88,8 +88,12 @@ SokolTessRenderer::SokolTessRenderer() {
     });
 }
 
-void SokolTessRenderer::orthographicProjection(
-    float left, float right, float bottom, float top, float near, float far) {
+void SokolTessRenderer::orthographicProjection(float left,
+                                               float right,
+                                               float bottom,
+                                               float top,
+                                               float near,
+                                               float far) {
     m_Projection[0] = 2.0f / (right - left);
     m_Projection[1] = 0.0f;
     m_Projection[2] = 0.0f;

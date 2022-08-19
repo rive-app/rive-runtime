@@ -21,15 +21,9 @@ StatusCode StateMachineLayer::onAddedDirty(CoreContext* context) {
             return code;
         }
         switch (state->coreType()) {
-            case AnyState::typeKey:
-                m_Any = state->as<AnyState>();
-                break;
-            case EntryState::typeKey:
-                m_Entry = state->as<EntryState>();
-                break;
-            case ExitState::typeKey:
-                m_Exit = state->as<ExitState>();
-                break;
+            case AnyState::typeKey: m_Any = state->as<AnyState>(); break;
+            case EntryState::typeKey: m_Entry = state->as<EntryState>(); break;
+            case ExitState::typeKey: m_Exit = state->as<ExitState>(); break;
         }
     }
     if (m_Any == nullptr || m_Entry == nullptr || m_Exit == nullptr) {

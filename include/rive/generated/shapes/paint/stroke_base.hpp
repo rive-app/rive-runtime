@@ -19,10 +19,8 @@ namespace rive {
                 case StrokeBase::typeKey:
                 case ShapePaintBase::typeKey:
                 case ContainerComponentBase::typeKey:
-                case ComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case ComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 
@@ -90,12 +88,8 @@ namespace rive {
                 case thicknessPropertyKey:
                     m_Thickness = CoreDoubleType::deserialize(reader);
                     return true;
-                case capPropertyKey:
-                    m_Cap = CoreUintType::deserialize(reader);
-                    return true;
-                case joinPropertyKey:
-                    m_Join = CoreUintType::deserialize(reader);
-                    return true;
+                case capPropertyKey: m_Cap = CoreUintType::deserialize(reader); return true;
+                case joinPropertyKey: m_Join = CoreUintType::deserialize(reader); return true;
                 case transformAffectsStrokePropertyKey:
                     m_TransformAffectsStroke = CoreBoolType::deserialize(reader);
                     return true;

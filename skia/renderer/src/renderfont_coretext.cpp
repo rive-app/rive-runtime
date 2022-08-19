@@ -96,8 +96,10 @@ rive::rcp<rive::RenderFont> CoreTextRenderFont::makeAtCoords(rive::Span<const Co
         CFDictionaryAddValue(vars.get(), tagNum.get(), valueNum.get());
     }
 
-    AutoCF attrs = CFDictionaryCreateMutable(
-        kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    AutoCF attrs = CFDictionaryCreateMutable(kCFAllocatorDefault,
+                                             1,
+                                             &kCFTypeDictionaryKeyCallBacks,
+                                             &kCFTypeDictionaryValueCallBacks);
     CFDictionarySetValue(attrs.get(), kCTFontVariationAttribute, vars.get());
 
     AutoCF desc = (CTFontDescriptorRef)CTFontDescriptorCreateWithAttributes(attrs.get());
@@ -130,30 +132,26 @@ static void apply_element(void* ctx, const CGPathElement* element) {
     const CGPoint* points = element->points;
 
     switch (element->type) {
-        case kCGPathElementMoveToPoint:
-            path->moveTo(points[0].x, points[0].y);
-            break;
+        case kCGPathElementMoveToPoint: path->moveTo(points[0].x, points[0].y); break;
 
-        case kCGPathElementAddLineToPoint:
-            path->lineTo(points[0].x, points[0].y);
-            break;
+        case kCGPathElementAddLineToPoint: path->lineTo(points[0].x, points[0].y); break;
 
         case kCGPathElementAddQuadCurveToPoint:
             path->quadTo(points[0].x, points[0].y, points[1].x, points[1].y);
             break;
 
         case kCGPathElementAddCurveToPoint:
-            path->cubicTo(
-                points[0].x, points[0].y, points[1].x, points[1].y, points[2].x, points[2].y);
+            path->cubicTo(points[0].x,
+                          points[0].y,
+                          points[1].x,
+                          points[1].y,
+                          points[2].x,
+                          points[2].y);
             break;
 
-        case kCGPathElementCloseSubpath:
-            path->close();
-            break;
+        case kCGPathElementCloseSubpath: path->close(); break;
 
-        default:
-            assert(false);
-            break;
+        default: assert(false); break;
     }
 }
 
@@ -230,8 +228,10 @@ CoreTextRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
         const bool hasSurrogates = utf16.array.size() != tr.unicharCount;
         assert(!hasSurrogates);
 
-        AutoCF string = CFStringCreateWithCharactersNoCopy(
-            nullptr, utf16.array.data(), utf16.array.size(), kCFAllocatorNull);
+        AutoCF string = CFStringCreateWithCharactersNoCopy(nullptr,
+                                                           utf16.array.data(),
+                                                           utf16.array.size(),
+                                                           kCFAllocatorNull);
 
         AutoCF attr = CFDictionaryCreateMutable(kCFAllocatorDefault,
                                                 0,

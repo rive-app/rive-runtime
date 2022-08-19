@@ -16,10 +16,8 @@ namespace rive {
             switch (typeKey) {
                 case BlendStateTransitionBase::typeKey:
                 case StateTransitionBase::typeKey:
-                case StateMachineLayerComponentBase::typeKey:
-                    return true;
-                default:
-                    return false;
+                case StateMachineLayerComponentBase::typeKey: return true;
+                default: return false;
             }
         }
 

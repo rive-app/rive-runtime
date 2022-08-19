@@ -17,8 +17,11 @@ void KeyFrameColor::apply(Core* object, int propertyKey, float mix) {
     applyColor(object, propertyKey, mix, value());
 }
 
-void KeyFrameColor::applyInterpolation(
-    Core* object, int propertyKey, float currentTime, const KeyFrame* nextFrame, float mix) {
+void KeyFrameColor::applyInterpolation(Core* object,
+                                       int propertyKey,
+                                       float currentTime,
+                                       const KeyFrame* nextFrame,
+                                       float mix) {
     auto kfc = nextFrame->as<KeyFrameColor>();
     const KeyFrameColor& nextColor = *kfc;
     float f = (currentTime - seconds()) / (nextColor.seconds() - seconds());

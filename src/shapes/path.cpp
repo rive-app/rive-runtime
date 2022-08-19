@@ -12,8 +12,9 @@ using namespace rive;
 
 /// Compute an ideal control point distance to create a curve of the given
 /// radius. Based on "natural rounding" https://observablehq.com/@daformat/rounding-polygon-corners
-static float
-computeIdealControlPointDistance(const Vec2D& toPrev, const Vec2D& toNext, float radius) {
+static float computeIdealControlPointDistance(const Vec2D& toPrev,
+                                              const Vec2D& toNext,
+                                              float radius) {
     // Get the angle between next and prev
     float angle = fabs(atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
 
