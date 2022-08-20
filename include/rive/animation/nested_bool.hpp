@@ -3,9 +3,9 @@
 #include "rive/generated/animation/nested_bool_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class NestedBool : public NestedBoolBase {
-    public:
-    };
+class NestedBool : public NestedBoolBase {
+public:
+};
 } // namespace rive
 
 #endif

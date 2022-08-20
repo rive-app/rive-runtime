@@ -3,15 +3,15 @@
 #include "rive/generated/animation/keyframe_bool_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class KeyFrameBool : public KeyFrameBoolBase {
-    public:
-        void apply(Core* object, int propertyKey, float mix) override;
-        void applyInterpolation(Core* object,
-                                int propertyKey,
-                                float seconds,
-                                const KeyFrame* nextFrame,
-                                float mix) override;
-    };
+class KeyFrameBool : public KeyFrameBoolBase {
+public:
+    void apply(Core* object, int propertyKey, float mix) override;
+    void applyInterpolation(Core* object,
+                            int propertyKey,
+                            float seconds,
+                            const KeyFrame* nextFrame,
+                            float mix) override;
+};
 } // namespace rive
 
 #endif

@@ -9,32 +9,32 @@
 #include "rive/math/hit_test.hpp"
 
 namespace rive {
-    class HitTester;
+class HitTester;
 
-    class HitTestCommandPath : public CommandPath {
-        HitTester m_Tester;
-        Mat2D m_Xform;
-        IAABB m_Area;
-        FillRule m_FillRule = FillRule::nonZero;
+class HitTestCommandPath : public CommandPath {
+    HitTester m_Tester;
+    Mat2D m_Xform;
+    IAABB m_Area;
+    FillRule m_FillRule = FillRule::nonZero;
 
-    public:
-        HitTestCommandPath(const IAABB& area);
+public:
+    HitTestCommandPath(const IAABB& area);
 
-        // can call this between calls to move/line/etc.
-        void setXform(const Mat2D& xform) { m_Xform = xform; }
+    // can call this between calls to move/line/etc.
+    void setXform(const Mat2D& xform) { m_Xform = xform; }
 
-        bool wasHit();
+    bool wasHit();
 
-        // These 4 are not a good for the hit-tester
-        void reset() override;
-        void fillRule(FillRule value) override;
-        void addPath(CommandPath* path, const Mat2D& transform) override;
-        RenderPath* renderPath() override;
+    // These 4 are not a good for the hit-tester
+    void reset() override;
+    void fillRule(FillRule value) override;
+    void addPath(CommandPath* path, const Mat2D& transform) override;
+    RenderPath* renderPath() override;
 
-        void moveTo(float x, float y) override;
-        void lineTo(float x, float y) override;
-        void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
-        void close() override;
-    };
+    void moveTo(float x, float y) override;
+    void lineTo(float x, float y) override;
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
+    void close() override;
+};
 } // namespace rive
 #endif

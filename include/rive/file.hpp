@@ -11,91 +11,91 @@
 /// Default namespace for Rive Cpp runtime code.
 ///
 namespace rive {
-    class BinaryReader;
-    class RuntimeHeader;
-    class Factory;
+class BinaryReader;
+class RuntimeHeader;
+class Factory;
+
+///
+/// Tracks the success/failure result when importing a Rive file.
+///
+enum class ImportResult {
+    /// Indicates that a file's been successfully imported.
+    success,
+    /// Indicates that the Rive file is not supported by this runtime.
+    unsupportedVersion,
+    /// Indicates that the there is a formatting problem in the file itself.
+    malformed
+};
+
+///
+/// A Rive file.
+///
+class File {
+public:
+    /// Major version number supported by the runtime.
+    static const int majorVersion = 7;
+    /// Minor version number supported by the runtime.
+    static const int minorVersion = 0;
+
+private:
+    /// The file's backboard. All Rive files have a single backboard
+    /// where the artboards live.
+    std::unique_ptr<Backboard> m_Backboard;
+
+    /// We just keep these alive for the life of this File
+    std::vector<std::unique_ptr<FileAsset>> m_FileAssets;
+
+    /// List of artboards in the file. Each artboard encapsulates a set of
+    /// Rive components and animations.
+    std::vector<std::unique_ptr<Artboard>> m_Artboards;
+
+    Factory* m_Factory;
+
+    /// The helper used to resolve assets when they're not provided in-band
+    /// with the file.
+    FileAssetResolver* m_AssetResolver;
+
+    File(Factory*, FileAssetResolver*);
+
+public:
+    ~File();
 
     ///
-    /// Tracks the success/failure result when importing a Rive file.
-    ///
-    enum class ImportResult {
-        /// Indicates that a file's been successfully imported.
-        success,
-        /// Indicates that the Rive file is not supported by this runtime.
-        unsupportedVersion,
-        /// Indicates that the there is a formatting problem in the file itself.
-        malformed
-    };
+    /// Imports a Rive file from a binary buffer.
+    /// @param data the raw date of the file.
+    /// @param result is an optional status result.
+    /// @param assetResolver is an optional helper to resolve assets which
+    /// cannot be found in-band.
+    /// @returns a pointer to the file, or null on failure.
+    static std::unique_ptr<File> import(Span<const uint8_t> data,
+                                        Factory*,
+                                        ImportResult* result = nullptr,
+                                        FileAssetResolver* assetResolver = nullptr);
 
-    ///
-    /// A Rive file.
-    ///
-    class File {
-    public:
-        /// Major version number supported by the runtime.
-        static const int majorVersion = 7;
-        /// Minor version number supported by the runtime.
-        static const int minorVersion = 0;
+    /// @returns the file's backboard. All files have exactly one backboard.
+    Backboard* backboard() const { return m_Backboard.get(); }
 
-    private:
-        /// The file's backboard. All Rive files have a single backboard
-        /// where the artboards live.
-        std::unique_ptr<Backboard> m_Backboard;
+    /// @returns the number of artboards in the file.
+    size_t artboardCount() const { return m_Artboards.size(); }
+    std::string artboardNameAt(size_t index) const;
 
-        /// We just keep these alive for the life of this File
-        std::vector<std::unique_ptr<FileAsset>> m_FileAssets;
+    // Instances
+    std::unique_ptr<ArtboardInstance> artboardDefault() const;
+    std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
+    std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
 
-        /// List of artboards in the file. Each artboard encapsulates a set of
-        /// Rive components and animations.
-        std::vector<std::unique_ptr<Artboard>> m_Artboards;
+    Artboard* artboard() const;
 
-        Factory* m_Factory;
+    /// @returns the named artboard. If no artboard is found with that name,
+    /// the null pointer is returned.
+    Artboard* artboard(std::string name) const;
 
-        /// The helper used to resolve assets when they're not provided in-band
-        /// with the file.
-        FileAssetResolver* m_AssetResolver;
+    /// @returns the artboard at the specified index, or the nullptr if the
+    /// index is out of range.
+    Artboard* artboard(size_t index) const;
 
-        File(Factory*, FileAssetResolver*);
-
-    public:
-        ~File();
-
-        ///
-        /// Imports a Rive file from a binary buffer.
-        /// @param data the raw date of the file.
-        /// @param result is an optional status result.
-        /// @param assetResolver is an optional helper to resolve assets which
-        /// cannot be found in-band.
-        /// @returns a pointer to the file, or null on failure.
-        static std::unique_ptr<File> import(Span<const uint8_t> data,
-                                            Factory*,
-                                            ImportResult* result = nullptr,
-                                            FileAssetResolver* assetResolver = nullptr);
-
-        /// @returns the file's backboard. All files have exactly one backboard.
-        Backboard* backboard() const { return m_Backboard.get(); }
-
-        /// @returns the number of artboards in the file.
-        size_t artboardCount() const { return m_Artboards.size(); }
-        std::string artboardNameAt(size_t index) const;
-
-        // Instances
-        std::unique_ptr<ArtboardInstance> artboardDefault() const;
-        std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
-        std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
-
-        Artboard* artboard() const;
-
-        /// @returns the named artboard. If no artboard is found with that name,
-        /// the null pointer is returned.
-        Artboard* artboard(std::string name) const;
-
-        /// @returns the artboard at the specified index, or the nullptr if the
-        /// index is out of range.
-        Artboard* artboard(size_t index) const;
-
-    private:
-        ImportResult read(BinaryReader&, const RuntimeHeader&);
-    };
+private:
+    ImportResult read(BinaryReader&, const RuntimeHeader&);
+};
 } // namespace rive
 #endif

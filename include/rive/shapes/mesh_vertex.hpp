@@ -3,11 +3,11 @@
 #include "rive/generated/shapes/mesh_vertex_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class MeshVertex : public MeshVertexBase {
-    public:
-        void markGeometryDirty() override;
-        StatusCode onAddedDirty(CoreContext* context) override;
-    };
+class MeshVertex : public MeshVertexBase {
+public:
+    void markGeometryDirty() override;
+    StatusCode onAddedDirty(CoreContext* context) override;
+};
 } // namespace rive
 
 #endif

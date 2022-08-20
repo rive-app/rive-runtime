@@ -5,16 +5,16 @@
 #include <vector>
 
 namespace rive {
-    class Component;
-    class DependencySorter {
-    private:
-        std::unordered_set<Component*> m_Perm;
-        std::unordered_set<Component*> m_Temp;
+class Component;
+class DependencySorter {
+private:
+    std::unordered_set<Component*> m_Perm;
+    std::unordered_set<Component*> m_Temp;
 
-    public:
-        void sort(Component* root, std::vector<Component*>& order);
-        bool visit(Component* component, std::vector<Component*>& order);
-    };
+public:
+    void sort(Component* root, std::vector<Component*>& order);
+    bool visit(Component* component, std::vector<Component*>& order);
+};
 } // namespace rive
 
 #endif

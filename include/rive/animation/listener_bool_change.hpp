@@ -3,11 +3,11 @@
 #include "rive/generated/animation/listener_bool_change_base.hpp"
 
 namespace rive {
-    class ListenerBoolChange : public ListenerBoolChangeBase {
-    public:
-        bool validateInputType(const StateMachineInput* input) const override;
-        void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const override;
-    };
+class ListenerBoolChange : public ListenerBoolChangeBase {
+public:
+    bool validateInputType(const StateMachineInput* input) const override;
+    void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const override;
+};
 } // namespace rive
 
 #endif

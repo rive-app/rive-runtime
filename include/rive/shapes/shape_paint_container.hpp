@@ -5,36 +5,36 @@
 #include <vector>
 
 namespace rive {
-    class Artboard;
-    class ShapePaint;
-    class Component;
+class Artboard;
+class ShapePaint;
+class Component;
 
-    class CommandPath;
+class CommandPath;
 
-    class ShapePaintContainer {
-        friend class ShapePaint;
+class ShapePaintContainer {
+    friend class ShapePaint;
 
-    protected:
-        // Need this to access our artboard. We are treated as a mixin, either
-        // as a Shape or Artboard, so both of those will override this.
-        virtual Artboard* getArtboard() = 0;
+protected:
+    // Need this to access our artboard. We are treated as a mixin, either
+    // as a Shape or Artboard, so both of those will override this.
+    virtual Artboard* getArtboard() = 0;
 
-        PathSpace m_DefaultPathSpace = PathSpace::Neither;
-        std::vector<ShapePaint*> m_ShapePaints;
-        void addPaint(ShapePaint* paint);
+    PathSpace m_DefaultPathSpace = PathSpace::Neither;
+    std::vector<ShapePaint*> m_ShapePaints;
+    void addPaint(ShapePaint* paint);
 
-        // TODO: void draw(Renderer* renderer, PathComposer& composer);
-    public:
-        static ShapePaintContainer* from(Component* component);
+    // TODO: void draw(Renderer* renderer, PathComposer& composer);
+public:
+    static ShapePaintContainer* from(Component* component);
 
-        virtual ~ShapePaintContainer() {}
+    virtual ~ShapePaintContainer() {}
 
-        PathSpace pathSpace() const;
+    PathSpace pathSpace() const;
 
-        void invalidateStrokeEffects();
+    void invalidateStrokeEffects();
 
-        std::unique_ptr<CommandPath> makeCommandPath(PathSpace space);
-    };
+    std::unique_ptr<CommandPath> makeCommandPath(PathSpace space);
+};
 } // namespace rive
 
 #endif

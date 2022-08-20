@@ -8,38 +8,38 @@
 #include <vector>
 
 namespace rive {
-    class Path;
-    class PathComposer;
-    class HitTester;
-    class Shape : public ShapeBase, public ShapePaintContainer {
-    private:
-        PathComposer m_PathComposer;
-        std::vector<Path*> m_Paths;
+class Path;
+class PathComposer;
+class HitTester;
+class Shape : public ShapeBase, public ShapePaintContainer {
+private:
+    PathComposer m_PathComposer;
+    std::vector<Path*> m_Paths;
 
-        bool m_WantDifferencePath = false;
+    bool m_WantDifferencePath = false;
 
-        Artboard* getArtboard() override { return artboard(); }
+    Artboard* getArtboard() override { return artboard(); }
 
-    public:
-        Shape();
-        void buildDependencies() override;
-        void addPath(Path* path);
-        std::vector<Path*>& paths() { return m_Paths; }
+public:
+    Shape();
+    void buildDependencies() override;
+    void addPath(Path* path);
+    std::vector<Path*>& paths() { return m_Paths; }
 
-        bool wantDifferencePath() const { return m_WantDifferencePath; }
+    bool wantDifferencePath() const { return m_WantDifferencePath; }
 
-        void update(ComponentDirt value) override;
-        void draw(Renderer* renderer) override;
-        Core* hitTest(HitInfo*, const Mat2D&) override;
-        bool hitTest(const IAABB& area) const;
+    void update(ComponentDirt value) override;
+    void draw(Renderer* renderer) override;
+    Core* hitTest(HitInfo*, const Mat2D&) override;
+    bool hitTest(const IAABB& area) const;
 
-        const PathComposer* pathComposer() const { return &m_PathComposer; }
-        PathComposer* pathComposer() { return &m_PathComposer; }
+    const PathComposer* pathComposer() const { return &m_PathComposer; }
+    PathComposer* pathComposer() { return &m_PathComposer; }
 
-        void pathChanged();
-        void addDefaultPathSpace(PathSpace space);
-        StatusCode onAddedDirty(CoreContext* context) override;
-    };
+    void pathChanged();
+    void addDefaultPathSpace(PathSpace space);
+    StatusCode onAddedDirty(CoreContext* context) override;
+};
 } // namespace rive
 
 #endif

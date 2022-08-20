@@ -5,15 +5,15 @@
 #include <string>
 
 namespace rive {
-    class Factory;
-    class FileAsset : public FileAssetBase {
-    public:
-        virtual bool decode(Span<const uint8_t>, Factory*) = 0;
-        virtual std::string fileExtension() = 0;
-        StatusCode import(ImportStack& importStack) override;
+class Factory;
+class FileAsset : public FileAssetBase {
+public:
+    virtual bool decode(Span<const uint8_t>, Factory*) = 0;
+    virtual std::string fileExtension() = 0;
+    StatusCode import(ImportStack& importStack) override;
 
-        std::string uniqueFilename();
-    };
+    std::string uniqueFilename();
+};
 } // namespace rive
 
 #endif

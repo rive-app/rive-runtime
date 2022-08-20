@@ -3,13 +3,13 @@
 #include "rive/generated/animation/transition_number_condition_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class TransitionNumberCondition : public TransitionNumberConditionBase {
-    protected:
-        bool validateInputType(const StateMachineInput* input) const override;
+class TransitionNumberCondition : public TransitionNumberConditionBase {
+protected:
+    bool validateInputType(const StateMachineInput* input) const override;
 
-    public:
-        bool evaluate(const SMIInput* inputInstance) const override;
-    };
+public:
+    bool evaluate(const SMIInput* inputInstance) const override;
+};
 } // namespace rive
 
 #endif

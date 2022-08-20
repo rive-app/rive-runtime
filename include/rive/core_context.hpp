@@ -4,12 +4,12 @@
 #include "rive/rive_types.hpp"
 
 namespace rive {
-    class Artboard;
-    class Core;
-    class CoreContext {
-    public:
-        virtual ~CoreContext() {}
-        virtual Core* resolve(uint32_t id) const = 0;
-    };
+class Artboard;
+class Core;
+class CoreContext {
+public:
+    virtual ~CoreContext() {}
+    virtual Core* resolve(uint32_t id) const = 0;
+};
 } // namespace rive
 #endif

@@ -5,16 +5,16 @@
 #include <vector>
 
 namespace rive {
-    class FileAsset;
-    class FileAssetResolver {
-    public:
-        virtual ~FileAssetResolver() {}
+class FileAsset;
+class FileAssetResolver {
+public:
+    virtual ~FileAssetResolver() {}
 
-        /// Expected to be overridden to find asset contents when not provided
-        /// in band.
-        /// @param asset describes the asset that Rive is looking for the
-        /// contents of.
-        virtual void loadContents(FileAsset& asset) = 0;
-    };
+    /// Expected to be overridden to find asset contents when not provided
+    /// in band.
+    /// @param asset describes the asset that Rive is looking for the
+    /// contents of.
+    virtual void loadContents(FileAsset& asset) = 0;
+};
 } // namespace rive
 #endif

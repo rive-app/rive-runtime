@@ -3,9 +3,9 @@
 #include "rive/generated/animation/nested_number_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class NestedNumber : public NestedNumberBase {
-    public:
-    };
+class NestedNumber : public NestedNumberBase {
+public:
+};
 } // namespace rive
 
 #endif

@@ -4,14 +4,14 @@
 #include "rive/math/transform_components.hpp"
 #include <stdio.h>
 namespace rive {
-    class RotationConstraint : public RotationConstraintBase {
-    private:
-        TransformComponents m_ComponentsA;
-        TransformComponents m_ComponentsB;
+class RotationConstraint : public RotationConstraintBase {
+private:
+    TransformComponents m_ComponentsA;
+    TransformComponents m_ComponentsB;
 
-    public:
-        void constrain(TransformComponent* component) override;
-    };
+public:
+    void constrain(TransformComponent* component) override;
+};
 } // namespace rive
 
 #endif

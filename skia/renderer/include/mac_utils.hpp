@@ -131,8 +131,8 @@ static inline float number_as_float(CFNumberRef num) {
 }
 
 namespace rive {
-    AutoCF<CGImageRef> DecodeToCGImage(Span<const uint8_t>);
-    AutoCF<CGImageRef> FlipCGImageInY(AutoCF<CGImageRef>);
+AutoCF<CGImageRef> DecodeToCGImage(Span<const uint8_t>);
+AutoCF<CGImageRef> FlipCGImageInY(AutoCF<CGImageRef>);
 } // namespace rive
 
 #endif

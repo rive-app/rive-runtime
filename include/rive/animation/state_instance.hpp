@@ -7,26 +7,26 @@
 #include "rive/span.hpp"
 
 namespace rive {
-    class LayerState;
-    class SMIInput;
-    class ArtboardInstance;
+class LayerState;
+class SMIInput;
+class ArtboardInstance;
 
-    /// Represents an instance of a state tracked by the State Machine.
-    class StateInstance {
-    private:
-        const LayerState* m_LayerState;
+/// Represents an instance of a state tracked by the State Machine.
+class StateInstance {
+private:
+    const LayerState* m_LayerState;
 
-    public:
-        StateInstance(const LayerState* layerState);
-        virtual ~StateInstance();
-        virtual void advance(float seconds, Span<SMIInput*> inputs) = 0;
-        virtual void apply(float mix) = 0;
+public:
+    StateInstance(const LayerState* layerState);
+    virtual ~StateInstance();
+    virtual void advance(float seconds, Span<SMIInput*> inputs) = 0;
+    virtual void apply(float mix) = 0;
 
-        /// Returns true when the State Machine needs to keep advancing this
-        /// state.
-        virtual bool keepGoing() const = 0;
+    /// Returns true when the State Machine needs to keep advancing this
+    /// state.
+    virtual bool keepGoing() const = 0;
 
-        const LayerState* state() const;
-    };
+    const LayerState* state() const;
+};
 } // namespace rive
 #endif

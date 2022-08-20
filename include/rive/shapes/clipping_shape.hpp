@@ -6,25 +6,25 @@
 #include <vector>
 
 namespace rive {
-    class Shape;
-    class Node;
-    class RenderPath;
-    class ClippingShape : public ClippingShapeBase {
-    private:
-        std::vector<Shape*> m_Shapes;
-        Node* m_Source = nullptr;
-        std::unique_ptr<RenderPath> m_RenderPath;
+class Shape;
+class Node;
+class RenderPath;
+class ClippingShape : public ClippingShapeBase {
+private:
+    std::vector<Shape*> m_Shapes;
+    Node* m_Source = nullptr;
+    std::unique_ptr<RenderPath> m_RenderPath;
 
-    public:
-        Node* source() const { return m_Source; }
-        const std::vector<Shape*>& shapes() const { return m_Shapes; }
-        StatusCode onAddedClean(CoreContext* context) override;
-        StatusCode onAddedDirty(CoreContext* context) override;
-        void buildDependencies() override;
-        void update(ComponentDirt value) override;
+public:
+    Node* source() const { return m_Source; }
+    const std::vector<Shape*>& shapes() const { return m_Shapes; }
+    StatusCode onAddedClean(CoreContext* context) override;
+    StatusCode onAddedDirty(CoreContext* context) override;
+    void buildDependencies() override;
+    void update(ComponentDirt value) override;
 
-        RenderPath* renderPath() const { return m_RenderPath.get(); }
-    };
+    RenderPath* renderPath() const { return m_RenderPath.get(); }
+};
 } // namespace rive
 
 #endif

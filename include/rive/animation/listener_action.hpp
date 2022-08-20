@@ -4,12 +4,12 @@
 #include "rive/math/vec2d.hpp"
 
 namespace rive {
-    class StateMachineInstance;
-    class ListenerAction : public ListenerActionBase {
-    public:
-        StatusCode import(ImportStack& importStack) override;
-        virtual void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const = 0;
-    };
+class StateMachineInstance;
+class ListenerAction : public ListenerActionBase {
+public:
+    StatusCode import(ImportStack& importStack) override;
+    virtual void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const = 0;
+};
 } // namespace rive
 
 #endif

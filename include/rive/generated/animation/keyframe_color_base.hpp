@@ -3,56 +3,56 @@
 #include "rive/animation/keyframe.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 namespace rive {
-    class KeyFrameColorBase : public KeyFrame {
-    protected:
-        typedef KeyFrame Super;
+class KeyFrameColorBase : public KeyFrame {
+protected:
+    typedef KeyFrame Super;
 
-    public:
-        static const uint16_t typeKey = 37;
+public:
+    static const uint16_t typeKey = 37;
 
-        /// Helper to quickly determine if a core object extends another without RTTI
-        /// at runtime.
-        bool isTypeOf(uint16_t typeKey) const override {
-            switch (typeKey) {
-                case KeyFrameColorBase::typeKey:
-                case KeyFrameBase::typeKey: return true;
-                default: return false;
-            }
+    /// Helper to quickly determine if a core object extends another without RTTI
+    /// at runtime.
+    bool isTypeOf(uint16_t typeKey) const override {
+        switch (typeKey) {
+            case KeyFrameColorBase::typeKey:
+            case KeyFrameBase::typeKey: return true;
+            default: return false;
         }
+    }
 
-        uint16_t coreType() const override { return typeKey; }
+    uint16_t coreType() const override { return typeKey; }
 
-        static const uint16_t valuePropertyKey = 88;
+    static const uint16_t valuePropertyKey = 88;
 
-    private:
-        int m_Value = 0;
+private:
+    int m_Value = 0;
 
-    public:
-        inline int value() const { return m_Value; }
-        void value(int value) {
-            if (m_Value == value) {
-                return;
-            }
-            m_Value = value;
-            valueChanged();
+public:
+    inline int value() const { return m_Value; }
+    void value(int value) {
+        if (m_Value == value) {
+            return;
         }
+        m_Value = value;
+        valueChanged();
+    }
 
-        Core* clone() const override;
-        void copy(const KeyFrameColorBase& object) {
-            m_Value = object.m_Value;
-            KeyFrame::copy(object);
+    Core* clone() const override;
+    void copy(const KeyFrameColorBase& object) {
+        m_Value = object.m_Value;
+        KeyFrame::copy(object);
+    }
+
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
+        switch (propertyKey) {
+            case valuePropertyKey: m_Value = CoreColorType::deserialize(reader); return true;
         }
+        return KeyFrame::deserialize(propertyKey, reader);
+    }
 
-        bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-            switch (propertyKey) {
-                case valuePropertyKey: m_Value = CoreColorType::deserialize(reader); return true;
-            }
-            return KeyFrame::deserialize(propertyKey, reader);
-        }
-
-    protected:
-        virtual void valueChanged() {}
-    };
+protected:
+    virtual void valueChanged() {}
+};
 } // namespace rive
 
 #endif

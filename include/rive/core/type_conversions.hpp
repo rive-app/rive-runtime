@@ -10,15 +10,15 @@
 
 namespace rive {
 
-    template <typename T> bool fitsIn(intmax_t x) {
-        return x >= std::numeric_limits<T>::min() && x <= std::numeric_limits<T>::max();
-    }
+template <typename T> bool fitsIn(intmax_t x) {
+    return x >= std::numeric_limits<T>::min() && x <= std::numeric_limits<T>::max();
+}
 
-    template <typename T> T castTo(intmax_t x) {
-        assert(sizeof(T) <= 4); // don't cast to 64bit types
-        assert(fitsIn<T>(x));
-        return static_cast<T>(x);
-    }
+template <typename T> T castTo(intmax_t x) {
+    assert(sizeof(T) <= 4); // don't cast to 64bit types
+    assert(fitsIn<T>(x));
+    return static_cast<T>(x);
+}
 
 } // namespace rive
 

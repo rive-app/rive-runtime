@@ -3,12 +3,12 @@
 #include "rive/generated/animation/state_machine_input_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class StateMachineInput : public StateMachineInputBase {
-    public:
-        StatusCode onAddedDirty(CoreContext* context) override;
-        StatusCode onAddedClean(CoreContext* context) override;
-        StatusCode import(ImportStack& importStack) override;
-    };
+class StateMachineInput : public StateMachineInputBase {
+public:
+    StatusCode onAddedDirty(CoreContext* context) override;
+    StatusCode onAddedClean(CoreContext* context) override;
+    StatusCode import(ImportStack& importStack) override;
+};
 } // namespace rive
 
 #endif

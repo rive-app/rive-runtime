@@ -11,9 +11,9 @@
 #include "imgui.h"
 
 namespace rive {
-    class Renderer;
-    class Factory;
-    class RenderFont;
+class Renderer;
+class Factory;
+class RenderFont;
 } // namespace rive
 
 class ViewerContent {

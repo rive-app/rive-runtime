@@ -3,17 +3,17 @@
 #include "rive/generated/animation/nested_linear_animation_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class LinearAnimationInstance;
-    class NestedLinearAnimation : public NestedLinearAnimationBase {
-    protected:
-        std::unique_ptr<LinearAnimationInstance> m_AnimationInstance;
+class LinearAnimationInstance;
+class NestedLinearAnimation : public NestedLinearAnimationBase {
+protected:
+    std::unique_ptr<LinearAnimationInstance> m_AnimationInstance;
 
-    public:
-        NestedLinearAnimation();
-        ~NestedLinearAnimation() override;
+public:
+    NestedLinearAnimation();
+    ~NestedLinearAnimation() override;
 
-        void initializeAnimation(ArtboardInstance*) override;
-    };
+    void initializeAnimation(ArtboardInstance*) override;
+};
 } // namespace rive
 
 #endif

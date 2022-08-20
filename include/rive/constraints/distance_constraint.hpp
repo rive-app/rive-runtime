@@ -3,10 +3,10 @@
 #include "rive/generated/constraints/distance_constraint_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class DistanceConstraint : public DistanceConstraintBase {
-    public:
-        void constrain(TransformComponent* component) override;
-    };
+class DistanceConstraint : public DistanceConstraintBase {
+public:
+    void constrain(TransformComponent* component) override;
+};
 } // namespace rive
 
 #endif

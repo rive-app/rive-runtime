@@ -170,19 +170,19 @@ void RawPath::addPoly(Span<const Vec2D> span, bool isClosed) {
 //////////////////////////////////////////////////////////////////////////
 
 namespace rive {
-    int path_verb_to_point_count(PathVerb v) {
-        static uint8_t ptCounts[] = {
-            1, // move
-            1, // line
-            2, // quad
-            2, // conic (unused)
-            3, // cubic
-            0, // close
-        };
-        size_t index = (size_t)v;
-        assert(index < sizeof(ptCounts));
-        return ptCounts[index];
-    }
+int path_verb_to_point_count(PathVerb v) {
+    static uint8_t ptCounts[] = {
+        1, // move
+        1, // line
+        2, // quad
+        2, // conic (unused)
+        3, // cubic
+        0, // close
+    };
+    size_t index = (size_t)v;
+    assert(index < sizeof(ptCounts));
+    return ptCounts[index];
+}
 } // namespace rive
 
 RawPath::Iter::Rec RawPath::Iter::next() {

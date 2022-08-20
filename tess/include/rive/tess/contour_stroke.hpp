@@ -8,30 +8,30 @@
 #include <cstdint>
 
 namespace rive {
-    class SegmentedContour;
+class SegmentedContour;
 
-    ///
-    /// Builds a triangle strip vertex buffer from a SegmentedContour.
-    ///
-    class ContourStroke {
-    protected:
-        std::vector<Vec2D> m_TriangleStrip;
-        std::vector<std::size_t> m_Offsets;
-        uint32_t m_RenderOffset = 0;
+///
+/// Builds a triangle strip vertex buffer from a SegmentedContour.
+///
+class ContourStroke {
+protected:
+    std::vector<Vec2D> m_TriangleStrip;
+    std::vector<std::size_t> m_Offsets;
+    uint32_t m_RenderOffset = 0;
 
-    public:
-        const std::vector<Vec2D>& triangleStrip() const { return m_TriangleStrip; }
+public:
+    const std::vector<Vec2D>& triangleStrip() const { return m_TriangleStrip; }
 
-        void reset();
-        void resetRenderOffset();
-        void nextRenderOffset(std::size_t& start, std::size_t& end);
+    void reset();
+    void resetRenderOffset();
+    void nextRenderOffset(std::size_t& start, std::size_t& end);
 
-        void extrude(const SegmentedContour* contour,
-                     bool isClosed,
-                     StrokeJoin join,
-                     StrokeCap cap,
-                     float strokeWidth,
-                     const Mat2D& transform);
-    };
+    void extrude(const SegmentedContour* contour,
+                 bool isClosed,
+                 StrokeJoin join,
+                 StrokeCap cap,
+                 float strokeWidth,
+                 const Mat2D& transform);
+};
 } // namespace rive
 #endif

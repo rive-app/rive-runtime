@@ -3,7 +3,7 @@
 #include "rive/generated/animation/state_machine_trigger_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class StateMachineTrigger : public StateMachineTriggerBase {};
+class StateMachineTrigger : public StateMachineTriggerBase {};
 } // namespace rive
 
 #endif

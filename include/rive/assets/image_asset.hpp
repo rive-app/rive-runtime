@@ -6,21 +6,21 @@
 #include <string>
 
 namespace rive {
-    class ImageAsset : public ImageAssetBase {
-    private:
-        std::unique_ptr<RenderImage> m_RenderImage;
+class ImageAsset : public ImageAssetBase {
+private:
+    std::unique_ptr<RenderImage> m_RenderImage;
 
-    public:
-        ImageAsset() {}
-        ~ImageAsset() override;
+public:
+    ImageAsset() {}
+    ~ImageAsset() override;
 
 #ifdef TESTING
-        std::size_t decodedByteSize = 0;
+    std::size_t decodedByteSize = 0;
 #endif
-        bool decode(Span<const uint8_t>, Factory*) override;
-        std::string fileExtension() override;
-        RenderImage* renderImage() const { return m_RenderImage.get(); }
-    };
+    bool decode(Span<const uint8_t>, Factory*) override;
+    std::string fileExtension() override;
+    RenderImage* renderImage() const { return m_RenderImage.get(); }
+};
 } // namespace rive
 
 #endif

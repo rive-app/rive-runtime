@@ -3,9 +3,9 @@
 #include "rive/generated/shapes/contour_mesh_vertex_base.hpp"
 
 namespace rive {
-    class ContourMeshVertex : public ContourMeshVertexBase {
-    public:
-    };
+class ContourMeshVertex : public ContourMeshVertexBase {
+public:
+};
 } // namespace rive
 
 #endif

@@ -3,9 +3,9 @@
 #include "rive/generated/animation/state_machine_layer_component_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class StateMachineLayerComponent : public StateMachineLayerComponentBase {
-    public:
-    };
+class StateMachineLayerComponent : public StateMachineLayerComponentBase {
+public:
+};
 } // namespace rive
 
 #endif

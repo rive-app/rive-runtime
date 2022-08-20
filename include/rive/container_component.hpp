@@ -3,7 +3,7 @@
 #include "rive/generated/container_component_base.hpp"
 #include <vector>
 namespace rive {
-    class ContainerComponent : public ContainerComponentBase {};
+class ContainerComponent : public ContainerComponentBase {};
 } // namespace rive
 
 #endif

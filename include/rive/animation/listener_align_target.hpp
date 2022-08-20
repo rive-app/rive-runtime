@@ -3,10 +3,10 @@
 #include "rive/generated/animation/listener_align_target_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class ListenerAlignTarget : public ListenerAlignTargetBase {
-    public:
-        void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const override;
-    };
+class ListenerAlignTarget : public ListenerAlignTargetBase {
+public:
+    void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const override;
+};
 } // namespace rive
 
 #endif

@@ -3,9 +3,9 @@
 #include "rive/generated/assets/asset_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class Asset : public AssetBase {
-    public:
-    };
+class Asset : public AssetBase {
+public:
+};
 } // namespace rive
 
 #endif

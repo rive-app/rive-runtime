@@ -3,9 +3,9 @@
 #include "rive/generated/animation/nested_trigger_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class NestedTrigger : public NestedTriggerBase {
-    public:
-    };
+class NestedTrigger : public NestedTriggerBase {
+public:
+};
 } // namespace rive
 
 #endif

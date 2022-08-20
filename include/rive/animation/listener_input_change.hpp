@@ -3,12 +3,12 @@
 #include "rive/generated/animation/listener_input_change_base.hpp"
 
 namespace rive {
-    class StateMachineInput;
-    class ListenerInputChange : public ListenerInputChangeBase {
-    public:
-        StatusCode import(ImportStack& importStack) override;
-        virtual bool validateInputType(const StateMachineInput* input) const { return true; }
-    };
+class StateMachineInput;
+class ListenerInputChange : public ListenerInputChangeBase {
+public:
+    StatusCode import(ImportStack& importStack) override;
+    virtual bool validateInputType(const StateMachineInput* input) const { return true; }
+};
 } // namespace rive
 
 #endif

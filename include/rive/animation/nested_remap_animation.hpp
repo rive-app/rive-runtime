@@ -3,12 +3,12 @@
 #include "rive/generated/animation/nested_remap_animation_base.hpp"
 #include <stdio.h>
 namespace rive {
-    class NestedRemapAnimation : public NestedRemapAnimationBase {
-    public:
-        void timeChanged() override;
-        void advance(float elapsedSeconds) override;
-        void initializeAnimation(ArtboardInstance*) override;
-    };
+class NestedRemapAnimation : public NestedRemapAnimationBase {
+public:
+    void timeChanged() override;
+    void advance(float elapsedSeconds) override;
+    void initializeAnimation(ArtboardInstance*) override;
+};
 } // namespace rive
 
 #endif

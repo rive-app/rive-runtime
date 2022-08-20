@@ -6,21 +6,21 @@
 #include <stdio.h>
 
 namespace rive {
-    class TrimPath : public TrimPathBase, public StrokeEffect {
-    private:
-        std::unique_ptr<RenderPath> m_TrimmedPath;
-        RenderPath* m_RenderPath = nullptr;
+class TrimPath : public TrimPathBase, public StrokeEffect {
+private:
+    std::unique_ptr<RenderPath> m_TrimmedPath;
+    RenderPath* m_RenderPath = nullptr;
 
-    public:
-        StatusCode onAddedClean(CoreContext* context) override;
-        RenderPath* effectPath(MetricsPath* source, Factory*) override;
-        void invalidateEffect() override;
+public:
+    StatusCode onAddedClean(CoreContext* context) override;
+    RenderPath* effectPath(MetricsPath* source, Factory*) override;
+    void invalidateEffect() override;
 
-        void startChanged() override;
-        void endChanged() override;
-        void offsetChanged() override;
-        void modeValueChanged() override;
-    };
+    void startChanged() override;
+    void endChanged() override;
+    void offsetChanged() override;
+    void modeValueChanged() override;
+};
 } // namespace rive
 
 #endif

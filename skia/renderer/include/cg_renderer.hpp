@@ -15,26 +15,26 @@
 #endif
 
 namespace rive {
-    class CGRenderer : public Renderer {
-    protected:
-        CGContextRef m_ctx;
+class CGRenderer : public Renderer {
+protected:
+    CGContextRef m_ctx;
 
-    public:
-        CGRenderer(CGContextRef ctx, int width, int height);
-        ~CGRenderer() override;
+public:
+    CGRenderer(CGContextRef ctx, int width, int height);
+    ~CGRenderer() override;
 
-        void save() override;
-        void restore() override;
-        void transform(const Mat2D& transform) override;
-        void clipPath(RenderPath* path) override;
-        void drawPath(RenderPath* path, RenderPaint* paint) override;
-        void drawImage(const RenderImage*, BlendMode, float opacity) override;
-        void drawImageMesh(const RenderImage*,
-                           rcp<RenderBuffer> vertices_f32,
-                           rcp<RenderBuffer> uvCoords_f32,
-                           rcp<RenderBuffer> indices_u16,
-                           BlendMode,
-                           float opacity) override;
-    };
+    void save() override;
+    void restore() override;
+    void transform(const Mat2D& transform) override;
+    void clipPath(RenderPath* path) override;
+    void drawPath(RenderPath* path, RenderPaint* paint) override;
+    void drawImage(const RenderImage*, BlendMode, float opacity) override;
+    void drawImageMesh(const RenderImage*,
+                       rcp<RenderBuffer> vertices_f32,
+                       rcp<RenderBuffer> uvCoords_f32,
+                       rcp<RenderBuffer> indices_u16,
+                       BlendMode,
+                       float opacity) override;
+};
 } // namespace rive
 #endif
