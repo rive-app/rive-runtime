@@ -25,6 +25,7 @@ public:
     }
 
     void afterDefaultPass(ViewerContent* content, double elapsed) override {
+        m_renderer->reset();
         if (content) {
             content->handleDraw(m_renderer.get(), elapsed);
         }

@@ -48,7 +48,10 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context) {
         }
     }
 
-    m_RenderPath = artboard->factory()->makeEmptyRenderPath();
+    // We only need a render path if we have more than 1 clip path as we join them.
+    if (m_Shapes.size() > 1) {
+        m_RenderPath = artboard->factory()->makeEmptyRenderPath();
+    }
 
     return StatusCode::Ok;
 }
@@ -77,12 +80,23 @@ void ClippingShape::buildDependencies() {
 static Mat2D identity;
 void ClippingShape::update(ComponentDirt value) {
     if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform)) {
-        m_RenderPath->reset();
+        if (m_RenderPath) {
+            m_RenderPath->reset();
 
-        m_RenderPath->fillRule((FillRule)fillRule());
-        for (auto shape : m_Shapes) {
-            if (!shape->isHidden()) {
-                m_RenderPath->addPath(shape->pathComposer()->worldPath(), identity);
+            m_RenderPath->fillRule((FillRule)fillRule());
+            m_ClipRenderPath = nullptr;
+            for (auto shape : m_Shapes) {
+                if (!shape->isHidden()) {
+                    m_RenderPath->addPath(shape->pathComposer()->worldPath(), identity);
+                    m_ClipRenderPath = m_RenderPath.get();
+                }
+            }
+        } else {
+            auto first = m_Shapes.front();
+            if (first->isHidden()) {
+                m_ClipRenderPath = nullptr;
+            } else {
+                m_ClipRenderPath = static_cast<RenderPath*>(first->pathComposer()->worldPath());
             }
         }
     }

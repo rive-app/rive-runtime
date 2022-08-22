@@ -53,3 +53,10 @@ void AABB::expandTo(AABB& out, float x, float y) {
         out.maxY = y;
     }
 }
+
+void AABB::join(AABB& out, const AABB& a, const AABB& b) {
+    out.minX = std::min(a.minX, b.minX);
+    out.minY = std::min(a.minY, b.minY);
+    out.maxX = std::max(a.maxX, b.maxX);
+    out.maxY = std::max(a.maxY, b.maxY);
+}

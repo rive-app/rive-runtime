@@ -11,6 +11,7 @@ public:
     void cap(StrokeCap value) override {}
     void blendMode(BlendMode value) override {}
     void shader(rcp<RenderShader>) override {}
+    void invalidateStroke() override {}
 };
 
 class NoOpRenderPath : public RenderPath {
@@ -28,37 +29,3 @@ public:
 };
 
 SokolFactory::SokolFactory() {}
-
-rcp<RenderShader> SokolFactory::makeLinearGradient(float sx,
-                                                   float sy,
-                                                   float ex,
-                                                   float ey,
-                                                   const ColorInt colors[], // [count]
-                                                   const float stops[],     // [count]
-                                                   size_t count) {
-    return nullptr;
-}
-
-rcp<RenderShader> SokolFactory::makeRadialGradient(float cx,
-                                                   float cy,
-                                                   float radius,
-                                                   const ColorInt colors[], // [count]
-                                                   const float stops[],     // [count]
-                                                   size_t count) {
-    return nullptr;
-}
-
-// Returns a full-formed RenderPath -- can be treated as immutable
-std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(Span<const Vec2D> points,
-                                                         Span<const PathVerb> verbs,
-                                                         FillRule) {
-    return std::make_unique<NoOpRenderPath>();
-}
-
-std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath() {
-    return std::make_unique<NoOpRenderPath>();
-}
-
-std::unique_ptr<RenderPaint> SokolFactory::makeRenderPaint() {
-    return std::make_unique<NoOpRenderPaint>();
-}

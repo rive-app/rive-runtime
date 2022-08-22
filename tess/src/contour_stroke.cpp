@@ -16,42 +16,37 @@ void ContourStroke::reset() {
 
 void ContourStroke::resetRenderOffset() { m_RenderOffset = 0; }
 
-void ContourStroke::nextRenderOffset(std::size_t& start, std::size_t& end) {
-    assert(m_RenderOffset < m_Offsets.size());
+bool ContourStroke::nextRenderOffset(std::size_t& start, std::size_t& end) {
+    if (m_RenderOffset == m_Offsets.size()) {
+        return false;
+    }
     start = m_RenderOffset == 0 ? 0 : m_Offsets[m_RenderOffset - 1];
     end = m_Offsets[m_RenderOffset++];
+    return true;
 }
 
 void ContourStroke::extrude(const SegmentedContour* contour,
                             bool isClosed,
                             StrokeJoin join,
                             StrokeCap cap,
-                            float strokeWidth,
-                            const Mat2D& transform) {
-    // TODO: if transform is identity, no need to copy and transform
-    // contourPoints->points.
-
+                            float strokeWidth) {
     auto contourPoints = contour->contourPoints();
     std::vector<Vec2D> points(contourPoints.begin(), contourPoints.end());
 
     auto pointCount = points.size();
-    if (pointCount < 6) {
+    if (pointCount < 2) {
         return;
     }
-    for (int i = 4; i < pointCount; i++) {
-        Vec2D& point = points[i];
-        point = transform * point; // point, transform);
-    }
     auto startOffset = m_TriangleStrip.size();
-    Vec2D lastPoint = points[4];
-    Vec2D lastDiff = points[5] - lastPoint;
+    Vec2D lastPoint = points[0];
+    Vec2D lastDiff = points[1] - lastPoint;
 
     float lastLength = lastDiff.length();
     Vec2D lastDiffNormalized = lastDiff / lastLength;
 
     Vec2D perpendicularStrokeDiff =
         Vec2D(lastDiffNormalized.y * -strokeWidth, lastDiffNormalized.x * strokeWidth);
-    Vec2D lastA = lastPoint - perpendicularStrokeDiff;
+    Vec2D lastA = lastPoint + perpendicularStrokeDiff;
     Vec2D lastB = lastPoint - perpendicularStrokeDiff;
 
     if (!isClosed) {
@@ -86,15 +81,15 @@ void ContourStroke::extrude(const SegmentedContour* contour,
     m_TriangleStrip.push_back(lastA);
     m_TriangleStrip.push_back(lastB);
 
-    pointCount -= isClosed ? 6 : 5;
+    pointCount -= isClosed ? 1 : 0;
     std::size_t adjustedPointCount = isClosed ? pointCount + 1 : pointCount;
 
     for (std::size_t i = 1; i < adjustedPointCount; i++) {
-        const Vec2D& point = points[(i % pointCount) + 4];
+        const Vec2D& point = points[i % pointCount];
         Vec2D diff, diffNormalized, next;
         float length;
         if (i < adjustedPointCount - 1 || isClosed) {
-            diff = (next = points[((i + 1) % pointCount) + 4]) - point;
+            diff = (next = points[(i + 1) % pointCount]) - point;
             length = diff.length();
             diffNormalized = diff / length;
         } else {

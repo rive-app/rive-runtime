@@ -6,7 +6,7 @@
 
 namespace rive {
 ///
-/// A reference to a sub-path added to a ContourRenderPath with its relative
+/// A reference to a sub-path added to a TessRenderPath with its relative
 /// transform.
 ///
 class SubPath {

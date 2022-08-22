@@ -24,7 +24,11 @@ void displayStats();
 static const int backgroundColor = rive::colorARGB(255, 22, 22, 22);
 
 static void init(void) {
-    sg_desc descriptor = {.context = sapp_sgcontext()};
+    sg_desc descriptor = {
+        .context = sapp_sgcontext(),
+        .buffer_pool_size = 1024,
+        .pipeline_pool_size = 1024,
+    };
     sg_setup(&descriptor);
     simgui_desc_t imguiDescriptor = {
         .write_alpha_channel = true,
@@ -33,12 +37,23 @@ static void init(void) {
 
     // If the host doesn't overwrite this (in init()), Sokol is in full control,
     // so let's clear to our bg color.
-    state.pass_action =
-        (sg_pass_action){.colors[0] = {.action = SG_ACTION_CLEAR,
-                                       .value = {rive::colorRed(backgroundColor) / 255.0f,
-                                                 rive::colorGreen(backgroundColor) / 255.0f,
-                                                 rive::colorBlue(backgroundColor) / 255.0f,
-                                                 rive::colorOpacity(backgroundColor)}}};
+    state.pass_action = (sg_pass_action){
+        .colors[0] =
+            {
+                .action = SG_ACTION_CLEAR,
+                .value =
+                    {
+                        rive::colorRed(backgroundColor) / 255.0f,
+                        rive::colorGreen(backgroundColor) / 255.0f,
+                        rive::colorBlue(backgroundColor) / 255.0f,
+                        rive::colorOpacity(backgroundColor),
+                    },
+            },
+        .stencil =
+            {
+                .action = SG_ACTION_CLEAR,
+            },
+    };
 
     if (!g_Host->init(&state.pass_action, sapp_width(), sapp_height())) {
         fprintf(stderr, "failed to initialize host\n");

@@ -2,6 +2,7 @@
 #define _RIVE_SEGMENTED_CONTOUR_HPP_
 
 #include "rive/math/vec2d.hpp"
+#include "rive/math/mat2d.hpp"
 #include "rive/math/aabb.hpp"
 #include <vector>
 
@@ -31,14 +32,16 @@ private:
                       float t2);
 
 public:
-    const Span<const Vec2D> contourPoints() const;
+    const Span<const Vec2D> contourPoints(uint32_t endOffset = 0) const;
+    const std::size_t contourSize() const;
+
     SegmentedContour(float threshold);
 
     float threshold() const;
     void threshold(float value);
     const AABB& bounds() const;
 
-    void contour(const RawPath& rawPath);
+    void contour(const RawPath& rawPath, const Mat2D& transform);
 };
 } // namespace rive
 #endif

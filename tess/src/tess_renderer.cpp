@@ -20,39 +20,18 @@ void TessRenderer::restore() {
     }
 }
 
-bool TessRenderer::needsToApplyClipping() {
-    if (!m_IsClippingDirty) {
-        return false;
-    }
-
-    m_IsClippingDirty = false;
-    RenderState& state = m_Stack.back();
-    auto currentClipLength = m_ClipPaths.size();
-    if (currentClipLength == state.clipPaths.size()) {
-        // Same length so now check if they're all the same.
-        bool allSame = true;
-        for (std::size_t i = 0; i < currentClipLength; i++) {
-            if (state.clipPaths[i].path() != m_ClipPaths[i].path()) {
-                allSame = false;
-                break;
-            }
-        }
-        if (allSame) {
-            return false;
-        }
-    }
-    m_ClipPaths = state.clipPaths;
-
-    return true;
-}
-
 void TessRenderer::transform(const Mat2D& transform) {
     Mat2D& stackMat = m_Stack.back().transform;
     stackMat = stackMat * transform;
 }
 
-void TessRenderer::clipPath(RenderPath* path) {}
-void TessRenderer::drawPath(RenderPath* path, RenderPaint* paint) {}
+void TessRenderer::clipPath(RenderPath* path) {
+
+    RenderState& state = m_Stack.back();
+    state.clipPaths.emplace_back(SubPath(path, state.transform));
+    m_IsClippingDirty = true;
+}
+
 void TessRenderer::drawImage(const RenderImage*, BlendMode, float opacity) {}
 void TessRenderer::drawImageMesh(const RenderImage*,
                                  rcp<RenderBuffer> vertices_f32,

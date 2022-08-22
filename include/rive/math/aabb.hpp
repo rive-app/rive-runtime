@@ -74,6 +74,11 @@ public:
     ///
     static void expandTo(AABB& out, const Vec2D& point);
     static void expandTo(AABB& out, float x, float y);
+
+    /// Join two AABBs.
+    static void join(AABB& out, const AABB& a, const AABB& b);
+
+    void expand(const AABB& other) { join(*this, *this, other); }
 };
 
 } // namespace rive

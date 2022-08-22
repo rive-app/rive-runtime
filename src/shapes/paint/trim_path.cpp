@@ -95,7 +95,9 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory) {
 
 void TrimPath::invalidateEffect() {
     m_RenderPath = nullptr;
-    parent()->as<Stroke>()->parent()->addDirt(ComponentDirt::Paint);
+    auto stroke = parent()->as<Stroke>();
+    stroke->parent()->addDirt(ComponentDirt::Paint);
+    stroke->invalidateRendering();
 }
 
 void TrimPath::startChanged() { invalidateEffect(); }

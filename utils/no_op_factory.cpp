@@ -17,6 +17,7 @@ public:
     void cap(StrokeCap value) override {}
     void blendMode(BlendMode value) override {}
     void shader(rcp<RenderShader>) override {}
+    void invalidateStroke() override {}
 };
 
 class NoOpRenderPath : public RenderPath {

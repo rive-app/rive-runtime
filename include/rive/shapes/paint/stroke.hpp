@@ -16,6 +16,7 @@ public:
     bool hasStrokeEffect() { return m_Effect != nullptr; }
     void invalidateEffects();
     bool isVisible() const override;
+    void invalidateRendering();
 
 protected:
     void thicknessChanged() override;

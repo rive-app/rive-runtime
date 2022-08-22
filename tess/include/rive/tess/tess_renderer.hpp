@@ -24,7 +24,6 @@ protected:
     Mat4 m_Projection;
     std::list<RenderState> m_Stack;
     bool m_IsClippingDirty = false;
-    std::vector<SubPath> m_ClipPaths;
 
 public:
     TessRenderer();
@@ -37,19 +36,11 @@ public:
                                         float near,
                                         float far) = 0;
 
-    ///
-    /// Checks if clipping is dirty and clears the clipping flag. Hard
-    /// expectation for whoever checks this to also apply it. That's why
-    /// it's not marked const.
-    ///
-    bool needsToApplyClipping();
-
     void save() override;
     void restore() override;
     void transform(const Mat2D& transform) override;
     const Mat2D& transform() { return m_Stack.back().transform; }
     void clipPath(RenderPath* path) override;
-    void drawPath(RenderPath* path, RenderPaint* paint) override;
     void drawImage(const RenderImage*, BlendMode, float opacity) override;
     void drawImageMesh(const RenderImage*,
                        rcp<RenderBuffer> vertices_f32,

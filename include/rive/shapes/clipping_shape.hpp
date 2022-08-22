@@ -15,6 +15,11 @@ private:
     Node* m_Source = nullptr;
     std::unique_ptr<RenderPath> m_RenderPath;
 
+    // The actual render path used for clipping, which may be different from
+    // the stored render path. For example if there's only one clipping
+    // shape, we don't build a whole new path for it.
+    RenderPath* m_ClipRenderPath = nullptr;
+
 public:
     Node* source() const { return m_Source; }
     const std::vector<Shape*>& shapes() const { return m_Shapes; }
@@ -23,7 +28,7 @@ public:
     void buildDependencies() override;
     void update(ComponentDirt value) override;
 
-    RenderPath* renderPath() const { return m_RenderPath.get(); }
+    RenderPath* renderPath() const { return m_ClipRenderPath; }
 };
 } // namespace rive
 

@@ -21,9 +21,10 @@ bool Drawable::clip(Renderer* renderer) const {
         }
 
         RenderPath* renderPath = clippingShape->renderPath();
-
-        assert(renderPath != nullptr);
-        renderer->clipPath(renderPath);
+        // Can intentionally be null if all the clipping shapes are hidden.
+        if (renderPath != nullptr) {
+            renderer->clipPath(renderPath);
+        }
     }
     return true;
 }

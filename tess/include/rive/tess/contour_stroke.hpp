@@ -24,14 +24,13 @@ public:
 
     void reset();
     void resetRenderOffset();
-    void nextRenderOffset(std::size_t& start, std::size_t& end);
+    bool nextRenderOffset(std::size_t& start, std::size_t& end);
 
     void extrude(const SegmentedContour* contour,
                  bool isClosed,
                  StrokeJoin join,
                  StrokeCap cap,
-                 float strokeWidth,
-                 const Mat2D& transform);
+                 float strokeWidth);
 };
 } // namespace rive
 #endif

@@ -15,6 +15,18 @@ if [[ ! -d "$DEPENDENCIES/sokol" ]]; then
     popd
 fi
 
+if [[ ! -d "$DEPENDENCIES/earcut.hpp" ]]; then
+    pushd $DEPENDENCIES_SCRIPTS
+    ./get_earcut.sh
+    popd
+fi
+
+if [[ ! -d "$DEPENDENCIES/libtess2" ]]; then
+    pushd $DEPENDENCIES_SCRIPTS
+    ./get_libtess2.sh
+    popd
+fi
+
 export PREMAKE=$DEPENDENCIES/bin/premake5
 pushd ..
 

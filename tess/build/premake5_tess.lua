@@ -18,10 +18,13 @@ do
     includedirs {
         '../include',
         rive .. '/include',
-        dependencies .. '/sokol'
+        dependencies .. '/sokol',
+        dependencies .. '/earcut.hpp/include/mapbox',
+        dependencies .. '/libtess2/Include'
     }
     files {
-        '../src/**.cpp'
+        '../src/**.cpp',
+        dependencies .. '/libtess2/Source/**.c'
     }
     buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format'}
 
@@ -68,6 +71,8 @@ end
 
 project 'rive_tess_tests'
 do
+    dependson 'rive_tess_renderer'
+    dependson 'rive'
     kind 'ConsoleApp'
     language 'C++'
     cppdialect 'C++17'
@@ -75,15 +80,18 @@ do
     targetdir '%{cfg.system}/bin/%{cfg.buildcfg}'
     objdir '%{cfg.system}/obj/%{cfg.buildcfg}'
     includedirs {
-        '../../dev/test/include',
+        rive .. 'dev/test/include', -- for catch.hpp
+        rive .. 'test', -- for things like rive_file_reader.hpp
         '../include',
         rive .. '/include',
-        dependencies .. '/sokol'
+        dependencies .. '/sokol',
+        dependencies .. '/earcut.hpp/include/mapbox'
     }
     files {
-        '../test/**.cpp'
+        '../test/**.cpp',
+        rive .. 'utils/no_op_factory.cpp'
     }
-    links {'rive_tess_renderer'}
+    links {'rive_tess_renderer', 'rive'}
     buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format'}
     defines {'TESTING'}
 

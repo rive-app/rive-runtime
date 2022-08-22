@@ -5,7 +5,9 @@
 using namespace rive;
 
 SegmentedContour::SegmentedContour(float threshold) :
-    m_threshold(threshold), m_thresholdSquared(threshold * threshold) {}
+    m_bounds(AABB::forExpansion()),
+    m_threshold(threshold),
+    m_thresholdSquared(threshold * threshold) {}
 
 float SegmentedContour::threshold() const { return m_threshold; }
 void SegmentedContour::threshold(float value) {
@@ -13,7 +15,11 @@ void SegmentedContour::threshold(float value) {
     m_thresholdSquared = value * value;
 }
 const AABB& SegmentedContour::bounds() const { return m_bounds; }
-void SegmentedContour::addVertex(Vec2D vertex) {}
+void SegmentedContour::addVertex(Vec2D vertex) {
+    m_contourPoints.push_back(vertex);
+    AABB::expandTo(m_bounds, vertex);
+}
+
 void SegmentedContour::penDown() {
     if (m_isPenDown) {
         return;
@@ -22,21 +28,20 @@ void SegmentedContour::penDown() {
     m_penDown = m_pen;
     addVertex(m_penDown);
 }
+
 void SegmentedContour::close() {
     if (!m_isPenDown) {
         return;
     }
     m_pen = m_penDown;
     m_isPenDown = false;
-
-    // TODO: Can we optimize and not dupe this point if it's the last point
-    // already in the list? For example: a procedural triangle closes itself
-    // with a lineTo the first point.
-    addVertex(m_penDown);
 }
 
-const Span<const Vec2D> SegmentedContour::contourPoints() const {
-    return Span<const Vec2D>(m_contourPoints.data(), m_contourPoints.size());
+const std::size_t SegmentedContour::contourSize() const { return m_contourPoints.size(); }
+
+const Span<const Vec2D> SegmentedContour::contourPoints(uint32_t endOffset) const {
+    assert(endOffset <= m_contourPoints.size());
+    return Span<const Vec2D>(m_contourPoints.data(), m_contourPoints.size() - endOffset);
 }
 
 void SegmentedContour::segmentCubic(const Vec2D& from,
@@ -62,31 +67,32 @@ void SegmentedContour::segmentCubic(const Vec2D& from,
     }
 }
 
-void SegmentedContour::contour(const RawPath& rawPath) {
+void SegmentedContour::contour(const RawPath& rawPath, const Mat2D& transform) {
     m_contourPoints.clear();
 
-    // First four vertices are the bounds.
-    m_contourPoints.emplace_back(Vec2D());
-    m_contourPoints.emplace_back(Vec2D());
-    m_contourPoints.emplace_back(Vec2D());
-    m_contourPoints.emplace_back(Vec2D());
-
     RawPath::Iter iter(rawPath);
+    // Possible perf consideration: could add second path that doesn't transform
+    // if transform is the identity.
     while (auto rec = iter.next()) {
         switch (rec.verb) {
             case PathVerb::move:
                 m_isPenDown = false;
-                m_pen = rec.pts[0];
+                m_pen = transform * rec.pts[0];
                 break;
             case PathVerb::line:
                 penDown();
-                m_pen = rec.pts[0];
-                addVertex(rec.pts[0]);
+                m_pen = transform * rec.pts[0];
+                addVertex(m_pen);
                 break;
             case PathVerb::cubic:
                 penDown();
-                segmentCubic(m_pen, rec.pts[0], rec.pts[1], rec.pts[2], 0.0f, 1.0f);
-                m_pen = rec.pts[2];
+                segmentCubic(m_pen,
+                             transform * rec.pts[0],
+                             transform * rec.pts[1],
+                             transform * rec.pts[2],
+                             0.0f,
+                             1.0f);
+                m_pen = transform * rec.pts[2];
                 break;
             case PathVerb::close: close(); break;
             case PathVerb::quad:
@@ -95,25 +101,5 @@ void SegmentedContour::contour(const RawPath& rawPath) {
                 break;
         }
     }
-
-    // TODO: when we stroke we may want to differentiate whether or not the path
-    // actually closed.
     close();
-
-    // TODO: consider if there's a case with no points.
-    Vec2D& first = m_contourPoints[0];
-    first.x = m_bounds.minX;
-    first.y = m_bounds.minY;
-
-    Vec2D& second = m_contourPoints[1];
-    second.x = m_bounds.maxX;
-    second.y = m_bounds.minY;
-
-    Vec2D& third = m_contourPoints[2];
-    third.x = m_bounds.maxX;
-    third.y = m_bounds.maxY;
-
-    Vec2D& fourth = m_contourPoints[3];
-    fourth.x = m_bounds.minX;
-    fourth.y = m_bounds.maxY;
 }

@@ -198,6 +198,7 @@ public:
     void cap(StrokeCap value) override { m_cap = convert(value); }
     void blendMode(BlendMode value) override { m_blend = convert(value); }
     void shader(rcp<RenderShader> sh) override { m_shader = std::move(sh); }
+    void invalidateStroke() override {}
 };
 
 static CGGradientRef convert(const ColorInt colors[], const float stops[], size_t count) {
