@@ -92,7 +92,7 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
             auto contours = Span(&contour, 1);
             m_earcut(contours);
 
-            containerPath->addTriangles(contour, toSpan(m_earcut.indices));
+            containerPath->addTriangles(contour, m_earcut.indices);
         }
     } else {
         TESStesselator* tess = nullptr;
@@ -125,7 +125,7 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
                 }
 
                 containerPath->addTriangles(Span(reinterpret_cast<const Vec2D*>(verts), nverts),
-                                            toSpan(indices));
+                                            indices);
             }
             tessDeleteTess(tess);
         }
