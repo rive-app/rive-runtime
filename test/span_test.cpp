@@ -56,6 +56,6 @@ TEST_CASE("const-and-containers", "[span]") {
     funcb({array, 4});
 
     std::vector<int> v;
-    funca(toSpan(v));
-    funcb(toSpan(v));
+    funca(v);
+    funcb(v);
 }

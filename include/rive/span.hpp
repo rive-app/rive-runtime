@@ -7,6 +7,9 @@
 
 #include "rive/rive_types.hpp"
 
+#include <initializer_list>
+#include <type_traits>
+
 /*
  *  Span : cheap impl of std::span (which is C++20)
  *
@@ -27,6 +30,8 @@ public:
     template <typename U, typename = typename std::enable_if<std::is_same<const U, T>::value>::type>
     constexpr Span(const Span<U>& that) : Span(that.data(), that.size()) {}
     constexpr Span(const Span&) = default;
+    template <typename Container> constexpr Span(Container& c) : Span{std::data(c), std::size(c)} {}
+    constexpr Span(std::initializer_list<T> il) : Span(std::data(il), std::size(il)) {}
 
     constexpr T& operator[](size_t index) const {
         assert(index < m_Size);
@@ -68,12 +73,6 @@ public:
     typedef std::ptrdiff_t difference_type;
     typedef size_t size_type;
 };
-
-template <typename Container>
-inline auto toSpan(Container& c)
-    -> Span<typename std::remove_reference<decltype(*(c.data()))>::type> {
-    return {c.data(), c.size()};
-}
 
 } // namespace rive
 

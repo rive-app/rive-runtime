@@ -123,7 +123,7 @@ std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphR
             RenderGlyphLine(startRun, startIndex, tailRun, tailIndex, tailRun, tailIndex, startX));
     }
 
-    ComputeLineSpacing(toSpan(lines), runs);
+    ComputeLineSpacing(lines, runs);
 
     return lines;
 }

@@ -217,8 +217,8 @@ void ContourMeasure::getSegment(float startDist,
     const auto start = m_segments[startIndex];
     const auto end = m_segments[endIndex];
 
-    const auto startT = compute_t(toSpan(m_segments), startIndex, startDist);
-    const auto endT = compute_t(toSpan(m_segments), endIndex, endDist);
+    const auto startT = compute_t(m_segments, startIndex, startDist);
+    const auto endT = compute_t(m_segments, endIndex, endDist);
 
     if (start.m_ptIndex == end.m_ptIndex) {
         start.extract(dst, startT, endT, m_points.data(), startWithMove);

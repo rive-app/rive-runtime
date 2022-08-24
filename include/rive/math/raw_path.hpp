@@ -51,11 +51,11 @@ public:
     void transformInPlace(const Mat2D&);
     RawPath operator*(const Mat2D& mat) const { return this->transform(mat); }
 
-    Span<const Vec2D> points() const { return toSpan(m_Points); }
-    Span<Vec2D> points() { return toSpan(m_Points); }
+    Span<const Vec2D> points() const { return m_Points; }
+    Span<Vec2D> points() { return m_Points; }
 
-    Span<const PathVerb> verbs() const { return toSpan(m_Verbs); }
-    Span<PathVerb> verbs() { return toSpan(m_Verbs); }
+    Span<const PathVerb> verbs() const { return m_Verbs; }
+    Span<PathVerb> verbs() { return m_Verbs; }
 
     Span<const uint8_t> verbsU8() const {
         const uint8_t* ptr = (const uint8_t*)m_Verbs.data();

@@ -121,7 +121,7 @@ class TextPathContent : public ViewerContent {
                 assert(false);
                 return nullptr;
             }
-            return fact(toSpan(bytes));
+            return fact(bytes);
         };
 
         const char* fontFiles[] = {
@@ -163,7 +163,7 @@ public:
 
         auto truns = this->make_truns(ViewerContent::DecodeFont);
 
-        m_gruns = truns[0].font->shapeText(toSpan(m_unichars), toSpan(truns));
+        m_gruns = truns[0].font->shapeText(m_unichars, truns);
 
         m_gbounds = compute_bounds(m_gruns);
         m_oneLineXform = Mat2D::fromScale(2.5, 2.5) * Mat2D::fromTranslate(20, 80);
@@ -212,7 +212,7 @@ public:
         renderer->save();
         renderer->transform(m_trans);
 
-        RawPath warp = make_quad_path(toSpan(m_pathpts));
+        RawPath warp = make_quad_path(m_pathpts);
         this->draw_warp(renderer, warp);
 
         auto meas = ContourMeasureIter(warp).next();

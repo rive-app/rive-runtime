@@ -92,8 +92,8 @@ void Mesh::buildDependencies() {
     }
 
     auto factory = artboard()->factory();
-    m_UVRenderBuffer = factory->makeBufferF32(toSpan(uv));
-    m_IndexRenderBuffer = factory->makeBufferU16(toSpan(*m_IndexBuffer));
+    m_UVRenderBuffer = factory->makeBufferF32(uv);
+    m_IndexRenderBuffer = factory->makeBufferU16(*m_IndexBuffer);
 }
 
 void Mesh::update(ComponentDirt value) {
@@ -118,7 +118,7 @@ void Mesh::draw(Renderer* renderer, const RenderImage* image, BlendMode blendMod
         }
 
         auto factory = artboard()->factory();
-        m_VertexRenderBuffer = factory->makeBufferF32(toSpan(vertices));
+        m_VertexRenderBuffer = factory->makeBufferF32(vertices);
     }
 
     if (skin() == nullptr) {

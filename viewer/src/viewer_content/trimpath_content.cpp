@@ -85,7 +85,7 @@ public:
     }
 
     void handleDraw(rive::Renderer* renderer, double) override {
-        auto path = make_quad_path(toSpan(m_pathpts));
+        auto path = make_quad_path(m_pathpts);
 
         RawPath cubicpath;
         cubicpath.move(m_pathpts[0]);

@@ -24,4 +24,4 @@ void FileAssetContents::copyBytes(const FileAssetContentsBase& object) {
     assert(false);
 }
 
-Span<const uint8_t> FileAssetContents::bytes() const { return toSpan(m_Bytes); }
+Span<const uint8_t> FileAssetContents::bytes() const { return m_Bytes; }

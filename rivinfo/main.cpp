@@ -129,7 +129,7 @@ static std::unique_ptr<rive::File> open_file(const char name[]) {
     }
 
     static rive::NoOpFactory gFactory;
-    return rive::File::import(rive::toSpan(bytes), &gFactory);
+    return rive::File::import(bytes, &gFactory);
 }
 
 static bool is_arg(const char arg[], const char target[], const char alt[] = nullptr) {

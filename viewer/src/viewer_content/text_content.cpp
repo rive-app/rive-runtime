@@ -108,7 +108,7 @@ static rive::rcp<rive::RenderFont> load_fallback_font(rive::Span<const rive::Uni
         fclose(fp);
 
         assert(bytesRead == size);
-        gFallbackFont = HBRenderFont::Decode(rive::toSpan(bytes));
+        gFallbackFont = HBRenderFont::Decode(bytes);
     }
     return gFallbackFont;
 }
@@ -153,7 +153,7 @@ class TextContent : public ViewerContent {
                 assert(false);
                 return nullptr;
             }
-            return fact(rive::toSpan(bytes));
+            return fact(bytes);
         };
 
         const char* fontFiles[] = {
@@ -176,7 +176,7 @@ class TextContent : public ViewerContent {
         truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
         truns.push_back(append(&m_unichars, font0, 30, " lies the head."));
 
-        m_breaks = compute_word_breaks(rive::toSpan(m_unichars));
+        m_breaks = compute_word_breaks(m_unichars);
 
         return truns;
     }
@@ -184,7 +184,7 @@ class TextContent : public ViewerContent {
 public:
     TextContent() {
         auto truns = this->make_truns(ViewerContent::DecodeFont);
-        m_gruns.push_back(truns[0].font->shapeText(rive::toSpan(m_unichars), rive::toSpan(truns)));
+        m_gruns.push_back(truns[0].font->shapeText(m_unichars, truns));
 
         m_xform = rive::Mat2D::fromTranslate(10, 0) * rive::Mat2D::fromScale(3, 3);
     }
@@ -193,10 +193,9 @@ public:
         renderer->save();
         renderer->transform(m_xform);
 
-        auto lines =
-            rive::RenderGlyphLine::BreakLines(rive::toSpan(gruns), rive::toSpan(m_breaks), width);
+        auto lines = rive::RenderGlyphLine::BreakLines(gruns, m_breaks, width);
 
-        drawpara(RiveFactory(), renderer, rive::toSpan(lines), rive::toSpan(gruns), {0, 0});
+        drawpara(RiveFactory(), renderer, lines, gruns, {0, 0});
         draw_line(RiveFactory(), renderer, width);
 
         renderer->restore();

@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
     }
     fclose(fp);
 
-    auto file = rive::File::import(rive::toSpan(bytes), &factory);
+    auto file = rive::File::import(bytes, &factory);
     if (!file) {
         fprintf(stderr, "Failed to read rive file.\n");
         return 1;

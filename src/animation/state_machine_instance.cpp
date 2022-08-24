@@ -398,7 +398,7 @@ StateMachineInstance::~StateMachineInstance() {
 bool StateMachineInstance::advance(float seconds) {
     m_NeedsAdvance = false;
     for (size_t i = 0; i < m_LayerCount; i++) {
-        if (m_Layers[i].advance(seconds, toSpan(m_InputInstances))) {
+        if (m_Layers[i].advance(seconds, m_InputInstances)) {
             m_NeedsAdvance = true;
         }
     }

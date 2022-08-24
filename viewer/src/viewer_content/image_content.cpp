@@ -22,7 +22,7 @@ public:
 
 std::unique_ptr<ViewerContent> ViewerContent::Image(const char filename[]) {
     auto bytes = LoadFile(filename);
-    auto image = RiveFactory()->decodeImage(rive::toSpan(bytes));
+    auto image = RiveFactory()->decodeImage(bytes);
     if (image) {
         return std::make_unique<ImageContent>(std::move(image));
     }

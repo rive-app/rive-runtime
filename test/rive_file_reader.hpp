@@ -28,7 +28,7 @@ ReadRiveFile(const char path[],
     fclose(fp);
 
     rive::ImportResult result;
-    auto file = rive::File::import(rive::toSpan(bytes), factory, &result, resolver);
+    auto file = rive::File::import(bytes, factory, &result, resolver);
     REQUIRE(result == rive::ImportResult::success);
     REQUIRE(file.get() != nullptr);
     REQUIRE(file->artboard() != nullptr);
