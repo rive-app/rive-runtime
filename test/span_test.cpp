@@ -52,7 +52,9 @@ TEST_CASE("const-and-containers", "[span]") {
     funcb({carray, 4});
 
     int array[] = {1, 2, 3, 4};
+    funca(array);
     funca({array, 4});
+    funcb(array);
     funcb({array, 4});
 
     std::vector<int> v;

@@ -32,6 +32,7 @@ public:
     constexpr Span(const Span&) = default;
     template <typename Container> constexpr Span(Container& c) : Span{std::data(c), std::size(c)} {}
     constexpr Span(std::initializer_list<T> il) : Span(std::data(il), std::size(il)) {}
+    template <size_t N> constexpr Span(T (&a)[N]) : Span(a, N) {}
 
     constexpr T& operator[](size_t index) const {
         assert(index < m_Size);
