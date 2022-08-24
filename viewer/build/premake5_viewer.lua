@@ -15,6 +15,7 @@ libpng = dependencies .. '/libpng'
 
 if _OPTIONS.renderer == 'tess' then
     dofile('premake5_libpng.lua')
+    dofile(path.join(path.getabsolute(rive_tess) .. '/build', 'premake5_tess.lua'))
 end
 
 project 'rive_viewer'

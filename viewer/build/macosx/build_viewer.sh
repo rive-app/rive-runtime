@@ -63,6 +63,7 @@ if [ $RENDERER = "tess" ]; then
 fi
 
 export PREMAKE=$DEPENDENCIES/bin/premake5
+
 pushd ..
 
 $PREMAKE --file=./premake5_viewer.lua gmake2 --graphics=$GRAPHICS --renderer=$RENDERER
