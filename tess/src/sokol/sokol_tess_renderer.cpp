@@ -636,18 +636,18 @@ public:
         m_end = Vec2D(cx + radius, cy);
     }
 
-    void bind(fs_path_uniforms_t& uniforms) {
+    void bind(vs_path_params_t& vertexUniforms, fs_path_uniforms_t& fragmentUniforms) {
         auto stopCount = m_stops.size();
-        uniforms.fillType = m_type;
-        uniforms.stopCount = stopCount;
-        uniforms.gradientStart = m_start;
-        uniforms.gradientEnd = m_end;
+        vertexUniforms.fillType = fragmentUniforms.fillType = m_type;
+        vertexUniforms.gradientStart = m_start;
+        vertexUniforms.gradientEnd = m_end;
+        fragmentUniforms.stopCount = stopCount;
         for (int i = 0; i < stopCount; i++) {
             auto colorBufferIndex = i * 4;
             for (int j = 0; j < 4; j++) {
-                uniforms.colors[i][j] = m_colors[colorBufferIndex + j];
+                fragmentUniforms.colors[i][j] = m_colors[colorBufferIndex + j];
             }
-            uniforms.stops[i / 4][i % 4] = m_stops[i];
+            fragmentUniforms.stops[i / 4][i % 4] = m_stops[i];
         }
     }
 };
@@ -737,10 +737,11 @@ public:
 
     void shader(rcp<RenderShader> shader) override { m_shader = shader; }
 
-    void draw(SokolRenderPath* path) {
+    void draw(vs_path_params_t& vertexUniforms, SokolRenderPath* path) {
         if (m_shader) {
-            static_cast<SokolGradient*>(m_shader.get())->bind(m_uniforms);
+            static_cast<SokolGradient*>(m_shader.get())->bind(vertexUniforms, m_uniforms);
         }
+        sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vertexUniforms));
         sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(m_uniforms));
         if (m_stroke != nullptr) {
             if (m_strokeDirty) {
@@ -943,9 +944,8 @@ void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
         case BlendMode::multiply: setPipeline(m_pathMultiplyPipeline[m_clipCount]); break;
         default: setPipeline(m_pathScreenPipeline[m_clipCount]); break;
     }
-    sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vs_params));
 
-    static_cast<SokolRenderPaint*>(paint)->draw(static_cast<SokolRenderPath*>(path));
+    static_cast<SokolRenderPaint*>(paint)->draw(vs_params, static_cast<SokolRenderPath*>(path));
 }
 
 SokolRenderImage::SokolRenderImage(const uint8_t* bytes, uint32_t width, uint32_t height) :
