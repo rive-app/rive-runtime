@@ -8,6 +8,7 @@
 #include "rive/draw_target_placement.hpp"
 #include "rive/drawable.hpp"
 #include "rive/animation/keyed_object.hpp"
+#include "rive/factory.hpp"
 #include "rive/node.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
@@ -52,8 +53,9 @@ static bool canContinue(StatusCode code) {
 StatusCode Artboard::initialize() {
     StatusCode code;
 
-    m_BackgroundPath = makeCommandPath(PathSpace::Neither);
-    m_ClipPath = makeCommandPath(PathSpace::Neither);
+    // these will be re-built in update() -- are they needed here?
+    m_BackgroundPath = factory()->makeEmptyRenderPath();
+    m_ClipPath = factory()->makeEmptyRenderPath();
 
     // onAddedDirty guarantees that all objects are now available so they can be
     // looked up by index/id. This is where nodes find their parents, but they
@@ -326,13 +328,15 @@ void Artboard::update(ComponentDirt value) {
         sortDrawOrder();
     }
     if (hasDirt(value, ComponentDirt::Path)) {
-        m_ClipPath->reset();
+        AABB bg = {-width() * originX(), -height() * originY(), width(), height()};
+        AABB clip;
         if (m_FrameOrigin) {
-            m_ClipPath->addRect(0.0f, 0.0f, width(), height());
+            clip = {0.0f, 0.0f, width(), height()};
         } else {
-            m_ClipPath->addRect(-width() * originX(), -height() * originY(), width(), height());
+            clip = bg;
         }
-        m_BackgroundPath->addRect(-width() * originX(), -height() * originY(), width(), height());
+        m_ClipPath = factory()->makeRenderPath(clip);
+        m_BackgroundPath = factory()->makeRenderPath(bg);
     }
 }
 
@@ -414,7 +418,7 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform) {
 void Artboard::draw(Renderer* renderer, DrawOption option) {
     renderer->save();
     if (clip()) {
-        renderer->clipPath(m_ClipPath->renderPath());
+        renderer->clipPath(m_ClipPath.get());
     }
 
     if (m_FrameOrigin) {
@@ -426,7 +430,7 @@ void Artboard::draw(Renderer* renderer, DrawOption option) {
 
     if (option != DrawOption::kHideBG) {
         for (auto shapePaint : m_ShapePaints) {
-            shapePaint->draw(renderer, backgroundPath());
+            shapePaint->draw(renderer, m_BackgroundPath.get());
         }
     }
 

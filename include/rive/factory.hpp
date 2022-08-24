@@ -47,6 +47,7 @@ public:
                                                        Span<const PathVerb> verbs,
                                                        FillRule) = 0;
 
+    // Deprecated -- working to make RenderPath's immutable
     virtual std::unique_ptr<RenderPath> makeEmptyRenderPath() = 0;
 
     virtual std::unique_ptr<RenderPaint> makeRenderPaint() = 0;
@@ -54,6 +55,11 @@ public:
     virtual std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) = 0;
 
     virtual rcp<RenderFont> decodeFont(Span<const uint8_t>) { return nullptr; }
+
+    // Non-virtual helpers
+
+    std::unique_ptr<RenderPath> makeRenderPath(const AABB&);
+    std::unique_ptr<RenderPath> makeRenderPath(const RawPath&, FillRule);
 };
 
 } // namespace rive

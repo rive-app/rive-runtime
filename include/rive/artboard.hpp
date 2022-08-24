@@ -41,8 +41,8 @@ private:
     std::vector<NestedArtboard*> m_NestedArtboards;
 
     unsigned int m_DirtDepth = 0;
-    std::unique_ptr<CommandPath> m_BackgroundPath;
-    std::unique_ptr<CommandPath> m_ClipPath;
+    std::unique_ptr<RenderPath> m_BackgroundPath;
+    std::unique_ptr<RenderPath> m_ClipPath;
     Factory* m_Factory = nullptr;
     Drawable* m_FirstDrawable = nullptr;
     bool m_IsInstance = false;
@@ -95,8 +95,9 @@ public:
     };
     void draw(Renderer* renderer, DrawOption = DrawOption::kNormal);
 
-    CommandPath* clipPath() const { return m_ClipPath.get(); }
-    CommandPath* backgroundPath() const { return m_BackgroundPath.get(); }
+    // TODO: can we remove these getters? Who is calling them?
+    RenderPath* clipPath() const { return m_ClipPath.get(); }
+    RenderPath* backgroundPath() const { return m_BackgroundPath.get(); }
 
     const std::vector<Core*>& objects() const { return m_Objects; }
     const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }

@@ -52,8 +52,7 @@ static void drawrun(rive::Factory* factory,
         auto trans = rive::Mat2D::fromTranslate(origin.x + run.xpos[i], origin.y);
         auto rawpath = font->getPath(run.glyphs[i]);
         rawpath.transformInPlace(trans * scale);
-        auto path =
-            factory->makeRenderPath(rawpath.points(), rawpath.verbs(), rive::FillRule::nonZero);
+        auto path = factory->makeRenderPath(rawpath, rive::FillRule::nonZero);
         renderer->drawPath(path.get(), paint.get());
     }
 }
@@ -114,14 +113,20 @@ static rive::rcp<rive::RenderFont> load_fallback_font(rive::Span<const rive::Uni
 }
 #endif
 
+static std::unique_ptr<rive::RenderPath> make_line(rive::Factory* factory,
+                                                   rive::Vec2D a,
+                                                   rive::Vec2D b) {
+    rive::Vec2D pts[] = {a, b};
+    rive::PathVerb vbs[] = {rive::PathVerb::move, rive::PathVerb::line};
+    return factory->makeRenderPath(pts, vbs, rive::FillRule::nonZero);
+}
+
 static void draw_line(rive::Factory* factory, rive::Renderer* renderer, float x) {
     auto paint = factory->makeRenderPaint();
     paint->style(rive::RenderPaintStyle::stroke);
     paint->thickness(1);
     paint->color(0xFFFFFFFF);
-    auto path = factory->makeEmptyRenderPath();
-    path->move({x, 0});
-    path->line({x, 1000});
+    auto path = make_line(factory, {x, 0}, {x, 1000});
     renderer->drawPath(path.get(), paint.get());
 }
 
