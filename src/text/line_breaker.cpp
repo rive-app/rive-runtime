@@ -46,7 +46,7 @@ std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphR
 
     int wordStart = breaks[0];
     int wordEnd = breaks[1];
-    int nextBreakIndex = 2;
+    size_t nextBreakIndex = 2;
     int lineStartTextOffset = wordStart;
 
     for (;;) {

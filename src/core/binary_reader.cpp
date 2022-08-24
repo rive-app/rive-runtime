@@ -45,14 +45,14 @@ std::string BinaryReader::readString() {
         return std::string();
     }
 
-    std::vector<char> rawValue(length + 1);
+    std::vector<char> rawValue((size_t)length + 1);
     auto readBytes = decode_string(length, m_Position, m_Bytes.end(), &rawValue[0]);
     if (readBytes != length) {
         overflow();
         return std::string();
     }
     m_Position += readBytes;
-    return std::string(rawValue.data(), length);
+    return std::string(rawValue.data(), (size_t)length);
 }
 
 Span<const uint8_t> BinaryReader::readBytes() {
