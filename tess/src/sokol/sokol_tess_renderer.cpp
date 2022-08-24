@@ -134,8 +134,6 @@ std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath() {
     return std::make_unique<SokolRenderPath>();
 }
 
-SokolRenderImage::SokolRenderImage(sg_image image) : m_image(image) {}
-
 class SokolBuffer : public RenderBuffer {
 private:
     sg_buffer m_Buffer;
@@ -468,9 +466,24 @@ SokolTessRenderer::SokolTessRenderer() {
         .type = SG_BUFFERTYPE_INDEXBUFFER,
         .data = SG_RANGE(indices),
     });
+
+    // The UV buffer used by drawImage. Consider this the "default uv
+    // vertex buffer" used when a mesh isn't provided by Rive.
+    Vec2D defUV[] = {
+        Vec2D(0.0f, 0.0f),
+        Vec2D(1.0f, 0.0f),
+        Vec2D(1.0f, 1.0f),
+        Vec2D(0.0f, 1.0f),
+    };
+
+    m_defaultUV = sg_make_buffer((sg_buffer_desc){
+        .type = SG_BUFFERTYPE_VERTEXBUFFER,
+        .data = SG_RANGE(defUV),
+    });
 }
 
 SokolTessRenderer::~SokolTessRenderer() {
+    sg_destroy_buffer(m_defaultUV);
     sg_destroy_buffer(m_boundsIndices);
     sg_destroy_pipeline(m_meshPipeline);
     sg_destroy_pipeline(m_incClipPipeline);
@@ -530,7 +543,26 @@ void SokolTessRenderer::orthographicProjection(float left,
     // }
 }
 
-void SokolTessRenderer::drawImage(const RenderImage*, BlendMode, float opacity) {}
+void SokolTessRenderer::drawImage(const RenderImage* image, BlendMode, float opacity) {
+    vs_params_t vs_params;
+
+    const Mat2D& world = transform();
+    vs_params.mvp = m_Projection * world;
+
+    auto sokolImage = static_cast<const SokolRenderImage*>(image);
+    setPipeline(m_meshPipeline);
+    sg_bindings bind = {
+        .vertex_buffers[0] = sokolImage->vertexBuffer(),
+        .vertex_buffers[1] = m_defaultUV,
+        .index_buffer = m_boundsIndices,
+        .fs_images[SLOT_tex] = sokolImage->image(),
+    };
+
+    sg_apply_bindings(&bind);
+    sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vs_params));
+    sg_draw(0, 6, 1);
+}
+
 void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
                                       rcp<RenderBuffer> vertices_f32,
                                       rcp<RenderBuffer> uvCoords_f32,
@@ -914,4 +946,32 @@ void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
     sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vs_params));
 
     static_cast<SokolRenderPaint*>(paint)->draw(static_cast<SokolRenderPath*>(path));
+}
+
+SokolRenderImage::SokolRenderImage(const uint8_t* bytes, uint32_t width, uint32_t height) :
+    m_image(sg_make_image((sg_image_desc){
+        .width = (int)width,
+        .height = (int)height,
+        .data.subimage[0][0] = {bytes, width * height * 4},
+        .pixel_format = SG_PIXELFORMAT_RGBA8,
+    }))
+
+{
+    float halfWidth = width / 2.0f;
+    float halfHeight = height / 2.0f;
+    Vec2D points[] = {
+        Vec2D(-halfWidth, -halfHeight),
+        Vec2D(halfWidth, -halfHeight),
+        Vec2D(halfWidth, halfHeight),
+        Vec2D(-halfWidth, halfHeight),
+    };
+    m_vertexBuffer = sg_make_buffer((sg_buffer_desc){
+        .type = SG_BUFFERTYPE_VERTEXBUFFER,
+        .data = SG_RANGE(points),
+    });
+}
+
+SokolRenderImage::~SokolRenderImage() {
+    sg_destroy_buffer(m_vertexBuffer);
+    sg_destroy_image(m_image);
 }

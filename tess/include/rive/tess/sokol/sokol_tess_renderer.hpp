@@ -13,10 +13,15 @@ namespace rive {
 class SokolRenderImage : public RenderImage {
 private:
     sg_image m_image;
+    sg_buffer m_vertexBuffer;
 
 public:
-    SokolRenderImage(sg_image image);
+    // bytes is expected to be tightly packed RGBA*width*height.
+    SokolRenderImage(const uint8_t* bytes, uint32_t width, uint32_t height);
+    ~SokolRenderImage() override;
+
     sg_image image() const { return m_image; }
+    sg_buffer vertexBuffer() const { return m_vertexBuffer; }
 };
 
 class SokolTessRenderer : public TessRenderer {
@@ -41,6 +46,7 @@ private:
     sg_pipeline m_incClipPipeline;
     sg_pipeline m_decClipPipeline;
     sg_buffer m_boundsIndices;
+    sg_buffer m_defaultUV;
 
     std::vector<SubPath> m_ClipPaths;
 
