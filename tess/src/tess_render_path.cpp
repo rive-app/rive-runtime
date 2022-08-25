@@ -82,7 +82,7 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
     // doing any funky self overlapping winding and we'll try to triangulate it
     // quickly as a single polygon.
     if (m_subPaths.size() == 0) {
-        if (!m_rawPath.empty()) {
+        if (!empty()) {
             Mat2D identity;
             contour(identity);
 
@@ -94,7 +94,26 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
 
             containerPath->addTriangles(contour, m_earcut.indices);
         }
+    } else if (m_subPaths.size() == 1) {
+        // We're a container but we only have 1 path, let's see if we can use
+        // our fast triangulator.
+        SubPath& subPath = m_subPaths.front();
+        auto subRenderPath = static_cast<TessRenderPath*>(subPath.path());
+        if (subRenderPath->isContainer()) {
+            // Nope, subpath is also a container, keep going.
+            subRenderPath->triangulate(containerPath);
+        } else if (!subRenderPath->empty()) {
+            // Yes, it's a single path with commands, triangulate it.
+            subRenderPath->contour(subPath.transform());
+            const SegmentedContour& segmentedContour = subRenderPath->segmentedContour();
+            auto contour = segmentedContour.contourPoints();
+            auto contours = Span(&contour, 1);
+            m_earcut(contours);
+
+            containerPath->addTriangles(contour, m_earcut.indices);
+        }
     } else {
+        // We're a container with multiple sub-paths.
         TESStesselator* tess = nullptr;
         for (SubPath& subPath : m_subPaths) {
             auto subRenderPath = static_cast<TessRenderPath*>(subPath.path());
