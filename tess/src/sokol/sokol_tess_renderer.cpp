@@ -17,6 +17,8 @@ static void fillColorBuffer(float* buffer, ColorInt value) {
 class SokolRenderPath : public TessRenderPath {
 public:
     SokolRenderPath() {}
+    SokolRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule fillRule) :
+        TessRenderPath(points, verbs, fillRule) {}
 
     ~SokolRenderPath() {
         sg_destroy_buffer(m_vertexBuffer);
@@ -79,7 +81,6 @@ public:
                 .type = SG_BUFFERTYPE_VERTEXBUFFER,
                 .data =
                     {
-
                         m_vertices.data(),
                         m_vertices.size() * sizeof(Vec2D),
                     },
@@ -126,8 +127,8 @@ public:
 // Returns a full-formed RenderPath -- can be treated as immutable
 std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(Span<const Vec2D> points,
                                                          Span<const PathVerb> verbs,
-                                                         FillRule) {
-    return std::make_unique<SokolRenderPath>();
+                                                         FillRule rule) {
+    return std::make_unique<SokolRenderPath>(points, verbs, rule);
 }
 
 std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath() {
@@ -689,6 +690,11 @@ private:
     BlendMode m_blendMode = BlendMode::srcOver;
 
 public:
+    ~SokolRenderPaint() override {
+        sg_destroy_buffer(m_strokeVertexBuffer);
+        sg_destroy_buffer(m_strokeIndexBuffer);
+    }
+
     void color(ColorInt value) override {
         fillColorBuffer(m_uniforms.colors[0], value);
         m_uniforms.fillType = 0;
@@ -741,7 +747,8 @@ public:
         if (m_shader) {
             static_cast<SokolGradient*>(m_shader.get())->bind(vertexUniforms, m_uniforms);
         }
-        sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vertexUniforms));
+
+        sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vertexUniforms));
         sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(m_uniforms));
         if (m_stroke != nullptr) {
             if (m_strokeDirty) {
@@ -872,7 +879,7 @@ void SokolTessRenderer::applyClipping() {
         }
     }
 
-    vs_path_params_t vs_params;
+    vs_path_params_t vs_params = {.fillType = 0};
     fs_path_uniforms_t uniforms = {0};
 
     // Decr any paths from the last clip that are gone.
@@ -933,7 +940,7 @@ void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
     auto sokolPaint = static_cast<SokolRenderPaint*>(paint);
 
     applyClipping();
-    vs_path_params_t vs_params;
+    vs_path_params_t vs_params = {.fillType = 0};
     const Mat2D& world = transform();
 
     vs_params.mvp = m_Projection * world;
