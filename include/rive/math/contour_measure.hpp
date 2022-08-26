@@ -15,7 +15,7 @@ namespace rive {
 class ContourMeasure : public RefCnt {
 public:
     static constexpr unsigned kMaxDot30 = (1 << 30) - 1;
-    static constexpr float kInvScaleD30 = 1.0f / kMaxDot30;
+    static constexpr float kInvScaleD30 = 1.0f / (float)kMaxDot30;
 
     // Deliberately making this pack well (12 bytes)
     struct Segment {
