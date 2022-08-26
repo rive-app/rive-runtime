@@ -46,10 +46,6 @@ if [[ $RENDERER = "tess" ]] && [[ ! -d "$DEPENDENCIES/libpng" ]]; then
     popd
 fi
 
-pushd ../../../build/macosx
-./build_rive.sh $CONFIG
-popd
-
 if [ $RENDERER = "skia" ]; then
     pushd ../../../skia/renderer/build/macosx
     ./build_skia_renderer.sh text $@

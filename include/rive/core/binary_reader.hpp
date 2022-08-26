@@ -26,6 +26,7 @@ public:
     bool reachedEnd() const;
 
     size_t lengthInBytes() const;
+    const uint8_t* position() const;
 
     std::string readString();
     Span<const uint8_t> readBytes();

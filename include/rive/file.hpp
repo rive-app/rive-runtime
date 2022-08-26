@@ -6,6 +6,7 @@
 #include "rive/factory.hpp"
 #include "rive/file_asset_resolver.hpp"
 #include <vector>
+#include <set>
 
 ///
 /// Default namespace for Rive Cpp runtime code.
@@ -93,6 +94,17 @@ public:
     /// @returns the artboard at the specified index, or the nullptr if the
     /// index is out of range.
     Artboard* artboard(size_t index) const;
+
+#ifdef WITH_RIVE_TOOLS
+    /// Strips FileAssetContents for FileAssets of given typeKeys.
+    /// @param data the raw data of the file.
+    /// @param result is an optional status result.
+    /// @returns the data buffer of the file with the FileAssetContents objects
+    /// stripped out.
+    static const std::vector<uint8_t> stripAssets(Span<const uint8_t> data,
+                                                  std::set<uint16_t> typeKeys,
+                                                  ImportResult* result = nullptr);
+#endif
 
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);

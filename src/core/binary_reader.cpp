@@ -13,6 +13,7 @@ bool BinaryReader::reachedEnd() const {
 }
 
 size_t BinaryReader::lengthInBytes() const { return m_Bytes.size(); }
+const uint8_t* BinaryReader::position() const { return m_Position; }
 
 bool BinaryReader::didOverflow() const { return m_Overflowed; }
 

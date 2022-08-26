@@ -103,6 +103,9 @@ project "rive"
         defines {"NDEBUG"}
         optimize "On"
 
+    filter {"options:with_rive_tools" }
+        defines {"WITH_RIVE_TOOLS"}
+
 newoption {
     trigger = "variant",
     value = "type",
@@ -125,4 +128,9 @@ newoption {
         { "arm64" }
     }
 
+}
+
+newoption {
+    trigger = "with_rive_tools",
+    description = "Enables tools usually not necessary for runtime."
 }

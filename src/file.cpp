@@ -26,6 +26,8 @@
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/blend_state_1d.hpp"
 #include "rive/animation/blend_state_direct.hpp"
+#include "rive/assets/file_asset.hpp"
+#include "rive/assets/file_asset_contents.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -287,3 +289,51 @@ std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const {
     auto ab = this->artboard(name);
     return ab ? ab->instance() : nullptr;
 }
+
+#ifdef WITH_RIVE_TOOLS
+const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
+                                             std::set<uint16_t> typeKeys,
+                                             ImportResult* result) {
+    std::vector<uint8_t> strippedData;
+    strippedData.reserve(bytes.size());
+    BinaryReader reader(bytes);
+    RuntimeHeader header;
+    if (!RuntimeHeader::read(reader, header)) {
+        if (result) {
+            *result = ImportResult::malformed;
+        }
+
+    } else if (header.majorVersion() != majorVersion) {
+        if (result) {
+            *result = ImportResult::unsupportedVersion;
+        }
+    } else {
+        strippedData.insert(strippedData.end(), bytes.data(), reader.position());
+        const uint8_t* from = reader.position();
+        const uint8_t* to = reader.position();
+        uint16_t lastAssetType = 0;
+        while (!reader.reachedEnd()) {
+            auto object = readRuntimeObject(reader, header);
+            if (object == nullptr) {
+                continue;
+            }
+            if (object->is<FileAssetBase>()) {
+                lastAssetType = object->coreType();
+            }
+            if (object->is<FileAssetContents>() && typeKeys.find(lastAssetType) != typeKeys.end()) {
+                if (from != to) {
+                    strippedData.insert(strippedData.end(), from, to);
+                }
+                from = reader.position();
+            }
+            delete object;
+            to = reader.position();
+        }
+        if (from != to) {
+            strippedData.insert(strippedData.end(), from, to);
+        }
+        *result = ImportResult::success;
+    }
+    return strippedData;
+}
+#endif

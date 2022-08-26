@@ -2,10 +2,12 @@
 #include <rive/node.hpp>
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
+#include <rive/assets/image_asset.hpp>
 #include "utils/no_op_renderer.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <cstring>
 
 TEST_CASE("file can be read", "[file]") {
     RenderObjectLeakChecker checker;
@@ -122,6 +124,46 @@ TEST_CASE("long name in object is parsed correctly", "[file]") {
 
     // Expect all object in file to be loaded, in this case 7
     REQUIRE(artboard->objects().size() == 7);
+}
+
+TEST_CASE("file with in-band images can have the stripped", "[file]") {
+    RenderObjectLeakChecker checker;
+    FILE* fp = fopen("../../test/assets/jellyfish_test.riv", "rb");
+    REQUIRE(fp != nullptr);
+
+    fseek(fp, 0, SEEK_END);
+    const size_t length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    std::vector<uint8_t> bytes(length);
+    REQUIRE(fread(bytes.data(), 1, length, fp) == length);
+    fclose(fp);
+
+    rive::ImportResult result;
+    auto file = rive::File::import(bytes, &gNoOpFactory, &result);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file.get() != nullptr);
+    REQUIRE(file->artboard() != nullptr);
+
+    // Default artboard should be named Two.
+    REQUIRE(file->artboard()->name() == "Jellyfish");
+
+    // Strip nothing should result in the same file.
+    {
+        rive::ImportResult stripResult;
+        auto strippedBytes = rive::File::stripAssets(bytes, {}, &stripResult);
+        REQUIRE(stripResult == rive::ImportResult::success);
+        REQUIRE(bytes.size() == strippedBytes.size());
+        REQUIRE(std::memcmp(bytes.data(), strippedBytes.data(), bytes.size()) == 0);
+    }
+
+    // Strip image assets should result in a smaller file.
+    {
+        rive::ImportResult stripResult;
+        auto strippedBytes =
+            rive::File::stripAssets(bytes, {rive::ImageAsset::typeKey}, &stripResult);
+        REQUIRE(stripResult == rive::ImportResult::success);
+        REQUIRE(strippedBytes.size() < bytes.size());
+    }
 }
 
 // TODO:

@@ -90,7 +90,7 @@ files {
     "../../utils/**.cpp", -- no_op utils
 }
 
-defines {"TESTING", "ENABLE_QUERY_FLAT_VERTICES"}
+defines {"TESTING", "ENABLE_QUERY_FLAT_VERTICES", "WITH_RIVE_TOOLS"}
 
 filter "configurations:debug"
 defines {"DEBUG"}
