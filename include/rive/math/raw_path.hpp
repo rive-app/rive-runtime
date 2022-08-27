@@ -31,6 +31,9 @@ public:
     RawPath() {}
     ~RawPath() {}
 
+    bool operator==(const RawPath& o) const;
+    bool operator!=(const RawPath& o) const { return !(*this == o); }
+
     bool empty() const { return m_Points.empty(); }
     AABB bounds() const;
 
@@ -76,6 +79,8 @@ public:
     void addRect(const AABB&, PathDirection = PathDirection::cw);
     void addOval(const AABB&, PathDirection = PathDirection::cw);
     void addPoly(Span<const Vec2D>, bool isClosed);
+
+    void addPath(const RawPath&, const Mat2D* = nullptr);
 
     class Iter {
         const Vec2D* m_currPts;

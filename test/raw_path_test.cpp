@@ -235,3 +235,65 @@ TEST_CASE("backup", "[rawpath]") {
     REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
     REQUIRE(rec.pts == move_pts);
 }
+
+TEST_CASE("addPath", "[rawpath]") {
+    using PathMaker = void (*)(RawPath * sink);
+
+    const PathMaker makers[] = {
+        [](RawPath* sink) {},
+        [](RawPath* sink) {
+            sink->moveTo(1, 2);
+            sink->lineTo(3, 4);
+        },
+        [](RawPath* sink) {
+            sink->moveTo(1, 2);
+            sink->lineTo(3, 4);
+            sink->close();
+        },
+        [](RawPath* sink) {
+            sink->moveTo(1, 2);
+            sink->lineTo(3, 4);
+            sink->quadTo(5, 6, 7, 8);
+            sink->cubicTo(9, 10, 11, 12, 13, 14);
+            sink->close();
+        },
+    };
+    constexpr size_t N = sizeof(makers) / sizeof(makers[0]);
+
+    auto direct = [](PathMaker m0, PathMaker m1, const Mat2D* mx) {
+        RawPath p;
+        m0(&p);
+        m1(&p);
+        if (mx) {
+            p.transformInPlace(*mx);
+        }
+        return p;
+    };
+    auto useadd = [](PathMaker m0, PathMaker m1, const Mat2D* mx) {
+        RawPath p;
+
+        RawPath tmp;
+        m0(&tmp);
+        p.addPath(tmp, mx);
+
+        tmp.reset();
+        m1(&tmp);
+        p.addPath(tmp, mx);
+        return p;
+    };
+
+    for (auto i = 0; i < N; ++i) {
+        for (auto j = 0; j < N; ++j) {
+            RawPath p0, p1;
+
+            p0 = direct(makers[i], makers[j], nullptr);
+            p1 = useadd(makers[i], makers[j], nullptr);
+            REQUIRE(p0 == p1);
+
+            auto mx = Mat2D::fromScale(2, 3);
+            p0 = direct(makers[i], makers[j], &mx);
+            p1 = useadd(makers[i], makers[j], &mx);
+            REQUIRE(p0 == p1);
+        }
+    }
+}

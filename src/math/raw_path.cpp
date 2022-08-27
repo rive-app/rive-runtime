@@ -4,6 +4,8 @@
 
 #include "rive/math/raw_path.hpp"
 #include <cmath>
+#include <cstring>
+#include <algorithm>
 
 using namespace rive;
 
@@ -12,6 +14,10 @@ RawPath::RawPath(const Vec2D* points,
                  const PathVerb* verbs,
                  std::size_t verbCount) :
     m_Points(points, points + pointCount), m_Verbs(verbs, verbs + verbCount) {}
+
+bool RawPath::operator==(const RawPath& o) const {
+    return m_Points == o.m_Points && m_Verbs == o.m_Verbs;
+}
 
 AABB RawPath::bounds() const {
     if (this->empty()) {
@@ -164,6 +170,21 @@ void RawPath::addPoly(Span<const Vec2D> span, bool isClosed) {
     }
     if (isClosed) {
         close();
+    }
+}
+
+void RawPath::addPath(const RawPath& src, const Mat2D* mat) {
+    m_Verbs.insert(m_Verbs.end(), src.m_Verbs.cbegin(), src.m_Verbs.cend());
+
+    if (mat) {
+        const auto oldPointCount = m_Points.size();
+        m_Points.resize(oldPointCount + src.m_Points.size());
+        Vec2D* dst = m_Points.data() + oldPointCount;
+        for (auto i = 0; i < src.m_Points.size(); ++i) {
+            dst[i] = *mat * src.m_Points[i];
+        }
+    } else {
+        m_Points.insert(m_Points.end(), src.m_Points.cbegin(), src.m_Points.cend());
     }
 }
 
