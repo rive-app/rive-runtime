@@ -18,6 +18,8 @@
 
 namespace rive {
 
+class CommandPath;
+
 class RawPath {
 public:
     std::vector<Vec2D> m_Points;
@@ -130,6 +132,9 @@ public:
         }
         return dst;
     }
+
+    // Utility for pouring a RawPath into a CommandPath
+    void addTo(CommandPath*) const;
 };
 
 } // namespace rive

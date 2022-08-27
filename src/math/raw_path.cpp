@@ -237,3 +237,20 @@ void RawPath::rewind() {
     m_Points.clear();
     m_Verbs.clear();
 }
+
+///////////////////////////////////
+
+#include "rive/command_path.hpp"
+
+void RawPath::addTo(CommandPath* result) const {
+    RawPath::Iter iter(*this);
+    while (auto rec = iter.next()) {
+        switch (rec.verb) {
+            case PathVerb::move: result->move(rec.pts[0]); break;
+            case PathVerb::line: result->line(rec.pts[0]); break;
+            case PathVerb::quad: assert(false); break;
+            case PathVerb::cubic: result->cubic(rec.pts[0], rec.pts[1], rec.pts[2]); break;
+            case PathVerb::close: result->close(); break;
+        }
+    }
+}
