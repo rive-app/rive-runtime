@@ -26,12 +26,8 @@ public:
     std::vector<PathVerb> m_Verbs;
 
     // Construct a RawPath from count points and verbs.
-    RawPath(const Vec2D* points,
-            std::size_t pointCount,
-            const PathVerb* verbs,
-            std::size_t verbCount);
+    RawPath(Span<const Vec2D> points, Span<const PathVerb> verbs);
     RawPath() {}
-    ~RawPath() {}
 
     bool operator==(const RawPath& o) const;
     bool operator!=(const RawPath& o) const { return !(*this == o); }

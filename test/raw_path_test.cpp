@@ -297,3 +297,26 @@ TEST_CASE("addPath", "[rawpath]") {
         }
     }
 }
+
+TEST_CASE("factory", "[rawpath]") {
+    // clang-format off
+    const Vec2D pts[] = {
+        {1, 2},
+        {2, 3},
+        {4, 5}, {6, 7}, {8, 9},
+    };
+    const PathVerb vbs[] = {
+        PathVerb::move, PathVerb::line, PathVerb::cubic, PathVerb::close
+    };
+    // clang-format on
+
+    RawPath path0(pts, vbs);
+
+    RawPath path1;
+    path1.move(pts[0]);
+    path1.line(pts[1]);
+    path1.cubic(pts[2], pts[3], pts[4]);
+    path1.close();
+
+    REQUIRE(path0 == path1);
+}

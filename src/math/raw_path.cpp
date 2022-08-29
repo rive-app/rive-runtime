@@ -9,11 +9,8 @@
 
 using namespace rive;
 
-RawPath::RawPath(const Vec2D* points,
-                 std::size_t pointCount,
-                 const PathVerb* verbs,
-                 std::size_t verbCount) :
-    m_Points(points, points + pointCount), m_Verbs(verbs, verbs + verbCount) {}
+RawPath::RawPath(Span<const Vec2D> points, Span<const PathVerb> verbs) :
+    m_Points(points.begin(), points.end()), m_Verbs(verbs.begin(), verbs.end()) {}
 
 bool RawPath::operator==(const RawPath& o) const {
     return m_Points == o.m_Points && m_Verbs == o.m_Verbs;
