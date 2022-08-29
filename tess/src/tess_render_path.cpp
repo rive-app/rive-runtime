@@ -9,9 +9,7 @@ TessRenderPath::TessRenderPath() : m_segmentedContour(contourThreshold) {}
 TessRenderPath::TessRenderPath(Span<const Vec2D> points,
                                Span<const PathVerb> verbs,
                                FillRule fillRule) :
-    m_rawPath(points.data(), points.size(), verbs.data(), verbs.size()),
-    m_fillRule(fillRule),
-    m_segmentedContour(contourThreshold) {}
+    m_rawPath(points, verbs), m_fillRule(fillRule), m_segmentedContour(contourThreshold) {}
 
 TessRenderPath::~TessRenderPath() {}
 
