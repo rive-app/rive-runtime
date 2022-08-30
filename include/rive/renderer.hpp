@@ -72,13 +72,16 @@ class RenderImage {
 protected:
     int m_Width = 0;
     int m_Height = 0;
+    Mat2D m_uvTransform;
 
 public:
     RenderImage();
+    RenderImage(const Mat2D& uvTransform);
     virtual ~RenderImage();
 
     int width() const { return m_Width; }
     int height() const { return m_Height; }
+    const Mat2D& uvTransform() const { return m_uvTransform; }
 };
 
 class RenderPath : public CommandPath {

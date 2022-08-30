@@ -20,6 +20,7 @@ public:
     bool decode(Span<const uint8_t>, Factory*) override;
     std::string fileExtension() override;
     RenderImage* renderImage() const { return m_RenderImage.get(); }
+    void renderImage(std::unique_ptr<RenderImage> renderImage);
 };
 } // namespace rive
 

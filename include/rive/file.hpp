@@ -80,6 +80,8 @@ public:
     size_t artboardCount() const { return m_Artboards.size(); }
     std::string artboardNameAt(size_t index) const;
 
+    std::vector<const FileAsset*> assets() const;
+
     // Instances
     std::unique_ptr<ArtboardInstance> artboardDefault() const;
     std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;

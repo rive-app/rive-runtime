@@ -16,6 +16,8 @@ libpng = dependencies .. '/libpng'
 if _OPTIONS.renderer == 'tess' then
     dofile('premake5_libpng.lua')
     dofile(path.join(path.getabsolute(rive_tess) .. '/build', 'premake5_tess.lua'))
+else
+    dofile(path.join(path.getabsolute(rive) .. '/build', 'premake5.lua'))
 end
 
 project 'rive_viewer'
@@ -30,12 +32,12 @@ do
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
 
-    defines { "RIVE_TEXT" }
+    defines {'RIVE_TEXT'}
 
     includedirs {
         '../include',
         rive .. '/include',
-        rive .. '/skia/renderer/include',  -- for renderfont backends
+        rive .. '/skia/renderer/include', -- for renderfont backends
         rive_thirdparty .. '/externals/harfbuzz/src',
         dependencies,
         dependencies .. '/sokol',
@@ -44,20 +46,19 @@ do
 
     links {
         'rive',
-        'rive_harfbuzz',
+        'rive_harfbuzz'
     }
 
     libdirs {
         rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}',
-        rive_thirdparty .. '/harfbuzz/build/%{cfg.buildcfg}/bin',
+        rive_thirdparty .. '/harfbuzz/build/%{cfg.buildcfg}/bin'
     }
 
     files {
         '../src/**.cpp',
-        '../../utils/rive_utf.cpp',
+        rive .. '/utils/**.cpp',
         rive .. '/skia/renderer/src/renderfont_coretext.cpp',
         rive .. '/skia/renderer/src/renderfont_hb.cpp',
-        rive .. '/utils/rive_utf.cpp',
         dependencies .. '/imgui/imgui.cpp',
         dependencies .. '/imgui/imgui_widgets.cpp',
         dependencies .. '/imgui/imgui_tables.cpp',
@@ -213,7 +214,7 @@ do
             skia .. '/include/core',
             skia .. '/include/effects',
             skia .. '/include/gpu',
-            skia .. '/include/config',
+            skia .. '/include/config'
         }
         defines {
             'RIVE_RENDERER_SKIA'
@@ -224,7 +225,7 @@ do
         }
         links {
             'skia',
-            'rive_skia_renderer',
+            'rive_skia_renderer'
         }
     end
 

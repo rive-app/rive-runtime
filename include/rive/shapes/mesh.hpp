@@ -33,6 +33,11 @@ public:
 
     void updateVertexRenderBuffer(Renderer* renderer);
     void markSkinDirty() override;
+    Core* clone() const override;
+
+    /// Initialize the any buffers that will be shared amongst instances (the
+    /// instance are guaranteed to use the same RenderImage).
+    void initializeSharedBuffers(RenderImage* renderImage);
 
 #ifdef TESTING
     std::vector<MeshVertex*>& vertices() { return m_Vertices; }

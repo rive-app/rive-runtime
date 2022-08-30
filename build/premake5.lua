@@ -1,6 +1,8 @@
 workspace "rive"
     configurations {"debug", "release"}
-
+    filter {"options:with_rive_tools" }
+        defines {"WITH_RIVE_TOOLS"}
+        
 WINDOWS_CLANG_CL_SUPPRESSED_WARNINGS = {
     "-Wno-c++98-compat",
     "-Wno-c++98-compat-pedantic",
@@ -103,8 +105,6 @@ project "rive"
         defines {"NDEBUG"}
         optimize "On"
 
-    filter {"options:with_rive_tools" }
-        defines {"WITH_RIVE_TOOLS"}
 
 newoption {
     trigger = "variant",

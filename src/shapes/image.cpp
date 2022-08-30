@@ -5,6 +5,7 @@
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/shapes/mesh.hpp"
+#include "rive/artboard.hpp"
 
 using namespace rive;
 
@@ -74,6 +75,12 @@ void Image::assets(const std::vector<FileAsset*>& assets) {
     auto asset = assets[assetId()];
     if (asset->is<ImageAsset>()) {
         m_ImageAsset = asset->as<ImageAsset>();
+
+        // If we have a mesh and we're in the source artboard, let's initialize
+        // the mesh buffers.
+        if (m_Mesh != nullptr && !artboard()->isInstance()) {
+            m_Mesh->initializeSharedBuffers(m_ImageAsset->renderImage());
+        }
     }
 }
 

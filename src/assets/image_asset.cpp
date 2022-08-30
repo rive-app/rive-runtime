@@ -14,4 +14,8 @@ bool ImageAsset::decode(Span<const uint8_t> data, Factory* factory) {
     return m_RenderImage != nullptr;
 }
 
+void ImageAsset::renderImage(std::unique_ptr<RenderImage> renderImage) {
+    m_RenderImage = std::move(renderImage);
+}
+
 std::string ImageAsset::fileExtension() { return "png"; }

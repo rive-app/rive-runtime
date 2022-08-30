@@ -290,6 +290,14 @@ std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const {
     return ab ? ab->instance() : nullptr;
 }
 
+std::vector<const FileAsset*> File::assets() const {
+    std::vector<const FileAsset*> assets;
+    for (auto itr = m_FileAssets.begin(); itr != m_FileAssets.end(); itr++) {
+        assets.push_back(itr->get());
+    }
+    return assets;
+}
+
 #ifdef WITH_RIVE_TOOLS
 const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
                                              std::set<uint16_t> typeKeys,

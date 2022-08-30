@@ -15,9 +15,19 @@ ViewerSokolFactory::decodeImage(rive::Span<const uint8_t> bytes) {
             bitmap->pixelFormat(Bitmap::PixelFormat::RGBA);
         }
 
-        return std::make_unique<rive::SokolRenderImage>(bitmap->bytes(),
+        // In this case the image is in-band and the imageGpuResource is only
+        // used once by the unique SokolRenderImage. We introduced this
+        // abstraction because when the image is loaded externally (say by
+        // something that built up an atlas) the image gpu resource may be
+        // shared by multiple RenderImage referenced by multiple Rive objects.
+        auto imageGpuResource = rive::rcp<rive::SokolRenderImageResource>(
+            new rive::SokolRenderImageResource(bitmap->bytes(), bitmap->width(), bitmap->height()));
+
+        static rive::Mat2D identity;
+        return std::make_unique<rive::SokolRenderImage>(imageGpuResource,
                                                         bitmap->width(),
-                                                        bitmap->height());
+                                                        bitmap->height(),
+                                                        identity);
     }
     return nullptr;
 }

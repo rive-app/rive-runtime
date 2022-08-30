@@ -10,18 +10,41 @@
 
 namespace rive {
 
-class SokolRenderImage : public RenderImage {
+// The actual graphics device image.
+class SokolRenderImageResource : public RefCnt {
 private:
-    sg_image m_image;
-    sg_buffer m_vertexBuffer;
+    sg_image m_gpuResource;
 
 public:
     // bytes is expected to be tightly packed RGBA*width*height.
-    SokolRenderImage(const uint8_t* bytes, uint32_t width, uint32_t height);
+    SokolRenderImageResource(const uint8_t* bytes, uint32_t width, uint32_t height);
+    ~SokolRenderImageResource();
+
+    sg_image image() const { return m_gpuResource; }
+};
+
+// The unique render image associated with a given source Rive asset. Can be stored in sub-region of
+// an actual graphics device image (SokolRenderImageResource).
+class SokolRenderImage : public RenderImage {
+private:
+    rcp<SokolRenderImageResource> m_gpuImage;
+    sg_buffer m_vertexBuffer;
+    sg_buffer m_uvBuffer;
+
+public:
+    // Needed by std::unique_ptr
+    // SokolRenderImage() {}
+
+    SokolRenderImage(rcp<SokolRenderImageResource> image,
+                     uint32_t width,
+                     uint32_t height,
+                     const Mat2D& uvTransform);
+
     ~SokolRenderImage() override;
 
-    sg_image image() const { return m_image; }
+    sg_image image() const { return m_gpuImage->image(); }
     sg_buffer vertexBuffer() const { return m_vertexBuffer; }
+    sg_buffer uvBuffer() const { return m_uvBuffer; }
 };
 
 class SokolTessRenderer : public TessRenderer {
@@ -46,7 +69,6 @@ private:
     sg_pipeline m_incClipPipeline;
     sg_pipeline m_decClipPipeline;
     sg_buffer m_boundsIndices;
-    sg_buffer m_defaultUV;
 
     std::vector<SubPath> m_ClipPaths;
 

@@ -467,24 +467,9 @@ SokolTessRenderer::SokolTessRenderer() {
         .type = SG_BUFFERTYPE_INDEXBUFFER,
         .data = SG_RANGE(indices),
     });
-
-    // The UV buffer used by drawImage. Consider this the "default uv
-    // vertex buffer" used when a mesh isn't provided by Rive.
-    Vec2D defUV[] = {
-        Vec2D(0.0f, 0.0f),
-        Vec2D(1.0f, 0.0f),
-        Vec2D(1.0f, 1.0f),
-        Vec2D(0.0f, 1.0f),
-    };
-
-    m_defaultUV = sg_make_buffer((sg_buffer_desc){
-        .type = SG_BUFFERTYPE_VERTEXBUFFER,
-        .data = SG_RANGE(defUV),
-    });
 }
 
 SokolTessRenderer::~SokolTessRenderer() {
-    sg_destroy_buffer(m_defaultUV);
     sg_destroy_buffer(m_boundsIndices);
     sg_destroy_pipeline(m_meshPipeline);
     sg_destroy_pipeline(m_incClipPipeline);
@@ -554,7 +539,7 @@ void SokolTessRenderer::drawImage(const RenderImage* image, BlendMode, float opa
     setPipeline(m_meshPipeline);
     sg_bindings bind = {
         .vertex_buffers[0] = sokolImage->vertexBuffer(),
-        .vertex_buffers[1] = m_defaultUV,
+        .vertex_buffers[1] = sokolImage->uvBuffer(),
         .index_buffer = m_boundsIndices,
         .fs_images[SLOT_tex] = sokolImage->image(),
     };
@@ -955,13 +940,24 @@ void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
     static_cast<SokolRenderPaint*>(paint)->draw(vs_params, static_cast<SokolRenderPath*>(path));
 }
 
-SokolRenderImage::SokolRenderImage(const uint8_t* bytes, uint32_t width, uint32_t height) :
-    m_image(sg_make_image((sg_image_desc){
+SokolRenderImageResource::SokolRenderImageResource(const uint8_t* bytes,
+                                                   uint32_t width,
+                                                   uint32_t height) :
+    m_gpuResource(sg_make_image((sg_image_desc){
         .width = (int)width,
         .height = (int)height,
         .data.subimage[0][0] = {bytes, width * height * 4},
         .pixel_format = SG_PIXELFORMAT_RGBA8,
-    }))
+    })) {}
+SokolRenderImageResource::~SokolRenderImageResource() { sg_destroy_image(m_gpuResource); }
+
+SokolRenderImage::SokolRenderImage(rcp<SokolRenderImageResource> image,
+                                   uint32_t width,
+                                   uint32_t height,
+                                   const Mat2D& uvTransform) :
+
+    RenderImage(uvTransform),
+    m_gpuImage(image)
 
 {
     float halfWidth = width / 2.0f;
@@ -976,9 +972,21 @@ SokolRenderImage::SokolRenderImage(const uint8_t* bytes, uint32_t width, uint32_
         .type = SG_BUFFERTYPE_VERTEXBUFFER,
         .data = SG_RANGE(points),
     });
+
+    Vec2D uv[] = {
+        uvTransform * Vec2D(0.0f, 0.0f),
+        uvTransform * Vec2D(1.0f, 0.0f),
+        uvTransform * Vec2D(1.0f, 1.0f),
+        uvTransform * Vec2D(0.0f, 1.0f),
+    };
+
+    m_uvBuffer = sg_make_buffer((sg_buffer_desc){
+        .type = SG_BUFFERTYPE_VERTEXBUFFER,
+        .data = SG_RANGE(uv),
+    });
 }
 
 SokolRenderImage::~SokolRenderImage() {
     sg_destroy_buffer(m_vertexBuffer);
-    sg_destroy_image(m_image);
+    sg_destroy_buffer(m_uvBuffer);
 }

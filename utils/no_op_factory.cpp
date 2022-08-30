@@ -73,5 +73,5 @@ std::unique_ptr<RenderPaint> NoOpFactory::makeRenderPaint() {
 }
 
 std::unique_ptr<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>) {
-    return std::make_unique<NoOpRenderImage>();
+    return std::unique_ptr<NoOpRenderImage>();
 }

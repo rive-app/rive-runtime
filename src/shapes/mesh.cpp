@@ -6,6 +6,7 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/span.hpp"
+#include "rive/assets/image_asset.hpp"
 #include <limits>
 
 using namespace rive;
@@ -15,6 +16,7 @@ void Mesh::markDrawableDirty() {
     if (skin() != nullptr) {
         skin()->addDirt(ComponentDirt::Skin);
     }
+
     addDirt(ComponentDirt::Vertices);
 }
 
@@ -70,30 +72,36 @@ void Mesh::copyTriangleIndexBytes(const MeshBase& object) {
 /// Called whenever a bone moves that is connected to the skin.
 void Mesh::markSkinDirty() { addDirt(ComponentDirt::Vertices); }
 
+Core* Mesh::clone() const {
+    auto clone = static_cast<Mesh*>(MeshBase::clone());
+    clone->m_UVRenderBuffer = m_UVRenderBuffer;
+    clone->m_IndexRenderBuffer = m_IndexRenderBuffer;
+    return clone;
+}
+
+void Mesh::initializeSharedBuffers(RenderImage* renderImage) {
+    Mat2D uvTransform = renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
+
+    std::vector<float> uv = std::vector<float>(m_Vertices.size() * 2);
+    std::size_t index = 0;
+
+    for (auto vertex : m_Vertices) {
+        Vec2D xformedUV = uvTransform * Vec2D(vertex->u(), vertex->v());
+        uv[index++] = xformedUV.x;
+        uv[index++] = xformedUV.y;
+    }
+
+    auto factory = artboard()->factory();
+    m_UVRenderBuffer = factory->makeBufferF32(uv);
+    m_IndexRenderBuffer = factory->makeBufferU16(*m_IndexBuffer);
+}
+
 void Mesh::buildDependencies() {
     Super::buildDependencies();
     if (skin() != nullptr) {
         skin()->addDependent(this);
     }
     parent()->addDependent(this);
-
-    // TODO: This logic really needs to move to a "intializeGraphics/Renderer"
-    // method that is passed a reference to the Renderer.
-
-    // TODO: if this is an instance, share the index and uv buffer from the
-    // source. Consider storing an m_SourceMesh.
-
-    std::vector<float> uv = std::vector<float>(m_Vertices.size() * 2);
-    std::size_t index = 0;
-
-    for (auto vertex : m_Vertices) {
-        uv[index++] = vertex->u();
-        uv[index++] = vertex->v();
-    }
-
-    auto factory = artboard()->factory();
-    m_UVRenderBuffer = factory->makeBufferF32(uv);
-    m_IndexRenderBuffer = factory->makeBufferU16(*m_IndexBuffer);
 }
 
 void Mesh::update(ComponentDirt value) {

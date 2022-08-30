@@ -12,7 +12,9 @@
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/assets/image_asset.hpp"
 #include "viewer/viewer_content.hpp"
+#include "viewer/sample_tools/sample_atlas_packer.hpp"
 
 constexpr int REQUEST_DEFAULT_SCENE = -1;
 
@@ -177,6 +179,60 @@ public:
     }
 
     void handleImgui() override {
+        // For now the atlas packer only works with tess as it compiles in our
+        // Bitmap decoder.
+#ifdef RIVE_RENDERER_TESS
+        if (ImGui::BeginMainMenuBar()) {
+            if (ImGui::BeginMenu("Tools")) {
+                if (ImGui::MenuItem("Build Atlas")) {
+                    // Create an atlas packer.
+                    rive::SampleAtlasPacker atlasPacker(2048, 2048);
+
+                    // Have it pack the riv file, note that we need to re-load
+                    // the file as the packer internally sets up a custom
+                    // factory to process the images.
+                    auto rivFileBytes = LoadFile(m_Filename.c_str());
+                    atlasPacker.pack(rivFileBytes);
+
+                    // The packer now contains the new atlas(es) and metadata
+                    // (which image is in which atlas and the transform to apply
+                    // to the UV coordiantes). This is where you'd probably
+                    // serialize these results to new images and some metadata
+                    // format containing the atlas locations.
+
+                    // But for this demo, we're just going to pass this data on
+                    // to the asset resolver used to load the file with no
+                    // in-line images.
+
+                    // On that note, let's strip the images.
+                    rive::ImportResult stripResult;
+                    auto strippedBytes = rive::File::stripAssets(rivFileBytes,
+                                                                 {rive::ImageAsset::typeKey},
+                                                                 &stripResult);
+                    if (stripResult != rive::ImportResult::success) {
+                        printf("Failed to strip images\n");
+                        return;
+                    }
+
+                    // We let the atlas packer handle loading the riv file using
+                    // the previously generated assets. Note that we're loading
+                    // our riv file with the images stripped out of it.
+                    rive::ImportResult loadAtlasedResult;
+
+                    rive::SampleAtlasResolver resolver(&atlasPacker);
+                    if (auto file = rive::File::import(strippedBytes,
+                                                       RiveFactory(),
+                                                       &loadAtlasedResult,
+                                                       &resolver)) {
+                        m_File = std::move(file);
+                        initArtboard(REQUEST_DEFAULT_SCENE);
+                    }
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+#endif
         if (m_ArtboardInstance != nullptr) {
             ImGui::Begin(m_Filename.c_str(), nullptr);
             if (ImGui::ListBox(

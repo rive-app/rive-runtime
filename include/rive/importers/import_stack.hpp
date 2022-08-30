@@ -59,12 +59,15 @@ public:
     }
 
     StatusCode resolve() {
-        for (auto& pair : m_Latests) {
-            StatusCode code = pair.second->resolve();
+        for (auto itr = m_LastAdded.rbegin(); itr != m_LastAdded.rend(); itr++) {
+            StatusCode code = (*itr)->resolve();
+            delete *itr;
             if (code != StatusCode::Ok) {
                 return code;
             }
         }
+        m_Latests.clear();
+        m_LastAdded.clear();
         return StatusCode::Ok;
     }
 

@@ -79,6 +79,9 @@ RenderShader::~RenderShader() { Counter::update(Counter::kShader, -1); }
 RenderPaint::RenderPaint() { Counter::update(Counter::kPaint, 1); }
 RenderPaint::~RenderPaint() { Counter::update(Counter::kPaint, -1); }
 
+RenderImage::RenderImage(const Mat2D& uvTransform) : m_uvTransform(uvTransform) {
+    Counter::update(Counter::kImage, 1);
+}
 RenderImage::RenderImage() { Counter::update(Counter::kImage, 1); }
 RenderImage::~RenderImage() { Counter::update(Counter::kImage, -1); }
 
