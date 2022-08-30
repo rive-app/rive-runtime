@@ -12,12 +12,14 @@ C++ runtime for [Rive](https://rive.app). Provides these runtime features:
 - Example concrete renderer written in C++ with [Skia](https://skia.org/). Skia renderer code is in [skia/renderer/src/skia_renderer.cpp](skia/renderer/src/skia_renderer.cpp).
 
 ## Build System
-We use [premake5](https://premake.github.io/). The Rive dev team primarily works on MacOS. There is some work done by the community to also support Windows and Linux. PRs welcomed for specific platforms you with to support! We encourage you to use premake as it's highly extensible and configurable for a variety of platforms.
+We use [premake5](https://premake.github.io/). The Rive dev team primarily works on MacOS. There is some work done by the community to also support Windows and Linux. PRs welcomed for specific platforms you wish to support! We encourage you to use premake as it's highly extensible and configurable for a variety of platforms.
 
 ## Build
 In the ```rive-cpp``` directory, run ```build.sh``` to debug build and ```build.sh release``` for a release build.
 
 If you've put the `premake5` executable in the `rive-cpp/build` folder, you can run it with `PATH=.:$PATH ./build.sh`
+
+Rive makes use of clang [vector builtins](https://reviews.llvm.org/D111529), which are, as of 2022, still a work in progress. Please use clang and ensure you have the latest version.
 
 ## Building skia projects
 ```

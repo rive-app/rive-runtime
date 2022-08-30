@@ -3,11 +3,14 @@
  */
 
 #include "rive/math/raw_path.hpp"
+
+#include "rive/command_path.hpp"
+#include "rive/math/simd.hpp"
 #include <cmath>
 #include <cstring>
 #include <algorithm>
 
-using namespace rive;
+namespace rive {
 
 RawPath::RawPath(Span<const Vec2D> points, Span<const PathVerb> verbs) :
     m_Points(points.begin(), points.end()), m_Verbs(verbs.begin(), verbs.end()) {}
@@ -17,22 +20,24 @@ bool RawPath::operator==(const RawPath& o) const {
 }
 
 AABB RawPath::bounds() const {
-    if (this->empty()) {
-        return {0, 0, 0, 0};
+    float4 mins, maxes;
+    size_t i;
+    if (m_Points.size() & 1) {
+        mins = maxes = simd::load2f(&m_Points[0].x).xyxy;
+        i = 1;
+    } else {
+        mins = maxes = m_Points.empty() ? float4{0, 0, 0, 0} : simd::load4f(&m_Points[0].x);
+        i = 2;
     }
-
-    float l, t, r, b;
-    l = r = m_Points[0].x;
-    t = b = m_Points[0].y;
-    for (size_t i = 1; i < m_Points.size(); ++i) {
-        const float x = m_Points[i].x;
-        const float y = m_Points[i].y;
-        l = std::min(l, x);
-        r = std::max(r, x);
-        t = std::min(t, y);
-        b = std::max(b, y);
+    for (; i < m_Points.size(); i += 2) {
+        float4 pts = simd::load4f(&m_Points[i].x);
+        mins = simd::min(mins, pts);
+        maxes = simd::max(maxes, pts);
     }
-    return {l, t, r, b};
+    AABB bounds;
+    simd::store(&bounds.minX, simd::min(mins.xy, mins.zw));
+    simd::store(&bounds.maxX, simd::max(maxes.xy, maxes.zw));
+    return bounds;
 }
 
 void RawPath::move(Vec2D a) {
@@ -187,7 +192,6 @@ void RawPath::addPath(const RawPath& src, const Mat2D* mat) {
 
 //////////////////////////////////////////////////////////////////////////
 
-namespace rive {
 int path_verb_to_point_count(PathVerb v) {
     static uint8_t ptCounts[] = {
         1, // move
@@ -201,7 +205,6 @@ int path_verb_to_point_count(PathVerb v) {
     assert(index < sizeof(ptCounts));
     return ptCounts[index];
 }
-} // namespace rive
 
 RawPath::Iter::Rec RawPath::Iter::next() {
     // initialize with "false"
@@ -237,8 +240,6 @@ void RawPath::rewind() {
 
 ///////////////////////////////////
 
-#include "rive/command_path.hpp"
-
 void RawPath::addTo(CommandPath* result) const {
     RawPath::Iter iter(*this);
     while (auto rec = iter.next()) {
@@ -251,3 +252,5 @@ void RawPath::addTo(CommandPath* result) const {
         }
     }
 }
+
+} // namespace rive

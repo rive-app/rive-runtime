@@ -7,6 +7,7 @@
 
 #include <catch.hpp>
 #include <cstdio>
+#include <limits>
 
 using namespace rive;
 
@@ -319,4 +320,37 @@ TEST_CASE("factory", "[rawpath]") {
     path1.close();
 
     REQUIRE(path0 == path1);
+}
+
+TEST_CASE("bounds", "[rawpath]") {
+    RawPath path;
+    AABB bounds;
+    srand(0);
+    const auto randPt = [&] {
+        Vec2D pt = Vec2D(float(rand()), float(rand())) / (float(RAND_MAX) * .5f) - Vec2D(1, 1);
+        bounds.minX = std::min(bounds.minX, pt.x);
+        bounds.minY = std::min(bounds.minY, pt.y);
+        bounds.maxX = std::max(bounds.maxX, pt.x);
+        bounds.maxY = std::max(bounds.maxY, pt.y);
+        return pt;
+    };
+    for (int numVerbs = 1; numVerbs < 1 << 16; numVerbs <<= 1) {
+        path.rewind();
+        bounds.minX = bounds.minY = std::numeric_limits<float>::infinity();
+        bounds.maxX = bounds.maxY = -std::numeric_limits<float>::infinity();
+        for (int i = 0; i < numVerbs; ++i) {
+            switch (rand() % 5) {
+                case 0: path.move(randPt()); break;
+                case 1: path.line(randPt()); break;
+                case 2: path.quad(randPt(), randPt()); break;
+                case 3: path.cubic(randPt(), randPt(), randPt()); break;
+                case 4: path.close(); break;
+            }
+        }
+        AABB pathBounds = path.bounds();
+        REQUIRE(pathBounds.minX == bounds.minX);
+        REQUIRE(pathBounds.minY == bounds.minY);
+        REQUIRE(pathBounds.maxX == bounds.maxX);
+        REQUIRE(pathBounds.maxY == bounds.maxY);
+    }
 }
