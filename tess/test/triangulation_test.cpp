@@ -32,9 +32,9 @@ TEST_CASE("simple triangle path triangulates as expected", "[file]") {
     TestRenderPath shapeRenderPath;
     shapeRenderPath.addRenderPath(&renderPath, identity);
     shapeRenderPath.triangulate();
-    REQUIRE(shapeRenderPath.vertices.size() == 3);
+    REQUIRE(shapeRenderPath.vertices.size() == 4);
     REQUIRE(shapeRenderPath.indices.size() == 3);
-    REQUIRE(shapeRenderPath.indices[0] == 0);
-    REQUIRE(shapeRenderPath.indices[1] == 1);
-    REQUIRE(shapeRenderPath.indices[2] == 2);
+    REQUIRE(shapeRenderPath.indices[0] == 2);
+    REQUIRE(shapeRenderPath.indices[1] == 0);
+    REQUIRE(shapeRenderPath.indices[2] == 1);
 }
