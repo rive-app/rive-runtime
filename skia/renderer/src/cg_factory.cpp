@@ -464,10 +464,8 @@ rcp<RenderShader> CGFactory::makeRadialGradient(float cx,
         new CGRadialGradientRenderShader(cx, cy, radius, colors, stops, count));
 }
 
-std::unique_ptr<RenderPath> CGFactory::makeRenderPath(Span<const Vec2D> points,
-                                                      Span<const PathVerb> verbs,
-                                                      FillRule fillRule) {
-    return std::make_unique<CGRenderPath>(points, verbs, fillRule);
+std::unique_ptr<RenderPath> CGFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule) {
+    return std::make_unique<CGRenderPath>(rawPath.points(), rawPath.verbs(), fillRule);
 }
 
 std::unique_ptr<RenderPath> CGFactory::makeEmptyRenderPath() {

@@ -5,6 +5,7 @@
 #include "viewer/viewer_content.hpp"
 #include "utils/rive_utf.hpp"
 
+#include "rive/math/raw_path.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/factory.hpp"
 #include "rive/render_text.hpp"
@@ -59,11 +60,11 @@ static void warp_in_place(ContourMeasure* meas, RawPath* path) {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<RenderPath> make_rpath(const RawPath& path) {
+static std::unique_ptr<RenderPath> make_rpath(RawPath& path) {
     return ViewerContent::RiveFactory()->makeRenderPath(path, FillRule::nonZero);
 }
 
-static void stroke_path(Renderer* renderer, const RawPath& path, float size, ColorInt color) {
+static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt color) {
     auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
     paint->color(color);
     paint->thickness(size);
@@ -178,7 +179,7 @@ public:
         m_trans = Mat2D::fromTranslate(200, 200) * Mat2D::fromScale(2, 2);
     }
 
-    void draw_warp(Renderer* renderer, const RawPath& warp) {
+    void draw_warp(Renderer* renderer, RawPath& warp) {
         stroke_path(renderer, warp, 0.5, 0xFF00FF00);
 
         auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
@@ -285,8 +286,8 @@ public:
             });
         };
 
-        visit(m_gruns, {0, 0}, [&](const RawPath& rp) {
-            const RawPath* ptr = &rp;
+        visit(m_gruns, {0, 0}, [&](RawPath& rp) {
+            RawPath* ptr = &rp;
             RawPath storage;
             if (m_trackingOneLine) {
                 storage = wrap_path(rp, m_oneLineX, m_flareRadius);

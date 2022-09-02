@@ -17,8 +17,7 @@ static void fillColorBuffer(float* buffer, ColorInt value) {
 class SokolRenderPath : public TessRenderPath {
 public:
     SokolRenderPath() {}
-    SokolRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule fillRule) :
-        TessRenderPath(points, verbs, fillRule) {}
+    SokolRenderPath(RawPath& rawPath, FillRule fillRule) : TessRenderPath(rawPath, fillRule) {}
 
     ~SokolRenderPath() {
         sg_destroy_buffer(m_vertexBuffer);
@@ -125,10 +124,8 @@ public:
 };
 
 // Returns a full-formed RenderPath -- can be treated as immutable
-std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(Span<const Vec2D> points,
-                                                         Span<const PathVerb> verbs,
-                                                         FillRule rule) {
-    return std::make_unique<SokolRenderPath>(points, verbs, rule);
+std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(RawPath& rawPath, FillRule rule) {
+    return std::make_unique<SokolRenderPath>(rawPath, rule);
 }
 
 std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath() {

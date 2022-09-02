@@ -5,6 +5,7 @@
 #include "viewer/viewer_content.hpp"
 #include "utils/rive_utf.hpp"
 
+#include "rive/math/raw_path.hpp"
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/render_text.hpp"
@@ -116,9 +117,10 @@ static rive::rcp<rive::RenderFont> load_fallback_font(rive::Span<const rive::Uni
 static std::unique_ptr<rive::RenderPath> make_line(rive::Factory* factory,
                                                    rive::Vec2D a,
                                                    rive::Vec2D b) {
-    rive::Vec2D pts[] = {a, b};
-    rive::PathVerb vbs[] = {rive::PathVerb::move, rive::PathVerb::line};
-    return factory->makeRenderPath(pts, vbs, rive::FillRule::nonZero);
+    rive::RawPath rawPath;
+    rawPath.move(a);
+    rawPath.line(b);
+    return factory->makeRenderPath(rawPath, rive::FillRule::nonZero);
 }
 
 static void draw_line(rive::Factory* factory, rive::Renderer* renderer, float x) {

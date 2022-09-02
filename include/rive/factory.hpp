@@ -18,6 +18,8 @@
 
 namespace rive {
 
+class RawPath;
+
 class Factory {
 public:
     Factory() {}
@@ -43,9 +45,9 @@ public:
                                                  size_t count) = 0;
 
     // Returns a full-formed RenderPath -- can be treated as immutable
-    virtual std::unique_ptr<RenderPath> makeRenderPath(Span<const Vec2D> points,
-                                                       Span<const PathVerb> verbs,
-                                                       FillRule) = 0;
+    // This call might swap out the arrays backing the points and verbs in the given RawPath, so the
+    // caller can expect it to be in an undefined state upon return.
+    virtual std::unique_ptr<RenderPath> makeRenderPath(RawPath&, FillRule) = 0;
 
     // Deprecated -- working to make RenderPath's immutable
     virtual std::unique_ptr<RenderPath> makeEmptyRenderPath() = 0;
@@ -59,7 +61,6 @@ public:
     // Non-virtual helpers
 
     std::unique_ptr<RenderPath> makeRenderPath(const AABB&);
-    std::unique_ptr<RenderPath> makeRenderPath(const RawPath&, FillRule);
 };
 
 } // namespace rive

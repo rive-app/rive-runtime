@@ -25,10 +25,6 @@ public:
     std::vector<Vec2D> m_Points;
     std::vector<PathVerb> m_Verbs;
 
-    // Construct a RawPath from count points and verbs.
-    RawPath(Span<const Vec2D> points, Span<const PathVerb> verbs);
-    RawPath() {}
-
     bool operator==(const RawPath& o) const;
     bool operator!=(const RawPath& o) const { return !(*this == o); }
 
@@ -40,6 +36,8 @@ public:
     void quad(Vec2D, Vec2D);
     void cubic(Vec2D, Vec2D, Vec2D);
     void close();
+
+    void swap(RawPath&);
 
     // Makes the path empty and frees any memory allocated by the drawing
     // (line, curve, move, close) calls.

@@ -39,7 +39,7 @@ protected:
 
 public:
     TessRenderPath();
-    TessRenderPath(Span<const Vec2D> points, Span<const PathVerb> verbs, FillRule fillRule);
+    TessRenderPath(RawPath&, FillRule);
     ~TessRenderPath();
     void reset() override;
     void fillRule(FillRule value) override;

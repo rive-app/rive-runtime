@@ -31,9 +31,7 @@ public:
                                          const float stops[],     // [count]
                                          size_t count) override;
 
-    std::unique_ptr<RenderPath> makeRenderPath(Span<const Vec2D> points,
-                                               Span<const PathVerb> verbs,
-                                               FillRule) override;
+    std::unique_ptr<RenderPath> makeRenderPath(RawPath&, FillRule) override;
 
     std::unique_ptr<RenderPath> makeEmptyRenderPath() override;
 

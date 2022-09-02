@@ -12,9 +12,6 @@
 
 namespace rive {
 
-RawPath::RawPath(Span<const Vec2D> points, Span<const PathVerb> verbs) :
-    m_Points(points.begin(), points.end()), m_Verbs(verbs.begin(), verbs.end()) {}
-
 bool RawPath::operator==(const RawPath& o) const {
     return m_Points == o.m_Points && m_Verbs == o.m_Verbs;
 }
@@ -224,6 +221,11 @@ void RawPath::Iter::backUp() {
     --m_currVerb;
     const int n = path_verb_to_point_count(*m_currVerb);
     m_currPts -= n;
+}
+
+void RawPath::swap(RawPath& rawPath) {
+    m_Points.swap(rawPath.m_Points);
+    m_Verbs.swap(rawPath.m_Verbs);
 }
 
 void RawPath::reset() {

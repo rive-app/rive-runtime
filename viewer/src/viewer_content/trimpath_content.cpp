@@ -32,11 +32,11 @@ static RawPath make_quad_path(Span<const Vec2D> pts) {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<RenderPath> make_rpath(const RawPath& path) {
+static std::unique_ptr<RenderPath> make_rpath(RawPath& path) {
     return ViewerContent::RiveFactory()->makeRenderPath(path, FillRule::nonZero);
 }
 
-static void stroke_path(Renderer* renderer, const RawPath& path, float size, ColorInt color) {
+static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt color) {
     auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
     paint->color(color);
     paint->thickness(size);
@@ -90,7 +90,7 @@ public:
         cubicpath.cubic(m_pathpts[1], m_pathpts[2], m_pathpts[3]);
         cubicpath.line(m_pathpts[4]);
 
-        const RawPath* ps[] = {&path, &cubicpath};
+        RawPath* ps[] = {&path, &cubicpath};
 
         renderer->save();
         for (auto p : ps) {

@@ -6,10 +6,10 @@ static const float contourThreshold = 1.0f;
 
 using namespace rive;
 TessRenderPath::TessRenderPath() : m_segmentedContour(contourThreshold) {}
-TessRenderPath::TessRenderPath(Span<const Vec2D> points,
-                               Span<const PathVerb> verbs,
-                               FillRule fillRule) :
-    m_rawPath(points, verbs), m_fillRule(fillRule), m_segmentedContour(contourThreshold) {}
+TessRenderPath::TessRenderPath(RawPath& rawPath, FillRule fillRule) :
+    m_fillRule(fillRule), m_segmentedContour(contourThreshold) {
+    m_rawPath.swap(rawPath);
+}
 
 TessRenderPath::~TessRenderPath() {}
 
