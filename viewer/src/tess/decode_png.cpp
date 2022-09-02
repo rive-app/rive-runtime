@@ -1,6 +1,5 @@
 #ifdef RIVE_RENDERER_TESS
 #include "viewer/tess/bitmap_decoder.hpp"
-#include "viewer/tess/pnglibconf.h"
 #include "png.h"
 
 struct EncodedImageBuffer {

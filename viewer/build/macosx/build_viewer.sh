@@ -46,6 +46,12 @@ if [[ $RENDERER = "tess" ]] && [[ ! -d "$DEPENDENCIES/libpng" ]]; then
     popd
 fi
 
+if [[ ! -d "$DEPENDENCIES/harfbuzz" ]]; then
+    pushd $DEPENDENCIES_SCRIPTS
+    ./get_harfbuzz.sh
+    popd
+fi
+
 if [ $RENDERER = "skia" ]; then
     pushd ../../../skia/renderer/build/macosx
     ./build_skia_renderer.sh text $@

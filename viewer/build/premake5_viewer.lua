@@ -7,16 +7,17 @@ configurations {
 dependencies = os.getenv('DEPENDENCIES')
 
 rive = '../../'
-rive_thirdparty = '../../../../third_party'
 rive_tess = '../../tess'
 rive_skia = '../../skia'
 skia = dependencies .. '/skia'
 libpng = dependencies .. '/libpng'
 
+dofile(path.join(path.getabsolute(dependencies) .. '/../..', 'premake5_harfbuzz.lua'))
 if _OPTIONS.renderer == 'tess' then
-    dofile('premake5_libpng.lua')
+    dofile(path.join(path.getabsolute(dependencies) .. '/../..', 'premake5_libpng.lua'))
     dofile(path.join(path.getabsolute(rive_tess) .. '/build', 'premake5_tess.lua'))
 else
+    -- tess renderer includes this
     dofile(path.join(path.getabsolute(rive) .. '/build', 'premake5.lua'))
 end
 
@@ -38,10 +39,10 @@ do
         '../include',
         rive .. '/include',
         rive .. '/skia/renderer/include', -- for renderfont backends
-        rive_thirdparty .. '/externals/harfbuzz/src',
         dependencies,
         dependencies .. '/sokol',
-        dependencies .. '/imgui'
+        dependencies .. '/imgui',
+        dependencies .. '/harfbuzz/src'
     }
 
     links {
@@ -50,8 +51,7 @@ do
     }
 
     libdirs {
-        rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}',
-        rive_thirdparty .. '/harfbuzz/build/%{cfg.buildcfg}/bin'
+        rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}'
     }
 
     files {
@@ -220,8 +220,7 @@ do
             'RIVE_RENDERER_SKIA'
         }
         libdirs {
-            rive_skia .. '/renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}',
-            rive_thirdparty .. '/harfbuzz/build/%{cfg.buildcfg}/bin'
+            rive_skia .. '/renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}'
         }
         links {
             'skia',

@@ -8,14 +8,14 @@ do
     language 'C++'
     cppdialect 'C++17'
     toolset 'clang'
-    targetdir '%{cfg.system}/bin/%{cfg.buildcfg}/'
-    objdir '%{cfg.system}/obj/%{cfg.buildcfg}/'
+    targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
+    objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
     buildoptions {
         '-fno-exceptions',
         '-fno-rtti'
     }
     includedirs {
-        '../include/viewer/tess',
+        './',
         dependencies,
         libpng
     }
@@ -55,8 +55,8 @@ do
     language 'C++'
     cppdialect 'C++17'
     toolset 'clang'
-    targetdir '%{cfg.system}/bin/%{cfg.buildcfg}/'
-    objdir '%{cfg.system}/obj/%{cfg.buildcfg}/'
+    targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
+    objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
     buildoptions {
         '-fno-exceptions',
         '-fno-rtti'

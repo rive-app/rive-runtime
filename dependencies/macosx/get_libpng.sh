@@ -18,6 +18,7 @@ fi
 
 pushd libpng
 git checkout $LIBPNG_STABLE_BRANCH && git fetch && git pull
+mv scripts/pnglibconf.h.prebuilt pnglibconf.h
 popd
 
 ZLIB_REPO=https://github.com/madler/zlib
