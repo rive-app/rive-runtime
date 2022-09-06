@@ -316,7 +316,8 @@ float ContourMeasureIter::addCubicSegs(std::vector<ContourMeasure::Segment>& seg
 }
 
 void ContourMeasureIter::reset(const RawPath& path, float tolerance) {
-    m_iter.reset(path);
+    m_iter = path.begin();
+    m_end = path.end();
     m_srcPoints = path.points().data();
 
     constexpr float kMinTolerance = 1.0f / 16;
@@ -331,53 +332,53 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext() {
     std::vector<Vec2D> pts;
     float distance = 0;
     bool isClosed = false;
-    bool doneWithThisContour = false;
 
-    if (auto rec = m_iter.next()) {
-        assert(rec.verb == PathVerb::move);
-        pts.push_back(rec.pts[0]);
-
-        while (!doneWithThisContour && (rec = m_iter.next())) {
-            float prevDistance = distance;
-            const uint32_t ptIndex = castTo<uint32_t>(pts.size() - 1);
-            switch (rec.verb) {
-                case PathVerb::move:
-                    m_iter.backUp(); // so we can see this verb again the next time
-                    doneWithThisContour = true;
-                    break;
-                case PathVerb::line:
-                    distance += (rec.pts[0] - rec.pts[-1]).length();
-                    if (distance > prevDistance) {
-                        addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kLine}, true);
-                        pts.push_back(rec.pts[0]);
-                    }
-                    break;
-                case PathVerb::quad:
-                    distance = this->addQuadSegs(segs, &rec.pts[-1], ptIndex, distance);
-                    if (distance > prevDistance) {
-                        pts.push_back(rec.pts[0]);
-                        pts.push_back(rec.pts[1]);
-                    }
-                    break;
-                case PathVerb::cubic:
-                    distance = this->addCubicSegs(segs, &rec.pts[-1], ptIndex, distance);
-                    if (distance > prevDistance) {
-                        pts.push_back(rec.pts[0]);
-                        pts.push_back(rec.pts[1]);
-                        pts.push_back(rec.pts[2]);
-                    }
-                    break;
-                case PathVerb::close: {
-                    auto first = pts.front();
-                    distance += (first - pts.back()).length();
-                    if (distance > prevDistance) {
-                        addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kLine}, true);
-                        pts.push_back(first);
-                    }
-                    isClosed = true;
-                    doneWithThisContour = true;
-                } break;
+    for (; m_iter != m_end; ++m_iter) {
+        auto [verb, iterPts] = *m_iter;
+        if (verb == PathVerb::move) {
+            if (!pts.empty()) {
+                break; // We've alredy seen a move. Save this one for next time.
             }
+            pts.push_back(iterPts[0]);
+            continue;
+        }
+        assert(!pts.empty()); // PathVerb::move should have occurred first, and added a point.
+        assert(!isClosed);    // PathVerb::close is always followed by a move or nothing.
+        float prevDistance = distance;
+        const uint32_t ptIndex = castTo<uint32_t>(pts.size() - 1);
+        switch (verb) {
+            case PathVerb::line:
+                distance += (iterPts[1] - iterPts[0]).length();
+                if (distance > prevDistance) {
+                    addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kLine}, true);
+                    pts.push_back(iterPts[1]);
+                }
+                break;
+            case PathVerb::quad:
+                distance = this->addQuadSegs(segs, iterPts, ptIndex, distance);
+                if (distance > prevDistance) {
+                    pts.push_back(iterPts[1]);
+                    pts.push_back(iterPts[2]);
+                }
+                break;
+            case PathVerb::cubic:
+                distance = this->addCubicSegs(segs, iterPts, ptIndex, distance);
+                if (distance > prevDistance) {
+                    pts.push_back(iterPts[1]);
+                    pts.push_back(iterPts[2]);
+                    pts.push_back(iterPts[3]);
+                }
+                break;
+            case PathVerb::close: {
+                auto first = pts.front();
+                distance += (first - iterPts[0]).length();
+                if (distance > prevDistance) {
+                    addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kLine}, true);
+                    pts.push_back(first);
+                }
+                isClosed = true;
+            } break;
+            case PathVerb::move: RIVE_UNREACHABLE; // Handled above.
         }
     }
 
@@ -394,7 +395,7 @@ rcp<ContourMeasure> ContourMeasureIter::next() {
         if ((cm = this->tryNext())) {
             break;
         }
-        if (m_iter.isDone()) {
+        if (m_iter == m_end) {
             break;
         }
     }

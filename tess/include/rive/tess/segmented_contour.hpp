@@ -12,9 +12,6 @@ class RawPath;
 /// Utilty for converting a RawPath into a contour segments.
 class SegmentedContour {
 private:
-    Vec2D m_pen;
-    Vec2D m_penDown;
-    bool m_isPenDown = false;
     std::vector<Vec2D> m_contourPoints;
 
     AABB m_bounds;
@@ -22,8 +19,6 @@ private:
     float m_thresholdSquared;
 
     void addVertex(Vec2D vertex);
-    void penDown();
-    void close();
     void segmentCubic(const Vec2D& from,
                       const Vec2D& fromOut,
                       const Vec2D& toIn,

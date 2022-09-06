@@ -22,9 +22,6 @@ class CommandPath;
 
 class RawPath {
 public:
-    std::vector<Vec2D> m_Points;
-    std::vector<PathVerb> m_Verbs;
-
     bool operator==(const RawPath& o) const;
     bool operator!=(const RawPath& o) const { return !(*this == o); }
 
@@ -78,49 +75,73 @@ public:
 
     void addPath(const RawPath&, const Mat2D* = nullptr);
 
+    // Simple STL-style iterator. To traverse using range-for:
+    //
+    //   for (auto [verb, pts] : rawPath) { ... }
+    //
     class Iter {
-        const Vec2D* m_currPts;
-        const PathVerb* m_currVerb;
-        const PathVerb* m_stopVerb; // 1 past last verb
     public:
-        Iter() : m_currPts(nullptr), m_currVerb(nullptr), m_stopVerb(nullptr) {}
-        Iter(const RawPath& path) { this->reset(path); }
+        Iter() = default;
+        Iter(const PathVerb* verbs, const Vec2D* pts) : m_verbs(verbs), m_pts(pts) {}
 
-        void reset(const RawPath& path) {
-            m_currPts = path.m_Points.data();
-            m_currVerb = path.m_Verbs.data();
-            m_stopVerb = path.m_Verbs.data() + path.m_Verbs.size();
+        bool operator!=(const Iter& that) const { return m_verbs != that.m_verbs; }
+        bool operator==(const Iter& that) const { return m_verbs == that.m_verbs; }
+
+        PathVerb peekVerb() const { return *m_verbs; }
+
+        std::tuple<const PathVerb, const Vec2D* const> operator*() const {
+            PathVerb verb = peekVerb();
+            return {verb, m_pts + PtsBacksetForVerb(verb)};
         }
 
-        // returns true iff next() will return false
-        bool isDone() const { return m_currVerb >= m_stopVerb; }
+        Iter& operator++() { // ++iter
+            m_pts += PtsAdvanceAfterVerb(*m_verbs++);
+            return *this;
+        }
 
-        struct Rec {
-            const Vec2D* pts;
-            int count;
-            PathVerb verb;
+    private:
+        // How much should we advance pts after encountering this verb?
+        constexpr static int PtsAdvanceAfterVerb(PathVerb verb) {
+            switch (verb) {
+                case PathVerb::move: return 1;
+                case PathVerb::line: return 1;
+                case PathVerb::quad: return 2;
+                case PathVerb::cubic: return 3;
+                case PathVerb::close: return 0;
+            }
+            RIVE_UNREACHABLE;
+        }
 
-            operator bool() const { return pts != nullptr; }
-        };
-        Rec next();
+        // Where is p0 relative to our m_pts pointer? We find the start point of segments by
+        // peeking backwards from the current point, which works as long as there is always a
+        // PathVerb::move before any geometry. (injectImplicitMoveToIfNeeded() guarantees this
+        // to be the case.)
+        constexpr static int PtsBacksetForVerb(PathVerb verb) {
+            switch (verb) {
+                case PathVerb::move: return 0;
+                case PathVerb::line: return -1;
+                case PathVerb::quad: return -1;
+                case PathVerb::cubic: return -1;
+                case PathVerb::close: return -1;
+            }
+            RIVE_UNREACHABLE;
+        }
 
-        void backUp();
+        const PathVerb* m_verbs;
+        const Vec2D* m_pts;
     };
+    Iter begin() const { return {m_Verbs.data(), m_Points.data()}; }
+    Iter end() const { return {m_Verbs.data() + m_Verbs.size(), nullptr}; }
 
     template <typename Handler> RawPath morph(Handler proc) const {
         RawPath dst;
         // todo: dst.reserve(src.ptCount, src.verbCount);
-        RawPath::Iter iter(*this);
-        while (auto rec = iter.next()) {
-            Vec2D pts[3];
-            for (int i = 0; i < rec.count; ++i) {
-                pts[i] = proc(rec.pts[i]);
-            }
-            switch (rec.verb) {
-                case PathVerb::move: dst.move(pts[0]); break;
-                case PathVerb::line: dst.line(pts[0]); break;
-                case PathVerb::quad: dst.quad(pts[0], pts[1]); break;
-                case PathVerb::cubic: dst.cubic(pts[0], pts[1], pts[2]); break;
+        for (auto [verb, pts] : *this) {
+            switch (verb) {
+                case PathVerb::move: dst.move(proc(pts[0])); break;
+                case PathVerb::line: dst.line(proc(pts[1])); break;
+                case PathVerb::quad: dst.quad(proc(pts[1]), proc(pts[2])); break;
+                case PathVerb::cubic: dst.cubic(proc(pts[1]), proc(pts[2]), proc(pts[3])); break;
                 case PathVerb::close: dst.close(); break;
             }
         }
@@ -129,6 +150,15 @@ public:
 
     // Utility for pouring a RawPath into a CommandPath
     void addTo(CommandPath*) const;
+
+private:
+    void injectImplicitMoveIfNeeded();
+
+    std::vector<Vec2D> m_Points;
+    std::vector<PathVerb> m_Verbs;
+    size_t m_lastMoveIdx;
+    // True of the path is nonempty and the most recent verb is not "close".
+    bool m_contourIsOpen = false;
 };
 
 } // namespace rive

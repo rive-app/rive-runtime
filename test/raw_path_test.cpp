@@ -8,6 +8,7 @@
 #include <catch.hpp>
 #include <cstdio>
 #include <limits>
+#include <tuple>
 
 using namespace rive;
 
@@ -78,58 +79,23 @@ TEST_CASE("rawpath-add-helpers", "[rawpath]") {
 
 //////////////////////////////////////////////////////////////////////////
 
-static bool is_move(const RawPath::Iter::Rec& rec) {
-    if (rec.verb == PathVerb::move) {
-        REQUIRE(rec.count == 1);
-        return true;
+static void check_iter(RawPath::Iter& iter,
+                       const RawPath::Iter& end,
+                       PathVerb expectedVerb,
+                       std::vector<Vec2D> expectedPts) {
+    REQUIRE(iter != end);
+    auto [verb, pts] = *iter;
+    REQUIRE(verb == expectedVerb);
+    for (size_t i = 0; i < expectedPts.size(); ++i) {
+        CHECK(pts[i] == expectedPts[i]);
     }
-    return false;
+    ++iter;
 }
-
-static bool is_line(const RawPath::Iter::Rec& rec) {
-    if (rec.verb == PathVerb::line) {
-        REQUIRE(rec.count == 1);
-        return true;
-    }
-    return false;
-}
-
-static bool is_quad(const RawPath::Iter::Rec& rec) {
-    if (rec.verb == PathVerb::quad) {
-        REQUIRE(rec.count == 2);
-        return true;
-    }
-    return false;
-}
-
-static bool is_cubic(const RawPath::Iter::Rec& rec) {
-    if (rec.verb == PathVerb::cubic) {
-        REQUIRE(rec.count == 3);
-        return true;
-    }
-    return false;
-}
-
-static bool is_close(const RawPath::Iter::Rec& rec) {
-    if (rec.verb == PathVerb::close) {
-        REQUIRE(rec.count == 0);
-        return true;
-    }
-    return false;
-}
-
-// clang-format off
-static inline bool eq(Vec2D p, float x, float y) {
-    return p.x == x && p.y == y;
-}
-// clang-format on
 
 TEST_CASE("rawpath-iter", "[rawpath]") {
     {
         RawPath rp;
-        RawPath::Iter iter(rp);
-        REQUIRE(iter.next() == false);
-        REQUIRE(iter.next() == false); // should be safe to call again
+        REQUIRE(rp.begin() == rp.end());
     }
     {
         RawPath rp;
@@ -138,103 +104,56 @@ TEST_CASE("rawpath-iter", "[rawpath]") {
         rp.quadTo(5, 6, 7, 8);
         rp.cubicTo(9, 10, 11, 12, 13, 14);
         rp.close();
-        RawPath::Iter iter(rp);
-        auto rec = iter.next();
-        REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
-        rec = iter.next();
-        REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
-        rec = iter.next();
-        REQUIRE((rec && is_quad(rec) && eq(rec.pts[0], 5, 6) && eq(rec.pts[1], 7, 8)));
-        rec = iter.next();
-        REQUIRE((rec && is_cubic(rec) && eq(rec.pts[0], 9, 10) && eq(rec.pts[1], 11, 12) &&
-                 eq(rec.pts[2], 13, 14)));
-        rec = iter.next();
-        REQUIRE((rec && is_close(rec)));
-        rec = iter.next();
-        REQUIRE(rec == false);
-        REQUIRE(iter.next() == false); // should be safe to call again
+        auto [iter, end] = std::make_tuple(rp.begin(), rp.end());
+        check_iter(iter, end, PathVerb::move, {{1, 2}});
+        check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
+        check_iter(iter, end, PathVerb::quad, {{3, 4}, {5, 6}, {7, 8}});
+        check_iter(iter, end, PathVerb::cubic, {{7, 8}, {9, 10}, {11, 12}, {13, 14}});
+        check_iter(iter, end, PathVerb::close, {});
+        REQUIRE(iter == end);
+
+        // Moves are never discarded.
+        rp.reset();
+        rp.moveTo(1, 2);
+        rp.moveTo(3, 4);
+        rp.moveTo(5, 6);
+        rp.close();
+        std::tie(iter, end) = std::make_tuple(rp.begin(), rp.end());
+        check_iter(iter, end, PathVerb::move, {{1, 2}});
+        check_iter(iter, end, PathVerb::move, {{3, 4}});
+        check_iter(iter, end, PathVerb::move, {{5, 6}});
+        check_iter(iter, end, PathVerb::close, {});
+        REQUIRE(iter == end);
+
+        // lineTo, quadTo, and cubicTo can inject implicit moveTos.
+        rp.rewind();
+        rp.close();                   // discarded
+        rp.close();                   // discarded
+        rp.close();                   // discarded
+        rp.close();                   // discarded
+        rp.lineTo(1, 2);              // injects moveTo(0, 0)
+        rp.close();                   // kept
+        rp.close();                   // discarded
+        rp.cubicTo(3, 4, 5, 6, 7, 8); // injects moveTo(0, 0)
+        rp.moveTo(9, 10);
+        rp.moveTo(11, 12);
+        rp.quadTo(13, 14, 15, 16);
+        rp.close();        // kept
+        rp.lineTo(17, 18); // injects moveTo(11, 12)
+        std::tie(iter, end) = std::make_tuple(rp.begin(), rp.end());
+        check_iter(iter, end, PathVerb::move, {{0, 0}});
+        check_iter(iter, end, PathVerb::line, {{0, 0}, {1, 2}});
+        check_iter(iter, end, PathVerb::close, {});
+        check_iter(iter, end, PathVerb::move, {{0, 0}});
+        check_iter(iter, end, PathVerb::cubic, {{0, 0}, {3, 4}, {5, 6}, {7, 8}});
+        check_iter(iter, end, PathVerb::move, {{9, 10}});
+        check_iter(iter, end, PathVerb::move, {{11, 12}});
+        check_iter(iter, end, PathVerb::quad, {{11, 12}, {13, 14}, {15, 16}});
+        check_iter(iter, end, PathVerb::close, {});
+        check_iter(iter, end, PathVerb::move, {{11, 12}});
+        check_iter(iter, end, PathVerb::line, {{11, 12}, {17, 18}});
+        REQUIRE(iter == end);
     }
-}
-
-TEST_CASE("isDone", "[rawpath::iter]") {
-    RawPath rp;
-    rp.moveTo(1, 2);
-    rp.lineTo(3, 4);
-    RawPath::Iter iter(rp);
-
-    REQUIRE(!iter.isDone()); // moveTo
-    REQUIRE(iter.next());
-
-    REQUIRE(!iter.isDone()); // lineTo
-    REQUIRE(iter.next());
-
-    REQUIRE(iter.isDone()); // now we're done
-    REQUIRE(!iter.next());
-    REQUIRE(iter.isDone()); // ensure we 'still' think we're done
-}
-
-TEST_CASE("reset", "[rawpath]") {
-    RawPath path;
-    path.moveTo(1, 2);
-    path.lineTo(3, 4);
-    RawPath::Iter iter(path);
-    auto rec = iter.next();
-    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
-    rec = iter.next();
-    REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
-    REQUIRE(!iter.next());
-
-    // now change the path (not required for the test per-se)
-    path = RawPath();
-    path.moveTo(0, 0);
-    path.close();
-
-    iter.reset(path);
-    rec = iter.next();
-    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 0, 0)));
-    rec = iter.next();
-    REQUIRE((rec && is_close(rec)));
-    REQUIRE(!iter.next());
-}
-
-TEST_CASE("backup", "[rawpath]") {
-    RawPath rp;
-    rp.moveTo(1, 2);
-    rp.lineTo(3, 4);
-    rp.close();
-    RawPath::Iter iter(rp);
-
-    auto rec = iter.next();
-    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
-    const Vec2D* move_pts = rec.pts;
-
-    rec = iter.next();
-    REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
-    const Vec2D* line_pts = rec.pts;
-
-    rec = iter.next();
-    REQUIRE((rec && is_close(rec)));
-
-    rec = iter.next();
-    REQUIRE(!rec);
-
-    // Now try backing up
-
-    iter.backUp(); // go back to 'close'
-    rec = iter.next();
-    REQUIRE((rec && is_close(rec)));
-
-    iter.backUp(); // go back to 'close'
-    iter.backUp(); // go back to 'line'
-    rec = iter.next();
-    REQUIRE((rec && is_line(rec) && eq(rec.pts[0], 3, 4)));
-    REQUIRE(rec.pts == line_pts);
-
-    iter.backUp(); // go back to 'line'
-    iter.backUp(); // go back to 'move'
-    rec = iter.next();
-    REQUIRE((rec && is_move(rec) && eq(rec.pts[0], 1, 2)));
-    REQUIRE(rec.pts == move_pts);
 }
 
 TEST_CASE("addPath", "[rawpath]") {
@@ -318,9 +237,24 @@ TEST_CASE("bounds", "[rawpath]") {
         for (int i = 0; i < numVerbs; ++i) {
             switch (rand() % 5) {
                 case 0: path.move(randPt()); break;
-                case 1: path.line(randPt()); break;
-                case 2: path.quad(randPt(), randPt()); break;
-                case 3: path.cubic(randPt(), randPt(), randPt()); break;
+                case 1:
+                    if (path.empty()) { // Account for the implicit moveTo(0).
+                        bounds = {};
+                    }
+                    path.line(randPt());
+                    break;
+                case 2:
+                    if (path.empty()) { // Account for the implicit moveTo(0).
+                        bounds = {};
+                    }
+                    path.quad(randPt(), randPt());
+                    break;
+                case 3:
+                    if (path.empty()) { // Account for the implicit moveTo(0).
+                        bounds = {};
+                    }
+                    path.cubic(randPt(), randPt(), randPt());
+                    break;
                 case 4: path.close(); break;
             }
         }

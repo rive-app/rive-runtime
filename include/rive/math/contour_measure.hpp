@@ -69,6 +69,7 @@ public:
 class ContourMeasureIter {
     RawPath m_optionalCopy;
     RawPath::Iter m_iter;
+    RawPath::Iter m_end;
     const Vec2D* m_srcPoints;
     float m_invTolerance;
 

@@ -20,23 +20,6 @@ void SegmentedContour::addVertex(Vec2D vertex) {
     AABB::expandTo(m_bounds, vertex);
 }
 
-void SegmentedContour::penDown() {
-    if (m_isPenDown) {
-        return;
-    }
-    m_isPenDown = true;
-    m_penDown = m_pen;
-    addVertex(m_penDown);
-}
-
-void SegmentedContour::close() {
-    if (!m_isPenDown) {
-        return;
-    }
-    m_pen = m_penDown;
-    m_isPenDown = false;
-}
-
 const std::size_t SegmentedContour::contourSize() const { return m_contourPoints.size(); }
 
 const Span<const Vec2D> SegmentedContour::contourPoints(uint32_t endOffset) const {
@@ -70,36 +53,25 @@ void SegmentedContour::segmentCubic(const Vec2D& from,
 void SegmentedContour::contour(const RawPath& rawPath, const Mat2D& transform) {
     m_contourPoints.clear();
 
-    RawPath::Iter iter(rawPath);
     // Possible perf consideration: could add second path that doesn't transform
     // if transform is the identity.
-    while (auto rec = iter.next()) {
-        switch (rec.verb) {
-            case PathVerb::move:
-                m_isPenDown = false;
-                m_pen = transform * rec.pts[0];
-                break;
-            case PathVerb::line:
-                penDown();
-                m_pen = transform * rec.pts[0];
-                addVertex(m_pen);
-                break;
+    for (const auto [verb, pts] : rawPath) {
+        switch (verb) {
+            case PathVerb::move: addVertex(transform * pts[0]); break;
+            case PathVerb::line: addVertex(transform * pts[1]); break;
             case PathVerb::cubic:
-                penDown();
-                segmentCubic(m_pen,
-                             transform * rec.pts[0],
-                             transform * rec.pts[1],
-                             transform * rec.pts[2],
+                segmentCubic(transform * pts[0],
+                             transform * pts[1],
+                             transform * pts[2],
+                             transform * pts[3],
                              0.0f,
                              1.0f);
-                m_pen = transform * rec.pts[2];
                 break;
-            case PathVerb::close: close(); break;
+            case PathVerb::close: break;
             case PathVerb::quad:
                 // TODO: not currently used by render paths, however might be
                 // necessary for fonts.
                 break;
         }
     }
-    close();
 }

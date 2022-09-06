@@ -37,23 +37,34 @@ AABB RawPath::bounds() const {
     return bounds;
 }
 
+void RawPath::injectImplicitMoveIfNeeded() {
+    if (!m_contourIsOpen) {
+        move(m_Points.empty() ? Vec2D{0, 0} : m_Points[m_lastMoveIdx]);
+    }
+}
+
 void RawPath::move(Vec2D a) {
+    m_contourIsOpen = true;
+    m_lastMoveIdx = m_Points.size();
     m_Points.push_back(a);
     m_Verbs.push_back(PathVerb::move);
 }
 
 void RawPath::line(Vec2D a) {
+    injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
     m_Verbs.push_back(PathVerb::line);
 }
 
 void RawPath::quad(Vec2D a, Vec2D b) {
+    injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Verbs.push_back(PathVerb::quad);
 }
 
 void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c) {
+    injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Points.push_back(c);
@@ -61,9 +72,9 @@ void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c) {
 }
 
 void RawPath::close() {
-    const auto n = m_Verbs.size();
-    if (n > 0 && m_Verbs[n - 1] != PathVerb::close) {
+    if (m_contourIsOpen) {
         m_Verbs.push_back(PathVerb::close);
+        m_contourIsOpen = false;
     }
 }
 
@@ -203,26 +214,6 @@ int path_verb_to_point_count(PathVerb v) {
     return ptCounts[index];
 }
 
-RawPath::Iter::Rec RawPath::Iter::next() {
-    // initialize with "false"
-    Rec rec = {nullptr, -1, (PathVerb)-1};
-
-    if (m_currVerb < m_stopVerb) {
-        rec.pts = m_currPts;
-        rec.verb = *m_currVerb++;
-        rec.count = path_verb_to_point_count(rec.verb);
-
-        m_currPts += rec.count;
-    }
-    return rec;
-}
-
-void RawPath::Iter::backUp() {
-    --m_currVerb;
-    const int n = path_verb_to_point_count(*m_currVerb);
-    m_currPts -= n;
-}
-
 void RawPath::swap(RawPath& rawPath) {
     m_Points.swap(rawPath.m_Points);
     m_Verbs.swap(rawPath.m_Verbs);
@@ -233,24 +224,25 @@ void RawPath::reset() {
     m_Points.shrink_to_fit();
     m_Verbs.clear();
     m_Verbs.shrink_to_fit();
+    m_contourIsOpen = false;
 }
 
 void RawPath::rewind() {
     m_Points.clear();
     m_Verbs.clear();
+    m_contourIsOpen = false;
 }
 
 ///////////////////////////////////
 
 void RawPath::addTo(CommandPath* result) const {
-    RawPath::Iter iter(*this);
-    while (auto rec = iter.next()) {
-        switch (rec.verb) {
-            case PathVerb::move: result->move(rec.pts[0]); break;
-            case PathVerb::line: result->line(rec.pts[0]); break;
-            case PathVerb::quad: assert(false); break;
-            case PathVerb::cubic: result->cubic(rec.pts[0], rec.pts[1], rec.pts[2]); break;
+    for (auto [verb, pts] : *this) {
+        switch (verb) {
+            case PathVerb::move: result->move(pts[0]); break;
+            case PathVerb::line: result->line(pts[1]); break;
+            case PathVerb::cubic: result->cubic(pts[1], pts[2], pts[3]); break;
             case PathVerb::close: result->close(); break;
+            case PathVerb::quad: RIVE_UNREACHABLE;
         }
     }
 }

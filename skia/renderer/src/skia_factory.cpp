@@ -247,10 +247,10 @@ std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRu
     const SkScalar* conicWeights = nullptr;
     const int conicWeightCount = 0;
     return std::make_unique<SkiaRenderPath>(
-        SkPath::Make(reinterpret_cast<const SkPoint*>(rawPath.m_Points.data()),
-                     rawPath.m_Points.size(),
-                     (uint8_t*)rawPath.m_Verbs.data(),
-                     rawPath.m_Verbs.size(),
+        SkPath::Make(reinterpret_cast<const SkPoint*>(rawPath.points().data()),
+                     rawPath.points().size(),
+                     (uint8_t*)rawPath.verbs().data(),
+                     rawPath.verbs().size(),
                      conicWeights,
                      conicWeightCount,
                      ToSkia::convert(fillRule),
