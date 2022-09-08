@@ -5,18 +5,13 @@ SKIA_DIR = os.getenv('SKIA_DIR')
 dependencies = os.getenv('DEPENDENCIES')
 
 if SKIA_DIR == nil and dependencies ~= nil then
-    print('------> 1')
     SKIA_DIR = dependencies .. '/skia'
 else
-    print('------> 2')
     if SKIA_DIR == nil then
-        print('------> 3')
         SKIA_DIR = 'skia'
     end
     SKIA_DIR = '../../dependencies/' .. SKIA_DIR
 end
-
-print('------> IT IS ' .. SKIA_DIR)
 
 project 'rive_skia_renderer'
 do
