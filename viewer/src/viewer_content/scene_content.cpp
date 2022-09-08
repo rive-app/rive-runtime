@@ -14,7 +14,9 @@
 #include "rive/math/aabb.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "viewer/viewer_content.hpp"
+#ifdef RIVE_RENDERER_TESS
 #include "viewer/sample_tools/sample_atlas_packer.hpp"
+#endif
 
 constexpr int REQUEST_DEFAULT_SCENE = -1;
 

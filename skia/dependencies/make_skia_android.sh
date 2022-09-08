@@ -65,6 +65,7 @@ build_skia_android() {
 
         skia_use_angle=false \
         skia_use_dng_sdk=false \
+        skia_use_freetype=false \
         
         skia_use_expat=false \
         skia_use_fontconfig=false \
