@@ -11,6 +11,7 @@ using namespace rive;
 class MyRefCnt : public RefCnt<MyRefCnt> {
 public:
     MyRefCnt() {}
+    MyRefCnt(int, float, bool) {}
 
     void require_count(int value) { REQUIRE(this->debugging_refcnt() == value); }
 };
@@ -39,7 +40,7 @@ TEST_CASE("rcp", "[basics]") {
     REQUIRE(r0.get() == nullptr);
     REQUIRE(!r0);
 
-    rcp<MyRefCnt> r1(new MyRefCnt);
+    auto r1 = make_rcp<MyRefCnt>();
     REQUIRE(r1.get() != nullptr);
     REQUIRE(r1);
     REQUIRE(r1 != r0);
@@ -49,6 +50,12 @@ TEST_CASE("rcp", "[basics]") {
     REQUIRE(r1.get() == r2.get());
     REQUIRE(r1 == r2);
     REQUIRE(r2->debugging_refcnt() == 2);
+
+    auto r3 = make_rcp<MyRefCnt>(1, .5f, false);
+    REQUIRE(r3.get() != nullptr);
+    REQUIRE(r3);
+    REQUIRE(r3 != r1);
+    REQUIRE(r3->debugging_refcnt() == 1);
 
     auto ptr = r2.release();
     REQUIRE(r2.get() == nullptr);

@@ -143,6 +143,10 @@ private:
 
 template <typename T> inline void swap(rcp<T>& a, rcp<T>& b) { a.swap(b); }
 
+template <typename T, typename... Args> rcp<T> inline make_rcp(Args&&... args) {
+    return rcp<T>(new T(std::forward<Args>(args)...));
+}
+
 // == variants
 
 template <typename T> inline bool operator==(const rcp<T>& a, std::nullptr_t) { return !a; }
