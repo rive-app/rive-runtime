@@ -11,7 +11,7 @@
 namespace rive {
 
 // The actual graphics device image.
-class SokolRenderImageResource : public RefCnt {
+class SokolRenderImageResource : public RefCnt<SokolRenderImageResource> {
 private:
     sg_image m_gpuResource;
 

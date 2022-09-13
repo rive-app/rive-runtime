@@ -12,7 +12,7 @@ class MeshVertex;
 class Mesh : public MeshBase, public Skinnable {
 
 protected:
-    class IndexBuffer : public std::vector<uint16_t>, public RefCnt {};
+    class IndexBuffer : public std::vector<uint16_t>, public RefCnt<IndexBuffer> {};
     std::vector<MeshVertex*> m_Vertices;
     rcp<IndexBuffer> m_IndexBuffer;
 

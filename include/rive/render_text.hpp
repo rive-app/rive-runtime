@@ -17,8 +17,10 @@ using GlyphID = uint16_t;
 struct RenderTextRun;
 struct RenderGlyphRun;
 
-class RenderFont : public RefCnt {
+class RenderFont : public RefCnt<RenderFont> {
 public:
+    virtual ~RenderFont() {}
+
     struct LineMetrics {
         float ascent, descent;
     };

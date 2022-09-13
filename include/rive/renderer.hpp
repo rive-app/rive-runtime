@@ -27,12 +27,12 @@ class Vec2D;
 Mat2D computeAlignment(Fit, Alignment, const AABB& frame, const AABB& content);
 
 // A render buffer holds an immutable array of values
-class RenderBuffer : public RefCnt {
+class RenderBuffer : public RefCnt<RenderBuffer> {
     const size_t m_Count;
 
 public:
     RenderBuffer(size_t count);
-    ~RenderBuffer() override;
+    virtual ~RenderBuffer();
 
     size_t count() const { return m_Count; }
 };
@@ -47,10 +47,10 @@ enum class RenderPaintStyle { stroke, fill };
  *  It is common that a shader may be created with a 'localMatrix'. If this is
  *  not null, then it is applied to the shader's domain before the Renderer's CTM.
  */
-class RenderShader : public RefCnt {
+class RenderShader : public RefCnt<RenderShader> {
 public:
     RenderShader();
-    ~RenderShader() override;
+    virtual ~RenderShader();
 };
 
 class RenderPaint {

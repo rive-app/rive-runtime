@@ -15,9 +15,11 @@
 /*
  *  RefCnt : Threadsafe shared pointer baseclass.
  *
- *  The reference count is set to one in the constructor, and goes up on every call to ref(),
- *  and down on every call to unref(). When a call to unref() brings the counter to 0,
- *  delete is called on the object.
+ *  The reference count is set to one in the constructor, and goes up on every call to ref(), and
+ *  down on every call to unref(). When a call to unref() brings the counter to 0, the object is
+ *  casted to class "const T*" and deleted. Usage:
+ *
+ *    class MyClass : public RefCnt<MyClass>
  *
  *  rcp : template wrapper for subclasses of RefCnt, to manage assignment and parameter passing
  *  to safely keep track of shared ownership.
@@ -27,11 +29,11 @@
 
 namespace rive {
 
-class RefCnt {
+template <typename T> class RefCnt {
 public:
     RefCnt() : m_refcnt(1) {}
 
-    virtual ~RefCnt() { assert(this->debugging_refcnt() == 1); }
+    ~RefCnt() { assert(this->debugging_refcnt() == 1); }
 
     void ref() const { (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed); }
 
@@ -41,7 +43,7 @@ public:
             // we restore the "1" in debug builds just to make our destructor happy
             (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed);
 #endif
-            delete this;
+            delete static_cast<const T*>(this);
         }
     }
 

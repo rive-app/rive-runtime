@@ -12,7 +12,7 @@
 
 namespace rive {
 
-class ContourMeasure : public RefCnt {
+class ContourMeasure : public RefCnt<ContourMeasure> {
 public:
     static constexpr unsigned kMaxDot30 = (1 << 30) - 1;
     static constexpr float kInvScaleD30 = 1.0f / (float)kMaxDot30;

@@ -8,7 +8,7 @@
 
 using namespace rive;
 
-class MyRefCnt : public RefCnt {
+class MyRefCnt : public RefCnt<MyRefCnt> {
 public:
     MyRefCnt() {}
 
