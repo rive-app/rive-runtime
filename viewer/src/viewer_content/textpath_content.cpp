@@ -15,11 +15,11 @@
 using namespace rive;
 
 using RenderFontTextRuns = std::vector<RenderTextRun>;
-using RenderFontGlyphRuns = std::vector<RenderGlyphRun>;
+using RenderFontGlyphRuns = rive::SimpleArray<RenderGlyphRun>;
 using RenderFontFactory = rcp<RenderFont> (*)(const Span<const uint8_t>);
 
 template <typename Handler>
-void visit(const std::vector<RenderGlyphRun>& gruns, Vec2D origin, Handler proc) {
+void visit(const Span<RenderGlyphRun>& gruns, Vec2D origin, Handler proc) {
     for (const auto& gr : gruns) {
         for (size_t i = 0; i < gr.glyphs.size(); ++i) {
             auto path = gr.font->getPath(gr.glyphs[i]);
@@ -148,7 +148,7 @@ class TextPathContent : public ViewerContent {
 
 public:
     TextPathContent() {
-        auto compute_bounds = [](const std::vector<RenderGlyphRun>& gruns) {
+        auto compute_bounds = [](const rive::SimpleArray<RenderGlyphRun>& gruns) {
             AABB bounds = {};
             for (const auto& gr : gruns) {
                 bounds.minY = std::min(bounds.minY, gr.font->lineMetrics().ascent * gr.size);

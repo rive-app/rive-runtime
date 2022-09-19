@@ -61,3 +61,14 @@ TEST_CASE("const-and-containers", "[span]") {
     funca(v);
     funcb(v);
 }
+
+TEST_CASE("can iterate span", "[span]") {
+    const int carray[] = {2, 4, 8, 16};
+
+    auto span = Span(carray);
+    int expect = 2;
+    for (auto value : span) {
+        REQUIRE(value == expect);
+        expect *= 2;
+    }
+}

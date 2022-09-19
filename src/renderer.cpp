@@ -90,7 +90,7 @@ RenderPath::~RenderPath() { Counter::update(Counter::kPath, -1); }
 
 #include "rive/render_text.hpp"
 
-std::vector<RenderGlyphRun>
+rive::SimpleArray<RenderGlyphRun>
 RenderFont::shapeText(rive::Span<const rive::Unichar> text,
                       rive::Span<const rive::RenderTextRun> runs) const {
 #ifdef DEBUG

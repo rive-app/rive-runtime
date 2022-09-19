@@ -189,12 +189,9 @@ static rive::RenderGlyphRun shape_run(const rive::Unichar text[],
 
     // todo: check for missing glyphs, and perform font-substitution
 
-    rive::RenderGlyphRun gr;
+    rive::RenderGlyphRun gr(glyph_count);
     gr.font = tr.font;
     gr.size = tr.size;
-    gr.glyphs.resize(glyph_count);
-    gr.textOffsets.resize(glyph_count);
-    gr.xpos.resize(glyph_count + 1);
 
     const float scale = tr.size / kStdScale;
     for (unsigned int i = 0; i < glyph_count; i++) {
@@ -213,20 +210,19 @@ static rive::RenderGlyphRun shape_run(const rive::Unichar text[],
 static rive::RenderGlyphRun extract_subset(const rive::RenderGlyphRun& orig,
                                            size_t start,
                                            size_t end) {
-    rive::RenderGlyphRun subset;
+    auto count = end - start;
+    rive::RenderGlyphRun subset(rive::SimpleArray<rive::GlyphID>(&orig.glyphs[start], count),
+                                rive::SimpleArray<uint32_t>(&orig.textOffsets[start], count),
+                                rive::SimpleArray<float>(&orig.xpos[start], count));
     subset.font = std::move(orig.font);
     subset.size = orig.size;
-    subset.glyphs.insert(subset.glyphs.begin(), &orig.glyphs[start], &orig.glyphs[end]);
-    subset.textOffsets.insert(subset.textOffsets.begin(),
-                              &orig.textOffsets[start],
-                              &orig.textOffsets[end]);
-    subset.xpos.insert(subset.xpos.begin(), &orig.xpos[start], &orig.xpos[end + 1]);
     subset.xpos.back() = 0; // since we're now the end of a run
+
     return subset;
 }
 
 static void perform_fallback(rive::rcp<rive::RenderFont> fallbackFont,
-                             std::vector<rive::RenderGlyphRun>* gruns,
+                             rive::SimpleArrayBuilder<rive::RenderGlyphRun>& gruns,
                              const rive::Unichar text[],
                              const rive::RenderGlyphRun& orig) {
     assert(orig.glyphs.size() > 0);
@@ -242,23 +238,21 @@ static void perform_fallback(rive::rcp<rive::RenderFont> fallbackFont,
             auto textStart = orig.textOffsets[startI];
             auto textCount = orig.textOffsets[endI - 1] - textStart + 1;
             auto tr = rive::RenderTextRun{fallbackFont, orig.size, textCount};
-            auto gr = shape_run(&text[textStart], tr, textStart);
-            gruns->push_back(std::move(gr));
+            gruns.add(shape_run(&text[textStart], tr, textStart));
         } else {
             while (endI < count && orig.glyphs[endI] != 0) {
                 ++endI;
             }
-            gruns->push_back(extract_subset(orig, startI, endI));
+            gruns.add(extract_subset(orig, startI, endI));
         }
         startI = endI;
     }
 }
 
-std::vector<rive::RenderGlyphRun>
+rive::SimpleArray<rive::RenderGlyphRun>
 HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
                           rive::Span<const rive::RenderTextRun> truns) const {
-    std::vector<rive::RenderGlyphRun> gruns;
-    gruns.reserve(truns.size());
+    rive::SimpleArrayBuilder<rive::RenderGlyphRun> gruns(truns.size());
 
     /////////////////
 
@@ -270,7 +264,7 @@ HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
         auto end = gr.glyphs.end();
         auto iter = std::find(gr.glyphs.begin(), end, 0);
         if (!gFallbackProc || iter == end) {
-            gruns.push_back(std::move(gr));
+            gruns.add(std::move(gr));
         } else {
             // found at least 1 zero in glyphs, so need to perform font-fallback
             size_t index = iter - gr.glyphs.begin();
@@ -278,9 +272,9 @@ HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
             // todo: consider sending more chars if that helps choose a font
             auto fallback = gFallbackProc({&missing, 1});
             if (fallback) {
-                perform_fallback(fallback, &gruns, text.data(), gr);
+                perform_fallback(fallback, gruns, text.data(), gr);
             } else {
-                gruns.push_back(std::move(gr)); // oh well, just keep the missing glyphs
+                gruns.add(std::move(gr)); // oh well, just keep the missing glyphs
             }
         }
     }
@@ -294,7 +288,7 @@ HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
             pos += adv;
         }
     }
-    return gruns;
+    return std::move(gruns);
 }
 
 #endif

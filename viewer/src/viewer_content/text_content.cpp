@@ -12,7 +12,7 @@
 #include "rive/text/line_breaker.hpp"
 
 using RenderFontTextRuns = std::vector<rive::RenderTextRun>;
-using RenderFontGlyphRuns = std::vector<rive::RenderGlyphRun>;
+using RenderFontGlyphRuns = rive::SimpleArray<rive::RenderGlyphRun>;
 using RenderFontFactory = rive::rcp<rive::RenderFont> (*)(const rive::Span<const uint8_t>);
 
 static bool ws(rive::Unichar c) { return c <= ' '; }

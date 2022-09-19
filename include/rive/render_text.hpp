@@ -8,6 +8,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
+#include "rive/simple_array.hpp"
 
 namespace rive {
 
@@ -65,13 +66,13 @@ public:
     //
     virtual RawPath getPath(GlyphID) const = 0;
 
-    std::vector<RenderGlyphRun> shapeText(rive::Span<const rive::Unichar> text,
-                                          rive::Span<const rive::RenderTextRun> runs) const;
+    rive::SimpleArray<RenderGlyphRun> shapeText(rive::Span<const rive::Unichar> text,
+                                                rive::Span<const rive::RenderTextRun> runs) const;
 
 protected:
     RenderFont(const LineMetrics& lm) : m_LineMetrics(lm) {}
 
-    virtual std::vector<RenderGlyphRun>
+    virtual rive::SimpleArray<RenderGlyphRun>
     onShapeText(rive::Span<const rive::Unichar> text,
                 rive::Span<const rive::RenderTextRun> runs) const = 0;
 
@@ -86,12 +87,19 @@ struct RenderTextRun {
 };
 
 struct RenderGlyphRun {
+    RenderGlyphRun(size_t glyphCount = 0) :
+        glyphs(glyphCount), textOffsets(glyphCount), xpos(glyphCount + 1) {}
+
+    RenderGlyphRun(rive::SimpleArray<GlyphID> glyphIds,
+                   rive::SimpleArray<uint32_t> offsets,
+                   rive::SimpleArray<float> xs) :
+        glyphs(glyphIds), textOffsets(offsets), xpos(xs) {}
+
     rcp<RenderFont> font;
     float size;
-
-    std::vector<GlyphID> glyphs;       // [#glyphs]
-    std::vector<uint32_t> textOffsets; // [#glyphs]
-    std::vector<float> xpos;           // [#glyphs + 1]
+    rive::SimpleArray<GlyphID> glyphs;       // [#glyphs]
+    rive::SimpleArray<uint32_t> textOffsets; // [#glyphs]
+    rive::SimpleArray<float> xpos;           // [#glyphs + 1]
 };
 
 } // namespace rive
