@@ -83,3 +83,4 @@ skia/**/build/android
 /build/android
 /skia/dependencies/skia_rive_optimized
 /skia/dependencies/skia-experimental
+dependencies/windows/cache

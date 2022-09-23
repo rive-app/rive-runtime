@@ -88,18 +88,32 @@ struct RenderTextRun {
 
 struct RenderGlyphRun {
     RenderGlyphRun(size_t glyphCount = 0) :
-        glyphs(glyphCount), textOffsets(glyphCount), xpos(glyphCount + 1) {}
+        glyphs(glyphCount), textIndices(glyphCount), xpos(glyphCount + 1) {}
 
     RenderGlyphRun(rive::SimpleArray<GlyphID> glyphIds,
                    rive::SimpleArray<uint32_t> offsets,
                    rive::SimpleArray<float> xs) :
-        glyphs(glyphIds), textOffsets(offsets), xpos(xs) {}
+        glyphs(glyphIds), textIndices(offsets), xpos(xs) {}
 
     rcp<RenderFont> font;
     float size;
-    rive::SimpleArray<GlyphID> glyphs;       // [#glyphs]
-    rive::SimpleArray<uint32_t> textOffsets; // [#glyphs]
-    rive::SimpleArray<float> xpos;           // [#glyphs + 1]
+    // List of glyphs, represented by font specific glyph ids. Length is equal to number of glyphs
+    // in the run.
+    rive::SimpleArray<GlyphID> glyphs;
+
+    // Index in the unicode text array representing the text displayed in this run. Because each
+    // glyph can be composed of multiple unicode values, this index points to the first index in the
+    // unicode text. Length is equal to number of glyphs in the run.
+    rive::SimpleArray<uint32_t> textIndices;
+
+    // X position of each glyph, with an extra value at the end for the right most extent of the
+    // last glyph.
+    rive::SimpleArray<float> xpos;
+
+    // List of possible indices to line break at. Has a stride of 2 uint32_ts where each pair marks
+    // the start and end of a word, with the exception of a return character (forced linebreak)
+    // which is represented as a 0 length word (where start/end index is the same).
+    rive::SimpleArray<uint32_t> breaks;
 };
 
 } // namespace rive

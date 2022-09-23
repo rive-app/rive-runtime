@@ -19,6 +19,7 @@ template <typename T> class SimpleArrayBuilder;
 namespace SimpleArrayTesting {
 extern int mallocCount;
 extern int reallocCount;
+extern int freeCount;
 void resetCounters();
 } // namespace SimpleArrayTesting
 #endif
@@ -30,8 +31,8 @@ void resetCounters();
 /// array. This saves the structure from needing to store extra ptrs and keeps
 /// it optimally sized for marshaling. See SimpleArrayBuilder<T> below for push
 /// functionality.
-template <typename T> class SimpleArray {
 
+template <typename T> class SimpleArray {
 public:
     SimpleArray() : m_ptr(nullptr), m_size(0) {}
     SimpleArray(size_t size) : m_ptr(static_cast<T*>(malloc(size * sizeof(T)))), m_size(size) {
@@ -75,6 +76,8 @@ public:
         return *this;
     }
 
+    SimpleArray<T>& operator=(SimpleArrayBuilder<T>&& other);
+
     template <typename Container>
     constexpr SimpleArray(Container& c) : SimpleArray(std::data(c), std::size(c)) {}
     constexpr SimpleArray(std::initializer_list<T> il) :
@@ -86,6 +89,9 @@ public:
             }
         }
         free(m_ptr);
+#ifdef TESTING
+        SimpleArrayTesting::freeCount++;
+#endif
     }
 
     constexpr T& operator[](size_t index) const {
@@ -147,6 +153,7 @@ public:
     // Allows iterating just the written content.
     constexpr size_t capacity() const { return this->m_size; }
     constexpr size_t size() const { return m_write - this->m_ptr; }
+    constexpr bool empty() const { return size() == 0; }
     constexpr T* begin() const { return this->m_ptr; }
     constexpr T* end() const { return m_write; }
 
@@ -198,6 +205,15 @@ constexpr SimpleArray<T>::SimpleArray(SimpleArrayBuilder<T>&& other) : m_size(ot
     m_ptr = other.m_ptr;
     other.m_ptr = nullptr;
     other.m_size = 0;
+}
+
+template <typename T> SimpleArray<T>& SimpleArray<T>::operator=(SimpleArrayBuilder<T>&& other) {
+    other.resize(other.size());
+    this->m_ptr = other.m_ptr;
+    this->m_size = other.m_size;
+    other.m_ptr = nullptr;
+    other.m_size = 0;
+    return *this;
 }
 
 } // namespace rive

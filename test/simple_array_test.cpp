@@ -140,3 +140,32 @@ TEST_CASE("builder arrays of arrays work", "[simple array]") {
     // Realloc one more time as we sized down.
     REQUIRE(SimpleArrayTesting::reallocCount == 2);
 }
+
+TEST_CASE("builders can be reset", "[simple array]") {
+    SimpleArrayTesting::resetCounters();
+    SimpleArrayBuilder<uint32_t> builder(3);
+    builder.add(1);
+    builder.add(2);
+    builder.add(3);
+    REQUIRE(SimpleArrayTesting::mallocCount == 1);
+    REQUIRE(SimpleArrayTesting::freeCount == 0);
+    REQUIRE(SimpleArrayTesting::reallocCount == 0);
+
+    builder = SimpleArrayBuilder<uint32_t>(4);
+    // Previous builder got freed.
+    REQUIRE(SimpleArrayTesting::freeCount == 1);
+    // We allocated more memory.
+    REQUIRE(SimpleArrayTesting::mallocCount == 2);
+    REQUIRE(SimpleArrayTesting::reallocCount == 0);
+    builder.add(3);
+    builder.add(2);
+
+    SimpleArrayTesting::resetCounters();
+    SimpleArray<uint32_t> array = std::move(builder);
+    // Realloc'd down
+    REQUIRE(SimpleArrayTesting::reallocCount == 1);
+    // Free and malloc counts didn't move.
+    REQUIRE(SimpleArrayTesting::freeCount == 0);
+    REQUIRE(SimpleArrayTesting::mallocCount == 0);
+    REQUIRE(array.size() == 2);
+}

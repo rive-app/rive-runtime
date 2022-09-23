@@ -21,7 +21,7 @@ for var in "$@"; do
         GRAPHICS=metal
     fi
     if [[ $var = "text" ]]; then
-        OTHER_OPTIONS+=--with-text
+        OTHER_OPTIONS+=--with_rive_text
     fi
 done
 

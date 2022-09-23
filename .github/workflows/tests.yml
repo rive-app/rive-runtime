@@ -58,7 +58,7 @@ jobs:
         run: |
           cd dev/test
           C:\premake5.exe vs2022
-          MSBuild rive_tests.sln
+          MSBuild rive.sln
           build\bin\debug\tests.exe
 
   build-macos:

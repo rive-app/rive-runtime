@@ -4,11 +4,11 @@
 
 #include "rive/render_text.hpp"
 
-#ifdef RIVE_TEXT
-#include "renderfont_hb.hpp"
+#ifdef WITH_RIVE_TEXT
+#include "rive/text/renderfont_hb.hpp"
 
 #include "rive/factory.hpp"
-#include "renderer_utils.hpp"
+#include "rive/renderer_utils.hpp"
 
 #include "hb.h"
 #include "hb-ot.h"
@@ -42,33 +42,35 @@ constexpr int kStdScale = 2048;
 constexpr float gInvScale = 1.0f / kStdScale;
 
 extern "C" {
-void rpath_move_to(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, float x, float y, void*) {
+static void
+rpath_move_to(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, float x, float y, void*) {
     ((rive::RawPath*)rpath)->moveTo(x * gInvScale, -y * gInvScale);
 }
-void rpath_line_to(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, float x1, float y1, void*) {
+static void
+rpath_line_to(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, float x1, float y1, void*) {
     ((rive::RawPath*)rpath)->lineTo(x1 * gInvScale, -y1 * gInvScale);
 }
-void rpath_quad_to(hb_draw_funcs_t*,
-                   void* rpath,
-                   hb_draw_state_t*,
-                   float x1,
-                   float y1,
-                   float x2,
-                   float y2,
-                   void*) {
+static void rpath_quad_to(hb_draw_funcs_t*,
+                          void* rpath,
+                          hb_draw_state_t*,
+                          float x1,
+                          float y1,
+                          float x2,
+                          float y2,
+                          void*) {
     ((rive::RawPath*)rpath)
         ->quadTo(x1 * gInvScale, -y1 * gInvScale, x2 * gInvScale, -y2 * gInvScale);
 }
-void rpath_cubic_to(hb_draw_funcs_t*,
-                    void* rpath,
-                    hb_draw_state_t*,
-                    float x1,
-                    float y1,
-                    float x2,
-                    float y2,
-                    float x3,
-                    float y3,
-                    void*) {
+static void rpath_cubic_to(hb_draw_funcs_t*,
+                           void* rpath,
+                           hb_draw_state_t*,
+                           float x1,
+                           float y1,
+                           float x2,
+                           float y2,
+                           float x3,
+                           float y3,
+                           void*) {
     ((rive::RawPath*)rpath)
         ->cubicTo(x1 * gInvScale,
                   -y1 * gInvScale,
@@ -77,7 +79,7 @@ void rpath_cubic_to(hb_draw_funcs_t*,
                   x3 * gInvScale,
                   -y3 * gInvScale);
 }
-void rpath_close(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, void*) {
+static void rpath_close(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, void*) {
     ((rive::RawPath*)rpath)->close();
 }
 }
@@ -151,7 +153,7 @@ rive::rcp<rive::RenderFont> HBRenderFont::makeAtCoords(rive::Span<const Coord> c
         vars[i] = {coords[i].axis, coords[i].value};
     }
     auto font = hb_font_create_sub_font(m_Font);
-    hb_font_set_variations(font, vars.data(), vars.size());
+    hb_font_set_variations(font, vars.data(), (unsigned int)vars.size());
     return rive::rcp<rive::RenderFont>(new HBRenderFont(font));
 }
 
@@ -199,7 +201,7 @@ static rive::RenderGlyphRun shape_run(const rive::Unichar text[],
         //            hb_position_t y_offset  = glyph_pos[i].y_offset;
 
         gr.glyphs[i] = (uint16_t)glyph_info[i].codepoint;
-        gr.textOffsets[i] = textOffset + glyph_info[i].cluster;
+        gr.textIndices[i] = textOffset + glyph_info[i].cluster;
         gr.xpos[i] = glyph_pos[i].x_advance * scale;
     }
     gr.xpos[glyph_count] = 0; // so the next run can line up snug
@@ -212,7 +214,7 @@ static rive::RenderGlyphRun extract_subset(const rive::RenderGlyphRun& orig,
                                            size_t end) {
     auto count = end - start;
     rive::RenderGlyphRun subset(rive::SimpleArray<rive::GlyphID>(&orig.glyphs[start], count),
-                                rive::SimpleArray<uint32_t>(&orig.textOffsets[start], count),
+                                rive::SimpleArray<uint32_t>(&orig.textIndices[start], count),
                                 rive::SimpleArray<float>(&orig.xpos[start], count));
     subset.font = std::move(orig.font);
     subset.size = orig.size;
@@ -235,8 +237,8 @@ static void perform_fallback(rive::rcp<rive::RenderFont> fallbackFont,
             while (endI < count && orig.glyphs[endI] == 0) {
                 ++endI;
             }
-            auto textStart = orig.textOffsets[startI];
-            auto textCount = orig.textOffsets[endI - 1] - textStart + 1;
+            auto textStart = orig.textIndices[startI];
+            auto textCount = orig.textIndices[endI - 1] - textStart + 1;
             auto tr = rive::RenderTextRun{fallbackFont, orig.size, textCount};
             gruns.add(shape_run(&text[textStart], tr, textStart));
         } else {
@@ -268,7 +270,7 @@ HBRenderFont::onShapeText(rive::Span<const rive::Unichar> text,
         } else {
             // found at least 1 zero in glyphs, so need to perform font-fallback
             size_t index = iter - gr.glyphs.begin();
-            rive::Unichar missing = text[gr.textOffsets[index]];
+            rive::Unichar missing = text[gr.textIndices[index]];
             // todo: consider sending more chars if that helps choose a font
             auto fallback = gFallbackProc({&missing, 1});
             if (fallback) {

@@ -74,7 +74,7 @@ static void drawpara(rive::Factory* factory,
                     run,
                     startGIndex,
                     endGIndex,
-                    {origin.x - x0, origin.y + line.baseline});
+                    {origin.x - x0 + line.startX, origin.y + line.baseline});
             startGIndex = 0;
         }
     }
@@ -152,6 +152,8 @@ class TextContent : public ViewerContent {
     std::vector<RenderFontGlyphRuns> m_gruns;
     rive::Mat2D m_xform;
     float m_width = 300;
+    bool m_autoWidth = false;
+    int m_align = 0;
 
     RenderFontTextRuns make_truns(RenderFontFactory fact) {
         auto loader = [fact](const char filename[]) -> rive::rcp<rive::RenderFont> {
@@ -177,11 +179,21 @@ class TextContent : public ViewerContent {
 
         RenderFontTextRuns truns;
 
-        truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "U"));
-        truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "ne漢字asy"));
-        truns.push_back(append(&m_unichars, font1, 30, " fits the crown"));
-        truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
-        truns.push_back(append(&m_unichars, font0, 30, " lies the head."));
+        // truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "U"));
+        // truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "ne漢字asy"));
+        // truns.push_back(append(&m_unichars, font1, 30, " fits the \ncRown"));
+        // truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
+        // truns.push_back(append(&m_unichars, font0, 30, " lies the head."));
+        // truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "hi one two"));
+
+        truns.push_back(append(&m_unichars, font0, 32.0f, "one two three"));
+        truns.push_back(append(&m_unichars, font0, 42.0f, "OT\nHER\n"));
+        truns.push_back(append(&m_unichars, font1, 62.0f, "VERY LARGE FONT HERE"));
+        // truns.push_back(
+        //     append(&m_unichars, font0, 52.0f, "one two three\n\n\nfour five six seven"));
+
+        // truns.push_back(append(&m_unichars, font0, 32.0f, "ab"));
+        // truns.push_back(append(&m_unichars, font0, 60.0f, "ee\n four"));
 
         m_breaks = compute_word_breaks(m_unichars);
 
@@ -200,10 +212,14 @@ public:
         renderer->save();
         renderer->transform(m_xform);
 
-        auto lines = rive::RenderGlyphLine::BreakLines(gruns, m_breaks, width);
+        auto lines = rive::RenderGlyphLine::BreakLines(gruns,
+                                                       m_autoWidth ? -1.0f : width,
+                                                       (rive::RenderTextAlign)m_align);
 
         drawpara(RiveFactory(), renderer, lines, gruns, {0, 0});
-        draw_line(RiveFactory(), renderer, width);
+        if (!m_autoWidth) {
+            draw_line(RiveFactory(), renderer, width);
+        }
 
         renderer->restore();
     }
@@ -217,8 +233,11 @@ public:
 
     void handleResize(int width, int height) override {}
     void handleImgui() override {
+        const char* alignOptions[] = {"left", "right", "center"};
         ImGui::Begin("text", nullptr);
-        ImGui::SliderFloat("Width", &m_width, 10, 400);
+        ImGui::SliderFloat("Width", &m_width, 1, 400);
+        ImGui::Checkbox("Autowidth", &m_autoWidth);
+        ImGui::Combo("combo", &m_align, alignOptions, IM_ARRAYSIZE(alignOptions));
         ImGui::End();
     }
 };

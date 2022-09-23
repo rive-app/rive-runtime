@@ -5,7 +5,7 @@
 #include "rive/rive_types.hpp"
 #include "utils/rive_utf.hpp"
 
-#if defined(RIVE_BUILD_FOR_APPLE) && defined(RIVE_TEXT)
+#if defined(RIVE_BUILD_FOR_APPLE) && defined(WITH_RIVE_TEXT)
 #include "renderfont_coretext.hpp"
 #include "mac_utils.hpp"
 
@@ -204,7 +204,7 @@ add_run(CTRunRef run, uint32_t textStart, float textSize, float& startX) {
 
         for (CFIndex i = 0; i < count; ++i) {
             gr.xpos[i] = startX;
-            gr.textOffsets[i] = textStart + indices[i]; // utf16 offsets, will fix-up later
+            gr.textIndices[i] = textStart + indices[i]; // utf16 offsets, will fix-up later
             startX += advances[i].width * scale;
         }
         gr.xpos[count] = startX;

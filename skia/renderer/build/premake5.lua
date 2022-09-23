@@ -148,14 +148,14 @@ do
         optimize 'On'
     end
 
-    filter {'options:with-text'}
+    filter {'options:with_rive_text'}
     do
-        defines {'RIVE_TEXT'}
+        defines {'WITH_RIVE_TEXT'}
     end
 end
 
 newoption {
-    trigger = 'with-text',
+    trigger = 'with_rive_text',
     description = 'Enables text experiments'
 }
 

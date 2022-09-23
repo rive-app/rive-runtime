@@ -33,7 +33,7 @@ do
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
 
-    defines {'RIVE_TEXT'}
+    defines {'WITH_RIVE_TEXT'}
 
     includedirs {
         '../include',
@@ -58,7 +58,6 @@ do
         '../src/**.cpp',
         rive .. '/utils/**.cpp',
         rive .. '/skia/renderer/src/renderfont_coretext.cpp',
-        rive .. '/skia/renderer/src/renderfont_hb.cpp',
         dependencies .. '/imgui/imgui.cpp',
         dependencies .. '/imgui/imgui_widgets.cpp',
         dependencies .. '/imgui/imgui_tables.cpp',

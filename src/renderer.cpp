@@ -90,6 +90,8 @@ RenderPath::~RenderPath() { Counter::update(Counter::kPath, -1); }
 
 #include "rive/render_text.hpp"
 
+static bool isWhiteSpace(rive::Unichar c) { return c <= ' '; }
+
 rive::SimpleArray<RenderGlyphRun>
 RenderFont::shapeText(rive::Span<const rive::Unichar> text,
                       rive::Span<const rive::RenderTextRun> runs) const {
@@ -101,11 +103,47 @@ RenderFont::shapeText(rive::Span<const rive::Unichar> text,
     }
     assert(count <= text.size());
 #endif
-    auto gruns = this->onShapeText(text, runs);
+
+    auto gruns = onShapeText(text, runs);
+    bool wantWhiteSpace = false;
+
+    rive::RenderGlyphRun* lastRun = nullptr;
+    size_t reserveSize = text.size() / 4;
+    rive::SimpleArrayBuilder<uint32_t> breakBuilder(reserveSize);
+    for (auto& gr : gruns) {
+        if (lastRun != nullptr) {
+            lastRun->breaks = std::move(breakBuilder);
+            // Reset the builder.
+            breakBuilder = rive::SimpleArrayBuilder<uint32_t>(reserveSize);
+        }
+        uint32_t glyphIndex = 0;
+        for (auto offset : gr.textIndices) {
+
+            auto unicode = text[offset];
+            if (unicode == '\n') {
+                breakBuilder.add(glyphIndex);
+                breakBuilder.add(glyphIndex);
+            }
+            if (wantWhiteSpace == isWhiteSpace(unicode)) {
+                breakBuilder.add(glyphIndex);
+                wantWhiteSpace = !wantWhiteSpace;
+            }
+            glyphIndex++;
+        }
+
+        lastRun = &gr;
+    }
+    if (lastRun != nullptr) {
+        if (wantWhiteSpace) {
+            breakBuilder.add((uint32_t)lastRun->glyphs.size());
+        }
+        lastRun->breaks = std::move(breakBuilder);
+    }
+
 #ifdef DEBUG
     for (const auto& gr : gruns) {
         assert(gr.glyphs.size() > 0);
-        assert(gr.glyphs.size() == gr.textOffsets.size());
+        assert(gr.glyphs.size() == gr.textIndices.size());
         assert(gr.glyphs.size() + 1 == gr.xpos.size());
     }
 #endif

@@ -12,6 +12,9 @@ for var in "$@"; do
     if [[ $var = "tools" ]]; then
         TOOLS="--with_rive_tools"
     fi
+    if [[ $var = "text" ]]; then
+        TOOLS="--with_rive_text"
+    fi
 done
 
 if [[ ! -f "$DEPENDENCIES/bin/premake5" ]]; then
