@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <stdio.h>
 #include <string>
+#include <iostream>
+#include <sstream>
 
 std::string getFileName(char* path) {
     std::string str(path);
@@ -16,6 +18,19 @@ std::string getFileName(char* path) {
     const size_t from = str.find_last_of("\\/");
     const size_t to = str.find_last_of(".");
     return str.substr(from + 1, to - from - 1);
+}
+
+const int DEFAULT_SIZE = 256;
+
+int getArg(char* arg) {
+    std::istringstream ss(arg);
+    int x;
+    if (!(ss >> x)) {
+        std::cerr << "Invalid number: " << arg << '\n';
+    } else if (!ss.eof()) {
+        std::cerr << "Trailing chars after number: " << arg << '\n';
+    }
+    return x == 0 ? DEFAULT_SIZE : x;
 }
 
 int main(int argc, char* argv[]) {
@@ -36,6 +51,12 @@ int main(int argc, char* argv[]) {
         filename = getFileName(argv[1]);
         fullName = filename + ".png";
         outPath = fullName.c_str();
+    }
+
+    int width = DEFAULT_SIZE, height = DEFAULT_SIZE;
+    if (argc == 5) {
+        width = getArg(argv[3]);
+        height = getArg(argv[4]);
     }
 
     if (fp == nullptr) {
@@ -60,8 +81,6 @@ int main(int argc, char* argv[]) {
     }
     auto artboard = file->artboardDefault();
     artboard->advance(0.0f);
-
-    int width = 256, height = 256;
 
     sk_sp<SkSurface> rasterSurface = SkSurface::MakeRasterN32Premul(width, height);
     SkCanvas* rasterCanvas = rasterSurface->getCanvas();
