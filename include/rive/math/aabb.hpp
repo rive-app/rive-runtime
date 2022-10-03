@@ -28,6 +28,10 @@ public:
 
     AABB() : minX(0), minY(0), maxX(0), maxY(0) {}
     AABB(const AABB& o) : minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY) {}
+    static AABB fromLTWH(float x, float y, float width, float height)
+    {
+        return {x, y, x + width, y + height};
+    }
 
     AABB(float minX, float minY, float maxX, float maxY) :
         minX(minX), minY(minY), maxX(maxX), maxY(maxY)

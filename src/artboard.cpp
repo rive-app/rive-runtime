@@ -406,7 +406,7 @@ void Artboard::update(ComponentDirt value)
     }
     if (hasDirt(value, ComponentDirt::Path))
     {
-        AABB bg = {-width() * originX(), -height() * originY(), width(), height()};
+        AABB bg = AABB::fromLTWH(-width() * originX(), -height() * originY(), width(), height());
         AABB clip;
         if (m_FrameOrigin)
         {
