@@ -2,8 +2,10 @@
 #define _RIVE_BLEND_ANIMATION_BASE_HPP_
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class BlendAnimationBase : public Core {
+namespace rive
+{
+class BlendAnimationBase : public Core
+{
 protected:
     typedef Core Super;
 
@@ -12,10 +14,14 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
-            case BlendAnimationBase::typeKey: return true;
-            default: return false;
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
+            case BlendAnimationBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -28,8 +34,10 @@ private:
 
 public:
     inline uint32_t animationId() const { return m_AnimationId; }
-    void animationId(uint32_t value) {
-        if (m_AnimationId == value) {
+    void animationId(uint32_t value)
+    {
+        if (m_AnimationId == value)
+        {
             return;
         }
         m_AnimationId = value;
@@ -38,8 +46,10 @@ public:
 
     void copy(const BlendAnimationBase& object) { m_AnimationId = object.m_AnimationId; }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case animationIdPropertyKey:
                 m_AnimationId = CoreUintType::deserialize(reader);
                 return true;

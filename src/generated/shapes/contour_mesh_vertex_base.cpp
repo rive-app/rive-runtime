@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ContourMeshVertexBase::clone() const {
+Core* ContourMeshVertexBase::clone() const
+{
     auto cloned = new ContourMeshVertex();
     cloned->copy(*this);
     return cloned;

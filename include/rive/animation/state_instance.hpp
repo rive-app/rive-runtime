@@ -6,13 +6,15 @@
 #include "rive/rive_types.hpp"
 #include "rive/span.hpp"
 
-namespace rive {
+namespace rive
+{
 class LayerState;
 class SMIInput;
 class ArtboardInstance;
 
 /// Represents an instance of a state tracked by the State Machine.
-class StateInstance {
+class StateInstance
+{
 private:
     const LayerState* m_LayerState;
 

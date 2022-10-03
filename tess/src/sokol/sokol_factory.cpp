@@ -2,7 +2,8 @@
 
 using namespace rive;
 
-class NoOpRenderPaint : public RenderPaint {
+class NoOpRenderPaint : public RenderPaint
+{
 public:
     void color(unsigned int value) override {}
     void style(RenderPaintStyle value) override {}
@@ -14,7 +15,8 @@ public:
     void invalidateStroke() override {}
 };
 
-class NoOpRenderPath : public RenderPath {
+class NoOpRenderPath : public RenderPath
+{
 public:
     void reset() override {}
 

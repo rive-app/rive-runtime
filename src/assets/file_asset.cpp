@@ -4,9 +4,11 @@
 
 using namespace rive;
 
-StatusCode FileAsset::import(ImportStack& importStack) {
+StatusCode FileAsset::import(ImportStack& importStack)
+{
     auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr) {
+    if (backboardImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
     backboardImporter->addFileAsset(this);
@@ -14,12 +16,14 @@ StatusCode FileAsset::import(ImportStack& importStack) {
     return Super::import(importStack);
 }
 
-std::string FileAsset::uniqueFilename() {
+std::string FileAsset::uniqueFilename()
+{
     // remove final extension
     std::string uniqueFilename = name();
     std::size_t finalDot = uniqueFilename.rfind('.');
 
-    if (finalDot != std::string::npos) {
+    if (finalDot != std::string::npos)
+    {
         uniqueFilename = uniqueFilename.substr(0, finalDot);
     }
     return uniqueFilename + "-" + std::to_string(assetId()) + "." + fileExtension();

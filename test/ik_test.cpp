@@ -6,7 +6,8 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("two bone ik places bones correctly", "[file]") {
+TEST_CASE("two bone ik places bones correctly", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/two_bone_ik.riv");
     auto artboard = file->artboard();
 
@@ -78,7 +79,8 @@ TEST_CASE("two bone ik places bones correctly", "[file]") {
                                    225.07647705078125f)));
 }
 
-TEST_CASE("ik keeps working after a lot of iterations", "[file]") {
+TEST_CASE("ik keeps working after a lot of iterations", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/two_bone_ik.riv");
     auto artboard = file->artboard();
 
@@ -109,7 +111,8 @@ TEST_CASE("ik keeps working after a lot of iterations", "[file]") {
     REQUIRE(std::find(boneB->dependents().begin(), boneB->dependents().end(), circleB) !=
             boneB->dependents().end());
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1000; i++)
+    {
         animation->apply(artboard, 0.0f, 1.0f);
         artboard->advance(0.0f);
         REQUIRE(target->x() == 296.0f);

@@ -13,7 +13,8 @@
 
 class ViewerContent;
 
-class ViewerHost {
+class ViewerHost
+{
 public:
     virtual ~ViewerHost() {}
 

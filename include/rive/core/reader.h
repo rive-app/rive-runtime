@@ -1,8 +1,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool is_big_endian(void) {
-    union {
+static bool is_big_endian(void)
+{
+    union
+    {
         uint32_t i;
         char c[4];
     } bint = {0x01020304};
@@ -12,14 +14,17 @@ static bool is_big_endian(void) {
 
 /* Decode an unsigned int LEB128 at buf into r, returning the nr of bytes read.
  */
-inline size_t decode_uint_leb(const uint8_t* buf, const uint8_t* buf_end, uint64_t* r) {
+inline size_t decode_uint_leb(const uint8_t* buf, const uint8_t* buf_end, uint64_t* r)
+{
     const uint8_t* p = buf;
     uint8_t shift = 0;
     uint64_t result = 0;
     uint8_t byte;
 
-    do {
-        if (p >= buf_end) {
+    do
+    {
+        if (p >= buf_end)
+        {
             return 0;
         }
         byte = *p++;
@@ -33,13 +38,16 @@ inline size_t decode_uint_leb(const uint8_t* buf, const uint8_t* buf_end, uint64
 /* Decodes a string
  */
 inline uint64_t
-decode_string(uint64_t str_len, const uint8_t* buf, const uint8_t* buf_end, char* char_buf) {
+decode_string(uint64_t str_len, const uint8_t* buf, const uint8_t* buf_end, char* char_buf)
+{
     // Return zero bytes read on buffer overflow
-    if (buf_end < buf + str_len) {
+    if (buf_end < buf + str_len)
+    {
         return 0;
     }
     const uint8_t* p = buf;
-    for (int i = 0; i < str_len; i++) {
+    for (int i = 0; i < str_len; i++)
+    {
         char_buf[i] = *p++;
     }
     // Add the null terminator
@@ -49,15 +57,20 @@ decode_string(uint64_t str_len, const uint8_t* buf, const uint8_t* buf_end, char
 
 /* Decodes a float (4 bytes)
  */
-inline size_t decode_float(const uint8_t* buf, const uint8_t* buf_end, float* r) {
+inline size_t decode_float(const uint8_t* buf, const uint8_t* buf_end, float* r)
+{
     // Return zero bytes read on buffer overflow
-    if (buf_end - buf < (unsigned)sizeof(float)) {
+    if (buf_end - buf < (unsigned)sizeof(float))
+    {
         return 0;
     }
-    if (is_big_endian()) {
+    if (is_big_endian())
+    {
         uint8_t inverted[4] = {buf[3], buf[2], buf[1], buf[0]};
         memcpy(r, inverted, sizeof(float));
-    } else {
+    }
+    else
+    {
         memcpy(r, buf, sizeof(float));
     }
     return sizeof(float);
@@ -65,9 +78,11 @@ inline size_t decode_float(const uint8_t* buf, const uint8_t* buf_end, float* r)
 
 /* Decodes a single byte
  */
-inline size_t decode_uint_8(const uint8_t* buf, const uint8_t* buf_end, uint8_t* r) {
+inline size_t decode_uint_8(const uint8_t* buf, const uint8_t* buf_end, uint8_t* r)
+{
     // Return zero bytes read on buffer overflow
-    if (buf_end - buf < (unsigned)sizeof(uint8_t)) {
+    if (buf_end - buf < (unsigned)sizeof(uint8_t))
+    {
         return 0;
     }
     memcpy(r, buf, sizeof(uint8_t));
@@ -76,15 +91,20 @@ inline size_t decode_uint_8(const uint8_t* buf, const uint8_t* buf_end, uint8_t*
 
 /* Decodes a 32 bit unsigned integer.
  */
-inline size_t decode_uint_32(const uint8_t* buf, const uint8_t* buf_end, uint32_t* r) {
+inline size_t decode_uint_32(const uint8_t* buf, const uint8_t* buf_end, uint32_t* r)
+{
     // Return zero bytes read on buffer overflow
-    if (buf_end - buf < (unsigned)sizeof(uint32_t)) {
+    if (buf_end - buf < (unsigned)sizeof(uint32_t))
+    {
         return 0;
     }
-    if (is_big_endian()) {
+    if (is_big_endian())
+    {
         uint8_t inverted[4] = {buf[3], buf[2], buf[1], buf[0]};
         memcpy(r, inverted, sizeof(uint32_t));
-    } else {
+    }
+    else
+    {
         memcpy(r, buf, sizeof(uint32_t));
     }
     return sizeof(uint32_t);

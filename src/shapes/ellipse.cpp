@@ -4,15 +4,18 @@
 
 using namespace rive;
 
-Ellipse::Ellipse() {
+Ellipse::Ellipse()
+{
     addVertex(&m_Vertex1);
     addVertex(&m_Vertex2);
     addVertex(&m_Vertex3);
     addVertex(&m_Vertex4);
 }
 
-void Ellipse::update(ComponentDirt value) {
-    if (hasDirt(value, ComponentDirt::Path)) {
+void Ellipse::update(ComponentDirt value)
+{
+    if (hasDirt(value, ComponentDirt::Path))
+    {
         auto radiusX = width() / 2.0f;
         auto radiusY = height() / 2.0f;
 

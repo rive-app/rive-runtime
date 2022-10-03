@@ -10,15 +10,18 @@
 #include "rive/refcnt.hpp"
 #include <utility>
 
-namespace rive {
+namespace rive
+{
 
-class ContourMeasure : public RefCnt<ContourMeasure> {
+class ContourMeasure : public RefCnt<ContourMeasure>
+{
 public:
     static constexpr unsigned kMaxDot30 = (1 << 30) - 1;
     static constexpr float kInvScaleD30 = 1.0f / (float)kMaxDot30;
 
     // Deliberately making this pack well (12 bytes)
-    struct Segment {
+    struct Segment
+    {
         float m_distance;       // total distance up to this point
         uint32_t m_ptIndex;     // index of the first point for this line/quad/cubic
         unsigned m_tValue : 30; // Dot30 t value for the end of this segment
@@ -48,14 +51,16 @@ public:
     float length() const { return m_length; }
     bool isClosed() const { return m_isClosed; }
 
-    struct PosTan {
+    struct PosTan
+    {
         Vec2D pos, tan;
     };
     PosTan getPosTan(float distance) const;
 
     void getSegment(float startDistance, float endDistance, RawPath* dst, bool startWithMove) const;
 
-    Vec2D warp(Vec2D src) const {
+    Vec2D warp(Vec2D src) const
+    {
         const auto result = this->getPosTan(src.x);
         return {
             result.pos.x - result.tan.y * src.y,
@@ -66,7 +71,8 @@ public:
     void dump() const;
 };
 
-class ContourMeasureIter {
+class ContourMeasureIter
+{
     RawPath m_optionalCopy;
     RawPath::Iter m_iter;
     RawPath::Iter m_end;
@@ -89,7 +95,8 @@ public:
     // approximation for the curves actual length.
     static constexpr float kDefaultTolerance = 0.5f;
 
-    ContourMeasureIter(const RawPath& path, float tol = kDefaultTolerance) {
+    ContourMeasureIter(const RawPath& path, float tol = kDefaultTolerance)
+    {
         this->reset(path, tol);
     }
 

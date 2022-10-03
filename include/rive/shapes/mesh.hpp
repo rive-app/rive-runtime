@@ -6,13 +6,16 @@
 #include "rive/refcnt.hpp"
 #include "rive/renderer.hpp"
 
-namespace rive {
+namespace rive
+{
 class MeshVertex;
 
-class Mesh : public MeshBase, public Skinnable {
+class Mesh : public MeshBase, public Skinnable
+{
 
 protected:
-    class IndexBuffer : public std::vector<uint16_t>, public RefCnt<IndexBuffer> {};
+    class IndexBuffer : public std::vector<uint16_t>, public RefCnt<IndexBuffer>
+    {};
     std::vector<MeshVertex*> m_Vertices;
     rcp<IndexBuffer> m_IndexBuffer;
 

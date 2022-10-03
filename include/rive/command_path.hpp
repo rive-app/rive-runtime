@@ -4,11 +4,13 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/math/path_types.hpp"
 
-namespace rive {
+namespace rive
+{
 class RenderPath;
 
 /// Abstract path used to build up commands used for rendering.
-class CommandPath {
+class CommandPath
+{
 public:
     virtual ~CommandPath() {}
     virtual void reset() = 0;
@@ -24,7 +26,8 @@ public:
 
     // non-virtual helpers
 
-    void addRect(float x, float y, float width, float height) {
+    void addRect(float x, float y, float width, float height)
+    {
         moveTo(x, y);
         lineTo(x + width, y);
         lineTo(x + width, y + height);

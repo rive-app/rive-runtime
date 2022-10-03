@@ -14,7 +14,8 @@ using namespace rive;
 /// radius. Based on "natural rounding" https://observablehq.com/@daformat/rounding-polygon-corners
 static float computeIdealControlPointDistance(const Vec2D& toPrev,
                                               const Vec2D& toNext,
-                                              float radius) {
+                                              float radius)
+{
     // Get the angle between next and prev
     float angle = fabs(atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
 
@@ -23,9 +24,11 @@ static float computeIdealControlPointDistance(const Vec2D& toPrev,
                     (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle)));
 }
 
-StatusCode Path::onAddedClean(CoreContext* context) {
+StatusCode Path::onAddedClean(CoreContext* context)
+{
     StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok) {
+    if (code != StatusCode::Ok)
+    {
         return code;
     }
 
@@ -33,7 +36,8 @@ StatusCode Path::onAddedClean(CoreContext* context) {
     for (auto currentParent = parent(); currentParent != nullptr;
          currentParent = currentParent->parent())
     {
-        if (currentParent->is<Shape>()) {
+        if (currentParent->is<Shape>())
+        {
             m_Shape = currentParent->as<Shape>();
             m_Shape->addPath(this);
             return StatusCode::Ok;
@@ -43,7 +47,8 @@ StatusCode Path::onAddedClean(CoreContext* context) {
     return StatusCode::MissingObject;
 }
 
-void Path::buildDependencies() {
+void Path::buildDependencies()
+{
     Super::buildDependencies();
     // Make sure this is called once the shape has all of the paints added
     // (paints get added during the added cycle so buildDependencies is a good
@@ -55,13 +60,15 @@ void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
-void Path::buildPath(CommandPath& commandPath) const {
+void Path::buildPath(CommandPath& commandPath) const
+{
 
     const bool isClosed = isPathClosed();
     const std::vector<PathVertex*>& vertices = m_Vertices;
 
     auto length = vertices.size();
-    if (length < 2) {
+    if (length < 2)
+    {
         return;
     }
     auto firstPoint = vertices[0];
@@ -73,18 +80,22 @@ void Path::buildPath(CommandPath& commandPath) const {
     Vec2D start, startIn;
     bool startIsCubic;
 
-    if (firstPoint->is<CubicVertex>()) {
+    if (firstPoint->is<CubicVertex>())
+    {
         auto cubic = firstPoint->as<CubicVertex>();
         startIsCubic = prevIsCubic = true;
         startIn = cubic->renderIn();
         out = cubic->renderOut();
         start = cubic->renderTranslation();
         commandPath.move(start);
-    } else {
+    }
+    else
+    {
         startIsCubic = prevIsCubic = false;
         auto point = *firstPoint->as<StraightVertex>();
         auto radius = point.radius();
-        if (radius > 0.0f) {
+        if (radius > 0.0f)
+        {
             auto prev = vertices[length - 1];
 
             Vec2D pos = point.renderTranslation();
@@ -114,16 +125,20 @@ void Path::buildPath(CommandPath& commandPath) const {
             out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
             commandPath.cubic(outPoint, inPoint, out);
             prevIsCubic = false;
-        } else {
+        }
+        else
+        {
             startIn = start = out = point.renderTranslation();
             commandPath.move(out);
         }
     }
 
-    for (size_t i = 1; i < length; i++) {
+    for (size_t i = 1; i < length; i++)
+    {
         auto vertex = vertices[i];
 
-        if (vertex->is<CubicVertex>()) {
+        if (vertex->is<CubicVertex>())
+        {
             auto cubic = vertex->as<CubicVertex>();
             auto inPoint = cubic->renderIn();
             auto translation = cubic->renderTranslation();
@@ -132,11 +147,14 @@ void Path::buildPath(CommandPath& commandPath) const {
 
             prevIsCubic = true;
             out = cubic->renderOut();
-        } else {
+        }
+        else
+        {
             auto point = *vertex->as<StraightVertex>();
             Vec2D pos = point.renderTranslation();
             auto radius = point.radius();
-            if (radius > 0.0f) {
+            if (radius > 0.0f)
+            {
                 auto prev = vertices[i - 1];
                 Vec2D toPrev = (prev->is<CubicVertex>() ? prev->as<CubicVertex>()->renderOut()
                                                         : prev->renderTranslation()) -
@@ -156,9 +174,12 @@ void Path::buildPath(CommandPath& commandPath) const {
                     computeIdealControlPointDistance(toPrev, toNext, renderRadius);
 
                 Vec2D translation = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
-                if (prevIsCubic) {
+                if (prevIsCubic)
+                {
                     commandPath.cubic(out, translation, translation);
-                } else {
+                }
+                else
+                {
                     commandPath.line(translation);
                 }
 
@@ -167,45 +188,59 @@ void Path::buildPath(CommandPath& commandPath) const {
                 out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
                 commandPath.cubic(outPoint, inPoint, out);
                 prevIsCubic = false;
-            } else if (prevIsCubic) {
+            }
+            else if (prevIsCubic)
+            {
                 commandPath.cubic(out, pos, pos);
 
                 prevIsCubic = false;
                 out = pos;
-            } else {
+            }
+            else
+            {
                 out = pos;
                 commandPath.line(out);
             }
         }
     }
-    if (isClosed) {
-        if (prevIsCubic || startIsCubic) {
+    if (isClosed)
+    {
+        if (prevIsCubic || startIsCubic)
+        {
             commandPath.cubic(out, startIn, start);
-        } else {
+        }
+        else
+        {
             commandPath.line(start);
         }
         commandPath.close();
     }
 }
 
-void Path::markPathDirty() {
+void Path::markPathDirty()
+{
     addDirt(ComponentDirt::Path);
-    if (m_Shape != nullptr) {
+    if (m_Shape != nullptr)
+    {
         m_Shape->pathChanged();
     }
 }
 
-void Path::onDirty(ComponentDirt value) {
-    if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr) {
+void Path::onDirty(ComponentDirt value)
+{
+    if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
+    {
         m_Shape->pathChanged();
     }
 }
 
-void Path::update(ComponentDirt value) {
+void Path::update(ComponentDirt value)
+{
     Super::update(value);
 
     assert(m_CommandPath != nullptr);
-    if (hasDirt(value, ComponentDirt::Path)) {
+    if (hasDirt(value, ComponentDirt::Path))
+    {
         // Build path doesn't explicitly reset because we use it to concatenate
         // multiple built paths into a single command path (like the hit
         // tester).
@@ -223,7 +258,8 @@ void Path::update(ComponentDirt value) {
 
 #ifdef ENABLE_QUERY_FLAT_VERTICES
 
-class DisplayCubicVertex : public CubicVertex {
+class DisplayCubicVertex : public CubicVertex
+{
 public:
     DisplayCubicVertex(const Vec2D& in, const Vec2D& out, const Vec2D& translation)
 
@@ -240,15 +276,18 @@ public:
     void computeOut() override {}
 };
 
-FlattenedPath* Path::makeFlat(bool transformToParent) {
-    if (m_Vertices.empty()) {
+FlattenedPath* Path::makeFlat(bool transformToParent)
+{
+    if (m_Vertices.empty())
+    {
         return nullptr;
     }
 
     // Path transform always puts the path into world space.
     auto transform = pathTransform();
 
-    if (transformToParent && parent()->is<TransformComponent>()) {
+    if (transformToParent && parent()->is<TransformComponent>())
+    {
         // Put the transform in parent space.
         auto world = parent()->as<TransformComponent>()->worldTransform();
         transform = world.invertOrIdentity() * transform;
@@ -258,13 +297,17 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
     auto length = m_Vertices.size();
     PathVertex* previous = isPathClosed() ? m_Vertices[length - 1] : nullptr;
     bool deletePrevious = false;
-    for (size_t i = 0; i < length; i++) {
+    for (size_t i = 0; i < length; i++)
+    {
         auto vertex = m_Vertices[i];
 
-        switch (vertex->coreType()) {
-            case StraightVertex::typeKey: {
+        switch (vertex->coreType())
+        {
+            case StraightVertex::typeKey:
+            {
                 auto point = *vertex->as<StraightVertex>();
-                if (point.radius() > 0.0f && (isPathClosed() || (i != 0 && i != length - 1))) {
+                if (point.radius() > 0.0f && (isPathClosed() || (i != 0 && i != length - 1)))
+                {
                     auto next = m_Vertices[(i + 1) % length];
 
                     Vec2D prevPoint = previous->is<CubicVertex>()
@@ -300,7 +343,8 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
                     auto v2 = new DisplayCubicVertex(in, translation, translation);
 
                     flat->addVertex(v2, transform);
-                    if (deletePrevious) {
+                    if (deletePrevious)
+                    {
                         delete previous;
                     }
                     previous = v2;
@@ -310,7 +354,8 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
                 [[fallthrough]];
             }
             default:
-                if (deletePrevious) {
+                if (deletePrevious)
+                {
                     delete previous;
                 }
                 previous = vertex;
@@ -319,16 +364,19 @@ FlattenedPath* Path::makeFlat(bool transformToParent) {
                 break;
         }
     }
-    if (deletePrevious) {
+    if (deletePrevious)
+    {
         delete previous;
     }
     return flat;
 }
 
-void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform) {
+void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform)
+{
     // To make this easy and relatively clean we just transform the vertices.
     // Requires the vertex to be passed in as a clone.
-    if (vertex->is<CubicVertex>()) {
+    if (vertex->is<CubicVertex>())
+    {
         auto cubic = vertex->as<CubicVertex>();
 
         // Cubics need to be transformed so we create a Display version which
@@ -339,7 +387,9 @@ void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform) {
 
         auto displayCubic = new DisplayCubicVertex(in, out, translation);
         m_Vertices.push_back(displayCubic);
-    } else {
+    }
+    else
+    {
         auto point = new PathVertex();
         Vec2D translation = transform * vertex->renderTranslation();
         point->x(translation.x);
@@ -348,8 +398,10 @@ void FlattenedPath::addVertex(PathVertex* vertex, const Mat2D& transform) {
     }
 }
 
-FlattenedPath::~FlattenedPath() {
-    for (auto vertex : m_Vertices) {
+FlattenedPath::~FlattenedPath()
+{
+    for (auto vertex : m_Vertices)
+    {
         delete vertex;
     }
 }

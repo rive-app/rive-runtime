@@ -3,9 +3,11 @@
 #include "rive/generated/shapes/cubic_vertex_base.hpp"
 #include "rive/math/vec2d.hpp"
 
-namespace rive {
+namespace rive
+{
 class Vec2D;
-class CubicVertex : public CubicVertexBase {
+class CubicVertex : public CubicVertexBase
+{
 protected:
     bool m_InValid = false;
     bool m_OutValid = false;

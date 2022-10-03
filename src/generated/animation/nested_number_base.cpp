@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* NestedNumberBase::clone() const {
+Core* NestedNumberBase::clone() const
+{
     auto cloned = new NestedNumber();
     cloned->copy(*this);
     return cloned;

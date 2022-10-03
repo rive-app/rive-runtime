@@ -16,9 +16,11 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
     // cause bad casts in parts of the code where we assumed AnimationStates
     // would have create AnimationStateInstances.
     m_AnimationInstance(state->animation() ? state->animation() : &emptyAnimation, instance),
-    m_KeepGoing(true) {}
+    m_KeepGoing(true)
+{}
 
-void AnimationStateInstance::advance(float seconds, Span<SMIInput*>) {
+void AnimationStateInstance::advance(float seconds, Span<SMIInput*>)
+{
     m_KeepGoing = m_AnimationInstance.advance(seconds);
 }
 

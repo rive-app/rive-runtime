@@ -12,7 +12,8 @@
 
 using namespace rive;
 
-TEST_CASE("rawpath-basics", "[rawpath]") {
+TEST_CASE("rawpath-basics", "[rawpath]")
+{
     RawPath path;
 
     REQUIRE(path.empty());
@@ -33,7 +34,8 @@ TEST_CASE("rawpath-basics", "[rawpath]") {
     REQUIRE(path.bounds() == AABB{-1, -2, 3, 5});
 }
 
-TEST_CASE("rawpath-add-helpers", "[rawpath]") {
+TEST_CASE("rawpath-add-helpers", "[rawpath]")
+{
     RawPath path;
 
     path.addRect({1, 1, 5, 6});
@@ -57,21 +59,25 @@ TEST_CASE("rawpath-add-helpers", "[rawpath]") {
     };
     constexpr auto size = sizeof(pts) / sizeof(pts[0]);
 
-    for (auto isClosed : {false, true}) {
+    for (auto isClosed : {false, true})
+    {
         path = RawPath();
         path.addPoly({pts, size}, isClosed);
         REQUIRE(path.bounds() == AABB{1, -100, 100, 5});
         REQUIRE(path.points().size() == size);
         REQUIRE(path.verbs().size() == size + isClosed);
 
-        for (size_t i = 0; i < size; ++i) {
+        for (size_t i = 0; i < size; ++i)
+        {
             REQUIRE(path.points()[i] == pts[i]);
         }
         REQUIRE(path.verbs()[0] == PathVerb::move);
-        for (size_t i = 1; i < size; ++i) {
+        for (size_t i = 1; i < size; ++i)
+        {
             REQUIRE(path.verbs()[i] == PathVerb::line);
         }
-        if (isClosed) {
+        if (isClosed)
+        {
             REQUIRE(path.verbs()[size] == PathVerb::close);
         }
     }
@@ -82,17 +88,20 @@ TEST_CASE("rawpath-add-helpers", "[rawpath]") {
 static void check_iter(RawPath::Iter& iter,
                        const RawPath::Iter& end,
                        PathVerb expectedVerb,
-                       std::vector<Vec2D> expectedPts) {
+                       std::vector<Vec2D> expectedPts)
+{
     REQUIRE(iter != end);
     auto [verb, pts] = *iter;
     REQUIRE(verb == expectedVerb);
-    for (size_t i = 0; i < expectedPts.size(); ++i) {
+    for (size_t i = 0; i < expectedPts.size(); ++i)
+    {
         CHECK(pts[i] == expectedPts[i]);
     }
     ++iter;
 }
 
-TEST_CASE("rawpath-iter", "[rawpath]") {
+TEST_CASE("rawpath-iter", "[rawpath]")
+{
     {
         RawPath rp;
         REQUIRE(rp.begin() == rp.end());
@@ -156,7 +165,8 @@ TEST_CASE("rawpath-iter", "[rawpath]") {
     }
 }
 
-TEST_CASE("addPath", "[rawpath]") {
+TEST_CASE("addPath", "[rawpath]")
+{
     using PathMaker = void (*)(RawPath * sink);
 
     const PathMaker makers[] = {
@@ -184,7 +194,8 @@ TEST_CASE("addPath", "[rawpath]") {
         RawPath p;
         m0(&p);
         m1(&p);
-        if (mx) {
+        if (mx)
+        {
             p.transformInPlace(*mx);
         }
         return p;
@@ -202,8 +213,10 @@ TEST_CASE("addPath", "[rawpath]") {
         return p;
     };
 
-    for (auto i = 0; i < N; ++i) {
-        for (auto j = 0; j < N; ++j) {
+    for (auto i = 0; i < N; ++i)
+    {
+        for (auto j = 0; j < N; ++j)
+        {
             RawPath p0, p1;
 
             p0 = direct(makers[i], makers[j], nullptr);
@@ -218,7 +231,8 @@ TEST_CASE("addPath", "[rawpath]") {
     }
 }
 
-TEST_CASE("bounds", "[rawpath]") {
+TEST_CASE("bounds", "[rawpath]")
+{
     RawPath path;
     AABB bounds;
     srand(0);
@@ -230,32 +244,42 @@ TEST_CASE("bounds", "[rawpath]") {
         bounds.maxY = std::max(bounds.maxY, pt.y);
         return pt;
     };
-    for (int numVerbs = 1; numVerbs < 1 << 16; numVerbs <<= 1) {
+    for (int numVerbs = 1; numVerbs < 1 << 16; numVerbs <<= 1)
+    {
         path.rewind();
         bounds.minX = bounds.minY = std::numeric_limits<float>::infinity();
         bounds.maxX = bounds.maxY = -std::numeric_limits<float>::infinity();
-        for (int i = 0; i < numVerbs; ++i) {
-            switch (rand() % 5) {
-                case 0: path.move(randPt()); break;
+        for (int i = 0; i < numVerbs; ++i)
+        {
+            switch (rand() % 5)
+            {
+                case 0:
+                    path.move(randPt());
+                    break;
                 case 1:
-                    if (path.empty()) { // Account for the implicit moveTo(0).
+                    if (path.empty())
+                    { // Account for the implicit moveTo(0).
                         bounds = {};
                     }
                     path.line(randPt());
                     break;
                 case 2:
-                    if (path.empty()) { // Account for the implicit moveTo(0).
+                    if (path.empty())
+                    { // Account for the implicit moveTo(0).
                         bounds = {};
                     }
                     path.quad(randPt(), randPt());
                     break;
                 case 3:
-                    if (path.empty()) { // Account for the implicit moveTo(0).
+                    if (path.empty())
+                    { // Account for the implicit moveTo(0).
                         bounds = {};
                     }
                     path.cubic(randPt(), randPt(), randPt());
                     break;
-                case 4: path.close(); break;
+                case 4:
+                    path.close();
+                    break;
             }
         }
         AABB pathBounds = path.bounds();

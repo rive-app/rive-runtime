@@ -9,15 +9,18 @@ using namespace rive;
 
 static const int subdivisionArcLength = 4.0f;
 
-void ContourStroke::reset() {
+void ContourStroke::reset()
+{
     m_TriangleStrip.clear();
     m_Offsets.clear();
 }
 
 void ContourStroke::resetRenderOffset() { m_RenderOffset = 0; }
 
-bool ContourStroke::nextRenderOffset(std::size_t& start, std::size_t& end) {
-    if (m_RenderOffset == m_Offsets.size()) {
+bool ContourStroke::nextRenderOffset(std::size_t& start, std::size_t& end)
+{
+    if (m_RenderOffset == m_Offsets.size())
+    {
         return false;
     }
     start = m_RenderOffset == 0 ? 0 : m_Offsets[m_RenderOffset - 1];
@@ -29,12 +32,14 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                             bool isClosed,
                             StrokeJoin join,
                             StrokeCap cap,
-                            float strokeWidth) {
+                            float strokeWidth)
+{
     auto contourPoints = contour->contourPoints();
     std::vector<Vec2D> points(contourPoints.begin(), contourPoints.end());
 
     auto pointCount = points.size();
-    if (pointCount < 2) {
+    if (pointCount < 2)
+    {
         return;
     }
     auto startOffset = m_TriangleStrip.size();
@@ -49,9 +54,12 @@ void ContourStroke::extrude(const SegmentedContour* contour,
     Vec2D lastA = lastPoint + perpendicularStrokeDiff;
     Vec2D lastB = lastPoint - perpendicularStrokeDiff;
 
-    if (!isClosed) {
-        switch (cap) {
-            case StrokeCap::square: {
+    if (!isClosed)
+    {
+        switch (cap)
+        {
+            case StrokeCap::square:
+            {
                 Vec2D strokeDiff = lastDiffNormalized * strokeWidth;
                 Vec2D squareA = lastA - strokeDiff;
                 Vec2D squareB = lastB - strokeDiff;
@@ -59,7 +67,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 m_TriangleStrip.push_back(squareB);
                 break;
             }
-            case StrokeCap::round: {
+            case StrokeCap::round:
+            {
                 Vec2D capDirection = Vec2D(-lastDiffNormalized.y, lastDiffNormalized.x);
                 float arcLength = std::abs(math::PI * strokeWidth);
                 int steps = (int)std::ceil(arcLength / subdivisionArcLength);
@@ -67,7 +76,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 float inc = math::PI / steps;
                 float angle = angleTo;
                 // make sure to draw the full cap due triangle strip
-                for (int j = 0; j <= steps; j++) {
+                for (int j = 0; j <= steps; j++)
+                {
                     m_TriangleStrip.push_back(lastPoint);
                     m_TriangleStrip.push_back(Vec2D(lastPoint.x + std::cos(angle) * strokeWidth,
                                                     lastPoint.y + std::sin(angle) * strokeWidth));
@@ -75,7 +85,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 }
                 break;
             }
-            default: break;
+            default:
+                break;
         }
     }
     m_TriangleStrip.push_back(lastA);
@@ -84,15 +95,19 @@ void ContourStroke::extrude(const SegmentedContour* contour,
     pointCount -= isClosed ? 1 : 0;
     std::size_t adjustedPointCount = isClosed ? pointCount + 1 : pointCount;
 
-    for (std::size_t i = 1; i < adjustedPointCount; i++) {
+    for (std::size_t i = 1; i < adjustedPointCount; i++)
+    {
         const Vec2D& point = points[i % pointCount];
         Vec2D diff, diffNormalized, next;
         float length;
-        if (i < adjustedPointCount - 1 || isClosed) {
+        if (i < adjustedPointCount - 1 || isClosed)
+        {
             diff = (next = points[(i + 1) % pointCount]) - point;
             length = diff.length();
             diffNormalized = diff / length;
-        } else {
+        }
+        else
+        {
             diff = lastDiff;
             next = point;
             length = lastLength;
@@ -116,26 +131,34 @@ void ContourStroke::extrude(const SegmentedContour* contour,
         bool bevel = join == StrokeJoin::miter ? dot < 0.1f : dot < 0.999f;
 
         // Scale bisector to match stroke size.
-        if (dot > 0.000001f) {
+        if (dot > 0.000001f)
+        {
             float scale = 1.0f / dot * strokeWidth;
             float limit = lengthLimit / strokeWidth;
-            if (dot * limit * limit < 1.0f) {
+            if (dot * limit * limit < 1.0f)
+            {
                 bevelInner = true;
             }
             bisector *= scale;
-        } else {
+        }
+        else
+        {
             bisector *= strokeWidth;
         }
 
-        if (!bevel) {
+        if (!bevel)
+        {
             Vec2D c = point + bisector;
             Vec2D d = point - bisector;
 
-            if (!bevelInner) {
+            if (!bevelInner)
+            {
                 // Normal mitered edge.
                 m_TriangleStrip.push_back(c);
                 m_TriangleStrip.push_back(d);
-            } else if (cross <= 0) {
+            }
+            else if (cross <= 0)
+            {
                 // Overlap the inner (in this case right) edge (sometimes called
                 // miter inner).
                 Vec2D c1 = point + Vec2D(lastDiffNormalized.y * -strokeWidth,
@@ -147,7 +170,9 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 m_TriangleStrip.push_back(d);
                 m_TriangleStrip.push_back(c2);
                 m_TriangleStrip.push_back(d);
-            } else {
+            }
+            else
+            {
                 // Overlap the inner (in this case left) edge (sometimes called
                 // miter inner).
                 Vec2D d1 = point - Vec2D(lastDiffNormalized.y * -strokeWidth,
@@ -160,19 +185,25 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 m_TriangleStrip.push_back(c);
                 m_TriangleStrip.push_back(d2);
             }
-        } else {
+        }
+        else
+        {
             Vec2D ldPStroke =
                 Vec2D(lastDiffNormalized.y * -strokeWidth, lastDiffNormalized.x * strokeWidth);
             Vec2D dPStroke = Vec2D(diffNormalized.y * -strokeWidth, diffNormalized.x * strokeWidth);
-            if (cross <= 0) {
+            if (cross <= 0)
+            {
                 // Bevel the outer (left in this case) edge.
                 Vec2D a1;
                 Vec2D a2;
 
-                if (bevelInner) {
+                if (bevelInner)
+                {
                     a1 = point + ldPStroke;
                     a2 = point + dPStroke;
-                } else {
+                }
+                else
+                {
                     a1 = point + bisector;
                     a2 = a1;
                 }
@@ -182,13 +213,15 @@ void ContourStroke::extrude(const SegmentedContour* contour,
 
                 m_TriangleStrip.push_back(a1);
                 m_TriangleStrip.push_back(b);
-                if (join == StrokeJoin::round) {
+                if (join == StrokeJoin::round)
+                {
                     const Vec2D& pivot = bevelInner ? point : a1;
                     Vec2D toPrev = bn - point;
                     Vec2D toNext = b - point;
                     float angleFrom = std::atan2(toPrev.y, toPrev.x);
                     float angleTo = std::atan2(toNext.y, toNext.x);
-                    if (angleTo > angleFrom) {
+                    if (angleTo > angleFrom)
+                    {
                         angleTo -= math::PI * 2.0f;
                     }
                     float range = angleTo - angleFrom;
@@ -197,7 +230,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
 
                     float inc = range / steps;
                     float angle = angleTo - inc;
-                    for (int j = 0; j < steps - 1; j++) {
+                    for (int j = 0; j < steps - 1; j++)
+                    {
                         m_TriangleStrip.push_back(pivot);
                         m_TriangleStrip.emplace_back(
                             Vec2D(point.x + std::cos(angle) * strokeWidth,
@@ -208,14 +242,19 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 }
                 m_TriangleStrip.push_back(a2);
                 m_TriangleStrip.push_back(bn);
-            } else {
+            }
+            else
+            {
                 // Bevel the outer (right in this case) edge.
                 Vec2D b1;
                 Vec2D b2;
-                if (bevelInner) {
+                if (bevelInner)
+                {
                     b1 = point - ldPStroke;
                     b2 = point - dPStroke;
-                } else {
+                }
+                else
+                {
                     b1 = point - bisector;
                     b2 = b1;
                 }
@@ -226,13 +265,15 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 m_TriangleStrip.push_back(a);
                 m_TriangleStrip.push_back(b1);
 
-                if (join == StrokeJoin::round) {
+                if (join == StrokeJoin::round)
+                {
                     const Vec2D& pivot = bevelInner ? point : b1;
                     Vec2D toPrev = a - point;
                     Vec2D toNext = an - point;
                     float angleFrom = std::atan2(toPrev.y, toPrev.x);
                     float angleTo = std::atan2(toNext.y, toNext.x);
-                    if (angleTo > angleFrom) {
+                    if (angleTo > angleFrom)
+                    {
                         angleTo -= math::PI * 2.0f;
                     }
 
@@ -242,7 +283,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                     float inc = range / steps;
 
                     float angle = angleFrom + inc;
-                    for (int j = 0; j < steps - 1; j++) {
+                    for (int j = 0; j < steps - 1; j++)
+                    {
                         m_TriangleStrip.emplace_back(
                             Vec2D(point.x + std::cos(angle) * strokeWidth,
                                   point.y + std::sin(angle) * strokeWidth));
@@ -260,13 +302,18 @@ void ContourStroke::extrude(const SegmentedContour* contour,
         lastDiffNormalized = diffNormalized;
     }
 
-    if (isClosed) {
+    if (isClosed)
+    {
         auto last = m_TriangleStrip.size() - 1;
         m_TriangleStrip[startOffset] = m_TriangleStrip[last - 1];
         m_TriangleStrip[startOffset + 1] = m_TriangleStrip[last];
-    } else {
-        switch (cap) {
-            case StrokeCap::square: {
+    }
+    else
+    {
+        switch (cap)
+        {
+            case StrokeCap::square:
+            {
                 auto l = m_TriangleStrip.size();
 
                 Vec2D strokeDiff = lastDiffNormalized * strokeWidth;
@@ -277,7 +324,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 m_TriangleStrip.push_back(squareB);
                 break;
             }
-            case StrokeCap::round: {
+            case StrokeCap::round:
+            {
                 Vec2D capDirection = Vec2D(-lastDiffNormalized.y, lastDiffNormalized.x);
                 float arcLength = std::abs(math::PI * strokeWidth);
                 int steps = (int)std::ceil(arcLength / subdivisionArcLength);
@@ -285,7 +333,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 float inc = math::PI / steps;
                 float angle = angleTo;
                 // make sure to draw the full cap due triangle strip
-                for (int j = 0; j <= steps; j++) {
+                for (int j = 0; j <= steps; j++)
+                {
                     m_TriangleStrip.push_back(lastPoint);
                     m_TriangleStrip.push_back(Vec2D(lastPoint.x + std::cos(angle) * strokeWidth,
                                                     lastPoint.y + std::sin(angle) * strokeWidth));
@@ -293,7 +342,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 }
                 break;
             }
-            default: break;
+            default:
+                break;
         }
     }
 

@@ -8,9 +8,11 @@
 #include "rive/factory.hpp"
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 
-class SkiaFactory : public Factory {
+class SkiaFactory : public Factory
+{
 public:
     rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
     rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
@@ -43,15 +45,18 @@ public:
     // New virtual for access the platform's codecs
     //
 
-    enum class ColorType {
+    enum class ColorType
+    {
         rgba,
         bgra,
     };
-    enum class AlphaType {
+    enum class AlphaType
+    {
         premul,
         opaque,
     };
-    struct ImageInfo {
+    struct ImageInfo
+    {
         size_t rowBytes; // number of bytes between rows
         uint32_t width;  // logical width in pixels
         uint32_t height; // logical height in pixels
@@ -62,7 +67,8 @@ public:
     // Clients can override this to provide access to the platform's decoders, rather
     // than solely relying on the codecs built into Skia. This allows for the Skia impl
     // to not have to duplicate the code for codecs that the platform may already have.
-    virtual std::vector<uint8_t> platformDecode(Span<const uint8_t>, ImageInfo* info) {
+    virtual std::vector<uint8_t> platformDecode(Span<const uint8_t>, ImageInfo* info)
+    {
         return std::vector<uint8_t>(); // empty vector means decode failed
     }
 };

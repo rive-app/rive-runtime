@@ -3,9 +3,11 @@
 
 #include "rive/rive_types.hpp"
 
-namespace rive {
+namespace rive
+{
 class Mat2D;
-class Vec2D {
+class Vec2D
+{
 public:
     float x, y;
 
@@ -18,7 +20,8 @@ public:
     Vec2D normalized() const;
 
     // Normalize this Vec, and return its previous length
-    float normalizeLength() {
+    float normalizeLength()
+    {
         const float len = this->length();
         x /= len;
         y /= len;
@@ -27,12 +30,14 @@ public:
 
     Vec2D operator-() const { return {-x, -y}; }
 
-    void operator*=(float s) {
+    void operator*=(float s)
+    {
         x *= s;
         y *= s;
     }
 
-    void operator/=(float s) {
+    void operator/=(float s)
+    {
         x /= s;
         y /= s;
     }
@@ -45,7 +50,8 @@ public:
 
     static float dot(Vec2D a, Vec2D b) { return a.x * b.x + a.y * b.y; }
     static float cross(Vec2D a, Vec2D b) { return a.x * b.y - a.y * b.x; }
-    static Vec2D scaleAndAdd(Vec2D a, Vec2D b, float scale) {
+    static Vec2D scaleAndAdd(Vec2D a, Vec2D b, float scale)
+    {
         return {
             a.x + b.x * scale,
             a.y + b.y * scale,
@@ -54,12 +60,14 @@ public:
     static float distance(const Vec2D& a, const Vec2D& b) { return (a - b).length(); }
     static float distanceSquared(const Vec2D& a, const Vec2D& b) { return (a - b).lengthSquared(); }
 
-    Vec2D& operator+=(Vec2D v) {
+    Vec2D& operator+=(Vec2D v)
+    {
         x += v.x;
         y += v.y;
         return *this;
     }
-    Vec2D& operator-=(Vec2D v) {
+    Vec2D& operator-=(Vec2D v)
+    {
         x -= v.x;
         y -= v.y;
         return *this;

@@ -11,12 +11,14 @@
 #include <type_traits>
 #include <cstring>
 
-namespace rive {
+namespace rive
+{
 
 template <typename T> class SimpleArrayBuilder;
 
 #ifdef TESTING
-namespace SimpleArrayTesting {
+namespace SimpleArrayTesting
+{
 extern int mallocCount;
 extern int reallocCount;
 extern int freeCount;
@@ -32,12 +34,16 @@ void resetCounters();
 /// it optimally sized for marshaling. See SimpleArrayBuilder<T> below for push
 /// functionality.
 
-template <typename T> class SimpleArray {
+template <typename T> class SimpleArray
+{
 public:
     SimpleArray() : m_ptr(nullptr), m_size(0) {}
-    SimpleArray(size_t size) : m_ptr(static_cast<T*>(malloc(size * sizeof(T)))), m_size(size) {
-        if constexpr (!std::is_pod<T>()) {
-            for (T *element = m_ptr, *end = m_ptr + m_size; element < end; element++) {
+    SimpleArray(size_t size) : m_ptr(static_cast<T*>(malloc(size * sizeof(T)))), m_size(size)
+    {
+        if constexpr (!std::is_pod<T>())
+        {
+            for (T *element = m_ptr, *end = m_ptr + m_size; element < end; element++)
+            {
                 new (element) T();
             }
         }
@@ -46,12 +52,17 @@ public:
         SimpleArrayTesting::mallocCount++;
 #endif
     }
-    SimpleArray(const T* ptr, size_t size) : SimpleArray(size) {
+    SimpleArray(const T* ptr, size_t size) : SimpleArray(size)
+    {
         assert(ptr <= ptr + size);
-        if constexpr (std::is_pod<T>()) {
+        if constexpr (std::is_pod<T>())
+        {
             memcpy(m_ptr, ptr, size * sizeof(T));
-        } else {
-            for (T *element = m_ptr, *end = m_ptr + m_size; element < end; element++) {
+        }
+        else
+        {
+            for (T *element = m_ptr, *end = m_ptr + m_size; element < end; element++)
+            {
                 new (element) T(ptr++);
             }
         }
@@ -59,7 +70,8 @@ public:
 
     constexpr SimpleArray(const SimpleArray<T>& other) : SimpleArray(other.m_ptr, other.m_size) {}
 
-    constexpr SimpleArray(SimpleArray<T>&& other) : m_ptr(other.m_ptr), m_size(other.m_size) {
+    constexpr SimpleArray(SimpleArray<T>&& other) : m_ptr(other.m_ptr), m_size(other.m_size)
+    {
         other.m_ptr = nullptr;
         other.m_size = 0;
     }
@@ -68,7 +80,8 @@ public:
 
     SimpleArray<T>& operator=(const SimpleArray<T>& other) = delete;
 
-    SimpleArray<T>& operator=(SimpleArray<T>&& other) {
+    SimpleArray<T>& operator=(SimpleArray<T>&& other)
+    {
         this->m_ptr = other.m_ptr;
         this->m_size = other.m_size;
         other.m_ptr = nullptr;
@@ -79,12 +92,16 @@ public:
     SimpleArray<T>& operator=(SimpleArrayBuilder<T>&& other);
 
     template <typename Container>
-    constexpr SimpleArray(Container& c) : SimpleArray(std::data(c), std::size(c)) {}
-    constexpr SimpleArray(std::initializer_list<T> il) :
-        SimpleArray(std::data(il), std::size(il)) {}
-    ~SimpleArray() {
-        if constexpr (!std::is_pod<T>()) {
-            for (T *element = m_ptr, *end = m_ptr + m_size; element < end; element++) {
+    constexpr SimpleArray(Container& c) : SimpleArray(std::data(c), std::size(c))
+    {}
+    constexpr SimpleArray(std::initializer_list<T> il) : SimpleArray(std::data(il), std::size(il))
+    {}
+    ~SimpleArray()
+    {
+        if constexpr (!std::is_pod<T>())
+        {
+            for (T *element = m_ptr, *end = m_ptr + m_size; element < end; element++)
+            {
                 element->~T();
             }
         }
@@ -94,7 +111,8 @@ public:
 #endif
     }
 
-    constexpr T& operator[](size_t index) const {
+    constexpr T& operator[](size_t index) const
+    {
         assert(index < m_size);
         return m_ptr[index];
     }
@@ -129,23 +147,27 @@ protected:
 
 /// Extension of SimpleArray which can progressively expand as contents are
 /// pushed/added/written to it. Can be released as a simple SimpleArray.
-template <typename T> class SimpleArrayBuilder : public SimpleArray<T> {
+template <typename T> class SimpleArrayBuilder : public SimpleArray<T>
+{
     friend class SimpleArray<T>;
 
 public:
-    SimpleArrayBuilder(size_t reserve) : SimpleArray<T>(reserve) {
+    SimpleArrayBuilder(size_t reserve) : SimpleArray<T>(reserve)
+    {
         assert(this->m_ptr <= this->m_ptr + this->m_size);
         m_write = this->m_ptr;
     }
 
     SimpleArrayBuilder() : SimpleArrayBuilder(0) {}
 
-    void add(const T& value) {
+    void add(const T& value)
+    {
         growToFit();
         *m_write++ = value;
     }
 
-    void add(T&& value) {
+    void add(T&& value)
+    {
         growToFit();
         *m_write++ = std::move(value);
     }
@@ -161,33 +183,41 @@ public:
     constexpr T& back() const { return *(m_write - 1); }
 
 private:
-    void growToFit() {
-        if (m_write == this->m_ptr + this->m_size) {
+    void growToFit()
+    {
+        if (m_write == this->m_ptr + this->m_size)
+        {
             auto writeOffset = m_write - this->m_ptr;
             this->resize(std::max((size_t)1, this->m_size * 2));
             m_write = this->m_ptr + writeOffset;
         }
     }
 
-    void resize(size_t size) {
-        if (size == this->m_size) {
+    void resize(size_t size)
+    {
+        if (size == this->m_size)
+        {
             return;
         }
 #ifdef TESTING
         SimpleArrayTesting::reallocCount++;
 #endif
-        if constexpr (!std::is_pod<T>()) {
+        if constexpr (!std::is_pod<T>())
+        {
             // Call destructor for elements when sizing down.
             for (T *element = this->m_ptr + size, *end = this->m_ptr + this->m_size; element < end;
-                 element++) {
+                 element++)
+            {
                 element->~T();
             }
         }
         this->m_ptr = static_cast<T*>(realloc(this->m_ptr, size * sizeof(T)));
-        if constexpr (!std::is_pod<T>()) {
+        if constexpr (!std::is_pod<T>())
+        {
             // Call constructor for elements when sizing up.
             for (T *element = this->m_ptr + this->m_size, *end = this->m_ptr + size; element < end;
-                 element++) {
+                 element++)
+            {
                 new (element) T();
             }
         }
@@ -198,7 +228,8 @@ private:
 };
 
 template <typename T>
-constexpr SimpleArray<T>::SimpleArray(SimpleArrayBuilder<T>&& other) : m_size(other.size()) {
+constexpr SimpleArray<T>::SimpleArray(SimpleArrayBuilder<T>&& other) : m_size(other.size())
+{
     // Bring the capacity down to the actual size (this should keep the same
     // ptr, but that's not guaranteed, so we copy the ptr after the realloc).
     other.resize(other.size());
@@ -207,7 +238,8 @@ constexpr SimpleArray<T>::SimpleArray(SimpleArrayBuilder<T>&& other) : m_size(ot
     other.m_size = 0;
 }
 
-template <typename T> SimpleArray<T>& SimpleArray<T>::operator=(SimpleArrayBuilder<T>&& other) {
+template <typename T> SimpleArray<T>& SimpleArray<T>::operator=(SimpleArrayBuilder<T>&& other)
+{
     other.resize(other.size());
     this->m_ptr = other.m_ptr;
     this->m_size = other.m_size;

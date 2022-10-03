@@ -8,9 +8,11 @@
 #include "rive/factory.hpp"
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 
-class CGFactory : public Factory {
+class CGFactory : public Factory
+{
 public:
     rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
     rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;

@@ -8,11 +8,13 @@
 #include "rive/math/aabb.hpp"
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 
 class NestedArtboard;
 
-struct HitInfo {
+struct HitInfo
+{
     IAABB area;                          // input
     std::vector<NestedArtboard*> mounts; // output
 };

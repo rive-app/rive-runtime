@@ -2,8 +2,10 @@
 #define _RIVE_DIRTY_FLAGS_HPP_
 #include <type_traits>
 
-namespace rive {
-enum class ComponentDirt : unsigned short {
+namespace rive
+{
+enum class ComponentDirt : unsigned short
+{
     None = 0,
 
     Dependents = 1 << 0,
@@ -50,40 +52,47 @@ enum class ComponentDirt : unsigned short {
     Filthy = 0xFFFF
 };
 
-inline constexpr ComponentDirt operator&(ComponentDirt lhs, ComponentDirt rhs) {
+inline constexpr ComponentDirt operator&(ComponentDirt lhs, ComponentDirt rhs)
+{
     return static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) &
                                       static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 }
 
-inline constexpr ComponentDirt operator^(ComponentDirt lhs, ComponentDirt rhs) {
+inline constexpr ComponentDirt operator^(ComponentDirt lhs, ComponentDirt rhs)
+{
     return static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) ^
                                       static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 }
 
-inline constexpr ComponentDirt operator|(ComponentDirt lhs, ComponentDirt rhs) {
+inline constexpr ComponentDirt operator|(ComponentDirt lhs, ComponentDirt rhs)
+{
     return static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) |
                                       static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 }
 
-inline constexpr ComponentDirt operator~(ComponentDirt rhs) {
+inline constexpr ComponentDirt operator~(ComponentDirt rhs)
+{
     return static_cast<ComponentDirt>(~static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 }
 
-inline ComponentDirt& operator|=(ComponentDirt& lhs, ComponentDirt rhs) {
+inline ComponentDirt& operator|=(ComponentDirt& lhs, ComponentDirt rhs)
+{
     lhs = static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) |
                                      static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 
     return lhs;
 }
 
-inline ComponentDirt& operator&=(ComponentDirt& lhs, ComponentDirt rhs) {
+inline ComponentDirt& operator&=(ComponentDirt& lhs, ComponentDirt rhs)
+{
     lhs = static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) &
                                      static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 
     return lhs;
 }
 
-inline ComponentDirt& operator^=(ComponentDirt& lhs, ComponentDirt rhs) {
+inline ComponentDirt& operator^=(ComponentDirt& lhs, ComponentDirt rhs)
+{
     lhs = static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) ^
                                      static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
 

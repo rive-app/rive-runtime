@@ -1,9 +1,20 @@
 #ifndef _RIVE_LAYOUT_HPP_
 #define _RIVE_LAYOUT_HPP_
-namespace rive {
-enum class Fit : unsigned char { fill, contain, cover, fitWidth, fitHeight, none, scaleDown };
+namespace rive
+{
+enum class Fit : unsigned char
+{
+    fill,
+    contain,
+    cover,
+    fitWidth,
+    fitHeight,
+    none,
+    scaleDown
+};
 
-class Alignment {
+class Alignment
+{
 private:
     float m_X, m_Y;
 

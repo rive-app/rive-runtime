@@ -9,11 +9,12 @@
 
 static rive::NoOpFactory gNoOpFactory;
 
-static inline std::unique_ptr<rive::File>
-ReadRiveFile(const char path[],
-             rive::Factory* factory = nullptr,
-             rive::FileAssetResolver* resolver = nullptr) {
-    if (!factory) {
+static inline std::unique_ptr<rive::File> ReadRiveFile(const char path[],
+                                                       rive::Factory* factory = nullptr,
+                                                       rive::FileAssetResolver* resolver = nullptr)
+{
+    if (!factory)
+    {
         factory = &gNoOpFactory;
     }
 
@@ -36,19 +37,24 @@ ReadRiveFile(const char path[],
     return file;
 }
 
-class RenderObjectLeakChecker {
+class RenderObjectLeakChecker
+{
     int m_before[rive::Counter::kNumTypes];
 
 public:
-    RenderObjectLeakChecker() {
+    RenderObjectLeakChecker()
+    {
         std::copy(rive::Counter::counts,
                   rive::Counter::counts + rive::Counter::kNumTypes,
                   m_before);
     }
-    ~RenderObjectLeakChecker() {
+    ~RenderObjectLeakChecker()
+    {
         const int* after = rive::Counter::counts;
-        for (int i = 0; i < rive::Counter::kNumTypes; ++i) {
-            if (rive::Counter::counts[i] != m_before[i]) {
+        for (int i = 0; i < rive::Counter::kNumTypes; ++i)
+        {
+            if (rive::Counter::counts[i] != m_before[i])
+            {
                 printf("[%d] before:%d after:%d\n", i, m_before[i], after[i]);
                 REQUIRE(false);
             }

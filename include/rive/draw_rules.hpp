@@ -2,9 +2,11 @@
 #define _RIVE_DRAW_RULES_HPP_
 #include "rive/generated/draw_rules_base.hpp"
 #include <stdio.h>
-namespace rive {
+namespace rive
+{
 class DrawTarget;
-class DrawRules : public DrawRulesBase {
+class DrawRules : public DrawRulesBase
+{
 private:
     DrawTarget* m_ActiveTarget = nullptr;
 

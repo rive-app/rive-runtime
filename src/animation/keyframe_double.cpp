@@ -8,10 +8,14 @@ using namespace rive;
 // floating point numbers suffice. So even though this is a "double keyframe" to
 // match editor names, the actual values are stored and applied in 32 bits.
 
-static void applyDouble(Core* object, int propertyKey, float mix, float value) {
-    if (mix == 1.0f) {
+static void applyDouble(Core* object, int propertyKey, float mix, float value)
+{
+    if (mix == 1.0f)
+    {
         CoreRegistry::setDouble(object, propertyKey, value);
-    } else {
+    }
+    else
+    {
         float mixi = 1.0f - mix;
         CoreRegistry::setDouble(object,
                                 propertyKey,
@@ -19,7 +23,8 @@ static void applyDouble(Core* object, int propertyKey, float mix, float value) {
     }
 }
 
-void KeyFrameDouble::apply(Core* object, int propertyKey, float mix) {
+void KeyFrameDouble::apply(Core* object, int propertyKey, float mix)
+{
     applyDouble(object, propertyKey, mix, value());
 }
 
@@ -27,12 +32,14 @@ void KeyFrameDouble::applyInterpolation(Core* object,
                                         int propertyKey,
                                         float currentTime,
                                         const KeyFrame* nextFrame,
-                                        float mix) {
+                                        float mix)
+{
     auto kfd = nextFrame->as<KeyFrameDouble>();
     const KeyFrameDouble& nextDouble = *kfd;
     float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
 
-    if (CubicInterpolator* cubic = interpolator()) {
+    if (CubicInterpolator* cubic = interpolator())
+    {
         f = cubic->transform(f);
     }
 

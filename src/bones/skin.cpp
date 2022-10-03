@@ -10,7 +10,8 @@ using namespace rive;
 
 Skin::~Skin() { delete[] m_BoneTransforms; }
 
-StatusCode Skin::onAddedClean(CoreContext* context) {
+StatusCode Skin::onAddedClean(CoreContext* context)
+{
     m_WorldTransform[0] = xx();
     m_WorldTransform[1] = xy();
     m_WorldTransform[2] = yx();
@@ -19,7 +20,8 @@ StatusCode Skin::onAddedClean(CoreContext* context) {
     m_WorldTransform[5] = ty();
 
     m_Skinnable = Skinnable::from(parent());
-    if (m_Skinnable == nullptr) {
+    if (m_Skinnable == nullptr)
+    {
         return StatusCode::MissingObject;
     }
 
@@ -28,9 +30,11 @@ StatusCode Skin::onAddedClean(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void Skin::update(ComponentDirt value) {
+void Skin::update(ComponentDirt value)
+{
     int bidx = 6;
-    for (auto tendon : m_Tendons) {
+    for (auto tendon : m_Tendons)
+    {
         auto world = tendon->bone()->worldTransform() * tendon->inverseBind();
         m_BoneTransforms[bidx++] = world[0];
         m_BoneTransforms[bidx++] = world[1];
@@ -41,12 +45,15 @@ void Skin::update(ComponentDirt value) {
     }
 }
 
-void Skin::buildDependencies() {
+void Skin::buildDependencies()
+{
     // depend on bones from tendons
-    for (auto tendon : m_Tendons) {
+    for (auto tendon : m_Tendons)
+    {
         auto bone = tendon->bone();
         bone->addDependent(this);
-        for (auto constraint : bone->peerConstraints()) {
+        for (auto constraint : bone->peerConstraints())
+        {
             constraint->parent()->addDependent(this);
         }
     }
@@ -64,8 +71,10 @@ void Skin::buildDependencies() {
     m_BoneTransforms[5] = 0;
 }
 
-void Skin::deform(Span<Vertex*> vertices) {
-    for (auto vertex : vertices) {
+void Skin::deform(Span<Vertex*> vertices)
+{
+    for (auto vertex : vertices)
+    {
         vertex->deform(m_WorldTransform, m_BoneTransforms);
     }
 }

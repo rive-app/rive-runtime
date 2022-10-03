@@ -4,10 +4,12 @@
 #include "rive/artboard.hpp"
 #include "rive/scene.hpp"
 
-namespace rive {
+namespace rive
+{
 class LinearAnimation;
 
-class LinearAnimationInstance : public Scene {
+class LinearAnimationInstance : public Scene
+{
 private:
     const LinearAnimation* m_Animation = nullptr;
     float m_Time;
@@ -39,10 +41,14 @@ public:
 
     // Update the direction of the animation instance, positive value for
     // forwards Negative for backwards
-    void direction(int direction) {
-        if (direction > 0) {
+    void direction(int direction)
+    {
+        if (direction > 0)
+        {
             m_Direction = 1;
-        } else {
+        }
+        else
+        {
             m_Direction = -1;
         }
     }

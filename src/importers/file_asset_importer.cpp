@@ -10,21 +10,26 @@ using namespace rive;
 FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
                                      FileAssetResolver* assetResolver,
                                      Factory* factory) :
-    m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver), m_Factory(factory) {}
+    m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver), m_Factory(factory)
+{}
 
-void FileAssetImporter::loadContents(std::unique_ptr<FileAssetContents> contents) {
+void FileAssetImporter::loadContents(std::unique_ptr<FileAssetContents> contents)
+{
     // we should only ever be called once
     assert(!m_Content);
     m_Content = std::move(contents);
 
     auto data = m_Content->bytes();
-    if (m_FileAsset->decode(data, m_Factory)) {
+    if (m_FileAsset->decode(data, m_Factory))
+    {
         m_LoadedContents = true;
     }
 }
 
-StatusCode FileAssetImporter::resolve() {
-    if (!m_LoadedContents && m_FileAssetResolver != nullptr) {
+StatusCode FileAssetImporter::resolve()
+{
+    if (!m_LoadedContents && m_FileAssetResolver != nullptr)
+    {
         // Contents weren't available in-band, or they couldn't be decoded. Try
         // to find them out of band.
         m_FileAssetResolver->loadContents(*m_FileAsset);

@@ -2,7 +2,8 @@
 
 using namespace rive;
 
-Rectangle::Rectangle() {
+Rectangle::Rectangle()
+{
     addVertex(&m_Vertex1);
     addVertex(&m_Vertex2);
     addVertex(&m_Vertex3);
@@ -14,8 +15,10 @@ void Rectangle::cornerRadiusTRChanged() { markPathDirty(); }
 void Rectangle::cornerRadiusBLChanged() { markPathDirty(); }
 void Rectangle::cornerRadiusBRChanged() { markPathDirty(); }
 
-void Rectangle::update(ComponentDirt value) {
-    if (hasDirt(value, ComponentDirt::Path)) {
+void Rectangle::update(ComponentDirt value)
+{
+    if (hasDirt(value, ComponentDirt::Path))
+    {
         auto radius = cornerRadiusTL();
         auto link = linkCornerRadius();
 

@@ -4,9 +4,11 @@
 #include <cstdint>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class FileAsset;
-class FileAssetResolver {
+class FileAssetResolver
+{
 public:
     virtual ~FileAssetResolver() {}
 

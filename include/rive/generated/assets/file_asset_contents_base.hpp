@@ -3,8 +3,10 @@
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/span.hpp"
-namespace rive {
-class FileAssetContentsBase : public Core {
+namespace rive
+{
+class FileAssetContentsBase : public Core
+{
 protected:
     typedef Core Super;
 
@@ -13,10 +15,14 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
-            case FileAssetContentsBase::typeKey: return true;
-            default: return false;
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
+            case FileAssetContentsBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -31,9 +37,13 @@ public:
     Core* clone() const override;
     void copy(const FileAssetContentsBase& object) { copyBytes(object); }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case bytesPropertyKey: decodeBytes(CoreBytesType::deserialize(reader)); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case bytesPropertyKey:
+                decodeBytes(CoreBytesType::deserialize(reader));
+                return true;
         }
         return false;
     }

@@ -16,7 +16,8 @@ void Polygon::pointsChanged() { markPathDirty(); }
 
 std::size_t Polygon::vertexCount() { return points(); }
 
-void Polygon::buildPolygon() {
+void Polygon::buildPolygon()
+{
     auto halfWidth = width() / 2;
     auto halfHeight = height() / 2;
 
@@ -26,7 +27,8 @@ void Polygon::buildPolygon() {
     auto angle = -math::PI / 2;
     auto inc = 2 * -math::PI / points();
 
-    for (StraightVertex& vertex : m_PolygonVertices) {
+    for (StraightVertex& vertex : m_PolygonVertices)
+    {
         vertex.x(ox + cos(angle) * halfWidth);
         vertex.y(oy + sin(angle) * halfHeight);
         vertex.radius(cornerRadius());
@@ -34,12 +36,16 @@ void Polygon::buildPolygon() {
     }
 }
 
-void Polygon::update(ComponentDirt value) {
-    if (hasDirt(value, ComponentDirt::Path)) {
-        if (m_PolygonVertices.size() != vertexCount()) {
+void Polygon::update(ComponentDirt value)
+{
+    if (hasDirt(value, ComponentDirt::Path))
+    {
+        if (m_PolygonVertices.size() != vertexCount())
+        {
             m_PolygonVertices.resize(vertexCount());
             m_Vertices.clear();
-            for (StraightVertex& vertex : m_PolygonVertices) {
+            for (StraightVertex& vertex : m_PolygonVertices)
+            {
                 m_Vertices.push_back(&vertex);
             }
         }

@@ -1,8 +1,10 @@
 #ifndef _RIVE_LOOP_HPP_
 #define _RIVE_LOOP_HPP_
-namespace rive {
+namespace rive
+{
 /// Loop options for linear animations.
-enum class Loop : unsigned int {
+enum class Loop : unsigned int
+{
     /// Play until the duration or end of work area of the animation.
     oneShot = 0,
 

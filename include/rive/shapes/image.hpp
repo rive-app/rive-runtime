@@ -5,10 +5,12 @@
 #include "rive/generated/shapes/image_base.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
 
-namespace rive {
+namespace rive
+{
 class ImageAsset;
 class Mesh;
-class Image : public ImageBase, public FileAssetReferencer {
+class Image : public ImageBase, public FileAssetReferencer
+{
 private:
     ImageAsset* m_ImageAsset = nullptr;
     Mesh* m_Mesh = nullptr;

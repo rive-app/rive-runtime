@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* BlendAnimation1DBase::clone() const {
+Core* BlendAnimation1DBase::clone() const
+{
     auto cloned = new BlendAnimation1D();
     cloned->copy(*this);
     return cloned;

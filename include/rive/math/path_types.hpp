@@ -7,14 +7,17 @@
 
 #include "rive/rive_types.hpp"
 
-namespace rive {
+namespace rive
+{
 
-enum class FillRule {
+enum class FillRule
+{
     nonZero,
     evenOdd,
 };
 
-enum class PathDirection {
+enum class PathDirection
+{
     cw,
     ccw,
     // aliases
@@ -22,7 +25,8 @@ enum class PathDirection {
     counterclockwise = ccw,
 };
 
-enum class PathVerb : uint8_t {
+enum class PathVerb : uint8_t
+{
     // These deliberately match Skia's values
     move = 0,
     line = 1,

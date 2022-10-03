@@ -7,9 +7,11 @@
 #include <cassert>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 
-class MetricsPath : public CommandPath {
+class MetricsPath : public CommandPath
+{
 private:
     RawPath m_RawPath; // temporary, until we build m_Contour
     rcp<ContourMeasure> m_Contour;
@@ -38,18 +40,21 @@ private:
     float computeLength(const Mat2D& transform);
 };
 
-class OnlyMetricsPath : public MetricsPath {
+class OnlyMetricsPath : public MetricsPath
+{
 public:
     void fillRule(FillRule value) override {}
 
-    RenderPath* renderPath() override {
+    RenderPath* renderPath() override
+    {
         // Should never be used for actual rendering.
         assert(false);
         return nullptr;
     }
 };
 
-class RenderMetricsPath : public MetricsPath {
+class RenderMetricsPath : public MetricsPath
+{
 private:
     std::unique_ptr<RenderPath> m_RenderPath;
 

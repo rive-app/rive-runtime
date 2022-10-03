@@ -16,11 +16,13 @@
 #include <stdio.h>
 #include <cstdint>
 
-namespace rive {
+namespace rive
+{
 
 class RawPath;
 
-class Factory {
+class Factory
+{
 public:
     Factory() {}
     virtual ~Factory() {}

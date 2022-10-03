@@ -5,10 +5,12 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include "rive/shapes/path_space.hpp"
-namespace rive {
+namespace rive
+{
 class RenderPaint;
 class ShapePaintMutator;
-class ShapePaint : public ShapePaintBase {
+class ShapePaint : public ShapePaintBase
+{
 protected:
     std::unique_ptr<RenderPaint> m_RenderPaint;
     ShapePaintMutator* m_PaintMutator = nullptr;

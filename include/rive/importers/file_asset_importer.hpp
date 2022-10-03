@@ -5,13 +5,15 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class FileAsset;
 class FileAssetContents;
 class FileAssetResolver;
 class Factory;
 
-class FileAssetImporter : public ImportStackObject {
+class FileAssetImporter : public ImportStackObject
+{
 private:
     bool m_LoadedContents = false;
     FileAsset* m_FileAsset;

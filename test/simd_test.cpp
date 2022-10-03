@@ -7,13 +7,15 @@
 #include "rive/math/simd.hpp"
 #include <limits>
 
-namespace rive {
+namespace rive
+{
 
 constexpr float kInf = std::numeric_limits<float>::infinity();
 constexpr float kNaN = std::numeric_limits<float>::quiet_NaN();
 
 // Verify the simd float types are IEEE 754 compliant for infinity and NaN.
-TEST_CASE("ieee-compliance", "[simd]") {
+TEST_CASE("ieee-compliance", "[simd]")
+{
     float4 test = float4{1, -kInf, 1, 4} / float4{0, 2, kInf, 4};
     CHECK(simd::all(test == float4{kInf, -kInf, 0, 1}));
 
@@ -30,7 +32,8 @@ TEST_CASE("ieee-compliance", "[simd]") {
     test.xy /= float2{kInf, 0};
     test.z *= kInf;
     test.w -= kInf;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i)
+    {
         CHECK(std::isnan(test[i]));
     }
     // NaN always fails comparisons.
@@ -48,7 +51,8 @@ TEST_CASE("ieee-compliance", "[simd]") {
 }
 
 // Check that ?: works on vector and scalar conditions.
-TEST_CASE("ternary-operator", "[simd]") {
+TEST_CASE("ternary-operator", "[simd]")
+{
     // Vector condition.
     float4 f4 = int4{1, 2, 3, 4} < int4{4, 3, 2, 1} ? float4(-1) : 1.f;
     CHECK(simd::all(f4 == float4{-1, -1, 1, 1}));
@@ -63,7 +67,8 @@ TEST_CASE("ternary-operator", "[simd]") {
 }
 
 // Check simd::min/max compliance.
-TEST_CASE("min-max", "[simd]") {
+TEST_CASE("min-max", "[simd]")
+{
     float4 f4 = simd::min(float4{1, 2, 3, 4}, float4{4, 3, 2});
     CHECK(simd::all(f4 == float4{1, 2, 2, 0}));
     f4 = simd::max(float4{1, 2, 3, 4}, float4{4, 3, 2});
@@ -100,7 +105,8 @@ TEST_CASE("min-max", "[simd]") {
 }
 
 // Check simd::abs.
-TEST_CASE("abs", "[simd]") {
+TEST_CASE("abs", "[simd]")
+{
 
     CHECK(simd::all(simd::abs(float4{-1, 2, -3, 4}) == float4{1, 2, 3, 4}));
     CHECK(simd::all(simd::abs(float2{-5, 6}) == float2{5, 6}));

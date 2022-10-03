@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* BackboardBase::clone() const {
+Core* BackboardBase::clone() const
+{
     auto cloned = new Backboard();
     cloned->copy(*this);
     return cloned;

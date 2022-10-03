@@ -4,12 +4,14 @@
 #include "rive/listener_type.hpp"
 #include "rive/math/vec2d.hpp"
 
-namespace rive {
+namespace rive
+{
 class Shape;
 class StateMachineListenerImporter;
 class ListenerAction;
 class StateMachineInstance;
-class StateMachineListener : public StateMachineListenerBase {
+class StateMachineListener : public StateMachineListenerBase
+{
     friend class StateMachineListenerImporter;
 
 private:

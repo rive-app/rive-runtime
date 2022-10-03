@@ -3,8 +3,10 @@
 #include "rive/generated/shapes/rectangle_base.hpp"
 #include "rive/shapes/straight_vertex.hpp"
 
-namespace rive {
-class Rectangle : public RectangleBase {
+namespace rive
+{
+class Rectangle : public RectangleBase
+{
     StraightVertex m_Vertex1, m_Vertex2, m_Vertex3, m_Vertex4;
 
 public:

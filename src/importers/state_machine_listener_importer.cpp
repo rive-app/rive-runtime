@@ -5,9 +5,11 @@
 using namespace rive;
 
 StateMachineListenerImporter::StateMachineListenerImporter(StateMachineListener* listener) :
-    m_StateMachineListener(listener) {}
+    m_StateMachineListener(listener)
+{}
 
-void StateMachineListenerImporter::addAction(std::unique_ptr<ListenerAction> action) {
+void StateMachineListenerImporter::addAction(std::unique_ptr<ListenerAction> action)
+{
     m_StateMachineListener->addAction(std::move(action));
 }
 

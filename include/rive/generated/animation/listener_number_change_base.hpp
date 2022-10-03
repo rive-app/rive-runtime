@@ -2,8 +2,10 @@
 #define _RIVE_LISTENER_NUMBER_CHANGE_BASE_HPP_
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive {
-class ListenerNumberChangeBase : public ListenerInputChange {
+namespace rive
+{
+class ListenerNumberChangeBase : public ListenerInputChange
+{
 protected:
     typedef ListenerInputChange Super;
 
@@ -12,12 +14,16 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case ListenerNumberChangeBase::typeKey:
             case ListenerInputChangeBase::typeKey:
-            case ListenerActionBase::typeKey: return true;
-            default: return false;
+            case ListenerActionBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -30,8 +36,10 @@ private:
 
 public:
     inline float value() const { return m_Value; }
-    void value(float value) {
-        if (m_Value == value) {
+    void value(float value)
+    {
+        if (m_Value == value)
+        {
             return;
         }
         m_Value = value;
@@ -39,14 +47,19 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const ListenerNumberChangeBase& object) {
+    void copy(const ListenerNumberChangeBase& object)
+    {
         m_Value = object.m_Value;
         ListenerInputChange::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case valuePropertyKey: m_Value = CoreDoubleType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case valuePropertyKey:
+                m_Value = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return ListenerInputChange::deserialize(propertyKey, reader);
     }

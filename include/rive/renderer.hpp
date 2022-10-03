@@ -20,14 +20,16 @@
 #include <stdio.h>
 #include <cstdint>
 
-namespace rive {
+namespace rive
+{
 class Vec2D;
 
 // Helper that computes a matrix to "align" content (source) to fit inside frame (destination).
 Mat2D computeAlignment(Fit, Alignment, const AABB& frame, const AABB& content);
 
 // A render buffer holds an immutable array of values
-class RenderBuffer : public RefCnt<RenderBuffer> {
+class RenderBuffer : public RefCnt<RenderBuffer>
+{
     const size_t m_Count;
 
 public:
@@ -37,7 +39,11 @@ public:
     size_t count() const { return m_Count; }
 };
 
-enum class RenderPaintStyle { stroke, fill };
+enum class RenderPaintStyle
+{
+    stroke,
+    fill
+};
 
 /*
  *  Base class for Render objects that specify the src colors.
@@ -47,13 +53,15 @@ enum class RenderPaintStyle { stroke, fill };
  *  It is common that a shader may be created with a 'localMatrix'. If this is
  *  not null, then it is applied to the shader's domain before the Renderer's CTM.
  */
-class RenderShader : public RefCnt<RenderShader> {
+class RenderShader : public RefCnt<RenderShader>
+{
 public:
     RenderShader();
     virtual ~RenderShader();
 };
 
-class RenderPaint {
+class RenderPaint
+{
 public:
     RenderPaint();
     virtual ~RenderPaint();
@@ -68,7 +76,8 @@ public:
     virtual void invalidateStroke() = 0;
 };
 
-class RenderImage {
+class RenderImage
+{
 protected:
     int m_Width = 0;
     int m_Height = 0;
@@ -84,20 +93,23 @@ public:
     const Mat2D& uvTransform() const { return m_uvTransform; }
 };
 
-class RenderPath : public CommandPath {
+class RenderPath : public CommandPath
+{
 public:
     RenderPath();
     ~RenderPath() override;
 
     RenderPath* renderPath() override { return this; }
-    void addPath(CommandPath* path, const Mat2D& transform) override {
+    void addPath(CommandPath* path, const Mat2D& transform) override
+    {
         addRenderPath(path->renderPath(), transform);
     }
 
     virtual void addRenderPath(RenderPath* path, const Mat2D& transform) = 0;
 };
 
-class Renderer {
+class Renderer
+{
 public:
     virtual ~Renderer() {}
     virtual void save() = 0;
@@ -119,7 +131,8 @@ public:
     void scale(float sx, float sy);
     void rotate(float radians);
 
-    void align(Fit fit, Alignment alignment, const AABB& frame, const AABB& content) {
+    void align(Fit fit, Alignment alignment, const AABB& frame, const AABB& content)
+    {
         transform(computeAlignment(fit, alignment, frame, content));
     }
 };

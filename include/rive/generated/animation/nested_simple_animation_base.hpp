@@ -3,8 +3,10 @@
 #include "rive/animation/nested_linear_animation.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive {
-class NestedSimpleAnimationBase : public NestedLinearAnimation {
+namespace rive
+{
+class NestedSimpleAnimationBase : public NestedLinearAnimation
+{
 protected:
     typedef NestedLinearAnimation Super;
 
@@ -13,14 +15,18 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case NestedSimpleAnimationBase::typeKey:
             case NestedLinearAnimationBase::typeKey:
             case NestedAnimationBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -35,8 +41,10 @@ private:
 
 public:
     inline float speed() const { return m_Speed; }
-    void speed(float value) {
-        if (m_Speed == value) {
+    void speed(float value)
+    {
+        if (m_Speed == value)
+        {
             return;
         }
         m_Speed = value;
@@ -44,8 +52,10 @@ public:
     }
 
     inline bool isPlaying() const { return m_IsPlaying; }
-    void isPlaying(bool value) {
-        if (m_IsPlaying == value) {
+    void isPlaying(bool value)
+    {
+        if (m_IsPlaying == value)
+        {
             return;
         }
         m_IsPlaying = value;
@@ -53,16 +63,23 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const NestedSimpleAnimationBase& object) {
+    void copy(const NestedSimpleAnimationBase& object)
+    {
         m_Speed = object.m_Speed;
         m_IsPlaying = object.m_IsPlaying;
         NestedLinearAnimation::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case speedPropertyKey: m_Speed = CoreDoubleType::deserialize(reader); return true;
-            case isPlayingPropertyKey: m_IsPlaying = CoreBoolType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case speedPropertyKey:
+                m_Speed = CoreDoubleType::deserialize(reader);
+                return true;
+            case isPlayingPropertyKey:
+                m_IsPlaying = CoreBoolType::deserialize(reader);
+                return true;
         }
         return NestedLinearAnimation::deserialize(propertyKey, reader);
     }

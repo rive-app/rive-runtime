@@ -7,10 +7,12 @@
 
 using namespace rive;
 
-StatusCode ListenerAction::import(ImportStack& importStack) {
+StatusCode ListenerAction::import(ImportStack& importStack)
+{
     auto stateMachineListenerImporter =
         importStack.latest<StateMachineListenerImporter>(StateMachineListenerBase::typeKey);
-    if (stateMachineListenerImporter == nullptr) {
+    if (stateMachineListenerImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
 

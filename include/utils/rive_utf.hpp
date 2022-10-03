@@ -7,9 +7,11 @@
 
 #include "rive/render_text.hpp"
 
-namespace rive {
+namespace rive
+{
 
-class UTF {
+class UTF
+{
 public:
     // returns the number of bytes needed in this sequence
     // For ascii, this will return 1

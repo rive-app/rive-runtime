@@ -7,13 +7,15 @@
 #include <vector>
 #include <cstdint>
 
-namespace rive {
+namespace rive
+{
 class SegmentedContour;
 
 ///
 /// Builds a triangle strip vertex buffer from a SegmentedContour.
 ///
-class ContourStroke {
+class ContourStroke
+{
 protected:
     std::vector<Vec2D> m_TriangleStrip;
     std::vector<std::size_t> m_Offsets;

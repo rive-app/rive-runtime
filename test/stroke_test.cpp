@@ -10,7 +10,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("stroke can be looked up at runtime", "[file]") {
+TEST_CASE("stroke can be looked up at runtime", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/stroke_name_test.riv");
 
     auto artboard = file->artboard();

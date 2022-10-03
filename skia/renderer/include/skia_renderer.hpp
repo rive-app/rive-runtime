@@ -9,8 +9,10 @@
 
 class SkCanvas;
 
-namespace rive {
-class SkiaRenderer : public Renderer {
+namespace rive
+{
+class SkiaRenderer : public Renderer
+{
 protected:
     SkCanvas* m_Canvas;
 

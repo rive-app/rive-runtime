@@ -7,12 +7,15 @@
 using namespace rive;
 
 LayerStateImporter::LayerStateImporter(LayerState* state) : m_State(state) {}
-void LayerStateImporter::addTransition(StateTransition* transition) {
+void LayerStateImporter::addTransition(StateTransition* transition)
+{
     m_State->addTransition(transition);
 }
 
-bool LayerStateImporter::addBlendAnimation(BlendAnimation* animation) {
-    if (!m_State->is<BlendState>()) {
+bool LayerStateImporter::addBlendAnimation(BlendAnimation* animation)
+{
+    if (!m_State->is<BlendState>())
+    {
         return false;
     }
     auto blendState = m_State->as<BlendState>();
@@ -21,17 +24,22 @@ bool LayerStateImporter::addBlendAnimation(BlendAnimation* animation) {
     return true;
 }
 
-StatusCode LayerStateImporter::resolve() {
-    if (m_State->is<BlendState>()) {
+StatusCode LayerStateImporter::resolve()
+{
+    if (m_State->is<BlendState>())
+    {
         auto blendState = m_State->as<BlendState>();
-        for (auto transition : blendState->m_Transitions) {
-            if (!transition->is<BlendStateTransition>()) {
+        for (auto transition : blendState->m_Transitions)
+        {
+            if (!transition->is<BlendStateTransition>())
+            {
                 continue;
             }
 
             auto blendStateTransition = transition->as<BlendStateTransition>();
             size_t exitId = blendStateTransition->exitBlendAnimationId();
-            if (exitId < blendState->m_Animations.size()) {
+            if (exitId < blendState->m_Animations.size())
+            {
                 blendStateTransition->m_ExitBlendAnimation = blendState->m_Animations[exitId];
             }
         }

@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ListenerBoolChangeBase::clone() const {
+Core* ListenerBoolChangeBase::clone() const
+{
     auto cloned = new ListenerBoolChange();
     cloned->copy(*this);
     return cloned;

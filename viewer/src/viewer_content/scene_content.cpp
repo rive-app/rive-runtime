@@ -20,7 +20,8 @@
 
 constexpr int REQUEST_DEFAULT_SCENE = -1;
 
-class SceneContent : public ViewerContent {
+class SceneContent : public ViewerContent
+{
     // ImGui wants raw pointers to names, but our public API returns
     // names as strings (by value), so we cache these names each time we
     // load a file
@@ -28,26 +29,33 @@ class SceneContent : public ViewerContent {
     std::vector<std::string> animationNames;
     std::vector<std::string> stateMachineNames;
 
-    void loadArtboardNames() {
-        if (m_File) {
+    void loadArtboardNames()
+    {
+        if (m_File)
+        {
             artboardNames.clear();
             auto abCnt = m_File->artboardCount();
 
-            for (int i = 0; i < abCnt; i++) {
+            for (int i = 0; i < abCnt; i++)
+            {
                 auto abName = m_File->artboardNameAt(i);
                 artboardNames.push_back(abName);
             }
         }
     }
 
-    void loadNames(const rive::Artboard* ab) {
+    void loadNames(const rive::Artboard* ab)
+    {
         animationNames.clear();
         stateMachineNames.clear();
-        if (ab) {
-            for (size_t i = 0; i < ab->animationCount(); ++i) {
+        if (ab)
+        {
+            for (size_t i = 0; i < ab->animationCount(); ++i)
+            {
                 animationNames.push_back(ab->animationNameAt(i));
             }
-            for (size_t i = 0; i < ab->stateMachineCount(); ++i) {
+            for (size_t i = 0; i < ab->stateMachineCount(); ++i)
+            {
                 stateMachineNames.push_back(ab->stateMachineNameAt(i));
             }
         }
@@ -65,7 +73,8 @@ class SceneContent : public ViewerContent {
     int m_width = 0, m_height = 0;
     rive::Mat2D m_InverseViewTransform;
 
-    void initArtboard(int index) {
+    void initArtboard(int index)
+    {
         if (!m_File)
             return;
         loadArtboardNames();
@@ -80,45 +89,53 @@ class SceneContent : public ViewerContent {
         initStateMachine(REQUEST_DEFAULT_SCENE);
     }
 
-    void initStateMachine(int index) {
+    void initStateMachine(int index)
+    {
         m_StateMachineIndex = -1;
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
 
         m_ArtboardInstance->advance(0.0f);
 
-        if (index < 0) {
+        if (index < 0)
+        {
             m_CurrentScene = m_ArtboardInstance->defaultStateMachine();
             index = m_ArtboardInstance->defaultStateMachineIndex();
         }
-        if (!m_CurrentScene) {
-            if (index >= m_ArtboardInstance->stateMachineCount()) {
+        if (!m_CurrentScene)
+        {
+            if (index >= m_ArtboardInstance->stateMachineCount())
+            {
                 index = 0;
             }
             m_CurrentScene = m_ArtboardInstance->stateMachineAt(index);
         }
-        if (!m_CurrentScene) {
+        if (!m_CurrentScene)
+        {
             index = -1;
             m_CurrentScene = m_ArtboardInstance->animationAt(0);
             m_AnimationIndex = 0;
         }
         m_StateMachineIndex = index;
 
-        if (m_CurrentScene) {
+        if (m_CurrentScene)
+        {
             m_CurrentScene->inputCount();
         }
 
         DumpCounters("After loading file");
     }
 
-    void initAnimation(int index) {
+    void initAnimation(int index)
+    {
         m_StateMachineIndex = -1;
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
 
         m_ArtboardInstance->advance(0.0f);
 
-        if (index >= 0 && index < m_ArtboardInstance->animationCount()) {
+        if (index >= 0 && index < m_ArtboardInstance->animationCount())
+        {
             m_AnimationIndex = index;
             m_CurrentScene = m_ArtboardInstance->animationAt(index);
             m_CurrentScene->inputCount();
@@ -129,37 +146,46 @@ class SceneContent : public ViewerContent {
 
 public:
     SceneContent(const char filename[], std::unique_ptr<rive::File> file) :
-        m_Filename(filename), m_File(std::move(file)) {
+        m_Filename(filename), m_File(std::move(file))
+    {
         initArtboard(REQUEST_DEFAULT_SCENE);
     }
 
-    void handlePointerMove(float x, float y) override {
+    void handlePointerMove(float x, float y) override
+    {
         auto pointer = m_InverseViewTransform * rive::Vec2D(x, y);
-        if (m_CurrentScene) {
+        if (m_CurrentScene)
+        {
             m_CurrentScene->pointerMove(pointer);
         }
     }
 
-    void handlePointerDown(float x, float y) override {
+    void handlePointerDown(float x, float y) override
+    {
         auto pointer = m_InverseViewTransform * rive::Vec2D(x, y);
-        if (m_CurrentScene) {
+        if (m_CurrentScene)
+        {
             m_CurrentScene->pointerDown(pointer);
         }
     }
 
-    void handlePointerUp(float x, float y) override {
+    void handlePointerUp(float x, float y) override
+    {
         auto pointer = m_InverseViewTransform * rive::Vec2D(x, y);
-        if (m_CurrentScene) {
+        if (m_CurrentScene)
+        {
             m_CurrentScene->pointerUp(pointer);
         }
     }
 
-    void handleResize(int width, int height) override {
+    void handleResize(int width, int height) override
+    {
         m_width = width;
         m_height = height;
     }
 
-    void handleDraw(rive::Renderer* renderer, double elapsed) override {
+    void handleDraw(rive::Renderer* renderer, double elapsed) override
+    {
         renderer->save();
 
         auto viewTransform = rive::computeAlignment(rive::Fit::contain,
@@ -170,23 +196,30 @@ public:
         // Store the inverse view so we can later go from screen to world.
         m_InverseViewTransform = viewTransform.invertOrIdentity();
 
-        if (m_CurrentScene) {
+        if (m_CurrentScene)
+        {
             m_CurrentScene->advanceAndApply(elapsed);
             m_CurrentScene->draw(renderer);
-        } else {
+        }
+        else
+        {
             m_ArtboardInstance->draw(renderer); // we're just a still-frame file/artboard
         }
 
         renderer->restore();
     }
 
-    void handleImgui() override {
+    void handleImgui() override
+    {
         // For now the atlas packer only works with tess as it compiles in our
         // Bitmap decoder.
 #ifdef RIVE_RENDERER_TESS
-        if (ImGui::BeginMainMenuBar()) {
-            if (ImGui::BeginMenu("Tools")) {
-                if (ImGui::MenuItem("Build Atlas")) {
+        if (ImGui::BeginMainMenuBar())
+        {
+            if (ImGui::BeginMenu("Tools"))
+            {
+                if (ImGui::MenuItem("Build Atlas"))
+                {
                     // Create an atlas packer.
                     rive::SampleAtlasPacker atlasPacker(2048, 2048);
 
@@ -211,7 +244,8 @@ public:
                     auto strippedBytes = rive::File::stripAssets(rivFileBytes,
                                                                  {rive::ImageAsset::typeKey},
                                                                  &stripResult);
-                    if (stripResult != rive::ImportResult::success) {
+                    if (stripResult != rive::ImportResult::success)
+                    {
                         printf("Failed to strip images\n");
                         return;
                     }
@@ -225,7 +259,8 @@ public:
                     if (auto file = rive::File::import(strippedBytes,
                                                        RiveFactory(),
                                                        &loadAtlasedResult,
-                                                       &resolver)) {
+                                                       &resolver))
+                    {
                         m_File = std::move(file);
                         initArtboard(REQUEST_DEFAULT_SCENE);
                     }
@@ -235,7 +270,8 @@ public:
             ImGui::EndMainMenuBar();
         }
 #endif
-        if (m_ArtboardInstance != nullptr) {
+        if (m_ArtboardInstance != nullptr)
+        {
             ImGui::Begin(m_Filename.c_str(), nullptr);
             if (ImGui::ListBox(
                     "Artboard",
@@ -281,15 +317,18 @@ public:
                 m_AnimationIndex = -1;
                 initStateMachine(m_StateMachineIndex);
             }
-            if (m_CurrentScene != nullptr) {
+            if (m_CurrentScene != nullptr)
+            {
 
                 ImGui::Columns(2);
                 ImGui::SetColumnWidth(0, ImGui::GetWindowWidth() * 0.6666);
 
-                for (int i = 0; i < m_CurrentScene->inputCount(); i++) {
+                for (int i = 0; i < m_CurrentScene->inputCount(); i++)
+                {
                     auto inputInstance = m_CurrentScene->input(i);
 
-                    if (inputInstance->input()->is<rive::StateMachineNumber>()) {
+                    if (inputInstance->input()->is<rive::StateMachineNumber>())
+                    {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
                         char label[256];
@@ -300,17 +339,22 @@ public:
                         ImGui::InputFloat(label, &v, 1.0f, 2.0f, "%.3f");
                         number->value(v);
                         ImGui::NextColumn();
-                    } else if (inputInstance->input()->is<rive::StateMachineTrigger>()) {
+                    }
+                    else if (inputInstance->input()->is<rive::StateMachineTrigger>())
+                    {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
                         char label[256];
                         snprintf(label, 256, "Fire##%u", i);
-                        if (ImGui::Button(label)) {
+                        if (ImGui::Button(label))
+                        {
                             auto trigger = static_cast<rive::SMITrigger*>(inputInstance);
                             trigger->fire();
                         }
                         ImGui::NextColumn();
-                    } else if (inputInstance->input()->is<rive::StateMachineBool>()) {
+                    }
+                    else if (inputInstance->input()->is<rive::StateMachineBool>())
+                    {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
                         char label[256];
@@ -329,16 +373,19 @@ public:
                 ImGui::Columns(1);
             }
             ImGui::End();
-
-        } else {
+        }
+        else
+        {
             ImGui::Text("Drop a .riv file to preview.");
         }
     }
 };
 
-std::unique_ptr<ViewerContent> ViewerContent::Scene(const char filename[]) {
+std::unique_ptr<ViewerContent> ViewerContent::Scene(const char filename[])
+{
     auto bytes = LoadFile(filename);
-    if (auto file = rive::File::import(bytes, RiveFactory())) {
+    if (auto file = rive::File::import(bytes, RiveFactory()))
+    {
         return std::make_unique<SceneContent>(filename, std::move(file));
     }
     return nullptr;

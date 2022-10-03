@@ -8,7 +8,8 @@
 #include "rive/listener_type.hpp"
 #include "rive/scene.hpp"
 
-namespace rive {
+namespace rive
+{
 class StateMachine;
 class LayerState;
 class SMIInput;
@@ -21,7 +22,8 @@ class StateMachineLayerInstance;
 class HitShape;
 class NestedArtboard;
 
-class StateMachineInstance : public Scene {
+class StateMachineInstance : public Scene
+{
     friend class SMIInput;
 
 private:

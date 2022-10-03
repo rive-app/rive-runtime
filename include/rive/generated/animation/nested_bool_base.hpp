@@ -2,8 +2,10 @@
 #define _RIVE_NESTED_BOOL_BASE_HPP_
 #include "rive/animation/nested_input.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
-namespace rive {
-class NestedBoolBase : public NestedInput {
+namespace rive
+{
+class NestedBoolBase : public NestedInput
+{
 protected:
     typedef NestedInput Super;
 
@@ -12,12 +14,16 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case NestedBoolBase::typeKey:
             case NestedInputBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -30,8 +36,10 @@ private:
 
 public:
     inline bool nestedValue() const { return m_NestedValue; }
-    void nestedValue(bool value) {
-        if (m_NestedValue == value) {
+    void nestedValue(bool value)
+    {
+        if (m_NestedValue == value)
+        {
             return;
         }
         m_NestedValue = value;
@@ -39,13 +47,16 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const NestedBoolBase& object) {
+    void copy(const NestedBoolBase& object)
+    {
         m_NestedValue = object.m_NestedValue;
         NestedInput::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case nestedValuePropertyKey:
                 m_NestedValue = CoreBoolType::deserialize(reader);
                 return true;

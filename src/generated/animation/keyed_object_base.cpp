@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* KeyedObjectBase::clone() const {
+Core* KeyedObjectBase::clone() const
+{
     auto cloned = new KeyedObject();
     cloned->copy(*this);
     return cloned;

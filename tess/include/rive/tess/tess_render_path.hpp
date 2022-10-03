@@ -8,10 +8,12 @@
 #include "rive/tess/sub_path.hpp"
 #include "earcut.hpp"
 
-namespace rive {
+namespace rive
+{
 
 class ContourStroke;
-class TessRenderPath : public RenderPath {
+class TessRenderPath : public RenderPath
+{
 private:
     // TessRenderPath stores a RawPath so that it can use utility classes
     // that will work off of RawPath (like segmenting the contour and then

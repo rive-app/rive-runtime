@@ -14,14 +14,16 @@ constexpr int MAX_LINE_SEGMENTS = 100;
 // d = |a - 2b + c|/4
 // count = sqrt(d / tol)
 //
-int rive::computeApproximatingQuadLineSegments(const rive::Vec2D pts[3], float invTolerance) {
+int rive::computeApproximatingQuadLineSegments(const rive::Vec2D pts[3], float invTolerance)
+{
     auto diff = pts[0] - rive::two(pts[1]) + pts[2];
     float d = diff.length();
     float count = sqrtf(d * invTolerance * 0.25f);
     return std::max(1, std::min((int)std::ceil(count), MAX_LINE_SEGMENTS));
 }
 
-int rive::computeApproximatingCubicLineSegments(const rive::Vec2D pts[4], float invTolerance) {
+int rive::computeApproximatingCubicLineSegments(const rive::Vec2D pts[4], float invTolerance)
+{
     auto abc = pts[0] - pts[1] - pts[1] + pts[2];
     auto bcd = pts[1] - pts[2] - pts[2] + pts[3];
     float dx = std::max(std::abs(abc.x), std::abs(bcd.x));
@@ -34,7 +36,8 @@ int rive::computeApproximatingCubicLineSegments(const rive::Vec2D pts[4], float 
 
 // Extract subsets
 
-void rive::quad_subdivide(const rive::Vec2D src[3], float t, rive::Vec2D dst[5]) {
+void rive::quad_subdivide(const rive::Vec2D src[3], float t, rive::Vec2D dst[5])
+{
     assert(t >= 0 && t <= 1);
     auto ab = lerp(src[0], src[1], t);
     auto bc = lerp(src[1], src[2], t);
@@ -45,7 +48,8 @@ void rive::quad_subdivide(const rive::Vec2D src[3], float t, rive::Vec2D dst[5])
     dst[4] = src[2];
 }
 
-void rive::cubic_subdivide(const rive::Vec2D src[4], float t, rive::Vec2D dst[7]) {
+void rive::cubic_subdivide(const rive::Vec2D src[4], float t, rive::Vec2D dst[7])
+{
     assert(t >= 0 && t <= 1);
     auto ab = lerp(src[0], src[1], t);
     auto bc = lerp(src[1], src[2], t);
@@ -61,7 +65,8 @@ void rive::cubic_subdivide(const rive::Vec2D src[4], float t, rive::Vec2D dst[7]
     dst[6] = src[3];
 }
 
-void rive::line_extract(const rive::Vec2D src[2], float startT, float endT, rive::Vec2D dst[2]) {
+void rive::line_extract(const rive::Vec2D src[2], float startT, float endT, rive::Vec2D dst[2])
+{
     assert(startT <= endT);
     assert(startT >= 0 && endT <= 1);
 
@@ -69,20 +74,28 @@ void rive::line_extract(const rive::Vec2D src[2], float startT, float endT, rive
     dst[1] = lerp(src[0], src[1], endT);
 }
 
-void rive::quad_extract(const rive::Vec2D src[3], float startT, float endT, rive::Vec2D dst[3]) {
+void rive::quad_extract(const rive::Vec2D src[3], float startT, float endT, rive::Vec2D dst[3])
+{
     assert(startT <= endT);
     assert(startT >= 0 && endT <= 1);
 
     rive::Vec2D tmp[5];
-    if (startT == 0 && endT == 1) {
+    if (startT == 0 && endT == 1)
+    {
         std::copy(src, src + 3, dst);
-    } else if (startT == 0) {
+    }
+    else if (startT == 0)
+    {
         rive::quad_subdivide(src, endT, tmp);
         std::copy(tmp, tmp + 3, dst);
-    } else if (endT == 1) {
+    }
+    else if (endT == 1)
+    {
         rive::quad_subdivide(src, startT, tmp);
         std::copy(tmp + 2, tmp + 5, dst);
-    } else {
+    }
+    else
+    {
         assert(endT > 0);
         rive::quad_subdivide(src, endT, tmp);
         rive::Vec2D tmp2[5];
@@ -91,20 +104,28 @@ void rive::quad_extract(const rive::Vec2D src[3], float startT, float endT, rive
     }
 }
 
-void rive::cubic_extract(const rive::Vec2D src[4], float startT, float endT, rive::Vec2D dst[4]) {
+void rive::cubic_extract(const rive::Vec2D src[4], float startT, float endT, rive::Vec2D dst[4])
+{
     assert(startT <= endT);
     assert(startT >= 0 && endT <= 1);
 
     rive::Vec2D tmp[7];
-    if (startT == 0 && endT == 1) {
+    if (startT == 0 && endT == 1)
+    {
         std::copy(src, src + 4, dst);
-    } else if (startT == 0) {
+    }
+    else if (startT == 0)
+    {
         rive::cubic_subdivide(src, endT, tmp);
         std::copy(tmp, tmp + 4, dst);
-    } else if (endT == 1) {
+    }
+    else if (endT == 1)
+    {
         rive::cubic_subdivide(src, startT, tmp);
         std::copy(tmp + 3, tmp + 7, dst);
-    } else {
+    }
+    else
+    {
         assert(endT > 0);
         rive::cubic_subdivide(src, endT, tmp);
         rive::Vec2D tmp2[7];

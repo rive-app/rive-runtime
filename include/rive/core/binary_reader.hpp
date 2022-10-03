@@ -7,8 +7,10 @@
 #include "rive/span.hpp"
 #include "rive/core/type_conversions.hpp"
 
-namespace rive {
-class BinaryReader {
+namespace rive
+{
+class BinaryReader
+{
 private:
     Span<const uint8_t> m_Bytes;
     const uint8_t* m_Position;
@@ -37,9 +39,11 @@ public:
 
     // This will cast the uint read to the requested size, but if the
     // raw value was out-of-range, instead returns 0 and sets the IntRangeError.
-    template <typename T> T readVarUintAs() {
+    template <typename T> T readVarUintAs()
+    {
         auto value = this->readVarUint64();
-        if (!fitsIn<T>(value)) {
+        if (!fitsIn<T>(value))
+        {
             value = 0;
             this->intRangeError();
         }

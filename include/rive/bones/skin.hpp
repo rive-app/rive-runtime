@@ -6,12 +6,14 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class Tendon;
 class Vertex;
 class Skinnable;
 
-class Skin : public SkinBase {
+class Skin : public SkinBase
+{
     friend class Tendon;
 
 public:

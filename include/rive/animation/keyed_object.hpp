@@ -2,10 +2,12 @@
 #define _RIVE_KEYED_OBJECT_HPP_
 #include "rive/generated/animation/keyed_object_base.hpp"
 #include <vector>
-namespace rive {
+namespace rive
+{
 class Artboard;
 class KeyedProperty;
-class KeyedObject : public KeyedObjectBase {
+class KeyedObject : public KeyedObjectBase
+{
 private:
     std::vector<std::unique_ptr<KeyedProperty>> m_KeyedProperties;
 

@@ -27,9 +27,11 @@
  *  Both of these inspired by Skia's SkRefCnt and sk_sp
  */
 
-namespace rive {
+namespace rive
+{
 
-template <typename T> class RefCnt {
+template <typename T> class RefCnt
+{
 public:
     RefCnt() : m_refcnt(1) {}
 
@@ -37,8 +39,10 @@ public:
 
     void ref() const { (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed); }
 
-    void unref() const {
-        if (1 == m_refcnt.fetch_add(-1, std::memory_order_acq_rel)) {
+    void unref() const
+    {
+        if (1 == m_refcnt.fetch_add(-1, std::memory_order_acq_rel))
+        {
 #ifndef NDEBUG
             // we restore the "1" in debug builds just to make our destructor happy
             (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed);
@@ -60,22 +64,27 @@ private:
     RefCnt& operator=(const RefCnt&) = delete;
 };
 
-template <typename T> static inline T* safe_ref(T* obj) {
-    if (obj) {
+template <typename T> static inline T* safe_ref(T* obj)
+{
+    if (obj)
+    {
         obj->ref();
     }
     return obj;
 }
 
-template <typename T> static inline void safe_unref(T* obj) {
-    if (obj) {
+template <typename T> static inline void safe_unref(T* obj)
+{
+    if (obj)
+    {
         obj->unref();
     }
 }
 
 // rcp : smart point template for holding subclasses of RefCnt
 
-template <typename T> class rcp {
+template <typename T> class rcp
+{
 public:
     constexpr rcp() : m_ptr(nullptr) {}
     constexpr rcp(std::nullptr_t) : m_ptr(nullptr) {}
@@ -89,24 +98,29 @@ public:
      */
     ~rcp() { safe_unref(m_ptr); }
 
-    rcp<T>& operator=(std::nullptr_t) {
+    rcp<T>& operator=(std::nullptr_t)
+    {
         this->reset();
         return *this;
     }
 
-    rcp<T>& operator=(const rcp<T>& other) {
-        if (this != &other) {
+    rcp<T>& operator=(const rcp<T>& other)
+    {
+        if (this != &other)
+        {
             this->reset(safe_ref(other.get()));
         }
         return *this;
     }
 
-    rcp<T>& operator=(rcp<T>&& other) {
+    rcp<T>& operator=(rcp<T>&& other)
+    {
         this->reset(other.release());
         return *this;
     }
 
-    T& operator*() const {
+    T& operator*() const
+    {
         assert(this->get() != nullptr);
         return *this->get();
     }
@@ -118,7 +132,8 @@ public:
 
     // Unrefs the current pointer, and accepts the new pointer, but
     // DOES NOT increment ownership of the new pointer.
-    void reset(T* ptr = nullptr) {
+    void reset(T* ptr = nullptr)
+    {
         // Calling m_ptr->unref() may call this->~() or this->reset(T*).
         // http://wg21.cmeerw.net/lwg/issue998
         // http://wg21.cmeerw.net/lwg/issue2262
@@ -129,7 +144,8 @@ public:
 
     // This returns the bare point WITHOUT CHANGING ITS REFCNT, but removes it
     // from this object, so the caller must manually manage its count.
-    T* release() {
+    T* release()
+    {
         T* ptr = m_ptr;
         m_ptr = nullptr;
         return ptr;
@@ -143,7 +159,8 @@ private:
 
 template <typename T> inline void swap(rcp<T>& a, rcp<T>& b) { a.swap(b); }
 
-template <typename T, typename... Args> rcp<T> inline make_rcp(Args&&... args) {
+template <typename T, typename... Args> rcp<T> inline make_rcp(Args&&... args)
+{
     return rcp<T>(new T(std::forward<Args>(args)...));
 }
 
@@ -151,19 +168,23 @@ template <typename T, typename... Args> rcp<T> inline make_rcp(Args&&... args) {
 
 template <typename T> inline bool operator==(const rcp<T>& a, std::nullptr_t) { return !a; }
 template <typename T> inline bool operator==(std::nullptr_t, const rcp<T>& b) { return !b; }
-template <typename T, typename U> inline bool operator==(const rcp<T>& a, const rcp<U>& b) {
+template <typename T, typename U> inline bool operator==(const rcp<T>& a, const rcp<U>& b)
+{
     return a.get() == b.get();
 }
 
 // != variants
 
-template <typename T> inline bool operator!=(const rcp<T>& a, std::nullptr_t) {
+template <typename T> inline bool operator!=(const rcp<T>& a, std::nullptr_t)
+{
     return static_cast<bool>(a);
 }
-template <typename T> inline bool operator!=(std::nullptr_t, const rcp<T>& b) {
+template <typename T> inline bool operator!=(std::nullptr_t, const rcp<T>& b)
+{
     return static_cast<bool>(b);
 }
-template <typename T, typename U> inline bool operator!=(const rcp<T>& a, const rcp<U>& b) {
+template <typename T, typename U> inline bool operator!=(const rcp<T>& a, const rcp<U>& b)
+{
     return a.get() != b.get();
 }
 

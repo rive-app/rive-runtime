@@ -12,14 +12,17 @@
 #include <vector>
 #include <list>
 
-namespace rive {
+namespace rive
+{
 
-struct RenderState {
+struct RenderState
+{
     Mat2D transform;
     std::vector<SubPath> clipPaths;
 };
 
-class TessRenderer : public Renderer {
+class TessRenderer : public Renderer
+{
 protected:
     Mat4 m_Projection;
     std::list<RenderState> m_Stack;

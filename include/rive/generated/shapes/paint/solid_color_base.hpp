@@ -2,8 +2,10 @@
 #define _RIVE_SOLID_COLOR_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
-namespace rive {
-class SolidColorBase : public Component {
+namespace rive
+{
+class SolidColorBase : public Component
+{
 protected:
     typedef Component Super;
 
@@ -12,11 +14,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case SolidColorBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -29,8 +35,10 @@ private:
 
 public:
     inline int colorValue() const { return m_ColorValue; }
-    void colorValue(int value) {
-        if (m_ColorValue == value) {
+    void colorValue(int value)
+    {
+        if (m_ColorValue == value)
+        {
             return;
         }
         m_ColorValue = value;
@@ -38,13 +46,16 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const SolidColorBase& object) {
+    void copy(const SolidColorBase& object)
+    {
         m_ColorValue = object.m_ColorValue;
         Component::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case colorValuePropertyKey:
                 m_ColorValue = CoreColorType::deserialize(reader);
                 return true;

@@ -2,8 +2,10 @@
 #define _RIVE_STATE_TRANSITION_BASE_HPP_
 #include "rive/animation/state_machine_layer_component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class StateTransitionBase : public StateMachineLayerComponent {
+namespace rive
+{
+class StateTransitionBase : public StateMachineLayerComponent
+{
 protected:
     typedef StateMachineLayerComponent Super;
 
@@ -12,11 +14,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case StateTransitionBase::typeKey:
-            case StateMachineLayerComponentBase::typeKey: return true;
-            default: return false;
+            case StateMachineLayerComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -35,8 +41,10 @@ private:
 
 public:
     inline uint32_t stateToId() const { return m_StateToId; }
-    void stateToId(uint32_t value) {
-        if (m_StateToId == value) {
+    void stateToId(uint32_t value)
+    {
+        if (m_StateToId == value)
+        {
             return;
         }
         m_StateToId = value;
@@ -44,8 +52,10 @@ public:
     }
 
     inline uint32_t flags() const { return m_Flags; }
-    void flags(uint32_t value) {
-        if (m_Flags == value) {
+    void flags(uint32_t value)
+    {
+        if (m_Flags == value)
+        {
             return;
         }
         m_Flags = value;
@@ -53,8 +63,10 @@ public:
     }
 
     inline uint32_t duration() const { return m_Duration; }
-    void duration(uint32_t value) {
-        if (m_Duration == value) {
+    void duration(uint32_t value)
+    {
+        if (m_Duration == value)
+        {
             return;
         }
         m_Duration = value;
@@ -62,8 +74,10 @@ public:
     }
 
     inline uint32_t exitTime() const { return m_ExitTime; }
-    void exitTime(uint32_t value) {
-        if (m_ExitTime == value) {
+    void exitTime(uint32_t value)
+    {
+        if (m_ExitTime == value)
+        {
             return;
         }
         m_ExitTime = value;
@@ -71,7 +85,8 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const StateTransitionBase& object) {
+    void copy(const StateTransitionBase& object)
+    {
         m_StateToId = object.m_StateToId;
         m_Flags = object.m_Flags;
         m_Duration = object.m_Duration;
@@ -79,12 +94,22 @@ public:
         StateMachineLayerComponent::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case stateToIdPropertyKey: m_StateToId = CoreUintType::deserialize(reader); return true;
-            case flagsPropertyKey: m_Flags = CoreUintType::deserialize(reader); return true;
-            case durationPropertyKey: m_Duration = CoreUintType::deserialize(reader); return true;
-            case exitTimePropertyKey: m_ExitTime = CoreUintType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case stateToIdPropertyKey:
+                m_StateToId = CoreUintType::deserialize(reader);
+                return true;
+            case flagsPropertyKey:
+                m_Flags = CoreUintType::deserialize(reader);
+                return true;
+            case durationPropertyKey:
+                m_Duration = CoreUintType::deserialize(reader);
+                return true;
+            case exitTimePropertyKey:
+                m_ExitTime = CoreUintType::deserialize(reader);
+                return true;
         }
         return StateMachineLayerComponent::deserialize(propertyKey, reader);
     }

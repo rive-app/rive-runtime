@@ -7,6 +7,7 @@ using namespace rive;
 
 KeyedObjectImporter::KeyedObjectImporter(KeyedObject* keyedObject) : m_KeyedObject(keyedObject) {}
 
-void KeyedObjectImporter::addKeyedProperty(std::unique_ptr<KeyedProperty> property) {
+void KeyedObjectImporter::addKeyedProperty(std::unique_ptr<KeyedProperty> property)
+{
     m_KeyedObject->addKeyedProperty(std::move(property));
 }

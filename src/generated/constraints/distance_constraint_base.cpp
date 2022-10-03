@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* DistanceConstraintBase::clone() const {
+Core* DistanceConstraintBase::clone() const
+{
     auto cloned = new DistanceConstraint();
     cloned->copy(*this);
     return cloned;

@@ -8,24 +8,28 @@ TessRenderer::TessRenderer() { m_Stack.emplace_back(RenderState()); }
 void TessRenderer::projection(const Mat4& value) { m_Projection = value; }
 
 void TessRenderer::save() { m_Stack.push_back(m_Stack.back()); }
-void TessRenderer::restore() {
+void TessRenderer::restore()
+{
     assert(m_Stack.size() > 1);
     RenderState& state = m_Stack.back();
     m_Stack.pop_back();
 
     // We can only add clipping paths so if they're still the same, nothing has
     // changed.
-    if (state.clipPaths.size() != m_Stack.back().clipPaths.size()) {
+    if (state.clipPaths.size() != m_Stack.back().clipPaths.size())
+    {
         m_IsClippingDirty = true;
     }
 }
 
-void TessRenderer::transform(const Mat2D& transform) {
+void TessRenderer::transform(const Mat2D& transform)
+{
     Mat2D& stackMat = m_Stack.back().transform;
     stackMat = stackMat * transform;
 }
 
-void TessRenderer::clipPath(RenderPath* path) {
+void TessRenderer::clipPath(RenderPath* path)
+{
 
     RenderState& state = m_Stack.back();
     state.clipPaths.emplace_back(SubPath(path, state.transform));
@@ -38,4 +42,5 @@ void TessRenderer::drawImageMesh(const RenderImage*,
                                  rcp<RenderBuffer> uvCoords_f32,
                                  rcp<RenderBuffer> indices_u16,
                                  BlendMode,
-                                 float opacity) {}
+                                 float opacity)
+{}

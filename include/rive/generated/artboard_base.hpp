@@ -4,8 +4,10 @@
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/world_transform_component.hpp"
-namespace rive {
-class ArtboardBase : public WorldTransformComponent {
+namespace rive
+{
+class ArtboardBase : public WorldTransformComponent
+{
 protected:
     typedef WorldTransformComponent Super;
 
@@ -14,13 +16,17 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case ArtboardBase::typeKey:
             case WorldTransformComponentBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -47,8 +53,10 @@ private:
 
 public:
     inline bool clip() const { return m_Clip; }
-    void clip(bool value) {
-        if (m_Clip == value) {
+    void clip(bool value)
+    {
+        if (m_Clip == value)
+        {
             return;
         }
         m_Clip = value;
@@ -56,8 +64,10 @@ public:
     }
 
     inline float width() const { return m_Width; }
-    void width(float value) {
-        if (m_Width == value) {
+    void width(float value)
+    {
+        if (m_Width == value)
+        {
             return;
         }
         m_Width = value;
@@ -65,8 +75,10 @@ public:
     }
 
     inline float height() const { return m_Height; }
-    void height(float value) {
-        if (m_Height == value) {
+    void height(float value)
+    {
+        if (m_Height == value)
+        {
             return;
         }
         m_Height = value;
@@ -74,8 +86,10 @@ public:
     }
 
     inline float x() const { return m_X; }
-    void x(float value) {
-        if (m_X == value) {
+    void x(float value)
+    {
+        if (m_X == value)
+        {
             return;
         }
         m_X = value;
@@ -83,8 +97,10 @@ public:
     }
 
     inline float y() const { return m_Y; }
-    void y(float value) {
-        if (m_Y == value) {
+    void y(float value)
+    {
+        if (m_Y == value)
+        {
             return;
         }
         m_Y = value;
@@ -92,8 +108,10 @@ public:
     }
 
     inline float originX() const { return m_OriginX; }
-    void originX(float value) {
-        if (m_OriginX == value) {
+    void originX(float value)
+    {
+        if (m_OriginX == value)
+        {
             return;
         }
         m_OriginX = value;
@@ -101,8 +119,10 @@ public:
     }
 
     inline float originY() const { return m_OriginY; }
-    void originY(float value) {
-        if (m_OriginY == value) {
+    void originY(float value)
+    {
+        if (m_OriginY == value)
+        {
             return;
         }
         m_OriginY = value;
@@ -110,8 +130,10 @@ public:
     }
 
     inline uint32_t defaultStateMachineId() const { return m_DefaultStateMachineId; }
-    void defaultStateMachineId(uint32_t value) {
-        if (m_DefaultStateMachineId == value) {
+    void defaultStateMachineId(uint32_t value)
+    {
+        if (m_DefaultStateMachineId == value)
+        {
             return;
         }
         m_DefaultStateMachineId = value;
@@ -119,7 +141,8 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const ArtboardBase& object) {
+    void copy(const ArtboardBase& object)
+    {
         m_Clip = object.m_Clip;
         m_Width = object.m_Width;
         m_Height = object.m_Height;
@@ -131,15 +154,31 @@ public:
         WorldTransformComponent::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case clipPropertyKey: m_Clip = CoreBoolType::deserialize(reader); return true;
-            case widthPropertyKey: m_Width = CoreDoubleType::deserialize(reader); return true;
-            case heightPropertyKey: m_Height = CoreDoubleType::deserialize(reader); return true;
-            case xPropertyKey: m_X = CoreDoubleType::deserialize(reader); return true;
-            case yPropertyKey: m_Y = CoreDoubleType::deserialize(reader); return true;
-            case originXPropertyKey: m_OriginX = CoreDoubleType::deserialize(reader); return true;
-            case originYPropertyKey: m_OriginY = CoreDoubleType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case clipPropertyKey:
+                m_Clip = CoreBoolType::deserialize(reader);
+                return true;
+            case widthPropertyKey:
+                m_Width = CoreDoubleType::deserialize(reader);
+                return true;
+            case heightPropertyKey:
+                m_Height = CoreDoubleType::deserialize(reader);
+                return true;
+            case xPropertyKey:
+                m_X = CoreDoubleType::deserialize(reader);
+                return true;
+            case yPropertyKey:
+                m_Y = CoreDoubleType::deserialize(reader);
+                return true;
+            case originXPropertyKey:
+                m_OriginX = CoreDoubleType::deserialize(reader);
+                return true;
+            case originYPropertyKey:
+                m_OriginY = CoreDoubleType::deserialize(reader);
+                return true;
             case defaultStateMachineIdPropertyKey:
                 m_DefaultStateMachineId = CoreUintType::deserialize(reader);
                 return true;

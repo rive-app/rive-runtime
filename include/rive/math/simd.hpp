@@ -18,8 +18,10 @@
 
 #define SIMD_ALWAYS_INLINE inline __attribute__((always_inline))
 
-namespace rive {
-namespace simd {
+namespace rive
+{
+namespace simd
+{
 
 // The GLSL spec uses "gvec" to denote a vector of unspecified type.
 template <typename T, int N>
@@ -29,19 +31,22 @@ using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof
 
 // Similar to std::min(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b) {
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
+{
     return __builtin_elementwise_min(a, b);
 }
 
 // Similar to std::max(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b) {
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
+{
     return __builtin_elementwise_max(a, b);
 }
 
 // Returns the absolute value of x per element, with one exception:
 // If x[i] is an integer type and equal to the minimum representable value, returns x[i].
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x) {
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
+{
     return __builtin_elementwise_abs(x);
 }
 
@@ -52,10 +57,12 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x) {
 //
 
 // Returns true if all elements in x are equal to 0.
-template <int N> SIMD_ALWAYS_INLINE bool any(gvec<int32_t, N> x) {
+template <int N> SIMD_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
+{
     // This particular logic structure gets decent codegen in clang.
     // TODO: __builtin_reduce_or(x) once it's implemented in the compiler.
-    for (int i = 0; i < N; ++i) {
+    for (int i = 0; i < N; ++i)
+    {
         if (x[i])
             return true;
     }
@@ -63,7 +70,8 @@ template <int N> SIMD_ALWAYS_INLINE bool any(gvec<int32_t, N> x) {
 }
 
 // Returns true if all elements in x are equal to ~0.
-template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x) {
+template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
+{
     // In vector, true is represented by -1 exactly, so we use ~x for "not".
     // TODO: __builtin_reduce_and(x) once it's implemented in the compiler.
     return !any(~x);
@@ -71,7 +79,8 @@ template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x) {
 
 ////// Loading and storing //////
 
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const T* ptr) {
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const T* ptr)
+{
     gvec<T, N> vec;
     __builtin_memcpy(&vec, ptr, sizeof(vec));
     return vec;
@@ -83,7 +92,8 @@ SIMD_ALWAYS_INLINE gvec<int32_t, 4> load4i(const int32_t* ptr) { return load<int
 SIMD_ALWAYS_INLINE gvec<uint32_t, 2> load2ui(const uint32_t* ptr) { return load<uint32_t, 2>(ptr); }
 SIMD_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const uint32_t* ptr) { return load<uint32_t, 4>(ptr); }
 
-template <typename T, int N> SIMD_ALWAYS_INLINE void store(T* ptr, gvec<T, N> vec) {
+template <typename T, int N> SIMD_ALWAYS_INLINE void store(T* ptr, gvec<T, N> vec)
+{
     __builtin_memcpy(ptr, &vec, sizeof(vec));
 }
 
@@ -92,7 +102,8 @@ template <typename T, int N> SIMD_ALWAYS_INLINE void store(T* ptr, gvec<T, N> ve
 
 #undef SIMD_ALWAYS_INLINE
 
-namespace rive {
+namespace rive
+{
 
 template <int N> using vec = simd::gvec<float, N>;
 using float2 = vec<2>;

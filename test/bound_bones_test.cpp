@@ -12,7 +12,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("bound bones load correctly", "[bones]") {
+TEST_CASE("bound bones load correctly", "[bones]")
+{
     auto file = ReadRiveFile("../../test/assets/off_road_car.riv");
 
     auto node = file->artboard()->find("transmission_front_testing");
@@ -27,7 +28,8 @@ TEST_CASE("bound bones load correctly", "[bones]") {
     REQUIRE(pointsPath->skin()->tendons()[0]->bone() != nullptr);
     REQUIRE(pointsPath->skin()->tendons()[1]->bone() != nullptr);
 
-    for (auto vertex : path->vertices()) {
+    for (auto vertex : path->vertices())
+    {
         REQUIRE(vertex->weight() != nullptr);
     }
 

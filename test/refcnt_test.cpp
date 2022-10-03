@@ -8,7 +8,8 @@
 
 using namespace rive;
 
-class MyRefCnt : public RefCnt<MyRefCnt> {
+class MyRefCnt : public RefCnt<MyRefCnt>
+{
 public:
     MyRefCnt() {}
     MyRefCnt(int, float, bool) {}
@@ -16,7 +17,8 @@ public:
     void require_count(int value) { REQUIRE(this->debugging_refcnt() == value); }
 };
 
-TEST_CASE("refcnt", "[basics]") {
+TEST_CASE("refcnt", "[basics]")
+{
     MyRefCnt my;
     REQUIRE(my.debugging_refcnt() == 1);
     my.ref();
@@ -34,7 +36,8 @@ TEST_CASE("refcnt", "[basics]") {
     safe_unref((MyRefCnt*)nullptr);
 }
 
-TEST_CASE("rcp", "[basics]") {
+TEST_CASE("rcp", "[basics]")
+{
     rcp<MyRefCnt> r0(nullptr);
 
     REQUIRE(r0.get() == nullptr);

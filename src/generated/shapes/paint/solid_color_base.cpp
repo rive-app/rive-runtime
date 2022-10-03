@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* SolidColorBase::clone() const {
+Core* SolidColorBase::clone() const
+{
     auto cloned = new SolidColor();
     cloned->copy(*this);
     return cloned;

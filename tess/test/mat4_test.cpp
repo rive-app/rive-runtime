@@ -2,7 +2,8 @@
 #include "rive/math/mat4.hpp"
 #include "rive/math/mat2d.hpp"
 
-TEST_CASE("Mat2D to Mat4 works", "[mat4]") {
+TEST_CASE("Mat2D to Mat4 works", "[mat4]")
+{
     rive::Mat2D matrix2D(0.1f, 0.2f, 0.0f, 2.0f, 22.0f, 33.0f);
     rive::Mat4 matrix4x4 = matrix2D;
     REQUIRE(matrix4x4[0] == 0.1f);
@@ -13,7 +14,8 @@ TEST_CASE("Mat2D to Mat4 works", "[mat4]") {
     REQUIRE(matrix4x4[13] == 33.0f);
 }
 
-TEST_CASE("Mat4 times Mat2 works", "[mat4]") {
+TEST_CASE("Mat4 times Mat2 works", "[mat4]")
+{
     rive::Mat2D matrix2D(0.1f, 0.2f, 0.0f, 2.0f, 22.0f, 33.0f);
     rive::Mat4 identity4x4;
     rive::Mat4 matrix4x4 = identity4x4 * matrix2D;
@@ -25,7 +27,8 @@ TEST_CASE("Mat4 times Mat2 works", "[mat4]") {
     REQUIRE(matrix4x4[13] == 33.0f);
 }
 
-TEST_CASE("Mat4 times Mat4 works", "[mat4]") {
+TEST_CASE("Mat4 times Mat4 works", "[mat4]")
+{
     rive::Mat4 a(
         // clang-format off
         5.0f, 7.0f, 9.0f, 10.0f,

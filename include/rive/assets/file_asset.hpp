@@ -4,9 +4,11 @@
 #include "rive/span.hpp"
 #include <string>
 
-namespace rive {
+namespace rive
+{
 class Factory;
-class FileAsset : public FileAssetBase {
+class FileAsset : public FileAssetBase
+{
 public:
     virtual bool decode(Span<const uint8_t>, Factory*) = 0;
     virtual std::string fileExtension() = 0;

@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* CubicMirroredVertexBase::clone() const {
+Core* CubicMirroredVertexBase::clone() const
+{
     auto cloned = new CubicMirroredVertex();
     cloned->copy(*this);
     return cloned;

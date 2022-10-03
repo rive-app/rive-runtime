@@ -5,7 +5,8 @@
 #include "rive/math/mat2d.hpp"
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class Shape;
 class PathVertex;
 
@@ -18,7 +19,8 @@ class PathVertex;
 /// and cubic vertices. No corner vertices and it's entirely in world space.
 /// This is helpful for getting a close to identical representation of the
 /// vertices used to issue the high level path draw commands.
-class FlattenedPath {
+class FlattenedPath
+{
 private:
     std::vector<PathVertex*> m_Vertices;
 
@@ -30,7 +32,8 @@ public:
 };
 #endif
 
-class Path : public PathBase {
+class Path : public PathBase
+{
 protected:
     Shape* m_Shape = nullptr;
     std::unique_ptr<CommandPath> m_CommandPath;

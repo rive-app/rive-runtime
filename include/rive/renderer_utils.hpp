@@ -9,20 +9,25 @@
 #include "rive/core/type_conversions.hpp"
 #include <string>
 
-template <size_t N, typename T> class AutoSTArray {
+template <size_t N, typename T> class AutoSTArray
+{
     T m_storage[N];
     T* m_ptr;
     const size_t m_count;
 
 public:
-    AutoSTArray(size_t n) : m_count(n) {
+    AutoSTArray(size_t n) : m_count(n)
+    {
         m_ptr = m_storage;
-        if (n > N) {
+        if (n > N)
+        {
             m_ptr = new T[n];
         }
     }
-    ~AutoSTArray() {
-        if (m_ptr != m_storage) {
+    ~AutoSTArray()
+    {
+        if (m_ptr != m_storage)
+        {
             delete[] m_ptr;
         }
     }
@@ -32,17 +37,20 @@ public:
 
     T* data() const { return m_ptr; }
 
-    T& operator[](size_t index) {
+    T& operator[](size_t index)
+    {
         assert(index < m_count);
         return m_ptr[index];
     }
 };
 
-constexpr inline uint32_t make_tag(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
+constexpr inline uint32_t make_tag(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{
     return (a << 24) | (b << 16) | (c << 8) | d;
 }
 
-static inline std::string tag2str(uint32_t tag) {
+static inline std::string tag2str(uint32_t tag)
+{
     std::string str = "abcd";
     str[0] = (tag >> 24) & 0xFF;
     str[1] = (tag >> 16) & 0xFF;

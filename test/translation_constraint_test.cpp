@@ -8,7 +8,8 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("translation constraint updates world transform", "[file]") {
+TEST_CASE("translation constraint updates world transform", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/translation_constraint.riv");
 
     auto artboard = file->artboard();

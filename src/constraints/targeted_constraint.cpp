@@ -4,13 +4,16 @@
 
 using namespace rive;
 
-StatusCode TargetedConstraint::onAddedDirty(CoreContext* context) {
+StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
+{
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok) {
+    if (code != StatusCode::Ok)
+    {
         return code;
     }
     auto coreObject = context->resolve(targetId());
-    if (coreObject == nullptr || !coreObject->is<TransformComponent>()) {
+    if (coreObject == nullptr || !coreObject->is<TransformComponent>())
+    {
         return StatusCode::MissingObject;
     }
 
@@ -19,10 +22,12 @@ StatusCode TargetedConstraint::onAddedDirty(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void TargetedConstraint::buildDependencies() {
+void TargetedConstraint::buildDependencies()
+{
     // Targeted constraints must have their constrained component (parent)
     // update after the target.
-    if (m_Target != nullptr) {
+    if (m_Target != nullptr)
+    {
         m_Target->addDependent(parent());
     }
 }

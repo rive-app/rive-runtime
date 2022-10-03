@@ -14,8 +14,10 @@
 #include <ImageIO/ImageIO.h>
 #endif
 
-namespace rive {
-class CGRenderer : public Renderer {
+namespace rive
+{
+class CGRenderer : public Renderer
+{
 protected:
     CGContextRef m_ctx;
 

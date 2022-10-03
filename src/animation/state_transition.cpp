@@ -12,66 +12,84 @@
 
 using namespace rive;
 
-StateTransition::~StateTransition() {
-    for (auto condition : m_Conditions) {
+StateTransition::~StateTransition()
+{
+    for (auto condition : m_Conditions)
+    {
         delete condition;
     }
 }
 
-StatusCode StateTransition::onAddedDirty(CoreContext* context) {
+StatusCode StateTransition::onAddedDirty(CoreContext* context)
+{
     StatusCode code;
-    for (auto condition : m_Conditions) {
-        if ((code = condition->onAddedDirty(context)) != StatusCode::Ok) {
+    for (auto condition : m_Conditions)
+    {
+        if ((code = condition->onAddedDirty(context)) != StatusCode::Ok)
+        {
             return code;
         }
     }
     return StatusCode::Ok;
 }
 
-StatusCode StateTransition::onAddedClean(CoreContext* context) {
+StatusCode StateTransition::onAddedClean(CoreContext* context)
+{
     StatusCode code;
-    for (auto condition : m_Conditions) {
-        if ((code = condition->onAddedClean(context)) != StatusCode::Ok) {
+    for (auto condition : m_Conditions)
+    {
+        if ((code = condition->onAddedClean(context)) != StatusCode::Ok)
+        {
             return code;
         }
     }
     return StatusCode::Ok;
 }
 
-StatusCode StateTransition::import(ImportStack& importStack) {
+StatusCode StateTransition::import(ImportStack& importStack)
+{
     auto stateImporter = importStack.latest<LayerStateImporter>(LayerState::typeKey);
-    if (stateImporter == nullptr) {
+    if (stateImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
     stateImporter->addTransition(this);
     return Super::import(importStack);
 }
 
-void StateTransition::addCondition(TransitionCondition* condition) {
+void StateTransition::addCondition(TransitionCondition* condition)
+{
     m_Conditions.push_back(condition);
 }
 
-float StateTransition::mixTime(const LayerState* stateFrom) const {
-    if (duration() == 0) {
+float StateTransition::mixTime(const LayerState* stateFrom) const
+{
+    if (duration() == 0)
+    {
         return 0;
     }
     if ((transitionFlags() & StateTransitionFlags::DurationIsPercentage) ==
         StateTransitionFlags::DurationIsPercentage)
     {
         float animationDuration = 0.0f;
-        if (stateFrom->is<AnimationState>()) {
+        if (stateFrom->is<AnimationState>())
+        {
             auto animation = stateFrom->as<AnimationState>()->animation();
-            if (animation != nullptr) {
+            if (animation != nullptr)
+            {
                 animationDuration = animation->durationSeconds();
             }
         }
         return duration() / 100.0f * animationDuration;
-    } else {
+    }
+    else
+    {
         return duration() / 1000.0f;
     }
 }
 
-float StateTransition::exitTimeSeconds(const LayerState* stateFrom, bool absolute) const {
+float StateTransition::exitTimeSeconds(const LayerState* stateFrom, bool absolute) const
+{
     if ((transitionFlags() & StateTransitionFlags::ExitTimeIsPercentage) ==
         StateTransitionFlags::ExitTimeIsPercentage)
     {
@@ -79,7 +97,8 @@ float StateTransition::exitTimeSeconds(const LayerState* stateFrom, bool absolut
         float start = 0.0f;
 
         auto exitAnimation = exitTimeAnimation(stateFrom);
-        if (exitAnimation != nullptr) {
+        if (exitAnimation != nullptr)
+        {
             start = absolute ? exitAnimation->startSeconds() : 0.0f;
             animationDuration = exitAnimation->durationSeconds();
         }
@@ -90,37 +109,45 @@ float StateTransition::exitTimeSeconds(const LayerState* stateFrom, bool absolut
 }
 
 const LinearAnimationInstance*
-StateTransition::exitTimeAnimationInstance(const StateInstance* from) const {
+StateTransition::exitTimeAnimationInstance(const StateInstance* from) const
+{
     return from != nullptr && from->state()->is<AnimationState>()
                ? static_cast<const AnimationStateInstance*>(from)->animationInstance()
                : nullptr;
 }
 
-const LinearAnimation* StateTransition::exitTimeAnimation(const LayerState* from) const {
+const LinearAnimation* StateTransition::exitTimeAnimation(const LayerState* from) const
+{
     return from != nullptr && from->is<AnimationState>() ? from->as<AnimationState>()->animation()
                                                          : nullptr;
 }
 
 AllowTransition StateTransition::allowed(StateInstance* stateFrom,
                                          Span<SMIInput*> inputs,
-                                         bool ignoreTriggers) const {
-    if (isDisabled()) {
+                                         bool ignoreTriggers) const
+{
+    if (isDisabled())
+    {
         return AllowTransition::no;
     }
 
-    for (auto condition : m_Conditions) {
+    for (auto condition : m_Conditions)
+    {
         // N.B. state machine instance sanitizes these for us...
         auto input = inputs[condition->inputId()];
 
         if ((ignoreTriggers && condition->is<TransitionTriggerCondition>()) ||
-            !condition->evaluate(input)) {
+            !condition->evaluate(input))
+        {
             return AllowTransition::no;
         }
     }
 
-    if (enableExitTime()) {
+    if (enableExitTime())
+    {
         auto exitAnimation = exitTimeAnimationInstance(stateFrom);
-        if (exitAnimation != nullptr) {
+        if (exitAnimation != nullptr)
+        {
             // Exit time is specified in a value less than a single loop, so we
             // want to allow exiting regardless of which loop we're on. To do
             // that we bring the exit time up to the loop our lastTime is at.
@@ -143,12 +170,14 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
             //       .... but i suspect that will introduce some more issues?
 
             // There's only one iteration in oneShot,
-            if (exitTime <= duration && animationFrom->loop() != Loop::oneShot) {
+            if (exitTime <= duration && animationFrom->loop() != Loop::oneShot)
+            {
                 // Get exit time relative to the loop lastTime was in.
                 exitTime += std::floor(lastTime / duration) * duration;
             }
 
-            if (time < exitTime) {
+            if (time < exitTime)
+            {
                 return AllowTransition::waitingForExit;
             }
         }
@@ -156,11 +185,13 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
     return AllowTransition::yes;
 }
 
-bool StateTransition::applyExitCondition(StateInstance* from) const {
+bool StateTransition::applyExitCondition(StateInstance* from) const
+{
     // Hold exit time when the user has set to pauseOnExit on this condition
     // (only valid when exiting from an Animation).
     bool useExitTime = enableExitTime() && (from != nullptr && from->state()->is<AnimationState>());
-    if (pauseOnExit() && useExitTime) {
+    if (pauseOnExit() && useExitTime)
+    {
         static_cast<AnimationStateInstance*>(from)->animationInstance()->time(
             exitTimeSeconds(from->state(), true));
         return true;

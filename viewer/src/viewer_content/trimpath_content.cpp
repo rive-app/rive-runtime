@@ -11,17 +11,25 @@ using namespace rive;
 
 static Vec2D ave(Vec2D a, Vec2D b) { return (a + b) * 0.5f; }
 
-static RawPath make_quad_path(Span<const Vec2D> pts) {
+static RawPath make_quad_path(Span<const Vec2D> pts)
+{
     const int N = pts.size();
     RawPath path;
-    if (N >= 2) {
+    if (N >= 2)
+    {
         path.move(pts[0]);
-        if (N == 2) {
+        if (N == 2)
+        {
             path.line(pts[1]);
-        } else if (N == 3) {
+        }
+        else if (N == 3)
+        {
             path.quad(pts[1], pts[2]);
-        } else {
-            for (int i = 1; i < N - 2; ++i) {
+        }
+        else
+        {
+            for (int i = 1; i < N - 2; ++i)
+            {
                 path.quad(pts[i], ave(pts[i], pts[i + 1]));
             }
             path.quad(pts[N - 2], pts[N - 1]);
@@ -32,11 +40,13 @@ static RawPath make_quad_path(Span<const Vec2D> pts) {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<RenderPath> make_rpath(RawPath& path) {
+static std::unique_ptr<RenderPath> make_rpath(RawPath& path)
+{
     return ViewerContent::RiveFactory()->makeRenderPath(path, FillRule::nonZero);
 }
 
-static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt color) {
+static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt color)
+{
     auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
     paint->color(color);
     paint->thickness(size);
@@ -44,21 +54,25 @@ static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt 
     renderer->drawPath(make_rpath(path).get(), paint.get());
 }
 
-static void fill_rect(Renderer* renderer, const AABB& r, RenderPaint* paint) {
+static void fill_rect(Renderer* renderer, const AABB& r, RenderPaint* paint)
+{
     RawPath rp;
     rp.addRect(r);
     renderer->drawPath(make_rpath(rp).get(), paint);
 }
 
-static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint) {
+static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint)
+{
     fill_rect(renderer, {p.x - r, p.y - r, p.x + r, p.y + r}, paint);
 }
 
-static RawPath trim(ContourMeasure* cm, float startT, float endT) {
+static RawPath trim(ContourMeasure* cm, float startT, float endT)
+{
     // start and end are 0...1
     auto startD = startT * cm->length();
     auto endD = endT * cm->length();
-    if (startD > endD) {
+    if (startD > endD)
+    {
         std::swap(startD, endD);
     }
 
@@ -67,14 +81,16 @@ static RawPath trim(ContourMeasure* cm, float startT, float endT) {
     return path;
 }
 
-class TrimPathContent : public ViewerContent {
+class TrimPathContent : public ViewerContent
+{
     std::vector<Vec2D> m_pathpts;
     int m_trackingIndex = -1;
 
     float m_trimFrom = 0, m_trimTo = 1;
 
 public:
-    TrimPathContent() {
+    TrimPathContent()
+    {
         m_pathpts.push_back({20, 300});
         m_pathpts.push_back({220, 100});
         m_pathpts.push_back({420, 500});
@@ -82,7 +98,8 @@ public:
         m_pathpts.push_back({820, 300});
     }
 
-    void handleDraw(rive::Renderer* renderer, double) override {
+    void handleDraw(rive::Renderer* renderer, double) override
+    {
         auto path = make_quad_path(m_pathpts);
 
         RawPath cubicpath;
@@ -93,7 +110,8 @@ public:
         RawPath* ps[] = {&path, &cubicpath};
 
         renderer->save();
-        for (auto p : ps) {
+        for (auto p : ps)
+        {
             renderer->save();
 
             auto cm = ContourMeasureIter(*p, false).next();
@@ -110,21 +128,27 @@ public:
         auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
         paint->color(0xFF008800);
         const float r = 6;
-        for (auto p : m_pathpts) {
+        for (auto p : m_pathpts)
+        {
             fill_point(renderer, p, r, paint.get());
         }
     }
 
-    void handlePointerMove(float x, float y) override {
-        if (m_trackingIndex >= 0) {
+    void handlePointerMove(float x, float y) override
+    {
+        if (m_trackingIndex >= 0)
+        {
             m_pathpts[m_trackingIndex] = Vec2D{x, y};
         }
     }
-    void handlePointerDown(float x, float y) override {
+    void handlePointerDown(float x, float y) override
+    {
         auto pt = Vec2D{x, y};
         auto close_to = [](Vec2D a, Vec2D b) { return Vec2D::distance(a, b) <= 10; };
-        for (size_t i = 0; i < m_pathpts.size(); ++i) {
-            if (close_to(pt, m_pathpts[i])) {
+        for (size_t i = 0; i < m_pathpts.size(); ++i)
+        {
+            if (close_to(pt, m_pathpts[i]))
+            {
                 m_trackingIndex = i;
                 break;
             }
@@ -135,7 +159,8 @@ public:
 
     void handleResize(int width, int height) override {}
 
-    void handleImgui() override {
+    void handleImgui() override
+    {
         ImGui::Begin("trim", nullptr);
         ImGui::SliderFloat("From", &m_trimFrom, 0, 1);
         ImGui::SliderFloat("To", &m_trimTo, 0, 1);
@@ -143,6 +168,7 @@ public:
     }
 };
 
-std::unique_ptr<ViewerContent> ViewerContent::TrimPath(const char[]) {
+std::unique_ptr<ViewerContent> ViewerContent::TrimPath(const char[])
+{
     return std::make_unique<TrimPathContent>();
 }

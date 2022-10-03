@@ -3,8 +3,10 @@
 #include "rive/bones/weight.hpp"
 #include "rive/generated/shapes/vertex_base.hpp"
 #include "rive/math/mat2d.hpp"
-namespace rive {
-class Vertex : public VertexBase {
+namespace rive
+{
+class Vertex : public VertexBase
+{
     friend class Weight;
 
 private:

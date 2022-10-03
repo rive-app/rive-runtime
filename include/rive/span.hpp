@@ -16,9 +16,11 @@
  *  Inspired by Skia's SkSpan
  */
 
-namespace rive {
+namespace rive
+{
 
-template <typename T> class Span {
+template <typename T> class Span
+{
     T* m_Ptr;
     size_t m_Size;
 
@@ -28,13 +30,15 @@ public:
 
     // Handle Span<foo> --> Span<const foo>
     template <typename U, typename = typename std::enable_if<std::is_same<const U, T>::value>::type>
-    constexpr Span(const Span<U>& that) : Span(that.data(), that.size()) {}
+    constexpr Span(const Span<U>& that) : Span(that.data(), that.size())
+    {}
     constexpr Span(const Span&) = default;
     template <typename Container> constexpr Span(Container& c) : Span{std::data(c), std::size(c)} {}
     constexpr Span(std::initializer_list<T> il) : Span(std::data(il), std::size(il)) {}
     template <size_t N> constexpr Span(T (&a)[N]) : Span(a, N) {}
 
-    constexpr T& operator[](size_t index) const {
+    constexpr T& operator[](size_t index) const
+    {
         assert(index < m_Size);
         return m_Ptr[index];
     }
@@ -52,13 +56,15 @@ public:
     // returns byte-size of the entire span
     constexpr size_t size_bytes() const { return m_Size * sizeof(T); }
 
-    constexpr int count() const {
+    constexpr int count() const
+    {
         const int n = static_cast<int>(m_Size);
         assert(n >= 0);
         return n;
     }
 
-    constexpr Span<T> subset(size_t offset, size_t size) const {
+    constexpr Span<T> subset(size_t offset, size_t size) const
+    {
         assert(offset <= m_Size);
         assert(size <= m_Size - offset);
         return {m_Ptr + offset, size};

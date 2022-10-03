@@ -3,8 +3,10 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/shapes/parametric_path.hpp"
-namespace rive {
-class RectangleBase : public ParametricPath {
+namespace rive
+{
+class RectangleBase : public ParametricPath
+{
 protected:
     typedef ParametricPath Super;
 
@@ -13,8 +15,10 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case RectangleBase::typeKey:
             case ParametricPathBase::typeKey:
             case PathBase::typeKey:
@@ -22,8 +26,10 @@ public:
             case TransformComponentBase::typeKey:
             case WorldTransformComponentBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -44,8 +50,10 @@ private:
 
 public:
     inline bool linkCornerRadius() const { return m_LinkCornerRadius; }
-    void linkCornerRadius(bool value) {
-        if (m_LinkCornerRadius == value) {
+    void linkCornerRadius(bool value)
+    {
+        if (m_LinkCornerRadius == value)
+        {
             return;
         }
         m_LinkCornerRadius = value;
@@ -53,8 +61,10 @@ public:
     }
 
     inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
-    void cornerRadiusTL(float value) {
-        if (m_CornerRadiusTL == value) {
+    void cornerRadiusTL(float value)
+    {
+        if (m_CornerRadiusTL == value)
+        {
             return;
         }
         m_CornerRadiusTL = value;
@@ -62,8 +72,10 @@ public:
     }
 
     inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
-    void cornerRadiusTR(float value) {
-        if (m_CornerRadiusTR == value) {
+    void cornerRadiusTR(float value)
+    {
+        if (m_CornerRadiusTR == value)
+        {
             return;
         }
         m_CornerRadiusTR = value;
@@ -71,8 +83,10 @@ public:
     }
 
     inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
-    void cornerRadiusBL(float value) {
-        if (m_CornerRadiusBL == value) {
+    void cornerRadiusBL(float value)
+    {
+        if (m_CornerRadiusBL == value)
+        {
             return;
         }
         m_CornerRadiusBL = value;
@@ -80,8 +94,10 @@ public:
     }
 
     inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
-    void cornerRadiusBR(float value) {
-        if (m_CornerRadiusBR == value) {
+    void cornerRadiusBR(float value)
+    {
+        if (m_CornerRadiusBR == value)
+        {
             return;
         }
         m_CornerRadiusBR = value;
@@ -89,7 +105,8 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const RectangleBase& object) {
+    void copy(const RectangleBase& object)
+    {
         m_LinkCornerRadius = object.m_LinkCornerRadius;
         m_CornerRadiusTL = object.m_CornerRadiusTL;
         m_CornerRadiusTR = object.m_CornerRadiusTR;
@@ -98,8 +115,10 @@ public:
         ParametricPath::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case linkCornerRadiusPropertyKey:
                 m_LinkCornerRadius = CoreBoolType::deserialize(reader);
                 return true;

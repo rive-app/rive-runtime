@@ -7,9 +7,11 @@
 
 #include "rive/factory.hpp"
 
-namespace rive {
+namespace rive
+{
 
-class NoOpFactory : public Factory {
+class NoOpFactory : public Factory
+{
     rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
     rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
     rcp<RenderBuffer> makeBufferF32(Span<const float>) override;

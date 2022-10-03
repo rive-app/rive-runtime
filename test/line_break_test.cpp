@@ -14,17 +14,20 @@ using namespace rive;
 static rive::RenderTextRun append(std::vector<rive::Unichar>* unichars,
                                   rive::rcp<rive::RenderFont> font,
                                   float size,
-                                  const char text[]) {
+                                  const char text[])
+{
     const uint8_t* ptr = (const uint8_t*)text;
     uint32_t n = 0;
-    while (*ptr) {
+    while (*ptr)
+    {
         unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
     return {std::move(font), size, n};
 }
 
-static rcp<RenderFont> loadFont(const char* filename) {
+static rcp<RenderFont> loadFont(const char* filename)
+{
     FILE* fp = fopen("../../test/assets/RobotoFlex.ttf", "rb");
     REQUIRE(fp != nullptr);
 
@@ -38,7 +41,8 @@ static rcp<RenderFont> loadFont(const char* filename) {
     return HBRenderFont::Decode(bytes);
 }
 
-TEST_CASE("line breaker separates words", "[line break]") {
+TEST_CASE("line breaker separates words", "[line break]")
+{
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
@@ -59,7 +63,8 @@ TEST_CASE("line breaker separates words", "[line break]") {
     REQUIRE(run.breaks[5] == 13);
 }
 
-TEST_CASE("line breaker handles multiple runs", "[line break]") {
+TEST_CASE("line breaker handles multiple runs", "[line break]")
+{
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
@@ -88,7 +93,8 @@ TEST_CASE("line breaker handles multiple runs", "[line break]") {
     }
 }
 
-TEST_CASE("line breaker handles returns", "[line break]") {
+TEST_CASE("line breaker handles returns", "[line break]")
+{
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
@@ -119,7 +125,8 @@ TEST_CASE("line breaker handles returns", "[line break]") {
     }
 }
 
-TEST_CASE("line breaker builds lines", "[line break]") {
+TEST_CASE("line breaker builds lines", "[line break]")
+{
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
@@ -164,7 +171,8 @@ TEST_CASE("line breaker builds lines", "[line break]") {
     }
 }
 
-TEST_CASE("line breaker deals with extremes", "[line break]") {
+TEST_CASE("line breaker deals with extremes", "[line break]")
+{
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
@@ -218,7 +226,8 @@ TEST_CASE("line breaker deals with extremes", "[line break]") {
     }
 }
 
-TEST_CASE("line breaker breaks return characters", "[line break]") {
+TEST_CASE("line breaker breaks return characters", "[line break]")
+{
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 

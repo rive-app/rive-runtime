@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Scene::Scene(ArtboardInstance* abi) : m_ArtboardInstance(abi) {
+Scene::Scene(ArtboardInstance* abi) : m_ArtboardInstance(abi)
+{
     assert(m_ArtboardInstance->isInstance());
 }
 

@@ -4,12 +4,15 @@
 using namespace rive;
 void MeshVertex::markGeometryDirty() { parent()->as<Mesh>()->markDrawableDirty(); }
 
-StatusCode MeshVertex::onAddedDirty(CoreContext* context) {
+StatusCode MeshVertex::onAddedDirty(CoreContext* context)
+{
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok) {
+    if (code != StatusCode::Ok)
+    {
         return code;
     }
-    if (!parent()->is<Mesh>()) {
+    if (!parent()->is<Mesh>())
+    {
         return StatusCode::MissingObject;
     }
     parent()->as<Mesh>()->addVertex(this);

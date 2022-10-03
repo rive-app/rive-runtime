@@ -9,7 +9,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("cloning an ellipse works", "[instancing]") {
+TEST_CASE("cloning an ellipse works", "[instancing]")
+{
     auto file = ReadRiveFile("../../test/assets/circle_clips.riv");
 
     auto node = file->artboard()->find<rive::Shape>("TopEllipse");
@@ -22,7 +23,8 @@ TEST_CASE("cloning an ellipse works", "[instancing]") {
     delete clonedNode;
 }
 
-TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
+TEST_CASE("instancing artboard clones clipped properties", "[instancing]")
+{
     auto file = ReadRiveFile("../../test/assets/circle_clips.riv");
 
     REQUIRE(!file->artboard()->isInstance());
@@ -46,7 +48,8 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]") {
     artboard->draw(&renderer);
 }
 
-TEST_CASE("instancing artboard doesn't clone animations", "[instancing]") {
+TEST_CASE("instancing artboard doesn't clone animations", "[instancing]")
+{
     auto file = ReadRiveFile("../../test/assets/juice.riv");
 
     auto artboard = file->artboardDefault();

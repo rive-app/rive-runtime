@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* DrawTargetBase::clone() const {
+Core* DrawTargetBase::clone() const
+{
     auto cloned = new DrawTarget();
     cloned->copy(*this);
     return cloned;

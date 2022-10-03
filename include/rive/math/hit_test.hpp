@@ -13,9 +13,11 @@
 #include <cstdint>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 
-class HitTester {
+class HitTester
+{
     std::vector<int> m_DW; // width * height delta-windings
     Vec2D m_First, m_Prev;
     Vec2D m_offset;

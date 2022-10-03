@@ -7,13 +7,16 @@
 
 using namespace rive;
 
-StatusCode ListenerInputChange::import(ImportStack& importStack) {
+StatusCode ListenerInputChange::import(ImportStack& importStack)
+{
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr) {
+    if (stateMachineImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
 
-    if (!validateInputType(stateMachineImporter->stateMachine()->input((size_t)inputId()))) {
+    if (!validateInputType(stateMachineImporter->stateMachine()->input((size_t)inputId())))
+    {
         return StatusCode::InvalidObject;
     }
     return Super::import(importStack);

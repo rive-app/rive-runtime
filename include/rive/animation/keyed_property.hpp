@@ -2,9 +2,11 @@
 #define _RIVE_KEYED_PROPERTY_HPP_
 #include "rive/generated/animation/keyed_property_base.hpp"
 #include <vector>
-namespace rive {
+namespace rive
+{
 class KeyFrame;
-class KeyedProperty : public KeyedPropertyBase {
+class KeyedProperty : public KeyedPropertyBase
+{
 private:
     std::vector<std::unique_ptr<KeyFrame>> m_KeyFrames;
 

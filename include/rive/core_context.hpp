@@ -3,10 +3,12 @@
 
 #include "rive/rive_types.hpp"
 
-namespace rive {
+namespace rive
+{
 class Artboard;
 class Core;
-class CoreContext {
+class CoreContext
+{
 public:
     virtual ~CoreContext() {}
     virtual Core* resolve(uint32_t id) const = 0;

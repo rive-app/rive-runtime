@@ -7,7 +7,8 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("distance constraints moves items as expected", "[file]") {
+TEST_CASE("distance constraints moves items as expected", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/distance_constraint.riv");
 
     auto artboard = file->artboard();

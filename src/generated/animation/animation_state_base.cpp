@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* AnimationStateBase::clone() const {
+Core* AnimationStateBase::clone() const
+{
     auto cloned = new AnimationState();
     cloned->copy(*this);
     return cloned;

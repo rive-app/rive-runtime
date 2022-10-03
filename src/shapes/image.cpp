@@ -9,7 +9,8 @@
 
 using namespace rive;
 
-void Image::draw(Renderer* renderer) {
+void Image::draw(Renderer* renderer)
+{
     rive::RenderImage* renderImage;
     if (m_ImageAsset == nullptr || renderOpacity() == 0.0f ||
         (renderImage = m_ImageAsset->renderImage()) == nullptr)
@@ -17,7 +18,8 @@ void Image::draw(Renderer* renderer) {
         return;
     }
 
-    if (!clip(renderer)) {
+    if (!clip(renderer))
+    {
         // We didn't clip, so make sure to save as we'll be doing some
         // transformations.
         renderer->save();
@@ -26,9 +28,12 @@ void Image::draw(Renderer* renderer) {
     auto width = renderImage->width();
     auto height = renderImage->height();
 
-    if (m_Mesh != nullptr) {
+    if (m_Mesh != nullptr)
+    {
         m_Mesh->draw(renderer, renderImage, blendMode(), renderOpacity());
-    } else {
+    }
+    else
+    {
         renderer->transform(worldTransform());
         renderer->translate(-width / 2.0f, -height / 2.0f);
         renderer->drawImage(renderImage, blendMode(), renderOpacity());
@@ -37,30 +42,37 @@ void Image::draw(Renderer* renderer) {
     renderer->restore();
 }
 
-Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform) {
+Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
+{
     // TODO: handle clip?
 
     auto renderImage = m_ImageAsset->renderImage();
     int width = renderImage->width();
     int height = renderImage->height();
 
-    if (m_Mesh) {
+    if (m_Mesh)
+    {
         printf("Missing mesh\n");
         // TODO: hittest mesh
-    } else {
+    }
+    else
+    {
         auto mx = xform * worldTransform() * Mat2D::fromTranslate(-width * 0.5f, -height * 0.5f);
         HitTester tester(hinfo->area);
         tester.addRect(AABB(0, 0, (float)width, (float)height), mx);
-        if (tester.test()) {
+        if (tester.test())
+        {
             return this;
         }
     }
     return nullptr;
 }
 
-StatusCode Image::import(ImportStack& importStack) {
+StatusCode Image::import(ImportStack& importStack)
+{
     auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr) {
+    if (backboardImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
     backboardImporter->addFileAssetReferencer(this);
@@ -68,23 +80,28 @@ StatusCode Image::import(ImportStack& importStack) {
     return Super::import(importStack);
 }
 
-void Image::assets(const std::vector<FileAsset*>& assets) {
-    if ((size_t)assetId() >= assets.size()) {
+void Image::assets(const std::vector<FileAsset*>& assets)
+{
+    if ((size_t)assetId() >= assets.size())
+    {
         return;
     }
     auto asset = assets[assetId()];
-    if (asset->is<ImageAsset>()) {
+    if (asset->is<ImageAsset>())
+    {
         m_ImageAsset = asset->as<ImageAsset>();
 
         // If we have a mesh and we're in the source artboard, let's initialize
         // the mesh buffers.
-        if (m_Mesh != nullptr && !artboard()->isInstance()) {
+        if (m_Mesh != nullptr && !artboard()->isInstance())
+        {
             m_Mesh->initializeSharedBuffers(m_ImageAsset->renderImage());
         }
     }
 }
 
-Core* Image::clone() const {
+Core* Image::clone() const
+{
     Image* twin = ImageBase::clone()->as<Image>();
     twin->m_ImageAsset = m_ImageAsset;
     return twin;

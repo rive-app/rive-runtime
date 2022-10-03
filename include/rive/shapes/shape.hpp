@@ -7,11 +7,13 @@
 #include "rive/shapes/shape_paint_container.hpp"
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class Path;
 class PathComposer;
 class HitTester;
-class Shape : public ShapeBase, public ShapePaintContainer {
+class Shape : public ShapeBase, public ShapePaintContainer
+{
 private:
     PathComposer m_PathComposer;
     std::vector<Path*> m_Paths;

@@ -3,12 +3,14 @@
 
 #include "rive/rive_types.hpp"
 
-namespace rive {
+namespace rive
+{
 class Factory;
 class RenderPath;
 class MetricsPath;
 
-class StrokeEffect {
+class StrokeEffect
+{
 public:
     virtual ~StrokeEffect() {}
     virtual RenderPath* effectPath(MetricsPath* source, Factory*) = 0;

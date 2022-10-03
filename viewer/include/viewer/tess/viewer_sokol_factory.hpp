@@ -3,7 +3,8 @@
 
 #include "rive/tess/sokol/sokol_factory.hpp"
 
-class ViewerSokolFactory : public rive::SokolFactory {
+class ViewerSokolFactory : public rive::SokolFactory
+{
 public:
     std::unique_ptr<rive::RenderImage> decodeImage(rive::Span<const uint8_t>) override;
 };

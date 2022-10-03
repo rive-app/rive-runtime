@@ -2,7 +2,8 @@
 using namespace rive;
 
 SystemStateInstance::SystemStateInstance(const LayerState* layerState, ArtboardInstance* instance) :
-    StateInstance(layerState) {}
+    StateInstance(layerState)
+{}
 
 void SystemStateInstance::advance(float seconds, Span<SMIInput*>) {}
 void SystemStateInstance::apply(float mix) {}

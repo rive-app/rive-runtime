@@ -9,9 +9,11 @@ StatusCode StateMachineInput::onAddedDirty(CoreContext* context) { return Status
 
 StatusCode StateMachineInput::onAddedClean(CoreContext* context) { return StatusCode::Ok; }
 
-StatusCode StateMachineInput::import(ImportStack& importStack) {
+StatusCode StateMachineInput::import(ImportStack& importStack)
+{
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
-    if (stateMachineImporter == nullptr) {
+    if (stateMachineImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
     // WOW -- we're handing off ownership of this!

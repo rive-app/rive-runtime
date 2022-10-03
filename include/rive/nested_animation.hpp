@@ -2,10 +2,12 @@
 #define _RIVE_NESTED_ANIMATION_HPP_
 #include "rive/generated/nested_animation_base.hpp"
 #include <stdio.h>
-namespace rive {
+namespace rive
+{
 class ArtboardInstance;
 
-class NestedAnimation : public NestedAnimationBase {
+class NestedAnimation : public NestedAnimationBase
+{
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
 

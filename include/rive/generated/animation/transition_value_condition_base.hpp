@@ -2,8 +2,10 @@
 #define _RIVE_TRANSITION_VALUE_CONDITION_BASE_HPP_
 #include "rive/animation/transition_condition.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class TransitionValueConditionBase : public TransitionCondition {
+namespace rive
+{
+class TransitionValueConditionBase : public TransitionCondition
+{
 protected:
     typedef TransitionCondition Super;
 
@@ -12,11 +14,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case TransitionValueConditionBase::typeKey:
-            case TransitionConditionBase::typeKey: return true;
-            default: return false;
+            case TransitionConditionBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -29,22 +35,29 @@ private:
 
 public:
     inline uint32_t opValue() const { return m_OpValue; }
-    void opValue(uint32_t value) {
-        if (m_OpValue == value) {
+    void opValue(uint32_t value)
+    {
+        if (m_OpValue == value)
+        {
             return;
         }
         m_OpValue = value;
         opValueChanged();
     }
 
-    void copy(const TransitionValueConditionBase& object) {
+    void copy(const TransitionValueConditionBase& object)
+    {
         m_OpValue = object.m_OpValue;
         TransitionCondition::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case opValuePropertyKey: m_OpValue = CoreUintType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case opValuePropertyKey:
+                m_OpValue = CoreUintType::deserialize(reader);
+                return true;
         }
         return TransitionCondition::deserialize(propertyKey, reader);
     }

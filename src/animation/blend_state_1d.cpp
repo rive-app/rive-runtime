@@ -6,23 +6,29 @@
 
 using namespace rive;
 
-std::unique_ptr<StateInstance> BlendState1D::makeInstance(ArtboardInstance* instance) const {
+std::unique_ptr<StateInstance> BlendState1D::makeInstance(ArtboardInstance* instance) const
+{
     return std::make_unique<BlendState1DInstance>(this, instance);
 }
 
-StatusCode BlendState1D::import(ImportStack& importStack) {
+StatusCode BlendState1D::import(ImportStack& importStack)
+{
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr) {
+    if (stateMachineImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
 
-    if (hasValidInputId()) {
+    if (hasValidInputId())
+    {
         // Make sure the inputId doesn't overflow the input buffer.
-        if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
+        if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
+        {
             return StatusCode::InvalidObject;
         }
         auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
-        if (input == nullptr || !input->is<StateMachineNumber>()) {
+        if (input == nullptr || !input->is<StateMachineNumber>())
+        {
             return StatusCode::InvalidObject;
         }
     }

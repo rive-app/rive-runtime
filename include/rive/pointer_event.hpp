@@ -3,15 +3,18 @@
 
 #include "rive/math/vec2d.hpp"
 
-namespace rive {
+namespace rive
+{
 
-enum class PointerEventType {
+enum class PointerEventType
+{
     down, // The button has gone from up to down
     move, // The pointer's position has changed
     up,   // The button has gone from down to up
 };
 
-struct PointerEvent {
+struct PointerEvent
+{
     PointerEventType m_Type;
     Vec2D m_Position;
     int m_PointerIndex;

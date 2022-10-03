@@ -5,8 +5,10 @@
 #include "rive/renderer.hpp"
 #include <string>
 
-namespace rive {
-class ImageAsset : public ImageAssetBase {
+namespace rive
+{
+class ImageAsset : public ImageAssetBase
+{
 private:
     std::unique_ptr<RenderImage> m_RenderImage;
 

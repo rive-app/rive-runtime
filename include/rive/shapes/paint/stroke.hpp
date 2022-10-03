@@ -2,9 +2,11 @@
 #define _RIVE_STROKE_HPP_
 #include "rive/generated/shapes/paint/stroke_base.hpp"
 #include "rive/shapes/path_space.hpp"
-namespace rive {
+namespace rive
+{
 class StrokeEffect;
-class Stroke : public StrokeBase {
+class Stroke : public StrokeBase
+{
 private:
     StrokeEffect* m_Effect = nullptr;
 

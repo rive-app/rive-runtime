@@ -2,8 +2,10 @@
 #define _RIVE_MESH_VERTEX_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/shapes/vertex.hpp"
-namespace rive {
-class MeshVertexBase : public Vertex {
+namespace rive
+{
+class MeshVertexBase : public Vertex
+{
 protected:
     typedef Vertex Super;
 
@@ -12,13 +14,17 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case MeshVertexBase::typeKey:
             case VertexBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -33,8 +39,10 @@ private:
 
 public:
     inline float u() const { return m_U; }
-    void u(float value) {
-        if (m_U == value) {
+    void u(float value)
+    {
+        if (m_U == value)
+        {
             return;
         }
         m_U = value;
@@ -42,8 +50,10 @@ public:
     }
 
     inline float v() const { return m_V; }
-    void v(float value) {
-        if (m_V == value) {
+    void v(float value)
+    {
+        if (m_V == value)
+        {
             return;
         }
         m_V = value;
@@ -51,16 +61,23 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const MeshVertexBase& object) {
+    void copy(const MeshVertexBase& object)
+    {
         m_U = object.m_U;
         m_V = object.m_V;
         Vertex::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case uPropertyKey: m_U = CoreDoubleType::deserialize(reader); return true;
-            case vPropertyKey: m_V = CoreDoubleType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case uPropertyKey:
+                m_U = CoreDoubleType::deserialize(reader);
+                return true;
+            case vPropertyKey:
+                m_V = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return Vertex::deserialize(propertyKey, reader);
     }

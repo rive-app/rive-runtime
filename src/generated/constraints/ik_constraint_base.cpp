@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* IKConstraintBase::clone() const {
+Core* IKConstraintBase::clone() const
+{
     auto cloned = new IKConstraint();
     cloned->copy(*this);
     return cloned;

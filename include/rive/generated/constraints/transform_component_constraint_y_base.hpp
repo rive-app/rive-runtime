@@ -3,8 +3,10 @@
 #include "rive/constraints/transform_component_constraint.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive {
-class TransformComponentConstraintYBase : public TransformComponentConstraint {
+namespace rive
+{
+class TransformComponentConstraintYBase : public TransformComponentConstraint
+{
 protected:
     typedef TransformComponentConstraint Super;
 
@@ -13,15 +15,19 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case TransformComponentConstraintYBase::typeKey:
             case TransformComponentConstraintBase::typeKey:
             case TransformSpaceConstraintBase::typeKey:
             case TargetedConstraintBase::typeKey:
             case ConstraintBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -44,8 +50,10 @@ private:
 
 public:
     inline float copyFactorY() const { return m_CopyFactorY; }
-    void copyFactorY(float value) {
-        if (m_CopyFactorY == value) {
+    void copyFactorY(float value)
+    {
+        if (m_CopyFactorY == value)
+        {
             return;
         }
         m_CopyFactorY = value;
@@ -53,8 +61,10 @@ public:
     }
 
     inline float minValueY() const { return m_MinValueY; }
-    void minValueY(float value) {
-        if (m_MinValueY == value) {
+    void minValueY(float value)
+    {
+        if (m_MinValueY == value)
+        {
             return;
         }
         m_MinValueY = value;
@@ -62,8 +72,10 @@ public:
     }
 
     inline float maxValueY() const { return m_MaxValueY; }
-    void maxValueY(float value) {
-        if (m_MaxValueY == value) {
+    void maxValueY(float value)
+    {
+        if (m_MaxValueY == value)
+        {
             return;
         }
         m_MaxValueY = value;
@@ -71,8 +83,10 @@ public:
     }
 
     inline bool doesCopyY() const { return m_DoesCopyY; }
-    void doesCopyY(bool value) {
-        if (m_DoesCopyY == value) {
+    void doesCopyY(bool value)
+    {
+        if (m_DoesCopyY == value)
+        {
             return;
         }
         m_DoesCopyY = value;
@@ -80,8 +94,10 @@ public:
     }
 
     inline bool minY() const { return m_MinY; }
-    void minY(bool value) {
-        if (m_MinY == value) {
+    void minY(bool value)
+    {
+        if (m_MinY == value)
+        {
             return;
         }
         m_MinY = value;
@@ -89,15 +105,18 @@ public:
     }
 
     inline bool maxY() const { return m_MaxY; }
-    void maxY(bool value) {
-        if (m_MaxY == value) {
+    void maxY(bool value)
+    {
+        if (m_MaxY == value)
+        {
             return;
         }
         m_MaxY = value;
         maxYChanged();
     }
 
-    void copy(const TransformComponentConstraintYBase& object) {
+    void copy(const TransformComponentConstraintYBase& object)
+    {
         m_CopyFactorY = object.m_CopyFactorY;
         m_MinValueY = object.m_MinValueY;
         m_MaxValueY = object.m_MaxValueY;
@@ -107,8 +126,10 @@ public:
         TransformComponentConstraint::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case copyFactorYPropertyKey:
                 m_CopyFactorY = CoreDoubleType::deserialize(reader);
                 return true;
@@ -118,9 +139,15 @@ public:
             case maxValueYPropertyKey:
                 m_MaxValueY = CoreDoubleType::deserialize(reader);
                 return true;
-            case doesCopyYPropertyKey: m_DoesCopyY = CoreBoolType::deserialize(reader); return true;
-            case minYPropertyKey: m_MinY = CoreBoolType::deserialize(reader); return true;
-            case maxYPropertyKey: m_MaxY = CoreBoolType::deserialize(reader); return true;
+            case doesCopyYPropertyKey:
+                m_DoesCopyY = CoreBoolType::deserialize(reader);
+                return true;
+            case minYPropertyKey:
+                m_MinY = CoreBoolType::deserialize(reader);
+                return true;
+            case maxYPropertyKey:
+                m_MaxY = CoreBoolType::deserialize(reader);
+                return true;
         }
         return TransformComponentConstraint::deserialize(propertyKey, reader);
     }

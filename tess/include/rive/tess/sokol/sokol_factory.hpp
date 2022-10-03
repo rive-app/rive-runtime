@@ -7,9 +7,11 @@
 
 #include "rive/factory.hpp"
 
-namespace rive {
+namespace rive
+{
 
-class SokolFactory : public Factory {
+class SokolFactory : public Factory
+{
 
 public:
     SokolFactory();

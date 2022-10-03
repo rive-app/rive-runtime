@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ListenerAlignTargetBase::clone() const {
+Core* ListenerAlignTargetBase::clone() const
+{
     auto cloned = new ListenerAlignTarget();
     cloned->copy(*this);
     return cloned;

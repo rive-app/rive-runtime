@@ -24,7 +24,8 @@ using namespace rive;
 // skia's has/had bugs in trilerp, so backing down to nearest mip
 const SkSamplingOptions gSampling(SkFilterMode::kLinear, SkMipmapMode::kNearest);
 
-class SkiaRenderPath : public RenderPath {
+class SkiaRenderPath : public RenderPath
+{
 private:
     SkPath m_Path;
 
@@ -43,7 +44,8 @@ public:
     virtual void close() override;
 };
 
-class SkiaRenderPaint : public RenderPaint {
+class SkiaRenderPaint : public RenderPaint
+{
 private:
     SkPaint m_Paint;
 
@@ -62,7 +64,8 @@ public:
     void invalidateStroke() override {}
 };
 
-class SkiaRenderImage : public RenderImage {
+class SkiaRenderImage : public RenderImage
+{
 private:
     sk_sp<SkImage> m_SkImage;
 
@@ -72,7 +75,8 @@ public:
     sk_sp<SkImage> skImage() const { return m_SkImage; }
 };
 
-class SkiaRenderShader : public RenderShader {
+class SkiaRenderShader : public RenderShader
+{
 public:
     SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}
 
@@ -82,23 +86,31 @@ public:
 void SkiaRenderPath::fillRule(FillRule value) { m_Path.setFillType(ToSkia::convert(value)); }
 
 void SkiaRenderPath::reset() { m_Path.reset(); }
-void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform) {
+void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
+{
     m_Path.addPath(reinterpret_cast<SkiaRenderPath*>(path)->m_Path, ToSkia::convert(transform));
 }
 
 void SkiaRenderPath::moveTo(float x, float y) { m_Path.moveTo(x, y); }
 void SkiaRenderPath::lineTo(float x, float y) { m_Path.lineTo(x, y); }
-void SkiaRenderPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y) {
+void SkiaRenderPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+{
     m_Path.cubicTo(ox, oy, ix, iy, x, y);
 }
 void SkiaRenderPath::close() { m_Path.close(); }
 
 SkiaRenderPaint::SkiaRenderPaint() { m_Paint.setAntiAlias(true); }
 
-void SkiaRenderPaint::style(RenderPaintStyle style) {
-    switch (style) {
-        case RenderPaintStyle::fill: m_Paint.setStyle(SkPaint::Style::kFill_Style); break;
-        case RenderPaintStyle::stroke: m_Paint.setStyle(SkPaint::Style::kStroke_Style); break;
+void SkiaRenderPaint::style(RenderPaintStyle style)
+{
+    switch (style)
+    {
+        case RenderPaintStyle::fill:
+            m_Paint.setStyle(SkPaint::Style::kFill_Style);
+            break;
+        case RenderPaintStyle::stroke:
+            m_Paint.setStyle(SkPaint::Style::kStroke_Style);
+            break;
     }
 }
 void SkiaRenderPaint::color(unsigned int value) { m_Paint.setColor(value); }
@@ -108,26 +120,31 @@ void SkiaRenderPaint::cap(StrokeCap value) { m_Paint.setStrokeCap(ToSkia::conver
 
 void SkiaRenderPaint::blendMode(BlendMode value) { m_Paint.setBlendMode(ToSkia::convert(value)); }
 
-void SkiaRenderPaint::shader(rcp<RenderShader> rsh) {
+void SkiaRenderPaint::shader(rcp<RenderShader> rsh)
+{
     SkiaRenderShader* sksh = (SkiaRenderShader*)rsh.get();
     m_Paint.setShader(sksh ? sksh->shader : nullptr);
 }
 
 void SkiaRenderer::save() { m_Canvas->save(); }
 void SkiaRenderer::restore() { m_Canvas->restore(); }
-void SkiaRenderer::transform(const Mat2D& transform) {
+void SkiaRenderer::transform(const Mat2D& transform)
+{
     m_Canvas->concat(ToSkia::convert(transform));
 }
-void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
+void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
+{
     m_Canvas->drawPath(reinterpret_cast<SkiaRenderPath*>(path)->path(),
                        reinterpret_cast<SkiaRenderPaint*>(paint)->paint());
 }
 
-void SkiaRenderer::clipPath(RenderPath* path) {
+void SkiaRenderer::clipPath(RenderPath* path)
+{
     m_Canvas->clipPath(reinterpret_cast<SkiaRenderPath*>(path)->path(), true);
 }
 
-void SkiaRenderer::drawImage(const RenderImage* image, BlendMode blendMode, float opacity) {
+void SkiaRenderer::drawImage(const RenderImage* image, BlendMode blendMode, float opacity)
+{
     SkPaint paint;
     paint.setAlphaf(opacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
@@ -142,7 +159,8 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
                                  rcp<RenderBuffer> uvCoords,
                                  rcp<RenderBuffer> indices,
                                  BlendMode blendMode,
-                                 float opacity) {
+                                 float opacity)
+{
     // need our vertices and uvs to agree
     assert(vertices->count() == uvCoords->count());
     // vertices and uvs are arrays of floats, so we need their counts to be
@@ -159,7 +177,8 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     // The local matrix is ignored for drawVertices, so we have to manually scale
     // the UVs to match Skia's convention...
     std::vector<SkPoint> scaledUVs(vertexCount);
-    for (int i = 0; i < vertexCount; ++i) {
+    for (int i = 0; i < vertexCount; ++i)
+    {
         scaledUVs[i] = {uvs[i].fX * image->width(), uvs[i].fY * image->height()};
     }
     uvs = scaledUVs.data();
@@ -195,22 +214,26 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     m_Canvas->drawVertices(vt, SkBlendMode::kModulate, paint);
 }
 
-SkiaRenderImage::SkiaRenderImage(sk_sp<SkImage> image) : m_SkImage(std::move(image)) {
+SkiaRenderImage::SkiaRenderImage(sk_sp<SkImage> image) : m_SkImage(std::move(image))
+{
     m_Width = m_SkImage->width();
     m_Height = m_SkImage->height();
 }
 
 // Factory
 
-rcp<RenderBuffer> SkiaFactory::makeBufferU16(Span<const uint16_t> data) {
+rcp<RenderBuffer> SkiaFactory::makeBufferU16(Span<const uint16_t> data)
+{
     return DataRenderBuffer::Make(data);
 }
 
-rcp<RenderBuffer> SkiaFactory::makeBufferU32(Span<const uint32_t> data) {
+rcp<RenderBuffer> SkiaFactory::makeBufferU32(Span<const uint32_t> data)
+{
     return DataRenderBuffer::Make(data);
 }
 
-rcp<RenderBuffer> SkiaFactory::makeBufferF32(Span<const float> data) {
+rcp<RenderBuffer> SkiaFactory::makeBufferF32(Span<const float> data)
+{
     return DataRenderBuffer::Make(data);
 }
 
@@ -220,7 +243,8 @@ rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx,
                                                   float ey,
                                                   const ColorInt colors[], // [count]
                                                   const float stops[],     // [count]
-                                                  size_t count) {
+                                                  size_t count)
+{
     const SkPoint pts[] = {{sx, sy}, {ex, ey}};
     auto sh =
         SkGradientShader::MakeLinear(pts, (const SkColor*)colors, stops, count, SkTileMode::kClamp);
@@ -232,7 +256,8 @@ rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx,
                                                   float radius,
                                                   const ColorInt colors[], // [count]
                                                   const float stops[],     // [count]
-                                                  size_t count) {
+                                                  size_t count)
+{
     auto sh = SkGradientShader::MakeRadial({cx, cy},
                                            radius,
                                            (const SkColor*)colors,
@@ -242,7 +267,8 @@ rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx,
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 
-std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule) {
+std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
+{
     const bool isVolatile = false; // ???
     const SkScalar* conicWeights = nullptr;
     const int conicWeightCount = 0;
@@ -257,27 +283,34 @@ std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRu
                      isVolatile));
 }
 
-std::unique_ptr<RenderPath> SkiaFactory::makeEmptyRenderPath() {
+std::unique_ptr<RenderPath> SkiaFactory::makeEmptyRenderPath()
+{
     return std::make_unique<SkiaRenderPath>();
 }
 
-std::unique_ptr<RenderPaint> SkiaFactory::makeRenderPaint() {
+std::unique_ptr<RenderPaint> SkiaFactory::makeRenderPaint()
+{
     return std::make_unique<SkiaRenderPaint>();
 }
 
-std::unique_ptr<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encoded) {
+std::unique_ptr<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encoded)
+{
     sk_sp<SkData> data = SkData::MakeWithoutCopy(encoded.data(), encoded.size());
     auto image = SkImage::MakeFromEncoded(data);
 
-    if (image) {
+    if (image)
+    {
         // Our optimized skia buld seems to have broken lazy-image decode.
         // As a work-around for now, force the image to be decoded.
         image = image->makeRasterImage();
-    } else {
+    }
+    else
+    {
         // Skia failed, so let's try the platform
         ImageInfo info;
         auto pixels = this->platformDecode(encoded, &info);
-        if (pixels.size() > 0) {
+        if (pixels.size() > 0)
+        {
             auto ct =
                 info.colorType == ColorType::rgba ? kRGBA_8888_SkColorType : kBGRA_8888_SkColorType;
             auto at =

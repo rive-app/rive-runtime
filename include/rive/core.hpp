@@ -5,10 +5,12 @@
 #include "rive/core/binary_reader.hpp"
 #include "rive/status_code.hpp"
 
-namespace rive {
+namespace rive
+{
 class CoreContext;
 class ImportStack;
-class Core {
+class Core
+{
 public:
     static const int invalidPropertyKey = 0;
     virtual ~Core() {}
@@ -17,7 +19,8 @@ public:
     virtual bool deserialize(uint16_t propertyKey, BinaryReader& reader) = 0;
 
     template <typename T> inline bool is() const { return isTypeOf(T::typeKey); }
-    template <typename T> inline T* as() {
+    template <typename T> inline T* as()
+    {
         assert(is<T>());
         return reinterpret_cast<T*>(this);
     }
@@ -25,7 +28,8 @@ public:
     /// Make a shallow copy of the object.
     virtual Core* clone() const { return nullptr; }
 
-    template <typename T> inline const T* as() const {
+    template <typename T> inline const T* as() const
+    {
         assert(is<T>());
         return reinterpret_cast<const T*>(this);
     }

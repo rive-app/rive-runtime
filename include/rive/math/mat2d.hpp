@@ -4,9 +4,11 @@
 #include "rive/math/vec2d.hpp"
 #include <cstddef>
 
-namespace rive {
+namespace rive
+{
 class TransformComponents;
-class Mat2D {
+class Mat2D
+{
 private:
     float m_Buffer[6];
 
@@ -14,7 +16,8 @@ public:
     Mat2D() : m_Buffer{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f} {}
     Mat2D(const Mat2D& copy) = default;
     Mat2D(float x1, float y1, float x2, float y2, float tx, float ty) :
-        m_Buffer{x1, y1, x2, y2, tx, ty} {}
+        m_Buffer{x1, y1, x2, y2, tx, ty}
+    {}
 
     inline const float* values() const { return m_Buffer; }
 
@@ -27,7 +30,8 @@ public:
 
     void scaleByValues(float sx, float sy);
 
-    Mat2D& operator*=(const Mat2D& rhs) {
+    Mat2D& operator*=(const Mat2D& rhs)
+    {
         *this = Mat2D::multiply(*this, rhs);
         return *this;
     }
@@ -36,7 +40,8 @@ public:
     // If returns false, result is unchnaged.
     bool invert(Mat2D* result) const;
 
-    Mat2D invertOrIdentity() const {
+    Mat2D invertOrIdentity() const
+    {
         Mat2D inverse;          // initialized to identity
         (void)invert(&inverse); // inverse is unchanged if invert() fails
         return inverse;
@@ -65,7 +70,8 @@ public:
     void ty(float value) { m_Buffer[5] = value; }
 };
 
-inline Vec2D operator*(const Mat2D& m, Vec2D v) {
+inline Vec2D operator*(const Mat2D& m, Vec2D v)
+{
     return {
         m[0] * v.x + m[2] * v.y + m[4],
         m[1] * v.x + m[3] * v.y + m[5],
@@ -74,7 +80,8 @@ inline Vec2D operator*(const Mat2D& m, Vec2D v) {
 
 inline Mat2D operator*(const Mat2D& a, const Mat2D& b) { return Mat2D::multiply(a, b); }
 
-inline bool operator==(const Mat2D& a, const Mat2D& b) {
+inline bool operator==(const Mat2D& a, const Mat2D& b)
+{
     return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4] &&
            a[5] == b[5];
 }

@@ -8,7 +8,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("clipping loads correctly", "[clipping]") {
+TEST_CASE("clipping loads correctly", "[clipping]")
+{
     auto file = ReadRiveFile("../../test/assets/circle_clips.riv");
 
     auto node = file->artboard()->find("TopEllipse");

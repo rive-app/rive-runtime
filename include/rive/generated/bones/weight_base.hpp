@@ -2,8 +2,10 @@
 #define _RIVE_WEIGHT_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class WeightBase : public Component {
+namespace rive
+{
+class WeightBase : public Component
+{
 protected:
     typedef Component Super;
 
@@ -12,11 +14,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case WeightBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -31,8 +37,10 @@ private:
 
 public:
     inline uint32_t values() const { return m_Values; }
-    void values(uint32_t value) {
-        if (m_Values == value) {
+    void values(uint32_t value)
+    {
+        if (m_Values == value)
+        {
             return;
         }
         m_Values = value;
@@ -40,8 +48,10 @@ public:
     }
 
     inline uint32_t indices() const { return m_Indices; }
-    void indices(uint32_t value) {
-        if (m_Indices == value) {
+    void indices(uint32_t value)
+    {
+        if (m_Indices == value)
+        {
             return;
         }
         m_Indices = value;
@@ -49,16 +59,23 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const WeightBase& object) {
+    void copy(const WeightBase& object)
+    {
         m_Values = object.m_Values;
         m_Indices = object.m_Indices;
         Component::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case valuesPropertyKey: m_Values = CoreUintType::deserialize(reader); return true;
-            case indicesPropertyKey: m_Indices = CoreUintType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case valuesPropertyKey:
+                m_Values = CoreUintType::deserialize(reader);
+                return true;
+            case indicesPropertyKey:
+                m_Indices = CoreUintType::deserialize(reader);
+                return true;
         }
         return Component::deserialize(propertyKey, reader);
     }

@@ -5,45 +5,60 @@
 
 using namespace rive;
 
-void ScaleConstraint::constrain(TransformComponent* component) {
+void ScaleConstraint::constrain(TransformComponent* component)
+{
     const Mat2D& transformA = component->worldTransform();
     Mat2D transformB;
     m_ComponentsA = transformA.decompose();
-    if (m_Target == nullptr) {
+    if (m_Target == nullptr)
+    {
         transformB = transformA;
         m_ComponentsB = m_ComponentsA;
-    } else {
+    }
+    else
+    {
         transformB = m_Target->worldTransform();
-        if (sourceSpace() == TransformSpace::local) {
+        if (sourceSpace() == TransformSpace::local)
+        {
             Mat2D inverse;
-            if (!getParentWorld(*m_Target).invert(&inverse)) {
+            if (!getParentWorld(*m_Target).invert(&inverse))
+            {
                 return;
             }
             transformB = inverse * transformB;
         }
         m_ComponentsB = transformB.decompose();
 
-        if (!doesCopy()) {
+        if (!doesCopy())
+        {
             m_ComponentsB.scaleX(destSpace() == TransformSpace::local ? 1.0f
                                                                       : m_ComponentsA.scaleX());
-        } else {
+        }
+        else
+        {
             m_ComponentsB.scaleX(m_ComponentsB.scaleX() * copyFactor());
-            if (offset()) {
+            if (offset())
+            {
                 m_ComponentsB.scaleX(m_ComponentsB.scaleX() * component->scaleX());
             }
         }
 
-        if (!doesCopyY()) {
+        if (!doesCopyY())
+        {
             m_ComponentsB.scaleY(destSpace() == TransformSpace::local ? 1.0f
                                                                       : m_ComponentsA.scaleY());
-        } else {
+        }
+        else
+        {
             m_ComponentsB.scaleY(m_ComponentsB.scaleY() * copyFactorY());
-            if (offset()) {
+            if (offset())
+            {
                 m_ComponentsB.scaleY(m_ComponentsB.scaleY() * component->scaleY());
             }
         }
 
-        if (destSpace() == TransformSpace::local) {
+        if (destSpace() == TransformSpace::local)
+        {
             // Destination space is in parent transform coordinates. Recompose
             // the parent local transform and get it in world, then decompose
             // the world for interpolation.
@@ -55,30 +70,37 @@ void ScaleConstraint::constrain(TransformComponent* component) {
     }
 
     bool clamplocal = minMaxSpace() == TransformSpace::local;
-    if (clamplocal) {
+    if (clamplocal)
+    {
         // Apply min max in local space, so transform to local coordinates
         // first.
         transformB = Mat2D::compose(m_ComponentsB);
         Mat2D inverse;
-        if (!getParentWorld(*component).invert(&inverse)) {
+        if (!getParentWorld(*component).invert(&inverse))
+        {
             return;
         }
         transformB = inverse * transformB;
         m_ComponentsB = transformB.decompose();
     }
-    if (max() && m_ComponentsB.scaleX() > maxValue()) {
+    if (max() && m_ComponentsB.scaleX() > maxValue())
+    {
         m_ComponentsB.scaleX(maxValue());
     }
-    if (min() && m_ComponentsB.scaleX() < minValue()) {
+    if (min() && m_ComponentsB.scaleX() < minValue())
+    {
         m_ComponentsB.scaleX(minValue());
     }
-    if (maxY() && m_ComponentsB.scaleY() > maxValueY()) {
+    if (maxY() && m_ComponentsB.scaleY() > maxValueY())
+    {
         m_ComponentsB.scaleY(maxValueY());
     }
-    if (minY() && m_ComponentsB.scaleY() < minValueY()) {
+    if (minY() && m_ComponentsB.scaleY() < minValueY())
+    {
         m_ComponentsB.scaleY(minValueY());
     }
-    if (clamplocal) {
+    if (clamplocal)
+    {
         // Transform back to world.
         transformB = Mat2D::compose(m_ComponentsB);
         transformB = getParentWorld(*component) * transformB;

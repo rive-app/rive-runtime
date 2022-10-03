@@ -9,10 +9,12 @@
 #include "include/core/SkTypeface.h"
 #include <vector>
 
-static std::vector<char> readFile(const char path[]) {
+static std::vector<char> readFile(const char path[])
+{
     FILE* fp = fopen(path, "rb");
 
-    if (fp == nullptr) {
+    if (fp == nullptr)
+    {
         fclose(fp);
         std::ostringstream errorStream;
         errorStream << "Failed to open file " << path;
@@ -25,7 +27,8 @@ static std::vector<char> readFile(const char path[]) {
     std::vector<char> data;
     data.resize(length);
 
-    if (fread(data.data(), 1, length, fp) != length) {
+    if (fread(data.data(), 1, length, fp) != length)
+    {
         fclose(fp);
         std::ostringstream errorStream;
         errorStream << "Failed to read file into bytes array " << path;
@@ -36,38 +39,47 @@ static std::vector<char> readFile(const char path[]) {
     return data;
 }
 
-static void writeFile(const char path[], const void* bytes, size_t length) {
+static void writeFile(const char path[], const void* bytes, size_t length)
+{
     FILE* pFile = fopen(path, "wb");
     fwrite(bytes, sizeof(char), length, pFile);
     fclose(pFile);
 }
 
-static std::vector<char> build_default_charset() {
+static std::vector<char> build_default_charset()
+{
     std::vector<char> charset;
-    for (int i = 32; i < 127; ++i) {
+    for (int i = 32; i < 127; ++i)
+    {
         charset.push_back(i);
     }
     return charset;
 }
 
-int main(int argc, const char* argv[]) {
-    try {
+int main(int argc, const char* argv[])
+{
+    try
+    {
         FontArguments args(argc, argv);
         sk_sp<SkTypeface> typeface;
 
         auto src = readFile(args.source().c_str());
         auto srcData = SkData::MakeWithCopy(src.data(), src.size());
         typeface = SkTypeface::MakeFromData(srcData);
-        if (!typeface) {
+        if (!typeface)
+        {
             fprintf(stderr, "Failed to convert file to SkTypeface\n");
             return 1;
         }
 
         std::vector<char> charset;
         auto charsetFile = args.charset();
-        if (charsetFile.size() > 0) {
+        if (charsetFile.size() > 0)
+        {
             charset = readFile(args.charset().c_str());
-        } else {
+        }
+        else
+        {
             charset = build_default_charset();
         }
 
@@ -77,13 +89,21 @@ int main(int argc, const char* argv[]) {
         auto dst = font.encode();
 
         writeFile(args.destination().c_str(), dst->data(), dst->size());
-    } catch (const args::Completion& e) {
+    }
+    catch (const args::Completion& e)
+    {
         return 0;
-    } catch (const args::Help&) {
+    }
+    catch (const args::Help&)
+    {
         return 0;
-    } catch (const args::ParseError& e) {
+    }
+    catch (const args::ParseError& e)
+    {
         return 1;
-    } catch (args::ValidationError e) {
+    }
+    catch (args::ValidationError e)
+    {
         return 1;
     }
 

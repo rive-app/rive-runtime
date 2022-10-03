@@ -6,11 +6,13 @@
 #include "rive/math/aabb.hpp"
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class RawPath;
 
 /// Utilty for converting a RawPath into a contour segments.
-class SegmentedContour {
+class SegmentedContour
+{
 private:
     std::vector<Vec2D> m_contourPoints;
 

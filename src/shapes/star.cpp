@@ -12,7 +12,8 @@ void Star::innerRadiusChanged() { markPathDirty(); }
 
 std::size_t Star::vertexCount() { return points() * 2; }
 
-void Star::buildPolygon() {
+void Star::buildPolygon()
+{
     auto halfWidth = width() / 2;
     auto halfHeight = height() / 2;
     auto innerHalfWidth = width() * innerRadius() / 2;
@@ -24,7 +25,8 @@ void Star::buildPolygon() {
     auto angle = -math::PI / 2;
     auto inc = 2 * math::PI / length;
 
-    for (std::size_t i = 0; i < length; i += 2) {
+    for (std::size_t i = 0; i < length; i += 2)
+    {
         {
             StraightVertex& vertex = m_PolygonVertices[i];
             vertex.x(ox + cos(angle) * halfWidth);

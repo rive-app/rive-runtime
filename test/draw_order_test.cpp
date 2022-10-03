@@ -8,7 +8,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("draw rules load and sort correctly", "[draw rules]") {
+TEST_CASE("draw rules load and sort correctly", "[draw rules]")
+{
     auto file = ReadRiveFile("../../test/assets/draw_rule_cycle.riv");
 
     // auto file = reader.file();

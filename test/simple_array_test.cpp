@@ -8,7 +8,8 @@
 
 using namespace rive;
 
-TEST_CASE("array initializes as expected", "[simple array]") {
+TEST_CASE("array initializes as expected", "[simple array]")
+{
     SimpleArray<int> array;
     REQUIRE(array.empty());
     REQUIRE(array.size() == 0);
@@ -16,7 +17,8 @@ TEST_CASE("array initializes as expected", "[simple array]") {
     REQUIRE(array.begin() == array.end());
 }
 
-TEST_CASE("simple array can be created", "[simple array]") {
+TEST_CASE("simple array can be created", "[simple array]")
+{
     SimpleArray<int> array({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
 
     REQUIRE(!array.empty());
@@ -26,7 +28,8 @@ TEST_CASE("simple array can be created", "[simple array]") {
 
     int counter = 0;
     int sum = 0;
-    for (auto s : array) {
+    for (auto s : array)
+    {
         counter += 1;
         sum += s;
     }
@@ -34,17 +37,20 @@ TEST_CASE("simple array can be created", "[simple array]") {
     REQUIRE(sum == 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9);
 }
 
-TEST_CASE("can iterate simple array", "[simple array]") {
+TEST_CASE("can iterate simple array", "[simple array]")
+{
     const int carray[] = {2, 4, 8, 16};
     SimpleArray<int> array(carray);
     int expect = 2;
-    for (auto value : array) {
+    for (auto value : array)
+    {
         REQUIRE(value == expect);
         expect *= 2;
     }
 }
 
-TEST_CASE("can build up a simple array", "[simple array]") {
+TEST_CASE("can build up a simple array", "[simple array]")
+{
     SimpleArrayBuilder<int> builder;
     builder.add(1);
     builder.add(2);
@@ -57,7 +63,8 @@ TEST_CASE("can build up a simple array", "[simple array]") {
 
     int iterationCount = 0;
     int expect = 1;
-    for (auto value : builder) {
+    for (auto value : builder)
+    {
         REQUIRE(value == expect++);
         iterationCount++;
     }
@@ -73,11 +80,13 @@ TEST_CASE("can build up a simple array", "[simple array]") {
     REQUIRE(SimpleArrayTesting::reallocCount == reallocCountBeforeMove + 1);
 }
 
-struct StructA {
+struct StructA
+{
     rive::SimpleArray<uint32_t> numbers;
 };
 
-static SimpleArray<StructA> buildStructs() {
+static SimpleArray<StructA> buildStructs()
+{
     SimpleArrayTesting::resetCounters();
 
     SimpleArray<uint32_t> numbersA({33, 22, 44, 66});
@@ -109,7 +118,8 @@ static SimpleArray<StructA> buildStructs() {
     return structs;
 }
 
-TEST_CASE("arrays of arrays work", "[simple array]") {
+TEST_CASE("arrays of arrays work", "[simple array]")
+{
     auto structs = buildStructs();
     REQUIRE(SimpleArrayTesting::mallocCount == 3);
     REQUIRE(SimpleArrayTesting::reallocCount == 0);
@@ -118,11 +128,13 @@ TEST_CASE("arrays of arrays work", "[simple array]") {
     REQUIRE(structs[1].numbers.size() == 3);
 }
 
-static SimpleArray<StructA> buildStructsWithBuilder() {
+static SimpleArray<StructA> buildStructsWithBuilder()
+{
     SimpleArrayTesting::resetCounters();
     SimpleArrayBuilder<StructA> structs(2);
     REQUIRE(SimpleArrayTesting::mallocCount == 1);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++)
+    {
         SimpleArray<uint32_t> numbers({33, 22, 44, 66});
         StructA data = {.numbers = std::move(numbers)};
         structs.add(std::move(data));
@@ -133,7 +145,8 @@ static SimpleArray<StructA> buildStructsWithBuilder() {
     return std::move(structs);
 }
 
-TEST_CASE("builder arrays of arrays work", "[simple array]") {
+TEST_CASE("builder arrays of arrays work", "[simple array]")
+{
     auto structs = buildStructsWithBuilder();
     // alloc counters should still be the same
     REQUIRE(SimpleArrayTesting::mallocCount == 4);
@@ -141,7 +154,8 @@ TEST_CASE("builder arrays of arrays work", "[simple array]") {
     REQUIRE(SimpleArrayTesting::reallocCount == 2);
 }
 
-TEST_CASE("builders can be reset", "[simple array]") {
+TEST_CASE("builders can be reset", "[simple array]")
+{
     SimpleArrayTesting::resetCounters();
     SimpleArrayBuilder<uint32_t> builder(3);
     builder.add(1);

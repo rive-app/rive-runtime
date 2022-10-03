@@ -12,13 +12,16 @@ using namespace rive;
 StateMachineListener::StateMachineListener() {}
 StateMachineListener::~StateMachineListener() {}
 
-void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action) {
+void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
+{
     m_Actions.push_back(std::move(action));
 }
 
-StatusCode StateMachineListener::import(ImportStack& importStack) {
+StatusCode StateMachineListener::import(ImportStack& importStack)
+{
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
-    if (stateMachineImporter == nullptr) {
+    if (stateMachineImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
     // Handing off ownership of this!
@@ -26,31 +29,40 @@ StatusCode StateMachineListener::import(ImportStack& importStack) {
     return Super::import(importStack);
 }
 
-const ListenerAction* StateMachineListener::action(size_t index) const {
-    if (index < m_Actions.size()) {
+const ListenerAction* StateMachineListener::action(size_t index) const
+{
+    if (index < m_Actions.size())
+    {
         return m_Actions[index].get();
     }
     return nullptr;
 }
 
-StatusCode StateMachineListener::onAddedClean(CoreContext* context) {
+StatusCode StateMachineListener::onAddedClean(CoreContext* context)
+{
     auto artboard = static_cast<Artboard*>(context);
     auto target = artboard->resolve(targetId());
 
-    for (auto core : artboard->objects()) {
-        if (core == nullptr) {
+    for (auto core : artboard->objects())
+    {
+        if (core == nullptr)
+        {
             continue;
         }
 
         // Iterate artboard to find Shapes that are parented to the target
-        if (core->is<Shape>()) {
+        if (core->is<Shape>())
+        {
             auto shape = core->as<Shape>();
 
             for (ContainerComponent* component = shape; component != nullptr;
-                 component = component->parent()) {
-                if (component == target) {
+                 component = component->parent())
+            {
+                if (component == target)
+                {
                     auto index = artboard->idOf(shape);
-                    if (index != 0) {
+                    if (index != 0)
+                    {
                         m_HitShapesIds.push_back(index);
                     }
                     break;
@@ -63,8 +75,10 @@ StatusCode StateMachineListener::onAddedClean(CoreContext* context) {
 }
 
 void StateMachineListener::performChanges(StateMachineInstance* stateMachineInstance,
-                                          Vec2D position) const {
-    for (auto& action : m_Actions) {
+                                          Vec2D position) const
+{
+    for (auto& action : m_Actions)
+    {
         action->perform(stateMachineInstance, position);
     }
 }

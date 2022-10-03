@@ -2,8 +2,10 @@
 #define _RIVE_SKIN_BASE_HPP_
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive {
-class SkinBase : public ContainerComponent {
+namespace rive
+{
+class SkinBase : public ContainerComponent
+{
 protected:
     typedef ContainerComponent Super;
 
@@ -12,12 +14,16 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case SkinBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -40,8 +46,10 @@ private:
 
 public:
     inline float xx() const { return m_Xx; }
-    void xx(float value) {
-        if (m_Xx == value) {
+    void xx(float value)
+    {
+        if (m_Xx == value)
+        {
             return;
         }
         m_Xx = value;
@@ -49,8 +57,10 @@ public:
     }
 
     inline float yx() const { return m_Yx; }
-    void yx(float value) {
-        if (m_Yx == value) {
+    void yx(float value)
+    {
+        if (m_Yx == value)
+        {
             return;
         }
         m_Yx = value;
@@ -58,8 +68,10 @@ public:
     }
 
     inline float xy() const { return m_Xy; }
-    void xy(float value) {
-        if (m_Xy == value) {
+    void xy(float value)
+    {
+        if (m_Xy == value)
+        {
             return;
         }
         m_Xy = value;
@@ -67,8 +79,10 @@ public:
     }
 
     inline float yy() const { return m_Yy; }
-    void yy(float value) {
-        if (m_Yy == value) {
+    void yy(float value)
+    {
+        if (m_Yy == value)
+        {
             return;
         }
         m_Yy = value;
@@ -76,8 +90,10 @@ public:
     }
 
     inline float tx() const { return m_Tx; }
-    void tx(float value) {
-        if (m_Tx == value) {
+    void tx(float value)
+    {
+        if (m_Tx == value)
+        {
             return;
         }
         m_Tx = value;
@@ -85,8 +101,10 @@ public:
     }
 
     inline float ty() const { return m_Ty; }
-    void ty(float value) {
-        if (m_Ty == value) {
+    void ty(float value)
+    {
+        if (m_Ty == value)
+        {
             return;
         }
         m_Ty = value;
@@ -94,7 +112,8 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const SkinBase& object) {
+    void copy(const SkinBase& object)
+    {
         m_Xx = object.m_Xx;
         m_Yx = object.m_Yx;
         m_Xy = object.m_Xy;
@@ -104,14 +123,28 @@ public:
         ContainerComponent::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case xxPropertyKey: m_Xx = CoreDoubleType::deserialize(reader); return true;
-            case yxPropertyKey: m_Yx = CoreDoubleType::deserialize(reader); return true;
-            case xyPropertyKey: m_Xy = CoreDoubleType::deserialize(reader); return true;
-            case yyPropertyKey: m_Yy = CoreDoubleType::deserialize(reader); return true;
-            case txPropertyKey: m_Tx = CoreDoubleType::deserialize(reader); return true;
-            case tyPropertyKey: m_Ty = CoreDoubleType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case xxPropertyKey:
+                m_Xx = CoreDoubleType::deserialize(reader);
+                return true;
+            case yxPropertyKey:
+                m_Yx = CoreDoubleType::deserialize(reader);
+                return true;
+            case xyPropertyKey:
+                m_Xy = CoreDoubleType::deserialize(reader);
+                return true;
+            case yyPropertyKey:
+                m_Yy = CoreDoubleType::deserialize(reader);
+                return true;
+            case txPropertyKey:
+                m_Tx = CoreDoubleType::deserialize(reader);
+                return true;
+            case tyPropertyKey:
+                m_Ty = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return ContainerComponent::deserialize(propertyKey, reader);
     }

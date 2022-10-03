@@ -10,7 +10,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("default state machine is detected at load", "[file]") {
+TEST_CASE("default state machine is detected at load", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/entry.riv");
 
     auto abi = file->artboardAt(0);

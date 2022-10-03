@@ -8,10 +8,12 @@
 #include "rive/tess/tess_renderer.hpp"
 #include "sokol_gfx.h"
 
-namespace rive {
+namespace rive
+{
 
 // The actual graphics device image.
-class SokolRenderImageResource : public RefCnt<SokolRenderImageResource> {
+class SokolRenderImageResource : public RefCnt<SokolRenderImageResource>
+{
 private:
     sg_image m_gpuResource;
 
@@ -25,7 +27,8 @@ public:
 
 // The unique render image associated with a given source Rive asset. Can be stored in sub-region of
 // an actual graphics device image (SokolRenderImageResource).
-class SokolRenderImage : public RenderImage {
+class SokolRenderImage : public RenderImage
+{
 private:
     rcp<SokolRenderImageResource> m_gpuImage;
     sg_buffer m_vertexBuffer;
@@ -47,7 +50,8 @@ public:
     sg_buffer uvBuffer() const { return m_uvBuffer; }
 };
 
-class SokolTessRenderer : public TessRenderer {
+class SokolTessRenderer : public TessRenderer
+{
 private:
     static const std::size_t maxClippingPaths = 16;
     sg_pipeline m_meshPipeline;

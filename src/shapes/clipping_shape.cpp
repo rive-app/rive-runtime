@@ -9,22 +9,27 @@
 
 using namespace rive;
 
-StatusCode ClippingShape::onAddedClean(CoreContext* context) {
+StatusCode ClippingShape::onAddedClean(CoreContext* context)
+{
     auto clippingHolder = parent();
 
     auto artboard = static_cast<Artboard*>(context);
-    for (auto core : artboard->objects()) {
-        if (core == nullptr) {
+    for (auto core : artboard->objects())
+    {
+        if (core == nullptr)
+        {
             continue;
         }
         // Iterate artboard to find drawables that are parented to this clipping
         // shape, they need to know they'll be clipped by this shape.
-        if (core->is<Drawable>()) {
+        if (core->is<Drawable>())
+        {
             auto drawable = core->as<Drawable>();
             for (ContainerComponent* component = drawable; component != nullptr;
                  component = component->parent())
             {
-                if (component == clippingHolder) {
+                if (component == clippingHolder)
+                {
                     drawable->addClippingShape(this);
                     break;
                 }
@@ -34,10 +39,13 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context) {
         // Iterate artboard to find shapes that are parented to the source,
         // their paths will need to be RenderPaths in order to be used for
         // clipping operations.
-        if (core->is<Shape>() && core != clippingHolder) {
+        if (core->is<Shape>() && core != clippingHolder)
+        {
             auto component = core->as<ContainerComponent>();
-            while (component != nullptr) {
-                if (component == m_Source) {
+            while (component != nullptr)
+            {
+                if (component == m_Source)
+                {
                     auto shape = core->as<Shape>();
                     shape->addDefaultPathSpace(PathSpace::World | PathSpace::Clipping);
                     m_Shapes.push_back(shape);
@@ -49,20 +57,24 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context) {
     }
 
     // We only need a render path if we have more than 1 clip path as we join them.
-    if (m_Shapes.size() > 1) {
+    if (m_Shapes.size() > 1)
+    {
         m_RenderPath = artboard->factory()->makeEmptyRenderPath();
     }
 
     return StatusCode::Ok;
 }
 
-StatusCode ClippingShape::onAddedDirty(CoreContext* context) {
+StatusCode ClippingShape::onAddedDirty(CoreContext* context)
+{
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok) {
+    if (code != StatusCode::Ok)
+    {
         return code;
     }
     auto coreObject = context->resolve(sourceId());
-    if (coreObject == nullptr || !coreObject->is<Node>()) {
+    if (coreObject == nullptr || !coreObject->is<Node>())
+    {
         return StatusCode::MissingObject;
     }
 
@@ -71,31 +83,43 @@ StatusCode ClippingShape::onAddedDirty(CoreContext* context) {
     return StatusCode::Ok;
 }
 
-void ClippingShape::buildDependencies() {
-    for (auto shape : m_Shapes) {
+void ClippingShape::buildDependencies()
+{
+    for (auto shape : m_Shapes)
+    {
         shape->pathComposer()->addDependent(this);
     }
 }
 
 static Mat2D identity;
-void ClippingShape::update(ComponentDirt value) {
-    if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform)) {
-        if (m_RenderPath) {
+void ClippingShape::update(ComponentDirt value)
+{
+    if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform))
+    {
+        if (m_RenderPath)
+        {
             m_RenderPath->reset();
 
             m_RenderPath->fillRule((FillRule)fillRule());
             m_ClipRenderPath = nullptr;
-            for (auto shape : m_Shapes) {
-                if (!shape->isHidden()) {
+            for (auto shape : m_Shapes)
+            {
+                if (!shape->isHidden())
+                {
                     m_RenderPath->addPath(shape->pathComposer()->worldPath(), identity);
                     m_ClipRenderPath = m_RenderPath.get();
                 }
             }
-        } else {
+        }
+        else
+        {
             auto first = m_Shapes.front();
-            if (first->isHidden()) {
+            if (first->isHidden())
+            {
                 m_ClipRenderPath = nullptr;
-            } else {
+            }
+            else
+            {
                 m_ClipRenderPath = static_cast<RenderPath*>(first->pathComposer()->worldPath());
             }
         }

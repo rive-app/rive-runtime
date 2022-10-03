@@ -19,10 +19,13 @@
 #include "rive/shapes/paint/stroke_join.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 
-namespace rive {
-class ToSkia {
+namespace rive
+{
+class ToSkia
+{
 public:
-    static SkMatrix convert(const rive::Mat2D& m) {
+    static SkMatrix convert(const rive::Mat2D& m)
+    {
         return SkMatrix::MakeAll(m[0], m[2], m[4], m[1], m[3], m[5], 0, 0, 1);
     }
 

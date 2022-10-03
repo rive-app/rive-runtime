@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* TransitionNumberConditionBase::clone() const {
+Core* TransitionNumberConditionBase::clone() const
+{
     auto cloned = new TransitionNumberCondition();
     cloned->copy(*this);
     return cloned;

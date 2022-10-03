@@ -9,18 +9,22 @@ StatusCode BlendAnimationDirect::onAddedDirty(CoreContext* context) { return Sta
 
 StatusCode BlendAnimationDirect::onAddedClean(CoreContext* context) { return StatusCode::Ok; }
 
-StatusCode BlendAnimationDirect::import(ImportStack& importStack) {
+StatusCode BlendAnimationDirect::import(ImportStack& importStack)
+{
     auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr) {
+    if (stateMachineImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
 
     // Make sure the inputId doesn't overflow the input buffer.
-    if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount()) {
+    if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
+    {
         return StatusCode::InvalidObject;
     }
     auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
-    if (input == nullptr || !input->is<StateMachineNumber>()) {
+    if (input == nullptr || !input->is<StateMachineNumber>())
+    {
         return StatusCode::InvalidObject;
     }
     return Super::import(importStack);

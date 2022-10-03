@@ -11,7 +11,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("image assets loads correctly", "[assets]") {
+TEST_CASE("image assets loads correctly", "[assets]")
+{
     RenderObjectLeakChecker checker;
     auto file = ReadRiveFile("../../test/assets/walle.riv");
 
@@ -42,7 +43,8 @@ TEST_CASE("image assets loads correctly", "[assets]") {
     file->artboard()->draw(&renderer);
 }
 
-TEST_CASE("out of band image assets loads correctly", "[assets]") {
+TEST_CASE("out of band image assets loads correctly", "[assets]")
+{
     RenderObjectLeakChecker checker;
     rive::NoOpFactory gEmptyFactory;
 

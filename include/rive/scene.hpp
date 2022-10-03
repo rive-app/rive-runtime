@@ -6,7 +6,8 @@
 #include "rive/math/vec2d.hpp"
 #include <string>
 
-namespace rive {
+namespace rive
+{
 class ArtboardInstance;
 class Renderer;
 
@@ -15,7 +16,8 @@ class SMIBool;
 class SMINumber;
 class SMITrigger;
 
-class Scene {
+class Scene
+{
 protected:
     ArtboardInstance* m_ArtboardInstance;
 

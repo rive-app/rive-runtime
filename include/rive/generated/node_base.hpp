@@ -2,8 +2,10 @@
 #define _RIVE_NODE_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/transform_component.hpp"
-namespace rive {
-class NodeBase : public TransformComponent {
+namespace rive
+{
+class NodeBase : public TransformComponent
+{
 protected:
     typedef TransformComponent Super;
 
@@ -12,14 +14,18 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case NodeBase::typeKey:
             case TransformComponentBase::typeKey:
             case WorldTransformComponentBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -34,8 +40,10 @@ private:
 
 public:
     inline float x() const override { return m_X; }
-    void x(float value) {
-        if (m_X == value) {
+    void x(float value)
+    {
+        if (m_X == value)
+        {
             return;
         }
         m_X = value;
@@ -43,8 +51,10 @@ public:
     }
 
     inline float y() const override { return m_Y; }
-    void y(float value) {
-        if (m_Y == value) {
+    void y(float value)
+    {
+        if (m_Y == value)
+        {
             return;
         }
         m_Y = value;
@@ -52,16 +62,23 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const NodeBase& object) {
+    void copy(const NodeBase& object)
+    {
         m_X = object.m_X;
         m_Y = object.m_Y;
         TransformComponent::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case xPropertyKey: m_X = CoreDoubleType::deserialize(reader); return true;
-            case yPropertyKey: m_Y = CoreDoubleType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case xPropertyKey:
+                m_X = CoreDoubleType::deserialize(reader);
+                return true;
+            case yPropertyKey:
+                m_Y = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return TransformComponent::deserialize(propertyKey, reader);
     }

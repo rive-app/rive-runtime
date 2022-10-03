@@ -2,8 +2,10 @@
 #define _RIVE_KEY_FRAME_DOUBLE_BASE_HPP_
 #include "rive/animation/keyframe.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive {
-class KeyFrameDoubleBase : public KeyFrame {
+namespace rive
+{
+class KeyFrameDoubleBase : public KeyFrame
+{
 protected:
     typedef KeyFrame Super;
 
@@ -12,11 +14,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case KeyFrameDoubleBase::typeKey:
-            case KeyFrameBase::typeKey: return true;
-            default: return false;
+            case KeyFrameBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -29,8 +35,10 @@ private:
 
 public:
     inline float value() const { return m_Value; }
-    void value(float value) {
-        if (m_Value == value) {
+    void value(float value)
+    {
+        if (m_Value == value)
+        {
             return;
         }
         m_Value = value;
@@ -38,14 +46,19 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const KeyFrameDoubleBase& object) {
+    void copy(const KeyFrameDoubleBase& object)
+    {
         m_Value = object.m_Value;
         KeyFrame::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case valuePropertyKey: m_Value = CoreDoubleType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case valuePropertyKey:
+                m_Value = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return KeyFrame::deserialize(propertyKey, reader);
     }

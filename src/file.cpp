@@ -53,30 +53,37 @@ using namespace rive;
 
 // Import a single Rive runtime object.
 // Used by the file importer.
-static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header) {
+static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
+{
     auto coreObjectKey = reader.readVarUintAs<int>();
     auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
-    while (true) {
+    while (true)
+    {
         auto propertyKey = reader.readVarUintAs<uint16_t>();
-        if (propertyKey == 0) {
+        if (propertyKey == 0)
+        {
             // Terminator. https://media.giphy.com/media/7TtvTUMm9mp20/giphy.gif
             break;
         }
 
-        if (reader.hasError()) {
+        if (reader.hasError())
+        {
             delete object;
             return nullptr;
         }
-        if (object == nullptr || !object->deserialize(propertyKey, reader)) {
+        if (object == nullptr || !object->deserialize(propertyKey, reader))
+        {
             // We have an unknown object or property, first see if core knows
             // the property type.
             int id = CoreRegistry::propertyFieldId(propertyKey);
-            if (id == -1) {
+            if (id == -1)
+            {
                 // No, check if it's in toc.
                 id = header.propertyFieldId(propertyKey);
             }
 
-            if (id == -1) {
+            if (id == -1)
+            {
                 // Still couldn't find it, give up.
                 fprintf(stderr,
                         "Unknown property key %d, missing from property ToC.\n",
@@ -85,15 +92,25 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
                 return nullptr;
             }
 
-            switch (id) {
-                case CoreUintType::id: CoreUintType::deserialize(reader); break;
-                case CoreStringType::id: CoreStringType::deserialize(reader); break;
-                case CoreDoubleType::id: CoreDoubleType::deserialize(reader); break;
-                case CoreColorType::id: CoreColorType::deserialize(reader); break;
+            switch (id)
+            {
+                case CoreUintType::id:
+                    CoreUintType::deserialize(reader);
+                    break;
+                case CoreStringType::id:
+                    CoreStringType::deserialize(reader);
+                    break;
+                case CoreDoubleType::id:
+                    CoreDoubleType::deserialize(reader);
+                    break;
+                case CoreColorType::id:
+                    CoreColorType::deserialize(reader);
+                    break;
             }
         }
     }
-    if (object == nullptr) {
+    if (object == nullptr)
+    {
         // fprintf(stderr,
         //         "File contains an unknown object with coreType " RIVE_FMT_U64
         //         ", which " "this runtime doesn't understand.\n",
@@ -104,7 +121,8 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
 }
 
 File::File(Factory* factory, FileAssetResolver* assetResolver) :
-    m_Factory(factory), m_AssetResolver(assetResolver) {
+    m_Factory(factory), m_AssetResolver(assetResolver)
+{
     Counter::update(Counter::kFile, +1);
 
     assert(factory);
@@ -115,61 +133,81 @@ File::~File() { Counter::update(Counter::kFile, -1); }
 std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
                                    Factory* factory,
                                    ImportResult* result,
-                                   FileAssetResolver* assetResolver) {
+                                   FileAssetResolver* assetResolver)
+{
     BinaryReader reader(bytes);
     RuntimeHeader header;
-    if (!RuntimeHeader::read(reader, header)) {
+    if (!RuntimeHeader::read(reader, header))
+    {
         fprintf(stderr, "Bad header\n");
-        if (result) {
+        if (result)
+        {
             *result = ImportResult::malformed;
         }
         return nullptr;
     }
-    if (header.majorVersion() != majorVersion) {
+    if (header.majorVersion() != majorVersion)
+    {
         fprintf(stderr,
                 "Unsupported version %u.%u expected %u.%u.\n",
                 header.majorVersion(),
                 header.minorVersion(),
                 majorVersion,
                 minorVersion);
-        if (result) {
+        if (result)
+        {
             *result = ImportResult::unsupportedVersion;
         }
         return nullptr;
     }
     auto file = std::unique_ptr<File>(new File(factory, assetResolver));
     auto readResult = file->read(reader, header);
-    if (readResult != ImportResult::success) {
+    if (readResult != ImportResult::success)
+    {
         file.reset(nullptr);
     }
-    if (result) {
+    if (result)
+    {
         *result = ImportResult::success;
     }
     return file;
 }
 
-ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
+ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
+{
     ImportStack importStack;
-    while (!reader.reachedEnd()) {
+    while (!reader.reachedEnd())
+    {
         auto object = readRuntimeObject(reader, header);
-        if (object == nullptr) {
+        if (object == nullptr)
+        {
             importStack.readNullObject();
             continue;
         }
-        if (object->import(importStack) == StatusCode::Ok) {
-            switch (object->coreType()) {
-                case Backboard::typeKey: m_Backboard.reset(object->as<Backboard>()); break;
-                case Artboard::typeKey: {
+        if (object->import(importStack) == StatusCode::Ok)
+        {
+            switch (object->coreType())
+            {
+                case Backboard::typeKey:
+                    m_Backboard.reset(object->as<Backboard>());
+                    break;
+                case Artboard::typeKey:
+                {
                     Artboard* ab = object->as<Artboard>();
                     ab->m_Factory = m_Factory;
                     m_Artboards.push_back(std::unique_ptr<Artboard>(ab));
-                } break;
-                case ImageAsset::typeKey: {
+                }
+                break;
+                case ImageAsset::typeKey:
+                {
                     auto fa = object->as<FileAsset>();
                     m_FileAssets.push_back(std::unique_ptr<FileAsset>(fa));
-                } break;
+                }
+                break;
             }
-        } else {
+        }
+        else
+        {
             fprintf(stderr, "Failed to import object of type %d\n", object->coreType());
             delete object;
             continue;
@@ -177,7 +215,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
         ImportStackObject* stackObject = nullptr;
         auto stackType = object->coreType();
 
-        switch (stackType) {
+        switch (stackType)
+        {
             case Backboard::typeKey:
                 stackObject = new BackboardImporter(object->as<Backboard>());
                 break;
@@ -190,10 +229,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
             case KeyedObject::typeKey:
                 stackObject = new KeyedObjectImporter(object->as<KeyedObject>());
                 break;
-            case KeyedProperty::typeKey: {
+            case KeyedProperty::typeKey:
+            {
                 auto importer =
                     importStack.latest<LinearAnimationImporter>(LinearAnimation::typeKey);
-                if (importer == nullptr) {
+                if (importer == nullptr)
+                {
                     return ImportResult::malformed;
                 }
                 stackObject =
@@ -203,9 +244,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
             case StateMachine::typeKey:
                 stackObject = new StateMachineImporter(object->as<StateMachine>());
                 break;
-            case StateMachineLayer::typeKey: {
+            case StateMachineLayer::typeKey:
+            {
                 auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-                if (artboardImporter == nullptr) {
+                if (artboardImporter == nullptr)
+                {
                     return ImportResult::malformed;
                 }
 
@@ -237,7 +280,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                 stackType = FileAsset::typeKey;
                 break;
         }
-        if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok) {
+        if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)
+        {
             // Some previous stack item didn't resolve.
             return ImportResult::malformed;
         }
@@ -247,52 +291,65 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header) {
                                                                          : ImportResult::malformed;
 }
 
-Artboard* File::artboard(std::string name) const {
-    for (const auto& artboard : m_Artboards) {
-        if (artboard->name() == name) {
+Artboard* File::artboard(std::string name) const
+{
+    for (const auto& artboard : m_Artboards)
+    {
+        if (artboard->name() == name)
+        {
             return artboard.get();
         }
     }
     return nullptr;
 }
 
-Artboard* File::artboard() const {
-    if (m_Artboards.empty()) {
+Artboard* File::artboard() const
+{
+    if (m_Artboards.empty())
+    {
         return nullptr;
     }
     return m_Artboards[0].get();
 }
 
-Artboard* File::artboard(size_t index) const {
-    if (index >= m_Artboards.size()) {
+Artboard* File::artboard(size_t index) const
+{
+    if (index >= m_Artboards.size())
+    {
         return nullptr;
     }
     return m_Artboards[index].get();
 }
 
-std::string File::artboardNameAt(size_t index) const {
+std::string File::artboardNameAt(size_t index) const
+{
     auto ab = this->artboard(index);
     return ab ? ab->name() : "";
 }
 
-std::unique_ptr<ArtboardInstance> File::artboardDefault() const {
+std::unique_ptr<ArtboardInstance> File::artboardDefault() const
+{
     auto ab = this->artboard();
     return ab ? ab->instance() : nullptr;
 }
 
-std::unique_ptr<ArtboardInstance> File::artboardAt(size_t index) const {
+std::unique_ptr<ArtboardInstance> File::artboardAt(size_t index) const
+{
     auto ab = this->artboard(index);
     return ab ? ab->instance() : nullptr;
 }
 
-std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const {
+std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
+{
     auto ab = this->artboard(name);
     return ab ? ab->instance() : nullptr;
 }
 
-std::vector<const FileAsset*> File::assets() const {
+std::vector<const FileAsset*> File::assets() const
+{
     std::vector<const FileAsset*> assets;
-    for (auto itr = m_FileAssets.begin(); itr != m_FileAssets.end(); itr++) {
+    for (auto itr = m_FileAssets.begin(); itr != m_FileAssets.end(); itr++)
+    {
         assets.push_back(itr->get());
     }
     return assets;
@@ -301,35 +358,47 @@ std::vector<const FileAsset*> File::assets() const {
 #ifdef WITH_RIVE_TOOLS
 const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
                                              std::set<uint16_t> typeKeys,
-                                             ImportResult* result) {
+                                             ImportResult* result)
+{
     std::vector<uint8_t> strippedData;
     strippedData.reserve(bytes.size());
     BinaryReader reader(bytes);
     RuntimeHeader header;
-    if (!RuntimeHeader::read(reader, header)) {
-        if (result) {
+    if (!RuntimeHeader::read(reader, header))
+    {
+        if (result)
+        {
             *result = ImportResult::malformed;
         }
-
-    } else if (header.majorVersion() != majorVersion) {
-        if (result) {
+    }
+    else if (header.majorVersion() != majorVersion)
+    {
+        if (result)
+        {
             *result = ImportResult::unsupportedVersion;
         }
-    } else {
+    }
+    else
+    {
         strippedData.insert(strippedData.end(), bytes.data(), reader.position());
         const uint8_t* from = reader.position();
         const uint8_t* to = reader.position();
         uint16_t lastAssetType = 0;
-        while (!reader.reachedEnd()) {
+        while (!reader.reachedEnd())
+        {
             auto object = readRuntimeObject(reader, header);
-            if (object == nullptr) {
+            if (object == nullptr)
+            {
                 continue;
             }
-            if (object->is<FileAssetBase>()) {
+            if (object->is<FileAssetBase>())
+            {
                 lastAssetType = object->coreType();
             }
-            if (object->is<FileAssetContents>() && typeKeys.find(lastAssetType) != typeKeys.end()) {
-                if (from != to) {
+            if (object->is<FileAssetContents>() && typeKeys.find(lastAssetType) != typeKeys.end())
+            {
+                if (from != to)
+                {
                     strippedData.insert(strippedData.end(), from, to);
                 }
                 from = reader.position();
@@ -337,7 +406,8 @@ const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
             delete object;
             to = reader.position();
         }
-        if (from != to) {
+        if (from != to)
+        {
             strippedData.insert(strippedData.end(), from, to);
         }
         *result = ImportResult::success;

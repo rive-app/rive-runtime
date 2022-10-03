@@ -7,13 +7,15 @@ static const float contourThreshold = 1.0f;
 using namespace rive;
 TessRenderPath::TessRenderPath() : m_segmentedContour(contourThreshold) {}
 TessRenderPath::TessRenderPath(RawPath& rawPath, FillRule fillRule) :
-    m_fillRule(fillRule), m_segmentedContour(contourThreshold) {
+    m_fillRule(fillRule), m_segmentedContour(contourThreshold)
+{
     m_rawPath.swap(rawPath);
 }
 
 TessRenderPath::~TessRenderPath() {}
 
-void TessRenderPath::reset() {
+void TessRenderPath::reset()
+{
     m_rawPath.rewind();
     m_subPaths.clear();
     m_isContourDirty = m_isTriangulationDirty = true;
@@ -23,28 +25,35 @@ void TessRenderPath::fillRule(FillRule value) { m_fillRule = value; }
 
 void TessRenderPath::moveTo(float x, float y) { m_rawPath.moveTo(x, y); }
 void TessRenderPath::lineTo(float x, float y) { m_rawPath.lineTo(x, y); }
-void TessRenderPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y) {
+void TessRenderPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+{
     m_rawPath.cubicTo(ox, oy, ix, iy, x, y);
 }
-void TessRenderPath::close() {
+void TessRenderPath::close()
+{
     m_rawPath.close();
     m_isClosed = true;
 }
 
-void TessRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform) {
+void TessRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
+{
     m_subPaths.emplace_back(SubPath(path, transform));
 }
 
 const SegmentedContour& TessRenderPath::segmentedContour() const { return m_segmentedContour; }
 
 // Helper for earcut to understand Vec2D
-namespace mapbox {
-namespace util {
+namespace mapbox
+{
+namespace util
+{
 
-template <> struct nth<0, Vec2D> {
+template <> struct nth<0, Vec2D>
+{
     inline static auto get(const Vec2D& t) { return t.x; };
 };
-template <> struct nth<1, Vec2D> {
+template <> struct nth<1, Vec2D>
+{
     inline static auto get(const Vec2D& t) { return t.y; };
 };
 
@@ -53,20 +62,24 @@ template <> struct nth<1, Vec2D> {
 
 const RawPath& TessRenderPath::rawPath() const { return m_rawPath; }
 
-void* stdAlloc(void* userData, unsigned int size) {
+void* stdAlloc(void* userData, unsigned int size)
+{
     int* allocated = (int*)userData;
     TESS_NOTUSED(userData);
     *allocated += (int)size;
     return malloc(size);
 }
 
-void stdFree(void* userData, void* ptr) {
+void stdFree(void* userData, void* ptr)
+{
     TESS_NOTUSED(userData);
     free(ptr);
 }
 
-bool TessRenderPath::triangulate() {
-    if (!m_isTriangulationDirty) {
+bool TessRenderPath::triangulate()
+{
+    if (!m_isTriangulationDirty)
+    {
         return false;
     }
     m_isTriangulationDirty = false;
@@ -74,13 +87,16 @@ bool TessRenderPath::triangulate() {
     return true;
 }
 
-void TessRenderPath::triangulate(TessRenderPath* containerPath) {
+void TessRenderPath::triangulate(TessRenderPath* containerPath)
+{
     AABB bounds = AABB::forExpansion();
     // If there's a single path, we're going to try to assume the user isn't
     // doing any funky self overlapping winding and we'll try to triangulate it
     // quickly as a single polygon.
-    if (m_subPaths.size() == 0) {
-        if (!empty()) {
+    if (m_subPaths.size() == 0)
+    {
+        if (!empty())
+        {
             Mat2D identity;
             contour(identity);
 
@@ -92,15 +108,20 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
 
             containerPath->addTriangles(contour, m_earcut.indices);
         }
-    } else if (m_subPaths.size() == 1) {
+    }
+    else if (m_subPaths.size() == 1)
+    {
         // We're a container but we only have 1 path, let's see if we can use
         // our fast triangulator.
         SubPath& subPath = m_subPaths.front();
         auto subRenderPath = static_cast<TessRenderPath*>(subPath.path());
-        if (subRenderPath->isContainer()) {
+        if (subRenderPath->isContainer())
+        {
             // Nope, subpath is also a container, keep going.
             subRenderPath->triangulate(containerPath);
-        } else if (!subRenderPath->empty()) {
+        }
+        else if (!subRenderPath->empty())
+        {
             // Yes, it's a single path with commands, triangulate it.
             subRenderPath->contour(subPath.transform());
             const SegmentedContour& segmentedContour = subRenderPath->segmentedContour();
@@ -110,15 +131,22 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
 
             containerPath->addTriangles(contour, m_earcut.indices);
         }
-    } else {
+    }
+    else
+    {
         // We're a container with multiple sub-paths.
         TESStesselator* tess = nullptr;
-        for (SubPath& subPath : m_subPaths) {
+        for (SubPath& subPath : m_subPaths)
+        {
             auto subRenderPath = static_cast<TessRenderPath*>(subPath.path());
-            if (subRenderPath->isContainer()) {
+            if (subRenderPath->isContainer())
+            {
                 subRenderPath->triangulate(containerPath);
-            } else if (!subRenderPath->empty()) {
-                if (tess == nullptr) {
+            }
+            else if (!subRenderPath->empty())
+            {
+                if (tess == nullptr)
+                {
                     tess = tessNewTess(nullptr);
                 }
                 subRenderPath->contour(subPath.transform());
@@ -128,8 +156,10 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
                 bounds.expand(segmentedContour.bounds());
             }
         }
-        if (tess != nullptr) {
-            if (tessTesselate(tess, TESS_WINDING_POSITIVE, TESS_POLYGONS, 3, 2, 0)) {
+        if (tess != nullptr)
+        {
+            if (tessTesselate(tess, TESS_WINDING_POSITIVE, TESS_POLYGONS, 3, 2, 0))
+            {
                 auto verts = tessGetVertices(tess);
                 // const int* vinds = tessGetVertexIndices(tess);
                 auto nverts = tessGetVertexCount(tess);
@@ -137,7 +167,8 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
                 auto nelems = tessGetElementCount(tess);
 
                 std::vector<uint16_t> indices;
-                for (int i = 0; i < nelems * 3; i++) {
+                for (int i = 0; i < nelems * 3; i++)
+                {
                     indices.push_back(elems[i]);
                 }
 
@@ -151,8 +182,10 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath) {
     containerPath->setTriangulatedBounds(bounds);
 }
 
-void TessRenderPath::contour(const Mat2D& transform) {
-    if (!m_isContourDirty && transform == m_contourTransform) {
+void TessRenderPath::contour(const Mat2D& transform)
+{
+    if (!m_isContourDirty && transform == m_contourTransform)
+    {
         return;
     }
 
@@ -165,9 +198,12 @@ void TessRenderPath::extrudeStroke(ContourStroke* stroke,
                                    StrokeJoin join,
                                    StrokeCap cap,
                                    float strokeWidth,
-                                   const Mat2D& transform) {
-    if (isContainer()) {
-        for (auto& subPath : m_subPaths) {
+                                   const Mat2D& transform)
+{
+    if (isContainer())
+    {
+        for (auto& subPath : m_subPaths)
+        {
             static_cast<TessRenderPath*>(subPath.path())
                 ->extrudeStroke(stroke, join, cap, strokeWidth, subPath.transform());
         }

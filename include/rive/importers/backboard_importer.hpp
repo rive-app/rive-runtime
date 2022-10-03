@@ -5,13 +5,15 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class Artboard;
 class NestedArtboard;
 class Backboard;
 class FileAsset;
 class FileAssetReferencer;
-class BackboardImporter : public ImportStackObject {
+class BackboardImporter : public ImportStackObject
+{
 private:
     Backboard* m_Backboard;
     std::unordered_map<int, Artboard*> m_ArtboardLookup;

@@ -4,12 +4,14 @@
 #include "rive/renderer.hpp"
 #include "rive/math/mat2d.hpp"
 
-namespace rive {
+namespace rive
+{
 ///
 /// A reference to a sub-path added to a TessRenderPath with its relative
 /// transform.
 ///
-class SubPath {
+class SubPath
+{
 private:
     RenderPath* m_Path;
     Mat2D m_Transform;

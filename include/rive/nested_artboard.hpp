@@ -6,10 +6,12 @@
 #include "rive/span.hpp"
 #include <stdio.h>
 
-namespace rive {
+namespace rive
+{
 class ArtboardInstance;
 class NestedAnimation;
-class NestedArtboard : public NestedArtboardBase {
+class NestedArtboard : public NestedArtboardBase
+{
 
 private:
     Artboard* m_Artboard = nullptr;               // might point to m_Instance, and might not

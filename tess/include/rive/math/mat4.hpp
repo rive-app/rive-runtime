@@ -3,9 +3,11 @@
 
 #include <cstddef>
 
-namespace rive {
+namespace rive
+{
 class Mat2D;
-class Mat4 {
+class Mat4
+{
 private:
     float m_Buffer[16];
 
@@ -18,7 +20,8 @@ public:
                 0.0f, 0.0f, 1.0f, 0.0f, 
                 0.0f, 0.0f, 0.0f, 1.0f,
             // clang-format on
-        } {}
+        }
+    {}
     Mat4(const Mat4& copy) = default;
 
     // Construct a 4x4 Matrix with the provided elements stored in row-major
@@ -38,7 +41,8 @@ public:
                 x3, y3, z3, w3,
                 tx, ty, tz, tw,
             // clang-format on
-        } {}
+        }
+    {}
 
     Mat4(const Mat2D& mat2d);
 
@@ -47,12 +51,14 @@ public:
     float& operator[](std::size_t idx) { return m_Buffer[idx]; }
     const float& operator[](std::size_t idx) const { return m_Buffer[idx]; }
 
-    Mat4& operator*=(const Mat4& rhs) {
+    Mat4& operator*=(const Mat4& rhs)
+    {
         *this = Mat4::multiply(*this, rhs);
         return *this;
     }
 
-    Mat4& operator*=(const Mat2D& rhs) {
+    Mat4& operator*=(const Mat2D& rhs)
+    {
         *this = Mat4::multiply(*this, rhs);
         return *this;
     }

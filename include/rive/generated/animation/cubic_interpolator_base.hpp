@@ -2,8 +2,10 @@
 #define _RIVE_CUBIC_INTERPOLATOR_BASE_HPP_
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive {
-class CubicInterpolatorBase : public Core {
+namespace rive
+{
+class CubicInterpolatorBase : public Core
+{
 protected:
     typedef Core Super;
 
@@ -12,10 +14,14 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
-            case CubicInterpolatorBase::typeKey: return true;
-            default: return false;
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
+            case CubicInterpolatorBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -34,8 +40,10 @@ private:
 
 public:
     inline float x1() const { return m_X1; }
-    void x1(float value) {
-        if (m_X1 == value) {
+    void x1(float value)
+    {
+        if (m_X1 == value)
+        {
             return;
         }
         m_X1 = value;
@@ -43,8 +51,10 @@ public:
     }
 
     inline float y1() const { return m_Y1; }
-    void y1(float value) {
-        if (m_Y1 == value) {
+    void y1(float value)
+    {
+        if (m_Y1 == value)
+        {
             return;
         }
         m_Y1 = value;
@@ -52,8 +62,10 @@ public:
     }
 
     inline float x2() const { return m_X2; }
-    void x2(float value) {
-        if (m_X2 == value) {
+    void x2(float value)
+    {
+        if (m_X2 == value)
+        {
             return;
         }
         m_X2 = value;
@@ -61,8 +73,10 @@ public:
     }
 
     inline float y2() const { return m_Y2; }
-    void y2(float value) {
-        if (m_Y2 == value) {
+    void y2(float value)
+    {
+        if (m_Y2 == value)
+        {
             return;
         }
         m_Y2 = value;
@@ -70,19 +84,30 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const CubicInterpolatorBase& object) {
+    void copy(const CubicInterpolatorBase& object)
+    {
         m_X1 = object.m_X1;
         m_Y1 = object.m_Y1;
         m_X2 = object.m_X2;
         m_Y2 = object.m_Y2;
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case x1PropertyKey: m_X1 = CoreDoubleType::deserialize(reader); return true;
-            case y1PropertyKey: m_Y1 = CoreDoubleType::deserialize(reader); return true;
-            case x2PropertyKey: m_X2 = CoreDoubleType::deserialize(reader); return true;
-            case y2PropertyKey: m_Y2 = CoreDoubleType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case x1PropertyKey:
+                m_X1 = CoreDoubleType::deserialize(reader);
+                return true;
+            case y1PropertyKey:
+                m_Y1 = CoreDoubleType::deserialize(reader);
+                return true;
+            case x2PropertyKey:
+                m_X2 = CoreDoubleType::deserialize(reader);
+                return true;
+            case y2PropertyKey:
+                m_Y2 = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return false;
     }

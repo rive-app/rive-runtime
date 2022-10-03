@@ -3,8 +3,10 @@
 #include "rive/generated/shapes/ellipse_base.hpp"
 #include "rive/shapes/cubic_detached_vertex.hpp"
 
-namespace rive {
-class Ellipse : public EllipseBase {
+namespace rive
+{
+class Ellipse : public EllipseBase
+{
     CubicDetachedVertex m_Vertex1, m_Vertex2, m_Vertex3, m_Vertex4;
 
 public:

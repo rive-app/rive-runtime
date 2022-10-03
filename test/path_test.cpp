@@ -13,10 +13,19 @@
 
 // Need a specialized "noop" factory that does make an inspectable Path
 
-namespace {
-enum class TestPathCommandType { MoveTo, LineTo, CubicTo, Reset, Close };
+namespace
+{
+enum class TestPathCommandType
+{
+    MoveTo,
+    LineTo,
+    CubicTo,
+    Reset,
+    Close
+};
 
-struct TestPathCommand {
+struct TestPathCommand
+{
     TestPathCommandType command;
     float x;
     float y;
@@ -26,10 +35,12 @@ struct TestPathCommand {
     float outY;
 };
 
-class TestRenderPath : public rive::RenderPath {
+class TestRenderPath : public rive::RenderPath
+{
 public:
     std::vector<TestPathCommand> commands;
-    void reset() override {
+    void reset() override
+    {
         commands.emplace_back(
             (TestPathCommand){TestPathCommandType::Reset, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
     }
@@ -38,33 +49,40 @@ public:
     void addPath(rive::CommandPath* path, const rive::Mat2D& transform) override {}
     void addRenderPath(rive::RenderPath* path, const rive::Mat2D& transform) override {}
 
-    void moveTo(float x, float y) override {
+    void moveTo(float x, float y) override
+    {
         commands.emplace_back(
             (TestPathCommand){TestPathCommandType::MoveTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
     }
-    void lineTo(float x, float y) override {
+    void lineTo(float x, float y) override
+    {
         commands.emplace_back(
             (TestPathCommand){TestPathCommandType::LineTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
     }
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override {
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override
+    {
         commands.emplace_back(
             (TestPathCommand){TestPathCommandType::CubicTo, x, y, ix, iy, ox, oy});
     }
-    void close() override {
+    void close() override
+    {
         commands.emplace_back(
             (TestPathCommand){TestPathCommandType::Close, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
     }
 };
 
-class TestNoOpFactory : public rive::NoOpFactory {
+class TestNoOpFactory : public rive::NoOpFactory
+{
 public:
-    std::unique_ptr<rive::RenderPath> makeEmptyRenderPath() override {
+    std::unique_ptr<rive::RenderPath> makeEmptyRenderPath() override
+    {
         return std::make_unique<TestRenderPath>();
     }
 };
 } // namespace
 
-TEST_CASE("rectangle path builds expected commands", "[path]") {
+TEST_CASE("rectangle path builds expected commands", "[path]")
+{
     TestNoOpFactory emptyFactory;
     rive::Artboard artboard(&emptyFactory);
     rive::Shape* shape = new rive::Shape();
@@ -99,7 +117,8 @@ TEST_CASE("rectangle path builds expected commands", "[path]") {
     REQUIRE(path->commands[6].command == TestPathCommandType::Close);
 }
 
-TEST_CASE("rounded rectangle path builds expected commands", "[path]") {
+TEST_CASE("rounded rectangle path builds expected commands", "[path]")
+{
     TestNoOpFactory emptyFactory;
     rive::Artboard artboard(&emptyFactory);
     rive::Shape* shape = new rive::Shape();
@@ -161,7 +180,8 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]") {
     REQUIRE(path->commands[10].command == TestPathCommandType::Close);
 }
 
-TEST_CASE("ellipse path builds expected commands", "[path]") {
+TEST_CASE("ellipse path builds expected commands", "[path]")
+{
     TestNoOpFactory emptyFactory;
     rive::Artboard artboard(&emptyFactory);
     rive::Ellipse* ellipse = new rive::Ellipse();

@@ -8,10 +8,12 @@
 #include "rive/command_path.hpp"
 #include "rive/math/hit_test.hpp"
 
-namespace rive {
+namespace rive
+{
 class HitTester;
 
-class HitTestCommandPath : public CommandPath {
+class HitTestCommandPath : public CommandPath
+{
     HitTester m_Tester;
     Mat2D m_Xform;
     IAABB m_Area;

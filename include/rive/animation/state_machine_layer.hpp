@@ -4,13 +4,15 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class LayerState;
 class StateMachineLayerImporter;
 class AnyState;
 class EntryState;
 class ExitState;
-class StateMachineLayer : public StateMachineLayerBase {
+class StateMachineLayer : public StateMachineLayerBase
+{
     friend class StateMachineLayerImporter;
 
 private:
@@ -34,8 +36,10 @@ public:
 
 #ifdef TESTING
     size_t stateCount() const { return m_States.size(); }
-    LayerState* state(size_t index) const {
-        if (index < m_States.size()) {
+    LayerState* state(size_t index) const
+    {
+        if (index < m_States.size())
+        {
             return m_States[index];
         }
         return nullptr;

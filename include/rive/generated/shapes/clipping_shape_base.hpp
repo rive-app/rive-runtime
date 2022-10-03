@@ -3,8 +3,10 @@
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class ClippingShapeBase : public Component {
+namespace rive
+{
+class ClippingShapeBase : public Component
+{
 protected:
     typedef Component Super;
 
@@ -13,11 +15,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case ClippingShapeBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -34,8 +40,10 @@ private:
 
 public:
     inline uint32_t sourceId() const { return m_SourceId; }
-    void sourceId(uint32_t value) {
-        if (m_SourceId == value) {
+    void sourceId(uint32_t value)
+    {
+        if (m_SourceId == value)
+        {
             return;
         }
         m_SourceId = value;
@@ -43,8 +51,10 @@ public:
     }
 
     inline uint32_t fillRule() const { return m_FillRule; }
-    void fillRule(uint32_t value) {
-        if (m_FillRule == value) {
+    void fillRule(uint32_t value)
+    {
+        if (m_FillRule == value)
+        {
             return;
         }
         m_FillRule = value;
@@ -52,8 +62,10 @@ public:
     }
 
     inline bool isVisible() const { return m_IsVisible; }
-    void isVisible(bool value) {
-        if (m_IsVisible == value) {
+    void isVisible(bool value)
+    {
+        if (m_IsVisible == value)
+        {
             return;
         }
         m_IsVisible = value;
@@ -61,18 +73,27 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const ClippingShapeBase& object) {
+    void copy(const ClippingShapeBase& object)
+    {
         m_SourceId = object.m_SourceId;
         m_FillRule = object.m_FillRule;
         m_IsVisible = object.m_IsVisible;
         Component::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case sourceIdPropertyKey: m_SourceId = CoreUintType::deserialize(reader); return true;
-            case fillRulePropertyKey: m_FillRule = CoreUintType::deserialize(reader); return true;
-            case isVisiblePropertyKey: m_IsVisible = CoreBoolType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case sourceIdPropertyKey:
+                m_SourceId = CoreUintType::deserialize(reader);
+                return true;
+            case fillRulePropertyKey:
+                m_FillRule = CoreUintType::deserialize(reader);
+                return true;
+            case isVisiblePropertyKey:
+                m_IsVisible = CoreBoolType::deserialize(reader);
+                return true;
         }
         return Component::deserialize(propertyKey, reader);
     }

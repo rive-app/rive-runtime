@@ -1,8 +1,10 @@
 #ifndef _RIVE_STATE_MACHINE_BASE_HPP_
 #define _RIVE_STATE_MACHINE_BASE_HPP_
 #include "rive/animation/animation.hpp"
-namespace rive {
-class StateMachineBase : public Animation {
+namespace rive
+{
+class StateMachineBase : public Animation
+{
 protected:
     typedef Animation Super;
 
@@ -11,11 +13,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case StateMachineBase::typeKey:
-            case AnimationBase::typeKey: return true;
-            default: return false;
+            case AnimationBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 

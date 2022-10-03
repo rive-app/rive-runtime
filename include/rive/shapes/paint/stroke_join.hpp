@@ -1,8 +1,10 @@
 #ifndef _RIVE_STROKE_JOIN_HPP_
 #define _RIVE_STROKE_JOIN_HPP_
-namespace rive {
+namespace rive
+{
 /// Style used for stroke segment joins when there is a sharp change.
-enum class StrokeJoin : unsigned int {
+enum class StrokeJoin : unsigned int
+{
     /// Makes a sharp corner at the joint.
     miter = 0,
 

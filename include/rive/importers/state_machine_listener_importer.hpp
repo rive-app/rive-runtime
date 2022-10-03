@@ -3,11 +3,13 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive {
+namespace rive
+{
 class StateMachineListener;
 class StateMachine;
 class ListenerAction;
-class StateMachineListenerImporter : public ImportStackObject {
+class StateMachineListenerImporter : public ImportStackObject
+{
 private:
     StateMachineListener* m_StateMachineListener;
 

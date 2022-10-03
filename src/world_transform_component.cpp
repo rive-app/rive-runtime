@@ -7,7 +7,8 @@ using namespace rive;
 
 float WorldTransformComponent::childOpacity() { return opacity(); }
 
-void WorldTransformComponent::markWorldTransformDirty() {
+void WorldTransformComponent::markWorldTransformDirty()
+{
     addDirt(ComponentDirt::WorldTransform, true);
 }
 

@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ArtboardBase::clone() const {
+Core* ArtboardBase::clone() const
+{
     auto cloned = new Artboard();
     cloned->copy(*this);
     return cloned;

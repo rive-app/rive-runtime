@@ -7,19 +7,22 @@
 
 using namespace rive;
 
-static void fillColorBuffer(float* buffer, ColorInt value) {
+static void fillColorBuffer(float* buffer, ColorInt value)
+{
     buffer[0] = (float)colorRed(value) / 0xFF;
     buffer[1] = (float)colorGreen(value) / 0xFF;
     buffer[2] = (float)colorBlue(value) / 0xFF;
     buffer[3] = colorOpacity(value);
 }
 
-class SokolRenderPath : public TessRenderPath {
+class SokolRenderPath : public TessRenderPath
+{
 public:
     SokolRenderPath() {}
     SokolRenderPath(RawPath& rawPath, FillRule fillRule) : TessRenderPath(rawPath, fillRule) {}
 
-    ~SokolRenderPath() {
+    ~SokolRenderPath()
+    {
         sg_destroy_buffer(m_vertexBuffer);
         sg_destroy_buffer(m_indexBuffer);
     }
@@ -34,12 +37,14 @@ private:
     std::size_t m_boundsIndex = 0;
 
 protected:
-    void addTriangles(rive::Span<const rive::Vec2D> vts, rive::Span<const uint16_t> idx) override {
+    void addTriangles(rive::Span<const rive::Vec2D> vts, rive::Span<const uint16_t> idx) override
+    {
         m_vertices.insert(m_vertices.end(), vts.begin(), vts.end());
         m_indices.insert(m_indices.end(), idx.begin(), idx.end());
     }
 
-    void setTriangulatedBounds(const AABB& value) override {
+    void setTriangulatedBounds(const AABB& value) override
+    {
         m_boundsIndex = m_vertices.size();
         m_vertices.emplace_back(Vec2D(value.minX, value.minY));
         m_vertices.emplace_back(Vec2D(value.maxX, value.minY));
@@ -48,15 +53,19 @@ protected:
     }
 
 public:
-    void reset() override {
+    void reset() override
+    {
         TessRenderPath::reset();
         m_vertices.clear();
         m_indices.clear();
     }
 
-    void drawStroke(ContourStroke* stroke) {
-        if (isContainer()) {
-            for (auto& subPath : m_subPaths) {
+    void drawStroke(ContourStroke* stroke)
+    {
+        if (isContainer())
+        {
+            for (auto& subPath : m_subPaths)
+            {
                 reinterpret_cast<SokolRenderPath*>(subPath.path())->drawStroke(stroke);
             }
             return;
@@ -66,11 +75,14 @@ public:
         sg_draw(start < 2 ? 0 : (start - 2) * 3, end - start < 2 ? 0 : (end - start - 2) * 3, 1);
     }
 
-    void drawFill() {
-        if (triangulate()) {
+    void drawFill()
+    {
+        if (triangulate())
+        {
             sg_destroy_buffer(m_vertexBuffer);
             sg_destroy_buffer(m_indexBuffer);
-            if (m_indices.size() == 0 || m_vertices.size() == 0) {
+            if (m_indices.size() == 0 || m_vertices.size() == 0)
+            {
                 m_vertexBuffer = {0};
                 m_indexBuffer = {0};
                 return;
@@ -95,7 +107,8 @@ public:
             });
         }
 
-        if (m_vertexBuffer.id == 0) {
+        if (m_vertexBuffer.id == 0)
+        {
             return;
         }
 
@@ -108,8 +121,10 @@ public:
         sg_draw(0, m_indices.size(), 1);
     }
 
-    void drawBounds(const sg_buffer& boundsIndexBuffer) {
-        if (m_vertexBuffer.id == 0) {
+    void drawBounds(const sg_buffer& boundsIndexBuffer)
+    {
+        if (m_vertexBuffer.id == 0)
+        {
             return;
         }
         sg_bindings bind = {
@@ -124,27 +139,32 @@ public:
 };
 
 // Returns a full-formed RenderPath -- can be treated as immutable
-std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(RawPath& rawPath, FillRule rule) {
+std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(RawPath& rawPath, FillRule rule)
+{
     return std::make_unique<SokolRenderPath>(rawPath, rule);
 }
 
-std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath() {
+std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath()
+{
     return std::make_unique<SokolRenderPath>();
 }
 
-class SokolBuffer : public RenderBuffer {
+class SokolBuffer : public RenderBuffer
+{
 private:
     sg_buffer m_Buffer;
 
 public:
     SokolBuffer(size_t count, const sg_buffer_desc& desc) :
-        RenderBuffer(count), m_Buffer(sg_make_buffer(desc)) {}
+        RenderBuffer(count), m_Buffer(sg_make_buffer(desc))
+    {}
     ~SokolBuffer() { sg_destroy_buffer(m_Buffer); }
 
     sg_buffer buffer() { return m_Buffer; }
 };
 
-rcp<RenderBuffer> SokolFactory::makeBufferU16(Span<const uint16_t> span) {
+rcp<RenderBuffer> SokolFactory::makeBufferU16(Span<const uint16_t> span)
+{
     return rcp<RenderBuffer>(new SokolBuffer(span.size(),
                                              (sg_buffer_desc){
                                                  .type = SG_BUFFERTYPE_INDEXBUFFER,
@@ -156,7 +176,8 @@ rcp<RenderBuffer> SokolFactory::makeBufferU16(Span<const uint16_t> span) {
                                              }));
 }
 
-rcp<RenderBuffer> SokolFactory::makeBufferU32(Span<const uint32_t> span) {
+rcp<RenderBuffer> SokolFactory::makeBufferU32(Span<const uint32_t> span)
+{
     return rcp<RenderBuffer>(new SokolBuffer(span.size(),
                                              (sg_buffer_desc){
                                                  .type = SG_BUFFERTYPE_INDEXBUFFER,
@@ -167,7 +188,8 @@ rcp<RenderBuffer> SokolFactory::makeBufferU32(Span<const uint32_t> span) {
                                                      },
                                              }));
 }
-rcp<RenderBuffer> SokolFactory::makeBufferF32(Span<const float> span) {
+rcp<RenderBuffer> SokolFactory::makeBufferF32(Span<const float> span)
+{
     return rcp<RenderBuffer>(new SokolBuffer(span.size(),
                                              (sg_buffer_desc){
                                                  .type = SG_BUFFERTYPE_VERTEXBUFFER,
@@ -182,7 +204,8 @@ rcp<RenderBuffer> SokolFactory::makeBufferF32(Span<const float> span) {
 sg_pipeline vectorPipeline(sg_shader shader,
                            sg_blend_state blend,
                            sg_stencil_state stencil,
-                           sg_color_mask colorMask = SG_COLORMASK_RGBA) {
+                           sg_color_mask colorMask = SG_COLORMASK_RGBA)
+{
     return sg_make_pipeline((sg_pipeline_desc){
         .layout =
             {
@@ -216,7 +239,8 @@ sg_pipeline vectorPipeline(sg_shader shader,
     });
 }
 
-SokolTessRenderer::SokolTessRenderer() {
+SokolTessRenderer::SokolTessRenderer()
+{
     m_meshPipeline = sg_make_pipeline((sg_pipeline_desc){
         .layout =
             {
@@ -266,7 +290,8 @@ SokolTessRenderer::SokolTessRenderer() {
                                                .enabled = false,
                                            });
 
-        for (std::size_t i = 1; i <= maxClippingPaths; i++) {
+        for (std::size_t i = 1; i <= maxClippingPaths; i++)
+        {
             m_pathPipeline[i] =
                 vectorPipeline(uberShader,
                                {
@@ -306,7 +331,8 @@ SokolTessRenderer::SokolTessRenderer() {
                                .enabled = false,
                            });
 
-        for (std::size_t i = 1; i <= maxClippingPaths; i++) {
+        for (std::size_t i = 1; i <= maxClippingPaths; i++)
+        {
             m_pathScreenPipeline[i] =
                 vectorPipeline(uberShader,
                                {
@@ -345,7 +371,8 @@ SokolTessRenderer::SokolTessRenderer() {
                                                        .enabled = false,
                                                    });
 
-        for (std::size_t i = 1; i <= maxClippingPaths; i++) {
+        for (std::size_t i = 1; i <= maxClippingPaths; i++)
+        {
             m_pathAdditivePipeline[i] =
                 vectorPipeline(uberShader,
                                {
@@ -383,7 +410,8 @@ SokolTessRenderer::SokolTessRenderer() {
                                .enabled = false,
                            });
 
-        for (std::size_t i = 1; i <= maxClippingPaths; i++) {
+        for (std::size_t i = 1; i <= maxClippingPaths; i++)
+        {
             m_pathMultiplyPipeline[i] =
                 vectorPipeline(uberShader,
                                {
@@ -466,12 +494,14 @@ SokolTessRenderer::SokolTessRenderer() {
     });
 }
 
-SokolTessRenderer::~SokolTessRenderer() {
+SokolTessRenderer::~SokolTessRenderer()
+{
     sg_destroy_buffer(m_boundsIndices);
     sg_destroy_pipeline(m_meshPipeline);
     sg_destroy_pipeline(m_incClipPipeline);
     sg_destroy_pipeline(m_decClipPipeline);
-    for (std::size_t i = 0; i <= maxClippingPaths; i++) {
+    for (std::size_t i = 0; i <= maxClippingPaths; i++)
+    {
         sg_destroy_pipeline(m_pathPipeline[i]);
         sg_destroy_pipeline(m_pathScreenPipeline[i]);
     }
@@ -482,7 +512,8 @@ void SokolTessRenderer::orthographicProjection(float left,
                                                float bottom,
                                                float top,
                                                float near,
-                                               float far) {
+                                               float far)
+{
     m_Projection[0] = 2.0f / (right - left);
     m_Projection[1] = 0.0f;
     m_Projection[2] = 0.0f;
@@ -526,7 +557,8 @@ void SokolTessRenderer::orthographicProjection(float left,
     // }
 }
 
-void SokolTessRenderer::drawImage(const RenderImage* image, BlendMode, float opacity) {
+void SokolTessRenderer::drawImage(const RenderImage* image, BlendMode, float opacity)
+{
     vs_params_t vs_params;
 
     const Mat2D& world = transform();
@@ -551,7 +583,8 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
                                       rcp<RenderBuffer> uvCoords_f32,
                                       rcp<RenderBuffer> indices_u16,
                                       BlendMode blendMode,
-                                      float opacity) {
+                                      float opacity)
+{
     vs_params_t vs_params;
 
     const Mat2D& world = transform();
@@ -570,7 +603,8 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
     sg_draw(0, indices_u16->count(), 1);
 }
 
-class SokolGradient : public RenderShader {
+class SokolGradient : public RenderShader
+{
 private:
     Vec2D m_start;
     Vec2D m_end;
@@ -582,13 +616,16 @@ private:
 private:
     // General gradient
     SokolGradient(int type, const ColorInt colors[], const float stops[], size_t count) :
-        m_type(type) {
+        m_type(type)
+    {
         m_stops.resize(count);
         m_colors.resize(count * 4);
-        for (int i = 0, colorIndex = 0; i < count; i++, colorIndex += 4) {
+        for (int i = 0, colorIndex = 0; i < count; i++, colorIndex += 4)
+        {
             fillColorBuffer(&m_colors[colorIndex], colors[i]);
             m_stops[i] = stops[i];
-            if (m_colors[colorIndex + 3] > 0.0f) {
+            if (m_colors[colorIndex + 3] > 0.0f)
+            {
                 m_isVisible = true;
             }
         }
@@ -603,7 +640,8 @@ public:
                   const ColorInt colors[],
                   const float stops[],
                   size_t count) :
-        SokolGradient(1, colors, stops, count) {
+        SokolGradient(1, colors, stops, count)
+    {
         m_start = Vec2D(sx, sy);
         m_end = Vec2D(ex, ey);
     }
@@ -614,20 +652,24 @@ public:
                   const ColorInt colors[], // [count]
                   const float stops[],     // [count]
                   size_t count) :
-        SokolGradient(2, colors, stops, count) {
+        SokolGradient(2, colors, stops, count)
+    {
         m_start = Vec2D(cx, cy);
         m_end = Vec2D(cx + radius, cy);
     }
 
-    void bind(vs_path_params_t& vertexUniforms, fs_path_uniforms_t& fragmentUniforms) {
+    void bind(vs_path_params_t& vertexUniforms, fs_path_uniforms_t& fragmentUniforms)
+    {
         auto stopCount = m_stops.size();
         vertexUniforms.fillType = fragmentUniforms.fillType = m_type;
         vertexUniforms.gradientStart = m_start;
         vertexUniforms.gradientEnd = m_end;
         fragmentUniforms.stopCount = stopCount;
-        for (int i = 0; i < stopCount; i++) {
+        for (int i = 0; i < stopCount; i++)
+        {
             auto colorBufferIndex = i * 4;
-            for (int j = 0; j < 4; j++) {
+            for (int j = 0; j < 4; j++)
+            {
                 fragmentUniforms.colors[i][j] = m_colors[colorBufferIndex + j];
             }
             fragmentUniforms.stops[i / 4][i % 4] = m_stops[i];
@@ -641,7 +683,8 @@ rcp<RenderShader> SokolFactory::makeLinearGradient(float sx,
                                                    float ey,
                                                    const ColorInt colors[],
                                                    const float stops[],
-                                                   size_t count) {
+                                                   size_t count)
+{
     return rcp<RenderShader>(new SokolGradient(sx, sy, ex, ey, colors, stops, count));
 }
 
@@ -650,11 +693,13 @@ rcp<RenderShader> SokolFactory::makeRadialGradient(float cx,
                                                    float radius,
                                                    const ColorInt colors[], // [count]
                                                    const float stops[],     // [count]
-                                                   size_t count) {
+                                                   size_t count)
+{
     return rcp<RenderShader>(new SokolGradient(cx, cy, radius, colors, stops, count));
 }
 
-class SokolRenderPaint : public RenderPaint {
+class SokolRenderPaint : public RenderPaint
+{
 private:
     fs_path_uniforms_t m_uniforms = {0};
     rcp<RenderShader> m_shader;
@@ -672,20 +717,24 @@ private:
     BlendMode m_blendMode = BlendMode::srcOver;
 
 public:
-    ~SokolRenderPaint() override {
+    ~SokolRenderPaint() override
+    {
         sg_destroy_buffer(m_strokeVertexBuffer);
         sg_destroy_buffer(m_strokeIndexBuffer);
     }
 
-    void color(ColorInt value) override {
+    void color(ColorInt value) override
+    {
         fillColorBuffer(m_uniforms.colors[0], value);
         m_uniforms.fillType = 0;
     }
 
-    void style(RenderPaintStyle value) override {
+    void style(RenderPaintStyle value) override
+    {
         m_style = value;
 
-        switch (m_style) {
+        switch (m_style)
+        {
             case RenderPaintStyle::fill:
                 m_stroke = nullptr;
                 m_strokeDirty = false;
@@ -699,23 +748,28 @@ public:
 
     RenderPaintStyle style() const { return m_style; }
 
-    void thickness(float value) override {
+    void thickness(float value) override
+    {
         m_strokeThickness = value;
         m_strokeDirty = true;
     }
 
-    void join(StrokeJoin value) override {
+    void join(StrokeJoin value) override
+    {
         m_strokeJoin = value;
         m_strokeDirty = true;
     }
 
-    void cap(StrokeCap value) override {
+    void cap(StrokeCap value) override
+    {
         m_strokeCap = value;
         m_strokeDirty = true;
     }
 
-    void invalidateStroke() override {
-        if (m_stroke) {
+    void invalidateStroke() override
+    {
+        if (m_stroke)
+        {
             m_strokeDirty = true;
         }
     }
@@ -725,15 +779,19 @@ public:
 
     void shader(rcp<RenderShader> shader) override { m_shader = shader; }
 
-    void draw(vs_path_params_t& vertexUniforms, SokolRenderPath* path) {
-        if (m_shader) {
+    void draw(vs_path_params_t& vertexUniforms, SokolRenderPath* path)
+    {
+        if (m_shader)
+        {
             static_cast<SokolGradient*>(m_shader.get())->bind(vertexUniforms, m_uniforms);
         }
 
         sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vertexUniforms));
         sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(m_uniforms));
-        if (m_stroke != nullptr) {
-            if (m_strokeDirty) {
+        if (m_stroke != nullptr)
+        {
+            if (m_strokeDirty)
+            {
                 static Mat2D identity;
                 m_stroke->reset();
                 path->extrudeStroke(m_stroke.get(),
@@ -748,7 +806,8 @@ public:
                 sg_destroy_buffer(m_strokeVertexBuffer);
                 sg_destroy_buffer(m_strokeIndexBuffer);
                 auto size = strip.size();
-                if (size <= 2) {
+                if (size <= 2)
+                {
                     m_strokeVertexBuffer = {0};
                     m_strokeIndexBuffer = {0};
                     return;
@@ -770,19 +829,26 @@ public:
                 // to)
                 m_stroke->resetRenderOffset();
                 m_StrokeOffsets.clear();
-                while (true) {
+                while (true)
+                {
                     std::size_t strokeStart, strokeEnd;
-                    if (!m_stroke->nextRenderOffset(strokeStart, strokeEnd)) {
+                    if (!m_stroke->nextRenderOffset(strokeStart, strokeEnd))
+                    {
                         break;
                     }
                     std::size_t length = strokeEnd - strokeStart;
-                    if (length > 2) {
-                        for (std::size_t i = 0, end = length - 2; i < end; i++) {
-                            if ((i % 2) == 1) {
+                    if (length > 2)
+                    {
+                        for (std::size_t i = 0, end = length - 2; i < end; i++)
+                        {
+                            if ((i % 2) == 1)
+                            {
                                 indices.push_back(i + strokeStart);
                                 indices.push_back(i + 1 + strokeStart);
                                 indices.push_back(i + 2 + strokeStart);
-                            } else {
+                            }
+                            else
+                            {
                                 indices.push_back(i + strokeStart);
                                 indices.push_back(i + 2 + strokeStart);
                                 indices.push_back(i + 1 + strokeStart);
@@ -801,7 +867,8 @@ public:
                         },
                 });
             }
-            if (m_strokeVertexBuffer.id == 0) {
+            if (m_strokeVertexBuffer.id == 0)
+            {
                 return;
             }
 
@@ -815,48 +882,59 @@ public:
             m_stroke->resetRenderOffset();
             // path->drawStroke(m_stroke.get());
             std::size_t start = 0;
-            for (auto end : m_StrokeOffsets) {
+            for (auto end : m_StrokeOffsets)
+            {
                 sg_draw(start, end - start, 1);
                 start = end;
             }
-
-        } else {
+        }
+        else
+        {
             path->drawFill();
         }
     }
 };
 
-std::unique_ptr<RenderPaint> SokolFactory::makeRenderPaint() {
+std::unique_ptr<RenderPaint> SokolFactory::makeRenderPaint()
+{
     return std::make_unique<SokolRenderPaint>();
 }
 
-void SokolTessRenderer::restore() {
+void SokolTessRenderer::restore()
+{
     TessRenderer::restore();
-    if (m_Stack.size() == 1) {
+    if (m_Stack.size() == 1)
+    {
         // When we've fully restored, immediately update clip to not wait for next draw.
         applyClipping();
         m_currentPipeline = {0};
     }
 }
 
-void SokolTessRenderer::applyClipping() {
-    if (!m_IsClippingDirty) {
+void SokolTessRenderer::applyClipping()
+{
+    if (!m_IsClippingDirty)
+    {
         return;
     }
     m_IsClippingDirty = false;
     RenderState& state = m_Stack.back();
 
     auto currentClipLength = m_ClipPaths.size();
-    if (currentClipLength == state.clipPaths.size()) {
+    if (currentClipLength == state.clipPaths.size())
+    {
         // Same length so now check if they're all the same.
         bool allSame = true;
-        for (std::size_t i = 0; i < currentClipLength; i++) {
-            if (state.clipPaths[i].path() != m_ClipPaths[i].path()) {
+        for (std::size_t i = 0; i < currentClipLength; i++)
+        {
+            if (state.clipPaths[i].path() != m_ClipPaths[i].path())
+            {
                 allSame = false;
                 break;
             }
         }
-        if (allSame) {
+        if (allSame)
+        {
             return;
         }
     }
@@ -867,16 +945,20 @@ void SokolTessRenderer::applyClipping() {
     // Decr any paths from the last clip that are gone.
     std::unordered_set<RenderPath*> alreadyApplied;
 
-    for (auto appliedPath : m_ClipPaths) {
+    for (auto appliedPath : m_ClipPaths)
+    {
         bool decr = true;
-        for (auto nextClipPath : state.clipPaths) {
-            if (nextClipPath.path() == appliedPath.path()) {
+        for (auto nextClipPath : state.clipPaths)
+        {
+            if (nextClipPath.path() == appliedPath.path())
+            {
                 decr = false;
                 alreadyApplied.insert(appliedPath.path());
                 break;
             }
         }
-        if (decr) {
+        if (decr)
+        {
             // Draw appliedPath.path() with decr pipeline
             setPipeline(m_decClipPipeline);
             vs_params.mvp = m_Projection * appliedPath.transform();
@@ -888,8 +970,10 @@ void SokolTessRenderer::applyClipping() {
     }
 
     // Incr any paths that are added.
-    for (auto nextClipPath : state.clipPaths) {
-        if (alreadyApplied.count(nextClipPath.path())) {
+    for (auto nextClipPath : state.clipPaths)
+    {
+        if (alreadyApplied.count(nextClipPath.path()))
+        {
             // Already applied.
             continue;
         }
@@ -910,15 +994,18 @@ void SokolTessRenderer::applyClipping() {
 }
 
 void SokolTessRenderer::reset() { m_currentPipeline = {0}; }
-void SokolTessRenderer::setPipeline(sg_pipeline pipeline) {
-    if (m_currentPipeline.id == pipeline.id) {
+void SokolTessRenderer::setPipeline(sg_pipeline pipeline)
+{
+    if (m_currentPipeline.id == pipeline.id)
+    {
         return;
     }
     m_currentPipeline = pipeline;
     sg_apply_pipeline(pipeline);
 }
 
-void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
+void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint)
+{
     auto sokolPaint = static_cast<SokolRenderPaint*>(paint);
 
     applyClipping();
@@ -926,12 +1013,23 @@ void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
     const Mat2D& world = transform();
 
     vs_params.mvp = m_Projection * world;
-    switch (sokolPaint->blendMode()) {
-        case BlendMode::srcOver: setPipeline(m_pathPipeline[m_clipCount]); break;
-        case BlendMode::screen: setPipeline(m_pathScreenPipeline[m_clipCount]); break;
-        case BlendMode::colorDodge: setPipeline(m_pathAdditivePipeline[m_clipCount]); break;
-        case BlendMode::multiply: setPipeline(m_pathMultiplyPipeline[m_clipCount]); break;
-        default: setPipeline(m_pathScreenPipeline[m_clipCount]); break;
+    switch (sokolPaint->blendMode())
+    {
+        case BlendMode::srcOver:
+            setPipeline(m_pathPipeline[m_clipCount]);
+            break;
+        case BlendMode::screen:
+            setPipeline(m_pathScreenPipeline[m_clipCount]);
+            break;
+        case BlendMode::colorDodge:
+            setPipeline(m_pathAdditivePipeline[m_clipCount]);
+            break;
+        case BlendMode::multiply:
+            setPipeline(m_pathMultiplyPipeline[m_clipCount]);
+            break;
+        default:
+            setPipeline(m_pathScreenPipeline[m_clipCount]);
+            break;
     }
 
     static_cast<SokolRenderPaint*>(paint)->draw(vs_params, static_cast<SokolRenderPath*>(path));
@@ -945,7 +1043,8 @@ SokolRenderImageResource::SokolRenderImageResource(const uint8_t* bytes,
         .height = (int)height,
         .data.subimage[0][0] = {bytes, width * height * 4},
         .pixel_format = SG_PIXELFORMAT_RGBA8,
-    })) {}
+    }))
+{}
 SokolRenderImageResource::~SokolRenderImageResource() { sg_destroy_image(m_gpuResource); }
 
 SokolRenderImage::SokolRenderImage(rcp<SokolRenderImageResource> image,
@@ -953,8 +1052,7 @@ SokolRenderImage::SokolRenderImage(rcp<SokolRenderImageResource> image,
                                    uint32_t height,
                                    const Mat2D& uvTransform) :
 
-    RenderImage(uvTransform),
-    m_gpuImage(image)
+    RenderImage(uvTransform), m_gpuImage(image)
 
 {
     float halfWidth = width / 2.0f;
@@ -983,7 +1081,8 @@ SokolRenderImage::SokolRenderImage(rcp<SokolRenderImageResource> image,
     });
 }
 
-SokolRenderImage::~SokolRenderImage() {
+SokolRenderImage::~SokolRenderImage()
+{
     sg_destroy_buffer(m_vertexBuffer);
     sg_destroy_buffer(m_uvBuffer);
 }

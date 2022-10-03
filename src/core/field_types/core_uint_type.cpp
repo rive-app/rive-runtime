@@ -3,6 +3,7 @@
 
 using namespace rive;
 
-unsigned int CoreUintType::deserialize(BinaryReader& reader) {
+unsigned int CoreUintType::deserialize(BinaryReader& reader)
+{
     return reader.readVarUintAs<unsigned int>();
 }

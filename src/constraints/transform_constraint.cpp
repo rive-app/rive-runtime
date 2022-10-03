@@ -5,23 +5,28 @@
 
 using namespace rive;
 
-void TransformConstraint::constrain(TransformComponent* component) {
-    if (m_Target == nullptr) {
+void TransformConstraint::constrain(TransformComponent* component)
+{
+    if (m_Target == nullptr)
+    {
         return;
     }
 
     const Mat2D& transformA = component->worldTransform();
     Mat2D transformB(m_Target->worldTransform());
-    if (sourceSpace() == TransformSpace::local) {
+    if (sourceSpace() == TransformSpace::local)
+    {
         const Mat2D& targetParentWorld = getParentWorld(*m_Target);
 
         Mat2D inverse;
-        if (!targetParentWorld.invert(&inverse)) {
+        if (!targetParentWorld.invert(&inverse))
+        {
             return;
         }
         transformB = inverse * transformB;
     }
-    if (destSpace() == TransformSpace::local) {
+    if (destSpace() == TransformSpace::local)
+    {
         const Mat2D& targetParentWorld = getParentWorld(*component);
         transformB = targetParentWorld * transformB;
     }
@@ -32,9 +37,12 @@ void TransformConstraint::constrain(TransformComponent* component) {
     float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
     float angleB = std::fmod(m_ComponentsB.rotation(), math::PI * 2);
     float diff = angleB - angleA;
-    if (diff > math::PI) {
+    if (diff > math::PI)
+    {
         diff -= math::PI * 2;
-    } else if (diff < -math::PI) {
+    }
+    else if (diff < -math::PI)
+    {
         diff += math::PI * 2;
     }
 

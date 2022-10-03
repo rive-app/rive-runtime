@@ -4,9 +4,11 @@
 #include <stdio.h>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class Constraint;
-class Bone : public BoneBase {
+class Bone : public BoneBase
+{
 
 private:
     std::vector<Bone*> m_ChildBones;

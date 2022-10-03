@@ -10,23 +10,30 @@
 #include <cstring>
 #include <algorithm>
 
-namespace rive {
+namespace rive
+{
 
-bool RawPath::operator==(const RawPath& o) const {
+bool RawPath::operator==(const RawPath& o) const
+{
     return m_Points == o.m_Points && m_Verbs == o.m_Verbs;
 }
 
-AABB RawPath::bounds() const {
+AABB RawPath::bounds() const
+{
     float4 mins, maxes;
     size_t i;
-    if (m_Points.size() & 1) {
+    if (m_Points.size() & 1)
+    {
         mins = maxes = simd::load2f(&m_Points[0].x).xyxy;
         i = 1;
-    } else {
+    }
+    else
+    {
         mins = maxes = m_Points.empty() ? float4{0, 0, 0, 0} : simd::load4f(&m_Points[0].x);
         i = 2;
     }
-    for (; i < m_Points.size(); i += 2) {
+    for (; i < m_Points.size(); i += 2)
+    {
         float4 pts = simd::load4f(&m_Points[i].x);
         mins = simd::min(mins, pts);
         maxes = simd::max(maxes, pts);
@@ -37,33 +44,39 @@ AABB RawPath::bounds() const {
     return bounds;
 }
 
-void RawPath::injectImplicitMoveIfNeeded() {
-    if (!m_contourIsOpen) {
+void RawPath::injectImplicitMoveIfNeeded()
+{
+    if (!m_contourIsOpen)
+    {
         move(m_Points.empty() ? Vec2D{0, 0} : m_Points[m_lastMoveIdx]);
     }
 }
 
-void RawPath::move(Vec2D a) {
+void RawPath::move(Vec2D a)
+{
     m_contourIsOpen = true;
     m_lastMoveIdx = m_Points.size();
     m_Points.push_back(a);
     m_Verbs.push_back(PathVerb::move);
 }
 
-void RawPath::line(Vec2D a) {
+void RawPath::line(Vec2D a)
+{
     injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
     m_Verbs.push_back(PathVerb::line);
 }
 
-void RawPath::quad(Vec2D a, Vec2D b) {
+void RawPath::quad(Vec2D a, Vec2D b)
+{
     injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Verbs.push_back(PathVerb::quad);
 }
 
-void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c) {
+void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c)
+{
     injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
     m_Points.push_back(b);
@@ -71,32 +84,39 @@ void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c) {
     m_Verbs.push_back(PathVerb::cubic);
 }
 
-void RawPath::close() {
-    if (m_contourIsOpen) {
+void RawPath::close()
+{
+    if (m_contourIsOpen)
+    {
         m_Verbs.push_back(PathVerb::close);
         m_contourIsOpen = false;
     }
 }
 
-RawPath RawPath::transform(const Mat2D& m) const {
+RawPath RawPath::transform(const Mat2D& m) const
+{
     RawPath path;
 
     path.m_Verbs = m_Verbs;
 
     path.m_Points.resize(m_Points.size());
-    for (size_t i = 0; i < m_Points.size(); ++i) {
+    for (size_t i = 0; i < m_Points.size(); ++i)
+    {
         path.m_Points[i] = m * m_Points[i];
     }
     return path;
 }
 
-void RawPath::transformInPlace(const Mat2D& m) {
-    for (auto& p : m_Points) {
+void RawPath::transformInPlace(const Mat2D& m)
+{
+    for (auto& p : m_Points)
+    {
         p = m * p;
     }
 }
 
-void RawPath::addRect(const AABB& r, PathDirection dir) {
+void RawPath::addRect(const AABB& r, PathDirection dir)
+{
     // We manually close the rectangle, in case we want to stroke
     // this path. We also call close() so we get proper joins
     // (and not caps).
@@ -105,11 +125,14 @@ void RawPath::addRect(const AABB& r, PathDirection dir) {
     m_Verbs.reserve(6);
 
     moveTo(r.left(), r.top());
-    if (dir == PathDirection::clockwise) {
+    if (dir == PathDirection::clockwise)
+    {
         lineTo(r.right(), r.top());
         lineTo(r.right(), r.bottom());
         lineTo(r.left(), r.bottom());
-    } else {
+    }
+    else
+    {
         lineTo(r.left(), r.bottom());
         lineTo(r.right(), r.bottom());
         lineTo(r.right(), r.top());
@@ -117,7 +140,8 @@ void RawPath::addRect(const AABB& r, PathDirection dir) {
     close();
 }
 
-void RawPath::addOval(const AABB& r, PathDirection dir) {
+void RawPath::addOval(const AABB& r, PathDirection dir)
+{
     // see https://spencermortensen.com/articles/bezier-circle/
     constexpr float C = 0.5519150244935105707435627f;
     // precompute clockwise unit circle, starting and ending at {1, 0}
@@ -150,22 +174,29 @@ void RawPath::addOval(const AABB& r, PathDirection dir) {
     m_Points.reserve(13);
     m_Verbs.reserve(6);
 
-    if (dir == PathDirection::clockwise) {
+    if (dir == PathDirection::clockwise)
+    {
         move(map(unit[0]));
-        for (int i = 1; i <= 12; i += 3) {
+        for (int i = 1; i <= 12; i += 3)
+        {
             cubic(map(unit[i + 0]), map(unit[i + 1]), map(unit[i + 2]));
         }
-    } else {
+    }
+    else
+    {
         move(map(unit[12]));
-        for (int i = 11; i >= 0; i -= 3) {
+        for (int i = 11; i >= 0; i -= 3)
+        {
             cubic(map(unit[i - 0]), map(unit[i - 1]), map(unit[i - 2]));
         }
     }
     close();
 }
 
-void RawPath::addPoly(Span<const Vec2D> span, bool isClosed) {
-    if (span.size() == 0) {
+void RawPath::addPoly(Span<const Vec2D> span, bool isClosed)
+{
+    if (span.size() == 0)
+    {
         return;
     }
 
@@ -175,32 +206,40 @@ void RawPath::addPoly(Span<const Vec2D> span, bool isClosed) {
     m_Verbs.reserve(span.size() + isClosed);
 
     move(span[0]);
-    for (size_t i = 1; i < span.size(); ++i) {
+    for (size_t i = 1; i < span.size(); ++i)
+    {
         line(span[i]);
     }
-    if (isClosed) {
+    if (isClosed)
+    {
         close();
     }
 }
 
-void RawPath::addPath(const RawPath& src, const Mat2D* mat) {
+void RawPath::addPath(const RawPath& src, const Mat2D* mat)
+{
     m_Verbs.insert(m_Verbs.end(), src.m_Verbs.cbegin(), src.m_Verbs.cend());
 
-    if (mat) {
+    if (mat)
+    {
         const auto oldPointCount = m_Points.size();
         m_Points.resize(oldPointCount + src.m_Points.size());
         Vec2D* dst = m_Points.data() + oldPointCount;
-        for (auto i = 0; i < src.m_Points.size(); ++i) {
+        for (auto i = 0; i < src.m_Points.size(); ++i)
+        {
             dst[i] = *mat * src.m_Points[i];
         }
-    } else {
+    }
+    else
+    {
         m_Points.insert(m_Points.end(), src.m_Points.cbegin(), src.m_Points.cend());
     }
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-int path_verb_to_point_count(PathVerb v) {
+int path_verb_to_point_count(PathVerb v)
+{
     static uint8_t ptCounts[] = {
         1, // move
         1, // line
@@ -214,12 +253,14 @@ int path_verb_to_point_count(PathVerb v) {
     return ptCounts[index];
 }
 
-void RawPath::swap(RawPath& rawPath) {
+void RawPath::swap(RawPath& rawPath)
+{
     m_Points.swap(rawPath.m_Points);
     m_Verbs.swap(rawPath.m_Verbs);
 }
 
-void RawPath::reset() {
+void RawPath::reset()
+{
     m_Points.clear();
     m_Points.shrink_to_fit();
     m_Verbs.clear();
@@ -227,7 +268,8 @@ void RawPath::reset() {
     m_contourIsOpen = false;
 }
 
-void RawPath::rewind() {
+void RawPath::rewind()
+{
     m_Points.clear();
     m_Verbs.clear();
     m_contourIsOpen = false;
@@ -235,14 +277,26 @@ void RawPath::rewind() {
 
 ///////////////////////////////////
 
-void RawPath::addTo(CommandPath* result) const {
-    for (auto [verb, pts] : *this) {
-        switch (verb) {
-            case PathVerb::move: result->move(pts[0]); break;
-            case PathVerb::line: result->line(pts[1]); break;
-            case PathVerb::cubic: result->cubic(pts[1], pts[2], pts[3]); break;
-            case PathVerb::close: result->close(); break;
-            case PathVerb::quad: RIVE_UNREACHABLE;
+void RawPath::addTo(CommandPath* result) const
+{
+    for (auto [verb, pts] : *this)
+    {
+        switch (verb)
+        {
+            case PathVerb::move:
+                result->move(pts[0]);
+                break;
+            case PathVerb::line:
+                result->line(pts[1]);
+                break;
+            case PathVerb::cubic:
+                result->cubic(pts[1], pts[2], pts[3]);
+                break;
+            case PathVerb::close:
+                result->close();
+                break;
+            case PathVerb::quad:
+                RIVE_UNREACHABLE;
         }
     }
 }

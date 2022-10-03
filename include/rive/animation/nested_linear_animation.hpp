@@ -2,9 +2,11 @@
 #define _RIVE_NESTED_LINEAR_ANIMATION_HPP_
 #include "rive/generated/animation/nested_linear_animation_base.hpp"
 #include <stdio.h>
-namespace rive {
+namespace rive
+{
 class LinearAnimationInstance;
-class NestedLinearAnimation : public NestedLinearAnimationBase {
+class NestedLinearAnimation : public NestedLinearAnimationBase
+{
 protected:
     std::unique_ptr<LinearAnimationInstance> m_AnimationInstance;
 

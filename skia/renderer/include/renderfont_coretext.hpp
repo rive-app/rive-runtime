@@ -14,7 +14,8 @@
 #include <CoreText/CoreText.h>
 #endif
 
-class CoreTextRenderFont : public rive::RenderFont {
+class CoreTextRenderFont : public rive::RenderFont
+{
 public:
     CTFontRef m_font;
     const std::vector<Axis> m_axes;

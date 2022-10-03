@@ -5,9 +5,11 @@
 #include "rive/math/mat2d.hpp"
 #include <stdio.h>
 
-namespace rive {
+namespace rive
+{
 class Bone;
-class Tendon : public TendonBase {
+class Tendon : public TendonBase
+{
 private:
     Mat2D m_InverseBind;
     Bone* m_Bone = nullptr;

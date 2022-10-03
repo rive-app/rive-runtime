@@ -5,7 +5,8 @@
 
 using namespace rive;
 
-bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) const {
+bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) const
+{
     // A null input is valid as the StateMachine can attempt to limp along if we
     // introduce new input types that old conditions are expected to handle in
     // newer runtimes. The older runtimes will just evaluate them to true.
@@ -13,9 +14,11 @@ bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) co
 }
 
 void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
-                                    Vec2D position) const {
+                                    Vec2D position) const
+{
     auto inputInstance = stateMachineInstance->input(inputId());
-    if (inputInstance == nullptr) {
+    if (inputInstance == nullptr)
+    {
         return;
     }
     // If it's not null, it must be our correct type (why we validate at load time).

@@ -6,7 +6,8 @@ using namespace rive;
 
 ImageAsset::~ImageAsset() {}
 
-bool ImageAsset::decode(Span<const uint8_t> data, Factory* factory) {
+bool ImageAsset::decode(Span<const uint8_t> data, Factory* factory)
+{
 #ifdef TESTING
     decodedByteSize = data.size();
 #endif
@@ -14,7 +15,8 @@ bool ImageAsset::decode(Span<const uint8_t> data, Factory* factory) {
     return m_RenderImage != nullptr;
 }
 
-void ImageAsset::renderImage(std::unique_ptr<RenderImage> renderImage) {
+void ImageAsset::renderImage(std::unique_ptr<RenderImage> renderImage)
+{
     m_RenderImage = std::move(renderImage);
 }
 

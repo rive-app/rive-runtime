@@ -12,21 +12,26 @@
 
 using namespace rive;
 
-StatusCode LinearGradient::onAddedDirty(CoreContext* context) {
+StatusCode LinearGradient::onAddedDirty(CoreContext* context)
+{
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok) {
+    if (code != StatusCode::Ok)
+    {
         return code;
     }
 
-    if (!initPaintMutator(this)) {
+    if (!initPaintMutator(this))
+    {
         return StatusCode::MissingObject;
     }
     return StatusCode::Ok;
 }
 
-void LinearGradient::buildDependencies() {
+void LinearGradient::buildDependencies()
+{
     auto p = parent();
-    if (p != nullptr && p->parent() != nullptr) {
+    if (p != nullptr && p->parent() != nullptr)
+    {
         auto parentsParent = p->parent();
         // Parent's parent must be a shape paint container.
         assert(ShapePaintContainer::from(parentsParent) != nullptr);
@@ -42,14 +47,17 @@ void LinearGradient::buildDependencies() {
 
 void LinearGradient::addStop(GradientStop* stop) { m_Stops.push_back(stop); }
 
-static bool stopsComparer(GradientStop* a, GradientStop* b) {
+static bool stopsComparer(GradientStop* a, GradientStop* b)
+{
     return a->position() < b->position();
 }
 
-void LinearGradient::update(ComponentDirt value) {
+void LinearGradient::update(ComponentDirt value)
+{
     // Do the stops need to be re-ordered?
     bool stopsChanged = hasDirt(value, ComponentDirt::Stops);
-    if (stopsChanged) {
+    if (stopsChanged)
+    {
         std::sort(m_Stops.begin(), m_Stops.end(), stopsComparer);
     }
 
@@ -63,13 +71,15 @@ void LinearGradient::update(ComponentDirt value) {
         hasDirt(value,
                 ComponentDirt::Paint | ComponentDirt::RenderOpacity | ComponentDirt::Transform) ||
         (paintsInWorldSpace && worldTransformed);
-    if (rebuildGradient) {
+    if (rebuildGradient)
+    {
         Vec2D start(startX(), startY());
         Vec2D end(endX(), endY());
         // Check if we need to update the world space gradient (if there's no
         // shape container, presumably it's the artboard and we're already in
         // world).
-        if (paintsInWorldSpace && m_ShapePaintContainer != nullptr) {
+        if (paintsInWorldSpace && m_ShapePaintContainer != nullptr)
+        {
             // Get the start and end of the gradient in world coordinates (world
             // transform of the shape).
             const Mat2D& world = m_ShapePaintContainer->worldTransform();
@@ -87,7 +97,8 @@ void LinearGradient::update(ComponentDirt value) {
         ColorInt* colors = storage.data();
         float* stops = (float*)colors + count;
 
-        for (size_t i = 0; i < count; ++i) {
+        for (size_t i = 0; i < count; ++i)
+        {
             colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
             stops[i] = m_Stops[i]->position();
         }
@@ -100,7 +111,8 @@ void LinearGradient::makeGradient(Vec2D start,
                                   Vec2D end,
                                   const ColorInt colors[],
                                   const float stops[],
-                                  size_t count) {
+                                  size_t count)
+{
     auto factory = artboard()->factory();
     renderPaint()->shader(
         factory->makeLinearGradient(start.x, start.y, end.x, end.y, colors, stops, count));
@@ -117,12 +129,16 @@ void LinearGradient::endXChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::opacityChanged() { markGradientDirty(); }
 
-bool LinearGradient::internalIsTranslucent() const {
-    if (opacity() < 1) {
+bool LinearGradient::internalIsTranslucent() const
+{
+    if (opacity() < 1)
+    {
         return true;
     }
-    for (const auto stop : m_Stops) {
-        if (colorAlpha(stop->colorValue()) != 0xFF) {
+    for (const auto stop : m_Stops)
+    {
+        if (colorAlpha(stop->colorValue()) != 0xFF)
+        {
             return true;
         }
     }

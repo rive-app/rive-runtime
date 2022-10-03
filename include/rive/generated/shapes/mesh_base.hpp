@@ -3,8 +3,10 @@
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/span.hpp"
-namespace rive {
-class MeshBase : public ContainerComponent {
+namespace rive
+{
+class MeshBase : public ContainerComponent
+{
 protected:
     typedef ContainerComponent Super;
 
@@ -13,12 +15,16 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case MeshBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -31,13 +37,16 @@ public:
     virtual void copyTriangleIndexBytes(const MeshBase& object) = 0;
 
     Core* clone() const override;
-    void copy(const MeshBase& object) {
+    void copy(const MeshBase& object)
+    {
         copyTriangleIndexBytes(object);
         ContainerComponent::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case triangleIndexBytesPropertyKey:
                 decodeTriangleIndexBytes(CoreBytesType::deserialize(reader));
                 return true;

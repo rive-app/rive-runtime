@@ -4,8 +4,10 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class LinearAnimationBase : public Animation {
+namespace rive
+{
+class LinearAnimationBase : public Animation
+{
 protected:
     typedef Animation Super;
 
@@ -14,11 +16,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case LinearAnimationBase::typeKey:
-            case AnimationBase::typeKey: return true;
-            default: return false;
+            case AnimationBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -43,8 +49,10 @@ private:
 
 public:
     inline uint32_t fps() const { return m_Fps; }
-    void fps(uint32_t value) {
-        if (m_Fps == value) {
+    void fps(uint32_t value)
+    {
+        if (m_Fps == value)
+        {
             return;
         }
         m_Fps = value;
@@ -52,8 +60,10 @@ public:
     }
 
     inline uint32_t duration() const { return m_Duration; }
-    void duration(uint32_t value) {
-        if (m_Duration == value) {
+    void duration(uint32_t value)
+    {
+        if (m_Duration == value)
+        {
             return;
         }
         m_Duration = value;
@@ -61,8 +71,10 @@ public:
     }
 
     inline float speed() const { return m_Speed; }
-    void speed(float value) {
-        if (m_Speed == value) {
+    void speed(float value)
+    {
+        if (m_Speed == value)
+        {
             return;
         }
         m_Speed = value;
@@ -70,8 +82,10 @@ public:
     }
 
     inline uint32_t loopValue() const { return m_LoopValue; }
-    void loopValue(uint32_t value) {
-        if (m_LoopValue == value) {
+    void loopValue(uint32_t value)
+    {
+        if (m_LoopValue == value)
+        {
             return;
         }
         m_LoopValue = value;
@@ -79,8 +93,10 @@ public:
     }
 
     inline uint32_t workStart() const { return m_WorkStart; }
-    void workStart(uint32_t value) {
-        if (m_WorkStart == value) {
+    void workStart(uint32_t value)
+    {
+        if (m_WorkStart == value)
+        {
             return;
         }
         m_WorkStart = value;
@@ -88,8 +104,10 @@ public:
     }
 
     inline uint32_t workEnd() const { return m_WorkEnd; }
-    void workEnd(uint32_t value) {
-        if (m_WorkEnd == value) {
+    void workEnd(uint32_t value)
+    {
+        if (m_WorkEnd == value)
+        {
             return;
         }
         m_WorkEnd = value;
@@ -97,8 +115,10 @@ public:
     }
 
     inline bool enableWorkArea() const { return m_EnableWorkArea; }
-    void enableWorkArea(bool value) {
-        if (m_EnableWorkArea == value) {
+    void enableWorkArea(bool value)
+    {
+        if (m_EnableWorkArea == value)
+        {
             return;
         }
         m_EnableWorkArea = value;
@@ -106,7 +126,8 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const LinearAnimationBase& object) {
+    void copy(const LinearAnimationBase& object)
+    {
         m_Fps = object.m_Fps;
         m_Duration = object.m_Duration;
         m_Speed = object.m_Speed;
@@ -117,14 +138,28 @@ public:
         Animation::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case fpsPropertyKey: m_Fps = CoreUintType::deserialize(reader); return true;
-            case durationPropertyKey: m_Duration = CoreUintType::deserialize(reader); return true;
-            case speedPropertyKey: m_Speed = CoreDoubleType::deserialize(reader); return true;
-            case loopValuePropertyKey: m_LoopValue = CoreUintType::deserialize(reader); return true;
-            case workStartPropertyKey: m_WorkStart = CoreUintType::deserialize(reader); return true;
-            case workEndPropertyKey: m_WorkEnd = CoreUintType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case fpsPropertyKey:
+                m_Fps = CoreUintType::deserialize(reader);
+                return true;
+            case durationPropertyKey:
+                m_Duration = CoreUintType::deserialize(reader);
+                return true;
+            case speedPropertyKey:
+                m_Speed = CoreDoubleType::deserialize(reader);
+                return true;
+            case loopValuePropertyKey:
+                m_LoopValue = CoreUintType::deserialize(reader);
+                return true;
+            case workStartPropertyKey:
+                m_WorkStart = CoreUintType::deserialize(reader);
+                return true;
+            case workEndPropertyKey:
+                m_WorkEnd = CoreUintType::deserialize(reader);
+                return true;
             case enableWorkAreaPropertyKey:
                 m_EnableWorkArea = CoreBoolType::deserialize(reader);
                 return true;

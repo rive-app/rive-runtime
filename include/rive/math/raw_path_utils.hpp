@@ -7,7 +7,8 @@
 
 #include "rive/math/vec2d.hpp"
 
-namespace rive {
+namespace rive
+{
 static inline Vec2D two(Vec2D v) { return v + v; }
 
 // Caches the setup to evaluate a quadratic bezier. Useful if you
@@ -28,7 +29,8 @@ static inline Vec2D two(Vec2D v) { return v + v; }
 
 // Caches the setup to evaluate a cubic bezier. Useful if you
 // want to evaluate the save curve at multiple t values.
-struct EvalCubic {
+struct EvalCubic
+{
     const Vec2D a, b, c, d; // at^3 + bt^2 + ct + d
 
     // pts are the 4 cubic bezier control points
@@ -36,7 +38,8 @@ struct EvalCubic {
         a(pts[3] + 3 * (pts[1] - pts[2]) - pts[0]),
         b(3 * (pts[2] - two(pts[1]) + pts[0])),
         c(3 * (pts[1] - pts[0])),
-        d(pts[0]) {}
+        d(pts[0])
+    {}
 
     Vec2D operator()(float t) const { return ((a * t + b) * t + c) * t + d; }
 };

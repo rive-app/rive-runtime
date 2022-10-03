@@ -3,8 +3,10 @@
 #include "rive/generated/constraints/scale_constraint_base.hpp"
 #include "rive/math/transform_components.hpp"
 #include <stdio.h>
-namespace rive {
-class ScaleConstraint : public ScaleConstraintBase {
+namespace rive
+{
+class ScaleConstraint : public ScaleConstraintBase
+{
 private:
     TransformComponents m_ComponentsA;
     TransformComponents m_ComponentsB;

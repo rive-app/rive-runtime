@@ -5,8 +5,10 @@
 #include "rive/renderer.hpp"
 #include <stdio.h>
 
-namespace rive {
-class TrimPath : public TrimPathBase, public StrokeEffect {
+namespace rive
+{
+class TrimPath : public TrimPathBase, public StrokeEffect
+{
 private:
     std::unique_ptr<RenderPath> m_TrimmedPath;
     RenderPath* m_RenderPath = nullptr;

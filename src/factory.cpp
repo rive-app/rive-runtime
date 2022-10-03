@@ -8,7 +8,8 @@
 
 using namespace rive;
 
-std::unique_ptr<RenderPath> Factory::makeRenderPath(const AABB& r) {
+std::unique_ptr<RenderPath> Factory::makeRenderPath(const AABB& r)
+{
     RawPath rawPath;
     rawPath.addRect(r);
     return makeRenderPath(rawPath, FillRule::nonZero);

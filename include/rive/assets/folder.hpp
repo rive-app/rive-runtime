@@ -2,8 +2,10 @@
 #define _RIVE_FOLDER_HPP_
 #include "rive/generated/assets/folder_base.hpp"
 #include <stdio.h>
-namespace rive {
-class Folder : public FolderBase {
+namespace rive
+{
+class Folder : public FolderBase
+{
 public:
 };
 } // namespace rive

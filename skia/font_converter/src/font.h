@@ -6,14 +6,17 @@
 #include "include/core/SkTypeface.h"
 #include <vector>
 
-class RiveFont {
-    struct Pair {
+class RiveFont
+{
+    struct Pair
+    {
         uint16_t fChar;
         uint16_t fGlyph;
     };
     std::vector<Pair> fCMap;
 
-    struct Glyph {
+    struct Glyph
+    {
         SkPath fPath;
         float fAdvance;
     };
@@ -24,7 +27,8 @@ public:
     float advance(uint16_t glyph) const;
     const SkPath* path(uint16_t glyph) const;
 
-    void clear() {
+    void clear()
+    {
         fCMap.clear();
         fGlyphs.clear();
     }

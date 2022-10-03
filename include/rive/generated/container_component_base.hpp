@@ -1,8 +1,10 @@
 #ifndef _RIVE_CONTAINER_COMPONENT_BASE_HPP_
 #define _RIVE_CONTAINER_COMPONENT_BASE_HPP_
 #include "rive/component.hpp"
-namespace rive {
-class ContainerComponentBase : public Component {
+namespace rive
+{
+class ContainerComponentBase : public Component
+{
 protected:
     typedef Component Super;
 
@@ -11,11 +13,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 

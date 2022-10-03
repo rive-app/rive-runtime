@@ -3,12 +3,15 @@
 
 using namespace rive;
 
-namespace {
-class NoOpRenderImage : public RenderImage {
+namespace
+{
+class NoOpRenderImage : public RenderImage
+{
 public:
 };
 
-class NoOpRenderPaint : public RenderPaint {
+class NoOpRenderPaint : public RenderPaint
+{
 public:
     void color(unsigned int value) override {}
     void style(RenderPaintStyle value) override {}
@@ -20,7 +23,8 @@ public:
     void invalidateStroke() override {}
 };
 
-class NoOpRenderPath : public RenderPath {
+class NoOpRenderPath : public RenderPath
+{
 public:
     void reset() override {}
 
@@ -45,7 +49,8 @@ rcp<RenderShader> NoOpFactory::makeLinearGradient(float sx,
                                                   float ey,
                                                   const ColorInt colors[], // [count]
                                                   const float stops[],     // [count]
-                                                  size_t count) {
+                                                  size_t count)
+{
     return nullptr;
 }
 
@@ -54,22 +59,27 @@ rcp<RenderShader> NoOpFactory::makeRadialGradient(float cx,
                                                   float radius,
                                                   const ColorInt colors[], // [count]
                                                   const float stops[],     // [count]
-                                                  size_t count) {
+                                                  size_t count)
+{
     return nullptr;
 }
 
-std::unique_ptr<RenderPath> NoOpFactory::makeRenderPath(RawPath&, FillRule) {
+std::unique_ptr<RenderPath> NoOpFactory::makeRenderPath(RawPath&, FillRule)
+{
     return std::make_unique<NoOpRenderPath>();
 }
 
-std::unique_ptr<RenderPath> NoOpFactory::makeEmptyRenderPath() {
+std::unique_ptr<RenderPath> NoOpFactory::makeEmptyRenderPath()
+{
     return std::make_unique<NoOpRenderPath>();
 }
 
-std::unique_ptr<RenderPaint> NoOpFactory::makeRenderPaint() {
+std::unique_ptr<RenderPaint> NoOpFactory::makeRenderPaint()
+{
     return std::make_unique<NoOpRenderPaint>();
 }
 
-std::unique_ptr<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>) {
+std::unique_ptr<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>)
+{
     return std::unique_ptr<NoOpRenderImage>();
 }

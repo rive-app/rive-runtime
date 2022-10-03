@@ -4,7 +4,8 @@
 
 using namespace rive;
 
-Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, const AABB& content) {
+Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, const AABB& content)
+{
     float contentWidth = content.width();
     float contentHeight = content.height();
     float x = -content.left() - contentWidth * 0.5f - (alignment.x() * contentWidth * 0.5f);
@@ -12,39 +13,47 @@ Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, co
 
     float scaleX = 1.0f, scaleY = 1.0f;
 
-    switch (fit) {
-        case Fit::fill: {
+    switch (fit)
+    {
+        case Fit::fill:
+        {
             scaleX = frame.width() / contentWidth;
             scaleY = frame.height() / contentHeight;
             break;
         }
-        case Fit::contain: {
+        case Fit::contain:
+        {
             float minScale =
                 std::fmin(frame.width() / contentWidth, frame.height() / contentHeight);
             scaleX = scaleY = minScale;
             break;
         }
-        case Fit::cover: {
+        case Fit::cover:
+        {
             float maxScale =
                 std::fmax(frame.width() / contentWidth, frame.height() / contentHeight);
             scaleX = scaleY = maxScale;
             break;
         }
-        case Fit::fitHeight: {
+        case Fit::fitHeight:
+        {
             float minScale = frame.height() / contentHeight;
             scaleX = scaleY = minScale;
             break;
         }
-        case Fit::fitWidth: {
+        case Fit::fitWidth:
+        {
             float minScale = frame.width() / contentWidth;
             scaleX = scaleY = minScale;
             break;
         }
-        case Fit::none: {
+        case Fit::none:
+        {
             scaleX = scaleY = 1.0f;
             break;
         }
-        case Fit::scaleDown: {
+        case Fit::scaleDown:
+        {
             float minScale =
                 std::fmin(frame.width() / contentWidth, frame.height() / contentHeight);
             scaleX = scaleY = minScale < 1.0f ? minScale : 1.0f;
@@ -63,7 +72,8 @@ void Renderer::translate(float tx, float ty) { this->transform(Mat2D(1, 0, 0, 1,
 
 void Renderer::scale(float sx, float sy) { this->transform(Mat2D(sx, 0, 0, sy, 0, 0)); }
 
-void Renderer::rotate(float radians) {
+void Renderer::rotate(float radians)
+{
     const float s = std::sin(radians);
     const float c = std::cos(radians);
     this->transform(Mat2D(c, s, -s, c, 0, 0));
@@ -79,7 +89,8 @@ RenderShader::~RenderShader() { Counter::update(Counter::kShader, -1); }
 RenderPaint::RenderPaint() { Counter::update(Counter::kPaint, 1); }
 RenderPaint::~RenderPaint() { Counter::update(Counter::kPaint, -1); }
 
-RenderImage::RenderImage(const Mat2D& uvTransform) : m_uvTransform(uvTransform) {
+RenderImage::RenderImage(const Mat2D& uvTransform) : m_uvTransform(uvTransform)
+{
     Counter::update(Counter::kImage, 1);
 }
 RenderImage::RenderImage() { Counter::update(Counter::kImage, 1); }
@@ -94,10 +105,12 @@ static bool isWhiteSpace(rive::Unichar c) { return c <= ' '; }
 
 rive::SimpleArray<RenderGlyphRun>
 RenderFont::shapeText(rive::Span<const rive::Unichar> text,
-                      rive::Span<const rive::RenderTextRun> runs) const {
+                      rive::Span<const rive::RenderTextRun> runs) const
+{
 #ifdef DEBUG
     size_t count = 0;
-    for (const auto& tr : runs) {
+    for (const auto& tr : runs)
+    {
         assert(tr.unicharCount > 0);
         count += tr.unicharCount;
     }
@@ -110,21 +123,26 @@ RenderFont::shapeText(rive::Span<const rive::Unichar> text,
     rive::RenderGlyphRun* lastRun = nullptr;
     size_t reserveSize = text.size() / 4;
     rive::SimpleArrayBuilder<uint32_t> breakBuilder(reserveSize);
-    for (auto& gr : gruns) {
-        if (lastRun != nullptr) {
+    for (auto& gr : gruns)
+    {
+        if (lastRun != nullptr)
+        {
             lastRun->breaks = std::move(breakBuilder);
             // Reset the builder.
             breakBuilder = rive::SimpleArrayBuilder<uint32_t>(reserveSize);
         }
         uint32_t glyphIndex = 0;
-        for (auto offset : gr.textIndices) {
+        for (auto offset : gr.textIndices)
+        {
 
             auto unicode = text[offset];
-            if (unicode == '\n') {
+            if (unicode == '\n')
+            {
                 breakBuilder.add(glyphIndex);
                 breakBuilder.add(glyphIndex);
             }
-            if (wantWhiteSpace == isWhiteSpace(unicode)) {
+            if (wantWhiteSpace == isWhiteSpace(unicode))
+            {
                 breakBuilder.add(glyphIndex);
                 wantWhiteSpace = !wantWhiteSpace;
             }
@@ -133,15 +151,18 @@ RenderFont::shapeText(rive::Span<const rive::Unichar> text,
 
         lastRun = &gr;
     }
-    if (lastRun != nullptr) {
-        if (wantWhiteSpace) {
+    if (lastRun != nullptr)
+    {
+        if (wantWhiteSpace)
+        {
             breakBuilder.add((uint32_t)lastRun->glyphs.size());
         }
         lastRun->breaks = std::move(breakBuilder);
     }
 
 #ifdef DEBUG
-    for (const auto& gr : gruns) {
+    for (const auto& gr : gruns)
+    {
         assert(gr.glyphs.size() > 0);
         assert(gr.glyphs.size() == gr.textIndices.size());
         assert(gr.glyphs.size() + 1 == gr.xpos.size());

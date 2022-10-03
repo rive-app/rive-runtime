@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* BoneBase::clone() const {
+Core* BoneBase::clone() const
+{
     auto cloned = new Bone();
     cloned->copy(*this);
     return cloned;

@@ -3,11 +3,13 @@
 
 #include "rive/rive_types.hpp"
 
-namespace rive {
+namespace rive
+{
 class Skin;
 class Component;
 
-class Skinnable {
+class Skinnable
+{
     friend class Skin;
 
 private:

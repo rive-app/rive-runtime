@@ -7,10 +7,13 @@
 
 #include "rive/rive_types.hpp"
 
-namespace rive {
+namespace rive
+{
 
-struct Counter {
-    enum Type {
+struct Counter
+{
+    enum Type
+    {
         kFile,
         kArtboardInstance,
         kLinearAnimationInstance,
@@ -28,7 +31,8 @@ struct Counter {
     static constexpr int kNumTypes = Type::kLastType + 1;
     static int counts[kNumTypes];
 
-    static void update(Type ct, int delta) {
+    static void update(Type ct, int delta)
+    {
         assert(delta == 1 || delta == -1);
         counts[ct] += delta;
         assert(counts[ct] >= 0);

@@ -5,11 +5,14 @@
 #include "rive/math/transform_components.hpp"
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class Bone;
-class IKConstraint : public IKConstraintBase {
+class IKConstraint : public IKConstraintBase
+{
 private:
-    struct BoneChainLink {
+    struct BoneChainLink
+    {
         int index;
         Bone* bone;
         float angle;

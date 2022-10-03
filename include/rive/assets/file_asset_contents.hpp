@@ -3,8 +3,10 @@
 #include "rive/generated/assets/file_asset_contents_base.hpp"
 #include <cstdint>
 
-namespace rive {
-class FileAssetContents : public FileAssetContentsBase {
+namespace rive
+{
+class FileAssetContents : public FileAssetContentsBase
+{
 private:
     std::vector<uint8_t> m_Bytes;
 

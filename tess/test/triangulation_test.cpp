@@ -3,14 +3,16 @@
 #include "rive/tess/tess_render_path.hpp"
 #include "rive_file_reader.hpp"
 
-class TestRenderPath : public rive::TessRenderPath {
+class TestRenderPath : public rive::TessRenderPath
+{
 public:
     std::vector<rive::Vec2D> vertices;
     std::vector<uint16_t> indices;
 
 protected:
     virtual void addTriangles(rive::Span<const rive::Vec2D> vts,
-                              rive::Span<const uint16_t> idx) override {
+                              rive::Span<const uint16_t> idx) override
+    {
         vertices.insert(vertices.end(), vts.begin(), vts.end());
         indices.insert(indices.end(), idx.begin(), idx.end());
     }
@@ -18,7 +20,8 @@ protected:
     void setTriangulatedBounds(const rive::AABB& value) override {}
 };
 
-TEST_CASE("simple triangle path triangulates as expected", "[file]") {
+TEST_CASE("simple triangle path triangulates as expected", "[file]")
+{
     auto file = ReadRiveFile("../test/assets/triangle.riv");
     auto artboard = file->artboard();
     artboard->advance(0.0f);

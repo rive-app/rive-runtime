@@ -18,7 +18,8 @@
 #include "rive_file_reader.hpp"
 #include <cstdio>
 
-TEST_CASE("file with state machine listeners be read", "[file]") {
+TEST_CASE("file with state machine listeners be read", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/bullet_man.riv");
 
     auto artboard = file->artboard("Bullet Man");
@@ -63,7 +64,8 @@ TEST_CASE("file with state machine listeners be read", "[file]") {
     REQUIRE(inputChange3->as<rive::ListenerInputChange>()->inputId() == 2);
 }
 
-TEST_CASE("hit testing via a state machine works", "[file]") {
+TEST_CASE("hit testing via a state machine works", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/bullet_man.riv");
 
     auto artboard = file->artboard("Bullet Man")->instance();
@@ -85,7 +87,8 @@ TEST_CASE("hit testing via a state machine works", "[file]") {
     REQUIRE(trigger->didFire());
 }
 
-TEST_CASE("hit a toggle boolean listener", "[file]") {
+TEST_CASE("hit a toggle boolean listener", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/light_switch.riv");
 
     auto artboard = file->artboard()->instance();

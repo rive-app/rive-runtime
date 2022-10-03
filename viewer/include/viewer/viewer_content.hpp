@@ -10,13 +10,15 @@
 
 #include "imgui.h"
 
-namespace rive {
+namespace rive
+{
 class Renderer;
 class Factory;
 class RenderFont;
 } // namespace rive
 
-class ViewerContent {
+class ViewerContent
+{
 public:
     virtual ~ViewerContent();
 
@@ -31,15 +33,18 @@ public:
     using Factory = std::unique_ptr<ViewerContent> (*)(const char filename[]);
 
     // Searches all handlers and returns a content if it is found.
-    static std::unique_ptr<ViewerContent> findHandler(const char filename[]) {
+    static std::unique_ptr<ViewerContent> findHandler(const char filename[])
+    {
         Factory factories[] = {
             Scene,
             Image,
             Text,
             TextPath,
         };
-        for (auto f : factories) {
-            if (auto content = f(filename)) {
+        for (auto f : factories)
+        {
+            if (auto content = f(filename))
+            {
                 return content;
             }
         }

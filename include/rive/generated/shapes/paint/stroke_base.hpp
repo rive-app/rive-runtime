@@ -4,8 +4,10 @@
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
-namespace rive {
-class StrokeBase : public ShapePaint {
+namespace rive
+{
+class StrokeBase : public ShapePaint
+{
 protected:
     typedef ShapePaint Super;
 
@@ -14,13 +16,17 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case StrokeBase::typeKey:
             case ShapePaintBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -39,8 +45,10 @@ private:
 
 public:
     inline float thickness() const { return m_Thickness; }
-    void thickness(float value) {
-        if (m_Thickness == value) {
+    void thickness(float value)
+    {
+        if (m_Thickness == value)
+        {
             return;
         }
         m_Thickness = value;
@@ -48,8 +56,10 @@ public:
     }
 
     inline uint32_t cap() const { return m_Cap; }
-    void cap(uint32_t value) {
-        if (m_Cap == value) {
+    void cap(uint32_t value)
+    {
+        if (m_Cap == value)
+        {
             return;
         }
         m_Cap = value;
@@ -57,8 +67,10 @@ public:
     }
 
     inline uint32_t join() const { return m_Join; }
-    void join(uint32_t value) {
-        if (m_Join == value) {
+    void join(uint32_t value)
+    {
+        if (m_Join == value)
+        {
             return;
         }
         m_Join = value;
@@ -66,8 +78,10 @@ public:
     }
 
     inline bool transformAffectsStroke() const { return m_TransformAffectsStroke; }
-    void transformAffectsStroke(bool value) {
-        if (m_TransformAffectsStroke == value) {
+    void transformAffectsStroke(bool value)
+    {
+        if (m_TransformAffectsStroke == value)
+        {
             return;
         }
         m_TransformAffectsStroke = value;
@@ -75,7 +89,8 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const StrokeBase& object) {
+    void copy(const StrokeBase& object)
+    {
         m_Thickness = object.m_Thickness;
         m_Cap = object.m_Cap;
         m_Join = object.m_Join;
@@ -83,13 +98,19 @@ public:
         ShapePaint::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case thicknessPropertyKey:
                 m_Thickness = CoreDoubleType::deserialize(reader);
                 return true;
-            case capPropertyKey: m_Cap = CoreUintType::deserialize(reader); return true;
-            case joinPropertyKey: m_Join = CoreUintType::deserialize(reader); return true;
+            case capPropertyKey:
+                m_Cap = CoreUintType::deserialize(reader);
+                return true;
+            case joinPropertyKey:
+                m_Join = CoreUintType::deserialize(reader);
+                return true;
             case transformAffectsStrokePropertyKey:
                 m_TransformAffectsStroke = CoreBoolType::deserialize(reader);
                 return true;

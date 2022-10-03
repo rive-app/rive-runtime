@@ -12,62 +12,79 @@ int LinearAnimation::deleteCount = 0;
 
 LinearAnimation::LinearAnimation() {}
 
-LinearAnimation::~LinearAnimation() {
+LinearAnimation::~LinearAnimation()
+{
 #ifdef TESTING
     deleteCount++;
 #endif
 }
 
-StatusCode LinearAnimation::onAddedDirty(CoreContext* context) {
+StatusCode LinearAnimation::onAddedDirty(CoreContext* context)
+{
     StatusCode code;
-    for (const auto& object : m_KeyedObjects) {
-        if ((code = object->onAddedDirty(context)) != StatusCode::Ok) {
+    for (const auto& object : m_KeyedObjects)
+    {
+        if ((code = object->onAddedDirty(context)) != StatusCode::Ok)
+        {
             return code;
         }
     }
     return StatusCode::Ok;
 }
 
-StatusCode LinearAnimation::onAddedClean(CoreContext* context) {
+StatusCode LinearAnimation::onAddedClean(CoreContext* context)
+{
     StatusCode code;
-    for (const auto& object : m_KeyedObjects) {
-        if ((code = object->onAddedClean(context)) != StatusCode::Ok) {
+    for (const auto& object : m_KeyedObjects)
+    {
+        if ((code = object->onAddedClean(context)) != StatusCode::Ok)
+        {
             return code;
         }
     }
     return StatusCode::Ok;
 }
 
-void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object) {
+void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object)
+{
     m_KeyedObjects.push_back(std::move(object));
 }
 
-void LinearAnimation::apply(Artboard* artboard, float time, float mix) const {
-    for (const auto& object : m_KeyedObjects) {
+void LinearAnimation::apply(Artboard* artboard, float time, float mix) const
+{
+    for (const auto& object : m_KeyedObjects)
+    {
         object->apply(artboard, time, mix);
     }
 }
 
-StatusCode LinearAnimation::import(ImportStack& importStack) {
+StatusCode LinearAnimation::import(ImportStack& importStack)
+{
     auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr) {
+    if (artboardImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
     artboardImporter->addAnimation(this);
     return Super::import(importStack);
 }
 
-float LinearAnimation::startSeconds() const {
+float LinearAnimation::startSeconds() const
+{
     return (enableWorkArea() ? workStart() : 0) / (float)fps();
 }
-float LinearAnimation::endSeconds() const {
+float LinearAnimation::endSeconds() const
+{
     return (enableWorkArea() ? workEnd() : duration()) / (float)fps();
 }
 float LinearAnimation::durationSeconds() const { return endSeconds() - startSeconds(); }
 
-float LinearAnimation::globalToLocalSeconds(float seconds) const {
-    switch (loop()) {
-        case Loop::oneShot: return seconds + startSeconds();
+float LinearAnimation::globalToLocalSeconds(float seconds) const
+{
+    switch (loop())
+    {
+        case Loop::oneShot:
+            return seconds + startSeconds();
         case Loop::loop:
             return std::fmod(seconds, (endSeconds() - startSeconds())) + startSeconds();
         case Loop::pingPong:

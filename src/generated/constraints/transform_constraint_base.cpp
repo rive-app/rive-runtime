@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* TransformConstraintBase::clone() const {
+Core* TransformConstraintBase::clone() const
+{
     auto cloned = new TransformConstraint();
     cloned->copy(*this);
     return cloned;

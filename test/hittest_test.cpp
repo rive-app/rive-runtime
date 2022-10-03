@@ -10,7 +10,8 @@
 
 using namespace rive;
 
-TEST_CASE("hittest-basics", "[hittest]") {
+TEST_CASE("hittest-basics", "[hittest]")
+{
     HitTester tester;
     tester.reset({10, 10, 12, 12});
     tester.move({0, 0});
@@ -31,14 +32,16 @@ TEST_CASE("hittest-basics", "[hittest]") {
     tester.reset(area);
 
     tester.move(pts[0]);
-    for (int i = 1; i < 4; ++i) {
+    for (int i = 1; i < 4; ++i)
+    {
         tester.line(pts[i]);
     }
     tester.close();
     REQUIRE(tester.test());
 }
 
-TEST_CASE("hittest-mesh", "[hittest]") {
+TEST_CASE("hittest-mesh", "[hittest]")
+{
 
     const IAABB area{10, 10, 12, 12};
 

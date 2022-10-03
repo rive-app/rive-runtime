@@ -2,10 +2,12 @@
 #define _RIVE_BLEND_STATE_TRANSITION_HPP_
 #include "rive/generated/animation/blend_state_transition_base.hpp"
 #include <stdio.h>
-namespace rive {
+namespace rive
+{
 class BlendAnimation;
 class LayerStateImporter;
-class BlendStateTransition : public BlendStateTransitionBase {
+class BlendStateTransition : public BlendStateTransitionBase
+{
     friend class LayerStateImporter;
 
 private:

@@ -9,7 +9,8 @@
 #include "rive_testing.hpp"
 #include <cstdio>
 
-TEST_CASE("ik with skinned bones orders correctly", "[file]") {
+TEST_CASE("ik with skinned bones orders correctly", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/complex_ik_dependency.riv");
 
     auto artboard = file->artboard();
@@ -20,8 +21,10 @@ TEST_CASE("ik with skinned bones orders correctly", "[file]") {
     REQUIRE(artboard->find<rive::Bone>("Two") != nullptr);
     auto two = artboard->find<rive::Bone>("Two");
     rive::Skin* skin = nullptr;
-    for (auto object : artboard->objects()) {
-        if (object->is<rive::Skin>()) {
+    for (auto object : artboard->objects())
+    {
+        if (object->is<rive::Skin>())
+        {
             skin = object->as<rive::Skin>();
             break;
         }

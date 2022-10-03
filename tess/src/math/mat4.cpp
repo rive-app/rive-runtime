@@ -12,9 +12,11 @@ Mat4::Mat4(const Mat2D& mat2d) :
         0.0f, 0.0f, 1.0f, 0.0f, 
         mat2d[4], mat2d[5], 0.0f, 1.0f,
         // clang-format on
-    } {}
+    }
+{}
 
-Mat4 Mat4::multiply(const Mat4& a, const Mat4& b) {
+Mat4 Mat4::multiply(const Mat4& a, const Mat4& b)
+{
     return {
         // clang-format off
         b[0] * a[0] + b[1] * a[4] + b[2] * a[8] + b[3] * a[12],
@@ -40,7 +42,8 @@ Mat4 Mat4::multiply(const Mat4& a, const Mat4& b) {
     };
 }
 
-Mat4 Mat4::multiply(const Mat4& a, const Mat2D& b) {
+Mat4 Mat4::multiply(const Mat4& a, const Mat2D& b)
+{
     return {
         // clang-format off
         b[0] * a[0] + b[1] * a[4],

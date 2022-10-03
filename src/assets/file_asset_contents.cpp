@@ -5,9 +5,11 @@
 
 using namespace rive;
 
-StatusCode FileAssetContents::import(ImportStack& importStack) {
+StatusCode FileAssetContents::import(ImportStack& importStack)
+{
     auto fileAssetImporter = importStack.latest<FileAssetImporter>(FileAsset::typeKey);
-    if (fileAssetImporter == nullptr) {
+    if (fileAssetImporter == nullptr)
+    {
         return StatusCode::MissingObject;
     }
     fileAssetImporter->loadContents(std::unique_ptr<FileAssetContents>(this));
@@ -15,11 +17,13 @@ StatusCode FileAssetContents::import(ImportStack& importStack) {
     return Super::import(importStack);
 }
 
-void FileAssetContents::decodeBytes(Span<const uint8_t> value) {
+void FileAssetContents::decodeBytes(Span<const uint8_t> value)
+{
     m_Bytes = std::vector<uint8_t>(value.begin(), value.end());
 }
 
-void FileAssetContents::copyBytes(const FileAssetContentsBase& object) {
+void FileAssetContents::copyBytes(const FileAssetContentsBase& object)
+{
     // Should never be called.
     assert(false);
 }

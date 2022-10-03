@@ -4,10 +4,12 @@
 #include "rive/math/vec2d.hpp"
 #include <memory>
 
-namespace rive {
+namespace rive
+{
 class ArtboardInstance;
 class StateMachineInstance;
-class NestedStateMachine : public NestedStateMachineBase {
+class NestedStateMachine : public NestedStateMachineBase
+{
 private:
     std::unique_ptr<StateMachineInstance> m_StateMachineInstance;
 

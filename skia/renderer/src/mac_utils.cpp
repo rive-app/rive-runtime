@@ -11,8 +11,10 @@
 #include <ImageIO/CGImageSource.h>
 #endif
 
-AutoCF<CGImageRef> rive::FlipCGImageInY(AutoCF<CGImageRef> image) {
-    if (!image) {
+AutoCF<CGImageRef> rive::FlipCGImageInY(AutoCF<CGImageRef> image)
+{
+    if (!image)
+    {
         return nullptr;
     }
 
@@ -26,21 +28,25 @@ AutoCF<CGImageRef> rive::FlipCGImageInY(AutoCF<CGImageRef> image) {
     return CGBitmapContextCreateImage(ctx);
 }
 
-AutoCF<CGImageRef> rive::DecodeToCGImage(rive::Span<const uint8_t> span) {
+AutoCF<CGImageRef> rive::DecodeToCGImage(rive::Span<const uint8_t> span)
+{
     AutoCF data = CFDataCreate(nullptr, span.data(), span.size());
-    if (!data) {
+    if (!data)
+    {
         printf("CFDataCreate failed\n");
         return nullptr;
     }
 
     AutoCF source = CGImageSourceCreateWithData(data, nullptr);
-    if (!source) {
+    if (!source)
+    {
         printf("CGImageSourceCreateWithData failed\n");
         return nullptr;
     }
 
     AutoCF image = CGImageSourceCreateImageAtIndex(source, 0, nullptr);
-    if (!image) {
+    if (!image)
+    {
         printf("CGImageSourceCreateImageAtIndex failed\n");
     }
     return image;

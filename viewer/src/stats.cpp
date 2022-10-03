@@ -1,14 +1,16 @@
 #include "sokol_app.h"
 #include "imgui.h"
 
-void displayStats() {
+void displayStats()
+{
     bool isOpen = true;
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowBorderSize = 0.0f;
     ImGui::Begin("stats",
                  &isOpen,
                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
-    if (ImGui::BeginTable("table2", 2)) {
+    if (ImGui::BeginTable("table2", 2))
+    {
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();

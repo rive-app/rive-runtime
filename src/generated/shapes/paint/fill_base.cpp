@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* FillBase::clone() const {
+Core* FillBase::clone() const
+{
     auto cloned = new Fill();
     cloned->copy(*this);
     return cloned;

@@ -10,23 +10,28 @@
 #include "rive/tess/sokol/sokol_tess_renderer.hpp"
 #include "viewer/tess/viewer_sokol_factory.hpp"
 
-class TessViewerHost : public ViewerHost {
+class TessViewerHost : public ViewerHost
+{
 public:
     std::unique_ptr<rive::SokolTessRenderer> m_renderer;
 
-    bool init(sg_pass_action*, int width, int height) override {
+    bool init(sg_pass_action*, int width, int height) override
+    {
         m_renderer = std::make_unique<rive::SokolTessRenderer>();
         m_renderer->orthographicProjection(0.0f, width, height, 0.0f, 0.0f, 1.0f);
         return true;
     }
 
-    void handleResize(int width, int height) override {
+    void handleResize(int width, int height) override
+    {
         m_renderer->orthographicProjection(0.0f, width, height, 0.0f, 0.0f, 1.0f);
     }
 
-    void afterDefaultPass(ViewerContent* content, double elapsed) override {
+    void afterDefaultPass(ViewerContent* content, double elapsed) override
+    {
         m_renderer->reset();
-        if (content) {
+        if (content)
+        {
             content->handleDraw(m_renderer.get(), elapsed);
         }
     }
@@ -34,7 +39,8 @@ public:
 
 std::unique_ptr<ViewerHost> ViewerHost::Make() { return std::make_unique<TessViewerHost>(); }
 
-rive::Factory* ViewerHost::Factory() {
+rive::Factory* ViewerHost::Factory()
+{
     static ViewerSokolFactory sokolFactory;
     return &sokolFactory;
 }

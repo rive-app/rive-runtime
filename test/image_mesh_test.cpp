@@ -11,7 +11,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("image with mesh loads correctly", "[mesh]") {
+TEST_CASE("image with mesh loads correctly", "[mesh]")
+{
     auto file = ReadRiveFile("../../test/assets/tape.riv");
 
     auto node = file->artboard()->find("Tape body.png");
@@ -25,7 +26,8 @@ TEST_CASE("image with mesh loads correctly", "[mesh]") {
     REQUIRE(tape->mesh()->indices()->size() == 31 * 3); // Expect 31 triangles.
 }
 
-TEST_CASE("duplicating a mesh shares the indices", "[mesh]") {
+TEST_CASE("duplicating a mesh shares the indices", "[mesh]")
+{
     auto file = ReadRiveFile("../../test/assets/tape.riv");
 
     auto instance1 = file->artboardDefault();

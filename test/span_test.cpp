@@ -9,7 +9,8 @@
 
 using namespace rive;
 
-TEST_CASE("basics", "[span]") {
+TEST_CASE("basics", "[span]")
+{
     Span<int> span;
     REQUIRE(span.empty());
     REQUIRE(span.size() == 0);
@@ -27,7 +28,8 @@ TEST_CASE("basics", "[span]") {
 
     int counter = 0;
     int sum = 0;
-    for (auto s : span) {
+    for (auto s : span)
+    {
         counter += 1;
         sum += s;
     }
@@ -47,7 +49,8 @@ TEST_CASE("basics", "[span]") {
 static void funca(Span<int> span) {}
 static void funcb(Span<const int> span) {}
 
-TEST_CASE("const-and-containers", "[span]") {
+TEST_CASE("const-and-containers", "[span]")
+{
     const int carray[] = {1, 2, 3, 4};
     funcb({carray, 4});
 
@@ -62,12 +65,14 @@ TEST_CASE("const-and-containers", "[span]") {
     funcb(v);
 }
 
-TEST_CASE("can iterate span", "[span]") {
+TEST_CASE("can iterate span", "[span]")
+{
     const int carray[] = {2, 4, 8, 16};
 
     auto span = Span(carray);
     int expect = 2;
-    for (auto value : span) {
+    for (auto value : span)
+    {
         REQUIRE(value == expect);
         expect *= 2;
     }

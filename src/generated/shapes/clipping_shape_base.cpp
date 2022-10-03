@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ClippingShapeBase::clone() const {
+Core* ClippingShapeBase::clone() const
+{
     auto cloned = new ClippingShape();
     cloned->copy(*this);
     return cloned;

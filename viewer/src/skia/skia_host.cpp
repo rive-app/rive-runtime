@@ -35,7 +35,8 @@ void skiaPresentSurface(sk_sp<SkSurface> surface);
 #include "cg_factory.hpp"
 #include "cg_renderer.hpp"
 #include "mac_utils.hpp"
-static void render_with_cg(SkCanvas* canvas, int w, int h, ViewerContent* content, double elapsed) {
+static void render_with_cg(SkCanvas* canvas, int w, int h, ViewerContent* content, double elapsed)
+{
     // cons up a CGContext
     auto pixels = SkData::MakeUninitialized(w * h * 4);
     auto bytes = (uint8_t*)pixels->writable_data();
@@ -55,12 +56,14 @@ static void render_with_cg(SkCanvas* canvas, int w, int h, ViewerContent* conten
 }
 #endif
 
-class SkiaViewerHost : public ViewerHost {
+class SkiaViewerHost : public ViewerHost
+{
 public:
     sk_sp<GrDirectContext> m_context;
     SkISize m_dimensions;
 
-    bool init(sg_pass_action* action, int width, int height) override {
+    bool init(sg_pass_action* action, int width, int height) override
+    {
         m_dimensions = {width, height};
 
 #if defined(SK_METAL)
@@ -86,7 +89,8 @@ public:
 
     void handleResize(int width, int height) override { m_dimensions = {width, height}; }
 
-    void beforeDefaultPass(ViewerContent* content, double elapsed) override {
+    void beforeDefaultPass(ViewerContent* content, double elapsed) override
+    {
         m_context->resetContext();
         auto surf = makeSkiaSurface(m_context.get(), m_dimensions.width(), m_dimensions.height());
         SkCanvas* canvas = surf->getCanvas();
@@ -94,7 +98,8 @@ public:
         paint.setColor(0xFF161616);
         canvas->drawPaint(paint);
 
-        if (content) {
+        if (content)
+        {
 #ifdef TEST_CG_RENDERER
             render_with_cg(canvas, m_dimensions.width(), m_dimensions.height(), content, elapsed);
 #elif defined(SW_SKIA_MODE)
@@ -118,7 +123,8 @@ public:
 
 std::unique_ptr<ViewerHost> ViewerHost::Make() { return std::make_unique<SkiaViewerHost>(); }
 
-rive::Factory* ViewerHost::Factory() {
+rive::Factory* ViewerHost::Factory()
+{
 #ifdef TEST_CG_RENDERER
     static rive::CGFactory gFactory;
     return &gFactory;

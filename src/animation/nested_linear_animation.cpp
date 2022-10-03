@@ -6,7 +6,8 @@ using namespace rive;
 NestedLinearAnimation::NestedLinearAnimation() {}
 NestedLinearAnimation::~NestedLinearAnimation() {}
 
-void NestedLinearAnimation::initializeAnimation(ArtboardInstance* artboard) {
+void NestedLinearAnimation::initializeAnimation(ArtboardInstance* artboard)
+{
     m_AnimationInstance =
         std::make_unique<LinearAnimationInstance>(artboard->animation(animationId()), artboard);
 }

@@ -3,8 +3,10 @@
 #include "rive/generated/constraints/transform_component_constraint_base.hpp"
 #include "rive/transform_space.hpp"
 #include <stdio.h>
-namespace rive {
-class TransformComponentConstraint : public TransformComponentConstraintBase {
+namespace rive
+{
+class TransformComponentConstraint : public TransformComponentConstraintBase
+{
 public:
     TransformSpace minMaxSpace() const { return (TransformSpace)minMaxSpaceValue(); }
 };

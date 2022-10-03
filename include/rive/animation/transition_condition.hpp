@@ -2,11 +2,13 @@
 #define _RIVE_TRANSITION_CONDITION_HPP_
 #include "rive/generated/animation/transition_condition_base.hpp"
 
-namespace rive {
+namespace rive
+{
 class StateMachineInput;
 class SMIInput;
 
-class TransitionCondition : public TransitionConditionBase {
+class TransitionCondition : public TransitionConditionBase
+{
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;

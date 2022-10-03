@@ -5,10 +5,12 @@
 #include "rive/generated/draw_target_base.hpp"
 #include <stdio.h>
 
-namespace rive {
+namespace rive
+{
 class Drawable;
 class Artboard;
-class DrawTarget : public DrawTargetBase {
+class DrawTarget : public DrawTargetBase
+{
     friend class Artboard;
 
 private:

@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* PolygonBase::clone() const {
+Core* PolygonBase::clone() const
+{
     auto cloned = new Polygon();
     cloned->copy(*this);
     return cloned;

@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ListenerTriggerChangeBase::clone() const {
+Core* ListenerTriggerChangeBase::clone() const
+{
     auto cloned = new ListenerTriggerChange();
     cloned->copy(*this);
     return cloned;

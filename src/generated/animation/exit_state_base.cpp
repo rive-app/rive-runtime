@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ExitStateBase::clone() const {
+Core* ExitStateBase::clone() const
+{
     auto cloned = new ExitState();
     cloned->copy(*this);
     return cloned;

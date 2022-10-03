@@ -10,7 +10,8 @@
 #include "rive/span.hpp"
 #include "rive/simple_array.hpp"
 
-namespace rive {
+namespace rive
+{
 
 using Unichar = uint32_t;
 using GlyphID = uint16_t;
@@ -18,11 +19,13 @@ using GlyphID = uint16_t;
 struct RenderTextRun;
 struct RenderGlyphRun;
 
-class RenderFont : public RefCnt<RenderFont> {
+class RenderFont : public RefCnt<RenderFont>
+{
 public:
     virtual ~RenderFont() {}
 
-    struct LineMetrics {
+    struct LineMetrics
+    {
         float ascent, descent;
     };
 
@@ -32,7 +35,8 @@ public:
     // -- may only be needed by Editor
     // -- so it may be removed from here later
     //
-    struct Axis {
+    struct Axis
+    {
         uint32_t tag;
         float min;
         float def; // default value
@@ -46,7 +50,8 @@ public:
     //
     virtual std::vector<Axis> getAxes() const = 0;
 
-    struct Coord {
+    struct Coord
+    {
         uint32_t axis;
         float value;
     };
@@ -80,20 +85,24 @@ private:
     const LineMetrics m_LineMetrics;
 };
 
-struct RenderTextRun {
+struct RenderTextRun
+{
     rcp<RenderFont> font;
     float size;
     uint32_t unicharCount;
 };
 
-struct RenderGlyphRun {
+struct RenderGlyphRun
+{
     RenderGlyphRun(size_t glyphCount = 0) :
-        glyphs(glyphCount), textIndices(glyphCount), xpos(glyphCount + 1) {}
+        glyphs(glyphCount), textIndices(glyphCount), xpos(glyphCount + 1)
+    {}
 
     RenderGlyphRun(rive::SimpleArray<GlyphID> glyphIds,
                    rive::SimpleArray<uint32_t> offsets,
                    rive::SimpleArray<float> xs) :
-        glyphs(glyphIds), textIndices(offsets), xpos(xs) {}
+        glyphs(glyphIds), textIndices(offsets), xpos(xs)
+    {}
 
     rcp<RenderFont> font;
     float size;

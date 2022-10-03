@@ -2,8 +2,10 @@
 #define _RIVE_CUBIC_WEIGHT_HPP_
 #include "rive/generated/bones/cubic_weight_base.hpp"
 #include <stdio.h>
-namespace rive {
-class CubicWeight : public CubicWeightBase {
+namespace rive
+{
+class CubicWeight : public CubicWeightBase
+{
 private:
     Vec2D m_InTranslation;
     Vec2D m_OutTranslation;

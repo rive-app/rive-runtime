@@ -8,9 +8,11 @@
 #include "rive/rive_types.hpp"
 #include <cmath>
 
-namespace rive {
+namespace rive
+{
 
-namespace math {
+namespace math
+{
 constexpr float PI = 3.14159265f;
 }
 

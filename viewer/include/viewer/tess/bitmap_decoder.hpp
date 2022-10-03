@@ -5,9 +5,15 @@
 #include "rive/span.hpp"
 
 /// Bitmap will always take ownership of the bytes it is constructed with.
-class Bitmap {
+class Bitmap
+{
 public:
-    enum class PixelFormat : uint8_t { R, RGB, RGBA };
+    enum class PixelFormat : uint8_t
+    {
+        R,
+        RGB,
+        RGBA
+    };
 
     Bitmap(uint32_t width,
            uint32_t height,

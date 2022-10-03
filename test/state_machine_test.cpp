@@ -14,7 +14,8 @@
 #include "rive_file_reader.hpp"
 #include <cstdio>
 
-TEST_CASE("file with state machine be read", "[file]") {
+TEST_CASE("file with state machine be read", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/rocket.riv");
 
     auto artboard = file->artboard();
@@ -44,9 +45,11 @@ TEST_CASE("file with state machine be read", "[file]") {
     REQUIRE(layer->exitState() != nullptr);
 
     int foundAnimationStates = 0;
-    for (int i = 0; i < layer->stateCount(); i++) {
+    for (int i = 0; i < layer->stateCount(); i++)
+    {
         auto state = layer->state(i);
-        if (state->is<rive::AnimationState>()) {
+        if (state->is<rive::AnimationState>())
+        {
             foundAnimationStates++;
             REQUIRE(state->as<rive::AnimationState>()->animation() != nullptr);
         }
@@ -63,9 +66,11 @@ TEST_CASE("file with state machine be read", "[file]") {
 
     auto idleState = stateTo->as<rive::AnimationState>();
     REQUIRE(idleState->transitionCount() == 2);
-    for (int i = 0; i < idleState->transitionCount(); i++) {
+    for (int i = 0; i < idleState->transitionCount(); i++)
+    {
         auto transition = idleState->transition(i);
-        if (transition->stateTo()->as<rive::AnimationState>()->animation()->name() == "Roll_over") {
+        if (transition->stateTo()->as<rive::AnimationState>()->animation()->name() == "Roll_over")
+        {
             // Check the condition
             REQUIRE(transition->conditionCount() == 1);
         }
@@ -82,7 +87,8 @@ TEST_CASE("file with state machine be read", "[file]") {
     REQUIRE(smi.currentAnimationCount() == 0);
 }
 
-TEST_CASE("file with blend states loads correctly", "[file]") {
+TEST_CASE("file with blend states loads correctly", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/blend_test.riv");
 
     auto artboard = file->artboard();
@@ -137,7 +143,8 @@ TEST_CASE("file with blend states loads correctly", "[file]") {
             nullptr);
 }
 
-TEST_CASE("animation state with no animation doesn't crash", "[file]") {
+TEST_CASE("animation state with no animation doesn't crash", "[file]")
+{
     auto file = ReadRiveFile("../../test/assets/multiple_state_machines.riv");
 
     auto artboard = file->artboard();

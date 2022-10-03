@@ -10,33 +10,43 @@
 
 using namespace rive;
 
-ShapePaintContainer* ShapePaintContainer::from(Component* component) {
-    switch (component->coreType()) {
-        case Artboard::typeKey: return component->as<Artboard>();
-        case Shape::typeKey: return component->as<Shape>();
+ShapePaintContainer* ShapePaintContainer::from(Component* component)
+{
+    switch (component->coreType())
+    {
+        case Artboard::typeKey:
+            return component->as<Artboard>();
+        case Shape::typeKey:
+            return component->as<Shape>();
     }
     return nullptr;
 }
 
 void ShapePaintContainer::addPaint(ShapePaint* paint) { m_ShapePaints.push_back(paint); }
 
-PathSpace ShapePaintContainer::pathSpace() const {
+PathSpace ShapePaintContainer::pathSpace() const
+{
     PathSpace space = m_DefaultPathSpace;
-    for (auto paint : m_ShapePaints) {
+    for (auto paint : m_ShapePaints)
+    {
         space |= paint->pathSpace();
     }
     return space;
 }
 
-void ShapePaintContainer::invalidateStrokeEffects() {
-    for (auto paint : m_ShapePaints) {
-        if (paint->is<Stroke>()) {
+void ShapePaintContainer::invalidateStrokeEffects()
+{
+    for (auto paint : m_ShapePaints)
+    {
+        if (paint->is<Stroke>())
+        {
             paint->as<Stroke>()->invalidateEffects();
         }
     }
 }
 
-std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace space) {
+std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace space)
+{
     // Force a render path if we specifically request to use it for clipping or
     // this shape is used for clipping.
     bool needForRender =
@@ -44,24 +54,34 @@ std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace spac
 
     bool needForEffects = false;
 
-    for (auto paint : m_ShapePaints) {
-        if (space != PathSpace::Neither && (space & paint->pathSpace()) != space) {
+    for (auto paint : m_ShapePaints)
+    {
+        if (space != PathSpace::Neither && (space & paint->pathSpace()) != space)
+        {
             continue;
         }
 
-        if (paint->is<Stroke>() && paint->as<Stroke>()->hasStrokeEffect()) {
+        if (paint->is<Stroke>() && paint->as<Stroke>()->hasStrokeEffect())
+        {
             needForEffects = true;
-        } else {
+        }
+        else
+        {
             needForRender = true;
         }
     }
 
     auto factory = getArtboard()->factory();
-    if (needForEffects && needForRender) {
+    if (needForEffects && needForRender)
+    {
         return std::unique_ptr<CommandPath>(new RenderMetricsPath(factory->makeEmptyRenderPath()));
-    } else if (needForEffects) {
+    }
+    else if (needForEffects)
+    {
         return std::unique_ptr<CommandPath>(new OnlyMetricsPath());
-    } else {
+    }
+    else
+    {
         return std::unique_ptr<CommandPath>(factory->makeEmptyRenderPath());
     }
 }

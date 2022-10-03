@@ -3,12 +3,14 @@
 
 #include "rive/importers/import_stack.hpp"
 
-namespace rive {
+namespace rive
+{
 class StateMachineLayer;
 class LayerState;
 class Artboard;
 
-class StateMachineLayerImporter : public ImportStackObject {
+class StateMachineLayerImporter : public ImportStackObject
+{
 private:
     StateMachineLayer* m_Layer;
     const Artboard* m_Artboard;

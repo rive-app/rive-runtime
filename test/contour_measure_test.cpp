@@ -12,23 +12,27 @@
 
 using namespace rive;
 
-static bool nearly_eq(float a, float b, float tolerance) {
+static bool nearly_eq(float a, float b, float tolerance)
+{
     assert(tolerance >= 0);
     const float diff = std::abs(a - b);
     const float max = std::max(std::abs(a), std::abs(b));
     const float allowed = tolerance * max;
-    if (diff > allowed) {
+    if (diff > allowed)
+    {
         printf("%g %g delta %g allowed %g\n", a, b, diff, allowed);
         return false;
     }
     return true;
 }
 
-static bool nearly_eq(Vec2D a, Vec2D b, float tol) {
+static bool nearly_eq(Vec2D a, Vec2D b, float tol)
+{
     return nearly_eq(a.x, b.x, tol) && nearly_eq(a.y, b.y, tol);
 }
 
-TEST_CASE("contour-basics", "[contourmeasure]") {
+TEST_CASE("contour-basics", "[contourmeasure]")
+{
     const float tol = 0.000001f;
 
     RawPath path;
@@ -67,7 +71,8 @@ TEST_CASE("contour-basics", "[contourmeasure]") {
         {{w / 2, h}, {-1, 0}},
         {{0, h / 2}, {0, -1}},
     };
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i)
+    {
         auto rec = cm->getPosTan(midDistances[i]);
         REQUIRE(nearly_eq(rec.pos, midPoints[i].pos, tol));
         REQUIRE(nearly_eq(rec.tan, midPoints[i].tan, tol));
@@ -75,7 +80,8 @@ TEST_CASE("contour-basics", "[contourmeasure]") {
     REQUIRE(iter.next() == nullptr);
 }
 
-TEST_CASE("multi-contours", "[contourmeasure]") {
+TEST_CASE("multi-contours", "[contourmeasure]")
+{
     const Vec2D pts[] = {
         {0, 0},
         {3, 0},
@@ -120,7 +126,8 @@ TEST_CASE("multi-contours", "[contourmeasure]") {
     REQUIRE(!cm);
 }
 
-TEST_CASE("contour-oval", "[contourmeasure]") {
+TEST_CASE("contour-oval", "[contourmeasure]")
+{
     const float tol = 0.0075f;
 
     const float r = 10;

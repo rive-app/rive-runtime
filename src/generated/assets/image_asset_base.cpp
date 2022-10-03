@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* ImageAssetBase::clone() const {
+Core* ImageAssetBase::clone() const
+{
     auto cloned = new ImageAsset();
     cloned->copy(*this);
     return cloned;

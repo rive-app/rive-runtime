@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-Core* WeightBase::clone() const {
+Core* WeightBase::clone() const
+{
     auto cloned = new Weight();
     cloned->copy(*this);
     return cloned;

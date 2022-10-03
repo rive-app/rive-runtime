@@ -12,7 +12,8 @@
 #include <iostream>
 #include <sstream>
 
-std::string getFileName(char* path) {
+std::string getFileName(char* path)
+{
     std::string str(path);
 
     const size_t from = str.find_last_of("\\/");
@@ -22,21 +23,27 @@ std::string getFileName(char* path) {
 
 const int DEFAULT_SIZE = 256;
 
-int getArg(char* arg) {
+int getArg(char* arg)
+{
     std::istringstream ss(arg);
     int x;
-    if (!(ss >> x)) {
+    if (!(ss >> x))
+    {
         std::cerr << "Invalid number: " << arg << '\n';
-    } else if (!ss.eof()) {
+    }
+    else if (!ss.eof())
+    {
         std::cerr << "Trailing chars after number: " << arg << '\n';
     }
     return x == 0 ? DEFAULT_SIZE : x;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     rive::SkiaFactory factory;
 
-    if (argc < 2) {
+    if (argc < 2)
+    {
         fprintf(stderr, "must pass source file");
         return 1;
     }
@@ -45,21 +52,26 @@ int main(int argc, char* argv[]) {
     const char* outPath;
     std::string filename;
     std::string fullName;
-    if (argc > 2) {
+    if (argc > 2)
+    {
         outPath = argv[2];
-    } else {
+    }
+    else
+    {
         filename = getFileName(argv[1]);
         fullName = filename + ".png";
         outPath = fullName.c_str();
     }
 
     int width = DEFAULT_SIZE, height = DEFAULT_SIZE;
-    if (argc == 5) {
+    if (argc == 5)
+    {
         width = getArg(argv[3]);
         height = getArg(argv[4]);
     }
 
-    if (fp == nullptr) {
+    if (fp == nullptr)
+    {
         fprintf(stderr, "Failed to open rive file.\n");
         return 1;
     }
@@ -67,7 +79,8 @@ int main(int argc, char* argv[]) {
     auto length = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     std::vector<uint8_t> bytes(length);
-    if (fread(bytes.data(), 1, length, fp) != length) {
+    if (fread(bytes.data(), 1, length, fp) != length)
+    {
         fprintf(stderr, "Failed to read rive file.\n");
         fclose(fp);
         return 1;
@@ -75,7 +88,8 @@ int main(int argc, char* argv[]) {
     fclose(fp);
 
     auto file = rive::File::import(bytes, &factory);
-    if (!file) {
+    if (!file)
+    {
         fprintf(stderr, "Failed to read rive file.\n");
         return 1;
     }
@@ -95,11 +109,13 @@ int main(int argc, char* argv[]) {
     renderer.restore();
 
     sk_sp<SkImage> img(rasterSurface->makeImageSnapshot());
-    if (!img) {
+    if (!img)
+    {
         return 1;
     }
     sk_sp<SkData> png(img->encodeToData());
-    if (!png) {
+    if (!png)
+    {
         return 1;
     }
     SkFILEWStream out(outPath);

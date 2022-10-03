@@ -7,9 +7,11 @@
 
 #include "rive/renderer.hpp"
 
-namespace rive {
+namespace rive
+{
 
-class NoOpRenderer : public Renderer {
+class NoOpRenderer : public Renderer
+{
 public:
     void save() override {}
     void restore() override {}
@@ -22,7 +24,8 @@ public:
                        rcp<RenderBuffer>,
                        rcp<RenderBuffer>,
                        BlendMode,
-                       float) override {}
+                       float) override
+    {}
 };
 
 } // namespace rive

@@ -5,11 +5,13 @@
 
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 class ContainerComponent;
 class Artboard;
 
-class Component : public ComponentBase {
+class Component : public ComponentBase
+{
     friend class Artboard;
 
 private:
@@ -40,7 +42,8 @@ public:
     unsigned int graphOrder() const { return m_GraphOrder; }
     bool addDirt(ComponentDirt value, bool recurse = false);
     inline bool hasDirt(ComponentDirt flag) const { return (m_Dirt & flag) == flag; }
-    static inline bool hasDirt(ComponentDirt value, ComponentDirt flag) {
+    static inline bool hasDirt(ComponentDirt value, ComponentDirt flag)
+    {
         return (value & flag) != ComponentDirt::None;
     }
 

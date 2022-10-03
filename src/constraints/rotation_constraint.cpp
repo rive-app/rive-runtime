@@ -5,19 +5,25 @@
 
 using namespace rive;
 
-void RotationConstraint::constrain(TransformComponent* component) {
+void RotationConstraint::constrain(TransformComponent* component)
+{
     const Mat2D& transformA = component->worldTransform();
     Mat2D transformB;
     m_ComponentsA = transformA.decompose();
-    if (m_Target == nullptr) {
+    if (m_Target == nullptr)
+    {
         transformB = transformA;
         m_ComponentsB = m_ComponentsA;
-    } else {
+    }
+    else
+    {
         transformB = m_Target->worldTransform();
-        if (sourceSpace() == TransformSpace::local) {
+        if (sourceSpace() == TransformSpace::local)
+        {
             Mat2D inverse;
 
-            if (!getParentWorld(*m_Target).invert(&inverse)) {
+            if (!getParentWorld(*m_Target).invert(&inverse))
+            {
                 return;
             }
             transformB = inverse * transformB;
@@ -25,17 +31,22 @@ void RotationConstraint::constrain(TransformComponent* component) {
 
         m_ComponentsB = transformB.decompose();
 
-        if (!doesCopy()) {
+        if (!doesCopy())
+        {
             m_ComponentsB.rotation(destSpace() == TransformSpace::local ? 0.0f
                                                                         : m_ComponentsA.rotation());
-        } else {
+        }
+        else
+        {
             m_ComponentsB.rotation(m_ComponentsB.rotation() * copyFactor());
-            if (offset()) {
+            if (offset())
+            {
                 m_ComponentsB.rotation(m_ComponentsB.rotation() + component->rotation());
             }
         }
 
-        if (destSpace() == TransformSpace::local) {
+        if (destSpace() == TransformSpace::local)
+        {
             // Destination space is in parent transform coordinates. Recompose
             // the parent local transform and get it in world, then decompose
             // the world for interpolation.
@@ -46,23 +57,28 @@ void RotationConstraint::constrain(TransformComponent* component) {
         }
     }
     bool clampLocal = minMaxSpace() == TransformSpace::local;
-    if (clampLocal) {
+    if (clampLocal)
+    {
         // Apply min max in local space, so transform to local coordinates
         // first.
         transformB = Mat2D::compose(m_ComponentsB);
         Mat2D inverse;
-        if (!getParentWorld(*component).invert(&inverse)) {
+        if (!getParentWorld(*component).invert(&inverse))
+        {
             return;
         }
         m_ComponentsB = (inverse * transformB).decompose();
     }
-    if (max() && m_ComponentsB.rotation() > maxValue()) {
+    if (max() && m_ComponentsB.rotation() > maxValue())
+    {
         m_ComponentsB.rotation(maxValue());
     }
-    if (min() && m_ComponentsB.rotation() < minValue()) {
+    if (min() && m_ComponentsB.rotation() < minValue())
+    {
         m_ComponentsB.rotation(minValue());
     }
-    if (clampLocal) {
+    if (clampLocal)
+    {
         // Transform back to world.
         transformB = Mat2D::compose(m_ComponentsB);
         transformB = getParentWorld(*component) * transformB;
@@ -73,9 +89,12 @@ void RotationConstraint::constrain(TransformComponent* component) {
     float angleB = std::fmod(m_ComponentsB.rotation(), math::PI * 2);
     float diff = angleB - angleA;
 
-    if (diff > math::PI) {
+    if (diff > math::PI)
+    {
         diff -= math::PI * 2;
-    } else if (diff < -math::PI) {
+    }
+    else if (diff < -math::PI)
+    {
         diff += math::PI * 2;
     }
 

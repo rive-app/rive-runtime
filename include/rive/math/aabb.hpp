@@ -7,8 +7,10 @@
 #include <cstddef>
 #include <limits>
 
-namespace rive {
-struct IAABB {
+namespace rive
+{
+struct IAABB
+{
     int32_t left, top, right, bottom;
 
     constexpr int width() const { return right - left; }
@@ -19,7 +21,8 @@ struct IAABB {
     IAABB offset(int dx, int dy) const { return {left + dx, top + dy, right + dx, bottom + dy}; }
 };
 
-class AABB {
+class AABB
+{
 public:
     float minX, minY, maxX, maxY;
 
@@ -27,13 +30,15 @@ public:
     AABB(const AABB& o) : minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY) {}
 
     AABB(float minX, float minY, float maxX, float maxY) :
-        minX(minX), minY(minY), maxX(maxX), maxY(maxY) {}
+        minX(minX), minY(minY), maxX(maxX), maxY(maxY)
+    {}
 
     AABB(const IAABB& o) : AABB((float)o.left, (float)o.top, (float)o.right, (float)o.bottom) {}
 
     AABB(Span<Vec2D>); // computes the union of all points, or 0,0,0,0
 
-    bool operator==(const AABB& o) const {
+    bool operator==(const AABB& o) const
+    {
         return minX == o.minX && minY == o.minY && maxX == o.maxX && maxY == o.maxY;
     }
     bool operator!=(const AABB& o) const { return !(*this == o); }
@@ -48,7 +53,8 @@ public:
     Vec2D size() const { return {width(), height()}; }
     Vec2D center() const { return {(minX + maxX) * 0.5f, (minY + maxY) * 0.5f}; }
 
-    AABB inset(float dx, float dy) const {
+    AABB inset(float dx, float dy) const
+    {
         AABB r = {minX + dx, minY + dy, maxX - dx, maxY - dy};
         assert(r.width() >= 0);
         assert(r.height() >= 0);
@@ -62,7 +68,8 @@ public:
     /// Initialize an AABB to values that represent an invalid/collapsed
     /// AABB that can then expand to points that are added to it.
     ///
-    inline static AABB forExpansion() {
+    inline static AABB forExpansion()
+    {
         return AABB(std::numeric_limits<float>::max(),
                     std::numeric_limits<float>::max(),
                     -std::numeric_limits<float>::max(),

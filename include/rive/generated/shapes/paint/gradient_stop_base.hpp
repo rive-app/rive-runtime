@@ -3,8 +3,10 @@
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
-namespace rive {
-class GradientStopBase : public Component {
+namespace rive
+{
+class GradientStopBase : public Component
+{
 protected:
     typedef Component Super;
 
@@ -13,11 +15,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case GradientStopBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -32,8 +38,10 @@ private:
 
 public:
     inline int colorValue() const { return m_ColorValue; }
-    void colorValue(int value) {
-        if (m_ColorValue == value) {
+    void colorValue(int value)
+    {
+        if (m_ColorValue == value)
+        {
             return;
         }
         m_ColorValue = value;
@@ -41,8 +49,10 @@ public:
     }
 
     inline float position() const { return m_Position; }
-    void position(float value) {
-        if (m_Position == value) {
+    void position(float value)
+    {
+        if (m_Position == value)
+        {
             return;
         }
         m_Position = value;
@@ -50,18 +60,23 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const GradientStopBase& object) {
+    void copy(const GradientStopBase& object)
+    {
         m_ColorValue = object.m_ColorValue;
         m_Position = object.m_Position;
         Component::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
             case colorValuePropertyKey:
                 m_ColorValue = CoreColorType::deserialize(reader);
                 return true;
-            case positionPropertyKey: m_Position = CoreDoubleType::deserialize(reader); return true;
+            case positionPropertyKey:
+                m_Position = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return Component::deserialize(propertyKey, reader);
     }

@@ -11,7 +11,8 @@
 struct hb_font_t;
 struct hb_draw_funcs_t;
 
-class HBRenderFont : public rive::RenderFont {
+class HBRenderFont : public rive::RenderFont
+{
     hb_draw_funcs_t* m_DrawFuncs;
 
 public:

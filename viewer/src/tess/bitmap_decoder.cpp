@@ -6,20 +6,28 @@ Bitmap::Bitmap(uint32_t width,
                uint32_t height,
                PixelFormat pixelFormat,
                std::unique_ptr<const uint8_t[]> bytes) :
-    m_Width(width), m_Height(height), m_PixelFormat(pixelFormat), m_Bytes(std::move(bytes)) {}
+    m_Width(width), m_Height(height), m_PixelFormat(pixelFormat), m_Bytes(std::move(bytes))
+{}
 
 Bitmap::Bitmap(uint32_t width, uint32_t height, PixelFormat pixelFormat, const uint8_t* bytes) :
-    Bitmap(width, height, pixelFormat, std::unique_ptr<const uint8_t[]>(bytes)) {}
+    Bitmap(width, height, pixelFormat, std::unique_ptr<const uint8_t[]>(bytes))
+{}
 
-size_t Bitmap::bytesPerPixel(PixelFormat format) const {
-    switch (format) {
-        case PixelFormat::R: return 1;
-        case PixelFormat::RGB: return 3;
-        case PixelFormat::RGBA: return 4;
+size_t Bitmap::bytesPerPixel(PixelFormat format) const
+{
+    switch (format)
+    {
+        case PixelFormat::R:
+            return 1;
+        case PixelFormat::RGB:
+            return 3;
+        case PixelFormat::RGBA:
+            return 4;
     }
 }
 
-size_t Bitmap::byteSize(PixelFormat format) const {
+size_t Bitmap::byteSize(PixelFormat format) const
+{
     return m_Width * m_Height * bytesPerPixel(format);
 }
 
@@ -30,13 +38,15 @@ std::unique_ptr<Bitmap> DecodeJpeg(rive::Span<const uint8_t> bytes) { return nul
 std::unique_ptr<Bitmap> DecodeWebP(rive::Span<const uint8_t> bytes) { return nullptr; }
 
 using BitmapDecoder = std::unique_ptr<Bitmap> (*)(rive::Span<const uint8_t> bytes);
-struct ImageFormat {
+struct ImageFormat
+{
     const char* name;
     std::vector<const uint8_t> fingerprint;
     BitmapDecoder decodeImage;
 };
 
-std::unique_ptr<Bitmap> Bitmap::decode(rive::Span<const uint8_t> bytes) {
+std::unique_ptr<Bitmap> Bitmap::decode(rive::Span<const uint8_t> bytes)
+{
     static ImageFormat decoders[] = {
         {
             "png",
@@ -55,23 +65,27 @@ std::unique_ptr<Bitmap> Bitmap::decode(rive::Span<const uint8_t> bytes) {
         },
     };
 
-    for (auto recognizer : decoders) {
+    for (auto recognizer : decoders)
+    {
         auto& fingerprint = recognizer.fingerprint;
 
         // Immediately discard decoders with fingerprints that are longer than
         // the file buffer.
-        if (recognizer.fingerprint.size() > bytes.size()) {
+        if (recognizer.fingerprint.size() > bytes.size())
+        {
             continue;
         }
 
         // If the fingerprint doesn't match, discrd this decoder. These are all bytes so .size() is
         // fine here.
-        if (std::memcmp(fingerprint.data(), bytes.data(), fingerprint.size()) != 0) {
+        if (std::memcmp(fingerprint.data(), bytes.data(), fingerprint.size()) != 0)
+        {
             continue;
         }
 
         auto bitmap = recognizer.decodeImage(bytes);
-        if (!bitmap) {
+        if (!bitmap)
+        {
             fprintf(stderr, "Bitmap::decode - failed to decode a %s.\n", recognizer.name);
         }
         return bitmap;
@@ -79,8 +93,10 @@ std::unique_ptr<Bitmap> Bitmap::decode(rive::Span<const uint8_t> bytes) {
     return nullptr;
 }
 
-void Bitmap::pixelFormat(PixelFormat format) {
-    if (format == m_PixelFormat) {
+void Bitmap::pixelFormat(PixelFormat format)
+{
+    if (format == m_PixelFormat)
+    {
         return;
     }
     auto nextByteSize = byteSize(format);
@@ -90,8 +106,10 @@ void Bitmap::pixelFormat(PixelFormat format) {
     auto toBytesPerPixel = bytesPerPixel(format);
     int writeIndex = 0;
     int readIndex = 0;
-    for (int i = 0; i < m_Width * m_Height; i++) {
-        for (int j = 0; j < toBytesPerPixel; j++) {
+    for (int i = 0; i < m_Width * m_Height; i++)
+    {
+        for (int j = 0; j < toBytesPerPixel; j++)
+        {
             nextBytes[writeIndex++] = j < fromBytesPerPixel ? m_Bytes[readIndex++] : 255;
         }
     }

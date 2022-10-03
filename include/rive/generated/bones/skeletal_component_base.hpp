@@ -1,8 +1,10 @@
 #ifndef _RIVE_SKELETAL_COMPONENT_BASE_HPP_
 #define _RIVE_SKELETAL_COMPONENT_BASE_HPP_
 #include "rive/transform_component.hpp"
-namespace rive {
-class SkeletalComponentBase : public TransformComponent {
+namespace rive
+{
+class SkeletalComponentBase : public TransformComponent
+{
 protected:
     typedef TransformComponent Super;
 
@@ -11,14 +13,18 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case SkeletalComponentBase::typeKey:
             case TransformComponentBase::typeKey:
             case WorldTransformComponentBase::typeKey:
             case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey: return true;
-            default: return false;
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 

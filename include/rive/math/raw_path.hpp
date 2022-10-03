@@ -16,11 +16,13 @@
 #include <cstdint>
 #include <vector>
 
-namespace rive {
+namespace rive
+{
 
 class CommandPath;
 
-class RawPath {
+class RawPath
+{
 public:
     bool operator==(const RawPath& o) const;
     bool operator!=(const RawPath& o) const { return !(*this == o); }
@@ -53,7 +55,8 @@ public:
     Span<const PathVerb> verbs() const { return m_Verbs; }
     Span<PathVerb> verbs() { return m_Verbs; }
 
-    Span<const uint8_t> verbsU8() const {
+    Span<const uint8_t> verbsU8() const
+    {
         const uint8_t* ptr = (const uint8_t*)m_Verbs.data();
         return Span<const uint8_t>(ptr, m_Verbs.size());
     }
@@ -63,7 +66,8 @@ public:
     void moveTo(float x, float y) { move({x, y}); }
     void lineTo(float x, float y) { line({x, y}); }
     void quadTo(float x, float y, float x1, float y1) { quad({x, y}, {x1, y1}); }
-    void cubicTo(float x, float y, float x1, float y1, float x2, float y2) {
+    void cubicTo(float x, float y, float x1, float y1, float x2, float y2)
+    {
         cubic({x, y}, {x1, y1}, {x2, y2});
     }
 
@@ -79,7 +83,8 @@ public:
     //
     //   for (auto [verb, pts] : rawPath) { ... }
     //
-    class Iter {
+    class Iter
+    {
     public:
         Iter() = default;
         Iter(const PathVerb* verbs, const Vec2D* pts) : m_verbs(verbs), m_pts(pts) {}
@@ -89,25 +94,34 @@ public:
 
         PathVerb peekVerb() const { return *m_verbs; }
 
-        std::tuple<const PathVerb, const Vec2D* const> operator*() const {
+        std::tuple<const PathVerb, const Vec2D* const> operator*() const
+        {
             PathVerb verb = peekVerb();
             return {verb, m_pts + PtsBacksetForVerb(verb)};
         }
 
-        Iter& operator++() { // ++iter
+        Iter& operator++()
+        { // ++iter
             m_pts += PtsAdvanceAfterVerb(*m_verbs++);
             return *this;
         }
 
     private:
         // How much should we advance pts after encountering this verb?
-        constexpr static int PtsAdvanceAfterVerb(PathVerb verb) {
-            switch (verb) {
-                case PathVerb::move: return 1;
-                case PathVerb::line: return 1;
-                case PathVerb::quad: return 2;
-                case PathVerb::cubic: return 3;
-                case PathVerb::close: return 0;
+        constexpr static int PtsAdvanceAfterVerb(PathVerb verb)
+        {
+            switch (verb)
+            {
+                case PathVerb::move:
+                    return 1;
+                case PathVerb::line:
+                    return 1;
+                case PathVerb::quad:
+                    return 2;
+                case PathVerb::cubic:
+                    return 3;
+                case PathVerb::close:
+                    return 0;
             }
             RIVE_UNREACHABLE;
         }
@@ -116,13 +130,20 @@ public:
         // peeking backwards from the current point, which works as long as there is always a
         // PathVerb::move before any geometry. (injectImplicitMoveToIfNeeded() guarantees this
         // to be the case.)
-        constexpr static int PtsBacksetForVerb(PathVerb verb) {
-            switch (verb) {
-                case PathVerb::move: return 0;
-                case PathVerb::line: return -1;
-                case PathVerb::quad: return -1;
-                case PathVerb::cubic: return -1;
-                case PathVerb::close: return -1;
+        constexpr static int PtsBacksetForVerb(PathVerb verb)
+        {
+            switch (verb)
+            {
+                case PathVerb::move:
+                    return 0;
+                case PathVerb::line:
+                    return -1;
+                case PathVerb::quad:
+                    return -1;
+                case PathVerb::cubic:
+                    return -1;
+                case PathVerb::close:
+                    return -1;
             }
             RIVE_UNREACHABLE;
         }
@@ -133,16 +154,29 @@ public:
     Iter begin() const { return {m_Verbs.data(), m_Points.data()}; }
     Iter end() const { return {m_Verbs.data() + m_Verbs.size(), nullptr}; }
 
-    template <typename Handler> RawPath morph(Handler proc) const {
+    template <typename Handler> RawPath morph(Handler proc) const
+    {
         RawPath dst;
         // todo: dst.reserve(src.ptCount, src.verbCount);
-        for (auto [verb, pts] : *this) {
-            switch (verb) {
-                case PathVerb::move: dst.move(proc(pts[0])); break;
-                case PathVerb::line: dst.line(proc(pts[1])); break;
-                case PathVerb::quad: dst.quad(proc(pts[1]), proc(pts[2])); break;
-                case PathVerb::cubic: dst.cubic(proc(pts[1]), proc(pts[2]), proc(pts[3])); break;
-                case PathVerb::close: dst.close(); break;
+        for (auto [verb, pts] : *this)
+        {
+            switch (verb)
+            {
+                case PathVerb::move:
+                    dst.move(proc(pts[0]));
+                    break;
+                case PathVerb::line:
+                    dst.line(proc(pts[1]));
+                    break;
+                case PathVerb::quad:
+                    dst.quad(proc(pts[1]), proc(pts[2]));
+                    break;
+                case PathVerb::cubic:
+                    dst.cubic(proc(pts[1]), proc(pts[2]), proc(pts[3]));
+                    break;
+                case PathVerb::close:
+                    dst.close();
+                    break;
             }
         }
         return dst;

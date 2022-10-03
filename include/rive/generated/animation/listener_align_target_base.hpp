@@ -2,8 +2,10 @@
 #define _RIVE_LISTENER_ALIGN_TARGET_BASE_HPP_
 #include "rive/animation/listener_action.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class ListenerAlignTargetBase : public ListenerAction {
+namespace rive
+{
+class ListenerAlignTargetBase : public ListenerAction
+{
 protected:
     typedef ListenerAction Super;
 
@@ -12,11 +14,15 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
             case ListenerAlignTargetBase::typeKey:
-            case ListenerActionBase::typeKey: return true;
-            default: return false;
+            case ListenerActionBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -29,8 +35,10 @@ private:
 
 public:
     inline uint32_t targetId() const { return m_TargetId; }
-    void targetId(uint32_t value) {
-        if (m_TargetId == value) {
+    void targetId(uint32_t value)
+    {
+        if (m_TargetId == value)
+        {
             return;
         }
         m_TargetId = value;
@@ -38,14 +46,19 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const ListenerAlignTargetBase& object) {
+    void copy(const ListenerAlignTargetBase& object)
+    {
         m_TargetId = object.m_TargetId;
         ListenerAction::copy(object);
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case targetIdPropertyKey: m_TargetId = CoreUintType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case targetIdPropertyKey:
+                m_TargetId = CoreUintType::deserialize(reader);
+                return true;
         }
         return ListenerAction::deserialize(propertyKey, reader);
     }

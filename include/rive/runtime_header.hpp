@@ -4,13 +4,15 @@
 #include "rive/core/binary_reader.hpp"
 #include <unordered_map>
 
-namespace rive {
+namespace rive
+{
 /// Rive file runtime header. The header is fonud at the beginning of every
 /// Rive runtime file, and begins with a specific 4-byte format: "RIVE".
 /// This is followed by the major and minor version of Rive used to create
 /// the file. Finally the owner and file ids are at the end of header; these
 /// unsigned integers may be zero.
-class RuntimeHeader {
+class RuntimeHeader
+{
 private:
     static constexpr char fingerprint[] = "RIVE";
 
@@ -27,9 +29,11 @@ public:
     /// @returns the file's id; may be zero
     int fileId() const { return m_FileId; }
 
-    int propertyFieldId(int propertyKey) const {
+    int propertyFieldId(int propertyKey) const
+    {
         auto itr = m_PropertyToFieldIndex.find(propertyKey);
-        if (itr == m_PropertyToFieldIndex.end()) {
+        if (itr == m_PropertyToFieldIndex.end())
+        {
             return -1;
         }
 
@@ -40,26 +44,32 @@ public:
     /// @param reader the binary reader attached to the buffer
     /// @param header a pointer to the header where the data will be stored.
     /// @returns true if the header is successfully read
-    static bool read(BinaryReader& reader, RuntimeHeader& header) {
-        for (int i = 0; i < 4; i++) {
+    static bool read(BinaryReader& reader, RuntimeHeader& header)
+    {
+        for (int i = 0; i < 4; i++)
+        {
             auto b = reader.readByte();
-            if (fingerprint[i] != b) {
+            if (fingerprint[i] != b)
+            {
                 return false;
             }
         }
 
         header.m_MajorVersion = reader.readVarUintAs<int>();
-        if (reader.didOverflow()) {
+        if (reader.didOverflow())
+        {
             return false;
         }
         header.m_MinorVersion = reader.readVarUintAs<int>();
-        if (reader.didOverflow()) {
+        if (reader.didOverflow())
+        {
             return false;
         }
 
         header.m_FileId = reader.readVarUintAs<int>();
 
-        if (reader.didOverflow()) {
+        if (reader.didOverflow())
+        {
             return false;
         }
 
@@ -68,22 +78,26 @@ public:
              propertyKey = reader.readVarUintAs<int>())
         {
             propertyKeys.push_back(propertyKey);
-            if (reader.didOverflow()) {
+            if (reader.didOverflow())
+            {
                 return false;
             }
         }
 
         int currentInt = 0;
         int currentBit = 8;
-        for (auto propertyKey : propertyKeys) {
-            if (currentBit == 8) {
+        for (auto propertyKey : propertyKeys)
+        {
+            if (currentBit == 8)
+            {
                 currentInt = reader.readUint32();
                 currentBit = 0;
             }
             int fieldIndex = (currentInt >> currentBit) & 3;
             header.m_PropertyToFieldIndex[propertyKey] = fieldIndex;
             currentBit += 2;
-            if (reader.didOverflow()) {
+            if (reader.didOverflow())
+            {
                 return false;
             }
         }

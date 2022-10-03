@@ -19,9 +19,12 @@ using RenderFontGlyphRuns = rive::SimpleArray<RenderGlyphRun>;
 using RenderFontFactory = rcp<RenderFont> (*)(const Span<const uint8_t>);
 
 template <typename Handler>
-void visit(const Span<RenderGlyphRun>& gruns, Vec2D origin, Handler proc) {
-    for (const auto& gr : gruns) {
-        for (size_t i = 0; i < gr.glyphs.size(); ++i) {
+void visit(const Span<RenderGlyphRun>& gruns, Vec2D origin, Handler proc)
+{
+    for (const auto& gr : gruns)
+    {
+        for (size_t i = 0; i < gr.glyphs.size(); ++i)
+        {
             auto path = gr.font->getPath(gr.glyphs[i]);
             auto mx = Mat2D::fromTranslate(origin.x + gr.xpos[i], origin.y) *
                       Mat2D::fromScale(gr.size, gr.size);
@@ -33,17 +36,25 @@ void visit(const Span<RenderGlyphRun>& gruns, Vec2D origin, Handler proc) {
 
 static Vec2D ave(Vec2D a, Vec2D b) { return (a + b) * 0.5f; }
 
-static RawPath make_quad_path(Span<const Vec2D> pts) {
+static RawPath make_quad_path(Span<const Vec2D> pts)
+{
     const int N = pts.size();
     RawPath path;
-    if (N >= 2) {
+    if (N >= 2)
+    {
         path.move(pts[0]);
-        if (N == 2) {
+        if (N == 2)
+        {
             path.line(pts[1]);
-        } else if (N == 3) {
+        }
+        else if (N == 3)
+        {
             path.quad(pts[1], pts[2]);
-        } else {
-            for (int i = 1; i < N - 2; ++i) {
+        }
+        else
+        {
+            for (int i = 1; i < N - 2; ++i)
+            {
                 path.quad(pts[i], ave(pts[i], pts[i + 1]));
             }
             path.quad(pts[N - 2], pts[N - 1]);
@@ -52,19 +63,23 @@ static RawPath make_quad_path(Span<const Vec2D> pts) {
     return path;
 }
 
-static void warp_in_place(ContourMeasure* meas, RawPath* path) {
-    for (auto& pt : path->points()) {
+static void warp_in_place(ContourMeasure* meas, RawPath* path)
+{
+    for (auto& pt : path->points())
+    {
         pt = meas->warp(pt);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<RenderPath> make_rpath(RawPath& path) {
+static std::unique_ptr<RenderPath> make_rpath(RawPath& path)
+{
     return ViewerContent::RiveFactory()->makeRenderPath(path, FillRule::nonZero);
 }
 
-static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt color) {
+static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt color)
+{
     auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
     paint->color(color);
     paint->thickness(size);
@@ -72,28 +87,33 @@ static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt 
     renderer->drawPath(make_rpath(path).get(), paint.get());
 }
 
-static void fill_rect(Renderer* renderer, const AABB& r, RenderPaint* paint) {
+static void fill_rect(Renderer* renderer, const AABB& r, RenderPaint* paint)
+{
     RawPath rp;
     rp.addRect(r);
     renderer->drawPath(make_rpath(rp).get(), paint);
 }
 
-static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint) {
+static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint)
+{
     fill_rect(renderer, {p.x - r, p.y - r, p.x + r, p.y + r}, paint);
 }
 
 static RenderTextRun
-append(std::vector<Unichar>* unichars, rcp<RenderFont> font, float size, const char text[]) {
+append(std::vector<Unichar>* unichars, rcp<RenderFont> font, float size, const char text[])
+{
     const uint8_t* ptr = (const uint8_t*)text;
     uint32_t n = 0;
-    while (*ptr) {
+    while (*ptr)
+    {
         unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
     return {std::move(font), size, n};
 }
 
-class TextPathContent : public ViewerContent {
+class TextPathContent : public ViewerContent
+{
     std::vector<Unichar> m_unichars;
     RenderFontGlyphRuns m_gruns;
     std::unique_ptr<RenderPaint> m_paint;
@@ -113,10 +133,12 @@ class TextPathContent : public ViewerContent {
           m_windowWidth = 1, // %
         m_windowOffset = 0;  // %
 
-    RenderFontTextRuns make_truns(RenderFontFactory fact) {
+    RenderFontTextRuns make_truns(RenderFontFactory fact)
+    {
         auto loader = [fact](const char filename[]) -> rcp<RenderFont> {
             auto bytes = ViewerContent::LoadFile(filename);
-            if (bytes.size() == 0) {
+            if (bytes.size() == 0)
+            {
                 assert(false);
                 return nullptr;
             }
@@ -147,10 +169,12 @@ class TextPathContent : public ViewerContent {
     }
 
 public:
-    TextPathContent() {
+    TextPathContent()
+    {
         auto compute_bounds = [](const rive::SimpleArray<RenderGlyphRun>& gruns) {
             AABB bounds = {};
-            for (const auto& gr : gruns) {
+            for (const auto& gr : gruns)
+            {
                 bounds.minY = std::min(bounds.minY, gr.font->lineMetrics().ascent * gr.size);
                 bounds.maxY = std::max(bounds.maxY, gr.font->lineMetrics().descent * gr.size);
             }
@@ -179,20 +203,24 @@ public:
         m_trans = Mat2D::fromTranslate(200, 200) * Mat2D::fromScale(2, 2);
     }
 
-    void draw_warp(Renderer* renderer, RawPath& warp) {
+    void draw_warp(Renderer* renderer, RawPath& warp)
+    {
         stroke_path(renderer, warp, 0.5, 0xFF00FF00);
 
         auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
         paint->color(0xFF008800);
         const float r = 4;
-        for (auto p : m_pathpts) {
+        for (auto p : m_pathpts)
+        {
             fill_point(renderer, p, r, paint.get());
         }
     }
 
-    static size_t count_glyphs(const RenderFontGlyphRuns& gruns) {
+    static size_t count_glyphs(const RenderFontGlyphRuns& gruns)
+    {
         size_t n = 0;
-        for (const auto& gr : gruns) {
+        for (const auto& gr : gruns)
+        {
             n += gr.glyphs.size();
         }
         return n;
@@ -200,7 +228,8 @@ public:
 
     void modify(float amount) { m_paint->color(0xFFFFFFFF); }
 
-    void draw(Renderer* renderer, const RenderFontGlyphRuns& gruns) {
+    void draw(Renderer* renderer, const RenderFontGlyphRuns& gruns)
+    {
         auto get_path = [this](const RenderGlyphRun& run, int index, float dx) {
             auto path = run.font->getPath(run.glyphs[index]);
             path.transformInPlace(Mat2D::fromTranslate(run.xpos[index] + dx, m_offsetY) *
@@ -224,15 +253,18 @@ public:
         size_t glyphIndex = 0;
         float windowEnd = m_windowOffset + m_windowWidth;
 
-        for (const auto& gr : gruns) {
-            for (size_t i = 0; i < gr.glyphs.size(); ++i) {
+        for (const auto& gr : gruns)
+        {
+            for (size_t i = 0; i < gr.glyphs.size(); ++i)
+            {
                 float percent = glyphIndex / (float)(glyphCount - 1);
                 float amount = (percent >= m_windowOffset && percent <= windowEnd);
 
                 float scaleY = m_scaleY;
                 m_paint->color(0xFF666666);
                 m_paint->style(RenderPaintStyle::fill);
-                if (amount > 0) {
+                if (amount > 0)
+                {
                     this->modify(amount);
                 }
 
@@ -246,11 +278,13 @@ public:
         renderer->restore();
     }
 
-    void drawOneLine(Renderer* renderer) {
+    void drawOneLine(Renderer* renderer)
+    {
         auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
         paint->color(0xFF88FFFF);
 
-        if (m_trackingOneLine) {
+        if (m_trackingOneLine)
+        {
             float mx = m_oneLineX / m_gbounds.width();
             const ColorInt colors[] = {0xFF88FFFF, 0xFF88FFFF, 0xFFFFFFFF, 0xFF88FFFF, 0xFF88FFFF};
             const float stops[] = {0, mx / 2, mx, (1 + mx) / 2, 1};
@@ -263,12 +297,15 @@ public:
                                                                            5));
         }
 
-        struct EaseWindow {
+        struct EaseWindow
+        {
             float center, radius;
 
-            float map(float x) const {
+            float map(float x) const
+            {
                 float dist = std::abs(center - x);
-                if (dist > radius) {
+                if (dist > radius)
+                {
                     return 0;
                 }
                 float t = (radius - dist) / radius;
@@ -289,7 +326,8 @@ public:
         visit(m_gruns, {0, 0}, [&](RawPath& rp) {
             RawPath* ptr = &rp;
             RawPath storage;
-            if (m_trackingOneLine) {
+            if (m_trackingOneLine)
+            {
                 storage = wrap_path(rp, m_oneLineX, m_flareRadius);
                 ptr = &storage;
             }
@@ -297,7 +335,8 @@ public:
         });
     }
 
-    void handleDraw(rive::Renderer* renderer, double) override {
+    void handleDraw(rive::Renderer* renderer, double) override
+    {
         renderer->save();
         this->draw(renderer, m_gruns);
         renderer->restore();
@@ -308,7 +347,8 @@ public:
         renderer->restore();
     }
 
-    void handlePointerMove(float x, float y) override {
+    void handlePointerMove(float x, float y) override
+    {
         auto contains = [](const AABB& r, Vec2D p) {
             return r.left() <= p.x && p.x < r.right() && r.top() <= p.y && p.y < r.bottom();
         };
@@ -317,7 +357,8 @@ public:
         {
             m_trackingOneLine = false;
             auto pos = m_oneLineXform.invertOrIdentity() * Vec2D{x, y};
-            if (contains(m_gbounds.inset(-8, 0), pos)) {
+            if (contains(m_gbounds.inset(-8, 0), pos))
+            {
                 m_trackingOneLine = true;
                 m_oneLineX = pos.x;
                 return;
@@ -326,14 +367,18 @@ public:
 
         // are we on the path?
         m_lastPt = m_trans.invertOrIdentity() * Vec2D{x, y};
-        if (m_trackingIndex >= 0) {
+        if (m_trackingIndex >= 0)
+        {
             m_pathpts[m_trackingIndex] = m_lastPt;
         }
     }
-    void handlePointerDown(float x, float y) override {
+    void handlePointerDown(float x, float y) override
+    {
         auto close_to = [](Vec2D a, Vec2D b) { return Vec2D::distance(a, b) <= 10; };
-        for (size_t i = 0; i < m_pathpts.size(); ++i) {
-            if (close_to(m_lastPt, m_pathpts[i])) {
+        for (size_t i = 0; i < m_pathpts.size(); ++i)
+        {
+            if (close_to(m_lastPt, m_pathpts[i]))
+            {
                 m_trackingIndex = i;
                 break;
             }
@@ -344,7 +389,8 @@ public:
 
     void handleResize(int width, int height) override {}
 
-    void handleImgui() override {
+    void handleImgui() override
+    {
         ImGui::Begin("path", nullptr);
         ImGui::SliderFloat("Alignment", &m_alignment, -3, 4);
         ImGui::SliderFloat("Scale Y", &m_scaleY, 0.25f, 3.0f);
@@ -356,6 +402,7 @@ public:
     }
 };
 
-std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) {
+std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[])
+{
     return std::make_unique<TextPathContent>();
 }

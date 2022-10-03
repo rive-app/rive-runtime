@@ -6,30 +6,38 @@
 
 using namespace rive;
 
-void PointsPath::buildDependencies() {
+void PointsPath::buildDependencies()
+{
     Super::buildDependencies();
-    if (skin() != nullptr) {
+    if (skin() != nullptr)
+    {
         skin()->addDependent(this);
     }
 }
 
-const Mat2D& PointsPath::pathTransform() const {
-    if (skin() != nullptr) {
+const Mat2D& PointsPath::pathTransform() const
+{
+    if (skin() != nullptr)
+    {
         static Mat2D identity;
         return identity;
     }
     return worldTransform();
 }
 
-void PointsPath::update(ComponentDirt value) {
-    if (hasDirt(value, ComponentDirt::Path) && skin() != nullptr) {
+void PointsPath::update(ComponentDirt value)
+{
+    if (hasDirt(value, ComponentDirt::Path) && skin() != nullptr)
+    {
         skin()->deform(Span<Vertex*>((Vertex**)m_Vertices.data(), m_Vertices.size()));
     }
     Super::update(value);
 }
 
-void PointsPath::markPathDirty() {
-    if (skin() != nullptr) {
+void PointsPath::markPathDirty()
+{
+    if (skin() != nullptr)
+    {
         skin()->addDirt(ComponentDirt::Skin);
     }
     Super::markPathDirty();

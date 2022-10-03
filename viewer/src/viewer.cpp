@@ -17,13 +17,17 @@
 
 std::unique_ptr<ViewerHost> g_Host = ViewerHost::Make();
 std::unique_ptr<ViewerContent> g_Content = ViewerContent::TrimPath("");
-static struct { sg_pass_action pass_action; } state;
+static struct
+{
+    sg_pass_action pass_action;
+} state;
 
 void displayStats();
 
 static const int backgroundColor = rive::colorARGB(255, 22, 22, 22);
 
-static void init(void) {
+static void init(void)
+{
     sg_desc descriptor = {
         .context = sapp_sgcontext(),
         .buffer_pool_size = 1024,
@@ -55,13 +59,15 @@ static void init(void) {
             },
     };
 
-    if (!g_Host->init(&state.pass_action, sapp_width(), sapp_height())) {
+    if (!g_Host->init(&state.pass_action, sapp_width(), sapp_height()))
+    {
         fprintf(stderr, "failed to initialize host\n");
         sapp_quit();
     }
 }
 
-static void frame(void) {
+static void frame(void)
+{
     auto dur = sapp_frame_duration();
 
     g_Host->beforeDefaultPass(g_Content.get(), dur);
@@ -80,7 +86,8 @@ static void frame(void) {
 
     displayStats();
 
-    if (g_Content) {
+    if (g_Content)
+    {
         g_Content->handleImgui();
     }
     simgui_render();
@@ -89,7 +96,8 @@ static void frame(void) {
     sg_commit();
 }
 
-static void cleanup(void) {
+static void cleanup(void)
+{
     g_Content = nullptr;
     g_Host = nullptr;
 
@@ -97,29 +105,37 @@ static void cleanup(void) {
     sg_shutdown();
 }
 
-static void event(const sapp_event* ev) {
+static void event(const sapp_event* ev)
+{
     simgui_handle_event(ev);
 
-    switch (ev->type) {
+    switch (ev->type)
+    {
         case SAPP_EVENTTYPE_RESIZED:
-            if (g_Content) {
+            if (g_Content)
+            {
                 g_Content->handleResize(ev->framebuffer_width, ev->framebuffer_height);
             }
             g_Host->handleResize(ev->framebuffer_width, ev->framebuffer_height);
             break;
-        case SAPP_EVENTTYPE_FILES_DROPPED: {
+        case SAPP_EVENTTYPE_FILES_DROPPED:
+        {
             // Do this to make sure the graphics is bound.
             bindGraphicsContext();
 
             // get the number of files and their paths like this:
             const int numDroppedFiles = sapp_get_num_dropped_files();
-            if (numDroppedFiles != 0) {
+            if (numDroppedFiles != 0)
+            {
                 const char* filename = sapp_get_dropped_file_path(numDroppedFiles - 1);
                 auto newContent = ViewerContent::findHandler(filename);
-                if (newContent) {
+                if (newContent)
+                {
                     g_Content = std::move(newContent);
                     g_Content->handleResize(ev->framebuffer_width, ev->framebuffer_height);
-                } else {
+                }
+                else
+                {
                     fprintf(stderr, "No handler found for %s\n", filename);
                 }
             }
@@ -127,39 +143,53 @@ static void event(const sapp_event* ev) {
         }
         case SAPP_EVENTTYPE_MOUSE_DOWN:
         case SAPP_EVENTTYPE_TOUCHES_BEGAN:
-            if (g_Content) {
+            if (g_Content)
+            {
                 g_Content->handlePointerDown(ev->mouse_x, ev->mouse_y);
             }
             break;
         case SAPP_EVENTTYPE_MOUSE_UP:
         case SAPP_EVENTTYPE_TOUCHES_ENDED:
-            if (g_Content) {
+            if (g_Content)
+            {
                 g_Content->handlePointerUp(ev->mouse_x, ev->mouse_y);
                 break;
             }
         case SAPP_EVENTTYPE_MOUSE_MOVE:
         case SAPP_EVENTTYPE_TOUCHES_MOVED:
-            if (g_Content) {
+            if (g_Content)
+            {
                 g_Content->handlePointerMove(ev->mouse_x, ev->mouse_y);
             }
             break;
         case SAPP_EVENTTYPE_KEY_UP:
-            switch (ev->key_code) {
-                case SAPP_KEYCODE_ESCAPE: sapp_quit(); break;
-                case SAPP_KEYCODE_T: g_Content = ViewerContent::Text(".svg"); break;
-                case SAPP_KEYCODE_P: g_Content = ViewerContent::TextPath(""); break;
-                default: break;
+            switch (ev->key_code)
+            {
+                case SAPP_KEYCODE_ESCAPE:
+                    sapp_quit();
+                    break;
+                case SAPP_KEYCODE_T:
+                    g_Content = ViewerContent::Text(".svg");
+                    break;
+                case SAPP_KEYCODE_P:
+                    g_Content = ViewerContent::TextPath("");
+                    break;
+                default:
+                    break;
             }
             break;
-        default: break;
+        default:
+            break;
     }
 }
 
-sapp_desc sokol_main(int argc, char* argv[]) {
+sapp_desc sokol_main(int argc, char* argv[])
+{
     (void)argc;
     (void)argv;
 
-    return (sapp_desc) {
+    return (sapp_desc)
+    {
         .init_cb = init, .frame_cb = frame, .cleanup_cb = cleanup, .event_cb = event,
         .enable_dragndrop = true, .high_dpi = true,
         .window_title = "Rive Viewer "

@@ -7,11 +7,13 @@
 
 #include "args.hxx"
 
-class FontArguments {
+class FontArguments
+{
 
 public:
     FontArguments(int argc, const char** argv) :
-        m_Parser("Convert a font file into the rive format.", "Experimental....") {
+        m_Parser("Convert a font file into the rive format.", "Experimental....")
+    {
         args::HelpFlag help(m_Parser, "help", "Display this help menu", {'h', "help"});
         args::Group required(m_Parser, "required arguments:", args::Group::Validators::All);
         args::Group optional(m_Parser, "optional arguments:", args::Group::Validators::DontCare);
@@ -27,22 +29,33 @@ public:
                                              {'c', "charset"});
 
         args::CompletionFlag completion(m_Parser, {"complete"});
-        try {
+        try
+        {
             m_Parser.ParseCLI(argc, argv);
-        } catch (const std::invalid_argument e) {
+        }
+        catch (const std::invalid_argument e)
+        {
             std::cout << e.what();
             throw;
-        } catch (const args::Completion& e) {
+        }
+        catch (const args::Completion& e)
+        {
             std::cout << e.what();
             throw;
-        } catch (const args::Help&) {
+        }
+        catch (const args::Help&)
+        {
             std::cout << m_Parser;
             throw;
-        } catch (const args::ParseError& e) {
+        }
+        catch (const args::ParseError& e)
+        {
             std::cerr << e.what() << std::endl;
             std::cerr << m_Parser;
             throw;
-        } catch (args::ValidationError e) {
+        }
+        catch (args::ValidationError e)
+        {
             std::cerr << e.what() << std::endl;
             std::cerr << m_Parser;
             throw;

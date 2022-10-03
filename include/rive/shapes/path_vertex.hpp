@@ -3,8 +3,10 @@
 #include "rive/bones/weight.hpp"
 #include "rive/generated/shapes/path_vertex_base.hpp"
 #include "rive/math/mat2d.hpp"
-namespace rive {
-class PathVertex : public PathVertexBase {
+namespace rive
+{
+class PathVertex : public PathVertexBase
+{
 
 public:
     StatusCode onAddedDirty(CoreContext* context) override;

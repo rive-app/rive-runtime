@@ -5,13 +5,16 @@
 
 using namespace rive;
 
-StatusCode DrawTarget::onAddedDirty(CoreContext* context) {
+StatusCode DrawTarget::onAddedDirty(CoreContext* context)
+{
     StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok) {
+    if (code != StatusCode::Ok)
+    {
         return code;
     }
     auto coreObject = context->resolve(drawableId());
-    if (coreObject == nullptr || !coreObject->is<Drawable>()) {
+    if (coreObject == nullptr || !coreObject->is<Drawable>())
+    {
         return StatusCode::MissingObject;
     }
     m_Drawable = reinterpret_cast<Drawable*>(coreObject);

@@ -4,8 +4,10 @@
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-namespace rive {
-class ComponentBase : public Core {
+namespace rive
+{
+class ComponentBase : public Core
+{
 protected:
     typedef Core Super;
 
@@ -14,10 +16,14 @@ public:
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
-    bool isTypeOf(uint16_t typeKey) const override {
-        switch (typeKey) {
-            case ComponentBase::typeKey: return true;
-            default: return false;
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -32,8 +38,10 @@ private:
 
 public:
     inline const std::string& name() const { return m_Name; }
-    void name(std::string value) {
-        if (m_Name == value) {
+    void name(std::string value)
+    {
+        if (m_Name == value)
+        {
             return;
         }
         m_Name = value;
@@ -41,23 +49,32 @@ public:
     }
 
     inline uint32_t parentId() const { return m_ParentId; }
-    void parentId(uint32_t value) {
-        if (m_ParentId == value) {
+    void parentId(uint32_t value)
+    {
+        if (m_ParentId == value)
+        {
             return;
         }
         m_ParentId = value;
         parentIdChanged();
     }
 
-    void copy(const ComponentBase& object) {
+    void copy(const ComponentBase& object)
+    {
         m_Name = object.m_Name;
         m_ParentId = object.m_ParentId;
     }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override {
-        switch (propertyKey) {
-            case namePropertyKey: m_Name = CoreStringType::deserialize(reader); return true;
-            case parentIdPropertyKey: m_ParentId = CoreUintType::deserialize(reader); return true;
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case namePropertyKey:
+                m_Name = CoreStringType::deserialize(reader);
+                return true;
+            case parentIdPropertyKey:
+                m_ParentId = CoreUintType::deserialize(reader);
+                return true;
         }
         return false;
     }

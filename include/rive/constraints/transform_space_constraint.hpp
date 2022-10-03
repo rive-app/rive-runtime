@@ -3,8 +3,10 @@
 #include "rive/generated/constraints/transform_space_constraint_base.hpp"
 #include "rive/transform_space.hpp"
 #include <stdio.h>
-namespace rive {
-class TransformSpaceConstraint : public TransformSpaceConstraintBase {
+namespace rive
+{
+class TransformSpaceConstraint : public TransformSpaceConstraintBase
+{
 public:
     TransformSpace sourceSpace() const { return (TransformSpace)sourceSpaceValue(); }
     TransformSpace destSpace() const { return (TransformSpace)destSpaceValue(); }
