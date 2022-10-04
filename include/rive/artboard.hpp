@@ -98,9 +98,10 @@ public:
     };
     void draw(Renderer* renderer, DrawOption = DrawOption::kNormal);
 
-    // TODO: can we remove these getters? Who is calling them?
+#ifdef TESTING
     RenderPath* clipPath() const { return m_ClipPath.get(); }
     RenderPath* backgroundPath() const { return m_BackgroundPath.get(); }
+#endif
 
     const std::vector<Core*>& objects() const { return m_Objects; }
     const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }
