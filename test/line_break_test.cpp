@@ -4,17 +4,16 @@
 
 #include <rive/simple_array.hpp>
 #include <catch.hpp>
-#include <rive/render_text.hpp>
-#include <rive/text/renderfont_hb.hpp>
-#include <rive/text/line_breaker.hpp>
+#include <rive/text.hpp>
+#include <rive/text/font_hb.hpp>
 #include "utils/rive_utf.hpp"
 
 using namespace rive;
 
-static rive::RenderTextRun append(std::vector<rive::Unichar>* unichars,
-                                  rive::rcp<rive::RenderFont> font,
-                                  float size,
-                                  const char text[])
+static rive::TextRun append(std::vector<rive::Unichar>* unichars,
+                            rive::rcp<rive::Font> font,
+                            float size,
+                            const char text[])
 {
     const uint8_t* ptr = (const uint8_t*)text;
     uint32_t n = 0;
@@ -23,10 +22,10 @@ static rive::RenderTextRun append(std::vector<rive::Unichar>* unichars,
         unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
-    return {std::move(font), size, n};
+    return {std::move(font), size, n, 0};
 }
 
-static rcp<RenderFont> loadFont(const char* filename)
+static rcp<Font> loadFont(const char* filename)
 {
     FILE* fp = fopen("../../test/assets/RobotoFlex.ttf", "rb");
     REQUIRE(fp != nullptr);
@@ -38,7 +37,7 @@ static rcp<RenderFont> loadFont(const char* filename)
     REQUIRE(fread(bytes.data(), 1, length, fp) == length);
     fclose(fp);
 
-    return HBRenderFont::Decode(bytes);
+    return HBFont::Decode(bytes);
 }
 
 TEST_CASE("line breaker separates words", "[line break]")
@@ -47,13 +46,15 @@ TEST_CASE("line breaker separates words", "[line break]")
     REQUIRE(font != nullptr);
 
     // one two⏎ three
-    std::vector<rive::RenderTextRun> truns;
+    std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
     truns.push_back(append(&unichars, font, 32.0f, "one two three"));
 
-    auto shape = font->shapeText(unichars, truns);
-    REQUIRE(shape.size() == 1);
-    auto run = shape.front();
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 1);
+    const auto& paragraph = paragraphs.front();
+    REQUIRE(paragraph.runs.size() == 1);
+    const auto& run = paragraph.runs.front();
     REQUIRE(run.breaks.size() == 6);
     REQUIRE(run.breaks[0] == 0);
     REQUIRE(run.breaks[1] == 3);
@@ -68,15 +69,18 @@ TEST_CASE("line breaker handles multiple runs", "[line break]")
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
-    std::vector<rive::RenderTextRun> truns;
+    std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
     truns.push_back(append(&unichars, font, 32.0f, "one two thr"));
     truns.push_back(append(&unichars, font, 60.0f, "ee four"));
 
-    auto shape = font->shapeText(unichars, truns);
-    REQUIRE(shape.size() == 2);
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 1);
+    const auto& paragraph = paragraphs.front();
+
+    REQUIRE(paragraph.runs.size() == 2);
     {
-        auto run = shape.front();
+        const auto& run = paragraph.runs.front();
         REQUIRE(run.breaks.size() == 5);
         REQUIRE(run.breaks[0] == 0);
         REQUIRE(run.breaks[1] == 3);
@@ -85,7 +89,7 @@ TEST_CASE("line breaker handles multiple runs", "[line break]")
         REQUIRE(run.breaks[4] == 8);
     }
     {
-        auto run = shape.back();
+        const auto& run = paragraph.runs.back();
         REQUIRE(run.breaks.size() == 3);
         REQUIRE(run.breaks[0] == 2);
         REQUIRE(run.breaks[1] == 3);
@@ -98,15 +102,16 @@ TEST_CASE("line breaker handles returns", "[line break]")
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
-    std::vector<rive::RenderTextRun> truns;
+    std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
     truns.push_back(append(&unichars, font, 32.0f, "one two thr"));
-    truns.push_back(append(&unichars, font, 60.0f, "ee\n four"));
+    truns.push_back(append(&unichars, font, 60.0f, "ee\u2028 four"));
 
-    auto shape = font->shapeText(unichars, truns);
-    REQUIRE(shape.size() == 2);
+    auto paragraphs = font->shapeText(unichars, truns);
+    const auto& paragraph = paragraphs.front();
+    REQUIRE(paragraph.runs.size() == 2);
     {
-        auto run = shape.front();
+        const auto& run = paragraph.runs.front();
         REQUIRE(run.breaks.size() == 5);
         REQUIRE(run.breaks[0] == 0);
         REQUIRE(run.breaks[1] == 3);
@@ -115,7 +120,7 @@ TEST_CASE("line breaker handles returns", "[line break]")
         REQUIRE(run.breaks[4] == 8);
     }
     {
-        auto run = shape.back();
+        const auto& run = paragraph.runs.back();
         REQUIRE(run.breaks.size() == 5);
         REQUIRE(run.breaks[0] == 2);
         REQUIRE(run.breaks[1] == 2);
@@ -131,42 +136,43 @@ TEST_CASE("line breaker builds lines", "[line break]")
     REQUIRE(font != nullptr);
 
     // one two⏎ three
-    std::vector<rive::RenderTextRun> truns;
+    std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
     truns.push_back(append(&unichars, font, 32.0f, "one two three"));
 
-    auto shape = font->shapeText(unichars, truns);
-    REQUIRE(shape.size() == 1);
-    auto run = shape.front();
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 1);
+    const auto& paragraph = paragraphs.front();
+    REQUIRE(paragraph.runs.size() == 1);
 
     // at 194 everything fits in one line
     {
-        auto lines = RenderGlyphLine::BreakLines(shape, 194.0f, RenderTextAlign::left);
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 194.0f);
         REQUIRE(lines.size() == 1);
         auto line = lines.back();
-        REQUIRE(line.startRun == 0);
-        REQUIRE(line.startIndex == 0);
-        REQUIRE(line.endRun == 0);
-        REQUIRE(line.endIndex == 13);
+        REQUIRE(line.startRunIndex == 0);
+        REQUIRE(line.startGlyphIndex == 0);
+        REQUIRE(line.endRunIndex == 0);
+        REQUIRE(line.endGlyphIndex == 13);
     }
     // at 191 "three" should pop to second line
     {
-        auto lines = RenderGlyphLine::BreakLines(shape, 191.0f, RenderTextAlign::left);
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 191.0f);
         REQUIRE(lines.size() == 2);
         {
             auto line = lines.front();
-            REQUIRE(line.startRun == 0);
-            REQUIRE(line.startIndex == 0);
-            REQUIRE(line.endRun == 0);
-            REQUIRE(line.endIndex == 7);
+            REQUIRE(line.startRunIndex == 0);
+            REQUIRE(line.startGlyphIndex == 0);
+            REQUIRE(line.endRunIndex == 0);
+            REQUIRE(line.endGlyphIndex == 7);
         }
 
         {
             auto line = lines.back();
-            REQUIRE(line.startRun == 0);
-            REQUIRE(line.startIndex == 8);
-            REQUIRE(line.endRun == 0);
-            REQUIRE(line.endIndex == 13);
+            REQUIRE(line.startRunIndex == 0);
+            REQUIRE(line.startGlyphIndex == 8);
+            REQUIRE(line.endRunIndex == 0);
+            REQUIRE(line.endGlyphIndex == 13);
         }
     }
 }
@@ -177,51 +183,52 @@ TEST_CASE("line breaker deals with extremes", "[line break]")
     REQUIRE(font != nullptr);
 
     // one two⏎ three
-    std::vector<rive::RenderTextRun> truns;
+    std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
     truns.push_back(append(&unichars, font, 32.0f, "ab"));
 
-    auto shape = font->shapeText(unichars, truns);
-    REQUIRE(shape.size() == 1);
-    auto run = shape.front();
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 1);
+    const auto& paragraph = paragraphs.front();
+    REQUIRE(paragraph.runs.size() == 1);
 
     {
-        auto lines = RenderGlyphLine::BreakLines(shape, 17.0f, RenderTextAlign::left);
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 17.0f);
         REQUIRE(lines.size() == 2);
         {
             auto line = lines.front();
-            REQUIRE(line.startRun == 0);
-            REQUIRE(line.startIndex == 0);
-            REQUIRE(line.endRun == 0);
-            REQUIRE(line.endIndex == 1);
+            REQUIRE(line.startRunIndex == 0);
+            REQUIRE(line.startGlyphIndex == 0);
+            REQUIRE(line.endRunIndex == 0);
+            REQUIRE(line.endGlyphIndex == 1);
         }
 
         {
             auto line = lines.back();
-            REQUIRE(line.startRun == 0);
-            REQUIRE(line.startIndex == 1);
-            REQUIRE(line.endRun == 0);
-            REQUIRE(line.endIndex == 2);
+            REQUIRE(line.startRunIndex == 0);
+            REQUIRE(line.startGlyphIndex == 1);
+            REQUIRE(line.endRunIndex == 0);
+            REQUIRE(line.endGlyphIndex == 2);
         }
     }
     // Test that it also handles 0 width.
     {
-        auto lines = RenderGlyphLine::BreakLines(shape, 0.0f, RenderTextAlign::left);
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 0.0f);
         REQUIRE(lines.size() == 2);
         {
             auto line = lines.front();
-            REQUIRE(line.startRun == 0);
-            REQUIRE(line.startIndex == 0);
-            REQUIRE(line.endRun == 0);
-            REQUIRE(line.endIndex == 1);
+            REQUIRE(line.startRunIndex == 0);
+            REQUIRE(line.startGlyphIndex == 0);
+            REQUIRE(line.endRunIndex == 0);
+            REQUIRE(line.endGlyphIndex == 1);
         }
 
         {
             auto line = lines.back();
-            REQUIRE(line.startRun == 0);
-            REQUIRE(line.startIndex == 1);
-            REQUIRE(line.endRun == 0);
-            REQUIRE(line.endIndex == 2);
+            REQUIRE(line.startRunIndex == 0);
+            REQUIRE(line.startGlyphIndex == 1);
+            REQUIRE(line.endRunIndex == 0);
+            REQUIRE(line.endGlyphIndex == 2);
         }
     }
 }
@@ -232,16 +239,78 @@ TEST_CASE("line breaker breaks return characters", "[line break]")
     REQUIRE(font != nullptr);
 
     // one two⏎ three
-    std::vector<rive::RenderTextRun> truns;
+    std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
-    truns.push_back(append(&unichars, font, 32.0f, "hello look\nhere"));
+    truns.push_back(append(&unichars, font, 32.0f, "hello look\u2028here"));
 
-    auto shape = font->shapeText(unichars, truns);
-    REQUIRE(shape.size() == 1);
-    auto run = shape.front();
-
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 1);
+    const auto& paragraph = paragraphs.front();
+    REQUIRE(paragraph.runs.size() == 1);
     {
-        auto lines = RenderGlyphLine::BreakLines(shape, 300.0f, RenderTextAlign::left);
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
         REQUIRE(lines.size() == 2);
+    }
+}
+
+TEST_CASE("shaper separates paragraphs", "[shaper]")
+{
+    auto font = loadFont("../../test/assets/RobotoFlex.ttf");
+    REQUIRE(font != nullptr);
+
+    // one two⏎ three
+    std::vector<rive::TextRun> truns;
+    std::vector<rive::Unichar> unichars;
+    truns.push_back(append(&unichars, font, 32.0f, "hello look\u2028here\nsecond paragraph"));
+
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 2);
+    {
+        const auto& paragraph = paragraphs.front();
+        REQUIRE(paragraph.runs.size() == 1);
+        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
+        REQUIRE(lines.size() == 2);
+    }
+    {
+        const auto& paragraph = paragraphs.back();
+        REQUIRE(paragraph.runs.size() == 1);
+        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
+        REQUIRE(lines.size() == 1);
+    }
+}
+
+TEST_CASE("shaper handles RTL", "[shaper]")
+{
+    auto font = loadFont("../../test/assets/IBMPlexSansArabic-Regular.ttf");
+    REQUIRE(font != nullptr);
+
+    // one two⏎ three
+    std::vector<rive::TextRun> truns;
+    std::vector<rive::Unichar> unichars;
+    truns.push_back(append(&unichars, font, 32.0f, "لمفاتيح ABC DEF"));
+
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 1);
+    const auto& paragraph = paragraphs.front();
+    REQUIRE(paragraph.baseDirection == rive::TextDirection::rtl);
+    {
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
+        REQUIRE(lines.size() == 1);
+    }
+    {
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 196.0f);
+        REQUIRE(lines.size() == 2);
+
+        // The second line should start with DEF as it's the first word to wrap.
+        const auto& line = lines.back();
+        const auto& run = paragraph.runs[line.startRunIndex];
+        auto index = run.textIndices[line.startGlyphIndex];
+        REQUIRE(unichars[index] == 'D');
+        REQUIRE(unichars[index + 1] == 'E');
+        REQUIRE(unichars[index + 2] == 'F');
     }
 }

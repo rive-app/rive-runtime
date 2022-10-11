@@ -14,7 +14,7 @@ namespace rive
 {
 class Renderer;
 class Factory;
-class RenderFont;
+class Font;
 } // namespace rive
 
 class ViewerContent
@@ -65,7 +65,7 @@ public:
     static rive::Factory* RiveFactory();
 
     // Abstracts which font backend is currently used.
-    static rive::rcp<rive::RenderFont> DecodeFont(rive::Span<const uint8_t>);
+    static rive::rcp<rive::Font> DecodeFont(rive::Span<const uint8_t>);
 };
 
 #endif

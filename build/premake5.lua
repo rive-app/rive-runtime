@@ -4,10 +4,13 @@ filter {'options:with_rive_tools'}
 do
     defines {'WITH_RIVE_TOOLS'}
 end
-filter {'options:with_rive_tools'}
+filter {'options:with_rive_text'}
 do
-    defines {'WITH_RIVE_TOOLS'}
+    defines {'WITH_RIVE_TEXT'}
 end
+
+dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_harfbuzz.lua'))
+dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_sheenbidi.lua'))
 
 WINDOWS_CLANG_CL_SUPPRESSED_WARNINGS = {
     '-Wno-c++98-compat',
@@ -28,7 +31,9 @@ WINDOWS_CLANG_CL_SUPPRESSED_WARNINGS = {
     '-Wno-sign-compare',
     '-Wno-sign-conversion',
     '-Wno-unused-macros',
-    '-Wno-unused-parameter'
+    '-Wno-unused-parameter',
+    '-Wno-switch-enum',
+    '-Wno-missing-field-initializers'
 }
 
 project 'rive'
@@ -39,7 +44,11 @@ do
     toolset 'clang'
     targetdir '%{cfg.system}/bin/%{cfg.buildcfg}'
     objdir '%{cfg.system}/obj/%{cfg.buildcfg}'
-    includedirs {'../include'}
+    includedirs {
+        '../include',
+        harfbuzz .. '/src',
+        sheenbidi .. '/Headers'
+    }
 
     files {'../src/**.cpp'}
 

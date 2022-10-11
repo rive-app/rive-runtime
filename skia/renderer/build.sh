@@ -4,12 +4,6 @@ set -e
 export SKIA_DIR="skia"
 source ../../dependencies/config_directories.sh
 
-if [[ ! -d "$DEPENDENCIES/harfbuzz" ]]; then
-    pushd $DEPENDENCIES_SCRIPTS
-    ./get_harfbuzz.sh
-    popd
-fi
-
 # build main rive
 cd ../..
 ./build.sh "$@"
@@ -48,7 +42,7 @@ if [ "$OPTION" = 'help' ]; then
 else
     build() {
         echo "Building Rive Renderer for platform=$platform option=$OPTION"
-        PREMAKE="premake5 gmake2 $1"
+        PREMAKE="premake5 --scripts=../../../build gmake2 $1"
         eval "$PREMAKE"
         if [ "$OPTION" = "clean" ]; then
             make clean

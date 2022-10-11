@@ -46,12 +46,6 @@ if [[ $RENDERER = "tess" ]] && [[ ! -d "$DEPENDENCIES/libpng" ]]; then
     popd
 fi
 
-if [[ ! -d "$DEPENDENCIES/harfbuzz" ]]; then
-    pushd $DEPENDENCIES_SCRIPTS
-    ./get_harfbuzz.sh
-    popd
-fi
-
 if [ $RENDERER = "skia" ]; then
     pushd ../../../skia/renderer/build/macosx
     ./build_skia_renderer.sh text $@
@@ -68,7 +62,7 @@ export PREMAKE=$DEPENDENCIES/bin/premake5
 
 pushd ..
 
-$PREMAKE --file=./premake5_viewer.lua gmake2 --graphics=$GRAPHICS --renderer=$RENDERER --with_rive_tools --with_rive_text
+$PREMAKE --scripts=../../build --file=./premake5_viewer.lua gmake2 --graphics=$GRAPHICS --renderer=$RENDERER --with_rive_tools --with_rive_text
 
 for var in "$@"; do
     if [[ $var = "clean" ]]; then

@@ -2,40 +2,36 @@
  * Copyright 2022 Rive
  */
 
-#include "rive/text/line_breaker.hpp"
+#include "rive/text.hpp"
 #include <limits>
+#include <algorithm>
 using namespace rive;
 
 static bool autowidth(float width) { return width < 0.0f; }
-void RenderGlyphLine::ComputeLineSpacing(Span<RenderGlyphLine> lines,
-                                         Span<const RenderGlyphRun> runs,
-                                         float width,
-                                         RenderTextAlign align)
-{
 
+float GlyphLine::ComputeMaxWidth(Span<GlyphLine> lines, Span<const GlyphRun> runs)
+{
     float maxLineWidth = 0.0f;
-    if (autowidth(width))
+    for (auto& line : lines)
     {
-        for (auto& line : lines)
-        {
-            auto lineWidth =
-                runs[line.endRun].xpos[line.endIndex] - runs[line.startRun].xpos[line.startIndex];
-            if (lineWidth > maxLineWidth)
-            {
-                maxLineWidth = lineWidth;
-            }
-        }
+        maxLineWidth = std::max(maxLineWidth,
+                                runs[line.endRunIndex].xpos[line.endGlyphIndex] -
+                                    runs[line.startRunIndex].xpos[line.startGlyphIndex]);
     }
-    else
-    {
-        maxLineWidth = width;
-    }
+    return maxLineWidth;
+}
+
+void GlyphLine::ComputeLineSpacing(Span<GlyphLine> lines,
+                                   Span<const GlyphRun> runs,
+                                   float width,
+                                   TextAlign align)
+{
     float Y = 0; // top of our frame
     for (auto& line : lines)
     {
         float asc = 0;
         float des = 0;
-        for (int i = line.startRun; i <= line.endRun; ++i)
+        for (int i = line.startRunIndex; i <= line.endRunIndex; ++i)
         {
             const auto& run = runs[i];
 
@@ -47,18 +43,18 @@ void RenderGlyphLine::ComputeLineSpacing(Span<RenderGlyphLine> lines,
         line.baseline = Y;
         Y += des;
         line.bottom = Y;
-        auto lineWidth =
-            runs[line.endRun].xpos[line.endIndex] - runs[line.startRun].xpos[line.startIndex];
+        auto lineWidth = runs[line.endRunIndex].xpos[line.endGlyphIndex] -
+                         runs[line.startRunIndex].xpos[line.startGlyphIndex];
         switch (align)
         {
-            case RenderTextAlign::right:
-                line.startX = maxLineWidth - lineWidth;
+            case TextAlign::right:
+                line.startX = width - lineWidth;
                 break;
-            case RenderTextAlign::left:
+            case TextAlign::left:
                 line.startX = 0;
                 break;
-            case RenderTextAlign::center:
-                line.startX = maxLineWidth / 2.0f - lineWidth / 2.0f;
+            case TextAlign::center:
+                line.startX = width / 2.0f - lineWidth / 2.0f;
                 break;
         }
     }
@@ -66,15 +62,14 @@ void RenderGlyphLine::ComputeLineSpacing(Span<RenderGlyphLine> lines,
 
 struct WordMarker
 {
-    const RenderGlyphRun* run;
+    const GlyphRun* run;
     uint32_t index;
 
-    bool next(Span<const RenderGlyphRun> runs)
+    bool next(Span<const GlyphRun> runs)
     {
         index += 2;
         while (index >= run->breaks.size())
         {
-
             index -= run->breaks.size();
             run++;
             if (run == runs.end())
@@ -88,12 +83,12 @@ struct WordMarker
 
 class RunIterator
 {
-    Span<const RenderGlyphRun> m_runs;
-    const RenderGlyphRun* m_run;
+    Span<const GlyphRun> m_runs;
+    const GlyphRun* m_run;
     uint32_t m_index;
 
 public:
-    RunIterator(Span<const RenderGlyphRun> runs, const RenderGlyphRun* run, uint32_t index) :
+    RunIterator(Span<const GlyphRun> runs, const GlyphRun* run, uint32_t index) :
         m_runs(runs), m_run(run), m_index(index)
     {}
 
@@ -147,20 +142,17 @@ public:
 
     float x() const { return m_run->xpos[m_index]; }
 
-    const RenderGlyphRun* run() const { return m_run; }
+    const GlyphRun* run() const { return m_run; }
     uint32_t index() const { return m_index; }
 
     bool operator==(const RunIterator& o) const { return m_run == o.m_run && m_index == o.m_index; }
 };
 
-std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphRun> runs,
-                                                         float width,
-                                                         RenderTextAlign align)
+SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float width)
 {
-
     float maxLineWidth = autowidth(width) ? std::numeric_limits<float>::max() : width;
 
-    std::vector<RenderGlyphLine> lines;
+    SimpleArrayBuilder<GlyphLine> lines;
 
     if (runs.empty())
     {
@@ -171,19 +163,26 @@ std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphR
 
     bool advanceWord = false;
     WordMarker start = {runs.begin(), 0};
-    WordMarker end = {runs.begin(), 1};
+    WordMarker end = {runs.begin(), (uint32_t)-1};
+    if (!end.next(runs))
+    {
+        return lines;
+    }
 
-    RenderGlyphLine line = RenderGlyphLine();
+    GlyphLine line = GlyphLine();
 
     uint32_t breakIndex = end.run->breaks[end.index];
-    uint32_t lastEndIndex = end.index;
+    const GlyphRun* breakRun = end.run;
+    uint32_t lastEndGlyphIndex = end.index;
     uint32_t startBreakIndex = start.run->breaks[start.index];
+    const GlyphRun* startBreakRun = start.run;
+
     float x = end.run->xpos[breakIndex];
     while (true)
     {
         if (advanceWord)
         {
-            lastEndIndex = end.index;
+            lastEndGlyphIndex = end.index;
 
             if (!start.next(runs))
             {
@@ -197,26 +196,29 @@ std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphR
             advanceWord = false;
 
             breakIndex = end.run->breaks[end.index];
+            breakRun = end.run;
             startBreakIndex = start.run->breaks[start.index];
+            startBreakRun = start.run;
             x = end.run->xpos[breakIndex];
         }
 
-        if (breakIndex != startBreakIndex && x > limit)
+        bool isForcedBreak = breakRun == startBreakRun && breakIndex == startBreakIndex;
+
+        if (!isForcedBreak && x > limit)
         {
-            uint32_t startRun = (uint32_t)(start.run - runs.begin());
+            uint32_t startRunIndex = (uint32_t)(start.run - runs.begin());
 
             // A whole word overflowed, break until we can no longer break (or
             // it fits).
-            if (line.startRun == startRun && line.startIndex == startBreakIndex)
+            if (line.startRunIndex == startRunIndex && line.startGlyphIndex == startBreakIndex)
             {
                 bool canBreakMore = true;
                 while (canBreakMore && x > limit)
                 {
 
                     RunIterator lineStart =
-                        RunIterator(runs, runs.begin() + line.startRun, line.startIndex);
+                        RunIterator(runs, runs.begin() + line.startRunIndex, line.startGlyphIndex);
                     RunIterator lineEnd = RunIterator(runs, end.run, end.run->breaks[end.index]);
-
                     // Look for the next character that doesn't overflow.
                     while (true)
                     {
@@ -237,8 +239,8 @@ std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphR
                             }
                             else
                             {
-                                line.endRun = (uint32_t)(lineEnd.run() - runs.begin());
-                                line.endIndex = lineEnd.index();
+                                line.endRunIndex = (uint32_t)(lineEnd.run() - runs.begin());
+                                line.endGlyphIndex = lineEnd.index();
                             }
                             break;
                         }
@@ -249,11 +251,10 @@ std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphR
                         limit = lineEnd.x() + maxLineWidth;
                         if (!line.empty())
                         {
-                            lines.push_back(line);
+                            lines.add(line);
                         }
                         // Setup the next line.
-                        line = RenderGlyphLine((uint32_t)(lineEnd.run() - runs.begin()),
-                                               lineEnd.index());
+                        line = GlyphLine((uint32_t)(lineEnd.run() - runs.begin()), lineEnd.index());
                     }
                 }
             }
@@ -263,35 +264,34 @@ std::vector<RenderGlyphLine> RenderGlyphLine::BreakLines(Span<const RenderGlyphR
                 auto startX = start.run->xpos[start.run->breaks[start.index]];
                 limit = startX + maxLineWidth;
 
-                if (!line.empty() || start.index - lastEndIndex > 1)
+                if (!line.empty() || start.index - lastEndGlyphIndex > 1)
                 {
-                    lines.push_back(line);
+                    lines.add(line);
                 }
 
-                line = RenderGlyphLine(startRun, startBreakIndex);
+                line = GlyphLine(startRunIndex, startBreakIndex);
             }
         }
         else
         {
-            line.endRun = (uint32_t)(end.run - runs.begin());
-            line.endIndex = end.run->breaks[end.index];
+            line.endRunIndex = (uint32_t)(end.run - runs.begin());
+            line.endGlyphIndex = end.run->breaks[end.index];
             advanceWord = true;
             // Forced BR.
-            if (breakIndex == startBreakIndex)
+            if (isForcedBreak)
             {
-                lines.push_back(line);
-                auto startX = start.run->xpos[start.run->breaks[start.index]];
+                lines.add(line);
+                auto startX = start.run->xpos[start.run->breaks[start.index] + 1];
                 limit = startX + maxLineWidth;
-                line = RenderGlyphLine((uint32_t)(start.run - runs.begin()), startBreakIndex + 1);
+                line = GlyphLine((uint32_t)(start.run - runs.begin()), startBreakIndex + 1);
             }
         }
     }
     // Don't add a line that starts/ends at the same spot.
     if (!line.empty())
     {
-        lines.push_back(line);
+        lines.add(line);
     }
 
-    ComputeLineSpacing(lines, runs, width, align);
     return lines;
 }

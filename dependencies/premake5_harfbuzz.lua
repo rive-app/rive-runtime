@@ -1,6 +1,5 @@
-dependencies = os.getenv('DEPENDENCIES')
-
-harfbuzz = dependencies .. '/harfbuzz'
+local dependency = require 'dependency'
+harfbuzz = dependency.github('harfbuzz/harfbuzz', '858570b1d9912a1b746ab39fbe62a646c4f7a5b1')
 
 workspace 'rive'
 configurations {'debug', 'release'}

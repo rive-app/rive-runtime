@@ -16,8 +16,8 @@ newaction {
 workspace 'rive'
 configurations {'debug'}
 
-dependencies = os.getenv('DEPENDENCIES')
-dofile(path.join(path.getabsolute(dependencies) .. '/../..', 'premake5_harfbuzz.lua'))
+dofile(path.join(path.getabsolute('../../dependencies/'), 'premake5_harfbuzz.lua'))
+dofile(path.join(path.getabsolute('../../dependencies/'), 'premake5_sheenbidi.lua'))
 
 project('tests')
 do
@@ -30,9 +30,15 @@ do
 
     buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti'}
 
-    includedirs {'./include', '../../include', dependencies .. '/harfbuzz/src'}
+    includedirs {
+        './include',
+        '../../include',
+        harfbuzz .. '/src',
+        sheenbidi .. '/Headers'
+    }
     links {
-        'rive_harfbuzz'
+        'rive_harfbuzz',
+        'rive_sheenbidi'
     }
 
     files {
@@ -86,7 +92,9 @@ do
             '-Wno-unused-macros',
             '-Wno-unused-parameter',
             '-Wno-four-char-constants',
-            '-Wno-unreachable-code'
+            '-Wno-unreachable-code',
+            '-Wno-switch-enum',
+            '-Wno-missing-field-initializers'
         }
     end
 end

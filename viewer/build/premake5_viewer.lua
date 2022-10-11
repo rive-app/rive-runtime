@@ -12,7 +12,6 @@ rive_skia = '../../skia'
 skia = dependencies .. '/skia'
 libpng = dependencies .. '/libpng'
 
-dofile(path.join(path.getabsolute(dependencies) .. '/../..', 'premake5_harfbuzz.lua'))
 if _OPTIONS.renderer == 'tess' then
     dofile(path.join(path.getabsolute(dependencies) .. '/../..', 'premake5_libpng.lua'))
     dofile(path.join(path.getabsolute(rive_tess) .. '/build', 'premake5_tess.lua'))
@@ -38,16 +37,17 @@ do
     includedirs {
         '../include',
         rive .. '/include',
-        rive .. '/skia/renderer/include', -- for renderfont backends
+        rive .. '/skia/renderer/include', -- for font backends
         dependencies,
         dependencies .. '/sokol',
-        dependencies .. '/imgui',
-        dependencies .. '/harfbuzz/src'
+        dependencies .. '/imgui'
     }
 
     links {
         'rive',
-        'rive_harfbuzz'
+        'rive_harfbuzz',
+        -- 'rive_fribidi'
+        'rive_sheenbidi'
     }
 
     libdirs {
@@ -57,7 +57,6 @@ do
     files {
         '../src/**.cpp',
         rive .. '/utils/**.cpp',
-        rive .. '/skia/renderer/src/renderfont_coretext.cpp',
         dependencies .. '/imgui/imgui.cpp',
         dependencies .. '/imgui/imgui_widgets.cpp',
         dependencies .. '/imgui/imgui_tables.cpp',

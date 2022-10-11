@@ -5,7 +5,7 @@
 #ifndef _RIVE_UTF_HPP_
 #define _RIVE_UTF_HPP_
 
-#include "rive/render_text.hpp"
+#include "rive/text.hpp"
 
 namespace rive
 {

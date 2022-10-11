@@ -7,15 +7,9 @@ if not exist "%DEPENDENCIES%\bin\premake5.exe" (
     popd
 )
 
-if not exist "%DEPENDENCIES%\harfbuzz\" (
-    pushd "%DEPENDENCIES_SCRIPTS%"
-    call .\get_harfbuzz.bat || goto :error
-    popd
-)
-
 set "PREMAKE=%DEPENDENCIES%\bin\premake5.exe"
 pushd test
-%PREMAKE% vs2022
+%PREMAKE% --scripts=..\..\build vs2022
 
 MSBuild.exe /?  2> NUL
 if not %ERRORLEVEL%==9009 (

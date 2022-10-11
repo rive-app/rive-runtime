@@ -4,7 +4,7 @@
 
 #include <rive/simple_array.hpp>
 #include <catch.hpp>
-#include <rive/render_text.hpp>
+#include <rive/text.hpp>
 
 using namespace rive;
 

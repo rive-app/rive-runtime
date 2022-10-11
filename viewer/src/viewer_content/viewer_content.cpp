@@ -67,17 +67,8 @@ void ViewerContent::DumpCounters(const char label[])
 
 rive::Factory* ViewerContent::RiveFactory() { return ViewerHost::Factory(); }
 
-#ifdef RIVE_BUILD_FOR_APPLE
-// note: we can use harfbuzz even on apple ... (if we want)
-#include "renderfont_coretext.hpp"
-rive::rcp<rive::RenderFont> ViewerContent::DecodeFont(rive::Span<const uint8_t> span)
+#include "rive/text/font_hb.hpp"
+rive::rcp<rive::Font> ViewerContent::DecodeFont(rive::Span<const uint8_t> span)
 {
-    return CoreTextRenderFont::Decode(span);
+    return HBFont::Decode(span);
 }
-#else
-#include "renderfont_hb.hpp"
-rive::rcp<rive::RenderFont> ViewerContent::DecodeFont(rive::Span<const uint8_t> span)
-{
-    return HBRenderFont::Decode(span);
-}
-#endif

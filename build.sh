@@ -1,6 +1,7 @@
 #!/bin/bash
-set -e 
+set -e
 
+source dependencies/config_directories.sh
 pushd build &>/dev/null
 
 while getopts p: flag; do

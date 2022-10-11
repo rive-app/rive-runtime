@@ -51,7 +51,7 @@ for var in "$@"; do
     fi
 done
 
-$PREMAKE --file=./premake5_tess.lua gmake2 --graphics=$GRAPHICS --with_rive_tools
+$PREMAKE --scripts=../../build --file=./premake5_tess.lua gmake2 --graphics=$GRAPHICS --with_rive_tools
 
 for var in "$@"; do
     if [[ $var = "clean" ]]; then

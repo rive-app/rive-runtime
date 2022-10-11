@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2022 Rive
  */
@@ -8,18 +9,16 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/factory.hpp"
-#include "rive/render_text.hpp"
+#include "rive/text.hpp"
 #include "rive/math/contour_measure.hpp"
-#include "rive/text/line_breaker.hpp"
 
 using namespace rive;
+#if 0
+using FontTextRuns = std::vector<TextRun>;
+using FontGlyphRuns = rive::SimpleArray<GlyphRun>;
+using FontFactory = rcp<Font> (*)(const Span<const uint8_t>);
 
-using RenderFontTextRuns = std::vector<RenderTextRun>;
-using RenderFontGlyphRuns = rive::SimpleArray<RenderGlyphRun>;
-using RenderFontFactory = rcp<RenderFont> (*)(const Span<const uint8_t>);
-
-template <typename Handler>
-void visit(const Span<RenderGlyphRun>& gruns, Vec2D origin, Handler proc)
+template <typename Handler> void visit(const Span<GlyphRun>& gruns, Vec2D origin, Handler proc)
 {
     for (const auto& gr : gruns)
     {
@@ -99,8 +98,7 @@ static void fill_point(Renderer* renderer, Vec2D p, float r, RenderPaint* paint)
     fill_rect(renderer, {p.x - r, p.y - r, p.x + r, p.y + r}, paint);
 }
 
-static RenderTextRun
-append(std::vector<Unichar>* unichars, rcp<RenderFont> font, float size, const char text[])
+static TextRun append(std::vector<Unichar>* unichars, rcp<Font> font, float size, const char text[])
 {
     const uint8_t* ptr = (const uint8_t*)text;
     uint32_t n = 0;
@@ -115,7 +113,7 @@ append(std::vector<Unichar>* unichars, rcp<RenderFont> font, float size, const c
 class TextPathContent : public ViewerContent
 {
     std::vector<Unichar> m_unichars;
-    RenderFontGlyphRuns m_gruns;
+    FontGlyphRuns m_gruns;
     std::unique_ptr<RenderPaint> m_paint;
     AABB m_gbounds;
 
@@ -133,9 +131,9 @@ class TextPathContent : public ViewerContent
           m_windowWidth = 1, // %
         m_windowOffset = 0;  // %
 
-    RenderFontTextRuns make_truns(RenderFontFactory fact)
+    FontTextRuns make_truns(FontFactory fact)
     {
-        auto loader = [fact](const char filename[]) -> rcp<RenderFont> {
+        auto loader = [fact](const char filename[]) -> rcp<Font> {
             auto bytes = ViewerContent::LoadFile(filename);
             if (bytes.size() == 0)
             {
@@ -155,9 +153,9 @@ class TextPathContent : public ViewerContent
         assert(font0);
         assert(font1);
 
-        RenderFont::Coord c1 = {'wght', 100.f}, c2 = {'wght', 800.f};
+        Font::Coord c1 = {'wght', 100.f}, c2 = {'wght', 800.f};
 
-        RenderFontTextRuns truns;
+        FontTextRuns truns;
 
         truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "U"));
         truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "ne漢字asy"));
@@ -171,7 +169,7 @@ class TextPathContent : public ViewerContent
 public:
     TextPathContent()
     {
-        auto compute_bounds = [](const rive::SimpleArray<RenderGlyphRun>& gruns) {
+        auto compute_bounds = [](const rive::SimpleArray<GlyphRun>& gruns) {
             AABB bounds = {};
             for (const auto& gr : gruns)
             {
@@ -216,7 +214,7 @@ public:
         }
     }
 
-    static size_t count_glyphs(const RenderFontGlyphRuns& gruns)
+    static size_t count_glyphs(const FontGlyphRuns& gruns)
     {
         size_t n = 0;
         for (const auto& gr : gruns)
@@ -228,9 +226,9 @@ public:
 
     void modify(float amount) { m_paint->color(0xFFFFFFFF); }
 
-    void draw(Renderer* renderer, const RenderFontGlyphRuns& gruns)
+    void draw(Renderer* renderer, const FontGlyphRuns& gruns)
     {
-        auto get_path = [this](const RenderGlyphRun& run, int index, float dx) {
+        auto get_path = [this](const GlyphRun& run, int index, float dx) {
             auto path = run.font->getPath(run.glyphs[index]);
             path.transformInPlace(Mat2D::fromTranslate(run.xpos[index] + dx, m_offsetY) *
                                   Mat2D::fromScale(run.size, run.size * m_scaleY));
@@ -406,3 +404,6 @@ std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[])
 {
     return std::make_unique<TextPathContent>();
 }
+#else
+std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) { return nullptr; }
+#endif
