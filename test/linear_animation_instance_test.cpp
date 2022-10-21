@@ -40,6 +40,33 @@ TEST_CASE("LinearAnimationInstance oneShot", "[animation]")
     delete linearAnimation;
 }
 
+TEST_CASE("LinearAnimationInstance speed", "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 5
+    linearAnimation->duration(10);
+    linearAnimation->fps(2);
+    linearAnimation->speed(.5);
+
+    rive::LinearAnimationInstance* linearAnimationInstance =
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
+
+    // play from beginning.
+    bool continuePlaying = linearAnimationInstance->advance(2.0);
+    REQUIRE(continuePlaying == true);
+    REQUIRE(linearAnimationInstance->time() == 1.0f);
+    REQUIRE(linearAnimationInstance->totalTime() == 1.0f);
+
+    delete linearAnimationInstance;
+    delete linearAnimation;
+}
+
 TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]")
 {
     rive::NoOpFactory emptyFactory;

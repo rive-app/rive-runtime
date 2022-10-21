@@ -49,9 +49,11 @@ bool LinearAnimationInstance::advanceAndApply(float seconds)
 bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
     const LinearAnimation& animation = *m_Animation;
-    m_Time += elapsedSeconds * animation.speed() * m_Direction;
+    float deltaSeconds = elapsedSeconds * animation.speed();
+
+    m_Time += deltaSeconds * m_Direction;
     m_LastTotalTime = m_TotalTime;
-    m_TotalTime += elapsedSeconds;
+    m_TotalTime += deltaSeconds;
 
     int fps = animation.fps();
 
