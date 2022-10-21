@@ -120,7 +120,7 @@ void ClippingShape::update(ComponentDirt value)
             }
             else
             {
-                m_ClipRenderPath = static_cast<RenderPath*>(first->pathComposer()->worldPath());
+                m_ClipRenderPath = first->pathComposer()->worldPath()->renderPath();
             }
         }
     }
