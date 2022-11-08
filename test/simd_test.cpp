@@ -143,6 +143,7 @@ TEST_CASE("abs", "[simd]")
 {
     CHECK(simd::all(simd::abs(float4{-1, 2, -3, 4}) == float4{1, 2, 3, 4}));
     CHECK(simd::all(simd::abs(float2{-5, 6}) == float2{5, 6}));
+    CHECK(simd::all(simd::abs(float2{-0, 0}) == float2{0, 0}));
     CHECK(simd::all(float4{-std::numeric_limits<float>::epsilon(),
                            -std::numeric_limits<float>::denorm_min(),
                            -std::numeric_limits<float>::max(),
@@ -153,9 +154,9 @@ TEST_CASE("abs", "[simd]")
 
                     ));
     float2 nan2 = simd::abs(float2{kNaN, -kNaN});
-    CHECK(std::isnan(nan2.x));
-    CHECK(std::isnan(nan2.y));
+    CHECK(simd::all(simd::isnan(nan2)));
     CHECK(simd::all(simd::abs(int4{7, -8, 9, -10}) == int4{7, 8, 9, 10}));
+    CHECK(simd::all(simd::abs(int2{0, -0}) == int2{0, 0}));
     // abs(INT_MIN) returns INT_MIN.
     CHECK(
         simd::all(simd::abs(int2{-std::numeric_limits<int32_t>::max(),

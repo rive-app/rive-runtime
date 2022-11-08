@@ -32,41 +32,6 @@ namespace simd
 template <typename T, int N>
 using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof(T) * N)));
 
-////// Math //////
-
-// Similar to std::min(), with a noteworthy difference:
-// If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
-{
-    return __builtin_elementwise_min(a, b);
-}
-
-// Similar to std::max(), with a noteworthy difference:
-// If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
-{
-    return __builtin_elementwise_max(a, b);
-}
-
-// Unlike std::clamp(), simd::clamp() always returns a value between lo and hi.
-//
-//   Returns lo if x == NaN, but std::clamp() returns NaN.
-//   Returns hi if hi <= lo.
-//   Ignores hi and/or lo if they are NaN.
-//
-template <typename T, int N>
-SIMD_ALWAYS_INLINE gvec<T, N> clamp(gvec<T, N> x, gvec<T, N> lo, gvec<T, N> hi)
-{
-    return min(max(lo, x), hi);
-}
-
-// Returns the absolute value of x per element, with one exception:
-// If x[i] is an integer type and equal to the minimum representable value, returns x[i].
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
-{
-    return __builtin_elementwise_abs(x);
-}
-
 ////// Boolean logic //////
 //
 // Vector booleans are of type int32_t, where true is ~0 and false is 0. Vector booleans can be
@@ -94,13 +59,79 @@ template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
     return !any(~x);
 }
 
+template <typename T,
+          int N,
+          typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+SIMD_ALWAYS_INLINE gvec<int32_t, N> isnan(gvec<T, N> x)
+{
+    return !(x == x);
+}
+
+template <typename T, int N, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
+constexpr gvec<int32_t, N> isnan(gvec<T, N>)
+{
+    return {}; // Integer types are never NaN.
+}
+
+////// Math //////
+
+// Similar to std::min(), with a noteworthy difference:
+// If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
+{
+#if __has_builtin(__builtin_elementwise_min)
+    return __builtin_elementwise_min(a, b);
+#else
+#pragma message("performance: __builtin_elementwise_min() not supported. Consider updating clang.")
+    // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
+    return b < a || isnan(a) ? b : a;
+#endif
+}
+
+// Similar to std::max(), with a noteworthy difference:
+// If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
+{
+#if __has_builtin(__builtin_elementwise_max)
+    return __builtin_elementwise_max(a, b);
+#else
+#pragma message("performance: __builtin_elementwise_max() not supported. Consider updating clang.")
+    // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
+    return a < b || isnan(a) ? b : a;
+#endif
+}
+
+// Unlike std::clamp(), simd::clamp() always returns a value between lo and hi.
+//
+//   Returns lo if x == NaN, but std::clamp() returns NaN.
+//   Returns hi if hi <= lo.
+//   Ignores hi and/or lo if they are NaN.
+//
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> clamp(gvec<T, N> x, gvec<T, N> lo, gvec<T, N> hi)
+{
+    return min(max(lo, x), hi);
+}
+
+// Returns the absolute value of x per element, with one exception:
+// If x[i] is an integer type and equal to the minimum representable value, returns x[i].
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
+{
+#if __has_builtin(__builtin_elementwise_abs)
+    return __builtin_elementwise_abs(x);
+#else
+#pragma message("performance: __builtin_elementwise_abs() not supported. Consider updating clang.")
+    return x < 0 ? -x : x; // But the negation in the "true" side so we never negate NaN.
+#endif
+}
+
 ////// Loading and storing //////
 
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const void* ptr)
 {
-    gvec<T, N> vec;
-    __builtin_memcpy(&vec, ptr, sizeof(vec));
-    return vec;
+    gvec<T, N> ret;
+    __builtin_memcpy(&ret, ptr, sizeof(T) * N);
+    return ret;
 }
 SIMD_ALWAYS_INLINE gvec<float, 2> load2f(const void* ptr) { return load<float, 2>(ptr); }
 SIMD_ALWAYS_INLINE gvec<float, 4> load4f(const void* ptr) { return load<float, 4>(ptr); }
@@ -111,7 +142,7 @@ SIMD_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const void* ptr) { return load<uint
 
 template <typename T, int N> SIMD_ALWAYS_INLINE void store(void* ptr, gvec<T, N> vec)
 {
-    __builtin_memcpy(ptr, &vec, sizeof(vec));
+    __builtin_memcpy(ptr, &vec, sizeof(T) * N);
 }
 
 template <typename T, int M, int N>
