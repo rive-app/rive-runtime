@@ -84,7 +84,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gve
 #else
 #pragma message("performance: __builtin_elementwise_min() not supported. Consider updating clang.")
     // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
-    return b < a || isnan(a) ? b : a;
+    return ((b < a) | isnan(a)) ? b : a;
 #endif
 }
 
@@ -97,7 +97,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gve
 #else
 #pragma message("performance: __builtin_elementwise_max() not supported. Consider updating clang.")
     // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
-    return a < b || isnan(a) ? b : a;
+    return ((a < b) | isnan(a)) ? b : a;
 #endif
 }
 
