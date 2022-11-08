@@ -4,6 +4,7 @@
 
 #include <catch.hpp>
 
+#include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include <limits>
 
@@ -104,10 +105,42 @@ TEST_CASE("min-max", "[simd]")
     CHECK(simd::max<float, 1>(1, kNaN).x == std::max<float>(1, kNaN));
 }
 
+// Check simd::clamp.
+TEST_CASE("clamp", "[simd]")
+{
+    CHECK(simd::all(simd::clamp(float4{1, 2, kInf, -kInf},
+                                float4{2, 1, kInf, 0},
+                                float4{3, 1, kInf, kInf}) == float4{2, 1, kInf, 0}));
+    CHECK(simd::all(simd::clamp(float4{1, kNaN, kInf, -kInf},
+                                float4{kNaN, 2, kNaN, 0},
+                                float4{kNaN, 3, kInf, kNaN}) == float4{1, 2, kInf, 0}));
+    float4 f4 = simd::clamp(float4{1, kNaN, kNaN, kNaN},
+                            float4{kNaN, 1, kNaN, kNaN},
+                            float4{kNaN, kNaN, 1, kNaN});
+    CHECK(simd::all(f4.xyz == 1));
+    CHECK(std::isnan(f4.w));
+
+    // Returns lo if x == NaN, but std::clamp() returns NaN.
+    CHECK(simd::clamp<float, 1>(kNaN, 1, 2).x == 1);
+    CHECK(std::clamp<float>(kNaN, 1, 2) != 1);
+    CHECK(std::isnan(std::clamp<float>(kNaN, 1, 2)));
+
+    // Returns hi if hi <= lo.
+    CHECK(simd::clamp<float, 1>(3, 2, 1).x == 1);
+    CHECK(simd::clamp<float, 1>(kNaN, 2, 1).x == 1);
+    CHECK(simd::clamp<float, 1>(kNaN, kNaN, 1).x == 1);
+
+    // Ignores hi and/or lo if they are NaN.
+    CHECK(simd::clamp<float, 1>(3, 4, kNaN).x == 4);
+    CHECK(simd::clamp<float, 1>(3, 2, kNaN).x == 3);
+    CHECK(simd::clamp<float, 1>(3, kNaN, 2).x == 2);
+    CHECK(simd::clamp<float, 1>(3, kNaN, 4).x == 3);
+    CHECK(simd::clamp<float, 1>(3, kNaN, kNaN).x == 3);
+}
+
 // Check simd::abs.
 TEST_CASE("abs", "[simd]")
 {
-
     CHECK(simd::all(simd::abs(float4{-1, 2, -3, 4}) == float4{1, 2, 3, 4}));
     CHECK(simd::all(simd::abs(float2{-5, 6}) == float2{5, 6}));
     CHECK(simd::all(float4{-std::numeric_limits<float>::epsilon(),
@@ -128,6 +161,88 @@ TEST_CASE("abs", "[simd]")
         simd::all(simd::abs(int2{-std::numeric_limits<int32_t>::max(),
                                  std::numeric_limits<int32_t>::min()}) ==
                   int2{std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::min()}));
+}
+
+// Check simd::dot.
+TEST_CASE("dot", "[simd]")
+{
+    CHECK(simd::dot(int2{0, 1}, int2{1, 0}) == 0);
+    CHECK(simd::dot(int2{1, 0}, int2{0, 1}) == 0);
+    CHECK(simd::dot(int2{1, 1}, int2{1, -1}) == 0);
+    CHECK(simd::dot(int2{1, 1}, int2{1, 1}) == 2);
+    CHECK(simd::dot(int2{1, 1}, int2{-1, -1}) == -2);
+    CHECK(simd::dot(simd::gvec<int, 3>{1, 2, 3}, simd::gvec<int, 3>{1, 2, 3}) == 14);
+    CHECK(simd::dot(int4{1, 2, 3, 4}, int4{1, 2, 3, 4}) == 30);
+    CHECK(simd::dot(ivec<5>{1, 2, 3, 4, 5}, ivec<5>{1, 2, 3, 4, 5}) == 55);
+}
+
+// Check simd::cross.
+TEST_CASE("cross", "[simd]")
+{
+    CHECK(simd::cross({0, 1}, {0, 1}) == 0);
+    CHECK(simd::cross({1, 0}, {1, 0}) == 0);
+    CHECK(simd::cross({1, 1}, {1, 1}) == 0);
+    CHECK(simd::cross({1, 1}, {1, -1}) == -2);
+    CHECK(simd::cross({1, 1}, {-1, 1}) == 2);
+}
+
+// Check simd::join
+TEST_CASE("join", "[simd]")
+{
+    CHECK(simd::all(simd::join(int2{1, 2}, int4{3, 4, 5, 6}) == ivec<6>{1, 2, 3, 4, 5, 6}));
+    CHECK(simd::all(simd::join(vec<1>{1}, vec<3>{2, 3, 4}) == float4{1, 2, 3, 4}));
+}
+
+template <int N> static vec<N> mix_reference_impl(vec<N> a, vec<N> b, float t)
+{
+    return a * (1 - t) + b * t;
+}
+template <int N> static vec<N> mix_reference_impl(vec<N> a, vec<N> b, vec<N> t)
+{
+    return a * (1 - t) + b * t;
+}
+
+template <typename T, int N> static bool fuzzy_equal(simd::gvec<T, N> a, simd::gvec<T, N> b)
+{
+    return simd::all(b - a < 1e-4f);
+}
+
+static float frand()
+{
+    float kMaxBelow1 = math::bit_cast<float>(math::bit_cast<uint32_t>(1.f) - 1);
+    float f = static_cast<float>(rand()) / RAND_MAX;
+    return std::min(kMaxBelow1, f);
+}
+template <int N> vec<N> vrand()
+{
+    vec<N> vrand{};
+    for (int i = 0; i < N; ++i)
+    {
+        vrand[i] = frand();
+    }
+    return vrand;
+}
+
+template <int N> void check_mix()
+{
+    vec<N> a = vrand<N>();
+    vec<N> b = vrand<N>();
+    float t = frand();
+    CHECK(fuzzy_equal(simd::mix(a, b, t), mix_reference_impl(a, b, t)));
+    vec<N> tt = vrand<N>();
+    CHECK(fuzzy_equal(simd::mix(a, b, tt), mix_reference_impl(a, b, tt)));
+}
+
+// Check simd::mix
+TEST_CASE("mix", "[simd]")
+{
+    srand(0);
+    check_mix<1>();
+    check_mix<2>();
+    check_mix<3>();
+    check_mix<4>();
+    check_mix<5>();
+    CHECK(simd::all(simd::mix(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}, 0) == float4{1, 2, 3, 4}));
 }
 
 } // namespace rive

@@ -14,15 +14,20 @@
 #ifndef _RIVE_SIMD_HPP_
 #define _RIVE_SIMD_HPP_
 
+#include <cassert>
+#include <limits>
 #include <stdint.h>
 
 #define SIMD_ALWAYS_INLINE inline __attribute__((always_inline))
+
+// SIMD math can expect conformant IEEE 754 behavior for NaN and Inf.
+static_assert(std::numeric_limits<float>::is_iec559,
+              "Conformant IEEE 754 behavior for NaN and Inf is required.");
 
 namespace rive
 {
 namespace simd
 {
-
 // The GLSL spec uses "gvec" to denote a vector of unspecified type.
 template <typename T, int N>
 using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof(T) * N)));
@@ -41,6 +46,18 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gve
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
 {
     return __builtin_elementwise_max(a, b);
+}
+
+// Unlike std::clamp(), simd::clamp() always returns a value between lo and hi.
+//
+//   Returns lo if x == NaN, but std::clamp() returns NaN.
+//   Returns hi if hi <= lo.
+//   Ignores hi and/or lo if they are NaN.
+//
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> clamp(gvec<T, N> x, gvec<T, N> lo, gvec<T, N> hi)
+{
+    return min(max(lo, x), hi);
 }
 
 // Returns the absolute value of x per element, with one exception:
@@ -79,24 +96,85 @@ template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
 
 ////// Loading and storing //////
 
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const T* ptr)
+template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const void* ptr)
 {
     gvec<T, N> vec;
     __builtin_memcpy(&vec, ptr, sizeof(vec));
     return vec;
 }
-SIMD_ALWAYS_INLINE gvec<float, 2> load2f(const float* ptr) { return load<float, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<float, 4> load4f(const float* ptr) { return load<float, 4>(ptr); }
-SIMD_ALWAYS_INLINE gvec<int32_t, 2> load2i(const int32_t* ptr) { return load<int32_t, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<int32_t, 4> load4i(const int32_t* ptr) { return load<int32_t, 4>(ptr); }
-SIMD_ALWAYS_INLINE gvec<uint32_t, 2> load2ui(const uint32_t* ptr) { return load<uint32_t, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const uint32_t* ptr) { return load<uint32_t, 4>(ptr); }
+SIMD_ALWAYS_INLINE gvec<float, 2> load2f(const void* ptr) { return load<float, 2>(ptr); }
+SIMD_ALWAYS_INLINE gvec<float, 4> load4f(const void* ptr) { return load<float, 4>(ptr); }
+SIMD_ALWAYS_INLINE gvec<int32_t, 2> load2i(const void* ptr) { return load<int32_t, 2>(ptr); }
+SIMD_ALWAYS_INLINE gvec<int32_t, 4> load4i(const void* ptr) { return load<int32_t, 4>(ptr); }
+SIMD_ALWAYS_INLINE gvec<uint32_t, 2> load2ui(const void* ptr) { return load<uint32_t, 2>(ptr); }
+SIMD_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const void* ptr) { return load<uint32_t, 4>(ptr); }
 
-template <typename T, int N> SIMD_ALWAYS_INLINE void store(T* ptr, gvec<T, N> vec)
+template <typename T, int N> SIMD_ALWAYS_INLINE void store(void* ptr, gvec<T, N> vec)
 {
     __builtin_memcpy(ptr, &vec, sizeof(vec));
 }
 
+template <typename T, int M, int N>
+SIMD_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
+{
+    T data[M + N];
+    __builtin_memcpy(data, &a, sizeof(T) * M);
+    __builtin_memcpy(data + M, &b, sizeof(T) * N);
+    return load<T, M + N>(data);
+}
+
+////// Basic linear algebra //////
+
+template <typename T, int N> SIMD_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
+{
+    gvec<T, N> d = a * b;
+    if constexpr (N == 2)
+    {
+        return d.x + d.y;
+    }
+    else if constexpr (N == 3)
+    {
+        return d.x + d.y + d.z;
+    }
+    else if constexpr (N == 4)
+    {
+        return d.x + d.y + d.z + d.w;
+    }
+    else
+    {
+        T s = d[0];
+        for (int i = 1; i < N; ++i)
+        {
+            s += d[i];
+        }
+        return s;
+    }
+}
+
+SIMD_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)
+{
+    gvec<float, 2> c = a * b.yx;
+    return c.x - c.y;
+}
+
+// Linearly interpolates between a and b.
+//
+// NOTE: mix(a, b, 1) !== b (!!)
+//
+// The floating point numerics are not precise in the case where t === 1. But overall, this
+// structure seems to get better precision for things like chopping cubics on exact cusp points than
+// "a*(1 - t) + b*t" (which would return exactly b when t == 1).
+template <int N> SIMD_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, float t)
+{
+    assert(0 <= t && t < 1);
+    return (b - a) * t + a;
+}
+template <int N>
+SIMD_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, gvec<float, N> t)
+{
+    assert(simd::all(0 <= t && t < 1));
+    return (b - a) * t + a;
+}
 } // namespace simd
 } // namespace rive
 
@@ -104,7 +182,6 @@ template <typename T, int N> SIMD_ALWAYS_INLINE void store(T* ptr, gvec<T, N> ve
 
 namespace rive
 {
-
 template <int N> using vec = simd::gvec<float, N>;
 using float2 = vec<2>;
 using float4 = vec<4>;
@@ -116,7 +193,6 @@ using int4 = ivec<4>;
 template <int N> using uvec = simd::gvec<uint32_t, N>;
 using uint2 = uvec<2>;
 using uint4 = uvec<4>;
-
 } // namespace rive
 
 #endif
