@@ -57,7 +57,7 @@ jobs:
         shell: powershell
         run: |
           cd dev/test
-          C:\premake5.exe vs2022
+          C:\premake5.exe --scripts=..\..\build vs2022
           MSBuild rive.sln
           build\bin\debug\tests.exe
 
