@@ -51,15 +51,15 @@ TEST_CASE("ieee-compliance", "[simd]")
     CHECK(!simd::any(test.zw == test.zw)); // NaN
 }
 
-// Check that ?: works on vector and scalar conditions.
+// Check simd::if_then_else.
 TEST_CASE("ternary-operator", "[simd]")
 {
     // Vector condition.
-    float4 f4 = int4{1, 2, 3, 4} < int4{4, 3, 2, 1} ? float4(-1) : 1.f;
+    float4 f4 = simd::if_then_else(int4{1, 2, 3, 4} < int4{4, 3, 2, 1}, float4(-1), float4(1));
     CHECK(simd::all(f4 == float4{-1, -1, 1, 1}));
 
     // In vector, -1 is true, 0 is false.
-    uint2 u2 = int2{0, -1} ? uint2{1, 2} : uint2{3, 4};
+    uint2 u2 = simd::if_then_else(int2{0, -1}, uint2{1, 2}, uint2{3, 4});
     CHECK(simd::all(u2 == uint2{3, 2}));
 
     // Scalar condition.
@@ -211,7 +211,7 @@ template <typename T, int N> static bool fuzzy_equal(simd::gvec<T, N> a, simd::g
 static float frand()
 {
     float kMaxBelow1 = math::bit_cast<float>(math::bit_cast<uint32_t>(1.f) - 1);
-    float f = static_cast<float>(rand()) / RAND_MAX;
+    float f = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
     return std::min(kMaxBelow1, f);
 }
 template <int N> vec<N> vrand()

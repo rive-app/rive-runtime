@@ -24,6 +24,11 @@
 static_assert(std::numeric_limits<float>::is_iec559,
               "Conformant IEEE 754 behavior for NaN and Inf is required.");
 
+// Recommended in https://clang.llvm.org/docs/LanguageExtensions.html#feature-checking-macros
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
 namespace rive
 {
 namespace simd
@@ -75,6 +80,24 @@ constexpr gvec<int32_t, N> isnan(gvec<T, N>)
 
 ////// Math //////
 
+// Elementwise ternary expression: "_if ? _then : _else" for each component.
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<int32_t, N> _if, gvec<T, N> _then, gvec<T, N> _else)
+{
+#if __clang_major__ >= 13
+    // The '?:' operator supports a vector condition beginning in clang 13.
+    return _if ? _then : _else;
+#else
+#pragma message("performance: vectorized '?:' operator not supported. Consider updating clang.")
+    gvec<T, N> ret{};
+    for (int i = 0; i < N; ++i)
+    {
+        ret[i] = _if[i] ? _then[i] : _else[i];
+    }
+    return ret;
+#endif
+}
+
 // Similar to std::min(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
@@ -84,7 +107,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gve
 #else
 #pragma message("performance: __builtin_elementwise_min() not supported. Consider updating clang.")
     // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
-    return b < a || isnan(a) ? b : a;
+    return if_then_else(b < a || isnan(a), b, a);
 #endif
 }
 
@@ -97,7 +120,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gve
 #else
 #pragma message("performance: __builtin_elementwise_max() not supported. Consider updating clang.")
     // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
-    return a < b || isnan(a) ? b : a;
+    return if_then_else(a < b || isnan(a), b, a);
 #endif
 }
 
@@ -121,7 +144,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
     return __builtin_elementwise_abs(x);
 #else
 #pragma message("performance: __builtin_elementwise_abs() not supported. Consider updating clang.")
-    return x < 0 ? -x : x; // But the negation in the "true" side so we never negate NaN.
+    return if_then_else(x < 0, -x, x); // Do the negation on the "true" side so we never negate NaN.
 #endif
 }
 
