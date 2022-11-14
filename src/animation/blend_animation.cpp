@@ -6,6 +6,8 @@
 
 using namespace rive;
 
+LinearAnimation BlendAnimation::m_EmptyAnimation;
+
 StatusCode BlendAnimation::import(ImportStack& importStack)
 {
     auto importer = importStack.latest<LayerStateImporter>(LayerStateBase::typeKey);

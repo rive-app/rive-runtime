@@ -3,13 +3,14 @@
 #include "rive/animation/loop.hpp"
 #include "rive/rive_counter.hpp"
 #include <cmath>
+#include <cassert>
 
 using namespace rive;
 
 LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animation,
                                                  ArtboardInstance* instance) :
     Scene(instance),
-    m_Animation(animation),
+    m_Animation((assert(animation != nullptr), animation)),
     m_Time(animation->enableWorkArea() ? (float)animation->workStart() / animation->fps() : 0),
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),

@@ -7,10 +7,14 @@ class LinearAnimation;
 class BlendAnimation : public BlendAnimationBase
 {
 private:
+    static LinearAnimation m_EmptyAnimation;
     LinearAnimation* m_Animation = nullptr;
 
 public:
-    const LinearAnimation* animation() const { return m_Animation; }
+    const LinearAnimation* animation() const
+    {
+        return m_Animation == nullptr ? &m_EmptyAnimation : m_Animation;
+    }
     StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
