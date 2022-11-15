@@ -9,37 +9,12 @@
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/text.hpp"
+#include "rive/text/font_hb.hpp"
 #include <algorithm>
 
 using FontTextRuns = std::vector<rive::TextRun>;
 using FontGlyphRuns = rive::SimpleArray<rive::GlyphRun>;
 using FontFactory = rive::rcp<rive::Font> (*)(const rive::Span<const uint8_t>);
-
-static bool ws(rive::Unichar c) { return c <= ' '; }
-
-std::vector<int> compute_word_breaks(rive::Span<rive::Unichar> chars)
-{
-    std::vector<int> breaks;
-
-    const unsigned len = chars.size();
-    for (unsigned i = 0; i < len;)
-    {
-        // skip ws
-        while (i < len && ws(chars[i]))
-        {
-            ++i;
-        }
-        breaks.push_back(i); // word start
-        // skip non-ws
-        while (i < len && !ws(chars[i]))
-        {
-            ++i;
-        }
-        breaks.push_back(i); // word end
-    }
-    assert(breaks[breaks.size() - 1] == len);
-    return breaks;
-}
 
 static float drawrun(rive::Factory* factory,
                      rive::Renderer* renderer,
@@ -125,6 +100,20 @@ static float drawpara(rive::Factory* factory,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
+std::vector<rive::rcp<rive::Font>> fallbackFonts;
+static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> missing)
+{
+    size_t length = fallbackFonts.size();
+    for (size_t i = 0; i < length; i++)
+    {
+        HBFont* font = static_cast<HBFont*>(fallbackFonts[i].get());
+        if (i == length - 1 || font->hasGlyph(missing))
+        {
+            return fallbackFonts[i];
+        }
+    }
+    return nullptr;
+}
 
 #ifdef RIVE_USING_HAFBUZZ_FONTS
 static rive::rcp<rive::Font> load_fallback_font(rive::Span<const rive::Unichar> missing)
@@ -200,7 +189,6 @@ static rive::TextRun append(std::vector<rive::Unichar>* unichars,
 class TextContent : public ViewerContent
 {
     std::vector<rive::Unichar> m_unichars;
-    std::vector<int> m_breaks;
 
     rive::SimpleArray<rive::Paragraph> m_paragraphs;
     rive::Mat2D m_xform;
@@ -222,16 +210,18 @@ class TextContent : public ViewerContent
 
         const char* fontFiles[] = {
             "../../../test/assets/RobotoFlex.ttf",
-            "../../../test/assets/LibreBodoni-Italic-VariableFont_wght.ttf",
+            "../../../test/assets/Montserrat.ttf",
             "../../../test/assets/IBMPlexSansArabic-Regular.ttf",
         };
 
         auto font0 = loader(fontFiles[0]);
-        // auto font1 = loader(fontFiles[1]);
+        auto font1 = loader(fontFiles[1]);
         auto font2 = loader(fontFiles[2]);
-        // assert(font0);
-        // assert(font1);
+        assert(font0);
+        assert(font1);
         assert(font2);
+
+        fallbackFonts.push_back(font2);
 
         rive::Font::Coord c1 = {'wght', 100.f}, c2 = {'wght', 800.f};
 
@@ -252,12 +242,37 @@ class TextContent : public ViewerContent
 
         // truns.push_back(append(&m_unichars, font2, 32.0f, "في 10-12 آذار 1997 بمدينة"));
         // truns.push_back(append(&m_unichars, font2, 32.0f, "في 10-12 آذار 1997 بمدينة"));
-
         truns.push_back(append(&m_unichars,
-                               font2,
+                               font1,
                                32.0f,
                                // clang-format off
-                               "لمفاتيح ABC DEF"));
+                               "لمفاتيح ABC"));
+
+        // truns.push_back(append(&m_unichars,
+        //                        font1,
+        //                        28.0f,
+        //                        // clang-format off
+        //                        " DEF\n"));
+
+        // truns.push_back(append(&m_unichars,
+        //                        font0,
+        //                        32.0f,
+        //                        // clang-format off
+        //                        " one ever ff ffi left alive in "));
+
+        // truns.push_back(append(&m_unichars,
+        //                        font1,
+        //                        54.0f,
+        //                        // clang-format off
+        //                        "nineteen hundred"));
+
+        // truns.push_back(append(&m_unichars,
+        //                        font0,
+        //                        32.0f,
+        //                        // clang-format off
+        //                        "and eighty five"));
+        // TODO: test case from flutter causing assertion break
+
         //    "لمفاتيح ABC DEF في 10-12 آذار 1997 بمدينة\nabc def ghi jkl mnop\nلكن لا بد أن أوضح لك
         //    أن كل"));
         // "hello look\u2028here\nsecond paragraph"));
@@ -278,14 +293,14 @@ class TextContent : public ViewerContent
         // truns.push_back(append(&m_unichars, font0, 32.0f, "ab"));
         // truns.push_back(append(&m_unichars, font0, 60.0f, "ee\n four"));
 
-        m_breaks = compute_word_breaks(m_unichars);
-
         return truns;
     }
 
 public:
     TextContent()
     {
+        fallbackFonts.clear();
+        HBFont::gFallbackProc = pickFallbackFont;
         auto truns = this->make_truns(ViewerContent::DecodeFont);
         m_paragraphs = truns[0].font->shapeText(m_unichars, truns);
 
@@ -306,6 +321,7 @@ public:
             new rive::SimpleArray<rive::SimpleArray<rive::GlyphLine>>(paragraphs.size());
         rive::SimpleArray<rive::SimpleArray<rive::GlyphLine>>& linesRef = *lines;
         size_t paragraphIndex = 0;
+
         for (auto& para : paragraphs)
         {
             linesRef[paragraphIndex] =
@@ -317,6 +333,7 @@ public:
                     std::max(paragraphWidth,
                              rive::GlyphLine::ComputeMaxWidth(linesRef[paragraphIndex], para.runs));
             }
+            paragraphIndex++;
         }
         paragraphIndex = 0;
         for (auto& para : paragraphs)

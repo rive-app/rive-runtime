@@ -162,9 +162,19 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float wi
     auto limit = maxLineWidth;
 
     bool advanceWord = false;
-    WordMarker start = {runs.begin(), 0};
+
+    // We iterate the breaks list with a WordMarker helper which is basically an
+    // iterator. The breaks lists contains tightly packed start/end indices per
+    // run. So the first valid word is at break index 0,1 (per run). Because a
+    // run can be created with no valid breaks, we start the word iterator at a
+    // negative index and attempt to move it to the first valid index (which
+    // could be in the Nth run in the paragraph). If that fails, we know we have
+    // no words to break in the entire paragraph and can early out. See how
+    // WordMarker::next works and notice how we also use it below in this same
+    // method.
+    WordMarker start = {runs.begin(), (uint32_t)-2};
     WordMarker end = {runs.begin(), (uint32_t)-1};
-    if (!end.next(runs))
+    if (!start.next(runs) || !end.next(runs))
     {
         return lines;
     }

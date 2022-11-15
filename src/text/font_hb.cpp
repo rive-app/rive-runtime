@@ -12,6 +12,7 @@
 
 #include "hb.h"
 #include "hb-ot.h"
+
 extern "C"
 {
 #include "SheenBidi.h"
@@ -246,9 +247,10 @@ static rive::GlyphRun extract_subset(const rive::GlyphRun& orig, size_t start, s
     rive::GlyphRun subset(rive::SimpleArray<rive::GlyphID>(&orig.glyphs[start], count),
                           rive::SimpleArray<uint32_t>(&orig.textIndices[start], count),
                           rive::SimpleArray<float>(&orig.advances[start], count),
-                          rive::SimpleArray<float>(&orig.xpos[start], count));
+                          rive::SimpleArray<float>(&orig.xpos[start], count + 1));
     subset.font = std::move(orig.font);
     subset.size = orig.size;
+    subset.dir = orig.dir;
     subset.xpos.back() = 0; // since we're now the end of a run
     subset.styleId = orig.styleId;
 
@@ -460,6 +462,12 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
 
     SBAlgorithmRelease(bidiAlgorithm);
     return paragraphs;
+}
+
+bool HBFont::hasGlyph(rive::Span<const rive::Unichar> missing)
+{
+    hb_codepoint_t glyph;
+    return !missing.empty() && hb_font_get_nominal_glyph(m_Font, missing[0], &glyph);
 }
 
 #endif

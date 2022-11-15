@@ -314,3 +314,22 @@ TEST_CASE("shaper handles RTL", "[shaper]")
         REQUIRE(unichars[index + 2] == 'F');
     }
 }
+
+TEST_CASE("shaper handles empty space", "[shaper]")
+{
+    auto font = loadFont("../../test/assets/IBMPlexSansArabic-Regular.ttf");
+    REQUIRE(font != nullptr);
+
+    std::vector<rive::TextRun> truns;
+    std::vector<rive::Unichar> unichars;
+    truns.push_back(append(&unichars, font, 32.0f, " "));
+
+    auto paragraphs = font->shapeText(unichars, truns);
+    REQUIRE(paragraphs.size() == 1);
+    const auto& paragraph = paragraphs.front();
+    REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+    {
+        auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
+        REQUIRE(lines.size() == 1);
+    }
+}

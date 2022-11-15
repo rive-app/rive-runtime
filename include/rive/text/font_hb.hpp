@@ -29,6 +29,8 @@ public:
     rive::SimpleArray<rive::Paragraph> onShapeText(rive::Span<const rive::Unichar>,
                                                    rive::Span<const rive::TextRun>) const override;
 
+    bool hasGlyph(rive::Span<const rive::Unichar>);
+
     static rive::rcp<rive::Font> Decode(rive::Span<const uint8_t>);
 
     // If the platform can supply fallback font(s), set this function pointer.

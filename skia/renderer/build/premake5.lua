@@ -80,7 +80,8 @@ do
     filter {'system:ios', 'options:variant=emulator'}
     do
         buildoptions {
-            '-mios-version-min=10.0 -arch x86_64 -arch arm64 -arch i386 -isysroot ' .. (os.getenv('IOS_SYSROOT') or '')
+            '--target=arm64-apple-ios12.0.0-simulator -mios-version-min=10.0 -arch x86_64 -arch arm64 -isysroot ' ..
+                (os.getenv('IOS_SYSROOT') or '')
         }
         targetdir '%{cfg.system}_sim/bin/%{cfg.buildcfg}'
         objdir '%{cfg.system}_sim/obj/%{cfg.buildcfg}'
