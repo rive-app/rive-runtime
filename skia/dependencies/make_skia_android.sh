@@ -9,7 +9,7 @@ ARCH=$1
 CONFIG=$2
 
 build_skia_android() {
-    cd $SKIA_DIR_NAME
+    cd "$SKIA_DIR_NAME"
 
     if [ "$ARCH" != "x86" ] &&
         [ "$ARCH" != "x64" ] &&
@@ -88,6 +88,8 @@ build_skia_android() {
         skia_enable_spirv_validation=false \
         skia_enable_pdf=false \
         skia_enable_skottie=false \
+        
+        skia_enable_skshaper=false \
         "
 
     ninja -C out/"${CONFIG}"/"${ARCH}"

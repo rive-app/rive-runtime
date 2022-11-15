@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-export SKIA_DIR="skia"
+export SKIA_DIR="${SKIA_DIR_NAME:-skia}"
 source ../../dependencies/config_directories.sh
 
 # build main rive
