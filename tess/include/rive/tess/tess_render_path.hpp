@@ -30,7 +30,7 @@ private:
     bool m_isContourDirty = true;
     bool m_isTriangulationDirty = true;
     Mat2D m_contourTransform;
-    bool m_isClosed;
+    bool m_isClosed = false;
 
 protected:
     std::vector<SubPath> m_subPaths;

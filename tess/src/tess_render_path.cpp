@@ -19,6 +19,7 @@ void TessRenderPath::reset()
     m_rawPath.rewind();
     m_subPaths.clear();
     m_isContourDirty = m_isTriangulationDirty = true;
+    m_isClosed = false;
 }
 
 void TessRenderPath::fillRule(FillRule value) { m_fillRule = value; }
@@ -211,7 +212,6 @@ void TessRenderPath::extrudeStroke(ContourStroke* stroke,
     }
 
     contour(transform);
-
     stroke->extrude(&m_segmentedContour, m_isClosed, join, cap, strokeWidth);
 }
 
