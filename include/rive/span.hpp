@@ -9,6 +9,7 @@
 
 #include <initializer_list>
 #include <type_traits>
+#include <iterator>
 
 /*
  *  Span : cheap impl of std::span (which is C++20)
