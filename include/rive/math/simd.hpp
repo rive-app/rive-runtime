@@ -5,8 +5,8 @@
 // An SSE / NEON / WASM_SIMD library based on clang vector types.
 //
 // This header makes use of the clang vector builtins specified in https://reviews.llvm.org/D111529.
-// This effort in clang is still a work in progress, and compiling this header requires an
-// extremely recent version of clang.
+// This effort in clang is still a work in progress, so getting maximum performance from this header
+// requires an extremely recent version of clang.
 //
 // To explore the codegen from this header, paste it into https://godbolt.org/, select a recent
 // clang compiler, and add an -O3 flag.
@@ -17,6 +17,14 @@
 #include <cassert>
 #include <limits>
 #include <stdint.h>
+
+#ifdef __SSE__
+#include <immintrin.h>
+#endif
+
+#ifdef __ARM_NEON__
+#include <arm_neon.h>
+#endif
 
 #define SIMD_ALWAYS_INLINE inline __attribute__((always_inline))
 
@@ -46,22 +54,30 @@ using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof
 // Returns true if all elements in x are equal to 0.
 template <int N> SIMD_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
 {
+#if __has_builtin(__builtin_reduce_or)
+    return __builtin_reduce_or(x);
+#else
+#pragma message("performance: __builtin_reduce_or() not supported. Consider updating clang.")
     // This particular logic structure gets decent codegen in clang.
-    // TODO: __builtin_reduce_or(x) once it's implemented in the compiler.
     for (int i = 0; i < N; ++i)
     {
         if (x[i])
             return true;
     }
     return false;
+#endif
 }
 
 // Returns true if all elements in x are equal to ~0.
 template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
 {
+#if __has_builtin(__builtin_reduce_and)
+    return __builtin_reduce_and(x);
+#else
+#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
     // In vector, true is represented by -1 exactly, so we use ~x for "not".
-    // TODO: __builtin_reduce_and(x) once it's implemented in the compiler.
     return !any(~x);
+#endif
 }
 
 template <typename T,
@@ -91,9 +107,7 @@ SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<int32_t, N> _if, gvec<T, N> _the
 #pragma message("performance: vectorized '?:' operator not supported. Consider updating clang.")
     gvec<T, N> ret{};
     for (int i = 0; i < N; ++i)
-    {
         ret[i] = _if[i] ? _then[i] : _else[i];
-    }
     return ret;
 #endif
 }
@@ -148,6 +162,119 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
 #endif
 }
 
+////// Floating Point Functions //////
+
+template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
+{
+#if __has_builtin(__builtin_elementwise_floor)
+    return __builtin_elementwise_floor(x);
+#else
+#pragma message(                                                                                   \
+    "performance: __builtin_elementwise_floor() not supported. Consider updating clang.")
+    for (int i = 0; i < N; ++i)
+        x[i] = floorf(x[i]);
+    return x;
+#endif
+}
+
+template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
+{
+#if __has_builtin(__builtin_elementwise_ceil)
+    return __builtin_elementwise_ceil(x);
+#else
+#pragma message("performance: __builtin_elementwise_ceil() not supported. Consider updating clang.")
+    for (int i = 0; i < N; ++i)
+        x[i] = ceilf(x[i]);
+    return x;
+#endif
+}
+
+// IEEE compliant sqrt.
+template <int N> SIMD_ALWAYS_INLINE gvec<float, N> sqrt(gvec<float, N> x)
+{
+    // There isn't an elementwise builtin for sqrt. We define architecture-specific specializations
+    // of this function later.
+    for (int i = 0; i < N; ++i)
+        x[i] = sqrtf(x[i]);
+    return x;
+}
+
+#ifdef __SSE__
+template <> SIMD_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
+{
+    __m128 _x;
+    __builtin_memcpy(&_x, &x, sizeof(float) * 4);
+    _x = _mm_sqrt_ps(_x);
+    __builtin_memcpy(&x, &_x, sizeof(float) * 4);
+    return x;
+}
+
+template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
+{
+    __m128 _x;
+    __builtin_memcpy(&_x, &x, sizeof(float) * 2);
+    _x = _mm_sqrt_ps(_x);
+    __builtin_memcpy(&x, &_x, sizeof(float) * 2);
+    return x;
+}
+#endif
+
+#ifdef __ARM_NEON__
+#ifdef __aarch64__
+template <> SIMD_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
+{
+    float32x4_t _x;
+    __builtin_memcpy(&_x, &x, sizeof(float) * 4);
+    _x = vsqrtq_f32(_x);
+    __builtin_memcpy(&x, &_x, sizeof(float) * 4);
+    return x;
+}
+
+template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
+{
+    float32x2_t _x;
+    __builtin_memcpy(&_x, &x, sizeof(float) * 2);
+    _x = vsqrt_f32(_x);
+    __builtin_memcpy(&x, &_x, sizeof(float) * 2);
+    return x;
+}
+#endif
+#endif
+
+// This will only be present when building with Emscripten and "-msimd128".
+#if __has_builtin(__builtin_wasm_sqrt_f32x4)
+template <> SIMD_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
+{
+    return __builtin_wasm_sqrt_f32x4(x);
+}
+
+template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
+{
+    gvec<float, 4> _x{x.x, x.y};
+    _x = __builtin_wasm_sqrt_f32x4(_x);
+    return _x.xy;
+}
+#endif
+
+// Approximates acos(x) within 0.96 degrees, using the rational polynomial:
+//
+//     acos(x) ~= (bx^3 + ax) / (dx^4 + cx^2 + 1) + pi/2
+//
+// See: https://stackoverflow.com/a/36387954
+#define SIMD_FAST_ACOS_MAX_ERROR 0.0167552f // .96 degrees
+template <int N> SIMD_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
+{
+    constexpr static float a = -0.939115566365855f;
+    constexpr static float b = 0.9217841528914573f;
+    constexpr static float c = -1.2845906244690837f;
+    constexpr static float d = 0.295624144969963174f;
+    constexpr static float pi_over_2 = 1.5707963267948966f;
+    auto xx = x * x;
+    auto numer = b * xx + a;
+    auto denom = xx * (d * xx + c) + 1;
+    return x * (numer / denom) + pi_over_2;
+}
+
 ////// Loading and storing //////
 
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const void* ptr)
@@ -182,27 +309,15 @@ SIMD_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
 template <typename T, int N> SIMD_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
 {
     gvec<T, N> d = a * b;
-    if constexpr (N == 2)
-    {
-        return d.x + d.y;
-    }
-    else if constexpr (N == 3)
-    {
-        return d.x + d.y + d.z;
-    }
-    else if constexpr (N == 4)
-    {
-        return d.x + d.y + d.z + d.w;
-    }
-    else
-    {
-        T s = d[0];
-        for (int i = 1; i < N; ++i)
-        {
-            s += d[i];
-        }
-        return s;
-    }
+#if __has_builtin(__builtin_reduce_add)
+    return __builtin_reduce_add(d);
+#else
+#pragma message("performance: __builtin_reduce_add() not supported. Consider updating clang.")
+    T s = d[0];
+    for (int i = 1; i < N; ++i)
+        s += d[i];
+    return s;
+#endif
 }
 
 SIMD_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)

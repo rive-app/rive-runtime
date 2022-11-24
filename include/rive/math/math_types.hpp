@@ -14,6 +14,18 @@ namespace rive
 namespace math
 {
 constexpr float PI = 3.14159265f;
+constexpr float EPSILON = 1.f / (1 << 12); // Common threshold for detecting values near zero.
+
+[[maybe_unused]] inline bool nearly_zero(float a, float tolerance = EPSILON)
+{
+    assert(tolerance >= 0);
+    return fabsf(a) <= tolerance;
+}
+
+[[maybe_unused]] inline bool nearly_equal(float a, float b, float tolerance = EPSILON)
+{
+    return nearly_zero(b - a, tolerance);
+}
 
 // Performs a floating point division with conformant IEEE 754 behavior for NaN and Inf.
 //

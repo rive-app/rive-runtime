@@ -1,4 +1,11 @@
 /*
+ * Copyright 2019 Google Inc.
+ *
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ *
+ * "fast_acos" test imported from skia:tests/SkVxTest.cpp
+ *
  * Copyright 2022 Rive
  */
 
@@ -13,6 +20,44 @@ namespace rive
 
 constexpr float kInf = std::numeric_limits<float>::infinity();
 constexpr float kNaN = std::numeric_limits<float>::quiet_NaN();
+
+// Check simd::any.
+TEST_CASE("any", "[simd]")
+{
+    CHECK(!simd::any(int4{0, 0, 0, 0}));
+    CHECK(simd::any(int4{-1, 0, 0, 0}));
+    CHECK(simd::any(int4{0, -1, 0, 0}));
+    CHECK(simd::any(int4{0, 0, -1, 0}));
+    CHECK(simd::any(int4{0, 0, 0, -1}));
+    CHECK(!simd::any(ivec<3>{0, 0, 0}));
+    CHECK(simd::any(ivec<3>{-1, 0, 0}));
+    CHECK(simd::any(ivec<3>{0, -1, 0}));
+    CHECK(simd::any(ivec<3>{0, 0, -1}));
+    CHECK(!simd::any(int2{0, 0}));
+    CHECK(simd::any(int2{-1, 0}));
+    CHECK(simd::any(int2{0, -1}));
+    CHECK(!simd::any(ivec<1>{0}));
+    CHECK(simd::any(ivec<1>{-1}));
+}
+
+// Check simd::all.
+TEST_CASE("all", "[simd]")
+{
+    CHECK(simd::all(int4{-1, -1, -1, -1}));
+    CHECK(!simd::all(int4{0, -1, -1, -1}));
+    CHECK(!simd::all(int4{-1, 0, -1, -1}));
+    CHECK(!simd::all(int4{-1, -1, 0, -1}));
+    CHECK(!simd::all(int4{-1, -1, -1, 0}));
+    CHECK(simd::all(ivec<3>{-1, -1, -1}));
+    CHECK(!simd::all(ivec<3>{0, -1, -1}));
+    CHECK(!simd::all(ivec<3>{-1, 0, -1}));
+    CHECK(!simd::all(ivec<3>{-1, -1, 0}));
+    CHECK(simd::all(int2{-1, -1}));
+    CHECK(!simd::all(int2{0, -1}));
+    CHECK(!simd::all(int2{-1, 0}));
+    CHECK(simd::all(ivec<1>{-1}));
+    CHECK(!simd::all(ivec<1>{0}));
+}
 
 // Verify the simd float types are IEEE 754 compliant for infinity and NaN.
 TEST_CASE("ieee-compliance", "[simd]")
@@ -162,6 +207,144 @@ TEST_CASE("abs", "[simd]")
         simd::all(simd::abs(int2{-std::numeric_limits<int32_t>::max(),
                                  std::numeric_limits<int32_t>::min()}) ==
                   int2{std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::min()}));
+}
+
+// Check simd::floor.
+TEST_CASE("floor", "[simd]")
+{
+    CHECK(simd::all(simd::floor(float4{-1.9f, 1.9f, 2, -2}) == float4{-2, 1, 2, -2}));
+    CHECK(simd::all(simd::floor(float2{kInf, -kInf}) == float2{kInf, -kInf}));
+    CHECK(simd::all(simd::isnan(simd::floor(float2{kNaN, -kNaN}))));
+}
+
+// Check simd::ceil.
+TEST_CASE("ceil", "[simd]")
+{
+    CHECK(simd::all(simd::ceil(float4{-1.9f, 1.9f, 2, -2}) == float4{-1, 2, 2, -2}));
+    CHECK(simd::all(simd::ceil(float2{kInf, -kInf}) == float2{kInf, -kInf}));
+    CHECK(simd::all(simd::isnan(simd::ceil(float2{kNaN, -kNaN}))));
+}
+
+// Check simd::sqrt.
+TEST_CASE("sqrt", "[simd]")
+{
+    CHECK(simd::all(simd::sqrt(float4{1, 4, 9, 16}) == float4{1, 2, 3, 4}));
+    CHECK(simd::all(simd::sqrt(float2{25, 36}) == float2{5, 6}));
+    CHECK(simd::all(simd::sqrt(vec<1>{36}) == vec<1>{6}));
+    CHECK(simd::all(simd::sqrt(vec<5>{49, 64, 81, 100, 121}) == vec<5>{7, 8, 9, 10, 11}));
+    CHECK(simd::all(simd::isnan(simd::sqrt(float4{-1, -kInf, kNaN, -2}))));
+    CHECK(simd::all(simd::sqrt(vec<3>{kInf, 0, 1}) == vec<3>{kInf, 0, 1}));
+}
+
+static bool check_fast_acos(float x, float fast_acos_x)
+{
+    float acosf_x = acosf(x);
+    float error = acosf_x - fast_acos_x;
+    if (!(fabsf(error) <= SIMD_FAST_ACOS_MAX_ERROR))
+    {
+        auto rad2deg = [](float rad) { return rad * 180 / math::PI; };
+        fprintf(stderr,
+                "Larger-than-expected error from skvx::fast_acos\n"
+                "  x=              %f\n"
+                "  fast_acos_x=    %f  (%f degrees\n"
+                "  acosf_x=        %f  (%f degrees\n"
+                "  error=          %f  (%f degrees)\n"
+                "  tolerance=      %f  (%f degrees)\n\n",
+                x,
+                fast_acos_x,
+                rad2deg(fast_acos_x),
+                acosf_x,
+                rad2deg(acosf_x),
+                error,
+                rad2deg(error),
+                SIMD_FAST_ACOS_MAX_ERROR,
+                rad2deg(SIMD_FAST_ACOS_MAX_ERROR));
+        CHECK(false);
+        return false;
+    }
+    return true;
+}
+
+TEST_CASE("fast_acos", "[simd]")
+{
+    float4 boundaries = simd::fast_acos(float4{-1, 0, 1, 0});
+    check_fast_acos(-1, boundaries[0]);
+    check_fast_acos(0, boundaries[1]);
+    check_fast_acos(+1, boundaries[2]);
+
+    // Select a distribution of starting points around which to begin testing fast_acos. These
+    // fall roughly around the known minimum and maximum errors. No need to include -1, 0, or 1
+    // since those were just tested above. (Those are tricky because 0 is an inflection and the
+    // derivative is infinite at 1 and -1.)
+    using float8 = vec<8>;
+    float8 x = {-.99f, -.8f, -.4f, -.2f, .2f, .4f, .8f, .99f};
+
+    // Converge at the various local minima and maxima of "fast_acos(x) - cosf(x)" and verify that
+    // fast_acos is always within "kTolerance" degrees of the expected answer.
+    float8 err_;
+    for (int iter = 0; iter < 10; ++iter)
+    {
+        // Run our approximate inverse cosine approximation.
+        auto fast_acos_x = simd::fast_acos(x);
+
+        // Find d/dx(error)
+        //    = d/dx(fast_acos(x) - acos(x))
+        //    = (f'g - fg')/gg + 1/sqrt(1 - x^2), [where f = bx^3 + ax, g = dx^4 + cx^2 + 1]
+        float8 xx = x * x;
+        float8 a = -0.939115566365855f;
+        float8 b = 0.9217841528914573f;
+        float8 c = -1.2845906244690837f;
+        float8 d = 0.295624144969963174f;
+        float8 f = (b * xx + a) * x;
+        float8 f_ = 3 * b * xx + a;
+        float8 g = (d * xx + c) * xx + 1;
+        float8 g_ = (4 * d * xx + 2 * c) * x;
+        float8 gg = g * g;
+        float8 q = simd::sqrt(1 - xx);
+        err_ = (f_ * g - f * g_) / gg + 1 / q;
+
+        // Find d^2/dx^2(error)
+        //    = ((f''g - fg'')g^2 - (f'g - fg')2gg') / g^4 + x(1 - x^2)^(-3/2)
+        //    = ((f''g - fg'')g - (f'g - fg')2g') / g^3 + x(1 - x^2)^(-3/2)
+        float8 f__ = 6 * b * x;
+        float8 g__ = 12 * d * xx + 2 * c;
+        float8 err__ =
+            ((f__ * g - f * g__) * g - (f_ * g - f * g_) * 2 * g_) / (gg * g) + x / ((1 - xx) * q);
+
+#if 0
+        SkDebugf("\n\niter %i\n", iter);
+#endif
+        // Ensure each lane's approximation is within maximum error.
+        for (int j = 0; j < 8; ++j)
+        {
+#if 0
+            SkDebugf("x=%f  err=%f  err'=%f  err''=%f\n",
+                     x[j], rad2deg(skvx::fast_acos_x[j] - acosf(x[j])),
+                     rad2deg(err_[j]), rad2deg(err__[j]));
+#endif
+            if (!check_fast_acos(x[j], fast_acos_x[j]))
+            {
+                return;
+            }
+        }
+
+        // Use Newton's method to update the x values to locations closer to their local minimum or
+        // maximum. (This is where d/dx(error) == 0.)
+        x -= err_ / err__;
+        x = simd::clamp<float, 8>(x, -.99f, .99f);
+    }
+
+    // Verify each lane converged to a local minimum or maximum.
+    for (int j = 0; j < 8; ++j)
+    {
+        REQUIRE(math::nearly_zero(err_[j]));
+    }
+
+    // Make sure we found all the actual known locations of local min/max error.
+    for (float knownRoot : {-0.983536f, -0.867381f, -0.410923f, 0.410923f, 0.867381f, 0.983536f})
+    {
+        CHECK(simd::any(simd::abs(x - knownRoot) < math::EPSILON));
+    }
 }
 
 // Check simd::dot.
