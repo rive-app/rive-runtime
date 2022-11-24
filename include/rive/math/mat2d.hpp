@@ -49,6 +49,7 @@ public:
 
     TransformComponents decompose() const;
     static Mat2D compose(const TransformComponents&);
+    float findMaxScale() const;
     Mat2D scale(Vec2D) const;
 
     static Mat2D multiply(const Mat2D& a, const Mat2D& b);
