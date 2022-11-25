@@ -351,13 +351,20 @@ TEST_CASE("fast_acos", "[simd]")
 TEST_CASE("dot", "[simd]")
 {
     CHECK(simd::dot(int2{0, 1}, int2{1, 0}) == 0);
-    CHECK(simd::dot(int2{1, 0}, int2{0, 1}) == 0);
+    CHECK(simd::dot(uint2{1, 0}, uint2{0, 1}) == 0);
     CHECK(simd::dot(int2{1, 1}, int2{1, -1}) == 0);
-    CHECK(simd::dot(int2{1, 1}, int2{1, 1}) == 2);
+    CHECK(simd::dot(uint2{1, 1}, uint2{1, 1}) == 2);
     CHECK(simd::dot(int2{1, 1}, int2{-1, -1}) == -2);
-    CHECK(simd::dot(simd::gvec<int, 3>{1, 2, 3}, simd::gvec<int, 3>{1, 2, 3}) == 14);
+    CHECK(simd::dot(ivec<3>{1, 2, -3}, ivec<3>{1, 2, 3}) == -4);
+    CHECK(simd::dot(uvec<3>{1, 2, 3}, uvec<3>{1, 2, 3}) == 14);
     CHECK(simd::dot(int4{1, 2, 3, 4}, int4{1, 2, 3, 4}) == 30);
-    CHECK(simd::dot(ivec<5>{1, 2, 3, 4, 5}, ivec<5>{1, 2, 3, 4, 5}) == 55);
+    CHECK(simd::dot(ivec<5>{1, 2, 3, 4, 5}, ivec<5>{1, 2, 3, 4, -5}) == 5);
+    CHECK(simd::dot(uvec<5>{1, 2, 3, 4, 5}, uvec<5>{1, 2, 3, 4, 5}) == 55);
+
+    CHECK(simd::dot(float4{1, 2, 3, 4}, float4{4, 3, 2, 1}) == 20);
+    CHECK(simd::dot(vec<3>{1, 2, 3}, vec<3>{3, 2, 1}) == 10);
+    CHECK(simd::dot(float2{0, 1}, float2{1, 0}) == 0);
+    CHECK(simd::dot(vec<5>{1, 2, 3, 4, 5}, vec<5>{1, 2, 3, 4, 5}) == 55);
 }
 
 // Check simd::cross.

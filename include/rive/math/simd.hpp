@@ -308,21 +308,40 @@ SIMD_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
 
 template <typename T, int N> SIMD_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
 {
-    gvec<T, N> d = a * b;
-#if __has_builtin(__builtin_reduce_add)
-    return __builtin_reduce_add(d);
-#else
-#pragma message("performance: __builtin_reduce_add() not supported. Consider updating clang.")
-    T s = d[0];
-    for (int i = 1; i < N; ++i)
-        s += d[i];
-    return s;
-#endif
+    auto d = a * b;
+    if constexpr (N == 2)
+        return d.x + d.y;
+    else if constexpr (N == 3)
+        return d.x + d.y + d.z;
+    else if constexpr (N == 4)
+        return d.x + d.y + d.z + d.w;
+    else
+    {
+        T s = d[0];
+        for (int i = 1; i < N; ++i)
+            s += d[i];
+        return s;
+    }
 }
+
+// We can use __builtin_reduce_add for integer types.
+#if __has_builtin(__builtin_reduce_add)
+template <int N> SIMD_ALWAYS_INLINE int32_t dot(gvec<int32_t, N> a, gvec<int32_t, N> b)
+{
+    auto d = a * b;
+    return __builtin_reduce_add(d);
+}
+
+template <int N> SIMD_ALWAYS_INLINE uint32_t dot(gvec<uint32_t, N> a, gvec<uint32_t, N> b)
+{
+    auto d = a * b;
+    return __builtin_reduce_add(d);
+}
+#endif
 
 SIMD_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)
 {
-    gvec<float, 2> c = a * b.yx;
+    auto c = a * b.yx;
     return c.x - c.y;
 }
 
