@@ -156,10 +156,10 @@ SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text, Span<const Text
         {
             breakBuilder.add((uint32_t)lastRun->glyphs.size());
         }
-        else if (breakBuilder.empty() && paragraphs.size() == 1)
+        else
         {
-            // Case where we didn't find any non-whitespace and this is the only paragraph.
-            breakBuilder.add(0);
+            // Consume the rest of the run.
+            breakBuilder.add(breakBuilder.empty() ? 0 : breakBuilder.back());
             breakBuilder.add((uint32_t)lastRun->glyphs.size());
         }
         lastRun->breaks = std::move(breakBuilder);

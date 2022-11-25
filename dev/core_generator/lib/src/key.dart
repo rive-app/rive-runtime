@@ -21,8 +21,8 @@ class Key {
     if (data is! Map<String, dynamic>) {
       return null;
     }
-    dynamic iv = data["int"];
-    dynamic sv = data["string"];
+    dynamic iv = data['int'];
+    dynamic sv = data['string'];
     if (iv is int && sv is String) {
       return Key(sv, iv);
     }
@@ -30,5 +30,5 @@ class Key {
   }
 
   Map<String, dynamic> serialize() =>
-      <String, dynamic>{"int": intValue, "string": stringValue};
+      <String, dynamic>{'int': intValue, 'string': stringValue};
 }

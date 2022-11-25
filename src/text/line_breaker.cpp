@@ -297,7 +297,8 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float wi
             }
         }
     }
-    // Don't add a line that starts/ends at the same spot.
+
+    // Add the last line.
     if (!line.empty())
     {
         lines.add(line);

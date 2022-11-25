@@ -107,7 +107,7 @@ static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> mi
     for (size_t i = 0; i < length; i++)
     {
         HBFont* font = static_cast<HBFont*>(fallbackFonts[i].get());
-        if (i == length - 1 || font->hasGlyph(missing))
+        if (font->hasGlyph(missing))
         {
             return fallbackFonts[i];
         }
