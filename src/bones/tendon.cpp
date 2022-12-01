@@ -31,7 +31,7 @@ StatusCode Tendon::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
-    m_Bone = reinterpret_cast<Bone*>(coreObject);
+    m_Bone = static_cast<Bone*>(coreObject);
 
     return StatusCode::Ok;
 }

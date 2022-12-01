@@ -118,7 +118,7 @@ public:
         {
             if (object != nullptr && object->is<T>() && object->as<T>()->name() == name)
             {
-                return reinterpret_cast<T*>(object);
+                return static_cast<T*>(object);
             }
         }
         return nullptr;

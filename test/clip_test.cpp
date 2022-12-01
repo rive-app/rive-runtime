@@ -65,7 +65,7 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
     REQUIRE(artboard->originX() == 0.5);
     REQUIRE(artboard->originY() == 0.5);
     {
-        auto clipPath = reinterpret_cast<ClipTestRenderPath*>(artboard->clipPath());
+        auto clipPath = static_cast<ClipTestRenderPath*>(artboard->clipPath());
         auto points = clipPath->rawPath.points();
         REQUIRE(points.size() == 4);
 
@@ -78,7 +78,7 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
     artboard->frameOrigin(false);
     artboard->updateComponents();
     {
-        auto clipPath = reinterpret_cast<ClipTestRenderPath*>(artboard->clipPath());
+        auto clipPath = static_cast<ClipTestRenderPath*>(artboard->clipPath());
         auto points = clipPath->rawPath.points();
         REQUIRE(points.size() == 4);
 

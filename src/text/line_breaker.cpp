@@ -31,7 +31,7 @@ void GlyphLine::ComputeLineSpacing(Span<GlyphLine> lines,
     {
         float asc = 0;
         float des = 0;
-        for (int i = line.startRunIndex; i <= line.endRunIndex; ++i)
+        for (uint32_t i = line.startRunIndex; i <= line.endRunIndex; ++i)
         {
             const auto& run = runs[i];
 

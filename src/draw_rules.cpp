@@ -15,7 +15,7 @@ StatusCode DrawRules::onAddedDirty(CoreContext* context)
     auto coreObject = context->resolve(drawTargetId());
     if (coreObject != nullptr && coreObject->is<DrawTarget>())
     {
-        m_ActiveTarget = reinterpret_cast<DrawTarget*>(coreObject);
+        m_ActiveTarget = static_cast<DrawTarget*>(coreObject);
     }
 
     return StatusCode::Ok;
@@ -32,7 +32,7 @@ void DrawRules::drawTargetIdChanged()
     }
     else
     {
-        m_ActiveTarget = reinterpret_cast<DrawTarget*>(coreObject);
+        m_ActiveTarget = static_cast<DrawTarget*>(coreObject);
     }
     artboard()->addDirt(ComponentDirt::DrawOrder);
 }

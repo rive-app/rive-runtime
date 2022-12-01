@@ -30,7 +30,7 @@ public:
         {
             return nullptr;
         }
-        return reinterpret_cast<T*>(itr->second);
+        return static_cast<T*>(itr->second);
     }
 
     StatusCode makeLatest(uint16_t coreType, ImportStackObject* object)
@@ -42,10 +42,10 @@ public:
             auto stackObject = itr->second;
 
             // Remove it from latests.
-            auto itr = std::find(m_LastAdded.begin(), m_LastAdded.end(), stackObject);
-            if (itr != m_LastAdded.end())
+            auto lastAddedItr = std::find(m_LastAdded.begin(), m_LastAdded.end(), stackObject);
+            if (lastAddedItr != m_LastAdded.end())
             {
-                m_LastAdded.erase(itr);
+                m_LastAdded.erase(lastAddedItr);
             }
 
             StatusCode code = stackObject->resolve();

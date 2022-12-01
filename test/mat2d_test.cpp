@@ -4,6 +4,46 @@
 
 namespace rive
 {
+TEST_CASE("mapPoints", "[Mat2D]")
+{
+    std::vector<Vec2D> testPts{{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+    for (int i = 0; i < 100; ++i)
+    {
+        testPts.push_back(
+            {static_cast<float>(rand() % 201 - 100), static_cast<float>(rand() % 201 - 100)});
+    }
+    size_t n = testPts.size();
+    std::vector<Vec2D> dstPts(n);
+    std::vector<Vec2D> expectedPts(n);
+
+    auto checkMatrix = [&](Mat2D m) {
+        // Map a single point.
+        m.mapPoints(dstPts.data(), testPts.data() + 2, 1);
+        expectedPts[0] = m * testPts[2];
+        CHECK(dstPts[0] == expectedPts[0]);
+
+        // Map n - 1 points (ensures we test one even-length and one odd-length array).
+        m.mapPoints(dstPts.data(), testPts.data() + 1, n - 1);
+        for (size_t i = 0; i < n - 1; ++i)
+            expectedPts[i] = m * testPts[i + 1];
+        CHECK(std::equal(dstPts.begin(), dstPts.end() - 1, expectedPts.begin()));
+
+        // Map n points.
+        m.mapPoints(dstPts.data(), testPts.data(), n);
+        for (size_t i = 0; i < n; ++i)
+            expectedPts[i] = m * testPts[i];
+        CHECK(dstPts == expectedPts);
+    };
+    checkMatrix(Mat2D());
+    checkMatrix(Mat2D(1, 0, 0, 1, 2, -3));
+    checkMatrix(Mat2D(4, 0, 0, -5, 0, 0));
+    checkMatrix(Mat2D(4, 0, 0, 5, -6, 7));
+    checkMatrix(Mat2D(0, 8, 9, 0, 10, 11));
+    checkMatrix(Mat2D(-12, -13, -14, -15, -16, -17));
+    checkMatrix(Mat2D(18, 19, 20, 21, 22, 23));
+    checkMatrix(Mat2D(-25, 26, 27, -28, 29, -30));
+}
+
 // Check Mat2D::findMaxScale.
 TEST_CASE("findMaxScale", "[Mat2D]")
 {
@@ -98,8 +138,8 @@ TEST_CASE("findMaxScale", "[Mat2D]")
         Vec2D vectors[1000];
         for (size_t i = 0; i < std::size(vectors); ++i)
         {
-            vectors[i].x = rand() * 2.f / RAND_MAX - 1;
-            vectors[i].y = rand() * 2.f / RAND_MAX - 1;
+            vectors[i].x = rand() * 2.f / static_cast<float>(RAND_MAX) - 1;
+            vectors[i].y = rand() * 2.f / static_cast<float>(RAND_MAX) - 1;
             vectors[i] = vectors[i].normalized();
             vectors[i] = {mat[0] * vectors[i].x + mat[2] * vectors[i].y,
                           mat[1] * vectors[i].x + mat[3] * vectors[i].y};

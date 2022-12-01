@@ -78,7 +78,7 @@ StatusCode ClippingShape::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
-    m_Source = reinterpret_cast<Node*>(coreObject);
+    m_Source = static_cast<Node*>(coreObject);
 
     return StatusCode::Ok;
 }

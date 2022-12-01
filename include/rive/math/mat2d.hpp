@@ -36,6 +36,9 @@ public:
         return *this;
     }
 
+    // Sets dst[i] = M * pts[i] for i in 0..n-1.
+    void mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const;
+
     // If returns true, result holds the inverse.
     // If returns false, result is unchnaged.
     bool invert(Mat2D* result) const;

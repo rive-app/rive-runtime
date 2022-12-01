@@ -22,6 +22,6 @@ void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
         return;
     }
     // If it's not null, it must be our correct type (why we validate at load time).
-    auto triggerInput = reinterpret_cast<SMITrigger*>(inputInstance);
+    auto triggerInput = static_cast<SMITrigger*>(inputInstance);
     triggerInput->fire();
 }

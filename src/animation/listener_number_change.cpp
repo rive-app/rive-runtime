@@ -21,6 +21,6 @@ void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance, V
         return;
     }
     // If it's not null, it must be our correct type (why we validate at load time).
-    auto numberInput = reinterpret_cast<SMINumber*>(inputInstance);
+    auto numberInput = static_cast<SMINumber*>(inputInstance);
     numberInput->value(value());
 }

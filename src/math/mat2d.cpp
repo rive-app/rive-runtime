@@ -1,4 +1,5 @@
 #include "rive/math/mat2d.hpp"
+#include "rive/math/simd.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/math/vec2d.hpp"
 #include <cmath>
@@ -40,6 +41,50 @@ Mat2D Mat2D::multiply(const Mat2D& a, const Mat2D& b)
         a0 * b4 + a2 * b5 + a4,
         a1 * b4 + a3 * b5 + a5,
     };
+}
+
+void Mat2D::mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const
+{
+    size_t i = 0;
+    float4 scale = float2{m_Buffer[0], m_Buffer[3]}.xyxy;
+    float4 skew = simd::load2f(m_Buffer + 1).yxyx;
+    float4 trans = simd::load2f(m_Buffer + 4).xyxy;
+    if (simd::all(skew.xy == 0.f))
+    {
+        // Scale + translate matrix.
+        if (n & 1)
+        {
+            float2 p = simd::load2f(pts);
+            p = scale.xy * p + trans.xy;
+            simd::store(dst, p);
+            ++i;
+        }
+        for (; i < n; i += 2)
+        {
+            float4 p = simd::load4f(pts + i);
+            p = scale * p + trans;
+            simd::store(dst + i, p);
+        }
+    }
+    else
+    {
+        // Affine matrix.
+        if (n & 1)
+        {
+            float2 p = simd::load2f(pts);
+            float2 p_ = skew.xy * p.yx + trans.xy;
+            p_ = scale.xy * p + p_;
+            simd::store(dst, p_);
+            ++i;
+        }
+        for (; i < n; i += 2)
+        {
+            float4 p = simd::load4f(pts + i);
+            float4 p_ = skew * p.yxwz + trans;
+            p_ = scale * p + p_;
+            simd::store(dst + i, p_);
+        }
+    }
 }
 
 bool Mat2D::invert(Mat2D* result) const

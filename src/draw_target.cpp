@@ -17,7 +17,7 @@ StatusCode DrawTarget::onAddedDirty(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
-    m_Drawable = reinterpret_cast<Drawable*>(coreObject);
+    m_Drawable = static_cast<Drawable*>(coreObject);
     return StatusCode::Ok;
 }
 

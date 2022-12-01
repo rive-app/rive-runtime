@@ -71,8 +71,8 @@ StatusCode IKConstraint::onAddedClean(CoreContext* context)
 
         for (int i = 1; i < numBones; i++)
         {
-            auto bone = bones[i];
-            if (transformComponent->parent() == bone &&
+            auto childBone = bones[i];
+            if (transformComponent->parent() == childBone &&
                 std::find(bones.begin(), bones.end(), transformComponent) == bones.end())
             {
                 tip->addDependent(transformComponent);

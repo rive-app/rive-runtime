@@ -128,7 +128,7 @@ StatusCode Artboard::initialize()
         {
             case DrawRulesBase::typeKey:
             {
-                DrawRules* rules = reinterpret_cast<DrawRules*>(object);
+                DrawRules* rules = static_cast<DrawRules*>(object);
                 Core* component = resolve(rules->parentId());
                 if (component != nullptr)
                 {
@@ -220,11 +220,11 @@ StatusCode Artboard::initialize()
                 // Because we don't store targets on rules, we need
                 // to find the targets that belong to this rule
                 // here.
-                for (auto object : m_Objects)
+                for (auto object2 : m_Objects)
                 {
-                    if (object != nullptr && object->is<DrawTarget>())
+                    if (object2 != nullptr && object2->is<DrawTarget>())
                     {
-                        DrawTarget* dependentTarget = object->as<DrawTarget>();
+                        DrawTarget* dependentTarget = object2->as<DrawTarget>();
                         if (dependentTarget->parent() == dependentRules)
                         {
                             dependentTarget->addDependent(target);
@@ -241,7 +241,7 @@ StatusCode Artboard::initialize()
     itr++;
     while (itr != drawTargetOrder.end())
     {
-        m_DrawTargets.push_back(reinterpret_cast<DrawTarget*>(*itr++));
+        m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
     }
 
     return StatusCode::Ok;

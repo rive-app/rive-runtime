@@ -49,7 +49,7 @@ void BlendState1DInstance::advance(float seconds, Span<SMIInput*> inputs)
     {
         // TODO: https://github.com/rive-app/rive-cpp/issues/229
         auto inputInstance = inputs[blendState->inputId()];
-        auto numberInput = reinterpret_cast<const SMINumber*>(inputInstance);
+        auto numberInput = static_cast<const SMINumber*>(inputInstance);
         value = numberInput->value();
     }
     int index = animationIndex(value);

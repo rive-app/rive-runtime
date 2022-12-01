@@ -19,7 +19,7 @@ bool TransitionBoolCondition::evaluate(const SMIInput* inputInstance) const
     {
         return true;
     }
-    auto boolInput = reinterpret_cast<const SMIBool*>(inputInstance);
+    auto boolInput = static_cast<const SMIBool*>(inputInstance);
 
     return (boolInput->value() && op() == TransitionConditionOp::equal) ||
            (!boolInput->value() && op() == TransitionConditionOp::notEqual);

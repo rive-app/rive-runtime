@@ -19,7 +19,7 @@ bool TransitionNumberCondition::evaluate(const SMIInput* inputInstance) const
     {
         return true;
     }
-    auto numberInput = reinterpret_cast<const SMINumber*>(inputInstance);
+    auto numberInput = static_cast<const SMINumber*>(inputInstance);
 
     switch (op())
     {

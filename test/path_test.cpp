@@ -42,7 +42,7 @@ public:
     void reset() override
     {
         commands.emplace_back(
-            (TestPathCommand){TestPathCommandType::Reset, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+            TestPathCommand{TestPathCommandType::Reset, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
     }
 
     void fillRule(rive::FillRule value) override {}
@@ -52,22 +52,21 @@ public:
     void moveTo(float x, float y) override
     {
         commands.emplace_back(
-            (TestPathCommand){TestPathCommandType::MoveTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
+            TestPathCommand{TestPathCommandType::MoveTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
     }
     void lineTo(float x, float y) override
     {
         commands.emplace_back(
-            (TestPathCommand){TestPathCommandType::LineTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
+            TestPathCommand{TestPathCommandType::LineTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
     }
     void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override
     {
-        commands.emplace_back(
-            (TestPathCommand){TestPathCommandType::CubicTo, x, y, ix, iy, ox, oy});
+        commands.emplace_back(TestPathCommand{TestPathCommandType::CubicTo, x, y, ix, iy, ox, oy});
     }
     void close() override
     {
         commands.emplace_back(
-            (TestPathCommand){TestPathCommandType::Close, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+            TestPathCommand{TestPathCommandType::Close, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
     }
 };
 
@@ -105,7 +104,7 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 
     REQUIRE(rectangle->commandPath() != nullptr);
 
-    auto path = reinterpret_cast<TestRenderPath*>(rectangle->commandPath());
+    auto path = static_cast<TestRenderPath*>(rectangle->commandPath());
 
     REQUIRE(path->commands.size() == 7);
     REQUIRE(path->commands[0].command == TestPathCommandType::Reset);
@@ -142,7 +141,7 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 
     REQUIRE(rectangle->commandPath() != nullptr);
 
-    auto path = reinterpret_cast<TestRenderPath*>(rectangle->commandPath());
+    auto path = static_cast<TestRenderPath*>(rectangle->commandPath());
 
     // reset
     // moveTo
@@ -203,7 +202,7 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 
     REQUIRE(ellipse->commandPath() != nullptr);
 
-    auto path = reinterpret_cast<TestRenderPath*>(ellipse->commandPath());
+    auto path = static_cast<TestRenderPath*>(ellipse->commandPath());
 
     // reset
     // moveTo

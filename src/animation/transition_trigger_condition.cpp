@@ -19,7 +19,7 @@ bool TransitionTriggerCondition::evaluate(const SMIInput* inputInstance) const
     {
         return true;
     }
-    auto triggerInput = reinterpret_cast<const SMITrigger*>(inputInstance);
+    auto triggerInput = static_cast<const SMITrigger*>(inputInstance);
 
     if (triggerInput->m_Fired)
     {

@@ -100,19 +100,13 @@ RawPath RawPath::transform(const Mat2D& m) const
     path.m_Verbs = m_Verbs;
 
     path.m_Points.resize(m_Points.size());
-    for (size_t i = 0; i < m_Points.size(); ++i)
-    {
-        path.m_Points[i] = m * m_Points[i];
-    }
+    m.mapPoints(path.m_Points.data(), m_Points.data(), m_Points.size());
     return path;
 }
 
 void RawPath::transformInPlace(const Mat2D& m)
 {
-    for (auto& p : m_Points)
-    {
-        p = m * p;
-    }
+    m.mapPoints(m_Points.data(), m_Points.data(), m_Points.size());
 }
 
 void RawPath::addRect(const AABB& r, PathDirection dir)
@@ -225,10 +219,7 @@ void RawPath::addPath(const RawPath& src, const Mat2D* mat)
         const auto oldPointCount = m_Points.size();
         m_Points.resize(oldPointCount + src.m_Points.size());
         Vec2D* dst = m_Points.data() + oldPointCount;
-        for (auto i = 0; i < src.m_Points.size(); ++i)
-        {
-            dst[i] = *mat * src.m_Points[i];
-        }
+        mat->mapPoints(dst, src.m_Points.data(), src.m_Points.size());
     }
     else
     {

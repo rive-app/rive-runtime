@@ -22,7 +22,7 @@ public:
     template <typename T> inline T* as()
     {
         assert(is<T>());
-        return reinterpret_cast<T*>(this);
+        return static_cast<T*>(this);
     }
 
     /// Make a shallow copy of the object.
@@ -31,7 +31,7 @@ public:
     template <typename T> inline const T* as() const
     {
         assert(is<T>());
-        return reinterpret_cast<const T*>(this);
+        return static_cast<const T*>(this);
     }
 
     /// Called when the object is first added to the context, other objects

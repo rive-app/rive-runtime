@@ -66,7 +66,7 @@ public:
         {
             for (auto& subPath : m_subPaths)
             {
-                reinterpret_cast<SokolRenderPath*>(subPath.path())->drawStroke(stroke);
+                static_cast<SokolRenderPath*>(subPath.path())->drawStroke(stroke);
             }
             return;
         }

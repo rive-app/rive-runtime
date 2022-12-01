@@ -88,7 +88,7 @@ void SkiaRenderPath::fillRule(FillRule value) { m_Path.setFillType(ToSkia::conve
 void SkiaRenderPath::reset() { m_Path.reset(); }
 void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
 {
-    m_Path.addPath(reinterpret_cast<SkiaRenderPath*>(path)->m_Path, ToSkia::convert(transform));
+    m_Path.addPath(static_cast<SkiaRenderPath*>(path)->m_Path, ToSkia::convert(transform));
 }
 
 void SkiaRenderPath::moveTo(float x, float y) { m_Path.moveTo(x, y); }
@@ -134,13 +134,13 @@ void SkiaRenderer::transform(const Mat2D& transform)
 }
 void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
-    m_Canvas->drawPath(reinterpret_cast<SkiaRenderPath*>(path)->path(),
-                       reinterpret_cast<SkiaRenderPaint*>(paint)->paint());
+    m_Canvas->drawPath(static_cast<SkiaRenderPath*>(path)->path(),
+                       static_cast<SkiaRenderPaint*>(paint)->paint());
 }
 
 void SkiaRenderer::clipPath(RenderPath* path)
 {
-    m_Canvas->clipPath(reinterpret_cast<SkiaRenderPath*>(path)->path(), true);
+    m_Canvas->clipPath(static_cast<SkiaRenderPath*>(path)->path(), true);
 }
 
 void SkiaRenderer::drawImage(const RenderImage* image, BlendMode blendMode, float opacity)
@@ -148,7 +148,7 @@ void SkiaRenderer::drawImage(const RenderImage* image, BlendMode blendMode, floa
     SkPaint paint;
     paint.setAlphaf(opacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
-    auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image);
+    auto skiaImage = static_cast<const SkiaRenderImage*>(image);
     m_Canvas->drawImage(skiaImage->skImage(), 0.0f, 0.0f, gSampling, &paint);
 }
 
@@ -190,7 +190,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     scaleM = SkMatrix::Scale(2.0f / image->width(), 2.0f / image->height());
 #endif
 
-    auto skiaImage = reinterpret_cast<const SkiaRenderImage*>(image)->skImage();
+    auto skiaImage = static_cast<const SkiaRenderImage*>(image)->skImage();
     auto shader = skiaImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, gSampling, &scaleM);
 
     SkPaint paint;

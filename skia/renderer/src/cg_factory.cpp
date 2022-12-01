@@ -330,7 +330,7 @@ public:
 
     static const CGRenderImage* Cast(const RenderImage* image)
     {
-        return reinterpret_cast<const CGRenderImage*>(image);
+        return static_cast<const CGRenderImage*>(image);
     }
 };
 
@@ -356,8 +356,8 @@ void CGRenderer::transform(const Mat2D& m) { CGContextConcatCTM(m_ctx, convert(m
 
 void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
-    auto cgpaint = reinterpret_cast<CGRenderPaint*>(paint);
-    auto cgpath = reinterpret_cast<CGRenderPath*>(path);
+    auto cgpaint = static_cast<CGRenderPaint*>(paint);
+    auto cgpath = static_cast<CGRenderPath*>(path);
 
     cgpaint->apply(m_ctx);
 
@@ -389,7 +389,7 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 
 void CGRenderer::clipPath(RenderPath* path)
 {
-    auto cgpath = reinterpret_cast<CGRenderPath*>(path);
+    auto cgpath = static_cast<CGRenderPath*>(path);
 
     CGContextBeginPath(m_ctx);
     CGContextAddPath(m_ctx, cgpath->path());

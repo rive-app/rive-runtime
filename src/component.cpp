@@ -21,7 +21,7 @@ StatusCode Component::onAddedDirty(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
-    m_Parent = reinterpret_cast<ContainerComponent*>(coreObject);
+    m_Parent = static_cast<ContainerComponent*>(coreObject);
     return StatusCode::Ok;
 }
 

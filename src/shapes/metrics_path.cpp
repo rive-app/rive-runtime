@@ -18,7 +18,7 @@ void MetricsPath::reset()
 
 void MetricsPath::addPath(CommandPath* path, const Mat2D& transform)
 {
-    MetricsPath* metricsPath = reinterpret_cast<MetricsPath*>(path);
+    MetricsPath* metricsPath = static_cast<MetricsPath*>(path);
     m_ComputedLength += metricsPath->computeLength(transform);
     m_Paths.emplace_back(metricsPath);
 }

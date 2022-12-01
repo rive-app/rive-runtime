@@ -343,12 +343,12 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
             SBLevel lastLevel = bidiLevels[paragraphTextIndex];
             hb_script_t lastScript = hb_unicode_script(ufuncs, text[textIndex]);
             rive::TextRun splitRun = {
-                .font = tr.font,
-                .size = tr.size,
-                .unicharCount = tr.unicharCount - runTextIndex,
-                .script = (uint32_t)lastScript,
-                .styleId = tr.styleId,
-                .dir = lastLevel & 1 ? rive::TextDirection::rtl : rive::TextDirection::ltr,
+                tr.font,
+                tr.size,
+                tr.unicharCount - runTextIndex,
+                (uint32_t)lastScript,
+                tr.styleId,
+                lastLevel & 1 ? rive::TextDirection::rtl : rive::TextDirection::ltr,
             };
 
             runStartTextIndex = textIndex;
@@ -378,16 +378,16 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
                     back.unicharCount = textIndex - runStartTextIndex;
                     lastLevel = bidiLevels[paragraphTextIndex];
 
-                    rive::TextRun splitRun = {
-                        .font = back.font,
-                        .size = back.size,
-                        .unicharCount = tr.unicharCount - runTextIndex,
-                        .script = (uint32_t)script,
-                        .styleId = back.styleId,
-                        .dir = lastLevel & 1 ? rive::TextDirection::rtl : rive::TextDirection::ltr,
+                    rive::TextRun backRun = {
+                        back.font,
+                        back.size,
+                        tr.unicharCount - runTextIndex,
+                        (uint32_t)script,
+                        back.styleId,
+                        lastLevel & 1 ? rive::TextDirection::rtl : rive::TextDirection::ltr,
                     };
                     runStartTextIndex = textIndex;
-                    bidiRuns.push_back(splitRun);
+                    bidiRuns.push_back(backRun);
                 }
                 runTextIndex++;
                 textIndex++;

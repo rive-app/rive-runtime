@@ -25,18 +25,18 @@ void BackboardImporter::addFileAsset(FileAsset* asset)
         // https://github.com/rive-app/rive/issues/4204
         std::unordered_set<uint32_t> ids;
         uint32_t nextId = 1;
-        for (auto asset : m_FileAssets)
+        for (auto fileAsset : m_FileAssets)
         {
-            if (ids.count(asset->assetId()))
+            if (ids.count(fileAsset->assetId()))
             {
-                asset->assetId(nextId);
+                fileAsset->assetId(nextId);
             }
             else
             {
-                ids.insert(asset->assetId());
-                if (asset->assetId() >= nextId)
+                ids.insert(fileAsset->assetId());
+                if (fileAsset->assetId() >= nextId)
                 {
-                    nextId = asset->assetId() + 1;
+                    nextId = fileAsset->assetId() + 1;
                 }
             }
         }

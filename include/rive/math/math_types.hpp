@@ -7,6 +7,7 @@
 
 #include "rive/rive_types.hpp"
 #include <cmath>
+#include <string.h>
 
 namespace rive
 {
@@ -37,7 +38,11 @@ constexpr float EPSILON = 1.f / (1 << 12); // Common threshold for detecting val
 //
 // Reference:
 // https://stackoverflow.com/questions/42926763/the-behaviour-of-floating-point-division-by-zero
-[[maybe_unused]] static __attribute__((no_sanitize("float-divide-by-zero"), always_inline)) float
+[[maybe_unused]]
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((no_sanitize("float-divide-by-zero"), always_inline))
+#endif
+inline static float
 ieee_float_divide(float a, float b)
 {
     static_assert(std::numeric_limits<float>::is_iec559,
@@ -50,7 +55,7 @@ template <typename Dst, typename Src> Dst bit_cast(const Src& src)
 {
     static_assert(sizeof(Dst) == sizeof(Src));
     Dst dst;
-    __builtin_memcpy(&dst, &src, sizeof(Dst));
+    memcpy(&dst, &src, sizeof(Dst));
     return dst;
 }
 } // namespace math

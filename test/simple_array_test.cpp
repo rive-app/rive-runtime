@@ -91,7 +91,7 @@ static SimpleArray<StructA> buildStructs()
 
     SimpleArray<uint32_t> numbersA({33, 22, 44, 66});
 
-    StructA dataA = {.numbers = std::move(numbersA)};
+    StructA dataA = {std::move(numbersA)};
     // We moved the data so expect only one alloc and 0 reallocs.
     REQUIRE(SimpleArrayTesting::mallocCount == 1);
     REQUIRE(SimpleArrayTesting::reallocCount == 0);
@@ -100,7 +100,7 @@ static SimpleArray<StructA> buildStructs()
 
     SimpleArray<uint32_t> numbersB({1, 2, 3});
 
-    StructA dataB = {.numbers = std::move(numbersB)};
+    StructA dataB = {std::move(numbersB)};
     REQUIRE(SimpleArrayTesting::mallocCount == 2);
     REQUIRE(SimpleArrayTesting::reallocCount == 0);
     REQUIRE(dataB.numbers.size() == 3);
@@ -136,7 +136,7 @@ static SimpleArray<StructA> buildStructsWithBuilder()
     for (int i = 0; i < 3; i++)
     {
         SimpleArray<uint32_t> numbers({33, 22, 44, 66});
-        StructA data = {.numbers = std::move(numbers)};
+        StructA data = {std::move(numbers)};
         structs.add(std::move(data));
     }
     REQUIRE(SimpleArrayTesting::mallocCount == 4);

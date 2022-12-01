@@ -17,7 +17,7 @@ StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
-    m_Target = reinterpret_cast<TransformComponent*>(coreObject);
+    m_Target = static_cast<TransformComponent*>(coreObject);
 
     return StatusCode::Ok;
 }
