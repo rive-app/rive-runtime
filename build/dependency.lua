@@ -9,6 +9,11 @@ function iop(str)
     last_str = str
 end
 
+newoption {
+    trigger = 'no-download-progress',
+    description = 'Hide progress?',
+}
+
 function m.github(project, tag)
     local dependencies = os.getenv('DEPENDENCIES')
     if dependencies == nil then
@@ -32,7 +37,7 @@ function m.github(project, tag)
         http.download(
             'https://github.com/' .. project .. '/archive/' .. tag .. '.zip',
             downloadFilename,
-            {progress = progress}
+            {progress = not _OPTIONS['no-download-progress'] and progress}
         )
         print('Downloaded ' .. project .. '.')
         zip.extract(downloadFilename, dependencies .. '/' .. hash)
