@@ -22,7 +22,6 @@ do
     targetdir '%{cfg.system}/bin/%{cfg.buildcfg}'
     objdir '%{cfg.system}/obj/%{cfg.buildcfg}'
     includedirs {
-        dependencies .. '/harfbuzz/src',
         '../include',
         '../../../include'
     }
@@ -33,8 +32,7 @@ do
         architecture 'x64'
         links {
             'rive',
-            'skia.lib',
-            'opengl32.lib'
+            'skia',
         }
         defines {'_USE_MATH_DEFINES'}
         staticruntime 'on' -- Match Skia's /MT flag for link compatibility
