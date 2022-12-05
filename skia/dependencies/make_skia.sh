@@ -2,6 +2,7 @@
 
 set -e
 
+export MAKE_SKIA_FILE=make_skia.sh
 ./get_skia.sh
 
 # use Rive optimized/stripped Skia for iOS static libs.
@@ -256,6 +257,7 @@ bin/gn gen out/static --type=static_library --args=" \
     skia_enable_skottie=false \
     skia_enable_tools=false \
     skia_enable_skgpu_v2=false \
+    skia_gl_standard = \"\" \
     "
 ninja -C out/static
 du -hs out/static/libskia.a

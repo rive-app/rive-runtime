@@ -1,6 +1,7 @@
 #!/bin/bash
 set -ex
 
+export MAKE_SKIA_FILE=make_skia_recorder.sh
 source ./get_skia2.sh
 source ./cache_helper.sh
 
@@ -52,6 +53,7 @@ build_skia_recorder() {
         skia_enable_tools = false \
         skia_enable_skgpu_v1 = true \
         skia_enable_skgpu_v2 = false \
+        skia_gl_standard = \"\" \
         "
     ninja -C out/static
 
