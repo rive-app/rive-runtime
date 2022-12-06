@@ -75,7 +75,7 @@ class TestNoOpFactory : public rive::NoOpFactory
 public:
     std::unique_ptr<rive::RenderPath> makeEmptyRenderPath() override
     {
-        return std::make_unique<TestRenderPath>();
+        return rivestd::make_unique<TestRenderPath>();
     }
 };
 } // namespace

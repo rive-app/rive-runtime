@@ -17,7 +17,7 @@ public:
 
     bool init(sg_pass_action*, int width, int height) override
     {
-        m_renderer = std::make_unique<rive::SokolTessRenderer>();
+        m_renderer = rivestd::make_unique<rive::SokolTessRenderer>();
         m_renderer->orthographicProjection(0.0f, width, height, 0.0f, 0.0f, 1.0f);
         return true;
     }
@@ -37,7 +37,7 @@ public:
     }
 };
 
-std::unique_ptr<ViewerHost> ViewerHost::Make() { return std::make_unique<TessViewerHost>(); }
+std::unique_ptr<ViewerHost> ViewerHost::Make() { return rivestd::make_unique<TessViewerHost>(); }
 
 rive::Factory* ViewerHost::Factory()
 {

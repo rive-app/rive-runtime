@@ -143,10 +143,9 @@ template <typename T, int N> struct gvec<T, N, 0> : public gvec_data<T, N>
     T& operator[](size_t i) { return gvec_data<T, N>::data[i]; }
 };
 
-static_assert(sizeof(gvec<float, 1>) == 4);
-static_assert(sizeof(gvec<float, 2>) == 8);
-static_assert(sizeof(gvec<float, 3>) == 12);
-static_assert(sizeof(gvec<float, 4>) == 16);
+static_assert(sizeof(gvec<float, 1>) == 4, "gvec<1> is expected to be tightly packed");
+static_assert(sizeof(gvec<float, 2>) == 8, "gvec<2> is expected to be tightly packed");
+static_assert(sizeof(gvec<float, 4>) == 16, "gvec<4> is expected to be tightly packed");
 
 #define DECL_UNARY_OP(_OP_)                                                                        \
     template <typename T, int N, Swizzle Z> gvec<T, N> operator _OP_(gvec<T, N, Z> x)              \

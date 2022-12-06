@@ -351,7 +351,7 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
                     deletePrevious = true;
                     break;
                 }
-                [[fallthrough]];
+                RIVE_FALLTHROUGH;
             }
             default:
                 if (deletePrevious)

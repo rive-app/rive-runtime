@@ -7,6 +7,7 @@
 
 #include "rive/rive_types.hpp"
 #include <cmath>
+#include <limits>
 #include <string.h>
 
 namespace rive
@@ -17,13 +18,13 @@ namespace math
 constexpr float PI = 3.14159265f;
 constexpr float EPSILON = 1.f / (1 << 12); // Common threshold for detecting values near zero.
 
-[[maybe_unused]] inline bool nearly_zero(float a, float tolerance = EPSILON)
+RIVE_MAYBE_UNUSED inline bool nearly_zero(float a, float tolerance = EPSILON)
 {
     assert(tolerance >= 0);
     return fabsf(a) <= tolerance;
 }
 
-[[maybe_unused]] inline bool nearly_equal(float a, float b, float tolerance = EPSILON)
+RIVE_MAYBE_UNUSED inline bool nearly_equal(float a, float b, float tolerance = EPSILON)
 {
     return nearly_zero(b - a, tolerance);
 }
@@ -38,7 +39,7 @@ constexpr float EPSILON = 1.f / (1 << 12); // Common threshold for detecting val
 //
 // Reference:
 // https://stackoverflow.com/questions/42926763/the-behaviour-of-floating-point-division-by-zero
-[[maybe_unused]]
+RIVE_MAYBE_UNUSED
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((no_sanitize("float-divide-by-zero"), always_inline))
 #endif
@@ -46,16 +47,16 @@ inline static float
 ieee_float_divide(float a, float b)
 {
     static_assert(std::numeric_limits<float>::is_iec559,
-                  "Conformant IEEE 754 behavior for NaN and Inf is required.");
+                  "conformant IEEE 754 behavior for NaN and Inf is required");
     return a / b;
 }
 
 // Reinterprets the underlying bits of src as the given type.
 template <typename Dst, typename Src> Dst bit_cast(const Src& src)
 {
-    static_assert(sizeof(Dst) == sizeof(Src));
+    static_assert(sizeof(Dst) == sizeof(Src), "sizes of both types must match");
     Dst dst;
-    memcpy(&dst, &src, sizeof(Dst));
+    RIVE_INLINE_MEMCPY(&dst, &src, sizeof(Dst));
     return dst;
 }
 } // namespace math

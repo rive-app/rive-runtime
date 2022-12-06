@@ -40,7 +40,7 @@ template <typename T> bool checkAs(uint64_t value)
     uint8_t* p = storage;
 
     p = packvarint(storage, value);
-    rive::BinaryReader reader(rive::Span(storage, p - storage));
+    rive::BinaryReader reader(rive::make_span(storage, p - storage));
 
     auto newValue = reader.readVarUintAs<T>();
 

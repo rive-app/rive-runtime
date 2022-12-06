@@ -385,7 +385,8 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext()
 
     for (; m_iter != m_end; ++m_iter)
     {
-        auto [verb, iterPts] = *m_iter;
+        PathVerb verb = std::get<0>(*m_iter);
+        const Vec2D* iterPts = std::get<1>(*m_iter);
         if (verb == PathVerb::move)
         {
             if (!pts.empty())
@@ -439,7 +440,7 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext()
             }
             break;
             case PathVerb::move:
-                RIVE_UNREACHABLE; // Handled above.
+                RIVE_UNREACHABLE(); // Handled above.
         }
     }
 

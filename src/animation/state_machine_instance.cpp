@@ -434,7 +434,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 auto shape = m_ArtboardInstance->resolve(id);
                 if (shape != nullptr && shape->is<Shape>())
                 {
-                    auto hs = std::make_unique<HitShape>(shape->as<Shape>());
+                    auto hs = rivestd::make_unique<HitShape>(shape->as<Shape>());
                     hitShapeLookup[id] = hitShape = hs.get();
                     m_HitShapes.push_back(std::move(hs));
                 }

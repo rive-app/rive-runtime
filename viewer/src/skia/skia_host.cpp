@@ -121,7 +121,7 @@ public:
     }
 };
 
-std::unique_ptr<ViewerHost> ViewerHost::Make() { return std::make_unique<SkiaViewerHost>(); }
+std::unique_ptr<ViewerHost> ViewerHost::Make() { return rivestd::make_unique<SkiaViewerHost>(); }
 
 rive::Factory* ViewerHost::Factory()
 {

@@ -66,17 +66,17 @@ rcp<RenderShader> NoOpFactory::makeRadialGradient(float cx,
 
 std::unique_ptr<RenderPath> NoOpFactory::makeRenderPath(RawPath&, FillRule)
 {
-    return std::make_unique<NoOpRenderPath>();
+    return rivestd::make_unique<NoOpRenderPath>();
 }
 
 std::unique_ptr<RenderPath> NoOpFactory::makeEmptyRenderPath()
 {
-    return std::make_unique<NoOpRenderPath>();
+    return rivestd::make_unique<NoOpRenderPath>();
 }
 
 std::unique_ptr<RenderPaint> NoOpFactory::makeRenderPaint()
 {
-    return std::make_unique<NoOpRenderPaint>();
+    return rivestd::make_unique<NoOpRenderPaint>();
 }
 
 std::unique_ptr<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>)

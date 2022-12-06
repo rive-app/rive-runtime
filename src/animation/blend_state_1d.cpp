@@ -8,7 +8,7 @@ using namespace rive;
 
 std::unique_ptr<StateInstance> BlendState1D::makeInstance(ArtboardInstance* instance) const
 {
-    return std::make_unique<BlendState1DInstance>(this, instance);
+    return rivestd::make_unique<BlendState1DInstance>(this, instance);
 }
 
 StatusCode BlendState1D::import(ImportStack& importStack)

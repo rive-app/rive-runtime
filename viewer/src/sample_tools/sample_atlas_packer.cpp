@@ -40,9 +40,9 @@ class AtlasPackerFactory : public NoOpFactory
                 bitmap->pixelFormat(Bitmap::PixelFormat::RGBA);
             }
 
-            return std::make_unique<AtlasRenderImage>(bitmap->bytes(),
-                                                      bitmap->width(),
-                                                      bitmap->height());
+            return rivestd::make_unique<AtlasRenderImage>(bitmap->bytes(),
+                                                          bitmap->width(),
+                                                          bitmap->height());
         }
         return nullptr;
     }
@@ -236,10 +236,10 @@ void SampleAtlasResolver::loadContents(FileAsset& asset)
             // renderer (and hence will know which RenderImage they need to
             // make).
 
-            imageAsset->renderImage(std::make_unique<SokolRenderImage>(imageResource,
-                                                                       location.width,
-                                                                       location.height,
-                                                                       location.transform));
+            imageAsset->renderImage(rivestd::make_unique<SokolRenderImage>(imageResource,
+                                                                           location.width,
+                                                                           location.height,
+                                                                           location.transform));
         }
     }
 }

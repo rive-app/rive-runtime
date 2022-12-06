@@ -392,7 +392,7 @@ std::unique_ptr<ViewerContent> ViewerContent::Text(const char filename[])
 {
     if (ends_width(filename, ".svg"))
     {
-        return std::make_unique<TextContent>();
+        return rivestd::make_unique<TextContent>();
     }
     return nullptr;
 }

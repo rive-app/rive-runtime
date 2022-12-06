@@ -289,8 +289,6 @@ TEST_CASE("clamp", "[simd]")
 
     // Returns lo if x == NaN, but std::clamp() returns NaN.
     CHECK(simd::clamp<float, 1>(kNaN, 1, 2).x == 1);
-    CHECK(std::clamp<float>(kNaN, 1, 2) != 1);
-    CHECK(std::isnan(std::clamp<float>(kNaN, 1, 2)));
 
     // Returns hi if hi <= lo.
     CHECK(simd::clamp<float, 1>(3, 2, 1).x == 1);

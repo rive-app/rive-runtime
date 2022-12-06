@@ -91,7 +91,8 @@ static void check_iter(RawPath::Iter& iter,
                        std::vector<Vec2D> expectedPts)
 {
     REQUIRE(iter != end);
-    auto [verb, pts] = *iter;
+    PathVerb verb = std::get<0>(*iter);
+    const Vec2D* pts = std::get<1>(*iter);
     REQUIRE(verb == expectedVerb);
     for (size_t i = 0; i < expectedPts.size(); ++i)
     {
@@ -113,7 +114,8 @@ TEST_CASE("rawpath-iter", "[rawpath]")
         rp.quadTo(5, 6, 7, 8);
         rp.cubicTo(9, 10, 11, 12, 13, 14);
         rp.close();
-        auto [iter, end] = std::make_tuple(rp.begin(), rp.end());
+        auto iter = rp.begin();
+        auto end = rp.end();
         check_iter(iter, end, PathVerb::move, {{1, 2}});
         check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
         check_iter(iter, end, PathVerb::quad, {{3, 4}, {5, 6}, {7, 8}});

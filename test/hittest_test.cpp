@@ -55,5 +55,5 @@ TEST_CASE("hittest-mesh", "[hittest]")
         1,
         2,
     };
-    REQUIRE(HitTester::testMesh(area, Span(verts, 3), Span(indices, 3)));
+    REQUIRE(HitTester::testMesh(area, make_span(verts, 3), make_span(indices, 3)));
 }

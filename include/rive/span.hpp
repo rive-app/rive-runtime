@@ -34,11 +34,9 @@ public:
     constexpr Span(const Span<U>& that) : Span(that.data(), that.size())
     {}
     constexpr Span(const Span&) = default;
-    template <typename Container> constexpr Span(Container& c) : Span{std::data(c), std::size(c)} {}
-    constexpr Span(std::initializer_list<T> il) : Span(std::data(il), std::size(il)) {}
-    template <size_t N> constexpr Span(T (&a)[N]) : Span(a, N) {}
+    template <typename Container> constexpr Span(Container& c) : Span(c.data(), c.size()) {}
 
-    constexpr T& operator[](size_t index) const
+    T& operator[](size_t index) const
     {
         assert(index < m_Size);
         return m_Ptr[index];
@@ -57,14 +55,9 @@ public:
     // returns byte-size of the entire span
     constexpr size_t size_bytes() const { return m_Size * sizeof(T); }
 
-    constexpr int count() const
-    {
-        const int n = static_cast<int>(m_Size);
-        assert(n >= 0);
-        return n;
-    }
+    constexpr size_t count() const { return m_Size; }
 
-    constexpr Span<T> subset(size_t offset, size_t size) const
+    Span<T> subset(size_t offset, size_t size) const
     {
         assert(offset <= m_Size);
         assert(size <= m_Size - offset);
@@ -81,6 +74,8 @@ public:
     typedef std::ptrdiff_t difference_type;
     typedef size_t size_type;
 };
+
+template <typename T> Span<T> make_span(T* ptr, size_t size) { return Span<T>(ptr, size); }
 
 } // namespace rive
 

@@ -100,7 +100,7 @@ void Bitmap::pixelFormat(PixelFormat format)
         return;
     }
     auto nextByteSize = byteSize(format);
-    auto nextBytes = std::make_unique<uint8_t[]>(nextByteSize);
+    auto nextBytes = rivestd::make_unique<uint8_t[]>(nextByteSize);
 
     auto fromBytesPerPixel = bytesPerPixel(m_PixelFormat);
     auto toBytesPerPixel = bytesPerPixel(format);

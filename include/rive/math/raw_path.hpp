@@ -14,6 +14,7 @@
 #include <cmath>
 #include <stdio.h>
 #include <cstdint>
+#include <tuple>
 #include <vector>
 
 namespace rive
@@ -108,7 +109,7 @@ public:
 
     private:
         // How much should we advance pts after encountering this verb?
-        constexpr static int PtsAdvanceAfterVerb(PathVerb verb)
+        inline static int PtsAdvanceAfterVerb(PathVerb verb)
         {
             switch (verb)
             {
@@ -123,14 +124,14 @@ public:
                 case PathVerb::close:
                     return 0;
             }
-            RIVE_UNREACHABLE;
+            RIVE_UNREACHABLE();
         }
 
         // Where is p0 relative to our m_pts pointer? We find the start point of segments by
         // peeking backwards from the current point, which works as long as there is always a
         // PathVerb::move before any geometry. (injectImplicitMoveToIfNeeded() guarantees this
         // to be the case.)
-        constexpr static int PtsBacksetForVerb(PathVerb verb)
+        inline static int PtsBacksetForVerb(PathVerb verb)
         {
             switch (verb)
             {
@@ -145,7 +146,7 @@ public:
                 case PathVerb::close:
                     return -1;
             }
-            RIVE_UNREACHABLE;
+            RIVE_UNREACHABLE();
         }
 
         const PathVerb* m_verbs;
@@ -158,8 +159,10 @@ public:
     {
         RawPath dst;
         // todo: dst.reserve(src.ptCount, src.verbCount);
-        for (auto [verb, pts] : *this)
+        for (auto iter : *this)
         {
+            PathVerb verb = std::get<0>(iter);
+            const Vec2D* pts = std::get<1>(iter);
             switch (verb)
             {
                 case PathVerb::move:

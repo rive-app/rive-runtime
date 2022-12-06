@@ -58,5 +58,5 @@ void LayerState::addTransition(StateTransition* transition) { m_Transitions.push
 
 std::unique_ptr<StateInstance> LayerState::makeInstance(ArtboardInstance* instance) const
 {
-    return std::make_unique<SystemStateInstance>(this, instance);
+    return rivestd::make_unique<SystemStateInstance>(this, instance);
 }

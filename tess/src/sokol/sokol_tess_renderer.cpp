@@ -141,12 +141,12 @@ public:
 // Returns a full-formed RenderPath -- can be treated as immutable
 std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(RawPath& rawPath, FillRule rule)
 {
-    return std::make_unique<SokolRenderPath>(rawPath, rule);
+    return rivestd::make_unique<SokolRenderPath>(rawPath, rule);
 }
 
 std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath()
 {
-    return std::make_unique<SokolRenderPath>();
+    return rivestd::make_unique<SokolRenderPath>();
 }
 
 class SokolBuffer : public RenderBuffer
@@ -740,7 +740,7 @@ public:
                 m_strokeDirty = false;
                 break;
             case RenderPaintStyle::stroke:
-                m_stroke = std::make_unique<ContourStroke>();
+                m_stroke = rivestd::make_unique<ContourStroke>();
                 m_strokeDirty = true;
                 break;
         }
@@ -897,7 +897,7 @@ public:
 
 std::unique_ptr<RenderPaint> SokolFactory::makeRenderPaint()
 {
-    return std::make_unique<SokolRenderPaint>();
+    return rivestd::make_unique<SokolRenderPaint>();
 }
 
 void SokolTessRenderer::restore()

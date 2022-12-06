@@ -87,7 +87,7 @@ TEST_CASE("multi-contours", "[contourmeasure]")
         {3, 0},
         {3, 4},
     };
-    auto span = Span(pts, sizeof(pts) / sizeof(pts[0]));
+    auto span = make_span(pts, sizeof(pts) / sizeof(pts[0]));
 
     // We expect 3 measurable contours out of this: 7, 16, 7
     // the others should be skipped since they are empty (len == 0)

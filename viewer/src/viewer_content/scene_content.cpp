@@ -386,7 +386,7 @@ std::unique_ptr<ViewerContent> ViewerContent::Scene(const char filename[])
     auto bytes = LoadFile(filename);
     if (auto file = rive::File::import(bytes, RiveFactory()))
     {
-        return std::make_unique<SceneContent>(filename, std::move(file));
+        return rivestd::make_unique<SceneContent>(filename, std::move(file));
     }
     return nullptr;
 }

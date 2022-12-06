@@ -28,7 +28,7 @@ std::unique_ptr<ViewerContent> ViewerContent::Image(const char filename[])
     auto image = RiveFactory()->decodeImage(bytes);
     if (image)
     {
-        return std::make_unique<ImageContent>(std::move(image));
+        return rivestd::make_unique<ImageContent>(std::move(image));
     }
     return nullptr;
 }

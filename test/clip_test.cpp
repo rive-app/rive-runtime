@@ -50,7 +50,7 @@ class ClippingFactory : public rive::NoOpFactory
     std::unique_ptr<rive::RenderPath> makeRenderPath(rive::RawPath& rawPath,
                                                      rive::FillRule) override
     {
-        return std::make_unique<ClipTestRenderPath>(rawPath);
+        return rivestd::make_unique<ClipTestRenderPath>(rawPath);
     }
 };
 

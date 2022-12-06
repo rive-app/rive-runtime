@@ -26,10 +26,10 @@ std::unique_ptr<rive::RenderImage> ViewerSokolFactory::decodeImage(rive::Span<co
             new rive::SokolRenderImageResource(bitmap->bytes(), bitmap->width(), bitmap->height()));
 
         static rive::Mat2D identity;
-        return std::make_unique<rive::SokolRenderImage>(imageGpuResource,
-                                                        bitmap->width(),
-                                                        bitmap->height(),
-                                                        identity);
+        return rivestd::make_unique<rive::SokolRenderImage>(imageGpuResource,
+                                                            bitmap->width(),
+                                                            bitmap->height(),
+                                                            identity);
     }
     return nullptr;
 }

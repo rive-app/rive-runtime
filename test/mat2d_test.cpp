@@ -107,12 +107,14 @@ TEST_CASE("findMaxScale", "[Mat2D]")
     // success = givingNegativeNearlyZeros.getMinMaxScales(scales);
     // CHECK(success && 0 == scales[0]);
 
-    Mat2D baseMats[] = {scale, rot90Scale, rotate, translate};
-    Mat2D mats[2 * std::size(baseMats)];
-    for (size_t i = 0; i < std::size(baseMats); ++i)
+    constexpr int kNumBaseMats = 4;
+    Mat2D baseMats[kNumBaseMats] = {scale, rot90Scale, rotate, translate};
+    constexpr int kNumMats = 2 * kNumBaseMats;
+    Mat2D mats[kNumMats];
+    for (size_t i = 0; i < kNumBaseMats; ++i)
     {
         mats[i] = baseMats[i];
-        bool invertible = mats[i].invert(&mats[i + std::size(baseMats)]);
+        bool invertible = mats[i].invert(&mats[i + kNumBaseMats]);
         REQUIRE(invertible);
     }
     srand(0);
@@ -121,7 +123,7 @@ TEST_CASE("findMaxScale", "[Mat2D]")
         Mat2D mat;
         for (int i = 0; i < 4; ++i)
         {
-            int x = rand() % std::size(mats);
+            int x = rand() % kNumMats;
             mat = mats[x] * mat;
         }
 
@@ -135,8 +137,9 @@ TEST_CASE("findMaxScale", "[Mat2D]")
         static const float gVectorScaleTol = (105 * 1.f) / 100;
         static const float gCloseScaleTol = (97 * 1.f) / 100;
         float max = 0, min = std::numeric_limits<float>::max();
-        Vec2D vectors[1000];
-        for (size_t i = 0; i < std::size(vectors); ++i)
+        constexpr int kNumVectors = 1000;
+        Vec2D vectors[kNumVectors];
+        for (size_t i = 0; i < kNumVectors; ++i)
         {
             vectors[i].x = rand() * 2.f / static_cast<float>(RAND_MAX) - 1;
             vectors[i].y = rand() * 2.f / static_cast<float>(RAND_MAX) - 1;
@@ -144,7 +147,7 @@ TEST_CASE("findMaxScale", "[Mat2D]")
             vectors[i] = {mat[0] * vectors[i].x + mat[2] * vectors[i].y,
                           mat[1] * vectors[i].x + mat[3] * vectors[i].y};
         }
-        for (size_t i = 0; i < std::size(vectors); ++i)
+        for (size_t i = 0; i < kNumVectors; ++i)
         {
             float d = vectors[i].length();
             REQUIRE(d / maxScale < gVectorScaleTol);

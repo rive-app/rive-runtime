@@ -135,6 +135,6 @@ std::unique_ptr<Bitmap> DecodePng(rive::Span<const uint8_t> bytes)
             pixelFormat = Bitmap::PixelFormat::R;
             break;
     }
-    return std::make_unique<Bitmap>(width, height, pixelFormat, pixelBuffer);
+    return rivestd::make_unique<Bitmap>(width, height, pixelFormat, pixelBuffer);
 }
 #endif

@@ -170,5 +170,5 @@ public:
 
 std::unique_ptr<ViewerContent> ViewerContent::TrimPath(const char[])
 {
-    return std::make_unique<TrimPathContent>();
+    return rivestd::make_unique<TrimPathContent>();
 }

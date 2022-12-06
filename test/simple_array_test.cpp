@@ -19,7 +19,8 @@ TEST_CASE("array initializes as expected", "[simple array]")
 
 TEST_CASE("simple array can be created", "[simple array]")
 {
-    SimpleArray<int> array({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+    std::vector<int> v{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    SimpleArray<int> array(v);
 
     REQUIRE(!array.empty());
     REQUIRE(array.size() == 10);
@@ -40,7 +41,7 @@ TEST_CASE("simple array can be created", "[simple array]")
 TEST_CASE("can iterate simple array", "[simple array]")
 {
     const int carray[] = {2, 4, 8, 16};
-    SimpleArray<int> array(carray);
+    SimpleArray<int> array(carray, 4);
     int expect = 2;
     for (auto value : array)
     {
@@ -89,7 +90,8 @@ static SimpleArray<StructA> buildStructs()
 {
     SimpleArrayTesting::resetCounters();
 
-    SimpleArray<uint32_t> numbersA({33, 22, 44, 66});
+    std::vector<uint32_t> vA{33, 22, 44, 66};
+    SimpleArray<uint32_t> numbersA(vA);
 
     StructA dataA = {std::move(numbersA)};
     // We moved the data so expect only one alloc and 0 reallocs.
@@ -98,7 +100,8 @@ static SimpleArray<StructA> buildStructs()
     REQUIRE(dataA.numbers.size() == 4);
     REQUIRE(numbersA.size() == 0);
 
-    SimpleArray<uint32_t> numbersB({1, 2, 3});
+    std::vector<uint32_t> vB{1, 2, 3};
+    SimpleArray<uint32_t> numbersB(vB);
 
     StructA dataB = {std::move(numbersB)};
     REQUIRE(SimpleArrayTesting::mallocCount == 2);

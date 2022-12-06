@@ -14,6 +14,7 @@
 #ifndef _RIVE_SIMD_HPP_
 #define _RIVE_SIMD_HPP_
 
+#include "rive/rive_types.hpp"
 #include <cassert>
 #include <limits>
 #include <stdint.h>
@@ -35,13 +36,6 @@ static_assert(std::numeric_limits<float>::is_iec559,
 
 #if defined(__clang__) || defined(__GNUC__)
 
-#define SIMD_ALWAYS_INLINE inline __attribute__((always_inline))
-
-// Recommended in https://clang.llvm.org/docs/LanguageExtensions.html#feature-checking-macros
-#ifndef __has_builtin
-#define __has_builtin(x) 0
-#endif
-
 namespace rive
 {
 namespace simd
@@ -55,19 +49,10 @@ using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof
 
 #else
 
-#define SIMD_ALWAYS_INLINE inline
-#define __has_builtin(x) 0
-
 // gvec needs to be polyfilled with templates.
 #pragma message("performance: ext_vector_type not supported. Consider using clang.")
 #include "simd_gvec_polyfill.hpp"
 
-#endif
-
-#if __has_builtin(__builtin_memcpy)
-#define SIMD_INLINE_MEMCPY __builtin_memcpy
-#else
-#define SIMD_INLINE_MEMCPY memcpy
 #endif
 
 namespace rive
@@ -81,7 +66,7 @@ namespace simd
 //
 
 // Returns true if all elements in x are equal to 0.
-template <int N> SIMD_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
+template <int N> RIVE_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
 {
 #if __has_builtin(__builtin_reduce_or)
     return __builtin_reduce_or(x);
@@ -98,7 +83,7 @@ template <int N> SIMD_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
 }
 
 // Returns true if all elements in x are equal to ~0.
-template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
+template <int N> RIVE_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
 {
 #if __has_builtin(__builtin_reduce_and)
     return __builtin_reduce_and(x);
@@ -112,7 +97,7 @@ template <int N> SIMD_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
 template <typename T,
           int N,
           typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-SIMD_ALWAYS_INLINE gvec<int32_t, N> isnan(gvec<T, N> x)
+RIVE_ALWAYS_INLINE gvec<int32_t, N> isnan(gvec<T, N> x)
 {
     return ~(x == x);
 }
@@ -127,7 +112,7 @@ constexpr gvec<int32_t, N> isnan(gvec<T, N>)
 
 // Elementwise ternary expression: "_if ? _then : _else" for each component.
 template <typename T, int N>
-SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<int32_t, N> _if, gvec<T, N> _then, gvec<T, N> _else)
+RIVE_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<int32_t, N> _if, gvec<T, N> _then, gvec<T, N> _else)
 {
 #if defined(__clang_major__) && __clang_major__ >= 13
     // The '?:' operator supports a vector condition beginning in clang 13.
@@ -143,7 +128,7 @@ SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<int32_t, N> _if, gvec<T, N> _the
 
 // Similar to std::min(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
+template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
 {
 #if __has_builtin(__builtin_elementwise_min)
     return __builtin_elementwise_min(a, b);
@@ -156,7 +141,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gve
 
 // Similar to std::max(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
+template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
 {
 #if __has_builtin(__builtin_elementwise_max)
     return __builtin_elementwise_max(a, b);
@@ -174,14 +159,14 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gve
 //   Ignores hi and/or lo if they are NaN.
 //
 template <typename T, int N>
-SIMD_ALWAYS_INLINE gvec<T, N> clamp(gvec<T, N> x, gvec<T, N> lo, gvec<T, N> hi)
+RIVE_ALWAYS_INLINE gvec<T, N> clamp(gvec<T, N> x, gvec<T, N> lo, gvec<T, N> hi)
 {
     return min(max(lo, x), hi);
 }
 
 // Returns the absolute value of x per element, with one exception:
 // If x[i] is an integer type and equal to the minimum representable value, returns x[i].
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
+template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
 {
 #if __has_builtin(__builtin_elementwise_abs)
     return __builtin_elementwise_abs(x);
@@ -193,7 +178,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
 
 ////// Floating Point Functions //////
 
-template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
+template <int N> RIVE_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
 {
 #if __has_builtin(__builtin_elementwise_floor)
     return __builtin_elementwise_floor(x);
@@ -206,7 +191,7 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
 #endif
 }
 
-template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
+template <int N> RIVE_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
 {
 #if __has_builtin(__builtin_elementwise_ceil)
     return __builtin_elementwise_ceil(x);
@@ -219,7 +204,7 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
 }
 
 // IEEE compliant sqrt.
-template <int N> SIMD_ALWAYS_INLINE gvec<float, N> sqrt(gvec<float, N> x)
+template <int N> RIVE_ALWAYS_INLINE gvec<float, N> sqrt(gvec<float, N> x)
 {
     // There isn't an elementwise builtin for sqrt. We define architecture-specific specializations
     // of this function later.
@@ -229,42 +214,42 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> sqrt(gvec<float, N> x)
 }
 
 #ifdef __SSE__
-template <> SIMD_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
+template <> RIVE_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
 {
     __m128 _x;
-    SIMD_INLINE_MEMCPY(&_x, &x, sizeof(float) * 4);
+    RIVE_INLINE_MEMCPY(&_x, &x, sizeof(float) * 4);
     _x = _mm_sqrt_ps(_x);
-    SIMD_INLINE_MEMCPY(&x, &_x, sizeof(float) * 4);
+    RIVE_INLINE_MEMCPY(&x, &_x, sizeof(float) * 4);
     return x;
 }
 
-template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
+template <> RIVE_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 {
     __m128 _x;
-    SIMD_INLINE_MEMCPY(&_x, &x, sizeof(float) * 2);
+    RIVE_INLINE_MEMCPY(&_x, &x, sizeof(float) * 2);
     _x = _mm_sqrt_ps(_x);
-    SIMD_INLINE_MEMCPY(&x, &_x, sizeof(float) * 2);
+    RIVE_INLINE_MEMCPY(&x, &_x, sizeof(float) * 2);
     return x;
 }
 #endif
 
 #ifdef __ARM_NEON__
 #ifdef __aarch64__
-template <> SIMD_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
+template <> RIVE_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
 {
     float32x4_t _x;
-    SIMD_INLINE_MEMCPY(&_x, &x, sizeof(float) * 4);
+    RIVE_INLINE_MEMCPY(&_x, &x, sizeof(float) * 4);
     _x = vsqrtq_f32(_x);
-    SIMD_INLINE_MEMCPY(&x, &_x, sizeof(float) * 4);
+    RIVE_INLINE_MEMCPY(&x, &_x, sizeof(float) * 4);
     return x;
 }
 
-template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
+template <> RIVE_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 {
     float32x2_t _x;
-    SIMD_INLINE_MEMCPY(&_x, &x, sizeof(float) * 2);
+    RIVE_INLINE_MEMCPY(&_x, &x, sizeof(float) * 2);
     _x = vsqrt_f32(_x);
-    SIMD_INLINE_MEMCPY(&x, &_x, sizeof(float) * 2);
+    RIVE_INLINE_MEMCPY(&x, &_x, sizeof(float) * 2);
     return x;
 }
 #endif
@@ -272,12 +257,12 @@ template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 
 // This will only be present when building with Emscripten and "-msimd128".
 #if __has_builtin(__builtin_wasm_sqrt_f32x4)
-template <> SIMD_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
+template <> RIVE_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
 {
     return __builtin_wasm_sqrt_f32x4(x);
 }
 
-template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
+template <> RIVE_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 {
     gvec<float, 4> _x{x.x, x.y};
     _x = __builtin_wasm_sqrt_f32x4(_x);
@@ -291,7 +276,7 @@ template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 //
 // See: https://stackoverflow.com/a/36387954
 #define SIMD_FAST_ACOS_MAX_ERROR 0.0167552f // .96 degrees
-template <int N> SIMD_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
+template <int N> RIVE_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
 {
     constexpr static float a = -0.939115566365855f;
     constexpr static float b = 0.9217841528914573f;
@@ -306,36 +291,36 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
 
 ////// Loading and storing //////
 
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const void* ptr)
+template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> load(const void* ptr)
 {
     gvec<T, N> ret;
-    SIMD_INLINE_MEMCPY(&ret, ptr, sizeof(T) * N);
+    RIVE_INLINE_MEMCPY(&ret, ptr, sizeof(T) * N);
     return ret;
 }
-SIMD_ALWAYS_INLINE gvec<float, 2> load2f(const void* ptr) { return load<float, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<float, 4> load4f(const void* ptr) { return load<float, 4>(ptr); }
-SIMD_ALWAYS_INLINE gvec<int32_t, 2> load2i(const void* ptr) { return load<int32_t, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<int32_t, 4> load4i(const void* ptr) { return load<int32_t, 4>(ptr); }
-SIMD_ALWAYS_INLINE gvec<uint32_t, 2> load2ui(const void* ptr) { return load<uint32_t, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const void* ptr) { return load<uint32_t, 4>(ptr); }
+RIVE_ALWAYS_INLINE gvec<float, 2> load2f(const void* ptr) { return load<float, 2>(ptr); }
+RIVE_ALWAYS_INLINE gvec<float, 4> load4f(const void* ptr) { return load<float, 4>(ptr); }
+RIVE_ALWAYS_INLINE gvec<int32_t, 2> load2i(const void* ptr) { return load<int32_t, 2>(ptr); }
+RIVE_ALWAYS_INLINE gvec<int32_t, 4> load4i(const void* ptr) { return load<int32_t, 4>(ptr); }
+RIVE_ALWAYS_INLINE gvec<uint32_t, 2> load2ui(const void* ptr) { return load<uint32_t, 2>(ptr); }
+RIVE_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const void* ptr) { return load<uint32_t, 4>(ptr); }
 
-template <typename T, int N> SIMD_ALWAYS_INLINE void store(void* dst, gvec<T, N> vec)
+template <typename T, int N> RIVE_ALWAYS_INLINE void store(void* dst, gvec<T, N> vec)
 {
-    SIMD_INLINE_MEMCPY(dst, &vec, sizeof(T) * N);
+    RIVE_INLINE_MEMCPY(dst, &vec, sizeof(T) * N);
 }
 
 template <typename T, int M, int N>
-SIMD_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
+RIVE_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
 {
     T data[M + N];
-    SIMD_INLINE_MEMCPY(data, &a, sizeof(T) * M);
-    SIMD_INLINE_MEMCPY(data + M, &b, sizeof(T) * N);
+    RIVE_INLINE_MEMCPY(data, &a, sizeof(T) * M);
+    RIVE_INLINE_MEMCPY(data + M, &b, sizeof(T) * N);
     return load<T, M + N>(data);
 }
 
 ////// Basic linear algebra //////
 
-template <typename T, int N> SIMD_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
+template <typename T, int N> RIVE_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
 {
     auto d = a * b;
     T s = d[0];
@@ -346,20 +331,20 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b
 
 // We can use __builtin_reduce_add for integer types.
 #if __has_builtin(__builtin_reduce_add)
-template <int N> SIMD_ALWAYS_INLINE int32_t dot(gvec<int32_t, N> a, gvec<int32_t, N> b)
+template <int N> RIVE_ALWAYS_INLINE int32_t dot(gvec<int32_t, N> a, gvec<int32_t, N> b)
 {
     auto d = a * b;
     return __builtin_reduce_add(d);
 }
 
-template <int N> SIMD_ALWAYS_INLINE uint32_t dot(gvec<uint32_t, N> a, gvec<uint32_t, N> b)
+template <int N> RIVE_ALWAYS_INLINE uint32_t dot(gvec<uint32_t, N> a, gvec<uint32_t, N> b)
 {
     auto d = a * b;
     return __builtin_reduce_add(d);
 }
 #endif
 
-SIMD_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)
+RIVE_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)
 {
     auto c = a * b.yx;
     return c.x - c.y;
@@ -373,7 +358,7 @@ SIMD_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)
 // structure seems to get better precision for things like chopping cubics on exact cusp points than
 // "a*(1 - t) + b*t" (which would return exactly b when t == 1).
 template <int N>
-SIMD_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, gvec<float, N> t)
+RIVE_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, gvec<float, N> t)
 {
     assert(simd::all(0.f <= t && t < 1.f));
     return (b - a) * t + a;
@@ -381,8 +366,7 @@ SIMD_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, gvec<f
 } // namespace simd
 } // namespace rive
 
-#undef SIMD_ALWAYS_INLINE
-#undef SIMD_INLINE_MEMCPY
+#undef RIVE_INLINE_MEMCPY
 
 namespace rive
 {

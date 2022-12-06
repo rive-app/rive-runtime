@@ -270,8 +270,10 @@ void RawPath::rewind()
 
 void RawPath::addTo(CommandPath* result) const
 {
-    for (auto [verb, pts] : *this)
+    for (auto iter : *this)
     {
+        PathVerb verb = std::get<0>(iter);
+        const Vec2D* pts = std::get<1>(iter);
         switch (verb)
         {
             case PathVerb::move:
@@ -287,7 +289,7 @@ void RawPath::addTo(CommandPath* result) const
                 result->close();
                 break;
             case PathVerb::quad:
-                RIVE_UNREACHABLE;
+                RIVE_UNREACHABLE();
         }
     }
 }

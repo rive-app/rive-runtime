@@ -735,25 +735,25 @@ ArtboardInstance::~ArtboardInstance() { Counter::update(Counter::kArtboardInstan
 std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationAt(size_t index)
 {
     auto la = this->animation(index);
-    return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
+    return la ? rivestd::make_unique<LinearAnimationInstance>(la, this) : nullptr;
 }
 
 std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationNamed(const std::string& name)
 {
     auto la = this->animation(name);
-    return la ? std::make_unique<LinearAnimationInstance>(la, this) : nullptr;
+    return la ? rivestd::make_unique<LinearAnimationInstance>(la, this) : nullptr;
 }
 
 std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineAt(size_t index)
 {
     auto sm = this->stateMachine(index);
-    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
+    return sm ? rivestd::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }
 
 std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineNamed(const std::string& name)
 {
     auto sm = this->stateMachine(name);
-    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
+    return sm ? rivestd::make_unique<StateMachineInstance>(sm, this) : nullptr;
 }
 
 std::unique_ptr<StateMachineInstance> ArtboardInstance::defaultStateMachine()

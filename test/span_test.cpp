@@ -55,9 +55,7 @@ TEST_CASE("const-and-containers", "[span]")
     funcb({carray, 4});
 
     int array[] = {1, 2, 3, 4};
-    funca(array);
     funca({array, 4});
-    funcb(array);
     funcb({array, 4});
 
     std::vector<int> v;
@@ -69,7 +67,7 @@ TEST_CASE("can iterate span", "[span]")
 {
     const int carray[] = {2, 4, 8, 16};
 
-    auto span = Span(carray);
+    auto span = make_span(carray, 4);
     int expect = 2;
     for (auto value : span)
     {
