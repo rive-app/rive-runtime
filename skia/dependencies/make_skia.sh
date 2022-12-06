@@ -2,7 +2,7 @@
 
 set -e
 
-export MAKE_SKIA_FILE=make_skia.sh
+export MAKE_SKIA_FILE="$0"
 ./get_skia.sh
 
 # use Rive optimized/stripped Skia for iOS static libs.

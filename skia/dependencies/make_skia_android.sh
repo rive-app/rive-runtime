@@ -2,6 +2,7 @@
 
 set -ex
 
+export MAKE_SKIA_FILE="$0"
 source ./get_skia2.sh
 source ./cache_helper.sh
 

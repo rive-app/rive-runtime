@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-export MAKE_SKIA_FILE=make_skia_recorder.sh
+export MAKE_SKIA_FILE="$0"
 source ./get_skia2.sh
 source ./cache_helper.sh
 

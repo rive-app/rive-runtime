@@ -10,7 +10,6 @@ SKIA_BRANCH=${SKIA_BRANCH:-rive}
 COMPILE_TARGET="${COMPILE_TARGET:-$(uname -s)_$(uname -m)}"
 CACHE_NAME="${CACHE_NAME:=skia}"
 OUTPUT_CACHE="${OUTPUT_CACHE:=out}"
-MAKE_SKIA_FILE="${MAKE_SKIA_FILE:=make_skia_android.sh}"
 ARCHIVE_CONTENTS_NAME="${ARCHIVE_CONTENTS_NAME:=archive_contents}"
 
 # lets just make sure this exists, or fail
