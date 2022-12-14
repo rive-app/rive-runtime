@@ -10,7 +10,9 @@
 #include "rive/animation/blend_state_1d.hpp"
 #include "rive/animation/blend_state_direct.hpp"
 #include "rive/animation/blend_state_transition.hpp"
+#include "rive/animation/cubic_ease_interpolator.hpp"
 #include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/cubic_value_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
 #include "rive/animation/keyed_object.hpp"
@@ -155,6 +157,8 @@ public:
                 return new BlendAnimationDirect();
             case StateMachineNumberBase::typeKey:
                 return new StateMachineNumber();
+            case CubicValueInterpolatorBase::typeKey:
+                return new CubicValueInterpolator();
             case TransitionTriggerConditionBase::typeKey:
                 return new TransitionTriggerCondition();
             case KeyedPropertyBase::typeKey:
@@ -179,8 +183,8 @@ public:
                 return new Animation();
             case ListenerNumberChangeBase::typeKey:
                 return new ListenerNumberChange();
-            case CubicInterpolatorBase::typeKey:
-                return new CubicInterpolator();
+            case CubicEaseInterpolatorBase::typeKey:
+                return new CubicEaseInterpolator();
             case StateTransitionBase::typeKey:
                 return new StateTransition();
             case NestedBoolBase::typeKey:
@@ -551,12 +555,6 @@ public:
             case StateMachineNumberBase::valuePropertyKey:
                 object->as<StateMachineNumberBase>()->value(value);
                 break;
-            case TransitionNumberConditionBase::valuePropertyKey:
-                object->as<TransitionNumberConditionBase>()->value(value);
-                break;
-            case ListenerNumberChangeBase::valuePropertyKey:
-                object->as<ListenerNumberChangeBase>()->value(value);
-                break;
             case CubicInterpolatorBase::x1PropertyKey:
                 object->as<CubicInterpolatorBase>()->x1(value);
                 break;
@@ -568,6 +566,12 @@ public:
                 break;
             case CubicInterpolatorBase::y2PropertyKey:
                 object->as<CubicInterpolatorBase>()->y2(value);
+                break;
+            case TransitionNumberConditionBase::valuePropertyKey:
+                object->as<TransitionNumberConditionBase>()->value(value);
+                break;
+            case ListenerNumberChangeBase::valuePropertyKey:
+                object->as<ListenerNumberChangeBase>()->value(value);
                 break;
             case KeyFrameDoubleBase::valuePropertyKey:
                 object->as<KeyFrameDoubleBase>()->value(value);
@@ -1015,10 +1019,6 @@ public:
                 return object->as<NestedSimpleAnimationBase>()->speed();
             case StateMachineNumberBase::valuePropertyKey:
                 return object->as<StateMachineNumberBase>()->value();
-            case TransitionNumberConditionBase::valuePropertyKey:
-                return object->as<TransitionNumberConditionBase>()->value();
-            case ListenerNumberChangeBase::valuePropertyKey:
-                return object->as<ListenerNumberChangeBase>()->value();
             case CubicInterpolatorBase::x1PropertyKey:
                 return object->as<CubicInterpolatorBase>()->x1();
             case CubicInterpolatorBase::y1PropertyKey:
@@ -1027,6 +1027,10 @@ public:
                 return object->as<CubicInterpolatorBase>()->x2();
             case CubicInterpolatorBase::y2PropertyKey:
                 return object->as<CubicInterpolatorBase>()->y2();
+            case TransitionNumberConditionBase::valuePropertyKey:
+                return object->as<TransitionNumberConditionBase>()->value();
+            case ListenerNumberChangeBase::valuePropertyKey:
+                return object->as<ListenerNumberChangeBase>()->value();
             case KeyFrameDoubleBase::valuePropertyKey:
                 return object->as<KeyFrameDoubleBase>()->value();
             case LinearAnimationBase::speedPropertyKey:
@@ -1299,12 +1303,12 @@ public:
             case NestedLinearAnimationBase::mixPropertyKey:
             case NestedSimpleAnimationBase::speedPropertyKey:
             case StateMachineNumberBase::valuePropertyKey:
-            case TransitionNumberConditionBase::valuePropertyKey:
-            case ListenerNumberChangeBase::valuePropertyKey:
             case CubicInterpolatorBase::x1PropertyKey:
             case CubicInterpolatorBase::y1PropertyKey:
             case CubicInterpolatorBase::x2PropertyKey:
             case CubicInterpolatorBase::y2PropertyKey:
+            case TransitionNumberConditionBase::valuePropertyKey:
+            case ListenerNumberChangeBase::valuePropertyKey:
             case KeyFrameDoubleBase::valuePropertyKey:
             case LinearAnimationBase::speedPropertyKey:
             case NestedNumberBase::nestedValuePropertyKey:

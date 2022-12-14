@@ -10,7 +10,7 @@ protected:
     typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 28;
+    static const uint16_t typeKey = 139;
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
@@ -83,7 +83,6 @@ public:
         y2Changed();
     }
 
-    Core* clone() const override;
     void copy(const CubicInterpolatorBase& object)
     {
         m_X1 = object.m_X1;

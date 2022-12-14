@@ -38,10 +38,15 @@ void KeyFrameDouble::applyInterpolation(Core* object,
     const KeyFrameDouble& nextDouble = *kfd;
     float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
 
+    float frameValue;
     if (CubicInterpolator* cubic = interpolator())
     {
-        f = cubic->transform(f);
+        frameValue = cubic->transformValue(value(), nextDouble.value(), f);
+    }
+    else
+    {
+        frameValue = value() + (nextDouble.value() - value()) * f;
     }
 
-    applyDouble(object, propertyKey, mix, value() + (nextDouble.value() - value()) * f);
+    applyDouble(object, propertyKey, mix, frameValue);
 }

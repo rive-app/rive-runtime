@@ -1,9 +1,10 @@
 {
   "name": "CubicInterpolator",
   "key": {
-    "int": 28,
+    "int": 139,
     "string": "cubicinterpolator"
   },
+  "abstract": true,
   "exportsWithContext": true,
   "properties": {
     "x1": {

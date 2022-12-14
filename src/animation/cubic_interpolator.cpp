@@ -12,7 +12,7 @@ const float SubdivisionPrecision = 0.0000001f;
 const int SubdivisionMaxIterations = 10;
 
 // Returns x(t) given t, x1, and x2, or y(t) given t, y1, and y2.
-static float calcBezier(float aT, float aA1, float aA2)
+float CubicInterpolator::calcBezier(float aT, float aA1, float aA2)
 {
     return (((1.0f - 3.0f * aA2 + 3.0f * aA1) * aT + (3.0f * aA2 - 6.0f * aA1)) * aT +
             (3.0f * aA1)) *
@@ -94,8 +94,6 @@ float CubicInterpolator::getT(float x) const
         return currentT;
     }
 }
-
-float CubicInterpolator::transform(float mix) const { return calcBezier(getT(mix), y1(), y2()); }
 
 StatusCode CubicInterpolator::import(ImportStack& importStack)
 {
