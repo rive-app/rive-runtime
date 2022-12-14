@@ -20,7 +20,7 @@ function m.github(project, tag)
         dependencies = path.getabsolute(_WORKING_DIR) .. '/dependencies'
         os.mkdir(dependencies)
     end
-    local hash = string.sha1(project .. tag)
+    local hash = string.sub(string.sha1(project .. tag), 0, 9)
     if not os.isdir(dependencies .. '/' .. hash) then
         function progress(total, current)
             local ratio = current / total
