@@ -91,9 +91,32 @@ static void check_iter(RawPath::Iter& iter,
                        std::vector<Vec2D> expectedPts)
 {
     REQUIRE(iter != end);
-    PathVerb verb = std::get<0>(*iter);
-    const Vec2D* pts = std::get<1>(*iter);
+    PathVerb verb = iter.verb();
+    const Vec2D* pts = iter.pts();
     REQUIRE(verb == expectedVerb);
+    switch (verb)
+    {
+        case PathVerb::move:
+            CHECK(expectedPts.size() == 1);
+            CHECK(pts[0] == iter.movePt());
+            break;
+        case PathVerb::line:
+            CHECK(expectedPts.size() == 2);
+            CHECK(pts == iter.linePts());
+            break;
+        case PathVerb::quad:
+            CHECK(expectedPts.size() == 3);
+            CHECK(pts == iter.quadPts());
+            break;
+        case PathVerb::cubic:
+            CHECK(expectedPts.size() == 4);
+            CHECK(pts == iter.cubicPts());
+            break;
+        case PathVerb::close:
+            CHECK(expectedPts.size() == 0);
+            CHECK(pts == iter.rawPtsPtr() - 1);
+            break;
+    }
     for (size_t i = 0; i < expectedPts.size(); ++i)
     {
         CHECK(pts[i] == expectedPts[i]);
