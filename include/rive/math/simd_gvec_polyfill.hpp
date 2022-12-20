@@ -206,6 +206,8 @@ DECL_ARITHMETIC_OP(/);
 DECL_ARITHMETIC_OP(|);
 DECL_ARITHMETIC_OP(&);
 DECL_ARITHMETIC_OP(^);
+DECL_ARITHMETIC_OP(<<);
+DECL_ARITHMETIC_OP(>>);
 
 #undef DECL_ARITHMETIC_OP
 
@@ -249,6 +251,8 @@ DECL_BOOLEAN_OP(||)
     {                                                                                              \
         return F((gvec<T, N>)x);                                                                   \
     }
+#define ENABLE_SWIZZLE_REDUCE(F)                                                                   \
+    template <typename T, int N, Swizzle Z0> T F(gvec<T, N, Z0> x) { return F((gvec<T, N>)x); }
 #define ENABLE_SWIZZLE1F(F)                                                                        \
     template <int N, Swizzle Z0> gvec<float, N> F(gvec<float, N, Z0> x)                            \
     {                                                                                              \
@@ -287,6 +291,7 @@ DECL_BOOLEAN_OP(||)
     }
 
 ENABLE_SWIZZLE1(abs)
+ENABLE_SWIZZLE_REDUCE(sum)
 ENABLE_SWIZZLE1F(floor)
 ENABLE_SWIZZLE1F(ceil)
 ENABLE_SWIZZLE1F(sqrt)
@@ -302,8 +307,13 @@ template <typename T, int N, Swizzle Z> void store(void* dst, gvec<T, N, Z> vec)
 {
     store(dst, (gvec<T, N>)vec);
 }
+template <typename U, typename T, int N, Swizzle Z> gvec<U, N> cast(gvec<T, N, Z> x)
+{
+    return cast<U>((gvec<T, N>)x);
+}
 
 #undef ENABLE_SWIZZLE1
+#undef ENABLE_SWIZZLE_REDUCE
 #undef ENABLE_SWIZZLE1F
 #undef ENABLE_SWIZZLE1B
 #undef ENABLE_SWIZZLEUT

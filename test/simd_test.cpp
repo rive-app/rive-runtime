@@ -329,6 +329,37 @@ TEST_CASE("abs", "[simd]")
                   int2{std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::min()}));
 }
 
+// Check simd::sum.
+TEST_CASE("sum", "[simd]")
+{
+    {
+        float4 v = {1, 2, 3, 4};
+        CHECK(simd::sum(v) == 10);
+        CHECK(simd::sum(v.zwxy) == 10);
+        CHECK(simd::sum(v.xyz) == 6);
+        CHECK(simd::sum(v.yz) == 5);
+        CHECK(simd::sum(v.xy.yxyx) == 6);
+    }
+
+    {
+        int4 v = {1, 2, 3, 4};
+        CHECK(simd::sum(v) == 10);
+        CHECK(simd::sum(v.zwxy) == 10);
+        CHECK(simd::sum(v.xyz) == 6);
+        CHECK(simd::sum(v.yz) == 5);
+        CHECK(simd::sum(v.xy.yxyx) == 6);
+    }
+
+    {
+        uint4 v = {1, 2, 3, 4};
+        CHECK(simd::sum(v) == 10);
+        CHECK(simd::sum(v.zwxy) == 10);
+        CHECK(simd::sum(v.xyz) == 6);
+        CHECK(simd::sum(v.yz) == 5);
+        CHECK(simd::sum(v.xy.yxyx) == 6);
+    }
+}
+
 // Check simd::floor.
 TEST_CASE("floor", "[simd]")
 {
@@ -467,6 +498,16 @@ TEST_CASE("fast_acos", "[simd]")
     }
 }
 
+TEST_CASE("cast", "[simd]")
+{
+    float4 f4 = float4{-1.9f, -1.5f, 1.5f, 1.1f};
+    CHECK(simd::all(simd::cast<int>(f4) == int4{-1, -1, 1, 1}));
+    CHECK(simd::all(simd::cast<int>(simd::floor(f4)) == int4{-2, -2, 1, 1}));
+    CHECK(simd::all(simd::cast<int>(simd::ceil(f4)) == int4{-1, -1, 2, 2}));
+    CHECK(simd::all(simd::cast<int>(simd::ceil(f4.zwxy)) == int4{2, 2, -1, -1}));
+    CHECK(simd::all(simd::cast<int>(simd::ceil(f4).zwxy) == int4{2, 2, -1, -1}));
+}
+
 // Check simd::dot.
 TEST_CASE("dot", "[simd]")
 {
@@ -555,4 +596,17 @@ TEST_CASE("mix", "[simd]")
     check_mix<5>();
     CHECK_ALL((simd::mix(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}, float4(0)) == float4{1, 2, 3, 4}));
 }
+
+// Check simd::load4x4f
+TEST_CASE("load4x4f", "[simd]")
+{
+    // Column major.
+    float m[16] = {0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15};
+    auto c = simd::load4x4f(m);
+    CHECK(simd::all(std::get<0>(c) == float4{0, 1, 2, 3}));
+    CHECK(simd::all(std::get<1>(c) == float4{4, 5, 6, 7}));
+    CHECK(simd::all(std::get<2>(c) == float4{8, 9, 10, 11}));
+    CHECK(simd::all(std::get<3>(c) == float4{12, 13, 14, 15}));
+}
+
 } // namespace rive

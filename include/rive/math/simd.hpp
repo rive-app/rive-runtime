@@ -17,8 +17,8 @@
 #include "rive/rive_types.hpp"
 #include <cassert>
 #include <limits>
+#include <math.h>
 #include <stdint.h>
-#include <string.h>
 #include <tuple>
 #include <type_traits>
 
@@ -176,6 +176,27 @@ template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
 #endif
 }
 
+template <typename T, int N> RIVE_ALWAYS_INLINE T sum(gvec<T, N> x)
+{
+    T s = x[0];
+    for (int i = 1; i < N; ++i)
+        s += x[i];
+    return s;
+}
+
+// We can use __builtin_reduce_add for integer types.
+#if __has_builtin(__builtin_reduce_add)
+template <int N> RIVE_ALWAYS_INLINE int32_t sum(gvec<int32_t, N> x)
+{
+    return __builtin_reduce_add(x);
+}
+
+template <int N> RIVE_ALWAYS_INLINE uint32_t sum(gvec<uint32_t, N> x)
+{
+    return __builtin_reduce_add(x);
+}
+#endif
+
 ////// Floating Point Functions //////
 
 template <int N> RIVE_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
@@ -289,6 +310,16 @@ template <int N> RIVE_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
     return x * (numer / denom) + pi_over_2;
 }
 
+////// Type conversion //////
+
+template <typename U, typename T, int N> RIVE_ALWAYS_INLINE gvec<U, N> cast(gvec<T, N> x)
+{
+    gvec<U, N> y{};
+    for (int i = 0; i < N; ++i)
+        y[i] = static_cast<U>(x[i]);
+    return y;
+}
+
 ////// Loading and storing //////
 
 template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> load(const void* ptr)
@@ -309,6 +340,49 @@ template <typename T, int N> RIVE_ALWAYS_INLINE void store(void* dst, gvec<T, N>
     RIVE_INLINE_MEMCPY(dst, &vec, sizeof(T) * N);
 }
 
+////// Column-major (transposed) loads //////
+
+#ifdef __ARM_NEON__
+RIVE_ALWAYS_INLINE std::tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
+load4x4f(const float* matrix)
+{
+    float32x4x4_t m = vld4q_f32(matrix);
+    gvec<float, 4> c0, c1, c2, c3;
+    RIVE_INLINE_MEMCPY(&c0, &m.val[0], sizeof(c0));
+    RIVE_INLINE_MEMCPY(&c1, &m.val[1], sizeof(c1));
+    RIVE_INLINE_MEMCPY(&c2, &m.val[2], sizeof(c2));
+    RIVE_INLINE_MEMCPY(&c3, &m.val[3], sizeof(c3));
+    return {c0, c1, c2, c3};
+}
+#elif defined(__SSE__)
+RIVE_ALWAYS_INLINE std::tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
+load4x4f(const float* m)
+{
+    __m128 r0, r1, r2, r3;
+    RIVE_INLINE_MEMCPY(&r0, m + 4 * 0, sizeof(r0));
+    RIVE_INLINE_MEMCPY(&r1, m + 4 * 1, sizeof(r1));
+    RIVE_INLINE_MEMCPY(&r2, m + 4 * 2, sizeof(r2));
+    RIVE_INLINE_MEMCPY(&r3, m + 4 * 3, sizeof(r3));
+    _MM_TRANSPOSE4_PS(r0, r1, r2, r3);
+    gvec<float, 4> c0, c1, c2, c3;
+    RIVE_INLINE_MEMCPY(&c0, &r0, sizeof(c0));
+    RIVE_INLINE_MEMCPY(&c1, &r1, sizeof(c1));
+    RIVE_INLINE_MEMCPY(&c2, &r2, sizeof(c2));
+    RIVE_INLINE_MEMCPY(&c3, &r3, sizeof(c3));
+    return {c0, c1, c2, c3};
+}
+#else
+RIVE_ALWAYS_INLINE std::tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
+load4x4f(const float* m)
+{
+    gvec<float, 4> c0 = {m[0], m[4], m[8], m[12]};
+    gvec<float, 4> c1 = {m[1], m[5], m[9], m[13]};
+    gvec<float, 4> c2 = {m[2], m[6], m[10], m[14]};
+    gvec<float, 4> c3 = {m[3], m[7], m[11], m[15]};
+    return {c0, c1, c2, c3};
+}
+#endif
+
 template <typename T, int M, int N>
 RIVE_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
 {
@@ -322,27 +396,8 @@ RIVE_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
 
 template <typename T, int N> RIVE_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
 {
-    auto d = a * b;
-    T s = d[0];
-    for (int i = 1; i < N; ++i)
-        s += d[i];
-    return s;
+    return sum(a * b);
 }
-
-// We can use __builtin_reduce_add for integer types.
-#if __has_builtin(__builtin_reduce_add)
-template <int N> RIVE_ALWAYS_INLINE int32_t dot(gvec<int32_t, N> a, gvec<int32_t, N> b)
-{
-    auto d = a * b;
-    return __builtin_reduce_add(d);
-}
-
-template <int N> RIVE_ALWAYS_INLINE uint32_t dot(gvec<uint32_t, N> a, gvec<uint32_t, N> b)
-{
-    auto d = a * b;
-    return __builtin_reduce_add(d);
-}
-#endif
 
 RIVE_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)
 {
@@ -365,8 +420,6 @@ RIVE_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, gvec<f
 }
 } // namespace simd
 } // namespace rive
-
-#undef RIVE_INLINE_MEMCPY
 
 namespace rive
 {

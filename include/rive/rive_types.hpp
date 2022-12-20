@@ -62,13 +62,18 @@
 
 // Annotations to assert unreachable control flow.
 #if defined(__GNUC__) || defined(__clang__)
-#define RIVE_UNREACHABLE __builtin_unreachable
+#define RIVE_UNREACHABLE                                                                           \
+    assert(!(bool)"unreachable reached");                                                          \
+    __builtin_unreachable
 #elif _MSC_VER
-#define RIVE_UNREACHABLE() __assume(0)
+#define RIVE_UNREACHABLE()                                                                         \
+    assert(!(bool)"unreachable reached");                                                          \
+    __assume(0)
 #else
 #define RIVE_UNREACHABLE()                                                                         \
     do                                                                                             \
     {                                                                                              \
+        assert(!(bool)"unreachable reached");                                                      \
     } while (0)
 #endif
 
@@ -105,6 +110,12 @@
 #define RIVE_INLINE_MEMCPY __builtin_memcpy
 #else
 #define RIVE_INLINE_MEMCPY memcpy
+#endif
+
+#ifdef DEBUG
+#define RIVE_DEBUG_CODE(CODE) CODE
+#else
+#define RIVE_DEBUG_CODE(CODE)
 #endif
 
 // Backports of later stl functions.

@@ -1,4 +1,6 @@
 #include "rive/shapes/paint/color.hpp"
+
+#include "rive/math/simd.hpp"
 #include <stdio.h>
 
 namespace rive
@@ -16,6 +18,12 @@ unsigned int colorGreen(ColorInt value) { return (0x0000ff00 & value) >> 8; }
 unsigned int colorBlue(ColorInt value) { return (0x000000ff & value) >> 0; }
 
 unsigned int colorAlpha(ColorInt value) { return (0xff000000 & value) >> 24; }
+
+void UnpackColor4f(ColorInt color, float out[4])
+{
+    float4 color4f = simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) / 255.f;
+    simd::store(out, color4f);
+}
 
 float colorOpacity(ColorInt value) { return (float)colorAlpha(value) / 0xFF; }
 

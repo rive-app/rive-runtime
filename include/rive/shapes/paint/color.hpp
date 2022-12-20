@@ -17,6 +17,8 @@ unsigned int colorBlue(ColorInt value);
 
 unsigned int colorAlpha(ColorInt value);
 
+void UnpackColor4f(ColorInt color, float out[4]);
+
 float colorOpacity(unsigned int value);
 
 ColorInt colorWithAlpha(ColorInt value, unsigned int a);
