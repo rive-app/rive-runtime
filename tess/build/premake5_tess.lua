@@ -11,7 +11,7 @@ project 'rive_tess_renderer'
 do
     kind 'StaticLib'
     language 'C++'
-    cppdialect 'C++17'
+    cppdialect 'C++11'
     toolset 'clang'
     targetdir '%{cfg.system}/bin/%{cfg.buildcfg}'
     objdir '%{cfg.system}/obj/%{cfg.buildcfg}'

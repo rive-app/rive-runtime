@@ -51,11 +51,11 @@ namespace util
 
 template <> struct nth<0, Vec2D>
 {
-    inline static auto get(const Vec2D& t) { return t.x; };
+    inline static float get(const Vec2D& t) { return t.x; };
 };
 template <> struct nth<1, Vec2D>
 {
-    inline static auto get(const Vec2D& t) { return t.y; };
+    inline static float get(const Vec2D& t) { return t.y; };
 };
 
 } // namespace util
@@ -104,7 +104,7 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath)
             bounds = m_segmentedContour.bounds();
 
             auto contour = m_segmentedContour.contourPoints();
-            auto contours = Span(&contour, 1);
+            auto contours = rive::make_span(&contour, 1);
             m_earcut(contours);
 
             containerPath->addTriangles(contour, m_earcut.indices);
@@ -127,7 +127,7 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath)
             subRenderPath->contour(subPath.transform());
             const SegmentedContour& segmentedContour = subRenderPath->segmentedContour();
             auto contour = segmentedContour.contourPoints();
-            auto contours = Span(&contour, 1);
+            auto contours = rive::make_span(&contour, 1);
             m_earcut(contours);
 
             containerPath->addTriangles(contour, m_earcut.indices);
@@ -173,8 +173,9 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath)
                     indices.push_back(elems[i]);
                 }
 
-                containerPath->addTriangles(Span(reinterpret_cast<const Vec2D*>(verts), nverts),
-                                            indices);
+                containerPath->addTriangles(
+                    Span<const rive::Vec2D>(reinterpret_cast<const Vec2D*>(verts), nverts),
+                    indices);
             }
             tessDeleteTess(tess);
         }

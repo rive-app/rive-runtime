@@ -65,8 +65,11 @@ void SegmentedContour::contour(const RawPath& rawPath, const Mat2D& transform)
 
     // Possible perf consideration: could add second path that doesn't transform
     // if transform is the identity.
-    for (const auto [verb, pts] : rawPath)
+    for (auto tuple : rawPath)
     {
+        PathVerb verb = std::get<0>(tuple);
+        const Vec2D* pts = std::get<1>(tuple);
+
         switch (verb)
         {
             case PathVerb::move:
