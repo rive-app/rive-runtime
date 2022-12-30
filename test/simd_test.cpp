@@ -581,8 +581,10 @@ template <int N> void check_mix()
     vec<N> b = vrand<N>();
     float t = frand();
     CHECK(fuzzy_equal(simd::mix(a, b, vec<N>(t)), mix_reference_impl(a, b, t)));
+    CHECK(fuzzy_equal(simd::precise_mix(a, b, vec<N>(t)), mix_reference_impl(a, b, t)));
     vec<N> tt = vrand<N>();
     CHECK(fuzzy_equal(simd::mix(a, b, tt), mix_reference_impl(a, b, tt)));
+    CHECK(fuzzy_equal(simd::precise_mix(a, b, tt), mix_reference_impl(a, b, tt)));
 }
 
 // Check simd::mix
@@ -595,6 +597,10 @@ TEST_CASE("mix", "[simd]")
     check_mix<4>();
     check_mix<5>();
     CHECK_ALL((simd::mix(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}, float4(0)) == float4{1, 2, 3, 4}));
+    CHECK_ALL((simd::precise_mix(float4{-1, 2, 3, 4}, float4{5, 6, 7, 8}, float4(0)) ==
+               float4{-1, 2, 3, 4}));
+    CHECK_ALL((simd::precise_mix(float4{1, 2, 3, 4}, float4{5, -6, 7, -8}, float4(1)) ==
+               float4{5, -6, 7, -8}));
 }
 
 // Check simd::load4x4f

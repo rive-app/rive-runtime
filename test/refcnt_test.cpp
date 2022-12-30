@@ -72,4 +72,29 @@ TEST_CASE("rcp", "[basics]")
 
     r1.reset();
     REQUIRE(r1.get() == nullptr);
+
+    struct A : public rive::RefCnt<A>
+    {
+        int x = 17;
+    };
+    struct B : public A
+    {
+        int y = 21;
+    };
+    auto b = make_rcp<B>();
+    CHECK(b->y == 21);
+    rcp<A> a = b;
+    CHECK(a->x == 17);
+    CHECK(static_rcp_cast<B>(a)->y == 21);
+    CHECK(rcp<A>(b)->x == 17);
+    CHECK(a->debugging_refcnt() == 2);
+    CHECK(b->debugging_refcnt() == 2);
+    CHECK(static_rcp_cast<B>(std::move(a))->y == 21);
+    CHECK(a == nullptr);
+    CHECK(b->debugging_refcnt() == 1);
+    a = ref_rcp(b.get());
+    CHECK(b == a);
+    CHECK(a->debugging_refcnt() == 2);
+    CHECK(a->x == 17);
+    CHECK(static_rcp_cast<B>(a)->y == 21);
 }

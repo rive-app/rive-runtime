@@ -93,6 +93,16 @@ public:
     rcp(const rcp<T>& other) : m_ptr(safe_ref(other.get())) {}
     rcp(rcp<T>&& other) : m_ptr(other.release()) {}
 
+    template <typename U,
+              typename = typename std::enable_if<std::is_convertible<U*, T*>::value>::type>
+    rcp(const rcp<U>& other) : m_ptr(safe_ref(other.get()))
+    {}
+
+    template <typename U,
+              typename = typename std::enable_if<std::is_convertible<U*, T*>::value>::type>
+    rcp(rcp<U>&& other) : m_ptr(other.release())
+    {}
+
     /**
      *  Calls unref() on the underlying object pointer.
      */
@@ -162,6 +172,16 @@ template <typename T> inline void swap(rcp<T>& a, rcp<T>& b) { a.swap(b); }
 template <typename T, typename... Args> rcp<T> inline make_rcp(Args&&... args)
 {
     return rcp<T>(new T(std::forward<Args>(args)...));
+}
+
+template <typename T> rcp<T> inline ref_rcp(T* ptr) { return rcp<T>(safe_ref(ptr)); }
+
+template <typename U,
+          typename T,
+          typename = typename std::enable_if<std::is_convertible<U*, T*>::value>::type>
+rcp<U> static_rcp_cast(rcp<T> ptr)
+{
+    return rcp<U>(static_cast<U*>(ptr.release()));
 }
 
 // == variants

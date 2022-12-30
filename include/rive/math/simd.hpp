@@ -418,6 +418,13 @@ RIVE_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, gvec<f
     assert(simd::all(0.f <= t && t < 1.f));
     return (b - a) * t + a;
 }
+
+// Linearly interpolates between a and b, returning precisely 'a' if t==0 and precisely 'b' if t==1.
+template <int N>
+RIVE_ALWAYS_INLINE gvec<float, N> precise_mix(gvec<float, N> a, gvec<float, N> b, gvec<float, N> t)
+{
+    return a * (1.f - t) + b * t;
+}
 } // namespace simd
 } // namespace rive
 

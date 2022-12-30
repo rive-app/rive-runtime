@@ -19,10 +19,24 @@ unsigned int colorBlue(ColorInt value) { return (0x000000ff & value) >> 0; }
 
 unsigned int colorAlpha(ColorInt value) { return (0xff000000 & value) >> 24; }
 
-void UnpackColor4f(ColorInt color, float out[4])
+void UnpackColorToRGBA8(ColorInt color, uint8_t out[4])
 {
-    float4 color4f = simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) / 255.f;
+    auto rgba = simd::cast<uint8_t>(uint4(color) >> uint4{16, 8, 0, 24});
+    simd::store(out, rgba);
+}
+
+void UnpackColorToRGBA32F(ColorInt color, float out[4])
+{
+    float4 color4f = simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) * (1.f / 255.f);
     simd::store(out, color4f);
+}
+
+void UnpackColorToRGBA32FPremul(ColorInt color, float out[4])
+{
+    float4 premulColor4f = simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) * (1.f / 255.f);
+    float alpha = premulColor4f.w;
+    premulColor4f *= float4{alpha, alpha, alpha, 1.f};
+    simd::store(out, premulColor4f);
 }
 
 float colorOpacity(ColorInt value) { return (float)colorAlpha(value) / 0xFF; }
