@@ -114,7 +114,9 @@ public:
     // coordinate within that variations space for *this* font, call
     // getCoords().
     //
-    virtual std::vector<Axis> getAxes() const = 0;
+    std::vector<Axis> getAxes() const;
+    virtual Axis getAxis(uint16_t index) const = 0;
+    virtual uint16_t getAxisCount() const = 0;
 
     struct Coord
     {

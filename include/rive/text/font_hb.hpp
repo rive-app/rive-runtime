@@ -22,7 +22,8 @@ public:
     HBFont(hb_font_t* font);
     ~HBFont() override;
 
-    std::vector<Axis> getAxes() const override;
+    Axis getAxis(uint16_t index) const override;
+    uint16_t getAxisCount() const override;
     std::vector<Coord> getCoords() const override;
     rive::rcp<rive::Font> makeAtCoords(rive::Span<const Coord>) const override;
     rive::RawPath getPath(rive::GlyphID) const override;

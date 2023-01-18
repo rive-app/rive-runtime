@@ -128,28 +128,21 @@ HBFont::~HBFont()
     hb_font_destroy(m_Font);
 }
 
-std::vector<rive::Font::Axis> HBFont::getAxes() const
+rive::Font::Axis HBFont::getAxis(uint16_t index) const
 {
     auto face = hb_font_get_face(m_Font);
-    std::vector<rive::Font::Axis> axes;
+    assert(index < hb_ot_var_get_axis_count(face));
+    unsigned n = 1;
+    hb_ot_var_axis_info_t info;
+    hb_ot_var_get_axis_infos(face, index, &n, &info);
+    assert(n == 1);
+    return {info.tag, info.min_value, info.default_value, info.max_value};
+}
 
-    const int count = hb_ot_var_get_axis_count(face);
-    if (count > 0)
-    {
-        axes.resize(count);
-
-        hb_ot_var_axis_info_t info;
-        for (int i = 0; i < count; ++i)
-        {
-            unsigned n = 1;
-            hb_ot_var_get_axis_infos(face, i, &n, &info);
-            assert(n == 1);
-            axes[i] = {info.tag, info.min_value, info.default_value, info.max_value};
-            //       printf("[%d] %08X %g %g %g\n", i, info.tag, info.min_value, info.default_value,
-            //       info.max_value);
-        }
-    }
-    return axes;
+uint16_t HBFont::getAxisCount() const
+{
+    auto face = hb_font_get_face(m_Font);
+    return (uint16_t)hb_ot_var_get_axis_count(face);
 }
 
 std::vector<rive::Font::Coord> HBFont::getCoords() const
