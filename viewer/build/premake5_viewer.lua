@@ -10,7 +10,6 @@ rive = '../../'
 rive_tess = '../../tess'
 rive_skia = '../../skia'
 skia = dependencies .. '/skia'
-libpng = dependencies .. '/libpng'
 
 if _OPTIONS.renderer == 'tess' then
     dofile(path.join(path.getabsolute(dependencies) .. '/../..', 'premake5_libpng.lua'))

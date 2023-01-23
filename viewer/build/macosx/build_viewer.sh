@@ -40,12 +40,6 @@ if [[ ! -d "$DEPENDENCIES/imgui" ]]; then
     popd
 fi
 
-if [[ $RENDERER = "tess" ]] && [[ ! -d "$DEPENDENCIES/libpng" ]]; then
-    pushd $DEPENDENCIES_SCRIPTS
-    ./get_libpng.sh
-    popd
-fi
-
 if [ $RENDERER = "skia" ]; then
     pushd ../../../skia/renderer/build/macosx
     ./build_skia_renderer.sh text $@
