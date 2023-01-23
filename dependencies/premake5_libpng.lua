@@ -36,7 +36,6 @@ do
         libpng .. '/pngwutil.c'
     }
 
-    architecture('ARM64')
     do
         files {
             libpng .. '/arm/arm_init.c',
