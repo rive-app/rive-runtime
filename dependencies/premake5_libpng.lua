@@ -13,7 +13,7 @@ do
         '-fno-exceptions',
         '-fno-rtti'
     }
-    prebuildcommands {'{COPY} ' .. libpng .. '/scripts/pnglibconf.h.prebuilt ' .. libpng .. '/pnglibconf.h'}
+    os.copyfile(libpng .. '/scripts/pnglibconf.h.prebuilt', libpng .. '/pnglibconf.h')
     includedirs {
         './',
         libpng
