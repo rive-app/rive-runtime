@@ -1,5 +1,6 @@
 local dependency = require 'dependency'
 libpng = dependency.github('glennrp/libpng', 'libpng16')
+zlib = dependency.github('madler/zlib', '04f42ceca40f73e2978b50e93806c2a18c1281fc')
 
 project 'libpng'
 do
@@ -9,14 +10,13 @@ do
     toolset 'clang'
     targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
     objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
-    buildoptions {
-        '-fno-exceptions',
-        '-fno-rtti'
-    }
+    rtti "Off"
+    exceptionhandling "Off"
     os.copyfile(libpng .. '/scripts/pnglibconf.h.prebuilt', libpng .. '/pnglibconf.h')
     includedirs {
         './',
-        libpng
+        libpng,
+        zlib,
     }
     files {
         libpng .. '/png.c',
@@ -43,9 +43,14 @@ do
             libpng .. '/arm/palette_neon_intrinsics.c'
         }
     end
-end
 
-zlib = dependency.github('madler/zlib', '04f42ceca40f73e2978b50e93806c2a18c1281fc')
+    filter 'system:windows'
+    do
+        architecture 'x64'
+        staticruntime "on"  -- Match Skia's /MT flag for link compatibility
+        runtime "Release"  -- Use /MT even in debug (/MTd is incompatible with Skia)
+    end
+end
 
 project 'zlib'
 do
@@ -55,11 +60,9 @@ do
     toolset 'clang'
     targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
     objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
-    buildoptions {
-        '-fno-exceptions',
-        '-fno-rtti'
-    }
-    defines {'ZLIB_IMPLEMENTATION', 'HAVE_UNISTD_H'}
+    rtti "Off"
+    exceptionhandling "Off"
+    defines {'ZLIB_IMPLEMENTATION'}
     includedirs {
         zlib
     }
@@ -80,4 +83,16 @@ do
         zlib .. '/zutil.c',
         zlib .. '/inflate.c'
     }
+
+    filter 'system:windows'
+    do
+        architecture 'x64'
+        staticruntime "on"  -- Match Skia's /MT flag for link compatibility
+        runtime "Release"  -- Use /MT even in debug (/MTd is incompatible with Skia)
+    end
+
+    filter 'system:not windows'
+    do
+        defines {'HAVE_UNISTD_H'}
+    end
 end

@@ -7,6 +7,11 @@ source ./cache_helper.sh
 
 build_skia_recorder() {
     cd $SKIA_DIR_NAME
+
+    # This header is required so Skia can continue to use its internal copy of libpng while we link
+    # with our own.
+    cp ../../pngprefix/pngprefix.h third_party/externals/libpng/
+    echo '#include <pngprefix.h>' >> third_party/libpng/pnglibconf.h
     
     bin/gn gen out/static --args=" \
         is_official_build=true \
@@ -18,8 +23,9 @@ build_skia_recorder() {
         \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\",\
         \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\",\
         \"-DSK_DISABLE_AAA\",\
-        \"-DSK_DISABLE_EFFECT_DESERIALIZATION\"\
-        ] \
+        \"-DSK_DISABLE_EFFECT_DESERIALIZATION\",\
+        \"-DPNG_PREFIX=sk_\"\
+        ]\
         rive_use_picture=true \
         skia_use_angle=false \
         skia_use_dng_sdk=false \
