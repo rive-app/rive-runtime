@@ -61,7 +61,11 @@ void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPa
         m_Paths.front()->trim(startLength, endLength, moveTo, result);
         return;
     }
-
+    if (!m_Contour)
+    {
+        // All the contours were 0 length, so there's nothing to segment.
+        return;
+    }
     // TODO: if we can change the signature of MetricsPath and/or trim() to speak native
     //       rawpaths, we wouldn't need this temporary copy (since ContourMeasure speaks
     //       native rawpaths).
