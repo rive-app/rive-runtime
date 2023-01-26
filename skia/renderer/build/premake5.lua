@@ -26,21 +26,6 @@ do
         '../../../include'
     }
 
-    if os.host() == 'macosx' then
-        links {'Cocoa.framework', 'rive', 'skia'}
-    elseif os.host() == 'windows' then
-        architecture 'x64'
-        links {
-            'rive',
-            'skia',
-        }
-        defines {'_USE_MATH_DEFINES'}
-        staticruntime 'on' -- Match Skia's /MT flag for link compatibility
-        runtime 'Release' -- Use /MT even in debug (/MTd is incompatible with Skia)
-    else
-        links {'rive', 'skia'}
-    end
-
     libdirs {'../../../build/%{cfg.system}/bin/%{cfg.buildcfg}'}
 
     files {
@@ -49,16 +34,26 @@ do
 
     buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format'}
 
+    filter "system:windows"
+    do
+        architecture 'x64'
+        defines {'_USE_MATH_DEFINES'}
+        staticruntime 'on' -- Match Skia's /MT flag for link compatibility
+        runtime 'Release' -- Use /MT even in debug (/MTd is incompatible with Skia)
+    end
+
     filter {'system:macosx'}
     do
         includedirs {SKIA_DIR}
         libdirs {SKIA_DIR .. '/out/static'}
+        links {'Cocoa.framework', 'rive', 'skia'}
     end
 
     filter {'system:linux or windows'}
     do
         includedirs {SKIA_DIR}
         libdirs {SKIA_DIR .. '/out/static'}
+        links {'rive', 'skia'}
     end
 
     filter {'system:ios'}

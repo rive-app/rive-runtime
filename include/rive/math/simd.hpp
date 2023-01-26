@@ -26,7 +26,7 @@
 #include <immintrin.h>
 #endif
 
-#ifdef __ARM_NEON__
+#if defined(__ARM_NEON__) || defined(__aarch64__)
 #include <arm_neon.h>
 #endif
 
@@ -254,7 +254,6 @@ template <> RIVE_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 }
 #endif
 
-#ifdef __ARM_NEON__
 #ifdef __aarch64__
 template <> RIVE_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
 {
@@ -273,7 +272,6 @@ template <> RIVE_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
     RIVE_INLINE_MEMCPY(&x, &_x, sizeof(float) * 2);
     return x;
 }
-#endif
 #endif
 
 // This will only be present when building with Emscripten and "-msimd128".
@@ -342,7 +340,7 @@ template <typename T, int N> RIVE_ALWAYS_INLINE void store(void* dst, gvec<T, N>
 
 ////// Column-major (transposed) loads //////
 
-#ifdef __ARM_NEON__
+#if defined(__ARM_NEON__) || defined(__aarch64__)
 RIVE_ALWAYS_INLINE std::tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
 load4x4f(const float* matrix)
 {
