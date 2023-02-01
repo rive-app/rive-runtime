@@ -14,7 +14,8 @@
         "int": 233,
         "string": "layer"
       },
-      "description": "Layer ID as it is analysed by the backend"
+      "description": "Layer ID as it is analysed by the backend",
+      "runtime": false
     },
     "x": {
       "type": "double",
@@ -23,7 +24,8 @@
         "int": 234,
         "string": "x"
       },
-      "description": "x offset for this layer"
+      "description": "x offset for this layer",
+      "runtime": false
     },
     "y": {
       "type": "double",
@@ -32,7 +34,8 @@
         "int": 235,
         "string": "y"
       },
-      "description": "y offset for this layer"
+      "description": "y offset for this layer",
+      "runtime": false
     }
   }
 }

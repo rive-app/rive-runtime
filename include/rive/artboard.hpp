@@ -124,6 +124,19 @@ public:
         return nullptr;
     }
 
+    template <typename T = Component> std::vector<T*> find()
+    {
+        std::vector<T*> results;
+        for (auto object : m_Objects)
+        {
+            if (object != nullptr && object->is<T>())
+            {
+                results.push_back(static_cast<T*>(object));
+            }
+        }
+        return results;
+    }
+
     size_t animationCount() const { return m_Animations.size(); }
     std::string animationNameAt(size_t index) const;
 

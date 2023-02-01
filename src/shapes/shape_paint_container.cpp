@@ -7,6 +7,7 @@
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/text/text_style.hpp"
 
 using namespace rive;
 
@@ -18,6 +19,8 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
             return component->as<Artboard>();
         case Shape::typeKey:
             return component->as<Shape>();
+        case TextStyle::typeKey:
+            return component->as<TextStyle>();
     }
     return nullptr;
 }

@@ -6,7 +6,7 @@
 #define _RIVE_FACTORY_HPP_
 
 #include "rive/renderer.hpp"
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
@@ -58,7 +58,7 @@ public:
 
     virtual std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) = 0;
 
-    virtual rcp<Font> decodeFont(Span<const uint8_t>) { return nullptr; }
+    virtual rcp<Font> decodeFont(Span<const uint8_t>);
 
     // Non-virtual helpers
 

@@ -3,12 +3,12 @@
  */
 
 #include "viewer/viewer_content.hpp"
-#include "utils/rive_utf.hpp"
+#include "rive/text/utf.hpp"
 
 #include "rive/math/raw_path.hpp"
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 #include "rive/text/font_hb.hpp"
 #include <algorithm>
 

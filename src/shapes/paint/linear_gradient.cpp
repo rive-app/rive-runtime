@@ -36,12 +36,23 @@ void LinearGradient::buildDependencies()
         // Parent's parent must be a shape paint container.
         assert(ShapePaintContainer::from(parentsParent) != nullptr);
 
-        // TODO: see if artboard should inherit from some TransformComponent
-        // that can return a world transform. We store the container just for
-        // doing the transform to world in update. If it's the artboard, then
-        // we're already in world so no need to transform.
-        m_ShapePaintContainer = parentsParent->is<Node>() ? parentsParent->as<Node>() : nullptr;
-        parentsParent->addDependent(this);
+        // We need to find the container that owns our world space transform.
+        // This is the first node up the chain (or none, meaning we are in world
+        // space).
+        m_ShapePaintContainer = nullptr;
+        while (parentsParent != nullptr)
+        {
+            if (parentsParent->is<Node>())
+            {
+                m_ShapePaintContainer = parentsParent->as<Node>();
+                break;
+            }
+            parentsParent = parentsParent->parent();
+        }
+        if (parentsParent != nullptr)
+        {
+            parentsParent->addDependent(this);
+        }
     }
 }
 

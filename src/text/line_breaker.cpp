@@ -2,7 +2,7 @@
  * Copyright 2022 Rive
  */
 
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 #include <limits>
 #include <algorithm>
 using namespace rive;

@@ -6,7 +6,7 @@
 #define _RIVE_FONT_HB_HPP_
 
 #include "rive/factory.hpp"
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 
 struct hb_font_t;
 struct hb_draw_funcs_t;

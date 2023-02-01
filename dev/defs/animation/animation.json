@@ -33,6 +33,16 @@
       },
       "description": "Order this animation shows up in the animations list.",
       "runtime": false
+    },
+    "folderId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 282,
+        "string": "folderid"
+      },
+      "description": "Id of the folder this animation belongs to",
+      "runtime": false
     }
   }
 }

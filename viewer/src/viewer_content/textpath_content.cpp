@@ -4,12 +4,12 @@
  */
 
 #include "viewer/viewer_content.hpp"
-#include "utils/rive_utf.hpp"
+#include "rive/text/utf.hpp"
 
 #include "rive/math/raw_path.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/factory.hpp"
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 #include "rive/math/contour_measure.hpp"
 
 using namespace rive;

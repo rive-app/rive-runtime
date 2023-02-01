@@ -1,0 +1,29 @@
+{
+  "name": "TextStyle",
+  "key": {
+    "int": 137,
+    "string": "textstyle"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "fontSize": {
+      "type": "double",
+      "initialValue": "12",
+      "animates": true,
+      "key": {
+        "int": 274,
+        "string": "fontsize"
+      }
+    },
+    "fontAssetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 279,
+        "string": "fontassetid"
+      }
+    }
+  }
+}

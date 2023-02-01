@@ -2,8 +2,8 @@
  * Copyright 2022 Rive
  */
 
-#ifndef _RIVE_TEXT_HPP_
-#define _RIVE_TEXT_HPP_
+#ifndef _RIVE_TEXT_ENGINE_HPP_
+#define _RIVE_TEXT_ENGINE_HPP_
 
 #include "rive/math/raw_path.hpp"
 #include "rive/refcnt.hpp"

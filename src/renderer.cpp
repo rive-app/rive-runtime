@@ -1,6 +1,7 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/renderer.hpp"
 #include "rive/rive_counter.hpp"
+#include "rive/text_engine.hpp"
 
 using namespace rive;
 
@@ -98,8 +99,6 @@ RenderImage::~RenderImage() { Counter::update(Counter::kImage, -1); }
 
 RenderPath::RenderPath() { Counter::update(Counter::kPath, 1); }
 RenderPath::~RenderPath() { Counter::update(Counter::kPath, -1); }
-
-#include "rive/text.hpp"
 
 static bool isWhiteSpace(Unichar c) { return c <= ' ' || c == 0x2028; }
 

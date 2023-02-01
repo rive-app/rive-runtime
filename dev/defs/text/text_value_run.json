@@ -1,0 +1,31 @@
+{
+  "name": "TextValueRun",
+  "key": {
+    "int": 135,
+    "string": "textvaluerun"
+  },
+  "extends": "component.json",
+  "properties": {
+    "styleId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 272,
+        "string": "styleid"
+      },
+      "description": "The id of the style to be applied to this run."
+    },
+    "text": {
+      "type": "String",
+      "initialValue": "''",
+      "animates": true,
+      "key": {
+        "int": 268,
+        "string": "text_value"
+      },
+      "description": "The text string value."
+    }
+  }
+}

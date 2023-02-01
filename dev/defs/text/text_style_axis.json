@@ -1,0 +1,27 @@
+{
+  "name": "TextStyleAxis",
+  "key": {
+    "int": 144,
+    "string": "textStyleAxis"
+  },
+  "extends": "component.json",
+  "properties": {
+    "tag": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 289,
+        "string": "tag"
+      }
+    },
+    "axisValue": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 288,
+        "string": "axisValue"
+      }
+    }
+  }
+}

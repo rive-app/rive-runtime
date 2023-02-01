@@ -1,7 +1,7 @@
 #ifndef _RIVE_KEY_FRAME_ID_HPP_
 #define _RIVE_KEY_FRAME_ID_HPP_
 #include "rive/generated/animation/keyframe_id_base.hpp"
-#include <stdio.h>
+
 namespace rive
 {
 class KeyFrameId : public KeyFrameIdBase

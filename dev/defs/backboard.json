@@ -46,6 +46,105 @@
       "description": "Edit time mode.",
       "runtime": false,
       "coop": false
+    },
+    "treeMode": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 247,
+        "string": "treemode"
+      },
+      "description": "Edit time hierarchy/assets/events mode.",
+      "runtime": false,
+      "coop": false
+    },
+    "animationPanelSize": {
+      "type": "double",
+      "initialValue": "300.0",
+      "key": {
+        "int": 258,
+        "string": "animationpanelsize"
+      },
+      "description": "Size of the animation panel",
+      "runtime": false,
+      "coop": false
+    },
+    "hierarchyPanelSize": {
+      "type": "double",
+      "initialValue": "300.0",
+      "key": {
+        "int": 259,
+        "string": "hierarchypanelsize"
+      },
+      "description": "Size of the Hierarchy panel",
+      "runtime": false,
+      "coop": false
+    },
+    "stageX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 260,
+        "string": "stagex"
+      },
+      "description": "X translation value of the stage in the editor.",
+      "runtime": false,
+      "coop": false
+    },
+    "stageY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 261,
+        "string": "stagey"
+      },
+      "description": "Y translation value of the stage in the editor.",
+      "runtime": false,
+      "coop": false
+    },
+    "stageZoom": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 262,
+        "string": "stagezoom"
+      },
+      "description": "Zoom value of the stage in the editor. Initial value is 0 to indicate it is not set.",
+      "runtime": false,
+      "coop": false
+    },
+    "rulersEnabled": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 263,
+        "string": "rulersenabled"
+      },
+      "description": "If rulers are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "snappingEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 264,
+        "string": "snappingenabled"
+      },
+      "description": "If snapping are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "bonesEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 265,
+        "string": "bonesenabled"
+      },
+      "description": "If bones are enabled for this file",
+      "runtime": false,
+      "coop": false
     }
   }
 }

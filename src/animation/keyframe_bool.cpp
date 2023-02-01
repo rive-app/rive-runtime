@@ -1,4 +1,4 @@
-#include "rive/animation/keyframe_id.hpp"
+#include "rive/animation/keyframe_bool.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;

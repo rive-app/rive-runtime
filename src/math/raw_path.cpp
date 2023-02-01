@@ -289,7 +289,10 @@ void RawPath::addTo(CommandPath* result) const
                 result->close();
                 break;
             case PathVerb::quad:
-                RIVE_UNREACHABLE();
+                // TODO: actually supports quads.
+                result->cubic(Vec2D::lerp(pts[0], pts[1], 2 / 3.f),
+                              Vec2D::lerp(pts[2], pts[1], 2 / 3.f),
+                              pts[2]);
         }
     }
 }

@@ -101,6 +101,50 @@
       "description": "Viewport end in frames.",
       "runtime": false,
       "coop": false
+    },
+    "scrollOffset": {
+      "type": "double",
+      "initialValue": "0.0",
+      "key": {
+        "int": 256,
+        "string": "scrolloffset"
+      },
+      "description": "Scroll offset of the key frame view",
+      "runtime": false,
+      "coop": false
+    },
+    "expandedComponents": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 266,
+        "string": "expandedcomponents"
+      },
+      "description": "List of components that are expanded on the timeline view",
+      "runtime": false,
+      "coop": false
+    },
+    "timelineMode": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 275,
+        "string": "timelinemode"
+      },
+      "description": "Edit time timeline mode",
+      "runtime": false,
+      "coop": false
+    },
+    "showSelected": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 278,
+        "string": "showselected"
+      },
+      "description": "Whether to only show selected components on the timeline hierarchy",
+      "runtime": false,
+      "coop": false
     }
   }
 }

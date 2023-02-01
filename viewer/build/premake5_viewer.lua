@@ -45,7 +45,6 @@ do
     links {
         'rive',
         'rive_harfbuzz',
-        -- 'rive_fribidi'
         'rive_sheenbidi'
     }
 

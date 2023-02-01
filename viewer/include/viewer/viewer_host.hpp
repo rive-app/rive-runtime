@@ -7,7 +7,7 @@
 
 #include "rive/factory.hpp"
 #include "rive/renderer.hpp"
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 
 #include "sokol_gfx.h"
 

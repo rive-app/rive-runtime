@@ -1,0 +1,8 @@
+{
+  "name": "FontAsset",
+  "key": {
+    "int": 141,
+    "string": "fontasset"
+  },
+  "extends": "assets/file_asset.json"
+}

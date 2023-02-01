@@ -1,11 +1,7 @@
-/*
- * Copyright 2022 Rive
- */
-
 #ifndef _RIVE_UTF_HPP_
 #define _RIVE_UTF_HPP_
 
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 
 namespace rive
 {

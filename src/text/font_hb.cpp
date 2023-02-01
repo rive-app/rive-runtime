@@ -2,7 +2,7 @@
  * Copyright 2022 Rive
  */
 
-#include "rive/text.hpp"
+#include "rive/text_engine.hpp"
 
 #ifdef WITH_RIVE_TEXT
 #include "rive/text/font_hb.hpp"

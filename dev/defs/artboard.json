@@ -90,6 +90,39 @@
         "string": "defaultStateMachineId"
       },
       "description": "The default StateMachine attached to this artboard automatically when it is initialized."
+    },
+    "animationsScrollOffset": {
+      "type": "double",
+      "initialValue": "0.0",
+      "key": {
+        "int": 257,
+        "string": "animationsscrolloffset"
+      },
+      "description": "Scroll offset of the animation list",
+      "runtime": false,
+      "coop": false
+    },
+    "expandedComponents": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 267,
+        "string": "expandedcomponents"
+      },
+      "description": "List of expanded components",
+      "runtime": false,
+      "coop": false
+    },
+    "expandedAnimationFolders": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 283,
+        "string": "expandedanimationfolders"
+      },
+      "description": "List of expanded animation folders",
+      "runtime": false,
+      "coop": false
     }
   }
 }

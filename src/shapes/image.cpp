@@ -70,13 +70,11 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
 
 StatusCode Image::import(ImportStack& importStack)
 {
-    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
+    auto result = registerReferencer(importStack);
+    if (result != StatusCode::Ok)
     {
-        return StatusCode::MissingObject;
+        return result;
     }
-    backboardImporter->addFileAssetReferencer(this);
-
     return Super::import(importStack);
 }
 

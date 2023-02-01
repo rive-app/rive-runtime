@@ -4,9 +4,9 @@
 
 #include <rive/simple_array.hpp>
 #include <catch.hpp>
-#include <rive/text.hpp>
+#include <rive/text_engine.hpp>
 #include <rive/text/font_hb.hpp>
-#include "utils/rive_utf.hpp"
+#include "rive/text/utf.hpp"
 
 using namespace rive;
 

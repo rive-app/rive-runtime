@@ -199,6 +199,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 }
                 break;
                 case ImageAsset::typeKey:
+                case FontAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
                     m_FileAssets.push_back(std::unique_ptr<FileAsset>(fa));
@@ -275,6 +276,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject = new StateMachineListenerImporter(object->as<StateMachineListener>());
                 break;
             case ImageAsset::typeKey:
+            case FontAsset::typeKey:
                 stackObject =
                     new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver, m_Factory);
                 stackType = FileAsset::typeKey;

@@ -1,8 +1,4 @@
-/*
- * Copyright 2022 Rive
- */
-
-#include "utils/rive_utf.hpp"
+#include "rive/text/utf.hpp"
 #include "rive/core/type_conversions.hpp"
 
 using namespace rive;

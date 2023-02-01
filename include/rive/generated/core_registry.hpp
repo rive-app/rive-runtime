@@ -22,6 +22,7 @@
 #include "rive/animation/keyframe_color.hpp"
 #include "rive/animation/keyframe_double.hpp"
 #include "rive/animation/keyframe_id.hpp"
+#include "rive/animation/keyframe_string.hpp"
 #include "rive/animation/layer_state.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/listener_action.hpp"
@@ -59,6 +60,7 @@
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/assets/folder.hpp"
+#include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/backboard.hpp"
 #include "rive/bones/bone.hpp"
@@ -116,6 +118,10 @@
 #include "rive/shapes/straight_vertex.hpp"
 #include "rive/shapes/triangle.hpp"
 #include "rive/shapes/vertex.hpp"
+#include "rive/text/text.hpp"
+#include "rive/text/text_style.hpp"
+#include "rive/text/text_style_axis.hpp"
+#include "rive/text/text_value_run.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/world_transform_component.hpp"
 namespace rive
@@ -153,6 +159,8 @@ public:
                 return new NestedTrigger();
             case KeyedObjectBase::typeKey:
                 return new KeyedObject();
+            case AnimationBase::typeKey:
+                return new Animation();
             case BlendAnimationDirectBase::typeKey:
                 return new BlendAnimationDirect();
             case StateMachineNumberBase::typeKey:
@@ -179,8 +187,8 @@ public:
                 return new AnyState();
             case StateMachineLayerBase::typeKey:
                 return new StateMachineLayer();
-            case AnimationBase::typeKey:
-                return new Animation();
+            case KeyFrameStringBase::typeKey:
+                return new KeyFrameString();
             case ListenerNumberChangeBase::typeKey:
                 return new ListenerNumberChange();
             case CubicEaseInterpolatorBase::typeKey:
@@ -287,10 +295,20 @@ public:
                 return new Tendon();
             case CubicWeightBase::typeKey:
                 return new CubicWeight();
+            case TextStyleBase::typeKey:
+                return new TextStyle();
+            case TextStyleAxisBase::typeKey:
+                return new TextStyleAxis();
+            case TextBase::typeKey:
+                return new Text();
+            case TextValueRunBase::typeKey:
+                return new TextValueRun();
             case FolderBase::typeKey:
                 return new Folder();
             case ImageAssetBase::typeKey:
                 return new ImageAsset();
+            case FontAssetBase::typeKey:
+                return new FontAsset();
             case FileAssetContentsBase::typeKey:
                 return new FileAssetContents();
         }
@@ -303,11 +321,17 @@ public:
             case ComponentBase::namePropertyKey:
                 object->as<ComponentBase>()->name(value);
                 break;
+            case AnimationBase::namePropertyKey:
+                object->as<AnimationBase>()->name(value);
+                break;
             case StateMachineComponentBase::namePropertyKey:
                 object->as<StateMachineComponentBase>()->name(value);
                 break;
-            case AnimationBase::namePropertyKey:
-                object->as<AnimationBase>()->name(value);
+            case KeyFrameStringBase::valuePropertyKey:
+                object->as<KeyFrameStringBase>()->value(value);
+                break;
+            case TextValueRunBase::textPropertyKey:
+                object->as<TextValueRunBase>()->text(value);
                 break;
             case AssetBase::namePropertyKey:
                 object->as<AssetBase>()->name(value);
@@ -494,6 +518,24 @@ public:
                 break;
             case CubicWeightBase::outIndicesPropertyKey:
                 object->as<CubicWeightBase>()->outIndices(value);
+                break;
+            case TextStyleBase::fontAssetIdPropertyKey:
+                object->as<TextStyleBase>()->fontAssetId(value);
+                break;
+            case TextStyleAxisBase::tagPropertyKey:
+                object->as<TextStyleAxisBase>()->tag(value);
+                break;
+            case TextBase::alignValuePropertyKey:
+                object->as<TextBase>()->alignValue(value);
+                break;
+            case TextBase::sizingValuePropertyKey:
+                object->as<TextBase>()->sizingValue(value);
+                break;
+            case TextBase::overflowValuePropertyKey:
+                object->as<TextBase>()->overflowValue(value);
+                break;
+            case TextValueRunBase::styleIdPropertyKey:
+                object->as<TextValueRunBase>()->styleId(value);
                 break;
             case FileAssetBase::assetIdPropertyKey:
                 object->as<FileAssetBase>()->assetId(value);
@@ -753,6 +795,18 @@ public:
             case TendonBase::tyPropertyKey:
                 object->as<TendonBase>()->ty(value);
                 break;
+            case TextStyleBase::fontSizePropertyKey:
+                object->as<TextStyleBase>()->fontSize(value);
+                break;
+            case TextStyleAxisBase::axisValuePropertyKey:
+                object->as<TextStyleAxisBase>()->axisValue(value);
+                break;
+            case TextBase::widthPropertyKey:
+                object->as<TextBase>()->width(value);
+                break;
+            case TextBase::heightPropertyKey:
+                object->as<TextBase>()->height(value);
+                break;
             case DrawableAssetBase::heightPropertyKey:
                 object->as<DrawableAssetBase>()->height(value);
                 break;
@@ -845,10 +899,14 @@ public:
         {
             case ComponentBase::namePropertyKey:
                 return object->as<ComponentBase>()->name();
-            case StateMachineComponentBase::namePropertyKey:
-                return object->as<StateMachineComponentBase>()->name();
             case AnimationBase::namePropertyKey:
                 return object->as<AnimationBase>()->name();
+            case StateMachineComponentBase::namePropertyKey:
+                return object->as<StateMachineComponentBase>()->name();
+            case KeyFrameStringBase::valuePropertyKey:
+                return object->as<KeyFrameStringBase>()->value();
+            case TextValueRunBase::textPropertyKey:
+                return object->as<TextValueRunBase>()->text();
             case AssetBase::namePropertyKey:
                 return object->as<AssetBase>()->name();
         }
@@ -976,6 +1034,18 @@ public:
                 return object->as<CubicWeightBase>()->outValues();
             case CubicWeightBase::outIndicesPropertyKey:
                 return object->as<CubicWeightBase>()->outIndices();
+            case TextStyleBase::fontAssetIdPropertyKey:
+                return object->as<TextStyleBase>()->fontAssetId();
+            case TextStyleAxisBase::tagPropertyKey:
+                return object->as<TextStyleAxisBase>()->tag();
+            case TextBase::alignValuePropertyKey:
+                return object->as<TextBase>()->alignValue();
+            case TextBase::sizingValuePropertyKey:
+                return object->as<TextBase>()->sizingValue();
+            case TextBase::overflowValuePropertyKey:
+                return object->as<TextBase>()->overflowValue();
+            case TextValueRunBase::styleIdPropertyKey:
+                return object->as<TextValueRunBase>()->styleId();
             case FileAssetBase::assetIdPropertyKey:
                 return object->as<FileAssetBase>()->assetId();
         }
@@ -1151,6 +1221,14 @@ public:
                 return object->as<TendonBase>()->tx();
             case TendonBase::tyPropertyKey:
                 return object->as<TendonBase>()->ty();
+            case TextStyleBase::fontSizePropertyKey:
+                return object->as<TextStyleBase>()->fontSize();
+            case TextStyleAxisBase::axisValuePropertyKey:
+                return object->as<TextStyleAxisBase>()->axisValue();
+            case TextBase::widthPropertyKey:
+                return object->as<TextBase>()->width();
+            case TextBase::heightPropertyKey:
+                return object->as<TextBase>()->height();
             case DrawableAssetBase::heightPropertyKey:
                 return object->as<DrawableAssetBase>()->height();
             case DrawableAssetBase::widthPropertyKey:
@@ -1221,8 +1299,10 @@ public:
         switch (propertyKey)
         {
             case ComponentBase::namePropertyKey:
-            case StateMachineComponentBase::namePropertyKey:
             case AnimationBase::namePropertyKey:
+            case StateMachineComponentBase::namePropertyKey:
+            case KeyFrameStringBase::valuePropertyKey:
+            case TextValueRunBase::textPropertyKey:
             case AssetBase::namePropertyKey:
                 return CoreStringType::id;
             case ComponentBase::parentIdPropertyKey:
@@ -1284,6 +1364,12 @@ public:
             case CubicWeightBase::inIndicesPropertyKey:
             case CubicWeightBase::outValuesPropertyKey:
             case CubicWeightBase::outIndicesPropertyKey:
+            case TextStyleBase::fontAssetIdPropertyKey:
+            case TextStyleAxisBase::tagPropertyKey:
+            case TextBase::alignValuePropertyKey:
+            case TextBase::sizingValuePropertyKey:
+            case TextBase::overflowValuePropertyKey:
+            case TextValueRunBase::styleIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
                 return CoreUintType::id;
             case ConstraintBase::strengthPropertyKey:
@@ -1369,6 +1455,10 @@ public:
             case TendonBase::yyPropertyKey:
             case TendonBase::txPropertyKey:
             case TendonBase::tyPropertyKey:
+            case TextStyleBase::fontSizePropertyKey:
+            case TextStyleAxisBase::axisValuePropertyKey:
+            case TextBase::widthPropertyKey:
+            case TextBase::heightPropertyKey:
             case DrawableAssetBase::heightPropertyKey:
             case DrawableAssetBase::widthPropertyKey:
                 return CoreDoubleType::id;
