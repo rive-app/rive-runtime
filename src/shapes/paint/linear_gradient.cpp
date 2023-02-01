@@ -32,26 +32,30 @@ void LinearGradient::buildDependencies()
     auto p = parent();
     if (p != nullptr && p->parent() != nullptr)
     {
-        auto parentsParent = p->parent();
+        ContainerComponent* grandParent = p->parent();
         // Parent's parent must be a shape paint container.
-        assert(ShapePaintContainer::from(parentsParent) != nullptr);
+        assert(ShapePaintContainer::from(grandParent) != nullptr);
 
         // We need to find the container that owns our world space transform.
         // This is the first node up the chain (or none, meaning we are in world
         // space).
         m_ShapePaintContainer = nullptr;
-        while (parentsParent != nullptr)
+        for (ContainerComponent* container = grandParent; container != nullptr;
+             container = container->parent())
         {
-            if (parentsParent->is<Node>())
+            if (container->is<Node>())
             {
-                m_ShapePaintContainer = parentsParent->as<Node>();
+                m_ShapePaintContainer = container->as<Node>();
                 break;
             }
-            parentsParent = parentsParent->parent();
         }
-        if (parentsParent != nullptr)
+        if (m_ShapePaintContainer != nullptr)
         {
-            parentsParent->addDependent(this);
+            m_ShapePaintContainer->addDependent(this);
+        }
+        else
+        {
+            grandParent->addDependent(this);
         }
     }
 }
