@@ -61,7 +61,7 @@ for var in "$@"; do
 done
 
 # compile shaders
-$DEPENDENCIES/bin/sokol-shdc --input ../src/sokol/shader.glsl --output ../src/sokol/generated/shader.h --slang glsl330:hlsl5:metal_macos:metal_ios:metal_sim:glsl300es
+$DEPENDENCIES/bin/sokol-shdc --input ../src/sokol/shader.glsl --output ../src/sokol/generated/shader.h --slang glsl330:hlsl5:metal_macos:metal_ios:metal_sim:glsl300es:glsl100
 
 make config=$CONFIG -j$(($(sysctl -n hw.physicalcpu) + 1))
 
