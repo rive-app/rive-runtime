@@ -79,6 +79,18 @@ float LinearAnimation::endSeconds() const
 }
 float LinearAnimation::durationSeconds() const { return endSeconds() - startSeconds(); }
 
+// Matches Dart modulus: https://api.dart.dev/stable/2.19.0/dart-core/double/operator_modulo.html
+static float positiveMod(float value, float range)
+{
+    assert(range > 0.0f);
+    float v = fmodf(value, range);
+    if (v < 0.0f)
+    {
+        v += range;
+    }
+    return v;
+}
+
 float LinearAnimation::globalToLocalSeconds(float seconds) const
 {
     switch (loop())
@@ -86,9 +98,9 @@ float LinearAnimation::globalToLocalSeconds(float seconds) const
         case Loop::oneShot:
             return seconds + startSeconds();
         case Loop::loop:
-            return std::fmod(seconds, (endSeconds() - startSeconds())) + startSeconds();
+            return positiveMod(seconds, (endSeconds() - startSeconds())) + startSeconds();
         case Loop::pingPong:
-            float localTime = std::fmod(seconds, (endSeconds() - startSeconds()));
+            float localTime = positiveMod(seconds, (endSeconds() - startSeconds()));
             int direction = ((int)(seconds / (endSeconds() - startSeconds()))) % 2;
             return direction == 0 ? localTime + startSeconds() : endSeconds() - localTime;
     }
