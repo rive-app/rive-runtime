@@ -68,10 +68,11 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
     bool didLoop = false;
     m_SpilledTime = 0.0f;
 
+    int direction = speed() * m_Direction < 0 ? -1 : 1;
     switch (loop())
     {
         case Loop::oneShot:
-            if (m_Direction == 1 && frames > end)
+            if (direction == 1 && frames > end)
             {
                 keepGoing = false;
                 m_SpilledTime = (frames - end) / fps;
@@ -79,7 +80,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
                 m_Time = frames / fps;
                 didLoop = true;
             }
-            else if (m_Direction == -1 && frames < start)
+            else if (direction == -1 && frames < start)
             {
                 keepGoing = false;
                 m_SpilledTime = (start - frames) / fps;
@@ -89,7 +90,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
             }
             break;
         case Loop::loop:
-            if (m_Direction == 1 && frames >= end)
+            if (direction == 1 && frames >= end)
             {
                 m_SpilledTime = (frames - end) / fps;
                 frames = m_Time * fps;
@@ -98,9 +99,8 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
                 m_Time = frames / fps;
                 didLoop = true;
             }
-            else if (m_Direction == -1 && frames <= start)
+            else if (direction == -1 && frames <= start)
             {
-
                 m_SpilledTime = (start - frames) / fps;
                 frames = m_Time * fps;
                 frames = end - std::abs(std::fmod(start - frames, (float)range));
@@ -111,18 +111,18 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
         case Loop::pingPong:
             while (true)
             {
-                if (m_Direction == 1 && frames >= end)
+                if (direction == 1 && frames >= end)
                 {
                     m_SpilledTime = (frames - end) / fps;
-                    m_Direction = -1;
+                    m_Direction *= -1;
                     frames = end + (end - frames);
                     m_Time = frames / fps;
                     didLoop = true;
                 }
-                else if (m_Direction == -1 && frames < start)
+                else if (direction == -1 && frames < start)
                 {
                     m_SpilledTime = (start - frames) / fps;
-                    m_Direction = 1;
+                    m_Direction *= -1;
                     frames = start + (start - frames);
                     m_Time = frames / fps;
                     didLoop = true;
