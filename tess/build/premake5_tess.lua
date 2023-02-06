@@ -91,7 +91,12 @@ do
         '../test/**.cpp',
         rive .. 'utils/no_op_factory.cpp'
     }
-    links {'rive_tess_renderer', 'rive'}
+    links {
+        'rive_tess_renderer',
+        'rive',
+        'rive_harfbuzz',
+        'rive_sheenbidi'
+    }
     buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format'}
     defines {'TESTING'}
 
