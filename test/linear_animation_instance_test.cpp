@@ -277,6 +277,29 @@ TEST_CASE("LinearAnimationInstance pingpong ->", "[animation]")
     REQUIRE(linearAnimationInstance->direction() == -1);
     REQUIRE(linearAnimationInstance->didLoop() == true);
     REQUIRE(continuePlaying == true);
+    // pingpong at the start and come back to 6.
+    continuePlaying = linearAnimationInstance->advance(9.0);
+    REQUIRE(linearAnimationInstance->time() == 4.0);
+    REQUIRE(linearAnimationInstance->totalTime() == 16.0);
+    REQUIRE(linearAnimationInstance->direction() == -1);
+    REQUIRE(linearAnimationInstance->didLoop() == true);
+    REQUIRE(continuePlaying == true);
+
+    // pingpong back around to 2
+    continuePlaying = linearAnimationInstance->advance(6.0);
+    REQUIRE(linearAnimationInstance->time() == 2.0);
+    REQUIRE(linearAnimationInstance->totalTime() == 22.0);
+    REQUIRE(linearAnimationInstance->direction() == 1);
+    REQUIRE(linearAnimationInstance->didLoop() == true);
+    REQUIRE(continuePlaying == true);
+
+    // Loop around twice in a frame.
+    continuePlaying = linearAnimationInstance->advance(20.0);
+    REQUIRE(linearAnimationInstance->time() == 2.0);
+    REQUIRE(linearAnimationInstance->totalTime() == 42.0);
+    REQUIRE(linearAnimationInstance->direction() == 1);
+    REQUIRE(linearAnimationInstance->didLoop() == true);
+    REQUIRE(continuePlaying == true);
 
     delete linearAnimationInstance;
     delete linearAnimation;

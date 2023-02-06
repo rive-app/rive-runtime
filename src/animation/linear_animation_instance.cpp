@@ -68,7 +68,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
     bool didLoop = false;
     m_SpilledTime = 0.0f;
 
-    int direction = speed() * m_Direction < 0 ? -1 : 1;
+    int direction = speed() < 0 ? -m_Direction : m_Direction;
     switch (loop())
     {
         case Loop::oneShot:
@@ -136,6 +136,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
                     // where animations are not advanced on regular intervals.
                     break;
                 }
+                direction = speed() < 0 ? -m_Direction : m_Direction;
             }
             break;
     }
