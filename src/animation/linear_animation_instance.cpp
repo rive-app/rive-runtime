@@ -114,18 +114,12 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
                 if (direction == 1 && frames >= end)
                 {
                     m_SpilledTime = (frames - end) / fps;
-                    m_Direction *= -1;
                     frames = end + (end - frames);
-                    m_Time = frames / fps;
-                    didLoop = true;
                 }
                 else if (direction == -1 && frames < start)
                 {
                     m_SpilledTime = (start - frames) / fps;
-                    m_Direction *= -1;
                     frames = start + (start - frames);
-                    m_Time = frames / fps;
-                    didLoop = true;
                 }
                 else
                 {
@@ -136,7 +130,10 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
                     // where animations are not advanced on regular intervals.
                     break;
                 }
-                direction = speed() < 0 ? -m_Direction : m_Direction;
+                m_Time = frames / fps;
+                m_Direction *= -1;
+                direction *= -1;
+                didLoop = true;
             }
             break;
     }
