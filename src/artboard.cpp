@@ -466,11 +466,15 @@ bool Artboard::updateComponents()
 
 bool Artboard::advance(double elapsedSeconds)
 {
+    bool didUpdate = updateComponents();
     for (auto nestedArtboard : m_NestedArtboards)
     {
-        nestedArtboard->advance((float)elapsedSeconds);
+        if (nestedArtboard->advance((float)elapsedSeconds))
+        {
+            didUpdate = true;
+        }
     }
-    return updateComponents();
+    return didUpdate;
 }
 
 Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform)
