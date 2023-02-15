@@ -37,8 +37,10 @@ inline size_t decode_uint_leb(const uint8_t* buf, const uint8_t* buf_end, uint64
 
 /* Decodes a string
  */
-inline uint64_t
-decode_string(uint64_t str_len, const uint8_t* buf, const uint8_t* buf_end, char* char_buf)
+inline uint64_t decode_string(uint64_t str_len,
+                              const uint8_t* buf,
+                              const uint8_t* buf_end,
+                              char* char_buf)
 {
     // Return zero bytes read on buffer overflow
     if (buf_end < buf + str_len)

@@ -47,8 +47,13 @@ template <typename T> T lerp(T a, T b, float t) { return a + (b - a) * t; }
 
 template <typename T> T ave(T a, T b) { return lerp(a, b, 0.5f); }
 
-static void
-append_line(const float height, Point p0, Point p1, float m, int winding, int delta[], int iwidth)
+static void append_line(const float height,
+                        Point p0,
+                        Point p1,
+                        float m,
+                        int winding,
+                        int delta[],
+                        int iwidth)
 {
     assert(winding == 1 || winding == -1);
 

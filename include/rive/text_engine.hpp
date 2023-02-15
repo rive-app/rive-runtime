@@ -68,8 +68,10 @@ struct GlyphLine
     static SimpleArray<GlyphLine> BreakLines(Span<const GlyphRun> runs, float width);
 
     // Compute values for top/baseline/bottom per line
-    static void
-    ComputeLineSpacing(Span<GlyphLine>, Span<const GlyphRun>, float width, TextAlign align);
+    static void ComputeLineSpacing(Span<GlyphLine>,
+                                   Span<const GlyphRun>,
+                                   float width,
+                                   TextAlign align);
 
     static float ComputeMaxWidth(Span<GlyphLine> lines, Span<const GlyphRun> runs);
 };

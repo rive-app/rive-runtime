@@ -100,8 +100,8 @@ public:
 
     /// Provide the animation instance to use for computing percentage
     /// durations for exit time.
-    virtual const LinearAnimationInstance*
-    exitTimeAnimationInstance(const StateInstance* from) const;
+    virtual const LinearAnimationInstance* exitTimeAnimationInstance(
+        const StateInstance* from) const;
 
     /// Provide the animation to use for computing percentage durations for
     /// exit time.

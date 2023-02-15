@@ -16,8 +16,8 @@ private:
 public:
     BlendAnimation* exitBlendAnimation() const { return m_ExitBlendAnimation; }
 
-    const LinearAnimationInstance*
-    exitTimeAnimationInstance(const StateInstance* from) const override;
+    const LinearAnimationInstance* exitTimeAnimationInstance(
+        const StateInstance* from) const override;
 
     const LinearAnimation* exitTimeAnimation(const LayerState* from) const override;
 };

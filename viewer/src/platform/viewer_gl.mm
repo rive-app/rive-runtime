@@ -7,11 +7,12 @@
 #import "Cocoa/Cocoa.h"
 #endif
 
-void bindGraphicsContext() {
+void bindGraphicsContext()
+{
 #ifdef SOKOL_GLCORE33
-  NSWindow* window = (NSWindow*)sapp_macos_get_window();
-  NSOpenGLView* sokolView = (NSOpenGLView*)window.contentView;
-  NSOpenGLContext* ctx = [sokolView openGLContext];
-  [ctx makeCurrentContext];
+    NSWindow* window = (NSWindow*)sapp_macos_get_window();
+    NSOpenGLView* sokolView = (NSOpenGLView*)window.contentView;
+    NSOpenGLContext* ctx = [sokolView openGLContext];
+    [ctx makeCurrentContext];
 #endif
 }

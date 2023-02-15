@@ -108,8 +108,8 @@ float StateTransition::exitTimeSeconds(const LayerState* stateFrom, bool absolut
     return exitTime() / 1000.0f;
 }
 
-const LinearAnimationInstance*
-StateTransition::exitTimeAnimationInstance(const StateInstance* from) const
+const LinearAnimationInstance* StateTransition::exitTimeAnimationInstance(
+    const StateInstance* from) const
 {
     return from != nullptr && from->state()->is<AnimationState>()
                ? static_cast<const AnimationStateInstance*>(from)->animationInstance()

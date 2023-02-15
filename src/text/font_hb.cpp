@@ -52,13 +52,21 @@ constexpr float gInvScale = 1.0f / kStdScale;
 
 extern "C"
 {
-    static void
-    rpath_move_to(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, float x, float y, void*)
+    static void rpath_move_to(hb_draw_funcs_t*,
+                              void* rpath,
+                              hb_draw_state_t*,
+                              float x,
+                              float y,
+                              void*)
     {
         ((rive::RawPath*)rpath)->moveTo(x * gInvScale, -y * gInvScale);
     }
-    static void
-    rpath_line_to(hb_draw_funcs_t*, void* rpath, hb_draw_state_t*, float x1, float y1, void*)
+    static void rpath_line_to(hb_draw_funcs_t*,
+                              void* rpath,
+                              hb_draw_state_t*,
+                              float x1,
+                              float y1,
+                              void*)
     {
         ((rive::RawPath*)rpath)->lineTo(x1 * gInvScale, -y1 * gInvScale);
     }

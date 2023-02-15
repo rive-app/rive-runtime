@@ -27,8 +27,11 @@ constexpr static Swizzle PackSwizzle2(uint32_t sourceVectorLength, uint32_t i0, 
 {
     return (i1 << 5) | (i0 << 3) | sourceVectorLength;
 }
-constexpr static Swizzle
-PackSwizzle4(uint32_t sourceVectorLength, uint32_t i0, uint32_t i1, uint32_t i2, uint32_t i3)
+constexpr static Swizzle PackSwizzle4(uint32_t sourceVectorLength,
+                                      uint32_t i0,
+                                      uint32_t i1,
+                                      uint32_t i2,
+                                      uint32_t i3)
 {
     return (i3 << 9) | (i2 << 7) | PackSwizzle2(sourceVectorLength, i0, i1);
 }

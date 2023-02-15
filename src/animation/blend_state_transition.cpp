@@ -8,8 +8,8 @@
 
 using namespace rive;
 
-const LinearAnimationInstance*
-BlendStateTransition::exitTimeAnimationInstance(const StateInstance* from) const
+const LinearAnimationInstance* BlendStateTransition::exitTimeAnimationInstance(
+    const StateInstance* from) const
 {
     if (from != nullptr)
     {
