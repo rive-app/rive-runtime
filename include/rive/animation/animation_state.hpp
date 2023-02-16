@@ -18,6 +18,10 @@ private:
 public:
     const LinearAnimation* animation() const { return m_Animation; }
 
+#ifdef TESTING
+    void animation(LinearAnimation* animation);
+#endif
+
     std::unique_ptr<StateInstance> makeInstance(ArtboardInstance*) const override;
 };
 } // namespace rive

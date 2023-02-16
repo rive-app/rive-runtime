@@ -16,7 +16,9 @@ private:
     float m_TotalTime;
     float m_LastTotalTime;
     float m_SpilledTime;
-    int m_Direction;
+
+    // float because it gets multiplied with other floats
+    float m_Direction;
     bool m_DidLoop;
     int m_LoopValue = -1;
 
@@ -37,7 +39,7 @@ public:
     float time() const { return m_Time; }
 
     // Returns the direction that we are currently playing in
-    int direction() const { return m_Direction; }
+    float direction() const { return m_Direction; }
 
     // Update the direction of the animation instance, positive value for
     // forwards Negative for backwards

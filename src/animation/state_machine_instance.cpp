@@ -84,7 +84,7 @@ public:
         }
     }
 
-    bool advance(/*Artboard* artboard, */ float seconds, Span<SMIInput*> inputs)
+    bool advance(float seconds, Span<SMIInput*> inputs)
     {
         m_StateChangedOnAdvance = false;
 

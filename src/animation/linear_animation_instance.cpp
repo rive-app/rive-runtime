@@ -50,14 +50,22 @@ bool LinearAnimationInstance::advanceAndApply(float seconds)
 bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
     const LinearAnimation& animation = *m_Animation;
-    float deltaSeconds = elapsedSeconds * animation.speed();
+    float deltaSeconds = elapsedSeconds * animation.speed() * m_Direction;
+    if (deltaSeconds == 0)
+    {
+        // we say keep going, if you advance by 0.
+        // could argue that any further advances by 0 result in nothing so you should not keep going
+        // could argue its saying, we are not at the end of the animation yet, so keep going
+        // our runtimes currently expect the latter, so we say keep going!
+        m_DidLoop = false;
+        return true;
+    }
 
-    m_Time += deltaSeconds * m_Direction;
     m_LastTotalTime = m_TotalTime;
-    m_TotalTime += deltaSeconds;
+    m_TotalTime += std::abs(deltaSeconds);
+    m_Time += deltaSeconds;
 
     int fps = animation.fps();
-
     float frames = m_Time * fps;
 
     int start = animation.enableWorkArea() ? animation.workStart() : 0;
@@ -68,7 +76,10 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
     bool didLoop = false;
     m_SpilledTime = 0.0f;
 
-    int direction = speed() < 0 ? -m_Direction : m_Direction;
+    // this has some issues when deltaSeconds is 0,
+    // right now we basically assume we default to going forwards in that case
+    //
+    int direction = deltaSeconds < 0 ? -1 : 1;
     switch (loop())
     {
         case Loop::oneShot:

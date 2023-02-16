@@ -4,7 +4,7 @@
     "int": 61,
     "string": "animationstate"
   },
-  "extends": "animation/layer_state.json",
+  "extends": "animation/advanceable_state.json",
   "properties": {
     "animationId": {
       "type": "Id",

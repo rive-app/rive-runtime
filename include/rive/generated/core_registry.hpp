@@ -1,5 +1,6 @@
 #ifndef _RIVE_CORE_REGISTRY_HPP_
 #define _RIVE_CORE_REGISTRY_HPP_
+#include "rive/animation/advanceable_state.hpp"
 #include "rive/animation/animation.hpp"
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/any_state.hpp"
@@ -594,6 +595,9 @@ public:
             case NestedSimpleAnimationBase::speedPropertyKey:
                 object->as<NestedSimpleAnimationBase>()->speed(value);
                 break;
+            case AdvanceableStateBase::speedPropertyKey:
+                object->as<AdvanceableStateBase>()->speed(value);
+                break;
             case StateMachineNumberBase::valuePropertyKey:
                 object->as<StateMachineNumberBase>()->value(value);
                 break;
@@ -1087,6 +1091,8 @@ public:
                 return object->as<NestedLinearAnimationBase>()->mix();
             case NestedSimpleAnimationBase::speedPropertyKey:
                 return object->as<NestedSimpleAnimationBase>()->speed();
+            case AdvanceableStateBase::speedPropertyKey:
+                return object->as<AdvanceableStateBase>()->speed();
             case StateMachineNumberBase::valuePropertyKey:
                 return object->as<StateMachineNumberBase>()->value();
             case CubicInterpolatorBase::x1PropertyKey:
@@ -1388,6 +1394,7 @@ public:
             case NodeBase::yPropertyKey:
             case NestedLinearAnimationBase::mixPropertyKey:
             case NestedSimpleAnimationBase::speedPropertyKey:
+            case AdvanceableStateBase::speedPropertyKey:
             case StateMachineNumberBase::valuePropertyKey:
             case CubicInterpolatorBase::x1PropertyKey:
             case CubicInterpolatorBase::y1PropertyKey:

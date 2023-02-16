@@ -1,13 +1,13 @@
 #ifndef _RIVE_ANIMATION_STATE_BASE_HPP_
 #define _RIVE_ANIMATION_STATE_BASE_HPP_
-#include "rive/animation/layer_state.hpp"
+#include "rive/animation/advanceable_state.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
-class AnimationStateBase : public LayerState
+class AnimationStateBase : public AdvanceableState
 {
 protected:
-    typedef LayerState Super;
+    typedef AdvanceableState Super;
 
 public:
     static const uint16_t typeKey = 61;
@@ -19,6 +19,7 @@ public:
         switch (typeKey)
         {
             case AnimationStateBase::typeKey:
+            case AdvanceableStateBase::typeKey:
             case LayerStateBase::typeKey:
             case StateMachineLayerComponentBase::typeKey:
                 return true;
@@ -50,7 +51,7 @@ public:
     void copy(const AnimationStateBase& object)
     {
         m_AnimationId = object.m_AnimationId;
-        LayerState::copy(object);
+        AdvanceableState::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -61,7 +62,7 @@ public:
                 m_AnimationId = CoreUintType::deserialize(reader);
                 return true;
         }
-        return LayerState::deserialize(propertyKey, reader);
+        return AdvanceableState::deserialize(propertyKey, reader);
     }
 
 protected:

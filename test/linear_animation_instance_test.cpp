@@ -67,6 +67,35 @@ TEST_CASE("LinearAnimationInstance speed", "[animation]")
     delete linearAnimation;
 }
 
+TEST_CASE("LinearAnimationInstance negative advance adds absolute total time ", "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 5
+
+    linearAnimation->duration(10);
+    linearAnimation->fps(2);
+    linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
+
+    rive::LinearAnimationInstance* linearAnimationInstance =
+        new rive::LinearAnimationInstance(linearAnimation, abi.get());
+
+    // play from beginning.
+    bool continuePlaying = linearAnimationInstance->advance(-2.0);
+    REQUIRE(continuePlaying == true);
+    REQUIRE(linearAnimationInstance->time() == 3.0f);
+    REQUIRE(linearAnimationInstance->totalTime() == 2.0f);
+    REQUIRE(linearAnimationInstance->didLoop() == true);
+
+    delete linearAnimationInstance;
+    delete linearAnimation;
+}
+
 TEST_CASE("LinearAnimationInstance oneShot <-", "[animation]")
 {
     rive::NoOpFactory emptyFactory;
@@ -212,14 +241,15 @@ TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]")
     linearAnimationInstance->direction(-1);
     REQUIRE(linearAnimationInstance->time() == 2.0);
 
-    // kick off, we're at the lower bound, will move to 5s.
+    // advancing by 0 will not change anything
+    // is expected to return continue playing true regardless
     bool continuePlaying = linearAnimationInstance->advance(0.0);
 
     REQUIRE(continuePlaying == true);
     REQUIRE(linearAnimationInstance->direction() == -1);
-    REQUIRE(linearAnimationInstance->time() == 5.0);
+    REQUIRE(linearAnimationInstance->time() == 2.0);
     REQUIRE(linearAnimationInstance->totalTime() == 0.0);
-    REQUIRE(linearAnimationInstance->didLoop() == true);
+    REQUIRE(linearAnimationInstance->didLoop() == false);
 
     // 2 more secs , 5s -> 3s
     continuePlaying = linearAnimationInstance->advance(2.0);
@@ -227,7 +257,7 @@ TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]")
     REQUIRE(linearAnimationInstance->direction() == -1);
     REQUIRE(linearAnimationInstance->time() == 3.0);
     REQUIRE(linearAnimationInstance->totalTime() == 2.0);
-    REQUIRE(linearAnimationInstance->didLoop() == false);
+    REQUIRE(linearAnimationInstance->didLoop() == true);
 
     // 2 more secs , 3s -> 1s, thats before start, so loops to 4s
     continuePlaying = linearAnimationInstance->advance(2.0);

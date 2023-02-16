@@ -19,9 +19,11 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
     m_KeepGoing(true)
 {}
 
+// NOTE:: should we return bool here? we are not currently using the output of this, we are instead
+// using m_keepGoing directly.
 void AnimationStateInstance::advance(float seconds, Span<SMIInput*>)
 {
-    m_KeepGoing = m_AnimationInstance.advance(seconds);
+    m_KeepGoing = m_AnimationInstance.advance(seconds * state()->as<AnimationState>()->speed());
 }
 
 void AnimationStateInstance::apply(float mix) { m_AnimationInstance.apply(mix); }
