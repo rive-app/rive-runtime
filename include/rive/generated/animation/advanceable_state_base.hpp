@@ -29,7 +29,7 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t speedPropertyKey = 290;
+    static const uint16_t speedPropertyKey = 292;
 
 private:
     float m_Speed = 1.0f;
