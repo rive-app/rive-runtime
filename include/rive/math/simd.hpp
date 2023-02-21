@@ -14,6 +14,8 @@
 #ifndef _RIVE_SIMD_HPP_
 #define _RIVE_SIMD_HPP_
 
+// #define RIVE_SIMD_PERF_WARNINGS
+
 #include "rive/rive_types.hpp"
 #include <cassert>
 #include <limits>
@@ -50,7 +52,9 @@ using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof
 #else
 
 // gvec needs to be polyfilled with templates.
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: ext_vector_type not supported. Consider using clang.")
+#endif
 #include "simd_gvec_polyfill.hpp"
 
 #endif
@@ -71,7 +75,9 @@ template <int N> RIVE_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
 #if __has_builtin(__builtin_reduce_or)
     return __builtin_reduce_or(x);
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: __builtin_reduce_or() not supported. Consider updating clang.")
+#endif
     // This particular logic structure gets decent codegen in clang.
     for (int i = 0; i < N; ++i)
     {
@@ -88,7 +94,9 @@ template <int N> RIVE_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
 #if __has_builtin(__builtin_reduce_and)
     return __builtin_reduce_and(x);
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#endif
     // In vector, true is represented by -1 exactly, so we use ~x for "not".
     return !any(~x);
 #endif
@@ -118,7 +126,9 @@ RIVE_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<int32_t, N> _if, gvec<T, N> _the
     // The '?:' operator supports a vector condition beginning in clang 13.
     return _if ? _then : _else;
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: vectorized '?:' operator not supported. Consider updating clang.")
+#endif
     gvec<T, N> ret{};
     for (int i = 0; i < N; ++i)
         ret[i] = _if[i] ? _then[i] : _else[i];
@@ -133,7 +143,9 @@ template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gve
 #if __has_builtin(__builtin_elementwise_min)
     return __builtin_elementwise_min(a, b);
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: __builtin_elementwise_min() not supported. Consider updating clang.")
+#endif
     // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
     return if_then_else(b < a || isnan(a), b, a);
 #endif
@@ -146,7 +158,9 @@ template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gve
 #if __has_builtin(__builtin_elementwise_max)
     return __builtin_elementwise_max(a, b);
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: __builtin_elementwise_max() not supported. Consider updating clang.")
+#endif
     // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
     return if_then_else(a < b || isnan(a), b, a);
 #endif
@@ -171,7 +185,9 @@ template <typename T, int N> RIVE_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
 #if __has_builtin(__builtin_elementwise_abs)
     return __builtin_elementwise_abs(x);
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: __builtin_elementwise_abs() not supported. Consider updating clang.")
+#endif
     return if_then_else(x < (T)0, -x, x); // Negate on the "true" side so we never negate NaN.
 #endif
 }
@@ -204,8 +220,10 @@ template <int N> RIVE_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
 #if __has_builtin(__builtin_elementwise_floor)
     return __builtin_elementwise_floor(x);
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message(                                                                                   \
     "performance: __builtin_elementwise_floor() not supported. Consider updating clang.")
+#endif
     for (int i = 0; i < N; ++i)
         x[i] = floorf(x[i]);
     return x;
@@ -217,7 +235,9 @@ template <int N> RIVE_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
 #if __has_builtin(__builtin_elementwise_ceil)
     return __builtin_elementwise_ceil(x);
 #else
+#ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message("performance: __builtin_elementwise_ceil() not supported. Consider updating clang.")
+#endif
     for (int i = 0; i < N; ++i)
         x[i] = ceilf(x[i]);
     return x;
