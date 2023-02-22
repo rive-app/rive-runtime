@@ -1,6 +1,8 @@
 workspace 'rive'
 configurations {'debug', 'release'}
 
+require 'setup_compiler'
+
 SKIA_DIR = os.getenv('SKIA_DIR')
 dependencies = os.getenv('DEPENDENCIES')
 
@@ -18,7 +20,6 @@ do
     kind 'StaticLib'
     language 'C++'
     cppdialect 'C++17'
-    toolset 'clang'
     targetdir '%{cfg.system}/bin/%{cfg.buildcfg}'
     objdir '%{cfg.system}/obj/%{cfg.buildcfg}'
     includedirs {
@@ -38,8 +39,6 @@ do
     do
         architecture 'x64'
         defines {'_USE_MATH_DEFINES'}
-        staticruntime 'on' -- Match Skia's /MT flag for link compatibility
-        runtime 'Release' -- Use /MT even in debug (/MTd is incompatible with Skia)
     end
 
     filter {'system:macosx'}

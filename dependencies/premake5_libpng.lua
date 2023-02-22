@@ -1,3 +1,4 @@
+require 'setup_compiler'
 local dependency = require 'dependency'
 libpng = dependency.github('glennrp/libpng', 'libpng16')
 zlib = dependency.github('madler/zlib', '04f42ceca40f73e2978b50e93806c2a18c1281fc')
@@ -7,7 +8,6 @@ do
     kind 'StaticLib'
     language 'C++'
     cppdialect 'C++17'
-    toolset 'clang'
     targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
     objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
     rtti "Off"
@@ -47,8 +47,6 @@ do
     filter 'system:windows'
     do
         architecture 'x64'
-        staticruntime "on"  -- Match Skia's /MT flag for link compatibility
-        runtime "Release"  -- Use /MT even in debug (/MTd is incompatible with Skia)
     end
 end
 
@@ -57,7 +55,6 @@ do
     kind 'StaticLib'
     language 'C++'
     cppdialect 'C++17'
-    toolset 'clang'
     targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
     objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
     rtti "Off"
@@ -87,8 +84,6 @@ do
     filter 'system:windows'
     do
         architecture 'x64'
-        staticruntime "on"  -- Match Skia's /MT flag for link compatibility
-        runtime "Release"  -- Use /MT even in debug (/MTd is incompatible with Skia)
     end
 
     filter 'system:not windows'

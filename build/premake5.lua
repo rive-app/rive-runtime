@@ -1,5 +1,8 @@
 workspace 'rive'
 configurations {'debug', 'release'}
+
+require 'setup_compiler'
+
 filter {'options:with_rive_tools'}
 do
     defines {'WITH_RIVE_TOOLS'}
@@ -8,40 +11,16 @@ filter {'options:with_rive_text'}
 do
     defines {'WITH_RIVE_TEXT'}
 end
+filter {}
 
 dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_harfbuzz.lua'))
 dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_sheenbidi.lua'))
-
-WINDOWS_CLANG_CL_SUPPRESSED_WARNINGS = {
-    '-Wno-c++98-compat',
-    '-Wno-c++98-compat-pedantic',
-    '-Wno-deprecated-copy-with-user-provided-dtor',
-    '-Wno-documentation',
-    '-Wno-documentation-pedantic',
-    '-Wno-documentation-unknown-command',
-    '-Wno-double-promotion',
-    '-Wno-exit-time-destructors',
-    '-Wno-float-equal',
-    '-Wno-global-constructors',
-    '-Wno-implicit-float-conversion',
-    '-Wno-newline-eof',
-    '-Wno-old-style-cast',
-    '-Wno-reserved-identifier',
-    '-Wno-shadow',
-    '-Wno-sign-compare',
-    '-Wno-sign-conversion',
-    '-Wno-unused-macros',
-    '-Wno-unused-parameter',
-    '-Wno-switch-enum',
-    '-Wno-missing-field-initializers'
-}
 
 project 'rive'
 do
     kind 'StaticLib'
     language 'C++'
     cppdialect 'C++11'
-    toolset 'clang'
     targetdir '%{cfg.system}/bin/%{cfg.buildcfg}'
     objdir '%{cfg.system}/obj/%{cfg.buildcfg}'
     includedirs {
@@ -81,9 +60,6 @@ do
         architecture 'x64'
         defines {'_USE_MATH_DEFINES'}
         flags {'FatalCompileWarnings'}
-        buildoptions {WINDOWS_CLANG_CL_SUPPRESSED_WARNINGS}
-        staticruntime 'on' -- Match Skia's /MT flag for link compatibility
-        runtime 'Release' -- Use /MT even in debug (/MTd is incompatible with Skia)
         removebuildoptions {
             '-fno-exceptions',
             '-fno-rtti'
@@ -155,18 +131,6 @@ newoption {
         {'emulator', 'Builds for an emulator/simulator for the provided system'}
     },
     default = 'system'
-}
-
-newoption {
-    trigger = 'arch',
-    value = 'ABI',
-    description = 'The ABI with the right toolchain for this build, generally with Android',
-    allowed = {
-        {'x86'},
-        {'x64'},
-        {'arm'},
-        {'arm64'}
-    }
 }
 
 newoption {
