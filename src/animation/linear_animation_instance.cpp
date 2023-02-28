@@ -8,10 +8,11 @@
 using namespace rive;
 
 LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animation,
-                                                 ArtboardInstance* instance) :
+                                                 ArtboardInstance* instance,
+                                                 float speedMultiplier) :
     Scene(instance),
     m_Animation((assert(animation != nullptr), animation)),
-    m_Time(animation->enableWorkArea() ? (float)animation->workStart() / animation->fps() : 0),
+    m_Time((speedMultiplier >= 0) ? animation->startTime() : animation->endTime()),
     m_TotalTime(0.0f),
     m_LastTotalTime(0.0f),
     m_SpilledTime(0.0f),
@@ -173,13 +174,18 @@ void LinearAnimationInstance::time(float value)
     m_Direction = 1;
 }
 
+void LinearAnimationInstance::reset(float speedMultiplier = 1.0)
+{
+    m_Time = (speedMultiplier >= 0) ? m_Animation->startTime() : m_Animation->endTime();
+}
+
 uint32_t LinearAnimationInstance::fps() const { return m_Animation->fps(); }
 
 uint32_t LinearAnimationInstance::duration() const { return m_Animation->duration(); }
 
 float LinearAnimationInstance::speed() const { return m_Animation->speed(); }
 
-float LinearAnimationInstance::startSeconds() const { return m_Animation->startSeconds(); }
+float LinearAnimationInstance::startTime() const { return m_Animation->startTime(); }
 
 std::string LinearAnimationInstance::name() const { return m_Animation->name(); }
 

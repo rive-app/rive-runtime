@@ -3,6 +3,7 @@
 #include "rive/artboard.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/import_stack.hpp"
+#include <cmath>
 
 using namespace rive;
 
@@ -77,7 +78,10 @@ float LinearAnimation::endSeconds() const
 {
     return (enableWorkArea() ? workEnd() : duration()) / (float)fps();
 }
-float LinearAnimation::durationSeconds() const { return endSeconds() - startSeconds(); }
+
+float LinearAnimation::startTime() const { return (speed() >= 0) ? startSeconds() : endSeconds(); }
+float LinearAnimation::endTime() const { return (speed() >= 0) ? endSeconds() : startSeconds(); }
+float LinearAnimation::durationSeconds() const { return std::abs(endSeconds() - startSeconds()); }
 
 // Matches Dart modulus: https://api.dart.dev/stable/2.19.0/dart-core/double/operator_modulo.html
 static float positiveMod(float value, float range)
@@ -96,13 +100,13 @@ float LinearAnimation::globalToLocalSeconds(float seconds) const
     switch (loop())
     {
         case Loop::oneShot:
-            return seconds + startSeconds();
+            return seconds + startTime();
         case Loop::loop:
-            return positiveMod(seconds, (endSeconds() - startSeconds())) + startSeconds();
+            return positiveMod(seconds, (durationSeconds())) + startTime();
         case Loop::pingPong:
-            float localTime = positiveMod(seconds, (endSeconds() - startSeconds()));
-            int direction = ((int)(seconds / (endSeconds() - startSeconds()))) % 2;
-            return direction == 0 ? localTime + startSeconds() : endSeconds() - localTime;
+            float localTime = positiveMod(seconds, (durationSeconds()));
+            int direction = ((int)(seconds / (durationSeconds()))) % 2;
+            return direction == 0 ? localTime + startTime() : endTime() - localTime;
     }
     RIVE_UNREACHABLE();
 }

@@ -99,6 +99,7 @@ float StateTransition::exitTimeSeconds(const LayerState* stateFrom, bool absolut
         auto exitAnimation = exitTimeAnimation(stateFrom);
         if (exitAnimation != nullptr)
         {
+            // TODO: needs a looking for speed
             start = absolute ? exitAnimation->startSeconds() : 0.0f;
             animationDuration = exitAnimation->durationSeconds();
         }
@@ -176,6 +177,7 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
                 exitTime += std::floor(lastTime / duration) * duration;
             }
 
+            // TODO: needs a looking for speed
             if (time < exitTime)
             {
                 return AllowTransition::waitingForExit;

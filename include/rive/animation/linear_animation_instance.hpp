@@ -23,13 +23,15 @@ private:
     int m_LoopValue = -1;
 
 public:
-    LinearAnimationInstance(const LinearAnimation*, ArtboardInstance*);
+    LinearAnimationInstance(const LinearAnimation*, ArtboardInstance*, float speedMultiplier = 1.0);
     LinearAnimationInstance(LinearAnimationInstance const&);
     ~LinearAnimationInstance() override;
 
     // Advance the animation by the specified time. Returns true if the
     // animation will continue to animate after this advance.
     bool advance(float seconds);
+
+    void clearSpilledTime() { m_SpilledTime = 0; }
 
     // Returns a pointer to the instance's animation
     const LinearAnimation* animation() const { return m_Animation; }
@@ -76,7 +78,7 @@ public:
     uint32_t fps() const;
     uint32_t duration() const;
     float speed() const;
-    float startSeconds() const;
+    float startTime() const;
 
     // Returns either the animation's default or overridden loop values
     Loop loop() const override { return (Loop)loopValue(); }
@@ -87,6 +89,7 @@ public:
     bool isTranslucent() const override;
     bool advanceAndApply(float seconds) override;
     std::string name() const override;
+    void reset(float speedMultiplier);
 };
 } // namespace rive
 #endif

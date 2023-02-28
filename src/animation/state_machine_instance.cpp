@@ -88,7 +88,7 @@ public:
     {
         m_StateChangedOnAdvance = false;
 
-        if (m_CurrentState != nullptr)
+        if (m_CurrentState != nullptr && m_CurrentState->keepGoing())
         {
             m_CurrentState->advance(seconds, inputs);
         }
@@ -114,6 +114,8 @@ public:
         }
 
         apply();
+
+        m_CurrentState->clearSpilledTime();
 
         return m_Mix != 1.0f || m_WaitingForExit ||
                (m_CurrentState != nullptr && m_CurrentState->keepGoing());

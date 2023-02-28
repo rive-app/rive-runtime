@@ -27,6 +27,7 @@ public:
     /// Returns true when the State Machine needs to keep advancing this
     /// state.
     virtual bool keepGoing() const = 0;
+    virtual void clearSpilledTime() {}
 
     const LayerState* state() const;
 };

@@ -140,3 +140,117 @@ TEST_CASE("AnimationStateInstance advances backwards when speed is negative", "[
     delete animationState;
     delete linearAnimation;
 }
+
+TEST_CASE("AnimationStateInstance starts a positive animation at the beginning", "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 5
+    linearAnimation->duration(10);
+    linearAnimation->fps(2);
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // backwards 2 seconds from 5.
+    REQUIRE(animationStateInstance->animationInstance()->time() == 0.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance starts a negative animation at the end", "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 5
+    linearAnimation->duration(10);
+    linearAnimation->fps(2);
+    linearAnimation->speed(-1);
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // backwards 2 seconds from 5.
+    REQUIRE(animationStateInstance->animationInstance()->time() == 5.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance with negative speed starts a positive animation at the end",
+          "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 5
+    linearAnimation->duration(10);
+    linearAnimation->fps(2);
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->speed(-1);
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // backwards 2 seconds from 5.
+    REQUIRE(animationStateInstance->animationInstance()->time() == 5.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance with negative speed starts a negative animation at the beginning",
+          "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 5
+    linearAnimation->duration(10);
+    linearAnimation->fps(2);
+    linearAnimation->speed(-1);
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->speed(-1);
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // backwards 2 seconds from 5.
+    REQUIRE(animationStateInstance->animationInstance()->time() == 0.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}

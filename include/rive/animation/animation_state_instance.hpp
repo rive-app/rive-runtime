@@ -23,6 +23,7 @@ public:
     void apply(float mix) override;
 
     bool keepGoing() const override;
+    void clearSpilledTime() override;
 
     const LinearAnimationInstance* animationInstance() const { return &m_AnimationInstance; }
 

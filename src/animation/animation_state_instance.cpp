@@ -15,7 +15,9 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
     // SystemStateInstance (basically a no-op StateMachine state) which would
     // cause bad casts in parts of the code where we assumed AnimationStates
     // would have create AnimationStateInstances.
-    m_AnimationInstance(state->animation() ? state->animation() : &emptyAnimation, instance),
+    m_AnimationInstance(state->animation() ? state->animation() : &emptyAnimation,
+                        instance,
+                        state->speed()),
     m_KeepGoing(true)
 {}
 
@@ -29,3 +31,4 @@ void AnimationStateInstance::advance(float seconds, Span<SMIInput*>)
 void AnimationStateInstance::apply(float mix) { m_AnimationInstance.apply(mix); }
 
 bool AnimationStateInstance::keepGoing() const { return m_KeepGoing; }
+void AnimationStateInstance::clearSpilledTime() { m_AnimationInstance.clearSpilledTime(); }
