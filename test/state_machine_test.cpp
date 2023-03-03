@@ -171,3 +171,29 @@ TEST_CASE("animation state with no animation doesn't crash", "[file]")
     auto abi = artboard->instance();
     rive::StateMachineInstance(stateMachine, abi.get()).advance(0.0f);
 }
+
+TEST_CASE("1D blend state keeps keepsGoing true even when animations themselves have stopped",
+          "[file]")
+{
+    auto file = ReadRiveFile("../../test/assets/oneshotblend.riv");
+
+    auto artboard = file->artboard();
+    auto stateMachine = artboard->stateMachine("State Machine 1");
+
+    auto abi = artboard->instance();
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, abi.get());
+    stateMachineInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->needsAdvance() == true);
+
+    // after advancing into the 1DBlendState we still need to keep going.
+    stateMachineInstance->advance(0.5f);
+    REQUIRE(stateMachineInstance->needsAdvance() == true);
+
+    // even after advancing past the duration of the animations in the blend states
+    // we need to keep going.
+    stateMachineInstance->advance(1.0f);
+    REQUIRE(stateMachineInstance->needsAdvance() == true);
+
+    delete stateMachineInstance;
+}

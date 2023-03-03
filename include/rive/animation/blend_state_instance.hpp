@@ -54,12 +54,15 @@ public:
 
     void advance(float seconds, Span<SMIInput*>) override
     {
-        m_KeepGoing = false;
+        // NOTE: we are intentionally ignoring the animationInstances' keepGoing
+        // return value.
+        // Blend states need to keep blending forever, as even if the animation
+        // does not change the mix values may
         for (auto& animation : m_AnimationInstances)
         {
-            if (animation.m_AnimationInstance.advance(seconds))
+            if (animation.m_AnimationInstance.keepGoing())
             {
-                m_KeepGoing = true;
+                animation.m_AnimationInstance.advance(seconds);
             }
         }
     }

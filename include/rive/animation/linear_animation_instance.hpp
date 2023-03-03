@@ -69,6 +69,11 @@ public:
     // (oneShot), reached the end (loop), or changed direction (pingPong)
     bool didLoop() const { return m_DidLoop; }
 
+    bool keepGoing() const
+    {
+        return m_LoopValue != static_cast<int>(rive::Loop::oneShot) || !m_DidLoop;
+    }
+
     float totalTime() const { return m_TotalTime; }
     float lastTotalTime() const { return m_LastTotalTime; }
     float spilledTime() const { return m_SpilledTime; }
