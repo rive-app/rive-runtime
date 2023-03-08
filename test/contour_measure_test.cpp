@@ -7,6 +7,9 @@
 #include <rive/math/raw_path.hpp>
 #include <rive/math/vec2d.hpp>
 
+#include "rive_file_reader.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+
 #include <catch.hpp>
 #include <cstdio>
 
@@ -138,4 +141,14 @@ TEST_CASE("contour-oval", "[contourmeasure]")
     auto cm = iter.next();
     REQUIRE(nearly_eq(cm->length(), 2 * r * math::PI, tol));
     REQUIRE(!iter.next());
+}
+
+TEST_CASE("bad contour", "[contourmeasure]")
+{
+    auto file = ReadRiveFile("../../test/assets/zombie_skins.riv");
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    auto machine = artboard->defaultStateMachine();
+    machine->advanceAndApply(0.0f);
 }
