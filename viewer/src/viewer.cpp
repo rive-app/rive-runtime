@@ -14,6 +14,7 @@
 // Std lib
 #include <stdio.h>
 #include <memory>
+#include <chrono>
 
 std::unique_ptr<ViewerHost> g_Host = ViewerHost::Make();
 std::unique_ptr<ViewerContent> g_Content = ViewerContent::TrimPath("");
@@ -25,6 +26,8 @@ static struct
 void displayStats();
 
 static const int backgroundColor = rive::colorARGB(255, 22, 22, 22);
+static std::chrono::time_point<std::chrono::high_resolution_clock> lastTime;
+static const float billion = 1000000000.0;
 
 static void init(void)
 {
@@ -59,6 +62,8 @@ static void init(void)
             },
     };
 
+    lastTime = std::chrono::high_resolution_clock::now();
+
     if (!g_Host->init(&state.pass_action, sapp_width(), sapp_height()))
     {
         fprintf(stderr, "failed to initialize host\n");
@@ -68,7 +73,11 @@ static void init(void)
 
 static void frame(void)
 {
-    auto dur = sapp_frame_duration();
+
+    auto newTime = std::chrono::high_resolution_clock::now();
+    auto dur =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(newTime - lastTime).count() / billion;
+    lastTime = newTime;
 
     g_Host->beforeDefaultPass(g_Content.get(), dur);
 
