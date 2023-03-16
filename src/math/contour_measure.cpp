@@ -295,76 +295,55 @@ static inline unsigned toDot30(float x)
     return (unsigned)(x * (1 << 30));
 }
 
-static void addSeg(std::vector<ContourMeasure::Segment>& array,
-                   const ContourMeasure::Segment& seg,
-                   bool required = false)
-{
-    if (array.size() > 0)
-    {
-        const auto& last = array.back();
-        assert(last.m_distance <= seg.m_distance);
-        if (last.m_distance == seg.m_distance)
-        {
-            assert(!required);
-            return;
-        }
-    }
-    array.push_back(seg);
-}
-
 // These add[SegmentType]Segs routines append intermediate segments for the curve.
 // They assume the caller has set the initial segment (with t == 0), so they only
 // add intermediates.
 
-constexpr static int kMaxSegments = 100; // Arbirtary safety limit.
-
-float ContourMeasureIter::addQuadSegs(std::vector<ContourMeasure::Segment>& segs,
+float ContourMeasureIter::addQuadSegs(ContourMeasure::Segment* segs,
                                       const Vec2D pts[],
+                                      uint32_t segmentCount,
                                       uint32_t ptIndex,
                                       float distance) const
 {
-    int count = static_cast<int>(ceilf(wangs_formula::quadratic(pts, m_invTolerance)));
-    count = std::max(1, std::min(count, kMaxSegments));
-    const float dt = 1.0f / count;
+    const float dt = 1.f / segmentCount;
     const EvalQuad eval(pts);
 
     float t = dt;
     Vec2D prev = pts[0];
-    for (int i = 1; i < count; ++i)
+    for (uint32_t i = 1; i < segmentCount; ++i)
     {
         auto next = eval(t);
         distance += (next - prev).length();
-        addSeg(segs, {distance, ptIndex, toDot30(t), SegmentType::kQuad});
+        *segs++ = {distance, ptIndex, toDot30(t), SegmentType::kQuad};
         prev = next;
         t += dt;
     }
     distance += (pts[2] - prev).length();
-    addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kQuad});
+    *segs++ = {distance, ptIndex, kMaxDot30, SegmentType::kQuad};
     return distance;
 }
 
-float ContourMeasureIter::addCubicSegs(std::vector<ContourMeasure::Segment>& segs,
+float ContourMeasureIter::addCubicSegs(ContourMeasure::Segment* segs,
                                        const Vec2D pts[],
+                                       uint32_t segmentCount,
                                        uint32_t ptIndex,
                                        float distance) const
 {
-    int count = static_cast<int>(ceilf(wangs_formula::cubic(pts, m_invTolerance)));
-    count = std::max(1, std::min(count, kMaxSegments));
-    const float dt = 1.0f / count;
+    const float dt = 1.f / segmentCount;
     const EvalCubic eval(pts);
 
     float t = dt;
     Vec2D prev = pts[0];
-    for (int i = 1; i < count; ++i)
+    for (uint32_t i = 1; i < segmentCount; ++i)
     {
         auto next = eval(t);
         distance += (next - prev).length();
-        addSeg(segs, {distance, ptIndex, toDot30(t), SegmentType::kCubic});
+        *segs++ = {distance, ptIndex, toDot30(t), SegmentType::kCubic};
         prev = next;
         t += dt;
     }
     distance += (pts[3] - prev).length();
-    addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kCubic});
+    *segs++ = {distance, ptIndex, kMaxDot30, SegmentType::kCubic};
     return distance;
 }
 
@@ -376,6 +355,8 @@ void ContourMeasureIter::rewind(const RawPath& path, float tolerance)
 
     constexpr float kMinTolerance = 1.0f / 16;
     m_invTolerance = 1.0f / std::max(tolerance, kMinTolerance);
+
+    m_segmentCounts.resize(path.verbs().count());
 }
 
 // Can return null if either it encountered an empty contour (length == 0)
@@ -383,71 +364,137 @@ void ContourMeasureIter::rewind(const RawPath& path, float tolerance)
 //
 rcp<ContourMeasure> ContourMeasureIter::tryNext()
 {
-    std::vector<ContourMeasure::Segment> segs;
-    std::vector<Vec2D> pts;
-    float distance = 0;
-    bool isClosed = false;
+    assert(m_iter == m_end || m_iter.verb() == PathVerb::move);
 
-    for (; m_iter != m_end; ++m_iter)
+    // Advance to the first line or curve.
+    Vec2D p0;
+    for (;; ++m_iter)
     {
-        PathVerb verb = std::get<0>(*m_iter);
-        const Vec2D* iterPts = std::get<1>(*m_iter);
-        if (verb == PathVerb::move)
+        if (m_iter == m_end)
         {
-            if (!pts.empty())
-            {
-                break; // We've alredy seen a move. Save this one for next time.
-            }
-            pts.push_back(iterPts[0]);
-            continue;
+            return nullptr;
         }
-        assert(!pts.empty()); // PathVerb::move should have occurred first, and added a point.
-        assert(!isClosed);    // PathVerb::close is always followed by a move or nothing.
-        float prevDistance = distance;
-        const uint32_t ptIndex = castTo<uint32_t>(pts.size() - 1);
-        switch (verb)
+        switch (m_iter.verb())
         {
-            case PathVerb::line:
-                distance += (iterPts[1] - iterPts[0]).length();
-                if (distance > prevDistance)
-                {
-                    addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kLine}, true);
-                    pts.push_back(iterPts[1]);
-                }
-                break;
-            case PathVerb::quad:
-                distance = this->addQuadSegs(segs, iterPts, ptIndex, distance);
-                if (distance > prevDistance)
-                {
-                    pts.push_back(iterPts[1]);
-                    pts.push_back(iterPts[2]);
-                }
-                break;
-            case PathVerb::cubic:
-                distance = this->addCubicSegs(segs, iterPts, ptIndex, distance);
-                if (distance > prevDistance)
-                {
-                    pts.push_back(iterPts[1]);
-                    pts.push_back(iterPts[2]);
-                    pts.push_back(iterPts[3]);
-                }
-                break;
+            case PathVerb::move:
+                p0 = m_iter.movePt();
+                RIVE_FALLTHROUGH;
             case PathVerb::close:
+                continue;
+            default:
+                break;
+        }
+        break;
+    }
+
+    // Pass 1: count segments.
+    uint32_t* nextSegCount = m_segmentCounts.data();
+    size_t segmentCountInCurves = 0;
+    size_t lineCount = 0;
+    bool isClosed = false;
+    RawPath::Iter endOfContour = m_end;
+    for (auto it = m_iter; it != m_end; ++it)
+    {
+        // Arbirtary limit to keep our segmenting tractable.
+        constexpr static uint32_t kMaxSegments = 100;
+        switch (it.verb())
+        {
+            case PathVerb::move:
+                endOfContour = it; // This move belongs to the next contour.
+                break;
+            case PathVerb::line:
+                ++lineCount;
+                continue;
+            case PathVerb::quad:
             {
-                auto first = pts.front();
-                distance += (first - iterPts[0]).length();
-                if (distance > prevDistance)
+                assert(nextSegCount < m_segmentCounts.data() + m_segmentCounts.size());
+                uint32_t segmentCount = static_cast<uint32_t>(
+                    ceilf(wangs_formula::quadratic(it.quadPts(), m_invTolerance)));
+                segmentCount = std::max(1u, std::min(segmentCount, kMaxSegments));
+                segmentCountInCurves += segmentCount;
+                *nextSegCount++ = segmentCount;
+                continue;
+            }
+            case PathVerb::cubic:
+            {
+                assert(nextSegCount < m_segmentCounts.data() + m_segmentCounts.size());
+                uint32_t segmentCount = static_cast<uint32_t>(
+                    ceilf(ceilf(wangs_formula::cubic(it.cubicPts(), m_invTolerance))));
+                segmentCount = std::max(1u, std::min(segmentCount, kMaxSegments));
+                segmentCountInCurves += segmentCount;
+                *nextSegCount++ = segmentCount;
+                continue;
+            }
+            case PathVerb::close:
+                if (it.ptBeforeClose() != p0)
                 {
-                    addSeg(segs, {distance, ptIndex, kMaxDot30, SegmentType::kLine}, true);
-                    pts.push_back(first);
+                    ++lineCount;
                 }
                 isClosed = true;
-            }
-            break;
+                continue;
+        }
+        break;
+    }
+
+    // Pass 2: emit segments.
+    std::vector<ContourMeasure::Segment> segs;
+    segs.resize(segmentCountInCurves + lineCount);
+    ContourMeasure::Segment* nextSeg = segs.data();
+    nextSegCount = m_segmentCounts.data();
+    float distance = 0;
+    uint32_t ptIndex = 0;
+    bool duplicateP0 = false;
+    for (auto it = m_iter; it != endOfContour; ++it)
+    {
+        switch (it.verb())
+        {
             case PathVerb::move:
-                RIVE_UNREACHABLE(); // Handled above.
+                RIVE_UNREACHABLE();
+            case PathVerb::line:
+                distance += (it.linePts()[1] - it.linePts()[0]).length();
+                *nextSeg++ = {distance, ptIndex, kMaxDot30, SegmentType::kLine};
+                ++ptIndex;
+                break;
+            case PathVerb::quad:
+            {
+                const uint32_t n = *nextSegCount++;
+                distance = addQuadSegs(nextSeg, it.quadPts(), n, ptIndex, distance);
+                nextSeg += n;
+                ptIndex += 2;
+                break;
+            }
+            case PathVerb::cubic:
+            {
+                const uint32_t n = *nextSegCount++;
+                distance = addCubicSegs(nextSeg, it.cubicPts(), n, ptIndex, distance);
+                nextSeg += n;
+                ptIndex += 3;
+                break;
+            }
+            case PathVerb::close:
+                if (it.ptBeforeClose() != p0)
+                {
+                    distance += (p0 - it.ptBeforeClose()).length();
+                    *nextSeg++ = {distance, ptIndex, kMaxDot30, SegmentType::kLine};
+                    ++ptIndex;
+                    duplicateP0 = true;
+                }
+                assert(isClosed);
         }
     }
+    assert(nextSeg == segs.data() + segs.size());
+
+    // Copy out points.
+    std::vector<Vec2D> pts;
+    pts.reserve(1 + ptIndex);
+    pts.insert(pts.end(), m_iter.rawPtsPtr() - 1, endOfContour.rawPtsPtr());
+    if (duplicateP0)
+    {
+        pts.push_back(p0);
+    }
+    assert(pts.size() == 1 + ptIndex);
+
+    m_iter = endOfContour;
 
     if (distance == 0 || pts.size() < 2)
     {

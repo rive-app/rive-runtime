@@ -132,6 +132,11 @@ public:
             assert(verb() == PathVerb::cubic);
             return m_pts - 1;
         }
+        Vec2D ptBeforeClose() const
+        {
+            assert(verb() == PathVerb::close);
+            return m_pts[-1];
+        }
         // P0 for a close can be accessed via rawPtsPtr()[-1]. Note than p1 for a close is not in
         // the array at this location.
 

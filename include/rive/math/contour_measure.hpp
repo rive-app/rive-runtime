@@ -79,12 +79,14 @@ class ContourMeasureIter
     const Vec2D* m_srcPoints;
     float m_invTolerance;
 
-    float addQuadSegs(std::vector<ContourMeasure::Segment>&,
+    float addQuadSegs(ContourMeasure::Segment*,
                       const Vec2D[],
+                      uint32_t segmentCount,
                       uint32_t ptIndex,
                       float distance) const;
-    float addCubicSegs(std::vector<ContourMeasure::Segment>&,
+    float addCubicSegs(ContourMeasure::Segment*,
                        const Vec2D[],
+                       uint32_t segmentCount,
                        uint32_t ptIndex,
                        float distance) const;
     rcp<ContourMeasure> tryNext();
@@ -115,6 +117,10 @@ public:
     // that created it. It contains no back pointers to the Iter or to the path.
     //
     rcp<ContourMeasure> next();
+
+    // Temporary storage used during tryNext(), for counting up how many segments a contour will be
+    // divided into.
+    std::vector<uint32_t> m_segmentCounts;
 };
 
 } // namespace rive
