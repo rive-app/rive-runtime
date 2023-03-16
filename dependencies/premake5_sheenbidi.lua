@@ -10,6 +10,7 @@ do
     language 'C'
     targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
     objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
+    warnings 'Off'
 
     includedirs {
         sheenbidi .. '/Headers'

@@ -225,6 +225,8 @@ do
     exceptionhandling 'off'
     rtti 'off'
 
+    warnings 'Off'
+
     defines {
         'HAVE_OT',
         'HB_NO_FALLBACK_SHAPE',

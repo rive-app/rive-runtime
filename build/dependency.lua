@@ -37,7 +37,9 @@ function m.github(project, tag)
         http.download(
             'https://github.com/' .. project .. '/archive/' .. tag .. '.zip',
             downloadFilename,
-            {progress = not _OPTIONS['no-download-progress'] and progress}
+            -- Download progress explodes the github logs with megabytes of text.
+            -- github runners have a "CI" environment variable.
+            {progress = not _OPTIONS['no-download-progress'] and os.getenv('CI' ) ~= "true" and progress}
         )
         print('Downloaded ' .. project .. '.')
         zip.extract(downloadFilename, dependencies .. '/' .. hash)
