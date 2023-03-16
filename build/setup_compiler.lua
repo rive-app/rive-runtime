@@ -1,4 +1,37 @@
-toolset (_OPTIONS["toolset"] or "clang")
+-- https://github.com/TurkeyMan/premake-emscripten.git adds "emscripten" as a valid system, but
+-- premake5 still doesn't accept "--os=emscripten" from the command line. To work around this we add
+-- a custom "--wasm" flag that sets system to "emscripten" for us.
+newoption {
+    trigger = "wasm",
+    description = "use emscripten",
+}
+if _OPTIONS['wasm']
+then
+    -- Target emscripten via https://github.com/TurkeyMan/premake-emscripten.git
+    -- Premake doesn't properly load the _preload.lua for this module, so we load it here manually.
+    -- BUG: https://github.com/premake/premake-core/issues/1235
+    dofile "premake-emscripten/_preload.lua"
+    dofile "premake-emscripten/emscripten.lua"
+    system "emscripten"
+    toolset "emcc"
+end
+
+filter {'system:emscripten'}
+do
+    buildoptions {
+        "-msimd128",
+    }
+    linkoptions {
+        "-sMIN_WEBGL_VERSION=2",
+        "-sMAX_WEBGL_VERSION=2",
+        "-sALLOW_MEMORY_GROWTH",
+    }
+end
+
+filter 'system:not emscripten'
+do
+    toolset (_OPTIONS["toolset"] or "clang")
+end
 
 filter 'system:windows'
 do
