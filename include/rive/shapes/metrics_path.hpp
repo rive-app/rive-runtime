@@ -23,7 +23,7 @@ public:
     const std::vector<MetricsPath*>& paths() const { return m_Paths; }
 
     void addPath(CommandPath* path, const Mat2D& transform) override;
-    void reset() override;
+    void rewind() override;
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;
     void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
@@ -64,7 +64,7 @@ public:
     void addPath(CommandPath* path, const Mat2D& transform) override;
 
     void fillRule(FillRule value) override;
-    void reset() override;
+    void rewind() override;
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;
     void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;

@@ -368,7 +368,7 @@ float ContourMeasureIter::addCubicSegs(std::vector<ContourMeasure::Segment>& seg
     return distance;
 }
 
-void ContourMeasureIter::reset(const RawPath& path, float tolerance)
+void ContourMeasureIter::rewind(const RawPath& path, float tolerance)
 {
     m_iter = path.begin();
     m_end = path.end();

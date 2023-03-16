@@ -144,7 +144,7 @@ public:
         return isStroke ? CGPathDrawingMode::kCGPathStroke : m_fillMode;
     }
 
-    void reset() override { m_path.reset(CGPathCreateMutable()); }
+    void rewind() override { m_path.reset(CGPathCreateMutable()); }
     void addRenderPath(RenderPath* path, const Mat2D& mx) override
     {
         auto transform = convert(mx);

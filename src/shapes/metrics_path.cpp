@@ -7,11 +7,11 @@
 
 using namespace rive;
 
-void MetricsPath::reset()
+void MetricsPath::rewind()
 {
     m_Paths.clear();
     m_Contour.reset(nullptr);
-    m_RawPath = RawPath();
+    m_RawPath.rewind();
     m_ComputedLengthTransform = Mat2D();
     m_ComputedLength = 0;
 }
@@ -84,10 +84,10 @@ void RenderMetricsPath::addPath(CommandPath* path, const Mat2D& transform)
     m_RenderPath->addPath(path->renderPath(), transform);
 }
 
-void RenderMetricsPath::reset()
+void RenderMetricsPath::rewind()
 {
-    MetricsPath::reset();
-    m_RenderPath->reset();
+    MetricsPath::rewind();
+    m_RenderPath->rewind();
 }
 
 void RenderMetricsPath::moveTo(float x, float y)

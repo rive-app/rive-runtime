@@ -10,7 +10,7 @@ HitTestCommandPath::HitTestCommandPath(const IAABB& area) : m_Area(area) { m_Tes
 
 bool HitTestCommandPath::wasHit() { return m_Tester.test(m_FillRule); }
 
-void HitTestCommandPath::reset() { m_Tester.reset(m_Area); }
+void HitTestCommandPath::rewind() { m_Tester.reset(m_Area); }
 
 void HitTestCommandPath::fillRule(FillRule value)
 {

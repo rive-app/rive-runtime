@@ -8,7 +8,7 @@ using namespace rive;
 
 static Mat2D identity;
 
-PathComposer::PathComposer(Shape* shape) : m_Shape(shape) {}
+PathComposer::PathComposer(Shape* shape) : m_Shape(shape), m_deferredPathDirt(false) {}
 
 void PathComposer::buildDependencies()
 {
@@ -20,11 +20,26 @@ void PathComposer::buildDependencies()
     }
 }
 
+void PathComposer::onDirty(ComponentDirt dirt)
+{
+    if (m_deferredPathDirt)
+    {
+        addDirt(ComponentDirt::Path);
+    }
+}
+
 void PathComposer::update(ComponentDirt value)
 {
     if (hasDirt(value, ComponentDirt::Path))
     {
         auto space = m_Shape->pathSpace();
+        if (m_Shape->renderOpacity() == 0 && (space & PathSpace::Clipping) != PathSpace::Clipping)
+        {
+            m_deferredPathDirt = true;
+            return;
+        }
+        m_deferredPathDirt = false;
+
         if ((space & PathSpace::Local) == PathSpace::Local)
         {
             if (m_LocalPath == nullptr)
@@ -33,7 +48,7 @@ void PathComposer::update(ComponentDirt value)
             }
             else
             {
-                m_LocalPath->reset();
+                m_LocalPath->rewind();
             }
             auto world = m_Shape->worldTransform();
             Mat2D inverseWorld = world.invertOrIdentity();
@@ -52,7 +67,7 @@ void PathComposer::update(ComponentDirt value)
             }
             else
             {
-                m_WorldPath->reset();
+                m_WorldPath->rewind();
             }
             for (auto path : m_Shape->paths())
             {

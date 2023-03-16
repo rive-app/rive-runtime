@@ -97,10 +97,10 @@ public:
 
     ContourMeasureIter(const RawPath& path, float tol = kDefaultTolerance)
     {
-        this->reset(path, tol);
+        this->rewind(path, tol);
     }
 
-    void reset(const RawPath&, float = kDefaultTolerance);
+    void rewind(const RawPath&, float = kDefaultTolerance);
 
     // Returns a measure object for each contour in the path
     //   (contours with zero-length are skipped over)

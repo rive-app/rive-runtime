@@ -13,7 +13,7 @@ class CommandPath
 {
 public:
     virtual ~CommandPath() {}
-    virtual void reset() = 0;
+    virtual void rewind() = 0;
     virtual void fillRule(FillRule value) = 0;
     virtual void addPath(CommandPath* path, const Mat2D& transform) = 0;
 

@@ -53,9 +53,9 @@ protected:
     }
 
 public:
-    void reset() override
+    void rewind() override
     {
-        TessRenderPath::reset();
+        TessRenderPath::rewind();
         m_vertices.clear();
         m_indices.clear();
     }

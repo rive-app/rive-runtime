@@ -241,10 +241,10 @@ void Path::update(ComponentDirt value)
     assert(m_CommandPath != nullptr);
     if (hasDirt(value, ComponentDirt::Path))
     {
-        // Build path doesn't explicitly reset because we use it to concatenate
+        // Build path doesn't explicitly rewind because we use it to concatenate
         // multiple built paths into a single command path (like the hit
         // tester).
-        m_CommandPath->reset();
+        m_CommandPath->rewind();
         buildPath(*m_CommandPath);
     }
     // if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)

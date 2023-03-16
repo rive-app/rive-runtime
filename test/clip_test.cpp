@@ -33,7 +33,7 @@ public:
     rive::RawPath rawPath;
     ClipTestRenderPath(rive::RawPath& path) : rawPath(path) {}
 
-    void reset() override {}
+    void rewind() override {}
 
     void fillRule(rive::FillRule value) override {}
     void addPath(rive::CommandPath* path, const rive::Mat2D& transform) override {}

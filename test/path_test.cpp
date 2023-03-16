@@ -39,7 +39,7 @@ class TestRenderPath : public rive::RenderPath
 {
 public:
     std::vector<TestPathCommand> commands;
-    void reset() override
+    void rewind() override
     {
         commands.emplace_back(
             TestPathCommand{TestPathCommandType::Reset, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
@@ -143,7 +143,7 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 
     auto path = static_cast<TestRenderPath*>(rectangle->commandPath());
 
-    // reset
+    // rewind
     // moveTo
     // cubic - for 1st corner
 
@@ -204,7 +204,7 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 
     auto path = static_cast<TestRenderPath*>(ellipse->commandPath());
 
-    // reset
+    // rewind
     // moveTo
     // cubic - for 1st corner
 

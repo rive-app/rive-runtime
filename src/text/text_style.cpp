@@ -19,9 +19,9 @@ void TextStyle::buildDependencies()
     m_path = factory->makeEmptyRenderPath();
 }
 
-void TextStyle::resetPath()
+void TextStyle::rewindPath()
 {
-    m_path->reset();
+    m_path->rewind();
     m_hasContents = false;
 }
 

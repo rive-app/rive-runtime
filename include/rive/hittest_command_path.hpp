@@ -28,7 +28,7 @@ public:
     bool wasHit();
 
     // These 4 are not a good for the hit-tester
-    void reset() override;
+    void rewind() override;
     void fillRule(FillRule value) override;
     void addPath(CommandPath* path, const Mat2D& transform) override;
     RenderPath* renderPath() override;

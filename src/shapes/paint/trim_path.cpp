@@ -33,7 +33,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
     }
     else
     {
-        m_TrimmedPath->reset();
+        m_TrimmedPath->rewind();
     }
 
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);

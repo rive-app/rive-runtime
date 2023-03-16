@@ -43,7 +43,7 @@ public:
     TessRenderPath();
     TessRenderPath(RawPath&, FillRule);
     ~TessRenderPath();
-    void reset() override;
+    void rewind() override;
     void fillRule(FillRule value) override;
     bool empty() const;
 

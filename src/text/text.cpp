@@ -72,7 +72,7 @@ void Text::buildRenderStyles()
 {
     for (TextStyle* style : m_renderStyles)
     {
-        style->resetPath();
+        style->rewindPath();
     }
     m_renderStyles.clear();
 

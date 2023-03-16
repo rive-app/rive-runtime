@@ -12,11 +12,13 @@ private:
     Shape* m_Shape;
     std::unique_ptr<CommandPath> m_LocalPath;
     std::unique_ptr<CommandPath> m_WorldPath;
+    bool m_deferredPathDirt;
 
 public:
     PathComposer(Shape* shape);
     Shape* shape() const { return m_Shape; }
     void buildDependencies() override;
+    void onDirty(ComponentDirt dirt) override;
     void update(ComponentDirt value) override;
 
     CommandPath* localPath() const { return m_LocalPath.get(); }

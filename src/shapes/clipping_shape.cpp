@@ -98,7 +98,7 @@ void ClippingShape::update(ComponentDirt value)
     {
         if (m_RenderPath)
         {
-            m_RenderPath->reset();
+            m_RenderPath->rewind();
 
             m_RenderPath->fillRule((FillRule)fillRule());
             m_ClipRenderPath = nullptr;

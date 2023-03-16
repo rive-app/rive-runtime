@@ -27,7 +27,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
 
     bool addPath(const RawPath& rawPath);
-    void resetPath();
+    void rewindPath();
     void draw(Renderer* renderer);
     Core* clone() const override;
 

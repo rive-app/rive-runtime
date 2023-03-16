@@ -18,7 +18,7 @@ public:
 class NoOpRenderPath : public RenderPath
 {
 public:
-    void reset() override {}
+    void rewind() override {}
 
     void fillRule(FillRule value) override {}
     void addPath(CommandPath* path, const Mat2D& transform) override {}

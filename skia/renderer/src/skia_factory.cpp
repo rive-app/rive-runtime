@@ -35,7 +35,7 @@ public:
 
     const SkPath& path() const { return m_Path; }
 
-    void reset() override;
+    void rewind() override;
     void addRenderPath(RenderPath* path, const Mat2D& transform) override;
     void fillRule(FillRule value) override;
     void moveTo(float x, float y) override;
@@ -85,7 +85,7 @@ public:
 
 void SkiaRenderPath::fillRule(FillRule value) { m_Path.setFillType(ToSkia::convert(value)); }
 
-void SkiaRenderPath::reset() { m_Path.reset(); }
+void SkiaRenderPath::rewind() { m_Path.rewind(); }
 void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
 {
     m_Path.addPath(static_cast<SkiaRenderPath*>(path)->m_Path, ToSkia::convert(transform));

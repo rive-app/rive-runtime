@@ -14,7 +14,7 @@ TessRenderPath::TessRenderPath(RawPath& rawPath, FillRule fillRule) :
 
 TessRenderPath::~TessRenderPath() {}
 
-void TessRenderPath::reset()
+void TessRenderPath::rewind()
 {
     m_rawPath.rewind();
     m_subPaths.clear();

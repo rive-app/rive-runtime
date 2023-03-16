@@ -43,11 +43,11 @@ TEST_CASE("contour-basics", "[contourmeasure]")
     REQUIRE(iter.next() == nullptr);
 
     path.moveTo(1, 2);
-    iter.reset(path, false);
+    iter.rewind(path, false);
     REQUIRE(iter.next() == nullptr);
 
     path.lineTo(4, 6);
-    iter.reset(path, false);
+    iter.rewind(path, false);
     auto cm = iter.next();
     REQUIRE(cm);
     REQUIRE(nearly_eq(cm->length(), 5, tol));
@@ -58,7 +58,7 @@ TEST_CASE("contour-basics", "[contourmeasure]")
     path = RawPath();
     const float w = 4, h = 6;
     path.addRect({0, 0, w, h}, PathDirection::cw);
-    iter.reset(path, false);
+    iter.rewind(path, false);
     cm = iter.next();
     REQUIRE(cm);
     REQUIRE(nearly_eq(cm->length(), 2 * (w + h), tol));
