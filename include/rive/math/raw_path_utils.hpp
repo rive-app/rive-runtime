@@ -44,20 +44,6 @@ struct EvalCubic
     Vec2D operator()(float t) const { return ((a * t + b) * t + c) * t + d; }
 };
 
-// These compute the number of line segments need to apprixmate the bezier
-// curve to the specified inverse-tolerance. We take inverse since we need
-// to divide by the "tolerance", and we want to save the cost of the divide.
-//
-// At "standard" tolerance might be 0.5 (half a pixel error), so the caller
-// would base 2.0 as its inverse.
-//
-// These always return at least 1
-//
-
-extern int computeApproximatingQuadLineSegments(const Vec2D bezier[3], float invTolerance);
-
-extern int computeApproximatingCubicLineSegments(const Vec2D bezier[4], float invTolerance);
-
 // Extract a subcurve from the curve (given start and end t-values)
 
 extern void quad_subdivide(const Vec2D src[3], float t, Vec2D dst[5]);

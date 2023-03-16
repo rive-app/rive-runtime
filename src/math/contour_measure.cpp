@@ -6,6 +6,7 @@
 #include "rive/math/raw_path_utils.hpp"
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/math/wangs_formula.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -315,12 +316,15 @@ static void addSeg(std::vector<ContourMeasure::Segment>& array,
 // They assume the caller has set the initial segment (with t == 0), so they only
 // add intermediates.
 
+constexpr static int kMaxSegments = 100; // Arbirtary safety limit.
+
 float ContourMeasureIter::addQuadSegs(std::vector<ContourMeasure::Segment>& segs,
                                       const Vec2D pts[],
                                       uint32_t ptIndex,
                                       float distance) const
 {
-    const int count = computeApproximatingQuadLineSegments(pts, m_invTolerance);
+    int count = static_cast<int>(ceilf(wangs_formula::quadratic(pts, m_invTolerance)));
+    count = std::max(1, std::min(count, kMaxSegments));
     const float dt = 1.0f / count;
     const EvalQuad eval(pts);
 
@@ -344,7 +348,8 @@ float ContourMeasureIter::addCubicSegs(std::vector<ContourMeasure::Segment>& seg
                                        uint32_t ptIndex,
                                        float distance) const
 {
-    const int count = computeApproximatingCubicLineSegments(pts, m_invTolerance);
+    int count = static_cast<int>(ceilf(wangs_formula::cubic(pts, m_invTolerance)));
+    count = std::max(1, std::min(count, kMaxSegments));
     const float dt = 1.0f / count;
     const EvalCubic eval(pts);
 
