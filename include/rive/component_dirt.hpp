@@ -20,6 +20,9 @@ enum class ComponentDirt : unsigned short
     /// Path is dirty and needs to be rebuilt.
     Path = 1 << 3,
 
+    /// TextShape is dirty and needs to be rebuilt.
+    TextShape = 1 << 3,
+
     /// Skin needs to recompute bone transformations.
     Skin = 1 << 3,
 

@@ -7,6 +7,9 @@ namespace rive
 class TextStyleAxis : public TextStyleAxisBase
 {
 public:
+    StatusCode onAddedDirty(CoreContext* context) override;
+    void tagChanged() override;
+    void axisValueChanged() override;
 };
 } // namespace rive
 

@@ -1,4 +1,5 @@
 #include "rive/text/text_style.hpp"
+#include "rive/text/text_style_axis.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/backboard.hpp"
@@ -12,8 +13,41 @@ using namespace rive;
 // satisfy unique_ptr
 TextStyle::TextStyle() {}
 
+void TextStyle::addVariation(TextStyleAxis* axis) { m_variations.push_back(axis); }
+
+void TextStyle::onDirty(ComponentDirt dirt)
+{
+    if ((dirt & ComponentDirt::TextShape) == ComponentDirt::TextShape)
+    {
+        parent()->as<Text>()->markShapeDirty();
+    }
+}
+
+void TextStyle::update(ComponentDirt value)
+{
+    if ((value & ComponentDirt::TextShape) == ComponentDirt::TextShape)
+    {
+        rcp<Font> baseFont = m_fontAsset == nullptr ? nullptr : m_fontAsset->font();
+        if (m_variations.empty())
+        {
+            m_font = baseFont;
+        }
+        else
+        {
+            m_coords.clear();
+            for (TextStyleAxis* axis : m_variations)
+            {
+                m_coords.push_back({axis->tag(), axis->axisValue()});
+            }
+            m_font = baseFont->makeAtCoords(m_coords);
+        }
+    }
+}
+
 void TextStyle::buildDependencies()
 {
+    addDependent(parent());
+    artboard()->addDependent(this);
     Super::buildDependencies();
     auto factory = getArtboard()->factory();
     m_path = factory->makeEmptyRenderPath();
@@ -48,7 +82,6 @@ void TextStyle::draw(Renderer* renderer)
 
 void TextStyle::assets(const std::vector<FileAsset*>& assets)
 {
-
     if ((size_t)fontAssetId() >= assets.size())
     {
         return;
@@ -58,11 +91,6 @@ void TextStyle::assets(const std::vector<FileAsset*>& assets)
     {
         m_fontAsset = asset->as<FontAsset>();
     }
-}
-
-const rcp<Font> TextStyle::font() const
-{
-    return m_fontAsset == nullptr ? nullptr : m_fontAsset->font();
 }
 
 StatusCode TextStyle::import(ImportStack& importStack)
