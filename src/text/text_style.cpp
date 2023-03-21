@@ -10,6 +10,27 @@
 
 using namespace rive;
 
+namespace rive
+{
+class TextVariationHelper : public Component
+{
+public:
+    TextVariationHelper(TextStyle* style) : m_textStyle(style) {}
+    TextStyle* style() const { return m_textStyle; }
+    void buildDependencies() override
+    {
+        auto text = m_textStyle->parent();
+        text->artboard()->addDependent(this);
+        addDependent(text);
+    }
+
+    void update(ComponentDirt value) override { m_textStyle->updateVariableFont(); }
+
+private:
+    TextStyle* m_textStyle;
+};
+} // namespace rive
+
 // satisfy unique_ptr
 TextStyle::TextStyle() {}
 
@@ -20,34 +41,78 @@ void TextStyle::onDirty(ComponentDirt dirt)
     if ((dirt & ComponentDirt::TextShape) == ComponentDirt::TextShape)
     {
         parent()->as<Text>()->markShapeDirty();
+        if (m_variationHelper != nullptr)
+        {
+            m_variationHelper->addDirt(ComponentDirt::TextShape);
+        }
     }
 }
 
-void TextStyle::update(ComponentDirt value)
+StatusCode TextStyle::onAddedClean(CoreContext* context)
 {
-    if ((value & ComponentDirt::TextShape) == ComponentDirt::TextShape)
+    auto code = Super::onAddedClean(context);
+    if (code != StatusCode::Ok)
     {
-        rcp<Font> baseFont = m_fontAsset == nullptr ? nullptr : m_fontAsset->font();
-        if (m_variations.empty())
+        return code;
+    }
+    // This ensures context propagates to variation helper too.
+    if (!m_variations.empty())
+    {
+        m_variationHelper = rivestd::make_unique<TextVariationHelper>(this);
+    }
+    if (m_variationHelper != nullptr)
+    {
+        if ((code = m_variationHelper->onAddedDirty(context)) != StatusCode::Ok)
         {
-            m_font = baseFont;
+            return code;
         }
-        else
+        if ((code = m_variationHelper->onAddedClean(context)) != StatusCode::Ok)
         {
-            m_coords.clear();
-            for (TextStyleAxis* axis : m_variations)
-            {
-                m_coords.push_back({axis->tag(), axis->axisValue()});
-            }
-            m_font = baseFont->makeAtCoords(m_coords);
+            return code;
         }
+    }
+    return StatusCode::Ok;
+}
+
+const rcp<Font> TextStyle::font() const
+{
+    if (m_variableFont != nullptr)
+    {
+        return m_variableFont;
+    }
+    return m_fontAsset == nullptr ? nullptr : m_fontAsset->font();
+}
+
+void TextStyle::updateVariableFont()
+{
+    rcp<Font> baseFont = m_fontAsset == nullptr ? nullptr : m_fontAsset->font();
+    if (baseFont == nullptr)
+    {
+        // Not ready yet.
+        return;
+    }
+    if (!m_variations.empty())
+    {
+        m_coords.clear();
+        for (TextStyleAxis* axis : m_variations)
+        {
+            m_coords.push_back({axis->tag(), axis->axisValue()});
+        }
+        m_variableFont = baseFont->makeAtCoords(m_coords);
+    }
+    else
+    {
+        m_variableFont = nullptr;
     }
 }
 
 void TextStyle::buildDependencies()
 {
-    addDependent(parent());
-    artboard()->addDependent(this);
+    if (m_variationHelper != nullptr)
+    {
+        m_variationHelper->buildDependencies();
+    }
+    parent()->addDependent(this);
     Super::buildDependencies();
     auto factory = getArtboard()->factory();
     m_path = factory->makeEmptyRenderPath();

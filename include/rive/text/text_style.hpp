@@ -14,6 +14,7 @@ class FileAsset;
 class Renderer;
 class RenderPath;
 
+class TextVariationHelper;
 class TextStyleAxis;
 class TextStyle : public TextStyleBase, public ShapePaintContainer, public FileAssetReferencer
 {
@@ -23,7 +24,7 @@ private:
 public:
     TextStyle();
     void buildDependencies() override;
-    const rcp<Font> font() const { return m_font; }
+    const rcp<Font> font() const;
     void assets(const std::vector<FileAsset*>& assets) override;
     StatusCode import(ImportStack& importStack) override;
 
@@ -32,14 +33,17 @@ public:
     void draw(Renderer* renderer);
     Core* clone() const override;
     void addVariation(TextStyleAxis* axis);
+    void updateVariableFont();
+    StatusCode onAddedClean(CoreContext* context) override;
     void onDirty(ComponentDirt dirt) override;
-    void update(ComponentDirt value) override;
+    // void update(ComponentDirt value) override;
 
 protected:
     void fontSizeChanged() override;
 
 private:
-    rcp<Font> m_font;
+    std::unique_ptr<TextVariationHelper> m_variationHelper;
+    rcp<Font> m_variableFont;
     FontAsset* m_fontAsset = nullptr;
     std::unique_ptr<RenderPath> m_path;
     bool m_hasContents = false;

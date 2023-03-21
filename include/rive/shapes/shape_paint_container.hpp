@@ -36,6 +36,8 @@ public:
     void invalidateStrokeEffects();
 
     std::unique_ptr<CommandPath> makeCommandPath(PathSpace space);
+
+    void propagateOpacity(float opacity);
 };
 } // namespace rive
 

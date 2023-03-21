@@ -24,10 +24,7 @@ void Shape::update(ComponentDirt value)
 
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
-        for (auto shapePaint : m_ShapePaints)
-        {
-            shapePaint->renderOpacity(renderOpacity());
-        }
+        propagateOpacity(renderOpacity());
     }
 }
 

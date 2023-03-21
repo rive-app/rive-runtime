@@ -117,6 +117,7 @@ void Text::buildRenderStyles()
                     // This was the first path added to the style, so let's mark
                     // it in our draw list.
                     m_renderStyles.push_back(style);
+                    style->propagateOpacity(renderOpacity());
                 }
             }
             lineIndex++;
@@ -248,6 +249,15 @@ void Text::update(ComponentDirt value)
         // rendered the first time, for now we do it on update cycle in tandem
         // with shaping.
         buildRenderStyles();
+    }
+    else if (hasDirt(value, ComponentDirt::RenderOpacity))
+    {
+        // Note that buildRenderStyles does this too, which is why we can get
+        // away doing this in the else.
+        for (TextStyle* style : m_renderStyles)
+        {
+            style->propagateOpacity(renderOpacity());
+        }
     }
 }
 

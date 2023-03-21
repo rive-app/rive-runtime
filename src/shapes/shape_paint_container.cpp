@@ -88,3 +88,11 @@ std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace spac
         return std::unique_ptr<CommandPath>(factory->makeEmptyRenderPath());
     }
 }
+
+void ShapePaintContainer::propagateOpacity(float opacity)
+{
+    for (auto shapePaint : m_ShapePaints)
+    {
+        shapePaint->renderOpacity(opacity);
+    }
+}
