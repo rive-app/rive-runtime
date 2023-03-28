@@ -22,6 +22,7 @@ StatusCode Component::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
     m_Parent = static_cast<ContainerComponent*>(coreObject);
+    m_Parent->addChild(this);
     return StatusCode::Ok;
 }
 
@@ -79,4 +80,23 @@ StatusCode Component::import(ImportStack& importStack)
     }
     artboardImporter->addComponent(this);
     return Super::import(importStack);
+}
+
+bool Component::collapse(bool value)
+{
+    if (isCollapsed() == value)
+    {
+        return false;
+    }
+    if (value)
+    {
+        m_Dirt |= ComponentDirt::Collapsed;
+    }
+    else
+    {
+        m_Dirt &= ~ComponentDirt::Collapsed;
+    }
+    onDirty(m_Dirt);
+    m_Artboard->onComponentDirty(this);
+    return true;
 }

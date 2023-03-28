@@ -145,6 +145,17 @@
       "description": "If bones are enabled for this file",
       "runtime": false,
       "coop": false
+    },
+    "toolbarOutputAction": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 290,
+        "string": "toolbaroutputaction"
+      },
+      "description": "Primary output action in the toolbar (share, publihs, download)",
+      "runtime": false,
+      "coop": false
     }
   }
 }

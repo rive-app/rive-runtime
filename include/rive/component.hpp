@@ -25,10 +25,12 @@ protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
 
 public:
+    virtual bool collapse(bool value);
     inline Artboard* artboard() const { return m_Artboard; }
     StatusCode onAddedDirty(CoreContext* context) override;
     inline ContainerComponent* parent() const { return m_Parent; }
     const std::vector<Component*>& dependents() const { return m_Dependents; }
+
     void addDependent(Component* component);
 
     // TODO: re-evaluate when more of the lib is complete...
@@ -48,6 +50,11 @@ public:
     }
 
     StatusCode import(ImportStack& importStack) override;
+
+    bool isCollapsed() const
+    {
+        return (m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed;
+    }
 };
 } // namespace rive
 

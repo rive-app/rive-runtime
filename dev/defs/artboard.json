@@ -69,17 +69,6 @@
       },
       "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
     },
-    "editingAnimation": {
-      "type": "Id",
-      "initialValue": "Core.missingId",
-      "key": {
-        "int": 131,
-        "string": "editinganimation"
-      },
-      "description": "Id of the last open animation.",
-      "runtime": false,
-      "coop": false
-    },
     "defaultStateMachineId": {
       "type": "Id",
       "typeRuntime": "uint",
@@ -121,6 +110,17 @@
         "string": "expandedanimationfolders"
       },
       "description": "List of expanded animation folders",
+      "runtime": false,
+      "coop": false
+    },
+    "selectedAnimations": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 291,
+        "string": "selectedanimations"
+      },
+      "description": "List of selected animations",
       "runtime": false,
       "coop": false
     }

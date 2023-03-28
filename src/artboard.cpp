@@ -439,11 +439,12 @@ bool Artboard::updateComponents()
                 auto component = m_DependencyOrder[i];
                 m_DirtDepth = i;
                 auto d = component->m_Dirt;
-                if (d == ComponentDirt::None)
+                if (d == ComponentDirt::None ||
+                    (d & ComponentDirt::Collapsed) == ComponentDirt::Collapsed)
                 {
                     continue;
                 }
-                component->m_Dirt = ComponentDirt::None;
+                component->m_Dirt &= ComponentDirt::Collapsed;
                 component->update(d);
 
                 // If the update changed the dirt depth by adding dirt

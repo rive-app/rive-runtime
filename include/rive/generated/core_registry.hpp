@@ -119,6 +119,7 @@
 #include "rive/shapes/straight_vertex.hpp"
 #include "rive/shapes/triangle.hpp"
 #include "rive/shapes/vertex.hpp"
+#include "rive/solo.hpp"
 #include "rive/text/text.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
@@ -152,6 +153,8 @@ public:
                 return new Node();
             case NestedArtboardBase::typeKey:
                 return new NestedArtboard();
+            case SoloBase::typeKey:
+                return new Solo();
             case NestedSimpleAnimationBase::typeKey:
                 return new NestedSimpleAnimation();
             case AnimationStateBase::typeKey:
@@ -381,6 +384,9 @@ public:
                 break;
             case NestedAnimationBase::animationIdPropertyKey:
                 object->as<NestedAnimationBase>()->animationId(value);
+                break;
+            case SoloBase::activeComponentIdPropertyKey:
+                object->as<SoloBase>()->activeComponentId(value);
                 break;
             case ListenerInputChangeBase::inputIdPropertyKey:
                 object->as<ListenerInputChangeBase>()->inputId(value);
@@ -946,6 +952,8 @@ public:
                 return object->as<NestedArtboardBase>()->artboardId();
             case NestedAnimationBase::animationIdPropertyKey:
                 return object->as<NestedAnimationBase>()->animationId();
+            case SoloBase::activeComponentIdPropertyKey:
+                return object->as<SoloBase>()->activeComponentId();
             case ListenerInputChangeBase::inputIdPropertyKey:
                 return object->as<ListenerInputChangeBase>()->inputId();
             case AnimationStateBase::animationIdPropertyKey:
@@ -1324,6 +1332,7 @@ public:
             case DrawableBase::drawableFlagsPropertyKey:
             case NestedArtboardBase::artboardIdPropertyKey:
             case NestedAnimationBase::animationIdPropertyKey:
+            case SoloBase::activeComponentIdPropertyKey:
             case ListenerInputChangeBase::inputIdPropertyKey:
             case AnimationStateBase::animationIdPropertyKey:
             case NestedInputBase::inputIdPropertyKey:
