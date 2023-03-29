@@ -8,9 +8,10 @@ class Solo : public SoloBase
 public:
     void activeComponentIdChanged() override;
     StatusCode onAddedClean(CoreContext* context) override;
+    bool collapse(bool value) override;
 
 private:
-    void propagateCollapse();
+    void propagateCollapse(bool collapse);
 };
 } // namespace rive
 

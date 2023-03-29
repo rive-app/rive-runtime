@@ -58,3 +58,85 @@ TEST_CASE("children load correclty", "[solo]")
     REQUIRE(green->isHidden());
     REQUIRE(red->isHidden());
 }
+
+TEST_CASE("nested solos work", "[solo]")
+{
+    auto file = ReadRiveFile("../../test/assets/nested_solo.riv");
+
+    auto artboard = file->artboard()->instance();
+    artboard->advance(0.0f);
+    auto s1 = artboard->find<rive::Solo>("Solo 1");
+    REQUIRE(s1 != nullptr);
+    auto s2 = artboard->find<rive::Solo>("Solo 2");
+    REQUIRE(s2 != nullptr);
+    auto s3 = artboard->find<rive::Solo>("Solo 3");
+    REQUIRE(s3 != nullptr);
+
+    auto a = artboard->find<rive::Shape>("A");
+    REQUIRE(a != nullptr);
+    auto b = artboard->find<rive::Shape>("B");
+    REQUIRE(b != nullptr);
+    auto c = artboard->find<rive::Shape>("C");
+    REQUIRE(c != nullptr);
+    auto d = artboard->find<rive::Shape>("D");
+    REQUIRE(d != nullptr);
+    auto e = artboard->find<rive::Shape>("E");
+    REQUIRE(e != nullptr);
+    auto f = artboard->find<rive::Shape>("F");
+    REQUIRE(f != nullptr);
+    auto g = artboard->find<rive::Shape>("G");
+    REQUIRE(g != nullptr);
+    auto h = artboard->find<rive::Shape>("H");
+    REQUIRE(h != nullptr);
+    auto i = artboard->find<rive::Shape>("I");
+    REQUIRE(i != nullptr);
+
+    s1->activeComponentId(artboard->idOf(a));
+    s2->activeComponentId(artboard->idOf(d));
+    s3->activeComponentId(artboard->idOf(h));
+    artboard->advance(0.0f);
+
+    REQUIRE(a->isCollapsed() == false);
+    REQUIRE(b->isCollapsed() == true);
+    REQUIRE(c->isCollapsed() == true);
+
+    REQUIRE(d->isCollapsed() == true);
+    REQUIRE(e->isCollapsed() == true);
+    REQUIRE(f->isCollapsed() == true);
+
+    REQUIRE(g->isCollapsed() == true);
+    REQUIRE(h->isCollapsed() == true);
+    REQUIRE(i->isCollapsed() == true);
+
+    // Changing active in a collapsed solo doesn't affect anything.
+    s3->activeComponentId(artboard->idOf(g));
+    artboard->advance(0.0f);
+
+    REQUIRE(a->isCollapsed() == false);
+    REQUIRE(b->isCollapsed() == true);
+    REQUIRE(c->isCollapsed() == true);
+
+    REQUIRE(d->isCollapsed() == true);
+    REQUIRE(e->isCollapsed() == true);
+    REQUIRE(f->isCollapsed() == true);
+
+    REQUIRE(g->isCollapsed() == true);
+    REQUIRE(h->isCollapsed() == true);
+    REQUIRE(i->isCollapsed() == true);
+
+    s1->activeComponentId(artboard->idOf(c));
+    artboard->advance(0.0);
+
+    // Now the rest of the nested solo items should be visible.
+    REQUIRE(a->isCollapsed() == true);
+    REQUIRE(b->isCollapsed() == true);
+    REQUIRE(c->isCollapsed() == false);
+
+    REQUIRE(d->isCollapsed() == false);
+    REQUIRE(e->isCollapsed() == true);
+    REQUIRE(f->isCollapsed() == true);
+
+    REQUIRE(g->isCollapsed() == false);
+    REQUIRE(h->isCollapsed() == true);
+    REQUIRE(i->isCollapsed() == true);
+}

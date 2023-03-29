@@ -3,15 +3,29 @@
 
 using namespace rive;
 
-void Solo::propagateCollapse()
+void Solo::propagateCollapse(bool collapse)
 {
-    Core* active = artboard()->resolve(activeComponentId());
+    Core* active = collapse ? nullptr : artboard()->resolve(activeComponentId());
     for (Component* child : children())
     {
         child->collapse(child != active);
     }
 }
-void Solo::activeComponentIdChanged() { propagateCollapse(); }
+
+bool Solo::collapse(bool value)
+{
+    // Intentionally using Component instead of Super as we don't want to call
+    // collapse on the Container logic which just propagates blindly to
+    // children.
+    if (!Component::collapse(value))
+    {
+        return false;
+    }
+    propagateCollapse(value);
+    return true;
+}
+
+void Solo::activeComponentIdChanged() { propagateCollapse(isCollapsed()); }
 
 StatusCode Solo::onAddedClean(CoreContext* context)
 {
@@ -21,6 +35,6 @@ StatusCode Solo::onAddedClean(CoreContext* context)
         return code;
     }
 
-    propagateCollapse();
+    propagateCollapse(isCollapsed());
     return StatusCode::Ok;
 }
