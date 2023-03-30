@@ -18,14 +18,17 @@ StatusCode BlendAnimationDirect::import(ImportStack& importStack)
     }
 
     // Make sure the inputId doesn't overflow the input buffer.
-    if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
+    if (blendSource() == static_cast<int>(DirectBlendSource::inputId))
     {
-        return StatusCode::InvalidObject;
-    }
-    auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
-    if (input == nullptr || !input->is<StateMachineNumber>())
-    {
-        return StatusCode::InvalidObject;
+        if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
+        {
+            return StatusCode::InvalidObject;
+        }
+        auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
+        if (input == nullptr || !input->is<StateMachineNumber>())
+        {
+            return StatusCode::InvalidObject;
+        }
     }
     return Super::import(importStack);
 }

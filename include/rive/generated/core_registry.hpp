@@ -406,6 +406,9 @@ public:
             case BlendAnimationDirectBase::inputIdPropertyKey:
                 object->as<BlendAnimationDirectBase>()->inputId(value);
                 break;
+            case BlendAnimationDirectBase::blendSourcePropertyKey:
+                object->as<BlendAnimationDirectBase>()->blendSource(value);
+                break;
             case TransitionConditionBase::inputIdPropertyKey:
                 object->as<TransitionConditionBase>()->inputId(value);
                 break;
@@ -603,6 +606,9 @@ public:
                 break;
             case AdvanceableStateBase::speedPropertyKey:
                 object->as<AdvanceableStateBase>()->speed(value);
+                break;
+            case BlendAnimationDirectBase::mixValuePropertyKey:
+                object->as<BlendAnimationDirectBase>()->mixValue(value);
                 break;
             case StateMachineNumberBase::valuePropertyKey:
                 object->as<StateMachineNumberBase>()->value(value);
@@ -966,6 +972,8 @@ public:
                 return object->as<BlendAnimationBase>()->animationId();
             case BlendAnimationDirectBase::inputIdPropertyKey:
                 return object->as<BlendAnimationDirectBase>()->inputId();
+            case BlendAnimationDirectBase::blendSourcePropertyKey:
+                return object->as<BlendAnimationDirectBase>()->blendSource();
             case TransitionConditionBase::inputIdPropertyKey:
                 return object->as<TransitionConditionBase>()->inputId();
             case KeyedPropertyBase::propertyKeyPropertyKey:
@@ -1101,6 +1109,8 @@ public:
                 return object->as<NestedSimpleAnimationBase>()->speed();
             case AdvanceableStateBase::speedPropertyKey:
                 return object->as<AdvanceableStateBase>()->speed();
+            case BlendAnimationDirectBase::mixValuePropertyKey:
+                return object->as<BlendAnimationDirectBase>()->mixValue();
             case StateMachineNumberBase::valuePropertyKey:
                 return object->as<StateMachineNumberBase>()->value();
             case CubicInterpolatorBase::x1PropertyKey:
@@ -1339,6 +1349,7 @@ public:
             case KeyedObjectBase::objectIdPropertyKey:
             case BlendAnimationBase::animationIdPropertyKey:
             case BlendAnimationDirectBase::inputIdPropertyKey:
+            case BlendAnimationDirectBase::blendSourcePropertyKey:
             case TransitionConditionBase::inputIdPropertyKey:
             case KeyedPropertyBase::propertyKeyPropertyKey:
             case StateMachineListenerBase::targetIdPropertyKey:
@@ -1404,6 +1415,7 @@ public:
             case NestedLinearAnimationBase::mixPropertyKey:
             case NestedSimpleAnimationBase::speedPropertyKey:
             case AdvanceableStateBase::speedPropertyKey:
+            case BlendAnimationDirectBase::mixValuePropertyKey:
             case StateMachineNumberBase::valuePropertyKey:
             case CubicInterpolatorBase::x1PropertyKey:
             case CubicInterpolatorBase::y1PropertyKey:

@@ -4,6 +4,13 @@
 #include <stdio.h>
 namespace rive
 {
+
+enum class DirectBlendSource : unsigned int
+{
+    inputId = 0,
+    mixValue = 1,
+};
+
 class BlendAnimationDirect : public BlendAnimationDirectBase
 {
 public:
