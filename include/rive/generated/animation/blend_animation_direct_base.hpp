@@ -35,7 +35,7 @@ public:
 
 private:
     uint32_t m_InputId = -1;
-    float m_MixValue = 1.0f;
+    float m_MixValue = 100.0f;
     uint32_t m_BlendSource = 0;
 
 public:

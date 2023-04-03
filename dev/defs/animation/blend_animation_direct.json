@@ -19,7 +19,7 @@
     },
     "mixValue": {
       "type": "double",
-      "initialValue": "1",
+      "initialValue": "100",
       "key": {
         "int": 297,
         "string": "mixvalue"
