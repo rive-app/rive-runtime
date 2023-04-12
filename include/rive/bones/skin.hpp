@@ -29,7 +29,7 @@ protected:
     void addTendon(Tendon* tendon);
 
 public:
-    StatusCode onAddedClean(CoreContext* context) override;
+    StatusCode onAddedDirty(CoreContext* context) override;
     void buildDependencies() override;
     void deform(Span<Vertex*> vertices);
     void onDirty(ComponentDirt dirt) override;

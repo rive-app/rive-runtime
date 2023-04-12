@@ -5,7 +5,17 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("children load correclty", "[solo]")
+TEST_CASE("file with skins in solos loads correctly", "[solo]")
+{
+    auto file = ReadRiveFile("../../test/assets/death_knight.riv");
+
+    auto artboard = file->artboard()->instance();
+    artboard->advance(0.0f);
+    auto solos = artboard->find<rive::Solo>();
+    REQUIRE(solos.size() == 2);
+}
+
+TEST_CASE("children load correctly", "[solo]")
 {
     auto file = ReadRiveFile("../../test/assets/solo_test.riv");
 

@@ -10,8 +10,13 @@ using namespace rive;
 
 Skin::~Skin() { delete[] m_BoneTransforms; }
 
-StatusCode Skin::onAddedClean(CoreContext* context)
+StatusCode Skin::onAddedDirty(CoreContext* context)
 {
+    StatusCode code = Super::onAddedDirty(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
     m_WorldTransform[0] = xx();
     m_WorldTransform[1] = xy();
     m_WorldTransform[2] = yx();
