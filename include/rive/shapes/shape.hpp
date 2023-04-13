@@ -25,6 +25,7 @@ private:
 public:
     Shape();
     void buildDependencies() override;
+    bool collapse(bool value) override;
     void addPath(Path* path);
     std::vector<Path*>& paths() { return m_Paths; }
 

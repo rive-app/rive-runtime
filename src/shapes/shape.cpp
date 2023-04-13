@@ -28,6 +28,16 @@ void Shape::update(ComponentDirt value)
     }
 }
 
+bool Shape::collapse(bool value)
+{
+    if (!Super::collapse(value))
+    {
+        return false;
+    }
+    m_PathComposer.collapse(value);
+    return true;
+}
+
 void Shape::pathChanged()
 {
     m_PathComposer.addDirt(ComponentDirt::Path, true);
