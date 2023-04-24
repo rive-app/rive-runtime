@@ -63,6 +63,12 @@ void RawPath::move(Vec2D a)
 void RawPath::line(Vec2D a)
 {
     injectImplicitMoveIfNeeded();
+    if (a == m_Points.back())
+    {
+        // Discard empty verbs, while retaining the implicit move so the path still has a
+        // potentially empty contour.
+        return;
+    }
     m_Points.push_back(a);
     m_Verbs.push_back(PathVerb::line);
 }
@@ -70,6 +76,12 @@ void RawPath::line(Vec2D a)
 void RawPath::quad(Vec2D a, Vec2D b)
 {
     injectImplicitMoveIfNeeded();
+    if (b == a && a == m_Points.back())
+    {
+        // Discard empty verbs, while retaining the implicit move so the path still has a
+        // potentially empty contour.
+        return;
+    }
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Verbs.push_back(PathVerb::quad);
@@ -78,6 +90,12 @@ void RawPath::quad(Vec2D a, Vec2D b)
 void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c)
 {
     injectImplicitMoveIfNeeded();
+    if (c == b && b == a && a == m_Points.back())
+    {
+        // Discard empty verbs, while retaining the implicit move so the path still has a
+        // potentially empty contour.
+        return;
+    }
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Points.push_back(c);
