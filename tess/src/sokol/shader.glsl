@@ -1,3 +1,6 @@
+// clang-format off
+// clang-format doesn't handle the '@' directives.
+
 @ctype mat4 rive::Mat4
 @ctype vec2 rive::Vec2D
 
