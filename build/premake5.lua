@@ -108,6 +108,12 @@ do
         targetdir '%{cfg.system}/arm64/bin/%{cfg.buildcfg}'
         objdir '%{cfg.system}/arm64/obj/%{cfg.buildcfg}'
     end
+
+    filter "system:emscripten"
+    do
+        buildoptions {"-pthread"}
+    end
+
     filter 'configurations:debug'
     do
         defines {'DEBUG'}

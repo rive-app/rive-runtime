@@ -16,6 +16,19 @@ do
         sheenbidi .. '/Headers'
     }
 
+    buildoptions {
+        '-Wall',
+        '-ansi',
+        '-pedantic'
+    }
+
+    linkoptions {'-r'}
+
+    filter "system:emscripten"
+    do
+        buildoptions {"-pthread"}
+    end
+
     filter 'configurations:debug'
     do
         files {
@@ -46,14 +59,6 @@ do
             sheenbidi .. '/Source/SheenBidi.c'
         }
     end
-
-    buildoptions {
-        '-Wall',
-        '-ansi',
-        '-pedantic'
-    }
-
-    linkoptions {'-r'}
 
     filter 'configurations:debug'
     do

@@ -45,8 +45,7 @@ fi
 
 export PREMAKE=$DEPENDENCIES/bin/premake5
 pushd ..
-
-$PREMAKE --file=./premake5.lua gmake2 $OTHER_OPTIONS
+$PREMAKE --scripts=../../../build --file=./premake5.lua gmake2 $OTHER_OPTIONS
 
 for var in "$@"; do
     if [[ $var = "clean" ]]; then

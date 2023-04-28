@@ -1,6 +1,7 @@
 #include "rive/shapes/points_path.hpp"
 #include "rive/shapes/vertex.hpp"
 #include "rive/shapes/path_vertex.hpp"
+#include "rive/shapes/shape.hpp"
 #include "rive/bones/skin.hpp"
 #include "rive/span.hpp"
 
@@ -27,8 +28,10 @@ const Mat2D& PointsPath::pathTransform() const
 
 void PointsPath::update(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::Path) && skin() != nullptr)
+    if (hasDirt(value, ComponentDirt::Path) && skin() != nullptr && !m_Shape->canDeferPathUpdate())
     {
+        // Path tracks re-adding ComponentDirt::Path if we deferred due to to
+        // shape being invisible.
         skin()->deform(Span<Vertex*>((Vertex**)m_Vertices.data(), m_Vertices.size()));
     }
     Super::update(value);

@@ -232,6 +232,10 @@ void Path::onDirty(ComponentDirt value)
     {
         m_Shape->pathChanged();
     }
+    if (m_deferredPathDirt)
+    {
+        addDirt(ComponentDirt::Path);
+    }
 }
 
 void Path::update(ComponentDirt value)
@@ -241,6 +245,12 @@ void Path::update(ComponentDirt value)
     assert(m_CommandPath != nullptr);
     if (hasDirt(value, ComponentDirt::Path))
     {
+        if (m_Shape->canDeferPathUpdate())
+        {
+            m_deferredPathDirt = true;
+            return;
+        }
+        m_deferredPathDirt = false;
         // Build path doesn't explicitly rewind because we use it to concatenate
         // multiple built paths into a single command path (like the hit
         // tester).

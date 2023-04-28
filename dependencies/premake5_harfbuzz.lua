@@ -233,6 +233,11 @@ do
         'HB_NO_WIN1256'
     }
 
+    filter "system:emscripten"
+    do
+        buildoptions {"-pthread"}
+    end
+
     filter 'toolset:clang'
     do
         flags {'FatalWarnings'}

@@ -97,6 +97,7 @@ public:
         kHideFG,
     };
     void draw(Renderer* renderer, DrawOption = DrawOption::kNormal);
+    void addToRenderPath(RenderPath* path, const Mat2D& transform);
 
 #ifdef TESTING
     RenderPath* clipPath() const { return m_ClipPath.get(); }
@@ -156,10 +157,47 @@ public:
     // provided.
     int defaultStateMachineIndex() const;
 
-    /// Make an instance of this artboard, must be explictly deleted when no
-    /// longer needed.
-    // Deprecated...
-    std::unique_ptr<ArtboardInstance> instance() const;
+    /// Make an instance of this artboard.
+    template <typename T = ArtboardInstance> std::unique_ptr<T> instance() const
+    {
+        std::unique_ptr<T> artboardClone(new T);
+        artboardClone->copy(*this);
+
+        artboardClone->m_Factory = m_Factory;
+        artboardClone->m_FrameOrigin = m_FrameOrigin;
+        artboardClone->m_IsInstance = true;
+
+        std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
+        cloneObjects.push_back(artboardClone.get());
+
+        if (!m_Objects.empty())
+        {
+            // Skip first object (artboard).
+            auto itr = m_Objects.begin();
+            while (++itr != m_Objects.end())
+            {
+                auto object = *itr;
+                cloneObjects.push_back(object == nullptr ? nullptr : object->clone());
+            }
+        }
+
+        for (auto animation : m_Animations)
+        {
+            artboardClone->m_Animations.push_back(animation);
+        }
+        for (auto stateMachine : m_StateMachines)
+        {
+            artboardClone->m_StateMachines.push_back(stateMachine);
+        }
+
+        if (artboardClone->initialize() != StatusCode::Ok)
+        {
+            artboardClone = nullptr;
+        }
+
+        assert(artboardClone->isInstance());
+        return artboardClone;
+    }
 
     /// Returns true if the artboard is an instance of another
     bool isInstance() const { return m_IsInstance; }

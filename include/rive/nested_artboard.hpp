@@ -28,6 +28,8 @@ public:
 
     void nest(Artboard* artboard);
 
+    ArtboardInstance* artboard() { return m_Instance.get(); }
+
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
     bool advance(float elapsedSeconds);

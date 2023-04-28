@@ -32,13 +32,14 @@ void PathComposer::update(ComponentDirt value)
 {
     if (hasDirt(value, ComponentDirt::Path))
     {
-        auto space = m_Shape->pathSpace();
-        if (m_Shape->renderOpacity() == 0 && (space & PathSpace::Clipping) != PathSpace::Clipping)
+        if (m_Shape->canDeferPathUpdate())
         {
             m_deferredPathDirt = true;
             return;
         }
         m_deferredPathDirt = false;
+
+        auto space = m_Shape->pathSpace();
 
         if ((space & PathSpace::Local) == PathSpace::Local)
         {

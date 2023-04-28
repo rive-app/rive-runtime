@@ -18,6 +18,11 @@ void Shape::addPath(Path* path)
     m_Paths.push_back(path);
 }
 
+bool Shape::canDeferPathUpdate()
+{
+    return renderOpacity() == 0 && (pathSpace() & PathSpace::Clipping) != PathSpace::Clipping;
+}
+
 void Shape::update(ComponentDirt value)
 {
     Super::update(value);
@@ -42,6 +47,19 @@ void Shape::pathChanged()
 {
     m_PathComposer.addDirt(ComponentDirt::Path, true);
     invalidateStrokeEffects();
+}
+
+void Shape::addToRenderPath(RenderPath* path, const Mat2D& transform)
+{
+    auto space = pathSpace();
+    if ((space & PathSpace::Local) == PathSpace::Local)
+    {
+        path->addPath(m_PathComposer.localPath(), transform * worldTransform());
+    }
+    else
+    {
+        path->addPath(m_PathComposer.worldPath(), transform);
+    }
 }
 
 void Shape::draw(Renderer* renderer)

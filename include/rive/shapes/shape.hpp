@@ -26,7 +26,9 @@ public:
     Shape();
     void buildDependencies() override;
     bool collapse(bool value) override;
+    bool canDeferPathUpdate();
     void addPath(Path* path);
+    void addToRenderPath(RenderPath* commandPath, const Mat2D& transform);
     std::vector<Path*>& paths() { return m_Paths; }
 
     bool wantDifferencePath() const { return m_WantDifferencePath; }
