@@ -209,8 +209,8 @@ static rive::GlyphRun shape_run(const rive::Unichar text[],
     hb_buffer_set_direction(buf,
                             tr.dir == rive::TextDirection::rtl ? HB_DIRECTION_RTL
                                                                : HB_DIRECTION_LTR);
-    hb_buffer_set_script(buf, (hb_script_t)tr.script); // HB_SCRIPT_ARABIC);
-    hb_buffer_set_language(buf, hb_language_from_string("fa", -1));
+    hb_buffer_set_script(buf, (hb_script_t)tr.script);
+    hb_buffer_set_language(buf, hb_language_get_default());
 
     auto hbfont = (HBFont*)tr.font.get();
     hb_shape(hbfont->m_Font, buf, gFeatures, gNumFeatures);
@@ -236,6 +236,8 @@ static rive::GlyphRun shape_run(const rive::Unichar text[],
         gr.glyphs[i] = (uint16_t)glyph_info[index].codepoint;
         gr.textIndices[i] = textOffset + glyph_info[index].cluster;
         gr.advances[i] = gr.xpos[i] = glyph_pos[index].x_advance * scale;
+        gr.offsets[i] =
+            rive::Vec2D(glyph_pos[index].x_offset * scale, -glyph_pos[index].y_offset * scale);
     }
     gr.xpos[glyph_count] = 0; // so the next run can line up snug
     hb_buffer_destroy(buf);
@@ -248,7 +250,8 @@ static rive::GlyphRun extract_subset(const rive::GlyphRun& orig, size_t start, s
     rive::GlyphRun subset(rive::SimpleArray<rive::GlyphID>(&orig.glyphs[start], count),
                           rive::SimpleArray<uint32_t>(&orig.textIndices[start], count),
                           rive::SimpleArray<float>(&orig.advances[start], count),
-                          rive::SimpleArray<float>(&orig.xpos[start], count + 1));
+                          rive::SimpleArray<float>(&orig.xpos[start], count + 1),
+                          rive::SimpleArray<rive::Vec2D>(&orig.offsets[start], count));
     subset.font = std::move(orig.font);
     subset.size = orig.size;
     subset.dir = orig.dir;

@@ -97,14 +97,17 @@ void Text::buildRenderStyles()
             {
                 const GlyphRun* run = std::get<0>(glyphItr);
                 size_t glyphIndex = std::get<1>(glyphItr);
+
                 const Font* font = run->font.get();
+                const Vec2D& offset = run->offsets[glyphIndex];
                 GlyphID glyphId = run->glyphs[glyphIndex];
 
                 // TODO: profile if this should be cached.
                 RawPath path = font->getPath(glyphId);
                 // If we do end up caching these, we'll want to not
                 // transformInPlace and just transform instead.
-                path.transformInPlace(Mat2D(run->size, 0.0f, 0.0f, run->size, x, renderY));
+                path.transformInPlace(
+                    Mat2D(run->size, 0.0f, 0.0f, run->size, x + offset.x, renderY + offset.y));
                 x += run->advances[glyphIndex];
 
                 assert(run->styleId < m_runs.size());

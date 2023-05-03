@@ -37,7 +37,7 @@ class GlyphItr
 {
 public:
     GlyphItr() = default;
-    GlyphItr(const OrderedLine* line, const GlyphRun* run, size_t glyphIndex) :
+    GlyphItr(const OrderedLine* line, const GlyphRun* run, uint32_t glyphIndex) :
         m_line(line), m_run(run), m_glyphIndex(glyphIndex)
     {}
 
@@ -52,12 +52,12 @@ public:
 
     GlyphItr& operator++();
 
-    std::tuple<const GlyphRun*, size_t> operator*() const { return {m_run, m_glyphIndex}; }
+    std::tuple<const GlyphRun*, uint32_t> operator*() const { return {m_run, m_glyphIndex}; }
 
 private:
     const OrderedLine* m_line;
     const GlyphRun* m_run;
-    size_t m_glyphIndex;
+    uint32_t m_glyphIndex;
 };
 
 // Represents a line of text with runs ordered visually. Also tracks logical
@@ -91,23 +91,25 @@ private:
 
 public:
     const GlyphRun* lastRun() const { return m_runs.back(); }
-    size_t startGlyphIndex(const GlyphRun* run) const
+    uint32_t startGlyphIndex(const GlyphRun* run) const
     {
         switch (run->dir)
         {
             case TextDirection::ltr:
                 return m_startLogical == run ? m_line->startGlyphIndex : 0;
             case TextDirection::rtl:
-                return (m_endLogical == run ? m_line->endGlyphIndex : run->glyphs.size()) - 1;
+                return (m_endLogical == run ? m_line->endGlyphIndex
+                                            : (uint32_t)run->glyphs.size()) -
+                       1;
         }
         RIVE_UNREACHABLE();
     }
-    size_t endGlyphIndex(const GlyphRun* run) const
+    uint32_t endGlyphIndex(const GlyphRun* run) const
     {
         switch (run->dir)
         {
             case TextDirection::ltr:
-                return m_endLogical == run ? m_line->endGlyphIndex : run->glyphs.size();
+                return m_endLogical == run ? m_line->endGlyphIndex : (uint32_t)run->glyphs.size();
             case TextDirection::rtl:
                 return (m_startLogical == run ? m_line->startGlyphIndex : 0) - 1;
         }

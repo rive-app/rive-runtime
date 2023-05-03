@@ -170,14 +170,19 @@ struct TextRun
 struct GlyphRun
 {
     GlyphRun(size_t glyphCount = 0) :
-        glyphs(glyphCount), textIndices(glyphCount), advances(glyphCount), xpos(glyphCount + 1)
+        glyphs(glyphCount),
+        textIndices(glyphCount),
+        advances(glyphCount),
+        xpos(glyphCount + 1),
+        offsets(glyphCount)
     {}
 
     GlyphRun(SimpleArray<GlyphID> glyphIds,
              SimpleArray<uint32_t> offsets,
              SimpleArray<float> ws,
-             SimpleArray<float> xs) :
-        glyphs(glyphIds), textIndices(offsets), advances(ws), xpos(xs)
+             SimpleArray<float> xs,
+             SimpleArray<rive::Vec2D> offs) :
+        glyphs(glyphIds), textIndices(offsets), advances(ws), xpos(xs), offsets(offs)
     {}
 
     rcp<Font> font;
@@ -198,6 +203,9 @@ struct GlyphRun
     // X position of each glyph, with an extra value at the end for the right most extent of the
     // last glyph.
     SimpleArray<float> xpos;
+
+    // X and Y offset each glyphs draws at relative to its baseline and advance position.
+    SimpleArray<rive::Vec2D> offsets;
 
     // List of possible indices to line break at. Has a stride of 2 uint32_ts where each pair marks
     // the start and end of a word, with the exception of a return character (forced linebreak)

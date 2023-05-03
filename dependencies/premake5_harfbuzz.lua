@@ -1,6 +1,6 @@
 require 'setup_compiler'
 local dependency = require 'dependency'
-harfbuzz = dependency.github('harfbuzz/harfbuzz', '858570b1d9912a1b746ab39fbe62a646c4f7a5b1')
+harfbuzz = dependency.github('harfbuzz/harfbuzz', '6.0.0')
 
 workspace 'rive'
 configurations {'debug', 'release'}
@@ -137,33 +137,33 @@ do
         harfbuzz .. '/src/hb-ot-post-macroman.hh',
         harfbuzz .. '/src/hb-ot-post-table-v2subset.hh',
         harfbuzz .. '/src/hb-ot-post-table.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-arabic-fallback.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-arabic-joining-list.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-arabic-table.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-arabic.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-arabic.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-default.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-hangul.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-hebrew.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-indic-machine.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-indic-table.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-indic.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-indic.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-khmer-machine.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-khmer.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-khmer.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-myanmar-machine.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-myanmar.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-myanmar.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-syllabic.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-syllabic.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-thai.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-use-machine.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-use-table.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex-use.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-vowel-constraints.cc',
-        harfbuzz .. '/src/hb-ot-shape-complex-vowel-constraints.hh',
-        harfbuzz .. '/src/hb-ot-shape-complex.hh',
+        harfbuzz .. '/src/hb-ot-shaper-arabic-fallback.hh',
+        harfbuzz .. '/src/hb-ot-shaper-arabic-joining-list.hh',
+        harfbuzz .. '/src/hb-ot-shaper-arabic-pua.hh',
+        harfbuzz .. '/src/hb-ot-shaper-arabic-table.hh',
+        harfbuzz .. '/src/hb-ot-shaper-arabic-win1256.hh',
+        harfbuzz .. '/src/hb-ot-shaper-arabic.cc',
+        harfbuzz .. '/src/hb-ot-shaper-arabic.hh',
+        harfbuzz .. '/src/hb-ot-shaper-default.cc',
+        harfbuzz .. '/src/hb-ot-shaper-hangul.cc',
+        harfbuzz .. '/src/hb-ot-shaper-hebrew.cc',
+        harfbuzz .. '/src/hb-ot-shaper-indic-table.cc',
+        harfbuzz .. '/src/hb-ot-shaper-indic.cc',
+        harfbuzz .. '/src/hb-ot-shaper-indic.hh',
+        harfbuzz .. '/src/hb-ot-shaper-khmer.cc',
+        harfbuzz .. '/src/hb-ot-shaper-myanmar.cc',
+        harfbuzz .. '/src/hb-ot-shaper-syllabic.cc',
+        harfbuzz .. '/src/hb-ot-shaper-syllabic.hh',
+        harfbuzz .. '/src/hb-ot-shaper-thai.cc',
+        harfbuzz .. '/src/hb-ot-shaper-use-table.hh',
+        harfbuzz .. '/src/hb-ot-shaper-use.cc',
+        harfbuzz .. '/src/hb-ot-shaper-vowel-constraints.cc',
+        harfbuzz .. '/src/hb-ot-shaper-vowel-constraints.hh',
+        harfbuzz .. '/src/hb-ot-shaper.hh',
+        harfbuzz .. '/src/hb-ot-shaper-indic-machine.hh',
+        harfbuzz .. '/src/hb-ot-shaper-khmer-machine.hh',
+        harfbuzz .. '/src/hb-ot-shaper-myanmar-machine.hh',
+        harfbuzz .. '/src/hb-ot-shaper-use-machine.hh',
         harfbuzz .. '/src/hb-ot-shape-fallback.cc',
         harfbuzz .. '/src/hb-ot-shape-fallback.hh',
         harfbuzz .. '/src/hb-ot-shape-normalize.cc',
@@ -219,7 +219,8 @@ do
         harfbuzz .. '/src/hb-unicode.hh',
         harfbuzz .. '/src/hb-utf.hh',
         harfbuzz .. '/src/hb-vector.hh',
-        harfbuzz .. '/src/hb.hh'
+        harfbuzz .. '/src/hb.hh',
+        harfbuzz .. '/src/graph/gsubgpos-context.cc'
     }
 
     exceptionhandling 'off'
@@ -233,9 +234,9 @@ do
         'HB_NO_WIN1256'
     }
 
-    filter "system:emscripten"
+    filter 'system:emscripten'
     do
-        buildoptions {"-pthread"}
+        buildoptions {'-pthread'}
     end
 
     filter 'toolset:clang'
