@@ -41,6 +41,11 @@ void UnpackColorToRGBA32FPremul(ColorInt color, float out[4])
 
 float colorOpacity(ColorInt value) { return (float)colorAlpha(value) / 0xFF; }
 
+static uint8_t opacityToAlpha(float opacity)
+{
+    return (uint8_t)std::lround(255.f * std::max(0.0f, std::min(1.0f, opacity)));
+}
+
 ColorInt colorWithAlpha(ColorInt value, unsigned int a)
 {
     return colorARGB(a, colorRed(value), colorGreen(value), colorBlue(value));
@@ -48,12 +53,12 @@ ColorInt colorWithAlpha(ColorInt value, unsigned int a)
 
 ColorInt colorWithOpacity(ColorInt value, float opacity)
 {
-    return colorWithAlpha(value, std::lround(255.f * opacity));
+    return colorWithAlpha(value, opacityToAlpha(opacity));
 }
 
 ColorInt colorModulateOpacity(ColorInt value, float opacity)
 {
-    return colorWithAlpha(value, std::lround(255.f * colorOpacity(value) * opacity));
+    return colorWithAlpha(value, opacityToAlpha(colorOpacity(value) * opacity));
 }
 
 static unsigned int lerp(unsigned int a, unsigned int b, float mix)
