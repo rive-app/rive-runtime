@@ -26,6 +26,7 @@ class ArtboardInstance;
 class LinearAnimationInstance;
 class Scene;
 class StateMachineInstance;
+class Joystick;
 
 class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer
 {
@@ -41,6 +42,7 @@ private:
     std::vector<Drawable*> m_Drawables;
     std::vector<DrawTarget*> m_DrawTargets;
     std::vector<NestedArtboard*> m_NestedArtboards;
+    std::vector<Joystick*> m_Joysticks;
 
     unsigned int m_DirtDepth = 0;
     std::unique_ptr<RenderPath> m_BackgroundPath;
@@ -62,7 +64,6 @@ public:
     void addObject(Core* object);
     void addAnimation(LinearAnimation* object);
     void addStateMachine(StateMachine* object);
-    void addNestedArtboard(NestedArtboard* object);
 
 public:
     Artboard() {}

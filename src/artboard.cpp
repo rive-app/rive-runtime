@@ -15,6 +15,7 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/joystick.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/shapes/shape.hpp"
 
@@ -146,6 +147,10 @@ StatusCode Artboard::initialize()
             }
             case NestedArtboardBase::typeKey:
                 m_NestedArtboards.push_back(object->as<NestedArtboard>());
+                break;
+
+            case JoystickBase::typeKey:
+                m_Joysticks.push_back(object->as<Joystick>());
                 break;
         }
     }
@@ -356,11 +361,6 @@ void Artboard::addAnimation(LinearAnimation* object) { m_Animations.push_back(ob
 
 void Artboard::addStateMachine(StateMachine* object) { m_StateMachines.push_back(object); }
 
-void Artboard::addNestedArtboard(NestedArtboard* artboard)
-{
-    m_NestedArtboards.push_back(artboard);
-}
-
 Core* Artboard::resolve(uint32_t id) const
 {
     if (id >= static_cast<int>(m_Objects.size()))
@@ -465,6 +465,11 @@ bool Artboard::updateComponents()
 
 bool Artboard::advance(double elapsedSeconds)
 {
+    for (auto joystick : m_Joysticks)
+    {
+        joystick->apply(this);
+    }
+
     bool didUpdate = updateComponents();
     for (auto nestedArtboard : m_NestedArtboards)
     {

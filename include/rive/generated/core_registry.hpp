@@ -87,6 +87,7 @@
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
+#include "rive/joystick.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
@@ -285,6 +286,8 @@ public:
                 return new DrawRules();
             case ArtboardBase::typeKey:
                 return new Artboard();
+            case JoystickBase::typeKey:
+                return new Joystick();
             case BackboardBase::typeKey:
                 return new Backboard();
             case WeightBase::typeKey:
@@ -507,6 +510,12 @@ public:
                 break;
             case ArtboardBase::defaultStateMachineIdPropertyKey:
                 object->as<ArtboardBase>()->defaultStateMachineId(value);
+                break;
+            case JoystickBase::xIdPropertyKey:
+                object->as<JoystickBase>()->xId(value);
+                break;
+            case JoystickBase::yIdPropertyKey:
+                object->as<JoystickBase>()->yId(value);
                 break;
             case WeightBase::valuesPropertyKey:
                 object->as<WeightBase>()->values(value);
@@ -765,6 +774,12 @@ public:
                 break;
             case ArtboardBase::originYPropertyKey:
                 object->as<ArtboardBase>()->originY(value);
+                break;
+            case JoystickBase::xPropertyKey:
+                object->as<JoystickBase>()->x(value);
+                break;
+            case JoystickBase::yPropertyKey:
+                object->as<JoystickBase>()->y(value);
                 break;
             case BoneBase::lengthPropertyKey:
                 object->as<BoneBase>()->length(value);
@@ -1040,6 +1055,10 @@ public:
                 return object->as<DrawRulesBase>()->drawTargetId();
             case ArtboardBase::defaultStateMachineIdPropertyKey:
                 return object->as<ArtboardBase>()->defaultStateMachineId();
+            case JoystickBase::xIdPropertyKey:
+                return object->as<JoystickBase>()->xId();
+            case JoystickBase::yIdPropertyKey:
+                return object->as<JoystickBase>()->yId();
             case WeightBase::valuesPropertyKey:
                 return object->as<WeightBase>()->values();
             case WeightBase::indicesPropertyKey:
@@ -1215,6 +1234,10 @@ public:
                 return object->as<ArtboardBase>()->originX();
             case ArtboardBase::originYPropertyKey:
                 return object->as<ArtboardBase>()->originY();
+            case JoystickBase::xPropertyKey:
+                return object->as<JoystickBase>()->x();
+            case JoystickBase::yPropertyKey:
+                return object->as<JoystickBase>()->y();
             case BoneBase::lengthPropertyKey:
                 return object->as<BoneBase>()->length();
             case RootBoneBase::xPropertyKey:
@@ -1383,6 +1406,8 @@ public:
             case ImageBase::assetIdPropertyKey:
             case DrawRulesBase::drawTargetIdPropertyKey:
             case ArtboardBase::defaultStateMachineIdPropertyKey:
+            case JoystickBase::xIdPropertyKey:
+            case JoystickBase::yIdPropertyKey:
             case WeightBase::valuesPropertyKey:
             case WeightBase::indicesPropertyKey:
             case TendonBase::boneIdPropertyKey:
@@ -1468,6 +1493,8 @@ public:
             case ArtboardBase::yPropertyKey:
             case ArtboardBase::originXPropertyKey:
             case ArtboardBase::originYPropertyKey:
+            case JoystickBase::xPropertyKey:
+            case JoystickBase::yPropertyKey:
             case BoneBase::lengthPropertyKey:
             case RootBoneBase::xPropertyKey:
             case RootBoneBase::yPropertyKey:
