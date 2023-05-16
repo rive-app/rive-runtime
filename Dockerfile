@@ -1,4 +1,4 @@
-FROM google/dart
+FROM dart:stable
 
 RUN apt update && apt-get -y install unzip zip clang cmake ninja-build pkg-config libgtk-3-dev xvfb cargo wget g++
 RUN wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha15/premake-5.0.0-alpha15-linux.tar.gz
