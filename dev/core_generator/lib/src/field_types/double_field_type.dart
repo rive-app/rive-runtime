@@ -7,7 +7,7 @@ class DoubleFieldType extends FieldType {
   String get defaultValue => '0.0f';
 
   @override
-  String convertCpp(String value) {
+  String? convertCpp(String value) {
     var result = value;
     if (result.isNotEmpty) {
       if (result[result.length - 1] != 'f') {

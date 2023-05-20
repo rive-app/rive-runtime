@@ -11,7 +11,7 @@ class StringFieldType extends FieldType {
   String get cppGetterName => 'const std::string&';
 
   @override
-  String convertCpp(String value) {
+  String? convertCpp(String value) {
     var result = value;
     if (result.length > 1) {
       if (result[0] == '\'') {

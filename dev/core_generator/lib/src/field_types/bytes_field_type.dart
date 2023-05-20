@@ -16,7 +16,7 @@ class BytesFieldType extends FieldType {
   String get cppGetterName => 'Span<const uint8_t>';
 
   @override
-  String convertCpp(String value) {
+  String? convertCpp(String value) {
     return null;
   }
 }

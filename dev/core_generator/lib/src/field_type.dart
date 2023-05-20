@@ -8,26 +8,25 @@ Map<String, FieldType> _types = <String, FieldType>{};
 
 abstract class FieldType {
   final String name;
-  String _cppName;
-  final String include;
-  String get cppName => _cppName;
-  String get cppGetterName => _cppName;
+  String? _cppName;
+  final String? include;
+  String? get cppName => _cppName;
+  String? get cppGetterName => _cppName;
 
-  String _runtimeCoreType;
+  final String _runtimeCoreType;
   String get runtimeCoreType => _runtimeCoreType;
 
   FieldType(
     this.name,
-    String runtimeCoreType, {
-    String cppName,
+    this._runtimeCoreType, {
+    String? cppName,
     this.include,
   }) {
     _cppName = cppName ?? name;
-    _runtimeCoreType = runtimeCoreType;
     _types[name] = this;
   }
 
-  static FieldType find(dynamic key) {
+  static FieldType? find(dynamic key) {
     if (key is! String) {
       return null;
     }
@@ -40,10 +39,10 @@ abstract class FieldType {
   }
 
   String equalityCheck(String varAName, String varBName) {
-    return "$varAName == $varBName";
+    return '$varAName == $varBName';
   }
 
-  String get defaultValue => null;
+  String? get defaultValue => null;
 
   String get uncapitalizedName => '${name[0].toLowerCase()}${name.substring(1)}'
       .replaceAll('<', '')
@@ -61,5 +60,5 @@ abstract class FieldType {
       .replaceAllMapped(RegExp('(.+?)([A-Z])'), (Match m) => '${m[1]}_${m[2]}')
       .toLowerCase();
 
-  String convertCpp(String value) => value;
+  String? convertCpp(String value) => value;
 }

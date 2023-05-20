@@ -90,6 +90,12 @@ public:
     static void join(AABB& out, const AABB& a, const AABB& b);
 
     void expand(const AABB& other) { join(*this, *this, other); }
+
+    Vec2D factorFrom(Vec2D point) const
+    {
+        return Vec2D((point.x - left()) * 2.0f / width() - 1.0f,
+                     (point.y - top()) * 2.0f / height() - 1.0f);
+    }
 };
 
 } // namespace rive

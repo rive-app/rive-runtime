@@ -7,22 +7,23 @@ class Property {
   final String name;
   final FieldType type;
   final Definition definition;
-  String initialValue;
-  String initialValueRuntime;
+  String? initialValue;
+  String? initialValueRuntime;
   bool isVirtual = false;
   bool animates = false;
-  String group;
-  Key key;
-  String description;
+  String? group;
+  Key? key;
+  String? description;
   bool isNullable = false;
   bool isRuntime = true;
   bool isCoop = true;
   bool isSetOverride = false;
   bool isGetOverride = false;
   bool isEncoded = false;
-  FieldType typeRuntime;
+  FieldType? typeRuntime;
 
-  factory Property(Definition type, String name, Map<String, dynamic> data) {
+  static Property? make(
+      Definition type, String name, Map<String, dynamic> data) {
     if (data['runtime'] is bool && data['runtime'] == false) {
       return null;
     }
@@ -34,11 +35,10 @@ class Property {
       color('Invalid field type ${data['type']} for $name.', front: Styles.RED);
       return null;
     }
-    return Property.make(type, name, fieldType, data);
+    return Property(type, name, fieldType, data);
   }
 
-  Property.make(
-      this.definition, this.name, this.type, Map<String, dynamic> data) {
+  Property(this.definition, this.name, this.type, Map<String, dynamic> data) {
     dynamic encodedValue = data['encoded'];
     if (encodedValue is bool) {
       isEncoded = encodedValue;
@@ -99,9 +99,7 @@ class Property {
   FieldType getExportType() => typeRuntime ?? type;
 
   @override
-  String toString() {
-    return '$name(${key.intValue})';
-  }
+  String toString() => '$name(${key?.intValue})';
 
   String get capitalizedName => '${name[0].toUpperCase()}${name.substring(1)}'
       .replaceAll('<', '')

@@ -43,6 +43,7 @@ private:
     std::vector<DrawTarget*> m_DrawTargets;
     std::vector<NestedArtboard*> m_NestedArtboards;
     std::vector<Joystick*> m_Joysticks;
+    bool m_JoysticksApplyBeforeUpdate = true;
 
     unsigned int m_DirtDepth = 0;
     std::unique_ptr<RenderPath> m_BackgroundPath;

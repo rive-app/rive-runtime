@@ -19,20 +19,20 @@ class Definition {
   final String _filename;
   static final _formatter = CppFormatter();
 
-  String _name;
+  String? _name;
   final List<Property> _properties = [];
 
   List<Property> get properties => _properties
       .where((property) => property.isRuntime)
       .toList(growable: false);
 
-  Definition _extensionOf;
-  Key _key;
+  Definition? _extensionOf;
+  Key? _key;
   bool _isAbstract = false;
   bool _editorOnly = false;
   bool _forRuntime = true;
   bool get forRuntime => _forRuntime;
-  factory Definition(String filename) {
+  static Definition? make(String filename) {
     var definition = definitions[filename];
     if (definition != null) {
       return definition;
@@ -40,7 +40,7 @@ class Definition {
 
     var file = File(defsPath + filename);
     var contents = file.readAsStringSync();
-    Map<String, dynamic> definitionData;
+    late Map<String, dynamic> definitionData;
     try {
       dynamic parsedJson = json.decode(contents);
       if (parsedJson is Map<String, dynamic>) {
@@ -54,10 +54,11 @@ class Definition {
         definition = Definition.fromFilename(filename, definitionData);
     return definition;
   }
+
   Definition.fromFilename(this._filename, Map<String, dynamic> data) {
     dynamic extendsFilename = data['extends'];
     if (extendsFilename is String) {
-      _extensionOf = Definition(extendsFilename);
+      _extensionOf = Definition.make(extendsFilename);
     }
     dynamic nameValue = data['name'];
     if (nameValue is String) {
@@ -81,8 +82,8 @@ class Definition {
     if (properties is Map<String, dynamic>) {
       for (final MapEntry<String, dynamic> entry in properties.entries) {
         if (entry.value is Map<String, dynamic>) {
-          var property =
-              Property(this, entry.key, entry.value as Map<String, dynamic>);
+          var property = Property.make(
+              this, entry.key, entry.value as Map<String, dynamic>);
           if (property == null) {
             continue;
           }
@@ -95,7 +96,7 @@ class Definition {
       ? _filename.substring(defsPath.length)
       : _filename;
 
-  String get name => _name;
+  String? get name => _name;
 
   String get localCodeFilename => '${stripExtension(_filename)}_base.hpp';
   String get concreteCodeFilename => 'rive/${stripExtension(_filename)}.hpp';
@@ -112,11 +113,12 @@ class Definition {
     var includes = <String>{
       defineContextExtension
           ? 'rive/core.hpp'
-          : _extensionOf.concreteCodeFilename
+          : _extensionOf!.concreteCodeFilename
     };
     for (final property in properties) {
-      if (property.type.include != null) {
-        includes.add(property.type.include);
+      var include = property.type.include;
+      if (include != null) {
+        includes.add(include);
       }
       includes.add('rive/core/field_types/' +
           property.type.snakeRuntimeCoreName +
@@ -141,7 +143,7 @@ class Definition {
     code.writeln('protected:');
     code.writeln('typedef $superTypeName Super;');
     code.writeln('public:');
-    code.writeln('static const uint16_t typeKey = ${_key.intValue};\n');
+    code.writeln('static const uint16_t typeKey = ${_key!.intValue};\n');
 
     code.write(comment(
         'Helper to quickly determine if a core object extends another '
@@ -163,7 +165,7 @@ class Definition {
     if (properties.isNotEmpty) {
       for (final property in properties) {
         code.writeln('static const uint16_t ${property.name}PropertyKey = '
-            '${property.key.intValue};');
+            '${property.key!.intValue};');
       }
       if (properties.any((prop) => !prop.isEncoded)) {
         code.writeln('private:');
@@ -244,7 +246,7 @@ class Definition {
         }
       }
       if (_extensionOf != null) {
-        code.writeln('${_extensionOf.name}::'
+        code.writeln('${_extensionOf!.name}::'
             'copy(object); ');
       }
       code.writeln('}');
@@ -269,7 +271,7 @@ class Definition {
         code.writeln('}');
       }
       if (_extensionOf != null) {
-        code.writeln('return ${_extensionOf.name}::'
+        code.writeln('return ${_extensionOf!.name}::'
             'deserialize(propertyKey, reader); }');
       } else {
         code.writeln('return false; }');
@@ -306,7 +308,7 @@ class Definition {
       concreteCode.writeln('}');
 
       var formattedCode =
-          await _formatter.formatAndGuard(_name, concreteCode.toString());
+          await _formatter.formatAndGuard(_name!, concreteCode.toString());
       concreteFile.writeAsStringSync(formattedCode, flush: true);
     }
     if (!_isAbstract) {
@@ -341,34 +343,34 @@ class Definition {
     Map<int, Property> properties = {};
     for (final definition in definitions.values) {
       if (definition._key?.intValue != null) {
-        var other = ids[definition._key.intValue];
+        var other = ids[definition._key!.intValue];
         if (other != null) {
           color('Duplicate type ids for $definition and $other.',
               front: Styles.RED);
           runGenerator = false;
         } else {
-          ids[definition._key.intValue] = definition;
+          ids[definition._key!.intValue!] = definition;
         }
       }
       for (final property in definition._properties) {
-        if (property.key.isMissing) {
+        if (property.key!.isMissing) {
           continue;
         }
-        var other = properties[property.key.intValue];
+        var other = properties[property.key!.intValue];
         if (other != null) {
           color(
               '''Duplicate field ids for ${property.definition}.$property '''
               '''and ${other.definition}.$other.''',
               front: Styles.RED);
           runGenerator = false;
-        } else if (property.key.intValue < minPropertyId) {
+        } else if (property.key!.intValue! < minPropertyId) {
           color(
               '${property.definition}.$property: ids less than '
               '$minPropertyId are reserved.',
               front: Styles.RED);
           runGenerator = false;
         } else {
-          properties[property.key.intValue] = property;
+          properties[property.key!.intValue!] = property;
         }
       }
     }
@@ -377,16 +379,14 @@ class Definition {
     int nextFieldId = minPropertyId - 1;
     int nextId = 0;
     for (final definition in definitions.values) {
-      if (definition._key != null &&
-          definition._key.intValue != null &&
-          definition._key.intValue > nextId) {
-        nextId = definition._key.intValue;
+      var intValue = definition._key?.intValue;
+      if (intValue != null && intValue > nextId) {
+        nextId = intValue;
       }
       for (final field in definition._properties) {
-        if (field != null &&
-            field.key.intValue != null &&
-            field.key.intValue > nextFieldId) {
-          nextFieldId = field.key.intValue;
+        var intValue = field.key?.intValue;
+        if (intValue != null && intValue > nextFieldId) {
+          nextFieldId = intValue;
         }
       }
     }
@@ -440,10 +440,10 @@ class Definition {
     for (final definition in runtimeDefinitions) {
       for (final property in definition.properties) {
         usedFieldTypes[property.type] ??= [];
-        usedFieldTypes[property.type].add(property);
+        usedFieldTypes[property.type]!.add(property);
         if (!property.isEncoded) {
           getSetFieldTypes[property.type] ??= [];
-          getSetFieldTypes[property.type].add(property);
+          getSetFieldTypes[property.type]!.add(property);
         }
       }
     }
@@ -453,12 +453,14 @@ class Definition {
               'int propertyKey, ${fieldType.cppName} value){');
       ctxCode.writeln('switch (propertyKey) {');
       var properties = getSetFieldTypes[fieldType];
-      for (final property in properties) {
-        ctxCode.writeln('case ${property.definition.name}Base'
-            '::${property.name}PropertyKey:');
-        ctxCode.writeln('object->as<${property.definition.name}Base>()->'
-            '${property.name}(value);');
-        ctxCode.writeln('break;');
+      if (properties != null) {
+        for (final property in properties) {
+          ctxCode.writeln('case ${property.definition.name}Base'
+              '::${property.name}PropertyKey:');
+          ctxCode.writeln('object->as<${property.definition.name}Base>()->'
+              '${property.name}(value);');
+          ctxCode.writeln('break;');
+        }
       }
       ctxCode.writeln('}}');
     }
@@ -468,11 +470,14 @@ class Definition {
           'Core* object, int propertyKey){');
       ctxCode.writeln('switch (propertyKey) {');
       var properties = getSetFieldTypes[fieldType];
-      for (final property in properties) {
-        ctxCode.writeln('case ${property.definition.name}Base'
-            '::${property.name}PropertyKey:');
-        ctxCode.writeln('return object->as<${property.definition.name}Base>()->'
-            '${property.name}();');
+      if (properties != null) {
+        for (final property in properties) {
+          ctxCode.writeln('case ${property.definition.name}Base'
+              '::${property.name}PropertyKey:');
+          ctxCode
+              .writeln('return object->as<${property.definition.name}Base>()->'
+                  '${property.name}();');
+        }
       }
       ctxCode.writeln('}');
       ctxCode.writeln('return ${fieldType.defaultValue ?? 'nullptr'};');
@@ -484,9 +489,11 @@ class Definition {
 
     for (final fieldType in usedFieldTypes.keys) {
       var properties = usedFieldTypes[fieldType];
-      for (final property in properties) {
-        ctxCode.writeln('case ${property.definition.name}Base'
-            '::${property.name}PropertyKey:');
+      if (properties != null) {
+        for (final property in properties) {
+          ctxCode.writeln('case ${property.definition.name}Base'
+              '::${property.name}PropertyKey:');
+        }
       }
       ctxCode.writeln('return Core${fieldType.capitalizedName}Type::id;');
     }
@@ -496,10 +503,9 @@ class Definition {
     ctxCode.writeln('};}');
 
     var output = generatedHppPath;
-    var folder =
-        output != null && output.isNotEmpty && output[output.length - 1] == '/'
-            ? output.substring(0, output.length - 1)
-            : output;
+    var folder = output.isNotEmpty && output[output.length - 1] == '/'
+        ? output.substring(0, output.length - 1)
+        : output;
 
     var file = File('$folder/core_registry.hpp');
     file.createSync(recursive: true);

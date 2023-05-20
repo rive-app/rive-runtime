@@ -2,14 +2,14 @@ import 'definition.dart';
 import 'property.dart';
 
 class Key {
-  final String stringValue;
-  final int intValue;
+  final String? stringValue;
+  final int? intValue;
 
   bool get isMissing => intValue == null;
 
   Key(this.stringValue, this.intValue);
   Key.forDefinition(Definition def)
-      : stringValue = def.name.toLowerCase(),
+      : stringValue = def.name?.toLowerCase(),
         intValue = null;
   Key.forProperty(Property field)
       : stringValue = field.name.toLowerCase(),
@@ -17,7 +17,7 @@ class Key {
 
   Key withIntValue(int id) => Key(stringValue, id);
 
-  factory Key.fromJSON(dynamic data) {
+  static Key? fromJSON(dynamic data) {
     if (data is! Map<String, dynamic>) {
       return null;
     }

@@ -517,6 +517,12 @@ public:
             case JoystickBase::yIdPropertyKey:
                 object->as<JoystickBase>()->yId(value);
                 break;
+            case JoystickBase::joystickFlagsPropertyKey:
+                object->as<JoystickBase>()->joystickFlags(value);
+                break;
+            case JoystickBase::handleSourceIdPropertyKey:
+                object->as<JoystickBase>()->handleSourceId(value);
+                break;
             case WeightBase::valuesPropertyKey:
                 object->as<WeightBase>()->values(value);
                 break;
@@ -780,6 +786,24 @@ public:
                 break;
             case JoystickBase::yPropertyKey:
                 object->as<JoystickBase>()->y(value);
+                break;
+            case JoystickBase::posXPropertyKey:
+                object->as<JoystickBase>()->posX(value);
+                break;
+            case JoystickBase::posYPropertyKey:
+                object->as<JoystickBase>()->posY(value);
+                break;
+            case JoystickBase::originXPropertyKey:
+                object->as<JoystickBase>()->originX(value);
+                break;
+            case JoystickBase::originYPropertyKey:
+                object->as<JoystickBase>()->originY(value);
+                break;
+            case JoystickBase::widthPropertyKey:
+                object->as<JoystickBase>()->width(value);
+                break;
+            case JoystickBase::heightPropertyKey:
+                object->as<JoystickBase>()->height(value);
                 break;
             case BoneBase::lengthPropertyKey:
                 object->as<BoneBase>()->length(value);
@@ -1059,6 +1083,10 @@ public:
                 return object->as<JoystickBase>()->xId();
             case JoystickBase::yIdPropertyKey:
                 return object->as<JoystickBase>()->yId();
+            case JoystickBase::joystickFlagsPropertyKey:
+                return object->as<JoystickBase>()->joystickFlags();
+            case JoystickBase::handleSourceIdPropertyKey:
+                return object->as<JoystickBase>()->handleSourceId();
             case WeightBase::valuesPropertyKey:
                 return object->as<WeightBase>()->values();
             case WeightBase::indicesPropertyKey:
@@ -1238,6 +1266,18 @@ public:
                 return object->as<JoystickBase>()->x();
             case JoystickBase::yPropertyKey:
                 return object->as<JoystickBase>()->y();
+            case JoystickBase::posXPropertyKey:
+                return object->as<JoystickBase>()->posX();
+            case JoystickBase::posYPropertyKey:
+                return object->as<JoystickBase>()->posY();
+            case JoystickBase::originXPropertyKey:
+                return object->as<JoystickBase>()->originX();
+            case JoystickBase::originYPropertyKey:
+                return object->as<JoystickBase>()->originY();
+            case JoystickBase::widthPropertyKey:
+                return object->as<JoystickBase>()->width();
+            case JoystickBase::heightPropertyKey:
+                return object->as<JoystickBase>()->height();
             case BoneBase::lengthPropertyKey:
                 return object->as<BoneBase>()->length();
             case RootBoneBase::xPropertyKey:
@@ -1408,6 +1448,8 @@ public:
             case ArtboardBase::defaultStateMachineIdPropertyKey:
             case JoystickBase::xIdPropertyKey:
             case JoystickBase::yIdPropertyKey:
+            case JoystickBase::joystickFlagsPropertyKey:
+            case JoystickBase::handleSourceIdPropertyKey:
             case WeightBase::valuesPropertyKey:
             case WeightBase::indicesPropertyKey:
             case TendonBase::boneIdPropertyKey:
@@ -1495,6 +1537,12 @@ public:
             case ArtboardBase::originYPropertyKey:
             case JoystickBase::xPropertyKey:
             case JoystickBase::yPropertyKey:
+            case JoystickBase::posXPropertyKey:
+            case JoystickBase::posYPropertyKey:
+            case JoystickBase::originXPropertyKey:
+            case JoystickBase::originYPropertyKey:
+            case JoystickBase::widthPropertyKey:
+            case JoystickBase::heightPropertyKey:
             case BoneBase::lengthPropertyKey:
             case RootBoneBase::xPropertyKey:
             case RootBoneBase::yPropertyKey:

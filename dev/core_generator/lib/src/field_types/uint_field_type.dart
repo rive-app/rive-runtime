@@ -13,5 +13,6 @@ class UintFieldType extends FieldType {
 
   // We do this to fix up CoreContext.invalidProperyKey
   @override
-  String convertCpp(String value) => value.replaceAll('CoreContext.', 'Core::');
+  String? convertCpp(String value) =>
+      value.replaceAll('CoreContext.', 'Core::');
 }

@@ -32,8 +32,7 @@
       "key": {
         "int": 303,
         "string": "posx"
-      },
-      "runtime": false
+      }
     },
     "posY": {
       "type": "double",
@@ -41,8 +40,7 @@
       "key": {
         "int": 304,
         "string": "posy"
-      },
-      "runtime": false
+      }
     },
     "originX": {
       "type": "double",
@@ -51,8 +49,7 @@
         "int": 307,
         "string": "originx"
       },
-      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right).",
-      "runtime": false
+      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right)."
     },
     "originY": {
       "type": "double",
@@ -61,8 +58,7 @@
         "int": 308,
         "string": "originy"
       },
-      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom).",
-      "runtime": false
+      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
     },
     "width": {
       "type": "double",
@@ -70,8 +66,7 @@
       "key": {
         "int": 305,
         "string": "width"
-      },
-      "runtime": false
+      }
     },
     "height": {
       "type": "double",
@@ -79,8 +74,7 @@
       "key": {
         "int": 306,
         "string": "height"
-      },
-      "runtime": false
+      }
     },
     "xId": {
       "type": "Id",
@@ -103,6 +97,25 @@
         "string": "y_id"
       },
       "description": "Identifier used to track the animation used for the y axis of the joystick."
+    },
+    "joystickFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 312,
+        "string": "joystickflags"
+      }
+    },
+    "handleSourceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 313,
+        "string": "handlesourceid"
+      },
+      "description": "Identifier used to track the custom handle source of the joystick."
     }
   }
 }

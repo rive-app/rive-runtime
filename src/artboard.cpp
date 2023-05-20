@@ -150,8 +150,15 @@ StatusCode Artboard::initialize()
                 break;
 
             case JoystickBase::typeKey:
-                m_Joysticks.push_back(object->as<Joystick>());
+            {
+                Joystick* joystick = object->as<Joystick>();
+                if (!joystick->canApplyBeforeUpdate())
+                {
+                    m_JoysticksApplyBeforeUpdate = false;
+                }
+                m_Joysticks.push_back(joystick);
                 break;
+            }
         }
     }
 
@@ -465,12 +472,23 @@ bool Artboard::updateComponents()
 
 bool Artboard::advance(double elapsedSeconds)
 {
-    for (auto joystick : m_Joysticks)
+    if (m_JoysticksApplyBeforeUpdate)
     {
-        joystick->apply(this);
+        for (auto joystick : m_Joysticks)
+        {
+            joystick->apply(this);
+        }
     }
 
     bool didUpdate = updateComponents();
+    if (!m_JoysticksApplyBeforeUpdate)
+    {
+        for (auto joystick : m_Joysticks)
+        {
+            joystick->apply(this);
+        }
+        updateComponents();
+    }
     for (auto nestedArtboard : m_NestedArtboards)
     {
         if (nestedArtboard->advance((float)elapsedSeconds))
