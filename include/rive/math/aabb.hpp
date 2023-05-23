@@ -93,8 +93,8 @@ public:
 
     Vec2D factorFrom(Vec2D point) const
     {
-        return Vec2D((point.x - left()) * 2.0f / width() - 1.0f,
-                     (point.y - top()) * 2.0f / height() - 1.0f);
+        return Vec2D(width() == 0.0f ? 0.0f : (point.x - left()) * 2.0f / width() - 1.0f,
+                     (height() == 0.0f ? 0.0f : point.y - top()) * 2.0f / height() - 1.0f);
     }
 };
 

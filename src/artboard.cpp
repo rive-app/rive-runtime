@@ -485,9 +485,19 @@ bool Artboard::advance(double elapsedSeconds)
     {
         for (auto joystick : m_Joysticks)
         {
+            if (!joystick->canApplyBeforeUpdate())
+            {
+                if (updateComponents())
+                {
+                    didUpdate = true;
+                }
+            }
             joystick->apply(this);
         }
-        updateComponents();
+        if (updateComponents())
+        {
+            didUpdate = true;
+        }
     }
     for (auto nestedArtboard : m_NestedArtboards)
     {
