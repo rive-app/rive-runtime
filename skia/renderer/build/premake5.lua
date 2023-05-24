@@ -48,6 +48,15 @@ do
         links {'Cocoa.framework', 'rive', 'skia'}
     end
 
+    filter {'system:macosx', 'options:variant=runtime'}
+    do
+        links {}
+        buildoptions {
+            '-fembed-bitcode -arch arm64 -arch x86_64 -isysroot ' ..
+                (os.getenv('MACOS_SYSROOT') or '')
+        }
+    end
+
     filter {'system:linux or windows'}
     do
         includedirs {SKIA_DIR}
@@ -158,7 +167,8 @@ newoption {
     description = 'Choose a particular variant to build',
     allowed = {
         {'system', 'Builds the static library for the provided system'},
-        {'emulator', 'Builds for an emulator/simulator for the provided system'}
+        {'emulator', 'Builds for an emulator/simulator for the provided system'},
+        {'runtime', 'Build the static library specifically targeting our runtimes'}
     },
     default = 'system'
 }

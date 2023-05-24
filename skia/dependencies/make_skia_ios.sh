@@ -8,26 +8,28 @@ source ./cache_helper.sh
 
 build_skia_ios(){
     cd $SKIA_DIR_NAME
+
+    BASE=out/ios
     case $1 in 
         arm64) 
             ARCH=arm64
-            FOLDER=arm64
+            FOLDER=$BASE/arm64
             ;;
         arm) 
             ARCH=arm
-            FOLDER=arm
+            FOLDER=$BASE/arm
             ;;
         x86) 
             ARCH=x86
-            FOLDER=x86
+            FOLDER=$BASE/x86
             ;;
         x64) 
             ARCH=x64
-            FOLDER=x64
+            FOLDER=$BASE/x64
             ;;
         iossim_arm64) 
             ARCH=arm64
-            FOLDER=iossim_arm64
+            FOLDER=$BASE/iossim_arm64
             EXTRA_CFLAGS=", \"--target=arm64-apple-ios12.0.0-simulator\""
             EXTRA_LDLAGS="\"--target=arm64-apple-ios12.0.0-simulator\""
             ;;
@@ -35,9 +37,10 @@ build_skia_ios(){
             echo "Do not know build configuration for $1"
             exit 1
     esac
+
     
     # use Rive optimized/stripped Skia for iOS static libs.
-    bin/gn gen out/$FOLDER --type=static_library --args="   \
+    bin/gn gen $FOLDER --type=static_library --args="   \
         target_os=\"ios\"                                   \
         target_cpu=\"$ARCH\"                                \
         extra_cflags=[                                      \
@@ -61,7 +64,7 @@ build_skia_ios(){
         ]                                                   \
 
         is_official_build=true \
-        skia_use_freetype=true \
+        skia_use_freetype=false \
         skia_use_metal=true \
         skia_use_zlib=true \
         skia_enable_gpu=true \
@@ -93,9 +96,10 @@ build_skia_ios(){
         skia_enable_spirv_validation=false \
         skia_enable_pdf=false \
         skia_enable_skottie=false \
+        skia_enable_tools=false \
         $OVERRIDES
         "
-    ninja -C out/$FOLDER
+    ninja -C $FOLDER
     cd ..
 }
 
@@ -108,7 +112,7 @@ else
         getSkia
         build_skia_ios $1
         # hmm not the appiest with this guy
-        OUTPUT_CACHE=out/$FOLDER upload_cache
+        OUTPUT_CACHE=$FOLDER upload_cache
     fi 
 fi
 

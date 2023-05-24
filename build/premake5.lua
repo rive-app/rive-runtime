@@ -47,14 +47,25 @@ do
             '-Wimplicit-float-conversion'
         }
     end
+
+    filter {'system:macosx', 'options:variant=runtime'}
+    do
+        buildoptions {
+            '-Wimplicit-float-conversion -fembed-bitcode -arch arm64 -arch x86_64 -isysroot ' ..
+                (os.getenv('MACOS_SYSROOT') or '')
+        }
+    end
+
     filter {'system:macosx', 'configurations:release'}
     do
         buildoptions {'-flto=full'}
     end
+
     filter {'system:ios'}
     do
         buildoptions {'-flto=full'}
     end
+
     filter 'system:windows'
     do
         architecture 'x64'
@@ -65,6 +76,7 @@ do
             '-fno-rtti'
         }
     end
+
     filter {'system:ios', 'options:variant=system'}
     do
         buildoptions {
@@ -72,6 +84,7 @@ do
                 (os.getenv('IOS_SYSROOT') or '')
         }
     end
+
     filter {'system:ios', 'options:variant=emulator'}
     do
         buildoptions {
@@ -98,11 +111,13 @@ do
         targetdir '%{cfg.system}/x64/bin/%{cfg.buildcfg}'
         objdir '%{cfg.system}/x64/obj/%{cfg.buildcfg}'
     end
+
     filter {'system:android', 'options:arch=arm'}
     do
         targetdir '%{cfg.system}/arm/bin/%{cfg.buildcfg}'
         objdir '%{cfg.system}/arm/obj/%{cfg.buildcfg}'
     end
+
     filter {'system:android', 'options:arch=arm64'}
     do
         targetdir '%{cfg.system}/arm64/bin/%{cfg.buildcfg}'
@@ -134,7 +149,8 @@ newoption {
     description = 'Choose a particular variant to build',
     allowed = {
         {'system', 'Builds the static library for the provided system'},
-        {'emulator', 'Builds for an emulator/simulator for the provided system'}
+        {'emulator', 'Builds for an emulator/simulator for the provided system'},
+        {'runtime', 'Build the static library specifically targeting our runtimes'}
     },
     default = 'system'
 }

@@ -71,6 +71,14 @@ else
         ARCH=${strarr[1]}
         build "--os=android --arch=${ARCH}"
         ;;
+    macosx)
+        echo "Building for macos"
+        export MACOS_SYSROOT=$(xcrun --sdk macosx --show-sdk-path)
+        build "--os=macosx --variant=runtime"
+        if [ "$OPTION" = "clean" ]; then
+            exit
+        fi
+        ;;
     *)
         build
         ;;

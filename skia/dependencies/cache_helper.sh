@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# make sure we stop if we encounter an error
 set -e
 
 # required envs
