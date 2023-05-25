@@ -24,6 +24,7 @@ public:
 
     Axis getAxis(uint16_t index) const override;
     uint16_t getAxisCount() const override;
+    float getAxisValue(uint32_t axisTag) const override;
     std::vector<Coord> getCoords() const override;
     rive::rcp<rive::Font> makeAtCoords(rive::Span<const Coord>) const override;
     rive::RawPath getPath(rive::GlyphID) const override;

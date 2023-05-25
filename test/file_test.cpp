@@ -9,6 +9,24 @@
 #include <cstdio>
 #include <cstring>
 
+TEST_CASE("transform order is as expected", "[transform]")
+{
+    auto translation = rive::Mat2D::fromTranslate(10.0f, 20.0f);
+    auto rotation = rive::Mat2D::fromRotation(3.14f / 2.0f);
+    auto scale = rive::Mat2D::fromScale(2.0f, 3.0f);
+
+    auto xform = translation * rotation * scale;
+    auto xform2 = rive::Mat2D::fromRotation(3.14f / 2.0f);
+    xform2[0] *= 2.0f;
+    xform2[1] *= 2.0f;
+    xform2[2] *= 3.0f;
+    xform2[3] *= 3.0f;
+    xform2[4] = 10.0f;
+    xform2[5] = 20.0f;
+
+    REQUIRE(xform2 == xform);
+}
+
 TEST_CASE("file can be read", "[file]")
 {
     RenderObjectLeakChecker checker;

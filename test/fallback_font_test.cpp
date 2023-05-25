@@ -75,3 +75,36 @@ TEST_CASE("fallback glyphs are found", "[text]")
     fallbackFonts.clear();
     HBFont::gFallbackProc = nullptr;
 }
+
+TEST_CASE("variable axis values can be read", "[text]")
+{
+    REQUIRE(fallbackFonts.empty());
+    auto font = loadFont("../../test/assets/RobotoFlex.ttf");
+    REQUIRE(font != nullptr);
+
+    std::vector<rive::Font::Axis> axes = font->getAxes();
+
+    bool hasWeight = false;
+    for (rive::Font::Axis axis : axes)
+    {
+        if (axis.tag == 2003265652)
+        {
+            REQUIRE(axis.def == 400.0f);
+            hasWeight = true;
+            break;
+        }
+    }
+
+    REQUIRE(hasWeight);
+
+    float value = font->getAxisValue(2003265652);
+    REQUIRE(value == 400.0f);
+
+    rive::Font::Coord coord = {2003265652, 800.0f};
+    rive::rcp<rive::Font> vfont = font->makeAtCoords(rive::Span<HBFont::Coord>(&coord, 1));
+    REQUIRE(vfont->getAxisValue(2003265652) == 800.0f);
+
+    rive::Font::Coord coord2 = {2003265652, 822.0f};
+    rive::rcp<rive::Font> vfont2 = vfont->makeAtCoords(rive::Span<HBFont::Coord>(&coord2, 1));
+    REQUIRE(vfont2->getAxisValue(2003265652) == 822.0f);
+}

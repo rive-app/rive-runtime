@@ -153,6 +153,39 @@ uint16_t HBFont::getAxisCount() const
     return (uint16_t)hb_ot_var_get_axis_count(face);
 }
 
+float HBFont::getAxisValue(uint32_t axisTag) const
+{
+    auto face = hb_font_get_face(m_Font);
+    uint32_t length;
+
+    // Check if we have a sepecified value.
+    const float* values = hb_font_get_var_coords_design(m_Font, &length);
+    for (uint32_t i = 0; i < length; ++i)
+    {
+        hb_ot_var_axis_info_t info;
+        uint32_t n = 1;
+        hb_ot_var_get_axis_infos(face, i, &n, &info);
+        if (info.tag == axisTag)
+        {
+            return values[i];
+        }
+    }
+
+    // No value specified, we're using a default.
+    uint32_t axisCount = hb_ot_var_get_axis_count(face);
+    for (uint32_t i = 0; i < axisCount; ++i)
+    {
+        hb_ot_var_axis_info_t info;
+        uint32_t n = 1;
+        hb_ot_var_get_axis_infos(face, i, &n, &info);
+        if (info.tag == axisTag)
+        {
+            return info.default_value;
+        }
+    }
+    return 0.0f;
+}
+
 std::vector<rive::Font::Coord> HBFont::getCoords() const
 {
     auto axes = this->getAxes();
@@ -220,7 +253,6 @@ static rive::GlyphRun shape_run(const rive::Unichar text[],
     hb_glyph_position_t* glyph_pos = hb_buffer_get_glyph_positions(buf, &glyph_count);
 
     // todo: check for missing glyphs, and perform font-substitution
-
     rive::GlyphRun gr(glyph_count);
     gr.font = tr.font;
     gr.size = tr.size;
@@ -290,7 +322,11 @@ static void perform_fallback(rive::rcp<rive::Font> fallbackFont,
                 orig.styleId,
                 orig.dir,
             };
-            gruns.add(shape_run(&text[textStart], tr, textStart));
+            auto gr = shape_run(&text[textStart], tr, textStart);
+            if (gr.glyphs.size() > 0)
+            {
+                gruns.add(std::move(gr));
+            }
         }
         else
         {
@@ -424,7 +460,10 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
             auto iter = std::find(gr.glyphs.begin(), end, 0);
             if (!gFallbackProc || iter == end)
             {
-                gruns.add(std::move(gr));
+                if (gr.glyphs.size() > 0)
+                {
+                    gruns.add(std::move(gr));
+                }
             }
             else
             {
@@ -437,7 +476,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
                 {
                     perform_fallback(fallback, gruns, text.data(), gr, tr);
                 }
-                else
+                else if (gr.glyphs.size() > 0)
                 {
                     gruns.add(std::move(gr)); // oh well, just keep the missing glyphs
                 }

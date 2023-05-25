@@ -132,6 +132,8 @@ public:
     //
     virtual std::vector<Coord> getCoords() const = 0;
 
+    virtual float getAxisValue(uint32_t axisTag) const = 0;
+
     virtual rcp<Font> makeAtCoords(Span<const Coord>) const = 0;
 
     rcp<Font> makeAtCoord(Coord c) { return this->makeAtCoords(Span<const Coord>(&c, 1)); }
