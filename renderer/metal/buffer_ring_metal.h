@@ -1,0 +1,65 @@
+/*
+ * Copyright 2023 Rive
+ */
+
+#pragma once
+
+#include "rive/pls/buffer_ring.hpp"
+
+#ifndef RIVE_OBJC_NOP
+#import <Metal/Metal.h>
+#endif
+
+namespace rive::pls
+{
+class VertexBufferMetal : public BufferRingImpl
+{
+public:
+    VertexBufferMetal(id<MTLDevice>, size_t capacity, size_t itemSizeInBytes);
+    ~VertexBufferMetal() override {}
+
+    id<MTLBuffer> submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
+
+protected:
+    void* onMapBuffer(int bufferIdx) override;
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override {}
+
+private:
+    id<MTLBuffer> m_buffers[kBufferRingSize];
+};
+
+class UniformBufferMetal : public UniformBufferRing
+{
+public:
+    UniformBufferMetal(id<MTLDevice>, size_t itemSizeInBytes);
+    ~UniformBufferMetal() override {}
+
+    id<MTLBuffer> submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
+
+protected:
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override;
+
+private:
+    id<MTLBuffer> m_buffers[kBufferRingSize];
+};
+
+class TexelBufferMetal : public TexelBufferRing
+{
+public:
+    TexelBufferMetal(id<MTLDevice>,
+                     Format,
+                     size_t widthInItems,
+                     size_t height,
+                     size_t texelsPerItem,
+                     MTLTextureUsage extraUsageFlags = 0);
+    ~TexelBufferMetal() override {}
+
+    id<MTLTexture> submittedTexture() const { return m_textures[submittedBufferIdx()]; }
+
+protected:
+    void submitTexels(int bufferIdx, size_t width, size_t height) override;
+
+private:
+    id<MTLTexture> m_textures[kBufferRingSize];
+};
+} // namespace rive::pls
