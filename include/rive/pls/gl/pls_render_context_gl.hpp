@@ -27,16 +27,51 @@ public:
 
     // Creates a PLSRenderTarget that draws directly into the given GL framebuffer.
     // Returns null if the framebuffer doesn't support pixel local storage.
-    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID, size_t width, size_t height);
+    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID, size_t width, size_t height)
+    {
+        return m_plsImpl->wrapGLRenderTarget(framebufferID, width, height, m_platformFeatures);
+    }
 
     // Creates a PLSRenderTarget that draws to a new, offscreen GL framebuffer. This method is
     // guaranteed to succeed, but the caller must call glBlitFramebuffer() to view the rendering
     // results.
-    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(size_t width, size_t height);
+    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(size_t width, size_t height)
+    {
+        return m_plsImpl->makeOffscreenRenderTarget(width, height, m_platformFeatures);
+    }
 
-protected:
-    // We only use one uniform buffer per shader, so for now, we all bind them to block 0.
-    constexpr static int kUniformBlockIdx = 0;
+private:
+    class DrawProgram;
+
+    // Manages how we implement pixel local storage in shaders.
+    class PLSImpl
+    {
+    public:
+        virtual ~PLSImpl() {}
+        virtual rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
+                                                          size_t width,
+                                                          size_t height,
+                                                          const PlatformFeatures&) = 0;
+        virtual rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(size_t width,
+                                                                 size_t height,
+                                                                 const PlatformFeatures&) = 0;
+
+        virtual void activatePixelLocalStorage(PLSRenderContextGL*,
+                                               LoadAction,
+                                               const ShaderFeatures&,
+                                               const DrawProgram&) = 0;
+        virtual void deactivatePixelLocalStorage(const ShaderFeatures&) = 0;
+
+        virtual const char* shaderDefineName() const = 0;
+    };
+
+    class PLSImplWebGL;
+    class PLSImplEXTNative;
+    class PLSImplFramebufferFetch;
+
+    static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
+    static std::unique_ptr<PLSImpl> MakePLSImplEXTNative();
+    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch();
 
     // Wraps a compiled and linked GL program of draw.glsl, with a specific set of features enabled
     // via #define. The set of features to enable is dictated by ShaderFeatures.
@@ -48,7 +83,7 @@ protected:
         DrawProgram(PLSRenderContextGL* context, const ShaderFeatures& shaderFeatures);
         ~DrawProgram();
 
-        void bind() const;
+        GLuint id() const { return m_id; }
 
     private:
         GLuint m_id;
@@ -56,7 +91,23 @@ protected:
 
     class DrawShader;
 
-    PLSRenderContextGL(const PlatformFeatures&);
+    struct Extensions
+    {
+        bool ANGLE_shader_pixel_local_storage = false;
+        bool ANGLE_shader_pixel_local_storage_coherent = false;
+        bool ANGLE_provoking_vertex = false;
+        bool ARM_shader_framebuffer_fetch = false;
+        bool EXT_shader_framebuffer_fetch = false;
+        bool EXT_shader_pixel_local_storage = false;
+        bool QCOM_shader_framebuffer_fetch_noncoherent = false;
+    } m_extensions;
+
+    // We only use one uniform buffer per shader, so for now, we bind them all to block 0.
+    constexpr static int kUniformBlockIdx = 0;
+
+    PLSRenderContextGL(const PlatformFeatures&,
+                       const Extensions& extensions,
+                       std::unique_ptr<PLSImpl>);
 
     const PLSRenderTargetGL* renderTarget() const
     {
@@ -77,6 +128,8 @@ protected:
 
     void allocateTessellationTexture(size_t height) override;
 
+    void bindDrawProgram(const DrawProgram&);
+
     void onFlush(FlushType,
                  LoadAction,
                  size_t gradSpanCount,
@@ -86,8 +139,7 @@ protected:
                  size_t wedgeInstanceCount,
                  const ShaderFeatures&) override;
 
-    void activatePixelLocalStorage(LoadAction, const ShaderFeatures&, const DrawProgram&);
-    void deactivatePixelLocalStorage(const ShaderFeatures&);
+    std::unique_ptr<PLSImpl> m_plsImpl;
 
     // Gradient texture rendering.
     GLuint m_colorRampProgram;

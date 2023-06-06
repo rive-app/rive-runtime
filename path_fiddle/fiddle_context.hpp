@@ -28,8 +28,8 @@ public:
     virtual void end() = 0;
     virtual void shrinkGPUResourcesToFit() = 0;
 
-    static std::unique_ptr<FiddleContext> MakeWEBGLSkia();
-    static std::unique_ptr<FiddleContext> MakeWEBGLPLS();
+    static std::unique_ptr<FiddleContext> MakeGLSkia();
+    static std::unique_ptr<FiddleContext> MakeGLPLS();
 #ifdef __APPLE__
     static std::unique_ptr<FiddleContext> MakeMetalPLS();
 #endif

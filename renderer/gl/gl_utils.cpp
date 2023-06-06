@@ -14,19 +14,31 @@ namespace glutils
 {
 void CompileAndAttachShader(GLuint program, GLuint type, const char* source)
 {
-    CompileAndAttachShader(program, type, &source, 1);
+    CompileAndAttachShader(program, type, nullptr, 0, &source, 1);
 }
 
-void CompileAndAttachShader(GLuint program, GLuint type, const char* inputSources[], size_t n)
+void CompileAndAttachShader(GLuint program,
+                            GLuint type,
+                            const char* defines[],
+                            size_t numDefines,
+                            const char* inputSources[],
+                            size_t numInputSources)
 {
-    GLuint shader = CompileShader(type, inputSources, n);
+    GLuint shader = CompileShader(type, defines, numDefines, inputSources, numInputSources);
     glAttachShader(program, shader);
     glDeleteShader(shader);
 }
 
-GLuint CompileShader(GLuint type, const char* source) { return CompileShader(type, &source, 1); }
+GLuint CompileShader(GLuint type, const char* source)
+{
+    return CompileShader(type, nullptr, 0, &source, 1);
+}
 
-GLuint CompileShader(GLuint type, const char* inputSources[], size_t n)
+GLuint CompileShader(GLuint type,
+                     const char* defines[],
+                     size_t numDefines,
+                     const char* inputSources[],
+                     size_t numInputSources)
 {
     std::vector<const char*> sources;
     sources.push_back("#version 300 es\n");
@@ -38,8 +50,19 @@ GLuint CompileShader(GLuint type, const char* inputSources[], size_t n)
     {
         sources.push_back("#define " GLSL_FRAGMENT "\n");
     }
+    std::ostringstream definesStream;
+    for (size_t i = 0; i < numDefines; ++i)
+    {
+        definesStream << "#define " << defines[i] << "\n";
+    }
+    std::string definesString;
+    if (numDefines > 0)
+    {
+        definesString = definesStream.str();
+        sources.push_back(definesString.c_str());
+    }
     sources.push_back(rive::pls::glsl::glsl);
-    for (size_t i = 0; i < n; ++i)
+    for (size_t i = 0; i < numInputSources; ++i)
     {
         sources.push_back(inputSources[i]);
     }

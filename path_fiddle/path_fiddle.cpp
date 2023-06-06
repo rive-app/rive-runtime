@@ -216,6 +216,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 }
 
 bool metal = false;
+bool angle = false;
 bool skia = false;
 
 int lastWidth = 0, lastHeight = 0;
@@ -275,18 +276,22 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--angle_gl"))
         {
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
+            angle = true;
         }
         else if (!strcmp(argv[i], "--angle_d3d"))
         {
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_D3D11);
+            angle = true;
         }
         else if (!strcmp(argv[i], "--angle_vk"))
         {
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
+            angle = true;
         }
         else if (!strcmp(argv[i], "--angle_mtl"))
         {
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_METAL);
+            angle = true;
         }
 #endif
         else if (sscanf(argv[i], "-a%i", &s_animation))
@@ -315,7 +320,12 @@ int main(int argc, const char** argv)
 
     glfwWindowHint(GLFW_SAMPLES, 0);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-    if (!metal)
+    if (metal)
+    {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+    }
+    else if (angle)
     {
         glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
@@ -325,8 +335,10 @@ int main(int argc, const char** argv)
     }
     else
     {
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     }
     g_window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
     if (!g_window)
@@ -356,12 +368,12 @@ int main(int argc, const char** argv)
     else if (skia)
     {
 #ifdef RIVE_SKIA
-        s_fiddleContext = FiddleContext::MakeWEBGLSkia();
+        s_fiddleContext = FiddleContext::MakeGLSkia();
 #endif
     }
     else
     {
-        s_fiddleContext = FiddleContext::MakeWEBGLPLS();
+        s_fiddleContext = FiddleContext::MakeGLPLS();
     }
     if (!s_fiddleContext)
     {

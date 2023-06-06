@@ -41,10 +41,10 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
 #endif
 #endif
 
-class FiddleContextWEBGL : public FiddleContext
+class FiddleContextGL : public FiddleContext
 {
 public:
-    FiddleContextWEBGL()
+    FiddleContextGL()
     {
 #ifdef RIVE_ANGLE
         // Load the OpenGL API using glad.
@@ -83,7 +83,7 @@ public:
 #endif
     }
 
-    ~FiddleContextWEBGL() { glDeleteFramebuffers(1, &m_zoomWindowFBO); }
+    ~FiddleContextGL() { glDeleteFramebuffers(1, &m_zoomWindowFBO); }
 
     float dpiScale() const override
     {
@@ -188,10 +188,10 @@ static GrGLFuncPtr get_skia_gl_proc_address(void* ctx, const char name[])
     return glfwGetProcAddress(name);
 }
 
-class FiddleContextWEBGLSkia : public FiddleContextWEBGL
+class FiddleContextGLSkia : public FiddleContextGL
 {
 public:
-    FiddleContextWEBGLSkia() :
+    FiddleContextGLSkia() :
         m_grContext(
             GrDirectContext::MakeGL(GrGLMakeAssembledInterface(nullptr, get_skia_gl_proc_address)))
     {
@@ -246,15 +246,24 @@ private:
     sk_sp<SkSurface> m_skSurface;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeWEBGLSkia()
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia()
 {
-    return std::make_unique<FiddleContextWEBGLSkia>();
+    return std::make_unique<FiddleContextGLSkia>();
 }
 #endif
 
-class FiddleContextWEBGLPLS : public FiddleContextWEBGL
+class FiddleContextGLPLS : public FiddleContextGL
 {
 public:
+    FiddleContextGLPLS()
+    {
+        if (!m_plsContext)
+        {
+            fprintf(stderr, "Failed to create a PLS renderer.\n");
+            exit(-1);
+        }
+    }
+
     std::unique_ptr<rive::Factory> makeFactory() override { return std::make_unique<PLSFactory>(); }
 
     void onSizeChanged(int width, int height) override
@@ -294,7 +303,7 @@ private:
     rcp<PLSRenderTargetGL> m_renderTarget;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeWEBGLPLS()
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS()
 {
-    return std::make_unique<FiddleContextWEBGLPLS>();
+    return std::make_unique<FiddleContextGLPLS>();
 }

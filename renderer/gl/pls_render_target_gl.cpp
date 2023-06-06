@@ -11,35 +11,22 @@ namespace rive::pls
 PLSRenderTargetGL::PLSRenderTargetGL(GLuint framebufferID,
                                      size_t width,
                                      size_t height,
-                                     CoverageBackingType coverageBackingType,
                                      const PlatformFeatures& platformFeatures) :
-    PLSRenderTarget(width, height), m_drawFramebufferID(framebufferID), m_ownsDrawFramebuffer(false)
-{
-    if (coverageBackingType == CoverageBackingType::texture)
-    {
-        allocateBackingTextures();
-    }
-#ifdef RIVE_WEBGL
-    createReadFramebuffer();
-#endif
-}
+    PLSRenderTarget(width, height),
+    m_drawFramebufferID(framebufferID),
+    m_readFramebufferID(framebufferID),
+    m_ownsDrawFramebuffer(false)
+{}
 
 PLSRenderTargetGL::PLSRenderTargetGL(size_t width,
                                      size_t height,
-                                     CoverageBackingType coverageBackingType,
                                      const PlatformFeatures& platformFeatures) :
     PLSRenderTarget(width, height), m_ownsDrawFramebuffer(true)
 {
     glGenFramebuffers(1, &m_drawFramebufferID);
     glBindFramebuffer(GL_FRAMEBUFFER, m_drawFramebufferID);
-    m_offscreenTextureID = allocateBackingTexture(kFramebufferPlaneIdx, GL_RGBA8);
-    if (coverageBackingType == CoverageBackingType::texture)
-    {
-        allocateBackingTextures();
-    }
-#ifdef RIVE_WEBGL
-    createReadFramebuffer();
-#endif
+    m_offscreenTextureID = allocateBackingTexture(GL_RGBA8);
+    m_readFramebufferID = m_drawFramebufferID;
 }
 
 PLSRenderTargetGL::~PLSRenderTargetGL()
@@ -48,43 +35,36 @@ PLSRenderTargetGL::~PLSRenderTargetGL()
     {
         glDeleteFramebuffers(1, &m_drawFramebufferID);
     }
-#ifdef RIVE_WEBGL
-    glDeleteFramebuffers(1, &m_readFramebufferID);
-#endif
+    if (m_readFramebufferID != m_drawFramebufferID)
+    {
+        glDeleteFramebuffers(1, &m_readFramebufferID);
+    }
+    glDeleteTextures(1, &m_offscreenTextureID);
     glDeleteTextures(1, &m_coverageTextureID);
     glDeleteTextures(1, &m_originalDstColorTextureID);
     glDeleteTextures(1, &m_clipTextureID);
 }
 
-void PLSRenderTargetGL::allocateBackingTextures()
+void PLSRenderTargetGL::allocateCoverageBackingTextures()
 {
-    m_coverageTextureID = allocateBackingTexture(kCoveragePlaneIdx, GL_R32UI);
-    m_originalDstColorTextureID = allocateBackingTexture(kOriginalDstColorPlaneIdx, GL_RGBA8);
-    m_clipTextureID = allocateBackingTexture(kClipPlaneIdx, GL_R32UI);
+    m_coverageTextureID = allocateBackingTexture(GL_R32UI);
+    m_originalDstColorTextureID = allocateBackingTexture(GL_RGBA8);
+    m_clipTextureID = allocateBackingTexture(GL_R32UI);
 }
 
-GLuint PLSRenderTargetGL::allocateBackingTexture(GLsizei bindingIdx, GLenum internalformat)
+GLuint PLSRenderTargetGL::allocateBackingTexture(GLenum internalformat)
 {
     GLuint textureID;
     glGenTextures(1, &textureID);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, textureID);
     glTexStorage2D(GL_TEXTURE_2D, 1, internalformat, width(), height());
-#ifdef RIVE_WEBGL
-    glFramebufferTexturePixelLocalStorageWEBGL(bindingIdx, textureID, 0, 0);
-#else
-    glFramebufferTexture2D(GL_FRAMEBUFFER,
-                           GL_COLOR_ATTACHMENT0 + bindingIdx,
-                           GL_TEXTURE_2D,
-                           textureID,
-                           0);
-#endif
     return textureID;
 }
 
-#ifdef RIVE_WEBGL
 void PLSRenderTargetGL::createReadFramebuffer()
 {
+    assert(m_offscreenTextureID);
     glGenFramebuffers(1, &m_readFramebufferID);
     glBindFramebuffer(GL_FRAMEBUFFER, m_readFramebufferID);
     glFramebufferTexture2D(GL_FRAMEBUFFER,
@@ -93,5 +73,4 @@ void PLSRenderTargetGL::createReadFramebuffer()
                            m_offscreenTextureID,
                            0);
 }
-#endif
 } // namespace rive::pls

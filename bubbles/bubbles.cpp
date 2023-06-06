@@ -304,7 +304,7 @@ int main(int argc, const char* argv[])
     uniformWindow = glGetUniformLocation(program, "window");
     uniformT = glGetUniformLocation(program, "T");
 
-    // Generate bubbles.
+    // Generate n bubbles.
     Bubble bubbles[n];
     for (Bubble& bubble : bubbles)
     {

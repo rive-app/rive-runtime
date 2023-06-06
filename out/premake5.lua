@@ -54,7 +54,7 @@ do
     filter "system:windows"
     do
         architecture "x64"
-        defines {"RIVE_WINDOWS", "RIVE_SKIA", "_CRT_SECURE_NO_WARNINGS"}
+        defines {"RIVE_WINDOWS", "_CRT_SECURE_NO_WARNINGS"}
         libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
         links {"glfw3", "opengl32"}
     end

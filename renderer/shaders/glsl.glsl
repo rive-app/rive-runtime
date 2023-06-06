@@ -103,7 +103,7 @@
 #define TEXTURE_SAMPLE(T, N, C) texture(N, C)
 
 // Define macros for implementing pixel local storage based on available extensions.
-#if defined(GL_ANGLE_shader_pixel_local_storage)
+#ifdef @PLS_IMPL_WEBGL
 
 #extension GL_ANGLE_shader_pixel_local_storage : require
 
@@ -119,7 +119,9 @@
 
 #define PLS_PRESERVE_VALUE(P)
 
-#elif defined(GL_EXT_shader_pixel_local_storage)
+#endif
+
+#ifdef @PLS_IMPL_EXT_NATIVE
 
 #extension GL_EXT_shader_pixel_local_storage : require
 
@@ -143,7 +145,9 @@
 
 #define PLS_PRESERVE_VALUE(P)
 
-#elif defined(GL_EXT_shader_framebuffer_fetch)
+#endif
+
+#ifdef @PLS_IMPL_FRAMEBUFFER_FETCH
 
 #extension GL_EXT_shader_framebuffer_fetch : require
 
