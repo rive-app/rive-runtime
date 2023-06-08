@@ -178,18 +178,6 @@
 
 #ifdef @PLS_IMPL_RW_TEXTURE
 
-#define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(B) layout(binding = B, rgba8) uniform lowp coherent image2D
-#define PLS_DECL2F(B) layout(binding = B, r32ui) uniform highp coherent uimage2D
-#define PLS_BLOCK_END
-
-#define PLS_LOAD4F(P) imageLoad(P, plsCoord)
-#define PLS_LOAD2F(P) unpackHalf2x16(imageLoad(P, plsCoord).x)
-#define PLS_STORE4F(P, V) imageStore(P, plsCoord, V)
-#define PLS_STORE2F(P, X, Y) imageStore(P, plsCoord, uvec4(packHalf2x16(vec2(X, Y))))
-
-#define PLS_PRESERVE_VALUE(P)
-
 #extension GL_ARB_fragment_shader_interlock : enable
 #extension GL_INTEL_fragment_shader_ordering : enable
 
@@ -204,6 +192,18 @@
     beginFragmentShaderOrderingINTEL()
 #define PLS_INTERLOCK_END
 #endif
+
+#define PLS_BLOCK_BEGIN
+#define PLS_DECL4F(B) layout(binding = B, rgba8) uniform lowp coherent image2D
+#define PLS_DECL2F(B) layout(binding = B, r32ui) uniform highp coherent uimage2D
+#define PLS_BLOCK_END
+
+#define PLS_LOAD4F(P) imageLoad(P, plsCoord)
+#define PLS_LOAD2F(P) unpackHalf2x16(imageLoad(P, plsCoord).x)
+#define PLS_STORE4F(P, V) imageStore(P, plsCoord, V)
+#define PLS_STORE2F(P, X, Y) imageStore(P, plsCoord, uvec4(packHalf2x16(vec2(X, Y))))
+
+#define PLS_PRESERVE_VALUE(P)
 
 #endif
 
