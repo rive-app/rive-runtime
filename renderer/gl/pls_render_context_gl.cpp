@@ -120,7 +120,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     // present, we can just set the provoking vertex to "first" and trust that it will be fast.
 #ifdef RIVE_WASM
     set_provoking_vertex_webgl(GL_FIRST_VERTEX_CONVENTION_WEBGL);
-#elif defined(RIVE_ANGLE)
+#elif defined(RIVE_DESKTOP_GL)
     if (m_extensions.ANGLE_provoking_vertex)
     {
         glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
@@ -236,7 +236,8 @@ public:
                                       defines.data(),
                                       defines.size(),
                                       sources.data(),
-                                      sources.size());
+                                      sources.size(),
+                                      plsImpl->shaderVersionOverrideString());
     }
 
     ~DrawShader() { glDeleteShader(m_id); }
@@ -349,7 +350,6 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount);
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, renderTarget()->drawFramebufferID());
     glViewport(0, 0, renderTarget()->width(), renderTarget()->height());
 
     // Compile the draw program before activating pixel local storage.
@@ -365,7 +365,11 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
         glLineWidth(2);
     }
 
-    m_plsImpl->activatePixelLocalStorage(this, loadAction, shaderFeatures, drawProgram);
+    m_plsImpl->activatePixelLocalStorage(this,
+                                         renderTarget(),
+                                         loadAction,
+                                         shaderFeatures,
+                                         drawProgram);
 
     if (wedgeInstanceCount > 0)
     {
@@ -397,27 +401,35 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
         {
             extensions.ANGLE_shader_pixel_local_storage = true;
         }
-        if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage_coherent") == 0)
+        else if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage_coherent") == 0)
         {
             extensions.ANGLE_shader_pixel_local_storage_coherent = true;
         }
-        if (strcmp(ext, "GL_ANGLE_provoking_vertex") == 0)
+        else if (strcmp(ext, "GL_ANGLE_provoking_vertex") == 0)
         {
             extensions.ANGLE_provoking_vertex = true;
         }
-        if (strcmp(ext, "GL_ARM_shader_framebuffer_fetch") == 0)
+        else if (strcmp(ext, "GL_ARM_shader_framebuffer_fetch") == 0)
         {
             extensions.ARM_shader_framebuffer_fetch = true;
         }
-        if (strcmp(ext, "GL_EXT_shader_framebuffer_fetch") == 0)
+        else if (strcmp(ext, "GL_ARB_fragment_shader_interlock") == 0)
+        {
+            extensions.ARB_fragment_shader_interlock = true;
+        }
+        else if (strcmp(ext, "GL_INTEL_fragment_shader_ordering") == 0)
+        {
+            extensions.INTEL_fragment_shader_ordering = true;
+        }
+        else if (strcmp(ext, "GL_EXT_shader_framebuffer_fetch") == 0)
         {
             extensions.EXT_shader_framebuffer_fetch = true;
         }
-        if (strcmp(ext, "GL_EXT_shader_pixel_local_storage") == 0)
+        else if (strcmp(ext, "GL_EXT_shader_pixel_local_storage") == 0)
         {
             extensions.EXT_shader_pixel_local_storage = true;
         }
-        if (strcmp(ext, "GL_QCOM_shader_framebuffer_fetch_noncoherent") == 0)
+        else if (strcmp(ext, "GL_QCOM_shader_framebuffer_fetch_noncoherent") == 0)
         {
             extensions.QCOM_shader_framebuffer_fetch_noncoherent = true;
         }
@@ -441,7 +453,7 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
         platformFeatures.avoidFlatVaryings = true;
     }
 
-#ifdef RIVE_ANDROID
+#ifdef RIVE_GLES
     if (extensions.EXT_shader_pixel_local_storage &&
         (extensions.ARM_shader_framebuffer_fetch || extensions.EXT_shader_framebuffer_fetch))
     {
@@ -456,11 +468,17 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
     }
 #endif
 
-#ifdef RIVE_ANGLE
-    if (GLAD_GL_ANGLE_shader_pixel_local_storage_coherent)
+#ifdef RIVE_DESKTOP_GL
+    if (extensions.ANGLE_shader_pixel_local_storage_coherent)
     {
         return std::unique_ptr<PLSRenderContextGL>(
             new PLSRenderContextGL(platformFeatures, extensions, MakePLSImplWebGL()));
+    }
+
+    if (extensions.ARB_fragment_shader_interlock || extensions.INTEL_fragment_shader_ordering)
+    {
+        return std::unique_ptr<PLSRenderContextGL>(
+            new PLSRenderContextGL(platformFeatures, extensions, MakePLSImplRWTexture()));
     }
 #endif
 

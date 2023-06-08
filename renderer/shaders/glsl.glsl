@@ -119,6 +119,9 @@
 
 #define PLS_PRESERVE_VALUE(P)
 
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
 #endif
 
 #ifdef @PLS_IMPL_EXT_NATIVE
@@ -145,6 +148,9 @@
 
 #define PLS_PRESERVE_VALUE(P)
 
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
 #endif
 
 #ifdef @PLS_IMPL_FRAMEBUFFER_FETCH
@@ -164,6 +170,40 @@
 // When using multiple color attachments, we have to write a value to every color attachment, every
 // shader invocation, or else the contents become undefined.
 #define PLS_PRESERVE_VALUE(P) P = P
+
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#endif
+
+#ifdef @PLS_IMPL_RW_TEXTURE
+
+#define PLS_BLOCK_BEGIN
+#define PLS_DECL4F(B) layout(binding = B, rgba8) uniform lowp coherent image2D
+#define PLS_DECL2F(B) layout(binding = B, r32ui) uniform highp coherent uimage2D
+#define PLS_BLOCK_END
+
+#define PLS_LOAD4F(P) imageLoad(P, plsCoord)
+#define PLS_LOAD2F(P) unpackHalf2x16(imageLoad(P, plsCoord).x)
+#define PLS_STORE4F(P, V) imageStore(P, plsCoord, V)
+#define PLS_STORE2F(P, X, Y) imageStore(P, plsCoord, uvec4(packHalf2x16(vec2(X, Y))))
+
+#define PLS_PRESERVE_VALUE(P)
+
+#extension GL_ARB_fragment_shader_interlock : enable
+#extension GL_INTEL_fragment_shader_ordering : enable
+
+#if defined(GL_ARB_fragment_shader_interlock)
+#define PLS_INTERLOCK_BEGIN                                                                        \
+    highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));                                          \
+    beginInvocationInterlockARB()
+#define PLS_INTERLOCK_END endInvocationInterlockARB()
+#elif defined(GL_INTEL_fragment_shader_ordering)
+#define PLS_INTERLOCK_BEGIN                                                                        \
+    highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));                                          \
+    beginFragmentShaderOrderingINTEL()
+#define PLS_INTERLOCK_END
+#endif
 
 #endif
 

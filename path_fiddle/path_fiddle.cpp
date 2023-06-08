@@ -264,7 +264,11 @@ int main(int argc, const char** argv)
     const char* rivName = nullptr;
     for (int i = 1; i < argc; i++)
     {
-        if (!strcmp(argv[i], "--metal"))
+        if (!strcmp(argv[i], "--gl"))
+        {
+            metal = false;
+        }
+        else if (!strcmp(argv[i], "--metal"))
         {
             metal = true;
         }
@@ -272,7 +276,7 @@ int main(int argc, const char** argv)
         {
             skia = true;
         }
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
         else if (!strcmp(argv[i], "--angle_gl"))
         {
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
@@ -392,7 +396,7 @@ int main(int argc, const char** argv)
         s_scene->advanceAndApply(0);
     }
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
     glfwSwapInterval(0);
     while (!glfwWindowShouldClose(g_window))
     {

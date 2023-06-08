@@ -407,6 +407,8 @@ PLS_MAIN(
         color = TEXTURE_SAMPLE(textures, @gradTexture, float2(mix(x0, x1, t), row));
     }
 
+    PLS_INTERLOCK_BEGIN;
+
     half2 coverageData = PLS_LOAD2F(coverageCountBuffer);
     half localPathID = coverageData.r;
     half coverageCount = coverageData.g;
@@ -488,6 +490,8 @@ PLS_MAIN(
 
         PLS_STORE4F(framebuffer, color);
     }
+
+    PLS_INTERLOCK_END;
 
     EMIT_PLS;
 }

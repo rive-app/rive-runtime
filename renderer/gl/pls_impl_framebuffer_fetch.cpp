@@ -29,7 +29,7 @@ class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::P
         auto renderTarget =
             rcp(new PLSRenderTargetGL(framebufferID, width, height, platformFeatures));
         renderTarget->allocateCoverageBackingTextures();
-        AttachRenderTargetTexturesToFramebuffer(renderTarget.get());
+        renderTarget->attachTexturesToCurrentFramebuffer();
         return renderTarget;
     }
 
@@ -40,43 +40,19 @@ class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::P
     {
         auto renderTarget = rcp(new PLSRenderTargetGL(width, height, platformFeatures));
         renderTarget->allocateCoverageBackingTextures();
-        AttachRenderTargetTexturesToFramebuffer(renderTarget.get());
+        renderTarget->attachTexturesToCurrentFramebuffer();
         return renderTarget;
     }
 
-    static void AttachRenderTargetTexturesToFramebuffer(const PLSRenderTargetGL* renderTarget)
-    {
-        if (renderTarget->m_offscreenTextureID != 0)
-        {
-            glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                   GL_COLOR_ATTACHMENT0 + kFramebufferPlaneIdx,
-                                   GL_TEXTURE_2D,
-                                   renderTarget->m_offscreenTextureID,
-                                   0);
-        }
-        glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + kCoveragePlaneIdx,
-                               GL_TEXTURE_2D,
-                               renderTarget->m_coverageTextureID,
-                               0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + kOriginalDstColorPlaneIdx,
-                               GL_TEXTURE_2D,
-                               renderTarget->m_originalDstColorTextureID,
-                               0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + kClipPlaneIdx,
-                               GL_TEXTURE_2D,
-                               renderTarget->m_clipTextureID,
-                               0);
-    }
-
     void activatePixelLocalStorage(PLSRenderContextGL* context,
+                                   const PLSRenderTargetGL* renderTarget,
                                    LoadAction loadAction,
                                    const ShaderFeatures& shaderFeatures,
                                    const DrawProgram& drawProgram) override
     {
         assert(context->m_extensions.EXT_shader_framebuffer_fetch);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
 
         // Enable multiple render targets, with a draw buffer for each PLS plane.
         GLsizei numDrawBuffers = shaderFeatures.programFeatures.enablePathClipping ? 4 : 3;

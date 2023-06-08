@@ -118,6 +118,8 @@
 #define PLS_STORE4F(P, V) _pls.P = (V)
 #define PLS_STORE2F(P, X, Y) _pls.P = half2(X, Y)
 #define PLS_PRESERVE_VALUE(P) _pls.P = _inpls.P
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
 
 // A hack since we use GLSL_POSITION inside the following #defines...
 #define GLSL_POSITION GLSL_POSITION

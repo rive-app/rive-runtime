@@ -12,9 +12,12 @@
 
 namespace glutils
 {
-void CompileAndAttachShader(GLuint program, GLuint type, const char* source)
+void CompileAndAttachShader(GLuint program,
+                            GLuint type,
+                            const char* source,
+                            const char* versionString)
 {
-    CompileAndAttachShader(program, type, nullptr, 0, &source, 1);
+    CompileAndAttachShader(program, type, nullptr, 0, &source, 1, versionString);
 }
 
 void CompileAndAttachShader(GLuint program,
@@ -22,26 +25,29 @@ void CompileAndAttachShader(GLuint program,
                             const char* defines[],
                             size_t numDefines,
                             const char* inputSources[],
-                            size_t numInputSources)
+                            size_t numInputSources,
+                            const char* versionString)
 {
-    GLuint shader = CompileShader(type, defines, numDefines, inputSources, numInputSources);
+    GLuint shader =
+        CompileShader(type, defines, numDefines, inputSources, numInputSources, versionString);
     glAttachShader(program, shader);
     glDeleteShader(shader);
 }
 
-GLuint CompileShader(GLuint type, const char* source)
+GLuint CompileShader(GLuint type, const char* source, const char* versionString)
 {
-    return CompileShader(type, nullptr, 0, &source, 1);
+    return CompileShader(type, nullptr, 0, &source, 1, versionString);
 }
 
 GLuint CompileShader(GLuint type,
                      const char* defines[],
                      size_t numDefines,
                      const char* inputSources[],
-                     size_t numInputSources)
+                     size_t numInputSources,
+                     const char* versionString)
 {
     std::vector<const char*> sources;
-    sources.push_back("#version 300 es\n");
+    sources.push_back(versionString ? versionString : "#version 300 es\n");
     if (type == GL_VERTEX_SHADER)
     {
         sources.push_back("#define " GLSL_VERTEX "\n");

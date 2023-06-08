@@ -14,7 +14,7 @@ PLSRenderTargetGL::PLSRenderTargetGL(GLuint framebufferID,
                                      const PlatformFeatures& platformFeatures) :
     PLSRenderTarget(width, height),
     m_drawFramebufferID(framebufferID),
-    m_readFramebufferID(framebufferID),
+    m_sideFramebufferID(framebufferID),
     m_ownsDrawFramebuffer(false)
 {}
 
@@ -26,7 +26,7 @@ PLSRenderTargetGL::PLSRenderTargetGL(size_t width,
     glGenFramebuffers(1, &m_drawFramebufferID);
     glBindFramebuffer(GL_FRAMEBUFFER, m_drawFramebufferID);
     m_offscreenTextureID = allocateBackingTexture(GL_RGBA8);
-    m_readFramebufferID = m_drawFramebufferID;
+    m_sideFramebufferID = m_drawFramebufferID;
 }
 
 PLSRenderTargetGL::~PLSRenderTargetGL()
@@ -35,9 +35,9 @@ PLSRenderTargetGL::~PLSRenderTargetGL()
     {
         glDeleteFramebuffers(1, &m_drawFramebufferID);
     }
-    if (m_readFramebufferID != m_drawFramebufferID)
+    if (m_sideFramebufferID != m_drawFramebufferID)
     {
-        glDeleteFramebuffers(1, &m_readFramebufferID);
+        glDeleteFramebuffers(1, &m_sideFramebufferID);
     }
     glDeleteTextures(1, &m_offscreenTextureID);
     glDeleteTextures(1, &m_coverageTextureID);
@@ -62,15 +62,48 @@ GLuint PLSRenderTargetGL::allocateBackingTexture(GLenum internalformat)
     return textureID;
 }
 
-void PLSRenderTargetGL::createReadFramebuffer()
+void PLSRenderTargetGL::createSideFramebuffer()
 {
     assert(m_offscreenTextureID);
-    glGenFramebuffers(1, &m_readFramebufferID);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_readFramebufferID);
-    glFramebufferTexture2D(GL_FRAMEBUFFER,
-                           GL_COLOR_ATTACHMENT0,
-                           GL_TEXTURE_2D,
-                           m_offscreenTextureID,
-                           0);
+    glGenFramebuffers(1, &m_sideFramebufferID);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_sideFramebufferID);
+    attachTexturesToCurrentFramebuffer();
+}
+
+void PLSRenderTargetGL::attachTexturesToCurrentFramebuffer()
+{
+
+    if (m_offscreenTextureID != 0)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               GL_COLOR_ATTACHMENT0 + kFramebufferPlaneIdx,
+                               GL_TEXTURE_2D,
+                               m_offscreenTextureID,
+                               0);
+    }
+    if (m_coverageTextureID != 0)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               GL_COLOR_ATTACHMENT0 + kCoveragePlaneIdx,
+                               GL_TEXTURE_2D,
+                               m_coverageTextureID,
+                               0);
+    }
+    if (m_originalDstColorTextureID != 0)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               GL_COLOR_ATTACHMENT0 + kOriginalDstColorPlaneIdx,
+                               GL_TEXTURE_2D,
+                               m_originalDstColorTextureID,
+                               0);
+    }
+    if (m_clipTextureID != 0)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               GL_COLOR_ATTACHMENT0 + kClipPlaneIdx,
+                               GL_TEXTURE_2D,
+                               m_clipTextureID,
+                               0);
+    }
 }
 } // namespace rive::pls

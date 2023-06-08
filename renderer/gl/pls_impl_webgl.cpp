@@ -49,15 +49,18 @@ class PLSRenderContextGL::PLSImplWebGL : public PLSRenderContextGL::PLSImpl
                                                    renderTarget->m_clipTextureID,
                                                    0,
                                                    0);
-        renderTarget->createReadFramebuffer();
+        renderTarget->createSideFramebuffer();
         return renderTarget;
     }
 
     void activatePixelLocalStorage(PLSRenderContextGL* context,
+                                   const PLSRenderTargetGL* renderTarget,
                                    LoadAction loadAction,
                                    const ShaderFeatures& shaderFeatures,
                                    const DrawProgram& drawProgram) override
     {
+        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
+
         // Bind these before activating pixel local storage, so they don't count against our GL call
         // count in Chrome while pixel local storage is active, reducing our chances of the render
         // pass being interrupted.

@@ -131,6 +131,7 @@ public:
     }
 
     void activatePixelLocalStorage(PLSRenderContextGL* context,
+                                   const PLSRenderTargetGL* renderTarget,
                                    LoadAction loadAction,
                                    const ShaderFeatures& shaderFeatures,
                                    const DrawProgram& drawProgram) override
@@ -139,6 +140,7 @@ public:
         assert(context->m_extensions.EXT_shader_framebuffer_fetch ||
                context->m_extensions.ARM_shader_framebuffer_fetch);
 
+        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
         uint32_t ops = loadstoreops::kClearCoverage;

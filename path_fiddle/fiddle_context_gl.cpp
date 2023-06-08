@@ -17,7 +17,7 @@
 using namespace rive;
 using namespace rive::pls;
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
 #ifdef DEBUG
 static void GLAPIENTRY err_msg_callback(GLenum source,
                                         GLenum type,
@@ -46,7 +46,7 @@ class FiddleContextGL : public FiddleContext
 public:
     FiddleContextGL()
     {
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
         // Load the OpenGL API using glad.
         if (!gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress))
         {
@@ -58,7 +58,7 @@ public:
         printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
         printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
         printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
         printf("GL_ANGLE_shader_pixel_local_storage_coherent: %i\n",
                GLAD_GL_ANGLE_shader_pixel_local_storage_coherent);
 #endif
@@ -71,7 +71,7 @@ public:
         }
 #endif
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
 #ifdef DEBUG
         if (GLAD_GL_KHR_debug)
         {
@@ -292,7 +292,7 @@ public:
         m_plsContext->flush();
         auto [w, h] = std::make_tuple(m_renderTarget->width(), m_renderTarget->height());
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_renderTarget->readFramebufferID());
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_renderTarget->sideFramebufferID());
         glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     }
 

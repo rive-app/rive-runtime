@@ -17,14 +17,15 @@ end
 
 filter "system:windows or macosx or linux"
 do
-    -- Define RIVE_ANGLE outside of a project so that it also gets defined for consumers. It is the
-    -- responsibility of consumers to call gladLoadGLES2Loader() when RIVE_ANGLE is defined.
-    defines {"RIVE_ANGLE"}
+    -- Define RIVE_DESKTOP_GL outside of a project so that it also gets defined for consumers. It is
+    -- the responsibility of consumers to call gladLoadGLES2Loader() when RIVE_DESKTOP_GL is
+    -- defined.
+    defines {"RIVE_DESKTOP_GL"}
 end
 
 filter "system:android"
 do
-    defines {"RIVE_ANDROID"}
+    defines {"RIVE_GLES"}
 end
 
 filter "system:ios"
@@ -127,6 +128,7 @@ do
     filter "system:windows or macosx or linux"
     do
         files {"../renderer/gl/pls_impl_webgl.cpp", -- Emulate WebGL with ANGLE.
+               "../renderer/gl/pls_impl_rw_texture.cpp",
                "../glad/glad.c"}  -- GL loader library for ANGLE.
     end
 

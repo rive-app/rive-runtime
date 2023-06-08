@@ -47,7 +47,6 @@ private:
     class PLSImpl
     {
     public:
-        virtual ~PLSImpl() {}
         virtual rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
                                                           size_t width,
                                                           size_t height,
@@ -57,21 +56,28 @@ private:
                                                                  const PlatformFeatures&) = 0;
 
         virtual void activatePixelLocalStorage(PLSRenderContextGL*,
+                                               const PLSRenderTargetGL*,
                                                LoadAction,
                                                const ShaderFeatures&,
                                                const DrawProgram&) = 0;
         virtual void deactivatePixelLocalStorage(const ShaderFeatures&) = 0;
 
         virtual const char* shaderDefineName() const = 0;
+
+        virtual const char* shaderVersionOverrideString() const { return nullptr; }
+
+        virtual ~PLSImpl() {}
     };
 
-    class PLSImplWebGL;
     class PLSImplEXTNative;
     class PLSImplFramebufferFetch;
+    class PLSImplWebGL;
+    class PLSImplRWTexture;
 
-    static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
     static std::unique_ptr<PLSImpl> MakePLSImplEXTNative();
     static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch();
+    static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
+    static std::unique_ptr<PLSImpl> MakePLSImplRWTexture();
 
     // Wraps a compiled and linked GL program of draw.glsl, with a specific set of features enabled
     // via #define. The set of features to enable is dictated by ShaderFeatures.
@@ -97,6 +103,8 @@ private:
         bool ANGLE_shader_pixel_local_storage_coherent = false;
         bool ANGLE_provoking_vertex = false;
         bool ARM_shader_framebuffer_fetch = false;
+        bool ARB_fragment_shader_interlock = false;
+        bool INTEL_fragment_shader_ordering = false;
         bool EXT_shader_framebuffer_fetch = false;
         bool EXT_shader_pixel_local_storage = false;
         bool QCOM_shader_framebuffer_fetch_noncoherent = false;
