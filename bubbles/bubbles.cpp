@@ -125,7 +125,7 @@ static bool link_program(GLuint program)
     return true;
 }
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
 static void GLAPIENTRY err_msg_callback(GLenum source,
                                         GLenum type,
                                         GLuint id,
@@ -199,7 +199,7 @@ int main(int argc, const char* argv[])
     emscripten_set_main_loop(mainLoop, 0, false);
 #endif
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
     // Select the ANGLE backend.
     for (int i = 1; i < argc; i++)
     {
@@ -249,7 +249,7 @@ int main(int argc, const char* argv[])
     glfwSetWindowTitle(window, "Rive Bubbles");
     glfwMakeContextCurrent(window);
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
     // Load the OpenGL API using glad.
     if (!gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress))
     {
@@ -264,7 +264,7 @@ int main(int argc, const char* argv[])
     printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
     fflush(stdout);
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
     if (!GLAD_GL_ANGLE_shader_pixel_local_storage_coherent)
     {
         printf("ANGLE_shader_pixel_local_storage_coherent not supported\n");
@@ -304,7 +304,7 @@ int main(int argc, const char* argv[])
     uniformWindow = glGetUniformLocation(program, "window");
     uniformT = glGetUniformLocation(program, "T");
 
-    // Generate bubbles.
+    // Generate n bubbles.
     Bubble bubbles[n];
     for (Bubble& bubble : bubbles)
     {
@@ -355,7 +355,7 @@ int main(int argc, const char* argv[])
     float clearColor[] = {.1f, .1f, .1f, .1f};
     glFramebufferPixelLocalClearValuefvWEBGL(0, clearColor);
 
-#if RIVE_ANGLE
+#if RIVE_DESKTOP_GL
     while (!glfwWindowShouldClose(window))
     {
         mainLoop();

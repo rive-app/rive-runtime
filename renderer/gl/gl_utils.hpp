@@ -9,9 +9,30 @@
 
 namespace glutils
 {
-void CompileAndAttachShader(GLuint program, GLuint type, const char* source);
-void CompileAndAttachShader(GLuint program, GLuint type, const char* sources[], size_t n);
-[[nodiscard]] GLuint CompileShader(GLuint type, const char* source);
-[[nodiscard]] GLuint CompileShader(GLuint type, const char* sources[], size_t n);
+// A nullptr for versionString will default to "#version 300 es\n".
+void CompileAndAttachShader(GLuint program,
+                            GLuint type,
+                            const char* source,
+                            const char* versionString = nullptr);
+
+void CompileAndAttachShader(GLuint program,
+                            GLuint type,
+                            const char* defines[],
+                            size_t numDefines,
+                            const char* sources[],
+                            size_t numSources,
+                            const char* versionString = nullptr);
+
+[[nodiscard]] GLuint CompileShader(GLuint type,
+                                   const char* source,
+                                   const char* versionString = nullptr);
+
+[[nodiscard]] GLuint CompileShader(GLuint type,
+                                   const char* defines[],
+                                   size_t numDefines,
+                                   const char* sources[],
+                                   size_t numSources,
+                                   const char* versionString = nullptr);
+
 void LinkProgram(GLuint program);
 } // namespace glutils

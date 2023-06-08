@@ -103,7 +103,7 @@
 #define TEXTURE_SAMPLE(T, N, C) texture(N, C)
 
 // Define macros for implementing pixel local storage based on available extensions.
-#if defined(GL_ANGLE_shader_pixel_local_storage)
+#ifdef @PLS_IMPL_WEBGL
 
 #extension GL_ANGLE_shader_pixel_local_storage : require
 
@@ -119,7 +119,12 @@
 
 #define PLS_PRESERVE_VALUE(P)
 
-#elif defined(GL_EXT_shader_pixel_local_storage)
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#endif
+
+#ifdef @PLS_IMPL_EXT_NATIVE
 
 #extension GL_EXT_shader_pixel_local_storage : require
 
@@ -143,7 +148,12 @@
 
 #define PLS_PRESERVE_VALUE(P)
 
-#elif defined(GL_EXT_shader_framebuffer_fetch)
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#endif
+
+#ifdef @PLS_IMPL_FRAMEBUFFER_FETCH
 
 #extension GL_EXT_shader_framebuffer_fetch : require
 
@@ -160,6 +170,40 @@
 // When using multiple color attachments, we have to write a value to every color attachment, every
 // shader invocation, or else the contents become undefined.
 #define PLS_PRESERVE_VALUE(P) P = P
+
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#endif
+
+#ifdef @PLS_IMPL_RW_TEXTURE
+
+#extension GL_ARB_fragment_shader_interlock : enable
+#extension GL_INTEL_fragment_shader_ordering : enable
+
+#if defined(GL_ARB_fragment_shader_interlock)
+#define PLS_INTERLOCK_BEGIN                                                                        \
+    highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));                                          \
+    beginInvocationInterlockARB()
+#define PLS_INTERLOCK_END endInvocationInterlockARB()
+#elif defined(GL_INTEL_fragment_shader_ordering)
+#define PLS_INTERLOCK_BEGIN                                                                        \
+    highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));                                          \
+    beginFragmentShaderOrderingINTEL()
+#define PLS_INTERLOCK_END
+#endif
+
+#define PLS_BLOCK_BEGIN
+#define PLS_DECL4F(B) layout(binding = B, rgba8) uniform lowp coherent image2D
+#define PLS_DECL2F(B) layout(binding = B, r32ui) uniform highp coherent uimage2D
+#define PLS_BLOCK_END
+
+#define PLS_LOAD4F(P) imageLoad(P, plsCoord)
+#define PLS_LOAD2F(P) unpackHalf2x16(imageLoad(P, plsCoord).x)
+#define PLS_STORE4F(P, V) imageStore(P, plsCoord, V)
+#define PLS_STORE2F(P, X, Y) imageStore(P, plsCoord, uvec4(packHalf2x16(vec2(X, Y))))
+
+#define PLS_PRESERVE_VALUE(P)
 
 #endif
 

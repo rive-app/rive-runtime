@@ -4,7 +4,7 @@
 
 #pragma once
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
 #include "glad.h"
 #define GL_APIENTRY GLAPIENTRY
 #define GL_MAX_PIXEL_LOCAL_STORAGE_PLANES_WEBGL GL_MAX_PIXEL_LOCAL_STORAGE_PLANES_ANGLE
@@ -37,7 +37,7 @@
 #define RIVE_WEBGL
 #endif
 
-#ifdef RIVE_ANDROID
+#ifdef RIVE_GLES
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 #include <GLES2/gl2ext.h>

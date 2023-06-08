@@ -17,7 +17,7 @@
 using namespace rive;
 using namespace rive::pls;
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
 #ifdef DEBUG
 static void GLAPIENTRY err_msg_callback(GLenum source,
                                         GLenum type,
@@ -41,12 +41,12 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
 #endif
 #endif
 
-class FiddleContextWEBGL : public FiddleContext
+class FiddleContextGL : public FiddleContext
 {
 public:
-    FiddleContextWEBGL()
+    FiddleContextGL()
     {
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
         // Load the OpenGL API using glad.
         if (!gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress))
         {
@@ -58,7 +58,7 @@ public:
         printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
         printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
         printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
         printf("GL_ANGLE_shader_pixel_local_storage_coherent: %i\n",
                GLAD_GL_ANGLE_shader_pixel_local_storage_coherent);
 #endif
@@ -71,7 +71,7 @@ public:
         }
 #endif
 
-#ifdef RIVE_ANGLE
+#ifdef RIVE_DESKTOP_GL
 #ifdef DEBUG
         if (GLAD_GL_KHR_debug)
         {
@@ -83,7 +83,7 @@ public:
 #endif
     }
 
-    ~FiddleContextWEBGL() { glDeleteFramebuffers(1, &m_zoomWindowFBO); }
+    ~FiddleContextGL() { glDeleteFramebuffers(1, &m_zoomWindowFBO); }
 
     float dpiScale() const override
     {
@@ -188,10 +188,10 @@ static GrGLFuncPtr get_skia_gl_proc_address(void* ctx, const char name[])
     return glfwGetProcAddress(name);
 }
 
-class FiddleContextWEBGLSkia : public FiddleContextWEBGL
+class FiddleContextGLSkia : public FiddleContextGL
 {
 public:
-    FiddleContextWEBGLSkia() :
+    FiddleContextGLSkia() :
         m_grContext(
             GrDirectContext::MakeGL(GrGLMakeAssembledInterface(nullptr, get_skia_gl_proc_address)))
     {
@@ -246,15 +246,24 @@ private:
     sk_sp<SkSurface> m_skSurface;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeWEBGLSkia()
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia()
 {
-    return std::make_unique<FiddleContextWEBGLSkia>();
+    return std::make_unique<FiddleContextGLSkia>();
 }
 #endif
 
-class FiddleContextWEBGLPLS : public FiddleContextWEBGL
+class FiddleContextGLPLS : public FiddleContextGL
 {
 public:
+    FiddleContextGLPLS()
+    {
+        if (!m_plsContext)
+        {
+            fprintf(stderr, "Failed to create a PLS renderer.\n");
+            exit(-1);
+        }
+    }
+
     std::unique_ptr<rive::Factory> makeFactory() override { return std::make_unique<PLSFactory>(); }
 
     void onSizeChanged(int width, int height) override
@@ -283,7 +292,7 @@ public:
         m_plsContext->flush();
         auto [w, h] = std::make_tuple(m_renderTarget->width(), m_renderTarget->height());
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_renderTarget->readFramebufferID());
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_renderTarget->sideFramebufferID());
         glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     }
 
@@ -294,7 +303,7 @@ private:
     rcp<PLSRenderTargetGL> m_renderTarget;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeWEBGLPLS()
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS()
 {
-    return std::make_unique<FiddleContextWEBGLPLS>();
+    return std::make_unique<FiddleContextGLPLS>();
 }

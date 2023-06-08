@@ -17,14 +17,15 @@ end
 
 filter "system:windows or macosx or linux"
 do
-    -- Define RIVE_ANGLE outside of a project so that it also gets defined for consumers. It is the
-    -- responsibility of consumers to call gladLoadGLES2Loader() when RIVE_ANGLE is defined.
-    defines {"RIVE_ANGLE"}
+    -- Define RIVE_DESKTOP_GL outside of a project so that it also gets defined for consumers. It is
+    -- the responsibility of consumers to call gladLoadGLES2Loader() when RIVE_DESKTOP_GL is
+    -- defined.
+    defines {"RIVE_DESKTOP_GL"}
 end
 
 filter "system:android"
 do
-    defines {"RIVE_ANDROID"}
+    defines {"RIVE_GLES"}
 end
 
 filter "system:ios"
@@ -116,11 +117,27 @@ do
                       "-fassociative-math"}
     end
 
+    filter "system:windows or macosx or linux or android"
+    do
+        files {"../renderer/gl/buffer_ring_gl.cpp",
+               "../renderer/gl/gl_utils.cpp",
+               "../renderer/gl/pls_render_context_gl.cpp",
+               "../renderer/gl/pls_render_target_gl.cpp"}
+    end
+
     filter "system:windows or macosx or linux"
     do
-        files {"../renderer/gl/*.cpp",
-               "../renderer/gl/webgl/*.cpp", -- Emulate WebGL with ANGLE.
+        files {"../renderer/gl/pls_impl_webgl.cpp", -- Emulate WebGL with ANGLE.
+               "../renderer/gl/pls_impl_rw_texture.cpp",
                "../glad/glad.c"}  -- GL loader library for ANGLE.
+    end
+
+    filter "system:android"
+    do
+        targetdir "android_%{cfg.buildcfg}"
+        objdir "obj/android_%{cfg.buildcfg}"
+        files {"../renderer/gl/pls_impl_ext_native.cpp",
+               "../renderer/gl/pls_impl_framebuffer_fetch.cpp"}
     end
 
     filter {"system:macosx or ios", "options:not nop-obj-c"}
@@ -137,14 +154,6 @@ do
     filter "system:windows"
     do
         architecture "x64"
-    end
-
-    filter "system:android"
-    do
-        targetdir "android_%{cfg.buildcfg}"
-        objdir "obj/android_%{cfg.buildcfg}"
-        files {"../renderer/gl/*.cpp",
-               "../renderer/gl/es_native/*.cpp"}
     end
 
     if os.host() == 'macosx'
@@ -184,8 +193,7 @@ do
     do
         targetdir "wasm_%{cfg.buildcfg}"
         objdir "obj/wasm_%{cfg.buildcfg}"
-        files {"../renderer/gl/*.cpp",
-               "../renderer/gl/webgl/*.cpp"}
+        files {"../renderer/gl/pls_impl_webgl.cpp"}
         buildoptions {"-pthread"}
     end
 
