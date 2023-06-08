@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/rive_types.hpp"
-#include <mm_malloc.h>
+#include  <stdlib.h>
 
 namespace rive::pls
 {
@@ -24,14 +24,14 @@ public:
         if (m_capacity != capacity)
         {
             // Align at 128 bits for optimal SSE/NEON loads.
-            _mm_free(m_buffer);
+            free(m_buffer);
             m_buffer = reinterpret_cast<T*>(
-                _mm_malloc(capacity * sizeof(T), AlignmentInElements * sizeof(T)));
+                _aligned_malloc(capacity * sizeof(T), AlignmentInElements * sizeof(T)));
             m_capacity = capacity;
         }
     }
 
-    ~AlignedBuffer() { _mm_free(m_buffer); }
+    ~AlignedBuffer() { free(m_buffer); }
 
 private:
     size_t m_capacity = 0;

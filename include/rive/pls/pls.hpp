@@ -74,7 +74,7 @@ constexpr static size_t kContourTexelsPerItem = 1;
 // Tessellation is performed by rendering vertices into a data texture. These values define the
 // dimensions of the tessellation data texture.
 constexpr static size_t kTessTextureWidth = 2048; // GL_MAX_TEXTURE_SIZE spec minimum on ES3/WebGL2.
-constexpr static size_t kTessTextureWidthLog2 = 31 - __builtin_clz(kTessTextureWidth);
+constexpr static size_t kTessTextureWidthLog2 = 11;
 static_assert(1 << kTessTextureWidthLog2 == kTessTextureWidth);
 
 // Gradients are implemented by sampling a horizontal ramp of pixels allocated in a global gradient

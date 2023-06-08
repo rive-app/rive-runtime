@@ -8,9 +8,6 @@
 #include "pls_paint.hpp"
 #include "rive/math/math_types.hpp"
 
-#include "../out/obj/generated/advanced_blend.exports.h"
-#include "../out/obj/generated/draw.exports.h"
-
 #include <string_view>
 
 // Overallocate GPU resources by 25% of current usage, in order to create padding for increase.
@@ -21,44 +18,30 @@ constexpr static double kGPUResourceIntermediateGrowthFactor = 2;
 
 namespace rive::pls
 {
-uint64_t PLSRenderContext::ShaderFeatures::uniqueKey(SourceType sourceType) const
+uint64_t PLSRenderContext::ShaderFeatures::generatePreprocessorDefines(SourceType sourceType) const
 {
-    // The vertex shader key doesn't need to know the exact blend tier; it only cares if advanced
-    // blend is enabled at all or not.
-    uint64_t key = programFeatures.blendTier != BlendTier::srcOver;
-    key = (key << 1) | static_cast<uint64_t>(programFeatures.enablePathClipping);
-    if (sourceType != SourceType::vertexOnly)
-    {
-        assert(static_cast<uint64_t>(programFeatures.blendTier) < (1 << 2));
-        key = (key << 2) | static_cast<uint64_t>(programFeatures.blendTier);
-        key = (key << 1) | static_cast<uint64_t>(fragmentFeatures.enableEvenOdd);
-    }
-    return key;
-}
-
-void PLSRenderContext::ShaderFeatures::generatePreprocessorDefines(
-    SourceType sourceType,
-    const std::function<void(const char*)>& callback) const
-{
+    uint64_t definitions = 0;
+    
     if (programFeatures.blendTier != BlendTier::srcOver)
     {
-        callback(GLSL_ENABLE_ADVANCED_BLEND);
+        definitions |= Definitions::ADVANCED_BLEND;
     }
     if (programFeatures.enablePathClipping)
     {
-        callback(GLSL_ENABLE_PATH_CLIPPING);
+        definitions |= Definitions::PATH_CLIPPING;
     }
     if (sourceType != SourceType::vertexOnly)
     {
         if (fragmentFeatures.enableEvenOdd)
         {
-            callback(GLSL_ENABLE_EVEN_ODD);
+            definitions |= Definitions::EVEN_ODD;
         }
         if (programFeatures.blendTier == BlendTier::advancedHSL)
         {
-            callback(GLSL_ENABLE_HSL_BLEND_MODES);
+            definitions |= Definitions::BLEND_MODES;
         }
     }
+    return definitions;
 }
 
 PLSRenderContext::BlendTier PLSRenderContext::BlendTierForBlendMode(PLSBlendMode blendMode)

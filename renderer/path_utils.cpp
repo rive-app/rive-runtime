@@ -23,9 +23,9 @@ Vec2D EvalCubicAt(const Vec2D p[4], float t)
     float2 p1 = simd::load2f(p + 1);
     float2 p2 = simd::load2f(p + 2);
     float2 p3 = simd::load2f(p + 3);
-    float2 a = p3 + 3 * (p1 - p2) - p0;
-    float2 b = 3 * (p2 - 2 * p1 + p0);
-    float2 c = 3 * (p1 - p0);
+    float2 a = p3 + 3.0f * (p1 - p2) - p0;
+    float2 b = 3.0f * (p2 - 2.0f * p1 + p0);
+    float2 c = 3.0f * (p1 - p0);
     float2 d = p0;
     return math::bit_cast<Vec2D>(((a * t + b) * t + c) * t + d);
 }

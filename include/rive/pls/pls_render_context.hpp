@@ -280,12 +280,15 @@ protected:
     // Indicates which "uber shader" features to enable in the draw shader.
     struct ShaderFeatures
     {
-        // Returns a key that uniquely identifies the current feature set.
-        uint64_t uniqueKey(SourceType) const;
+        enum Definitions : uint64_t {
+            ADVANCED_BLEND = 1 << 0,
+            PATH_CLIPPING = 1 << 1,
+            EVEN_ODD = 1 << 2,
+            BLEND_MODES = 1 << 3,
+        };
 
-        // Issues the callback with the set of preprocessor macros that must be defined in order to
-        // support the current feature set.
-        void generatePreprocessorDefines(SourceType, const std::function<void(const char*)>&) const;
+        // Returns a bitmask of which preprocessor macros must be defined in order to support the current feature set.
+        uint64_t generatePreprocessorDefines(SourceType) const;
 
         struct
         {
