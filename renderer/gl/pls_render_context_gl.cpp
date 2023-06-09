@@ -210,9 +210,23 @@ public:
 
         std::vector<const char*> defines;
         defines.push_back(plsImpl->shaderDefineName());
-        shaderFeatures.generatePreprocessorDefines(sourceType, [&defines](const char* macro) {
-            defines.push_back(macro);
-        });
+        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
+        {
+            defines.push_back(GLSL_ENABLE_ADVANCED_BLEND);
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_PATH_CLIPPING)
+        {
+            defines.push_back(GLSL_ENABLE_PATH_CLIPPING);
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
+        {
+            defines.push_back(GLSL_ENABLE_EVEN_ODD);
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
+        {
+            defines.push_back(GLSL_ENABLE_HSL_BLEND_MODES);
+        }
 
         std::vector<const char*> sources;
         sources.push_back(glsl::math);
@@ -255,14 +269,14 @@ PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
 
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
-    const DrawShader& vertexShader =
-        context->m_vertexShaders
-            .try_emplace(shaderFeatures.uniqueKey(SourceType::vertexOnly),
-                         GL_VERTEX_SHADER,
-                         shaderFeatures,
-                         context->m_platformFeatures,
-                         context->m_plsImpl.get())
-            .first->second;
+    uint64_t vertexShaderKey = shaderFeatures.getPreprocessorDefines(SourceType::vertexOnly);
+    const DrawShader& vertexShader = context->m_vertexShaders
+                                         .try_emplace(vertexShaderKey,
+                                                      GL_VERTEX_SHADER,
+                                                      shaderFeatures,
+                                                      context->m_platformFeatures,
+                                                      context->m_plsImpl.get())
+                                         .first->second;
     glAttachShader(m_id, vertexShader.id());
 
     // Every fragment shader is unique.
@@ -354,10 +368,9 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
 
     // Compile the draw program before activating pixel local storage.
     // Cache specific compilations of draw.glsl by ShaderFeatures.
+    uint64_t fragmentShaderKey = shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
     const DrawProgram& drawProgram =
-        m_drawPrograms
-            .try_emplace(shaderFeatures.uniqueKey(SourceType::wholeProgram), this, shaderFeatures)
-            .first->second;
+        m_drawPrograms.try_emplace(fragmentShaderKey, this, shaderFeatures).first->second;
 
     if (frameDescriptor().wireframe)
     {

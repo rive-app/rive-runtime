@@ -14,29 +14,14 @@ void GenerateWedgeTriangles(WedgeVertex vertices[], uint16_t indices[], WedgeTyp
     {
         if (wedgeType == WedgeType::centerStroke)
         {
-            vertices[vertexCount++] = {.localVertexID = static_cast<float>(i),
-                                       .outset = 1,
-                                       .fillCoverage = 0,
-                                       .vertexType = flags::kStrokeVertex};
-            vertices[vertexCount++] = {.localVertexID = static_cast<float>(i),
-                                       .outset = 0,
-                                       .fillCoverage = .5f,
-                                       .vertexType = flags::kStrokeVertex};
-            vertices[vertexCount++] = {.localVertexID = static_cast<float>(i),
-                                       .outset = -1,
-                                       .fillCoverage = 0,
-                                       .vertexType = flags::kStrokeVertex};
+            vertices[vertexCount++] = {static_cast<float>(i), 1, 0, flags::kStrokeVertex};
+            vertices[vertexCount++] = {static_cast<float>(i), 0, .5f, flags::kStrokeVertex};
+            vertices[vertexCount++] = {static_cast<float>(i), -1, 0, flags::kStrokeVertex};
         }
         else
         {
-            vertices[vertexCount++] = {.localVertexID = static_cast<float>(i),
-                                       .outset = -1,
-                                       .fillCoverage = 1,
-                                       .vertexType = flags::kStrokeVertex};
-            vertices[vertexCount++] = {.localVertexID = static_cast<float>(i),
-                                       .outset = 1,
-                                       .fillCoverage = 0,
-                                       .vertexType = flags::kStrokeVertex};
+            vertices[vertexCount++] = {static_cast<float>(i), -1, 1, flags::kStrokeVertex};
+            vertices[vertexCount++] = {static_cast<float>(i), 1, 0, flags::kStrokeVertex};
         }
     }
 
@@ -44,18 +29,15 @@ void GenerateWedgeTriangles(WedgeVertex vertices[], uint16_t indices[], WedgeTyp
     size_t fanVerticesIdx = vertexCount;
     for (int i = 0; i <= kWedgeSize; ++i)
     {
-        vertices[vertexCount++] = {.localVertexID = static_cast<float>(i),
-                                   .outset = wedgeType == WedgeType::centerStroke ? 0.f : -1.f,
-                                   .fillCoverage = 1,
-                                   .vertexType = flags::kFanVertex};
+        vertices[vertexCount++] = {static_cast<float>(i),
+                                   wedgeType == WedgeType::centerStroke ? 0.f : -1.f,
+                                   1,
+                                   flags::kFanVertex};
     }
 
     // Midpoint vertex.
     size_t midpointIdx = vertexCount;
-    vertices[vertexCount++] = {.localVertexID = 0,
-                               .outset = 0,
-                               .fillCoverage = 1,
-                               .vertexType = flags::kFanMidpointVertex};
+    vertices[vertexCount++] = {0, 0, 1, flags::kFanMidpointVertex};
     assert(vertexCount == (wedgeType == WedgeType::centerStroke ? kCenterStrokeWedgeVertexCount
                                                                 : kOuterStrokeWedgeVertexCount));
 

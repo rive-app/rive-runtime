@@ -113,29 +113,28 @@ private:
                                     const ShaderFeatures& shaderFeatures)
     {
         char namespaceName[] = "r0000";
-        shaderFeatures.generatePreprocessorDefines(sourceType, [&namespaceName](const char* macro) {
-            // draw.metal uses the following bits in the namespace names for each flag:
-            //     ENABLE_ADVANCED_BLEND:   r0001
-            //     ENABLE_PATH_CLIPPING:    r0010
-            //     ENABLE_EVEN_ODD:         r0100
-            //     ENABLE_HSL_BLEND_MODES:  r1000
-            if (strcmp(macro, GLSL_ENABLE_ADVANCED_BLEND) == 0)
-            {
-                namespaceName[4] = '1';
-            }
-            if (strcmp(macro, GLSL_ENABLE_PATH_CLIPPING) == 0)
-            {
-                namespaceName[3] = '1';
-            }
-            if (strcmp(macro, GLSL_ENABLE_EVEN_ODD) == 0)
-            {
-                namespaceName[2] = '1';
-            }
-            if (strcmp(macro, GLSL_ENABLE_HSL_BLEND_MODES) == 0)
-            {
-                namespaceName[1] = '1';
-            }
-        });
+        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
+        // draw.metal uses the following bits in the namespace names for each flag:
+        //     ENABLE_ADVANCED_BLEND:   r0001
+        //     ENABLE_PATH_CLIPPING:    r0010
+        //     ENABLE_EVEN_ODD:         r0100
+        //     ENABLE_HSL_BLEND_MODES:  r1000
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
+        {
+            namespaceName[4] = '1';
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_PATH_CLIPPING)
+        {
+            namespaceName[3] = '1';
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
+        {
+            namespaceName[2] = '1';
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
+        {
+            namespaceName[1] = '1';
+        }
         const char* mainFunctionName =
             sourceType == SourceType::vertexOnly ? GLSL_drawVertexMain : GLSL_drawFragmentMain;
         NSString* fullyQualifiedName =
@@ -403,11 +402,9 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         // Cache specific compilations of draw.glsl by ShaderFeatures.
         // TODO: Reuse vertex shader compilations where possible.
         // TODO: Precompile these shaders and only ship bytecode.
+        uint64_t shaderKey = shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
         const DrawPipeline& drawPipeline =
-            m_drawPipelines
-                .try_emplace(
-                    shaderFeatures.uniqueKey(SourceType::wholeProgram), this, shaderFeatures)
-                .first->second;
+            m_drawPipelines.try_emplace(shaderKey, this, shaderFeatures).first->second;
 
         [encoder setViewport:(MTLViewport){0.f,
                                            0.f,
