@@ -2,8 +2,6 @@
  * Copyright 2022 Rive
  */
 
-#define WEDGE_SIZE 8
-
 #define AA_RADIUS .5
 
 #define STROKE_VERTEX .0
@@ -64,6 +62,13 @@ uint pad1;
 uint pad2;
 UNIFORM_BLOCK_END(uniforms)
 
+UNIFORM_BLOCK_BEGIN(@DrawParameters)
+int wedgeSize;
+int baseTessellationVertex;
+int pad0;
+int pad1;
+UNIFORM_BLOCK_END(drawParameters)
+
 VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
 TEXTURE_RGBA32UI(0) @tessVertexTexture;
 TEXTURE_RGBA32UI(1) @pathTexture;
@@ -95,7 +100,8 @@ VERTEX_MAIN(
     uint GLSL_VERTEX_ID [[vertex_id]],
     uint GLSL_INSTANCE_ID [[instance_id]],
     constant @Uniforms& uniforms [[buffer(0)]],
-    constant Attrs* attrs [[buffer(1)]],
+    constant @DrawParameters& drawParameters [[buffer(1)]],
+    constant Attrs* attrs [[buffer(2)]],
     VertexTextures textures
 #endif
 )
@@ -108,12 +114,13 @@ VERTEX_MAIN(
     float vertexType = wedgeVertexData.w;
 
     // Fetch the tessellation vertex we belong to.
-    int vertexIdx = GLSL_INSTANCE_ID * WEDGE_SIZE + localVertexID;
+    int vertexIdx = GLSL_INSTANCE_ID * drawParameters.wedgeSize +
+                    drawParameters.baseTessellationVertex + localVertexID;
     int2 tessVertexTexelCoord = tessTexelCoord(vertexIdx);
     uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord, 0);
     uint contourIDWithFlags = tessVertexData.w;
-    bool isClosingVertexOfContour =
-        localVertexID == WEDGE_SIZE && (contourIDWithFlags & FIRST_VERTEX_OF_CONTOUR_FLAG) != 0u;
+    bool isClosingVertexOfContour = localVertexID == drawParameters.wedgeSize &&
+                                    (contourIDWithFlags & FIRST_VERTEX_OF_CONTOUR_FLAG) != 0u;
     if (isClosingVertexOfContour)
     {
         // The right vertex crossed over into a new contour. Fetch the previous vertex, which will

@@ -8,7 +8,7 @@
 
 namespace rive::pls
 {
-VertexBufferMetal::VertexBufferMetal(id<MTLDevice> gpu, size_t capacity, size_t itemSizeInBytes) :
+BufferMetal::BufferMetal(id<MTLDevice> gpu, size_t capacity, size_t itemSizeInBytes) :
     BufferRingImpl(capacity, itemSizeInBytes)
 {
     for (int i = 0; i < kBufferRingSize; ++i)
@@ -18,23 +18,7 @@ VertexBufferMetal::VertexBufferMetal(id<MTLDevice> gpu, size_t capacity, size_t 
     }
 }
 
-void* VertexBufferMetal::onMapBuffer(int bufferIdx) { return m_buffers[bufferIdx].contents; }
-
-UniformBufferMetal::UniformBufferMetal(id<MTLDevice> gpu, size_t itemSizeInBytes) :
-    UniformBufferRing(itemSizeInBytes)
-{
-    for (int i = 0; i < kBufferRingSize; ++i)
-    {
-        m_buffers[i] = [gpu newBufferWithLength:itemSizeInBytes
-                                        options:MTLResourceStorageModeShared];
-    }
-}
-
-void UniformBufferMetal::onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
-{
-    assert(bytesWritten == itemSizeInBytes());
-    memcpy(m_buffers[bufferIdx].contents, shadowBuffer(), bytesWritten);
-}
+void* BufferMetal::onMapBuffer(int bufferIdx) { return m_buffers[bufferIdx].contents; }
 
 TexelBufferMetal::TexelBufferMetal(id<MTLDevice> gpu,
                                    Format format,

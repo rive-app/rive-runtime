@@ -51,7 +51,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     glutils::LinkProgram(m_colorRampProgram);
     glUniformBlockBinding(m_colorRampProgram,
                           glGetUniformBlockIndex(m_colorRampProgram, GLSL_Uniforms),
-                          kUniformBlockIdx);
+                          0);
 
     glGenVertexArrays(1, &m_colorRampVAO);
     glBindVertexArray(m_colorRampVAO);
@@ -77,7 +77,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     glutils::LinkProgram(m_tessellateProgram);
     glUniformBlockBinding(m_tessellateProgram,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
-                          kUniformBlockIdx);
+                          0);
 
     glGenVertexArrays(1, &m_tessellateVAO);
     glBindVertexArray(m_tessellateVAO);
@@ -144,9 +144,10 @@ PLSRenderContextGL::~PLSRenderContextGL()
     glDeleteBuffers(1, &m_pathWedgeIndexBuffer);
 }
 
-std::unique_ptr<UniformBufferRing> PLSRenderContextGL::makeUniformBufferRing(size_t sizeInBytes)
+std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeVertexBufferRing(size_t capacity,
+                                                                         size_t itemSizeInBytes)
 {
-    return std::make_unique<UniformBufferGL>(sizeInBytes);
+    return std::make_unique<BufferGL>(GL_ARRAY_BUFFER, capacity, itemSizeInBytes);
 }
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextGL::makeTexelBufferRing(
@@ -165,10 +166,10 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextGL::makeTexelBufferRing(
                                            filter);
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeVertexBufferRing(size_t capacity,
-                                                                         size_t itemSizeInBytes)
+std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeUniformBufferRing(size_t capacity,
+                                                                          size_t sizeInBytes)
 {
-    return std::make_unique<VertexBufferGL>(capacity, itemSizeInBytes);
+    return std::make_unique<BufferGL>(GL_UNIFORM_BUFFER, capacity, sizeInBytes);
 }
 
 void PLSRenderContextGL::allocateTessellationTexture(size_t height)
@@ -289,7 +290,10 @@ PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
     glutils::LinkProgram(m_id);
 
     glUseProgram(m_id);
-    glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), kUniformBlockIdx);
+    glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), kUniformsBlockIdx);
+    glUniformBlockBinding(m_id,
+                          glGetUniformBlockIndex(m_id, GLSL_DrawParameters),
+                          kDrawParametersBlockIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kGLTexIdxOffset + kTessVertexTextureIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kGLTexIdxOffset + kPathTextureIdx);
@@ -300,11 +304,22 @@ PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
 
 PLSRenderContextGL::DrawProgram::~DrawProgram() { glDeleteProgram(m_id); }
 
+static GLuint gl_buffer_id(const BufferRingImpl* bufferRing)
+{
+    return static_cast<const BufferGL*>(bufferRing)->submittedBufferID();
+}
+
+static GLuint gl_texture_id(const TexelBufferRing* texelBufferRing)
+{
+    return static_cast<const TexelBufferGL*>(texelBufferRing)->submittedTextureID();
+}
+
 void PLSRenderContextGL::bindDrawProgram(const DrawProgram& drawProgram)
 {
     glBindVertexArray(m_drawVAO);
-    static_cast<const UniformBufferGL*>(drawUniformBufferRing())
-        ->bindToUniformBlock(kUniformBlockIdx);
+    glBindBufferBase(GL_UNIFORM_BUFFER,
+                     DrawProgram::kUniformsBlockIdx,
+                     gl_buffer_id(drawUniforms()));
     glUseProgram(drawProgram.id());
 }
 
@@ -320,19 +335,17 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     // Render the complex color ramps to the gradient texture.
     if (gradSpanCount > 0)
     {
-        static_cast<const VertexBufferGL*>(gradSpanBufferRing())->bindCurrentBuffer();
+        glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
         glBindVertexArray(m_colorRampVAO);
         glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, sizeof(GradientSpan), nullptr);
         glViewport(0, gradTextureRowsForSimpleRamps(), kGradTextureWidth, gradSpansHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
-        glFramebufferTexture2D(
-            GL_FRAMEBUFFER,
-            GL_COLOR_ATTACHMENT0,
-            GL_TEXTURE_2D,
-            static_cast<const TexelBufferGL*>(gradTexelBufferRing())->submittedTextureID(),
-            0);
-        static_cast<const UniformBufferGL*>(gradUniformBufferRing())
-            ->bindToUniformBlock(kUniformBlockIdx);
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D,
+                               gl_texture_id(gradTexelBufferRing()),
+                               0);
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(colorRampUniforms()));
         glUseProgram(m_colorRampProgram);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gradSpanCount);
     }
@@ -340,7 +353,7 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     // Tessellate all curves into vertices in the tessellation texture.
     if (tessVertexSpanCount > 0)
     {
-        static_cast<const VertexBufferGL*>(tessSpanBufferRing())->bindCurrentBuffer();
+        glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
         glBindVertexArray(m_tessellateVAO);
         for (int i = 0; i < 3; ++i)
         {
@@ -359,8 +372,7 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
         glViewport(0, 0, kTessTextureWidth, tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
         glUseProgram(m_tessellateProgram);
-        static_cast<const UniformBufferGL*>(tessellateUniformBufferRing())
-            ->bindToUniformBlock(kUniformBlockIdx);
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(tessellateUniforms()));
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount);
     }
 
@@ -387,6 +399,11 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     if (wedgeInstanceCount > 0)
     {
         // Draw wedges connecting all tessellated vertices.
+        glBindBufferRange(GL_UNIFORM_BUFFER,
+                          DrawProgram::kDrawParametersBlockIdx,
+                          gl_buffer_id(drawParametersBufferRing()),
+                          0 * sizeof(DrawUniforms),
+                          sizeof(DrawUniforms));
         glDrawElementsInstanced(GL_TRIANGLES,
                                 kOuterStrokeWedgeIndexCount,
                                 GL_UNSIGNED_SHORT,

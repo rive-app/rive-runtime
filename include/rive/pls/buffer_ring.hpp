@@ -88,19 +88,7 @@ private:
     void* m_shadowBuffer = nullptr;
 };
 
-// Buffer ring implementation that attaches to a uniform binding and only supports one single item.
-class UniformBufferRing : public BufferRingShadowImpl
-{
-public:
-    UniformBufferRing(size_t itemSizeInBytes) : BufferRingShadowImpl(1, itemSizeInBytes) {}
-
-    bool contentMatches(const void* data) const
-    {
-        return shadowBuffer() != nullptr && memcmp(shadowBuffer(), data, itemSizeInBytes()) == 0;
-    }
-};
-
-// BufferRingShadowImpl whose backing store is a 2D array of texels.
+// BufferRingShadowImpl whose backing store is a 2D texture.
 class TexelBufferRing : public BufferRingShadowImpl
 {
 public:

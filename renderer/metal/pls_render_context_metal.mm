@@ -230,9 +230,10 @@ rcp<PLSRenderTargetMetal> PLSRenderContextMetal::makeRenderTarget(MTLPixelFormat
         new PLSRenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
 }
 
-std::unique_ptr<UniformBufferRing> PLSRenderContextMetal::makeUniformBufferRing(size_t sizeInBytes)
+std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeVertexBufferRing(size_t capacity,
+                                                                            size_t itemSizeInBytes)
 {
-    return std::make_unique<UniformBufferMetal>(m_gpu, sizeInBytes);
+    return std::make_unique<BufferMetal>(m_gpu, capacity, itemSizeInBytes);
 }
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextMetal::makeTexelBufferRing(
@@ -246,10 +247,10 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextMetal::makeTexelBufferRing(
     return std::make_unique<TexelBufferMetal>(m_gpu, format, widthInItems, height, texelsPerItem);
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeVertexBufferRing(size_t capacity,
-                                                                            size_t itemSizeInBytes)
+std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeUniformBufferRing(size_t capacity,
+                                                                             size_t itemSizeInBytes)
 {
-    return std::make_unique<VertexBufferMetal>(m_gpu, capacity, itemSizeInBytes);
+    return std::make_unique<BufferMetal>(m_gpu, capacity, itemSizeInBytes);
 }
 
 void PLSRenderContextMetal::allocateTessellationTexture(size_t height)
@@ -271,6 +272,16 @@ void PLSRenderContextMetal::lockNextBufferRingIndex()
     // is safe for the CPU to begin modifying the next buffers in our rings.
     m_bufferRingIdx = (m_bufferRingIdx + 1) % kBufferRingSize;
     m_bufferRingLocks[m_bufferRingIdx].lock();
+}
+
+static id<MTLBuffer> mtl_buffer(const BufferRingImpl* bufferRing)
+{
+    return static_cast<const BufferMetal*>(bufferRing)->submittedBuffer();
+}
+
+static id<MTLTexture> mtl_texture(const TexelBufferRing* texelBufferRing)
+{
+    return static_cast<const TexelBufferMetal*>(texelBufferRing)->submittedTexture();
 }
 
 void PLSRenderContextMetal::onFlush(FlushType flushType,
@@ -304,8 +315,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         //
         gradPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
         gradPass.colorAttachments[0].storeAction = MTLStoreActionStore;
-        gradPass.colorAttachments[0].texture =
-            static_cast<const TexelBufferMetal*>(gradTexelBufferRing())->submittedTexture();
+        gradPass.colorAttachments[0].texture = mtl_texture(gradTexelBufferRing());
 
         id<MTLRenderCommandEncoder> gradEncoder =
             [commandBuffer renderCommandEncoderWithDescriptor:gradPass];
@@ -316,14 +326,8 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                                0.0,
                                                1.0}];
         [gradEncoder setRenderPipelineState:m_colorRampPipeline->pipelineState()];
-        [gradEncoder setVertexBuffer:static_cast<const UniformBufferMetal*>(gradUniformBufferRing())
-                                         ->submittedBuffer()
-                              offset:0
-                             atIndex:0];
-        [gradEncoder setVertexBuffer:static_cast<const VertexBufferMetal*>(gradSpanBufferRing())
-                                         ->submittedBuffer()
-                              offset:0
-                             atIndex:1];
+        [gradEncoder setVertexBuffer:mtl_buffer(colorRampUniforms()) offset:0 atIndex:0];
+        [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing()) offset:0 atIndex:1];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
@@ -350,15 +354,8 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                                0.0,
                                                1.0}];
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
-        [tessEncoder
-            setVertexBuffer:static_cast<const UniformBufferMetal*>(tessellateUniformBufferRing())
-                                ->submittedBuffer()
-                     offset:0
-                    atIndex:0];
-        [tessEncoder setVertexBuffer:static_cast<const VertexBufferMetal*>(tessSpanBufferRing())
-                                         ->submittedBuffer()
-                              offset:0
-                             atIndex:1];
+        [tessEncoder setVertexBuffer:mtl_buffer(tessellateUniforms()) offset:0 atIndex:0];
+        [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:1];
         [tessEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
@@ -413,21 +410,13 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                            0.0,
                                            1.0}];
         [encoder setRenderPipelineState:drawPipeline.pipelineState(renderTarget->pixelFormat())];
-        [encoder setVertexBuffer:static_cast<const UniformBufferMetal*>(drawUniformBufferRing())
-                                     ->submittedBuffer()
-                          offset:0
-                         atIndex:0];
-        [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:1];
+        [encoder setVertexBuffer:mtl_buffer(drawUniforms()) offset:0 atIndex:0];
+        [encoder setVertexBuffer:mtl_buffer(drawParametersBufferRing()) offset:0 atIndex:1];
+        [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:2];
         [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
-        [encoder setVertexTexture:static_cast<const TexelBufferMetal*>(pathBufferRing())
-                                      ->submittedTexture()
-                          atIndex:kPathTextureIdx];
-        [encoder setVertexTexture:static_cast<const TexelBufferMetal*>(contourBufferRing())
-                                      ->submittedTexture()
-                          atIndex:kContourTextureIdx];
-        [encoder setFragmentTexture:static_cast<const TexelBufferMetal*>(gradTexelBufferRing())
-                                        ->submittedTexture()
-                            atIndex:kGradTextureIdx];
+        [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
+        [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
+        [encoder setFragmentTexture:mtl_texture(gradTexelBufferRing()) atIndex:kGradTextureIdx];
         if (frameDescriptor().wireframe)
         {
             [encoder setTriangleFillMode:MTLTriangleFillModeLines];

@@ -12,32 +12,17 @@
 
 namespace rive::pls
 {
-class VertexBufferMetal : public BufferRingImpl
+class BufferMetal : public BufferRingImpl
 {
 public:
-    VertexBufferMetal(id<MTLDevice>, size_t capacity, size_t itemSizeInBytes);
-    ~VertexBufferMetal() override {}
+    BufferMetal(id<MTLDevice>, size_t capacity, size_t itemSizeInBytes);
+    ~BufferMetal() override {}
 
     id<MTLBuffer> submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
 
 protected:
     void* onMapBuffer(int bufferIdx) override;
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override {}
-
-private:
-    id<MTLBuffer> m_buffers[kBufferRingSize];
-};
-
-class UniformBufferMetal : public UniformBufferRing
-{
-public:
-    UniformBufferMetal(id<MTLDevice>, size_t itemSizeInBytes);
-    ~UniformBufferMetal() override {}
-
-    id<MTLBuffer> submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
-
-protected:
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override;
 
 private:
     id<MTLBuffer> m_buffers[kBufferRingSize];

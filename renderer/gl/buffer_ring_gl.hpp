@@ -9,35 +9,21 @@
 
 namespace rive::pls
 {
-// BufferRingImpl of a GL_ARRAY_BUFFER. In order to support WebGL2, we don't support mapping.
-class VertexBufferGL : public BufferRingShadowImpl
+// BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we don't do hardware
+// mapping.
+class BufferGL : public BufferRingShadowImpl
 {
 public:
-    VertexBufferGL(size_t capacity, size_t itemSizeInBytes);
-    ~VertexBufferGL() override;
+    BufferGL(GLenum target, size_t capacity, size_t itemSizeInBytes);
+    ~BufferGL() override;
 
-    void bindCurrentBuffer() const;
+    GLuint submittedBufferID() const { return m_ids[submittedBufferIdx()]; }
 
 protected:
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override;
 
 private:
-    GLuint m_ids[kBufferRingSize];
-};
-
-// BufferRingImpl of a GL_UNIFORM_BUFFER.
-class UniformBufferGL : public UniformBufferRing
-{
-public:
-    UniformBufferGL(size_t itemSizeInBytes);
-    ~UniformBufferGL() override;
-
-    void bindToUniformBlock(GLuint blockIndex) const;
-
-protected:
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override;
-
-private:
+    const GLenum m_target;
     GLuint m_ids[kBufferRingSize];
 };
 

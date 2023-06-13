@@ -84,6 +84,9 @@ private:
     class DrawProgram
     {
     public:
+        constexpr static int kUniformsBlockIdx = 0;
+        constexpr static int kDrawParametersBlockIdx = 1;
+
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
         DrawProgram(PLSRenderContextGL* context, const ShaderFeatures& shaderFeatures);
@@ -110,9 +113,6 @@ private:
         bool QCOM_shader_framebuffer_fetch_noncoherent = false;
     } m_extensions;
 
-    // We only use one uniform buffer per shader, so for now, we bind them all to block 0.
-    constexpr static int kUniformBlockIdx = 0;
-
     PLSRenderContextGL(const PlatformFeatures&,
                        const Extensions& extensions,
                        std::unique_ptr<PLSImpl>);
@@ -122,7 +122,8 @@ private:
         return static_cast<const PLSRenderTargetGL*>(frameDescriptor().renderTarget.get());
     }
 
-    std::unique_ptr<UniformBufferRing> makeUniformBufferRing(size_t sizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
+                                                         size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
@@ -131,8 +132,8 @@ private:
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
 
-    std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
-                                                         size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t capacity,
+                                                          size_t sizeInBytes) override;
 
     void allocateTessellationTexture(size_t height) override;
 

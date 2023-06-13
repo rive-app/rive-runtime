@@ -204,27 +204,6 @@ void PLSRenderContext::allocateGPUResources(
 #define COUNT_RESOURCE_SIZE(SIZE_IN_BYTES)
 #endif
 
-    // One-time allocation of the gradient uniform buffer ring.
-    if (m_gradUniformBuffer.impl() == nullptr)
-    {
-        m_gradUniformBuffer.reset(makeUniformBufferRing(sizeof(ColorRampUniforms)));
-    }
-    COUNT_RESOURCE_SIZE(m_gradUniformBuffer.totalSizeInBytes());
-
-    // One-time allocation of the tessellation uniform buffer ring.
-    if (m_tessellateUniformBuffer.impl() == nullptr)
-    {
-        m_tessellateUniformBuffer.reset(makeUniformBufferRing(sizeof(TessellateUniforms)));
-    }
-    COUNT_RESOURCE_SIZE(m_tessellateUniformBuffer.totalSizeInBytes());
-
-    // One-time allocation of the draw uniform buffer ring.
-    if (m_drawUniformBuffer.impl() == nullptr)
-    {
-        m_drawUniformBuffer.reset(makeUniformBufferRing(sizeof(DrawUniforms)));
-    }
-    COUNT_RESOURCE_SIZE(m_drawUniformBuffer.totalSizeInBytes());
-
     // Path data texture ring.
     constexpr size_t kMinPathIDCount = kPathTextureWidthInItems * 32; // 32 texels tall.
     size_t targetMaxPathID = resource_texture_height(kPathTextureWidthInItems, targets.maxPathID) *
@@ -375,6 +354,45 @@ void PLSRenderContext::allocateGPUResources(
             targetTessTextureHeight * kTessTextureWidth;
     }
     COUNT_RESOURCE_SIZE(targetTessTextureHeight * kTessTextureWidth * 4 * sizeof(uint32_t));
+
+    // Draw parameters uniform buffer ring.
+    constexpr size_t kMinDrawParameters = 2048; // 96 KiB
+    size_t maxDrawParameters = m_maxPathID;     // Can't have more draws than paths.
+    size_t targetDrawParameters = targets.maxDrawParameters;
+    targetDrawParameters = std::clamp(targetDrawParameters, kMinDrawParameters, maxDrawParameters);
+    if (shouldReallocate(targetDrawParameters, m_currentResourceLimits.maxDrawParameters))
+    {
+        assert(!m_drawParametersBuffer.mapped());
+        m_drawParametersBuffer.reset(
+            makeUniformBufferRing(targetDrawParameters, sizeof(DrawParameters)));
+        LOG_CHANGED_SIZE("draw uniform buffer count",
+                         m_currentResourceLimits.maxDrawParameters,
+                         targetDrawParameters,
+                         m_drawParametersBuffer.totalSizeInBytes());
+        m_currentResourceLimits.maxDrawParameters = targetDrawParameters;
+    }
+    COUNT_RESOURCE_SIZE(m_drawParametersBuffer.totalSizeInBytes());
+
+    // One-time allocation of the gradient uniform buffer ring.
+    if (m_colorRampUniforms.impl() == nullptr)
+    {
+        m_colorRampUniforms.reset(makeUniformBufferRing(1, sizeof(ColorRampUniforms)));
+    }
+    COUNT_RESOURCE_SIZE(m_colorRampUniforms.totalSizeInBytes());
+
+    // One-time allocation of the tessellation uniform buffer ring.
+    if (m_tessellateUniforms.impl() == nullptr)
+    {
+        m_tessellateUniforms.reset(makeUniformBufferRing(1, sizeof(TessellateUniforms)));
+    }
+    COUNT_RESOURCE_SIZE(m_tessellateUniforms.totalSizeInBytes());
+
+    // One-time allocation of the draw uniform buffer ring.
+    if (m_drawUniforms.impl() == nullptr)
+    {
+        m_drawUniforms.reset(makeUniformBufferRing(1, sizeof(DrawUniforms)));
+    }
+    COUNT_RESOURCE_SIZE(m_drawUniforms.totalSizeInBytes());
 }
 
 void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
@@ -732,81 +750,93 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
     assert(m_tessVertexCount <= m_currentResourceLimits.maxTessellationVertices);
 }
 
+template <typename T> bool bits_equal(const T* a, const T* b)
+{
+    return memcmp(a, b, sizeof(T)) == 0;
+}
+
 void PLSRenderContext::flush(FlushType flushType)
 {
     assert(m_didBeginFrame);
 
+    // The first tessellated vertex in every contour gets the kFirstVertexOfContour flag, and when
+    // emitting wedges, this flag is how the GPU detects when it has crossed past the end of the
+    // current contour. When this happens, the GPU knows to no not connect those two vertices, and
+    // instead, either wraps back around to the beginning of the contour to close it, or else
+    // handles the endcap if it's an open stroke.
+    //
+    // The final wedge of the final contour in our buffer also needs to see that
+    // kFirstVertexOfContour flag in order to render properly, so so we tessellate (and don't draw)
+    // one more empty line at the end of the buffer as an end-of-previous-contour marker.
+    //
+    // TODO: This is a little kludgey. Maybe we can find a cleaner way to accomplish this?
     if (!m_tessSpanBuffer.empty())
     {
-        // The first tessellated vertex in every contour gets the kFirstVertexOfContour flag, and
-        // when emitting wedges, this flag is how the GPU detects when it has crossed past the end
-        // of the current contour. When this happens, the GPU knows to no not connect those two
-        // vertices, and instead, either wraps back around to the beginning of the contour to close
-        // it, or else handles the endcap if it's an open stroke.
-        //
-        // The final wedge of the final contour in our buffer also needs to see that
-        // kFirstVertexOfContour flag in order to render properly, so so we tessellate (and don't
-        // draw) one more empty line at the end of the buffer as an end-of-previous-contour marker.
-        //
-        // TODO: This is a little kludgey. Maybe we can find a cleaner way to accomplish this?
         Vec2D emptyLine[4]{};
         // Make sure this empty line gets the kFirstVertexOfContour flag.
         m_currentContourIDWithFlags = ~0;
         this->pushCubic(emptyLine, Vec2D{}, 0, 1, 1, 1);
     }
 
-    // Upload all data before flushing.
-    m_pathBuffer.submit();
-    m_contourBuffer.submit();
+    // For now, there is only one draw per flush.
+    assert(m_drawParametersBuffer.empty());
+    m_drawParametersBuffer.ensureMapped();
+    m_drawParametersBuffer.emplace_back(kWedgeSize, 0);
 
-    // Upload texels for simple (two-texel) gradient color ramps.
-    m_gradTexelBuffer.submit();
-
-    // Submit the instance buffer for rendering complex color ramps.
+    // Determine how much to draw.
     size_t gradSpanCount = m_gradSpanBuffer.bytesWritten() / sizeof(GradientSpan);
-    assert(m_complexGradients.empty() == (gradSpanCount == 0));
-    m_gradSpanBuffer.submit();
-
-    if (gradSpanCount)
-    {
-        // Submit the uniform buffer for rendering complex color ramps.
-        ColorRampUniforms uniformData = {static_cast<float>(m_complexGradients.size())};
-        if (!gradUniformBufferRing()->contentMatches(&uniformData))
-        {
-            m_gradUniformBuffer.ensureMapped();
-            m_gradUniformBuffer.emplace_back(uniformData);
-            m_gradUniformBuffer.submit();
-        }
-    }
-
     size_t tessVertexSpanCount = m_tessSpanBuffer.bytesWritten() / sizeof(TessVertexSpan);
-    m_tessSpanBuffer.submit();
-
     size_t tessDataHeight = (m_tessVertexCount + kTessTextureWidth - 1) / kTessTextureWidth;
-    TessellateUniforms tessUniformData{kTessTextureWidth, static_cast<float>(tessDataHeight)};
-    if (!tessellateUniformBufferRing()->contentMatches(&tessUniformData))
-    {
-        m_tessellateUniformBuffer.ensureMapped();
-        m_tessellateUniformBuffer.emplace_back(tessUniformData);
-        m_tessellateUniformBuffer.submit();
-    }
-
-    DrawUniforms drawUniformData(m_frameDescriptor.renderTarget->width(),
-                                 m_frameDescriptor.renderTarget->height(),
-                                 gradTexelBufferRing()->height(),
-                                 m_platformFeatures);
-    if (!drawUniformBufferRing()->contentMatches(&drawUniformData))
-    {
-        m_drawUniformBuffer.ensureMapped();
-        m_drawUniformBuffer.emplace_back(drawUniformData);
-        m_drawUniformBuffer.submit();
-    }
-
     // Don't draw the empty "end-of-contour" marker's vertices.
     size_t tessVertexCountToDraw = std::max<size_t>(m_tessVertexCount, 2) - 2;
     // PLSRenderer should have padded the vertex count of each contour to a multiple of kWedgeSize.
     assert(tessVertexCountToDraw % kWedgeSize == 0);
     size_t wedgeInstanceCount = tessVertexCountToDraw / kWedgeSize;
+    size_t drawParametersCount = m_drawParametersBuffer.bytesWritten() / sizeof(DrawParameters);
+
+    // Upload all non-empty buffers before flushing.
+    m_pathBuffer.submit();
+    m_contourBuffer.submit();
+    m_gradTexelBuffer.submit();
+    m_gradSpanBuffer.submit();
+    m_tessSpanBuffer.submit();
+    m_drawParametersBuffer.submit();
+
+    if (gradSpanCount)
+    {
+        // Update the uniform buffer for rendering complex color ramps if needed.
+        ColorRampUniforms uniformData = {static_cast<float>(m_complexGradients.size())};
+        if (!bits_equal(&m_cachedColorRampUniformData, &uniformData))
+        {
+            m_colorRampUniforms.ensureMapped();
+            m_colorRampUniforms.emplace_back(uniformData);
+            m_colorRampUniforms.submit();
+            m_cachedColorRampUniformData = uniformData;
+        }
+    }
+
+    // Update the uniform buffer for rendering tessellations if needed.
+    TessellateUniforms tessUniformData = {kTessTextureWidth, static_cast<float>(tessDataHeight)};
+    if (!bits_equal(&m_cachedTessUniformData, &tessUniformData))
+    {
+        m_tessellateUniforms.ensureMapped();
+        m_tessellateUniforms.emplace_back(tessUniformData);
+        m_tessellateUniforms.submit();
+        m_cachedTessUniformData = tessUniformData;
+    }
+
+    // Update the uniform buffer for drawing if needed.
+    DrawUniforms drawUniformData(m_frameDescriptor.renderTarget->width(),
+                                 m_frameDescriptor.renderTarget->height(),
+                                 gradTexelBufferRing()->height(),
+                                 m_platformFeatures);
+    if (!bits_equal(&m_cachedDrawUniformData, &drawUniformData))
+    {
+        m_drawUniforms.ensureMapped();
+        m_drawUniforms.emplace_back(drawUniformData);
+        m_drawUniforms.submit();
+        m_cachedDrawUniformData = drawUniformData;
+    }
 
     onFlush(flushType,
             m_isFirstFlushOfFrame ? frameDescriptor().loadAction : LoadAction::preserveRenderTarget,
@@ -824,8 +854,9 @@ void PLSRenderContext::flush(FlushType flushType)
     m_currentFrameResourceUsage.maxComplexGradientSpans += gradSpanCount;
     m_currentFrameResourceUsage.maxTessellationSpans += tessVertexSpanCount;
     m_currentFrameResourceUsage.maxTessellationVertices += m_tessVertexCount;
+    m_currentFrameResourceUsage.maxDrawParameters += drawParametersCount;
     static_assert(sizeof(m_currentFrameResourceUsage) ==
-                  sizeof(size_t) * 7); // Make sure we got every field.
+                  sizeof(size_t) * 8); // Make sure we got every field.
 
     m_lastGeneratedClipID = 0;
     m_clipContentID = 0;

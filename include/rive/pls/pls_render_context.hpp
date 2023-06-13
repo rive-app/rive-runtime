@@ -217,7 +217,8 @@ public:
 protected:
     PLSRenderContext(const PlatformFeatures&);
 
-    virtual std::unique_ptr<UniformBufferRing> makeUniformBufferRing(size_t sizeInBytes) = 0;
+    virtual std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
+                                                                 size_t itemSizeInBytes) = 0;
 
     virtual std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                                  size_t widthInItems,
@@ -226,22 +227,26 @@ protected:
                                                                  int textureIdx,
                                                                  TexelBufferRing::Filter) = 0;
 
-    virtual std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
-                                                                 size_t itemSizeInBytes) = 0;
+    virtual std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t capacity,
+                                                                  size_t sizeInBytes) = 0;
 
     virtual void allocateTessellationTexture(size_t height) = 0;
 
-    const UniformBufferRing* gradUniformBufferRing() const
+    const BufferRingImpl* colorRampUniforms() const
     {
-        return static_cast<const UniformBufferRing*>(m_gradUniformBuffer.impl());
+        return static_cast<const BufferRingImpl*>(m_colorRampUniforms.impl());
     }
-    const UniformBufferRing* tessellateUniformBufferRing()
+    const BufferRingImpl* tessellateUniforms()
     {
-        return static_cast<const UniformBufferRing*>(m_tessellateUniformBuffer.impl());
+        return static_cast<const BufferRingImpl*>(m_tessellateUniforms.impl());
     }
-    const UniformBufferRing* drawUniformBufferRing()
+    const BufferRingImpl* drawUniforms()
     {
-        return static_cast<const UniformBufferRing*>(m_drawUniformBuffer.impl());
+        return static_cast<const BufferRingImpl*>(m_drawUniforms.impl());
+    }
+    const BufferRingImpl* drawParametersBufferRing()
+    {
+        return static_cast<const BufferRingImpl*>(m_drawParametersBuffer.impl());
     }
     const TexelBufferRing* pathBufferRing()
     {
@@ -333,6 +338,7 @@ private:
         size_t maxComplexGradientSpans;
         size_t maxTessellationSpans;
         size_t maxTessellationVertices;
+        size_t maxDrawParameters;
 
         // "*this = max(*this, other)"
         void accumulateMax(const GPUResourceLimits& other)
@@ -346,7 +352,8 @@ private:
             maxTessellationSpans = std::max(maxTessellationSpans, other.maxTessellationSpans);
             maxTessellationVertices =
                 std::max(maxTessellationVertices, other.maxTessellationVertices);
-            static_assert(sizeof(*this) == sizeof(size_t) * 7); // Make sure we got every field.
+            maxDrawParameters = std::max(maxDrawParameters, other.maxDrawParameters);
+            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
         }
 
         // Scale each limit > threshold by a factor of "scaleFactor".
@@ -371,7 +378,9 @@ private:
             if (maxTessellationVertices > threshold.maxTessellationVertices)
                 scaled.maxTessellationVertices =
                     static_cast<double>(maxTessellationVertices) * scaleFactor;
-            static_assert(sizeof(*this) == sizeof(size_t) * 7); // Make sure we got every field.
+            if (maxDrawParameters > threshold.maxDrawParameters)
+                scaled.maxDrawParameters = static_cast<double>(maxDrawParameters) * scaleFactor;
+            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
             return scaled;
         }
 
@@ -398,6 +407,13 @@ private:
     GPUResourceLimits m_currentFrameResourceUsage = {};
     GPUResourceLimits m_maxRecentResourceUsage = {};
 
+    // Here we cache the contents of the uniform buffers that only have one item (and are therefore
+    // constant throughout an entire flush). We use these cached values to determine whether the
+    // buffers need to be updated at the beginning of a flush.
+    ColorRampUniforms m_cachedColorRampUniformData{};
+    TessellateUniforms m_cachedTessUniformData{};
+    DrawUniforms m_cachedDrawUniformData{0, 0, 0, m_platformFeatures};
+
     // Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
     // instead of rendering them.
     struct TwoTexelRamp
@@ -415,9 +431,10 @@ private:
     BufferRing<TwoTexelRamp> m_gradTexelBuffer; // Simple gradients get written by the CPU.
     BufferRing<GradientSpan> m_gradSpanBuffer;  // Complex gradients get rendered by the GPU.
     BufferRing<TessVertexSpan> m_tessSpanBuffer;
-    BufferRing<ColorRampUniforms> m_gradUniformBuffer;
-    BufferRing<TessellateUniforms> m_tessellateUniformBuffer;
-    BufferRing<DrawUniforms> m_drawUniformBuffer;
+    BufferRing<DrawParameters> m_drawParametersBuffer;
+    BufferRing<ColorRampUniforms> m_colorRampUniforms;
+    BufferRing<TessellateUniforms> m_tessellateUniforms;
+    BufferRing<DrawUniforms> m_drawUniforms;
 
     // How many rows of the gradient texture are dedicated to simple (two-texel) ramps?
     // This is also the y-coordinate at which the complex color ramps begin.

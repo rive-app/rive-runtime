@@ -164,7 +164,7 @@ struct TessellateUniforms
     float viewportHeight;
 };
 
-// Uniform buffer layout for draw shaders.
+// Per-flush uniforms used by the draw shader.
 struct DrawUniforms
 {
     DrawUniforms(float viewportWidth_,
@@ -179,13 +179,26 @@ struct DrawUniforms
     float viewportWidth;
     float viewportHeight;
     float gradTextureInverseHeight;
-    uint32_t pathIDGranularity;
+    uint32_t pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
     float vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
     uint32_t pad0 = 0;
     uint32_t pad1 = 0;
     uint32_t pad2 = 0;
 };
 static_assert(sizeof(DrawUniforms) == 8 * sizeof(uint32_t));
+
+// Per-draw uniforms that specify how to draw which tessellation vertices.
+struct DrawParameters
+{
+    DrawParameters(int32_t wedgeSize_, int32_t baseTessellationVertex_) :
+        wedgeSize(wedgeSize_), baseTessellationVertex(baseTessellationVertex_)
+    {}
+    int32_t wedgeSize;
+    int32_t baseTessellationVertex;
+    uint32_t pad0 = 0;
+    uint32_t pad1 = 0;
+};
+static_assert(sizeof(DrawParameters) == 4 * sizeof(int32_t));
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient texture.
 // They are rendered by "GradientSpan" instances.

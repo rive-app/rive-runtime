@@ -30,7 +30,8 @@ public:
 private:
     PLSRenderContextMetal(const PlatformFeatures&, id<MTLDevice>, id<MTLCommandQueue>);
 
-    std::unique_ptr<UniformBufferRing> makeUniformBufferRing(size_t sizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
+                                                         size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
@@ -39,8 +40,8 @@ private:
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
 
-    std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
-                                                         size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t capacity,
+                                                          size_t itemSizeInBytes) override;
 
     void allocateTessellationTexture(size_t height) override;
 

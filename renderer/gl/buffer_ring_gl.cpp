@@ -8,52 +8,23 @@
 
 namespace rive::pls
 {
-VertexBufferGL::VertexBufferGL(size_t capacity, size_t itemSizeInBytes) :
-    BufferRingShadowImpl(capacity, itemSizeInBytes)
+BufferGL::BufferGL(GLenum target, size_t capacity, size_t itemSizeInBytes) :
+    BufferRingShadowImpl(capacity, itemSizeInBytes), m_target(target)
 {
     glGenBuffers(kBufferRingSize, m_ids);
     for (int i = 0; i < kBufferRingSize; ++i)
     {
-        glBindBuffer(GL_ARRAY_BUFFER, m_ids[i]);
-        glBufferData(GL_ARRAY_BUFFER, capacity * itemSizeInBytes, nullptr, GL_DYNAMIC_DRAW);
+        glBindBuffer(m_target, m_ids[i]);
+        glBufferData(m_target, capacity * itemSizeInBytes, nullptr, GL_DYNAMIC_DRAW);
     }
 }
 
-VertexBufferGL::~VertexBufferGL() { glDeleteBuffers(kBufferRingSize, m_ids); }
+BufferGL::~BufferGL() { glDeleteBuffers(kBufferRingSize, m_ids); }
 
-void VertexBufferGL::bindCurrentBuffer() const
+void BufferGL::onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
 {
-    glBindBuffer(GL_ARRAY_BUFFER, m_ids[submittedBufferIdx()]);
-}
-
-void VertexBufferGL::onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
-{
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ids[bufferIdx]);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, bytesWritten, shadowBuffer());
-}
-
-UniformBufferGL::UniformBufferGL(size_t itemSizeInBytes) : UniformBufferRing(itemSizeInBytes)
-{
-    glGenBuffers(kBufferRingSize, m_ids);
-    for (int i = 0; i < kBufferRingSize; ++i)
-    {
-        glBindBuffer(GL_UNIFORM_BUFFER, m_ids[i]);
-        glBufferData(GL_UNIFORM_BUFFER, itemSizeInBytes, nullptr, GL_DYNAMIC_DRAW);
-    }
-}
-
-UniformBufferGL::~UniformBufferGL() { glDeleteBuffers(kBufferRingSize, m_ids); }
-
-void UniformBufferGL::bindToUniformBlock(GLuint blockIndex) const
-{
-    glBindBufferBase(GL_UNIFORM_BUFFER, blockIndex, m_ids[submittedBufferIdx()]);
-}
-
-void UniformBufferGL::onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
-{
-    assert(bytesWritten == itemSizeInBytes());
-    glBindBuffer(GL_UNIFORM_BUFFER, m_ids[bufferIdx]);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, bytesWritten, shadowBuffer());
+    glBindBuffer(m_target, m_ids[bufferIdx]);
+    glBufferSubData(m_target, 0, bytesWritten, shadowBuffer());
 }
 
 static GLenum internalformat_gl(TexelBufferRing::Format format)
