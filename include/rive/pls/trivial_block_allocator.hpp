@@ -14,48 +14,53 @@ namespace rive
 class TrivialBlockAllocator
 {
 public:
-    TrivialBlockAllocator(size_t initialBlockSize)
-    {
-        // Make it so the second allocation doubles initialBlockSize once it happens.
-        m_currentBlockSize = initialBlockSize;
-        pushBlock(initialBlockSize);
-    }
+    TrivialBlockAllocator(size_t initialBlockSize) : m_initialBlockSize(initialBlockSize) {}
 
-    void* alloc(size_t size)
+    void* alloc(size_t allocSize)
     {
         // Align all allocations on 8-byte boundaries.
-        size = (size + 7) & ~size_t(7);
-        if (m_currentBlockUsage + size > m_currentBlockSize)
+        allocSize = (allocSize + 7) & ~size_t(7);
+
+        // Ensure there is room for this allocation in our newest block, pushing a new one if
+        // needed.
+        if (m_currentBlockUsage + allocSize > m_currentBlockSize)
         {
             // Grow with a fibonacci function.
-            pushBlock(std::max(m_currentBlockSize + m_lastBlockSize, size));
+            size_t fib = m_fibMinus2 + m_fibMinus1;
+            m_fibMinus2 = m_fibMinus1;
+            m_fibMinus1 = fib;
+
+            size_t blockSize = std::max(fib * m_initialBlockSize, allocSize);
+            m_blocks.push_back(std::unique_ptr<char[]>(new char[blockSize]));
+            m_currentBlockSize = blockSize;
+            m_currentBlockUsage = 0;
         }
-        void* ret = &m_blocks.back()[m_currentBlockUsage];
-        m_currentBlockUsage += size;
+
+        char* ret = &m_blocks.back()[m_currentBlockUsage];
+        m_currentBlockUsage += allocSize;
         // Since we round up all allocation sizes, allocations should be 8-byte aligned.
         assert((reinterpret_cast<uintptr_t>(ret) & 7) == 0);
+        assert(ret + allocSize <= m_blocks.back().get() + m_currentBlockSize);
         return ret;
     }
 
     template <typename T, typename... Args> T* make(Args&&... args)
     {
-        // We don't call destructors on objects we allocate here.
+        // We don't call destructors on objects that get allocated here. We just free the blocks
+        // at the end. So objects must be trivially destructible.
         static_assert(std::is_trivially_destructible<T>::value);
         return new (alloc(sizeof(T))) T(std::forward<Args>(args)...);
     }
 
 private:
-    void pushBlock(size_t size)
-    {
-        m_blocks.push_back(std::unique_ptr<uint8_t[]>(new uint8_t[size]));
-        m_lastBlockSize = m_currentBlockSize;
-        m_currentBlockSize = size;
-        m_currentBlockUsage = 0;
-    }
+    const size_t m_initialBlockSize;
 
-    std::vector<std::unique_ptr<uint8_t[]>> m_blocks;
-    size_t m_lastBlockSize;
-    size_t m_currentBlockSize;
-    size_t m_currentBlockUsage;
+    // Grow block sizes using a fibonacci function.
+    size_t m_fibMinus2 = 0;
+    size_t m_fibMinus1 = 1;
+
+    std::vector<std::unique_ptr<char[]>> m_blocks;
+    size_t m_currentBlockSize = 0;
+    size_t m_currentBlockUsage = 0;
 };
 } // namespace rive
