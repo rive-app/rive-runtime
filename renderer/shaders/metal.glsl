@@ -170,7 +170,14 @@ template <int N> inline vec<uint, N> floatBitsToUint(vec<float, N> x)
     return as_type<vec<uint, N>>(x);
 }
 
+template <int N> inline vec<int, N> floatBitsToInt(vec<float, N> x)
+{
+    return as_type<vec<int, N>>(x);
+}
+
 inline uint floatBitsToUint(float x) { return as_type<uint>(x); }
+
+inline int floatBitsToInt(float x) { return as_type<int>(x); }
 
 template <int N> inline vec<float, N> uintBitsToFloat(vec<uint, N> x)
 {

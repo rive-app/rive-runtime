@@ -355,24 +355,6 @@ void PLSRenderContext::allocateGPUResources(
     }
     COUNT_RESOURCE_SIZE(targetTessTextureHeight * kTessTextureWidth * 4 * sizeof(uint32_t));
 
-    // Draw parameters uniform buffer ring.
-    constexpr size_t kMinDrawParameters = 2048; // 96 KiB
-    size_t maxDrawParameters = m_maxPathID;     // Can't have more draws than paths.
-    size_t targetDrawParameters = targets.maxDrawParameters;
-    targetDrawParameters = std::clamp(targetDrawParameters, kMinDrawParameters, maxDrawParameters);
-    if (shouldReallocate(targetDrawParameters, m_currentResourceLimits.maxDrawParameters))
-    {
-        assert(!m_drawParametersBuffer.mapped());
-        m_drawParametersBuffer.reset(
-            makeUniformBufferRing(targetDrawParameters, sizeof(DrawParameters)));
-        LOG_CHANGED_SIZE("draw uniform buffer count",
-                         m_currentResourceLimits.maxDrawParameters,
-                         targetDrawParameters,
-                         m_drawParametersBuffer.totalSizeInBytes());
-        m_currentResourceLimits.maxDrawParameters = targetDrawParameters;
-    }
-    COUNT_RESOURCE_SIZE(m_drawParametersBuffer.totalSizeInBytes());
-
     // One-time allocation of the gradient uniform buffer ring.
     if (m_colorRampUniforms.impl() == nullptr)
     {
@@ -778,11 +760,6 @@ void PLSRenderContext::flush(FlushType flushType)
         this->pushCubic(emptyLine, Vec2D{}, 0, 1, 1, 1);
     }
 
-    // For now, there is only one draw per flush.
-    assert(m_drawParametersBuffer.empty());
-    m_drawParametersBuffer.ensureMapped();
-    m_drawParametersBuffer.emplace_back(kWedgeSize, 0);
-
     // Determine how much to draw.
     size_t gradSpanCount = m_gradSpanBuffer.bytesWritten() / sizeof(GradientSpan);
     size_t tessVertexSpanCount = m_tessSpanBuffer.bytesWritten() / sizeof(TessVertexSpan);
@@ -792,7 +769,6 @@ void PLSRenderContext::flush(FlushType flushType)
     // PLSRenderer should have padded the vertex count of each contour to a multiple of kWedgeSize.
     assert(tessVertexCountToDraw % kWedgeSize == 0);
     size_t wedgeInstanceCount = tessVertexCountToDraw / kWedgeSize;
-    size_t drawParametersCount = m_drawParametersBuffer.bytesWritten() / sizeof(DrawParameters);
 
     // Upload all non-empty buffers before flushing.
     m_pathBuffer.submit();
@@ -800,7 +776,6 @@ void PLSRenderContext::flush(FlushType flushType)
     m_gradTexelBuffer.submit();
     m_gradSpanBuffer.submit();
     m_tessSpanBuffer.submit();
-    m_drawParametersBuffer.submit();
 
     if (gradSpanCount)
     {
@@ -854,9 +829,8 @@ void PLSRenderContext::flush(FlushType flushType)
     m_currentFrameResourceUsage.maxComplexGradientSpans += gradSpanCount;
     m_currentFrameResourceUsage.maxTessellationSpans += tessVertexSpanCount;
     m_currentFrameResourceUsage.maxTessellationVertices += m_tessVertexCount;
-    m_currentFrameResourceUsage.maxDrawParameters += drawParametersCount;
     static_assert(sizeof(m_currentFrameResourceUsage) ==
-                  sizeof(size_t) * 8); // Make sure we got every field.
+                  sizeof(size_t) * 7); // Make sure we got every field.
 
     m_lastGeneratedClipID = 0;
     m_clipContentID = 0;

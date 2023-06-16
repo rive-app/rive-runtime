@@ -411,8 +411,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                            1.0}];
         [encoder setRenderPipelineState:drawPipeline.pipelineState(renderTarget->pixelFormat())];
         [encoder setVertexBuffer:mtl_buffer(drawUniforms()) offset:0 atIndex:0];
-        [encoder setVertexBuffer:mtl_buffer(drawParametersBufferRing()) offset:0 atIndex:1];
-        [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:2];
+        [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:1];
         [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
         [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
         [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];

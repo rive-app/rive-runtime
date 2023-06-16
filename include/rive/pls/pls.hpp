@@ -126,9 +126,9 @@ constexpr static uint32_t kGradient = 1u << 30;
 constexpr static uint32_t kRadialGradient = 1u << 29;
 
 // Says which part of the wedge instance a vertex belongs to.
-constexpr static float kStrokeVertex = 0;
-constexpr static float kFanVertex = 1;
-constexpr static float kFanMidpointVertex = 2;
+constexpr static int32_t kStrokeVertex = 0;
+constexpr static int32_t kFanVertex = 1;
+constexpr static int32_t kFanMidpointVertex = 2;
 } // namespace flags
 
 // Index of each pixel local storage plane.
@@ -186,19 +186,6 @@ struct DrawUniforms
     uint32_t pad2 = 0;
 };
 static_assert(sizeof(DrawUniforms) == 8 * sizeof(uint32_t));
-
-// Per-draw uniforms that specify how to draw which tessellation vertices.
-struct DrawParameters
-{
-    DrawParameters(int32_t wedgeSize_, int32_t baseTessellationVertex_) :
-        wedgeSize(wedgeSize_), baseTessellationVertex(baseTessellationVertex_)
-    {}
-    int32_t wedgeSize;
-    int32_t baseTessellationVertex;
-    uint32_t pad0 = 0;
-    uint32_t pad1 = 0;
-};
-static_assert(sizeof(DrawParameters) == 4 * sizeof(int32_t));
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient texture.
 // They are rendered by "GradientSpan" instances.
@@ -375,7 +362,9 @@ struct WedgeVertex
     float outset;        // Outset from the tessellated position, in the direction of the normal.
     float fillCoverage;  // 0..1 for the stroke. 1 all around for the triangles.
                          // (Coverage will be negated later for counterclockwise triangles.)
-    float vertexType;    // flags::kStrokeVertex, flags::kFanVertex, or flags::kFanMidpointVertex.
+    int32_t params;      // "(wedgeSize << 2) | [flags::kStrokeVertex,
+                         //                      flags::kFanVertex,
+                         //                      flags::kFanMidpointVertex]"
 };
 
 constexpr static int kWedgeSize = 8; // # of tessellation segments spanned by the instance.

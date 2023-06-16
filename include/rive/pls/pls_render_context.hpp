@@ -244,10 +244,6 @@ protected:
     {
         return static_cast<const BufferRingImpl*>(m_drawUniforms.impl());
     }
-    const BufferRingImpl* drawParametersBufferRing()
-    {
-        return static_cast<const BufferRingImpl*>(m_drawParametersBuffer.impl());
-    }
     const TexelBufferRing* pathBufferRing()
     {
         return static_cast<const TexelBufferRing*>(m_pathBuffer.impl());
@@ -338,7 +334,6 @@ private:
         size_t maxComplexGradientSpans;
         size_t maxTessellationSpans;
         size_t maxTessellationVertices;
-        size_t maxDrawParameters;
 
         // "*this = max(*this, other)"
         void accumulateMax(const GPUResourceLimits& other)
@@ -352,8 +347,7 @@ private:
             maxTessellationSpans = std::max(maxTessellationSpans, other.maxTessellationSpans);
             maxTessellationVertices =
                 std::max(maxTessellationVertices, other.maxTessellationVertices);
-            maxDrawParameters = std::max(maxDrawParameters, other.maxDrawParameters);
-            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
+            static_assert(sizeof(*this) == sizeof(size_t) * 7); // Make sure we got every field.
         }
 
         // Scale each limit > threshold by a factor of "scaleFactor".
@@ -378,9 +372,7 @@ private:
             if (maxTessellationVertices > threshold.maxTessellationVertices)
                 scaled.maxTessellationVertices =
                     static_cast<double>(maxTessellationVertices) * scaleFactor;
-            if (maxDrawParameters > threshold.maxDrawParameters)
-                scaled.maxDrawParameters = static_cast<double>(maxDrawParameters) * scaleFactor;
-            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
+            static_assert(sizeof(*this) == sizeof(size_t) * 7); // Make sure we got every field.
             return scaled;
         }
 
@@ -431,7 +423,6 @@ private:
     BufferRing<TwoTexelRamp> m_gradTexelBuffer; // Simple gradients get written by the CPU.
     BufferRing<GradientSpan> m_gradSpanBuffer;  // Complex gradients get rendered by the GPU.
     BufferRing<TessVertexSpan> m_tessSpanBuffer;
-    BufferRing<DrawParameters> m_drawParametersBuffer;
     BufferRing<ColorRampUniforms> m_colorRampUniforms;
     BufferRing<TessellateUniforms> m_tessellateUniforms;
     BufferRing<DrawUniforms> m_drawUniforms;

@@ -290,10 +290,7 @@ PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
     glutils::LinkProgram(m_id);
 
     glUseProgram(m_id);
-    glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), kUniformsBlockIdx);
-    glUniformBlockBinding(m_id,
-                          glGetUniformBlockIndex(m_id, GLSL_DrawParameters),
-                          kDrawParametersBlockIdx);
+    glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), 0);
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kGLTexIdxOffset + kTessVertexTextureIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kGLTexIdxOffset + kPathTextureIdx);
@@ -317,9 +314,7 @@ static GLuint gl_texture_id(const TexelBufferRing* texelBufferRing)
 void PLSRenderContextGL::bindDrawProgram(const DrawProgram& drawProgram)
 {
     glBindVertexArray(m_drawVAO);
-    glBindBufferBase(GL_UNIFORM_BUFFER,
-                     DrawProgram::kUniformsBlockIdx,
-                     gl_buffer_id(drawUniforms()));
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(drawUniforms()));
     glUseProgram(drawProgram.id());
 }
 
@@ -399,11 +394,6 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     if (wedgeInstanceCount > 0)
     {
         // Draw wedges connecting all tessellated vertices.
-        glBindBufferRange(GL_UNIFORM_BUFFER,
-                          DrawProgram::kDrawParametersBlockIdx,
-                          gl_buffer_id(drawParametersBufferRing()),
-                          0 * sizeof(DrawUniforms),
-                          sizeof(DrawUniforms));
         glDrawElementsInstanced(GL_TRIANGLES,
                                 kOuterStrokeWedgeIndexCount,
                                 GL_UNSIGNED_SHORT,

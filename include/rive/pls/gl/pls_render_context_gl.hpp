@@ -84,9 +84,6 @@ private:
     class DrawProgram
     {
     public:
-        constexpr static int kUniformsBlockIdx = 0;
-        constexpr static int kDrawParametersBlockIdx = 1;
-
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
         DrawProgram(PLSRenderContextGL* context, const ShaderFeatures& shaderFeatures);

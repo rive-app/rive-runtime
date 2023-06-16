@@ -57,7 +57,7 @@
 #define GLSL_INSTANCE_ID gl_InstanceID
 
 #define UNIFORM_BLOCK_BEGIN(N)                                                                     \
-    uniform N                                                                                      \
+    layout(std140) uniform N                                                                       \
     {
 // clang-format barrier... Otherwise it tries to merge this #define into the above macro...
 #define UNIFORM_BLOCK_END(N)                                                                       \
