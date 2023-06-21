@@ -21,8 +21,7 @@ constexpr static uint32_t kClearColor = 1;
 constexpr static uint32_t kLoadColor = 2;
 constexpr static uint32_t kStoreColor = 4;
 constexpr static uint32_t kClearCoverage = 8;
-constexpr static uint32_t kDeclareClip = 16;
-constexpr static uint32_t kClearClip = 32;
+constexpr static uint32_t kClearClip = 16;
 }; // namespace loadstoreops
 
 namespace rive::pls
@@ -52,10 +51,6 @@ public:
         if (ops & loadstoreops::kClearCoverage)
         {
             defines.push_back(GLSL_CLEAR_COVERAGE);
-        }
-        if (ops & loadstoreops::kDeclareClip)
-        {
-            defines.push_back(GLSL_DECLARE_CLIP);
         }
         if (ops & loadstoreops::kClearClip)
         {
@@ -133,8 +128,7 @@ public:
     void activatePixelLocalStorage(PLSRenderContextGL* context,
                                    const PLSRenderTargetGL* renderTarget,
                                    LoadAction loadAction,
-                                   const ShaderFeatures& shaderFeatures,
-                                   const DrawProgram& drawProgram) override
+                                   bool needsClipBuffer) override
     {
         assert(context->m_extensions.EXT_shader_pixel_local_storage);
         assert(context->m_extensions.EXT_shader_framebuffer_fetch ||
@@ -154,9 +148,9 @@ public:
         {
             ops |= loadstoreops::kLoadColor;
         }
-        if (shaderFeatures.programFeatures.enablePathClipping)
+        if (needsClipBuffer)
         {
-            ops |= loadstoreops::kDeclareClip | loadstoreops::kClearClip;
+            ops |= loadstoreops::kClearClip;
         }
         if ((ops & loadstoreops::kClearColor) && simd::all(simd::load4f(clearColor4f) == 0))
         {
@@ -175,19 +169,13 @@ public:
             glBindVertexArray(m_plsLoadStoreVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
-
-        context->bindDrawProgram(drawProgram);
     }
 
-    void deactivatePixelLocalStorage(const ShaderFeatures& shaderFeatures) override
+    void deactivatePixelLocalStorage() override
     {
         // Issue a fullscreen draw that transfers the color information in pixel local storage to
         // the main framebuffer.
         uint32_t ops = loadstoreops::kStoreColor;
-        if (shaderFeatures.programFeatures.enablePathClipping)
-        {
-            ops |= loadstoreops::kDeclareClip;
-        }
         const PLSLoadStoreProgram& plsProgram =
             m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader).first->second;
         plsProgram.bind(nullptr);

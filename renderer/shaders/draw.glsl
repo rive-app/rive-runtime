@@ -62,6 +62,11 @@ uint pad1;
 uint pad2;
 UNIFORM_BLOCK_END(uniforms)
 
+// Only used by GL platforms that don't support EXT_base_instance.
+#ifdef @BASE_INSTANCE_POLYFILL
+uniform int @baseInstancePolyfill;
+#endif
+
 VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
 TEXTURE_RGBA32UI(0) @tessVertexTexture;
 TEXTURE_RGBA32UI(1) @pathTexture;
@@ -92,6 +97,7 @@ VERTEX_MAIN(
     varyings,
     uint GLSL_VERTEX_ID [[vertex_id]],
     uint GLSL_INSTANCE_ID [[instance_id]],
+    uint GLSL_BASE_INSTANCE [[base_instance]],
     constant @Uniforms& uniforms [[buffer(0)]],
     constant Attrs* attrs [[buffer(1)]],
     VertexTextures textures
@@ -107,7 +113,13 @@ VERTEX_MAIN(
     int vertexType = floatBitsToInt(wedgeVertexData.w) & 3;
 
     // Fetch the tessellation vertex we belong to.
-    int vertexIdx = GLSL_INSTANCE_ID * wedgeSize + localVertexID;
+    int wedgeIdx = GLSL_INSTANCE_ID;
+#ifdef @BASE_INSTANCE_POLYFILL
+    wedgeIdx += @baseInstancePolyfill;
+#else
+    wedgeIdx += GLSL_BASE_INSTANCE;
+#endif
+    int vertexIdx = wedgeIdx * wedgeSize + localVertexID;
     int2 tessVertexTexelCoord = tessTexelCoord(vertexIdx);
     uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord, 0);
     uint contourIDWithFlags = tessVertexData.w;
@@ -370,9 +382,7 @@ PLS_BLOCK_BEGIN
 PLS_DECL4F(0) framebuffer;
 PLS_DECL2F(1) coverageCountBuffer;
 PLS_DECL4F(2) originalDstColorBuffer;
-#ifdef @ENABLE_PATH_CLIPPING
 PLS_DECL2F(3) clipBuffer;
-#endif
 PLS_BLOCK_END
 
 PLS_MAIN(
@@ -463,8 +473,8 @@ PLS_MAIN(
             half2 clipData = PLS_LOAD2F(clipBuffer);
             coverage = FLD(varyings, clipID) == clipData.r ? min(coverage, clipData.g) : .0;
         }
-        PLS_PRESERVE_VALUE(clipBuffer);
 #endif
+        PLS_PRESERVE_VALUE(clipBuffer);
 
         // Blend with the framebuffer color.
         color.a *= coverage;

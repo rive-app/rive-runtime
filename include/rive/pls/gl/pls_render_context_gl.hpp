@@ -58,13 +58,10 @@ private:
         virtual void activatePixelLocalStorage(PLSRenderContextGL*,
                                                const PLSRenderTargetGL*,
                                                LoadAction,
-                                               const ShaderFeatures&,
-                                               const DrawProgram&) = 0;
-        virtual void deactivatePixelLocalStorage(const ShaderFeatures&) = 0;
+                                               bool needsClipBuffer) = 0;
+        virtual void deactivatePixelLocalStorage() = 0;
 
         virtual const char* shaderDefineName() const = 0;
-
-        virtual const char* shaderVersionOverrideString() const { return nullptr; }
 
         virtual ~PLSImpl() {}
     };
@@ -90,28 +87,17 @@ private:
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
+        GLint baseInstancePolyfillLocation() const { return m_baseInstancePolyfillLocation; }
 
     private:
         GLuint m_id;
+        GLint m_baseInstancePolyfillLocation = -1;
     };
 
     class DrawShader;
 
-    struct Extensions
-    {
-        bool ANGLE_shader_pixel_local_storage = false;
-        bool ANGLE_shader_pixel_local_storage_coherent = false;
-        bool ANGLE_provoking_vertex = false;
-        bool ARM_shader_framebuffer_fetch = false;
-        bool ARB_fragment_shader_interlock = false;
-        bool INTEL_fragment_shader_ordering = false;
-        bool EXT_shader_framebuffer_fetch = false;
-        bool EXT_shader_pixel_local_storage = false;
-        bool QCOM_shader_framebuffer_fetch_noncoherent = false;
-    } m_extensions;
-
     PLSRenderContextGL(const PlatformFeatures&,
-                       const Extensions& extensions,
+                       const GLExtensions& extensions,
                        std::unique_ptr<PLSImpl>);
 
     const PLSRenderTargetGL* renderTarget() const
@@ -134,16 +120,19 @@ private:
 
     void allocateTessellationTexture(size_t height) override;
 
-    void bindDrawProgram(const DrawProgram&);
-
     void onFlush(FlushType,
                  LoadAction,
                  size_t gradSpanCount,
                  size_t gradSpansHeight,
                  size_t tessVertexSpanCount,
                  size_t tessDataHeight,
-                 size_t wedgeInstanceCount,
-                 const ShaderFeatures&) override;
+                 bool needsClipBuffer) override;
+
+    GLExtensions m_extensions;
+
+    constexpr static size_t kShaderVersionStringBuffSize = sizeof("#version 300 es\n") + 1;
+    char m_shaderVersionString[kShaderVersionStringBuffSize];
+    bool m_supportsBaseInstanceInShader = false;
 
     std::unique_ptr<PLSImpl> m_plsImpl;
 

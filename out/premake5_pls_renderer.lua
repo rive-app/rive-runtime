@@ -18,7 +18,7 @@ end
 filter "system:windows or macosx or linux"
 do
     -- Define RIVE_DESKTOP_GL outside of a project so that it also gets defined for consumers. It is
-    -- the responsibility of consumers to call gladLoadGLES2Loader() when RIVE_DESKTOP_GL is
+    -- the responsibility of consumers to call gladLoadCustomLoader() when RIVE_DESKTOP_GL is
     -- defined.
     defines {"RIVE_DESKTOP_GL"}
 end
@@ -129,14 +129,16 @@ do
     do
         files {"../renderer/gl/pls_impl_webgl.cpp", -- Emulate WebGL with ANGLE.
                "../renderer/gl/pls_impl_rw_texture.cpp",
-               "../glad/glad.c"}  -- GL loader library for ANGLE.
+               "../glad/glad.c",
+               "../glad/glad_custom.c"}  -- GL loader library for ANGLE.
     end
 
     filter "system:android"
     do
         targetdir "android_%{cfg.buildcfg}"
         objdir "obj/android_%{cfg.buildcfg}"
-        files {"../renderer/gl/pls_impl_ext_native.cpp",
+        files {"../renderer/gl/load_gles_extensions.cpp",
+               "../renderer/gl/pls_impl_ext_native.cpp",
                "../renderer/gl/pls_impl_framebuffer_fetch.cpp"}
     end
 

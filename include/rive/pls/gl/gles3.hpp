@@ -4,8 +4,23 @@
 
 #pragma once
 
+struct GLExtensions
+{
+    bool ANGLE_shader_pixel_local_storage = false;
+    bool ANGLE_shader_pixel_local_storage_coherent = false;
+    bool ANGLE_polygon_mode = false;
+    bool ANGLE_provoking_vertex = false;
+    bool ARM_shader_framebuffer_fetch = false;
+    bool ARB_fragment_shader_interlock = false;
+    bool EXT_base_instance = false;
+    bool INTEL_fragment_shader_ordering = false;
+    bool EXT_shader_framebuffer_fetch = false;
+    bool EXT_shader_pixel_local_storage = false;
+    bool QCOM_shader_framebuffer_fetch_noncoherent = false;
+};
+
 #ifdef RIVE_DESKTOP_GL
-#include "glad.h"
+#include "glad_custom.h"
 #define GL_APIENTRY GLAPIENTRY
 #define GL_MAX_PIXEL_LOCAL_STORAGE_PLANES_WEBGL GL_MAX_PIXEL_LOCAL_STORAGE_PLANES_ANGLE
 #define GL_MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_WEBGL                             \
@@ -41,6 +56,13 @@
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 #include <GLES2/gl2ext.h>
+
+// Android doesn't load extension functions for us.
+void loadGLESExtensions(const GLExtensions&);
+extern PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC glDrawArraysInstancedBaseInstanceEXT;
+extern PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC glDrawElementsInstancedBaseInstanceEXT;
+extern PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
+    glDrawElementsInstancedBaseVertexBaseInstanceEXT;
 #endif
 
 #ifdef RIVE_IOS

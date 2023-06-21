@@ -14,7 +14,20 @@ namespace rive
 class TrivialBlockAllocator
 {
 public:
-    TrivialBlockAllocator(size_t initialBlockSize) : m_initialBlockSize(initialBlockSize) {}
+    TrivialBlockAllocator(size_t initialBlockSize) : m_initialBlockSize(initialBlockSize)
+    {
+        m_blocks.push_back(std::unique_ptr<char[]>(new char[m_initialBlockSize]));
+        reset();
+    }
+
+    void reset()
+    {
+        m_fibMinus2 = 0;
+        m_fibMinus1 = 1;
+        m_blocks.resize(1);
+        m_currentBlockSize = m_initialBlockSize;
+        m_currentBlockUsage = 0;
+    }
 
     void* alloc(size_t allocSize)
     {
@@ -56,11 +69,11 @@ private:
     const size_t m_initialBlockSize;
 
     // Grow block sizes using a fibonacci function.
-    size_t m_fibMinus2 = 0;
-    size_t m_fibMinus1 = 1;
+    size_t m_fibMinus2;
+    size_t m_fibMinus1;
 
     std::vector<std::unique_ptr<char[]>> m_blocks;
-    size_t m_currentBlockSize = 0;
-    size_t m_currentBlockUsage = 0;
+    size_t m_currentBlockSize;
+    size_t m_currentBlockUsage;
 };
 } // namespace rive

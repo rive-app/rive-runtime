@@ -9,6 +9,7 @@
 #include "rive/pls/buffer_ring.hpp"
 #include "rive/pls/pls.hpp"
 #include "rive/pls/pls_render_target.hpp"
+#include "rive/pls/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include <functional>
 #include <unordered_map>
@@ -311,11 +312,35 @@ protected:
                          size_t gradSpansHeight,
                          size_t tessVertexSpanCount,
                          size_t tessDataHeight,
-                         size_t tessVertexCount,
-                         const ShaderFeatures&) = 0;
+                         bool needsClipBuffer) = 0;
 
     const PlatformFeatures m_platformFeatures;
     const size_t m_maxPathID;
+
+    enum class DrawType
+    {
+        pathWedges, // Standard paths and/or strokes.
+    };
+
+    // Linked list of draws to be issued by the subclass during onFlush().
+    struct DrawList
+    {
+        DrawList(DrawType drawType_, size_t baseVertex_) :
+            drawType(drawType_), baseVertex(baseVertex_)
+        {}
+        const DrawType drawType;
+        const size_t baseVertex;
+        size_t vertexCount = 0; // Calculated during PLSRenderContext::flush().
+        ShaderFeatures shaderFeatures;
+        DrawList* next = nullptr;
+    };
+
+    DrawList* m_drawList = nullptr;
+    DrawList* m_lastDraw = nullptr;
+    size_t m_drawListCount = 0;
+
+    constexpr static size_t kPerFlushAllocatorInitialBlockSize = 1024 * 1024; // 1 MiB.
+    TrivialBlockAllocator m_perFlushAllocator{kPerFlushAllocatorInitialBlockSize};
 
 private:
     static BlendTier BlendTierForBlendMode(PLSBlendMode);
@@ -323,6 +348,10 @@ private:
     // Allocates a horizontal span of texels in the gradient texture and schedules either a texture
     // upload or draw that fills it with the given gradient's color ramp.
     [[nodiscard]] bool pushGradient(const PLSGradient*, PaintData*);
+
+    // Either appends a draw to m_drawList or merges into m_lastDraw.
+    // The caller is responsible for updating the returned ShaderFeatures to reflect its use case.
+    [[nodiscard]] ShaderFeatures* pushDraw(DrawType, size_t baseVertex);
 
     // Capacities of all our GPU resource allocations.
     struct GPUResourceLimits
@@ -456,8 +485,5 @@ private:
     // the entire gradient texture width.
     std::unordered_map<GradientContentKey, uint32_t, DeepHashGradient>
         m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
-
-    // Combined set of "uber shader" features used by all currently-pushed paths.
-    ShaderFeatures m_shaderFeatures;
 };
 } // namespace rive::pls

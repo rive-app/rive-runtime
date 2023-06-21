@@ -16,13 +16,6 @@
 #include "../out/obj/generated/math.glsl.hpp"
 #include "../out/obj/generated/tessellate.glsl.hpp"
 
-// ES doesn't have wireframe support. Use a hacked ANGLE driver that repurposes glPolygonOffset as a
-// back door to turn on wireframe in the backend.
-#define glPolygonMode(face, mode) glPolygonOffset(float(face), float(mode))
-#define GL_POINT 0x1B00
-#define GL_LINE 0x1B01
-#define GL_FILL 0x1B02
-
 // Offset all texture indices by 1 so we, and others who share our GL context, can use GL_TEXTURE0
 // as a scratch texture index.
 constexpr static int kGLTexIdxOffset = 1;
@@ -40,14 +33,35 @@ EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
 #endif
 
 PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
-                                       const Extensions& extensions,
+                                       const GLExtensions& extensions,
                                        std::unique_ptr<PLSImpl> plsImpl) :
     PLSRenderContext(platformFeatures), m_extensions(extensions), m_plsImpl(std::move(plsImpl))
 
 {
+    m_shaderVersionString[kShaderVersionStringBuffSize - 1] = '\0';
+    strncpy(m_shaderVersionString, "#version 300 es\n", kShaderVersionStringBuffSize - 1);
+#ifdef RIVE_DESKTOP_GL
+    if (!GLAD_GL_version_es && GLAD_IS_GL_VERSION_AT_LEAST(4, 0))
+    {
+        snprintf(m_shaderVersionString,
+                 kShaderVersionStringBuffSize,
+                 "#version %d%d0\n",
+                 GLAD_GL_version_major,
+                 GLAD_GL_version_minor);
+        m_supportsBaseInstanceInShader = GLAD_IS_GL_VERSION_AT_LEAST(4, 6);
+    }
+#endif
+    assert(!m_supportsBaseInstanceInShader || m_extensions.EXT_base_instance);
+
     m_colorRampProgram = glCreateProgram();
-    glutils::CompileAndAttachShader(m_colorRampProgram, GL_VERTEX_SHADER, glsl::color_ramp);
-    glutils::CompileAndAttachShader(m_colorRampProgram, GL_FRAGMENT_SHADER, glsl::color_ramp);
+    glutils::CompileAndAttachShader(m_colorRampProgram,
+                                    GL_VERTEX_SHADER,
+                                    glsl::color_ramp,
+                                    m_shaderVersionString);
+    glutils::CompileAndAttachShader(m_colorRampProgram,
+                                    GL_FRAGMENT_SHADER,
+                                    glsl::color_ramp,
+                                    m_shaderVersionString);
     glutils::LinkProgram(m_colorRampProgram);
     glUniformBlockBinding(m_colorRampProgram,
                           glGetUniformBlockIndex(m_colorRampProgram, GLSL_Uniforms),
@@ -67,13 +81,15 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                                     nullptr,
                                     0,
                                     tessellateSources,
-                                    2);
+                                    2,
+                                    m_shaderVersionString);
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_FRAGMENT_SHADER,
                                     nullptr,
                                     0,
                                     tessellateSources,
-                                    2);
+                                    2,
+                                    m_shaderVersionString);
     glutils::LinkProgram(m_tessellateProgram);
     glUniformBlockBinding(m_tessellateProgram,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
@@ -201,16 +217,13 @@ public:
     DrawShader(const DrawShader&) = delete;
     DrawShader& operator=(const DrawShader&) = delete;
 
-    DrawShader(GLenum shaderType,
-               const ShaderFeatures& shaderFeatures,
-               const PlatformFeatures& platformFeatures,
-               const PLSImpl* plsImpl)
+    DrawShader(PLSRenderContextGL* context, GLenum shaderType, const ShaderFeatures& shaderFeatures)
     {
         auto sourceType =
             shaderType == GL_VERTEX_SHADER ? SourceType::vertexOnly : SourceType::wholeProgram;
 
         std::vector<const char*> defines;
-        defines.push_back(plsImpl->shaderDefineName());
+        defines.push_back(context->m_plsImpl->shaderDefineName());
         uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
         {
@@ -228,6 +241,10 @@ public:
         {
             defines.push_back(GLSL_ENABLE_HSL_BLEND_MODES);
         }
+        if (shaderType == GL_VERTEX_SHADER && !context->m_supportsBaseInstanceInShader)
+        {
+            defines.push_back(GLSL_BASE_INSTANCE_POLYFILL);
+        }
 
         std::vector<const char*> sources;
         sources.push_back(glsl::math);
@@ -238,7 +255,7 @@ public:
                 sources.push_back(glsl::advanced_blend);
             }
         }
-        if (platformFeatures.avoidFlatVaryings)
+        if (context->m_platformFeatures.avoidFlatVaryings)
         {
             sources.push_back("#define " GLSL_OPTIONALLY_FLAT "\n");
         }
@@ -252,7 +269,7 @@ public:
                                       defines.size(),
                                       sources.data(),
                                       sources.size(),
-                                      plsImpl->shaderVersionOverrideString());
+                                      context->m_shaderVersionString);
     }
 
     ~DrawShader() { glDeleteShader(m_id); }
@@ -271,20 +288,14 @@ PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
     uint64_t vertexShaderKey = shaderFeatures.getPreprocessorDefines(SourceType::vertexOnly);
-    const DrawShader& vertexShader = context->m_vertexShaders
-                                         .try_emplace(vertexShaderKey,
-                                                      GL_VERTEX_SHADER,
-                                                      shaderFeatures,
-                                                      context->m_platformFeatures,
-                                                      context->m_plsImpl.get())
-                                         .first->second;
+    const DrawShader& vertexShader =
+        context->m_vertexShaders
+            .try_emplace(vertexShaderKey, context, GL_VERTEX_SHADER, shaderFeatures)
+            .first->second;
     glAttachShader(m_id, vertexShader.id());
 
     // Every fragment shader is unique.
-    DrawShader fragmentShader(GL_FRAGMENT_SHADER,
-                              shaderFeatures,
-                              context->m_platformFeatures,
-                              context->m_plsImpl.get());
+    DrawShader fragmentShader(context, GL_FRAGMENT_SHADER, shaderFeatures);
     glAttachShader(m_id, fragmentShader.id());
 
     glutils::LinkProgram(m_id);
@@ -297,6 +308,10 @@ PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
     glUniform1i(glGetUniformLocation(m_id, GLSL_contourTexture),
                 kGLTexIdxOffset + kContourTextureIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kGLTexIdxOffset + kGradTextureIdx);
+    if (!context->m_supportsBaseInstanceInShader)
+    {
+        m_baseInstancePolyfillLocation = glGetUniformLocation(m_id, GLSL_baseInstancePolyfill);
+    }
 }
 
 PLSRenderContextGL::DrawProgram::~DrawProgram() { glDeleteProgram(m_id); }
@@ -311,21 +326,13 @@ static GLuint gl_texture_id(const TexelBufferRing* texelBufferRing)
     return static_cast<const TexelBufferGL*>(texelBufferRing)->submittedTextureID();
 }
 
-void PLSRenderContextGL::bindDrawProgram(const DrawProgram& drawProgram)
-{
-    glBindVertexArray(m_drawVAO);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(drawUniforms()));
-    glUseProgram(drawProgram.id());
-}
-
 void PLSRenderContextGL::onFlush(FlushType flushType,
                                  LoadAction loadAction,
                                  size_t gradSpanCount,
                                  size_t gradSpansHeight,
                                  size_t tessVertexSpanCount,
                                  size_t tessDataHeight,
-                                 size_t wedgeInstanceCount,
-                                 const ShaderFeatures& shaderFeatures)
+                                 bool needsClipBuffer)
 {
     // Render the complex color ramps to the gradient texture.
     if (gradSpanCount > 0)
@@ -371,48 +378,84 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount);
     }
 
+    // Compile the draw programs before activating pixel local storage.
+    // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while active.)
+    size_t drawIdx = 0;
+    auto drawPrograms = reinterpret_cast<const DrawProgram**>(
+        m_perFlushAllocator.alloc(sizeof(void*) * m_drawListCount));
+    for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
+    {
+        // Compile the draw program before activating pixel local storage.
+        // Cache specific compilations of draw.glsl by ShaderFeatures.
+        const ShaderFeatures& shaderFeatures = draw->shaderFeatures;
+        uint64_t fragmentShaderKey =
+            shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
+        drawPrograms[drawIdx] =
+            &m_drawPrograms.try_emplace(fragmentShaderKey, this, shaderFeatures).first->second;
+    }
+    assert(drawIdx == m_drawListCount);
+
     glViewport(0, 0, renderTarget()->width(), renderTarget()->height());
 
-    // Compile the draw program before activating pixel local storage.
-    // Cache specific compilations of draw.glsl by ShaderFeatures.
-    uint64_t fragmentShaderKey = shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
-    const DrawProgram& drawProgram =
-        m_drawPrograms.try_emplace(fragmentShaderKey, this, shaderFeatures).first->second;
-
-    if (frameDescriptor().wireframe)
+#ifdef RIVE_DESKTOP_GL
+    if (m_extensions.ANGLE_polygon_mode && frameDescriptor().wireframe)
     {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_LINE_ANGLE);
         glLineWidth(2);
     }
+#endif
 
-    m_plsImpl->activatePixelLocalStorage(this,
-                                         renderTarget(),
-                                         loadAction,
-                                         shaderFeatures,
-                                         drawProgram);
+    m_plsImpl->activatePixelLocalStorage(this, renderTarget(), loadAction, needsClipBuffer);
 
-    if (wedgeInstanceCount > 0)
+    // Issue all the draws.
+    glBindVertexArray(m_drawVAO);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(drawUniforms()));
+    drawIdx = 0;
+    for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
     {
         // Draw wedges connecting all tessellated vertices.
-        glDrawElementsInstanced(GL_TRIANGLES,
-                                kOuterStrokeWedgeIndexCount,
-                                GL_UNSIGNED_SHORT,
-                                nullptr,
-                                wedgeInstanceCount);
+        const DrawProgram* drawProgram = drawPrograms[drawIdx];
+        glUseProgram(drawProgram->id());
+        size_t wedgeInstanceCount = draw->vertexCount / kWedgeSize;
+        assert(wedgeInstanceCount > 0);
+        assert(wedgeInstanceCount * kWedgeSize == draw->vertexCount);
+        size_t wedgeBaseInstance = draw->baseVertex / kWedgeSize;
+        assert(wedgeBaseInstance * kWedgeSize == draw->baseVertex);
+        if (m_supportsBaseInstanceInShader)
+        {
+            glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
+                                                   kOuterStrokeWedgeIndexCount,
+                                                   GL_UNSIGNED_SHORT,
+                                                   nullptr,
+                                                   wedgeInstanceCount,
+                                                   wedgeBaseInstance);
+        }
+        else
+        {
+            glUniform1i(drawProgram->baseInstancePolyfillLocation(), wedgeBaseInstance);
+            glDrawElementsInstanced(GL_TRIANGLES,
+                                    kOuterStrokeWedgeIndexCount,
+                                    GL_UNSIGNED_SHORT,
+                                    nullptr,
+                                    wedgeInstanceCount);
+        }
     }
+    assert(drawIdx == m_drawListCount);
 
-    m_plsImpl->deactivatePixelLocalStorage(shaderFeatures);
+    m_plsImpl->deactivatePixelLocalStorage();
 
-    if (frameDescriptor().wireframe)
+#ifdef RIVE_DESKTOP_GL
+    if (m_extensions.ANGLE_polygon_mode && frameDescriptor().wireframe)
     {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_FILL_ANGLE);
     }
+#endif
 }
 
 std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
 {
-    Extensions extensions;
-    int extensionCount;
+    GLExtensions extensions;
+    GLint extensionCount;
     glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
     for (int i = 0; i < extensionCount; ++i)
     {
@@ -429,6 +472,10 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
         {
             extensions.ANGLE_provoking_vertex = true;
         }
+        else if (strcmp(ext, "GL_ANGLE_polygon_mode") == 0)
+        {
+            extensions.ANGLE_polygon_mode = true;
+        }
         else if (strcmp(ext, "GL_ARM_shader_framebuffer_fetch") == 0)
         {
             extensions.ARM_shader_framebuffer_fetch = true;
@@ -436,6 +483,10 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
         else if (strcmp(ext, "GL_ARB_fragment_shader_interlock") == 0)
         {
             extensions.ARB_fragment_shader_interlock = true;
+        }
+        else if (strcmp(ext, "GL_EXT_base_instance") == 0)
+        {
+            extensions.EXT_base_instance = true;
         }
         else if (strcmp(ext, "GL_INTEL_fragment_shader_ordering") == 0)
         {
@@ -454,6 +505,17 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
             extensions.QCOM_shader_framebuffer_fetch_noncoherent = true;
         }
     }
+#ifdef RIVE_DESKTOP_GL
+    // We implement some ES extensions with core Desktop GL in glad_custom.c.
+    if (GLAD_GL_ANGLE_polygon_mode)
+    {
+        extensions.ANGLE_polygon_mode = true;
+    }
+    if (GLAD_GL_EXT_base_instance)
+    {
+        extensions.EXT_base_instance = true;
+    }
+#endif
 
     PlatformFeatures platformFeatures;
     GLenum rendererToken = GL_RENDERER;
@@ -474,6 +536,7 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
     }
 
 #ifdef RIVE_GLES
+    loadGLESExtensions(extensions); // Android doesn't load extension functions for us.
     if (extensions.EXT_shader_pixel_local_storage &&
         (extensions.ARM_shader_framebuffer_fetch || extensions.EXT_shader_framebuffer_fetch))
     {

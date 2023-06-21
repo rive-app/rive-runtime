@@ -42,8 +42,7 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
     void activatePixelLocalStorage(PLSRenderContextGL* context,
                                    const PLSRenderTargetGL* renderTarget,
                                    LoadAction loadAction,
-                                   const ShaderFeatures& shaderFeatures,
-                                   const DrawProgram& drawProgram) override
+                                   bool needsClipBuffer) override
     {
         // Clear the necessary textures.
         constexpr static GLuint kZero[4]{};
@@ -55,7 +54,7 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
             glClearBufferfv(GL_COLOR, kFramebufferPlaneIdx, clearColor4f);
         }
         glClearBufferuiv(GL_COLOR, kCoveragePlaneIdx, kZero);
-        if (shaderFeatures.programFeatures.enablePathClipping)
+        if (needsClipBuffer)
         {
             glClearBufferuiv(GL_COLOR, kClipPlaneIdx, kZero);
         }
@@ -82,7 +81,7 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
                            0,
                            GL_READ_WRITE,
                            GL_RGBA8);
-        if (shaderFeatures.programFeatures.enablePathClipping)
+        if (needsClipBuffer)
         {
             glBindImageTexture(kClipPlaneIdx,
                                renderTarget->m_clipTextureID,
@@ -94,21 +93,12 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
-        context->bindDrawProgram(drawProgram);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
 
-    void deactivatePixelLocalStorage(const ShaderFeatures& shaderFeatures) override
-    {
-        glMemoryBarrier(GL_ALL_BARRIER_BITS);
-    }
+    void deactivatePixelLocalStorage() override { glMemoryBarrier(GL_ALL_BARRIER_BITS); }
 
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_RW_TEXTURE; }
-
-    const char* shaderVersionOverrideString() const override
-    {
-        return "#version 420\n"; // imageLoad/Store() appear in GLSL 420.
-    }
 };
 
 std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplRWTexture()

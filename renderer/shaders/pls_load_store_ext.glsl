@@ -25,9 +25,7 @@ __pixel_local_outEXT PLS
     layout(rgba8) mediump vec4 framebuffer;
     layout(r32ui) highp uint coverageCountBuffer;
     layout(rgba8) mediump vec4 originalDstColorBuffer;
-#ifdef @DECLARE_CLIP
     layout(r32ui) highp uint clipBuffer;
-#endif
 };
 
 #ifdef @CLEAR_COLOR

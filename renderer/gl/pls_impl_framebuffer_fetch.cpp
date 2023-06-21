@@ -47,24 +47,22 @@ class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::P
     void activatePixelLocalStorage(PLSRenderContextGL* context,
                                    const PLSRenderTargetGL* renderTarget,
                                    LoadAction loadAction,
-                                   const ShaderFeatures& shaderFeatures,
-                                   const DrawProgram& drawProgram) override
+                                   bool needsClipBuffer) override
     {
         assert(context->m_extensions.EXT_shader_framebuffer_fetch);
 
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
 
         // Enable multiple render targets, with a draw buffer for each PLS plane.
-        GLsizei numDrawBuffers = shaderFeatures.programFeatures.enablePathClipping ? 4 : 3;
-        glDrawBuffers(numDrawBuffers, kPLSDrawBuffers);
+        glDrawBuffers(4, kPLSDrawBuffers);
 
         // Instruct the driver not to load existing PLS plane contents into tiled memory, with the
         // exception of the color buffer after an intermediate flush.
         static_assert(kFramebufferPlaneIdx == 0);
-        glInvalidateFramebuffer(
-            GL_FRAMEBUFFER,
-            loadAction == LoadAction::clear ? numDrawBuffers : numDrawBuffers - 1,
-            loadAction == LoadAction::clear ? kPLSDrawBuffers : kPLSDrawBuffers + 1);
+        glInvalidateFramebuffer(GL_FRAMEBUFFER,
+                                loadAction == LoadAction::clear ? 4 : 3,
+                                loadAction == LoadAction::clear ? kPLSDrawBuffers
+                                                                : kPLSDrawBuffers + 1);
 
         // Clear the PLS planes.
         constexpr static uint32_t kZero[4]{};
@@ -75,21 +73,18 @@ class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::P
             glClearBufferfv(GL_COLOR, kFramebufferPlaneIdx, clearColor4f);
         }
         glClearBufferuiv(GL_COLOR, kCoveragePlaneIdx, kZero);
-        if (shaderFeatures.programFeatures.enablePathClipping)
+        if (needsClipBuffer)
         {
             glClearBufferuiv(GL_COLOR, kClipPlaneIdx, kZero);
         }
-
-        context->bindDrawProgram(drawProgram);
     }
 
-    void deactivatePixelLocalStorage(const ShaderFeatures& shaderFeatures) override
+    void deactivatePixelLocalStorage() override
     {
         // Instruct the driver not to flush PLS contents from tiled memory, with the exception of
         // the color buffer.
         static_assert(kFramebufferPlaneIdx == 0);
-        GLsizei numDrawBuffers = shaderFeatures.programFeatures.enablePathClipping ? 4 : 3;
-        glInvalidateFramebuffer(GL_FRAMEBUFFER, numDrawBuffers - 1, kPLSDrawBuffers + 1);
+        glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, kPLSDrawBuffers + 1);
 
         // Don't restore glDrawBuffers. The client can assume we've changed it, if we have a wrapped
         // render target.

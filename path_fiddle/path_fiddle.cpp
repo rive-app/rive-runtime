@@ -340,9 +340,6 @@ int main(int argc, const char** argv)
     else
     {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     }
     g_window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
     if (!g_window)

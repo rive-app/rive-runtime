@@ -58,8 +58,7 @@ private:
                  size_t gradSpansHeight,
                  size_t tessVertexSpanCount,
                  size_t tessDataHeight,
-                 size_t wedgeInstanceCount,
-                 const ShaderFeatures&) override;
+                 bool needsClipBuffer) override;
 
     const id<MTLDevice> m_gpu;
     const id<MTLCommandQueue> m_queue;

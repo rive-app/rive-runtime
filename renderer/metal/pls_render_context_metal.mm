@@ -290,8 +290,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                     size_t gradSpansHeight,
                                     size_t tessVertexSpanCount,
                                     size_t tessDataHeight,
-                                    size_t wedgeInstanceCount,
-                                    const ShaderFeatures& shaderFeatures)
+                                    bool needsClipBuffer)
 {
     auto* renderTarget =
         static_cast<const PLSRenderTargetMetal*>(frameDescriptor().renderTarget.get());
@@ -394,38 +393,48 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
     pass.colorAttachments[3].storeAction = MTLStoreActionDontCare;
 
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
-    if (wedgeInstanceCount > 0)
+    [encoder setViewport:(MTLViewport){0.f,
+                                       0.f,
+                                       static_cast<float>(renderTarget->width()),
+                                       static_cast<float>(renderTarget->height()),
+                                       0.0,
+                                       1.0}];
+    [encoder setVertexBuffer:mtl_buffer(drawUniforms()) offset:0 atIndex:0];
+    [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:1];
+    [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
+    [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
+    [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
+    [encoder setFragmentTexture:mtl_texture(gradTexelBufferRing()) atIndex:kGradTextureIdx];
+    if (frameDescriptor().wireframe)
+    {
+        [encoder setTriangleFillMode:MTLTriangleFillModeLines];
+    }
+
+    size_t drawIdx = 0;
+    for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
     {
         // Cache specific compilations of draw.glsl by ShaderFeatures.
         // TODO: Reuse vertex shader compilations where possible.
         // TODO: Precompile these shaders and only ship bytecode.
-        uint64_t shaderKey = shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
+        uint64_t shaderKey = draw->shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
         const DrawPipeline& drawPipeline =
-            m_drawPipelines.try_emplace(shaderKey, this, shaderFeatures).first->second;
+            m_drawPipelines.try_emplace(shaderKey, this, draw->shaderFeatures).first->second;
 
-        [encoder setViewport:(MTLViewport){0.f,
-                                           0.f,
-                                           static_cast<float>(renderTarget->width()),
-                                           static_cast<float>(renderTarget->height()),
-                                           0.0,
-                                           1.0}];
+        size_t wedgeInstanceCount = draw->vertexCount / kWedgeSize;
+        assert(wedgeInstanceCount > 0);
+        assert(wedgeInstanceCount * kWedgeSize == draw->vertexCount);
+        size_t wedgeBaseInstance = draw->baseVertex / kWedgeSize;
+        assert(wedgeBaseInstance * kWedgeSize == draw->baseVertex);
+
         [encoder setRenderPipelineState:drawPipeline.pipelineState(renderTarget->pixelFormat())];
-        [encoder setVertexBuffer:mtl_buffer(drawUniforms()) offset:0 atIndex:0];
-        [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:1];
-        [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
-        [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
-        [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
-        [encoder setFragmentTexture:mtl_texture(gradTexelBufferRing()) atIndex:kGradTextureIdx];
-        if (frameDescriptor().wireframe)
-        {
-            [encoder setTriangleFillMode:MTLTriangleFillModeLines];
-        }
         [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                             indexCount:kOuterStrokeWedgeIndexCount
                              indexType:MTLIndexTypeUInt16
                            indexBuffer:m_pathWedgeIndexBuffer
                      indexBufferOffset:0
-                         instanceCount:wedgeInstanceCount];
+                         instanceCount:wedgeInstanceCount
+                            baseVertex:0
+                          baseInstance:wedgeBaseInstance];
     }
     [encoder endEncoding];
 

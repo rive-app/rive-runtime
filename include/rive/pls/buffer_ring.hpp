@@ -178,6 +178,8 @@ public:
         return m_impl ? kBufferRingSize * m_impl->capacity() * m_impl->itemSizeInBytes() : 0;
     }
 
+    size_t capacity() const { return m_impl->capacity(); }
+
     // Maps the next buffer in the ring, if one is not already mapped.
     RIVE_ALWAYS_INLINE void ensureMapped()
     {

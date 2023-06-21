@@ -55,6 +55,7 @@
 #define GLSL_POSITION gl_Position
 #define GLSL_VERTEX_ID gl_VertexID
 #define GLSL_INSTANCE_ID gl_InstanceID
+#define GLSL_BASE_INSTANCE gl_BaseInstance
 
 #define UNIFORM_BLOCK_BEGIN(N)                                                                     \
     layout(std140) uniform N                                                                       \

@@ -56,15 +56,9 @@ class PLSRenderContextGL::PLSImplWebGL : public PLSRenderContextGL::PLSImpl
     void activatePixelLocalStorage(PLSRenderContextGL* context,
                                    const PLSRenderTargetGL* renderTarget,
                                    LoadAction loadAction,
-                                   const ShaderFeatures& shaderFeatures,
-                                   const DrawProgram& drawProgram) override
+                                   bool needsClipBuffer) override
     {
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
-
-        // Bind these before activating pixel local storage, so they don't count against our GL call
-        // count in Chrome while pixel local storage is active, reducing our chances of the render
-        // pass being interrupted.
-        context->bindDrawProgram(drawProgram);
 
         if (loadAction == LoadAction::clear)
         {
@@ -77,20 +71,18 @@ class PLSRenderContextGL::PLSImplWebGL : public PLSRenderContextGL::PLSImpl
                                                                       : GL_LOAD_OP_LOAD_WEBGL),
                              GL_LOAD_OP_ZERO_WEBGL,
                              GL_DONT_CARE,
-                             GL_LOAD_OP_ZERO_WEBGL};
+                             (GLenum)(needsClipBuffer ? GL_LOAD_OP_ZERO_WEBGL : GL_DONT_CARE)};
 
-        glBeginPixelLocalStorageWEBGL(shaderFeatures.programFeatures.enablePathClipping ? 4 : 3,
-                                      loadOps);
+        glBeginPixelLocalStorageWEBGL(4, loadOps);
     }
 
-    void deactivatePixelLocalStorage(const ShaderFeatures& shaderFeatures) override
+    void deactivatePixelLocalStorage() override
     {
         constexpr static GLenum kStoreOps[4] = {GL_STORE_OP_STORE_WEBGL,
                                                 GL_DONT_CARE,
                                                 GL_DONT_CARE,
                                                 GL_DONT_CARE};
-        glEndPixelLocalStorageWEBGL(shaderFeatures.programFeatures.enablePathClipping ? 4 : 3,
-                                    kStoreOps);
+        glEndPixelLocalStorageWEBGL(4, kStoreOps);
     }
 
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_WEBGL; }

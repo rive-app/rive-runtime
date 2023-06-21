@@ -10,14 +10,14 @@
 
 #include <string_view>
 
+namespace rive::pls
+{
 // Overallocate GPU resources by 25% of current usage, in order to create padding for increase.
 constexpr static double kGPUResourcePadding = 1.25;
 
 // When we exceed the capacity of a GPU resource mid-flush, double it immediately.
 constexpr static double kGPUResourceIntermediateGrowthFactor = 2;
 
-namespace rive::pls
-{
 uint64_t PLSRenderContext::ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
 {
     uint64_t defines = 0;
@@ -626,19 +626,20 @@ void PLSRenderContext::pushPath(const Mat2D& matrix,
     assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
     assert(m_currentPathID == m_pathBuffer.bytesWritten() / sizeof(PathData));
 
+    ShaderFeatures* shaderFeatures = pushDraw(DrawType::pathWedges, m_tessVertexCount);
     if (blendMode > PLSBlendMode::srcOver)
     {
         assert(paintType != PaintType::clipReplace);
-        m_shaderFeatures.programFeatures.blendTier =
-            std::max(m_shaderFeatures.programFeatures.blendTier, BlendTierForBlendMode(blendMode));
+        shaderFeatures->programFeatures.blendTier =
+            std::max(shaderFeatures->programFeatures.blendTier, BlendTierForBlendMode(blendMode));
     }
     if (clipID != 0)
     {
-        m_shaderFeatures.programFeatures.enablePathClipping = true;
+        shaderFeatures->programFeatures.enablePathClipping = true;
     }
     if (fillRule == FillRule::evenOdd)
     {
-        m_shaderFeatures.fragmentFeatures.enableEvenOdd = true;
+        shaderFeatures->fragmentFeatures.enableEvenOdd = true;
     }
 }
 
@@ -732,6 +733,29 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
     assert(m_tessVertexCount <= m_currentResourceLimits.maxTessellationVertices);
 }
 
+PLSRenderContext::ShaderFeatures* PLSRenderContext::pushDraw(DrawType drawType, size_t baseVertex)
+{
+    if (m_lastDraw && m_lastDraw->drawType == drawType)
+    {
+        // Merge with the previous draw.
+    }
+    else
+    {
+        DrawList* nextDraw = m_perFlushAllocator.make<DrawList>(drawType, baseVertex);
+        if (!m_lastDraw)
+        {
+            m_drawList = nextDraw;
+        }
+        else
+        {
+            m_lastDraw->next = nextDraw;
+        }
+        m_lastDraw = nextDraw;
+        ++m_drawListCount;
+    }
+    return &m_lastDraw->shaderFeatures;
+}
+
 template <typename T> bool bits_equal(const T* a, const T* b)
 {
     return memcmp(a, b, sizeof(T)) == 0;
@@ -763,12 +787,37 @@ void PLSRenderContext::flush(FlushType flushType)
     // Determine how much to draw.
     size_t gradSpanCount = m_gradSpanBuffer.bytesWritten() / sizeof(GradientSpan);
     size_t tessVertexSpanCount = m_tessSpanBuffer.bytesWritten() / sizeof(TessVertexSpan);
-    size_t tessDataHeight = (m_tessVertexCount + kTessTextureWidth - 1) / kTessTextureWidth;
-    // Don't draw the empty "end-of-contour" marker's vertices.
-    size_t tessVertexCountToDraw = std::max<size_t>(m_tessVertexCount, 2) - 2;
-    // PLSRenderer should have padded the vertex count of each contour to a multiple of kWedgeSize.
-    assert(tessVertexCountToDraw % kWedgeSize == 0);
-    size_t wedgeInstanceCount = tessVertexCountToDraw / kWedgeSize;
+    size_t tessDataHeight = resource_texture_height(kTessTextureWidth, m_tessVertexCount);
+
+    // Write out our DrawList to the GPU DrawParameters buffer and calculate the vertex count for
+    // each draw.
+    bool needsClipBuffer = false;
+    RIVE_DEBUG_CODE(size_t drawIdx = 0;)
+    DrawList* lastPathWedgeDraw = nullptr;
+    for (DrawList* draw = m_drawList; draw; draw = draw->next)
+    {
+        switch (draw->drawType)
+        {
+            case DrawType::pathWedges:
+                if (lastPathWedgeDraw)
+                {
+                    lastPathWedgeDraw->vertexCount =
+                        draw->baseVertex - lastPathWedgeDraw->baseVertex;
+                }
+                lastPathWedgeDraw = draw;
+                break;
+        }
+        needsClipBuffer =
+            needsClipBuffer || draw->shaderFeatures.programFeatures.enablePathClipping;
+        RIVE_DEBUG_CODE(++drawIdx;)
+    }
+    if (lastPathWedgeDraw)
+    {
+        // Don't draw the empty "end-of-contour" marker's vertices.
+        size_t endVertexToDraw = std::max<size_t>(m_tessVertexCount, 2) - 2;
+        lastPathWedgeDraw->vertexCount = endVertexToDraw - lastPathWedgeDraw->baseVertex;
+    }
+    assert(drawIdx == m_drawListCount);
 
     // Upload all non-empty buffers before flushing.
     m_pathBuffer.submit();
@@ -819,8 +868,7 @@ void PLSRenderContext::flush(FlushType flushType)
             m_complexGradients.size(),
             tessVertexSpanCount,
             tessDataHeight,
-            wedgeInstanceCount,
-            m_shaderFeatures);
+            needsClipBuffer);
 
     m_currentFrameResourceUsage.maxPathID += m_currentPathID;
     m_currentFrameResourceUsage.maxContourID += m_currentContourID;
@@ -831,22 +879,6 @@ void PLSRenderContext::flush(FlushType flushType)
     m_currentFrameResourceUsage.maxTessellationVertices += m_tessVertexCount;
     static_assert(sizeof(m_currentFrameResourceUsage) ==
                   sizeof(size_t) * 7); // Make sure we got every field.
-
-    m_lastGeneratedClipID = 0;
-    m_clipContentID = 0;
-
-    m_currentPathID = 0;
-    m_currentContourID = 0;
-    m_currentContourIDWithFlags = 0;
-
-    m_simpleGradients.clear();
-    m_complexGradients.clear();
-
-    m_tessVertexCount = 0;
-
-    m_shaderFeatures = ShaderFeatures();
-
-    m_isFirstFlushOfFrame = false;
 
     if (flushType == FlushType::intermediate)
     {
@@ -862,5 +894,23 @@ void PLSRenderContext::flush(FlushType flushType)
         m_currentFrameResourceUsage = GPUResourceLimits{};
         RIVE_DEBUG_CODE(m_didBeginFrame = false;)
     }
+
+    m_lastGeneratedClipID = 0;
+    m_clipContentID = 0;
+
+    m_currentPathID = 0;
+    m_currentContourID = 0;
+    m_currentContourIDWithFlags = 0;
+
+    m_simpleGradients.clear();
+    m_complexGradients.clear();
+
+    m_tessVertexCount = 0;
+
+    m_isFirstFlushOfFrame = false;
+
+    m_drawList = m_lastDraw = nullptr;
+    m_drawListCount = 0;
+    m_perFlushAllocator.reset();
 }
 } // namespace rive::pls
