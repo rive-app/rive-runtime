@@ -1,14 +1,15 @@
-#include "rive/animation/state_transition.hpp"
-#include "rive/importers/import_stack.hpp"
-#include "rive/importers/layer_state_importer.hpp"
-#include "rive/animation/layer_state.hpp"
-#include "rive/animation/transition_condition.hpp"
+#include "rive/animation/animation_state_instance.hpp"
 #include "rive/animation/animation_state.hpp"
+#include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/layer_state.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
-#include "rive/animation/animation_state_instance.hpp"
+#include "rive/animation/state_transition.hpp"
+#include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
+#include "rive/importers/import_stack.hpp"
+#include "rive/importers/layer_state_importer.hpp"
 
 using namespace rive;
 
@@ -23,6 +24,17 @@ StateTransition::~StateTransition()
 StatusCode StateTransition::onAddedDirty(CoreContext* context)
 {
     StatusCode code;
+
+    if (interpolatorId() != -1)
+    {
+        auto coreObject = context->resolve(interpolatorId());
+        if (coreObject == nullptr || !coreObject->is<CubicInterpolator>())
+        {
+            return StatusCode::MissingObject;
+        }
+        m_Interpolator = coreObject->as<CubicInterpolator>();
+    }
+
     for (auto condition : m_Conditions)
     {
         if ((code = condition->onAddedDirty(context)) != StatusCode::Ok)

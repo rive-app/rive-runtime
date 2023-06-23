@@ -1,26 +1,27 @@
-#include "rive/animation/state_machine_instance.hpp"
-#include "rive/animation/state_machine_input.hpp"
+#include "rive/animation/animation_state_instance.hpp"
+#include "rive/animation/animation_state.hpp"
+#include "rive/animation/any_state.hpp"
+#include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/entry_state.hpp"
+#include "rive/animation/nested_state_machine.hpp"
+#include "rive/animation/state_instance.hpp"
 #include "rive/animation/state_machine_bool.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/animation/state_machine_input.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_layer.hpp"
+#include "rive/animation/state_machine_listener.hpp"
 #include "rive/animation/state_machine_number.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
-#include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine.hpp"
-#include "rive/animation/state_machine_layer.hpp"
-#include "rive/animation/any_state.hpp"
-#include "rive/animation/entry_state.hpp"
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_condition.hpp"
-#include "rive/animation/animation_state.hpp"
-#include "rive/animation/state_instance.hpp"
-#include "rive/animation/animation_state_instance.hpp"
-#include "rive/animation/state_machine_listener.hpp"
-#include "rive/shapes/shape.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
-#include "rive/nested_artboard.hpp"
 #include "rive/nested_animation.hpp"
-#include "rive/animation/nested_state_machine.hpp"
+#include "rive/nested_artboard.hpp"
 #include "rive/rive_counter.hpp"
+#include "rive/shapes/shape.hpp"
 #include <unordered_map>
 
 using namespace rive;
@@ -233,13 +234,21 @@ public:
             m_HoldAnimation = nullptr;
         }
 
+        CubicInterpolator* cubic = nullptr;
+        if (m_Transition != nullptr && m_Transition->interpolator() != nullptr)
+        {
+            cubic = m_Transition->interpolator();
+        }
+
         if (m_StateFrom != nullptr && m_Mix < 1.0f)
         {
-            m_StateFrom->apply(m_MixFrom);
+            auto fromMix = cubic != nullptr ? cubic->transform(m_MixFrom) : m_MixFrom;
+            m_StateFrom->apply(fromMix);
         }
         if (m_CurrentState != nullptr)
         {
-            m_CurrentState->apply(m_Mix);
+            auto mix = cubic != nullptr ? cubic->transform(m_Mix) : m_Mix;
+            m_CurrentState->apply(mix);
         }
     }
 

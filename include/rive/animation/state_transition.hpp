@@ -1,5 +1,6 @@
 #ifndef _RIVE_STATE_TRANSITION_HPP_
 #define _RIVE_STATE_TRANSITION_HPP_
+#include "rive/animation/cubic_interpolator.hpp"
 #include "rive/animation/state_transition_flags.hpp"
 #include "rive/generated/animation/state_transition_base.hpp"
 #include <stdio.h>
@@ -34,6 +35,7 @@ private:
         return static_cast<StateTransitionFlags>(flags());
     }
     LayerState* m_StateTo = nullptr;
+    CubicInterpolator* m_Interpolator = nullptr;
 
     std::vector<TransitionCondition*> m_Conditions;
     void addCondition(TransitionCondition* condition);
@@ -41,6 +43,7 @@ private:
 public:
     ~StateTransition() override;
     const LayerState* stateTo() const { return m_StateTo; }
+    inline CubicInterpolator* interpolator() const { return m_Interpolator; }
 
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;

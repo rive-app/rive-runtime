@@ -32,12 +32,16 @@ public:
     static const uint16_t flagsPropertyKey = 152;
     static const uint16_t durationPropertyKey = 158;
     static const uint16_t exitTimePropertyKey = 160;
+    static const uint16_t interpolationTypePropertyKey = 349;
+    static const uint16_t interpolatorIdPropertyKey = 350;
 
 private:
     uint32_t m_StateToId = -1;
     uint32_t m_Flags = 0;
     uint32_t m_Duration = 0;
     uint32_t m_ExitTime = 0;
+    uint32_t m_InterpolationType = 1;
+    uint32_t m_InterpolatorId = -1;
 
 public:
     inline uint32_t stateToId() const { return m_StateToId; }
@@ -84,6 +88,28 @@ public:
         exitTimeChanged();
     }
 
+    inline uint32_t interpolationType() const { return m_InterpolationType; }
+    void interpolationType(uint32_t value)
+    {
+        if (m_InterpolationType == value)
+        {
+            return;
+        }
+        m_InterpolationType = value;
+        interpolationTypeChanged();
+    }
+
+    inline uint32_t interpolatorId() const { return m_InterpolatorId; }
+    void interpolatorId(uint32_t value)
+    {
+        if (m_InterpolatorId == value)
+        {
+            return;
+        }
+        m_InterpolatorId = value;
+        interpolatorIdChanged();
+    }
+
     Core* clone() const override;
     void copy(const StateTransitionBase& object)
     {
@@ -91,6 +117,8 @@ public:
         m_Flags = object.m_Flags;
         m_Duration = object.m_Duration;
         m_ExitTime = object.m_ExitTime;
+        m_InterpolationType = object.m_InterpolationType;
+        m_InterpolatorId = object.m_InterpolatorId;
         StateMachineLayerComponent::copy(object);
     }
 
@@ -110,6 +138,12 @@ public:
             case exitTimePropertyKey:
                 m_ExitTime = CoreUintType::deserialize(reader);
                 return true;
+            case interpolationTypePropertyKey:
+                m_InterpolationType = CoreUintType::deserialize(reader);
+                return true;
+            case interpolatorIdPropertyKey:
+                m_InterpolatorId = CoreUintType::deserialize(reader);
+                return true;
         }
         return StateMachineLayerComponent::deserialize(propertyKey, reader);
     }
@@ -119,6 +153,8 @@ protected:
     virtual void flagsChanged() {}
     virtual void durationChanged() {}
     virtual void exitTimeChanged() {}
+    virtual void interpolationTypeChanged() {}
+    virtual void interpolatorIdChanged() {}
 };
 } // namespace rive
 

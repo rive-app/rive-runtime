@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+set -e
 
 if [[ ! -f "./bin/core_generator" || "$1" == "build" ]]; then
     mkdir -p ./bin

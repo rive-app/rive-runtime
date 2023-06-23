@@ -153,7 +153,7 @@
         "int": 290,
         "string": "toolbaroutputaction"
       },
-      "description": "Primary output action in the toolbar (share, publihs, download)",
+      "description": "Primary output action in the toolbar (share, publish, download)",
       "runtime": false,
       "coop": false
     }

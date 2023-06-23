@@ -62,6 +62,26 @@
         "string": "exittime"
       },
       "description": "Duration in milliseconds that must elapse before allowing the state to change. If the flags mark this property as being percentage based, the value is in 0-100% of the outgoing animation's duration"
+    },
+    "interpolationType": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 349,
+        "string": "interpolationtype"
+      },
+      "description": "The type of interpolation index in Interpolation applied to this state transition ('linear' by default)."
+    },
+    "interpolatorId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 350,
+        "string": "interpolatorid"
+      },
+      "description": "The id of the custom interpolator used when interpolation is Cubic."
     }
   }
 }

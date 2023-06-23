@@ -457,6 +457,12 @@ public:
             case StateTransitionBase::exitTimePropertyKey:
                 object->as<StateTransitionBase>()->exitTime(value);
                 break;
+            case StateTransitionBase::interpolationTypePropertyKey:
+                object->as<StateTransitionBase>()->interpolationType(value);
+                break;
+            case StateTransitionBase::interpolatorIdPropertyKey:
+                object->as<StateTransitionBase>()->interpolatorId(value);
+                break;
             case LinearAnimationBase::fpsPropertyKey:
                 object->as<LinearAnimationBase>()->fps(value);
                 break;
@@ -1043,6 +1049,10 @@ public:
                 return object->as<StateTransitionBase>()->duration();
             case StateTransitionBase::exitTimePropertyKey:
                 return object->as<StateTransitionBase>()->exitTime();
+            case StateTransitionBase::interpolationTypePropertyKey:
+                return object->as<StateTransitionBase>()->interpolationType();
+            case StateTransitionBase::interpolatorIdPropertyKey:
+                return object->as<StateTransitionBase>()->interpolatorId();
             case LinearAnimationBase::fpsPropertyKey:
                 return object->as<LinearAnimationBase>()->fps();
             case LinearAnimationBase::durationPropertyKey:
@@ -1428,6 +1438,8 @@ public:
             case StateTransitionBase::flagsPropertyKey:
             case StateTransitionBase::durationPropertyKey:
             case StateTransitionBase::exitTimePropertyKey:
+            case StateTransitionBase::interpolationTypePropertyKey:
+            case StateTransitionBase::interpolatorIdPropertyKey:
             case LinearAnimationBase::fpsPropertyKey:
             case LinearAnimationBase::durationPropertyKey:
             case LinearAnimationBase::loopValuePropertyKey:
