@@ -7,9 +7,12 @@
 
 #include "rive/factory.hpp"
 #include "rive/text_engine.hpp"
-#include "hb.h"
 
 #include <unordered_map>
+
+struct hb_font_t;
+struct hb_draw_funcs_t;
+struct hb_feature_t;
 
 class HBFont : public rive::Font
 {
@@ -37,8 +40,8 @@ public:
 
 private:
     HBFont(hb_font_t* font,
-           std::unordered_map<hb_tag_t, float> axisValues,
-           std::unordered_map<hb_tag_t, uint32_t> featureValues,
+           std::unordered_map<uint32_t, float> axisValues,
+           std::unordered_map<uint32_t, uint32_t> featureValues,
            std::vector<hb_feature_t> features);
 
     // If the platform can supply fallback font(s), set this function pointer.
@@ -60,10 +63,10 @@ private:
     hb_draw_funcs_t* m_drawFuncs;
 
     // Feature value lookup based on tag.
-    std::unordered_map<hb_tag_t, uint32_t> m_featureValues;
+    std::unordered_map<uint32_t, uint32_t> m_featureValues;
 
     // Axis value lookup based on for the feature.
-    std::unordered_map<hb_tag_t, float> m_axisValues;
+    std::unordered_map<uint32_t, float> m_axisValues;
 };
 
 #endif
