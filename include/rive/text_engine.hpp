@@ -99,10 +99,7 @@ public:
 
     const LineMetrics& lineMetrics() const { return m_LineMetrics; }
 
-    // This is experimental
-    // -- may only be needed by Editor
-    // -- so it may be removed from here later
-    //
+    // Variable axis available for the font.
     struct Axis
     {
         uint32_t tag;
@@ -111,32 +108,47 @@ public:
         float max;
     };
 
-    // Returns the canonical set of Axes for this font. Use this to know
-    // what variations are possible. If you want to know the specific
-    // coordinate within that variations space for *this* font, call
-    // getCoords().
-    //
-    std::vector<Axis> getAxes() const;
-    virtual Axis getAxis(uint16_t index) const = 0;
-    virtual uint16_t getAxisCount() const = 0;
-
+    // Variable axis setting.
     struct Coord
     {
         uint32_t axis;
         float value;
     };
 
-    // Returns the specific coords in variation space for this font.
-    // If you want to have a description of the entire variation space,
-    // call getAxes().
-    //
-    virtual std::vector<Coord> getCoords() const = 0;
+    // Returns the count of variable axes available for this font.
+    virtual uint16_t getAxisCount() const = 0;
 
+    // Returns the definition of the Axis at the provided index.
+    virtual Axis getAxis(uint16_t index) const = 0;
+
+    // Value for the axis, if a Coord has been provided the value from the Coord
+    // will be used. Otherwise the default value for the axis will be returned.
     virtual float getAxisValue(uint32_t axisTag) const = 0;
 
-    virtual rcp<Font> makeAtCoords(Span<const Coord>) const = 0;
+    // Font feature.
+    struct Feature
+    {
+        uint32_t tag;
+        uint32_t value;
+    };
+
+    // Returns the features available for this font.
+    virtual SimpleArray<uint32_t> features() const = 0;
+
+    // Value for the feature, if no value has been provided a (uint32_t)-1 is
+    // returned to signal that the text engine will pick the best feature value
+    // for the content.
+    virtual uint32_t getFeatureValue(uint32_t featureTag) const = 0;
+
+    rcp<Font> makeAtCoords(Span<const Coord> coords) const
+    {
+        return withOptions(coords, Span<const Feature>(nullptr, 0));
+    }
 
     rcp<Font> makeAtCoord(Coord c) { return this->makeAtCoords(Span<const Coord>(&c, 1)); }
+
+    virtual rcp<Font> withOptions(Span<const Coord> variableAxes,
+                                  Span<const Feature> features) const = 0;
 
     // Returns a 1-point path for this glyph. It will be positioned
     // relative to (0,0) with the typographic baseline at y = 0.

@@ -12,6 +12,7 @@
 
 #include "hb.h"
 #include "hb-ot.h"
+#include <unordered_set>
 
 extern "C"
 {
@@ -118,27 +119,112 @@ static rive::Font::LineMetrics make_lmx(hb_font_t* font)
     return {-extents.ascender * gInvScale, -extents.descender * gInvScale};
 }
 
-HBFont::HBFont(hb_font_t* font) :
-    Font(make_lmx(font)), m_Font(font) // we just take ownership, no need to call reference()
+HBFont::HBFont(hb_font_t* font) : HBFont(font, {}, {}, {}) {}
+
+HBFont::HBFont(hb_font_t* font,
+               std::unordered_map<hb_tag_t, float> axisValues,
+               std::unordered_map<hb_tag_t, uint32_t> featureValues,
+               std::vector<hb_feature_t> features) :
+    Font(make_lmx(font)),
+    m_font(font),
+    m_features(features),
+    m_featureValues(featureValues),
+    m_axisValues(axisValues)
 {
-    m_DrawFuncs = hb_draw_funcs_create();
-    hb_draw_funcs_set_move_to_func(m_DrawFuncs, rpath_move_to, nullptr, nullptr);
-    hb_draw_funcs_set_line_to_func(m_DrawFuncs, rpath_line_to, nullptr, nullptr);
-    hb_draw_funcs_set_quadratic_to_func(m_DrawFuncs, rpath_quad_to, nullptr, nullptr);
-    hb_draw_funcs_set_cubic_to_func(m_DrawFuncs, rpath_cubic_to, nullptr, nullptr);
-    hb_draw_funcs_set_close_path_func(m_DrawFuncs, rpath_close, nullptr, nullptr);
-    hb_draw_funcs_make_immutable(m_DrawFuncs);
+    m_drawFuncs = hb_draw_funcs_create();
+    hb_draw_funcs_set_move_to_func(m_drawFuncs, rpath_move_to, nullptr, nullptr);
+    hb_draw_funcs_set_line_to_func(m_drawFuncs, rpath_line_to, nullptr, nullptr);
+    hb_draw_funcs_set_quadratic_to_func(m_drawFuncs, rpath_quad_to, nullptr, nullptr);
+    hb_draw_funcs_set_cubic_to_func(m_drawFuncs, rpath_cubic_to, nullptr, nullptr);
+    hb_draw_funcs_set_close_path_func(m_drawFuncs, rpath_close, nullptr, nullptr);
+    hb_draw_funcs_make_immutable(m_drawFuncs);
 }
 
 HBFont::~HBFont()
 {
-    hb_draw_funcs_destroy(m_DrawFuncs);
-    hb_font_destroy(m_Font);
+    hb_draw_funcs_destroy(m_drawFuncs);
+    hb_font_destroy(m_font);
+}
+
+static void fillLanguageFeatures(hb_face_t* face,
+                                 hb_tag_t tag,
+                                 uint32_t scriptIndex,
+                                 uint32_t languageIndex,
+                                 std::unordered_set<uint32_t>& features)
+{
+    auto featureCount = hb_ot_layout_language_get_feature_tags(face,
+                                                               tag,
+                                                               scriptIndex,
+                                                               languageIndex,
+                                                               0,
+                                                               nullptr,
+                                                               nullptr);
+    auto featureTags = std::vector<hb_tag_t>(featureCount);
+    hb_ot_layout_language_get_feature_tags(face,
+                                           tag,
+                                           scriptIndex,
+                                           languageIndex,
+                                           0,
+                                           &featureCount,
+                                           featureTags.data());
+
+    for (auto featureTag : featureTags)
+    {
+        features.emplace(featureTag);
+    }
+}
+
+static void fillFeatures(hb_face_t* face, hb_tag_t tag, std::unordered_set<uint32_t>& features)
+{
+    auto scriptCount = hb_ot_layout_table_get_script_tags(face, tag, 0, nullptr, nullptr);
+    auto scripts = std::vector<hb_tag_t>(scriptCount);
+    hb_ot_layout_table_get_script_tags(face, tag, 0, &scriptCount, scripts.data());
+    for (uint32_t i = 0; i < scriptCount; ++i)
+    {
+        auto languageCount =
+            hb_ot_layout_script_get_language_tags(face, tag, i, 0, nullptr, nullptr);
+
+        if (languageCount > 0)
+        {
+            auto languages = std::vector<hb_tag_t>(languageCount);
+            hb_ot_layout_script_get_language_tags(face,
+                                                  tag,
+                                                  i,
+                                                  0,
+                                                  &languageCount,
+                                                  languages.data());
+
+            for (uint32_t j = 0; j < languageCount; ++j)
+            {
+                fillLanguageFeatures(face, tag, i, j, features);
+            }
+        }
+        else
+        {
+            fillLanguageFeatures(face, tag, i, HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX, features);
+        }
+    }
+}
+
+rive::SimpleArray<uint32_t> HBFont::features() const
+{
+    std::unordered_set<uint32_t> features;
+    auto face = hb_font_get_face(m_font);
+    fillFeatures(face, HB_OT_TAG_GSUB, features);
+    fillFeatures(face, HB_OT_TAG_GPOS, features);
+
+    rive::SimpleArray<uint32_t> result(features.size());
+    uint32_t index = 0;
+    for (auto tag : features)
+    {
+        result[index++] = tag;
+    }
+    return result;
 }
 
 rive::Font::Axis HBFont::getAxis(uint16_t index) const
 {
-    auto face = hb_font_get_face(m_Font);
+    auto face = hb_font_get_face(m_font);
     assert(index < hb_ot_var_get_axis_count(face));
     unsigned n = 1;
     hb_ot_var_axis_info_t info;
@@ -149,27 +235,18 @@ rive::Font::Axis HBFont::getAxis(uint16_t index) const
 
 uint16_t HBFont::getAxisCount() const
 {
-    auto face = hb_font_get_face(m_Font);
+    auto face = hb_font_get_face(m_font);
     return (uint16_t)hb_ot_var_get_axis_count(face);
 }
 
 float HBFont::getAxisValue(uint32_t axisTag) const
 {
-    auto face = hb_font_get_face(m_Font);
-    uint32_t length;
-
-    // Check if we have a sepecified value.
-    const float* values = hb_font_get_var_coords_design(m_Font, &length);
-    for (uint32_t i = 0; i < length; ++i)
+    auto itr = m_axisValues.find(axisTag);
+    if (itr != m_axisValues.end())
     {
-        hb_ot_var_axis_info_t info;
-        uint32_t n = 1;
-        hb_ot_var_get_axis_infos(face, i, &n, &info);
-        if (info.tag == axisTag)
-        {
-            return values[i];
-        }
+        return itr->second;
     }
+    auto face = hb_font_get_face(m_font);
 
     // No value specified, we're using a default.
     uint32_t axisCount = hb_ot_var_get_axis_count(face);
@@ -186,51 +263,58 @@ float HBFont::getAxisValue(uint32_t axisTag) const
     return 0.0f;
 }
 
-std::vector<rive::Font::Coord> HBFont::getCoords() const
+uint32_t HBFont::getFeatureValue(uint32_t featureTag) const
 {
-    auto axes = this->getAxes();
-    //  const int count = (int)axes.size();
-
-    unsigned length;
-    const float* values = hb_font_get_var_coords_design(m_Font, &length);
-
-    std::vector<rive::Font::Coord> coords(length);
-    for (unsigned i = 0; i < length; ++i)
+    auto itr = m_featureValues.find(featureTag);
+    if (itr != m_featureValues.end())
     {
-        coords[i] = {axes[i].tag, values[i]};
+        return itr->second;
     }
-    return coords;
+    return (uint32_t)-1;
 }
 
-rive::rcp<rive::Font> HBFont::makeAtCoords(rive::Span<const Coord> coords) const
+rive::rcp<rive::Font> HBFont::withOptions(rive::Span<const Coord> coords,
+                                          rive::Span<const Feature> features) const
 {
-    AutoSTArray<16, hb_variation_t> vars(coords.size());
+    // Merges previous options with current ones.
+    std::unordered_map<hb_tag_t, float> axisValues = m_axisValues;
     for (size_t i = 0; i < coords.size(); ++i)
     {
-        vars[i] = {coords[i].axis, coords[i].value};
+        axisValues[coords[i].axis] = coords[i].value;
     }
-    auto font = hb_font_create_sub_font(m_Font);
+
+    AutoSTArray<16, hb_variation_t> vars(axisValues.size());
+    size_t i = 0;
+    for (auto itr = axisValues.begin(); itr != axisValues.end(); itr++)
+    {
+        vars[i++] = {itr->first, itr->second};
+    }
+
+    auto font = hb_font_create_sub_font(m_font);
     hb_font_set_variations(font, vars.data(), (unsigned int)vars.size());
-    return rive::rcp<rive::Font>(new HBFont(font));
+    std::vector<hb_feature_t> hbFeatures;
+    std::unordered_map<hb_tag_t, uint32_t> featureValues = m_featureValues;
+    for (auto feature : features)
+    {
+        featureValues[feature.tag] = feature.value;
+    }
+    for (auto itr = featureValues.begin(); itr != featureValues.end(); itr++)
+    {
+        hbFeatures.push_back(
+            {itr->first, itr->second, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END});
+    }
+
+    return rive::rcp<rive::Font>(new HBFont(font, axisValues, featureValues, hbFeatures));
 }
 
 rive::RawPath HBFont::getPath(rive::GlyphID glyph) const
 {
     rive::RawPath rpath;
-    hb_font_get_glyph_shape(m_Font, glyph, m_DrawFuncs, &rpath);
+    hb_font_get_glyph_shape(m_font, glyph, m_drawFuncs, &rpath);
     return rpath;
 }
 
 ///////////////////////////////////////////////////////////
-
-const hb_feature_t gFeatures[] = {
-    {'liga', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    {'dlig', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    // {'clig', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    // {'calt', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    {'kern', 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-};
-constexpr int gNumFeatures = sizeof(gFeatures) / sizeof(gFeatures[0]);
 
 static rive::GlyphRun shape_run(const rive::Unichar text[],
                                 const rive::TextRun& tr,
@@ -246,7 +330,10 @@ static rive::GlyphRun shape_run(const rive::Unichar text[],
     hb_buffer_set_language(buf, hb_language_get_default());
 
     auto hbfont = (HBFont*)tr.font.get();
-    hb_shape(hbfont->m_Font, buf, gFeatures, gNumFeatures);
+    hb_shape(hbfont->m_font,
+             buf,
+             hbfont->m_features.data(),
+             (unsigned int)hbfont->m_features.size());
 
     unsigned int glyph_count;
     hb_glyph_info_t* glyph_info = hb_buffer_get_glyph_infos(buf, &glyph_count);
@@ -510,7 +597,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
 bool HBFont::hasGlyph(rive::Span<const rive::Unichar> missing)
 {
     hb_codepoint_t glyph;
-    return !missing.empty() && hb_font_get_nominal_glyph(m_Font, missing[0], &glyph);
+    return !missing.empty() && hb_font_get_nominal_glyph(m_font, missing[0], &glyph);
 }
 
 #endif

@@ -1,12 +1,9 @@
-/*
- * Copyright 2022 Rive
- */
-
 #include <rive/simple_array.hpp>
 #include <catch.hpp>
 #include <rive/text_engine.hpp>
 #include <rive/text/font_hb.hpp>
 #include "rive/text/utf.hpp"
+#include <string>
 
 using namespace rive;
 
@@ -27,7 +24,7 @@ static rive::TextRun append(std::vector<rive::Unichar>* unichars,
 
 static rcp<Font> loadFont(const char* filename)
 {
-    FILE* fp = fopen("../../test/assets/RobotoFlex.ttf", "rb");
+    FILE* fp = fopen(filename, "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
@@ -82,11 +79,12 @@ TEST_CASE("variable axis values can be read", "[text]")
     auto font = loadFont("../../test/assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
-    std::vector<rive::Font::Axis> axes = font->getAxes();
+    auto count = font->getAxisCount();
 
     bool hasWeight = false;
-    for (rive::Font::Axis axis : axes)
+    for (uint16_t i = 0; i < count; i++)
     {
+        auto axis = font->getAxis(i);
         if (axis.tag == 2003265652)
         {
             REQUIRE(axis.def == 400.0f);
@@ -100,11 +98,54 @@ TEST_CASE("variable axis values can be read", "[text]")
     float value = font->getAxisValue(2003265652);
     REQUIRE(value == 400.0f);
 
+    REQUIRE(font->getAxisValue(2003072104) == 100.0f);
+
     rive::Font::Coord coord = {2003265652, 800.0f};
     rive::rcp<rive::Font> vfont = font->makeAtCoords(rive::Span<HBFont::Coord>(&coord, 1));
     REQUIRE(vfont->getAxisValue(2003265652) == 800.0f);
 
-    rive::Font::Coord coord2 = {2003265652, 822.0f};
+    rive::Font::Coord coord2 = {2003072104, 122.0f};
     rive::rcp<rive::Font> vfont2 = vfont->makeAtCoords(rive::Span<HBFont::Coord>(&coord2, 1));
-    REQUIRE(vfont2->getAxisValue(2003265652) == 822.0f);
+    REQUIRE(vfont2->getAxisValue(2003072104) == 122.0f);
+    // Should also still have the first axis value we set.
+    REQUIRE(vfont2->getAxisValue(2003265652) == 800.0f);
+}
+
+static std::string tagToString(uint32_t tag)
+{
+    std::string tag_name;
+    tag_name += ((char)((tag & 0xff000000) >> 24));
+    tag_name += ((char)((tag & 0x00ff0000) >> 16));
+    tag_name += ((char)((tag & 0x0000ff00) >> 8));
+    tag_name += ((char)((tag & 0x000000ff)));
+    return tag_name;
+}
+
+static bool hasTag(std::vector<std::string> featureStrings, std::string tag)
+{
+    return std::find(std::begin(featureStrings), std::end(featureStrings), tag) !=
+           std::end(featureStrings);
+}
+
+TEST_CASE("font features load as expected", "[text]")
+{
+    REQUIRE(fallbackFonts.empty());
+    auto font = loadFont("../../test/assets/RobotoFlex.ttf");
+    REQUIRE(font != nullptr);
+
+    rive::SimpleArray<uint32_t> features = font->features();
+    std::vector<std::string> featureStrings;
+    for (auto feature : features)
+    {
+        featureStrings.push_back(tagToString(feature));
+    }
+    REQUIRE(features.size() == 7);
+
+    REQUIRE(hasTag(featureStrings, "mkmk"));
+    REQUIRE(hasTag(featureStrings, "kern"));
+    REQUIRE(hasTag(featureStrings, "rvrn"));
+    REQUIRE(hasTag(featureStrings, "mark"));
+    REQUIRE(hasTag(featureStrings, "locl"));
+    REQUIRE(hasTag(featureStrings, "pnum"));
+    REQUIRE(hasTag(featureStrings, "liga"));
 }

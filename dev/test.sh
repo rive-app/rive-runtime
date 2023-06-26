@@ -3,6 +3,8 @@
 set -e
 
 source ../dependencies/config_directories.sh
+source setup_premake.sh
+
 pushd test &>/dev/null
 
 OPTION=$1
@@ -14,7 +16,7 @@ if [ "$OPTION" = "help" ]; then
   exit
 elif [ "$OPTION" = "clean" ]; then
   echo Cleaning project ...
-  premake5 --scripts=../../build clean || exit 1
+  $PREMAKE --scripts=../../build clean || exit 1
   shift
 elif [ "$OPTION" = "memory" ]; then
   echo Will perform memory checks...
@@ -26,7 +28,7 @@ elif [ "$OPTION" = "debug" ]; then
   shift
 fi
 
-premake5 --scripts=../../build gmake2 || exit 1
+$PREMAKE --scripts=../../build gmake2 || exit 1
 make -j7 || exit 1
 
 for file in ./build/bin/debug/*; do
