@@ -37,7 +37,7 @@ class GlyphItr
 {
 public:
     GlyphItr() = default;
-    GlyphItr(const OrderedLine* line, const GlyphRun* run, uint32_t glyphIndex) :
+    GlyphItr(const OrderedLine* line, const rive::GlyphRun* const* run, uint32_t glyphIndex) :
         m_line(line), m_run(run), m_glyphIndex(glyphIndex)
     {}
 
@@ -52,11 +52,11 @@ public:
 
     GlyphItr& operator++();
 
-    std::tuple<const GlyphRun*, uint32_t> operator*() const { return {m_run, m_glyphIndex}; }
+    std::tuple<const GlyphRun*, uint32_t> operator*() const { return {*m_run, m_glyphIndex}; }
 
 private:
     const OrderedLine* m_line;
-    const GlyphRun* m_run;
+    const rive::GlyphRun* const* m_run;
     uint32_t m_glyphIndex;
 };
 
@@ -65,28 +65,40 @@ private:
 class OrderedLine
 {
 public:
-    OrderedLine(const Paragraph& paragraph, const GlyphLine& line);
+    OrderedLine(const Paragraph& paragraph,
+                const GlyphLine& line,
+                float lineWidth, // for ellipsis
+                bool wantEllipsis,
+                bool isEllipsisLineLast,
+                GlyphRun* ellipsisRun);
+
+    bool buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
+                           const Paragraph& paragraph,
+                           const GlyphLine& line,
+                           float lineWidth,
+                           bool isEllipsisLineLast,
+                           GlyphRun* ellipsisRun);
     const GlyphRun* startLogical() const { return m_startLogical; }
     const GlyphRun* endLogical() const { return m_endLogical; }
-    const GlyphLine* glyphLine() const { return m_line; }
     const std::vector<const GlyphRun*>& runs() const { return m_runs; }
 
     GlyphItr begin() const
     {
-        auto run = m_runs[0];
-        return GlyphItr(this, run, startGlyphIndex(run));
+        auto runItr = m_runs.data();
+        return GlyphItr(this, runItr, startGlyphIndex(*runItr));
     }
 
     GlyphItr end() const
     {
-        auto run = lastRun();
-        return GlyphItr(this, run, endGlyphIndex(run));
+        auto runItr = m_runs.data() + (m_runs.size() == 0 ? 0 : m_runs.size() - 1);
+        return GlyphItr(this, runItr, endGlyphIndex(*runItr));
     }
 
 private:
-    const GlyphRun* m_startLogical;
-    const GlyphRun* m_endLogical;
-    const GlyphLine* m_line;
+    const GlyphRun* m_startLogical = nullptr;
+    const GlyphRun* m_endLogical = nullptr;
+    uint32_t m_startGlyphIndex;
+    uint32_t m_endGlyphIndex;
     std::vector<const GlyphRun*> m_runs;
 
 public:
@@ -96,11 +108,9 @@ public:
         switch (run->dir)
         {
             case TextDirection::ltr:
-                return m_startLogical == run ? m_line->startGlyphIndex : 0;
+                return m_startLogical == run ? m_startGlyphIndex : 0;
             case TextDirection::rtl:
-                return (m_endLogical == run ? m_line->endGlyphIndex
-                                            : (uint32_t)run->glyphs.size()) -
-                       1;
+                return (m_endLogical == run ? m_endGlyphIndex : (uint32_t)run->glyphs.size()) - 1;
         }
         RIVE_UNREACHABLE();
     }
@@ -109,9 +119,9 @@ public:
         switch (run->dir)
         {
             case TextDirection::ltr:
-                return m_endLogical == run ? m_line->endGlyphIndex : (uint32_t)run->glyphs.size();
+                return m_endLogical == run ? m_endGlyphIndex : (uint32_t)run->glyphs.size();
             case TextDirection::rtl:
-                return (m_startLogical == run ? m_line->startGlyphIndex : 0) - 1;
+                return (m_startLogical == run ? m_startGlyphIndex : 0) - 1;
         }
         RIVE_UNREACHABLE();
     }
@@ -129,7 +139,12 @@ public:
 
     TextSizing sizing() { return (TextSizing)sizingValue(); }
     TextOverflow overflow() { return (TextOverflow)overflowValue(); }
+    void overflow(TextOverflow value) { return overflowValue((uint32_t)value); }
     void buildRenderStyles();
+
+#ifdef TESTING
+    std::vector<OrderedLine>& orderedLines() { return m_orderedLines; }
+#endif
 
 protected:
     void alignValueChanged() override;
@@ -146,6 +161,8 @@ private:
     SimpleArray<SimpleArray<GlyphLine>> m_lines;
     // Runs ordered by paragraph line.
     std::vector<OrderedLine> m_orderedLines;
+    GlyphRun m_ellipsisRun;
+    std::unique_ptr<RenderPath> m_clipRenderPath;
 #endif
 };
 } // namespace rive

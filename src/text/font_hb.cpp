@@ -20,7 +20,7 @@ extern "C"
 }
 
 // Initialized to null. Client can set this to a callback.
-HBFont::FallbackProc HBFont::gFallbackProc;
+rive::Font::FallbackProc rive::Font::gFallbackProc;
 
 rive::rcp<rive::Font> HBFont::Decode(rive::Span<const uint8_t> span)
 {
@@ -330,6 +330,7 @@ static rive::GlyphRun shape_run(const rive::Unichar text[],
     hb_buffer_set_language(buf, hb_language_get_default());
 
     auto hbfont = (HBFont*)tr.font.get();
+
     hb_shape(hbfont->m_font,
              buf,
              hbfont->m_features.data(),
@@ -594,7 +595,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
     return paragraphs;
 }
 
-bool HBFont::hasGlyph(rive::Span<const rive::Unichar> missing)
+bool HBFont::hasGlyph(rive::Span<const rive::Unichar> missing) const
 {
     hb_codepoint_t glyph;
     return !missing.empty() && hb_font_get_nominal_glyph(m_font, missing[0], &glyph);

@@ -9,7 +9,6 @@
 #include "rive/factory.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/text_engine.hpp"
-#include "rive/text/font_hb.hpp"
 #include <algorithm>
 
 using FontTextRuns = std::vector<rive::TextRun>;
@@ -106,50 +105,14 @@ static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> mi
     size_t length = fallbackFonts.size();
     for (size_t i = 0; i < length; i++)
     {
-        HBFont* font = static_cast<HBFont*>(fallbackFonts[i].get());
+        auto font = fallbackFonts[i];
         if (font->hasGlyph(missing))
         {
-            return fallbackFonts[i];
+            return font;
         }
     }
     return nullptr;
 }
-
-#ifdef RIVE_USING_HAFBUZZ_FONTS
-static rive::rcp<rive::Font> load_fallback_font(rive::Span<const rive::Unichar> missing)
-{
-    static rive::rcp<rive::Font> gFallbackFont;
-
-    printf("missing chars:");
-    for (auto m : missing)
-    {
-        printf(" %X", m);
-    }
-    printf("\n");
-
-    if (!gFallbackFont)
-    {
-        // TODO: make this more sharable for our test apps
-        FILE* fp = fopen("/Users/mike/fonts/Arial Unicode.ttf", "rb");
-        if (!fp)
-        {
-            return nullptr;
-        }
-
-        fseek(fp, 0, SEEK_END);
-        size_t size = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-
-        std::vector<uint8_t> bytes(size);
-        size_t bytesRead = fread(bytes.data(), 1, size, fp);
-        fclose(fp);
-
-        assert(bytesRead == size);
-        gFallbackFont = HBFont::Decode(bytes);
-    }
-    return gFallbackFont;
-}
-#endif
 
 static std::unique_ptr<rive::RenderPath> make_line(rive::Factory* factory,
                                                    rive::Vec2D a,
@@ -300,7 +263,7 @@ public:
     TextContent()
     {
         fallbackFonts.clear();
-        HBFont::gFallbackProc = pickFallbackFont;
+        rive::Font::gFallbackProc = pickFallbackFont;
         auto truns = this->make_truns(ViewerContent::DecodeFont);
         m_paragraphs = truns[0].font->shapeText(m_unichars, truns);
 

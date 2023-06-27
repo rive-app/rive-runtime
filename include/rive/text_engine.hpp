@@ -135,6 +135,8 @@ public:
     // Returns the features available for this font.
     virtual SimpleArray<uint32_t> features() const = 0;
 
+    virtual bool hasGlyph(rive::Span<const rive::Unichar>) const = 0;
+
     // Value for the feature, if no value has been provided a (uint32_t)-1 is
     // returned to signal that the text engine will pick the best feature value
     // for the content.
@@ -156,6 +158,14 @@ public:
     virtual RawPath getPath(GlyphID) const = 0;
 
     SimpleArray<Paragraph> shapeText(Span<const Unichar> text, Span<const TextRun> runs) const;
+
+    // If the platform can supply fallback font(s), set this function pointer.
+    // It will be called with a span of unichars, and the platform attempts to
+    // return a font that can draw (at least some of) them. If no font is available
+    // just return nullptr.
+
+    using FallbackProc = rive::rcp<rive::Font> (*)(rive::Span<const rive::Unichar>);
+    static FallbackProc gFallbackProc;
 
 protected:
     Font(const LineMetrics& lm) : m_LineMetrics(lm) {}

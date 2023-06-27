@@ -61,7 +61,7 @@ TEST_CASE("fallback glyphs are found", "[text]")
     REQUIRE(fallbackFont != nullptr);
     fallbackFonts.push_back(fallbackFont);
 
-    HBFont::gFallbackProc = pickFallbackFont;
+    Font::gFallbackProc = pickFallbackFont;
 
     std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
@@ -70,7 +70,7 @@ TEST_CASE("fallback glyphs are found", "[text]")
     auto paragraphs = font->shapeText(unichars, truns);
     REQUIRE(paragraphs.size() == 1);
     fallbackFonts.clear();
-    HBFont::gFallbackProc = nullptr;
+    Font::gFallbackProc = nullptr;
 }
 
 TEST_CASE("variable axis values can be read", "[text]")
