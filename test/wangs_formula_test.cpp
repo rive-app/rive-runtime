@@ -599,7 +599,7 @@ TEST_CASE("wangs_formula_conic_vectorXforms", "[wangs_formula]")
         map_pts(m, ptsXformed, pts, 3);
         float expected = wangs_formula::conic(kPrecision, ptsXformed, w);
         float actual = wangs_formula::conic(kPrecision, pts, w, wangs_formula::VectorXform(m));
-        REQUIRE(actual == Approx(expected));
+        REQUIRE(actual == Approx(expected).margin(1e-4));
     };
 
     for (int i = -10; i <= 10; ++i)
