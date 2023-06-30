@@ -12,8 +12,8 @@
 
 #include "../out/obj/generated/advanced_blend.glsl.hpp"
 #include "../out/obj/generated/color_ramp.glsl.hpp"
+#include "../out/obj/generated/common.glsl.hpp"
 #include "../out/obj/generated/draw.glsl.hpp"
-#include "../out/obj/generated/math.glsl.hpp"
 #include "../out/obj/generated/tessellate.glsl.hpp"
 
 // Offset all texture indices by 1 so we, and others who share our GL context, can use GL_TEXTURE0
@@ -54,13 +54,20 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     assert(!m_supportsBaseInstanceInShader || m_extensions.EXT_base_instance);
 
     m_colorRampProgram = glCreateProgram();
+    const char* colorRampSources[] = {glsl::common, glsl::color_ramp};
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_VERTEX_SHADER,
-                                    glsl::color_ramp,
+                                    nullptr,
+                                    0,
+                                    colorRampSources,
+                                    2,
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_FRAGMENT_SHADER,
-                                    glsl::color_ramp,
+                                    nullptr,
+                                    0,
+                                    colorRampSources,
+                                    2,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_colorRampProgram);
     glUniformBlockBinding(m_colorRampProgram,
@@ -75,7 +82,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     glGenFramebuffers(1, &m_colorRampFBO);
 
     m_tessellateProgram = glCreateProgram();
-    const char* tessellateSources[] = {glsl::math, glsl::tessellate};
+    const char* tessellateSources[] = {glsl::common, glsl::tessellate};
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_VERTEX_SHADER,
                                     nullptr,
@@ -247,7 +254,7 @@ public:
         }
 
         std::vector<const char*> sources;
-        sources.push_back(glsl::math);
+        sources.push_back(glsl::common);
         if (sourceType != SourceType::vertexOnly)
         {
             if (shaderFeatures.programFeatures.blendTier > BlendTier::srcOver)
@@ -334,6 +341,9 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                                  size_t tessDataHeight,
                                  bool needsClipBuffer)
 {
+    // All programs use the same set of per-flush uniforms.
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(uniformBufferRing()));
+
     // Render the complex color ramps to the gradient texture.
     if (gradSpanCount > 0)
     {
@@ -347,7 +357,6 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                                GL_TEXTURE_2D,
                                gl_texture_id(gradTexelBufferRing()),
                                0);
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(colorRampUniforms()));
         glUseProgram(m_colorRampProgram);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gradSpanCount);
     }
@@ -374,7 +383,6 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
         glViewport(0, 0, kTessTextureWidth, tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
         glUseProgram(m_tessellateProgram);
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(tessellateUniforms()));
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount);
     }
 
@@ -409,7 +417,6 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
 
     // Issue all the draws.
     glBindVertexArray(m_drawVAO);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(drawUniforms()));
     drawIdx = 0;
     for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
     {

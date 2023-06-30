@@ -14,10 +14,6 @@ ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0) uint4 span; // [horizontalSpan, y, color0, color1]
 ATTR_BLOCK_END
 
-UNIFORM_BLOCK_BEGIN(@Uniforms)
-float viewportHeight;
-UNIFORM_BLOCK_END(uniforms)
-
 half4 unpackColorInt(uint color)
 {
     return make_half4((uint4(color) >> uint4(16, 8, 0, 24)) & 0xffu) / 255.;
@@ -41,7 +37,7 @@ VERTEX_MAIN(
         float((GLSL_VERTEX_ID & 1) == 0 ? horizontalSpan & 0xffffu : horizontalSpan >> 16) / 65536.,
         float(span.y) + ((GLSL_VERTEX_ID & 2) == 0 ? .0 : 1.));
     FLD(varyings, rampColor) = unpackColorInt((GLSL_VERTEX_ID & 1) == 0 ? span.z : span.w);
-    GLSL_POSITION.xy = coord * float2(2., 2. / uniforms.viewportHeight) - 1.;
+    GLSL_POSITION.xy = coord * float2(2, uniforms.gradInverseViewportY) - 1.;
     GLSL_POSITION.zw = float2(0, 1);
     EMIT_OFFSCREEN_VERTEX(varyings);
 }

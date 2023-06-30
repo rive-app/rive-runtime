@@ -6,6 +6,7 @@
 
 #include "rive/math/mat2d.hpp"
 #include "rive/math/path_types.hpp"
+#include "rive/math/simd.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
@@ -151,41 +152,29 @@ struct PlatformFeatures
     bool avoidFlatVaryings = false;
 };
 
-// Uniform buffer layout for the gradient color ramp shader.
-struct ColorRampUniforms
+// Per-flush shared uniforms used by all shaders.
+struct FlushUniforms
 {
-    float viewportHeight;
-};
-
-// Uniform buffer layout for the tessellation shader.
-struct TessellateUniforms
-{
-    float viewportWidth;
-    float viewportHeight;
-};
-
-// Per-flush uniforms used by the draw shader.
-struct DrawUniforms
-{
-    DrawUniforms(float viewportWidth_,
-                 float viewportHeight_,
-                 size_t gradTextureHeight,
-                 const PlatformFeatures& platformFeatures) :
-        viewportWidth(viewportWidth_),
-        viewportHeight(viewportHeight_),
-        gradTextureInverseHeight(1.f / gradTextureHeight),
+    FlushUniforms(size_t complexGradientsHeight,
+                  size_t tessDataHeight,
+                  size_t renderTargetWidth,
+                  size_t renderTargetHeight,
+                  size_t gradTextureHeight,
+                  const PlatformFeatures& platformFeatures) :
+        inverseViewports(2.f / float4{static_cast<float>(complexGradientsHeight),
+                                      static_cast<float>(tessDataHeight),
+                                      static_cast<float>(renderTargetWidth),
+                                      static_cast<float>(renderTargetHeight)}),
+        gradTextureInverseHeight(1.f / static_cast<float>(gradTextureHeight)),
         pathIDGranularity(platformFeatures.pathIDGranularity)
     {}
-    float viewportWidth;
-    float viewportHeight;
+    float4 inverseViewports; // [complexGradientsY, tessDataY, renderTargetX, renderTargetY]
     float gradTextureInverseHeight;
     uint32_t pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
     float vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
-    uint32_t pad0 = 0;
-    uint32_t pad1 = 0;
-    uint32_t pad2 = 0;
+    uint32_t pad = 0;
 };
-static_assert(sizeof(DrawUniforms) == 8 * sizeof(uint32_t));
+static_assert(sizeof(FlushUniforms) == 8 * sizeof(uint32_t));
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient texture.
 // They are rendered by "GradientSpan" instances.

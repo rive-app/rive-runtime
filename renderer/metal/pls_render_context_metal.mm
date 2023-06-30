@@ -325,7 +325,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                                0.0,
                                                1.0}];
         [gradEncoder setRenderPipelineState:m_colorRampPipeline->pipelineState()];
-        [gradEncoder setVertexBuffer:mtl_buffer(colorRampUniforms()) offset:0 atIndex:0];
+        [gradEncoder setVertexBuffer:mtl_buffer(uniformBufferRing()) offset:0 atIndex:0];
         [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing()) offset:0 atIndex:1];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
@@ -353,7 +353,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                                0.0,
                                                1.0}];
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
-        [tessEncoder setVertexBuffer:mtl_buffer(tessellateUniforms()) offset:0 atIndex:0];
+        [tessEncoder setVertexBuffer:mtl_buffer(uniformBufferRing()) offset:0 atIndex:0];
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:1];
         [tessEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
@@ -399,7 +399,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                        static_cast<float>(renderTarget->height()),
                                        0.0,
                                        1.0}];
-    [encoder setVertexBuffer:mtl_buffer(drawUniforms()) offset:0 atIndex:0];
+    [encoder setVertexBuffer:mtl_buffer(uniformBufferRing()) offset:0 atIndex:0];
     [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:1];
     [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
     [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];

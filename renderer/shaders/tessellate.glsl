@@ -11,17 +11,6 @@
 
 #define MAX_PARAMETRIC_SEGMENTS_LOG2 10 // Max 1024 segments.
 
-#define FIRST_VERTEX_OF_CONTOUR_FLAG (1u << 31)
-#define JOIN_TYPE_MASK (3u << 29)
-#define MITER_CLIP_JOIN (3u << 29)
-#define MITER_REVERT_JOIN (2u << 29)
-#define BEVEL_JOIN (1u << 29)
-#define EMULATED_STROKE_CAP_FLAG (1u << 28)
-#define JOIN_TANGENT_0_FLAG (1u << 27)
-#define JOIN_TANGENT_INNER_FLAG (1u << 26)
-#define LEFT_JOIN_FLAG (1u << 25)
-#define RIGHT_JOIN_FLAG (1u << 24)
-
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0) float4 attr_p0p1;
@@ -50,10 +39,6 @@ float2x2 find_tangents(float4x2 p)
 }
 
 #ifdef @VERTEX
-UNIFORM_BLOCK_BEGIN(@Uniforms)
-float2 viewportSize;
-UNIFORM_BLOCK_END(uniforms)
-
 float cosine_between_vectors(float2 a, float2 b)
 {
     // FIXME(crbug.com/800804,skbug.com/11268): This can overflow if we don't normalize exponents.
@@ -134,7 +119,7 @@ VERTEX_MAIN(
     }
     FLD(varyings, contourIDWithFlags) = outContourIDWithFlags;
 
-    GLSL_POSITION.xy = coord * (float2(2, 2) / uniforms.viewportSize) + float2(-1, -1);
+    GLSL_POSITION.xy = coord * float2(2. / TESS_TEXTURE_WIDTH, uniforms.tessInverseViewportY) - 1.;
     GLSL_POSITION.zw = float2(0, 1);
     EMIT_OFFSCREEN_VERTEX(varyings);
 }

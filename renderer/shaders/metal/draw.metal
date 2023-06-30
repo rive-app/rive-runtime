@@ -1,7 +1,10 @@
+#define VERTEX
+#define FRAGMENT
+#
 #include <metal_stdlib>
 
 #include "../../../out/obj/generated/metal.minified.glsl"
-#include "../../../out/obj/generated/math.minified.glsl"
+#include "../../../out/obj/generated/common.minified.glsl"
 
 #define ENABLE_ADVANCED_BLEND
 #include "../../../out/obj/generated/advanced_blend.minified.glsl"
@@ -36,8 +39,6 @@
 //     1000
 
 // Vertex and fragment combinations.
-#define VERTEX
-#define FRAGMENT
 namespace r0000
 {
 #include "../../../out/obj/generated/draw.minified.glsl"

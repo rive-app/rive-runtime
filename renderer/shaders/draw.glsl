@@ -8,21 +8,7 @@
 #define FAN_VERTEX 1
 #define FAN_MIDPOINT_VERTEX 2
 
-#define FIRST_VERTEX_OF_CONTOUR_FLAG (1u << 31)
-#define JOIN_TYPE_MASK (3u << 29)
-#define MITER_CLIP_JOIN (3u << 29)
-#define MITER_REVERT_JOIN (2u << 29)
-#define BEVEL_JOIN (1u << 29)
-#define EMULATED_STROKE_CAP_FLAG (1u << 28)
-#define JOIN_TANGENT_0_FLAG (1u << 27)
-#define JOIN_TANGENT_INNER_FLAG (1u << 26)
-#define LEFT_JOIN_FLAG (1u << 25)
-#define RIGHT_JOIN_FLAG (1u << 24)
-#define CONTOUR_ID_MASK 0xffffu
-
 #define GRAD_TEXTURE_WIDTH 512.
-
-#define TESS_TEXTURE_WIDTH_LOG2 11
 
 #define EVEN_ODD_FLAG (1u << 31)
 #define SOLID_COLOR_PAINT_TYPE 0u
@@ -51,16 +37,6 @@ NO_PERSPECTIVE VARYING float4 varying_paint;
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-
-UNIFORM_BLOCK_BEGIN(@Uniforms)
-float2 viewportSize;
-float gradTextureInverseHeight;
-uint pathIDGranularity;
-float vertexDiscardValue;
-uint pad0;
-uint pad1;
-uint pad2;
-UNIFORM_BLOCK_END(uniforms)
 
 // Only used by GL platforms that don't support EXT_base_instance.
 #ifdef @BASE_INSTANCE_POLYFILL
@@ -366,7 +342,9 @@ VERTEX_MAIN(
     }
     FLD(varyings, varying_paint) = paint;
 
-    GLSL_POSITION.xy = vertexPosition * (float2(2, -2) / uniforms.viewportSize) + float2(-1, 1);
+    GLSL_POSITION.xy = vertexPosition * float2(uniforms.renderTargetInverseViewportX,
+                                               -uniforms.renderTargetInverseViewportY) +
+                       float2(-1, 1);
     GLSL_POSITION.zw = float2(0, 1);
     EMIT_VERTEX(varyings);
 }

@@ -355,26 +355,12 @@ void PLSRenderContext::allocateGPUResources(
     }
     COUNT_RESOURCE_SIZE(targetTessTextureHeight * kTessTextureWidth * 4 * sizeof(uint32_t));
 
-    // One-time allocation of the gradient uniform buffer ring.
-    if (m_colorRampUniforms.impl() == nullptr)
+    // One-time allocation of the uniform buffer ring.
+    if (m_uniformBuffer.impl() == nullptr)
     {
-        m_colorRampUniforms.reset(makeUniformBufferRing(1, sizeof(ColorRampUniforms)));
+        m_uniformBuffer.reset(makeUniformBufferRing(1, sizeof(FlushUniforms)));
     }
-    COUNT_RESOURCE_SIZE(m_colorRampUniforms.totalSizeInBytes());
-
-    // One-time allocation of the tessellation uniform buffer ring.
-    if (m_tessellateUniforms.impl() == nullptr)
-    {
-        m_tessellateUniforms.reset(makeUniformBufferRing(1, sizeof(TessellateUniforms)));
-    }
-    COUNT_RESOURCE_SIZE(m_tessellateUniforms.totalSizeInBytes());
-
-    // One-time allocation of the draw uniform buffer ring.
-    if (m_drawUniforms.impl() == nullptr)
-    {
-        m_drawUniforms.reset(makeUniformBufferRing(1, sizeof(DrawUniforms)));
-    }
-    COUNT_RESOURCE_SIZE(m_drawUniforms.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_uniformBuffer.totalSizeInBytes());
 }
 
 void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
@@ -826,40 +812,19 @@ void PLSRenderContext::flush(FlushType flushType)
     m_gradSpanBuffer.submit();
     m_tessSpanBuffer.submit();
 
-    if (gradSpanCount)
-    {
-        // Update the uniform buffer for rendering complex color ramps if needed.
-        ColorRampUniforms uniformData = {static_cast<float>(m_complexGradients.size())};
-        if (!bits_equal(&m_cachedColorRampUniformData, &uniformData))
-        {
-            m_colorRampUniforms.ensureMapped();
-            m_colorRampUniforms.emplace_back(uniformData);
-            m_colorRampUniforms.submit();
-            m_cachedColorRampUniformData = uniformData;
-        }
-    }
-
-    // Update the uniform buffer for rendering tessellations if needed.
-    TessellateUniforms tessUniformData = {kTessTextureWidth, static_cast<float>(tessDataHeight)};
-    if (!bits_equal(&m_cachedTessUniformData, &tessUniformData))
-    {
-        m_tessellateUniforms.ensureMapped();
-        m_tessellateUniforms.emplace_back(tessUniformData);
-        m_tessellateUniforms.submit();
-        m_cachedTessUniformData = tessUniformData;
-    }
-
     // Update the uniform buffer for drawing if needed.
-    DrawUniforms drawUniformData(m_frameDescriptor.renderTarget->width(),
-                                 m_frameDescriptor.renderTarget->height(),
-                                 gradTexelBufferRing()->height(),
-                                 m_platformFeatures);
-    if (!bits_equal(&m_cachedDrawUniformData, &drawUniformData))
+    FlushUniforms uniformData(m_complexGradients.size(),
+                              tessDataHeight,
+                              m_frameDescriptor.renderTarget->width(),
+                              m_frameDescriptor.renderTarget->height(),
+                              gradTexelBufferRing()->height(),
+                              m_platformFeatures);
+    if (!bits_equal(&m_cachedUniformData, &uniformData))
     {
-        m_drawUniforms.ensureMapped();
-        m_drawUniforms.emplace_back(drawUniformData);
-        m_drawUniforms.submit();
-        m_cachedDrawUniformData = drawUniformData;
+        m_uniformBuffer.ensureMapped();
+        m_uniformBuffer.emplace_back(uniformData);
+        m_uniformBuffer.submit();
+        m_cachedUniformData = uniformData;
     }
 
     onFlush(flushType,

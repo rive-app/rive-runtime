@@ -233,18 +233,6 @@ protected:
 
     virtual void allocateTessellationTexture(size_t height) = 0;
 
-    const BufferRingImpl* colorRampUniforms() const
-    {
-        return static_cast<const BufferRingImpl*>(m_colorRampUniforms.impl());
-    }
-    const BufferRingImpl* tessellateUniforms()
-    {
-        return static_cast<const BufferRingImpl*>(m_tessellateUniforms.impl());
-    }
-    const BufferRingImpl* drawUniforms()
-    {
-        return static_cast<const BufferRingImpl*>(m_drawUniforms.impl());
-    }
     const TexelBufferRing* pathBufferRing()
     {
         return static_cast<const TexelBufferRing*>(m_pathBuffer.impl());
@@ -259,6 +247,10 @@ protected:
     }
     const BufferRingImpl* gradSpanBufferRing() const { return m_gradSpanBuffer.impl(); }
     const BufferRingImpl* tessSpanBufferRing() { return m_tessSpanBuffer.impl(); }
+    const BufferRingImpl* uniformBufferRing() const
+    {
+        return static_cast<const BufferRingImpl*>(m_uniformBuffer.impl());
+    }
 
     size_t gradTextureRowsForSimpleRamps() const { return m_gradTextureRowsForSimpleRamps; }
 
@@ -428,12 +420,9 @@ private:
     GPUResourceLimits m_currentFrameResourceUsage = {};
     GPUResourceLimits m_maxRecentResourceUsage = {};
 
-    // Here we cache the contents of the uniform buffers that only have one item (and are therefore
-    // constant throughout an entire flush). We use these cached values to determine whether the
-    // buffers need to be updated at the beginning of a flush.
-    ColorRampUniforms m_cachedColorRampUniformData{};
-    TessellateUniforms m_cachedTessUniformData{};
-    DrawUniforms m_cachedDrawUniformData{0, 0, 0, m_platformFeatures};
+    // Here we cache the contents of the uniform buffer. We use this cached value to determine
+    // whether the buffer needs to be updated at the beginning of a flush.
+    FlushUniforms m_cachedUniformData{0, 0, 0, 0, 0, m_platformFeatures};
 
     // Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
     // instead of rendering them.
@@ -452,9 +441,7 @@ private:
     BufferRing<TwoTexelRamp> m_gradTexelBuffer; // Simple gradients get written by the CPU.
     BufferRing<GradientSpan> m_gradSpanBuffer;  // Complex gradients get rendered by the GPU.
     BufferRing<TessVertexSpan> m_tessSpanBuffer;
-    BufferRing<ColorRampUniforms> m_colorRampUniforms;
-    BufferRing<TessellateUniforms> m_tessellateUniforms;
-    BufferRing<DrawUniforms> m_drawUniforms;
+    BufferRing<FlushUniforms> m_uniformBuffer;
 
     // How many rows of the gradient texture are dedicated to simple (two-texel) ramps?
     // This is also the y-coordinate at which the complex color ramps begin.

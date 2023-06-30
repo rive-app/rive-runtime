@@ -4,5 +4,5 @@
 #define FRAGMENT
 
 #include "../../../out/obj/generated/metal.minified.glsl"
-#include "../../../out/obj/generated/math.minified.glsl"
+#include "../../../out/obj/generated/common.minified.glsl"
 #include "../../../out/obj/generated/tessellate.minified.glsl"
