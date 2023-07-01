@@ -4,6 +4,7 @@
 
 #include "rive/pls/pls_render_context.hpp"
 
+#include "gr_inner_fan_triangulator.hpp"
 #include "pls_path.hpp"
 #include "pls_paint.hpp"
 #include "rive/math/math_types.hpp"
@@ -18,9 +19,14 @@ constexpr static double kGPUResourcePadding = 1.25;
 // When we exceed the capacity of a GPU resource mid-flush, double it immediately.
 constexpr static double kGPUResourceIntermediateGrowthFactor = 2;
 
-uint64_t PLSRenderContext::ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
+// The final patch of the final contour in a flush needs to see the kFirstVertexOfContour flag in
+// order to render properly, so we tessellate (and don't draw) one more empty line at the
+// end of the buffer as an "end of previous contour" marker.
+constexpr static size_t kEndOfTessMarkerVertexCount = 2;
+
+uint32_t PLSRenderContext::ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
 {
-    uint64_t defines = 0;
+    uint32_t defines = 0;
     if (programFeatures.blendTier != BlendTier::srcOver)
     {
         defines |= PreprocessorDefines::ENABLE_ADVANCED_BLEND;
@@ -336,6 +342,24 @@ void PLSRenderContext::allocateGPUResources(
     }
     COUNT_RESOURCE_SIZE(m_tessSpanBuffer.totalSizeInBytes());
 
+    // Instance buffer ring for literal triangles fed directly by the CPU.
+    constexpr size_t kMinTriangleVertices = 3072 * 3; // 324 KiB
+    // Triangle vertices don't have a maximum limit; we let the other components be the limiting
+    // factor and allocate whatever buffer size we need at flush time.
+    size_t targetTriangleVertices = std::max(targets.maxTriangleVertices, kMinTriangleVertices);
+    if (shouldReallocate(targetTriangleVertices, m_currentResourceLimits.maxTriangleVertices))
+    {
+        assert(!m_triangleBuffer.mapped());
+        m_triangleBuffer.reset(
+            makeVertexBufferRing(targetTriangleVertices, sizeof(TriangleVertex)));
+        LOG_CHANGED_SIZE("maxTriangleVertices",
+                         m_currentResourceLimits.maxTriangleVertices,
+                         targetTriangleVertices,
+                         m_triangleBuffer.totalSizeInBytes());
+        m_currentResourceLimits.maxTriangleVertices = targetTriangleVertices;
+    }
+    COUNT_RESOURCE_SIZE(m_triangleBuffer.totalSizeInBytes());
+
     // Texture that that path tessellation data is rendered into.
     size_t targetTessTextureHeight =
         std::clamp(resource_texture_height(kTessTextureWidth, targets.maxTessellationVertices),
@@ -394,7 +418,6 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
                                        uint32_t tessVertexCount)
 {
     assert(m_didBeginFrame);
-    assert(tessVertexCount % kWedgeSize == 0);
 
     // Line breaks potentially introduce a new span. Count the maximum number of line breaks we
     // might encounter.
@@ -403,8 +426,8 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
     size_t maxSpanBreakCount = y1 - y0;
     // +1 for our empty "end-of-contour" marker's span.
     size_t maxTessellationSpans = curveCount + maxSpanBreakCount + 1;
-    // +2 for our empty "end-of-contour" marker's vertices.
-    size_t tessVertexCountWithMarkers = tessVertexCount + 2;
+    // +kEndOfTessMarkerVertexCount for our empty "end-of-contour" marker's vertices.
+    size_t tessVertexCountWithMarkers = tessVertexCount + kEndOfTessMarkerVertexCount;
 
     // Guard against the case where a single draw overwhelms our GPU resources. Since nothing has
     // been mapped yet on the first draw, we have a unique opportunity at this time to grow our
@@ -595,15 +618,19 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
     return true;
 }
 
-void PLSRenderContext::pushPath(const Mat2D& matrix,
+void PLSRenderContext::pushPath(PatchType patchType,
+                                const Mat2D& matrix,
                                 float strokeRadius,
                                 FillRule fillRule,
                                 PaintType paintType,
                                 uint32_t clipID,
                                 PLSBlendMode blendMode,
-                                const PaintData& paintData)
+                                const PaintData& paintData,
+                                uint32_t tessVertexCount,
+                                uint32_t paddingVertexCount)
 {
     assert(m_didBeginFrame);
+    assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
 
     m_currentPathIsStroked = strokeRadius != 0;
     m_pathBuffer.set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, paintData);
@@ -612,21 +639,27 @@ void PLSRenderContext::pushPath(const Mat2D& matrix,
     assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
     assert(m_currentPathID == m_pathBuffer.bytesWritten() / sizeof(PathData));
 
-    ShaderFeatures* shaderFeatures = pushDraw(DrawType::pathWedges, m_tessVertexCount);
-    if (blendMode > PLSBlendMode::srcOver)
-    {
-        assert(paintType != PaintType::clipReplace);
-        shaderFeatures->programFeatures.blendTier =
-            std::max(shaderFeatures->programFeatures.blendTier, BlendTierForBlendMode(blendMode));
-    }
-    if (clipID != 0)
-    {
-        shaderFeatures->programFeatures.enablePathClipping = true;
-    }
-    if (fillRule == FillRule::evenOdd)
-    {
-        shaderFeatures->fragmentFeatures.enableEvenOdd = true;
-    }
+    auto drawType = patchType == PatchType::midpointFan ? DrawType::midpointFanPatches
+                                                        : DrawType::outerCurvePatches;
+    uint32_t baseVertexToDraw = m_tessVertexCount + paddingVertexCount;
+    uint32_t patchSize = PatchSegmentSpan(drawType);
+    uint32_t baseInstance = baseVertexToDraw / patchSize;
+    // The caller is responsible to pad each path so it begins on a multiple of the patch size.
+    assert(baseInstance * patchSize == baseVertexToDraw);
+    pushDraw(drawType, baseInstance, fillRule, paintType, clipID, blendMode);
+    assert(m_lastDraw->baseVertexOrInstance + m_lastDraw->vertexOrInstanceCount == baseInstance);
+    uint32_t vertexCountToDraw = tessVertexCount - paddingVertexCount;
+    uint32_t instanceCount = vertexCountToDraw / patchSize;
+    // The caller is responsible to pad each contour so it ends on a multiple of the patch size.
+    assert(instanceCount * patchSize == vertexCountToDraw);
+    m_lastDraw->vertexOrInstanceCount += instanceCount;
+
+    // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
+    // vertices, colocated at T=0. The caller must use this argument align the beginning of the path
+    // on a boundary of the patch size.
+    m_currentContourPaddingVertexCount = paddingVertexCount;
+
+    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = m_tessVertexCount + tessVertexCount);
 }
 
 void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount)
@@ -655,15 +688,14 @@ void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t padding
     m_currentContourIDWithFlags |= flags::kFirstVertexOfContour;
 
     // The first curve of the contour will be pre-padded with 'paddingVertexCount' tessellation
-    // vertices, colocated at T=0. This allows the caller to ensure the number of tessellation
-    // vertices in the contour is an exact multiple of kWedgeSize, ensuring that contour
-    // boundaries also fall on wedge boundaries.
-    m_currentContourPaddingVertexCount = paddingVertexCount;
+    // vertices, colocated at T=0. The caller must use this argument align the end of the contour on
+    // a boundary of the patch size.
+    m_currentContourPaddingVertexCount += paddingVertexCount;
 }
 
 void PLSRenderContext::pushCubic(const Vec2D pts[4],
                                  Vec2D joinTangent,
-                                 uint32_t joinTypeFlag,
+                                 uint32_t additionalPLSFlags,
                                  uint32_t parametricSegmentCount,
                                  uint32_t polarSegmentCount,
                                  uint32_t joinSegmentCount)
@@ -693,7 +725,7 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
                                   parametricSegmentCount,
                                   polarSegmentCount,
                                   joinSegmentCount,
-                                  m_currentContourIDWithFlags | joinTypeFlag);
+                                  m_currentContourIDWithFlags | additionalPLSFlags);
         if (x1 > kTessTextureWidth)
         {
             // The span was too long to fit on the current line. Wrap and draw it again, this
@@ -719,15 +751,33 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
     assert(m_tessVertexCount <= m_currentResourceLimits.maxTessellationVertices);
 }
 
-PLSRenderContext::ShaderFeatures* PLSRenderContext::pushDraw(DrawType drawType, size_t baseVertex)
+void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangulator,
+                                                 PaintType paintType,
+                                                 uint32_t clipID,
+                                                 PLSBlendMode blendMode)
 {
-    if (m_lastDraw && m_lastDraw->drawType == drawType)
+    pushDraw(DrawType::interiorTriangulation,
+             0,
+             triangulator->fillRule(),
+             paintType,
+             clipID,
+             blendMode);
+    m_maxTriangleVertexCount += triangulator->maxVertexCount();
+    triangulator->setPathID(m_currentPathID);
+    m_lastDraw->triangulator = triangulator;
+}
+
+void PLSRenderContext::pushDraw(DrawType drawType,
+                                size_t baseVertex,
+                                FillRule fillRule,
+                                PaintType paintType,
+                                uint32_t clipID,
+                                PLSBlendMode blendMode)
+{
+    if (!m_lastDraw || m_lastDraw->drawType != drawType)
     {
-        // Merge with the previous draw.
-    }
-    else
-    {
-        DrawList* nextDraw = m_perFlushAllocator.make<DrawList>(drawType, baseVertex);
+        // Can't merge with the previous draw. Push a new one.
+        DrawList* nextDraw = make<DrawList>(drawType, baseVertex);
         if (!m_lastDraw)
         {
             m_drawList = nextDraw;
@@ -739,7 +789,21 @@ PLSRenderContext::ShaderFeatures* PLSRenderContext::pushDraw(DrawType drawType, 
         m_lastDraw = nextDraw;
         ++m_drawListCount;
     }
-    return &m_lastDraw->shaderFeatures;
+    ShaderFeatures* shaderFeatures = &m_lastDraw->shaderFeatures;
+    if (blendMode > PLSBlendMode::srcOver)
+    {
+        assert(paintType != PaintType::clipReplace);
+        shaderFeatures->programFeatures.blendTier =
+            std::max(shaderFeatures->programFeatures.blendTier, BlendTierForBlendMode(blendMode));
+    }
+    if (clipID != 0)
+    {
+        shaderFeatures->programFeatures.enablePathClipping = true;
+    }
+    if (fillRule == FillRule::evenOdd)
+    {
+        shaderFeatures->fragmentFeatures.enableEvenOdd = true;
+    }
 }
 
 template <typename T> bool bits_equal(const T* a, const T* b)
@@ -750,16 +814,17 @@ template <typename T> bool bits_equal(const T* a, const T* b)
 void PLSRenderContext::flush(FlushType flushType)
 {
     assert(m_didBeginFrame);
+    assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
 
     // The first tessellated vertex in every contour gets the kFirstVertexOfContour flag, and when
-    // emitting wedges, this flag is how the GPU detects when it has crossed past the end of the
+    // emitting patches, this flag is how the GPU detects when it has crossed past the end of the
     // current contour. When this happens, the GPU knows to no not connect those two vertices, and
     // instead, either wraps back around to the beginning of the contour to close it, or else
     // handles the endcap if it's an open stroke.
     //
-    // The final wedge of the final contour in our buffer also needs to see that
-    // kFirstVertexOfContour flag in order to render properly, so so we tessellate (and don't draw)
-    // one more empty line at the end of the buffer as an end-of-previous-contour marker.
+    // The final patch of the final contour in our buffer also needs to see that
+    // kFirstVertexOfContour flag in order to render properly, so we tessellate (and don't draw) one
+    // more empty line at the end of the buffer as an end-of-previous-contour marker.
     //
     // TODO: This is a little kludgey. Maybe we can find a cleaner way to accomplish this?
     if (!m_tessSpanBuffer.empty())
@@ -767,43 +832,64 @@ void PLSRenderContext::flush(FlushType flushType)
         Vec2D emptyLine[4]{};
         // Make sure this empty line gets the kFirstVertexOfContour flag.
         m_currentContourIDWithFlags = ~0;
+        assert(m_currentContourPaddingVertexCount == 0);
+        RIVE_DEBUG_CODE(size_t startingVertexCount = m_tessVertexCount;)
         this->pushCubic(emptyLine, Vec2D{}, 0, 1, 1, 1);
+        assert(m_tessVertexCount == startingVertexCount + kEndOfTessMarkerVertexCount);
     }
 
-    // Determine how much to draw.
-    size_t gradSpanCount = m_gradSpanBuffer.bytesWritten() / sizeof(GradientSpan);
-    size_t tessVertexSpanCount = m_tessSpanBuffer.bytesWritten() / sizeof(TessVertexSpan);
-    size_t tessDataHeight = resource_texture_height(kTessTextureWidth, m_tessVertexCount);
+    if (m_maxTriangleVertexCount > 0)
+    {
+        // Since we don't generate the triangle buffer until flush time, we can resize it now if it
+        // isn't large enough.
+        // TODO: More resources can be handled this way, e.g., the tessellation texture.
+        if (m_triangleBuffer.capacity() < m_maxTriangleVertexCount)
+        {
+            GPUResourceLimits newLimitsForTriangles{};
+            newLimitsForTriangles.maxTriangleVertices = m_maxTriangleVertexCount;
+            growExceededGPUResources(newLimitsForTriangles, kGPUResourcePadding);
+        }
+        m_triangleBuffer.ensureMapped();
+        assert(m_triangleBuffer.hasRoomFor(m_maxTriangleVertexCount));
+    }
 
-    // Write out our DrawList to the GPU DrawParameters buffer and calculate the vertex count for
-    // each draw.
+    // Finish calculating our DrawList.
     bool needsClipBuffer = false;
     RIVE_DEBUG_CODE(size_t drawIdx = 0;)
-    DrawList* lastPathWedgeDraw = nullptr;
+    size_t writtenTriangleVertexCount = 0;
     for (DrawList* draw = m_drawList; draw; draw = draw->next)
     {
         switch (draw->drawType)
         {
-            case DrawType::pathWedges:
-                if (lastPathWedgeDraw)
-                {
-                    lastPathWedgeDraw->vertexCount =
-                        draw->baseVertex - lastPathWedgeDraw->baseVertex;
-                }
-                lastPathWedgeDraw = draw;
+            case DrawType::midpointFanPatches:
+            case DrawType::outerCurvePatches:
                 break;
+            case DrawType::interiorTriangulation:
+            {
+                size_t maxVertexCount = draw->triangulator->maxVertexCount();
+                assert(writtenTriangleVertexCount + maxVertexCount <= m_maxTriangleVertexCount);
+                size_t actualVertexCount = maxVertexCount;
+                if (maxVertexCount > 0)
+                {
+                    actualVertexCount = draw->triangulator->polysToTriangles(&m_triangleBuffer);
+                }
+                assert(actualVertexCount <= maxVertexCount);
+                draw->baseVertexOrInstance = writtenTriangleVertexCount;
+                draw->vertexOrInstanceCount = actualVertexCount;
+                writtenTriangleVertexCount += actualVertexCount;
+                break;
+            }
         }
         needsClipBuffer =
             needsClipBuffer || draw->shaderFeatures.programFeatures.enablePathClipping;
         RIVE_DEBUG_CODE(++drawIdx;)
     }
-    if (lastPathWedgeDraw)
-    {
-        // Don't draw the empty "end-of-contour" marker's vertices.
-        size_t endVertexToDraw = std::max<size_t>(m_tessVertexCount, 2) - 2;
-        lastPathWedgeDraw->vertexCount = endVertexToDraw - lastPathWedgeDraw->baseVertex;
-    }
     assert(drawIdx == m_drawListCount);
+
+    // Determine how much to draw.
+    size_t gradSpanCount = m_gradSpanBuffer.bytesWritten() / sizeof(GradientSpan);
+    size_t tessVertexSpanCount = m_tessSpanBuffer.bytesWritten() / sizeof(TessVertexSpan);
+    size_t tessDataHeight = resource_texture_height(kTessTextureWidth, m_tessVertexCount);
 
     // Upload all non-empty buffers before flushing.
     m_pathBuffer.submit();
@@ -811,6 +897,7 @@ void PLSRenderContext::flush(FlushType flushType)
     m_gradTexelBuffer.submit();
     m_gradSpanBuffer.submit();
     m_tessSpanBuffer.submit();
+    m_triangleBuffer.submit();
 
     // Update the uniform buffer for drawing if needed.
     FlushUniforms uniformData(m_complexGradients.size(),
@@ -842,8 +929,13 @@ void PLSRenderContext::flush(FlushType flushType)
     m_currentFrameResourceUsage.maxComplexGradientSpans += gradSpanCount;
     m_currentFrameResourceUsage.maxTessellationSpans += tessVertexSpanCount;
     m_currentFrameResourceUsage.maxTessellationVertices += m_tessVertexCount;
+    // Since we can defer allocating the triangle buffer until flush time, when we know exactly how
+    // many vertices it will need, we don't need to proactively count all the flushes in the frame.
+    // A simple max() will suffice.
+    m_currentFrameResourceUsage.maxTriangleVertices =
+        std::max(m_currentFrameResourceUsage.maxTriangleVertices, m_maxTriangleVertexCount);
     static_assert(sizeof(m_currentFrameResourceUsage) ==
-                  sizeof(size_t) * 7); // Make sure we got every field.
+                  sizeof(size_t) * 8); // Make sure we got every field.
 
     if (flushType == FlushType::intermediate)
     {
@@ -871,11 +963,16 @@ void PLSRenderContext::flush(FlushType flushType)
     m_complexGradients.clear();
 
     m_tessVertexCount = 0;
+    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = 0);
+
+    m_maxTriangleVertexCount = 0;
 
     m_isFirstFlushOfFrame = false;
 
     m_drawList = m_lastDraw = nullptr;
     m_drawListCount = 0;
-    m_perFlushAllocator.reset();
+
+    // Delete all objects that were allocted for this flush using the TrivialBlockAllocator.
+    m_trivialPerFlushAllocator.reset();
 }
 } // namespace rive::pls

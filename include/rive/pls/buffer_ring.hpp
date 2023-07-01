@@ -161,15 +161,13 @@ template <typename T> class BufferRing
 {
 public:
     BufferRing() = default;
-    BufferRing(std::unique_ptr<BufferRingImpl> impl) : m_impl(std::move(impl))
-    {
-        assert(m_impl->itemSizeInBytes() == sizeof(T));
-    }
+    BufferRing(std::unique_ptr<BufferRingImpl> impl) { reset(std::move(impl)); }
     BufferRing(BufferRing&& other) : m_impl(std::move(other.m_impl)) {}
 
     void reset(std::unique_ptr<BufferRingImpl> impl)
     {
         assert(!mapped());
+        assert(impl->itemSizeInBytes() == sizeof(T));
         m_impl = std::move(impl);
     }
 

@@ -76,7 +76,7 @@ class PLSRenderContextGL::PLSImplWebGL : public PLSRenderContextGL::PLSImpl
         glBeginPixelLocalStorageWEBGL(4, loadOps);
     }
 
-    void deactivatePixelLocalStorage() override
+    void deactivatePixelLocalStorage(PLSRenderContextGL*) override
     {
         constexpr static GLenum kStoreOps[4] = {GL_STORE_OP_STORE_WEBGL,
                                                 GL_DONT_CARE,

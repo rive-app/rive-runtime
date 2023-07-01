@@ -74,7 +74,8 @@ def t_DEFINE(tok):
     return tok
 
 def t_IFDEF(tok):
-    r"\#[ \t]*ifdef[ \t]+(?P<id>\@?[A-Za-z_][A-Za-z0-9_]*)"
+    r"(?P<tag>\#[ \t]*ifn?def)[ \t]+(?P<id>\@?[A-Za-z_][A-Za-z0-9_]*)"
+    tok.ifdef_tag = re.match(t_IFDEF.__doc__, tok.value)['tag']
     tok.ifdef_id = re.match(t_IFDEF.__doc__, tok.value)['id']
     parse_id(tok.ifdef_id, tok.lexer.exports)
     return tok
@@ -401,7 +402,8 @@ class Minifier:
                     out.write(tok.define_val)
 
             elif tok.type == "IFDEF":
-                out.write("#ifdef ")
+                out.write(tok.ifdef_tag)
+                out.write(' ')
                 out.write(new_names[tok.ifdef_id]
                           if rename_exported_defines or tok.ifdef_id[0] != '@'
                           else tok.ifdef_id[1:])

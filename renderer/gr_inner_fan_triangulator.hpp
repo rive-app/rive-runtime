@@ -23,42 +23,45 @@ public:
     using GrTriangulator::BreadcrumbTriangleList;
 
     GrInnerFanTriangulator(const RawPath& path,
-                           FillRule fillRule,
                            const AABB& pathBounds,
+                           FillRule fillRule,
                            TrivialBlockAllocator* alloc) :
-        GrTriangulator(path, fillRule, pathBounds, alloc)
+        GrTriangulator(pathBounds, fillRule, alloc)
     {
         fPreserveCollinearVertices = true;
         fCollectBreadcrumbTriangles = true;
-    }
-
-    int pathToTriangles(GrEagerVertexAllocator* vertexAlloc,
-                        BreadcrumbTriangleList* breadcrumbList,
-                        bool* isLinear)
-    {
-        Poly* polys = this->pathToPolys(breadcrumbList, isLinear);
-        return this->polysToTriangles(polys, vertexAlloc, breadcrumbList);
-    }
-
-    Poly* pathToPolys(BreadcrumbTriangleList* breadcrumbList, bool* isLinear)
-    {
-        auto [polys, success] = this->GrTriangulator::pathToPolys(0, AABB{}, isLinear);
-        if (!success)
+        bool isLinear;
+        auto [polys, success] = GrTriangulator::pathToPolys(path, 0, AABB{}, &isLinear);
+        if (success)
         {
-            return nullptr;
+            m_polys = polys;
+            m_maxVertexCount = countMaxTriangleVertices(m_polys);
         }
-        breadcrumbList->concat(std::move(fBreadcrumbList));
-        return polys;
     }
 
-    int polysToTriangles(Poly* polys,
-                         GrEagerVertexAllocator* vertexAlloc,
-                         BreadcrumbTriangleList* breadcrumbList) const
+    FillRule fillRule() const { return fFillRule; }
+
+    uint64_t maxVertexCount() const { return m_maxVertexCount; }
+
+    void setPathID(uint16_t pathID) { m_pathID = pathID; }
+    uint16_t pathID() const { return m_pathID; }
+
+    size_t polysToTriangles(pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+
     {
-        int vertexCount = this->GrTriangulator::polysToTriangles(polys, vertexAlloc);
-        breadcrumbList->concat(std::move(fBreadcrumbList));
-        return vertexCount;
+        if (m_polys == nullptr)
+        {
+            return 0;
+        }
+        return GrTriangulator::polysToTriangles(m_polys, m_maxVertexCount, m_pathID, bufferRing);
     }
+
+    const BreadcrumbTriangleList& breadcrumbList() const { return fBreadcrumbList; }
+
+private:
+    uint16_t m_pathID = 0;
+    Poly* m_polys = nullptr;
+    uint64_t m_maxVertexCount = 0;
 };
 } // namespace rive
 

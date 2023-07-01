@@ -16,6 +16,11 @@ GLAPI int GLAD_GL_version_minor;
     ((GLAD_GL_version_major << 16) | GLAD_GL_version_minor) >= (((MAJOR) << 16) | (MINOR))
 
 // Manual additions for extensions not supported in the glad tool.
+#ifndef GL_ANGLE_base_vertex_base_instance_shader_builtin
+#define GL_ANGLE_base_vertex_base_instance_shader_builtin 1
+GLAPI int GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin;
+#endif
+
 #ifndef GL_ANGLE_shader_pixel_local_storage
 #define GL_ANGLE_shader_pixel_local_storage 1
 #define GL_MAX_PIXEL_LOCAL_STORAGE_PLANES_ANGLE 0x96E0

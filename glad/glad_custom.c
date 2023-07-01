@@ -19,6 +19,11 @@ static void load_Desktop_GL(GLADloadproc load) {
         glad_glDrawElementsInstancedBaseInstanceEXT = (PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC)load("glDrawElementsInstancedBaseInstance");
         glad_glDrawElementsInstancedBaseVertexBaseInstanceEXT = (PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC)load("glDrawElementsInstancedBaseVertexBaseInstance");
     }
+
+    if (GLAD_IS_GL_VERSION_AT_LEAST(4, 6))
+    {
+        GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin = 1;
+    }
 }
 
 PFNGLFRAMEBUFFERMEMORYLESSPIXELLOCALSTORAGEANGLEPROC glad_glFramebufferMemorylessPixelLocalStorageANGLE = NULL;
@@ -33,6 +38,9 @@ PFNGLGETFRAMEBUFFERPIXELLOCALSTORAGEPARAMETERFVANGLEPROC glad_glGetFramebufferPi
 PFNGLGETFRAMEBUFFERPIXELLOCALSTORAGEPARAMETERIVANGLEPROC glad_glGetFramebufferPixelLocalStorageParameterivANGLE = NULL;
 PFNGLPOLYGONMODEANGLEPROC glad_glPolygonModeANGLE = NULL;
 PFNGLPROVOKINGVERTEXANGLEPROC glad_glProvokingVertexANGLE = NULL;
+/* #ifdef RIVE_DESKTOP_GL */
+/* #endif */
+int GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin = 0;
 int GLAD_GL_ANGLE_shader_pixel_local_storage = 0;
 int GLAD_GL_ANGLE_shader_pixel_local_storage_coherent = 0;
 int GLAD_GL_ANGLE_polygon_mode = 0;
@@ -74,6 +82,10 @@ int gladLoadCustomLoader(GLADloadproc load) {
     for (int i = 0; i < extensionCount; ++i)
     {
         const char* ext = (const char*)glGetStringi(GL_EXTENSIONS, i);
+        if (strcmp(ext, "GL_ANGLE_base_vertex_base_instance_shader_builtin") == 0)
+        {
+            GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin = 1;
+        }
         if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage") == 0)
         {
             GLAD_GL_ANGLE_shader_pixel_local_storage = 1;

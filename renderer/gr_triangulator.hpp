@@ -17,55 +17,9 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/pls/pls.hpp"
+#include "rive/pls/buffer_ring.hpp"
 #include "rive/pls/trivial_block_allocator.hpp"
-
-namespace skgpu
-{
-class VertexWriter
-{
-public:
-    VertexWriter() = default;
-    VertexWriter(rive::Vec2D* buff, size_t buffCount) : m_buff(buff) {}
-    VertexWriter& operator<<(rive::Vec2D pt)
-    {
-        *m_buff++ = pt;
-        return *this;
-    }
-
-    operator bool() { return m_buff; }
-
-    using Mark = uintptr_t;
-    Mark mark() const { return reinterpret_cast<uintptr_t>(m_buff); }
-
-private:
-    rive::Vec2D* m_buff = nullptr;
-};
-} // namespace skgpu
-
-// This interface is used to allocate and map GPU vertex data before the exact number of required
-// vertices is known. Usage pattern:
-//
-//   1. Call lock(eagerCount) with an upper bound on the number of required vertices.
-//   2. Compute and write vertex data to the returned pointer (if not null).
-//   3. Call unlock(actualCount) and provide the actual number of vertices written during step #2.
-//
-// On step #3, the implementation will attempt to shrink the underlying GPU memory slot to fit the
-// actual vertex count.
-class GrEagerVertexAllocator
-{
-public:
-    virtual rive::Vec2D* lock(int eagerCount) = 0;
-
-    virtual void unlock(int actualCount) = 0;
-
-    virtual ~GrEagerVertexAllocator() {}
-
-    skgpu::VertexWriter lockWriter(size_t eagerCount)
-    {
-        rive::Vec2D* p = this->lock(eagerCount);
-        return p ? skgpu::VertexWriter{p, eagerCount} : skgpu::VertexWriter{};
-    }
-};
 
 namespace rive
 {
@@ -79,29 +33,6 @@ class GrTriangulator
 {
 public:
     constexpr static int kArenaDefaultChunkSize = 16 * 1024;
-
-    static int PathToTriangles(const RawPath& path,
-                               FillRule fillRule,
-                               const AABB& pathBounds,
-                               float tolerance,
-                               const AABB& clipBounds,
-                               GrEagerVertexAllocator* vertexAllocator,
-                               bool* isLinear)
-    {
-        // if (!path.isFinite())
-        // {
-        //     return 0;
-        // }
-        TrivialBlockAllocator alloc(kArenaDefaultChunkSize);
-        GrTriangulator triangulator(path, fillRule, pathBounds, &alloc);
-        auto [polys, success] = triangulator.pathToPolys(tolerance, clipBounds, isLinear);
-        if (!success)
-        {
-            return 0;
-        }
-        int count = triangulator.polysToTriangles(polys, vertexAllocator);
-        return count;
-    }
 
     // Enums used by GrTriangulator internals.
     typedef enum
@@ -127,18 +58,15 @@ public:
     struct Comparator;
 
 protected:
-    GrTriangulator(const RawPath& path,
-                   FillRule fillRule,
-                   const AABB& pathBounds,
-                   TrivialBlockAllocator* alloc) :
-        fPath(path), fFillRule(fillRule), fPathBounds(pathBounds), fAlloc(alloc)
+    GrTriangulator(const AABB& pathBounds, FillRule fillRule, TrivialBlockAllocator* alloc) :
+        fPathBounds(pathBounds), fFillRule(fillRule), fAlloc(alloc)
     {}
-    virtual ~GrTriangulator() {}
 
     // There are six stages to the basic algorithm:
     //
     // 1) Linearize the path contours into piecewise linear segments:
-    void pathToContours(float tolerance,
+    void pathToContours(const RawPath& path,
+                        float tolerance,
                         const AABB& clipBounds,
                         VertexList* contours,
                         bool* isLinear) const;
@@ -167,9 +95,10 @@ protected:
     virtual std::tuple<Poly*, bool> tessellate(const VertexList& vertices, const Comparator&);
 
     // 6) Triangulate the monotone polygons directly into a vertex buffer:
-    skgpu::VertexWriter polysToTriangles(Poly* polys,
-                                         FillRule overrideFillRule,
-                                         skgpu::VertexWriter data) const;
+    void polysToTriangles(const Poly* polys,
+                          FillRule overrideFillRule,
+                          uint16_t pathID,
+                          pls::BufferRing<pls::TriangleVertex>*) const;
 
     // The vertex sorting in step (3) is a merge sort, since it plays well with the linked list
     // of vertices (and the necessity of inserting new vertices on intersection).
@@ -215,13 +144,16 @@ protected:
     // setting rotates 90 degrees counterclockwise, rather that transposing.
 
     // Additional helpers and driver functions.
-    skgpu::VertexWriter emitMonotonePoly(const MonotonePoly*, skgpu::VertexWriter data) const;
-    skgpu::VertexWriter emitTriangle(Vertex* prev,
-                                     Vertex* curr,
-                                     Vertex* next,
-                                     int winding,
-                                     skgpu::VertexWriter data) const;
-    skgpu::VertexWriter emitPoly(const Poly*, skgpu::VertexWriter data) const;
+    void emitMonotonePoly(const MonotonePoly*,
+                          uint16_t pathID,
+                          pls::BufferRing<pls::TriangleVertex>*) const;
+    void emitTriangle(Vertex* prev,
+                      Vertex* curr,
+                      Vertex* next,
+                      int winding,
+                      uint16_t pathID,
+                      pls::BufferRing<pls::TriangleVertex>*) const;
+    void emitPoly(const Poly*, uint16_t pathID, pls::BufferRing<pls::TriangleVertex>*) const;
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
     void appendPointToContour(const Vec2D& p, VertexList* contour) const;
@@ -299,15 +231,20 @@ protected:
     bool mergeCoincidentVertices(VertexList* mesh, const Comparator&) const;
     void buildEdges(VertexList* contours, int contourCnt, VertexList* mesh, const Comparator&);
     std::tuple<Poly*, bool> contoursToPolys(VertexList* contours, int contourCnt);
-    std::tuple<Poly*, bool> pathToPolys(float tolerance, const AABB& clipBounds, bool* isLinear);
-    static int64_t CountPoints(Poly* polys, FillRule overrideFillRule);
-    int polysToTriangles(Poly*, GrEagerVertexAllocator*) const;
+    std::tuple<Poly*, bool> pathToPolys(const RawPath&,
+                                        float tolerance,
+                                        const AABB& clipBounds,
+                                        bool* isLinear);
+    static int64_t CountPoints(const Poly* polys, FillRule overrideFillRule);
+    size_t countMaxTriangleVertices(const Poly*) const;
+    size_t polysToTriangles(const Poly*,
+                            uint64_t maxVertexCount,
+                            uint16_t pathID,
+                            pls::BufferRing<pls::TriangleVertex>*) const;
 
-    // FIXME: fPath should be plumbed through function parameters instead.
-    const RawPath fPath;
-    FillRule fFillRule;
     AABB fPathBounds;
-    TrivialBlockAllocator* const fAlloc;
+    FillRule fFillRule;
+    TrivialBlockAllocator* fAlloc;
     int fNumMonotonePolys = 0;
     int fNumEdges = 0;
 

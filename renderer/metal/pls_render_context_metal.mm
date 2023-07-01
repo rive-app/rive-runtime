@@ -75,12 +75,14 @@ private:
 class PLSRenderContextMetal::DrawPipeline
 {
 public:
-    DrawPipeline(PLSRenderContextMetal* context, const ShaderFeatures& shaderFeatures)
+    DrawPipeline(PLSRenderContextMetal* context,
+                 DrawType drawType,
+                 const ShaderFeatures& shaderFeatures)
     {
         id<MTLFunction> vertexMain =
-            GetMainFunction(context, SourceType::vertexOnly, shaderFeatures);
+            GetMainFunction(context, drawType, SourceType::vertexOnly, shaderFeatures);
         id<MTLFunction> fragmentMain =
-            GetMainFunction(context, SourceType::wholeProgram, shaderFeatures);
+            GetMainFunction(context, drawType, SourceType::wholeProgram, shaderFeatures);
         constexpr static auto makePipelineState = [](id<MTLDevice> gpu,
                                                      id<MTLFunction> vertexMain,
                                                      id<MTLFunction> fragmentMain,
@@ -109,16 +111,24 @@ public:
 
 private:
     id<MTLFunction> GetMainFunction(PLSRenderContextMetal* context,
+                                    DrawType drawType,
                                     SourceType sourceType,
                                     const ShaderFeatures& shaderFeatures)
     {
+        // Namespaces beginning in 'r' indicate the normal Rive renderer.
         char namespaceName[] = "r0000";
-        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
+        if (drawType == DrawType::interiorTriangulation)
+        {
+            // Namespaces beginning in 't' indicate the special case when we draw non-overlapping
+            // interior triangles.
+            namespaceName[0] = 't';
+        }
         // draw.metal uses the following bits in the namespace names for each flag:
-        //     ENABLE_ADVANCED_BLEND:   r0001
-        //     ENABLE_PATH_CLIPPING:    r0010
-        //     ENABLE_EVEN_ODD:         r0100
-        //     ENABLE_HSL_BLEND_MODES:  r1000
+        //     ENABLE_ADVANCED_BLEND:   r0001 / t0001
+        //     ENABLE_PATH_CLIPPING:    r0010 / t0010
+        //     ENABLE_EVEN_ODD:         r0100 / t0100
+        //     ENABLE_HSL_BLEND_MODES:  r1000 / t1000
+        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
         {
             namespaceName[4] = '1';
@@ -208,16 +218,13 @@ PLSRenderContextMetal::PLSRenderContextMetal(const PlatformFeatures& platformFea
     m_colorRampPipeline = std::make_unique<ColorRampPipeline>(gpu, m_plsLibrary);
     m_tessPipeline = std::make_unique<TessellatePipeline>(gpu, m_plsLibrary);
 
-    // Create vertex and index buffers for the PLS "wedge".
-    WedgeVertex wedgeVertices[kOuterStrokeWedgeVertexCount];
-    uint16_t wedgeIndices[kOuterStrokeWedgeIndexCount];
-    GenerateWedgeTriangles(wedgeVertices, wedgeIndices, WedgeType::outerStroke);
-    m_pathWedgeVertexBuffer = [gpu newBufferWithBytes:wedgeVertices
-                                               length:sizeof(wedgeVertices)
+    // Create vertex and index buffers for the different PLS patches.
+    m_pathPatchVertexBuffer = [gpu newBufferWithLength:kPatchVertexBufferCount * sizeof(PatchVertex)
+                                               options:MTLResourceStorageModeShared];
+    m_pathPatchIndexBuffer = [gpu newBufferWithLength:kPatchIndexBufferCount * sizeof(uint16_t)
                                               options:MTLResourceStorageModeShared];
-    m_pathWedgeIndexBuffer = [gpu newBufferWithBytes:wedgeIndices
-                                              length:sizeof(wedgeIndices)
-                                             options:MTLResourceStorageModeShared];
+    GeneratePatchBufferData(reinterpret_cast<PatchVertex*>(m_pathPatchVertexBuffer.contents),
+                            reinterpret_cast<uint16_t*>(m_pathPatchIndexBuffer.contents));
 }
 
 PLSRenderContextMetal::~PLSRenderContextMetal() {}
@@ -355,6 +362,8 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
         [tessEncoder setVertexBuffer:mtl_buffer(uniformBufferRing()) offset:0 atIndex:0];
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:1];
+        [tessEncoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
+        [tessEncoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
         [tessEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
@@ -362,7 +371,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [tessEncoder endEncoding];
     }
 
-    // Draw all the wedges that make up paths.
+    // Set up the render pass that draws path patches and triangles.
     MTLRenderPassDescriptor* pass = [MTLRenderPassDescriptor renderPassDescriptor];
     pass.colorAttachments[0].texture = renderTarget->targetTexture();
     if (loadAction == LoadAction::clear)
@@ -400,7 +409,6 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                        0.0,
                                        1.0}];
     [encoder setVertexBuffer:mtl_buffer(uniformBufferRing()) offset:0 atIndex:0];
-    [encoder setVertexBuffer:m_pathWedgeVertexBuffer offset:0 atIndex:1];
     [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
     [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
     [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
@@ -410,31 +418,50 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [encoder setTriangleFillMode:MTLTriangleFillModeLines];
     }
 
+    // Execute the DrawList.
     size_t drawIdx = 0;
-    for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
+    for (const DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
     {
-        // Cache specific compilations of draw.glsl by ShaderFeatures.
-        // TODO: Reuse vertex shader compilations where possible.
-        // TODO: Precompile these shaders and only ship bytecode.
-        uint64_t shaderKey = draw->shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
+        if (draw->vertexOrInstanceCount == 0)
+        {
+            continue;
+        }
+
+        DrawType drawType = draw->drawType;
+
+        // Setup the pipeline for this specific drawType and shaderFeatures.
+        uint32_t pipelineKey =
+            ShaderUniqueKey(SourceType::wholeProgram, drawType, draw->shaderFeatures);
         const DrawPipeline& drawPipeline =
-            m_drawPipelines.try_emplace(shaderKey, this, draw->shaderFeatures).first->second;
-
-        size_t wedgeInstanceCount = draw->vertexCount / kWedgeSize;
-        assert(wedgeInstanceCount > 0);
-        assert(wedgeInstanceCount * kWedgeSize == draw->vertexCount);
-        size_t wedgeBaseInstance = draw->baseVertex / kWedgeSize;
-        assert(wedgeBaseInstance * kWedgeSize == draw->baseVertex);
-
+            m_drawPipelines.try_emplace(pipelineKey, this, drawType, draw->shaderFeatures)
+                .first->second;
         [encoder setRenderPipelineState:drawPipeline.pipelineState(renderTarget->pixelFormat())];
-        [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                            indexCount:kOuterStrokeWedgeIndexCount
-                             indexType:MTLIndexTypeUInt16
-                           indexBuffer:m_pathWedgeIndexBuffer
-                     indexBufferOffset:0
-                         instanceCount:wedgeInstanceCount
-                            baseVertex:0
-                          baseInstance:wedgeBaseInstance];
+
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+            case DrawType::outerCurvePatches:
+            {
+                // Draw PLS patches that connect the tessellation vertices.
+                [encoder setVertexBuffer:m_pathPatchVertexBuffer offset:0 atIndex:1];
+                [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                                    indexCount:PatchIndexCount(drawType)
+                                     indexType:MTLIndexTypeUInt16
+                                   indexBuffer:m_pathPatchIndexBuffer
+                             indexBufferOffset:PatchIndexOffset(drawType)
+                                 instanceCount:draw->vertexOrInstanceCount
+                                    baseVertex:0
+                                  baseInstance:draw->baseVertexOrInstance];
+                break;
+            }
+            case DrawType::interiorTriangulation:
+                // Draw generic triangles.
+                [encoder setVertexBuffer:mtl_buffer(triangleBufferRing()) offset:0 atIndex:1];
+                [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                            vertexStart:draw->baseVertexOrInstance
+                            vertexCount:draw->vertexOrInstanceCount];
+                break;
+        }
     }
     [encoder endEncoding];
 

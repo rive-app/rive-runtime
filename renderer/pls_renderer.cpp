@@ -4,6 +4,7 @@
 
 #include "rive/pls/pls_renderer.hpp"
 
+#include "gr_inner_fan_triangulator.hpp"
 #include "path_utils.hpp"
 #include "pls_paint.hpp"
 #include "pls_path.hpp"
@@ -74,7 +75,11 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
     if (m_context->getClipContentID() != clip.clipID)
     {
         // The clip buffer does not contain the current clip stack. Update it.
-        m_pathBatch.emplace_back(&clip.matrix, &clip.path, clip.fillRule, clip.clipID);
+        m_pathBatch.emplace_back(&clip.matrix,
+                                 &clip.path,
+                                 clip.pathBounds,
+                                 clip.fillRule,
+                                 clip.clipID);
         m_context->setClipContentID(clip.clipID);
     }
     assert(clip.clipID != 0);
@@ -110,6 +115,7 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         }
         m_pathBatch.emplace_back(&m_stack.back().matrix,
                                  &path->getRawPath(),
+                                 path->getBounds(),
                                  path->getFillRule(),
                                  clipID);
         if (!pushInternalPathBatch(paint))
@@ -133,7 +139,8 @@ void PLSRenderer::clipPath(RenderPath* renderPath)
     {
         m_hasArtboardClipCandidate = IsAABB(path->getRawPath());
     }
-    m_clipStack.push_back({m_stack.back().matrix, path->getRawPath(), path->getFillRule(), 0});
+    m_clipStack.push_back(
+        {m_stack.back().matrix, path->getRawPath(), path->getBounds(), path->getFillRule(), 0});
 }
 
 void PLSRenderer::drawImage(const RenderImage*, BlendMode, float opacity) {}
@@ -200,16 +207,21 @@ RIVE_ALWAYS_INLINE constexpr uint8_t chop_key(bool areCusps, uint8_t numChops)
 RIVE_ALWAYS_INLINE constexpr uint8_t cusp_chop_key(uint8_t n) { return chop_key(true, n); }
 RIVE_ALWAYS_INLINE constexpr uint8_t simple_chop_key(uint8_t n) { return chop_key(false, n); }
 
-// Produces a cubic equivalent to the given line. Since we will not be running Wang's formula on
-// this cubic, we can just duplicate the endpoints (which produces a flat line whose segmenting by
-// Wang's count is > 1).
-RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(Vec2D p0, Vec2D p1)
-{
-    return {p0, p0, p1, p1};
-}
+// Produces a cubic equivalent to the given line, for which Wang's formula also returns 1.
 RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(const Vec2D line[2])
 {
-    return convert_line_to_cubic(line[0], line[1]);
+    float4 endPts = simd::load4f(line);
+    float4 controlPts = simd::mix(endPts, endPts.zwxy, float4(1 / 3.f));
+    std::array<Vec2D, 4> cubic;
+    cubic[0] = line[0];
+    simd::store(&cubic[1], controlPts);
+    cubic[3] = line[1];
+    return cubic;
+}
+RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(Vec2D p0, Vec2D p1)
+{
+    Vec2D line[2] = {p0, p1};
+    return convert_line_to_cubic(line);
 }
 
 // Finds the tangents of the curve at T=0 and T=1 respectively.
@@ -391,7 +403,235 @@ RIVE_ALWAYS_INLINE bool is_final_verb_of_contour(const RawPath::Iter& iter,
 {
     return iter.rawVerbsPtr() + 1 == end.rawVerbsPtr();
 }
+
+// Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
+RIVE_ALWAYS_INLINE uint32_t padding_to_align_up(uint32_t value, uint32_t alignment)
+{
+    uint32_t maxMultipleOfAlignment = std::numeric_limits<uint32_t>::max() / alignment * alignment;
+    uint32_t padding = (maxMultipleOfAlignment - value) % alignment;
+    assert((value + padding) % alignment == 0);
+    return padding;
+}
 } // namespace
+
+// Helps count required resources for, and submit data to the render context that will be used to
+// render paths with the "interior triangulation" algorithm.
+class PLSRenderer::InteriorTriangulationHelper
+{
+public:
+    size_t contourCount() const { return m_contourCount; }
+    size_t patchCount() const { return m_patchCount; }
+    bool empty() const { return m_patchCount == 0; }
+
+    enum class PathOp : bool
+    {
+        countDataAndTriangulate,
+        submitOuterCubics
+    };
+
+    // For now, we just iterate and subdivide the path twice (once for each enum in PathOp). Since
+    // we only do this for large paths, and since we're triangulating the path interior anyway,
+    // adding complexity to only run Wang's formula and chop once would save about ~5% of the total
+    // CPU time. (And large paths are GPU-bound anyway.)
+    void processPath(PathOp op,
+                     PLSRenderContext* context,
+                     PathDraw* path,
+                     RawPath* scratchPath = nullptr)
+    {
+        Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
+        const RawPath& rawPath = *path->rawPath;
+        assert(!rawPath.empty());
+        wangs_formula::VectorXform vectorXform(*path->matrix);
+        size_t patchCount = 0;
+        size_t contourCount = 0;
+        Vec2D p0 = {0, 0};
+        if (op == PathOp::countDataAndTriangulate)
+        {
+            scratchPath->rewind();
+        }
+        for (const auto [verb, pts] : rawPath)
+        {
+            switch (verb)
+            {
+                case PathVerb::move:
+                    if (contourCount != 0 && pts[-1] != p0)
+                    {
+                        if (op == PathOp::submitOuterCubics)
+                        {
+                            context->pushCubic(convert_line_to_cubic(pts[-1], p0).data(),
+                                               {0, 0},
+                                               flags::kCullExcessTessellationSegments,
+                                               kPatchSegmentCountExcludingJoin,
+                                               1,
+                                               kJoinSegmentCount);
+                        }
+                        ++patchCount;
+                    }
+                    if (op == PathOp::countDataAndTriangulate)
+                    {
+                        scratchPath->move(pts[0]);
+                    }
+                    else
+                    {
+                        context->pushContour({0, 0}, true, 0);
+                    }
+                    p0 = pts[0];
+                    ++contourCount;
+                    break;
+                case PathVerb::line:
+                    if (op == PathOp::countDataAndTriangulate)
+                    {
+                        scratchPath->line(pts[1]);
+                    }
+                    else
+                    {
+                        context->pushCubic(convert_line_to_cubic(pts).data(),
+                                           {0, 0},
+                                           flags::kCullExcessTessellationSegments,
+                                           kPatchSegmentCountExcludingJoin,
+                                           1,
+                                           kJoinSegmentCount);
+                    }
+                    ++patchCount;
+                    break;
+                case PathVerb::quad:
+                    RIVE_UNREACHABLE();
+                case PathVerb::cubic:
+                {
+                    size_t numSubdivisions = FindSubdivisionCount(pts, vectorXform);
+                    if (numSubdivisions == 1)
+                    {
+                        if (op == PathOp::countDataAndTriangulate)
+                        {
+                            scratchPath->line(pts[3]);
+                        }
+                        else
+                        {
+                            context->pushCubic(pts,
+                                               {0, 0},
+                                               flags::kCullExcessTessellationSegments,
+                                               kPatchSegmentCountExcludingJoin,
+                                               1,
+                                               kJoinSegmentCount);
+                        }
+                    }
+                    else
+                    {
+                        // Passing nullptr for the 'tValues' causes it to chop the cubic uniformly
+                        // in T.
+                        pathutils::ChopCubicAt(pts, chops, nullptr, numSubdivisions - 1);
+                        const Vec2D* chop = chops;
+                        for (size_t i = 0; i < numSubdivisions; ++i)
+                        {
+                            if (op == PathOp::countDataAndTriangulate)
+                            {
+                                scratchPath->line(chop[3]);
+                            }
+                            else
+                            {
+                                context->pushCubic(chop,
+                                                   {0, 0},
+                                                   flags::kCullExcessTessellationSegments,
+                                                   kPatchSegmentCountExcludingJoin,
+                                                   1,
+                                                   kJoinSegmentCount);
+                            }
+                            chop += 3;
+                        }
+                    }
+                    patchCount += numSubdivisions;
+                    break;
+                }
+                case PathVerb::close:
+                    break;
+            }
+        }
+        Vec2D lastPt = rawPath.points().back();
+        if (contourCount != 0 && lastPt != p0)
+        {
+            if (op == PathOp::submitOuterCubics)
+            {
+                context->pushCubic(convert_line_to_cubic(lastPt, p0).data(),
+                                   {0, 0},
+                                   flags::kCullExcessTessellationSegments,
+                                   kPatchSegmentCountExcludingJoin,
+                                   1,
+                                   kJoinSegmentCount);
+            }
+            ++patchCount;
+        }
+
+        if (op == PathOp::countDataAndTriangulate)
+        {
+            assert(!path->triangulator);
+            path->triangulator =
+                context->make<GrInnerFanTriangulator>(*scratchPath,
+                                                      path->pathBounds,
+                                                      path->fillRule,
+                                                      context->trivialPerFlushAllocator());
+            // We also draw each "breadcrumb" triangle using an outerCubic patch.
+            patchCount += path->triangulator->breadcrumbList().count();
+            path->tessVertexCount = patchCount * kOuterCurvePatchSegmentSpan;
+            m_contourCount += contourCount;
+            m_patchCount += patchCount;
+        }
+        else
+        {
+            // Submit breadcrumb triangles, emulated by outerCubic patches.
+            for (auto* node = path->triangulator->breadcrumbList().head(); node; node = node->fNext)
+            {
+                Vec2D triangleAsCubic[4] = {node->fPts[0], node->fPts[1], {0, 0}, node->fPts[2]};
+                context->pushCubic(triangleAsCubic,
+                                   {0, 0},
+                                   flags::kRetrofittedTriangle,
+                                   kPatchSegmentCountExcludingJoin,
+                                   1,
+                                   kJoinSegmentCount);
+                ++patchCount;
+            }
+            assert(path->paddingVertexCount + patchCount * kOuterCurvePatchSegmentSpan ==
+                   path->tessVertexCount);
+            RIVE_DEBUG_CODE(m_writtenContourCount += contourCount;)
+            RIVE_DEBUG_CODE(m_writtenPatchCount += patchCount;)
+            RIVE_DEBUG_CODE(m_writtenTessVertexCount +=
+                            patchCount * (kPatchSegmentCountExcludingJoin + kJoinSegmentCount);)
+        }
+    }
+
+#ifdef DEBUG
+    bool didSubmitAllData()
+    {
+        return m_writtenContourCount == m_contourCount && m_writtenPatchCount == m_patchCount &&
+               m_writtenTessVertexCount == m_patchCount * kOuterCurvePatchSegmentSpan;
+    }
+#endif
+
+private:
+    // The final segment in an outerCurve patch is a bowtie join.
+    constexpr static size_t kJoinSegmentCount = 1;
+    constexpr static size_t kPatchSegmentCountExcludingJoin =
+        kOuterCurvePatchSegmentSpan - kJoinSegmentCount;
+
+    // Maximum # of outerCurve patches a curve on the path can be subdivided into.
+    constexpr static size_t kMaxCurveSubdivisions =
+        (kMaxParametricSegments + kPatchSegmentCountExcludingJoin - 1) /
+        kPatchSegmentCountExcludingJoin;
+
+    static size_t FindSubdivisionCount(const Vec2D pts[],
+                                       const wangs_formula::VectorXform& vectorXform)
+    {
+        size_t numSubdivisions =
+            ceilf(wangs_formula::cubic(pts, kParametricPrecision, vectorXform) *
+                  (1.f / kPatchSegmentCountExcludingJoin));
+        return std::clamp<size_t>(numSubdivisions, 1, kMaxCurveSubdivisions);
+    }
+
+    size_t m_contourCount = 0;
+    size_t m_patchCount = 0;
+    RIVE_DEBUG_CODE(size_t m_writtenContourCount = 0;)
+    RIVE_DEBUG_CODE(size_t m_writtenPatchCount = 0;)
+    RIVE_DEBUG_CODE(size_t m_writtenTessVertexCount = 0;)
+};
 
 bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
 {
@@ -409,7 +649,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     PLSPaint clipPaint;
     for (size_t i = 0; i < m_pathBatch.size(); ++i)
     {
-        const auto& [matrix, rawPath, fillRule, clipID] = m_pathBatch[i];
+        const RawPath* rawPath = m_pathBatch[i].rawPath;
         if (rawPath->empty())
         {
             continue;
@@ -465,6 +705,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             std::max(maxStrokedCurvesAfterChops + 3, m_polarSegmentCounts.capacity()));
     }
 
+    InteriorTriangulationHelper interiorTriHelper;
+
     // Iteration pass 1: Collect information on contour and curves counts for every path in the
     // batch, and begin counting tessellated vertices.
     m_contourBatch.clear();
@@ -473,17 +715,33 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     size_t rotationCount = 0; // We measure rotations on both curves and round joins.
     for (size_t i = 0; i < m_pathBatch.size(); ++i)
     {
-        const auto& [matrix, rawPath, fillRule, clipID] = m_pathBatch[i];
-        if (rawPath->empty())
+        PathDraw& path = m_pathBatch[i];
+        if (path.rawPath->empty())
         {
             continue;
         }
 
+        // Draw this path using "interior triangulation" if it is a fill, and is sufficiently large.
+        assert(path.triangulator == nullptr);
+        if (i != strokeIdx) // Never use interior triangulation for strokes.
+        {
+            float screenSpaceArea = FindTransformedArea(path.pathBounds, *path.matrix);
+            if (screenSpaceArea > 512 * 512)
+            {
+                interiorTriHelper.processPath(
+                    InteriorTriangulationHelper::PathOp::countDataAndTriangulate,
+                    m_context,
+                    &path,
+                    &m_scratchPath);
+                continue;
+            }
+        }
+
         bool stroked = i == strokeIdx; // (Will never be true if finalPathPaint is not stroked.)
         bool roundJoinStroked = stroked && finalPathPaint->getJoin() == StrokeJoin::round;
-        wangs_formula::VectorXform vectorXform(*matrix);
-        RawPath::Iter startOfContour = rawPath->begin();
-        RawPath::Iter end = rawPath->end();
+        wangs_formula::VectorXform vectorXform(*path.matrix);
+        RawPath::Iter startOfContour = path.rawPath->begin();
+        RawPath::Iter end = path.rawPath->end();
         int preChopVerbCount = 0; // Original number of lines and curves, before chopping.
         Vec2D endpointsSum{};
         bool closed = !stroked;
@@ -679,7 +937,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         }
     }
 
-    if (m_contourBatch.empty())
+    if (m_contourBatch.empty() && interiorTriHelper.empty())
     {
         // The entire batch is empty.
         return true;
@@ -688,164 +946,208 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     // Iteration pass 2: Finish calculating the numbers of tessellation segments in each contour,
     // using SIMD.
     uint32_t tessVertexCount = 0;
+    uint32_t baseVertex = m_context->currentTessVertexCount();
     size_t contourFirstLineIdx = 0;
     size_t contourFirstCurveIdx = 0;
     size_t contourFirstRotationIdx = 0;
     size_t emptyStrokeCountForCaps = 0;
-    for (ContourData& contour : m_contourBatch)
+    auto contour = m_contourBatch.begin();
+    auto endContour = m_contourBatch.end();
+    for (size_t currentPathIdx = 0; currentPathIdx < m_pathBatch.size(); ++currentPathIdx)
     {
-        size_t contourLineCount = contour.endLineIdx - contourFirstLineIdx;
-        uint32_t contourVertexCount = contourLineCount * 2; // Each line tessellates to 2 vertices.
-        uint4 mergedTessVertexSums4 = 0;
-
-        // Finish calculating and counting parametric segments for each curve.
-        size_t j;
-        for (j = contourFirstCurveIdx; j < contour.endCurveIdx; j += 4)
+        PathDraw& path = m_pathBatch[currentPathIdx];
+        if (path.rawPath->empty())
         {
-            assert(j + 4 <= m_parametricSegmentCounts_pow4.capacity());
-            // Curves recorded their segment counts raised to the 4th power. Now find their
-            // roots and convert to integers in batches of 4.
-            float4 n = simd::load4f(m_parametricSegmentCounts_pow4.get() + j);
-            n = simd::ceil(simd::sqrt(simd::sqrt(n)));
-            n = simd::clamp(n, float4(1), float4(kMaxParametricSegments));
-            uint4 n_ = simd::cast<uint32_t>(n);
-            assert(j + 4 <= m_parametricSegmentCounts.capacity());
-            simd::store(m_parametricSegmentCounts.get() + j, n_);
-            mergedTessVertexSums4 += n_;
-        }
-        // We counted in batches of 4. Undo the values we counted from beyond the end of the path.
-        while (j-- > contour.endCurveIdx)
-        {
-            contourVertexCount -= m_parametricSegmentCounts[j];
+            continue;
         }
 
-        bool stroked = contour.pathIdx == strokeIdx;
-        if (stroked)
+        if (path.triangulator != nullptr)
         {
-            // Finish calculating and counting polar segments for each stroked curve and round join.
-            const float r_ = strokeRadius * strokeMatrixMaxScale;
-            const float polarSegmentsPerRad =
-                pathutils::CalcPolarSegmentsPerRadian<kPolarPrecision>(r_);
-            for (j = contourFirstRotationIdx; j < contour.endRotationIdx; j += 4)
+            // This path will be drawn with interior triangulation. Its tessellation vertex count
+            // (not including padding) has already been written to 'path.tessVertexCount'. Pad it up
+            // so its first vertex falls on a multiple of kOuterCurvePatchSegmentSpan.
+            path.paddingVertexCount =
+                padding_to_align_up(baseVertex + tessVertexCount, kOuterCurvePatchSegmentSpan);
+            assert((baseVertex + tessVertexCount + path.paddingVertexCount) %
+                       kOuterCurvePatchSegmentSpan ==
+                   0);
+            path.tessVertexCount += path.paddingVertexCount;
+            tessVertexCount += path.tessVertexCount;
+            continue;
+        }
+
+        // Align the beginning of the path on a multiple of kMidpointFanPatchSegmentSpan.
+        path.paddingVertexCount =
+            padding_to_align_up(baseVertex + tessVertexCount, kMidpointFanPatchSegmentSpan);
+        path.tessVertexCount = path.paddingVertexCount;
+        tessVertexCount += path.paddingVertexCount;
+        assert((baseVertex + tessVertexCount) % kMidpointFanPatchSegmentSpan == 0);
+
+        assert(contour == endContour || contour->pathIdx >= currentPathIdx);
+        for (; contour != endContour && contour->pathIdx == currentPathIdx; ++contour)
+        {
+            size_t contourLineCount = contour->endLineIdx - contourFirstLineIdx;
+            uint32_t contourVertexCount =
+                contourLineCount * 2; // Each line tessellates to 2 vertices.
+            uint4 mergedTessVertexSums4 = 0;
+
+            // Finish calculating and counting parametric segments for each curve.
+            size_t j;
+            for (j = contourFirstCurveIdx; j < contour->endCurveIdx; j += 4)
             {
-                // Measure the rotations of curves in batches of 4.
-                assert(j + 4 <= m_tangentPairs.capacity());
-                auto [tx0, ty0, tx1, ty1] = simd::load4x4f(&m_tangentPairs[j][0].x);
-                float4 numer = tx0 * tx1 + ty0 * ty1;
-                float4 denom_pow2 = (tx0 * tx0 + ty0 * ty0) * (tx1 * tx1 + ty1 * ty1);
-                float4 cosTheta = numer / simd::sqrt(denom_pow2);
-                cosTheta = simd::clamp(cosTheta, float4(-1), float4(1));
-                float4 theta = simd::fast_acos(cosTheta);
-                // Find polar segment counts from the rotation angles.
-                float4 n = simd::ceil(theta * polarSegmentsPerRad);
-                n = simd::clamp(n, float4(1), float4(kMaxPolarSegments));
+                assert(j + 4 <= m_parametricSegmentCounts_pow4.capacity());
+                // Curves recorded their segment counts raised to the 4th power. Now find their
+                // roots and convert to integers in batches of 4.
+                float4 n = simd::load4f(m_parametricSegmentCounts_pow4.get() + j);
+                n = simd::ceil(simd::sqrt(simd::sqrt(n)));
+                n = simd::clamp(n, float4(1), float4(kMaxParametricSegments));
                 uint4 n_ = simd::cast<uint32_t>(n);
-                assert(j + 4 <= m_polarSegmentCounts.capacity());
-                simd::store(m_polarSegmentCounts.get() + j, n_);
-                // Polar and parametric segments share the first and final vertices. Therefore:
-                //
-                //   parametricVertexCount = parametricSegmentCount + 1
-                //
-                //   polarVertexCount = polarVertexCount + 1
-                //
-                //   mergedVertexCount = parametricVertexCount + polarVertexCount - 2
-                //                     = parametricSegmentCount + 1 + polarSegmentCount + 1 - 2
-                //                     = parametricSegmentCount + polarSegmentCount
-                //
+                assert(j + 4 <= m_parametricSegmentCounts.capacity());
+                simd::store(m_parametricSegmentCounts.get() + j, n_);
                 mergedTessVertexSums4 += n_;
             }
-
             // We counted in batches of 4. Undo the values we counted from beyond the end of the
             // path.
-            while (j-- > contour.endRotationIdx)
+            while (j-- > contour->endCurveIdx)
             {
-                contourVertexCount -= m_polarSegmentCounts[j];
+                contourVertexCount -= m_parametricSegmentCounts[j];
             }
 
-            // Count joins.
-            if (finalPathPaint->getJoin() == StrokeJoin::round)
+            bool stroked = contour->pathIdx == strokeIdx;
+            if (stroked)
             {
-                // Round joins share their beginning and ending vertices with the curve on either
-                // side. Therefore, the number of vertices we need to allocate for a round join is
-                // "joinSegmentCount - 1". Do all the -1's here.
-                contourVertexCount -= contour.strokeJoinCount;
-            }
-            else
-            {
-                // The shader needs 3 segments for each miter and bevel join (which translates to
-                // two interior vertices, since joins share their beginning and ending vertices with
-                // the curve on either side).
-                contourVertexCount +=
-                    contour.strokeJoinCount * (kNumSegmentsInMiterOrBevelJoin - 1);
-            }
-
-            // Count stroke caps, if any.
-            bool empty = contour.endLineIdx == contourFirstLineIdx &&
-                         contour.endCurveIdx == contourFirstCurveIdx;
-            StrokeCap cap;
-            bool needsCaps;
-            if (!empty)
-            {
-                cap = finalPathPaint->getCap();
-                needsCaps = !contour.closed;
-            }
-            else
-            {
-                cap = empty_stroke_cap(finalPathPaint, contour.closed);
-                needsCaps = cap != StrokeCap::butt; // Ignore butt caps when the contour is empty.
-            }
-            if (needsCaps)
-            {
-                // We emulate stroke caps as 180-degree joins.
-                if (cap == StrokeCap::round)
+                // Finish calculating and counting polar segments for each stroked curve and round
+                // join.
+                const float r_ = strokeRadius * strokeMatrixMaxScale;
+                const float polarSegmentsPerRad =
+                    pathutils::CalcPolarSegmentsPerRadian<kPolarPrecision>(r_);
+                for (j = contourFirstRotationIdx; j < contour->endRotationIdx; j += 4)
                 {
-                    // Round caps rotate 180 degrees.
-                    contour.strokeCapSegmentCount = ceilf(polarSegmentsPerRad * math::PI);
-                    // +2 because round caps emulated as joins need to emit vertices at T=0 and T=1,
-                    // unlike normal round joins.
-                    contour.strokeCapSegmentCount += 2;
-                    // Make sure not to exceed kMaxPolarSegments.
-                    contour.strokeCapSegmentCount =
-                        std::min(contour.strokeCapSegmentCount, kMaxPolarSegments);
+                    // Measure the rotations of curves in batches of 4.
+                    assert(j + 4 <= m_tangentPairs.capacity());
+                    auto [tx0, ty0, tx1, ty1] = simd::load4x4f(&m_tangentPairs[j][0].x);
+                    float4 numer = tx0 * tx1 + ty0 * ty1;
+                    float4 denom_pow2 = (tx0 * tx0 + ty0 * ty0) * (tx1 * tx1 + ty1 * ty1);
+                    float4 cosTheta = numer / simd::sqrt(denom_pow2);
+                    cosTheta = simd::clamp(cosTheta, float4(-1), float4(1));
+                    float4 theta = simd::fast_acos(cosTheta);
+                    // Find polar segment counts from the rotation angles.
+                    float4 n = simd::ceil(theta * polarSegmentsPerRad);
+                    n = simd::clamp(n, float4(1), float4(kMaxPolarSegments));
+                    uint4 n_ = simd::cast<uint32_t>(n);
+                    assert(j + 4 <= m_polarSegmentCounts.capacity());
+                    simd::store(m_polarSegmentCounts.get() + j, n_);
+                    // Polar and parametric segments share the first and final vertices. Therefore:
+                    //
+                    //   parametricVertexCount = parametricSegmentCount + 1
+                    //
+                    //   polarVertexCount = polarVertexCount + 1
+                    //
+                    //   mergedVertexCount = parametricVertexCount + polarVertexCount - 2
+                    //                     = parametricSegmentCount + 1 + polarSegmentCount + 1 - 2
+                    //                     = parametricSegmentCount + polarSegmentCount
+                    //
+                    mergedTessVertexSums4 += n_;
+                }
+
+                // We counted in batches of 4. Undo the values we counted from beyond the end of the
+                // path.
+                while (j-- > contour->endRotationIdx)
+                {
+                    contourVertexCount -= m_polarSegmentCounts[j];
+                }
+
+                // Count joins.
+                if (finalPathPaint->getJoin() == StrokeJoin::round)
+                {
+                    // Round joins share their beginning and ending vertices with the curve on
+                    // either side. Therefore, the number of vertices we need to allocate for a
+                    // round join is "joinSegmentCount - 1". Do all the -1's here.
+                    contourVertexCount -= contour->strokeJoinCount;
                 }
                 else
                 {
-                    contour.strokeCapSegmentCount = kNumSegmentsInMiterOrBevelJoin;
+                    // The shader needs 3 segments for each miter and bevel join (which translates
+                    // to two interior vertices, since joins share their beginning and ending
+                    // vertices with the curve on either side).
+                    contourVertexCount +=
+                        contour->strokeJoinCount * (kNumSegmentsInMiterOrBevelJoin - 1);
                 }
-                // pushContour() uses "strokeCapSegmentCount != 0" to tell if it needs stroke caps.
-                assert(contour.strokeCapSegmentCount != 0);
-                // As long as a contour isn't empty, we can tack the end cap onto the join section
-                // of the final curve in the stroke. Otherwise, we need to introduce
-                // 0-tessellation-segment curves with non-empty joins to carry the caps.
-                emptyStrokeCountForCaps += empty ? 2 : 1;
-                contourVertexCount += (contour.strokeCapSegmentCount - 1) * 2;
+
+                // Count stroke caps, if any.
+                bool empty = contour->endLineIdx == contourFirstLineIdx &&
+                             contour->endCurveIdx == contourFirstCurveIdx;
+                StrokeCap cap;
+                bool needsCaps;
+                if (!empty)
+                {
+                    cap = finalPathPaint->getCap();
+                    needsCaps = !contour->closed;
+                }
+                else
+                {
+                    cap = empty_stroke_cap(finalPathPaint, contour->closed);
+                    needsCaps =
+                        cap != StrokeCap::butt; // Ignore butt caps when the contour is empty.
+                }
+                if (needsCaps)
+                {
+                    // We emulate stroke caps as 180-degree joins.
+                    if (cap == StrokeCap::round)
+                    {
+                        // Round caps rotate 180 degrees.
+                        contour->strokeCapSegmentCount = ceilf(polarSegmentsPerRad * math::PI);
+                        // +2 because round caps emulated as joins need to emit vertices at T=0 and
+                        // T=1, unlike normal round joins.
+                        contour->strokeCapSegmentCount += 2;
+                        // Make sure not to exceed kMaxPolarSegments.
+                        contour->strokeCapSegmentCount =
+                            std::min(contour->strokeCapSegmentCount, kMaxPolarSegments);
+                    }
+                    else
+                    {
+                        contour->strokeCapSegmentCount = kNumSegmentsInMiterOrBevelJoin;
+                    }
+                    // pushContour() uses "strokeCapSegmentCount != 0" to tell if it needs stroke
+                    // caps.
+                    assert(contour->strokeCapSegmentCount != 0);
+                    // As long as a contour isn't empty, we can tack the end cap onto the join
+                    // section of the final curve in the stroke. Otherwise, we need to introduce
+                    // 0-tessellation-segment curves with non-empty joins to carry the caps.
+                    emptyStrokeCountForCaps += empty ? 2 : 1;
+                    contourVertexCount += (contour->strokeCapSegmentCount - 1) * 2;
+                }
             }
-        }
-        else
-        {
-            // Fills don't have polar segments:
-            //
-            //   mergedVertexCount = parametricVertexCount = parametricSegmentCount + 1
-            //
-            // Just collect the +1 for each non-stroked curve.
-            size_t contourCurveCount = contour.endCurveIdx - contourFirstCurveIdx;
-            contourVertexCount += contourCurveCount;
-        }
-        contourVertexCount += simd::sum(mergedTessVertexSums4);
+            else
+            {
+                // Fills don't have polar segments:
+                //
+                //   mergedVertexCount = parametricVertexCount = parametricSegmentCount + 1
+                //
+                // Just collect the +1 for each non-stroked curve.
+                size_t contourCurveCount = contour->endCurveIdx - contourFirstCurveIdx;
+                contourVertexCount += contourCurveCount;
+            }
+            contourVertexCount += simd::sum(mergedTessVertexSums4);
 
-        // Add padding vertices until the number of tessellation vertices in the contour is an exact
-        // multiple of kWedgeSize. This ensures that wedge boundaries aligh with contour boundaries.
-        constexpr uint32_t maxMultipleOfWedgeSize =
-            std::numeric_limits<uint32_t>::max() / kWedgeSize * kWedgeSize;
-        contour.paddingVertexCount = (maxMultipleOfWedgeSize - contourVertexCount) % kWedgeSize;
-        contourVertexCount += contour.paddingVertexCount;
-        assert(contourVertexCount % kWedgeSize == 0);
-        RIVE_DEBUG_CODE(contour.tessVertexCount = contourVertexCount;)
+            // Add padding vertices until the number of tessellation vertices in the contour is an
+            // exact multiple of kMidpointFanPatchSegmentSpan. This ensures that patch boundaries
+            // aligh with contour boundaries.
+            constexpr uint32_t maxMultipleOfPatchSpan = std::numeric_limits<uint32_t>::max() /
+                                                        kMidpointFanPatchSegmentSpan *
+                                                        kMidpointFanPatchSegmentSpan;
+            contour->paddingVertexCount =
+                (maxMultipleOfPatchSpan - contourVertexCount) % kMidpointFanPatchSegmentSpan;
+            contourVertexCount += contour->paddingVertexCount;
+            assert(contourVertexCount % kMidpointFanPatchSegmentSpan == 0);
+            RIVE_DEBUG_CODE(contour->tessVertexCount = contourVertexCount;)
 
-        tessVertexCount += contourVertexCount;
-        contourFirstLineIdx = contour.endLineIdx;
-        contourFirstCurveIdx = contour.endCurveIdx;
-        contourFirstRotationIdx = contour.endRotationIdx;
+            path.tessVertexCount += contourVertexCount;
+            tessVertexCount += contourVertexCount;
+            contourFirstLineIdx = contour->endLineIdx;
+            contourFirstCurveIdx = contour->endCurveIdx;
+            contourFirstRotationIdx = contour->endRotationIdx;
+        }
     }
     assert(contourFirstLineIdx == lineCount);
     assert(contourFirstCurveIdx == curveCount);
@@ -853,8 +1155,9 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
 
     // Attempt to reserve space on the GPU for our entire batch of paths.
     if (!m_context->reservePathData(m_pathBatch.size(),
-                                    m_contourBatch.size(),
-                                    curveCount + lineCount + emptyStrokeCountForCaps,
+                                    m_contourBatch.size() + interiorTriHelper.contourCount(),
+                                    curveCount + lineCount + emptyStrokeCountForCaps +
+                                        interiorTriHelper.patchCount(),
                                     tessVertexCount))
     {
         // The paths don't fit. Give up and let the caller flush and try again.
@@ -876,64 +1179,87 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     RIVE_DEBUG_CODE(m_pushedCurveCount = 0;)
     RIVE_DEBUG_CODE(m_pushedRotationCount = 0;)
     RIVE_DEBUG_CODE(m_pushedEmptyStrokeCountForCaps = 0;)
-    RIVE_DEBUG_CODE(m_pushedTessVertexCount = 0;)
+    RIVE_DEBUG_CODE(size_t batchStartingTessVertexCount = m_context->currentTessVertexCount());
     size_t curveIdx = 0;
     size_t rotationIdx = 0;
     RawPath::Iter startOfContour;
-    size_t currentPathIdx = -1;
     size_t finalPathIdx = m_pathBatch.size() - 1; // All paths are clips except the final one.
-    for (const ContourData& contour : m_contourBatch)
+    contour = m_contourBatch.begin();
+    endContour = m_contourBatch.end();
+    for (size_t currentPathIdx = 0; currentPathIdx < m_pathBatch.size(); ++currentPathIdx)
     {
-        if (contour.pathIdx != currentPathIdx)
+        PathDraw& path = m_pathBatch[currentPathIdx];
+        if (path.rawPath->empty())
         {
-            // This is a new path. Push a path record.
-            const auto& [matrix, rawPath, fillRule, clipID] = m_pathBatch[contour.pathIdx];
-            if (contour.pathIdx != finalPathIdx)
-            {
-                // We're drawing a clip path.
-                m_context->pushPath(*matrix,
-                                    0,
-                                    fillRule,
-                                    PaintType::clipReplace,
-                                    clipID,
-                                    PLSBlendMode::srcOver,
-                                    PaintData{});
-            }
-            else
-            {
-                // We're drawing the actual path now.
-                m_context->pushPath(*matrix,
-                                    strokeRadius,
-                                    fillRule,
-                                    finalPathPaint->getType(),
-                                    clipID,
-                                    finalPathPaint->getBlendMode(),
-                                    paintData);
-            }
-            RIVE_DEBUG_CODE(++pushedPathCount);
-            startOfContour = rawPath->begin();
-            currentPathIdx = contour.pathIdx;
+            continue;
         }
-        // Push a contour and curve records.
-        RIVE_DEBUG_CODE(m_pushedStrokeJoinCount = 0;)
-        RIVE_DEBUG_CODE(m_pushedStrokeCapCount = 0;)
-        RIVE_DEBUG_CODE(size_t startingTessVertexCount = m_pushedTessVertexCount;)
-        pushContour(startOfContour,
-                    contour,
-                    curveIdx,
-                    rotationIdx,
-                    strokeMatrixMaxScale,
-                    currentPathIdx == strokeIdx ? finalPathPaint : nullptr);
-        assert(m_pushedCurveCount == contour.endCurveIdx);
-        assert(m_pushedRotationCount == contour.endRotationIdx);
-        assert(m_pushedStrokeJoinCount ==
-               (currentPathIdx == strokeIdx ? contour.strokeJoinCount : 0));
-        assert(m_pushedStrokeCapCount == (contour.strokeCapSegmentCount != 0 ? 2 : 0));
-        assert(m_pushedTessVertexCount == startingTessVertexCount + contour.tessVertexCount);
-        curveIdx = contour.endCurveIdx;
-        rotationIdx = contour.endRotationIdx;
-        startOfContour = contour.endOfContour;
-        RIVE_DEBUG_CODE(++pushedContourCount);
+
+        // Push a path record.
+        bool isClipPath = currentPathIdx != finalPathIdx;
+        PaintType paintType = isClipPath ? PaintType::clipReplace : finalPathPaint->getType();
+        PLSBlendMode blendMode =
+            isClipPath ? PLSBlendMode::srcOver : finalPathPaint->getBlendMode();
+
+        m_context->pushPath(path.triangulator ? PatchType::outerCurves : PatchType::midpointFan,
+                            *path.matrix,
+                            isClipPath ? 0 : strokeRadius,
+                            path.fillRule,
+                            paintType,
+                            path.clipID,
+                            blendMode,
+                            isClipPath ? PaintData{} : paintData,
+                            path.tessVertexCount,
+                            path.paddingVertexCount);
+
+        RIVE_DEBUG_CODE(uint32_t pathStartingTessVertexCount = m_context->currentTessVertexCount();)
+
+        if (path.triangulator != nullptr)
+        {
+            // This path is drawn with the interior triangulation algorithm instead.
+            interiorTriHelper.processPath(InteriorTriangulationHelper::PathOp::submitOuterCubics,
+                                          m_context,
+                                          &path);
+            m_context->pushInteriorTriangulation(path.triangulator,
+                                                 paintType,
+                                                 path.clipID,
+                                                 blendMode);
+            assert(m_context->currentTessVertexCount() ==
+                   pathStartingTessVertexCount + path.tessVertexCount);
+            continue;
+        }
+
+        RIVE_DEBUG_CODE(++pushedPathCount);
+        startOfContour = path.rawPath->begin();
+
+        assert(contour == endContour || contour->pathIdx >= currentPathIdx);
+        RIVE_DEBUG_CODE(uint32_t contourStartingTessVertexCount =
+                            m_context->currentTessVertexCount() + path.paddingVertexCount;)
+        for (; contour != endContour && contour->pathIdx == currentPathIdx; ++contour)
+        {
+            // Push a contour and curve records.
+            RIVE_DEBUG_CODE(m_pushedStrokeJoinCount = 0;)
+            RIVE_DEBUG_CODE(m_pushedStrokeCapCount = 0;)
+            pushContour(startOfContour,
+                        *contour,
+                        curveIdx,
+                        rotationIdx,
+                        strokeMatrixMaxScale,
+                        currentPathIdx == strokeIdx ? finalPathPaint : nullptr);
+            assert(m_pushedCurveCount == contour->endCurveIdx);
+            assert(m_pushedRotationCount == contour->endRotationIdx);
+            assert(m_pushedStrokeJoinCount ==
+                   (currentPathIdx == strokeIdx ? contour->strokeJoinCount : 0));
+            assert(m_pushedStrokeCapCount == (contour->strokeCapSegmentCount != 0 ? 2 : 0));
+            assert(m_context->currentTessVertexCount() ==
+                   contourStartingTessVertexCount + contour->tessVertexCount);
+            curveIdx = contour->endCurveIdx;
+            rotationIdx = contour->endRotationIdx;
+            startOfContour = contour->endOfContour;
+            RIVE_DEBUG_CODE(++pushedContourCount);
+            RIVE_DEBUG_CODE(contourStartingTessVertexCount = m_context->currentTessVertexCount();)
+        }
+        assert(contourStartingTessVertexCount ==
+               pathStartingTessVertexCount + path.tessVertexCount);
     }
 
     // Make sure we only pushed the amount of data we reserved.
@@ -944,7 +1270,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     assert(m_pushedCurveCount == curveCount);
     assert(m_pushedRotationCount == rotationCount);
     assert(m_pushedEmptyStrokeCountForCaps == emptyStrokeCountForCaps);
-    assert(m_pushedTessVertexCount == tessVertexCount);
+    assert(m_context->currentTessVertexCount() == batchStartingTessVertexCount + tessVertexCount);
+    assert(interiorTriHelper.didSubmitAllData());
     return true;
 }
 
@@ -989,7 +1316,6 @@ void PLSRenderer::pushContour(RawPath::Iter iter,
 
     // Make a data record for this current contour on the GPU.
     m_context->pushContour(contour.midpoint, contour.closed, contour.paddingVertexCount);
-    RIVE_DEBUG_CODE(m_pushedTessVertexCount += contour.paddingVertexCount;)
 
     // Convert all curves in the contour to cubics and push them to the GPU.
     const int styleFlags = style_flags(strokePaint != nullptr, roundJoinStroked);
@@ -1062,7 +1388,6 @@ void PLSRenderer::pushContour(RawPath::Iter iter,
                 m_context
                     ->pushCubic(cubic.data(), joinTangent, joinTypeFlags, 1, 1, joinSegmentCount);
                 RIVE_DEBUG_CODE(++m_pushedLineCount;)
-                RIVE_DEBUG_CODE(m_pushedTessVertexCount += 2 + joinSegmentCount - 1;)
                 break;
             }
             case StyledVerb::roundJoinStrokedQuad:
@@ -1131,8 +1456,6 @@ void PLSRenderer::pushContour(RawPath::Iter iter,
                                          parametricSegmentCount,
                                          polarSegmentCount,
                                          1);
-                    RIVE_DEBUG_CODE(m_pushedTessVertexCount +=
-                                    parametricSegmentCount + polarSegmentCount;)
                 }
                 // Push the final chop, with a join.
                 uint32_t parametricSegmentCount = m_parametricSegmentCounts[curveIdx++];
@@ -1169,15 +1492,12 @@ void PLSRenderer::pushContour(RawPath::Iter iter,
                                      parametricSegmentCount,
                                      polarSegmentCount,
                                      joinSegmentCount);
-                RIVE_DEBUG_CODE(m_pushedTessVertexCount +=
-                                parametricSegmentCount + polarSegmentCount + joinSegmentCount - 1;)
                 break;
             }
             case StyledVerb::filledCubic:
             {
                 uint32_t parametricSegmentCount = m_parametricSegmentCounts[curveIdx++];
                 m_context->pushCubic(iter.cubicPts(), Vec2D{}, 0, parametricSegmentCount, 1, 1);
-                RIVE_DEBUG_CODE(m_pushedTessVertexCount += parametricSegmentCount + 1;)
                 break;
             }
         }
@@ -1217,7 +1537,6 @@ void PLSRenderer::pushContour(RawPath::Iter iter,
             }
             m_context->pushCubic(cubic.data(), joinTangent, joinTypeFlags, 1, 1, joinSegmentCount);
             RIVE_DEBUG_CODE(++m_pushedLineCount;)
-            RIVE_DEBUG_CODE(m_pushedTessVertexCount += 2 + joinSegmentCount - 1;)
         }
     }
 
@@ -1240,7 +1559,6 @@ void PLSRenderer::pushEmulatedStrokeCapAsJoinBeforeCubic(const Vec2D cubic[],
                          strokeCapSegmentCount);
     RIVE_DEBUG_CODE(++m_pushedStrokeCapCount;)
     RIVE_DEBUG_CODE(++m_pushedEmptyStrokeCountForCaps;)
-    RIVE_DEBUG_CODE(m_pushedTessVertexCount += strokeCapSegmentCount - 1;)
 }
 
 void PLSRenderer::intermediateFlush()

@@ -33,7 +33,7 @@ EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
 #endif
 
 PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
-                                       const GLExtensions& extensions,
+                                       GLExtensions extensions,
                                        std::unique_ptr<PLSImpl> plsImpl) :
     PLSRenderContext(platformFeatures), m_extensions(extensions), m_plsImpl(std::move(plsImpl))
 
@@ -48,10 +48,8 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                  "#version %d%d0\n",
                  GLAD_GL_version_major,
                  GLAD_GL_version_minor);
-        m_supportsBaseInstanceInShader = GLAD_IS_GL_VERSION_AT_LEAST(4, 6);
     }
 #endif
-    assert(!m_supportsBaseInstanceInShader || m_extensions.EXT_base_instance);
 
     m_colorRampProgram = glCreateProgram();
     const char* colorRampSources[] = {glsl::common, glsl::color_ramp};
@@ -75,7 +73,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                           0);
 
     glGenVertexArrays(1, &m_colorRampVAO);
-    glBindVertexArray(m_colorRampVAO);
+    bindVAO(m_colorRampVAO);
     glEnableVertexAttribArray(0);
     glVertexAttribDivisor(0, 1);
 
@@ -98,12 +96,17 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                                     2,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_tessellateProgram);
+    bindProgram(m_tessellateProgram);
     glUniformBlockBinding(m_tessellateProgram,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
                           0);
+    glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathTexture),
+                kGLTexIdxOffset + kPathTextureIdx);
+    glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourTexture),
+                kGLTexIdxOffset + kContourTextureIdx);
 
     glGenVertexArrays(1, &m_tessellateVAO);
-    glBindVertexArray(m_tessellateVAO);
+    bindVAO(m_tessellateVAO);
     for (int i = 0; i < 4; ++i)
     {
         glEnableVertexAttribArray(i);
@@ -113,24 +116,28 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     glGenFramebuffers(1, &m_tessellateFBO);
 
     glGenVertexArrays(1, &m_drawVAO);
-    glBindVertexArray(m_drawVAO);
+    bindVAO(m_drawVAO);
 
-    WedgeVertex wedgeVertices[kOuterStrokeWedgeVertexCount];
-    uint16_t wedgeIndices[kOuterStrokeWedgeIndexCount];
-    GenerateWedgeTriangles(wedgeVertices, wedgeIndices, WedgeType::outerStroke);
+    PatchVertex patchVertices[kPatchVertexBufferCount];
+    uint16_t patchIndices[kPatchIndexBufferCount];
+    GeneratePatchBufferData(patchVertices, patchIndices);
 
-    glGenBuffers(1, &m_pathWedgeVertexBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, m_pathWedgeVertexBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(wedgeVertices), wedgeVertices, GL_STATIC_DRAW);
+    glGenBuffers(1, &m_patchVerticesBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, m_patchVerticesBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(patchVertices), patchVertices, GL_STATIC_DRAW);
 
-    glGenBuffers(1, &m_pathWedgeIndexBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_pathWedgeIndexBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(wedgeIndices), wedgeIndices, GL_STATIC_DRAW);
+    glGenBuffers(1, &m_patchIndicesBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_patchIndicesBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(patchIndices), patchIndices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
 
     glVertexAttribDivisor(3, 1);
+
+    glGenVertexArrays(1, &m_interiorTrianglesVAO);
+    bindVAO(m_interiorTrianglesVAO);
+    glEnableVertexAttribArray(0);
 
     glFrontFace(GL_CW);
 
@@ -163,8 +170,8 @@ PLSRenderContextGL::~PLSRenderContextGL()
     glDeleteFramebuffers(1, &m_tessellateFBO);
 
     glDeleteVertexArrays(1, &m_drawVAO);
-    glDeleteBuffers(1, &m_pathWedgeVertexBuffer);
-    glDeleteBuffers(1, &m_pathWedgeIndexBuffer);
+    glDeleteBuffers(1, &m_patchVerticesBuffer);
+    glDeleteBuffers(1, &m_patchIndicesBuffer);
 }
 
 std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeVertexBufferRing(size_t capacity,
@@ -224,7 +231,10 @@ public:
     DrawShader(const DrawShader&) = delete;
     DrawShader& operator=(const DrawShader&) = delete;
 
-    DrawShader(PLSRenderContextGL* context, GLenum shaderType, const ShaderFeatures& shaderFeatures)
+    DrawShader(PLSRenderContextGL* context,
+               GLenum shaderType,
+               DrawType drawType,
+               const ShaderFeatures& shaderFeatures)
     {
         auto sourceType =
             shaderType == GL_VERTEX_SHADER ? SourceType::vertexOnly : SourceType::wholeProgram;
@@ -232,6 +242,10 @@ public:
         std::vector<const char*> defines;
         defines.push_back(context->m_plsImpl->shaderDefineName());
         uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
+        if (drawType == DrawType::interiorTriangulation)
+        {
+            defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
+        }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
         {
             defines.push_back(GLSL_ENABLE_ADVANCED_BLEND);
@@ -248,7 +262,8 @@ public:
         {
             defines.push_back(GLSL_ENABLE_HSL_BLEND_MODES);
         }
-        if (shaderType == GL_VERTEX_SHADER && !context->m_supportsBaseInstanceInShader)
+        if (shaderType == GL_VERTEX_SHADER &&
+            !context->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
         {
             defines.push_back(GLSL_BASE_INSTANCE_POLYFILL);
         }
@@ -288,26 +303,27 @@ private:
 };
 
 PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
+                                             DrawType drawType,
                                              const ShaderFeatures& shaderFeatures)
 {
     m_id = glCreateProgram();
 
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
-    uint64_t vertexShaderKey = shaderFeatures.getPreprocessorDefines(SourceType::vertexOnly);
+    uint32_t vertexShaderKey = ShaderUniqueKey(SourceType::vertexOnly, drawType, shaderFeatures);
     const DrawShader& vertexShader =
         context->m_vertexShaders
-            .try_emplace(vertexShaderKey, context, GL_VERTEX_SHADER, shaderFeatures)
+            .try_emplace(vertexShaderKey, context, GL_VERTEX_SHADER, drawType, shaderFeatures)
             .first->second;
     glAttachShader(m_id, vertexShader.id());
 
     // Every fragment shader is unique.
-    DrawShader fragmentShader(context, GL_FRAGMENT_SHADER, shaderFeatures);
+    DrawShader fragmentShader(context, GL_FRAGMENT_SHADER, drawType, shaderFeatures);
     glAttachShader(m_id, fragmentShader.id());
 
     glutils::LinkProgram(m_id);
 
-    glUseProgram(m_id);
+    context->bindProgram(m_id);
     glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), 0);
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kGLTexIdxOffset + kTessVertexTextureIdx);
@@ -315,7 +331,7 @@ PLSRenderContextGL::DrawProgram::DrawProgram(PLSRenderContextGL* context,
     glUniform1i(glGetUniformLocation(m_id, GLSL_contourTexture),
                 kGLTexIdxOffset + kContourTextureIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kGLTexIdxOffset + kGradTextureIdx);
-    if (!context->m_supportsBaseInstanceInShader)
+    if (!context->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         m_baseInstancePolyfillLocation = glGetUniformLocation(m_id, GLSL_baseInstancePolyfill);
     }
@@ -348,8 +364,8 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     if (gradSpanCount > 0)
     {
         glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
-        glBindVertexArray(m_colorRampVAO);
-        glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, sizeof(GradientSpan), nullptr);
+        bindVAO(m_colorRampVAO);
+        glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, 0, nullptr);
         glViewport(0, gradTextureRowsForSimpleRamps(), kGradTextureWidth, gradSpansHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
         glFramebufferTexture2D(GL_FRAMEBUFFER,
@@ -357,7 +373,7 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                                GL_TEXTURE_2D,
                                gl_texture_id(gradTexelBufferRing()),
                                0);
-        glUseProgram(m_colorRampProgram);
+        bindProgram(m_colorRampProgram);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gradSpanCount);
     }
 
@@ -365,7 +381,7 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     if (tessVertexSpanCount > 0)
     {
         glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
-        glBindVertexArray(m_tessellateVAO);
+        bindVAO(m_tessellateVAO);
         for (int i = 0; i < 3; ++i)
         {
             glVertexAttribPointer(i,
@@ -382,7 +398,7 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                                reinterpret_cast<const void*>(offsetof(TessVertexSpan, x0x1)));
         glViewport(0, 0, kTessTextureWidth, tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
-        glUseProgram(m_tessellateProgram);
+        bindProgram(m_tessellateProgram);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount);
     }
 
@@ -390,18 +406,27 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while active.)
     size_t drawIdx = 0;
     auto drawPrograms = reinterpret_cast<const DrawProgram**>(
-        m_perFlushAllocator.alloc(sizeof(void*) * m_drawListCount));
+        trivialPerFlushAllocator()->alloc(sizeof(void*) * m_drawListCount));
     for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
     {
         // Compile the draw program before activating pixel local storage.
         // Cache specific compilations of draw.glsl by ShaderFeatures.
         const ShaderFeatures& shaderFeatures = draw->shaderFeatures;
-        uint64_t fragmentShaderKey =
-            shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
+        uint32_t fragmentShaderKey =
+            ShaderUniqueKey(SourceType::wholeProgram, draw->drawType, shaderFeatures);
         drawPrograms[drawIdx] =
-            &m_drawPrograms.try_emplace(fragmentShaderKey, this, shaderFeatures).first->second;
+            &m_drawPrograms.try_emplace(fragmentShaderKey, this, draw->drawType, shaderFeatures)
+                 .first->second;
     }
     assert(drawIdx == m_drawListCount);
+
+    // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
+    if (m_maxTriangleVertexCount > 0)
+    {
+        bindVAO(m_interiorTrianglesVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(triangleBufferRing()));
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    }
 
     glViewport(0, 0, renderTarget()->width(), renderTarget()->height());
 
@@ -415,41 +440,59 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
 
     m_plsImpl->activatePixelLocalStorage(this, renderTarget(), loadAction, needsClipBuffer);
 
-    // Issue all the draws.
-    glBindVertexArray(m_drawVAO);
+    // Execute the DrawList.
     drawIdx = 0;
-    for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
+    for (const DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
     {
-        // Draw wedges connecting all tessellated vertices.
-        const DrawProgram* drawProgram = drawPrograms[drawIdx];
-        glUseProgram(drawProgram->id());
-        size_t wedgeInstanceCount = draw->vertexCount / kWedgeSize;
-        assert(wedgeInstanceCount > 0);
-        assert(wedgeInstanceCount * kWedgeSize == draw->vertexCount);
-        size_t wedgeBaseInstance = draw->baseVertex / kWedgeSize;
-        assert(wedgeBaseInstance * kWedgeSize == draw->baseVertex);
-        if (m_supportsBaseInstanceInShader)
+        if (draw->vertexOrInstanceCount == 0)
         {
-            glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
-                                                   kOuterStrokeWedgeIndexCount,
-                                                   GL_UNSIGNED_SHORT,
-                                                   nullptr,
-                                                   wedgeInstanceCount,
-                                                   wedgeBaseInstance);
+            continue;
         }
-        else
+        const DrawProgram* drawProgram = drawPrograms[drawIdx];
+        bindProgram(drawProgram->id());
+        switch (DrawType drawType = draw->drawType)
         {
-            glUniform1i(drawProgram->baseInstancePolyfillLocation(), wedgeBaseInstance);
-            glDrawElementsInstanced(GL_TRIANGLES,
-                                    kOuterStrokeWedgeIndexCount,
-                                    GL_UNSIGNED_SHORT,
-                                    nullptr,
-                                    wedgeInstanceCount);
+            case DrawType::midpointFanPatches:
+            case DrawType::outerCurvePatches:
+            {
+                // Draw PLS patches that connect the tessellation vertices.
+                m_plsImpl->ensureRasterOrderingEnabled(true);
+                bindVAO(m_drawVAO);
+                uint32_t indexCount = PatchIndexCount(drawType);
+                void* indexOffset = reinterpret_cast<void*>(PatchIndexOffset(drawType));
+                if (m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
+                {
+                    glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
+                                                           indexCount,
+                                                           GL_UNSIGNED_SHORT,
+                                                           indexOffset,
+                                                           draw->vertexOrInstanceCount,
+                                                           draw->baseVertexOrInstance);
+                }
+                else
+                {
+                    glUniform1i(drawProgram->baseInstancePolyfillLocation(),
+                                draw->baseVertexOrInstance);
+                    glDrawElementsInstanced(GL_TRIANGLES,
+                                            indexCount,
+                                            GL_UNSIGNED_SHORT,
+                                            indexOffset,
+                                            draw->vertexOrInstanceCount);
+                }
+                break;
+            }
+            case DrawType::interiorTriangulation:
+                // Draw generic triangles.
+                m_plsImpl->ensureRasterOrderingEnabled(false);
+                bindVAO(m_interiorTrianglesVAO);
+                glDrawArrays(GL_TRIANGLES, draw->baseVertexOrInstance, draw->vertexOrInstanceCount);
+                m_plsImpl->barrier();
+                break;
         }
     }
     assert(drawIdx == m_drawListCount);
 
-    m_plsImpl->deactivatePixelLocalStorage();
+    m_plsImpl->deactivatePixelLocalStorage(this);
 
 #ifdef RIVE_DESKTOP_GL
     if (m_extensions.ANGLE_polygon_mode && frameDescriptor().wireframe)
@@ -459,14 +502,36 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
 #endif
 }
 
+void PLSRenderContextGL::bindProgram(GLuint programID)
+{
+    if (programID != m_boundProgramID)
+    {
+        glUseProgram(programID);
+        m_boundProgramID = programID;
+    }
+}
+
+void PLSRenderContextGL::bindVAO(GLuint vao)
+{
+    if (vao != m_boundVAO)
+    {
+        glBindVertexArray(vao);
+        m_boundVAO = vao;
+    }
+}
+
 std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
 {
-    GLExtensions extensions;
+    GLExtensions extensions{};
     GLint extensionCount;
     glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
     for (int i = 0; i < extensionCount; ++i)
     {
         auto* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
+        if (strcmp(ext, "GL_ANGLE_base_vertex_base_instance_shader_builtin") == 0)
+        {
+            extensions.ANGLE_base_vertex_base_instance_shader_builtin = true;
+        }
         if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage") == 0)
         {
             extensions.ANGLE_shader_pixel_local_storage = true;
@@ -514,6 +579,10 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
     }
 #ifdef RIVE_DESKTOP_GL
     // We implement some ES extensions with core Desktop GL in glad_custom.c.
+    if (GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin)
+    {
+        extensions.ANGLE_base_vertex_base_instance_shader_builtin = true;
+    }
     if (GLAD_GL_ANGLE_polygon_mode)
     {
         extensions.ANGLE_polygon_mode = true;
@@ -554,7 +623,9 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
     if (extensions.EXT_shader_framebuffer_fetch)
     {
         return std::unique_ptr<PLSRenderContextGL>(
-            new PLSRenderContextGL(platformFeatures, extensions, MakePLSImplFramebufferFetch()));
+            new PLSRenderContextGL(platformFeatures,
+                                   extensions,
+                                   MakePLSImplFramebufferFetch(extensions)));
     }
 #endif
 

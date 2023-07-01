@@ -59,11 +59,33 @@ private:
                                                const PLSRenderTargetGL*,
                                                LoadAction,
                                                bool needsClipBuffer) = 0;
-        virtual void deactivatePixelLocalStorage() = 0;
+        virtual void deactivatePixelLocalStorage(PLSRenderContextGL*) = 0;
 
         virtual const char* shaderDefineName() const = 0;
 
+        void ensureRasterOrderingEnabled(bool enabled)
+        {
+            if (m_rasterOrderingEnabled != enabled)
+            {
+                onBarrier();
+                onEnableRasterOrdering(enabled);
+                m_rasterOrderingEnabled = enabled;
+            }
+        }
+
+        virtual void barrier()
+        {
+            assert(!m_rasterOrderingEnabled);
+            onBarrier();
+        }
+
         virtual ~PLSImpl() {}
+
+    private:
+        virtual void onEnableRasterOrdering(bool enabled) {}
+        virtual void onBarrier() {}
+
+        bool m_rasterOrderingEnabled = true;
     };
 
     class PLSImplEXTNative;
@@ -72,7 +94,7 @@ private:
     class PLSImplRWTexture;
 
     static std::unique_ptr<PLSImpl> MakePLSImplEXTNative();
-    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch();
+    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch(GLExtensions);
     static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
     static std::unique_ptr<PLSImpl> MakePLSImplRWTexture();
 
@@ -83,7 +105,7 @@ private:
     public:
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
-        DrawProgram(PLSRenderContextGL* context, const ShaderFeatures& shaderFeatures);
+        DrawProgram(PLSRenderContextGL*, DrawType, const ShaderFeatures&);
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
@@ -96,9 +118,7 @@ private:
 
     class DrawShader;
 
-    PLSRenderContextGL(const PlatformFeatures&,
-                       const GLExtensions& extensions,
-                       std::unique_ptr<PLSImpl>);
+    PLSRenderContextGL(const PlatformFeatures&, GLExtensions, std::unique_ptr<PLSImpl>);
 
     const PLSRenderTargetGL* renderTarget() const
     {
@@ -128,11 +148,14 @@ private:
                  size_t tessDataHeight,
                  bool needsClipBuffer) override;
 
+    // GL state wrapping.
+    void bindProgram(GLuint);
+    void bindVAO(GLuint);
+
     GLExtensions m_extensions;
 
     constexpr static size_t kShaderVersionStringBuffSize = sizeof("#version 300 es\n") + 1;
     char m_shaderVersionString[kShaderVersionStringBuffSize];
-    bool m_supportsBaseInstanceInShader = false;
 
     std::unique_ptr<PLSImpl> m_plsImpl;
 
@@ -148,10 +171,15 @@ private:
     GLuint m_tessVertexTexture = 0;
 
     // Not all programs have a unique vertex shader, so we cache and reuse them where possible.
-    std::map<uint64_t, DrawShader> m_vertexShaders;
-    std::map<uint64_t, DrawProgram> m_drawPrograms;
+    std::map<uint32_t, DrawShader> m_vertexShaders;
+    std::map<uint32_t, DrawProgram> m_drawPrograms;
     GLuint m_drawVAO;
-    GLuint m_pathWedgeVertexBuffer;
-    GLuint m_pathWedgeIndexBuffer;
+    GLuint m_interiorTrianglesVAO;
+    GLuint m_patchVerticesBuffer;
+    GLuint m_patchIndicesBuffer;
+
+    // Cached GL state.
+    GLuint m_boundProgramID = 0;
+    GLuint m_boundVAO = 0;
 };
 } // namespace rive::pls

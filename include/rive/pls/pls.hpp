@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/path_types.hpp"
 #include "rive/math/simd.hpp"
@@ -88,21 +89,32 @@ namespace flags
 {
 // Tells the GPU that a given vertex is the *first* tessellated vertex in its contour.
 //
-// When emitting wedges, this flag is how the GPU detects when it has crossed past the end of the
+// When emitting patches, this flag is how the GPU detects when it has crossed past the end of the
 // current contour. When this happens, the GPU knows to no not connect those two vertices, and
 // instead, either wraps back around to the beginning of the contour to close it, or else handles
 // the endcap if it's an open stroke.
 constexpr static uint32_t kFirstVertexOfContour = 1u << 31;
 
+// Tells shaders that a cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
+// This is used to squeeze in more rare triangles, like "breadcrumb" triangles from
+// self-intersections on interior triangulation, where it wouldn't be worth it to put them in their
+// own dedicated draw call.
+constexpr static uint32_t kRetrofittedTriangle = 1u << 30;
+
+// Tells the tessellation shader to re-run Wang's formula on the given curve, figure out how many
+// segments it actually needs, and make any excess segments degenerate by co-locating their vertices
+// at T=0. (Used on the "outerCurve" patches that are drawn with interior triangulations.)
+constexpr static uint32_t kCullExcessTessellationSegments = 1u << 29;
+
 // Flags for specifying the join type.
-constexpr static uint32_t kJoinTypeMask = 3u << 29;
-constexpr static uint32_t kMiterClipJoin = 3u << 29;   // Miter that clips when too sharp.
-constexpr static uint32_t kMiterRevertJoin = 2u << 29; // Standard miter that pops when too sharp.
-constexpr static uint32_t kBevelJoin = 1u << 29;
+constexpr static uint32_t kJoinTypeMask = 3u << 27;
+constexpr static uint32_t kMiterClipJoin = 3u << 27;   // Miter that clips when too sharp.
+constexpr static uint32_t kMiterRevertJoin = 2u << 27; // Standard miter that pops when too sharp.
+constexpr static uint32_t kBevelJoin = 1u << 27;
 
 // When a join is being used to emulate a stroke cap, the shader emits additional vertices at T=0
 // and T=1 for round joins, and changes the miter limit to 1 for miter-clip joins.
-constexpr static uint32_t kEmulatedStrokeCap = 1u << 28;
+constexpr static uint32_t kEmulatedStrokeCap = 1u << 26;
 
 RIVE_ALWAYS_INLINE static uint32_t JoinTypeFlags(StrokeJoin join)
 {
@@ -126,7 +138,7 @@ constexpr static uint32_t kGradient = 1u << 30;
 // Tells the GPU that a given gradient is a radial gradient.
 constexpr static uint32_t kRadialGradient = 1u << 29;
 
-// Says which part of the wedge instance a vertex belongs to.
+// Says which part of the patch a vertex belongs to.
 constexpr static int32_t kStrokeVertex = 0;
 constexpr static int32_t kFanVertex = 1;
 constexpr static int32_t kFanMidpointVertex = 2;
@@ -267,7 +279,7 @@ struct PathData
         uint32_t localParams = static_cast<uint32_t>(blendMode);
         localParams |= clipID << 4;
         localParams |= static_cast<uint32_t>(paintType) << 20;
-        if (fillRule == FillRule::evenOdd)
+        if (fillRule == FillRule::evenOdd && strokeRadius_ == 0)
         {
             localParams |= flags::kEvenOdd;
         }
@@ -328,8 +340,20 @@ struct TessVertexSpan
     uint32_t contourIDWithFlags; // flags | contourID
 };
 
-// Once all curves in a contour have been tessellated, we render "wedges" to connect the tessellated
-// vertices.
+// Per-vertex data for shaders that draw triangles.
+struct TriangleVertex
+{
+    TriangleVertex() = default;
+    TriangleVertex(Vec2D point_, int16_t weight, uint16_t pathID) :
+        point(point_), weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
+    {}
+    Vec2D point;
+    int32_t weight_pathID; // [(weight << 16]
+};
+static_assert(sizeof(TriangleVertex) == 3 * sizeof(float));
+
+// Once all curves in a contour have been tessellated, we render the tessellated vertices in
+// "patches" (aka specific instanced geometry).
 //
 // See:
 // https://docs.google.com/document/d/19Uk9eyFxav6dNSYsI2ZyiX9zHU1YOaJsMB2sdDFVz6s/edit#heading=h.fa4kubk3vimk
@@ -337,32 +361,68 @@ struct TessVertexSpan
 // With strokes:
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit#heading=h.dcd0c58pxfs5
 //
-// A single wedge instance spans "kWedgeSize" tessellation segments, and is composed of a an AA
-// border and fan triangles coming out from the midpoint in a middle-out topology.
-enum class WedgeType
+// A single patch spans N tessellation segments, connecting N + 1 tessellation vertices. It is
+// composed of a an AA border and fan triangles. The specifics of the fan triangles depend on the
+// PatchType.
+enum class PatchType
 {
-    centerStroke, // Fan vertices go the center of the stroke.
-    outerStroke   // Fan vertices are inset, and go to the inset edge of the stroke.
+    // Patches fan around the contour midpoint. Outer edges are inset by ~1px, followed by a ~1px AA
+    // ramp.
+    midpointFan,
+
+    // Patches only cover the AA ramps and interiors of bezier curves. The interior path triangles
+    // that connect the outer curves are triangulated on the CPU to eliminate overlap, and are drawn
+    // in a separate call. AA ramps are split down the middle (on the same lines as the interior
+    // triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset AA ramp that
+    // overlaps the inner tessellation and has negative coverage. A lone bowtie join is emitted at
+    // the end of the patch to tie the outer curves together.
+    outerCurves,
 };
 
-struct WedgeVertex
+struct PatchVertex
 {
     float localVertexID; // 0 or 1 -- which tessellated vertex of the two that we are connecting?
     float outset;        // Outset from the tessellated position, in the direction of the normal.
     float fillCoverage;  // 0..1 for the stroke. 1 all around for the triangles.
                          // (Coverage will be negated later for counterclockwise triangles.)
-    int32_t params;      // "(wedgeSize << 2) | [flags::kStrokeVertex,
+    int32_t params;      // "(patchSize << 2) | [flags::kStrokeVertex,
                          //                      flags::kFanVertex,
                          //                      flags::kFanMidpointVertex]"
 };
 
-constexpr static int kWedgeSize = 8; // # of tessellation segments spanned by the instance.
+// # of tessellation segments spanned by the midpoint fan patch.
+constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
 
-constexpr static int kCenterStrokeWedgeVertexCount = (kWedgeSize + 1) * 4 + 1;
-constexpr static int kCenterStrokeWedgeIndexCount = kWedgeSize * 15;
+// # of tessellation segments spanned by the outer curve patch. (In this particular instance, the
+// final segment is a bowtie join with zero length and no fan triangle.)
+constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
 
-constexpr static int kOuterStrokeWedgeVertexCount = (kWedgeSize + 1) * 3 + 1;
-constexpr static int kOuterStrokeWedgeIndexCount = kWedgeSize * 9;
+// Define vertex and index buffers that contain all the triangles in every PatchType.
+constexpr static uint32_t kMidpointFanPatchVertexCount =
+    (kMidpointFanPatchSegmentSpan + 1) * 2 /*AA outer ramp*/ +
+    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ + 1 /*Triangle from path midpoint*/;
+constexpr static uint32_t kMidpointFanPatchIndexCount =
+    kMidpointFanPatchSegmentSpan * 6 /*AA outer ramp*/ +
+    (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ + 3 /*Triangle from path midpoint*/;
+constexpr static uint32_t kMidpointFanPatchIndexOffset = 0;
+static_assert(kMidpointFanPatchIndexOffset % 4 == 0);
+constexpr static uint32_t kOuterCurvePatchVertexCount =
+    (kOuterCurvePatchSegmentSpan + 1) * 3 /*AA center ramp with bowtie*/ +
+    kOuterCurvePatchSegmentSpan /*Curve fan*/;
+constexpr static uint32_t kOuterCurvePatchIndexCount =
+    kOuterCurvePatchSegmentSpan * 12 /*AA center ramp with bowtie*/ +
+    (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
+constexpr static uint32_t kOuterCurvePatchIndexOffset =
+    kMidpointFanPatchIndexCount * sizeof(uint16_t);
+static_assert(kOuterCurvePatchIndexOffset % 4 == 0);
+constexpr static uint32_t kPatchVertexBufferCount =
+    kMidpointFanPatchVertexCount + kOuterCurvePatchVertexCount;
+constexpr static uint32_t kPatchIndexBufferCount =
+    kMidpointFanPatchIndexCount + kOuterCurvePatchIndexCount;
+void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
+                             uint16_t indices[kPatchIndexBufferCount]);
 
-void GenerateWedgeTriangles(WedgeVertex[], uint16_t indices[], WedgeType);
+// Returns the area of the (potentially non-rectangular) quadrilateral that results from
+// transforming the given bounds by the given matrix.
+float FindTransformedArea(const AABB& bounds, const Mat2D&);
 } // namespace rive::pls

@@ -102,8 +102,9 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
 
 void ChopCubicAt(const Vec2D src[4], Vec2D dst[], const float tValues[], int tCount)
 {
-    assert(std::all_of(tValues, tValues + tCount, [](float t) { return t >= 0 && t <= 1; }));
-    assert(std::is_sorted(tValues, tValues + tCount));
+    assert(tValues == nullptr ||
+           std::all_of(tValues, tValues + tCount, [](float t) { return t >= 0 && t <= 1; }));
+    assert(tValues == nullptr || std::is_sorted(tValues, tValues + tCount));
 
     if (dst)
     {
@@ -115,14 +116,20 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[], const float tValues[], int tCo
         else
         {
             int i = 0;
+            float lastT = 0;
             for (; i < tCount - 1; i += 2)
             {
                 // Do two chops at once.
-                float2 tt = simd::load2f(tValues + i);
-                if (i != 0)
+                float2 tt;
+                if (tValues != nullptr)
                 {
-                    float lastT = tValues[i - 1];
+                    tt = simd::load2f(tValues + i);
                     tt = simd::clamp((tt - lastT) / (1 - lastT), float2(0), float2(1));
+                    lastT = tValues[i + 1];
+                }
+                else
+                {
+                    tt = float2{1, 2} / static_cast<float>(tCount + 1 - i);
                 }
                 ChopCubicAt(src, dst, tt[0], tt[1]);
                 src = dst = dst + 6;
@@ -131,13 +138,8 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[], const float tValues[], int tCo
             {
                 // Chop the final cubic if there was an odd number of chops.
                 assert(i + 1 == tCount);
-                float t = tValues[i];
-                if (i != 0)
-                {
-                    float lastT = tValues[i - 1];
-                    t = simd::clamp<float, 1>(math::ieee_float_divide(t - lastT, 1 - lastT), 0, 1)
-                            .x;
-                }
+                float t = tValues != nullptr ? tValues[i] : .5f;
+                t = simd::clamp<float, 1>(math::ieee_float_divide(t - lastT, 1 - lastT), 0, 1).x;
                 ChopCubicAt(src, dst, t);
             }
         }

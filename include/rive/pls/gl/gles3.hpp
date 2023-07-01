@@ -4,19 +4,23 @@
 
 #pragma once
 
+#include <string.h>
+
 struct GLExtensions
 {
-    bool ANGLE_shader_pixel_local_storage = false;
-    bool ANGLE_shader_pixel_local_storage_coherent = false;
-    bool ANGLE_polygon_mode = false;
-    bool ANGLE_provoking_vertex = false;
-    bool ARM_shader_framebuffer_fetch = false;
-    bool ARB_fragment_shader_interlock = false;
-    bool EXT_base_instance = false;
-    bool INTEL_fragment_shader_ordering = false;
-    bool EXT_shader_framebuffer_fetch = false;
-    bool EXT_shader_pixel_local_storage = false;
-    bool QCOM_shader_framebuffer_fetch_noncoherent = false;
+    bool ANGLE_base_vertex_base_instance_shader_builtin : 1;
+    bool ANGLE_shader_pixel_local_storage : 1;
+    bool ANGLE_shader_pixel_local_storage_coherent : 1;
+    bool ANGLE_polygon_mode : 1;
+    bool ANGLE_provoking_vertex : 1;
+    bool ARM_shader_framebuffer_fetch : 1;
+    bool ARB_fragment_shader_interlock : 1;
+    bool EXT_base_instance : 1;
+    bool INTEL_fragment_shader_ordering : 1;
+    bool EXT_shader_framebuffer_fetch : 1;
+    bool EXT_shader_pixel_local_storage : 1;
+    bool QCOM_shader_framebuffer_fetch_noncoherent : 1;
+    GLExtensions() { memset(this, 0, sizeof(*this)); }
 };
 
 #ifdef RIVE_DESKTOP_GL
@@ -63,6 +67,7 @@ extern PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC glDrawArraysInstancedBaseInst
 extern PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC glDrawElementsInstancedBaseInstanceEXT;
 extern PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
     glDrawElementsInstancedBaseVertexBaseInstanceEXT;
+extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 #endif
 
 #ifdef RIVE_IOS

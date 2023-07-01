@@ -24,21 +24,21 @@ VERTEX_MAIN(
     @colorRampVertexMain,
     Varyings,
     varyings,
-    uint GLSL_VERTEX_ID [[vertex_id]],
-    uint GLSL_INSTANCE_ID [[instance_id]],
+    uint VERTEX_ID [[vertex_id]],
+    uint INSTANCE_ID [[instance_id]],
     constant @Uniforms& uniforms [[buffer(0)]],
     constant Attrs* attrs [[buffer(1)]]
 #endif
 )
 {
-    ATTR_LOAD(uint4, attrs, span, GLSL_INSTANCE_ID);
+    ATTR_LOAD(uint4, attrs, span, INSTANCE_ID);
     uint horizontalSpan = span.x;
     float2 coord = float2(
-        float((GLSL_VERTEX_ID & 1) == 0 ? horizontalSpan & 0xffffu : horizontalSpan >> 16) / 65536.,
-        float(span.y) + ((GLSL_VERTEX_ID & 2) == 0 ? .0 : 1.));
-    FLD(varyings, rampColor) = unpackColorInt((GLSL_VERTEX_ID & 1) == 0 ? span.z : span.w);
-    GLSL_POSITION.xy = coord * float2(2, uniforms.gradInverseViewportY) - 1.;
-    GLSL_POSITION.zw = float2(0, 1);
+        float((VERTEX_ID & 1) == 0 ? horizontalSpan & 0xffffu : horizontalSpan >> 16) / 65536.,
+        float(span.y) + ((VERTEX_ID & 2) == 0 ? .0 : 1.));
+    FLD(varyings, rampColor) = unpackColorInt((VERTEX_ID & 1) == 0 ? span.z : span.w);
+    POSITION.xy = coord * float2(2, uniforms.gradInverseViewportY) - 1.;
+    POSITION.zw = float2(0, 1);
     EMIT_OFFSCREEN_VERTEX(varyings);
 }
 #endif

@@ -111,44 +111,38 @@ bool GrTriangulator::Comparator::sweep_lt(const Vec2D& a, const Vec2D& b) const
     return fDirection == Direction::kHorizontal ? sweep_lt_horiz(a, b) : sweep_lt_vert(a, b);
 }
 
-static inline skgpu::VertexWriter emit_vertex(Vertex* v,
-                                              // bool emitCoverage,
-                                              skgpu::VertexWriter data)
+static inline void emit_vertex(Vertex* v,
+                               int winding,
+                               uint16_t pathID,
+                               pls::BufferRing<pls::TriangleVertex>* bufferRing)
 {
-    data << v->fPoint;
-
-#if 0
-    if (emitCoverage)
-    {
-        data << GrNormalizeByteToFloat(v->fAlpha);
-    }
-#endif
-
-    return data;
+    // GrTriangulator and pls unfortunately have opposite winding senses.
+    int16_t plsWeight = -winding;
+    bufferRing->emplace_back(v->fPoint, plsWeight, pathID);
 }
 
-static skgpu::VertexWriter emit_triangle(Vertex* v0,
-                                         Vertex* v1,
-                                         Vertex* v2,
-                                         // bool emitCoverage,
-                                         skgpu::VertexWriter data)
+static void emit_triangle(Vertex* v0,
+                          Vertex* v1,
+                          Vertex* v2,
+                          int winding,
+                          uint16_t pathID,
+                          pls::BufferRing<pls::TriangleVertex>* bufferRing)
 {
     TESS_LOG("emit_triangle %g (%g, %g) %d\n", v0->fID, v0->fPoint.x, v0->fPoint.y, v0->fAlpha);
     TESS_LOG("              %g (%g, %g) %d\n", v1->fID, v1->fPoint.x, v1->fPoint.y, v1->fAlpha);
     TESS_LOG("              %g (%g, %g) %d\n", v2->fID, v2->fPoint.x, v2->fPoint.y, v2->fAlpha);
 #if TESSELLATOR_WIREFRAME
-    data = emit_vertex(v0 /*, emitCoverage*/, std::move(data));
-    data = emit_vertex(v1 /*, emitCoverage*/, std::move(data));
-    data = emit_vertex(v1 /*, emitCoverage*/, std::move(data));
-    data = emit_vertex(v2 /*, emitCoverage*/, std::move(data));
-    data = emit_vertex(v2 /*, emitCoverage*/, std::move(data));
-    data = emit_vertex(v0 /*, emitCoverage*/, std::move(data));
+    emit_vertex(v0, winding, pathID, bufferRing);
+    emit_vertex(v1, winding, pathID, bufferRing);
+    emit_vertex(v1, winding, pathID, bufferRing);
+    emit_vertex(v2, winding, pathID, bufferRing);
+    emit_vertex(v2, winding, pathID, bufferRing);
+    emit_vertex(v0, winding, pathID, bufferRing);
 #else
-    data = emit_vertex(v0 /*, emitCoverage*/, std::move(data));
-    data = emit_vertex(v1 /*, emitCoverage*/, std::move(data));
-    data = emit_vertex(v2 /*, emitCoverage*/, std::move(data));
+    emit_vertex(v0, winding, pathID, bufferRing);
+    emit_vertex(v1, winding, pathID, bufferRing);
+    emit_vertex(v2, winding, pathID, bufferRing);
 #endif
-    return data;
 }
 
 void GrTriangulator::VertexList::insert(Vertex* v, Vertex* prev, Vertex* next)
@@ -413,8 +407,9 @@ void GrTriangulator::MonotonePoly::addEdge(Edge* edge)
     }
 }
 
-skgpu::VertexWriter GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
-                                                     skgpu::VertexWriter data) const
+void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
+                                      uint16_t pathID,
+                                      pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
     assert(monotonePoly->fWinding != 0);
     Edge* e = monotonePoly->fFirstEdge;
@@ -445,7 +440,7 @@ skgpu::VertexWriter GrTriangulator::emitMonotonePoly(const MonotonePoly* monoton
         Vertex* next = v->fNext;
         if (count == 3)
         {
-            return this->emitTriangle(prev, curr, next, monotonePoly->fWinding, std::move(data));
+            return emitTriangle(prev, curr, next, monotonePoly->fWinding, pathID, bufferRing);
         }
         double ax = static_cast<double>(curr->fPoint.x) - prev->fPoint.x;
         double ay = static_cast<double>(curr->fPoint.y) - prev->fPoint.y;
@@ -453,7 +448,7 @@ skgpu::VertexWriter GrTriangulator::emitMonotonePoly(const MonotonePoly* monoton
         double by = static_cast<double>(next->fPoint.y) - curr->fPoint.y;
         if (ax * by - ay * bx >= 0.0)
         {
-            data = this->emitTriangle(prev, curr, next, monotonePoly->fWinding, std::move(data));
+            emitTriangle(prev, curr, next, monotonePoly->fWinding, pathID, bufferRing);
             v->fPrev->fNext = v->fNext;
             v->fNext->fPrev = v->fPrev;
             count--;
@@ -471,14 +466,14 @@ skgpu::VertexWriter GrTriangulator::emitMonotonePoly(const MonotonePoly* monoton
             v = v->fNext;
         }
     }
-    return data;
 }
 
-skgpu::VertexWriter GrTriangulator::emitTriangle(Vertex* prev,
-                                                 Vertex* curr,
-                                                 Vertex* next,
-                                                 int winding,
-                                                 skgpu::VertexWriter data) const
+void GrTriangulator::emitTriangle(Vertex* prev,
+                                  Vertex* curr,
+                                  Vertex* next,
+                                  int winding,
+                                  uint16_t pathID,
+                                  pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
     if (winding > 0)
     {
@@ -486,13 +481,7 @@ skgpu::VertexWriter GrTriangulator::emitTriangle(Vertex* prev,
         // triangulated as a simple fan (a la red book).
         std::swap(prev, next);
     }
-    if (fCollectBreadcrumbTriangles && abs(winding) > 1 && fFillRule == FillRule::nonZero)
-    {
-        // The first winding count will come from the actual triangle we emit. The remaining counts
-        // come from the breadcrumb triangle.
-        fBreadcrumbList.append(fAlloc, prev->fPoint, curr->fPoint, next->fPoint, abs(winding) - 1);
-    }
-    return emit_triangle(prev, curr, next /*, fEmitCoverage*/, std::move(data));
+    return emit_triangle(prev, curr, next, winding, pathID, bufferRing);
 }
 
 GrTriangulator::Poly::Poly(Vertex* v, int winding) :
@@ -572,18 +561,20 @@ Poly* GrTriangulator::Poly::addEdge(Edge* e, Side side, GrTriangulator* tri)
     }
     return poly;
 }
-skgpu::VertexWriter GrTriangulator::emitPoly(const Poly* poly, skgpu::VertexWriter data) const
+
+void GrTriangulator::emitPoly(const Poly* poly,
+                              uint16_t pathID,
+                              pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
     if (poly->fCount < 3)
     {
-        return data;
+        return;
     }
     TESS_LOG("emit() %d, size %d\n", poly->fID, poly->fCount);
     for (MonotonePoly* m = poly->fHead; m != nullptr; m = m->fNext)
     {
-        data = this->emitMonotonePoly(m, std::move(data));
+        emitMonotonePoly(m, pathID, bufferRing);
     }
-    return data;
 }
 
 static bool coincident(const Vec2D& a, const Vec2D& b) { return a == b; }
@@ -678,7 +669,8 @@ void GrTriangulator::generateCubicPoints(const Vec2D& p0,
 
 // Stage 1: convert the input path to a set of linear contours (linked list of Vertices).
 
-void GrTriangulator::pathToContours(float tolerance,
+void GrTriangulator::pathToContours(const RawPath& path,
+                                    float tolerance,
                                     const AABB& clipBounds,
                                     VertexList* contours,
                                     bool* isLinear) const
@@ -702,7 +694,7 @@ void GrTriangulator::pathToContours(float tolerance,
     }
     SkAutoConicToQuads converter;
 #endif
-    for (const auto [verb, pts] : fPath)
+    for (const auto [verb, pts] : path)
     {
         switch (verb)
         {
@@ -798,7 +790,7 @@ bool GrTriangulator::applyFillType(int winding) const
     return apply_fill_type(fFillRule, winding);
 }
 
-static inline bool apply_fill_type(FillRule fillType, Poly* poly)
+static inline bool apply_fill_type(FillRule fillType, const Poly* poly)
 {
     return poly && apply_fill_type(fillType, poly->fWinding);
 }
@@ -2079,18 +2071,18 @@ std::tuple<Poly*, bool> GrTriangulator::contoursToPolys(VertexList* contours, in
 }
 
 // Stage 6: Triangulate the monotone polygons into a vertex buffer.
-skgpu::VertexWriter GrTriangulator::polysToTriangles(Poly* polys,
-                                                     FillRule overrideFillType,
-                                                     skgpu::VertexWriter data) const
+void GrTriangulator::polysToTriangles(const Poly* polys,
+                                      FillRule overrideFillType,
+                                      uint16_t pathID,
+                                      pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
-    for (Poly* poly = polys; poly; poly = poly->fNext)
+    for (const Poly* poly = polys; poly; poly = poly->fNext)
     {
         if (apply_fill_type(overrideFillType, poly))
         {
-            data = this->emitPoly(poly, std::move(data));
+            emitPoly(poly, pathID, bufferRing);
         }
     }
-    return data;
 }
 
 static int get_contour_count(const RawPath& path, float tolerance)
@@ -2128,11 +2120,12 @@ static int get_contour_count(const RawPath& path, float tolerance)
     return contourCnt;
 }
 
-std::tuple<Poly*, bool> GrTriangulator::pathToPolys(float tolerance,
+std::tuple<Poly*, bool> GrTriangulator::pathToPolys(const RawPath& path,
+                                                    float tolerance,
                                                     const AABB& clipBounds,
                                                     bool* isLinear)
 {
-    int contourCnt = get_contour_count(fPath, tolerance);
+    int contourCnt = get_contour_count(path, tolerance);
     if (contourCnt <= 0)
     {
         *isLinear = true;
@@ -2147,14 +2140,14 @@ std::tuple<Poly*, bool> GrTriangulator::pathToPolys(float tolerance,
 #endif
     std::unique_ptr<VertexList[]> contours(new VertexList[contourCnt]);
 
-    this->pathToContours(tolerance, clipBounds, contours.get(), isLinear);
+    this->pathToContours(path, tolerance, clipBounds, contours.get(), isLinear);
     return this->contoursToPolys(contours.get(), contourCnt);
 }
 
-int64_t GrTriangulator::CountPoints(Poly* polys, FillRule overrideFillType)
+int64_t GrTriangulator::CountPoints(const Poly* polys, FillRule overrideFillType)
 {
     int64_t count = 0;
-    for (Poly* poly = polys; poly; poly = poly->fNext)
+    for (const Poly* poly = polys; poly; poly = poly->fNext)
     {
         if (apply_fill_type(overrideFillType, poly) && poly->fCount >= 3)
         {
@@ -2166,37 +2159,35 @@ int64_t GrTriangulator::CountPoints(Poly* polys, FillRule overrideFillType)
 
 // Stage 6: Triangulate the monotone polygons into a vertex buffer.
 
-int GrTriangulator::polysToTriangles(Poly* polys, GrEagerVertexAllocator* vertexAllocator) const
+size_t GrTriangulator::countMaxTriangleVertices(const Poly* polys) const
 {
-    int64_t count64 = CountPoints(polys, fFillRule);
-    if (0 == count64 || count64 > std::numeric_limits<int32_t>::max())
+    return CountPoints(polys, fFillRule);
+}
+
+size_t GrTriangulator::polysToTriangles(const Poly* polys,
+                                        uint64_t maxVertexCount,
+                                        uint16_t pathID,
+                                        pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+{
+    if (0 == maxVertexCount || maxVertexCount > std::numeric_limits<int32_t>::max())
     {
         return 0;
     }
-    int count = count64;
 
-    size_t vertexStride = sizeof(Vec2D);
+    TESS_LOG("emitting %d verts\n", count);
+
+    size_t vertexStride = sizeof(pls::TriangleVertex);
 #if 0
     if (fEmitCoverage)
     {
         vertexStride += sizeof(float);
     }
 #endif
-    skgpu::VertexWriter verts = vertexAllocator->lockWriter(count64);
-    if (!verts)
-    {
-        fprintf(stderr, "Could not allocate vertices\n");
-        return 0;
-    }
 
-    TESS_LOG("emitting %d verts\n", count);
-
-    skgpu::VertexWriter::Mark start = verts.mark();
-    verts = this->polysToTriangles(polys, fFillRule, std::move(verts));
-
-    int actualCount = static_cast<int>((verts.mark() - start) / vertexStride);
-    assert(actualCount <= count);
-    vertexAllocator->unlock(actualCount);
+    size_t start = bufferRing->bytesWritten();
+    polysToTriangles(polys, fFillRule, pathID, bufferRing);
+    size_t actualCount = (bufferRing->bytesWritten() - start) / vertexStride;
+    assert(actualCount <= maxVertexCount * vertexStride);
     return actualCount;
 }
 } // namespace rive

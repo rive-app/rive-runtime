@@ -22,6 +22,7 @@
 #define ushort4 ushort4
 #define float2 float2
 #define float3 float3
+#define packed_float3 packed_float3
 #define float4 float4
 #define bool2 bool2
 #define bool3 bool3
@@ -121,22 +122,22 @@
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
-// A hack since we use GLSL_POSITION inside the following #defines...
-#define GLSL_POSITION GLSL_POSITION
+// A hack since we use POSITION inside the following #defines...
+#define POSITION POSITION
 
 #define VERTEX_MAIN(F, V, v, ...)                                                                  \
     __attribute__((visibility("default"))) V vertex F(__VA_ARGS__)                                 \
     {                                                                                              \
         V v;                                                                                       \
-        float4 GLSL_POSITION;
+        float4 POSITION;
 
 #define EMIT_VERTEX(v)                                                                             \
-    v._pos = GLSL_POSITION;                                                                        \
+    v._pos = POSITION;                                                                             \
     return v;                                                                                      \
     }
 
 #define EMIT_OFFSCREEN_VERTEX(v)                                                                   \
-    v._pos = GLSL_POSITION;                                                                        \
+    v._pos = POSITION;                                                                             \
     v._pos.y = -v._pos.y;                                                                          \
     return v;                                                                                      \
     }

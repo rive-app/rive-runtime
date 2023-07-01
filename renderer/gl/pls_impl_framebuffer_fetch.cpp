@@ -17,6 +17,9 @@ constexpr static GLenum kPLSDrawBuffers[4] = {GL_COLOR_ATTACHMENT0,
 
 class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::PLSImpl
 {
+public:
+    PLSImplFramebufferFetch(GLExtensions extensions) : m_extensions(extensions) {}
+
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
                                               size_t width,
                                               size_t height,
@@ -79,7 +82,7 @@ class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::P
         }
     }
 
-    void deactivatePixelLocalStorage() override
+    void deactivatePixelLocalStorage(PLSRenderContextGL*) override
     {
         // Instruct the driver not to flush PLS contents from tiled memory, with the exception of
         // the color buffer.
@@ -91,10 +94,39 @@ class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::P
     }
 
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_FRAMEBUFFER_FETCH; }
+
+    void onEnableRasterOrdering(bool rasterOrderingEnabled) override
+    {
+        if (!m_extensions.QCOM_shader_framebuffer_fetch_noncoherent)
+        {
+            return;
+        }
+        if (rasterOrderingEnabled)
+        {
+            glDisable(GL_FRAMEBUFFER_FETCH_NONCOHERENT_QCOM);
+        }
+        else
+        {
+            glEnable(GL_FRAMEBUFFER_FETCH_NONCOHERENT_QCOM);
+        }
+    }
+
+    void onBarrier() override
+    {
+        if (!m_extensions.QCOM_shader_framebuffer_fetch_noncoherent)
+        {
+            return;
+        }
+        glFramebufferFetchBarrierQCOM();
+    }
+
+private:
+    const GLExtensions m_extensions;
 };
 
-std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplFramebufferFetch()
+std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplFramebufferFetch(
+    GLExtensions extensions)
 {
-    return std::make_unique<PLSImplFramebufferFetch>();
+    return std::make_unique<PLSImplFramebufferFetch>(extensions);
 }
 } // namespace rive::pls

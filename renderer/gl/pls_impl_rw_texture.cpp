@@ -96,9 +96,14 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
 
-    void deactivatePixelLocalStorage() override { glMemoryBarrier(GL_ALL_BARRIER_BITS); }
+    void deactivatePixelLocalStorage(PLSRenderContextGL*) override
+    {
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    }
 
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_RW_TEXTURE; }
+
+    void onBarrier() override { return glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); }
 };
 
 std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplRWTexture()

@@ -7,6 +7,7 @@
 
 #define float2 vec2
 #define float3 vec3
+#define packed_float3 vec3
 #define float4 vec4
 
 #define half mediump float
@@ -51,11 +52,19 @@
 #define make_half3x4 mat3x4
 
 #define INLINE
-#define GLSL_FRONT_FACING gl_FrontFacing
-#define GLSL_POSITION gl_Position
-#define GLSL_VERTEX_ID gl_VertexID
-#define GLSL_INSTANCE_ID gl_InstanceID
-#define GLSL_BASE_INSTANCE gl_BaseInstance
+#define FRONT_FACING gl_FrontFacing
+#define POSITION gl_Position
+#define VERTEX_ID gl_VertexID
+
+#if defined(GL_ANGLE_base_vertex_base_instance_shader_builtin)
+#extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
+#endif
+
+#ifndef @BASE_INSTANCE_POLYFILL
+#define INSTANCE_ID (gl_BaseInstance + gl_InstanceID)
+#else
+#define INSTANCE_ID gl_InstanceID
+#endif
 
 #define UNIFORM_BLOCK_BEGIN(N)                                                                     \
     layout(std140) uniform N                                                                       \
@@ -79,7 +88,7 @@
 #define FLAT flat
 #define VARYING_BLOCK_END
 
-#ifdef GL_NV_shader_noperspective_interpolation
+#if defined(GL_NV_shader_noperspective_interpolation)
 #extension GL_NV_shader_noperspective_interpolation : require
 #define NO_PERSPECTIVE noperspective
 #else
@@ -179,18 +188,13 @@
 
 #ifdef @PLS_IMPL_RW_TEXTURE
 
-#extension GL_ARB_fragment_shader_interlock : enable
-#extension GL_INTEL_fragment_shader_ordering : enable
-
 #if defined(GL_ARB_fragment_shader_interlock)
-#define PLS_INTERLOCK_BEGIN                                                                        \
-    highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));                                          \
-    beginInvocationInterlockARB()
+#extension GL_ARB_fragment_shader_interlock : require
+#define PLS_INTERLOCK_BEGIN beginInvocationInterlockARB()
 #define PLS_INTERLOCK_END endInvocationInterlockARB()
 #elif defined(GL_INTEL_fragment_shader_ordering)
-#define PLS_INTERLOCK_BEGIN                                                                        \
-    highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));                                          \
-    beginFragmentShaderOrderingINTEL()
+#extension GL_INTEL_fragment_shader_ordering : require
+#define PLS_INTERLOCK_BEGIN beginFragmentShaderOrderingINTEL()
 #define PLS_INTERLOCK_END
 #endif
 
@@ -216,8 +220,16 @@
 #define FRAG_DATA_MAIN void main
 #define EMIT_FRAG_DATA(f) _fd = f
 
+#ifdef @PLS_IMPL_RW_TEXTURE
+#define PLS_MAIN()                                                                                 \
+    void main()                                                                                    \
+    {                                                                                              \
+        highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));
+#define EMIT_PLS }
+#else
 #define PLS_MAIN void main
 #define EMIT_PLS
+#endif
 
 // "FLD" for "field".
 // In Metal, inputs and outputs are accessed from structs.

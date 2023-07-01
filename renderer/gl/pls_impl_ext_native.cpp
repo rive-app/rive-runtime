@@ -77,14 +77,8 @@ public:
 
     ~PLSLoadStoreProgram() { glDeleteProgram(m_id); }
 
-    void bind(const float clearColor[4]) const
-    {
-        glUseProgram(m_id);
-        if (m_clearColorUniLocation >= 0)
-        {
-            glUniform4fv(m_clearColorUniLocation, 1, clearColor);
-        }
-    }
+    GLuint id() const { return m_id; }
+    GLint clearColorUniLocation() const { return m_clearColorUniLocation; }
 
 private:
     GLuint m_id;
@@ -165,21 +159,25 @@ public:
             const PLSLoadStoreProgram& plsProgram =
                 m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader)
                     .first->second;
-            plsProgram.bind(clearColor4f);
-            glBindVertexArray(m_plsLoadStoreVAO);
+            context->bindProgram(plsProgram.id());
+            if (plsProgram.clearColorUniLocation() >= 0)
+            {
+                glUniform4fv(plsProgram.clearColorUniLocation(), 1, clearColor4f);
+            }
+            context->bindVAO(m_plsLoadStoreVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
     }
 
-    void deactivatePixelLocalStorage() override
+    void deactivatePixelLocalStorage(PLSRenderContextGL* context) override
     {
         // Issue a fullscreen draw that transfers the color information in pixel local storage to
         // the main framebuffer.
         uint32_t ops = loadstoreops::kStoreColor;
         const PLSLoadStoreProgram& plsProgram =
             m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader).first->second;
-        plsProgram.bind(nullptr);
-        glBindVertexArray(m_plsLoadStoreVAO);
+        context->bindProgram(plsProgram.id());
+        context->bindVAO(m_plsLoadStoreVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);

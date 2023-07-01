@@ -8,25 +8,13 @@
 #define FAN_VERTEX 1
 #define FAN_MIDPOINT_VERTEX 2
 
-#define GRAD_TEXTURE_WIDTH 512.
-
-#define EVEN_ODD_FLAG (1u << 31)
-#define SOLID_COLOR_PAINT_TYPE 0u
-#define LINEAR_GRADIENT_PAINT_TYPE 1u
-#define RADIAL_GRADIENT_PAINT_TYPE 2u
-#define CLIP_REPLACE_PAINT_TYPE 3u
-
-// acos(1/4), because the miter limit is always 4.
-#define MITER_ANGLE_LIMIT 1.318116071652817965746
-
-// Raw bit representation of the largest denormalized fp16 value. We offset all (1-based) path IDs
-// by this value in order to avoid denorms, which have been empirically unreliable on Android as ID
-// values.
-#define MAX_DENORM_F16 1023u
-
 VARYING_BLOCK_BEGIN(Varyings)
-NO_PERSPECTIVE VARYING half2 edgeDistance;
 NO_PERSPECTIVE VARYING float4 varying_paint;
+#ifdef @DRAW_INTERIOR_TRIANGLES
+@OPTIONALLY_FLAT VARYING half windingWeight;
+#else
+NO_PERSPECTIVE VARYING half2 edgeDistance;
+#endif
 @OPTIONALLY_FLAT VARYING half pathID;
 #ifdef @ENABLE_PATH_CLIPPING
 @OPTIONALLY_FLAT VARYING half clipID;
@@ -50,7 +38,11 @@ TEXTURE_RGBA32UI(2) @contourTexture;
 VERTEX_TEXTURE_BLOCK_END
 
 ATTR_BLOCK_BEGIN(Attrs)
-ATTR(0) float4 wedgeVertexData; // [localVertexID, outset, fillCoverage, vertexType]
+#ifdef @DRAW_INTERIOR_TRIANGLES
+ATTR(0) packed_float3 triangleVertex;
+#else
+ATTR(0) float4 patchVertexData; // [localVertexID, outset, fillCoverage, vertexType]
+#endif
 ATTR_BLOCK_END
 
 int2 tessTexelCoord(int texelIndex)
@@ -71,36 +63,38 @@ VERTEX_MAIN(
     @drawVertexMain,
     Varyings,
     varyings,
-    uint GLSL_VERTEX_ID [[vertex_id]],
-    uint GLSL_INSTANCE_ID [[instance_id]],
-    uint GLSL_BASE_INSTANCE [[base_instance]],
+    uint VERTEX_ID [[vertex_id]],
+    uint INSTANCE_ID [[instance_id]],
+    uint BASE_INSTANCE [[base_instance]],
     constant @Uniforms& uniforms [[buffer(0)]],
     constant Attrs* attrs [[buffer(1)]],
     VertexTextures textures
 #endif
 )
 {
-    // Unpack wedgeVertexData.
-    ATTR_LOAD(float4, attrs, wedgeVertexData, GLSL_VERTEX_ID);
-    int localVertexID = int(wedgeVertexData.x);
-    float outset = wedgeVertexData.y;
-    float fillCoverage = wedgeVertexData.z;
-    int wedgeSize = floatBitsToInt(wedgeVertexData.w) >> 2;
-    int vertexType = floatBitsToInt(wedgeVertexData.w) & 3;
+    bool shouldDiscardVertex = false;
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    ATTR_LOAD(float3, attrs, triangleVertex, VERTEX_ID);
+    uint pathIDBits = floatBitsToUint(triangleVertex.z) & 0xffffu;
+#else
+    // Unpack patchVertexData.
+    ATTR_LOAD(float4, attrs, patchVertexData, VERTEX_ID);
+    int localVertexID = int(patchVertexData.x);
+    float outset = patchVertexData.y;
+    float fillCoverage = patchVertexData.z;
+    int patchSegmentSpan = floatBitsToInt(patchVertexData.w) >> 2;
+    int vertexType = floatBitsToInt(patchVertexData.w) & 3;
 
     // Fetch the tessellation vertex we belong to.
-    int wedgeIdx = GLSL_INSTANCE_ID;
+    int vertexIdx = INSTANCE_ID * patchSegmentSpan + localVertexID;
 #ifdef @BASE_INSTANCE_POLYFILL
-    wedgeIdx += @baseInstancePolyfill;
-#else
-    wedgeIdx += GLSL_BASE_INSTANCE;
+    vertexIdx += baseInstancePolyfill * patchSegmentSpan;
 #endif
-    int vertexIdx = wedgeIdx * wedgeSize + localVertexID;
     int2 tessVertexTexelCoord = tessTexelCoord(vertexIdx);
     uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord, 0);
     uint contourIDWithFlags = tessVertexData.w;
-    bool isClosingVertexOfContour =
-        localVertexID == wedgeSize && (contourIDWithFlags & FIRST_VERTEX_OF_CONTOUR_FLAG) != 0u;
+    bool isClosingVertexOfContour = localVertexID == patchSegmentSpan &&
+                                    (contourIDWithFlags & FIRST_VERTEX_OF_CONTOUR_FLAG) != 0u;
     if (isClosingVertexOfContour)
     {
         // The right vertex crossed over into a new contour. Fetch the previous vertex, which will
@@ -111,22 +105,30 @@ VERTEX_MAIN(
     }
 
     // Fetch and unpack the contour referenced by the tessellation vertex.
-    uint contourTexelIdx = (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;
-    int2 contourTexelCoord = int2(contourTexelIdx & 0xffu, contourTexelIdx >> 8);
-    uint4 contourData = TEXEL_FETCH(textures, @contourTexture, contourTexelCoord, 0);
+    uint4 contourData =
+        TEXEL_FETCH(textures, @contourTexture, contour_texel_coord(contourIDWithFlags), 0);
     float2 midpoint = uintBitsToFloat(contourData.xy);
     uint pathIDBits = contourData.z;
     uint vertexIndex0 = contourData.w;
+#endif
 
-    // Fetch and unpack the path referenced by the contour.
-    uint pathIdx = pathIDBits - 1u;
-    int2 pathTexelCoord = int2((pathIdx & 0x7fu) * 3u, pathIdx >> 7);
+    // Fetch and unpack the path.
+    int2 pathTexelCoord = path_texel_coord(pathIDBits);
     float2x2 matrix =
         make_float2x2(uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, pathTexelCoord, 0)));
     uint4 pathData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(1, 0), 0);
     float2 translate = uintBitsToFloat(pathData.xy);
-    float strokeRadius = uintBitsToFloat(pathData.z);
     uint pathParams = pathData.w;
+
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    // The vertex position is encoded directly in vertex data when drawing triangles.
+    float2 vertexPosition = matrix * triangleVertex.xy + translate;
+    // When we belong to a non-overlapping interior triangulation, the winding sign and weight are
+    // also encoded directly in vertex data.
+    FLD(varyings, windingWeight) =
+        float(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(matrix));
+#else
+    float strokeRadius = uintBitsToFloat(pathData.z);
 
     // Finish unpacking tessVertexData.
     if (isClosingVertexOfContour)
@@ -142,8 +144,6 @@ VERTEX_MAIN(
             contourIDWithFlags = tessVertexData.w;
         }
     }
-    FLD(varyings, pathID) =
-        unpackHalf2x16((pathIDBits + MAX_DENORM_F16) * uniforms.pathIDGranularity).r;
     float theta = uintBitsToFloat(tessVertexData.z);
     float2 norm = float2(sin(theta), -cos(theta));
     float2 origin = uintBitsToFloat(tessVertexData.xy);
@@ -261,11 +261,11 @@ VERTEX_MAIN(
         // Strokes identify themselves by emitting a negative edgeDistance.
         FLD(varyings, edgeDistance) *= -globalCoverage;
 
+        postTransformVertexOffset = matrix * (outset * vertexOffset);
+
         // Throw away the fan triangles since we're a stroke.
         if (vertexType != STROKE_VERTEX)
-            outset = uniforms.vertexDiscardValue;
-
-        postTransformVertexOffset = matrix * (outset * vertexOffset);
+            shouldDiscardVertex = true;
     }
     else // This is a fill.
     {
@@ -273,15 +273,26 @@ VERTEX_MAIN(
         if (vertexType == FAN_MIDPOINT_VERTEX)
             origin = midpoint;
 
-        // Indicate even-odd fill rule by making pathID negative.
-        if ((pathParams & EVEN_ODD_FLAG) != 0u)
-            FLD(varyings, pathID) = -FLD(varyings, pathID);
-
         // Offset the vertex for Manhattan AA.
         postTransformVertexOffset = sign(matrix * (outset * norm)) * AA_RADIUS;
         FLD(varyings, edgeDistance) = make_half2(fillCoverage, 1);
+
+        // If we're actually just drawing a triangle, throw away the entire patch except a single
+        // fan triangle.
+        if ((contourIDWithFlags & RETROFITTED_TRIANGLE_FLAG) != 0u && vertexType != FAN_VERTEX)
+            shouldDiscardVertex = true;
     }
     float2 vertexPosition = matrix * origin + postTransformVertexOffset + translate;
+#endif
+
+    // Encode the integral pathID as a "half" that we know the hardware will see as a unique value
+    // in the fragment shader.
+    FLD(varyings, pathID) =
+        unpackHalf2x16((pathIDBits + MAX_DENORM_F16) * uniforms.pathIDGranularity).r;
+
+    // Indicate even-odd fill rule by making pathID negative.
+    if ((pathParams & EVEN_ODD_FLAG) != 0u)
+        FLD(varyings, pathID) = -FLD(varyings, pathID);
 
     uint paintType = (pathParams >> 20) & 7u;
 #ifdef @ENABLE_PATH_CLIPPING
@@ -342,16 +353,17 @@ VERTEX_MAIN(
     }
     FLD(varyings, varying_paint) = paint;
 
-    GLSL_POSITION.xy = vertexPosition * float2(uniforms.renderTargetInverseViewportX,
-                                               -uniforms.renderTargetInverseViewportY) +
-                       float2(-1, 1);
-    GLSL_POSITION.zw = float2(0, 1);
+    POSITION.xy = vertexPosition * float2(uniforms.renderTargetInverseViewportX,
+                                          -uniforms.renderTargetInverseViewportY) +
+                  float2(-1, 1);
+    POSITION.zw = float2(0, 1);
+    if (shouldDiscardVertex)
+        POSITION = float4(uniforms.vertexDiscardValue);
     EMIT_VERTEX(varyings);
 }
 #endif
 
 #ifdef @FRAGMENT
-
 FRAG_TEXTURE_BLOCK_BEGIN(FragmentTextures)
 TEXTURE_RGBA8(3) @gradTexture;
 FRAG_TEXTURE_BLOCK_END
@@ -363,14 +375,14 @@ PLS_DECL4F(2) originalDstColorBuffer;
 PLS_DECL2F(3) clipBuffer;
 PLS_BLOCK_END
 
-PLS_MAIN(
 #ifdef METAL
-    @drawFragmentMain,
-    Varyings varyings [[stage_in]],
-    FragmentTextures textures,
-    bool GLSL_FRONT_FACING [[front_facing]]
+PLS_MAIN(@drawFragmentMain,
+         Varyings varyings [[stage_in]],
+         FragmentTextures textures,
+         bool FRONT_FACING [[front_facing]])
+#else
+PLS_MAIN()
 #endif
-)
 {
     float4 paint = FLD(varyings, varying_paint);
     half4 color;
@@ -394,7 +406,10 @@ PLS_MAIN(
         color = TEXTURE_SAMPLE(textures, @gradTexture, float2(mix(x0, x1, t), row));
     }
 
+#ifndef @DRAW_INTERIOR_TRIANGLES
+    // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_BEGIN;
+#endif
 
     half2 coverageData = PLS_LOAD2F(coverageCountBuffer);
     half localPathID = coverageData.r;
@@ -406,26 +421,37 @@ PLS_MAIN(
         // This is the first fragment from pathID to touch this pixel.
         coverageCount = .0;
         dstColor = PLS_LOAD4F(framebuffer);
+#ifndef @DRAW_INTERIOR_TRIANGLES
+        // We don't need to store coverage when drawing interior triangles because they always go
+        // last and don't overlap, so every fragment is the final one in the path.
         PLS_STORE4F(originalDstColorBuffer, dstColor);
+#endif
     }
     else
     {
         dstColor = PLS_LOAD4F(originalDstColorBuffer);
+#ifndef @DRAW_INTERIOR_TRIANGLES
+        // Since interior triangles are always last, there's no need to preserve this value.
         PLS_PRESERVE_VALUE(originalDstColorBuffer);
+#endif
     }
 
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    coverageCount += FLD(varyings, windingWeight);
+#else
     // TODO: We may need to just send actual flags instead of using sign(edgeDistance) to identify
     // strokes. Since edgeDistance is interpolated, it can sometimes cross signs.
     half d = FLD(varyings, edgeDistance).x;
     if (d < -1e-4 /*stroke with an intentionally negative edgeDistance*/)
         coverageCount = min(max(d, FLD(varyings, edgeDistance).y), coverageCount);
-    else if (GLSL_FRONT_FACING /*clockwise fill*/)
+    else if (FRONT_FACING /*clockwise fill*/)
         coverageCount += d;
     else /*counterclockwise fill*/
         coverageCount -= d;
 
     // Save the updated coverage.
     PLS_STORE2F(coverageCountBuffer, FLD(varyings, pathID), coverageCount);
+#endif
 
     // Convert coverageCount to coverage. (Which is min(-edgeDistance) right now for strokes.)
     half coverage = abs(coverageCount);
@@ -478,7 +504,10 @@ PLS_MAIN(
         PLS_STORE4F(framebuffer, color);
     }
 
+#ifndef @DRAW_INTERIOR_TRIANGLES
+    // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_END;
+#endif
 
     EMIT_PLS;
 }

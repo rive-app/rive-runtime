@@ -8,7 +8,13 @@
 #include "rive/renderer.hpp"
 #include "rive/pls/aligned_buffer.hpp"
 #include "rive/pls/fixed_queue.hpp"
+#include "rive/pls/pls.hpp"
 #include <vector>
+
+namespace rive
+{
+class GrInnerFanTriangulator;
+};
 
 namespace rive::pls
 {
@@ -41,6 +47,8 @@ public:
     static bool IsAABB(const RawPath&);
 
 private:
+    class InteriorTriangulationHelper;
+
     // Pushes any necessary clip updates to m_pathBatch and writes back the clipID the next path
     // should be drawn with.
     // Returns false if the operation failed, at which point the caller should flush and try again.
@@ -112,6 +120,7 @@ private:
     {
         Mat2D matrix;
         RawPath path;
+        AABB pathBounds;
         FillRule fillRule;
         uint32_t clipID;
     };
@@ -125,14 +134,23 @@ private:
     {
         PathDraw(const Mat2D* matrix_,
                  const RawPath* rawPath_,
+                 const AABB& pathBounds_,
                  FillRule fillRule_,
                  uint32_t clipID_) :
-            matrix(matrix_), rawPath(rawPath_), fillRule(fillRule_), clipID(clipID_)
+            matrix(matrix_),
+            rawPath(rawPath_),
+            pathBounds(pathBounds_),
+            fillRule(fillRule_),
+            clipID(clipID_)
         {}
         const Mat2D* matrix;
         const RawPath* rawPath;
+        AABB pathBounds;
         FillRule fillRule;
         uint32_t clipID;
+        GrInnerFanTriangulator* triangulator = nullptr; // Non-null if using interior triangulation.
+        uint32_t tessVertexCount = 0;
+        uint32_t paddingVertexCount = 0;
     };
     std::vector<PathDraw> m_pathBatch;
 
@@ -147,6 +165,9 @@ private:
     AlignedBuffer<4, uint32_t> m_parametricSegmentCounts;
     AlignedBuffer<4, uint32_t> m_polarSegmentCounts;
 
+    // Used to build coarse path interiors for the "interior triangulation" algorithm.
+    RawPath m_scratchPath;
+
     // Consistency checks for pushContour.
     RIVE_DEBUG_CODE(size_t m_pushedLineCount;)
     RIVE_DEBUG_CODE(size_t m_pushedCurveCount;)
@@ -155,6 +176,5 @@ private:
     RIVE_DEBUG_CODE(size_t m_pushedStrokeCapCount;)
     // Counts how many additional curves were pushed by pushEmulatedStrokeCapAsJoinBeforeCubic().
     RIVE_DEBUG_CODE(size_t m_pushedEmptyStrokeCountForCaps;)
-    RIVE_DEBUG_CODE(size_t m_pushedTessVertexCount;)
 };
 } // namespace rive::pls

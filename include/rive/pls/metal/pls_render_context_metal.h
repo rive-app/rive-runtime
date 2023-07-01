@@ -76,9 +76,9 @@ private:
 
     // Renders paths to the main render target.
     class DrawPipeline;
-    std::map<uint64_t, DrawPipeline> m_drawPipelines;
-    id<MTLBuffer> m_pathWedgeVertexBuffer;
-    id<MTLBuffer> m_pathWedgeIndexBuffer;
+    std::map<uint32_t, DrawPipeline> m_drawPipelines;
+    id<MTLBuffer> m_pathPatchVertexBuffer;
+    id<MTLBuffer> m_pathPatchIndexBuffer;
 
     // Locks buffer contents until the GPU has finished rendering with them. Prevents the CPU from
     // overriding data before the GPU is done with it.

@@ -14,6 +14,12 @@
 #include <functional>
 #include <unordered_map>
 
+namespace rive
+{
+class GrInnerFanTriangulator;
+class RawPath;
+} // namespace rive
+
 namespace rive::pls
 {
 class GradientLibrary;
@@ -132,6 +138,25 @@ public:
         return m_clipContentID;
     }
 
+    // Returns the context's TrivialBlockAllocator, which is automatically reset at the end of every
+    // flush.
+    TrivialBlockAllocator* trivialPerFlushAllocator()
+    {
+        assert(m_didBeginFrame);
+        return &m_trivialPerFlushAllocator;
+    }
+
+    // Allocates a trivially destructible object that will be automatically deleted at the end of
+    // the current flush.
+    template <typename T, typename... Args> T* make(Args&&... args)
+    {
+        assert(m_didBeginFrame);
+        return m_trivialPerFlushAllocator.make<T>(std::forward<Args>(args)...);
+    }
+
+    // Returns the number of tessellation vertices that have been pushed during the current flush.
+    uint32_t currentTessVertexCount() const { return m_tessVertexCount; }
+
     // Reserves space for 'pathCount', 'contourCount', 'curveCount', and 'tessVertexCount' records
     // in their respective GPU buffers, prior to calling pushPath(), pushContour(), pushCubic().
     //
@@ -151,21 +176,27 @@ public:
 
     // Pushes a record to the GPU for the given path, which will be referenced by future calls to
     // pushContour() and pushCubic().
-    void pushPath(const Mat2D&,
+    //
+    // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
+    // vertices, colocated at T=0. The caller must use this argument to align the beginning of the
+    // path on a boundary of the patch size.
+    void pushPath(PatchType,
+                  const Mat2D&,
                   float strokeRadius,
                   FillRule,
                   PaintType,
                   uint32_t clipID,
                   PLSBlendMode,
-                  const PaintData&);
+                  const PaintData&,
+                  uint32_t tessVertexCount,
+                  uint32_t paddingVertexCount);
 
     // Pushes a contour record to the GPU for the given contour, which references the most-recently
     // pushed path and will be referenced by future calls to pushCubic().
     //
-    // The first curve of the contour will be pre-padded with "paddingVertexCount" tessellation
-    // vertices, colocated at T=0. This allows the caller to align wedge boundaries with contour
-    // boundaries by making the number of tessellation vertices in the contour an exact multiple of
-    // kWedgeSize.
+    // The first curve of the contour will be pre-padded with 'paddingVertexCount' tessellation
+    // vertices, colocated at T=0. The caller must use this argument to align the end of the contour
+    // on a boundary of the patch size.
     void pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount);
 
     // Appends a cubic curve and join to the most-recently pushed contour, and reserves the
@@ -181,10 +212,17 @@ public:
     // "joinTangent" is the ending tangent of the join that follows the cubic.
     void pushCubic(const Vec2D pts[4],
                    Vec2D joinTangent,
-                   uint32_t joinTypeFlag,
+                   uint32_t additionalPLSFlags,
                    uint32_t parametricSegmentCount,
                    uint32_t polarSegmentCount,
                    uint32_t joinSegmentCount);
+
+    // Pushes triangles to be drawn using the data records from the most recent calls to pushPath()
+    // and pushPaint().
+    void pushInteriorTriangulation(GrInnerFanTriangulator*,
+                                   PaintType,
+                                   uint32_t clipID,
+                                   PLSBlendMode);
 
     enum class FlushType : bool
     {
@@ -247,10 +285,8 @@ protected:
     }
     const BufferRingImpl* gradSpanBufferRing() const { return m_gradSpanBuffer.impl(); }
     const BufferRingImpl* tessSpanBufferRing() { return m_tessSpanBuffer.impl(); }
-    const BufferRingImpl* uniformBufferRing() const
-    {
-        return static_cast<const BufferRingImpl*>(m_uniformBuffer.impl());
-    }
+    const BufferRingImpl* triangleBufferRing() { return m_triangleBuffer.impl(); }
+    const BufferRingImpl* uniformBufferRing() const { return m_uniformBuffer.impl(); }
 
     size_t gradTextureRowsForSimpleRamps() const { return m_gradTextureRowsForSimpleRamps; }
 
@@ -274,7 +310,7 @@ protected:
     // Indicates which "uber shader" features to enable in the draw shader.
     struct ShaderFeatures
     {
-        enum PreprocessorDefines : uint64_t
+        enum PreprocessorDefines : uint32_t
         {
             ENABLE_ADVANCED_BLEND = 1 << 0,
             ENABLE_PATH_CLIPPING = 1 << 1,
@@ -284,7 +320,7 @@ protected:
 
         // Returns a bitmask of which preprocessor macros must be defined in order to support the
         // current feature set.
-        uint64_t getPreprocessorDefines(SourceType) const;
+        uint32_t getPreprocessorDefines(SourceType) const;
 
         struct
         {
@@ -309,21 +345,71 @@ protected:
     const PlatformFeatures m_platformFeatures;
     const size_t m_maxPathID;
 
-    enum class DrawType
+    enum class DrawType : uint8_t
     {
-        pathWedges, // Standard paths and/or strokes.
+        midpointFanPatches, // Standard paths and/or strokes.
+        outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
+        interiorTriangulation
     };
+
+    constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
+    {
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+                return kMidpointFanPatchSegmentSpan;
+            case DrawType::outerCurvePatches:
+                return kOuterCurvePatchSegmentSpan;
+            default:
+                RIVE_UNREACHABLE();
+        }
+    }
+
+    constexpr static uint32_t PatchIndexCount(DrawType drawType)
+    {
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+                return kMidpointFanPatchIndexCount;
+            case DrawType::outerCurvePatches:
+                return kOuterCurvePatchIndexCount;
+            default:
+                RIVE_UNREACHABLE();
+        }
+    }
+
+    constexpr static uintptr_t PatchIndexOffset(DrawType drawType)
+    {
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+                return kMidpointFanPatchIndexOffset;
+            case DrawType::outerCurvePatches:
+                return kOuterCurvePatchIndexOffset;
+            default:
+                RIVE_UNREACHABLE();
+        }
+    }
+
+    constexpr static uint32_t ShaderUniqueKey(SourceType sourceType,
+                                              DrawType drawType,
+                                              const ShaderFeatures& shaderFeatures)
+    {
+        return (shaderFeatures.getPreprocessorDefines(sourceType) << 1) |
+               (drawType == DrawType::interiorTriangulation);
+    }
 
     // Linked list of draws to be issued by the subclass during onFlush().
     struct DrawList
     {
-        DrawList(DrawType drawType_, size_t baseVertex_) :
-            drawType(drawType_), baseVertex(baseVertex_)
+        DrawList(DrawType drawType_, uint32_t baseVertexOrInstance_) :
+            drawType(drawType_), baseVertexOrInstance(baseVertexOrInstance_)
         {}
         const DrawType drawType;
-        const size_t baseVertex;
-        size_t vertexCount = 0; // Calculated during PLSRenderContext::flush().
+        uint32_t baseVertexOrInstance;
+        uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
         ShaderFeatures shaderFeatures;
+        GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
         DrawList* next = nullptr;
     };
 
@@ -331,8 +417,10 @@ protected:
     DrawList* m_lastDraw = nullptr;
     size_t m_drawListCount = 0;
 
-    constexpr static size_t kPerFlushAllocatorInitialBlockSize = 1024 * 1024; // 1 MiB.
-    TrivialBlockAllocator m_perFlushAllocator{kPerFlushAllocatorInitialBlockSize};
+    // GrTriangulator provides an upper bound on the number of vertices it will emit. Triangulations
+    // are not writen out until the last minute, during flush(), and this variable provides an upper
+    // bound on the number of vertices that will be written.
+    size_t m_maxTriangleVertexCount = 0;
 
 private:
     static BlendTier BlendTierForBlendMode(PLSBlendMode);
@@ -342,8 +430,8 @@ private:
     [[nodiscard]] bool pushGradient(const PLSGradient*, PaintData*);
 
     // Either appends a draw to m_drawList or merges into m_lastDraw.
-    // The caller is responsible for updating the returned ShaderFeatures to reflect its use case.
-    [[nodiscard]] ShaderFeatures* pushDraw(DrawType, size_t baseVertex);
+    // Updates the draw's ShaderFeatures according to the passed parameters.
+    void pushDraw(DrawType, size_t baseVertex, FillRule, PaintType, uint32_t clipID, PLSBlendMode);
 
     // Capacities of all our GPU resource allocations.
     struct GPUResourceLimits
@@ -355,6 +443,7 @@ private:
         size_t maxComplexGradientSpans;
         size_t maxTessellationSpans;
         size_t maxTessellationVertices;
+        size_t maxTriangleVertices;
 
         // "*this = max(*this, other)"
         void accumulateMax(const GPUResourceLimits& other)
@@ -368,7 +457,8 @@ private:
             maxTessellationSpans = std::max(maxTessellationSpans, other.maxTessellationSpans);
             maxTessellationVertices =
                 std::max(maxTessellationVertices, other.maxTessellationVertices);
-            static_assert(sizeof(*this) == sizeof(size_t) * 7); // Make sure we got every field.
+            maxTriangleVertices = std::max(maxTriangleVertices, other.maxTriangleVertices);
+            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
         }
 
         // Scale each limit > threshold by a factor of "scaleFactor".
@@ -393,7 +483,9 @@ private:
             if (maxTessellationVertices > threshold.maxTessellationVertices)
                 scaled.maxTessellationVertices =
                     static_cast<double>(maxTessellationVertices) * scaleFactor;
-            static_assert(sizeof(*this) == sizeof(size_t) * 7); // Make sure we got every field.
+            if (maxTriangleVertices > threshold.maxTriangleVertices)
+                scaled.maxTriangleVertices = static_cast<double>(maxTriangleVertices) * scaleFactor;
+            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
             return scaled;
         }
 
@@ -441,6 +533,7 @@ private:
     BufferRing<TwoTexelRamp> m_gradTexelBuffer; // Simple gradients get written by the CPU.
     BufferRing<GradientSpan> m_gradSpanBuffer;  // Complex gradients get rendered by the GPU.
     BufferRing<TessVertexSpan> m_tessSpanBuffer;
+    BufferRing<TriangleVertex> m_triangleBuffer;
     BufferRing<FlushUniforms> m_uniformBuffer;
 
     // How many rows of the gradient texture are dedicated to simple (two-texel) ramps?
@@ -462,7 +555,8 @@ private:
     uint32_t m_currentContourID = 0;
     uint32_t m_currentContourIDWithFlags = 0;
     uint32_t m_currentContourPaddingVertexCount = 0; // Padding vertices to add to the first curve.
-    size_t m_tessVertexCount = 0;
+    uint32_t m_tessVertexCount = 0;
+    RIVE_DEBUG_CODE(uint32_t m_expectedTessVertexCountAtEndOfPath = 0;)
 
     // Simple gradients have one stop at t=0 and one stop at t=1. They're implemented with 2 texels.
     std::unordered_map<uint64_t, uint32_t> m_simpleGradients; // [color0, color1] -> rampTexelsIdx
@@ -472,5 +566,11 @@ private:
     // the entire gradient texture width.
     std::unordered_map<GradientContentKey, uint32_t, DeepHashGradient>
         m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
+
+    // Simple allocator for trivially-destructible data that needs to persist until the current
+    // flush has completed. Any object created with this allocator is automatically deleted during
+    // the next call to flush().
+    constexpr static size_t kPerFlushAllocatorInitialBlockSize = 1024 * 1024; // 1 MiB.
+    TrivialBlockAllocator m_trivialPerFlushAllocator{kPerFlushAllocatorInitialBlockSize};
 };
 } // namespace rive::pls

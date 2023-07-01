@@ -34,6 +34,12 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
     }
     else if (type == GL_DEBUG_TYPE_PERFORMANCE)
     {
+        if (strcmp(message,
+                   "API_ID_REDUNDANT_FBO performance warning has been generated. Redundant state "
+                   "change in glBindFramebuffer API call, FBO 0, \"\", already bound.") == 0)
+        {
+            return;
+        }
         printf("GL PERF: %s\n", message);
         fflush(stdout);
     }
