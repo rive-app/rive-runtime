@@ -105,9 +105,10 @@ else
     else
         getSkia
         build_skia_android
+        # (umberto) commenting this out for now for CMake builds.
         # hmm not the appiest with this guy
-        if [ "$CONFIG" != "debug" ]; then
-            OUTPUT_CACHE=out/"${CONFIG}"/$ARCH upload_cache
-        fi
+        # if [ "$CONFIG" != "debug" ]; then
+        OUTPUT_CACHE=out/"${CONFIG}"/$ARCH upload_cache
+        # fi
     fi
 fi

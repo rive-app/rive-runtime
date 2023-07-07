@@ -64,7 +64,7 @@ pull_cache() {
     mkdir -p $SKIA_DIR
     curl --output $SKIA_DIR/$ARCHIVE_FILE_NAME $ARCHIVE_URL 
     pushd $SKIA_DIR
-    tar -xf $ARCHIVE_FILE_NAME out include $ARCHIVE_CONTENTS_NAME third_party
+    tar -xf $ARCHIVE_FILE_NAME out include $ARCHIVE_CONTENTS_NAME third_party modules
 }
 
 is_build_cached_remotely() {
@@ -82,7 +82,7 @@ upload_cache() {
     echo $EXPECTED_ARCHIVE_CONTENTS > $SKIA_DIR_NAME/$ARCHIVE_CONTENTS_NAME
     # not really sure about this third party biz
     # also we are caching on a per architecture path here, but out could contain more :thinking:
-    tar -C $SKIA_DIR_NAME -cf $SKIA_DIR_NAME/$ARCHIVE_FILE_NAME $OUTPUT_CACHE $ARCHIVE_CONTENTS_NAME include third_party/libpng third_party/externals/libpng
+    tar -C $SKIA_DIR_NAME -cf $SKIA_DIR_NAME/$ARCHIVE_FILE_NAME $OUTPUT_CACHE $ARCHIVE_CONTENTS_NAME include third_party/libpng third_party/externals/libpng modules
     popd
     # # if we're configured to upload the archive back into our cache, lets do it! 
     echo "Uploading to s3://2d-public/archives/$ARCHIVE_FILE_NAME"
