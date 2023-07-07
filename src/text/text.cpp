@@ -259,6 +259,7 @@ void Text::buildRenderStyles()
     int paragraphIndex = 0;
     int lineIndex = 0;
     float y = 0.0f;
+    float maxX = 0.0f;
 
     int ellipsisLine = -1;
     bool isEllipsisLineLast = false;
@@ -360,6 +361,10 @@ void Text::buildRenderStyles()
                     style->propagateOpacity(renderOpacity());
                 }
             }
+            if (x > maxX)
+            {
+                maxX = x;
+            }
             if (lineIndex == ellipsisLine)
             {
                 return;
@@ -372,6 +377,27 @@ void Text::buildRenderStyles()
         }
         y += paragraphSpacing;
     }
+    switch (sizing())
+    {
+        case TextSizing::autoWidth:
+            m_actualWidth = maxX;
+            m_actualHeight = std::max(0.0f, y - paragraphSpacing);
+            break;
+        case TextSizing::autoHeight:
+            m_actualWidth = width();
+            m_actualHeight = std::max(0.0f, y - paragraphSpacing);
+            break;
+        case TextSizing::fixed:
+            m_actualWidth = width();
+            m_actualHeight = height();
+            break;
+    }
+}
+
+void Text::updateOriginWorldTransform()
+{
+    m_originWorldTransform = m_WorldTransform * Mat2D::fromTranslate(-m_actualWidth * originX(),
+                                                                     -m_actualHeight * originY());
 }
 
 void Text::draw(Renderer* renderer)
@@ -382,7 +408,7 @@ void Text::draw(Renderer* renderer)
         // transformations.
         renderer->save();
     }
-    renderer->transform(worldTransform());
+    renderer->transform(m_originWorldTransform);
     if (overflow() == TextOverflow::clipped && m_clipRenderPath)
     {
         renderer->clipPath(m_clipRenderPath.get());
@@ -473,6 +499,11 @@ static SimpleArray<SimpleArray<GlyphLine>> breakLines(const SimpleArray<Paragrap
 void Text::update(ComponentDirt value)
 {
     Super::update(value);
+
+    if (hasDirt(value, ComponentDirt::WorldTransform))
+    {
+        updateOriginWorldTransform();
+    }
 
     if (hasDirt(value, ComponentDirt::Path))
     {

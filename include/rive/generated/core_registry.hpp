@@ -868,6 +868,12 @@ public:
             case TextBase::heightPropertyKey:
                 object->as<TextBase>()->height(value);
                 break;
+            case TextBase::originXPropertyKey:
+                object->as<TextBase>()->originX(value);
+                break;
+            case TextBase::originYPropertyKey:
+                object->as<TextBase>()->originY(value);
+                break;
             case DrawableAssetBase::heightPropertyKey:
                 object->as<DrawableAssetBase>()->height(value);
                 break;
@@ -1326,6 +1332,10 @@ public:
                 return object->as<TextBase>()->width();
             case TextBase::heightPropertyKey:
                 return object->as<TextBase>()->height();
+            case TextBase::originXPropertyKey:
+                return object->as<TextBase>()->originX();
+            case TextBase::originYPropertyKey:
+                return object->as<TextBase>()->originY();
             case DrawableAssetBase::heightPropertyKey:
                 return object->as<DrawableAssetBase>()->height();
             case DrawableAssetBase::widthPropertyKey:
@@ -1574,6 +1584,8 @@ public:
             case TextStyleAxisBase::axisValuePropertyKey:
             case TextBase::widthPropertyKey:
             case TextBase::heightPropertyKey:
+            case TextBase::originXPropertyKey:
+            case TextBase::originYPropertyKey:
             case DrawableAssetBase::heightPropertyKey:
             case DrawableAssetBase::widthPropertyKey:
                 return CoreDoubleType::id;

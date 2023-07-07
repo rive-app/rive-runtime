@@ -155,6 +155,7 @@ protected:
 
 private:
 #ifdef WITH_RIVE_TEXT
+    void updateOriginWorldTransform();
     std::vector<TextValueRun*> m_runs;
     std::vector<TextStyle*> m_renderStyles;
     SimpleArray<Paragraph> m_shape;
@@ -163,6 +164,9 @@ private:
     std::vector<OrderedLine> m_orderedLines;
     GlyphRun m_ellipsisRun;
     std::unique_ptr<RenderPath> m_clipRenderPath;
+    Mat2D m_originWorldTransform;
+    float m_actualWidth = 0.0f;
+    float m_actualHeight = 0.0f;
 #endif
 };
 } // namespace rive

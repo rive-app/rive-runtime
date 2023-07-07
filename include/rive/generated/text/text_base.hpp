@@ -39,6 +39,8 @@ public:
     static const uint16_t overflowValuePropertyKey = 287;
     static const uint16_t widthPropertyKey = 285;
     static const uint16_t heightPropertyKey = 286;
+    static const uint16_t originXPropertyKey = 363;
+    static const uint16_t originYPropertyKey = 364;
 
 private:
     uint32_t m_AlignValue = 0;
@@ -46,6 +48,8 @@ private:
     uint32_t m_OverflowValue = 0;
     float m_Width = 0.0f;
     float m_Height = 0.0f;
+    float m_OriginX = 0.0f;
+    float m_OriginY = 0.0f;
 
 public:
     inline uint32_t alignValue() const { return m_AlignValue; }
@@ -103,6 +107,28 @@ public:
         heightChanged();
     }
 
+    inline float originX() const { return m_OriginX; }
+    void originX(float value)
+    {
+        if (m_OriginX == value)
+        {
+            return;
+        }
+        m_OriginX = value;
+        originXChanged();
+    }
+
+    inline float originY() const { return m_OriginY; }
+    void originY(float value)
+    {
+        if (m_OriginY == value)
+        {
+            return;
+        }
+        m_OriginY = value;
+        originYChanged();
+    }
+
     Core* clone() const override;
     void copy(const TextBase& object)
     {
@@ -111,6 +137,8 @@ public:
         m_OverflowValue = object.m_OverflowValue;
         m_Width = object.m_Width;
         m_Height = object.m_Height;
+        m_OriginX = object.m_OriginX;
+        m_OriginY = object.m_OriginY;
         Drawable::copy(object);
     }
 
@@ -133,6 +161,12 @@ public:
             case heightPropertyKey:
                 m_Height = CoreDoubleType::deserialize(reader);
                 return true;
+            case originXPropertyKey:
+                m_OriginX = CoreDoubleType::deserialize(reader);
+                return true;
+            case originYPropertyKey:
+                m_OriginY = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -143,6 +177,8 @@ protected:
     virtual void overflowValueChanged() {}
     virtual void widthChanged() {}
     virtual void heightChanged() {}
+    virtual void originXChanged() {}
+    virtual void originYChanged() {}
 };
 } // namespace rive
 
