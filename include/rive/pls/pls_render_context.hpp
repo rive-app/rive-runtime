@@ -259,7 +259,14 @@ protected:
     virtual std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
                                                                  size_t itemSizeInBytes) = 0;
 
+    enum class Renderable : bool
+    {
+        no,
+        yes
+    };
+
     virtual std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
+                                                                 Renderable,
                                                                  size_t widthInItems,
                                                                  size_t height,
                                                                  size_t texelsPerItem,
@@ -378,14 +385,14 @@ protected:
         }
     }
 
-    constexpr static uintptr_t PatchIndexOffset(DrawType drawType)
+    constexpr static uintptr_t PatchBaseIndex(DrawType drawType)
     {
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
-                return kMidpointFanPatchIndexOffset;
+                return kMidpointFanPatchBaseIndex;
             case DrawType::outerCurvePatches:
-                return kOuterCurvePatchIndexOffset;
+                return kOuterCurvePatchBaseIndex;
             default:
                 RIVE_UNREACHABLE();
         }

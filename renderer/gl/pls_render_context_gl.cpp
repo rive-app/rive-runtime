@@ -59,6 +59,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                                     0,
                                     colorRampSources,
                                     2,
+                                    m_extensions,
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_FRAGMENT_SHADER,
@@ -66,6 +67,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                                     0,
                                     colorRampSources,
                                     2,
+                                    m_extensions,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_colorRampProgram);
     glUniformBlockBinding(m_colorRampProgram,
@@ -87,6 +89,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                                     0,
                                     tessellateSources,
                                     2,
+                                    m_extensions,
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_FRAGMENT_SHADER,
@@ -94,6 +97,7 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
                                     0,
                                     tessellateSources,
                                     2,
+                                    m_extensions,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_tessellateProgram);
     bindProgram(m_tessellateProgram);
@@ -132,8 +136,6 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
-
-    glVertexAttribDivisor(3, 1);
 
     glGenVertexArrays(1, &m_interiorTrianglesVAO);
     bindVAO(m_interiorTrianglesVAO);
@@ -182,6 +184,7 @@ std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeVertexBufferRing(size_t 
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextGL::makeTexelBufferRing(
     TexelBufferRing::Format format,
+    Renderable,
     size_t widthInItems,
     size_t height,
     size_t texelsPerItem,
@@ -262,11 +265,6 @@ public:
         {
             defines.push_back(GLSL_ENABLE_HSL_BLEND_MODES);
         }
-        if (shaderType == GL_VERTEX_SHADER &&
-            !context->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
-        {
-            defines.push_back(GLSL_BASE_INSTANCE_POLYFILL);
-        }
 
         std::vector<const char*> sources;
         sources.push_back(glsl::common);
@@ -291,6 +289,7 @@ public:
                                       defines.size(),
                                       sources.data(),
                                       sources.size(),
+                                      context->m_extensions,
                                       context->m_shaderVersionString);
     }
 
@@ -459,7 +458,8 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                 m_plsImpl->ensureRasterOrderingEnabled(true);
                 bindVAO(m_drawVAO);
                 uint32_t indexCount = PatchIndexCount(drawType);
-                void* indexOffset = reinterpret_cast<void*>(PatchIndexOffset(drawType));
+                uint32_t baseIndex = PatchBaseIndex(drawType);
+                void* indexOffset = reinterpret_cast<void*>(baseIndex * sizeof(uint16_t));
                 if (m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
                 {
                     glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
@@ -610,6 +610,12 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
         // varyings.
         platformFeatures.avoidFlatVaryings = true;
     }
+    if (strstr(rendererString, "Direct3D"))
+    {
+        // This extension is polyfilled on D3D anyway. Just don't use it so we can make sure to test
+        // our own fallback.
+        extensions.ANGLE_base_vertex_base_instance_shader_builtin = false;
+    }
 
 #ifdef RIVE_GLES
     loadGLESExtensions(extensions); // Android doesn't load extension functions for us.
@@ -617,7 +623,7 @@ std::unique_ptr<PLSRenderContextGL> PLSRenderContextGL::Make()
         (extensions.ARM_shader_framebuffer_fetch || extensions.EXT_shader_framebuffer_fetch))
     {
         return std::unique_ptr<PLSRenderContextGL>(
-            new PLSRenderContextGL(platformFeatures, extensions, MakePLSImplEXTNative()));
+            new PLSRenderContextGL(platformFeatures, extensions, MakePLSImplEXTNative(extensions)));
     }
 
     if (extensions.EXT_shader_framebuffer_fetch)

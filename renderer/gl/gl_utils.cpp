@@ -15,9 +15,10 @@ namespace glutils
 void CompileAndAttachShader(GLuint program,
                             GLuint type,
                             const char* source,
+                            const GLExtensions& extensions,
                             const char* versionString)
 {
-    CompileAndAttachShader(program, type, nullptr, 0, &source, 1, versionString);
+    CompileAndAttachShader(program, type, nullptr, 0, &source, 1, extensions, versionString);
 }
 
 void CompileAndAttachShader(GLuint program,
@@ -26,17 +27,26 @@ void CompileAndAttachShader(GLuint program,
                             size_t numDefines,
                             const char* inputSources[],
                             size_t numInputSources,
+                            const GLExtensions& extensions,
                             const char* versionString)
 {
-    GLuint shader =
-        CompileShader(type, defines, numDefines, inputSources, numInputSources, versionString);
+    GLuint shader = CompileShader(type,
+                                  defines,
+                                  numDefines,
+                                  inputSources,
+                                  numInputSources,
+                                  extensions,
+                                  versionString);
     glAttachShader(program, shader);
     glDeleteShader(shader);
 }
 
-GLuint CompileShader(GLuint type, const char* source, const char* versionString)
+GLuint CompileShader(GLuint type,
+                     const char* source,
+                     const GLExtensions& extensions,
+                     const char* versionString)
 {
-    return CompileShader(type, nullptr, 0, &source, 1, versionString);
+    return CompileShader(type, nullptr, 0, &source, 1, extensions, versionString);
 }
 
 GLuint CompileShader(GLuint type,
@@ -44,6 +54,7 @@ GLuint CompileShader(GLuint type,
                      size_t numDefines,
                      const char* inputSources[],
                      size_t numInputSources,
+                     const GLExtensions& extensions,
                      const char* versionString)
 {
     std::vector<const char*> sources;
@@ -55,6 +66,10 @@ GLuint CompileShader(GLuint type,
     else if (GL_FRAGMENT_SHADER)
     {
         sources.push_back("#define " GLSL_FRAGMENT "\n");
+    }
+    if (type == GL_VERTEX_SHADER && !extensions.ANGLE_base_vertex_base_instance_shader_builtin)
+    {
+        sources.push_back("#define " GLSL_ENABLE_BASE_INSTANCE_POLYFILL "\n");
     }
     std::ostringstream definesStream;
     for (size_t i = 0; i < numDefines; ++i)

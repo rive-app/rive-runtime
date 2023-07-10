@@ -93,8 +93,8 @@ private:
     class PLSImplWebGL;
     class PLSImplRWTexture;
 
-    static std::unique_ptr<PLSImpl> MakePLSImplEXTNative();
-    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch(GLExtensions);
+    static std::unique_ptr<PLSImpl> MakePLSImplEXTNative(const GLExtensions&);
+    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch(const GLExtensions&);
     static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
     static std::unique_ptr<PLSImpl> MakePLSImplRWTexture();
 
@@ -129,6 +129,7 @@ private:
                                                          size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
+                                                         Renderable,
                                                          size_t widthInItems,
                                                          size_t height,
                                                          size_t texelsPerItem,

@@ -37,7 +37,10 @@ do
                  RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
     flags { "FatalWarnings" }
 
-    files {"../path_fiddle/*.cpp"}
+    files {
+        "../path_fiddle/path_fiddle.cpp",
+        "../path_fiddle/fiddle_context_gl.cpp",
+    }
 
     links {"rive", "rive_pls_renderer", "rive_harfbuzz", "rive_sheenbidi"}
 
@@ -53,15 +56,16 @@ do
 
     filter "system:windows"
     do
+        files {"../path_fiddle/fiddle_context_d3d.cpp"}
         architecture "x64"
         defines {"RIVE_WINDOWS", "_CRT_SECURE_NO_WARNINGS"}
         libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
-        links {"glfw3", "opengl32"}
+        links {"glfw3", "opengl32", "d3d11", "dxgi", "d3dcompiler"}
     end
 
     filter "system:macosx"
     do
-        files {"../path_fiddle/*.mm"}
+        files {"../path_fiddle/fiddle_context_metal.mm"}
         buildoptions {"-fobjc-arc"}
         links {"glfw3",
                "Cocoa.framework",

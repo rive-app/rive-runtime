@@ -139,7 +139,7 @@ protected:
         submitTexels(bufferIdx, updateWidthInTexels, updateHeight);
     }
 
-    virtual void submitTexels(int textureIdx, size_t width, size_t height) = 0;
+    virtual void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) = 0;
 
     const Format m_format;
     const size_t m_widthInItems;

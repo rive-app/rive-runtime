@@ -8,42 +8,38 @@
 #define FAN_VERTEX 1
 #define FAN_MIDPOINT_VERTEX 2
 
-VARYING_BLOCK_BEGIN(Varyings)
-NO_PERSPECTIVE VARYING float4 varying_paint;
-#ifdef @DRAW_INTERIOR_TRIANGLES
-@OPTIONALLY_FLAT VARYING half windingWeight;
-#else
-NO_PERSPECTIVE VARYING half2 edgeDistance;
-#endif
-@OPTIONALLY_FLAT VARYING half pathID;
-#ifdef @ENABLE_PATH_CLIPPING
-@OPTIONALLY_FLAT VARYING half clipID;
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
-@OPTIONALLY_FLAT VARYING half blendMode;
-#endif
-VARYING_BLOCK_END
-
 #ifdef @VERTEX
-
-// Only used by GL platforms that don't support EXT_base_instance.
-#ifdef @BASE_INSTANCE_POLYFILL
-uniform int @baseInstancePolyfill;
-#endif
-
-VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
-TEXTURE_RGBA32UI(0) @tessVertexTexture;
-TEXTURE_RGBA32UI(1) @pathTexture;
-TEXTURE_RGBA32UI(2) @contourTexture;
-VERTEX_TEXTURE_BLOCK_END
-
 ATTR_BLOCK_BEGIN(Attrs)
 #ifdef @DRAW_INTERIOR_TRIANGLES
-ATTR(0) packed_float3 triangleVertex;
+ATTR(0, packed_float3, @a_triangleVertex);
 #else
-ATTR(0) float4 patchVertexData; // [localVertexID, outset, fillCoverage, vertexType]
+ATTR(0, float4, @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
 #endif
 ATTR_BLOCK_END
+#endif
+
+VARYING_BLOCK_BEGIN(Varyings)
+NO_PERSPECTIVE VARYING(float4, v_paint);
+#ifdef @DRAW_INTERIOR_TRIANGLES
+@OPTIONALLY_FLAT VARYING(half, v_windingWeight);
+#else
+NO_PERSPECTIVE VARYING(half2, v_edgeDistance);
+#endif
+@OPTIONALLY_FLAT VARYING(half, v_pathID);
+#ifdef @ENABLE_PATH_CLIPPING
+@OPTIONALLY_FLAT VARYING(half, v_clipID);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+@OPTIONALLY_FLAT VARYING(half, v_blendMode);
+#endif
+VARYING_BLOCK_END(_pos)
+
+#ifdef @VERTEX
+VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
+TEXTURE_RGBA32UI(0, @tessVertexTexture);
+TEXTURE_RGBA32UI(1, @pathTexture);
+TEXTURE_RGBA32UI(2, @contourTexture);
+VERTEX_TEXTURE_BLOCK_END
 
 int2 tessTexelCoord(int texelIndex)
 {
@@ -51,47 +47,70 @@ int2 tessTexelCoord(int texelIndex)
                 texelIndex >> TESS_TEXTURE_WIDTH_LOG2);
 }
 
-float calc_aa_radius(float2x2 matrix, float2 normalized)
+float calc_aa_radius(float2x2 mat, float2 normalized)
 {
 
-    float2 v = matrix * normalized;
+    float2 v = MUL(mat, normalized);
     return (abs(v.x) + abs(v.y)) * (1. / dot(v, v)) * AA_RADIUS;
 }
 
-VERTEX_MAIN(
-#ifdef METAL
-    @drawVertexMain,
-    Varyings,
-    varyings,
-    uint VERTEX_ID [[vertex_id]],
-    uint INSTANCE_ID [[instance_id]],
-    uint BASE_INSTANCE [[base_instance]],
-    constant @Uniforms& uniforms [[buffer(0)]],
-    constant Attrs* attrs [[buffer(1)]],
-    VertexTextures textures
+#ifdef @ENABLE_BASE_INSTANCE_POLYFILL
+// Define a uniform that will supply the base instance if we're on a platform that doesn't provide
+// this as a built-in.
+BASE_INSTANCE_POLYFILL_DECL(@baseInstancePolyfill);
 #endif
-)
+
+VERTEX_MAIN(@drawVertexMain,
+            @Uniforms,
+            uniforms,
+            Attrs,
+            attrs,
+            Varyings,
+            varyings,
+            VertexTextures,
+            textures,
+            _vertexID,
+            _instanceID,
+            _pos)
 {
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
+#else
+    ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
+#endif
+
+    VARYING_INIT(varyings, v_paint, float4);
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    VARYING_INIT(varyings, v_windingWeight, half);
+#else
+    VARYING_INIT(varyings, v_edgeDistance, half2);
+#endif
+    VARYING_INIT(varyings, v_pathID, half);
+#ifdef @ENABLE_PATH_CLIPPING
+    VARYING_INIT(varyings, v_clipID, half);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_INIT(varyings, v_blendMode, half);
+#endif
+
     bool shouldDiscardVertex = false;
 #ifdef @DRAW_INTERIOR_TRIANGLES
-    ATTR_LOAD(float3, attrs, triangleVertex, VERTEX_ID);
-    uint pathIDBits = floatBitsToUint(triangleVertex.z) & 0xffffu;
+    uint pathIDBits = floatBitsToUint(@a_triangleVertex.z) & 0xffffu;
 #else
     // Unpack patchVertexData.
-    ATTR_LOAD(float4, attrs, patchVertexData, VERTEX_ID);
-    int localVertexID = int(patchVertexData.x);
-    float outset = patchVertexData.y;
-    float fillCoverage = patchVertexData.z;
-    int patchSegmentSpan = floatBitsToInt(patchVertexData.w) >> 2;
-    int vertexType = floatBitsToInt(patchVertexData.w) & 3;
+    int localVertexID = int(@a_patchVertexData.x);
+    float outset = @a_patchVertexData.y;
+    float fillCoverage = @a_patchVertexData.z;
+    int patchSegmentSpan = floatBitsToInt(@a_patchVertexData.w) >> 2;
+    int vertexType = floatBitsToInt(@a_patchVertexData.w) & 3;
 
     // Fetch the tessellation vertex we belong to.
-    int vertexIdx = INSTANCE_ID * patchSegmentSpan + localVertexID;
-#ifdef @BASE_INSTANCE_POLYFILL
-    vertexIdx += baseInstancePolyfill * patchSegmentSpan;
+    int tessVertexIdx = _instanceID * patchSegmentSpan + localVertexID;
+#ifdef @ENABLE_BASE_INSTANCE_POLYFILL
+    tessVertexIdx += @baseInstancePolyfill * patchSegmentSpan;
 #endif
-    int2 tessVertexTexelCoord = tessTexelCoord(vertexIdx);
-    uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord, 0);
+    int2 tessVertexTexelCoord = tessTexelCoord(tessVertexIdx);
+    uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord);
     uint contourIDWithFlags = tessVertexData.w;
     bool isClosingVertexOfContour = localVertexID == patchSegmentSpan &&
                                     (contourIDWithFlags & FIRST_VERTEX_OF_CONTOUR_FLAG) != 0u;
@@ -99,14 +118,14 @@ VERTEX_MAIN(
     {
         // The right vertex crossed over into a new contour. Fetch the previous vertex, which will
         // be the final vertex of the contour we're trying to draw.
-        tessVertexTexelCoord = tessTexelCoord(vertexIdx - 1);
-        tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord, 0);
+        tessVertexTexelCoord = tessTexelCoord(tessVertexIdx - 1);
+        tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord);
         contourIDWithFlags = tessVertexData.w;
     }
 
     // Fetch and unpack the contour referenced by the tessellation vertex.
     uint4 contourData =
-        TEXEL_FETCH(textures, @contourTexture, contour_texel_coord(contourIDWithFlags), 0);
+        TEXEL_FETCH(textures, @contourTexture, contour_texel_coord(contourIDWithFlags));
     float2 midpoint = uintBitsToFloat(contourData.xy);
     uint pathIDBits = contourData.z;
     uint vertexIndex0 = contourData.w;
@@ -114,19 +133,18 @@ VERTEX_MAIN(
 
     // Fetch and unpack the path.
     int2 pathTexelCoord = path_texel_coord(pathIDBits);
-    float2x2 matrix =
-        make_float2x2(uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, pathTexelCoord, 0)));
-    uint4 pathData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(1, 0), 0);
+    float2x2 mat =
+        make_float2x2(uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, pathTexelCoord)));
+    uint4 pathData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(1, 0));
     float2 translate = uintBitsToFloat(pathData.xy);
     uint pathParams = pathData.w;
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     // The vertex position is encoded directly in vertex data when drawing triangles.
-    float2 vertexPosition = matrix * triangleVertex.xy + translate;
+    float2 vertexPosition = MUL(mat, @a_triangleVertex.xy) + translate;
     // When we belong to a non-overlapping interior triangulation, the winding sign and weight are
     // also encoded directly in vertex data.
-    FLD(varyings, windingWeight) =
-        float(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(matrix));
+    v_windingWeight = float(floatBitsToInt(@a_triangleVertex.z) >> 16) * sign(determinant(mat));
 #else
     float strokeRadius = uintBitsToFloat(pathData.z);
 
@@ -140,7 +158,7 @@ VERTEX_MAIN(
             // The contour is closed and we are the closing vertex. Wrap back around full circle and
             // re-emit the first tessellation vertex.
             int2 vertexTexelCoord0 = tessTexelCoord(int(vertexIndex0));
-            tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, vertexTexelCoord0, 0);
+            tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, vertexTexelCoord0);
             contourIDWithFlags = tessVertexData.w;
         }
     }
@@ -157,24 +175,23 @@ VERTEX_MAIN(
         if ((contourIDWithFlags & RIGHT_JOIN_FLAG) != 0u)
             outset = max(outset, .0);
 
-        float aaRadius = calc_aa_radius(matrix, norm);
-        float globalCoverage = 1.;
+        float aaRadius = calc_aa_radius(mat, norm);
+        half globalCoverage = 1.;
         if (aaRadius > strokeRadius)
         {
-            // The stroke is narrower than the AA ramp. Instead of emitting subpixel geometry,
-            // make the stroke as wide as the AA ramp and apply a global coverage multiplier.
-            globalCoverage = strokeRadius / aaRadius;
+            // The stroke is narrower than the AA ramp. Instead of emitting subpixel geometry, make
+            // the stroke as wide as the AA ramp and apply a global coverage multiplier.
+            globalCoverage = make_half(strokeRadius) / make_half(aaRadius);
             strokeRadius = aaRadius;
         }
 
         // Extend the vertex by half the width of the AA ramp.
-        float2 vertexOffset = norm * (strokeRadius + aaRadius); // Bloat stroke width for AA.
+        float2 vertexOffset = MUL(norm, strokeRadius + aaRadius); // Bloat stroke width for AA.
 
         // Calculate the AA distance to both the outset and inset edges of the stroke. The fragment
         // shader will use whichever is lesser.
         float x = outset * (strokeRadius + aaRadius);
-        FLD(varyings, edgeDistance) =
-            make_half2((1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5);
+        v_edgeDistance = make_half2((1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5);
 
         uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
         if (joinType != 0u)
@@ -183,8 +200,8 @@ VERTEX_MAIN(
             // the same as the miter line. The first two vertices in the join peek forward to figure
             // out the bisector, and the final two peek backward.
             int peekDir = (contourIDWithFlags & JOIN_TANGENT_0_FLAG) != 0u ? 2 : -2;
-            int2 otherJoinTexelCoord = tessTexelCoord(vertexIdx + peekDir);
-            uint4 otherJoinData = TEXEL_FETCH(textures, @tessVertexTexture, otherJoinTexelCoord, 0);
+            int2 otherJoinTexelCoord = tessTexelCoord(tessVertexIdx + peekDir);
+            uint4 otherJoinData = TEXEL_FETCH(textures, @tessVertexTexture, otherJoinTexelCoord);
             float otherJoinTheta = uintBitsToFloat(otherJoinData.z);
             float joinAngle = abs(otherJoinTheta - theta);
             if (joinAngle > PI)
@@ -193,7 +210,7 @@ VERTEX_MAIN(
             bool isLeftJoin = (contourIDWithFlags & LEFT_JOIN_FLAG) != 0u;
             float bisectTheta = joinAngle * (isTan0 == isLeftJoin ? -.5 : .5) + theta;
             float2 bisector = float2(sin(bisectTheta), -cos(bisectTheta));
-            float bisectAARadius = calc_aa_radius(matrix, bisector);
+            float bisectAARadius = calc_aa_radius(mat, bisector);
 
             // Generalize everything to a "miter-clip", which is proposed in the SVG-2 draft. Bevel
             // joins are converted to miter-clip joins with a miter limit of 1/2 pixel. They
@@ -244,7 +261,7 @@ VERTEX_MAIN(
                     float2 bisectAAOffset = bisector * clipAARadius;
                     float2 k = float2(dot(vertexOffset, vertexOffset),
                                       dot(bisectAAOffset, bisectAAOffset));
-                    vertexOffset = k * inverse(float2x2(vertexOffset, bisectAAOffset));
+                    vertexOffset = MUL(k, inverse(float2x2(vertexOffset, bisectAAOffset)));
                 }
             }
             // The clip distance tells us how to antialias the outer clipped edge. Since joins only
@@ -253,15 +270,15 @@ VERTEX_MAIN(
             float2 pt = abs(outset) * vertexOffset;
             float clipDistance = (clipAARadius - dot(pt, bisector)) / (bisectAARadius * 2.);
             if ((contourIDWithFlags & LEFT_JOIN_FLAG) != 0u)
-                FLD(varyings, edgeDistance).y = clipDistance;
+                v_edgeDistance.y = make_half(clipDistance);
             else
-                FLD(varyings, edgeDistance).x = clipDistance;
+                v_edgeDistance.x = make_half(clipDistance);
         }
 
         // Strokes identify themselves by emitting a negative edgeDistance.
-        FLD(varyings, edgeDistance) *= -globalCoverage;
+        v_edgeDistance *= -globalCoverage;
 
-        postTransformVertexOffset = matrix * (outset * vertexOffset);
+        postTransformVertexOffset = MUL(mat, outset * vertexOffset);
 
         // Throw away the fan triangles since we're a stroke.
         if (vertexType != STROKE_VERTEX)
@@ -274,43 +291,41 @@ VERTEX_MAIN(
             origin = midpoint;
 
         // Offset the vertex for Manhattan AA.
-        postTransformVertexOffset = sign(matrix * (outset * norm)) * AA_RADIUS;
-        FLD(varyings, edgeDistance) = make_half2(fillCoverage, 1);
+        postTransformVertexOffset = sign(MUL(mat, outset * norm)) * AA_RADIUS;
+        v_edgeDistance = make_half2(fillCoverage, 1);
 
         // If we're actually just drawing a triangle, throw away the entire patch except a single
         // fan triangle.
         if ((contourIDWithFlags & RETROFITTED_TRIANGLE_FLAG) != 0u && vertexType != FAN_VERTEX)
             shouldDiscardVertex = true;
     }
-    float2 vertexPosition = matrix * origin + postTransformVertexOffset + translate;
+    float2 vertexPosition = MUL(mat, origin) + postTransformVertexOffset + translate;
 #endif
 
     // Encode the integral pathID as a "half" that we know the hardware will see as a unique value
     // in the fragment shader.
-    FLD(varyings, pathID) =
-        unpackHalf2x16((pathIDBits + MAX_DENORM_F16) * uniforms.pathIDGranularity).r;
+    v_pathID = unpackHalf2x16((pathIDBits + MAX_DENORM_F16) * uniforms.pathIDGranularity).r;
 
     // Indicate even-odd fill rule by making pathID negative.
     if ((pathParams & EVEN_ODD_FLAG) != 0u)
-        FLD(varyings, pathID) = -FLD(varyings, pathID);
+        v_pathID = -v_pathID;
 
     uint paintType = (pathParams >> 20) & 7u;
 #ifdef @ENABLE_PATH_CLIPPING
     uint clipIDBits = (pathParams >> 4) & 0xffffu;
-    FLD(varyings, clipID) =
-        clipIDBits == 0u
-            ? .0
-            : unpackHalf2x16((clipIDBits + MAX_DENORM_F16) * uniforms.pathIDGranularity).r;
+    v_clipID = clipIDBits == 0u
+                   ? .0
+                   : unpackHalf2x16((clipIDBits + MAX_DENORM_F16) * uniforms.pathIDGranularity).r;
     // Negative clipID means to repalce the clip with this clipID.
     if (paintType == CLIP_REPLACE_PAINT_TYPE)
-        FLD(varyings, clipID) = -FLD(varyings, clipID);
+        v_clipID = -v_clipID;
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    FLD(varyings, blendMode) = float(pathParams & 0xfu);
+    v_blendMode = float(pathParams & 0xfu);
 #endif
 
     // Unpack the paint once we have a position.
-    uint4 paintData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(2, 0), 0);
+    uint4 paintData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(2, 0));
     float4 paint;
     if (paintType != LINEAR_GRADIENT_PAINT_TYPE && paintType != RADIAL_GRADIENT_PAINT_TYPE)
     {
@@ -334,7 +349,7 @@ VERTEX_MAIN(
         paint.b = x0 * (1. / GRAD_TEXTURE_WIDTH) + (.5 / GRAD_TEXTURE_WIDTH);
         if (x1 > x0 + 1.)
             ++paint.b; // x1 must equal GRAD_TEXTURE_WIDTH - 1. Increment paint.b to convey this.
-        float2 localCoord = inverse(matrix) * (vertexPosition - translate);
+        float2 localCoord = MUL(inverse(mat), vertexPosition - translate);
         float3 gradCoeffs = uintBitsToFloat(paintData.yzw);
         if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
         {
@@ -351,40 +366,68 @@ VERTEX_MAIN(
             paint.rg = (localCoord - gradCoeffs.xy) / gradCoeffs.z;
         }
     }
-    FLD(varyings, varying_paint) = paint;
+    v_paint = paint;
 
-    POSITION.xy = vertexPosition * float2(uniforms.renderTargetInverseViewportX,
-                                          -uniforms.renderTargetInverseViewportY) +
-                  float2(-1, 1);
-    POSITION.zw = float2(0, 1);
+    _pos.xy = vertexPosition * float2(uniforms.renderTargetInverseViewportX,
+                                      -uniforms.renderTargetInverseViewportY) +
+              float2(-1, 1);
+    _pos.zw = float2(0, 1);
     if (shouldDiscardVertex)
-        POSITION = float4(uniforms.vertexDiscardValue);
-    EMIT_VERTEX(varyings);
+    {
+        _pos = float4(uniforms.vertexDiscardValue,
+                      uniforms.vertexDiscardValue,
+                      uniforms.vertexDiscardValue,
+                      uniforms.vertexDiscardValue);
+    }
+
+    VARYING_PACK(varyings, v_paint);
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    VARYING_PACK(varyings, v_windingWeight);
+#else
+    VARYING_PACK(varyings, v_edgeDistance);
+#endif
+    VARYING_PACK(varyings, v_pathID);
+#ifdef @ENABLE_PATH_CLIPPING
+    VARYING_PACK(varyings, v_clipID);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_PACK(varyings, v_blendMode);
+#endif
+    EMIT_VERTEX(varyings, _pos);
 }
 #endif
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN(FragmentTextures)
-TEXTURE_RGBA8(3) @gradTexture;
+TEXTURE_RGBA8(3, @gradTexture);
 FRAG_TEXTURE_BLOCK_END
 
+GRADIENT_SAMPLER_DECL(0, gradSampler)
+
 PLS_BLOCK_BEGIN
-PLS_DECL4F(0) framebuffer;
-PLS_DECL2F(1) coverageCountBuffer;
-PLS_DECL4F(2) originalDstColorBuffer;
-PLS_DECL2F(3) clipBuffer;
+PLS_DECL4F(0, framebuffer);
+PLS_DECL2F(1, coverageCountBuffer);
+PLS_DECL4F(2, originalDstColorBuffer);
+PLS_DECL2F(3, clipBuffer);
 PLS_BLOCK_END
 
-#ifdef METAL
-PLS_MAIN(@drawFragmentMain,
-         Varyings varyings [[stage_in]],
-         FragmentTextures textures,
-         bool FRONT_FACING [[front_facing]])
-#else
-PLS_MAIN()
-#endif
+PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)
 {
-    float4 paint = FLD(varyings, varying_paint);
+    VARYING_UNPACK(varyings, v_paint, float4);
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    VARYING_UNPACK(varyings, v_windingWeight, half);
+#else
+    VARYING_UNPACK(varyings, v_edgeDistance, half2);
+#endif
+    VARYING_UNPACK(varyings, v_pathID, half);
+#ifdef @ENABLE_PATH_CLIPPING
+    VARYING_UNPACK(varyings, v_clipID, half);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(varyings, v_blendMode, half);
+#endif
+
+    float4 paint = v_paint;
     half4 color;
     if (paint.a >= .0)
     {
@@ -403,7 +446,8 @@ PLS_MAIN()
                 ? ((GRAD_TEXTURE_WIDTH - .5) / GRAD_TEXTURE_WIDTH) // The ramp spans an entire row.
                 : x0 + (1. / GRAD_TEXTURE_WIDTH);                  // The ramp spans 2 texels.
         float row = -paint.a;
-        color = TEXTURE_SAMPLE(textures, @gradTexture, float2(mix(x0, x1, t), row));
+        float2 gradCoord = float2(mix(x0, x1, t), row);
+        color = make_half4(TEXTURE_SAMPLE(textures, @gradTexture, gradSampler, gradCoord));
     }
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
@@ -416,7 +460,7 @@ PLS_MAIN()
     half coverageCount = coverageData.g;
 
     half4 dstColor;
-    if (localPathID != FLD(varyings, pathID))
+    if (localPathID != v_pathID)
     {
         // This is the first fragment from pathID to touch this pixel.
         coverageCount = .0;
@@ -437,34 +481,34 @@ PLS_MAIN()
     }
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
-    coverageCount += FLD(varyings, windingWeight);
+    coverageCount += v_windingWeight;
 #else
     // TODO: We may need to just send actual flags instead of using sign(edgeDistance) to identify
     // strokes. Since edgeDistance is interpolated, it can sometimes cross signs.
-    half d = FLD(varyings, edgeDistance).x;
+    half d = v_edgeDistance.x;
     if (d < -1e-4 /*stroke with an intentionally negative edgeDistance*/)
-        coverageCount = min(max(d, FLD(varyings, edgeDistance).y), coverageCount);
-    else if (FRONT_FACING /*clockwise fill*/)
+        coverageCount = min(max(d, v_edgeDistance.y), coverageCount);
+    else if (_clockwise /*clockwise fill*/)
         coverageCount += d;
     else /*counterclockwise fill*/
         coverageCount -= d;
 
     // Save the updated coverage.
-    PLS_STORE2F(coverageCountBuffer, FLD(varyings, pathID), coverageCount);
+    PLS_STORE2F(coverageCountBuffer, v_pathID, coverageCount);
 #endif
 
     // Convert coverageCount to coverage. (Which is min(-edgeDistance) right now for strokes.)
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
-    if (FLD(varyings, pathID) < .0 /*even-odd*/)
+    if (v_pathID < .0 /*even-odd*/)
         coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
 #endif
     coverage = min(coverage, make_half(1.)); // This also caps stroke coverage, which can be >1.
 
 #ifdef @ENABLE_PATH_CLIPPING
-    if (FLD(varyings, clipID) < .0 /*replace clip*/)
+    if (v_clipID < .0 /*replace clip*/)
     {
-        PLS_STORE2F(clipBuffer, -FLD(varyings, clipID), coverage);
+        PLS_STORE2F(clipBuffer, -v_clipID, coverage);
         PLS_PRESERVE_VALUE(framebuffer);
     }
     else
@@ -472,10 +516,10 @@ PLS_MAIN()
     {
 #ifdef @ENABLE_PATH_CLIPPING
         // Apply the clip.
-        if (FLD(varyings, clipID) > .0)
+        if (v_clipID > .0)
         {
             half2 clipData = PLS_LOAD2F(clipBuffer);
-            coverage = FLD(varyings, clipID) == clipData.r ? min(coverage, clipData.g) : .0;
+            coverage = v_clipID == clipData.r ? min(coverage, clipData.g) : .0;
         }
 #endif
         PLS_PRESERVE_VALUE(clipBuffer);
@@ -483,7 +527,7 @@ PLS_MAIN()
         // Blend with the framebuffer color.
         color.a *= coverage;
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (FLD(varyings, blendMode) != .0 /*srcOver*/)
+        if (v_blendMode != .0 /*srcOver*/)
         {
 #ifdef @ENABLE_HSL_BLEND_MODES
             color = advanced_hsl_blend(
@@ -492,7 +536,7 @@ PLS_MAIN()
 #endif
                 color,
                 unmultiply(dstColor),
-                make_ushort(FLD(varyings, blendMode)));
+                make_ushort(v_blendMode));
         }
         else
 #endif

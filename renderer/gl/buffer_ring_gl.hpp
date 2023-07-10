@@ -41,7 +41,7 @@ public:
     GLuint submittedTextureID() const { return m_ids[submittedBufferIdx()]; }
 
 protected:
-    void submitTexels(int bufferIdx, size_t width, size_t height) override;
+    void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) override;
 
 private:
     const GLenum m_activeTextureIdx;

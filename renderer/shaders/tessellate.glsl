@@ -13,35 +13,35 @@
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-ATTR(0) float4 attr_p0p1;
-ATTR(1) float4 attr_p2p3;
-ATTR(2) float4 attr_joinTangent;
-ATTR(3) uint4 attr_args; // [x0, x1, y, polarSegmentCount, contourIDWithFlags]
+ATTR(0, float4, @a_p0p1_);
+ATTR(1, float4, @a_p2p3_);
+ATTR(2, float4, @a_joinTangent);
+ATTR(3, uint4, @a_args); // [x0, x1, y, polarSegmentCount, contourIDWithFlags]
 ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN(Varyings)
-NO_PERSPECTIVE VARYING float4 p0p1;
-NO_PERSPECTIVE VARYING float4 p2p3;
-NO_PERSPECTIVE VARYING float4 args;     // [vertexIdx, totalVertexCount, joinSegmentCount,
-                                        // parametricSegmentCount, radsPerPolarSegment]
-NO_PERSPECTIVE VARYING float3 joinArgs; // [joinTangent, radsPerJoinSegment]
-FLAT VARYING uint contourIDWithFlags;
-VARYING_BLOCK_END
+NO_PERSPECTIVE VARYING(float4, v_p0p1);
+NO_PERSPECTIVE VARYING(float4, v_p2p3);
+NO_PERSPECTIVE VARYING(float4, v_args);     // [vertexIdx, totalVertexCount, joinSegmentCount,
+                                            //  parametricSegmentCount, radsPerPolarSegment]
+NO_PERSPECTIVE VARYING(float3, v_joinArgs); // [joinTangent, radsPerJoinSegment]
+FLAT VARYING(uint, v_contourIDWithFlags);
+VARYING_BLOCK_END(_pos)
 
 // Tangent of the curve at T=0 and T=1.
-float2x2 find_tangents(float4x2 p)
+INLINE float2x2 find_tangents(float2 p0, float2 p1, float2 p2, float2 p3)
 {
     float2x2 t;
-    t[0] = (any(notEqual(p[0], p[1])) ? p[1] : any(notEqual(p[1], p[2])) ? p[2] : p[3]) - p[0];
-    t[1] = p[3] - (any(notEqual(p[3], p[2])) ? p[2] : any(notEqual(p[2], p[1])) ? p[1] : p[0]);
+    t[0] = (any(notEqual(p0, p1)) ? p1 : any(notEqual(p1, p2)) ? p2 : p3) - p0;
+    t[1] = p3 - (any(notEqual(p3, p2)) ? p2 : any(notEqual(p2, p1)) ? p1 : p0);
     return t;
 }
 
 #ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
-TEXTURE_RGBA32UI(1) @pathTexture;
-TEXTURE_RGBA32UI(2) @contourTexture;
+TEXTURE_RGBA32UI(1, @pathTexture);
+TEXTURE_RGBA32UI(2, @contourTexture);
 VERTEX_TEXTURE_BLOCK_END
 
 float cosine_between_vectors(float2 a, float2 b)
@@ -52,46 +52,56 @@ float cosine_between_vectors(float2 a, float2 b)
     return (ab_pow2 == .0) ? 1. : clamp(ab_cosTheta * inversesqrt(ab_pow2), -1., 1.);
 }
 
-VERTEX_MAIN(
-#ifdef METAL
-    @tessellateVertexMain,
-    Varyings,
-    varyings,
-    uint VERTEX_ID [[vertex_id]],
-    uint INSTANCE_ID [[instance_id]],
-    constant @Uniforms& uniforms [[buffer(0)]],
-    constant Attrs* attrs [[buffer(1)]],
-    VertexTextures textures
-#endif
-)
+VERTEX_MAIN(@tessellateVertexMain,
+            @Uniforms,
+            uniforms,
+            Attrs,
+            attrs,
+            Varyings,
+            varyings,
+            VertexTextures,
+            textures,
+            _vertexID,
+            _instanceID,
+            _pos)
 {
-    ATTR_LOAD(float4, attrs, attr_p0p1, INSTANCE_ID);
-    ATTR_LOAD(float4, attrs, attr_p2p3, INSTANCE_ID);
-    ATTR_LOAD(uint4, attrs, attr_args, INSTANCE_ID);
-    ATTR_LOAD(float4, attrs, attr_joinTangent, INSTANCE_ID);
+    ATTR_UNPACK(_instanceID, attrs, @a_p0p1_, float4);
+    ATTR_UNPACK(_instanceID, attrs, @a_p2p3_, float4);
+    ATTR_UNPACK(_instanceID, attrs, @a_joinTangent, float4);
+    ATTR_UNPACK(_instanceID, attrs, @a_args, uint4);
 
-    float4x2 p = float4x2(attr_p0p1.xy, attr_p0p1.zw, attr_p2p3.xy, attr_p2p3.zw);
-    float x0 = float(int(attr_args.x << 16) >> 16);
-    float x1 = float(int(attr_args.x) >> 16);
-    float y = float(attr_args.y);
-    float2 coord = float2((VERTEX_ID & 1) == 0 ? x0 : x1, (VERTEX_ID & 2) == 0 ? y : y + 1.);
+    VARYING_INIT(varyings, v_p0p1, float4);
+    VARYING_INIT(varyings, v_p2p3, float4);
+    VARYING_INIT(varyings, v_args, float4);
+    VARYING_INIT(varyings, v_joinArgs, float3);
+    VARYING_INIT(varyings, v_contourIDWithFlags, uint);
 
-    uint parametricSegmentCount = attr_args.z & 0x3ffu;
-    uint polarSegmentCount = (attr_args.z >> 10) & 0x3ffu;
-    uint joinSegmentCount = attr_args.z >> 20;
-    uint outContourIDWithFlags = attr_args.w;
-    if ((outContourIDWithFlags & CULL_EXCESS_TESSELLATION_SEGMENTS_FLAG) != 0u)
+    float2 p0 = @a_p0p1_.xy;
+    float2 p1 = @a_p0p1_.zw;
+    float2 p2 = @a_p2p3_.xy;
+    float2 p3 = @a_p2p3_.zw;
+    float x0 = float(int(@a_args.x << 16) >> 16);
+    float x1 = float(int(@a_args.x) >> 16);
+    float y = float(@a_args.y);
+    float2 coord = float2((_vertexID & 1) == 0 ? x0 : x1, (_vertexID & 2) == 0 ? y : y + 1.);
+
+    uint parametricSegmentCount = @a_args.z & 0x3ffu;
+    uint polarSegmentCount = (@a_args.z >> 10) & 0x3ffu;
+    uint joinSegmentCount = @a_args.z >> 20;
+    uint contourIDWithFlags = @a_args.w;
+    if ((contourIDWithFlags & CULL_EXCESS_TESSELLATION_SEGMENTS_FLAG) != 0u)
     {
         // This span may have more tessellation vertices allocated to it than necessary (e.g.,
         // outerCurve patches all have a fixed patch size, regardless of how many segments the curve
         // actually needs). Re-run Wang's formula to figure out how many segments we actually need,
         // and make any excess segments degenerate by co-locating their vertices at T=0.
         uint pathIDBits =
-            TEXEL_FETCH(textures, @contourTexture, contour_texel_coord(outContourIDWithFlags), 0).z;
-        float2x2 matrix = make_float2x2(
-            uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, path_texel_coord(pathIDBits), 0)));
-        float2 d0 = matrix * (-2. * p[1] + p[2] + p[0]);
-        float2 d1 = matrix * (-2. * p[2] + p[3] + p[1]);
+            TEXEL_FETCH(textures, @contourTexture, contour_texel_coord(contourIDWithFlags)).z;
+        float2x2 mat = make_float2x2(
+            uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, path_texel_coord(pathIDBits))));
+        float2 d0 = MUL(mat, -2. * p1 + p2 + p0);
+
+        float2 d1 = MUL(mat, -2. * p2 + p3 + p1);
         float m = max(dot(d0, d0), dot(d1, d1));
         float n = max(ceil(sqrt(.75 * 4. * sqrt(m))), 1.);
         parametricSegmentCount = min(uint(n), parametricSegmentCount);
@@ -100,30 +110,30 @@ VERTEX_MAIN(
     // *vertex* count is equal to the sum of polar and parametric *segment* counts.
     uint totalVertexCount = parametricSegmentCount + polarSegmentCount + joinSegmentCount - 1u;
 
-    float2x2 tangents = find_tangents(p);
+    float2x2 tangents = find_tangents(p0, p1, p2, p3);
     float theta = acos(cosine_between_vectors(tangents[0], tangents[1]));
     float radsPerPolarSegment = theta / float(polarSegmentCount);
     // Adjust sign of radsPerPolarSegment to match the direction the curve turns.
     // NOTE: Since the curve is not allowed to inflect, we can just check F'(.5) x F''(.5).
-    // NOTE: F'(.5) x F''(.5) has the same sign as (p[2] - p[0]) x (p[3] - p[1]).
-    float turn = determinant(float2x2(p[2] - p[0], p[3] - p[1]));
+    // NOTE: F'(.5) x F''(.5) has the same sign as (p2 - p0) x (p3 - p1).
+    float turn = determinant(float2x2(p2 - p0, p3 - p1));
     if (turn == .0) // This is the case for joins and cusps where points are co-located.
         turn = determinant(tangents);
     if (turn < .0)
         radsPerPolarSegment = -radsPerPolarSegment;
 
-    FLD(varyings, p0p1) = float4(p[0], p[1]);
-    FLD(varyings, p2p3) = float4(p[2], p[3]);
-    FLD(varyings, args) = float4(float(totalVertexCount) + coord.x - x1, // vertexIdx
-                                 float(totalVertexCount),                // totalVertexCount
-                                 (joinSegmentCount << 10) | parametricSegmentCount,
-                                 radsPerPolarSegment);
+    v_p0p1 = float4(p0, p1);
+    v_p2p3 = float4(p2, p3);
+    v_args = float4(float(totalVertexCount) + coord.x - x1, // vertexIdx
+                    float(totalVertexCount),                // totalVertexCount
+                    (joinSegmentCount << 10) | parametricSegmentCount,
+                    radsPerPolarSegment);
     if (joinSegmentCount > 1u)
     {
-        float2x2 joinTangents = float2x2(tangents[1], attr_joinTangent.xy);
+        float2x2 joinTangents = float2x2(tangents[1], @a_joinTangent.xy);
         float joinTheta = acos(cosine_between_vectors(joinTangents[0], joinTangents[1]));
         float joinSpan = float(joinSegmentCount);
-        if ((outContourIDWithFlags & (JOIN_TYPE_MASK | EMULATED_STROKE_CAP_FLAG)) ==
+        if ((contourIDWithFlags & (JOIN_TYPE_MASK | EMULATED_STROKE_CAP_FLAG)) ==
             EMULATED_STROKE_CAP_FLAG)
         {
             // Round caps emulated as joins need to emit vertices at T=0 and T=1, unlike normal
@@ -135,41 +145,50 @@ VERTEX_MAIN(
         float radsPerJoinSegment = joinTheta / joinSpan;
         if (determinant(joinTangents) < .0)
             radsPerJoinSegment = -radsPerJoinSegment;
-        FLD(varyings, joinArgs).xy = attr_joinTangent.xy;
-        FLD(varyings, joinArgs).z = radsPerJoinSegment;
+        v_joinArgs.xy = @a_joinTangent.xy;
+        v_joinArgs.z = radsPerJoinSegment;
     }
-    FLD(varyings, contourIDWithFlags) = outContourIDWithFlags;
+    v_contourIDWithFlags = contourIDWithFlags;
 
-    POSITION.xy = coord * float2(2. / TESS_TEXTURE_WIDTH, uniforms.tessInverseViewportY) - 1.;
-    POSITION.zw = float2(0, 1);
-    EMIT_OFFSCREEN_VERTEX(varyings);
+    _pos.xy = coord * float2(2. / TESS_TEXTURE_WIDTH, uniforms.tessInverseViewportY) - 1.;
+    _pos.zw = float2(0, 1);
+
+    VARYING_PACK(varyings, v_p0p1);
+    VARYING_PACK(varyings, v_p2p3);
+    VARYING_PACK(varyings, v_args);
+    VARYING_PACK(varyings, v_joinArgs);
+    VARYING_PACK(varyings, v_contourIDWithFlags);
+    EMIT_OFFSCREEN_VERTEX(varyings, _pos);
 }
 #endif
 
 #ifdef @FRAGMENT
-FRAG_DATA_TYPE(uint4)
-FRAG_DATA_MAIN(
-#ifdef METAL
-    @tessellateFragmentMain,
-    Varyings varyings [[stage_in]]
-#endif
-)
+FRAG_DATA_MAIN(uint4, @tessellateFragmentMain, Varyings, varyings)
 {
-    float4x2 p = make_float4x2(FLD(varyings, p0p1), FLD(varyings, p2p3));
-    float2x2 tangents = find_tangents(p);
+    VARYING_UNPACK(varyings, v_p0p1, float4);
+    VARYING_UNPACK(varyings, v_p2p3, float4);
+    VARYING_UNPACK(varyings, v_args, float4);
+    VARYING_UNPACK(varyings, v_joinArgs, float3);
+    VARYING_UNPACK(varyings, v_contourIDWithFlags, uint);
+
+    float2 p0 = v_p0p1.xy;
+    float2 p1 = v_p0p1.zw;
+    float2 p2 = v_p2p3.xy;
+    float2 p3 = v_p2p3.zw;
+    float2x2 tangents = find_tangents(p0, p1, p2, p3);
     // Colocate any padding vertices at T=0.
-    float vertexIdx = max(floor(FLD(varyings, args).x), .0);
-    float totalVertexCount = FLD(varyings, args).y;
-    uint joinSegmentCount_and_parametricSegmentCount = uint(FLD(varyings, args).z);
+    float vertexIdx = max(floor(v_args.x), .0);
+    float totalVertexCount = v_args.y;
+    uint joinSegmentCount_and_parametricSegmentCount = uint(v_args.z);
     float parametricSegmentCount = float(joinSegmentCount_and_parametricSegmentCount & 0x3ffu);
     float joinSegmentCount = float(joinSegmentCount_and_parametricSegmentCount >> 10);
-    float radsPerPolarSegment = FLD(varyings, args).w;
-    uint outContourIDWithFlags = FLD(varyings, contourIDWithFlags);
+    float radsPerPolarSegment = v_args.w;
+    uint contourIDWithFlags = v_contourIDWithFlags;
     // PLSRenderer sends down the first curve of each contour with the
     // "FIRST_VERTEX_OF_CONTOUR_FLAG" flag. But from here we need to only output this flag for the
     // first *vertex* of that first curve.
     if (vertexIdx != .0)
-        outContourIDWithFlags &= ~FIRST_VERTEX_OF_CONTOUR_FLAG;
+        contourIDWithFlags &= ~FIRST_VERTEX_OF_CONTOUR_FLAG;
 
     // mergedVertexID/mergedSegmentCount are relative to the sub-section of the instance this vertex
     // belongs to (either the curve section that consists of merged polar and parametric segments,
@@ -181,27 +200,27 @@ FRAG_DATA_MAIN(
     if (mergedVertexID <= mergedSegmentCount)
     {
         // We do belong to the curve section. Clear out any stroke join flags.
-        outContourIDWithFlags &= ~JOIN_TYPE_MASK;
+        contourIDWithFlags &= ~JOIN_TYPE_MASK;
     }
     else
     {
         // We actually belong to the join section following the curve. Construct a point-cubic with
         // rotation.
-        p = float4x2(p[3], p[3], p[3], p[3]);
-        tangents = float2x2(tangents[1], FLD(varyings, joinArgs).xy /*joinTangent*/);
+        p0 = p1 = p2 = p3;
+        tangents = float2x2(tangents[1], v_joinArgs.xy /*joinTangent*/);
         parametricSegmentCount = 1.;
         mergedVertexID -= mergedSegmentCount;
         mergedSegmentCount = joinSegmentCount;
-        if ((outContourIDWithFlags & JOIN_TYPE_MASK) != 0u)
+        if ((contourIDWithFlags & JOIN_TYPE_MASK) != 0u)
         {
             // Miter or bevel join vertices snap to either tangents[0] or tangents[1], and get
             // adjusted in the shader that follows.
             if (mergedVertexID < 2.5) // With 5 join segments, this branch will see IDs: 1, 2, 3, 4.
-                outContourIDWithFlags |= JOIN_TANGENT_0_FLAG;
+                contourIDWithFlags |= JOIN_TANGENT_0_FLAG;
             if (mergedVertexID > 1.5 && mergedVertexID < 3.5)
-                outContourIDWithFlags |= JOIN_TANGENT_INNER_FLAG;
+                contourIDWithFlags |= JOIN_TANGENT_INNER_FLAG;
         }
-        else if ((outContourIDWithFlags & EMULATED_STROKE_CAP_FLAG) != 0u)
+        else if ((contourIDWithFlags & EMULATED_STROKE_CAP_FLAG) != 0u)
         {
             // Round caps emulated as joins need to emit vertices at T=0 and T=1, unlike normal
             // round joins. Preserve the same number of vertices (the CPU should have given us two
@@ -211,29 +230,28 @@ FRAG_DATA_MAIN(
             mergedSegmentCount -= 2.;
             mergedVertexID--;
         }
-        radsPerPolarSegment = FLD(varyings, joinArgs).z; // radsPerJoinSegment.
-        outContourIDWithFlags |= radsPerPolarSegment < .0 ? LEFT_JOIN_FLAG : RIGHT_JOIN_FLAG;
+        radsPerPolarSegment = v_joinArgs.z; // radsPerJoinSegment.
+        contourIDWithFlags |= radsPerPolarSegment < .0 ? LEFT_JOIN_FLAG : RIGHT_JOIN_FLAG;
     }
 
     float2 tessCoord;
-    float theta;
+    float theta = .0;
     if (mergedVertexID == .0 || mergedVertexID == mergedSegmentCount ||
-        (outContourIDWithFlags & JOIN_TYPE_MASK) != 0u)
+        (contourIDWithFlags & JOIN_TYPE_MASK) != 0u)
     {
         // Tessellated vertices at the beginning and end of the strip use exact endpoints and
         // tangents. This ensures crack-free seaming between instances.
         bool isTan0 = mergedVertexID < mergedSegmentCount * .5;
-        tessCoord = isTan0 ? p[0] : p[3];
+        tessCoord = isTan0 ? p0 : p3;
         theta = atan2(isTan0 ? tangents[0] : tangents[1]);
     }
-    else if ((outContourIDWithFlags & RETROFITTED_TRIANGLE_FLAG) != 0u)
+    else if ((contourIDWithFlags & RETROFITTED_TRIANGLE_FLAG) != 0u)
     {
         // This cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
         // This is used to squeeze in more rare triangles, like "breadcrumb" triangles from
         // self-intersections on interior triangulation, where it wouldn't be worth it to put them
         // in their own dedicated draw call.
-        tessCoord = p[1];
-        theta = .0;
+        tessCoord = p1;
     }
     else
     {
@@ -255,9 +273,9 @@ FRAG_DATA_MAIN(
             //                                                 |T^2|
             //     Tangent_Direction(T) = dx,dy = |A  2B  C| * |T  |
             //                                    |.   .  .|   |1  |
-            float2 A, B, C = p[1] - p[0];
-            float2 D = p[3] - p[0];
-            float2 E = p[2] - p[1];
+            float2 A, B, C = p1 - p0;
+            float2 D = p3 - p0;
+            float2 E = p2 - p1;
             B = E - C;
             A = -3. * E + D;
             // FIXME(crbug.com/800804,skbug.com/11268): Consider normalizing the exponents in A,B,C
@@ -352,9 +370,9 @@ FRAG_DATA_MAIN(
         }
 
         // Evaluate the cubic at T. Use De Casteljau's for its accuracy and stability.
-        float2 ab = unchecked_mix(p[0], p[1], T);
-        float2 bc = unchecked_mix(p[1], p[2], T);
-        float2 cd = unchecked_mix(p[2], p[3], T);
+        float2 ab = unchecked_mix(p0, p1, T);
+        float2 bc = unchecked_mix(p1, p2, T);
+        float2 cd = unchecked_mix(p2, p3, T);
         float2 abc = unchecked_mix(ab, bc, T);
         float2 bcd = unchecked_mix(bc, cd, T);
         tessCoord = unchecked_mix(abc, bcd, T);
@@ -365,6 +383,6 @@ FRAG_DATA_MAIN(
             theta = atan2(bcd - abc);
     }
 
-    EMIT_FRAG_DATA(uint4(floatBitsToUint(float3(tessCoord, theta)), outContourIDWithFlags));
+    EMIT_FRAG_DATA(uint4(floatBitsToUint(float3(tessCoord, theta)), contourIDWithFlags));
 }
 #endif

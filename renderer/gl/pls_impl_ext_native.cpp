@@ -33,7 +33,7 @@ public:
     PLSLoadStoreProgram(const PLSLoadStoreProgram&) = delete;
     PLSLoadStoreProgram& operator=(const PLSLoadStoreProgram&) = delete;
 
-    PLSLoadStoreProgram(uint32_t ops, GLuint vertexShader)
+    PLSLoadStoreProgram(uint32_t ops, GLuint vertexShader, const GLExtensions& extensions)
     {
         std::vector<const char*> defines{GLSL_PLS_IMPL_EXT_NATIVE};
         if (ops & loadstoreops::kClearColor)
@@ -66,7 +66,8 @@ public:
                                         defines.data(),
                                         defines.size(),
                                         &source,
-                                        1);
+                                        1,
+                                        extensions);
         glutils::LinkProgram(m_id);
 
         if (ops & loadstoreops::kClearColor)
@@ -88,12 +89,12 @@ private:
 class PLSRenderContextGL::PLSImplEXTNative : public PLSRenderContextGL::PLSImpl
 {
 public:
-    PLSImplEXTNative()
+    PLSImplEXTNative(const GLExtensions& extensions) : m_extensions(extensions)
     {
         // We have to manually implement load/store operations from a shader when using
         // EXT_shader_pixel_local_storage.
         m_plsLoadStoreVertexShader =
-            glutils::CompileShader(GL_VERTEX_SHADER, glsl::pls_load_store_ext);
+            glutils::CompileShader(GL_VERTEX_SHADER, glsl::pls_load_store_ext, extensions);
         glGenVertexArrays(1, &m_plsLoadStoreVAO);
     }
 
@@ -157,7 +158,8 @@ public:
         {
             // Otherwise we have to initialize pixel local storage with a fullscreen draw.
             const PLSLoadStoreProgram& plsProgram =
-                m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader)
+                m_plsLoadStorePrograms
+                    .try_emplace(ops, ops, m_plsLoadStoreVertexShader, m_extensions)
                     .first->second;
             context->bindProgram(plsProgram.id());
             if (plsProgram.clearColorUniLocation() >= 0)
@@ -175,7 +177,8 @@ public:
         // the main framebuffer.
         uint32_t ops = loadstoreops::kStoreColor;
         const PLSLoadStoreProgram& plsProgram =
-            m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader).first->second;
+            m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader, m_extensions)
+                .first->second;
         context->bindProgram(plsProgram.id());
         context->bindVAO(m_plsLoadStoreVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -186,13 +189,15 @@ public:
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_EXT_NATIVE; }
 
 private:
+    const GLExtensions m_extensions;
     std::map<uint32_t, PLSLoadStoreProgram> m_plsLoadStorePrograms; // Keyed by loadstoreops.
     GLuint m_plsLoadStoreVertexShader = 0;
     GLuint m_plsLoadStoreVAO = 0;
 };
 
-std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplEXTNative()
+std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplEXTNative(
+    const GLExtensions& extensions)
 {
-    return std::make_unique<PLSImplEXTNative>();
+    return std::make_unique<PLSImplEXTNative>(extensions);
 }
 } // namespace rive::pls

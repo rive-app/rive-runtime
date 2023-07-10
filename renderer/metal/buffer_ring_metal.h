@@ -42,7 +42,7 @@ public:
     id<MTLTexture> submittedTexture() const { return m_textures[submittedBufferIdx()]; }
 
 protected:
-    void submitTexels(int bufferIdx, size_t width, size_t height) override;
+    void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) override;
 
 private:
     id<MTLTexture> m_textures[kBufferRingSize];

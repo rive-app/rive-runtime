@@ -104,7 +104,7 @@ half3 set_lum(half3 cbase, half3 clum)
     half lbase = lumv3(cbase);
     half llum = lumv3(clum);
     half ldiff = llum - lbase;
-    half3 color = cbase + make_half3(ldiff);
+    half3 color = cbase + make_half3(ldiff, ldiff, ldiff);
     return clip_color(color);
 }
 
@@ -125,7 +125,7 @@ half3 set_lum_sat(half3 cbase, half3 csat, half3 clum)
     }
     else
     {
-        color = make_half3(0);
+        color = make_half3(0, 0, 0);
     }
     return set_lum(color, clum);
 }
@@ -139,7 +139,7 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
 {
     // The function f() operates on un-multiplied rgb values and dictates the look of the advanced
     // blend equations.
-    half3 f;
+    half3 f = make_half3(0, 0, 0);
     switch (mode)
     {
         case BLEND_MODE_MULTIPLY:
@@ -149,7 +149,8 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
             f = src.rgb + dst.rgb - src.rgb * dst.rgb;
             break;
         case BLEND_MODE_OVERLAY:
-            for (ushort i = 0u; i < 3u; ++i)
+        {
+            for (int i = 0; i < 3; ++i)
             {
                 if (dst[i] <= .5)
                     f[i] = 2. * src[i] * dst[i];
@@ -157,6 +158,7 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
                     f[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
             }
             break;
+        }
         case BLEND_MODE_DARKEN:
             f = min(src.rgb, dst.rgb);
             break;
@@ -166,19 +168,20 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
         case BLEND_MODE_COLORDODGE:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
-            f = mix(min(dst.rgb / (1. - src.rgb), make_half3(1)),
-                    make_half3(0),
-                    lessThanEqual(dst.rgb, make_half3(0)));
+            f = mix(min(dst.rgb / (1. - src.rgb), make_half3(1, 1, 1)),
+                    make_half3(0, 0, 0),
+                    lessThanEqual(dst.rgb, make_half3(0, 0, 0)));
             break;
         case BLEND_MODE_COLORBURN:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
             f = mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
-                    make_half3(1),
-                    greaterThanEqual(dst.rgb, make_half3(1)));
+                    make_half3(1, 1, 1),
+                    greaterThanEqual(dst.rgb, make_half3(1, 1, 1)));
             break;
         case BLEND_MODE_HARDLIGHT:
-            for (ushort i = 0u; i < 3u; ++i)
+        {
+            for (int i = 0; i < 3; ++i)
             {
                 if (src[i] <= .5)
                     f[i] = 2. * src[i] * dst[i];
@@ -186,8 +189,10 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
                     f[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
             }
             break;
+        }
         case BLEND_MODE_SOFTLIGHT:
-            for (ushort i = 0u; i < 3u; ++i)
+        {
+            for (int i = 0; i < 3; ++i)
             {
                 if (src[i] <= 0.5)
                     f[i] = dst[i] - (1. - 2. * src[i]) * dst[i] * (1. - dst[i]);
@@ -198,6 +203,7 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
                     f[i] = dst[i] + (2. * src[i] - 1.) * (sqrt(dst[i]) - dst[i]);
             }
             break;
+        }
         case BLEND_MODE_DIFFERENCE:
             f = abs(dst.rgb - src.rgb);
             break;
@@ -208,19 +214,19 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
         // The HSL blend equations are only well defined when the values of the input color
         // components are in the range [0..1].
         case BLEND_MODE_HUE:
-            src.rgb = clamp(src.rgb, make_half3(0), make_half3(1));
+            src.rgb = clamp(src.rgb, make_half3(0, 0, 0), make_half3(1, 1, 1));
             f = set_lum_sat(src.rgb, dst.rgb, dst.rgb);
             break;
         case BLEND_MODE_SATURATION:
-            src.rgb = clamp(src.rgb, make_half3(0), make_half3(1));
+            src.rgb = clamp(src.rgb, make_half3(0, 0, 0), make_half3(1, 1, 1));
             f = set_lum_sat(dst.rgb, src.rgb, dst.rgb);
             break;
         case BLEND_MODE_COLOR:
-            src.rgb = clamp(src.rgb, make_half3(0), make_half3(1));
+            src.rgb = clamp(src.rgb, make_half3(0, 0, 0), make_half3(1, 1, 1));
             f = set_lum(src.rgb, dst.rgb);
             break;
         case BLEND_MODE_LUMINOSITY:
-            src.rgb = clamp(src.rgb, make_half3(0), make_half3(1));
+            src.rgb = clamp(src.rgb, make_half3(0, 0, 0), make_half3(1, 1, 1));
             f = set_lum(dst.rgb, src.rgb);
             break;
 #endif
@@ -243,6 +249,6 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
     //     A =          X*p0(As,Ad) +     Y*p1(As,Ad) +     Z*p2(As,Ad)
     //
     // NOTE: (X,Y,Z) always == (1,1,1), so it is ignored in this implementation.
-    return make_half3x4(f, 1, src.rgb, 1, dst.rgb, 1) * p;
+    return MUL(make_half3x4(f, 1, src.rgb, 1, dst.rgb, 1), p);
 }
 #endif

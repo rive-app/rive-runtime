@@ -18,7 +18,7 @@ constexpr static GLenum kPLSDrawBuffers[4] = {GL_COLOR_ATTACHMENT0,
 class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::PLSImpl
 {
 public:
-    PLSImplFramebufferFetch(GLExtensions extensions) : m_extensions(extensions) {}
+    PLSImplFramebufferFetch(const GLExtensions& extensions) : m_extensions(extensions) {}
 
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
                                               size_t width,
@@ -125,7 +125,7 @@ private:
 };
 
 std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplFramebufferFetch(
-    GLExtensions extensions)
+    const GLExtensions& extensions)
 {
     return std::make_unique<PLSImplFramebufferFetch>(extensions);
 }

@@ -22,6 +22,7 @@
 
 using namespace rive;
 
+bool g_preferIntelGPU = false;
 GLFWwindow* g_window = nullptr;
 bool g_wireframe = false;
 bool g_disableFill = false;
@@ -215,9 +216,17 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     }
 }
 
-bool metal = false;
-bool angle = false;
 bool skia = false;
+
+enum class API
+{
+    gl,
+    metal,
+    d3d
+};
+
+API api = API::gl;
+bool angle = false;
 
 int lastWidth = 0, lastHeight = 0;
 double fpsLastTime = glfwGetTime();
@@ -266,17 +275,20 @@ int main(int argc, const char** argv)
     {
         if (!strcmp(argv[i], "--gl"))
         {
-            metal = false;
+            api = API::gl;
         }
         else if (!strcmp(argv[i], "--metal"))
         {
-            metal = true;
+            api = API::metal;
+        }
+        else if (!strcmp(argv[i], "--d3d"))
+        {
+            api = API::d3d;
         }
         else if (!strcmp(argv[i], "--skia"))
         {
             skia = true;
         }
-#ifdef RIVE_DESKTOP_GL
         else if (!strcmp(argv[i], "--angle_gl"))
         {
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
@@ -297,7 +309,10 @@ int main(int argc, const char** argv)
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_METAL);
             angle = true;
         }
-#endif
+        else if (!strcmp(argv[i], "--intel") || !strcmp(argv[i], "-i"))
+        {
+            g_preferIntelGPU = true;
+        }
         else if (sscanf(argv[i], "-a%i", &s_animation))
         {}
         else if (sscanf(argv[i], "-h%i", &s_horzRepeat))
@@ -324,23 +339,30 @@ int main(int argc, const char** argv)
 
     glfwWindowHint(GLFW_SAMPLES, 0);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-    if (metal)
+    switch (api)
     {
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+        case API::metal:
+        case API::d3d:
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+            break;
+        case API::gl:
+            if (angle)
+            {
+                glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            }
+            else
+            {
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+            }
+            break;
     }
-    else if (angle)
-    {
-        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    }
-    else
-    {
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-    }
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
+    glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
     g_window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
     if (!g_window)
     {
@@ -354,27 +376,40 @@ int main(int argc, const char** argv)
     glfwSetCursorPosCallback(g_window, mousemove_callback);
     glfwSetKeyCallback(g_window, key_callback);
     glfwMakeContextCurrent(g_window);
+    glfwShowWindow(g_window);
 
-    if (metal)
+    switch (api)
     {
-        if (skia)
-        {
-            fprintf(stderr, "Skia not supported on Metal yet.\n");
-            exit(-1);
-        }
+        case API::metal:
+            if (skia)
+            {
+                fprintf(stderr, "Skia not supported on Metal yet.\n");
+                break;
+            }
 #ifdef __APPLE__
-        s_fiddleContext = FiddleContext::MakeMetalPLS();
+            s_fiddleContext = FiddleContext::MakeMetalPLS();
 #endif
-    }
-    else if (skia)
-    {
+            break;
+        case API::d3d:
+            if (skia)
+            {
+                fprintf(stderr, "Skia not supported on d3d yet.\n");
+                break;
+            }
+#ifdef _WIN32
+            s_fiddleContext = FiddleContext::MakeD3DPLS();
+#endif
+            break;
+        case API::gl:
+            if (skia)
+            {
 #ifdef RIVE_SKIA
-        s_fiddleContext = FiddleContext::MakeGLSkia();
+                s_fiddleContext = FiddleContext::MakeGLSkia();
 #endif
-    }
-    else
-    {
-        s_fiddleContext = FiddleContext::MakeGLPLS();
+                break;
+            }
+            s_fiddleContext = FiddleContext::MakeGLPLS();
+            break;
     }
     if (!s_fiddleContext)
     {

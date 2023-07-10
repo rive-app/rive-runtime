@@ -13,6 +13,7 @@ namespace glutils
 void CompileAndAttachShader(GLuint program,
                             GLuint type,
                             const char* source,
+                            const GLExtensions&,
                             const char* versionString = nullptr);
 
 void CompileAndAttachShader(GLuint program,
@@ -21,10 +22,12 @@ void CompileAndAttachShader(GLuint program,
                             size_t numDefines,
                             const char* sources[],
                             size_t numSources,
+                            const GLExtensions&,
                             const char* versionString = nullptr);
 
 [[nodiscard]] GLuint CompileShader(GLuint type,
                                    const char* source,
+                                   const GLExtensions&,
                                    const char* versionString = nullptr);
 
 [[nodiscard]] GLuint CompileShader(GLuint type,
@@ -32,6 +35,7 @@ void CompileAndAttachShader(GLuint program,
                                    size_t numDefines,
                                    const char* sources[],
                                    size_t numSources,
+                                   const GLExtensions&,
                                    const char* versionString = nullptr);
 
 void LinkProgram(GLuint program);

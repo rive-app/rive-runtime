@@ -10,6 +10,7 @@ class Renderer;
 
 constexpr static int kZoomWindowWidth = 70, kZoomWindowHeight = 42, kZoomWindowScale = 16;
 
+extern bool g_preferIntelGPU;
 extern struct GLFWwindow* g_window;
 extern bool g_wireframe;
 extern bool g_disableFill;
@@ -32,5 +33,8 @@ public:
     static std::unique_ptr<FiddleContext> MakeGLPLS();
 #ifdef __APPLE__
     static std::unique_ptr<FiddleContext> MakeMetalPLS();
+#endif
+#ifdef _WIN32
+    static std::unique_ptr<FiddleContext> MakeD3DPLS();
 #endif
 };

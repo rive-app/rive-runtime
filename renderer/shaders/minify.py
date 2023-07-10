@@ -18,6 +18,8 @@ Performs the following transformations:
         - No new name includes the '_' character, so internal code can use '_' without fear of
           renaming collisions.
         - GLSL keywords and builtins are not renamed.
+        - Tokens beginning with '@' have their new name exported to a header file.
+        - Tokens beginning with '$' are not renamed, with the exception of removing the leading '$'.
 
 "file.glsl" gets exported to:
     * "outdir/file.exports.h", with #defines for the rewritten names of each identifier that began
@@ -65,7 +67,7 @@ def parse_id(name, exports):
 
 # lexing functions used by PLY.
 def t_DEFINE(tok):
-    r"\#[ \t]*define[ \t]+(?P<id>\@?[A-Za-z_][A-Za-z0-9_]*)(?P<val>(((\\\n|.)(?!\/[\/\*]))*))"
+    r"\#[ \t]*define[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)(?P<val>(((\\\n|.)(?!\/[\/\*]))*))"
     tok.define_id = re.match(t_DEFINE.__doc__, tok.value)['id']
     tok.define_val = re.match(t_DEFINE.__doc__, tok.value)['val']
     defines.add(tok.define_id)
@@ -74,7 +76,7 @@ def t_DEFINE(tok):
     return tok
 
 def t_IFDEF(tok):
-    r"(?P<tag>\#[ \t]*ifn?def)[ \t]+(?P<id>\@?[A-Za-z_][A-Za-z0-9_]*)"
+    r"(?P<tag>\#[ \t]*ifn?def)[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)"
     tok.ifdef_tag = re.match(t_IFDEF.__doc__, tok.value)['tag']
     tok.ifdef_id = re.match(t_IFDEF.__doc__, tok.value)['id']
     parse_id(tok.ifdef_id, tok.lexer.exports)
@@ -122,7 +124,7 @@ def t_INT(tok):
     return tok
 
 def t_ID(tok):
-    r"\@?[A-Za-z_][A-Za-z0-9_]*"
+    r"[\@\$]?[A-Za-z_][A-Za-z0-9_]*"
     parse_id(tok.value, tok.lexer.exports)
     return tok
 
@@ -274,6 +276,10 @@ glsl_reserved = {
 
     # keywords borrowed from metal, used by metal.glsl
     "using", "namespace", "metal", "inline", "template", "vec", "as_type", "constant",
+
+    # keywords borrowed from hlsl, used by hlsl.glsl
+    "f16tof32", "f32tof16", "atan2", "asfloat", "asint", "asuint", "frac", "lerp", "rsqrt",
+    "typedef", "min16int", "min16uint"
 }
 
 # rgba and stpq get rewritten to xyzw, so we only need to check xyzw here. This way we can keep
@@ -284,14 +290,16 @@ xyzw_pattern = re.compile(r"^[xyzw]{1,4}$")
 def is_reserved_keyword(name):
     return name in glsl_reserved\
            or xyzw_pattern.match(name)\
+           or name.startswith("$")\
            or name.startswith("gl_")\
            or name.startswith("__pixel_local")\
            or name.endswith("ANGLE")
 
-# A leading '@' indicates identifier names that should be exported. This method removes it, if it
-# exists.
-def remove_leading_at(name):
-    return name[1:] if name[0] == '@' else name
+# A leading '@' indicates identifier names that should be exported.
+# A leading '$' indicates identifier names that should not be renamed.
+# This method removes both, if they exist.
+def remove_leading_annotation(name):
+    return name[1:] if name[0] == '@' or name[0] == '$' else name
 
 # generates new identifier names to rewrite our variables.
 # exclude '_' from our new names. Internal variables can use '_' to avoid naming collisions.
@@ -313,7 +321,7 @@ def generate_new_name():
 new_names = {}
 def generate_new_names():
     for name,count in sorted(all_id_counts.items(), key=lambda x:x[1], reverse=True):
-        new_name = (remove_leading_at(name)
+        new_name = (remove_leading_annotation(name)
                     if args.human_readable or is_reserved_keyword(name)
                     else generate_new_name())
         new_names[name] = new_name

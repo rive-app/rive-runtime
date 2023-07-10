@@ -339,6 +339,7 @@ struct TessVertexSpan
     uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount, parametricSegmentCount]
     uint32_t contourIDWithFlags; // flags | contourID
 };
+static_assert(sizeof(TessVertexSpan) == sizeof(float) * 16);
 
 // Per-vertex data for shaders that draw triangles.
 struct TriangleVertex
@@ -350,7 +351,7 @@ struct TriangleVertex
     Vec2D point;
     int32_t weight_pathID; // [(weight << 16]
 };
-static_assert(sizeof(TriangleVertex) == 3 * sizeof(float));
+static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
 // Once all curves in a contour have been tessellated, we render the tessellated vertices in
 // "patches" (aka specific instanced geometry).
@@ -404,17 +405,16 @@ constexpr static uint32_t kMidpointFanPatchVertexCount =
 constexpr static uint32_t kMidpointFanPatchIndexCount =
     kMidpointFanPatchSegmentSpan * 6 /*AA outer ramp*/ +
     (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ + 3 /*Triangle from path midpoint*/;
-constexpr static uint32_t kMidpointFanPatchIndexOffset = 0;
-static_assert(kMidpointFanPatchIndexOffset % 4 == 0);
+constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
+static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 constexpr static uint32_t kOuterCurvePatchVertexCount =
     (kOuterCurvePatchSegmentSpan + 1) * 3 /*AA center ramp with bowtie*/ +
     kOuterCurvePatchSegmentSpan /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchIndexCount =
     kOuterCurvePatchSegmentSpan * 12 /*AA center ramp with bowtie*/ +
     (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
-constexpr static uint32_t kOuterCurvePatchIndexOffset =
-    kMidpointFanPatchIndexCount * sizeof(uint16_t);
-static_assert(kOuterCurvePatchIndexOffset % 4 == 0);
+constexpr static uint32_t kOuterCurvePatchBaseIndex = kMidpointFanPatchIndexCount;
+static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 constexpr static uint32_t kPatchVertexBufferCount =
     kMidpointFanPatchVertexCount + kOuterCurvePatchVertexCount;
 constexpr static uint32_t kPatchIndexBufferCount =

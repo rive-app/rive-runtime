@@ -7,7 +7,9 @@
 
 #define METAL
 
-// Native metal types need a #define. They get rewritten because they are not GLSL keywords.
+// #define native metal types if their names are being rewritten.
+#define _ARE_TOKEN_NAMES_PRESERVED
+#ifndef $_ARE_TOKEN_NAMES_PRESERVED
 #define half half
 #define half2 half2
 #define half3 half3
@@ -37,6 +39,7 @@
 #define ushort ushort
 #define float2x2 float2x2
 #define half3x4 half3x4
+#endif
 
 #define make_half4 half4
 #define make_half3 half3
@@ -50,6 +53,7 @@
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
 #define greaterThanEqual(A, B) ((A) >= (B))
+#define MUL(A, B) ((A) * (B))
 #define atan atan2
 #define inversesqrt rsqrt
 
@@ -63,26 +67,30 @@
 #define ATTR_BLOCK_BEGIN(N)                                                                        \
     struct N                                                                                       \
     {
-#define ATTR(LOCATION)
+#define ATTR(IDX, TYPE, NAME) TYPE NAME
 #define ATTR_BLOCK_END                                                                             \
     }                                                                                              \
     ;
-#define ATTR_LOAD(T, A, N, I) T N = A[I].N;
+#define ATTR_UNPACK(ID, attrs, NAME, TYPE) TYPE NAME = attrs[ID].NAME
 
 #define VARYING_BLOCK_BEGIN(N)                                                                     \
     struct N                                                                                       \
     {
-#define VARYING
+#define VARYING(TYPE, NAME) TYPE NAME
 #define FLAT [[flat]]
 #define NO_PERSPECTIVE [[center_no_perspective]]
 // No-persective interpolation appears to break the guarantee that a varying == "x" when all
 // barycentric values also == "x". Using default (perspective-correct) interpolation is also faster
 // than flat on M1.
 #define @OPTIONALLY_FLAT
-#define VARYING_BLOCK_END                                                                          \
+#define VARYING_BLOCK_END(_pos)                                                                    \
     float4 _pos [[position]];                                                                      \
     }                                                                                              \
     ;
+
+#define VARYING_INIT(varyings, NAME, TYPE) thread TYPE& NAME = varyings.NAME
+#define VARYING_PACK(varyings, NAME)
+#define VARYING_UNPACK(varyings, NAME, TYPE) TYPE NAME = varyings.NAME
 
 #define VERTEX_TEXTURE_BLOCK_BEGIN(N)                                                              \
     struct N                                                                                       \
@@ -98,18 +106,20 @@
     }                                                                                              \
     ;
 
-#define TEXTURE_RGBA32UI(B) [[texture(B)]] texture2d<uint>
-#define TEXTURE_RGBA32F(B) [[texture(B)]] texture2d<float>
-#define TEXTURE_RGBA8(B) [[texture(B)]] texture2d<half>
+#define TEXTURE_RGBA32UI(IDX, NAME) [[texture(IDX)]] texture2d<uint> NAME
+#define TEXTURE_RGBA32F(IDX, NAME) [[texture(IDX)]] texture2d<float> NAME
+#define TEXTURE_RGBA8(IDX, NAME) [[texture(IDX)]] texture2d<half> NAME
 
-#define TEXEL_FETCH(T, N, C, L) T.N.read(uint2(C))
-#define TEXTURE_SAMPLE(T, N, C) T.N.sample(sampler(mag_filter::linear, min_filter::linear), C)
+#define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) TEXTURE_BLOCK.NAME.read(uint2(COORD))
+#define GRADIENT_SAMPLER_DECL(IDX, NAME)
+#define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD)                                   \
+    TEXTURE_BLOCK.NAME.sample(sampler(mag_filter::linear, min_filter::linear), COORD)
 
 #define PLS_BLOCK_BEGIN                                                                            \
     struct PLS                                                                                     \
     {
-#define PLS_DECL4F(B) [[color(B)]] half4
-#define PLS_DECL2F(B) [[color(B)]] half2
+#define PLS_DECL4F(IDX, NAME) [[color(IDX)]] half4 NAME
+#define PLS_DECL2F(IDX, NAME) [[color(IDX)]] half2 NAME
 #define PLS_BLOCK_END                                                                              \
     }                                                                                              \
     ;
@@ -122,47 +132,58 @@
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
-// A hack since we use POSITION inside the following #defines...
-#define POSITION POSITION
-
-#define VERTEX_MAIN(F, V, v, ...)                                                                  \
-    __attribute__((visibility("default"))) V vertex F(__VA_ARGS__)                                 \
+#define VERTEX_MAIN(NAME,                                                                          \
+                    Uniforms,                                                                      \
+                    uniforms,                                                                      \
+                    Attrs,                                                                         \
+                    attrs,                                                                         \
+                    Varyings,                                                                      \
+                    varyings,                                                                      \
+                    VertexTextures,                                                                \
+                    textures,                                                                      \
+                    _vertexID,                                                                     \
+                    _instanceID,                                                                   \
+                    _pos)                                                                          \
+    __attribute__((visibility("default"))) Varyings vertex NAME(                                   \
+        uint _vertexID [[vertex_id]],                                                              \
+        uint _instanceID [[instance_id]],                                                          \
+        constant Uniforms& uniforms [[buffer(0)]],                                                 \
+        constant Attrs* attrs [[buffer(1)]],                                                       \
+        VertexTextures textures)                                                                   \
     {                                                                                              \
-        V v;                                                                                       \
-        float4 POSITION;
+        Varyings varyings;                                                                         \
+        float4 _pos;
 
-#define EMIT_VERTEX(v)                                                                             \
-    v._pos = POSITION;                                                                             \
-    return v;                                                                                      \
+#define EMIT_VERTEX(varyings, _pos)                                                                \
+    }                                                                                              \
+    varyings._pos = _pos;                                                                          \
+    return varyings;
+
+#define EMIT_OFFSCREEN_VERTEX(varyings, _pos)                                                      \
+    varyings._pos.xzw = _pos.xzw;                                                                  \
+    varyings._pos.y = -_pos.y;                                                                     \
+    return varyings;                                                                               \
     }
 
-#define EMIT_OFFSCREEN_VERTEX(v)                                                                   \
-    v._pos = POSITION;                                                                             \
-    v._pos.y = -v._pos.y;                                                                          \
-    return v;                                                                                      \
-    }
-
-#define FRAG_DATA_TYPE(T) T
-#define FRAG_DATA_MAIN(F, ...)                                                                     \
-    __attribute__((visibility("default"))) fragment F(__VA_ARGS__)                                 \
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
+    DATA_TYPE __attribute__((visibility("default"))) fragment NAME(Varyings varyings [[stage_in]]) \
     {
-#define EMIT_FRAG_DATA(f)                                                                          \
-    return f;                                                                                      \
+
+#define EMIT_FRAG_DATA(VALUE)                                                                      \
+    return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(F, ...)                                                                           \
-    __attribute__((visibility("default"))) PLS fragment F(PLS _inpls, __VA_ARGS__)                 \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)           \
+    __attribute__((visibility("default"))) PLS fragment NAME(PLS _inpls,                           \
+                                                             Varyings varyings [[stage_in]],       \
+                                                             bool _clockwise [[front_facing]],     \
+                                                             FragmentTextures textures)            \
     {                                                                                              \
         PLS _pls;
 
 #define EMIT_PLS                                                                                   \
-    return _pls;                                                                                   \
-    }
-
-// "FLD" for "field".
-// In Metal, inputs and outputs are accessed from structs.
-// In GLSL 300 es, they have to be global.
-#define FLD(BLOCK, MEMBER) BLOCK.MEMBER
+    }                                                                                              \
+    return _pls;
 
 using namespace metal;
 
@@ -195,9 +216,6 @@ inline float2x2 inverse(float2x2 m)
     float det = (m_[0][0] * m[0][0]) + (m_[0][1] * m[1][0]);
     return m_ * (1 / det);
 }
-
-inline float2x2 make_float2x2(float4 f) { return float2x2(f.xy, f.zw); }
-inline float4x2 make_float4x2(float4 a, float4 b) { return float4x2(a.xy, a.zw, b.xy, b.zw); }
 
 inline half3 mix(half3 a, half3 b, bool3 c)
 {

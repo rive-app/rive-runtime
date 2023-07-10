@@ -5,6 +5,8 @@
 // This header provides GLSL-specific #defines and declarations that enable our shaders to be
 // compiled on MSL and GLSL both.
 
+#define GLSL
+
 #define float2 vec2
 #define float3 vec3
 #define packed_float3 vec3
@@ -46,15 +48,9 @@
 #define make_ushort4 uvec4
 
 #define float2x2 mat2
-#define float4x2 mat4x2
-#define make_float2x2 mat2
-#define make_float4x2 mat4x2
 #define make_half3x4 mat3x4
 
 #define INLINE
-#define FRONT_FACING gl_FrontFacing
-#define POSITION gl_Position
-#define VERTEX_ID gl_VertexID
 
 #if defined(GL_ANGLE_base_vertex_base_instance_shader_builtin)
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
@@ -70,23 +66,24 @@
     layout(std140) uniform N                                                                       \
     {
 // clang-format barrier... Otherwise it tries to merge this #define into the above macro...
-#define UNIFORM_BLOCK_END(N)                                                                       \
+#define UNIFORM_BLOCK_END(NAME)                                                                    \
     }                                                                                              \
-    N;
+    NAME;
 
-#define ATTR_BLOCK_BEGIN(N)
-#define ATTR(L) layout(location = L) in
+#define ATTR_BLOCK_BEGIN(NAME)
+#define ATTR(IDX, TYPE, NAME) layout(location = IDX) in TYPE NAME
 #define ATTR_BLOCK_END
 #define ATTR_LOAD(A, B, C, D)
+#define ATTR_UNPACK(ID, attrs, NAME, TYPE)
 
-#define VARYING_BLOCK_BEGIN(N)
 #ifdef @VERTEX
-#define VARYING out
+#define VARYING(TYPE, NAME) out TYPE NAME
 #else
-#define VARYING in
+#define VARYING(TYPE, NAME) in TYPE NAME
 #endif
 #define FLAT flat
-#define VARYING_BLOCK_END
+#define VARYING_BLOCK_BEGIN(NAME)
+#define VARYING_BLOCK_END(_pos)
 
 #if defined(GL_NV_shader_noperspective_interpolation)
 #extension GL_NV_shader_noperspective_interpolation : require
@@ -96,21 +93,22 @@
 #endif
 
 #ifdef @VERTEX
-#define VERTEX_TEXTURE_BLOCK_BEGIN(N)
+#define VERTEX_TEXTURE_BLOCK_BEGIN(NAME)
 #define VERTEX_TEXTURE_BLOCK_END
 #endif
 
 #ifdef @FRAGMENT
-#define FRAG_TEXTURE_BLOCK_BEGIN(N)
+#define FRAG_TEXTURE_BLOCK_BEGIN(NAME)
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
-#define TEXTURE_RGBA32UI(B) uniform highp usampler2D
-#define TEXTURE_RGBA32F(B) uniform highp sampler2D
-#define TEXTURE_RGBA8(B) uniform mediump sampler2D
+#define TEXTURE_RGBA32UI(IDX, NAME) uniform highp usampler2D NAME
+#define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
+#define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
 
-#define TEXEL_FETCH(T, N, C, L) texelFetch(N, C, L)
-#define TEXTURE_SAMPLE(T, N, C) texture(N, C)
+#define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) texelFetch(NAME, COORD, 0)
+#define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
+#define GRADIENT_SAMPLER_DECL(IDX, NAME)
 
 // Define macros for implementing pixel local storage based on available extensions.
 #ifdef @PLS_IMPL_WEBGL
@@ -118,8 +116,8 @@
 #extension GL_ANGLE_shader_pixel_local_storage : require
 
 #define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(B) layout(binding = B, rgba8) uniform lowp pixelLocalANGLE
-#define PLS_DECL2F(B) layout(binding = B, r32ui) uniform highp upixelLocalANGLE
+#define PLS_DECL4F(IDX, NAME) layout(binding = IDX, rgba8) uniform lowp pixelLocalANGLE NAME
+#define PLS_DECL2F(IDX, NAME) layout(binding = IDX, r32ui) uniform highp upixelLocalANGLE NAME
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) pixelLocalLoadANGLE(P)
@@ -145,8 +143,8 @@
 #define PLS_BLOCK_BEGIN                                                                            \
     __pixel_localEXT PLS                                                                           \
     {
-#define PLS_DECL4F(B) layout(rgba8) lowp vec4
-#define PLS_DECL2F(B) layout(rg16f) mediump vec2
+#define PLS_DECL4F(IDX, NAME) layout(rgba8) lowp vec4 NAME
+#define PLS_DECL2F(IDX, NAME) layout(rg16f) mediump vec2 NAME
 #define PLS_BLOCK_END                                                                              \
     }                                                                                              \
     ;
@@ -168,8 +166,8 @@
 #extension GL_EXT_shader_framebuffer_fetch : require
 
 #define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(B) layout(location = B) inout lowp vec4
-#define PLS_DECL2F(B) layout(location = B) inout highp uvec4
+#define PLS_DECL4F(IDX, NAME) layout(location = IDX) inout lowp vec4 NAME
+#define PLS_DECL2F(IDX, NAME) layout(location = IDX) inout highp uvec4 NAME
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) P
@@ -199,8 +197,8 @@
 #endif
 
 #define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(B) layout(binding = B, rgba8) uniform lowp coherent image2D
-#define PLS_DECL2F(B) layout(binding = B, r32ui) uniform highp coherent uimage2D
+#define PLS_DECL4F(IDX, NAME) layout(binding = IDX, rgba8) uniform lowp coherent image2D NAME
+#define PLS_DECL2F(IDX, NAME) layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) imageLoad(P, plsCoord)
@@ -212,29 +210,66 @@
 
 #endif
 
-#define VERTEX_MAIN void main
-#define EMIT_VERTEX(v)
-#define EMIT_OFFSCREEN_VERTEX(v)
-
-#define FRAG_DATA_TYPE(T) out T _fd;
-#define FRAG_DATA_MAIN void main
-#define EMIT_FRAG_DATA(f) _fd = f
-
-#ifdef @PLS_IMPL_RW_TEXTURE
-#define PLS_MAIN()                                                                                 \
+#ifdef @ENABLE_BASE_INSTANCE_POLYFILL
+#define BASE_INSTANCE_POLYFILL_DECL(NAME) uniform int NAME
+// The Qualcomm compiler doesn't like how clang-format handles these lines.
+// clang-format off
+#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
     void main()                                                                                    \
     {                                                                                              \
-        highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));
-#define EMIT_PLS }
+        int _vertexID = gl_VertexID;                                                               \
+        int _instanceID = gl_InstanceID;                                                           \
+        vec4 _pos;
+// clang-format on
 #else
-#define PLS_MAIN void main
-#define EMIT_PLS
+#ifdef GL_ANGLE_base_vertex_base_instance_shader_builtin
+#extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
+#endif
+// The Qualcomm compiler doesn't like how clang-format handles these lines.
+// clang-format off
+#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
+    void main()                                                                                    \
+    {                                                                                              \
+        int _vertexID = gl_VertexID;                                                               \
+        int _instanceID = gl_BaseInstance + gl_InstanceID;                                         \
+        vec4 _pos;
+// clang-format on
 #endif
 
-// "FLD" for "field".
-// In Metal, inputs and outputs are accessed from structs.
-// In GLSL 300 es, they have to be global.
-#define FLD(BLOCK, MEMBER) MEMBER
+#define VARYING_INIT(varyings, NAME, TYPE)
+#define VARYING_PACK(varyings, NAME)
+#define VARYING_UNPACK(varyings, NAME, TYPE)
+
+#define EMIT_VERTEX(varyings, _pos)                                                                \
+    }                                                                                              \
+    gl_Position = _pos;
+
+#define EMIT_OFFSCREEN_VERTEX(varyings, _pos)                                                      \
+    }                                                                                              \
+    gl_Position = _pos;
+
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
+    out DATA_TYPE _fd;                                                                             \
+    void main()
+
+#define EMIT_FRAG_DATA(VALUE) _fd = VALUE
+
+#ifdef @PLS_IMPL_RW_TEXTURE
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)           \
+    void main()                                                                                    \
+    {                                                                                              \
+        bool _clockwise = gl_FrontFacing;                                                          \
+        highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));
+#else
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)           \
+    void main()                                                                                    \
+    {                                                                                              \
+        bool _clockwise = gl_FrontFacing;
+#endif
+
+#define EMIT_PLS }
+
+#define MUL(A, B) ((A) * (B))
 
 precision highp float;
 precision highp int;

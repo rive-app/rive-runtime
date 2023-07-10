@@ -223,6 +223,7 @@ void PLSRenderContext::allocateGPUResources(
     {
         assert(!m_pathBuffer.mapped());
         m_pathBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
+                                               Renderable::no,
                                                kPathTextureWidthInItems,
                                                targetPathTextureHeight,
                                                kPathTexelsPerItem,
@@ -250,6 +251,7 @@ void PLSRenderContext::allocateGPUResources(
     {
         assert(!m_contourBuffer.mapped());
         m_contourBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
+                                                  Renderable::no,
                                                   kContourTextureWidthInItems,
                                                   targetContourTextureHeight,
                                                   kContourTexelsPerItem,
@@ -285,6 +287,7 @@ void PLSRenderContext::allocateGPUResources(
     {
         assert(!m_gradTexelBuffer.mapped());
         m_gradTexelBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba8,
+                                                    Renderable::yes,
                                                     kGradTextureWidthInSimpleRamps,
                                                     targetGradTextureHeight,
                                                     2, // 2 texels per simple ramp.

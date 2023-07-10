@@ -245,6 +245,7 @@ std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeVertexBufferRing(size
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextMetal::makeTexelBufferRing(
     TexelBufferRing::Format format,
+    Renderable,
     size_t widthInItems,
     size_t height,
     size_t texelsPerItem,
@@ -448,7 +449,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                     indexCount:PatchIndexCount(drawType)
                                      indexType:MTLIndexTypeUInt16
                                    indexBuffer:m_pathPatchIndexBuffer
-                             indexBufferOffset:PatchIndexOffset(drawType)
+                             indexBufferOffset:PatchBaseIndex(drawType) * sizeof(uint16_t)
                                  instanceCount:draw->vertexOrInstanceCount
                                     baseVertex:0
                                   baseInstance:draw->baseVertexOrInstance];

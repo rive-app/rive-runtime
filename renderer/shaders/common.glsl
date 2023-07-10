@@ -71,6 +71,8 @@ INLINE half4 unmultiply(half4 color)
     return color;
 }
 
+INLINE float2x2 make_float2x2(float4 f) { return float2x2(f.xy, f.zw); }
+
 #ifdef @VERTEX
 UNIFORM_BLOCK_BEGIN(@Uniforms)
 float gradInverseViewportY;

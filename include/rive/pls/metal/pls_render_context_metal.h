@@ -34,6 +34,7 @@ private:
                                                          size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
+                                                         Renderable,
                                                          size_t widthInItems,
                                                          size_t height,
                                                          size_t texelsPerItem,

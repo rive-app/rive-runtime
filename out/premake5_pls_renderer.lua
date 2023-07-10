@@ -156,6 +156,7 @@ do
     filter "system:windows"
     do
         architecture "x64"
+        files {"../renderer/d3d/*.cpp"}
     end
 
     if os.host() == 'macosx'
