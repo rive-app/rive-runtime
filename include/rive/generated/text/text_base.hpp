@@ -39,8 +39,8 @@ public:
     static const uint16_t overflowValuePropertyKey = 287;
     static const uint16_t widthPropertyKey = 285;
     static const uint16_t heightPropertyKey = 286;
-    static const uint16_t originXPropertyKey = 363;
-    static const uint16_t originYPropertyKey = 364;
+    static const uint16_t originXPropertyKey = 366;
+    static const uint16_t originYPropertyKey = 367;
 
 private:
     uint32_t m_AlignValue = 0;

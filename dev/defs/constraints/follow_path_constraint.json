@@ -11,7 +11,7 @@
       "initialValue": "0",
       "animates": true,
       "key": {
-        "int": 365,
+        "int": 363,
         "string": "distance"
       },
       "description": "Distance along the path to follow."
@@ -21,7 +21,7 @@
       "initialValue": "true",
       "animates": true,
       "key": {
-        "int": 366,
+        "int": 364,
         "string": "orient"
       },
       "description": "True when the orientation from the path is copied to the constrained transform."
@@ -30,7 +30,7 @@
       "type": "bool",
       "initialValue": "false",
       "key": {
-        "int": 367,
+        "int": 365,
         "string": "offset"
       },
       "description": "True when the local translation is used to offset the transformed one."

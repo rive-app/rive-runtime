@@ -33,9 +33,9 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t distancePropertyKey = 365;
-    static const uint16_t orientPropertyKey = 366;
-    static const uint16_t offsetPropertyKey = 367;
+    static const uint16_t distancePropertyKey = 363;
+    static const uint16_t orientPropertyKey = 364;
+    static const uint16_t offsetPropertyKey = 365;
 
 private:
     float m_Distance = 0.0f;
