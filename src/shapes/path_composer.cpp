@@ -40,12 +40,14 @@ void PathComposer::update(ComponentDirt value)
         m_deferredPathDirt = false;
 
         auto space = m_Shape->pathSpace();
-
+        bool hasConstraint = (space & PathSpace::FollowPath) == PathSpace::FollowPath;
         if ((space & PathSpace::Local) == PathSpace::Local)
         {
             if (m_LocalPath == nullptr)
             {
-                m_LocalPath = m_Shape->makeCommandPath(PathSpace::Local);
+                PathSpace localSpace =
+                    (hasConstraint) ? PathSpace::Local & PathSpace::FollowPath : PathSpace::Local;
+                m_LocalPath = m_Shape->makeCommandPath(localSpace);
             }
             else
             {
@@ -64,7 +66,9 @@ void PathComposer::update(ComponentDirt value)
         {
             if (m_WorldPath == nullptr)
             {
-                m_WorldPath = m_Shape->makeCommandPath(PathSpace::World);
+                PathSpace worldSpace =
+                    (hasConstraint) ? PathSpace::World & PathSpace::FollowPath : PathSpace::World;
+                m_WorldPath = m_Shape->makeCommandPath(worldSpace);
             }
             else
             {

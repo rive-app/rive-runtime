@@ -54,6 +54,8 @@ std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace spac
     // this shape is used for clipping.
     bool needForRender =
         ((space | m_DefaultPathSpace) & PathSpace::Clipping) == PathSpace::Clipping;
+    bool needForConstraint =
+        ((space | m_DefaultPathSpace) & PathSpace::FollowPath) == PathSpace::FollowPath;
 
     bool needForEffects = false;
 
@@ -76,6 +78,10 @@ std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace spac
 
     auto factory = getArtboard()->factory();
     if (needForEffects && needForRender)
+    {
+        return std::unique_ptr<CommandPath>(new RenderMetricsPath(factory->makeEmptyRenderPath()));
+    }
+    else if (needForConstraint)
     {
         return std::unique_ptr<CommandPath>(new RenderMetricsPath(factory->makeEmptyRenderPath()));
     }

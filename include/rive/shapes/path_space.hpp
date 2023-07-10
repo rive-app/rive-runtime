@@ -10,7 +10,8 @@ enum class PathSpace : unsigned char
     Neither = 0,
     Local = 1 << 1,
     World = 1 << 2,
-    Clipping = 1 << 3
+    Clipping = 1 << 3,
+    FollowPath = 1 << 4
 };
 
 inline constexpr PathSpace operator&(PathSpace lhs, PathSpace rhs)

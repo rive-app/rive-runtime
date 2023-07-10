@@ -5,6 +5,8 @@
 
 using namespace rive;
 
+const Mat2D TransformConstraint::targetTransform() const { return m_Target->worldTransform(); }
+
 void TransformConstraint::constrain(TransformComponent* component)
 {
     if (m_Target == nullptr)
@@ -13,7 +15,7 @@ void TransformConstraint::constrain(TransformComponent* component)
     }
 
     const Mat2D& transformA = component->worldTransform();
-    Mat2D transformB(m_Target->worldTransform());
+    Mat2D transformB(targetTransform());
     if (sourceSpace() == TransformSpace::local)
     {
         const Mat2D& targetParentWorld = getParentWorld(*m_Target);

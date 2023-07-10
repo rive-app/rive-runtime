@@ -25,7 +25,7 @@ void Polygon::buildPolygon()
     auto oy = -originY() * height() + halfHeight;
 
     auto angle = -math::PI / 2;
-    auto inc = 2 * -math::PI / points();
+    auto inc = 2 * math::PI / points();
 
     for (StraightVertex& vertex : m_PolygonVertices)
     {

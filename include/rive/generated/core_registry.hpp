@@ -74,6 +74,7 @@
 #include "rive/component.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/constraints/distance_constraint.hpp"
+#include "rive/constraints/follow_path_constraint.hpp"
 #include "rive/constraints/ik_constraint.hpp"
 #include "rive/constraints/rotation_constraint.hpp"
 #include "rive/constraints/scale_constraint.hpp"
@@ -142,10 +143,12 @@ public:
                 return new DistanceConstraint();
             case IKConstraintBase::typeKey:
                 return new IKConstraint();
-            case TranslationConstraintBase::typeKey:
-                return new TranslationConstraint();
             case TransformConstraintBase::typeKey:
                 return new TransformConstraint();
+            case FollowPathConstraintBase::typeKey:
+                return new FollowPathConstraint();
+            case TranslationConstraintBase::typeKey:
+                return new TranslationConstraint();
             case ScaleConstraintBase::typeKey:
                 return new ScaleConstraint();
             case RotationConstraintBase::typeKey:
@@ -601,6 +604,9 @@ public:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
                 object->as<TransformComponentConstraintYBase>()->maxValueY(value);
                 break;
+            case FollowPathConstraintBase::distancePropertyKey:
+                object->as<FollowPathConstraintBase>()->distance(value);
+                break;
             case WorldTransformComponentBase::opacityPropertyKey:
                 object->as<WorldTransformComponentBase>()->opacity(value);
                 break;
@@ -910,6 +916,12 @@ public:
             case IKConstraintBase::invertDirectionPropertyKey:
                 object->as<IKConstraintBase>()->invertDirection(value);
                 break;
+            case FollowPathConstraintBase::orientPropertyKey:
+                object->as<FollowPathConstraintBase>()->orient(value);
+                break;
+            case FollowPathConstraintBase::offsetPropertyKey:
+                object->as<FollowPathConstraintBase>()->offset(value);
+                break;
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 object->as<NestedSimpleAnimationBase>()->isPlaying(value);
                 break;
@@ -1154,6 +1166,8 @@ public:
                 return object->as<TransformComponentConstraintYBase>()->minValueY();
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
                 return object->as<TransformComponentConstraintYBase>()->maxValueY();
+            case FollowPathConstraintBase::distancePropertyKey:
+                return object->as<FollowPathConstraintBase>()->distance();
             case WorldTransformComponentBase::opacityPropertyKey:
                 return object->as<WorldTransformComponentBase>()->opacity();
             case TransformComponentBase::rotationPropertyKey:
@@ -1363,6 +1377,10 @@ public:
                 return object->as<TransformComponentConstraintYBase>()->maxY();
             case IKConstraintBase::invertDirectionPropertyKey:
                 return object->as<IKConstraintBase>()->invertDirection();
+            case FollowPathConstraintBase::orientPropertyKey:
+                return object->as<FollowPathConstraintBase>()->orient();
+            case FollowPathConstraintBase::offsetPropertyKey:
+                return object->as<FollowPathConstraintBase>()->offset();
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 return object->as<NestedSimpleAnimationBase>()->isPlaying();
             case KeyFrameBoolBase::valuePropertyKey:
@@ -1495,6 +1513,7 @@ public:
             case TransformComponentConstraintYBase::copyFactorYPropertyKey:
             case TransformComponentConstraintYBase::minValueYPropertyKey:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
+            case FollowPathConstraintBase::distancePropertyKey:
             case WorldTransformComponentBase::opacityPropertyKey:
             case TransformComponentBase::rotationPropertyKey:
             case TransformComponentBase::scaleXPropertyKey:
@@ -1597,6 +1616,8 @@ public:
             case TransformComponentConstraintYBase::minYPropertyKey:
             case TransformComponentConstraintYBase::maxYPropertyKey:
             case IKConstraintBase::invertDirectionPropertyKey:
+            case FollowPathConstraintBase::orientPropertyKey:
+            case FollowPathConstraintBase::offsetPropertyKey:
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
             case KeyFrameBoolBase::valuePropertyKey:
             case NestedBoolBase::nestedValuePropertyKey:

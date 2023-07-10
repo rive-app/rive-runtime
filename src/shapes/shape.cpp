@@ -1,3 +1,4 @@
+#include "rive/constraints/constraint.hpp"
 #include "rive/hittest_command_path.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
@@ -46,6 +47,10 @@ bool Shape::collapse(bool value)
 void Shape::pathChanged()
 {
     m_PathComposer.addDirt(ComponentDirt::Path, true);
+    for (auto constraint : constraints())
+    {
+        constraint->addDirt(ComponentDirt::Path);
+    }
     invalidateStrokeEffects();
 }
 

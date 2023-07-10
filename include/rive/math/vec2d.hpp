@@ -47,6 +47,7 @@ public:
     static inline Vec2D lerp(Vec2D a, Vec2D b, float f);
 
     static Vec2D transformDir(const Vec2D& a, const Mat2D& m);
+    static Vec2D transformMat2D(const Vec2D& a, const Mat2D& m);
 
     static float dot(Vec2D a, Vec2D b) { return a.x * b.x + a.y * b.y; }
     static float cross(Vec2D a, Vec2D b) { return a.x * b.y - a.y * b.x; }

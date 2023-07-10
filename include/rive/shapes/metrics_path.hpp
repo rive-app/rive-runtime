@@ -21,6 +21,7 @@ private:
 
 public:
     const std::vector<MetricsPath*>& paths() const { return m_Paths; }
+    rcp<ContourMeasure> contourMeasure() const { return m_Contour; }
 
     void addPath(CommandPath* path, const Mat2D& transform) override;
     void rewind() override;
