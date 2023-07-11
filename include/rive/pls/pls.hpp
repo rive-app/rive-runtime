@@ -127,6 +127,7 @@ RIVE_ALWAYS_INLINE static uint32_t JoinTypeFlags(StrokeJoin join)
         case StrokeJoin::bevel:
             return flags::kBevelJoin;
     }
+    RIVE_UNREACHABLE();
 }
 
 // Tells the GPU that a given path has an even-odd fill rule.

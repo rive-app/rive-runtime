@@ -71,6 +71,7 @@ static PLSBlendMode blend_mode_rive_to_pls(rive::BlendMode riveMode)
         case rive::BlendMode::luminosity:
             return PLSBlendMode::luminosity;
     }
+    RIVE_UNREACHABLE();
 }
 
 void PLSPaint::blendMode(rive::BlendMode riveMode)

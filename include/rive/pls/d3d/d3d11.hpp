@@ -15,7 +15,11 @@ using Microsoft::WRL::ComPtr;
         HRESULT hr = (CODE);                                                                       \
         if (hr != S_OK)                                                                            \
         {                                                                                          \
-            fprintf(stderr, __FILE__ ":%u: D3D error 0x%lx: %s\n", __LINE__, hr, #CODE);           \
+            fprintf(stderr,                                                                        \
+                    __FILE__ ":%i: D3D error 0x%lx: %s\n",                                         \
+                    static_cast<int>(__LINE__),                                                    \
+                    hr,                                                                            \
+                    #CODE);                                                                        \
             exit(-1);                                                                              \
         }                                                                                          \
     }

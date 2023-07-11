@@ -73,6 +73,7 @@ PLSRenderContext::BlendTier PLSRenderContext::BlendTierForBlendMode(PLSBlendMode
         case PLSBlendMode::luminosity:
             return BlendTier::advancedHSL;
     }
+    RIVE_UNREACHABLE();
 }
 
 inline GradientContentKey::GradientContentKey(rcp<const PLSGradient> gradient) :

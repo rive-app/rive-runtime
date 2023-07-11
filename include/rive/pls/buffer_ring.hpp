@@ -109,6 +109,7 @@ public:
             case Format::rgba32ui:
                 return 4 * 4;
         }
+        RIVE_UNREACHABLE();
     }
 
     enum class Filter

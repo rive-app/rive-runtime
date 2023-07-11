@@ -119,14 +119,14 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS()
     ComPtr<ID3D11Device> gpu;
     ComPtr<ID3D11DeviceContext> gpuContext;
     D3D_FEATURE_LEVEL featureLevels[] = {D3D_FEATURE_LEVEL_11_1};
+    UINT creationFlags = 0;
+#ifdef DEBUG
+    creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
     VERIFY_OK(D3D11CreateDevice(adapter.Get(),
                                 D3D_DRIVER_TYPE_UNKNOWN,
                                 NULL,
-#ifdef DEBUG
-                                D3D11_CREATE_DEVICE_DEBUG,
-#else
-                                0,
-#endif
+                                creationFlags,
                                 featureLevels,
                                 std::size(featureLevels),
                                 D3D11_SDK_VERSION,

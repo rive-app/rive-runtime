@@ -39,7 +39,11 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
 
 {
     m_shaderVersionString[kShaderVersionStringBuffSize - 1] = '\0';
+#ifdef _WIN32
+    strcpy_s(m_shaderVersionString, kShaderVersionStringBuffSize, "#version 300 es\n");
+#else
     strncpy(m_shaderVersionString, "#version 300 es\n", kShaderVersionStringBuffSize - 1);
+#endif
 #ifdef RIVE_DESKTOP_GL
     if (!GLAD_GL_version_es && GLAD_IS_GL_VERSION_AT_LEAST(4, 0))
     {
@@ -381,7 +385,7 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     {
         glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
         bindVAO(m_tessellateVAO);
-        for (int i = 0; i < 3; ++i)
+        for (uintptr_t i = 0; i < 3; ++i)
         {
             glVertexAttribPointer(i,
                                   4,

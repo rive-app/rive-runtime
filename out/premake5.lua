@@ -121,7 +121,8 @@ do
                  RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
     flags { "FatalWarnings" }
     files {"../bubbles/bubbles.cpp",
-           "../glad/glad.c"}
+           "../glad/glad.c",
+           "../glad/glad_custom.c"}
 
     filter "system:windows"
     do

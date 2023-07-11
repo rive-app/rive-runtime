@@ -31,6 +31,7 @@ static DXGI_FORMAT d3d_format(TexelBufferRing::Format format)
         case TexelBufferRing::Format::rgba8:
             return DXGI_FORMAT_R8G8B8A8_UNORM;
     }
+    RIVE_UNREACHABLE();
 }
 
 static ComPtr<ID3D11Texture2D> make_simple_2d_texture(ID3D11Device* gpu,

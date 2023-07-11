@@ -398,9 +398,9 @@ protected:
         }
     }
 
-    constexpr static uint32_t ShaderUniqueKey(SourceType sourceType,
-                                              DrawType drawType,
-                                              const ShaderFeatures& shaderFeatures)
+    static uint32_t ShaderUniqueKey(SourceType sourceType,
+                                    DrawType drawType,
+                                    const ShaderFeatures& shaderFeatures)
     {
         return (shaderFeatures.getPreprocessorDefines(sourceType) << 1) |
                (drawType == DrawType::interiorTriangulation);
