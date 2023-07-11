@@ -1022,13 +1022,13 @@ void GrTriangulator::setTop(Edge* edge,
                             const Comparator& c) const
 {
     remove_edge_below(edge);
-    if (fCollectBreadcrumbTriangles)
+    if (fCollectGroutTriangles)
     {
-        fBreadcrumbList.append(fAlloc,
-                               edge->fTop->fPoint,
-                               edge->fBottom->fPoint,
-                               v->fPoint,
-                               edge->fWinding);
+        fGroutList.append(fAlloc,
+                          edge->fTop->fPoint,
+                          edge->fBottom->fPoint,
+                          v->fPoint,
+                          edge->fWinding);
     }
     edge->fTop = v;
     edge->recompute();
@@ -1044,13 +1044,13 @@ void GrTriangulator::setBottom(Edge* edge,
                                const Comparator& c) const
 {
     remove_edge_above(edge);
-    if (fCollectBreadcrumbTriangles)
+    if (fCollectGroutTriangles)
     {
-        fBreadcrumbList.append(fAlloc,
-                               edge->fTop->fPoint,
-                               edge->fBottom->fPoint,
-                               v->fPoint,
-                               edge->fWinding);
+        fGroutList.append(fAlloc,
+                          edge->fTop->fPoint,
+                          edge->fBottom->fPoint,
+                          v->fPoint,
+                          edge->fWinding);
     }
     edge->fBottom = v;
     edge->recompute();

@@ -15,12 +15,12 @@
 namespace rive
 {
 // Triangulates the inner polygon(s) of a path (i.e., the triangle fan for a Redbook rendering
-// method). When combined with the outer curves and breadcrumb triangles, these produce a complete
-// path. If a breadcrumbCollector is not provided, pathToPolys fails upon self intersection.
+// method). When combined with the outer curves and grout triangles, these produce a complete path.
+// If a groutCollector is not provided, pathToPolys fails upon self intersection.
 class GrInnerFanTriangulator : private GrTriangulator
 {
 public:
-    using GrTriangulator::BreadcrumbTriangleList;
+    using GrTriangulator::GroutTriangleList;
 
     GrInnerFanTriangulator(const RawPath& path,
                            const AABB& pathBounds,
@@ -29,7 +29,7 @@ public:
         GrTriangulator(pathBounds, fillRule, alloc)
     {
         fPreserveCollinearVertices = true;
-        fCollectBreadcrumbTriangles = true;
+        fCollectGroutTriangles = true;
         bool isLinear;
         auto [polys, success] = GrTriangulator::pathToPolys(path, 0, AABB{}, &isLinear);
         if (success)
@@ -56,7 +56,7 @@ public:
         return GrTriangulator::polysToTriangles(m_polys, m_maxVertexCount, m_pathID, bufferRing);
     }
 
-    const BreadcrumbTriangleList& breadcrumbList() const { return fBreadcrumbList; }
+    const GroutTriangleList& groutList() const { return fGroutList; }
 
 private:
     uint16_t m_pathID = 0;
@@ -67,12 +67,12 @@ private:
 
 #else
 
-// Stub out GrInnerFanTriangulator::BreadcrumbTriangleList for function declarations.
+// Stub out GrInnerFanTriangulator::GroutTriangleList for function declarations.
 namespace GrInnerFanTriangulator
 {
-struct BreadcrumbTriangleList
+struct GroutTriangleList
 {
-    BreadcrumbTriangleList() = delete;
+    GroutTriangleList() = delete;
 };
 }; // namespace GrInnerFanTriangulator
 

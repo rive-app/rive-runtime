@@ -569,16 +569,16 @@ public:
                                                       path->pathBounds,
                                                       path->fillRule,
                                                       context->trivialPerFlushAllocator());
-            // We also draw each "breadcrumb" triangle using an outerCubic patch.
-            patchCount += path->triangulator->breadcrumbList().count();
+            // We also draw each "grout" triangle using an outerCubic patch.
+            patchCount += path->triangulator->groutList().count();
             path->tessVertexCount = patchCount * kOuterCurvePatchSegmentSpan;
             m_contourCount += contourCount;
             m_patchCount += patchCount;
         }
         else
         {
-            // Submit breadcrumb triangles, emulated by outerCubic patches.
-            for (auto* node = path->triangulator->breadcrumbList().head(); node; node = node->fNext)
+            // Submit grout triangles, emulated by outerCubic patches.
+            for (auto* node = path->triangulator->groutList().head(); node; node = node->fNext)
             {
                 Vec2D triangleAsCubic[4] = {node->fPts[0], node->fPts[1], {0, 0}, node->fPts[2]};
                 context->pushCubic(triangleAsCubic,

@@ -254,30 +254,30 @@ protected:
     bool fEmitCoverage = false;
 #endif
     bool fPreserveCollinearVertices = false;
-    bool fCollectBreadcrumbTriangles = false;
+    bool fCollectGroutTriangles = false;
 
-    // The breadcrumb triangles serve as a glue that erases T-junctions between a path's outer
-    // curves and its inner polygon triangulation. Drawing a path's outer curves, breadcrumb
+    // The grout triangles serve as a glue that erases T-junctions between a path's outer
+    // curves and its inner polygon triangulation. Drawing a path's outer curves, grout
     // triangles, and inner polygon triangulation all together into the stencil buffer has the same
     // identical rasterized effect as stenciling a classic Redbook fan.
     //
-    // The breadcrumb triangles track all the edge splits that led from the original inner polygon
-    // edges to the final triangulation. Every time an edge splits, we emit a razor-thin breadcrumb
+    // The grout triangles track all the edge splits that led from the original inner polygon
+    // edges to the final triangulation. Every time an edge splits, we emit a razor-thin grout
     // triangle consisting of the edge's original endpoints and the split point. (We also add
-    // supplemental breadcrumb triangles to areas where abs(winding) > 1.)
+    // supplemental grout triangles to areas where abs(winding) > 1.)
     //
     //                a
     //               /
     //              /
     //             /
-    //            x  <- Edge splits at x. New breadcrumb triangle is: [a, b, x].
+    //            x  <- Edge splits at x. New grout triangle is: [a, b, x].
     //           /
     //          /
     //         b
     //
-    // The opposite-direction shared edges between the triangulation and breadcrumb triangles should
+    // The opposite-direction shared edges between the triangulation and grout triangles should
     // all cancel out, leaving just the set of edges from the original polygon.
-    class BreadcrumbTriangleList
+    class GroutTriangleList
     {
     public:
         struct Node
@@ -309,7 +309,7 @@ protected:
             fCount += winding;
         }
 
-        void concat(BreadcrumbTriangleList&& list)
+        void concat(GroutTriangleList&& list)
         {
             assert(fTail && !(*fTail));
             if (list.fHead)
@@ -329,7 +329,7 @@ protected:
         int fCount = 0;
     };
 
-    mutable BreadcrumbTriangleList fBreadcrumbList;
+    mutable GroutTriangleList fGroutList;
 };
 
 /**

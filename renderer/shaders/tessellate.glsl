@@ -248,9 +248,9 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain, Varyings, varyings)
     else if ((contourIDWithFlags & RETROFITTED_TRIANGLE_FLAG) != 0u)
     {
         // This cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
-        // This is used to squeeze in more rare triangles, like "breadcrumb" triangles from
-        // self-intersections on interior triangulation, where it wouldn't be worth it to put them
-        // in their own dedicated draw call.
+        // This is used to squeeze in more rare triangles, like "grout" triangles from self
+        // intersections on interior triangulation, where it wouldn't be worth it to put them in
+        // their own dedicated draw call.
         tessCoord = p1;
     }
     else

@@ -96,9 +96,9 @@ namespace flags
 constexpr static uint32_t kFirstVertexOfContour = 1u << 31;
 
 // Tells shaders that a cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
-// This is used to squeeze in more rare triangles, like "breadcrumb" triangles from
-// self-intersections on interior triangulation, where it wouldn't be worth it to put them in their
-// own dedicated draw call.
+// This is used to squeeze in more rare triangles, like "grout" triangles from self intersections on
+// interior triangulation, where it wouldn't be worth it to put them in their own dedicated draw
+// call.
 constexpr static uint32_t kRetrofittedTriangle = 1u << 30;
 
 // Tells the tessellation shader to re-run Wang's formula on the given curve, figure out how many
