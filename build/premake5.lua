@@ -31,14 +31,11 @@ do
 
     files {'../src/**.cpp'}
 
-    buildoptions {
-        '-Wall',
-        '-fno-exceptions',
-        '-fno-rtti',
-        '-Werror=format',
-        '-Wimplicit-int-conversion',
-        '-Werror=vla'
+    flags {
+        'FatalCompileWarnings',
     }
+    exceptionhandling 'off'
+    rtti 'off'
 
     filter {'system:macosx'}
     do
@@ -48,6 +45,12 @@ do
         }
     end
 
+    filter {'toolset:not msc'}
+    do
+        buildoptions {
+            '-Wimplicit-int-conversion',
+        }
+    end
     filter {'system:macosx', 'options:variant=runtime'}
     do
         buildoptions {
@@ -70,11 +73,6 @@ do
     do
         architecture 'x64'
         defines {'_USE_MATH_DEFINES'}
-        flags {'FatalCompileWarnings'}
-        removebuildoptions {
-            '-fno-exceptions',
-            '-fno-rtti'
-        }
     end
 
     filter {'system:ios', 'options:variant=system'}

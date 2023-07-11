@@ -33,7 +33,11 @@ do
         '../src/**.cpp'
     }
 
-    buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format'}
+    flags {
+        'FatalCompileWarnings',
+    }
+    exceptionhandling 'off'
+    rtti 'off'
 
     filter "system:windows"
     do
@@ -81,7 +85,7 @@ do
     filter {'system:ios', 'options:variant=emulator'}
     do
         buildoptions {
-            '--target=arm64-apple-ios12.0.0-simulator -mios-version-min=10.0 -arch x86_64 -arch arm64 -isysroot ' ..
+            '--target=arm64-apple-ios12.0.0-simulator -mios-version-min=12.0 -arch x86_64 -arch arm64 -isysroot ' ..
                 (os.getenv('IOS_SYSROOT') or '')
         }
         targetdir '%{cfg.system}_sim/bin/%{cfg.buildcfg}'

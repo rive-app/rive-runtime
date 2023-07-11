@@ -115,6 +115,8 @@ TEST_CASE("swizzles", "[simd]")
     CHECK_ALL((v4.yzw == vec<3>{-2, 3, -1}));
     CHECK_ALL((v4.yxwz == float4{-2, 1, -1, 3}));
     CHECK_ALL((v4.zwxy == float4{3, -1, 1, -2}));
+    CHECK_ALL((v4.zyxw == float4{3, -2, 1, -1}));
+    CHECK_ALL((v4.xwzy == float4{1, -1, 3, -2}));
 
     v4.xy = v2.yx;
     CHECK_ALL((v4 == float4{-2, 1, 3, -1}));
@@ -164,6 +166,8 @@ TEST_CASE("swizzles", "[simd]")
     CHECK_ALL(
         (simd::clamp(a.yxwz, float4(2), float4(10)) == simd::clamp(a_, float4(2), float4(10))));
     CHECK_ALL((simd::mix(a.yxwz, b.yxwz, float4(.5f)) == simd::mix(a_, b_, float4(.5f))));
+    CHECK_ALL(
+        (simd::precise_mix(a.yxwz, b.yxwz, float4(.5f)) == simd::precise_mix(a_, b_, float4(.5f))));
     CHECK_ALL(
         (simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) == simd::if_then_else(int4{~0}, a_, b_)));
     CHECK_ALL((simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) == float4{a.y, b.x, b.w, b.z}));
