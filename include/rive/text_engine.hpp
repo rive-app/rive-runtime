@@ -21,6 +21,8 @@ using GlyphID = uint16_t;
 struct TextRun;
 struct GlyphRun;
 
+bool isWhiteSpace(Unichar c);
+
 // Direction a paragraph or run flows in.
 enum class TextDirection : uint8_t
 {

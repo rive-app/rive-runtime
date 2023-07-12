@@ -1,0 +1,27 @@
+{
+  "name": "TextStyleFeature",
+  "key": {
+    "int": 164,
+    "string": "textstylefeature"
+  },
+  "extends": "component.json",
+  "properties": {
+    "tag": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 356,
+        "string": "tag"
+      }
+    },
+    "featureValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 357,
+        "string": "featurevalue"
+      }
+    }
+  }
+}

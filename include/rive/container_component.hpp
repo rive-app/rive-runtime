@@ -11,7 +11,7 @@ private:
 
 public:
     const std::vector<Component*>& children() const { return m_children; }
-    void addChild(Component* component);
+    virtual void addChild(Component* component);
     bool collapse(bool value) override;
 };
 } // namespace rive

@@ -100,7 +100,7 @@ RenderImage::~RenderImage() { Counter::update(Counter::kImage, -1); }
 RenderPath::RenderPath() { Counter::update(Counter::kPath, 1); }
 RenderPath::~RenderPath() { Counter::update(Counter::kPath, -1); }
 
-static bool isWhiteSpace(Unichar c) { return c <= ' ' || c == 0x2028; }
+bool rive::isWhiteSpace(Unichar c) { return c <= ' ' || c == 0x2028; }
 
 SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text, Span<const TextRun> runs) const
 {

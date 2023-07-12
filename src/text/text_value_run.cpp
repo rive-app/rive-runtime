@@ -2,7 +2,6 @@
 #include "rive/text/text.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
-#include "rive/container_component.hpp"
 
 using namespace rive;
 

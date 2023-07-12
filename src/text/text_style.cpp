@@ -122,13 +122,35 @@ void TextStyle::rewindPath()
 {
     m_path->rewind();
     m_hasContents = false;
+    m_opacityPaths.clear();
 }
 
-bool TextStyle::addPath(const RawPath& rawPath)
+bool TextStyle::addPath(const RawPath& rawPath, float opacity)
 {
     bool hadContents = m_hasContents;
-    rawPath.addTo(m_path.get());
     m_hasContents = true;
+    if (opacity == 1.0f)
+    {
+        rawPath.addTo(m_path.get());
+    }
+    else if (opacity > 0.0f)
+    {
+        auto itr = m_opacityPaths.find(opacity);
+        RenderPath* renderPath = nullptr;
+        if (itr != m_opacityPaths.end())
+        {
+            renderPath = itr->second.get();
+        }
+        else
+        {
+            auto factory = getArtboard()->factory();
+            auto erp = factory->makeEmptyRenderPath();
+            renderPath = erp.get();
+            m_opacityPaths[opacity] = std::move(erp);
+        }
+        rawPath.addTo(renderPath);
+    }
+
     return !hadContents;
 }
 
@@ -142,6 +164,24 @@ void TextStyle::draw(Renderer* renderer)
             continue;
         }
         shapePaint->draw(renderer, path);
+
+        if (m_paintPool.size() < m_opacityPaths.size())
+        {
+            m_paintPool.reserve(m_opacityPaths.size());
+            Factory* factory = artboard()->factory();
+            while (m_paintPool.size() < m_opacityPaths.size())
+            {
+                m_paintPool.emplace_back(factory->makeRenderPaint());
+            }
+        }
+
+        uint32_t paintIndex = 0;
+        for (auto itr = m_opacityPaths.begin(); itr != m_opacityPaths.end(); itr++)
+        {
+            RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
+            shapePaint->applyTo(renderPaint, itr->first);
+            shapePaint->draw(renderer, itr->second.get(), renderPaint);
+        }
     }
 }
 

@@ -21,9 +21,19 @@ RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
     return renderPaint;
 }
 
+void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+{
+    renderPaint->style(RenderPaintStyle::stroke);
+    renderPaint->thickness(thickness());
+    renderPaint->cap((StrokeCap)cap());
+    renderPaint->join((StrokeJoin)join());
+    renderPaint->shader(nullptr);
+    m_PaintMutator->applyTo(renderPaint, opacityModifier);
+}
+
 bool Stroke::isVisible() const { return Super::isVisible() && thickness() > 0.0f; }
 
-void Stroke::draw(Renderer* renderer, CommandPath* path)
+void Stroke::draw(Renderer* renderer, CommandPath* path, RenderPaint* paint)
 {
     if (!isVisible())
     {
@@ -37,7 +47,7 @@ void Stroke::draw(Renderer* renderer, CommandPath* path)
         path = m_Effect->effectPath(reinterpret_cast<MetricsPath*>(path), factory);
     }
 
-    renderer->drawPath(path->renderPath(), renderPaint());
+    renderer->drawPath(path->renderPath(), paint);
 }
 
 void Stroke::thicknessChanged()

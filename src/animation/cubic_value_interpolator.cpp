@@ -27,7 +27,7 @@ float CubicValueInterpolator::transformValue(float valueFrom, float valueTo, flo
         m_ValueTo = valueTo;
         computeParameters();
     }
-    float t = getT(factor);
+    float t = m_solver.getT(factor);
     return ((m_A * t + m_B) * t + m_C) * t + m_D;
 }
 

@@ -34,6 +34,9 @@ enum class ComponentDirt : unsigned short
     /// Vertices have changed, re-order cached lists.
     Vertices = 1 << 5,
 
+    /// Text modifier coverage is dirty and needs to be rebuilt.
+    TextCoverage = 1 << 5,
+
     /// Used by any component that needs to recompute their local transform.
     /// Usually components that have their transform dirty will also have
     /// their worldTransform dirty.

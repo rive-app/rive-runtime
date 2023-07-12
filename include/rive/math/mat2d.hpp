@@ -27,6 +27,10 @@ public:
     static Mat2D fromRotation(float rad);
     static Mat2D fromScale(float sx, float sy) { return {sx, 0, 0, sy, 0, 0}; }
     static Mat2D fromTranslate(float tx, float ty) { return {1, 0, 0, 1, tx, ty}; }
+    static Mat2D fromScaleAndTranslation(float sx, float sy, float tx, float ty)
+    {
+        return {sx, 0, 0, sy, tx, ty};
+    }
 
     void scaleByValues(float sx, float sy);
 

@@ -8,6 +8,7 @@ class SolidColor : public SolidColorBase, public ShapePaintMutator
 {
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
+    void applyTo(RenderPaint* renderPaint, float opacityModifier) const override;
 
 protected:
     void renderOpacityChanged() override;

@@ -13,12 +13,13 @@ private:
 public:
     RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
     PathSpace pathSpace() const override;
-    void draw(Renderer* renderer, CommandPath* path) override;
+    void draw(Renderer* renderer, CommandPath* path, RenderPaint* paint) override;
     void addStrokeEffect(StrokeEffect* effect);
     bool hasStrokeEffect() { return m_Effect != nullptr; }
     void invalidateEffects();
     bool isVisible() const override;
     void invalidateRendering();
+    void applyTo(RenderPaint* renderPaint, float opacityModifier) const override;
 
 protected:
     void thicknessChanged() override;

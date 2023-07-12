@@ -30,7 +30,9 @@ public:
 
     virtual PathSpace pathSpace() const = 0;
 
-    virtual void draw(Renderer* renderer, CommandPath* path) = 0;
+    void draw(Renderer* renderer, CommandPath* path) { draw(renderer, path, renderPaint()); }
+
+    virtual void draw(Renderer* renderer, CommandPath* path, RenderPaint* paint) = 0;
 
     RenderPaint* renderPaint() { return m_RenderPaint.get(); }
 
@@ -40,6 +42,10 @@ public:
     Component* paint() const { return m_PaintMutator->component(); }
 
     bool isTranslucent() const { return !this->isVisible() || m_PaintMutator->isTranslucent(); }
+
+    /// Apply this ShapePaint to an external RenderPaint and optionally modulate
+    /// the opacity by opacityModifer.
+    virtual void applyTo(RenderPaint* renderPaint, float opacityModifier) const = 0;
 };
 } // namespace rive
 

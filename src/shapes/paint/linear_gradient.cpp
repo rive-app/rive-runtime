@@ -76,60 +76,68 @@ void LinearGradient::update(ComponentDirt value)
         std::sort(m_Stops.begin(), m_Stops.end(), stopsComparer);
     }
 
-    bool worldTransformed = hasDirt(value, ComponentDirt::WorldTransform);
-
-    bool paintsInWorldSpace = parent()->as<ShapePaint>()->pathSpace() == PathSpace::World;
     // We rebuild the gradient if the gradient is dirty or we paint in world
     // space and the world space transform has changed, or the local transform
     // has changed. Local transform changes when a stop moves in local space.
     bool rebuildGradient =
         hasDirt(value,
                 ComponentDirt::Paint | ComponentDirt::RenderOpacity | ComponentDirt::Transform) ||
-        (paintsInWorldSpace && worldTransformed);
+        (
+            // paints in world space
+            parent()->as<ShapePaint>()->pathSpace() == PathSpace::World &&
+            // and had a world transform change
+            hasDirt(value, ComponentDirt::WorldTransform));
     if (rebuildGradient)
     {
-        Vec2D start(startX(), startY());
-        Vec2D end(endX(), endY());
-        // Check if we need to update the world space gradient (if there's no
-        // shape container, presumably it's the artboard and we're already in
-        // world).
-        if (paintsInWorldSpace && m_ShapePaintContainer != nullptr)
-        {
-            // Get the start and end of the gradient in world coordinates (world
-            // transform of the shape).
-            const Mat2D& world = m_ShapePaintContainer->worldTransform();
-            start = world * start;
-            end = world * end;
-        }
-
-        // build up the color and positions lists
-        const auto ro = opacity() * renderOpacity();
-        const auto count = m_Stops.size();
-
-        // need some temporary storage. Allocate enough for both arrays
-        assert(sizeof(ColorInt) == sizeof(float));
-        std::vector<ColorInt> storage(count * 2);
-        ColorInt* colors = storage.data();
-        float* stops = (float*)colors + count;
-
-        for (size_t i = 0; i < count; ++i)
-        {
-            colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
-            stops[i] = m_Stops[i]->position();
-        }
-
-        makeGradient(start, end, colors, stops, count);
+        applyTo(renderPaint(), 1.0f);
     }
 }
 
-void LinearGradient::makeGradient(Vec2D start,
+void LinearGradient::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+{
+    bool paintsInWorldSpace = parent()->as<ShapePaint>()->pathSpace() == PathSpace::World;
+    Vec2D start(startX(), startY());
+    Vec2D end(endX(), endY());
+    // Check if we need to update the world space gradient (if there's no
+    // shape container, presumably it's the artboard and we're already in
+    // world).
+    if (paintsInWorldSpace && m_ShapePaintContainer != nullptr)
+    {
+        // Get the start and end of the gradient in world coordinates (world
+        // transform of the shape).
+        const Mat2D& world = m_ShapePaintContainer->worldTransform();
+        start = world * start;
+        end = world * end;
+    }
+
+    // build up the color and positions lists
+    const auto ro = opacity() * renderOpacity() * opacityModifier;
+    const auto count = m_Stops.size();
+
+    // need some temporary storage. Allocate enough for both arrays
+    assert(sizeof(ColorInt) == sizeof(float));
+    std::vector<ColorInt> storage(count * 2);
+    ColorInt* colors = storage.data();
+    float* stops = (float*)colors + count;
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
+        stops[i] = m_Stops[i]->position();
+    }
+
+    makeGradient(renderPaint, start, end, colors, stops, count);
+}
+
+void LinearGradient::makeGradient(RenderPaint* renderPaint,
+                                  Vec2D start,
                                   Vec2D end,
                                   const ColorInt colors[],
                                   const float stops[],
-                                  size_t count)
+                                  size_t count) const
 {
     auto factory = artboard()->factory();
-    renderPaint()->shader(
+    renderPaint->shader(
         factory->makeLinearGradient(start.x, start.y, end.x, end.y, colors, stops, count));
 }
 

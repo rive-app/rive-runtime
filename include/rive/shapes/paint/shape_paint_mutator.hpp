@@ -32,6 +32,8 @@ public:
     Component* component() const { return m_Component; }
 
     bool isTranslucent() const { return m_RenderOpacity < 1 || this->internalIsTranslucent(); }
+
+    virtual void applyTo(RenderPaint* renderPaint, float opacityModifier) const = 0;
 };
 } // namespace rive
 #endif

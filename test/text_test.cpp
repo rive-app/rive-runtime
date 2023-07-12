@@ -3,7 +3,10 @@
 #include "rive/text/text_value_run.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
-#include <utils/no_op_renderer.hpp>
+#include "rive/text/glyph_lookup.hpp"
+#include "rive/text/text_modifier_range.hpp"
+#include "utils/no_op_renderer.hpp"
+#include "rive/text/utf.hpp"
 
 TEST_CASE("file with text loads correctly", "[text]")
 {
@@ -85,6 +88,7 @@ TEST_CASE("ellipsis is shown", "[text]")
     text->overflow(rive::TextOverflow::visible);
     artboard->advance(0.0f);
     lines = text->orderedLines();
+
     // 2 lines after we set overflow to visible and advance which updates the
     // ordered lines.
     REQUIRE(lines.size() == 2);
@@ -100,4 +104,36 @@ TEST_CASE("ellipsis is shown", "[text]")
 
     rive::NoOpRenderer renderer;
     artboard->draw(&renderer);
+
+    rive::GlyphLookup lookup;
+    lookup.compute(text->unichars(), text->shape());
+    REQUIRE(lookup.count(0) == 1);
+
+    runObjects[0]->text("a -> b");
+    artboard->advance(0.0f);
+    lookup.compute(text->unichars(), text->shape());
+    REQUIRE(lookup.count(0) == 1); // a
+    REQUIRE(lookup.count(1) == 1); // space
+    REQUIRE(lookup.count(2) == 2); // - ligates > to ->
+    REQUIRE(lookup.count(4) == 1); // space
+    REQUIRE(lookup.count(5) == 1); // b
+}
+
+static std::vector<rive::Unichar> toUnicode(const char text[])
+{
+    std::vector<rive::Unichar> codePoints;
+    const uint8_t* ptr = (const uint8_t*)text;
+    while (*ptr)
+    {
+        codePoints.push_back(rive::UTF::NextUTF8(&ptr));
+    }
+    return codePoints;
+}
+
+TEST_CASE("range mapper maps words", "[text]")
+{
+    auto codePoints = toUnicode("one two three four");
+    rive::RangeMapper rangeMapper;
+    rangeMapper.fromWords(codePoints);
+    REQUIRE(rangeMapper.unitCount() == 4);
 }

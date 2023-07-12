@@ -11,7 +11,14 @@ RenderPaint* Fill::initRenderPaint(ShapePaintMutator* mutator)
     return renderPaint;
 }
 
-void Fill::draw(Renderer* renderer, CommandPath* path)
+void Fill::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+{
+    renderPaint->style(RenderPaintStyle::fill);
+    renderPaint->shader(nullptr);
+    m_PaintMutator->applyTo(renderPaint, opacityModifier);
+}
+
+void Fill::draw(Renderer* renderer, CommandPath* path, RenderPaint* paint)
 {
     if (!isVisible())
     {
@@ -19,5 +26,5 @@ void Fill::draw(Renderer* renderer, CommandPath* path)
     }
     auto renderPath = path->renderPath();
     renderPath->fillRule((FillRule)fillRule());
-    renderer->drawPath(renderPath, renderPaint());
+    renderer->drawPath(renderPath, paint);
 }

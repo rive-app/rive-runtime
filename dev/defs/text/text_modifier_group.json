@@ -1,0 +1,96 @@
+{
+  "name": "TextModifierGroup",
+  "key": {
+    "int": 159,
+    "string": "textmodifiergroup"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "modifierFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 335,
+        "string": "modifierflags"
+      }
+    },
+    "originX": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "origin",
+      "key": {
+        "int": 328,
+        "string": "x"
+      }
+    },
+    "originY": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "origin",
+      "key": {
+        "int": 329,
+        "string": "y"
+      }
+    },
+    "opacity": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 324,
+        "string": "opacity"
+      }
+    },
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 322,
+        "string": "x"
+      }
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 323,
+        "string": "y"
+      }
+    },
+    "rotation": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 332,
+        "string": "rotation"
+      }
+    },
+    "scaleX": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "group": "scale",
+      "key": {
+        "int": 330,
+        "string": "x"
+      }
+    },
+    "scaleY": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "group": "scale",
+      "key": {
+        "int": 331,
+        "string": "y"
+      }
+    }
+  }
+}

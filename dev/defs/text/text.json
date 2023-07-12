@@ -70,6 +70,17 @@
         "string": "originy"
       },
       "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
+    },
+    "highlightTextRuns": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 310,
+        "string": "highlighttextruns"
+      },
+      "description": "Whether to draw colored underlines to identify runs.",
+      "runtime": false,
+      "coop": false
     }
   }
 }

@@ -4,7 +4,8 @@
 #include "rive/text/text_value_run.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/simple_array.hpp"
-
+#include <vector>
+#include "rive/text/glyph_lookup.hpp"
 namespace rive
 {
 
@@ -24,6 +25,25 @@ enum class TextOverflow : uint8_t
 };
 
 class OrderedLine;
+class TextModifierGroup;
+
+class StyledText
+{
+private:
+    /// Represents the unicode characters making up the entire text string
+    /// displayed. Only valid after update.
+    std::vector<Unichar> m_value;
+    std::vector<TextRun> m_runs;
+
+public:
+    bool empty() const;
+    void clear();
+    void append(rcp<Font> font, float size, const std::string& text, uint16_t styleId);
+    const std::vector<Unichar>& unichars() const { return m_value; }
+    const std::vector<TextRun>& runs() const { return m_runs; }
+
+    void swapRuns(std::vector<TextRun>& otherRuns) { m_runs.swap(otherRuns); }
+};
 
 // STL-style iterator for individual glyphs in a line, simplfies call sites from
 // needing to iterate both runs and glyphs within those runs per line. A single
@@ -134,16 +154,31 @@ public:
     void draw(Renderer* renderer) override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void addRun(TextValueRun* run);
+    void addModifierGroup(TextModifierGroup* group);
     void markShapeDirty();
+    void modifierShapeDirty();
+    void markPaintDirty();
     void update(ComponentDirt value) override;
 
     TextSizing sizing() { return (TextSizing)sizingValue(); }
     TextOverflow overflow() { return (TextOverflow)overflowValue(); }
     void overflow(TextOverflow value) { return overflowValue((uint32_t)value); }
     void buildRenderStyles();
-
+    const TextStyle* styleFromShaperId(uint16_t id) const;
+    bool modifierRangesNeedShape() const;
+    bool haveModifiers() const
+    {
+#ifdef WITH_RIVE_TEXT
+        return !m_modifierGroups.empty();
+#else
+        return false;
+#endif
+    }
 #ifdef TESTING
-    std::vector<OrderedLine>& orderedLines() { return m_orderedLines; }
+    const std::vector<OrderedLine>& orderedLines() const { return m_orderedLines; }
+    const std::vector<TextModifierGroup*>& modifierGroups() const { return m_modifierGroups; }
+    const SimpleArray<Paragraph>& shape() const { return m_shape; }
+    const std::vector<Unichar>& unichars() const { return m_styledText.unichars(); }
 #endif
 
 protected:
@@ -152,6 +187,7 @@ protected:
     void overflowValueChanged() override;
     void widthChanged() override;
     void heightChanged() override;
+    bool makeStyled(StyledText& styledText, bool withModifiers = true) const;
 
 private:
 #ifdef WITH_RIVE_TEXT
@@ -159,7 +195,9 @@ private:
     std::vector<TextValueRun*> m_runs;
     std::vector<TextStyle*> m_renderStyles;
     SimpleArray<Paragraph> m_shape;
+    SimpleArray<Paragraph> m_modifierShape;
     SimpleArray<SimpleArray<GlyphLine>> m_lines;
+    SimpleArray<SimpleArray<GlyphLine>> m_modifierLines;
     // Runs ordered by paragraph line.
     std::vector<OrderedLine> m_orderedLines;
     GlyphRun m_ellipsisRun;
@@ -167,6 +205,12 @@ private:
     Mat2D m_originWorldTransform;
     float m_actualWidth = 0.0f;
     float m_actualHeight = 0.0f;
+    std::vector<TextModifierGroup*> m_modifierGroups;
+
+    StyledText m_styledText;
+    StyledText m_modifierStyledText;
+
+    GlyphLookup m_glyphLookup;
 #endif
 };
 } // namespace rive

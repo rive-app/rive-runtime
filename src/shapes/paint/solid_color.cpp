@@ -29,6 +29,11 @@ void SolidColor::renderOpacityChanged()
     renderPaint()->color(colorModulateOpacity(colorValue(), renderOpacity()));
 }
 
+void SolidColor::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+{
+    renderPaint->color(colorModulateOpacity(colorValue(), renderOpacity() * opacityModifier));
+}
+
 void SolidColor::colorValueChanged() { renderOpacityChanged(); }
 
 bool SolidColor::internalIsTranslucent() const { return colorAlpha(colorValue()) != 0xFF; }

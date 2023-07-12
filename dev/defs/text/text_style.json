@@ -24,6 +24,33 @@
         "int": 279,
         "string": "fontassetid"
       }
+    },
+    "familyName": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 341,
+        "string": "familyname"
+      },
+      "runtime": false
+    },
+    "styleName": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 342,
+        "string": "stylename"
+      },
+      "runtime": false
+    },
+    "isCustomFont": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 353,
+        "string": "iscustomfont"
+      },
+      "runtime": false
     }
   }
 }

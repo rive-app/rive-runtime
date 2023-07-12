@@ -13,6 +13,7 @@
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/cubic_ease_interpolator.hpp"
 #include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/cubic_interpolator_component.hpp"
 #include "rive/animation/cubic_value_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
@@ -123,9 +124,15 @@
 #include "rive/shapes/vertex.hpp"
 #include "rive/solo.hpp"
 #include "rive/text/text.hpp"
+#include "rive/text/text_modifier.hpp"
+#include "rive/text/text_modifier_group.hpp"
+#include "rive/text/text_modifier_range.hpp"
+#include "rive/text/text_shape_modifier.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
+#include "rive/text/text_style_feature.hpp"
 #include "rive/text/text_value_run.hpp"
+#include "rive/text/text_variation_modifier.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/world_transform_component.hpp"
 namespace rive
@@ -193,6 +200,8 @@ public:
                 return new TransitionNumberCondition();
             case AnyStateBase::typeKey:
                 return new AnyState();
+            case CubicInterpolatorComponentBase::typeKey:
+                return new CubicInterpolatorComponent();
             case StateMachineLayerBase::typeKey:
                 return new StateMachineLayer();
             case KeyFrameStringBase::typeKey:
@@ -305,6 +314,14 @@ public:
                 return new Tendon();
             case CubicWeightBase::typeKey:
                 return new CubicWeight();
+            case TextModifierRangeBase::typeKey:
+                return new TextModifierRange();
+            case TextStyleFeatureBase::typeKey:
+                return new TextStyleFeature();
+            case TextVariationModifierBase::typeKey:
+                return new TextVariationModifier();
+            case TextModifierGroupBase::typeKey:
+                return new TextModifierGroup();
             case TextStyleBase::typeKey:
                 return new TextStyle();
             case TextStyleAxisBase::typeKey:
@@ -553,6 +570,27 @@ public:
             case CubicWeightBase::outIndicesPropertyKey:
                 object->as<CubicWeightBase>()->outIndices(value);
                 break;
+            case TextModifierRangeBase::unitsValuePropertyKey:
+                object->as<TextModifierRangeBase>()->unitsValue(value);
+                break;
+            case TextModifierRangeBase::typeValuePropertyKey:
+                object->as<TextModifierRangeBase>()->typeValue(value);
+                break;
+            case TextModifierRangeBase::modeValuePropertyKey:
+                object->as<TextModifierRangeBase>()->modeValue(value);
+                break;
+            case TextStyleFeatureBase::tagPropertyKey:
+                object->as<TextStyleFeatureBase>()->tag(value);
+                break;
+            case TextStyleFeatureBase::featureValuePropertyKey:
+                object->as<TextStyleFeatureBase>()->featureValue(value);
+                break;
+            case TextVariationModifierBase::axisTagPropertyKey:
+                object->as<TextVariationModifierBase>()->axisTag(value);
+                break;
+            case TextModifierGroupBase::modifierFlagsPropertyKey:
+                object->as<TextModifierGroupBase>()->modifierFlags(value);
+                break;
             case TextStyleBase::fontAssetIdPropertyKey:
                 object->as<TextStyleBase>()->fontAssetId(value);
                 break;
@@ -654,6 +692,18 @@ public:
                 break;
             case TransitionNumberConditionBase::valuePropertyKey:
                 object->as<TransitionNumberConditionBase>()->value(value);
+                break;
+            case CubicInterpolatorComponentBase::x1PropertyKey:
+                object->as<CubicInterpolatorComponentBase>()->x1(value);
+                break;
+            case CubicInterpolatorComponentBase::y1PropertyKey:
+                object->as<CubicInterpolatorComponentBase>()->y1(value);
+                break;
+            case CubicInterpolatorComponentBase::x2PropertyKey:
+                object->as<CubicInterpolatorComponentBase>()->x2(value);
+                break;
+            case CubicInterpolatorComponentBase::y2PropertyKey:
+                object->as<CubicInterpolatorComponentBase>()->y2(value);
                 break;
             case ListenerNumberChangeBase::valuePropertyKey:
                 object->as<ListenerNumberChangeBase>()->value(value);
@@ -862,6 +912,51 @@ public:
             case TendonBase::tyPropertyKey:
                 object->as<TendonBase>()->ty(value);
                 break;
+            case TextModifierRangeBase::modifyFromPropertyKey:
+                object->as<TextModifierRangeBase>()->modifyFrom(value);
+                break;
+            case TextModifierRangeBase::modifyToPropertyKey:
+                object->as<TextModifierRangeBase>()->modifyTo(value);
+                break;
+            case TextModifierRangeBase::strengthPropertyKey:
+                object->as<TextModifierRangeBase>()->strength(value);
+                break;
+            case TextModifierRangeBase::falloffFromPropertyKey:
+                object->as<TextModifierRangeBase>()->falloffFrom(value);
+                break;
+            case TextModifierRangeBase::falloffToPropertyKey:
+                object->as<TextModifierRangeBase>()->falloffTo(value);
+                break;
+            case TextModifierRangeBase::offsetPropertyKey:
+                object->as<TextModifierRangeBase>()->offset(value);
+                break;
+            case TextVariationModifierBase::axisValuePropertyKey:
+                object->as<TextVariationModifierBase>()->axisValue(value);
+                break;
+            case TextModifierGroupBase::originXPropertyKey:
+                object->as<TextModifierGroupBase>()->originX(value);
+                break;
+            case TextModifierGroupBase::originYPropertyKey:
+                object->as<TextModifierGroupBase>()->originY(value);
+                break;
+            case TextModifierGroupBase::opacityPropertyKey:
+                object->as<TextModifierGroupBase>()->opacity(value);
+                break;
+            case TextModifierGroupBase::xPropertyKey:
+                object->as<TextModifierGroupBase>()->x(value);
+                break;
+            case TextModifierGroupBase::yPropertyKey:
+                object->as<TextModifierGroupBase>()->y(value);
+                break;
+            case TextModifierGroupBase::rotationPropertyKey:
+                object->as<TextModifierGroupBase>()->rotation(value);
+                break;
+            case TextModifierGroupBase::scaleXPropertyKey:
+                object->as<TextModifierGroupBase>()->scaleX(value);
+                break;
+            case TextModifierGroupBase::scaleYPropertyKey:
+                object->as<TextModifierGroupBase>()->scaleY(value);
+                break;
             case TextStyleBase::fontSizePropertyKey:
                 object->as<TextStyleBase>()->fontSize(value);
                 break;
@@ -954,6 +1049,9 @@ public:
                 break;
             case ArtboardBase::clipPropertyKey:
                 object->as<ArtboardBase>()->clip(value);
+                break;
+            case TextModifierRangeBase::clampPropertyKey:
+                object->as<TextModifierRangeBase>()->clamp(value);
                 break;
         }
     }
@@ -1129,6 +1227,20 @@ public:
                 return object->as<CubicWeightBase>()->outValues();
             case CubicWeightBase::outIndicesPropertyKey:
                 return object->as<CubicWeightBase>()->outIndices();
+            case TextModifierRangeBase::unitsValuePropertyKey:
+                return object->as<TextModifierRangeBase>()->unitsValue();
+            case TextModifierRangeBase::typeValuePropertyKey:
+                return object->as<TextModifierRangeBase>()->typeValue();
+            case TextModifierRangeBase::modeValuePropertyKey:
+                return object->as<TextModifierRangeBase>()->modeValue();
+            case TextStyleFeatureBase::tagPropertyKey:
+                return object->as<TextStyleFeatureBase>()->tag();
+            case TextStyleFeatureBase::featureValuePropertyKey:
+                return object->as<TextStyleFeatureBase>()->featureValue();
+            case TextVariationModifierBase::axisTagPropertyKey:
+                return object->as<TextVariationModifierBase>()->axisTag();
+            case TextModifierGroupBase::modifierFlagsPropertyKey:
+                return object->as<TextModifierGroupBase>()->modifierFlags();
             case TextStyleBase::fontAssetIdPropertyKey:
                 return object->as<TextStyleBase>()->fontAssetId();
             case TextStyleAxisBase::tagPropertyKey:
@@ -1200,6 +1312,14 @@ public:
                 return object->as<CubicInterpolatorBase>()->y2();
             case TransitionNumberConditionBase::valuePropertyKey:
                 return object->as<TransitionNumberConditionBase>()->value();
+            case CubicInterpolatorComponentBase::x1PropertyKey:
+                return object->as<CubicInterpolatorComponentBase>()->x1();
+            case CubicInterpolatorComponentBase::y1PropertyKey:
+                return object->as<CubicInterpolatorComponentBase>()->y1();
+            case CubicInterpolatorComponentBase::x2PropertyKey:
+                return object->as<CubicInterpolatorComponentBase>()->x2();
+            case CubicInterpolatorComponentBase::y2PropertyKey:
+                return object->as<CubicInterpolatorComponentBase>()->y2();
             case ListenerNumberChangeBase::valuePropertyKey:
                 return object->as<ListenerNumberChangeBase>()->value();
             case KeyFrameDoubleBase::valuePropertyKey:
@@ -1338,6 +1458,36 @@ public:
                 return object->as<TendonBase>()->tx();
             case TendonBase::tyPropertyKey:
                 return object->as<TendonBase>()->ty();
+            case TextModifierRangeBase::modifyFromPropertyKey:
+                return object->as<TextModifierRangeBase>()->modifyFrom();
+            case TextModifierRangeBase::modifyToPropertyKey:
+                return object->as<TextModifierRangeBase>()->modifyTo();
+            case TextModifierRangeBase::strengthPropertyKey:
+                return object->as<TextModifierRangeBase>()->strength();
+            case TextModifierRangeBase::falloffFromPropertyKey:
+                return object->as<TextModifierRangeBase>()->falloffFrom();
+            case TextModifierRangeBase::falloffToPropertyKey:
+                return object->as<TextModifierRangeBase>()->falloffTo();
+            case TextModifierRangeBase::offsetPropertyKey:
+                return object->as<TextModifierRangeBase>()->offset();
+            case TextVariationModifierBase::axisValuePropertyKey:
+                return object->as<TextVariationModifierBase>()->axisValue();
+            case TextModifierGroupBase::originXPropertyKey:
+                return object->as<TextModifierGroupBase>()->originX();
+            case TextModifierGroupBase::originYPropertyKey:
+                return object->as<TextModifierGroupBase>()->originY();
+            case TextModifierGroupBase::opacityPropertyKey:
+                return object->as<TextModifierGroupBase>()->opacity();
+            case TextModifierGroupBase::xPropertyKey:
+                return object->as<TextModifierGroupBase>()->x();
+            case TextModifierGroupBase::yPropertyKey:
+                return object->as<TextModifierGroupBase>()->y();
+            case TextModifierGroupBase::rotationPropertyKey:
+                return object->as<TextModifierGroupBase>()->rotation();
+            case TextModifierGroupBase::scaleXPropertyKey:
+                return object->as<TextModifierGroupBase>()->scaleX();
+            case TextModifierGroupBase::scaleYPropertyKey:
+                return object->as<TextModifierGroupBase>()->scaleY();
             case TextStyleBase::fontSizePropertyKey:
                 return object->as<TextStyleBase>()->fontSize();
             case TextStyleAxisBase::axisValuePropertyKey:
@@ -1403,6 +1553,8 @@ public:
                 return object->as<ClippingShapeBase>()->isVisible();
             case ArtboardBase::clipPropertyKey:
                 return object->as<ArtboardBase>()->clip();
+            case TextModifierRangeBase::clampPropertyKey:
+                return object->as<TextModifierRangeBase>()->clamp();
         }
         return false;
     }
@@ -1497,6 +1649,13 @@ public:
             case CubicWeightBase::inIndicesPropertyKey:
             case CubicWeightBase::outValuesPropertyKey:
             case CubicWeightBase::outIndicesPropertyKey:
+            case TextModifierRangeBase::unitsValuePropertyKey:
+            case TextModifierRangeBase::typeValuePropertyKey:
+            case TextModifierRangeBase::modeValuePropertyKey:
+            case TextStyleFeatureBase::tagPropertyKey:
+            case TextStyleFeatureBase::featureValuePropertyKey:
+            case TextVariationModifierBase::axisTagPropertyKey:
+            case TextModifierGroupBase::modifierFlagsPropertyKey:
             case TextStyleBase::fontAssetIdPropertyKey:
             case TextStyleAxisBase::tagPropertyKey:
             case TextBase::alignValuePropertyKey:
@@ -1530,6 +1689,10 @@ public:
             case CubicInterpolatorBase::x2PropertyKey:
             case CubicInterpolatorBase::y2PropertyKey:
             case TransitionNumberConditionBase::valuePropertyKey:
+            case CubicInterpolatorComponentBase::x1PropertyKey:
+            case CubicInterpolatorComponentBase::y1PropertyKey:
+            case CubicInterpolatorComponentBase::x2PropertyKey:
+            case CubicInterpolatorComponentBase::y2PropertyKey:
             case ListenerNumberChangeBase::valuePropertyKey:
             case KeyFrameDoubleBase::valuePropertyKey:
             case LinearAnimationBase::speedPropertyKey:
@@ -1599,6 +1762,21 @@ public:
             case TendonBase::yyPropertyKey:
             case TendonBase::txPropertyKey:
             case TendonBase::tyPropertyKey:
+            case TextModifierRangeBase::modifyFromPropertyKey:
+            case TextModifierRangeBase::modifyToPropertyKey:
+            case TextModifierRangeBase::strengthPropertyKey:
+            case TextModifierRangeBase::falloffFromPropertyKey:
+            case TextModifierRangeBase::falloffToPropertyKey:
+            case TextModifierRangeBase::offsetPropertyKey:
+            case TextVariationModifierBase::axisValuePropertyKey:
+            case TextModifierGroupBase::originXPropertyKey:
+            case TextModifierGroupBase::originYPropertyKey:
+            case TextModifierGroupBase::opacityPropertyKey:
+            case TextModifierGroupBase::xPropertyKey:
+            case TextModifierGroupBase::yPropertyKey:
+            case TextModifierGroupBase::rotationPropertyKey:
+            case TextModifierGroupBase::scaleXPropertyKey:
+            case TextModifierGroupBase::scaleYPropertyKey:
             case TextStyleBase::fontSizePropertyKey:
             case TextStyleAxisBase::axisValuePropertyKey:
             case TextBase::widthPropertyKey:
@@ -1629,6 +1807,7 @@ public:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
             case ArtboardBase::clipPropertyKey:
+            case TextModifierRangeBase::clampPropertyKey:
                 return CoreBoolType::id;
             case KeyFrameColorBase::valuePropertyKey:
             case SolidColorBase::colorValuePropertyKey:

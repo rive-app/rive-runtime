@@ -9,7 +9,8 @@ class Fill : public FillBase
 public:
     RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
     PathSpace pathSpace() const override;
-    void draw(Renderer* renderer, CommandPath* path) override;
+    void draw(Renderer* renderer, CommandPath* path, RenderPaint* paint) override;
+    void applyTo(RenderPaint* renderPaint, float opacityModifier) const override;
 };
 } // namespace rive
 

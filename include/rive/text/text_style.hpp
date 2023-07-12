@@ -5,6 +5,7 @@
 #include "rive/assets/file_asset_referencer.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/font_asset.hpp"
+#include <unordered_map>
 
 namespace rive
 {
@@ -13,6 +14,7 @@ class Font;
 class FileAsset;
 class Renderer;
 class RenderPath;
+class RenderPaint;
 
 class TextVariationHelper;
 class TextStyleAxis;
@@ -28,7 +30,7 @@ public:
     void assets(const std::vector<FileAsset*>& assets) override;
     StatusCode import(ImportStack& importStack) override;
 
-    bool addPath(const RawPath& rawPath);
+    bool addPath(const RawPath& rawPath, float opacity);
     void rewindPath();
     void draw(Renderer* renderer);
     Core* clone() const override;
@@ -43,12 +45,14 @@ protected:
 
 private:
     std::unique_ptr<TextVariationHelper> m_variationHelper;
+    std::unordered_map<float, std::unique_ptr<RenderPath>> m_opacityPaths;
     rcp<Font> m_variableFont;
     FontAsset* m_fontAsset = nullptr;
     std::unique_ptr<RenderPath> m_path;
     bool m_hasContents = false;
     std::vector<Font::Coord> m_coords;
     std::vector<TextStyleAxis*> m_variations;
+    std::vector<std::unique_ptr<RenderPaint>> m_paintPool;
 };
 } // namespace rive
 

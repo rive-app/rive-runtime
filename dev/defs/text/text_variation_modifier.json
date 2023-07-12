@@ -1,0 +1,27 @@
+{
+  "name": "TextVariationModifier",
+  "key": {
+    "int": 162,
+    "string": "textvariationmodifier"
+  },
+  "extends": "text/text_shape_modifier.json",
+  "properties": {
+    "axisTag": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 320,
+        "string": "axistag"
+      }
+    },
+    "axisValue": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 321,
+        "string": "axisvalue"
+      }
+    }
+  }
+}

@@ -23,6 +23,7 @@ public:
     void update(ComponentDirt value) override;
     void markGradientDirty();
     void markStopsDirty();
+    void applyTo(RenderPaint* renderPaint, float opacityModifier) const override;
 
 protected:
     void buildDependencies() override;
@@ -34,11 +35,12 @@ protected:
     void renderOpacityChanged() override;
     bool internalIsTranslucent() const override;
 
-    virtual void makeGradient(Vec2D start,
+    virtual void makeGradient(RenderPaint* renderPaint,
+                              Vec2D start,
                               Vec2D end,
                               const ColorInt[],
                               const float[],
-                              size_t count);
+                              size_t count) const;
 };
 } // namespace rive
 

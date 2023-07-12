@@ -6,6 +6,7 @@ using namespace rive;
 #include "rive/text/utf.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
+#include "rive/text/text_modifier_group.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
@@ -339,21 +340,59 @@ void Text::buildRenderStyles()
                 const Vec2D& offset = run->offsets[glyphIndex];
 
                 GlyphID glyphId = run->glyphs[glyphIndex];
+                float advance = run->advances[glyphIndex];
 
-                // TODO: profile if this should be cached.
                 RawPath path = font->getPath(glyphId);
-                // If we do end up caching these, we'll want to not
-                // transformInPlace and just transform instead.
-                path.transformInPlace(
-                    Mat2D(run->size, 0.0f, 0.0f, run->size, x + offset.x, renderY + offset.y));
-                x += run->advances[glyphIndex];
+
+                bool hasModifiers = haveModifiers();
+                uint32_t textIndex = 0;
+                uint32_t glyphCount = 0;
+                if (hasModifiers)
+                {
+                    textIndex = run->textIndices[glyphIndex];
+                    glyphCount = m_glyphLookup.count(textIndex);
+
+                    float centerX = advance / 2.0f;
+                    Mat2D transform =
+                        Mat2D::fromScaleAndTranslation(run->size, run->size, -centerX, 0.0f);
+                    for (TextModifierGroup* modifierGroup : m_modifierGroups)
+                    {
+                        float coverage = modifierGroup->glyphCoverage(textIndex, glyphCount);
+                        modifierGroup->transform(coverage, transform);
+                    }
+                    transform =
+                        Mat2D::fromTranslate(centerX + x + offset.x, y + line.baseline + offset.y) *
+                        transform;
+
+                    path.transformInPlace(transform);
+                }
+                else
+                {
+                    path.transformInPlace(
+                        Mat2D(run->size, 0.0f, 0.0f, run->size, x + offset.x, renderY + offset.y));
+                }
+
+                x += advance;
 
                 assert(run->styleId < m_runs.size());
                 TextStyle* style = m_runs[run->styleId]->style();
                 // TextValueRun::onAddedDirty botches loading if it cannot
                 // resolve a style, so we're confident we have a style here.
                 assert(style != nullptr);
-                if (style->addPath(path))
+                // Consider this the "local" opacity.
+                float opacity = 1.0f;
+                if (hasModifiers)
+                {
+                    for (TextModifierGroup* modifierGroup : m_modifierGroups)
+                    {
+                        if (modifierGroup->modifiesOpacity())
+                        {
+                            float coverage = modifierGroup->glyphCoverage(textIndex, glyphCount);
+                            opacity = modifierGroup->computeOpacity(opacity, coverage);
+                        }
+                    }
+                }
+                if (style->addPath(path, opacity))
                 {
                     // This was the first path added to the style, so let's mark
                     // it in our draw list.
@@ -400,6 +439,12 @@ void Text::updateOriginWorldTransform()
                                                                      -m_actualHeight * originY());
 }
 
+const TextStyle* Text::styleFromShaperId(uint16_t id) const
+{
+    assert(id < m_runs.size());
+    return m_runs[id]->style();
+}
+
 void Text::draw(Renderer* renderer)
 {
     if (!clip(renderer))
@@ -422,7 +467,20 @@ void Text::draw(Renderer* renderer)
 
 void Text::addRun(TextValueRun* run) { m_runs.push_back(run); }
 
-void Text::markShapeDirty() { addDirt(ComponentDirt::Path); }
+void Text::addModifierGroup(TextModifierGroup* group) { m_modifierGroups.push_back(group); }
+
+void Text::markShapeDirty()
+{
+    addDirt(ComponentDirt::Path);
+    for (TextModifierGroup* group : m_modifierGroups)
+    {
+        group->clearRangeMaps();
+    }
+}
+
+void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
+
+void Text::markPaintDirty() { addDirt(ComponentDirt::Paint); }
 
 void Text::alignValueChanged() { markShapeDirty(); }
 
@@ -452,20 +510,49 @@ void Text::heightChanged()
     }
 }
 
-static rive::TextRun append(std::vector<Unichar>& unichars,
-                            rcp<Font> font,
-                            float size,
-                            const std::string& text,
-                            uint16_t styleId)
+void StyledText::clear()
+{
+    m_value.clear();
+    m_runs.clear();
+}
+
+bool StyledText::empty() const { return m_runs.empty(); }
+
+void StyledText::append(rcp<Font> font, float size, const std::string& text, uint16_t styleId)
 {
     const uint8_t* ptr = (const uint8_t*)text.c_str();
     uint32_t n = 0;
     while (*ptr)
     {
-        unichars.push_back(UTF::NextUTF8(&ptr));
+        m_value.push_back(UTF::NextUTF8(&ptr));
         n += 1;
     }
-    return {std::move(font), size, n, 0, styleId};
+    m_runs.push_back({std::move(font), size, n, 0, styleId});
+}
+
+bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
+{
+    styledText.clear();
+    uint16_t runIndex = 0;
+    for (auto valueRun : m_runs)
+    {
+        auto style = valueRun->style();
+        const std::string& text = valueRun->text();
+        if (style == nullptr || style->font() == nullptr || text.empty())
+        {
+            runIndex++;
+            continue;
+        }
+        styledText.append(style->font(), style->fontSize(), text, runIndex++);
+    }
+    if (withModifiers)
+    {
+        for (TextModifierGroup* group : m_modifierGroups)
+        {
+            group->applyShapeModifiers(*this, styledText);
+        }
+    }
+    return !styledText.empty();
 }
 
 static SimpleArray<SimpleArray<GlyphLine>> breakLines(const SimpleArray<Paragraph>& paragraphs,
@@ -496,6 +583,18 @@ static SimpleArray<SimpleArray<GlyphLine>> breakLines(const SimpleArray<Paragrap
     return lines;
 }
 
+bool Text::modifierRangesNeedShape() const
+{
+    for (const TextModifierGroup* modifierGroup : m_modifierGroups)
+    {
+        if (modifierGroup->needsShape())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Text::update(ComponentDirt value)
 {
     Super::update(value);
@@ -507,33 +606,55 @@ void Text::update(ComponentDirt value)
 
     if (hasDirt(value, ComponentDirt::Path))
     {
-        std::vector<Unichar> unichars;
-        std::vector<TextRun> runs;
-        uint16_t runIndex = 0;
-        for (auto valueRun : m_runs)
+        // We have modifiers that need shaping we'll need to compute the coverage
+        // right before we build the actual shape.
+        bool precomputeModifierCoverage = modifierRangesNeedShape();
+        if (precomputeModifierCoverage)
         {
-            auto style = valueRun->style();
-            const std::string& text = valueRun->text();
-            if (style == nullptr || style->font() == nullptr || text.empty())
+            makeStyled(m_modifierStyledText, false);
+            auto runs = m_modifierStyledText.runs();
+            m_modifierShape = runs[0].font->shapeText(m_modifierStyledText.unichars(), runs);
+            m_modifierLines = breakLines(m_modifierShape,
+                                         sizing() == TextSizing::autoWidth ? -1.0f : width(),
+                                         (TextAlign)alignValue());
+            m_glyphLookup.compute(m_modifierStyledText.unichars(), m_modifierShape);
+            for (TextModifierGroup* group : m_modifierGroups)
             {
-                runIndex++;
-                continue;
+                group->computeRangeMap(m_modifierStyledText.unichars(),
+                                       m_modifierShape,
+                                       m_modifierLines,
+                                       m_glyphLookup);
+                group->computeCoverage();
             }
-            runs.emplace_back(append(unichars, style->font(), style->fontSize(), text, runIndex++));
         }
-        if (!runs.empty())
+        if (makeStyled(m_styledText))
         {
-            m_shape = runs[0].font->shapeText(unichars, runs);
+            auto runs = m_styledText.runs();
+            m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
             m_lines = breakLines(m_shape,
                                  sizing() == TextSizing::autoWidth ? -1.0f : width(),
                                  (TextAlign)alignValue());
-
-            m_orderedLines.clear();
-            m_ellipsisRun = {};
+            if (!precomputeModifierCoverage && haveModifiers())
+            {
+                m_glyphLookup.compute(m_styledText.unichars(), m_shape);
+                for (TextModifierGroup* group : m_modifierGroups)
+                {
+                    group->computeRangeMap(m_styledText.unichars(),
+                                           m_shape,
+                                           m_lines,
+                                           m_glyphLookup);
+                    group->computeCoverage();
+                }
+            }
         }
-        // This could later be flagged as dirty and called only when actually
-        // rendered the first time, for now we do it on update cycle in tandem
-        // with shaping.
+        m_orderedLines.clear();
+        m_ellipsisRun = {};
+
+        // Immediately build render styles so dimensions get computed.
+        buildRenderStyles();
+    }
+    else if (hasDirt(value, ComponentDirt::Paint))
+    {
         buildRenderStyles();
     }
     else if (hasDirt(value, ComponentDirt::RenderOpacity))
@@ -562,6 +683,7 @@ Core* Text::hitTest(HitInfo*, const Mat2D&)
 void Text::draw(Renderer* renderer) {}
 Core* Text::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 void Text::addRun(TextValueRun* run) {}
+void Text::addModifierGroup(TextModifierGroup* group) {}
 void Text::markShapeDirty() {}
 void Text::update(ComponentDirt value) {}
 void Text::alignValueChanged() {}
@@ -569,4 +691,8 @@ void Text::sizingValueChanged() {}
 void Text::overflowValueChanged() {}
 void Text::widthChanged() {}
 void Text::heightChanged() {}
+void Text::markPaintDirty() {}
+void Text::modifierShapeDirty() {}
+bool Text::modifierRangesNeedShape() const { return false; }
+const TextStyle* Text::styleFromShaperId(uint16_t id) const { return nullptr; }
 #endif
