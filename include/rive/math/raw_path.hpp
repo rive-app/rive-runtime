@@ -78,8 +78,6 @@ public:
     void addOval(const AABB&, PathDirection = PathDirection::cw);
     void addPoly(Span<const Vec2D>, bool isClosed);
 
-    void addPath(const RawPath&, const Mat2D* = nullptr);
-
     // Simple STL-style iterator. To traverse using range-for:
     //
     //   for (auto [verb, pts] : rawPath) { ... }
@@ -151,7 +149,6 @@ public:
             return *this;
         }
 
-    private:
         // How much should we advance pts after encountering this verb?
         inline static int PtsAdvanceAfterVerb(PathVerb verb)
         {
@@ -193,6 +190,7 @@ public:
             RIVE_UNREACHABLE();
         }
 
+    private:
         const PathVerb* m_verbs;
         const Vec2D* m_pts;
     };
@@ -232,12 +230,21 @@ public:
         return dst;
     }
 
+    // Adds the given RawPath to the end of this path, with an optional transform.
+    // Returns an iterator at the beginning of the newly added geometry.
+    Iter addPath(const RawPath&, const Mat2D* = nullptr);
+
+    void pruneEmptySegments(Iter start);
+    void pruneEmptySegments() { pruneEmptySegments(begin()); }
+
     // Utility for pouring a RawPath into a CommandPath
     void addTo(CommandPath*) const;
 
-private:
+    // If there is not currently an open contour, this method opens a new contour at the current pen
+    // location, or [0,0] if the path is empty. Otherwise it does nothing.
     void injectImplicitMoveIfNeeded();
 
+private:
     std::vector<Vec2D> m_Points;
     std::vector<PathVerb> m_Verbs;
     size_t m_lastMoveIdx;

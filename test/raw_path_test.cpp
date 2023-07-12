@@ -314,3 +314,141 @@ TEST_CASE("bounds", "[rawpath]")
         REQUIRE(pathBounds.maxY == bounds.maxY);
     }
 }
+
+TEST_CASE("prune-empty-segments", "[rawpath]")
+{
+    {
+        RawPath p;
+        p.pruneEmptySegments();
+        CHECK(p.begin() == p.end());
+    }
+
+    {
+        RawPath p;
+        p.lineTo(0, 0);
+        p.pruneEmptySegments();
+        auto iter = p.begin();
+        auto end = p.end();
+        check_iter(iter, end, PathVerb::move, {{0, 0}});
+        CHECK(iter == end);
+    }
+
+    {
+        RawPath p;
+        p.quadTo(0, 0, 0, 0);
+        p.pruneEmptySegments();
+        auto iter = p.begin();
+        auto end = p.end();
+        check_iter(iter, end, PathVerb::move, {{0, 0}});
+        CHECK(iter == end);
+    }
+
+    {
+        RawPath p;
+        p.cubicTo(0, 0, 0, 0, 0, 0);
+        p.pruneEmptySegments();
+        auto iter = p.begin();
+        auto end = p.end();
+        check_iter(iter, end, PathVerb::move, {{0, 0}});
+        CHECK(iter == end);
+    }
+
+    {
+        RawPath p;
+        p.moveTo(1, 2);
+        p.lineTo(3, 4);
+        p.lineTo(3, 4);
+        p.quadTo(5, 6, 7, 8);
+        p.quadTo(7, 8, 7, 8);
+        p.quadTo(7, 8, 7, 9);
+        p.quadTo(7, 9, 7, 9);
+        p.quadTo(7, 9, 7, 8);
+        p.quadTo(7, 8, 7, 8);
+        p.cubicTo(9, 10, 11, 12, 13, 14);
+        p.cubicTo(13, 14, 13, 14, 13, 14);
+        p.cubicTo(13, 14, 13, 14, 13, 15);
+        p.cubicTo(13, 15, 13, 15, 13, 15);
+        p.cubicTo(13, 16, 13, 15, 13, 15);
+        p.cubicTo(13, 15, 13, 15, 13, 15);
+        p.cubicTo(13, 15, 13, 16, 13, 15);
+        p.cubicTo(13, 15, 13, 15, 13, 15);
+        p.cubicTo(13, 15, 13, 15, 13, 16);
+        p.close();
+        p.pruneEmptySegments();
+        auto iter = p.begin();
+        auto end = p.end();
+        check_iter(iter, end, PathVerb::move, {{1, 2}});
+        check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
+        check_iter(iter, end, PathVerb::quad, {{3, 4}, {5, 6}, {7, 8}});
+        check_iter(iter, end, PathVerb::quad, {{7, 8}, {7, 8}, {7, 9}});
+        check_iter(iter, end, PathVerb::quad, {{7, 9}, {7, 9}, {7, 8}});
+        check_iter(iter, end, PathVerb::cubic, {{7, 8}, {9, 10}, {11, 12}, {13, 14}});
+        check_iter(iter, end, PathVerb::cubic, {{13, 14}, {13, 14}, {13, 14}, {13, 15}});
+        check_iter(iter, end, PathVerb::cubic, {{13, 15}, {13, 16}, {13, 15}, {13, 15}});
+        check_iter(iter, end, PathVerb::cubic, {{13, 15}, {13, 15}, {13, 16}, {13, 15}});
+        check_iter(iter, end, PathVerb::cubic, {{13, 15}, {13, 15}, {13, 15}, {13, 16}});
+        check_iter(iter, end, PathVerb::close, {});
+        CHECK(iter == end);
+    }
+
+    {
+        RawPath p;
+        p.moveTo(1, 2);
+        p.lineTo(1, 2);
+        p.lineTo(3, 4);
+
+        RawPath p2;
+        p2.moveTo(5, 6);
+        p2.quadTo(7, 8, 9, 10);
+        p2.close();
+        p2.moveTo(11, 12);
+        p2.cubicTo(13, 14, 15, 16, 17, 18);
+
+        Mat2D matZero = Mat2D(0, 0, 0, 0, 19, 20);
+        auto p2it = p.addPath(p2, &matZero);
+
+        // Pruning at the end does nothing.
+        p.pruneEmptySegments(p.end());
+        {
+            auto iter = p.begin();
+            auto end = p.end();
+            check_iter(iter, end, PathVerb::move, {{1, 2}});
+            check_iter(iter, end, PathVerb::line, {{1, 2}, {1, 2}});
+            check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
+            check_iter(iter, end, PathVerb::move, {{19, 20}});
+            check_iter(iter, end, PathVerb::quad, {{19, 20}, {19, 20}, {19, 20}});
+            check_iter(iter, end, PathVerb::close, {});
+            check_iter(iter, end, PathVerb::move, {{19, 20}});
+            check_iter(iter, end, PathVerb::cubic, {{19, 20}, {19, 20}, {19, 20}, {19, 20}});
+            CHECK(iter == end);
+        }
+
+        // Pruning just at the beginning of the added p2 won't remove the pre-existing empty
+        // segment.
+        p.pruneEmptySegments(p2it);
+        {
+            auto iter = p.begin();
+            auto end = p.end();
+            check_iter(iter, end, PathVerb::move, {{1, 2}});
+            check_iter(iter, end, PathVerb::line, {{1, 2}, {1, 2}});
+            check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
+            check_iter(iter, end, PathVerb::move, {{19, 20}});
+            check_iter(iter, end, PathVerb::close, {});
+            check_iter(iter, end, PathVerb::move, {{19, 20}});
+            CHECK(iter == end);
+        }
+
+        // Now remove the pre-existing one.
+        p.pruneEmptySegments(p.begin());
+        {
+            auto iter = p.begin();
+            auto end = p.end();
+            check_iter(iter, end, PathVerb::move, {{1, 2}});
+            check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
+            check_iter(iter, end, PathVerb::move, {{19, 20}});
+            check_iter(iter, end, PathVerb::close, {});
+            check_iter(iter, end, PathVerb::move, {{19, 20}});
+            CHECK(iter == end);
+        }
+    }
+}

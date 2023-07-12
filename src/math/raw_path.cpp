@@ -12,7 +12,6 @@
 
 namespace rive
 {
-
 bool RawPath::operator==(const RawPath& o) const
 {
     return m_Points == o.m_Points && m_Verbs == o.m_Verbs;
@@ -63,12 +62,6 @@ void RawPath::move(Vec2D a)
 void RawPath::line(Vec2D a)
 {
     injectImplicitMoveIfNeeded();
-    if (a == m_Points.back())
-    {
-        // Discard empty verbs, while retaining the implicit move so the path still has a
-        // potentially empty contour.
-        return;
-    }
     m_Points.push_back(a);
     m_Verbs.push_back(PathVerb::line);
 }
@@ -76,12 +69,6 @@ void RawPath::line(Vec2D a)
 void RawPath::quad(Vec2D a, Vec2D b)
 {
     injectImplicitMoveIfNeeded();
-    if (b == a && a == m_Points.back())
-    {
-        // Discard empty verbs, while retaining the implicit move so the path still has a
-        // potentially empty contour.
-        return;
-    }
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Verbs.push_back(PathVerb::quad);
@@ -90,12 +77,6 @@ void RawPath::quad(Vec2D a, Vec2D b)
 void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c)
 {
     injectImplicitMoveIfNeeded();
-    if (c == b && b == a && a == m_Points.back())
-    {
-        // Discard empty verbs, while retaining the implicit move so the path still has a
-        // potentially empty contour.
-        return;
-    }
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Points.push_back(c);
@@ -228,8 +209,11 @@ void RawPath::addPoly(Span<const Vec2D> span, bool isClosed)
     }
 }
 
-void RawPath::addPath(const RawPath& src, const Mat2D* mat)
+RawPath::Iter RawPath::addPath(const RawPath& src, const Mat2D* mat)
 {
+    size_t initialVerbCount = m_Verbs.size();
+    size_t initialPointCount = m_Points.size();
+
     m_Verbs.insert(m_Verbs.end(), src.m_Verbs.cbegin(), src.m_Verbs.cend());
 
     if (mat)
@@ -243,10 +227,71 @@ void RawPath::addPath(const RawPath& src, const Mat2D* mat)
     {
         m_Points.insert(m_Points.end(), src.m_Points.cbegin(), src.m_Points.cend());
     }
+
+    // Return an iterator at the beginning of the newly added geometry.
+    return Iter{m_Verbs.data() + initialVerbCount, m_Points.data() + initialPointCount};
+}
+
+void RawPath::pruneEmptySegments(Iter start)
+{
+    auto dstVerb =
+        m_Verbs.begin() + std::distance<const PathVerb*>(m_Verbs.data(), start.rawVerbsPtr());
+    auto dstPts =
+        m_Points.begin() + std::distance<const Vec2D*>(m_Points.data(), start.rawPtsPtr());
+    decltype(m_Verbs)::const_iterator srcVerb = dstVerb;
+    decltype(m_Points)::const_iterator srcPts = dstPts;
+
+    int ptsAdvance;
+    for (auto end = m_Verbs.end(); srcVerb != end; ++srcVerb, srcPts += ptsAdvance)
+    {
+        PathVerb verb = *srcVerb;
+        ptsAdvance = Iter::PtsAdvanceAfterVerb(verb);
+
+        switch (verb)
+        {
+            case PathVerb::move:
+                break;
+            case PathVerb::close:
+                break;
+            case PathVerb::cubic:
+                if (srcPts[2] != srcPts[1])
+                {
+                    break;
+                }
+                RIVE_FALLTHROUGH;
+            case PathVerb::quad:
+                if (srcPts[1] != srcPts[0])
+                {
+                    break;
+                }
+                RIVE_FALLTHROUGH;
+            case PathVerb::line:
+                if (srcPts[0] != srcPts[-1])
+                {
+                    break;
+                }
+                // This segment is empty! Don't keep it.
+                continue;
+        }
+
+        if (srcVerb != dstVerb)
+        {
+            *dstVerb = verb;
+            std::copy(srcPts, srcPts + ptsAdvance, dstPts);
+        }
+
+        ++dstVerb;
+        dstPts += ptsAdvance;
+    }
+
+    if (dstVerb != srcVerb)
+    {
+        m_Verbs.erase(dstVerb, m_Verbs.end());
+        m_Points.erase(dstPts, m_Points.end());
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////
-
 int path_verb_to_point_count(PathVerb v)
 {
     static uint8_t ptCounts[] = {
@@ -314,5 +359,4 @@ void RawPath::addTo(CommandPath* result) const
         }
     }
 }
-
 } // namespace rive
