@@ -38,7 +38,11 @@ private:
 public:
     bool empty() const;
     void clear();
-    void append(rcp<Font> font, float size, const std::string& text, uint16_t styleId);
+    void append(rcp<Font> font,
+                float size,
+                float lineHeight,
+                const std::string& text,
+                uint16_t styleId);
     const std::vector<Unichar>& unichars() const { return m_value; }
     const std::vector<TextRun>& runs() const { return m_runs; }
 
@@ -187,6 +191,7 @@ protected:
     void overflowValueChanged() override;
     void widthChanged() override;
     void heightChanged() override;
+    void paragraphSpacingChanged() override;
     bool makeStyled(StyledText& styledText, bool withModifiers = true) const;
 
 private:

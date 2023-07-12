@@ -165,7 +165,15 @@ void TextModifierGroup::scaleYChanged() { parent()->as<Text>()->markPaintDirty()
 
 static TextRun copyRun(const TextRun& source, uint32_t unicharCount)
 {
-    return {source.font, source.size, unicharCount, source.script, source.styleId, source.dir};
+    return {
+        source.font,
+        source.size,
+        source.lineHeight,
+        unicharCount,
+        source.script,
+        source.styleId,
+        source.dir,
+    };
 }
 
 TextRun TextModifierGroup::modifyShape(const Text& text, TextRun run, float strength)
@@ -193,7 +201,15 @@ TextRun TextModifierGroup::modifyShape(const Text& text, TextRun run, float stre
             m_variationCoords.push_back({itr->first, itr->second});
         }
         m_variableFont = font->makeAtCoords(m_variationCoords);
-        return {m_variableFont, run.size, run.unicharCount, run.script, run.styleId, run.dir};
+        return {
+            m_variableFont,
+            run.size,
+            run.lineHeight,
+            run.unicharCount,
+            run.script,
+            run.styleId,
+            run.dir,
+        };
     }
     else
     {

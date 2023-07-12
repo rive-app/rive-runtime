@@ -166,8 +166,10 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
 
             // Get the next shape so we can check if it fits, otherwise keep using
             // the last one.
-            TextRun ellipsisRuns[] = {
-                {ellipsisFont, ellipsisFontSize, (uint32_t)ellipsisCodePoints.size()}};
+            TextRun ellipsisRuns[] = {{ellipsisFont,
+                                       ellipsisFontSize,
+                                       run.lineHeight,
+                                       (uint32_t)ellipsisCodePoints.size()}};
             auto nextEllipsisShape =
                 ellipsisFont->shapeText(ellipsisCodePoints, Span<TextRun>(ellipsisRuns, 1));
 
@@ -229,8 +231,7 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
 
 void Text::buildRenderStyles()
 {
-    // TODO: make this configurable.
-    const float paragraphSpacing = 20.0f;
+    const float paragraphSpace = paragraphSpacing();
 
     // Build the clip path if we want it.
     if (overflow() == TextOverflow::clipped)
@@ -284,7 +285,7 @@ void Text::buildRenderStyles()
             {
                 y += paragraphLines.back().bottom;
             }
-            y += paragraphSpacing;
+            y += paragraphSpace;
         }
         if (ellipsisLine == -1)
         {
@@ -414,17 +415,17 @@ void Text::buildRenderStyles()
         {
             y += paragraphLines.back().bottom;
         }
-        y += paragraphSpacing;
+        y += paragraphSpace;
     }
     switch (sizing())
     {
         case TextSizing::autoWidth:
             m_actualWidth = maxX;
-            m_actualHeight = std::max(0.0f, y - paragraphSpacing);
+            m_actualHeight = std::max(0.0f, y - paragraphSpace);
             break;
         case TextSizing::autoHeight:
             m_actualWidth = width();
-            m_actualHeight = std::max(0.0f, y - paragraphSpacing);
+            m_actualHeight = std::max(0.0f, y - paragraphSpace);
             break;
         case TextSizing::fixed:
             m_actualWidth = width();
@@ -502,6 +503,8 @@ void Text::widthChanged()
     }
 }
 
+void Text::paragraphSpacingChanged() { markPaintDirty(); }
+
 void Text::heightChanged()
 {
     if (sizing() == TextSizing::fixed)
@@ -518,7 +521,11 @@ void StyledText::clear()
 
 bool StyledText::empty() const { return m_runs.empty(); }
 
-void StyledText::append(rcp<Font> font, float size, const std::string& text, uint16_t styleId)
+void StyledText::append(rcp<Font> font,
+                        float size,
+                        float lineHeight,
+                        const std::string& text,
+                        uint16_t styleId)
 {
     const uint8_t* ptr = (const uint8_t*)text.c_str();
     uint32_t n = 0;
@@ -527,7 +534,7 @@ void StyledText::append(rcp<Font> font, float size, const std::string& text, uin
         m_value.push_back(UTF::NextUTF8(&ptr));
         n += 1;
     }
-    m_runs.push_back({std::move(font), size, n, 0, styleId});
+    m_runs.push_back({std::move(font), size, lineHeight, n, 0, styleId});
 }
 
 bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
@@ -543,7 +550,7 @@ bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
             runIndex++;
             continue;
         }
-        styledText.append(style->font(), style->fontSize(), text, runIndex++);
+        styledText.append(style->font(), style->fontSize(), style->lineHeight(), text, runIndex++);
     }
     if (withModifiers)
     {
@@ -695,4 +702,5 @@ void Text::markPaintDirty() {}
 void Text::modifierShapeDirty() {}
 bool Text::modifierRangesNeedShape() const { return false; }
 const TextStyle* Text::styleFromShaperId(uint16_t id) const { return nullptr; }
+void Text::paragraphSpacingChanged() {}
 #endif

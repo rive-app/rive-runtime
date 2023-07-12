@@ -137,6 +137,7 @@ static void draw_line(rive::Factory* factory, rive::Renderer* renderer, float x)
 static rive::TextRun append(std::vector<rive::Unichar>* unichars,
                             rive::rcp<rive::Font> font,
                             float size,
+                            float lineHeight,
                             const char text[])
 {
     const uint8_t* ptr = (const uint8_t*)text;
@@ -146,7 +147,7 @@ static rive::TextRun append(std::vector<rive::Unichar>* unichars,
         unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
-    return {std::move(font), size, n};
+    return {std::move(font), size, lineHeight, n};
 }
 
 class TextContent : public ViewerContent
@@ -171,11 +172,10 @@ class TextContent : public ViewerContent
             return fact(bytes);
         };
 
-        const char* fontFiles[] = {
-            "../../../test/assets/RobotoFlex.ttf",
-            "../../../test/assets/Montserrat.ttf",
-            "../../../test/assets/IBMPlexSansArabic-Regular.ttf",
-        };
+        const char* fontFiles[] = {"../../../test/assets/RobotoFlex.ttf",
+                                   "../../../test/assets/Montserrat.ttf",
+                                   "../../../test/assets/IBMPlexSansArabic-Regular.ttf"};
+        // "../../../test/assets/NotoSansArabic-VariableFont_wdth,wght.ttf"};
 
         auto font0 = loader(fontFiles[0]);
         auto font1 = loader(fontFiles[1]);
@@ -208,8 +208,22 @@ class TextContent : public ViewerContent
         truns.push_back(append(&m_unichars,
                                font1,
                                32.0f,
+                               21.0f,
                                // clang-format off
-                               "لمفاتيح ABC"));
+                               "this is some text and here is "));
+        truns.push_back(append(&m_unichars,
+                               font2,
+                               32.0f,
+                               21.0f,
+                               // clang-format off
+                               "some"));
+        truns.push_back(append(&m_unichars,
+                               font1,
+                               32.0f,
+                               21.0f,
+                               // clang-format off
+                               " more"));
+                            //    "لمفاتيح ABC"));
 
         // truns.push_back(append(&m_unichars,
         //                        font1,

@@ -19,7 +19,7 @@ static rive::TextRun append(std::vector<rive::Unichar>* unichars,
         unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
-    return {std::move(font), size, n, 0};
+    return {std::move(font), size, -1.0f, n, 0};
 }
 
 static rcp<Font> loadFont(const char* filename)

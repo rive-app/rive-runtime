@@ -15,6 +15,15 @@
         "string": "fontsize"
       }
     },
+    "lineHeight": {
+      "type": "double",
+      "initialValue": "-1.0",
+      "animates": true,
+      "key": {
+        "int": 370,
+        "string": "lineheight"
+      }
+    },
     "fontAssetId": {
       "type": "Id",
       "typeRuntime": "uint",

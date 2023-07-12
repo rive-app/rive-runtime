@@ -99,7 +99,7 @@ public:
         float ascent, descent;
     };
 
-    const LineMetrics& lineMetrics() const { return m_LineMetrics; }
+    const LineMetrics& lineMetrics() const { return m_lineMetrics; }
 
     // Variable axis available for the font.
     struct Axis
@@ -170,13 +170,14 @@ public:
     static FallbackProc gFallbackProc;
 
 protected:
-    Font(const LineMetrics& lm) : m_LineMetrics(lm) {}
+    Font(const LineMetrics& lm) : m_lineMetrics(lm) {}
 
     virtual SimpleArray<Paragraph> onShapeText(Span<const Unichar> text,
                                                Span<const TextRun> runs) const = 0;
 
 private:
-    const LineMetrics m_LineMetrics;
+    /// The font specified line metrics (automatic line metrics).
+    const LineMetrics m_lineMetrics;
 };
 
 // A user defined styling guide for a set of unicode codepoints within a larger text string.
@@ -184,6 +185,7 @@ struct TextRun
 {
     rcp<Font> font;
     float size;
+    float lineHeight;
     uint32_t unicharCount;
     uint32_t script;
     uint16_t styleId;
@@ -213,6 +215,7 @@ struct GlyphRun
 
     rcp<Font> font;
     float size;
+    float lineHeight;
 
     // List of glyphs, represented by font specific glyph ids. Length is equal to number of glyphs
     // in the run.

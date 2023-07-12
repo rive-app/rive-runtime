@@ -31,10 +31,12 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t fontSizePropertyKey = 274;
+    static const uint16_t lineHeightPropertyKey = 370;
     static const uint16_t fontAssetIdPropertyKey = 279;
 
 private:
     float m_FontSize = 12.0f;
+    float m_LineHeight = -1.0f;
     uint32_t m_FontAssetId = -1;
 
 public:
@@ -47,6 +49,17 @@ public:
         }
         m_FontSize = value;
         fontSizeChanged();
+    }
+
+    inline float lineHeight() const { return m_LineHeight; }
+    void lineHeight(float value)
+    {
+        if (m_LineHeight == value)
+        {
+            return;
+        }
+        m_LineHeight = value;
+        lineHeightChanged();
     }
 
     inline uint32_t fontAssetId() const { return m_FontAssetId; }
@@ -64,6 +77,7 @@ public:
     void copy(const TextStyleBase& object)
     {
         m_FontSize = object.m_FontSize;
+        m_LineHeight = object.m_LineHeight;
         m_FontAssetId = object.m_FontAssetId;
         ContainerComponent::copy(object);
     }
@@ -75,6 +89,9 @@ public:
             case fontSizePropertyKey:
                 m_FontSize = CoreDoubleType::deserialize(reader);
                 return true;
+            case lineHeightPropertyKey:
+                m_LineHeight = CoreDoubleType::deserialize(reader);
+                return true;
             case fontAssetIdPropertyKey:
                 m_FontAssetId = CoreUintType::deserialize(reader);
                 return true;
@@ -84,6 +101,7 @@ public:
 
 protected:
     virtual void fontSizeChanged() {}
+    virtual void lineHeightChanged() {}
     virtual void fontAssetIdChanged() {}
 };
 } // namespace rive

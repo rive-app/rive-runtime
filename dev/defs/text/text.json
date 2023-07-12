@@ -81,6 +81,15 @@
       "description": "Whether to draw colored underlines to identify runs.",
       "runtime": false,
       "coop": false
+    },
+    "paragraphSpacing": {
+      "type": "double",
+      "initialValue": "0.0",
+      "animates": true,
+      "key": {
+        "int": 371,
+        "string": "paragraphspacing"
+      }
     }
   }
 }

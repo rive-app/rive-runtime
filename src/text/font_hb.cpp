@@ -344,6 +344,7 @@ static rive::GlyphRun shape_run(const rive::Unichar text[],
     rive::GlyphRun gr(glyph_count);
     gr.font = tr.font;
     gr.size = tr.size;
+    gr.lineHeight = tr.lineHeight;
     gr.styleId = tr.styleId;
     gr.dir = tr.dir;
 
@@ -374,6 +375,7 @@ static rive::GlyphRun extract_subset(const rive::GlyphRun& orig, size_t start, s
                           rive::SimpleArray<rive::Vec2D>(&orig.offsets[start], count));
     subset.font = std::move(orig.font);
     subset.size = orig.size;
+    subset.lineHeight = orig.lineHeight;
     subset.dir = orig.dir;
     subset.xpos.back() = 0; // since we're now the end of a run
     subset.styleId = orig.styleId;
@@ -405,6 +407,7 @@ static void perform_fallback(rive::rcp<rive::Font> fallbackFont,
             auto tr = rive::TextRun{
                 fallbackFont,
                 orig.size,
+                orig.lineHeight,
                 textCount,
                 origTextRun.script,
                 orig.styleId,
@@ -473,6 +476,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
             rive::TextRun splitRun = {
                 tr.font,
                 tr.size,
+                tr.lineHeight,
                 tr.unicharCount - runTextIndex,
                 (uint32_t)lastScript,
                 tr.styleId,
@@ -509,6 +513,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
                     rive::TextRun backRun = {
                         back.font,
                         back.size,
+                        back.lineHeight,
                         tr.unicharCount - runTextIndex,
                         (uint32_t)script,
                         back.styleId,

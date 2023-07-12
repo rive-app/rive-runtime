@@ -42,6 +42,7 @@ public:
 
 protected:
     void fontSizeChanged() override;
+    void lineHeightChanged() override;
 
 private:
     std::unique_ptr<TextVariationHelper> m_variationHelper;

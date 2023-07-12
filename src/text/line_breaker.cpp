@@ -21,6 +21,23 @@ float GlyphLine::ComputeMaxWidth(Span<GlyphLine> lines, Span<const GlyphRun> run
     return maxLineWidth;
 }
 
+static const rive::Font::LineMetrics computeLineMetrics(const rive::Font::LineMetrics& metrics,
+                                                        float customLineHeight,
+                                                        float fontSize)
+{
+    if (customLineHeight < 0.0f)
+    {
+        return {metrics.ascent * fontSize, metrics.descent * fontSize};
+    }
+    float baseline = -metrics.ascent;
+    float height = baseline + metrics.descent;
+    float baselineFactor = baseline / height;
+
+    float actualAscent = -baselineFactor * customLineHeight;
+
+    return {actualAscent, customLineHeight + actualAscent};
+}
+
 void GlyphLine::ComputeLineSpacing(Span<GlyphLine> lines,
                                    Span<const GlyphRun> runs,
                                    float width,
@@ -31,17 +48,27 @@ void GlyphLine::ComputeLineSpacing(Span<GlyphLine> lines,
     {
         float asc = 0;
         float des = 0;
+        float lh = 0;
         for (uint32_t i = line.startRunIndex; i <= line.endRunIndex; ++i)
         {
             const auto& run = runs[i];
-
-            asc = std::min(asc, run.font->lineMetrics().ascent * run.size);
-            des = std::max(des, run.font->lineMetrics().descent * run.size);
+            const auto& metrics =
+                computeLineMetrics(run.font->lineMetrics(), run.lineHeight, run.size);
+            asc = std::min(asc, metrics.ascent);
+            des = std::max(des, metrics.descent);
+            if (run.lineHeight >= 0.0f)
+            {
+                lh = std::max(lh, run.lineHeight);
+            }
+            else
+            {
+                lh = std::max(lh, -asc + des);
+            }
         }
         line.top = Y;
         Y -= asc;
         line.baseline = Y;
-        Y += des;
+        Y = line.top + lh;
         line.bottom = Y;
         auto lineWidth = runs[line.endRunIndex].xpos[line.endGlyphIndex] -
                          runs[line.startRunIndex].xpos[line.startGlyphIndex];

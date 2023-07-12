@@ -960,6 +960,9 @@ public:
             case TextStyleBase::fontSizePropertyKey:
                 object->as<TextStyleBase>()->fontSize(value);
                 break;
+            case TextStyleBase::lineHeightPropertyKey:
+                object->as<TextStyleBase>()->lineHeight(value);
+                break;
             case TextStyleAxisBase::axisValuePropertyKey:
                 object->as<TextStyleAxisBase>()->axisValue(value);
                 break;
@@ -974,6 +977,9 @@ public:
                 break;
             case TextBase::originYPropertyKey:
                 object->as<TextBase>()->originY(value);
+                break;
+            case TextBase::paragraphSpacingPropertyKey:
+                object->as<TextBase>()->paragraphSpacing(value);
                 break;
             case DrawableAssetBase::heightPropertyKey:
                 object->as<DrawableAssetBase>()->height(value);
@@ -1490,6 +1496,8 @@ public:
                 return object->as<TextModifierGroupBase>()->scaleY();
             case TextStyleBase::fontSizePropertyKey:
                 return object->as<TextStyleBase>()->fontSize();
+            case TextStyleBase::lineHeightPropertyKey:
+                return object->as<TextStyleBase>()->lineHeight();
             case TextStyleAxisBase::axisValuePropertyKey:
                 return object->as<TextStyleAxisBase>()->axisValue();
             case TextBase::widthPropertyKey:
@@ -1500,6 +1508,8 @@ public:
                 return object->as<TextBase>()->originX();
             case TextBase::originYPropertyKey:
                 return object->as<TextBase>()->originY();
+            case TextBase::paragraphSpacingPropertyKey:
+                return object->as<TextBase>()->paragraphSpacing();
             case DrawableAssetBase::heightPropertyKey:
                 return object->as<DrawableAssetBase>()->height();
             case DrawableAssetBase::widthPropertyKey:
@@ -1778,11 +1788,13 @@ public:
             case TextModifierGroupBase::scaleXPropertyKey:
             case TextModifierGroupBase::scaleYPropertyKey:
             case TextStyleBase::fontSizePropertyKey:
+            case TextStyleBase::lineHeightPropertyKey:
             case TextStyleAxisBase::axisValuePropertyKey:
             case TextBase::widthPropertyKey:
             case TextBase::heightPropertyKey:
             case TextBase::originXPropertyKey:
             case TextBase::originYPropertyKey:
+            case TextBase::paragraphSpacingPropertyKey:
             case DrawableAssetBase::heightPropertyKey:
             case DrawableAssetBase::widthPropertyKey:
                 return CoreDoubleType::id;
