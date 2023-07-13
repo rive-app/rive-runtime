@@ -675,6 +675,13 @@ void Text::update(ComponentDirt value)
     }
 }
 
+AABB Text::localBounds() const
+{
+    float minX = -m_actualWidth * originX();
+    float minY = -m_actualHeight * originY();
+    return AABB(minX, minY, minX + m_actualWidth, minY + m_actualWidth);
+}
+
 Core* Text::hitTest(HitInfo*, const Mat2D&)
 {
     if (renderOpacity() == 0.0f)
@@ -703,4 +710,5 @@ void Text::modifierShapeDirty() {}
 bool Text::modifierRangesNeedShape() const { return false; }
 const TextStyle* Text::styleFromShaperId(uint16_t id) const { return nullptr; }
 void Text::paragraphSpacingChanged() {}
+AABB Text::localBounds() const { return AABB(); }
 #endif

@@ -642,6 +642,12 @@ public:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
                 object->as<TransformComponentConstraintYBase>()->maxValueY(value);
                 break;
+            case TransformConstraintBase::originXPropertyKey:
+                object->as<TransformConstraintBase>()->originX(value);
+                break;
+            case TransformConstraintBase::originYPropertyKey:
+                object->as<TransformConstraintBase>()->originY(value);
+                break;
             case FollowPathConstraintBase::distancePropertyKey:
                 object->as<FollowPathConstraintBase>()->distance(value);
                 break;
@@ -1284,6 +1290,10 @@ public:
                 return object->as<TransformComponentConstraintYBase>()->minValueY();
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
                 return object->as<TransformComponentConstraintYBase>()->maxValueY();
+            case TransformConstraintBase::originXPropertyKey:
+                return object->as<TransformConstraintBase>()->originX();
+            case TransformConstraintBase::originYPropertyKey:
+                return object->as<TransformConstraintBase>()->originY();
             case FollowPathConstraintBase::distancePropertyKey:
                 return object->as<FollowPathConstraintBase>()->distance();
             case WorldTransformComponentBase::opacityPropertyKey:
@@ -1682,6 +1692,8 @@ public:
             case TransformComponentConstraintYBase::copyFactorYPropertyKey:
             case TransformComponentConstraintYBase::minValueYPropertyKey:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
+            case TransformConstraintBase::originXPropertyKey:
+            case TransformConstraintBase::originYPropertyKey:
             case FollowPathConstraintBase::distancePropertyKey:
             case WorldTransformComponentBase::opacityPropertyKey:
             case TransformComponentBase::rotationPropertyKey:

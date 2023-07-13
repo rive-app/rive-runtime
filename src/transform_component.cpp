@@ -39,6 +39,8 @@ void TransformComponent::updateTransform()
     m_Transform.scaleByValues(scaleX(), scaleY());
 }
 
+AABB TransformComponent::localBounds() const { return AABB(); }
+
 void TransformComponent::updateWorldTransform()
 {
     if (m_ParentTransformComponent != nullptr)

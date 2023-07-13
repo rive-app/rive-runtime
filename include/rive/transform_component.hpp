@@ -7,6 +7,7 @@ namespace rive
 {
 class Constraint;
 class WorldTransformComponent;
+class AABB;
 class TransformComponent : public TransformComponentBase
 {
 private:
@@ -43,6 +44,7 @@ public:
     void scaleYChanged() override;
 
     void addConstraint(Constraint* constraint);
+    virtual AABB localBounds() const;
 };
 } // namespace rive
 

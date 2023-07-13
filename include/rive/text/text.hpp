@@ -170,6 +170,7 @@ public:
     void buildRenderStyles();
     const TextStyle* styleFromShaperId(uint16_t id) const;
     bool modifierRangesNeedShape() const;
+    AABB localBounds() const override;
     bool haveModifiers() const
     {
 #ifdef WITH_RIVE_TEXT
