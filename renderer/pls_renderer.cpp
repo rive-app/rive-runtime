@@ -11,7 +11,6 @@
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/math/wangs_formula.hpp"
-#include "rive/pls/pls_render_context.hpp"
 
 namespace rive::pls
 {
@@ -433,10 +432,12 @@ public:
     // we only do this for large paths, and since we're triangulating the path interior anyway,
     // adding complexity to only run Wang's formula and chop once would save about ~5% of the total
     // CPU time. (And large paths are GPU-bound anyway.)
-    void processPath(PathOp op,
-                     PLSRenderContext* context,
-                     PathDraw* path,
-                     RawPath* scratchPath = nullptr)
+    //
+    // Returns the number of contours processed.
+    size_t processPath(PathOp op,
+                       PLSRenderContext* context,
+                       PathDraw* path,
+                       RawPath* scratchPath = nullptr)
     {
         Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
         const RawPath& rawPath = *path->rawPath;
@@ -576,7 +577,7 @@ public:
         }
         else
         {
-            // Submit grout triangles, emulated by outerCubic patches.
+            // Submit grout triangles, retrofitted into outerCubic patches.
             for (auto* node = path->triangulator->groutList().head(); node; node = node->fNext)
             {
                 Vec2D triangleAsCubic[4] = {node->fPts[0], node->fPts[1], {0, 0}, node->fPts[2]};
@@ -588,12 +589,14 @@ public:
                                    kJoinSegmentCount);
                 ++patchCount;
             }
+            assert(contourCount == path->contourCount);
             assert(path->paddingVertexCount + patchCount * kOuterCurvePatchSegmentSpan ==
                    path->tessVertexCount);
             RIVE_DEBUG_CODE(m_writtenPatchCount += patchCount;)
-            RIVE_DEBUG_CODE(m_writtenTessVertexCount +=
-                            patchCount * (kPatchSegmentCountExcludingJoin + kJoinSegmentCount);)
+            RIVE_DEBUG_CODE(m_writtenTessVertexCount += patchCount * kOuterCurvePatchSegmentSpan;)
         }
+
+        return contourCount;
     }
 
 #ifdef DEBUG
@@ -706,6 +709,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     // Iteration pass 1: Collect information on contour and curves counts for every path in the
     // batch, and begin counting tessellated vertices.
     m_contourBatch.clear();
+    size_t contourCount = 0;
     size_t lineCount = 0;
     size_t curveCount = 0;
     size_t rotationCount = 0; // We measure rotations on both curves and round joins.
@@ -717,223 +721,226 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             continue;
         }
 
-        // Draw this path using "interior triangulation" if it is a fill, and is sufficiently large.
-        assert(path.triangulator == nullptr);
-        if (i != strokeIdx) // Never use interior triangulation for strokes.
-        {
-            float screenSpaceArea = FindTransformedArea(path.pathBounds, *path.matrix);
-            if (screenSpaceArea > 512 * 512)
-            {
-                interiorTriHelper.processPath(
-                    InteriorTriangulationHelper::PathOp::countDataAndTriangulate,
-                    m_context,
-                    &path,
-                    &m_scratchPath);
-                continue;
-            }
-        }
-
+        size_t pathContourCount = 0;
         bool stroked = i == strokeIdx; // (Will never be true if finalPathPaint is not stroked.)
-        bool roundJoinStroked = stroked && finalPathPaint->getJoin() == StrokeJoin::round;
-        wangs_formula::VectorXform vectorXform(*path.matrix);
-        RawPath::Iter startOfContour = path.rawPath->begin();
-        RawPath::Iter end = path.rawPath->end();
-        int preChopVerbCount = 0; // Original number of lines and curves, before chopping.
-        Vec2D endpointsSum{};
-        bool closed = !stroked;
-        Vec2D lastTangent = {0, 1};
-        Vec2D firstTangent = {0, 1};
-        size_t roundJoinCount = 0;
-        auto finishAndAppendContour = [&](RawPath::Iter iter) {
-            if (closed)
-            {
-                Vec2D finalPtInContour = iter.rawPtsPtr()[-1];
-                if (startOfContour.movePt() != finalPtInContour)
-                {
-                    assert(preChopVerbCount > 0);
-                    if (roundJoinStroked)
-                    {
-                        // Round join before implicit closing line.
-                        Vec2D tangent = startOfContour.movePt() - finalPtInContour;
-                        assert(rotationCount < m_tangentPairs.capacity());
-                        m_tangentPairs[rotationCount++] = {lastTangent, tangent};
-                        lastTangent = tangent;
-                        ++roundJoinCount;
-                    }
-                    ++lineCount; // Implicit closing line.
-                    // The first point in the contour hasn't gotten counted yet.
-                    ++preChopVerbCount;
-                    endpointsSum += startOfContour.movePt();
-                }
-                if (roundJoinStroked && preChopVerbCount != 0)
-                {
-                    // Round join back to the beginning of the contour.
-                    assert(rotationCount < m_tangentPairs.capacity());
-                    m_tangentPairs[rotationCount++] = {lastTangent, firstTangent};
-                    ++roundJoinCount;
-                }
-            }
-            size_t strokeJoinCount = preChopVerbCount;
-            if (!closed)
-            {
-                strokeJoinCount = std::max<size_t>(strokeJoinCount, 1) - 1;
-            }
-            m_contourBatch.emplace_back(iter,
-                                        lineCount,
-                                        curveCount,
-                                        rotationCount,
-                                        stroked ? Vec2D() : endpointsSum * (1.f / preChopVerbCount),
-                                        i,
-                                        closed,
-                                        strokeJoinCount);
-        };
-        const int styleFlags = style_flags(stroked, roundJoinStroked);
-        for (RawPath::Iter iter = startOfContour; iter != end; ++iter)
+        assert(path.triangulator == nullptr);
+        if (!stroked && FindTransformedArea(path.pathBounds, *path.matrix) > 512 * 512)
         {
-            switch (styled_verb(iter.verb(), styleFlags))
-            {
-                case StyledVerb::roundJoinStrokedMove:
-                case StyledVerb::strokedMove:
-                case StyledVerb::filledMove:
-                    if (iter != startOfContour)
-                    {
-                        finishAndAppendContour(iter);
-                        startOfContour = iter;
-                    }
-                    preChopVerbCount = 0;
-                    endpointsSum = {0, 0};
-                    closed = !stroked;
-                    lastTangent = {0, 1};
-                    firstTangent = {0, 1};
-                    roundJoinCount = 0;
-                    break;
-                case StyledVerb::roundJoinStrokedClose:
-                case StyledVerb::strokedClose:
-                case StyledVerb::filledClose:
-                    assert(iter != startOfContour);
-                    closed = true;
-                    break;
-                case StyledVerb::roundJoinStrokedLine:
+            // This path is a sufficiently-large fill. Use interior triangulation!
+            pathContourCount = interiorTriHelper.processPath(
+                InteriorTriangulationHelper::PathOp::countDataAndTriangulate,
+                m_context,
+                &path,
+                &m_scratchPath);
+        }
+        else
+        {
+            bool roundJoinStroked = stroked && finalPathPaint->getJoin() == StrokeJoin::round;
+            wangs_formula::VectorXform vectorXform(*path.matrix);
+            RawPath::Iter startOfContour = path.rawPath->begin();
+            RawPath::Iter end = path.rawPath->end();
+            int preChopVerbCount = 0; // Original number of lines and curves, before chopping.
+            Vec2D endpointsSum{};
+            bool closed = !stroked;
+            Vec2D lastTangent = {0, 1};
+            Vec2D firstTangent = {0, 1};
+            size_t roundJoinCount = 0;
+            path.firstContourIdx = m_contourBatch.size();
+            auto finishAndAppendContour = [&](RawPath::Iter iter) {
+                if (closed)
                 {
-                    const Vec2D* p = iter.linePts();
-                    Vec2D tangent = p[1] - p[0];
-                    if (preChopVerbCount == 0)
+                    Vec2D finalPtInContour = iter.rawPtsPtr()[-1];
+                    if (startOfContour.movePt() != finalPtInContour)
                     {
-                        firstTangent = tangent;
-                    }
-                    else
-                    {
-                        assert(rotationCount < m_tangentPairs.capacity());
-                        m_tangentPairs[rotationCount++] = {lastTangent, tangent};
-                        ++roundJoinCount;
-                    }
-                    lastTangent = tangent;
-                    [[fallthrough]];
-                }
-                case StyledVerb::strokedLine:
-                case StyledVerb::filledLine:
-                {
-                    const Vec2D* p = iter.linePts();
-                    ++preChopVerbCount;
-                    endpointsSum += p[1];
-                    ++lineCount;
-                    break;
-                }
-                case StyledVerb::roundJoinStrokedQuad:
-                case StyledVerb::strokedQuad:
-                case StyledVerb::filledQuad:
-                    RIVE_UNREACHABLE();
-                    break;
-                case StyledVerb::roundJoinStrokedCubic:
-                {
-                    const Vec2D* p = iter.cubicPts();
-                    Vec2D unchoppedTangents[2];
-                    find_cubic_tangents(p, unchoppedTangents);
-                    if (preChopVerbCount == 0)
-                    {
-                        firstTangent = unchoppedTangents[0];
-                    }
-                    else
-                    {
-                        assert(rotationCount < m_tangentPairs.capacity());
-                        m_tangentPairs[rotationCount++] = {lastTangent, unchoppedTangents[0]};
-                        ++roundJoinCount;
-                    }
-                    lastTangent = unchoppedTangents[1];
-                    [[fallthrough]];
-                }
-                case StyledVerb::strokedCubic:
-                {
-                    const Vec2D* p = iter.cubicPts();
-                    ++preChopVerbCount;
-                    endpointsSum += p[3];
-                    // Chop strokes into sections that do not inflect (i.e, are convex), and do not
-                    // rotate more than 180 degrees. This is required by the GPU parametric/polar
-                    // sorter.
-                    float t[2];
-                    bool areCusps;
-                    uint8_t numChops = pathutils::FindCubicConvex180Chops(p, t, &areCusps);
-                    uint8_t chopKey = chop_key(areCusps, numChops);
-                    m_numChops.push_back(chopKey);
-                    Vec2D localChopBuffer[16];
-                    switch (chopKey)
-                    {
-                        case cusp_chop_key(2): // 2 cusps
-                        case cusp_chop_key(1): // 1 cusp
-                            // We have to chop carefully around stroked cusps in order to avoid
-                            // rendering artifacts. Luckily, cusps are extremely rare in real-world
-                            // content.
-                            m_chops.push_back() = {t[0], t[1]};
-                            chop_cubic_around_cusps(p,
-                                                    localChopBuffer,
-                                                    t,
-                                                    numChops,
-                                                    strokeMatrixMaxScale);
-                            p = localChopBuffer;
-                            numChops *= 2;
-                            break;
-                        case simple_chop_key(2): // 2 non-cusp chops
-                            m_chops.push_back() = {t[0], t[1]};
-                            pathutils::ChopCubicAt(p, localChopBuffer, t[0], t[1]);
-                            p = localChopBuffer;
-                            break;
-                        case simple_chop_key(1): // 1 non-cusp chop
+                        assert(preChopVerbCount > 0);
+                        if (roundJoinStroked)
                         {
-                            Vec2D* buff = m_chops.push_back_n(7);
-                            pathutils::ChopCubicAt(p, buff, t[0]);
-                            p = buff;
-                            break;
+                            // Round join before implicit closing line.
+                            Vec2D tangent = startOfContour.movePt() - finalPtInContour;
+                            assert(rotationCount < m_tangentPairs.capacity());
+                            m_tangentPairs[rotationCount++] = {lastTangent, tangent};
+                            lastTangent = tangent;
+                            ++roundJoinCount;
                         }
+                        ++lineCount; // Implicit closing line.
+                        // The first point in the contour hasn't gotten counted yet.
+                        ++preChopVerbCount;
+                        endpointsSum += startOfContour.movePt();
                     }
-                    // Calculate segment counts for each chopped section independently.
-                    for (const Vec2D* end = p + numChops * 3 + 3; p != end;
-                         p += 3, ++curveCount, ++rotationCount)
+                    if (roundJoinStroked && preChopVerbCount != 0)
                     {
-                        float n4 = wangs_formula::cubic_pow4(p, kParametricPrecision, vectorXform);
-                        m_parametricSegmentCounts_pow4[curveCount] = n4;
+                        // Round join back to the beginning of the contour.
                         assert(rotationCount < m_tangentPairs.capacity());
-                        find_cubic_tangents(p, m_tangentPairs[rotationCount].data());
+                        m_tangentPairs[rotationCount++] = {lastTangent, firstTangent};
+                        ++roundJoinCount;
                     }
-                    break;
                 }
-                case StyledVerb::filledCubic:
+                size_t strokeJoinCount = preChopVerbCount;
+                if (!closed)
                 {
-                    const Vec2D* p = iter.cubicPts();
-                    ++preChopVerbCount;
-                    endpointsSum += p[3];
-                    float n4 = wangs_formula::cubic_pow4(p, kParametricPrecision, vectorXform);
-                    m_parametricSegmentCounts_pow4[curveCount++] = n4;
-                    break;
+                    strokeJoinCount = std::max<size_t>(strokeJoinCount, 1) - 1;
+                }
+                m_contourBatch.emplace_back(iter,
+                                            lineCount,
+                                            curveCount,
+                                            rotationCount,
+                                            stroked ? Vec2D()
+                                                    : endpointsSum * (1.f / preChopVerbCount),
+                                            closed,
+                                            strokeJoinCount);
+                ++pathContourCount;
+            };
+            const int styleFlags = style_flags(stroked, roundJoinStroked);
+            for (RawPath::Iter iter = startOfContour; iter != end; ++iter)
+            {
+                switch (styled_verb(iter.verb(), styleFlags))
+                {
+                    case StyledVerb::roundJoinStrokedMove:
+                    case StyledVerb::strokedMove:
+                    case StyledVerb::filledMove:
+                        if (iter != startOfContour)
+                        {
+                            finishAndAppendContour(iter);
+                            startOfContour = iter;
+                        }
+                        preChopVerbCount = 0;
+                        endpointsSum = {0, 0};
+                        closed = !stroked;
+                        lastTangent = {0, 1};
+                        firstTangent = {0, 1};
+                        roundJoinCount = 0;
+                        break;
+                    case StyledVerb::roundJoinStrokedClose:
+                    case StyledVerb::strokedClose:
+                    case StyledVerb::filledClose:
+                        assert(iter != startOfContour);
+                        closed = true;
+                        break;
+                    case StyledVerb::roundJoinStrokedLine:
+                    {
+                        const Vec2D* p = iter.linePts();
+                        Vec2D tangent = p[1] - p[0];
+                        if (preChopVerbCount == 0)
+                        {
+                            firstTangent = tangent;
+                        }
+                        else
+                        {
+                            assert(rotationCount < m_tangentPairs.capacity());
+                            m_tangentPairs[rotationCount++] = {lastTangent, tangent};
+                            ++roundJoinCount;
+                        }
+                        lastTangent = tangent;
+                        [[fallthrough]];
+                    }
+                    case StyledVerb::strokedLine:
+                    case StyledVerb::filledLine:
+                    {
+                        const Vec2D* p = iter.linePts();
+                        ++preChopVerbCount;
+                        endpointsSum += p[1];
+                        ++lineCount;
+                        break;
+                    }
+                    case StyledVerb::roundJoinStrokedQuad:
+                    case StyledVerb::strokedQuad:
+                    case StyledVerb::filledQuad:
+                        RIVE_UNREACHABLE();
+                        break;
+                    case StyledVerb::roundJoinStrokedCubic:
+                    {
+                        const Vec2D* p = iter.cubicPts();
+                        Vec2D unchoppedTangents[2];
+                        find_cubic_tangents(p, unchoppedTangents);
+                        if (preChopVerbCount == 0)
+                        {
+                            firstTangent = unchoppedTangents[0];
+                        }
+                        else
+                        {
+                            assert(rotationCount < m_tangentPairs.capacity());
+                            m_tangentPairs[rotationCount++] = {lastTangent, unchoppedTangents[0]};
+                            ++roundJoinCount;
+                        }
+                        lastTangent = unchoppedTangents[1];
+                        [[fallthrough]];
+                    }
+                    case StyledVerb::strokedCubic:
+                    {
+                        const Vec2D* p = iter.cubicPts();
+                        ++preChopVerbCount;
+                        endpointsSum += p[3];
+                        // Chop strokes into sections that do not inflect (i.e, are convex), and do
+                        // not rotate more than 180 degrees. This is required by the GPU
+                        // parametric/polar sorter.
+                        float t[2];
+                        bool areCusps;
+                        uint8_t numChops = pathutils::FindCubicConvex180Chops(p, t, &areCusps);
+                        uint8_t chopKey = chop_key(areCusps, numChops);
+                        m_numChops.push_back(chopKey);
+                        Vec2D localChopBuffer[16];
+                        switch (chopKey)
+                        {
+                            case cusp_chop_key(2): // 2 cusps
+                            case cusp_chop_key(1): // 1 cusp
+                                // We have to chop carefully around stroked cusps in order to avoid
+                                // rendering artifacts. Luckily, cusps are extremely rare in
+                                // real-world content.
+                                m_chops.push_back() = {t[0], t[1]};
+                                chop_cubic_around_cusps(p,
+                                                        localChopBuffer,
+                                                        t,
+                                                        numChops,
+                                                        strokeMatrixMaxScale);
+                                p = localChopBuffer;
+                                numChops *= 2;
+                                break;
+                            case simple_chop_key(2): // 2 non-cusp chops
+                                m_chops.push_back() = {t[0], t[1]};
+                                pathutils::ChopCubicAt(p, localChopBuffer, t[0], t[1]);
+                                p = localChopBuffer;
+                                break;
+                            case simple_chop_key(1): // 1 non-cusp chop
+                            {
+                                Vec2D* buff = m_chops.push_back_n(7);
+                                pathutils::ChopCubicAt(p, buff, t[0]);
+                                p = buff;
+                                break;
+                            }
+                        }
+                        // Calculate segment counts for each chopped section independently.
+                        for (const Vec2D* end = p + numChops * 3 + 3; p != end;
+                             p += 3, ++curveCount, ++rotationCount)
+                        {
+                            float n4 =
+                                wangs_formula::cubic_pow4(p, kParametricPrecision, vectorXform);
+                            m_parametricSegmentCounts_pow4[curveCount] = n4;
+                            assert(rotationCount < m_tangentPairs.capacity());
+                            find_cubic_tangents(p, m_tangentPairs[rotationCount].data());
+                        }
+                        break;
+                    }
+                    case StyledVerb::filledCubic:
+                    {
+                        const Vec2D* p = iter.cubicPts();
+                        ++preChopVerbCount;
+                        endpointsSum += p[3];
+                        float n4 = wangs_formula::cubic_pow4(p, kParametricPrecision, vectorXform);
+                        m_parametricSegmentCounts_pow4[curveCount++] = n4;
+                        break;
+                    }
                 }
             }
+            if (startOfContour != end)
+            {
+                finishAndAppendContour(end);
+            }
         }
-        if (startOfContour != end)
-        {
-            finishAndAppendContour(end);
-        }
+        path.contourCount = pathContourCount;
+        contourCount += pathContourCount;
     }
 
-    if (m_contourBatch.empty() && interiorTriHelper.empty())
+    if (contourCount == 0)
     {
         // The entire batch is empty.
         return true;
@@ -947,8 +954,6 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     size_t contourFirstCurveIdx = 0;
     size_t contourFirstRotationIdx = 0;
     size_t emptyStrokeCountForCaps = 0;
-    auto contour = m_contourBatch.begin();
-    auto endContour = m_contourBatch.end();
     for (size_t currentPathIdx = 0; currentPathIdx < m_pathBatch.size(); ++currentPathIdx)
     {
         PathDraw& path = m_pathBatch[currentPathIdx];
@@ -962,9 +967,9 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         if (path.triangulator == nullptr)
         {
             assert(path.tessVertexCount == 0);
-            assert(contour == endContour || contour->pathIdx >= currentPathIdx);
-            for (; contour != endContour && contour->pathIdx == currentPathIdx; ++contour)
+            for (size_t i = 0; i < path.contourCount; ++i)
             {
+                ContourData* contour = &m_contourBatch[path.firstContourIdx + i];
                 size_t contourLineCount = contour->endLineIdx - contourFirstLineIdx;
                 uint32_t contourVertexCount =
                     contourLineCount * 2; // Each line tessellates to 2 vertices.
@@ -992,7 +997,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                     contourVertexCount -= m_parametricSegmentCounts[j];
                 }
 
-                bool stroked = contour->pathIdx == strokeIdx;
+                bool stroked = currentPathIdx == strokeIdx;
                 if (stroked)
                 {
                     // Finish calculating and counting polar segments for each stroked curve and
@@ -1150,13 +1155,10 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     assert(contourFirstRotationIdx == rotationCount);
 
     // Attempt to reserve space on the GPU for our entire batch of paths.
-    size_t pathReserveCount = m_pathBatch.size();
-    // (Interior triangulation doesn't write contour records to the GPU.)
-    size_t contourReserveCount = m_contourBatch.size();
     size_t curveReserveCount =
         curveCount + lineCount + emptyStrokeCountForCaps + interiorTriHelper.patchCount();
-    if (!m_context->reservePathData(pathReserveCount,
-                                    contourReserveCount,
+    if (!m_context->reservePathData(m_pathBatch.size(),
+                                    contourCount,
                                     curveReserveCount,
                                     batchTotalTessVertexCount))
     {
@@ -1186,19 +1188,12 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     size_t rotationIdx = 0;
     RawPath::Iter startOfContour;
     size_t finalPathIdx = m_pathBatch.size() - 1; // All paths are clips except the final one.
-    contour = m_contourBatch.begin();
-    endContour = m_contourBatch.end();
     for (size_t currentPathIdx = 0; currentPathIdx < m_pathBatch.size(); ++currentPathIdx)
     {
-        assert(contour == endContour || contour->pathIdx >= currentPathIdx);
-
         PathDraw& path = m_pathBatch[currentPathIdx];
         if (path.tessVertexCount == 0)
         {
-            for (; contour != endContour && contour->pathIdx == currentPathIdx; ++contour)
-            {
-                RIVE_DEBUG_CODE(++skippedContourCount;)
-            }
+            RIVE_DEBUG_CODE(skippedContourCount += path.contourCount;)
             RIVE_DEBUG_CODE(++skippedPathCount;)
             continue;
         }
@@ -1227,9 +1222,11 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         if (path.triangulator != nullptr)
         {
             // This path is drawn with the interior triangulation algorithm instead.
-            interiorTriHelper.processPath(InteriorTriangulationHelper::PathOp::submitOuterCubics,
-                                          m_context,
-                                          &path);
+            size_t processedContourCount RIVE_MAYBE_UNUSED = interiorTriHelper.processPath(
+                InteriorTriangulationHelper::PathOp::submitOuterCubics,
+                m_context,
+                &path);
+            RIVE_DEBUG_CODE(pushedContourCount += processedContourCount;)
             m_context->pushInteriorTriangulation(path.triangulator,
                                                  paintType,
                                                  path.clipID,
@@ -1242,27 +1239,28 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             RIVE_DEBUG_CODE(uint32_t contourStartingTessVertexCount =
                                 m_context->currentTessVertexCount() + path.paddingVertexCount;)
             startOfContour = path.rawPath->begin();
-            for (; contour != endContour && contour->pathIdx == currentPathIdx; ++contour)
+            for (size_t i = 0; i < path.contourCount; ++i)
             {
                 // Push a contour and curve records.
+                const ContourData& contour = m_contourBatch[path.firstContourIdx + i];
                 RIVE_DEBUG_CODE(m_pushedStrokeJoinCount = 0;)
                 RIVE_DEBUG_CODE(m_pushedStrokeCapCount = 0;)
                 pushContour(startOfContour,
-                            *contour,
+                            contour,
                             curveIdx,
                             rotationIdx,
                             strokeMatrixMaxScale,
                             currentPathIdx == strokeIdx ? finalPathPaint : nullptr);
-                assert(m_pushedCurveCount == contour->endCurveIdx);
-                assert(m_pushedRotationCount == contour->endRotationIdx);
+                assert(m_pushedCurveCount == contour.endCurveIdx);
+                assert(m_pushedRotationCount == contour.endRotationIdx);
                 assert(m_pushedStrokeJoinCount ==
-                       (currentPathIdx == strokeIdx ? contour->strokeJoinCount : 0));
-                assert(m_pushedStrokeCapCount == (contour->strokeCapSegmentCount != 0 ? 2 : 0));
+                       (currentPathIdx == strokeIdx ? contour.strokeJoinCount : 0));
+                assert(m_pushedStrokeCapCount == (contour.strokeCapSegmentCount != 0 ? 2 : 0));
                 assert(m_context->currentTessVertexCount() ==
-                       contourStartingTessVertexCount + contour->tessVertexCount);
-                curveIdx = contour->endCurveIdx;
-                rotationIdx = contour->endRotationIdx;
-                startOfContour = contour->endOfContour;
+                       contourStartingTessVertexCount + contour.tessVertexCount);
+                curveIdx = contour.endCurveIdx;
+                rotationIdx = contour.endRotationIdx;
+                startOfContour = contour.endOfContour;
                 RIVE_DEBUG_CODE(++pushedContourCount);
                 RIVE_DEBUG_CODE(contourStartingTessVertexCount =
                                     m_context->currentTessVertexCount();)
@@ -1273,8 +1271,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     }
 
     // Make sure we only pushed the amount of data we reserved.
-    assert(pushedPathCount + skippedPathCount == pathReserveCount);
-    assert(pushedContourCount + skippedContourCount == contourReserveCount);
+    assert(pushedPathCount + skippedPathCount == m_pathBatch.size());
+    assert(pushedContourCount + skippedContourCount == contourCount);
     assert(m_pushedLineCount == lineCount);
     assert(m_pushedCurveCount == curveCount);
     assert(m_pushedRotationCount == rotationCount);

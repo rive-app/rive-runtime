@@ -651,12 +651,13 @@ void PLSRenderContext::pushPath(PatchType patchType,
     // The caller is responsible to pad each path so it begins on a multiple of the patch size.
     assert(baseInstance * patchSize == baseVertexToDraw);
     pushDraw(drawType, baseInstance, fillRule, paintType, clipID, blendMode);
-    assert(m_lastDraw->baseVertexOrInstance + m_lastDraw->vertexOrInstanceCount == baseInstance);
+    assert(m_drawList.tail().baseVertexOrInstance + m_drawList.tail().vertexOrInstanceCount ==
+           baseInstance);
     uint32_t vertexCountToDraw = tessVertexCount - paddingVertexCount;
     uint32_t instanceCount = vertexCountToDraw / patchSize;
     // The caller is responsible to pad each contour so it ends on a multiple of the patch size.
     assert(instanceCount * patchSize == vertexCountToDraw);
-    m_lastDraw->vertexOrInstanceCount += instanceCount;
+    m_drawList.tail().vertexOrInstanceCount += instanceCount;
 
     // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument align the beginning of the path
@@ -768,7 +769,7 @@ void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangu
              blendMode);
     m_maxTriangleVertexCount += triangulator->maxVertexCount();
     triangulator->setPathID(m_currentPathID);
-    m_lastDraw->triangulator = triangulator;
+    m_drawList.tail().triangulator = triangulator;
 }
 
 void PLSRenderContext::pushDraw(DrawType drawType,
@@ -778,22 +779,12 @@ void PLSRenderContext::pushDraw(DrawType drawType,
                                 uint32_t clipID,
                                 PLSBlendMode blendMode)
 {
-    if (!m_lastDraw || m_lastDraw->drawType != drawType)
+    if (m_drawList.empty() || m_drawList.tail().drawType != drawType)
     {
-        // Can't merge with the previous draw. Push a new one.
-        DrawList* nextDraw = make<DrawList>(drawType, baseVertex);
-        if (!m_lastDraw)
-        {
-            m_drawList = nextDraw;
-        }
-        else
-        {
-            m_lastDraw->next = nextDraw;
-        }
-        m_lastDraw = nextDraw;
+        m_drawList.emplace_back(this, drawType, baseVertex);
         ++m_drawListCount;
     }
-    ShaderFeatures* shaderFeatures = &m_lastDraw->shaderFeatures;
+    ShaderFeatures* shaderFeatures = &m_drawList.tail().shaderFeatures;
     if (blendMode > PLSBlendMode::srcOver)
     {
         assert(paintType != PaintType::clipReplace);
@@ -861,31 +852,30 @@ void PLSRenderContext::flush(FlushType flushType)
     bool needsClipBuffer = false;
     RIVE_DEBUG_CODE(size_t drawIdx = 0;)
     size_t writtenTriangleVertexCount = 0;
-    for (DrawList* draw = m_drawList; draw; draw = draw->next)
+    for (Draw& draw : m_drawList)
     {
-        switch (draw->drawType)
+        switch (draw.drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
                 break;
             case DrawType::interiorTriangulation:
             {
-                size_t maxVertexCount = draw->triangulator->maxVertexCount();
+                size_t maxVertexCount = draw.triangulator->maxVertexCount();
                 assert(writtenTriangleVertexCount + maxVertexCount <= m_maxTriangleVertexCount);
                 size_t actualVertexCount = maxVertexCount;
                 if (maxVertexCount > 0)
                 {
-                    actualVertexCount = draw->triangulator->polysToTriangles(&m_triangleBuffer);
+                    actualVertexCount = draw.triangulator->polysToTriangles(&m_triangleBuffer);
                 }
                 assert(actualVertexCount <= maxVertexCount);
-                draw->baseVertexOrInstance = writtenTriangleVertexCount;
-                draw->vertexOrInstanceCount = actualVertexCount;
+                draw.baseVertexOrInstance = writtenTriangleVertexCount;
+                draw.vertexOrInstanceCount = actualVertexCount;
                 writtenTriangleVertexCount += actualVertexCount;
                 break;
             }
         }
-        needsClipBuffer =
-            needsClipBuffer || draw->shaderFeatures.programFeatures.enablePathClipping;
+        needsClipBuffer = needsClipBuffer || draw.shaderFeatures.programFeatures.enablePathClipping;
         RIVE_DEBUG_CODE(++drawIdx;)
     }
     assert(drawIdx == m_drawListCount);
@@ -973,7 +963,7 @@ void PLSRenderContext::flush(FlushType flushType)
 
     m_isFirstFlushOfFrame = false;
 
-    m_drawList = m_lastDraw = nullptr;
+    m_drawList.reset();
     m_drawListCount = 0;
 
     // Delete all objects that were allocted for this flush using the TrivialBlockAllocator.

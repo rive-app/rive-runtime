@@ -793,32 +793,32 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
     ID3D11ShaderResourceView* gradTextureView = submitted_srv(gradTexelBufferRing());
     m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, &gradTextureView);
 
-    for (const DrawList* draw = m_drawList; draw; draw = draw->next)
+    for (const Draw& draw : m_drawList)
     {
-        if (draw->vertexOrInstanceCount == 0)
+        if (draw.vertexOrInstanceCount == 0)
         {
             continue;
         }
 
-        DrawType drawType = draw->drawType;
-        setPipelineLayoutAndShaders(drawType, draw->shaderFeatures);
+        DrawType drawType = draw.drawType;
+        setPipelineLayoutAndShaders(drawType, draw.shaderFeatures);
 
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
             {
-                PerDrawUniforms uniforms(draw->baseVertexOrInstance);
+                PerDrawUniforms uniforms(draw.baseVertexOrInstance);
                 m_gpuContext->UpdateSubresource(m_perDrawUniforms.Get(), 0, NULL, &uniforms, 0, 0);
                 m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
-                                                   draw->vertexOrInstanceCount,
+                                                   draw.vertexOrInstanceCount,
                                                    PatchBaseIndex(drawType),
                                                    0,
-                                                   draw->baseVertexOrInstance);
+                                                   draw.baseVertexOrInstance);
                 break;
             }
             case DrawType::interiorTriangulation:
-                m_gpuContext->Draw(draw->vertexOrInstanceCount, draw->baseVertexOrInstance);
+                m_gpuContext->Draw(draw.vertexOrInstanceCount, draw.baseVertexOrInstance);
                 break;
         }
     }

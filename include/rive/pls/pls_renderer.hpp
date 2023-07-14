@@ -9,6 +9,7 @@
 #include "rive/pls/aligned_buffer.hpp"
 #include "rive/pls/fixed_queue.hpp"
 #include "rive/pls/pls.hpp"
+#include "rive/pls/pls_render_context.hpp"
 #include <vector>
 
 namespace rive
@@ -65,7 +66,6 @@ private:
                     size_t endCurveIdx_,
                     size_t endRotationIdx_,
                     Vec2D midpoint_,
-                    size_t pathIdx_,
                     bool closed_,
                     size_t strokeJoinCount_) :
             endOfContour(endOfContour_),
@@ -73,7 +73,6 @@ private:
             endCurveIdx(endCurveIdx_),
             endRotationIdx(endRotationIdx_),
             midpoint(midpoint_),
-            pathIdx(pathIdx_),
             closed(closed_),
             strokeJoinCount(strokeJoinCount_)
         {}
@@ -82,7 +81,6 @@ private:
         size_t endCurveIdx;
         size_t endRotationIdx; // We measure rotations on both curves and round joins.
         Vec2D midpoint;
-        size_t pathIdx;
         bool closed;
         size_t strokeJoinCount;
         uint32_t strokeCapSegmentCount = 0;
@@ -149,6 +147,8 @@ private:
         FillRule fillRule;
         uint32_t clipID;
         GrInnerFanTriangulator* triangulator = nullptr; // Non-null if using interior triangulation.
+        size_t firstContourIdx = 0;
+        size_t contourCount = 0;
         uint32_t tessVertexCount = 0;
         uint32_t paddingVertexCount = 0;
     };

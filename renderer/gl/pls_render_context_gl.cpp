@@ -407,21 +407,14 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
 
     // Compile the draw programs before activating pixel local storage.
     // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while active.)
-    size_t drawIdx = 0;
-    auto drawPrograms = reinterpret_cast<const DrawProgram**>(
-        trivialPerFlushAllocator()->alloc(sizeof(void*) * m_drawListCount));
-    for (DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
+    for (const Draw& draw : m_drawList)
     {
         // Compile the draw program before activating pixel local storage.
         // Cache specific compilations of draw.glsl by ShaderFeatures.
-        const ShaderFeatures& shaderFeatures = draw->shaderFeatures;
         uint32_t fragmentShaderKey =
-            ShaderUniqueKey(SourceType::wholeProgram, draw->drawType, shaderFeatures);
-        drawPrograms[drawIdx] =
-            &m_drawPrograms.try_emplace(fragmentShaderKey, this, draw->drawType, shaderFeatures)
-                 .first->second;
+            ShaderUniqueKey(SourceType::wholeProgram, draw.drawType, draw.shaderFeatures);
+        m_drawPrograms.try_emplace(fragmentShaderKey, this, draw.drawType, draw.shaderFeatures);
     }
-    assert(drawIdx == m_drawListCount);
 
     // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
     if (m_maxTriangleVertexCount > 0)
@@ -444,16 +437,17 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     m_plsImpl->activatePixelLocalStorage(this, renderTarget(), loadAction, needsClipBuffer);
 
     // Execute the DrawList.
-    drawIdx = 0;
-    for (const DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
+    for (const Draw& draw : m_drawList)
     {
-        if (draw->vertexOrInstanceCount == 0)
+        if (draw.vertexOrInstanceCount == 0)
         {
             continue;
         }
-        const DrawProgram* drawProgram = drawPrograms[drawIdx];
-        bindProgram(drawProgram->id());
-        switch (DrawType drawType = draw->drawType)
+        uint32_t fragmentShaderKey =
+            ShaderUniqueKey(SourceType::wholeProgram, draw.drawType, draw.shaderFeatures);
+        const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
+        bindProgram(drawProgram.id());
+        switch (DrawType drawType = draw.drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
@@ -470,18 +464,18 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                                                            indexCount,
                                                            GL_UNSIGNED_SHORT,
                                                            indexOffset,
-                                                           draw->vertexOrInstanceCount,
-                                                           draw->baseVertexOrInstance);
+                                                           draw.vertexOrInstanceCount,
+                                                           draw.baseVertexOrInstance);
                 }
                 else
                 {
-                    glUniform1i(drawProgram->baseInstancePolyfillLocation(),
-                                draw->baseVertexOrInstance);
+                    glUniform1i(drawProgram.baseInstancePolyfillLocation(),
+                                draw.baseVertexOrInstance);
                     glDrawElementsInstanced(GL_TRIANGLES,
                                             indexCount,
                                             GL_UNSIGNED_SHORT,
                                             indexOffset,
-                                            draw->vertexOrInstanceCount);
+                                            draw.vertexOrInstanceCount);
                 }
                 break;
             }
@@ -489,12 +483,11 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                 // Draw generic triangles.
                 m_plsImpl->ensureRasterOrderingEnabled(false);
                 bindVAO(m_interiorTrianglesVAO);
-                glDrawArrays(GL_TRIANGLES, draw->baseVertexOrInstance, draw->vertexOrInstanceCount);
+                glDrawArrays(GL_TRIANGLES, draw.baseVertexOrInstance, draw.vertexOrInstanceCount);
                 m_plsImpl->barrier();
                 break;
         }
     }
-    assert(drawIdx == m_drawListCount);
 
     m_plsImpl->deactivatePixelLocalStorage(this);
 

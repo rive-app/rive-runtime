@@ -138,22 +138,6 @@ public:
         return m_clipContentID;
     }
 
-    // Returns the context's TrivialBlockAllocator, which is automatically reset at the end of every
-    // flush.
-    TrivialBlockAllocator* trivialPerFlushAllocator()
-    {
-        assert(m_didBeginFrame);
-        return &m_trivialPerFlushAllocator;
-    }
-
-    // Allocates a trivially destructible object that will be automatically deleted at the end of
-    // the current flush.
-    template <typename T, typename... Args> T* make(Args&&... args)
-    {
-        assert(m_didBeginFrame);
-        return m_trivialPerFlushAllocator.make<T>(std::forward<Args>(args)...);
-    }
-
     // Returns the number of tessellation vertices that have been pushed during the current flush.
     uint32_t currentTessVertexCount() const { return m_tessVertexCount; }
 
@@ -252,6 +236,58 @@ public:
     // temporal interval. (GPU resource allocations automatically grow based on usage, but can only
     // shrink if the application calls this method.)
     void shrinkGPUResourcesToFit();
+
+    // Returns the context's TrivialBlockAllocator, which is automatically reset at the end of every
+    // flush.
+    TrivialBlockAllocator* trivialPerFlushAllocator()
+    {
+        assert(m_didBeginFrame);
+        return &m_trivialPerFlushAllocator;
+    }
+
+    // Allocates a trivially destructible object that will be automatically deleted at the end of
+    // the current flush.
+    template <typename T, typename... Args> T* make(Args&&... args)
+    {
+        assert(m_didBeginFrame);
+        return m_trivialPerFlushAllocator.make<T>(std::forward<Args>(args)...);
+    }
+
+    // Simple linked list whose nodes are allocated on a context's TrivialBlockAllocator.
+    template <typename T> class PerFlushLinkedList
+    {
+    public:
+        void reset() { m_tail = m_head = nullptr; }
+
+        bool empty() const;
+        T& tail() const;
+        template <typename... Args> void emplace_back(PLSRenderContext* context, Args... args);
+
+        struct Node
+        {
+            template <typename... Args> Node(Args... args) : data(std::forward<Args>(args)...) {}
+            T data;
+            Node* next = nullptr;
+        };
+
+        class Iter
+        {
+        public:
+            Iter(Node* current) : m_current(current) {}
+            bool operator!=(const Iter& other) const { return m_current != other.m_current; }
+            void operator++() { m_current = m_current->next; }
+            T& operator*() { return m_current->data; }
+
+        private:
+            Node* m_current;
+        };
+        Iter begin() { return {m_head}; }
+        Iter end() { return {nullptr}; }
+
+    private:
+        Node* m_head = nullptr;
+        Node* m_tail = nullptr;
+    };
 
 protected:
     PLSRenderContext(const PlatformFeatures&);
@@ -407,9 +443,9 @@ protected:
     }
 
     // Linked list of draws to be issued by the subclass during onFlush().
-    struct DrawList
+    struct Draw
     {
-        DrawList(DrawType drawType_, uint32_t baseVertexOrInstance_) :
+        Draw(DrawType drawType_, uint32_t baseVertexOrInstance_) :
             drawType(drawType_), baseVertexOrInstance(baseVertexOrInstance_)
         {}
         const DrawType drawType;
@@ -417,11 +453,9 @@ protected:
         uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
         ShaderFeatures shaderFeatures;
         GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
-        DrawList* next = nullptr;
     };
 
-    DrawList* m_drawList = nullptr;
-    DrawList* m_lastDraw = nullptr;
+    PerFlushLinkedList<Draw> m_drawList;
     size_t m_drawListCount = 0;
 
     // GrTriangulator provides an upper bound on the number of vertices it will emit. Triangulations
@@ -580,4 +614,34 @@ private:
     constexpr static size_t kPerFlushAllocatorInitialBlockSize = 1024 * 1024; // 1 MiB.
     TrivialBlockAllocator m_trivialPerFlushAllocator{kPerFlushAllocatorInitialBlockSize};
 };
+
+template <typename T> bool PLSRenderContext::PerFlushLinkedList<T>::empty() const
+{
+    assert(!!m_head == !!m_tail);
+    return m_tail == nullptr;
+}
+
+template <typename T> T& PLSRenderContext::PerFlushLinkedList<T>::tail() const
+{
+    assert(!empty());
+    return m_tail->data;
+}
+
+template <typename T>
+template <typename... Args>
+void PLSRenderContext::PerFlushLinkedList<T>::emplace_back(PLSRenderContext* context, Args... args)
+{
+    Node* node = context->make<Node>(std::forward<Args>(args)...);
+    assert(!!m_head == !!m_tail);
+    if (m_head == nullptr)
+    {
+        m_head = node;
+    }
+    else
+    {
+        m_tail->next = node;
+    }
+    m_tail = node;
+}
+
 } // namespace rive::pls

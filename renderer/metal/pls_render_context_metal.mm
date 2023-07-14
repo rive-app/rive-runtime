@@ -420,21 +420,20 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
     }
 
     // Execute the DrawList.
-    size_t drawIdx = 0;
-    for (const DrawList* draw = m_drawList; draw; draw = draw->next, ++drawIdx)
+    for (const Draw& draw : m_drawList)
     {
-        if (draw->vertexOrInstanceCount == 0)
+        if (draw.vertexOrInstanceCount == 0)
         {
             continue;
         }
 
-        DrawType drawType = draw->drawType;
+        DrawType drawType = draw.drawType;
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
         uint32_t pipelineKey =
-            ShaderUniqueKey(SourceType::wholeProgram, drawType, draw->shaderFeatures);
+            ShaderUniqueKey(SourceType::wholeProgram, drawType, draw.shaderFeatures);
         const DrawPipeline& drawPipeline =
-            m_drawPipelines.try_emplace(pipelineKey, this, drawType, draw->shaderFeatures)
+            m_drawPipelines.try_emplace(pipelineKey, this, drawType, draw.shaderFeatures)
                 .first->second;
         [encoder setRenderPipelineState:drawPipeline.pipelineState(renderTarget->pixelFormat())];
 
@@ -450,17 +449,17 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
                                      indexType:MTLIndexTypeUInt16
                                    indexBuffer:m_pathPatchIndexBuffer
                              indexBufferOffset:PatchBaseIndex(drawType) * sizeof(uint16_t)
-                                 instanceCount:draw->vertexOrInstanceCount
+                                 instanceCount:draw.vertexOrInstanceCount
                                     baseVertex:0
-                                  baseInstance:draw->baseVertexOrInstance];
+                                  baseInstance:draw.baseVertexOrInstance];
                 break;
             }
             case DrawType::interiorTriangulation:
                 // Draw generic triangles.
                 [encoder setVertexBuffer:mtl_buffer(triangleBufferRing()) offset:0 atIndex:1];
                 [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                            vertexStart:draw->baseVertexOrInstance
-                            vertexCount:draw->vertexOrInstanceCount];
+                            vertexStart:draw.baseVertexOrInstance
+                            vertexCount:draw.vertexOrInstanceCount];
                 break;
         }
     }
