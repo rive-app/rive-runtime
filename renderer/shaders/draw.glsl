@@ -275,8 +275,11 @@ VERTEX_MAIN(@drawVertexMain,
                 v_edgeDistance.x = make_half(clipDistance);
         }
 
-        // Strokes identify themselves by emitting a negative edgeDistance.
-        v_edgeDistance *= -globalCoverage;
+        v_edgeDistance *= globalCoverage;
+
+        // Bias v_edgeDistance.y slightly upwards in order to guarantee v_edgeDistance.y is >= 0 at
+        // every pixel. "v_edgeDistance.y < 0" is used to differentiate between strokes and fills.
+        v_edgeDistance.y = max(v_edgeDistance.y, make_half(1e-4));
 
         postTransformVertexOffset = MUL(mat, outset * vertexOffset);
 
@@ -292,7 +295,9 @@ VERTEX_MAIN(@drawVertexMain,
 
         // Offset the vertex for Manhattan AA.
         postTransformVertexOffset = sign(MUL(mat, outset * norm)) * AA_RADIUS;
-        v_edgeDistance = make_half2(fillCoverage, 1);
+
+        // "v_edgeDistance.y < 0" indicates to the fragment shader that this is a fill.
+        v_edgeDistance = make_half2(fillCoverage, -1);
 
         // If we're actually just drawing a triangle, throw away the entire patch except a single
         // fan triangle.
@@ -483,21 +488,18 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
 #ifdef @DRAW_INTERIOR_TRIANGLES
     coverageCount += v_windingWeight;
 #else
-    // TODO: We may need to just send actual flags instead of using sign(edgeDistance) to identify
-    // strokes. Since edgeDistance is interpolated, it can sometimes cross signs.
-    half d = v_edgeDistance.x;
-    if (d < -1e-4 /*stroke with an intentionally negative edgeDistance*/)
-        coverageCount = min(max(d, v_edgeDistance.y), coverageCount);
+    if (v_edgeDistance.y >= .0 /*stroke*/)
+        coverageCount = max(min(v_edgeDistance.x, v_edgeDistance.y), coverageCount);
     else if (_clockwise /*clockwise fill*/)
-        coverageCount += d;
+        coverageCount += v_edgeDistance.x;
     else /*counterclockwise fill*/
-        coverageCount -= d;
+        coverageCount -= v_edgeDistance.x;
 
     // Save the updated coverage.
     PLS_STORE2F(coverageCountBuffer, v_pathID, coverageCount);
 #endif
 
-    // Convert coverageCount to coverage. (Which is min(-edgeDistance) right now for strokes.)
+    // Convert coverageCount to coverage.
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
     if (v_pathID < .0 /*even-odd*/)
