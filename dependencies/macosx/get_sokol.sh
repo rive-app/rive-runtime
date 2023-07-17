@@ -16,9 +16,9 @@ if [ ! -d sokol ]; then
     git clone $SOKOL_REPO
 
     if [ $(arch) == arm64 ]; then
-        SOKOL_SHDC=https://github.com/floooh/sokol-tools-bin/raw/master/bin/osx_arm64/sokol-shdc
+        SOKOL_SHDC=https://github.com/floooh/sokol-tools-bin/raw/6c8fc754ad73bf0db759ae44b224093290e5b26e/bin/osx_arm64/sokol-shdc
     else
-        SOKOL_SHDC=https://github.com/floooh/sokol-tools-bin/raw/master/bin/osx/sokol-shdc
+        SOKOL_SHDC=https://github.com/floooh/sokol-tools-bin/raw/6c8fc754ad73bf0db759ae44b224093290e5b26e/bin/osx/sokol-shdc
     fi
     curl $SOKOL_SHDC -L -o ./bin/sokol-shdc
     chmod +x ./bin/sokol-shdc

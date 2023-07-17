@@ -59,6 +59,14 @@ const Mat2D FollowPathConstraint::targetTransform() const
     {
         transformB *= Mat2D::fromRotation(std::atan2(posTan.tan.y, posTan.tan.x));
     }
+    else
+    {
+        if (parent()->is<TransformComponent>())
+        {
+            auto comp = parent()->as<TransformComponent>()->worldTransform().decompose();
+            transformB *= Mat2D::fromRotation(comp.rotation());
+        }
+    }
     return transformB;
 }
 
