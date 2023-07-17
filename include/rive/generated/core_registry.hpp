@@ -606,6 +606,9 @@ public:
             case TextBase::overflowValuePropertyKey:
                 object->as<TextBase>()->overflowValue(value);
                 break;
+            case TextBase::originValuePropertyKey:
+                object->as<TextBase>()->originValue(value);
+                break;
             case TextValueRunBase::styleIdPropertyKey:
                 object->as<TextValueRunBase>()->styleId(value);
                 break;
@@ -1266,6 +1269,8 @@ public:
                 return object->as<TextBase>()->sizingValue();
             case TextBase::overflowValuePropertyKey:
                 return object->as<TextBase>()->overflowValue();
+            case TextBase::originValuePropertyKey:
+                return object->as<TextBase>()->originValue();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->as<TextValueRunBase>()->styleId();
             case FileAssetBase::assetIdPropertyKey:
@@ -1686,6 +1691,7 @@ public:
             case TextBase::alignValuePropertyKey:
             case TextBase::sizingValuePropertyKey:
             case TextBase::overflowValuePropertyKey:
+            case TextBase::originValuePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
                 return CoreUintType::id;

@@ -38,15 +38,18 @@ static const rive::Font::LineMetrics computeLineMetrics(const rive::Font::LineMe
     return {actualAscent, customLineHeight + actualAscent};
 }
 
-void GlyphLine::ComputeLineSpacing(Span<GlyphLine> lines,
+void GlyphLine::ComputeLineSpacing(bool isFirstLine,
+                                   Span<GlyphLine> lines,
                                    Span<const GlyphRun> runs,
                                    float width,
                                    TextAlign align)
 {
+    bool first = isFirstLine;
     float Y = 0; // top of our frame
     for (auto& line : lines)
     {
         float asc = 0;
+        float realAscent = 0;
         float des = 0;
         float lh = 0;
         for (uint32_t i = line.startRunIndex; i <= line.endRunIndex; ++i)
@@ -54,6 +57,7 @@ void GlyphLine::ComputeLineSpacing(Span<GlyphLine> lines,
             const auto& run = runs[i];
             const auto& metrics =
                 computeLineMetrics(run.font->lineMetrics(), run.lineHeight, run.size);
+            realAscent = std::min(realAscent, run.font->lineMetrics().ascent * run.size);
             asc = std::min(asc, metrics.ascent);
             des = std::max(des, metrics.descent);
             if (run.lineHeight >= 0.0f)
@@ -66,10 +70,19 @@ void GlyphLine::ComputeLineSpacing(Span<GlyphLine> lines,
             }
         }
         line.top = Y;
-        Y -= asc;
+        if (first)
+        {
+            Y = -realAscent;
+            first = false;
+        }
+        else
+        {
+            Y -= asc;
+        }
         line.baseline = Y;
-        Y = line.top + lh;
+        Y += des;
         line.bottom = Y;
+
         auto lineWidth = runs[line.endRunIndex].xpos[line.endGlyphIndex] -
                          runs[line.startRunIndex].xpos[line.startGlyphIndex];
         switch (align)

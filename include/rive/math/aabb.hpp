@@ -28,6 +28,7 @@ public:
 
     AABB() : minX(0), minY(0), maxX(0), maxY(0) {}
     AABB(const AABB& o) : minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY) {}
+    AABB(const Vec2D& min, const Vec2D& max) : minX(min.x), minY(min.y), maxX(max.x), maxY(max.y) {}
     static AABB fromLTWH(float x, float y, float width, float height)
     {
         return {x, y, x + width, y + height};
@@ -95,6 +96,12 @@ public:
     {
         return Vec2D(width() == 0.0f ? 0.0f : (point.x - left()) * 2.0f / width() - 1.0f,
                      (height() == 0.0f ? 0.0f : point.y - top()) * 2.0f / height() - 1.0f);
+    }
+
+    /// Get the point at x/y factor (where [0, 0] is top left, [0.5, 0.5] is center).
+    Vec2D pointAt(float xf, float yf) const
+    {
+        return Vec2D(left() + width() * xf, top() + height() * yf);
     }
 };
 

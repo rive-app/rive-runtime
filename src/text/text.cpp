@@ -261,6 +261,7 @@ void Text::buildRenderStyles()
     int paragraphIndex = 0;
     int lineIndex = 0;
     float y = 0.0f;
+    float minY = 0.0f;
     float maxX = 0.0f;
 
     int ellipsisLine = -1;
@@ -295,7 +296,11 @@ void Text::buildRenderStyles()
         isEllipsisLineLast = lastLineIndex == ellipsisLine;
         y = 0.0f;
     }
-
+    if (textOrigin() == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
+    {
+        y -= m_lines[0][0].baseline;
+        minY = y;
+    }
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
     {
         const Paragraph& paragraph = m_shape[paragraphIndex++];
@@ -420,24 +425,22 @@ void Text::buildRenderStyles()
     switch (sizing())
     {
         case TextSizing::autoWidth:
-            m_actualWidth = maxX;
-            m_actualHeight = std::max(0.0f, y - paragraphSpace);
+            m_bounds = AABB(0.0f, minY, maxX, std::max(minY, y - paragraphSpace));
             break;
         case TextSizing::autoHeight:
-            m_actualWidth = width();
-            m_actualHeight = std::max(0.0f, y - paragraphSpace);
+            m_bounds = AABB(0.0f, minY, width(), std::max(minY, y - paragraphSpace));
             break;
         case TextSizing::fixed:
-            m_actualWidth = width();
-            m_actualHeight = height();
+            m_bounds = AABB(0.0f, minY, width(), minY + height());
             break;
     }
 }
 
 void Text::updateOriginWorldTransform()
 {
-    m_originWorldTransform = m_WorldTransform * Mat2D::fromTranslate(-m_actualWidth * originX(),
-                                                                     -m_actualHeight * originY());
+    m_originWorldTransform =
+        m_WorldTransform *
+        Mat2D::fromTranslate(-m_bounds.width() * originX(), -m_bounds.height() * originY());
 }
 
 const TextStyle* Text::styleFromShaperId(uint16_t id) const
@@ -477,6 +480,7 @@ void Text::markShapeDirty()
     {
         group->clearRangeMaps();
     }
+    markWorldTransformDirty();
 }
 
 void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
@@ -585,7 +589,12 @@ static SimpleArray<SimpleArray<GlyphLine>> breakLines(const SimpleArray<Paragrap
     paragraphIndex = 0;
     for (auto& para : paragraphs)
     {
-        GlyphLine::ComputeLineSpacing(lines[paragraphIndex++], para.runs, paragraphWidth, align);
+        GlyphLine::ComputeLineSpacing(paragraphIndex == 0,
+                                      lines[paragraphIndex],
+                                      para.runs,
+                                      paragraphWidth,
+                                      align);
+        paragraphIndex++;
     }
     return lines;
 }
@@ -677,9 +686,8 @@ void Text::update(ComponentDirt value)
 
 AABB Text::localBounds() const
 {
-    float minX = -m_actualWidth * originX();
-    float minY = -m_actualHeight * originY();
-    return AABB(minX, minY, minX + m_actualWidth, minY + m_actualWidth);
+    auto origin = m_bounds.pointAt(originX(), originY());
+    return AABB(origin, origin + m_bounds.size());
 }
 
 Core* Text::hitTest(HitInfo*, const Mat2D&)
@@ -691,6 +699,8 @@ Core* Text::hitTest(HitInfo*, const Mat2D&)
 
     return nullptr;
 }
+
+void Text::originValueChanged() { markPaintDirty(); }
 
 #else
 // Text disabled.
@@ -711,4 +721,5 @@ bool Text::modifierRangesNeedShape() const { return false; }
 const TextStyle* Text::styleFromShaperId(uint16_t id) const { return nullptr; }
 void Text::paragraphSpacingChanged() {}
 AABB Text::localBounds() const { return AABB(); }
+void Text::originValueChanged() {}
 #endif

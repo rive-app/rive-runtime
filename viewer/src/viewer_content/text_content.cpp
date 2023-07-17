@@ -315,12 +315,14 @@ public:
         paragraphIndex = 0;
         for (auto& para : paragraphs)
         {
-            rive::SimpleArray<rive::GlyphLine>& lines = linesRef[paragraphIndex++];
-            rive::GlyphLine::ComputeLineSpacing(lines,
+            rive::SimpleArray<rive::GlyphLine>& lines = linesRef[paragraphIndex];
+            rive::GlyphLine::ComputeLineSpacing(paragraphIndex == 0,
+                                                lines,
                                                 para.runs,
                                                 paragraphWidth,
                                                 (rive::TextAlign)m_align);
             y = drawpara(RiveFactory(), renderer, para, lines, {0, y}) + 20.0f;
+            paragraphIndex++;
         }
         if (!m_autoWidth)
         {

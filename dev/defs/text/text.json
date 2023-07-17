@@ -90,6 +90,15 @@
         "int": 371,
         "string": "paragraphspacing"
       }
+    },
+    "originValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 377,
+        "string": "originValue"
+      },
+      "description": "Logical starting location of origin."
     }
   }
 }

@@ -24,6 +24,12 @@ enum class TextOverflow : uint8_t
     ellipsis
 };
 
+enum class TextOrigin : uint8_t
+{
+    top,
+    baseline
+};
+
 class OrderedLine;
 class TextModifierGroup;
 
@@ -164,8 +170,9 @@ public:
     void markPaintDirty();
     void update(ComponentDirt value) override;
 
-    TextSizing sizing() { return (TextSizing)sizingValue(); }
-    TextOverflow overflow() { return (TextOverflow)overflowValue(); }
+    TextSizing sizing() const { return (TextSizing)sizingValue(); }
+    TextOverflow overflow() const { return (TextOverflow)overflowValue(); }
+    TextOrigin textOrigin() const { return (TextOrigin)originValue(); }
     void overflow(TextOverflow value) { return overflowValue((uint32_t)value); }
     void buildRenderStyles();
     const TextStyle* styleFromShaperId(uint16_t id) const;
@@ -194,6 +201,7 @@ protected:
     void heightChanged() override;
     void paragraphSpacingChanged() override;
     bool makeStyled(StyledText& styledText, bool withModifiers = true) const;
+    void originValueChanged() override;
 
 private:
 #ifdef WITH_RIVE_TEXT
@@ -209,8 +217,7 @@ private:
     GlyphRun m_ellipsisRun;
     std::unique_ptr<RenderPath> m_clipRenderPath;
     Mat2D m_originWorldTransform;
-    float m_actualWidth = 0.0f;
-    float m_actualHeight = 0.0f;
+    AABB m_bounds;
     std::vector<TextModifierGroup*> m_modifierGroups;
 
     StyledText m_styledText;

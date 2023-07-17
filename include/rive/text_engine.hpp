@@ -70,7 +70,8 @@ struct GlyphLine
     static SimpleArray<GlyphLine> BreakLines(Span<const GlyphRun> runs, float width);
 
     // Compute values for top/baseline/bottom per line
-    static void ComputeLineSpacing(Span<GlyphLine>,
+    static void ComputeLineSpacing(bool isFirstLine,
+                                   Span<GlyphLine>,
                                    Span<const GlyphRun>,
                                    float width,
                                    TextAlign align);
