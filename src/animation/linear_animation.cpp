@@ -53,6 +53,11 @@ void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object)
 
 void LinearAnimation::apply(Artboard* artboard, float time, float mix) const
 {
+    if (quantize())
+    {
+        float ffps = (float)fps();
+        time = std::floor(time * ffps) / ffps;
+    }
     for (const auto& object : m_KeyedObjects)
     {
         object->apply(artboard, time, mix);

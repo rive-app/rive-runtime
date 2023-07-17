@@ -37,6 +37,7 @@ public:
     static const uint16_t workStartPropertyKey = 60;
     static const uint16_t workEndPropertyKey = 61;
     static const uint16_t enableWorkAreaPropertyKey = 62;
+    static const uint16_t quantizePropertyKey = 376;
 
 private:
     uint32_t m_Fps = 60;
@@ -46,6 +47,7 @@ private:
     uint32_t m_WorkStart = -1;
     uint32_t m_WorkEnd = -1;
     bool m_EnableWorkArea = false;
+    bool m_Quantize = false;
 
 public:
     inline uint32_t fps() const { return m_Fps; }
@@ -125,6 +127,17 @@ public:
         enableWorkAreaChanged();
     }
 
+    inline bool quantize() const { return m_Quantize; }
+    void quantize(bool value)
+    {
+        if (m_Quantize == value)
+        {
+            return;
+        }
+        m_Quantize = value;
+        quantizeChanged();
+    }
+
     Core* clone() const override;
     void copy(const LinearAnimationBase& object)
     {
@@ -135,6 +148,7 @@ public:
         m_WorkStart = object.m_WorkStart;
         m_WorkEnd = object.m_WorkEnd;
         m_EnableWorkArea = object.m_EnableWorkArea;
+        m_Quantize = object.m_Quantize;
         Animation::copy(object);
     }
 
@@ -163,6 +177,9 @@ public:
             case enableWorkAreaPropertyKey:
                 m_EnableWorkArea = CoreBoolType::deserialize(reader);
                 return true;
+            case quantizePropertyKey:
+                m_Quantize = CoreBoolType::deserialize(reader);
+                return true;
         }
         return Animation::deserialize(propertyKey, reader);
     }
@@ -175,6 +192,7 @@ protected:
     virtual void workStartChanged() {}
     virtual void workEndChanged() {}
     virtual void enableWorkAreaChanged() {}
+    virtual void quantizeChanged() {}
 };
 } // namespace rive
 

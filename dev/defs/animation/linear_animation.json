@@ -145,6 +145,15 @@
       "description": "Whether to only show selected components on the timeline hierarchy",
       "runtime": false,
       "coop": false
+    },
+    "quantize": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 376,
+        "string": "quantize"
+      },
+      "description": "Whether frames are quantized to desired frame rate or floating based on runtime speed."
     }
   }
 }

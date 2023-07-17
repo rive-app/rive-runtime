@@ -1041,6 +1041,9 @@ public:
             case LinearAnimationBase::enableWorkAreaPropertyKey:
                 object->as<LinearAnimationBase>()->enableWorkArea(value);
                 break;
+            case LinearAnimationBase::quantizePropertyKey:
+                object->as<LinearAnimationBase>()->quantize(value);
+                break;
             case StateMachineBoolBase::valuePropertyKey:
                 object->as<StateMachineBoolBase>()->value(value);
                 break;
@@ -1559,6 +1562,8 @@ public:
                 return object->as<NestedBoolBase>()->nestedValue();
             case LinearAnimationBase::enableWorkAreaPropertyKey:
                 return object->as<LinearAnimationBase>()->enableWorkArea();
+            case LinearAnimationBase::quantizePropertyKey:
+                return object->as<LinearAnimationBase>()->quantize();
             case StateMachineBoolBase::valuePropertyKey:
                 return object->as<StateMachineBoolBase>()->value();
             case ShapePaintBase::isVisiblePropertyKey:
@@ -1824,6 +1829,7 @@ public:
             case KeyFrameBoolBase::valuePropertyKey:
             case NestedBoolBase::nestedValuePropertyKey:
             case LinearAnimationBase::enableWorkAreaPropertyKey:
+            case LinearAnimationBase::quantizePropertyKey:
             case StateMachineBoolBase::valuePropertyKey:
             case ShapePaintBase::isVisiblePropertyKey:
             case StrokeBase::transformAffectsStrokePropertyKey:
