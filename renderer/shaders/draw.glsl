@@ -3,6 +3,7 @@
  */
 
 #define AA_RADIUS .5
+#define GAMMA 2.2
 
 #define STROKE_VERTEX 0
 #define FAN_VERTEX 1
@@ -336,6 +337,7 @@ VERTEX_MAIN(@drawVertexMain,
     {
         // The paint is a solid color or clip.
         paint = uintBitsToFloat(paintData);
+        paint.rgb = pow(paint.rgb, float3(GAMMA));
     }
     else
     {
@@ -453,6 +455,9 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
         float row = -paint.a;
         float2 gradCoord = float2(mix(x0, x1, t), row);
         color = make_half4(TEXTURE_SAMPLE(textures, @gradTexture, gradSampler, gradCoord));
+
+        // HACK!! Convert the gradient texture to sRGB!!!!
+        color.rgb = pow(color.rgb, make_half3(GAMMA));
     }
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
@@ -464,26 +469,27 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
     half localPathID = coverageData.r;
     half coverageCount = coverageData.g;
 
-    half4 dstColor;
+    half4 dstColorSRGB;
     if (localPathID != v_pathID)
     {
         // This is the first fragment from pathID to touch this pixel.
         coverageCount = .0;
-        dstColor = PLS_LOAD4F(framebuffer);
+        dstColorSRGB = PLS_LOAD4F(framebuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
         // We don't need to store coverage when drawing interior triangles because they always go
         // last and don't overlap, so every fragment is the final one in the path.
-        PLS_STORE4F(originalDstColorBuffer, dstColor);
+        PLS_STORE4F(originalDstColorBuffer, dstColorSRGB);
 #endif
     }
     else
     {
-        dstColor = PLS_LOAD4F(originalDstColorBuffer);
+        dstColorSRGB = PLS_LOAD4F(originalDstColorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
         // Since interior triangles are always last, there's no need to preserve this value.
         PLS_PRESERVE_VALUE(originalDstColorBuffer);
 #endif
     }
+    half4 dstColor = make_half4(pow(dstColorSRGB.rgb, make_half3(GAMMA)), dstColorSRGB.a);
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     coverageCount += v_windingWeight;
@@ -547,7 +553,8 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
             color = color + dstColor * (1. - color.a);
         }
 
-        PLS_STORE4F(framebuffer, color);
+        half4 colorSRGB = make_half4(pow(color.rgb, make_half3(1. / GAMMA)), color.a);
+        PLS_STORE4F(framebuffer, colorSRGB);
     }
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
