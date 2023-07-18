@@ -106,10 +106,12 @@ StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
 void FollowPathConstraint::buildDependencies()
 {
     assert(m_Target != nullptr);
-    Super::buildDependencies();
     if (m_Target != nullptr && m_Target->is<Shape>()) // which should never happen
     {
+        // Follow path should update after the target's path composer
         Shape* shape = static_cast<Shape*>(m_Target);
         shape->pathComposer()->addDependent(this);
     }
+    // The constrained component should update after follow path
+    addDependent(parent());
 }
