@@ -301,6 +301,16 @@ void Text::buildRenderStyles()
         y -= m_lines[0][0].baseline;
         minY = y;
     }
+
+    bool hasModifiers = haveModifiers();
+    if (hasModifiers)
+    {
+        uint32_t textSize = (uint32_t)m_styledText.unichars().size();
+        for (TextModifierGroup* modifierGroup : m_modifierGroups)
+        {
+            modifierGroup->computeCoverage(textSize);
+        }
+    }
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
     {
         const Paragraph& paragraph = m_shape[paragraphIndex++];
@@ -350,7 +360,6 @@ void Text::buildRenderStyles()
 
                 RawPath path = font->getPath(glyphId);
 
-                bool hasModifiers = haveModifiers();
                 uint32_t textIndex = 0;
                 uint32_t glyphCount = 0;
                 if (hasModifiers)
@@ -634,13 +643,14 @@ void Text::update(ComponentDirt value)
                                          sizing() == TextSizing::autoWidth ? -1.0f : width(),
                                          (TextAlign)alignValue());
             m_glyphLookup.compute(m_modifierStyledText.unichars(), m_modifierShape);
+            uint32_t textSize = (uint32_t)m_modifierStyledText.unichars().size();
             for (TextModifierGroup* group : m_modifierGroups)
             {
                 group->computeRangeMap(m_modifierStyledText.unichars(),
                                        m_modifierShape,
                                        m_modifierLines,
                                        m_glyphLookup);
-                group->computeCoverage();
+                group->computeCoverage(textSize);
             }
         }
         if (makeStyled(m_styledText))
@@ -653,13 +663,14 @@ void Text::update(ComponentDirt value)
             if (!precomputeModifierCoverage && haveModifiers())
             {
                 m_glyphLookup.compute(m_styledText.unichars(), m_shape);
+                uint32_t textSize = (uint32_t)m_styledText.unichars().size();
                 for (TextModifierGroup* group : m_modifierGroups)
                 {
                     group->computeRangeMap(m_styledText.unichars(),
                                            m_shape,
                                            m_lines,
                                            m_glyphLookup);
-                    group->computeCoverage();
+                    group->computeCoverage(textSize);
                 }
             }
         }

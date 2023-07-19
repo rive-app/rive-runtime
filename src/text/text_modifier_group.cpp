@@ -4,6 +4,7 @@
 #include "rive/text/text_modifier_range.hpp"
 #include "rive/text/glyph_lookup.hpp"
 #include "rive/text/text_style.hpp"
+#include "rive/artboard.hpp"
 #include <limits>
 
 using namespace rive;
@@ -24,8 +25,6 @@ StatusCode TextModifierGroup::onAddedDirty(CoreContext* context)
 
     return StatusCode::MissingObject;
 }
-
-void TextModifierGroup::buildDependencies() { parent()->addDependent(this); }
 
 void TextModifierGroup::addModifierRange(TextModifierRange* range) { m_ranges.push_back(range); }
 
@@ -67,14 +66,6 @@ void TextModifierGroup::rangeChanged()
     }
 }
 
-void TextModifierGroup::update(ComponentDirt value)
-{
-    if (hasDirt(value, ComponentDirt::TextCoverage))
-    {
-        computeCoverage();
-    }
-}
-
 /// Clear any cached selector range maps so they can be recomputed after next
 /// shaping.
 void TextModifierGroup::clearRangeMaps()
@@ -91,17 +82,26 @@ void TextModifierGroup::computeRangeMap(Span<const Unichar> text,
                                         const SimpleArray<SimpleArray<GlyphLine>>& lines,
                                         const GlyphLookup& glyphLookup)
 {
-    m_textSize = (uint32_t)text.size();
     for (TextModifierRange* range : m_ranges)
     {
         range->computeRange(text, shape, lines, glyphLookup);
     }
 }
 
-void TextModifierGroup::computeCoverage()
+void TextModifierGroup::computeCoverage(uint32_t textSize)
 {
+    if (!hasDirt(ComponentDirt::TextCoverage))
+    {
+
+        return;
+    }
+
+    // Because we're not dependent on anything we need to reset our dirt
+    // ourselves. We're not in the DAG so we'll never get reset.
+    m_Dirt = ComponentDirt::None;
+
     // When the text re-shapes, we udpate our coverage values.
-    m_coverage.resize(m_textSize);
+    m_coverage.resize(textSize);
     std::fill(m_coverage.begin(), m_coverage.end(), 0);
     for (TextModifierRange* range : m_ranges)
     {

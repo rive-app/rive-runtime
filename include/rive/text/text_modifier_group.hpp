@@ -18,7 +18,6 @@ class TextModifierGroup : public TextModifierGroupBase
 {
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
-    void buildDependencies() override;
 
     void addModifierRange(TextModifierRange* range);
     void addModifier(TextModifier* modifier);
@@ -29,7 +28,7 @@ public:
                          const rive::SimpleArray<rive::Paragraph>& shape,
                          const SimpleArray<SimpleArray<GlyphLine>>& lines,
                          const GlyphLookup& glyphLookup);
-    void computeCoverage();
+    void computeCoverage(uint32_t textSize);
     float glyphCoverage(uint32_t textIndex, uint32_t codePointCount);
     float coverage(uint32_t textIndex)
     {
@@ -37,7 +36,6 @@ public:
         return m_coverage[textIndex];
     }
     void transform(float amount, Mat2D& ctm);
-    void update(ComponentDirt value) override;
     TextRun modifyShape(const Text& text, TextRun run, float strength);
     void applyShapeModifiers(const Text& text, StyledText& styledText);
 
@@ -78,7 +76,6 @@ private:
     std::vector<TextModifier*> m_modifiers;
     std::vector<TextShapeModifier*> m_shapeModifiers;
     std::vector<float> m_coverage;
-    uint32_t m_textSize = 0;
     rcp<Font> m_variableFont;
     std::vector<Font::Coord> m_variationCoords;
     std::vector<TextRun> m_nextTextRuns;
