@@ -402,16 +402,6 @@ RIVE_ALWAYS_INLINE bool is_final_verb_of_contour(const RawPath::Iter& iter,
 {
     return iter.rawVerbsPtr() + 1 == end.rawVerbsPtr();
 }
-
-// Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
-template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t padding_to_align_up(uint32_t value)
-{
-    constexpr uint32_t maxMultipleOfAlignment =
-        std::numeric_limits<uint32_t>::max() / Alignment * Alignment;
-    uint32_t padding = (maxMultipleOfAlignment - value) % Alignment;
-    assert((value + padding) % Alignment == 0);
-    return padding;
-}
 } // namespace
 
 // Helps count required resources for, and submit data to the render context that will be used to
@@ -948,12 +938,11 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
 
     // Iteration pass 2: Finish calculating the numbers of tessellation segments in each contour,
     // using SIMD.
-    uint32_t batchTotalTessVertexCount = 0;
-    uint32_t batchBaseVertex = m_context->currentTessVertexCount();
     size_t contourFirstLineIdx = 0;
     size_t contourFirstCurveIdx = 0;
     size_t contourFirstRotationIdx = 0;
     size_t emptyStrokeCountForCaps = 0;
+    PLSRenderContext::TessVertexCounter tessVertexCounter(m_context);
     for (size_t currentPathIdx = 0; currentPathIdx < m_pathBatch.size(); ++currentPathIdx)
     {
         PathDraw& path = m_pathBatch[currentPathIdx];
@@ -964,7 +953,19 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
 
         // (If we used interior triangulation, interiorTriHelper already counted the path's vertices
         // for us.)
-        if (path.triangulator == nullptr)
+        if (path.triangulator != nullptr)
+        {
+            assert(path.paddingVertexCount == 0);
+            // If the path has a nonzero number of tessellation vertices, pad them so they align on
+            // a multiple of the patch size.
+            if (path.tessVertexCount > 0)
+            {
+                path.paddingVertexCount =
+                    tessVertexCounter.countPath<kOuterCurvePatchSegmentSpan>(path.tessVertexCount);
+                path.tessVertexCount += path.paddingVertexCount;
+            }
+        }
+        else
         {
             assert(path.tessVertexCount == 0);
             for (size_t i = 0; i < path.contourCount; ++i)
@@ -1119,7 +1120,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                 // an exact multiple of kMidpointFanPatchSegmentSpan. This ensures that patch
                 // boundaries align with contour boundaries.
                 contour->paddingVertexCount =
-                    padding_to_align_up<kMidpointFanPatchSegmentSpan>(contourVertexCount);
+                    PaddingToAlignUp<kMidpointFanPatchSegmentSpan>(contourVertexCount);
                 contourVertexCount += contour->paddingVertexCount;
                 assert(contourVertexCount % kMidpointFanPatchSegmentSpan == 0);
                 RIVE_DEBUG_CODE(contour->tessVertexCount = contourVertexCount;)
@@ -1129,25 +1130,15 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                 contourFirstCurveIdx = contour->endCurveIdx;
                 contourFirstRotationIdx = contour->endRotationIdx;
             }
-        }
-
-        // If the path has a nonzero number of tessellation vertices, pad them so they align on a
-        // multiple of the patch size.
-        assert(path.paddingVertexCount == 0);
-        if (path.tessVertexCount > 0)
-        {
-            if (path.triangulator != nullptr)
+            assert(path.paddingVertexCount == 0);
+            // If the path has a nonzero number of tessellation vertices, pad them so they align on
+            // a multiple of the patch size.
+            if (path.tessVertexCount > 0)
             {
-                path.paddingVertexCount = padding_to_align_up<kOuterCurvePatchSegmentSpan>(
-                    batchBaseVertex + batchTotalTessVertexCount);
+                path.paddingVertexCount =
+                    tessVertexCounter.countPath<kMidpointFanPatchSegmentSpan>(path.tessVertexCount);
+                path.tessVertexCount += path.paddingVertexCount;
             }
-            else
-            {
-                path.paddingVertexCount = padding_to_align_up<kMidpointFanPatchSegmentSpan>(
-                    batchBaseVertex + batchTotalTessVertexCount);
-            }
-            path.tessVertexCount += path.paddingVertexCount;
-            batchTotalTessVertexCount += path.tessVertexCount;
         }
     }
     assert(contourFirstLineIdx == lineCount);
@@ -1160,7 +1151,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     if (!m_context->reservePathData(m_pathBatch.size(),
                                     contourCount,
                                     curveReserveCount,
-                                    batchTotalTessVertexCount))
+                                    tessVertexCounter.totalVertexCount()))
     {
         // The paths don't fit. Give up and let the caller flush and try again.
         return false;
@@ -1183,7 +1174,6 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     RIVE_DEBUG_CODE(m_pushedCurveCount = 0;)
     RIVE_DEBUG_CODE(m_pushedRotationCount = 0;)
     RIVE_DEBUG_CODE(m_pushedEmptyStrokeCountForCaps = 0;)
-    RIVE_DEBUG_CODE(size_t batchStartingTessVertexCount = m_context->currentTessVertexCount());
     size_t curveIdx = 0;
     size_t rotationIdx = 0;
     RawPath::Iter startOfContour;
@@ -1217,8 +1207,6 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                             path.paddingVertexCount);
         RIVE_DEBUG_CODE(++pushedPathCount;)
 
-        RIVE_DEBUG_CODE(uint32_t pathStartingTessVertexCount = m_context->currentTessVertexCount();)
-
         if (path.triangulator != nullptr)
         {
             // This path is drawn with the interior triangulation algorithm instead.
@@ -1231,13 +1219,9 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                                                  paintType,
                                                  path.clipID,
                                                  blendMode);
-            assert(m_context->currentTessVertexCount() ==
-                   pathStartingTessVertexCount + path.tessVertexCount);
         }
         else
         {
-            RIVE_DEBUG_CODE(uint32_t contourStartingTessVertexCount =
-                                m_context->currentTessVertexCount() + path.paddingVertexCount;)
             startOfContour = path.rawPath->begin();
             for (size_t i = 0; i < path.contourCount; ++i)
             {
@@ -1256,17 +1240,11 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                 assert(m_pushedStrokeJoinCount ==
                        (currentPathIdx == strokeIdx ? contour.strokeJoinCount : 0));
                 assert(m_pushedStrokeCapCount == (contour.strokeCapSegmentCount != 0 ? 2 : 0));
-                assert(m_context->currentTessVertexCount() ==
-                       contourStartingTessVertexCount + contour.tessVertexCount);
                 curveIdx = contour.endCurveIdx;
                 rotationIdx = contour.endRotationIdx;
                 startOfContour = contour.endOfContour;
                 RIVE_DEBUG_CODE(++pushedContourCount);
-                RIVE_DEBUG_CODE(contourStartingTessVertexCount =
-                                    m_context->currentTessVertexCount();)
             }
-            assert(contourStartingTessVertexCount ==
-                   pathStartingTessVertexCount + path.tessVertexCount);
         }
     }
 
@@ -1281,8 +1259,6 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     assert(m_pushedLineCount + m_pushedCurveCount + m_pushedEmptyStrokeCountForCaps +
                interiorTriHelper.patchCount() ==
            curveReserveCount);
-    assert(m_context->currentTessVertexCount() ==
-           batchStartingTessVertexCount + batchTotalTessVertexCount);
     return true;
 }
 

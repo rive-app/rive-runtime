@@ -19,11 +19,6 @@ constexpr static double kGPUResourcePadding = 1.25;
 // When we exceed the capacity of a GPU resource mid-flush, double it immediately.
 constexpr static double kGPUResourceIntermediateGrowthFactor = 2;
 
-// The final patch of the final contour in a flush needs to see the kFirstVertexOfContour flag in
-// order to render properly, so we tessellate (and don't draw) one more empty line at the
-// end of the buffer as an "end of previous contour" marker.
-constexpr static size_t kEndOfTessMarkerVertexCount = 2;
-
 uint32_t PLSRenderContext::ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
 {
     uint32_t defines = 0;
@@ -422,16 +417,20 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
                                        uint32_t tessVertexCount)
 {
     assert(m_didBeginFrame);
+    assert(m_tessVertexCount == m_expectedTessVertexCountAtNextReserve);
 
+    // +1 for the padding vertex at the end.
+    size_t maxTessVertexCountWithInternalPadding = tessVertexCount + 1;
     // Line breaks potentially introduce a new span. Count the maximum number of line breaks we
     // might encounter.
     size_t y0 = m_tessVertexCount / kTessTextureWidth;
-    size_t y1 = (m_tessVertexCount + tessVertexCount - 1) / kTessTextureWidth;
+    size_t y1 = (m_tessVertexCount + maxTessVertexCountWithInternalPadding - 1) / kTessTextureWidth;
     size_t maxSpanBreakCount = y1 - y0;
-    // +1 for our empty "end-of-contour" marker's span.
-    size_t maxTessellationSpans = curveCount + maxSpanBreakCount + 1;
-    // +kEndOfTessMarkerVertexCount for our empty "end-of-contour" marker's vertices.
-    size_t tessVertexCountWithMarkers = tessVertexCount + kEndOfTessMarkerVertexCount;
+    // +pathCount for a span of padding vertices at the beginning of each path.
+    // +1 for the padding vertex at the end of the entire tessellation texture (in case this happens
+    // to be the final batch of paths in the flush).
+    size_t maxPaddingVertexSpans = pathCount + 1;
+    size_t maxTessellationSpans = maxPaddingVertexSpans + curveCount + maxSpanBreakCount;
 
     // Guard against the case where a single draw overwhelms our GPU resources. Since nothing has
     // been mapped yet on the first draw, we have a unique opportunity at this time to grow our
@@ -455,9 +454,9 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
             newLimits.maxTessellationSpans = maxTessellationSpans;
             needsRealloc = true;
         }
-        if (newLimits.maxTessellationVertices < tessVertexCountWithMarkers)
+        if (newLimits.maxTessellationVertices < maxTessVertexCountWithInternalPadding)
         {
-            newLimits.maxTessellationVertices = tessVertexCountWithMarkers;
+            newLimits.maxTessellationVertices = maxTessVertexCountWithInternalPadding;
             needsRealloc = true;
         }
         assert(!m_pathBuffer.mapped());
@@ -479,11 +478,13 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
     if (m_currentPathID + pathCount <= m_currentResourceLimits.maxPathID &&
         m_currentContourID + contourCount <= m_currentResourceLimits.maxContourID &&
         m_tessSpanBuffer.hasRoomFor(maxTessellationSpans) &&
-        m_tessVertexCount + tessVertexCountWithMarkers <=
+        m_tessVertexCount + maxTessVertexCountWithInternalPadding <=
             m_currentResourceLimits.maxTessellationVertices)
     {
         assert(m_pathBuffer.hasRoomFor(pathCount));
         assert(m_contourBuffer.hasRoomFor(contourCount));
+        RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve =
+                            m_tessVertexCount + tessVertexCount);
         return true;
     }
 
@@ -649,6 +650,7 @@ void PLSRenderContext::pushPath(PatchType patchType,
     uint32_t patchSize = PatchSegmentSpan(drawType);
     uint32_t baseInstance = baseVertexToDraw / patchSize;
     // The caller is responsible to pad each path so it begins on a multiple of the patch size.
+    // (See PLSRenderContext::PathPaddingCalculator.)
     assert(baseInstance * patchSize == baseVertexToDraw);
     pushDraw(drawType, baseInstance, fillRule, paintType, clipID, blendMode);
     assert(m_drawList.tail().baseVertexOrInstance + m_drawList.tail().vertexOrInstanceCount ==
@@ -659,12 +661,15 @@ void PLSRenderContext::pushPath(PatchType patchType,
     assert(instanceCount * patchSize == vertexCountToDraw);
     m_drawList.tail().vertexOrInstanceCount += instanceCount;
 
+    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = m_tessVertexCount + tessVertexCount);
+
     // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument align the beginning of the path
-    // on a boundary of the patch size.
-    m_currentContourPaddingVertexCount = paddingVertexCount;
-
-    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = m_tessVertexCount + tessVertexCount);
+    // on a boundary of the patch size. (See PLSRenderContext::TessVertexCounter.)
+    if (paddingVertexCount > 0)
+    {
+        pushPaddingVertices(paddingVertexCount);
+    }
 }
 
 void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount)
@@ -685,17 +690,10 @@ void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t padding
     assert(0 < m_currentContourID && m_currentContourID <= kMaxContourID);
     assert(m_currentContourID == m_contourBuffer.bytesWritten() / sizeof(ContourData));
 
-    m_currentContourIDWithFlags = m_currentContourID;
-
-    // The first tessellated vertex in every contour gets the kFirstVertexOfContour flag as a marker
-    // for the GPU. Start out with the kFirstVertexOfContour flag set. We will flip it off after we
-    // push the first curve in this contour.
-    m_currentContourIDWithFlags |= flags::kFirstVertexOfContour;
-
     // The first curve of the contour will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument align the end of the contour on
-    // a boundary of the patch size.
-    m_currentContourPaddingVertexCount += paddingVertexCount;
+    // a boundary of the patch size. (See pls::PaddingToAlignUp().)
+    m_currentContourPaddingVertexCount = paddingVertexCount;
 }
 
 void PLSRenderContext::pushCubic(const Vec2D pts[4],
@@ -709,7 +707,7 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
     assert(0 <= parametricSegmentCount && parametricSegmentCount <= kMaxParametricSegments);
     assert(0 <= polarSegmentCount && polarSegmentCount <= kMaxPolarSegments);
     assert(joinSegmentCount > 0);
-    assert((m_currentContourIDWithFlags & kContourIDMask) != 0); // contourID can't be zero.
+    assert(m_currentContourID != 0); // contourID can't be zero.
 
     // Polar and parametric segments share the same beginning and ending vertices, so the merged
     // *vertex* count is equal to the sum of polar and parametric *segment* counts.
@@ -717,9 +715,40 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
     // -1 because the curve and join share an ending/beginning vertex.
     uint32_t totalVertexCount =
         m_currentContourPaddingVertexCount + curveMergedVertexCount + joinSegmentCount - 1;
+
+    // Only the first curve of a contour gets padding vertices.
+    m_currentContourPaddingVertexCount = 0;
+
+    pushTessellationSpans(pts,
+                          joinTangent,
+                          totalVertexCount,
+                          parametricSegmentCount,
+                          polarSegmentCount,
+                          joinSegmentCount,
+                          m_currentContourID | additionalPLSFlags);
+}
+
+void PLSRenderContext::pushPaddingVertices(uint32_t count)
+{
+    constexpr static Vec2D kEmptyCubic[4]{};
+    // This is guaranteed to not collide with a neighboring contour ID.
+    constexpr static uint32_t kInvalidContourID = 0;
+    RIVE_DEBUG_CODE(size_t startingVertexCount = m_tessVertexCount;)
+    pushTessellationSpans(kEmptyCubic, {0, 0}, count, 0, 0, 1, kInvalidContourID);
+    assert(m_tessVertexCount == startingVertexCount + count);
+}
+
+RIVE_ALWAYS_INLINE void PLSRenderContext::pushTessellationSpans(const Vec2D pts[4],
+                                                                Vec2D joinTangent,
+                                                                uint32_t totalVertexCount,
+                                                                uint32_t parametricSegmentCount,
+                                                                uint32_t polarSegmentCount,
+                                                                uint32_t joinSegmentCount,
+                                                                uint32_t contourIDWithFlags)
+{
+    int32_t y = m_tessVertexCount / kTessTextureWidth;
     int32_t x0 = m_tessVertexCount % kTessTextureWidth;
     int32_t x1 = x0 + totalVertexCount;
-    uint32_t y = (m_tessVertexCount / kTessTextureWidth);
     for (;;)
     {
         m_tessSpanBuffer.set_back(pts,
@@ -730,7 +759,7 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
                                   parametricSegmentCount,
                                   polarSegmentCount,
                                   joinSegmentCount,
-                                  m_currentContourIDWithFlags | additionalPLSFlags);
+                                  contourIDWithFlags);
         if (x1 > kTessTextureWidth)
         {
             // The span was too long to fit on the current line. Wrap and draw it again, this
@@ -743,14 +772,6 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
         }
         break;
     }
-
-    // The first tessellated vertex in every contour gets the kFirstVertexOfContour flag as a marker
-    // for the GPU. Ensure all other packed IDs do not have this flag after that first tessellated
-    // vertex.
-    m_currentContourIDWithFlags &= ~flags::kFirstVertexOfContour;
-
-    // Only the first curve of a contour gets padding vertices.
-    m_currentContourPaddingVertexCount = 0;
 
     m_tessVertexCount += totalVertexCount;
     assert(m_tessVertexCount <= m_currentResourceLimits.maxTessellationVertices);
@@ -810,27 +831,23 @@ void PLSRenderContext::flush(FlushType flushType)
 {
     assert(m_didBeginFrame);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
+    if (flushType == FlushType::intermediate)
+    {
+        // We might not have pushed as many tessellation vertices as expected if we ran out of room
+        // for the paint and had to flush.
+        assert(m_tessVertexCount <= m_expectedTessVertexCountAtNextReserve);
+    }
+    else
+    {
+        assert(m_tessVertexCount == m_expectedTessVertexCountAtNextReserve);
+    }
 
-    // The first tessellated vertex in every contour gets the kFirstVertexOfContour flag, and when
-    // emitting patches, this flag is how the GPU detects when it has crossed past the end of the
-    // current contour. When this happens, the GPU knows to no not connect those two vertices, and
-    // instead, either wraps back around to the beginning of the contour to close it, or else
-    // handles the endcap if it's an open stroke.
-    //
-    // The final patch of the final contour in our buffer also needs to see that
-    // kFirstVertexOfContour flag in order to render properly, so we tessellate (and don't draw) one
-    // more empty line at the end of the buffer as an end-of-previous-contour marker.
-    //
-    // TODO: This is a little kludgey. Maybe we can find a cleaner way to accomplish this?
+    // The final vertex of the final patch of each contour crosses over into the next contour. (This
+    // is how we wrap around back to the beginning.) Therefore, the final contour of the flush needs
+    // an out-of-contour vertex to cross into as well, so we emit a padding vertex here at the end.
     if (!m_tessSpanBuffer.empty())
     {
-        Vec2D emptyLine[4]{};
-        // Make sure this empty line gets the kFirstVertexOfContour flag.
-        m_currentContourIDWithFlags = ~0;
-        assert(m_currentContourPaddingVertexCount == 0);
-        RIVE_DEBUG_CODE(size_t startingVertexCount = m_tessVertexCount;)
-        this->pushCubic(emptyLine, Vec2D{}, 0, 1, 1, 1);
-        assert(m_tessVertexCount == startingVertexCount + kEndOfTessMarkerVertexCount);
+        pushPaddingVertices(1);
     }
 
     if (m_maxTriangleVertexCount > 0)
@@ -951,12 +968,12 @@ void PLSRenderContext::flush(FlushType flushType)
 
     m_currentPathID = 0;
     m_currentContourID = 0;
-    m_currentContourIDWithFlags = 0;
 
     m_simpleGradients.clear();
     m_complexGradients.clear();
 
     m_tessVertexCount = 0;
+    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve = 0);
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = 0);
 
     m_maxTriangleVertexCount = 0;

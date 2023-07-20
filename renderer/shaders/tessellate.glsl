@@ -185,11 +185,6 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain, Varyings, varyings)
     float joinSegmentCount = float(joinSegmentCount_and_parametricSegmentCount >> 10);
     float radsPerPolarSegment = v_args.w;
     uint contourIDWithFlags = v_contourIDWithFlags;
-    // PLSRenderer sends down the first curve of each contour with the
-    // "FIRST_VERTEX_OF_CONTOUR_FLAG" flag. But from here we need to only output this flag for the
-    // first *vertex* of that first curve.
-    if (vertexIdx != .0)
-        contourIDWithFlags &= ~FIRST_VERTEX_OF_CONTOUR_FLAG;
 
     // mergedVertexID/mergedSegmentCount are relative to the sub-section of the instance this vertex
     // belongs to (either the curve section that consists of merged polar and parametric segments,

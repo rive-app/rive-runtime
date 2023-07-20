@@ -138,8 +138,36 @@ public:
         return m_clipContentID;
     }
 
-    // Returns the number of tessellation vertices that have been pushed during the current flush.
-    uint32_t currentTessVertexCount() const { return m_tessVertexCount; }
+    // Utility for calculating the total tessellation vertex count of a batch of paths, and finding
+    // how much padding to insert between paths.
+    class TessVertexCounter
+    {
+    public:
+        TessVertexCounter(PLSRenderContext* context) :
+            m_initialTessVertexCount(context->m_tessVertexCount),
+            m_runningTessVertexCount(context->m_tessVertexCount)
+        {
+            // Don't create a path calculator while the context is in the middle of pushing a path.
+            assert(m_runningTessVertexCount == context->m_expectedTessVertexCountAtEndOfPath);
+        }
+
+        // Returns the required number of padding vertices to insert before the path.
+        template <size_t PatchSize> [[nodiscard]] size_t countPath(size_t pathTessVertexCount)
+        {
+            size_t padding = PaddingToAlignUp<PatchSize>(m_runningTessVertexCount);
+            m_runningTessVertexCount += padding + pathTessVertexCount;
+            return padding;
+        }
+
+        size_t totalVertexCount() const
+        {
+            return m_runningTessVertexCount - m_initialTessVertexCount;
+        }
+
+    private:
+        size_t m_initialTessVertexCount;
+        size_t m_runningTessVertexCount;
+    };
 
     // Reserves space for 'pathCount', 'contourCount', 'curveCount', and 'tessVertexCount' records
     // in their respective GPU buffers, prior to calling pushPath(), pushContour(), pushCubic().
@@ -163,7 +191,7 @@ public:
     //
     // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument to align the beginning of the
-    // path on a boundary of the patch size.
+    // path on a boundary of the patch size. (See PLSRenderContext::TessVertexCounter.)
     void pushPath(PatchType,
                   const Mat2D&,
                   float strokeRadius,
@@ -180,7 +208,7 @@ public:
     //
     // The first curve of the contour will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument to align the end of the contour
-    // on a boundary of the patch size.
+    // on a boundary of the patch size. (See pls::PaddingToAlignUp().)
     void pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount);
 
     // Appends a cubic curve and join to the most-recently pushed contour, and reserves the
@@ -474,6 +502,21 @@ private:
     // Updates the draw's ShaderFeatures according to the passed parameters.
     void pushDraw(DrawType, size_t baseVertex, FillRule, PaintType, uint32_t clipID, PLSBlendMode);
 
+    // Writes padding vertices to the tessellation texture, with an invalid contour ID that is
+    // guaranteed to not be the same ID as any neighbors.
+    void pushPaddingVertices(uint32_t count);
+
+    // Allocates a (potentially wrapped) span in the tessellation texture and pushes an instance to
+    // render it. If the span does wraps, pushes multiple instances to render each horizontal
+    // segment.
+    RIVE_ALWAYS_INLINE void pushTessellationSpans(const Vec2D pts[4],
+                                                  Vec2D joinTangent,
+                                                  uint32_t totalVertexCount,
+                                                  uint32_t parametricSegmentCount,
+                                                  uint32_t polarSegmentCount,
+                                                  uint32_t joinSegmentCount,
+                                                  uint32_t contourIDWithFlags);
+
     // Capacities of all our GPU resource allocations.
     struct GPUResourceLimits
     {
@@ -594,9 +637,9 @@ private:
     bool m_currentPathIsStroked = false;
     uint32_t m_currentPathID = 0;
     uint32_t m_currentContourID = 0;
-    uint32_t m_currentContourIDWithFlags = 0;
     uint32_t m_currentContourPaddingVertexCount = 0; // Padding vertices to add to the first curve.
     uint32_t m_tessVertexCount = 0;
+    RIVE_DEBUG_CODE(uint32_t m_expectedTessVertexCountAtNextReserve = 0;)
     RIVE_DEBUG_CODE(uint32_t m_expectedTessVertexCountAtEndOfPath = 0;)
 
     // Simple gradients have one stop at t=0 and one stop at t=1. They're implemented with 2 texels.

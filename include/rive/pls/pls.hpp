@@ -87,34 +87,26 @@ constexpr size_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
 // Flags for on-GPU rendering data.
 namespace flags
 {
-// Tells the GPU that a given vertex is the *first* tessellated vertex in its contour.
-//
-// When emitting patches, this flag is how the GPU detects when it has crossed past the end of the
-// current contour. When this happens, the GPU knows to no not connect those two vertices, and
-// instead, either wraps back around to the beginning of the contour to close it, or else handles
-// the endcap if it's an open stroke.
-constexpr static uint32_t kFirstVertexOfContour = 1u << 31;
-
 // Tells shaders that a cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
 // This is used to squeeze in more rare triangles, like "grout" triangles from self intersections on
 // interior triangulation, where it wouldn't be worth it to put them in their own dedicated draw
 // call.
-constexpr static uint32_t kRetrofittedTriangle = 1u << 30;
+constexpr static uint32_t kRetrofittedTriangle = 1u << 31;
 
 // Tells the tessellation shader to re-run Wang's formula on the given curve, figure out how many
 // segments it actually needs, and make any excess segments degenerate by co-locating their vertices
 // at T=0. (Used on the "outerCurve" patches that are drawn with interior triangulations.)
-constexpr static uint32_t kCullExcessTessellationSegments = 1u << 29;
+constexpr static uint32_t kCullExcessTessellationSegments = 1u << 30;
 
 // Flags for specifying the join type.
-constexpr static uint32_t kJoinTypeMask = 3u << 27;
-constexpr static uint32_t kMiterClipJoin = 3u << 27;   // Miter that clips when too sharp.
-constexpr static uint32_t kMiterRevertJoin = 2u << 27; // Standard miter that pops when too sharp.
-constexpr static uint32_t kBevelJoin = 1u << 27;
+constexpr static uint32_t kJoinTypeMask = 3u << 28;
+constexpr static uint32_t kMiterClipJoin = 3u << 28;   // Miter that clips when too sharp.
+constexpr static uint32_t kMiterRevertJoin = 2u << 28; // Standard miter that pops when too sharp.
+constexpr static uint32_t kBevelJoin = 1u << 28;
 
 // When a join is being used to emulate a stroke cap, the shader emits additional vertices at T=0
 // and T=1 for round joins, and changes the miter limit to 1 for miter-clip joins.
-constexpr static uint32_t kEmulatedStrokeCap = 1u << 26;
+constexpr static uint32_t kEmulatedStrokeCap = 1u << 27;
 
 RIVE_ALWAYS_INLINE static uint32_t JoinTypeFlags(StrokeJoin join)
 {
@@ -426,6 +418,16 @@ constexpr static uint32_t kPatchIndexBufferCount =
     kMidpointFanPatchIndexCount + kOuterCurvePatchIndexCount;
 void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
                              uint16_t indices[kPatchIndexBufferCount]);
+
+// Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
+template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)
+{
+    constexpr uint32_t maxMultipleOfAlignment =
+        std::numeric_limits<uint32_t>::max() / Alignment * Alignment;
+    uint32_t padding = (maxMultipleOfAlignment - value) % Alignment;
+    assert((value + padding) % Alignment == 0);
+    return padding;
+}
 
 // Returns the area of the (potentially non-rectangular) quadrilateral that results from
 // transforming the given bounds by the given matrix.

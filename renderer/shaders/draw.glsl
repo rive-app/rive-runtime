@@ -104,24 +104,14 @@ VERTEX_MAIN(@drawVertexMain,
     int patchSegmentSpan = floatBitsToInt(@a_patchVertexData.w) >> 2;
     int vertexType = floatBitsToInt(@a_patchVertexData.w) & 3;
 
-    // Fetch the tessellation vertex we belong to.
-    int tessVertexIdx = _instanceID * patchSegmentSpan + localVertexID;
+    // Fetch a vertex that definitely belongs to the contour we're drawing.
+    int vertexIDOnContour = min(localVertexID, patchSegmentSpan - 1);
+    int tessVertexIdx = _instanceID * patchSegmentSpan + vertexIDOnContour;
 #ifdef @ENABLE_BASE_INSTANCE_POLYFILL
     tessVertexIdx += @baseInstancePolyfill * patchSegmentSpan;
 #endif
-    int2 tessVertexTexelCoord = tessTexelCoord(tessVertexIdx);
-    uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord);
+    uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessTexelCoord(tessVertexIdx));
     uint contourIDWithFlags = tessVertexData.w;
-    bool isClosingVertexOfContour = localVertexID == patchSegmentSpan &&
-                                    (contourIDWithFlags & FIRST_VERTEX_OF_CONTOUR_FLAG) != 0u;
-    if (isClosingVertexOfContour)
-    {
-        // The right vertex crossed over into a new contour. Fetch the previous vertex, which will
-        // be the final vertex of the contour we're trying to draw.
-        tessVertexTexelCoord = tessTexelCoord(tessVertexIdx - 1);
-        tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessVertexTexelCoord);
-        contourIDWithFlags = tessVertexData.w;
-    }
 
     // Fetch and unpack the contour referenced by the tessellation vertex.
     uint4 contourData =
@@ -148,20 +138,33 @@ VERTEX_MAIN(@drawVertexMain,
 #else
     float strokeRadius = uintBitsToFloat(pathData.z);
 
-    // Finish unpacking tessVertexData.
-    if (isClosingVertexOfContour)
+    // Fix the tessellation vertex if we fetched the wrong one in order to guarantee we got the
+    // correct contour ID and flags.
+    if (localVertexID != vertexIDOnContour)
     {
-        bool isClosed = strokeRadius == .0 || // filled
-                        midpoint.x != .0;     // explicity closed stroke
-        if (isClosed)
+        tessVertexIdx += localVertexID - vertexIDOnContour;
+        uint4 replacementTessVertexData =
+            TEXEL_FETCH(textures, @tessVertexTexture, tessTexelCoord(tessVertexIdx));
+        if ((replacementTessVertexData.w & 0xffffu) != (contourIDWithFlags & 0xffffu))
         {
-            // The contour is closed and we are the closing vertex. Wrap back around full circle and
-            // re-emit the first tessellation vertex.
-            int2 vertexTexelCoord0 = tessTexelCoord(int(vertexIndex0));
-            tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, vertexTexelCoord0);
-            contourIDWithFlags = tessVertexData.w;
+            // We crossed over into a new contour. Either wrap to the first vertex in the contour or
+            // leave it clamped at the final vertex of the contour.
+            bool isClosed = strokeRadius == .0 || // filled
+                            midpoint.x != .0;     // explicity closed stroke
+            if (isClosed)
+            {
+                tessVertexData =
+                    TEXEL_FETCH(textures, @tessVertexTexture, tessTexelCoord(int(vertexIndex0)));
+            }
         }
+        else
+        {
+            tessVertexData = replacementTessVertexData;
+        }
+        contourIDWithFlags = tessVertexData.w;
     }
+
+    // Finish unpacking tessVertexData.
     float theta = uintBitsToFloat(tessVertexData.z);
     float2 norm = float2(sin(theta), -cos(theta));
     float2 origin = uintBitsToFloat(tessVertexData.xy);
