@@ -331,11 +331,10 @@ VERTEX_MAIN(@drawVertexMain,
 
     // Unpack the paint once we have a position.
     uint4 paintData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(2, 0));
-    float4 paint;
     if (paintType != LINEAR_GRADIENT_PAINT_TYPE && paintType != RADIAL_GRADIENT_PAINT_TYPE)
     {
         // The paint is a solid color or clip.
-        paint = uintBitsToFloat(paintData);
+        v_paint = uintBitsToFloat(paintData);
     }
     else
     {
@@ -344,34 +343,32 @@ VERTEX_MAIN(@drawVertexMain,
         float row = float(span >> 20);
         float x1 = float((span >> 10) & 0x3ffu);
         float x0 = float(span & 0x3ffu);
-        // paint.a contains "-row" of the gradient ramp at texel center, in normalized space.
-        paint.a = (row + .5) * -uniforms.gradTextureInverseHeight;
-        // paint.b contains x0 of the gradient ramp, and whether the ramp is two texels or an entire
-        // row. Specifically:
-        //   - fract(paint.b) = normalized coordinate of x0, at texel center
-        //   - paint.b < 1 => two-texel ramp
-        //   - paint.b > 1 => the ramp spans an entire row
-        paint.b = x0 * (1. / GRAD_TEXTURE_WIDTH) + (.5 / GRAD_TEXTURE_WIDTH);
+        // v_paint.a contains "-row" of the gradient ramp at texel center, in normalized space.
+        v_paint.a = (row + .5) * -uniforms.gradTextureInverseHeight;
+        // abs(v_paint.b) contains either:
+        //   - 2 if the gradient ramp spans an entire row.
+        //   - x0 of the gradient ramp in normalized space, if it's a simple 2-texel ramp.
         if (x1 > x0 + 1.)
-            ++paint.b; // x1 must equal GRAD_TEXTURE_WIDTH - 1. Increment paint.b to convey this.
+            v_paint.b = 2.; // This ramp spans an entire row. Set it to 2 to convey this.
+        else
+            v_paint.b = x0 * (1. / GRAD_TEXTURE_WIDTH) + (.5 / GRAD_TEXTURE_WIDTH);
         float2 localCoord = MUL(inverse(mat), vertexPosition - translate);
         float3 gradCoeffs = uintBitsToFloat(paintData.yzw);
         if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
         {
             // The paint is a linear gradient.
-            paint.g = .0;
-            paint.r = dot(localCoord, gradCoeffs.xy) + gradCoeffs.z;
+            v_paint.g = .0;
+            v_paint.r = dot(localCoord, gradCoeffs.xy) + gradCoeffs.z;
         }
         else
         {
-            // The paint is a radial gradient. Mark paint.b negative to indicate this to the
-            // fragment shader. (paint.b can't be zero because the gradient ramp is aligned on pixel
-            // centers, so negating it will always produce a negative number.)
-            paint.b = -paint.b;
-            paint.rg = (localCoord - gradCoeffs.xy) / gradCoeffs.z;
+            // The paint is a radial gradient. Mark v_paint.b negative to indicate this to the
+            // fragment shader. (v_paint.b can't be zero because the gradient ramp is aligned on
+            // pixel centers, so negating it will always produce a negative number.)
+            v_paint.b = -v_paint.b;
+            v_paint.rg = (localCoord - gradCoeffs.xy) / gradCoeffs.z;
         }
     }
-    v_paint = paint;
 
     _pos.xy = vertexPosition * float2(uniforms.renderTargetInverseViewportX,
                                       -uniforms.renderTargetInverseViewportY) +
@@ -431,29 +428,6 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_UNPACK(varyings, v_blendMode, half);
 #endif
-
-    float4 paint = v_paint;
-    half4 color;
-    if (paint.a >= .0)
-    {
-        // The paint is a solid color or clip.
-        color = make_half4(paint);
-    }
-    else
-    {
-        // The paint is a gradient (linear or radial).
-        float t = paint.b > .0 ? paint.r /* linear */ : length(paint.rg) /* radial */;
-        t = clamp(t, .0, 1.);
-        float span = abs(paint.b);
-        float x0 = fract(span);
-        float x1 =
-            span > 1.
-                ? ((GRAD_TEXTURE_WIDTH - .5) / GRAD_TEXTURE_WIDTH) // The ramp spans an entire row.
-                : x0 + (1. / GRAD_TEXTURE_WIDTH);                  // The ramp spans 2 texels.
-        float row = -paint.a;
-        float2 gradCoord = float2(mix(x0, x1, t), row);
-        color = make_half4(TEXTURE_SAMPLE(textures, @gradTexture, gradSampler, gradCoord));
-    }
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
     // Interior triangles don't overlap, so don't need raster ordering.
@@ -526,8 +500,26 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
 #endif
         PLS_PRESERVE_VALUE(clipBuffer);
 
-        // Blend with the framebuffer color.
+        half4 color;
+        if (v_paint.a >= .0)
+        {
+            color = make_half4(v_paint); // The paint is a solid color.
+        }
+        else
+        {
+            // The paint is a gradient (linear or radial).
+            float t = v_paint.b > .0 ? /*linear*/ v_paint.r : /*radial*/ length(v_paint.rg);
+            t = clamp(t, .0, 1.);
+            float span = abs(v_paint.b);
+            float x = span > 1. ? /*entire row*/ (1. - 1. / GRAD_TEXTURE_WIDTH) * t +
+                                      (.5 / GRAD_TEXTURE_WIDTH)
+                                : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
+            float row = -v_paint.a;
+            color = make_half4(TEXTURE_SAMPLE(textures, @gradTexture, gradSampler, float2(x, row)));
+        }
         color.a *= coverage;
+
+        // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
         if (v_blendMode != .0 /*srcOver*/)
         {
