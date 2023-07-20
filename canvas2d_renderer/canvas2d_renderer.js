@@ -152,6 +152,9 @@ function initializeCanvas2DRenderer() {
     "blendMode": function (value) {
       this._blend = _canvasBlend(value);
     },
+    "clearGradient": function () {
+      this._gradient = null;
+    },
     "linearGradient": function (sx, sy, ex, ey) {
       this._gradient = {
         sx,
@@ -251,7 +254,7 @@ function initializeCanvas2DRenderer() {
       this._ctx["restore"]();
     },
     "transform": function (xx, xy, yx, yy, tx, ty) {
-      this._ctx["transform"](xx, xy, yx, yy, tx, ty)
+      this._ctx["transform"](xx, xy, yx, yy, tx, ty);
     },
     "rotate": function (angle) {
       const sin = Math.sin(angle);
@@ -260,12 +263,10 @@ function initializeCanvas2DRenderer() {
     },
     "_drawPath": function (path, paint) {
       const fillRule = path._fillRule === evenOdd ? "evenodd" : "nonzero";
-      paint["draw"](this._ctx, path._path2D, fillRule)
+      paint["draw"](this._ctx, path._path2D, fillRule);
     },
-    "_drawImage": function (image, blend, opacity) {
-    },
-    "_getMatrix": function (out) {
-    },
+    "_drawImage": function (image, blend, opacity) {},
+    "_getMatrix": function (out) {},
     "_drawImageMesh": function (
       image,
       blend,
@@ -277,11 +278,10 @@ function initializeCanvas2DRenderer() {
       meshMinY,
       meshMaxX,
       meshMaxY
-    ) {
-    },
+    ) {},
     "_clipPath": function (path) {
       const fillRule = path._fillRule === evenOdd ? "evenodd" : "nonzero";
-      this._ctx["clip"](path._path2D, fillRule)
+      this._ctx["clip"](path._path2D, fillRule);
     },
     "clear": function () {
       this._ctx["clearRect"](
@@ -305,11 +305,13 @@ function initializeCanvas2DRenderer() {
       return new CanvasRenderPath();
     },
     makeRenderImage: function () {
-      return null;//new CanvasRenderImage();
+      return null; //new CanvasRenderImage();
     },
     makeRenderer: function (canvasIDPtr, canvasIDLength) {
       const utf8 = new Uint8Array(canvasIDLength);
-      utf8.set(Module.HEAPU8.subarray(canvasIDPtr, canvasIDPtr + canvasIDLength));
+      utf8.set(
+        Module.HEAPU8.subarray(canvasIDPtr, canvasIDPtr + canvasIDLength)
+      );
       idString = new TextDecoder().decode(utf8);
       return new CanvasRenderer(document.getElementById(idString));
     },
@@ -333,4 +335,4 @@ function initializeCanvas2DRenderer() {
       }
     });
   };
-};
+}
