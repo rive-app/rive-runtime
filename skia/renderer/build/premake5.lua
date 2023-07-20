@@ -143,7 +143,6 @@ do
 
     filter 'configurations:debug'
     do
-        buildoptions {'-g'}
         defines {'DEBUG'}
         symbols 'On'
     end
