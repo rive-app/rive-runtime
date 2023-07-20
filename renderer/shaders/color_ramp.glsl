@@ -45,11 +45,11 @@ VERTEX_MAIN(@colorRampVertexMain,
     float y = float(@a_span.y) + ((_vertexID & 2) == 0 ? .0 : 1.);
     v_rampColor = unpackColorInt((_vertexID & 1) == 0 ? @a_span.z : @a_span.w);
     _pos.x = x * 2. - 1.;
-    _pos.y = y * uniforms.gradInverseViewportY - 1.;
+    _pos.y = y * uniforms.gradInverseViewportY - sign(uniforms.gradInverseViewportY);
     _pos.zw = float2(0, 1);
 
     VARYING_PACK(varyings, v_rampColor);
-    EMIT_OFFSCREEN_VERTEX(varyings, _pos);
+    EMIT_VERTEX(varyings, _pos);
 }
 #endif
 

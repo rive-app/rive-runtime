@@ -15,8 +15,8 @@ Performs the following transformations:
     * Strip unused #defines.
     * Rename stpq and rgba swizzles to xyzw.
     * Rename variables.
-        - No new name includes the '_' character, so internal code can use '_' without fear of
-          renaming collisions.
+        - No new name begins with the '_' character, so internal code can begin names with '_'
+          without fear of renaming collisions.
         - GLSL keywords and builtins are not renamed.
         - Tokens beginning with '@' have their new name exported to a header file.
         - Tokens beginning with '$' are not renamed, with the exception of removing the leading '$'.
@@ -301,20 +301,44 @@ def is_reserved_keyword(name):
 def remove_leading_annotation(name):
     return name[1:] if name[0] == '@' or name[0] == '$' else name
 
-# generates new identifier names to rewrite our variables.
-# exclude '_' from our new names. Internal variables can use '_' to avoid naming collisions.
-new_name_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-next_new_name_index = 0
-def generate_new_name():
-    global next_new_name_index, new_name_chars
-    while True:
-        i = next_new_name_index
-        next_new_name_index = next_new_name_index + 1
-        name = new_name_chars[0] if i == 0 else ""
+# Generates new identifier names to rewrite our variables.
+class NameGenerator:
+    def __init__(self, first_letter_chars, additional_letter_chars):
+        self.first_letter_chars = first_letter_chars
+        self.additional_letter_chars = additional_letter_chars
+        self.name_index = 0
+
+    def next_name(self):
+        i = self.name_index
+        # Generate the first character from 'self.first_letter_chars'
+        name = self.first_letter_chars[i % len(self.first_letter_chars)]
+        i = i // len(self.first_letter_chars)
         while i > 0:
-            name += new_name_chars[i % len(new_name_chars)]
-            i = i // len(new_name_chars)
-        if not is_reserved_keyword(name):
+            # Generate the remaining characters from 'self.additional_letter_chars'
+            name += self.additional_letter_chars[i % len(self.additional_letter_chars)]
+            i = i // len(self.additional_letter_chars)
+        self.name_index = self.name_index + 1
+        return name
+
+# Exported variables only use upper case letters in their names. HLSL semantics are not case
+# sensitive and may also assign special meaning to numbers.
+upper_case_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+upper_case_name_generator = NameGenerator(upper_case_chars, upper_case_chars + '_')
+
+# Don't begin new names with the the '_' character. Internal code can begin names with '_' without
+# fear of renaming collisions.
+lower_and_upper_chars = "abcdefghijklmnopqrstuvwxyz" + upper_case_chars
+general_name_generator = NameGenerator(lower_and_upper_chars, "_0123456789" + lower_and_upper_chars)
+
+used_new_names = set()
+
+def generate_new_name(*, force_upper_case):
+    global upper_case_name_generator, general_name_generator, used_new_names;
+    name_generator = upper_case_name_generator if force_upper_case else general_name_generator
+    while True:
+        name = name_generator.next_name()
+        if not is_reserved_keyword(name) and not name in used_new_names:
+            used_new_names.add(name)
             return name
 
 # mapping from original identifiers to new names.
@@ -323,7 +347,9 @@ def generate_new_names():
     for name,count in sorted(all_id_counts.items(), key=lambda x:x[1], reverse=True):
         new_name = (remove_leading_annotation(name)
                     if args.human_readable or is_reserved_keyword(name)
-                    else generate_new_name())
+                    # HLSL semantics are not case sensitive and can assign special meaning to
+                    # numbers. Make all exported names upper case with no numbers.
+                    else generate_new_name(force_upper_case=name[0] == '@'))
         new_names[name] = new_name
 
 # used to rewrite rgba and stpq swizzles to xyzw.

@@ -150,7 +150,8 @@ VERTEX_MAIN(@tessellateVertexMain,
     }
     v_contourIDWithFlags = contourIDWithFlags;
 
-    _pos.xy = coord * float2(2. / TESS_TEXTURE_WIDTH, uniforms.tessInverseViewportY) - 1.;
+    _pos.x = coord.x * (2. / TESS_TEXTURE_WIDTH) - 1.;
+    _pos.y = coord.y * uniforms.tessInverseViewportY - sign(uniforms.tessInverseViewportY);
     _pos.zw = float2(0, 1);
 
     VARYING_PACK(varyings, v_p0p1);
@@ -158,7 +159,7 @@ VERTEX_MAIN(@tessellateVertexMain,
     VARYING_PACK(varyings, v_args);
     VARYING_PACK(varyings, v_joinArgs);
     VARYING_PACK(varyings, v_contourIDWithFlags);
-    EMIT_OFFSCREEN_VERTEX(varyings, _pos);
+    EMIT_VERTEX(varyings, _pos);
 }
 #endif
 

@@ -159,12 +159,6 @@
     varyings._pos = _pos;                                                                          \
     return varyings;
 
-#define EMIT_OFFSCREEN_VERTEX(varyings, _pos)                                                      \
-    varyings._pos.xzw = _pos.xzw;                                                                  \
-    varyings._pos.y = -_pos.y;                                                                     \
-    return varyings;                                                                               \
-    }
-
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
     DATA_TYPE __attribute__((visibility("default"))) fragment NAME(Varyings varyings [[stage_in]]) \
     {

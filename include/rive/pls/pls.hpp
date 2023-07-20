@@ -163,6 +163,8 @@ struct PlatformFeatures
     uint8_t pathIDGranularity = 1; // Workaround for precision issues. Determines how far apart we
                                    // space unique path IDs.
     bool avoidFlatVaryings = false;
+    bool invertOffscreenY = false; // Invert Y when drawing to offscreen render targets? (Gradient
+                                   // and tessellation textures.)
 };
 
 // Per-flush shared uniforms used by all shaders.
@@ -174,10 +176,12 @@ struct FlushUniforms
                   size_t renderTargetHeight,
                   size_t gradTextureHeight,
                   const PlatformFeatures& platformFeatures) :
-        inverseViewports(2.f / float4{static_cast<float>(complexGradientsHeight),
-                                      static_cast<float>(tessDataHeight),
-                                      static_cast<float>(renderTargetWidth),
-                                      static_cast<float>(renderTargetHeight)}),
+        inverseViewports(
+            (platformFeatures.invertOffscreenY ? float4{-2.f, -2.f, 2.f, 2.f} : float4(2.f)) /
+            float4{static_cast<float>(complexGradientsHeight),
+                   static_cast<float>(tessDataHeight),
+                   static_cast<float>(renderTargetWidth),
+                   static_cast<float>(renderTargetHeight)}),
         gradTextureInverseHeight(1.f / static_cast<float>(gradTextureHeight)),
         pathIDGranularity(platformFeatures.pathIDGranularity)
     {}

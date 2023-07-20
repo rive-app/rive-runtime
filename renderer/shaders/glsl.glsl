@@ -244,10 +244,6 @@
     }                                                                                              \
     gl_Position = _pos;
 
-#define EMIT_OFFSCREEN_VERTEX(varyings, _pos)                                                      \
-    }                                                                                              \
-    gl_Position = _pos;
-
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
     out DATA_TYPE _fd;                                                                             \
     void main()

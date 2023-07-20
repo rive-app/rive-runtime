@@ -187,6 +187,7 @@ std::unique_ptr<PLSRenderContextMetal> PLSRenderContextMetal::Make(id<MTLDevice>
     // It appears, so far, that we don't need to use flat interpolation for path IDs on any Apple
     // device, and it's faster not to.
     platformFeatures.avoidFlatVaryings = true;
+    platformFeatures.invertOffscreenY = true;
     return std::unique_ptr<PLSRenderContextMetal>(
         new PLSRenderContextMetal(platformFeatures, gpu, queue));
 }

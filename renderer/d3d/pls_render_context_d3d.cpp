@@ -144,10 +144,20 @@ static ComPtr<ID3DBlob> compile_source_to_blob(ID3D11Device* gpu,
     return blob;
 }
 
+static PlatformFeatures platform_features_d3d()
+{
+    PlatformFeatures platformFeatures;
+    platformFeatures.invertOffscreenY = true;
+    return platformFeatures;
+}
+
 PLSRenderContextD3D::PLSRenderContextD3D(ComPtr<ID3D11Device> gpu,
                                          ComPtr<ID3D11DeviceContext> gpuContext,
                                          bool isIntel) :
-    PLSRenderContext(PlatformFeatures()), m_isIntel(isIntel), m_gpu(gpu), m_gpuContext(gpuContext)
+    PLSRenderContext(platform_features_d3d()),
+    m_isIntel(isIntel),
+    m_gpu(gpu),
+    m_gpuContext(gpuContext)
 {
     D3D11_RASTERIZER_DESC rasterDesc;
     rasterDesc.FillMode = D3D11_FILL_SOLID;
