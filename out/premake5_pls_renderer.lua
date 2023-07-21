@@ -135,11 +135,34 @@ do
 
     filter "system:android"
     do
-        targetdir "android_%{cfg.buildcfg}"
-        objdir "obj/android_%{cfg.buildcfg}"
+
         files {"../renderer/gl/load_gles_extensions.cpp",
                "../renderer/gl/pls_impl_ext_native.cpp",
                "../renderer/gl/pls_impl_framebuffer_fetch.cpp"}
+
+        filter {'system:android', 'options:arch=x86'}
+        do
+            targetdir '%{cfg.system}/x86/%{cfg.buildcfg}/lib'
+            objdir '%{cfg.system}/x86/%{cfg.buildcfg}/obj'
+        end
+
+        filter {'system:android', 'options:arch=x64'}
+        do
+            targetdir '%{cfg.system}/x64/%{cfg.buildcfg}/lib'
+            objdir '%{cfg.system}/x64/%{cfg.buildcfg}/obj'
+        end
+
+        filter {'system:android', 'options:arch=arm'}
+        do
+            targetdir '%{cfg.system}/arm/%{cfg.buildcfg}/lib'
+            objdir '%{cfg.system}/arm/%{cfg.buildcfg}/obj'
+        end
+
+        filter {'system:android', 'options:arch=arm64'}
+        do
+            targetdir '%{cfg.system}/arm64/%{cfg.buildcfg}/lib'
+            objdir '%{cfg.system}/arm64/%{cfg.buildcfg}/obj'
+        end
     end
 
     filter {"system:macosx or ios", "options:not nop-obj-c"}
@@ -223,4 +246,16 @@ newoption {
         {'simulator', 'Builds for an emulator/simulator for the provided system'}
     },
     default = 'system'
+}
+
+newoption {
+    trigger = 'arch',
+    value = 'ABI',
+    description = 'The ABI with the right toolchain for this build, generally with Android',
+    allowed = {
+        {'x86'},
+        {'x64'},
+        {'arm'},
+        {'arm64'}
+    }
 }
