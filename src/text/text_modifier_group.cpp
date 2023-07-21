@@ -51,19 +51,12 @@ void TextModifierGroup::rangeChanged()
     if (!m_shapeModifiers.empty())
     {
         parent()->as<Text>()->modifierShapeDirty();
-
-        /// We don't need to add dirt as our coverage will be pre-computed
-        /// during the [Text.computeShape] call. This is because coverage is
-        /// necessary to properly shape the text.
     }
     else
     {
         parent()->as<Text>()->markPaintDirty();
-
-        /// Coverage will be computed during our update and before
-        /// Text::buildRenderStyles.
-        addDirt(ComponentDirt::TextCoverage);
     }
+    addDirt(ComponentDirt::TextCoverage);
 }
 
 /// Clear any cached selector range maps so they can be recomputed after next
@@ -92,7 +85,6 @@ void TextModifierGroup::computeCoverage(uint32_t textSize)
 {
     if (!hasDirt(ComponentDirt::TextCoverage))
     {
-
         return;
     }
 
@@ -128,17 +120,30 @@ void TextModifierGroup::transform(float amount, Mat2D& ctm)
         return;
     }
 
-    float actualRotation = rotation() * amount;
+    float actualRotation = modifiesRotation() ? rotation() * amount : 0.0f;
     Mat2D transform = actualRotation != 0.0f ? Mat2D::fromRotation(actualRotation) : Mat2D();
-    transform[4] = x() * amount;
-    transform[5] = y() * amount;
-    float iamount = 1.0f - amount;
-    transform.scaleByValues(iamount + scaleX() * amount, iamount + scaleY() * amount);
-    ctm[4] += originX();
-    ctm[5] += originY();
+    if (modifiesTranslation())
+    {
+        transform[4] = x() * amount;
+        transform[5] = y() * amount;
+    }
+    if (modifiesScale())
+    {
+        float iamount = 1.0f - amount;
+        transform.scaleByValues(iamount + scaleX() * amount, iamount + scaleY() * amount);
+    }
+    bool doesModifyOrigin = modifiesOrigin();
+    if (doesModifyOrigin)
+    {
+        ctm[4] += originX();
+        ctm[5] += originY();
+    }
     ctm = transform * ctm;
-    ctm[4] -= originX();
-    ctm[5] -= originY();
+    if (doesModifyOrigin)
+    {
+        ctm[4] -= originX();
+        ctm[5] -= originY();
+    }
 }
 
 float TextModifierGroup::computeOpacity(float current, float t) const
