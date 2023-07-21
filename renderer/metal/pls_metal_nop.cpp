@@ -6,10 +6,15 @@
 // their symbols without needing to support Objective-C. We currently use castxml, which does not
 // support Objective-C.
 
+#include <cstddef>
+
 #define RIVE_OBJC_NOP
 
 template <typename T> struct id
-{};
+{
+    id() = default;
+    id(std::nullptr_t) {}
+};
 
 using MTLDevice = void*;
 using MTLCommandQueue = void*;
