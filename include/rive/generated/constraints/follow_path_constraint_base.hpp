@@ -1,14 +1,14 @@
 #ifndef _RIVE_FOLLOW_PATH_CONSTRAINT_BASE_HPP_
 #define _RIVE_FOLLOW_PATH_CONSTRAINT_BASE_HPP_
-#include "rive/constraints/transform_constraint.hpp"
+#include "rive/constraints/transform_space_constraint.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
-class FollowPathConstraintBase : public TransformConstraint
+class FollowPathConstraintBase : public TransformSpaceConstraint
 {
 protected:
-    typedef TransformConstraint Super;
+    typedef TransformSpaceConstraint Super;
 
 public:
     static const uint16_t typeKey = 165;
@@ -20,7 +20,6 @@ public:
         switch (typeKey)
         {
             case FollowPathConstraintBase::typeKey:
-            case TransformConstraintBase::typeKey:
             case TransformSpaceConstraintBase::typeKey:
             case TargetedConstraintBase::typeKey:
             case ConstraintBase::typeKey:
@@ -82,7 +81,7 @@ public:
         m_Distance = object.m_Distance;
         m_Orient = object.m_Orient;
         m_Offset = object.m_Offset;
-        TransformConstraint::copy(object);
+        TransformSpaceConstraint::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -99,7 +98,7 @@ public:
                 m_Offset = CoreBoolType::deserialize(reader);
                 return true;
         }
-        return TransformConstraint::deserialize(propertyKey, reader);
+        return TransformSpaceConstraint::deserialize(propertyKey, reader);
     }
 
 protected:

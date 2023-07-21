@@ -4,7 +4,7 @@
     "int": 165,
     "string": "followpathconstraint"
   },
-  "extends": "constraints/transform_constraint.json",
+  "extends": "constraints/transform_space_constraint.json",
   "properties": {
     "distance": {
       "type": "double",
