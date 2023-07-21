@@ -301,13 +301,46 @@ struct ContourData
 // Each curve gets tessellated into vertices. This is performed by rendering a horizontal span of
 // positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan defines
 // one instance of a horizontal tessellation span for rendering.
+//
+// Each span has an optional reflection, rendered right to left, with the same vertices in reverse
+// order. These are used to draw mirrored patches with negative coverage when we have back-face
+// culling enabled. This emits every triangle twice, once clockwise and once counterclockwise, and
+// back-face culling naturally selects the triangle with the appropriately signed coverage
+// (discarding the other).
 struct TessVertexSpan
 {
     RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
                                 Vec2D joinTangent_,
+                                float y_,
                                 int32_t x0,
                                 int32_t x1,
-                                uint32_t y_,
+                                uint32_t parametricSegmentCount,
+                                uint32_t polarSegmentCount,
+                                uint32_t joinSegmentCount,
+                                uint32_t contourIDWithFlags_)
+    {
+        set(pts_,
+            joinTangent_,
+            y_,
+            x0,
+            x1,
+            std::numeric_limits<float>::quiet_NaN(), // Discard the reflection.
+            -1,
+            -1,
+            parametricSegmentCount,
+            polarSegmentCount,
+            joinSegmentCount,
+            contourIDWithFlags_);
+    }
+
+    RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
+                                Vec2D joinTangent_,
+                                float y_,
+                                int32_t x0,
+                                int32_t x1,
+                                float reflectionY_,
+                                int32_t reflectionX0,
+                                int32_t reflectionX1,
                                 uint32_t parametricSegmentCount,
                                 uint32_t polarSegmentCount,
                                 uint32_t joinSegmentCount,
@@ -315,24 +348,30 @@ struct TessVertexSpan
     {
         RIVE_INLINE_MEMCPY(pts, pts_, sizeof(pts));
         joinTangent = joinTangent_;
-        x0x1 = (x1 << 16) | (x0 & 0xffff);
         y = y_;
+        reflectionY = reflectionY_;
+        x0x1 = (x1 << 16) | (x0 & 0xffff);
+        reflectionX0X1 = (reflectionX1 << 16) | (reflectionX0 & 0xffff);
         segmentCounts =
             (joinSegmentCount << 20) | (polarSegmentCount << 10) | parametricSegmentCount;
         contourIDWithFlags = contourIDWithFlags_;
 
         // Ensure we didn't lose any data from packing.
-        assert(x0 == (x0x1 << 16) >> 16);
+        assert(x0 == x0x1 << 16 >> 16);
         assert(x1 == x0x1 >> 16);
+        assert(reflectionX0 == reflectionX0X1 << 16 >> 16);
+        assert(reflectionX1 == reflectionX0X1 >> 16);
         assert((segmentCounts & 0x3ff) == parametricSegmentCount);
         assert(((segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
         assert(segmentCounts >> 20 == joinSegmentCount);
     }
+
     Vec2D pts[4];      // Cubic bezier curve.
     Vec2D joinTangent; // Ending tangent of the join that follows the cubic.
-    Vec2D pad;         // Align our attributes on 128-bit boundaries.
+    float y;
+    float reflectionY;
     int32_t x0x1;
-    uint32_t y;
+    int32_t reflectionX0X1;
     uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount, parametricSegmentCount]
     uint32_t contourIDWithFlags; // flags | contourID
 };
@@ -346,7 +385,7 @@ struct TriangleVertex
         point(point_), weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
     {}
     Vec2D point;
-    int32_t weight_pathID; // [(weight << 16]
+    int32_t weight_pathID; // [(weight << 16 | pathID]
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
@@ -379,6 +418,25 @@ enum class PatchType
 
 struct PatchVertex
 {
+    void set(float localVertexID_, float outset_, float fillCoverage_, float params_)
+    {
+        localVertexID = localVertexID_;
+        outset = outset_;
+        fillCoverage = fillCoverage_;
+        params = params_;
+        setMirroredPosition(localVertexID_, outset_, fillCoverage_);
+    }
+
+    // Patch vertices can have an optional, alternate position when mirrored. This is so we can
+    // ensure the diagonals inside the stroke line up on both versions of the patch (mirrored and
+    // not).
+    void setMirroredPosition(float localVertexID_, float outset_, float fillCoverage_)
+    {
+        mirroredVertexID = localVertexID_;
+        mirroredOutset = outset_;
+        mirroredFillCoverage = fillCoverage_;
+    }
+
     float localVertexID; // 0 or 1 -- which tessellated vertex of the two that we are connecting?
     float outset;        // Outset from the tessellated position, in the direction of the normal.
     float fillCoverage;  // 0..1 for the stroke. 1 all around for the triangles.
@@ -386,7 +444,12 @@ struct PatchVertex
     int32_t params;      // "(patchSize << 2) | [flags::kStrokeVertex,
                          //                      flags::kFanVertex,
                          //                      flags::kFanMidpointVertex]"
+    float mirroredVertexID;
+    float mirroredOutset;
+    float mirroredFillCoverage;
+    int32_t pad = 0;
 };
+static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
 
 // # of tessellation segments spanned by the midpoint fan patch.
 constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
@@ -397,15 +460,15 @@ constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
 
 // Define vertex and index buffers that contain all the triangles in every PatchType.
 constexpr static uint32_t kMidpointFanPatchVertexCount =
-    (kMidpointFanPatchSegmentSpan + 1) * 2 /*AA outer ramp*/ +
+    kMidpointFanPatchSegmentSpan * 4 /*Stroke and/or AA outer ramp*/ +
     (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ + 1 /*Triangle from path midpoint*/;
 constexpr static uint32_t kMidpointFanPatchIndexCount =
-    kMidpointFanPatchSegmentSpan * 6 /*AA outer ramp*/ +
+    kMidpointFanPatchSegmentSpan * 6 /*Stroke and/or AA outer ramp*/ +
     (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ + 3 /*Triangle from path midpoint*/;
 constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
 static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 constexpr static uint32_t kOuterCurvePatchVertexCount =
-    (kOuterCurvePatchSegmentSpan + 1) * 3 /*AA center ramp with bowtie*/ +
+    kOuterCurvePatchSegmentSpan * 8 /*AA center ramp with bowtie*/ +
     kOuterCurvePatchSegmentSpan /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchIndexCount =
     kOuterCurvePatchSegmentSpan * 12 /*AA center ramp with bowtie*/ +

@@ -7,6 +7,7 @@
 #define TESS_TEXTURE_WIDTH 2048.
 #define TESS_TEXTURE_WIDTH_LOG2 11
 
+// Flags that must stay in sync with pls.hpp.
 #define RETROFITTED_TRIANGLE_FLAG (1u << 31)
 #define CULL_EXCESS_TESSELLATION_SEGMENTS_FLAG (1u << 30)
 #define JOIN_TYPE_MASK (3u << 28)
@@ -14,10 +15,13 @@
 #define MITER_REVERT_JOIN (2u << 28)
 #define BEVEL_JOIN (1u << 28)
 #define EMULATED_STROKE_CAP_FLAG (1u << 27)
-#define JOIN_TANGENT_0_FLAG (1u << 26)
-#define JOIN_TANGENT_INNER_FLAG (1u << 25)
-#define LEFT_JOIN_FLAG (1u << 24)
-#define RIGHT_JOIN_FLAG (1u << 23)
+
+// Internal flags.
+#define MIRRORED_CONTOUR_FLAG (1u << 26)
+#define JOIN_TANGENT_0_FLAG (1u << 25)
+#define JOIN_TANGENT_INNER_FLAG (1u << 24)
+#define LEFT_JOIN_FLAG (1u << 23)
+#define RIGHT_JOIN_FLAG (1u << 22)
 #define CONTOUR_ID_MASK 0xffffu
 
 #define PI 3.141592653589793238

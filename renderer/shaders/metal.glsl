@@ -76,7 +76,7 @@
 #define VARYING_BLOCK_BEGIN(N)                                                                     \
     struct N                                                                                       \
     {
-#define VARYING(TYPE, NAME) TYPE NAME
+#define VARYING(IDX, TYPE, NAME) TYPE NAME
 #define FLAT [[flat]]
 #define NO_PERSPECTIVE [[center_no_perspective]]
 // No-persective interpolation appears to break the guarantee that a varying == "x" when all
@@ -167,10 +167,9 @@
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)           \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
     __attribute__((visibility("default"))) PLS fragment NAME(PLS _inpls,                           \
                                                              Varyings varyings [[stage_in]],       \
-                                                             bool _clockwise [[front_facing]],     \
                                                              FragmentTextures textures)            \
     {                                                                                              \
         PLS _pls;

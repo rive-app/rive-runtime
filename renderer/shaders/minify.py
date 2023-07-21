@@ -286,10 +286,14 @@ glsl_reserved = {
 # renaming to names like, e.g., "rg".
 xyzw_pattern = re.compile(r"^[xyzw]{1,4}$")
 
+# HLSL registers (e.g., t0, u1) can't be overwritten by a #define.
+hlsl_register_pattern = re.compile(r"^[TtSsUu]\d+$")
+
 # can we rename to or from 'name'?
 def is_reserved_keyword(name):
     return name in glsl_reserved\
            or xyzw_pattern.match(name)\
+           or hlsl_register_pattern.match(name)\
            or name.startswith("$")\
            or name.startswith("gl_")\
            or name.startswith("__pixel_local")\
@@ -323,7 +327,7 @@ class NameGenerator:
 # Exported variables only use upper case letters in their names. HLSL semantics are not case
 # sensitive and may also assign special meaning to numbers.
 upper_case_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-upper_case_name_generator = NameGenerator(upper_case_chars, upper_case_chars + '_')
+upper_case_name_generator = NameGenerator(upper_case_chars, upper_case_chars + "_")
 
 # Don't begin new names with the the '_' character. Internal code can begin names with '_' without
 # fear of renaming collisions.

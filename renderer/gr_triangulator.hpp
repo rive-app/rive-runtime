@@ -98,6 +98,7 @@ protected:
     void polysToTriangles(const Poly* polys,
                           FillRule overrideFillRule,
                           uint16_t pathID,
+                          bool reverseTriangles,
                           pls::BufferRing<pls::TriangleVertex>*) const;
 
     // The vertex sorting in step (3) is a merge sort, since it plays well with the linked list
@@ -146,14 +147,19 @@ protected:
     // Additional helpers and driver functions.
     void emitMonotonePoly(const MonotonePoly*,
                           uint16_t pathID,
+                          bool reverseTriangles,
                           pls::BufferRing<pls::TriangleVertex>*) const;
     void emitTriangle(Vertex* prev,
                       Vertex* curr,
                       Vertex* next,
                       int winding,
                       uint16_t pathID,
+                      bool reverseTriangles,
                       pls::BufferRing<pls::TriangleVertex>*) const;
-    void emitPoly(const Poly*, uint16_t pathID, pls::BufferRing<pls::TriangleVertex>*) const;
+    void emitPoly(const Poly*,
+                  uint16_t pathID,
+                  bool reverseTriangles,
+                  pls::BufferRing<pls::TriangleVertex>*) const;
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
     void appendPointToContour(const Vec2D& p, VertexList* contour) const;
@@ -240,6 +246,7 @@ protected:
     size_t polysToTriangles(const Poly*,
                             uint64_t maxVertexCount,
                             uint16_t pathID,
+                            bool reverseTriangles,
                             pls::BufferRing<pls::TriangleVertex>*) const;
 
     AABB fPathBounds;

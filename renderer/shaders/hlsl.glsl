@@ -90,7 +90,7 @@ typedef min16uint ushort;
 #define NO_PERSPECTIVE noperspective
 #define @OPTIONALLY_FLAT nointerpolation
 #define FLAT nointerpolation
-#define VARYING(TYPE, NAME) TYPE NAME : NAME
+#define VARYING(IDX, TYPE, NAME) TYPE NAME : TEXCOORD##IDX
 
 #define VARYING_BLOCK_END(_pos)                                                                    \
     float4 _pos : SV_Position;                                                                     \
@@ -185,8 +185,8 @@ typedef min16uint ushort;
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)           \
-    [earlydepthstencil] void NAME(Varyings varyings, bool _clockwise : SV_IsFrontFace) {           \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
+    [earlydepthstencil] void NAME(Varyings varyings) {                                             \
         int2 _plsCoord = int2(floor(varyings._pos.xy));
 
 #define EMIT_PLS }

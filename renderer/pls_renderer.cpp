@@ -101,6 +101,12 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         return;
     }
 
+    // A stroke width of zero means a path is filled in PLS.
+    if (stroked && paint->getThickness() <= 0)
+    {
+        return;
+    }
+
     // Make (up to) two attempts to draw the path plus any necessary clip updates in a single batch.
     // If the first attempt fails, flush to make room and try again.
     for (size_t i = 0; i < 2; ++i)
@@ -557,6 +563,7 @@ public:
             assert(!path->triangulator);
             path->triangulator =
                 context->make<GrInnerFanTriangulator>(*scratchPath,
+                                                      *path->matrix,
                                                       path->pathBounds,
                                                       path->fillRule,
                                                       context->trivialPerFlushAllocator());
@@ -951,6 +958,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             continue;
         }
 
+        bool stroked = currentPathIdx == strokeIdx;
+
         // (If we used interior triangulation, interiorTriHelper already counted the path's vertices
         // for us.)
         if (path.triangulator != nullptr)
@@ -960,8 +969,10 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             // a multiple of the patch size.
             if (path.tessVertexCount > 0)
             {
+                assert(!stroked);
                 path.paddingVertexCount =
-                    tessVertexCounter.countPath<kOuterCurvePatchSegmentSpan>(path.tessVertexCount);
+                    tessVertexCounter.countPath<kOuterCurvePatchSegmentSpan>(path.tessVertexCount,
+                                                                             false);
                 path.tessVertexCount += path.paddingVertexCount;
             }
         }
@@ -998,7 +1009,6 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                     contourVertexCount -= m_parametricSegmentCounts[j];
                 }
 
-                bool stroked = currentPathIdx == strokeIdx;
                 if (stroked)
                 {
                     // Finish calculating and counting polar segments for each stroked curve and
@@ -1136,7 +1146,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             if (path.tessVertexCount > 0)
             {
                 path.paddingVertexCount =
-                    tessVertexCounter.countPath<kMidpointFanPatchSegmentSpan>(path.tessVertexCount);
+                    tessVertexCounter.countPath<kMidpointFanPatchSegmentSpan>(path.tessVertexCount,
+                                                                              stroked);
                 path.tessVertexCount += path.paddingVertexCount;
             }
         }
@@ -1151,7 +1162,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     if (!m_context->reservePathData(m_pathBatch.size(),
                                     contourCount,
                                     curveReserveCount,
-                                    tessVertexCounter.totalVertexCount()))
+                                    tessVertexCounter))
     {
         // The paths don't fit. Give up and let the caller flush and try again.
         return false;

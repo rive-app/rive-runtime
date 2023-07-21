@@ -12,7 +12,7 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN(Varyings)
-NO_PERSPECTIVE VARYING(half4, v_rampColor);
+NO_PERSPECTIVE VARYING(0, half4, v_rampColor);
 VARYING_BLOCK_END(_pos)
 
 #ifdef @VERTEX
@@ -42,10 +42,16 @@ VERTEX_MAIN(@colorRampVertexMain,
     VARYING_INIT(varyings, v_rampColor, half4);
 
     float x = float((_vertexID & 1) == 0 ? @a_span.x & 0xffffu : @a_span.x >> 16) / 65536.;
-    float y = float(@a_span.y) + ((_vertexID & 2) == 0 ? .0 : 1.);
+    float offsetY = (_vertexID & 2) == 0 ? 1. : .0;
+    if (uniforms.gradInverseViewportY < .0)
+    {
+        // Make sure we always emit clockwise triangles. Swap the top and bottom vertices.
+        offsetY = 1. - offsetY;
+    }
     v_rampColor = unpackColorInt((_vertexID & 1) == 0 ? @a_span.z : @a_span.w);
     _pos.x = x * 2. - 1.;
-    _pos.y = y * uniforms.gradInverseViewportY - sign(uniforms.gradInverseViewportY);
+    _pos.y = (float(@a_span.y) + offsetY) * uniforms.gradInverseViewportY -
+             sign(uniforms.gradInverseViewportY);
     _pos.zw = float2(0, 1);
 
     VARYING_PACK(varyings, v_rampColor);

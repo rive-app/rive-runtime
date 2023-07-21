@@ -152,19 +152,27 @@ public:
         }
 
         // Returns the required number of padding vertices to insert before the path.
-        template <size_t PatchSize> [[nodiscard]] size_t countPath(size_t pathTessVertexCount)
+        template <size_t PatchSize>
+        [[nodiscard]] size_t countPath(size_t pathTessVertexCount, bool isStroked)
         {
-            size_t padding = PaddingToAlignUp<PatchSize>(m_runningTessVertexCount);
-            m_runningTessVertexCount += padding + pathTessVertexCount;
+            // Ensure there is always at least one padding vertex at the beginning of the
+            // tessellation texture.
+            size_t padding = m_runningTessVertexCount != 0
+                                 ? PaddingToAlignUp<PatchSize>(m_runningTessVertexCount)
+                                 : PatchSize;
+            m_runningTessVertexCount += padding;
+            m_runningTessVertexCount += isStroked ? pathTessVertexCount : pathTessVertexCount * 2;
             return padding;
         }
 
-        size_t totalVertexCount() const
+    private:
+        friend class PLSRenderContext;
+
+        size_t totalVertexCountIncludingReflectionsAndPadding() const
         {
             return m_runningTessVertexCount - m_initialTessVertexCount;
         }
 
-    private:
         size_t m_initialTessVertexCount;
         size_t m_runningTessVertexCount;
     };
@@ -177,7 +185,7 @@ public:
     [[nodiscard]] bool reservePathData(size_t pathCount,
                                        size_t contourCount,
                                        size_t curveCount,
-                                       uint32_t tessVertexCount);
+                                       const TessVertexCounter&);
 
     // Adds the given paint to the GPU data library and fills out 'PaintData' with the information
     // required by the GPU to access it.
@@ -517,6 +525,17 @@ private:
                                                   uint32_t joinSegmentCount,
                                                   uint32_t contourIDWithFlags);
 
+    // Same as pushTessellationSpans(), but also pushes a reflection of the span, rendered right to
+    // left, that emits a mirrored version of the patch with negative coverage. (See
+    // TessVertexSpan.)
+    RIVE_ALWAYS_INLINE void pushMirroredTessellationSpans(const Vec2D pts[4],
+                                                          Vec2D joinTangent,
+                                                          uint32_t totalVertexCount,
+                                                          uint32_t parametricSegmentCount,
+                                                          uint32_t polarSegmentCount,
+                                                          uint32_t joinSegmentCount,
+                                                          uint32_t contourIDWithFlags);
+
     // Capacities of all our GPU resource allocations.
     struct GPUResourceLimits
     {
@@ -635,12 +654,15 @@ private:
 
     // Most recent path and contour state.
     bool m_currentPathIsStroked = false;
+    bool m_currentPathNeedsMirroredContours = false;
     uint32_t m_currentPathID = 0;
     uint32_t m_currentContourID = 0;
     uint32_t m_currentContourPaddingVertexCount = 0; // Padding vertices to add to the first curve.
     uint32_t m_tessVertexCount = 0;
+    uint32_t m_mirroredTessLocation = 0; // Used for back-face culling and mirrored patches.
     RIVE_DEBUG_CODE(uint32_t m_expectedTessVertexCountAtNextReserve = 0;)
     RIVE_DEBUG_CODE(uint32_t m_expectedTessVertexCountAtEndOfPath = 0;)
+    RIVE_DEBUG_CODE(uint32_t m_expectedMirroredTessLocationAtEndOfPath = 0;)
 
     // Simple gradients have one stop at t=0 and one stop at t=1. They're implemented with 2 texels.
     std::unordered_map<uint64_t, uint32_t> m_simpleGradients; // [color0, color1] -> rampTexelsIdx

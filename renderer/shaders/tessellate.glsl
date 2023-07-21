@@ -13,20 +13,20 @@
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-ATTR(0, float4, @a_p0p1_);
+ATTR(0, float4, @a_p0p1_); // End in '_' because D3D interprets the '1' as a semantic index.
 ATTR(1, float4, @a_p2p3_);
-ATTR(2, float4, @a_joinTangent);
-ATTR(3, uint4, @a_args); // [x0, x1, y, polarSegmentCount, contourIDWithFlags]
+ATTR(2, float4, @a_joinTan_and_ys); // [joinTangent, y, reflectionY]
+ATTR(3, uint4, @a_args);            // [x0x1, reflectionX0X1, segmentCounts, contourIDWithFlags]
 ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN(Varyings)
-NO_PERSPECTIVE VARYING(float4, v_p0p1);
-NO_PERSPECTIVE VARYING(float4, v_p2p3);
-NO_PERSPECTIVE VARYING(float4, v_args);     // [vertexIdx, totalVertexCount, joinSegmentCount,
-                                            //  parametricSegmentCount, radsPerPolarSegment]
-NO_PERSPECTIVE VARYING(float3, v_joinArgs); // [joinTangent, radsPerJoinSegment]
-FLAT VARYING(uint, v_contourIDWithFlags);
+NO_PERSPECTIVE VARYING(0, float4, v_p0p1);
+NO_PERSPECTIVE VARYING(1, float4, v_p2p3);
+NO_PERSPECTIVE VARYING(2, float4, v_args);     // [vertexIdx, totalVertexCount, joinSegmentCount,
+                                               //  parametricSegmentCount, radsPerPolarSegment]
+NO_PERSPECTIVE VARYING(3, float3, v_joinArgs); // [joinTangent, radsPerJoinSegment]
+FLAT VARYING(4, uint, v_contourIDWithFlags);
 VARYING_BLOCK_END(_pos)
 
 // Tangent of the curve at T=0 and T=1.
@@ -65,10 +65,11 @@ VERTEX_MAIN(@tessellateVertexMain,
             _instanceID,
             _pos)
 {
-    ATTR_UNPACK(_instanceID, attrs, @a_p0p1_, float4);
-    ATTR_UNPACK(_instanceID, attrs, @a_p2p3_, float4);
-    ATTR_UNPACK(_instanceID, attrs, @a_joinTangent, float4);
-    ATTR_UNPACK(_instanceID, attrs, @a_args, uint4);
+    // Each instance repeats twice. Once for normal patch(es) and once for reflection(s).
+    ATTR_UNPACK(_instanceID >> 1, attrs, @a_p0p1_, float4);
+    ATTR_UNPACK(_instanceID >> 1, attrs, @a_p2p3_, float4);
+    ATTR_UNPACK(_instanceID >> 1, attrs, @a_joinTan_and_ys, float4);
+    ATTR_UNPACK(_instanceID >> 1, attrs, @a_args, uint4);
 
     VARYING_INIT(varyings, v_p0p1, float4);
     VARYING_INIT(varyings, v_p2p3, float4);
@@ -80,15 +81,26 @@ VERTEX_MAIN(@tessellateVertexMain,
     float2 p1 = @a_p0p1_.zw;
     float2 p2 = @a_p2p3_.xy;
     float2 p3 = @a_p2p3_.zw;
-    float x0 = float(int(@a_args.x << 16) >> 16);
-    float x1 = float(int(@a_args.x) >> 16);
-    float y = float(@a_args.y);
-    float2 coord = float2((_vertexID & 1) == 0 ? x0 : x1, (_vertexID & 2) == 0 ? y : y + 1.);
+    // Odd-numbered instances are reflections.
+    float y = (_instanceID & 1) == 0 ? @a_joinTan_and_ys.z : @a_joinTan_and_ys.w;
+    int x0x1 = int((_instanceID & 1) == 0 ? @a_args.x : @a_args.y);
+    float x0 = float(x0x1 << 16 >> 16);
+    float x1 = float(x0x1 >> 16);
+    float2 coord = float2((_vertexID & 1) == 0 ? x0 : x1, (_vertexID & 2) == 0 ? y + 1. : y);
 
     uint parametricSegmentCount = @a_args.z & 0x3ffu;
     uint polarSegmentCount = (@a_args.z >> 10) & 0x3ffu;
     uint joinSegmentCount = @a_args.z >> 20;
     uint contourIDWithFlags = @a_args.w;
+    if (x1 < x0) // Are we a reflection?
+    {
+        contourIDWithFlags |= MIRRORED_CONTOUR_FLAG;
+    }
+    if ((x1 - x0) * uniforms.tessInverseViewportY < .0)
+    {
+        // Make sure we always emit clockwise triangles. Swap the top and bottom vertices.
+        coord.y = 2. * y + 1. - coord.y;
+    }
     if ((contourIDWithFlags & CULL_EXCESS_TESSELLATION_SEGMENTS_FLAG) != 0u)
     {
         // This span may have more tessellation vertices allocated to it than necessary (e.g.,
@@ -124,13 +136,13 @@ VERTEX_MAIN(@tessellateVertexMain,
 
     v_p0p1 = float4(p0, p1);
     v_p2p3 = float4(p2, p3);
-    v_args = float4(float(totalVertexCount) + coord.x - x1, // vertexIdx
-                    float(totalVertexCount),                // totalVertexCount
+    v_args = float4(float(totalVertexCount) - abs(x1 - coord.x), // vertexIdx
+                    float(totalVertexCount),                     // totalVertexCount
                     (joinSegmentCount << 10) | parametricSegmentCount,
                     radsPerPolarSegment);
     if (joinSegmentCount > 1u)
     {
-        float2x2 joinTangents = float2x2(tangents[1], @a_joinTangent.xy);
+        float2x2 joinTangents = float2x2(tangents[1], @a_joinTan_and_ys.xy);
         float joinTheta = acos(cosine_between_vectors(joinTangents[0], joinTangents[1]));
         float joinSpan = float(joinSegmentCount);
         if ((contourIDWithFlags & (JOIN_TYPE_MASK | EMULATED_STROKE_CAP_FLAG)) ==
@@ -145,7 +157,7 @@ VERTEX_MAIN(@tessellateVertexMain,
         float radsPerJoinSegment = joinTheta / joinSpan;
         if (determinant(joinTangents) < .0)
             radsPerJoinSegment = -radsPerJoinSegment;
-        v_joinArgs.xy = @a_joinTangent.xy;
+        v_joinArgs.xy = @a_joinTan_and_ys.xy;
         v_joinArgs.z = radsPerJoinSegment;
     }
     v_contourIDWithFlags = contourIDWithFlags;

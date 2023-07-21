@@ -118,7 +118,8 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     for (int i = 0; i < 4; ++i)
     {
         glEnableVertexAttribArray(i);
-        glVertexAttribDivisor(i, 1);
+        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
+        glVertexAttribDivisor(i, 2);
     }
 
     glGenFramebuffers(1, &m_tessellateFBO);
@@ -139,13 +140,23 @@ PLSRenderContextGL::PLSRenderContextGL(const PlatformFeatures& platformFeatures,
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(patchIndices), patchIndices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(PatchVertex), nullptr);
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1,
+                          4,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(PatchVertex),
+                          reinterpret_cast<void*>(sizeof(float) * 4));
 
     glGenVertexArrays(1, &m_interiorTrianglesVAO);
     bindVAO(m_interiorTrianglesVAO);
     glEnableVertexAttribArray(0);
 
     glFrontFace(GL_CW);
+    glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
 
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
@@ -402,7 +413,8 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
         glViewport(0, 0, kTessTextureWidth, tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
         bindProgram(m_tessellateProgram);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount);
+        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount * 2);
     }
 
     // Compile the draw programs before activating pixel local storage.

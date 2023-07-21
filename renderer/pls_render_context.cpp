@@ -414,18 +414,18 @@ uint32_t PLSRenderContext::generateClipID()
 bool PLSRenderContext::reservePathData(size_t pathCount,
                                        size_t contourCount,
                                        size_t curveCount,
-                                       uint32_t tessVertexCount)
+                                       const TessVertexCounter& tessVertexCounter)
 {
     assert(m_didBeginFrame);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtNextReserve);
 
-    // +1 for the padding vertex at the end.
-    size_t maxTessVertexCountWithInternalPadding = tessVertexCount + 1;
+    // +1 for the padding vertex at the end of the tessellation data.
+    size_t maxTessVertexCountWithInternalPadding =
+        tessVertexCounter.totalVertexCountIncludingReflectionsAndPadding() + 1;
     // Line breaks potentially introduce a new span. Count the maximum number of line breaks we
-    // might encounter.
-    size_t y0 = m_tessVertexCount / kTessTextureWidth;
-    size_t y1 = (m_tessVertexCount + maxTessVertexCountWithInternalPadding - 1) / kTessTextureWidth;
-    size_t maxSpanBreakCount = y1 - y0;
+    // might encounter. Since line breaks may also occur from the reflection, just find a simple
+    // upper bound.
+    size_t maxSpanBreakCount = (1 + maxTessVertexCountWithInternalPadding / kTessTextureWidth) * 2;
     // +pathCount for a span of padding vertices at the beginning of each path.
     // +1 for the padding vertex at the end of the entire tessellation texture (in case this happens
     // to be the final batch of paths in the flush).
@@ -484,7 +484,10 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
         assert(m_pathBuffer.hasRoomFor(pathCount));
         assert(m_contourBuffer.hasRoomFor(contourCount));
         RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve =
-                            m_tessVertexCount + tessVertexCount);
+                            m_tessVertexCount +
+                            tessVertexCounter.totalVertexCountIncludingReflectionsAndPadding());
+        assert(m_expectedTessVertexCountAtNextReserve <=
+               m_currentResourceLimits.maxTessellationVertices);
         return true;
     }
 
@@ -636,8 +639,10 @@ void PLSRenderContext::pushPath(PatchType patchType,
 {
     assert(m_didBeginFrame);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
+    assert(m_mirroredTessLocation == m_expectedMirroredTessLocationAtEndOfPath);
 
     m_currentPathIsStroked = strokeRadius != 0;
+    m_currentPathNeedsMirroredContours = !m_currentPathIsStroked;
     m_pathBuffer.set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, paintData);
 
     ++m_currentPathID;
@@ -656,12 +661,14 @@ void PLSRenderContext::pushPath(PatchType patchType,
     assert(m_drawList.tail().baseVertexOrInstance + m_drawList.tail().vertexOrInstanceCount ==
            baseInstance);
     uint32_t vertexCountToDraw = tessVertexCount - paddingVertexCount;
+    if (m_currentPathNeedsMirroredContours)
+    {
+        vertexCountToDraw *= 2;
+    }
     uint32_t instanceCount = vertexCountToDraw / patchSize;
     // The caller is responsible to pad each contour so it ends on a multiple of the patch size.
     assert(instanceCount * patchSize == vertexCountToDraw);
     m_drawList.tail().vertexOrInstanceCount += instanceCount;
-
-    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = m_tessVertexCount + tessVertexCount);
 
     // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument align the beginning of the path
@@ -670,6 +677,19 @@ void PLSRenderContext::pushPath(PatchType patchType,
     {
         pushPaddingVertices(paddingVertexCount);
     }
+
+    size_t tessVertexCountWithoutPadding = tessVertexCount - paddingVertexCount;
+    if (m_currentPathNeedsMirroredContours)
+    {
+        m_tessVertexCount = m_mirroredTessLocation =
+            m_tessVertexCount + tessVertexCountWithoutPadding;
+        RIVE_DEBUG_CODE(m_expectedMirroredTessLocationAtEndOfPath =
+                            m_mirroredTessLocation - tessVertexCountWithoutPadding);
+    }
+    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath =
+                        m_tessVertexCount + tessVertexCountWithoutPadding);
+    assert(m_expectedTessVertexCountAtEndOfPath <= m_expectedTessVertexCountAtNextReserve);
+    assert(m_expectedTessVertexCountAtEndOfPath <= m_currentResourceLimits.maxTessellationVertices);
 }
 
 void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount)
@@ -719,13 +739,26 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
     // Only the first curve of a contour gets padding vertices.
     m_currentContourPaddingVertexCount = 0;
 
-    pushTessellationSpans(pts,
-                          joinTangent,
-                          totalVertexCount,
-                          parametricSegmentCount,
-                          polarSegmentCount,
-                          joinSegmentCount,
-                          m_currentContourID | additionalPLSFlags);
+    if (m_currentPathNeedsMirroredContours)
+    {
+        pushMirroredTessellationSpans(pts,
+                                      joinTangent,
+                                      totalVertexCount,
+                                      parametricSegmentCount,
+                                      polarSegmentCount,
+                                      joinSegmentCount,
+                                      m_currentContourID | additionalPLSFlags);
+    }
+    else
+    {
+        pushTessellationSpans(pts,
+                              joinTangent,
+                              totalVertexCount,
+                              parametricSegmentCount,
+                              polarSegmentCount,
+                              joinSegmentCount,
+                              m_currentContourID | additionalPLSFlags);
+    }
 }
 
 void PLSRenderContext::pushPaddingVertices(uint32_t count)
@@ -733,9 +766,11 @@ void PLSRenderContext::pushPaddingVertices(uint32_t count)
     constexpr static Vec2D kEmptyCubic[4]{};
     // This is guaranteed to not collide with a neighboring contour ID.
     constexpr static uint32_t kInvalidContourID = 0;
-    RIVE_DEBUG_CODE(size_t startingVertexCount = m_tessVertexCount;)
+    assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
+    RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = m_tessVertexCount + count;)
+    assert(m_expectedTessVertexCountAtEndOfPath <= m_currentResourceLimits.maxTessellationVertices);
     pushTessellationSpans(kEmptyCubic, {0, 0}, count, 0, 0, 1, kInvalidContourID);
-    assert(m_tessVertexCount == startingVertexCount + count);
+    assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
 }
 
 RIVE_ALWAYS_INLINE void PLSRenderContext::pushTessellationSpans(const Vec2D pts[4],
@@ -746,35 +781,91 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushTessellationSpans(const Vec2D pts[
                                                                 uint32_t joinSegmentCount,
                                                                 uint32_t contourIDWithFlags)
 {
-    int32_t y = m_tessVertexCount / kTessTextureWidth;
+    uint32_t y = m_tessVertexCount / kTessTextureWidth;
     int32_t x0 = m_tessVertexCount % kTessTextureWidth;
     int32_t x1 = x0 + totalVertexCount;
     for (;;)
     {
         m_tessSpanBuffer.set_back(pts,
                                   joinTangent,
+                                  static_cast<float>(y),
                                   x0,
                                   x1,
-                                  y,
                                   parametricSegmentCount,
                                   polarSegmentCount,
                                   joinSegmentCount,
                                   contourIDWithFlags);
-        if (x1 > kTessTextureWidth)
+        if (x1 > static_cast<int32_t>(kTessTextureWidth))
         {
             // The span was too long to fit on the current line. Wrap and draw it again, this
             // time behind the left edge of the texture so we capture what got clipped off last
             // time.
+            ++y;
             x0 -= kTessTextureWidth;
             x1 -= kTessTextureWidth;
+            continue;
+        }
+        break;
+    }
+    assert(y == (m_tessVertexCount + totalVertexCount - 1) / kTessTextureWidth);
+
+    m_tessVertexCount += totalVertexCount;
+    assert(m_tessVertexCount <= m_expectedTessVertexCountAtEndOfPath);
+}
+
+RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
+    const Vec2D pts[4],
+    Vec2D joinTangent,
+    uint32_t totalVertexCount,
+    uint32_t parametricSegmentCount,
+    uint32_t polarSegmentCount,
+    uint32_t joinSegmentCount,
+    uint32_t contourIDWithFlags)
+{
+    int32_t y = m_tessVertexCount / kTessTextureWidth;
+    int32_t x0 = m_tessVertexCount % kTessTextureWidth;
+    int32_t x1 = x0 + totalVertexCount;
+
+    uint32_t reflectionY = (m_mirroredTessLocation - 1) / kTessTextureWidth;
+    int32_t reflectionX0 = (m_mirroredTessLocation - 1) % kTessTextureWidth + 1;
+    int32_t reflectionX1 = reflectionX0 - totalVertexCount;
+
+    for (;;)
+    {
+        m_tessSpanBuffer.set_back(pts,
+                                  joinTangent,
+                                  static_cast<float>(y),
+                                  x0,
+                                  x1,
+                                  static_cast<float>(reflectionY),
+                                  reflectionX0,
+                                  reflectionX1,
+                                  parametricSegmentCount,
+                                  polarSegmentCount,
+                                  joinSegmentCount,
+                                  contourIDWithFlags);
+        if (x1 > static_cast<int32_t>(kTessTextureWidth) || reflectionX1 < 0)
+        {
+            // Either the span or its reflection was too long to fit on the current line. Wrap and
+            // draw one both of them both again, this time behind the opposite edge of the texture
+            // so we capture what got clipped off last time.
             ++y;
+            x0 -= kTessTextureWidth;
+            x1 -= kTessTextureWidth;
+
+            --reflectionY;
+            reflectionX0 += kTessTextureWidth;
+            reflectionX1 += kTessTextureWidth;
             continue;
         }
         break;
     }
 
     m_tessVertexCount += totalVertexCount;
-    assert(m_tessVertexCount <= m_currentResourceLimits.maxTessellationVertices);
+    assert(m_tessVertexCount <= m_expectedTessVertexCountAtEndOfPath);
+
+    m_mirroredTessLocation -= totalVertexCount;
+    assert(m_mirroredTessLocation >= m_expectedMirroredTessLocationAtEndOfPath);
 }
 
 void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangulator,
@@ -830,7 +921,6 @@ template <typename T> bool bits_equal(const T* a, const T* b)
 void PLSRenderContext::flush(FlushType flushType)
 {
     assert(m_didBeginFrame);
-    assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
     if (flushType == FlushType::intermediate)
     {
         // We might not have pushed as many tessellation vertices as expected if we ran out of room
@@ -841,6 +931,8 @@ void PLSRenderContext::flush(FlushType flushType)
     {
         assert(m_tessVertexCount == m_expectedTessVertexCountAtNextReserve);
     }
+    assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
+    assert(m_mirroredTessLocation == m_expectedMirroredTessLocationAtEndOfPath);
 
     // The final vertex of the final patch of each contour crosses over into the next contour. (This
     // is how we wrap around back to the beginning.) Therefore, the final contour of the flush needs
@@ -973,8 +1065,10 @@ void PLSRenderContext::flush(FlushType flushType)
     m_complexGradients.clear();
 
     m_tessVertexCount = 0;
+    m_mirroredTessLocation = 0;
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve = 0);
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = 0);
+    RIVE_DEBUG_CODE(m_expectedMirroredTessLocationAtEndOfPath = 0);
 
     m_maxTriangleVertexCount = 0;
 

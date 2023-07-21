@@ -23,10 +23,12 @@ public:
     using GrTriangulator::GroutTriangleList;
 
     GrInnerFanTriangulator(const RawPath& path,
+                           const Mat2D& viewMatrix,
                            const AABB& pathBounds,
                            FillRule fillRule,
                            TrivialBlockAllocator* alloc) :
-        GrTriangulator(pathBounds, fillRule, alloc)
+        GrTriangulator(pathBounds, fillRule, alloc),
+        m_shouldReverseTriangles(viewMatrix[0] * viewMatrix[3] - viewMatrix[2] * viewMatrix[1] < 0)
     {
         fPreserveCollinearVertices = true;
         fCollectGroutTriangles = true;
@@ -53,12 +55,19 @@ public:
         {
             return 0;
         }
-        return GrTriangulator::polysToTriangles(m_polys, m_maxVertexCount, m_pathID, bufferRing);
+        return GrTriangulator::polysToTriangles(m_polys,
+                                                m_maxVertexCount,
+                                                m_pathID,
+                                                m_shouldReverseTriangles,
+                                                bufferRing);
     }
 
     const GroutTriangleList& groutList() const { return fGroutList; }
 
 private:
+    // We reverse triangles whe using a left-handed view matrix, in order to ensure we always emit
+    // clockwise triangles.
+    bool m_shouldReverseTriangles;
     uint16_t m_pathID = 0;
     Poly* m_polys = nullptr;
     uint64_t m_maxVertexCount = 0;

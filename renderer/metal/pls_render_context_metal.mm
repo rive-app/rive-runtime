@@ -336,6 +336,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [gradEncoder setRenderPipelineState:m_colorRampPipeline->pipelineState()];
         [gradEncoder setVertexBuffer:mtl_buffer(uniformBufferRing()) offset:0 atIndex:0];
         [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing()) offset:0 atIndex:1];
+        [gradEncoder setCullMode:MTLCullModeBack];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
@@ -366,10 +367,12 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:1];
         [tessEncoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
         [tessEncoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
+        [tessEncoder setCullMode:MTLCullModeBack];
+        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
         [tessEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
-                      instanceCount:tessVertexSpanCount];
+                      instanceCount:tessVertexSpanCount * 2];
         [tessEncoder endEncoding];
     }
 
@@ -415,6 +418,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
     [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
     [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
     [encoder setFragmentTexture:mtl_texture(gradTexelBufferRing()) atIndex:kGradTextureIdx];
+    [encoder setCullMode:MTLCullModeBack];
     if (frameDescriptor().wireframe)
     {
         [encoder setTriangleFillMode:MTLTriangleFillModeLines];

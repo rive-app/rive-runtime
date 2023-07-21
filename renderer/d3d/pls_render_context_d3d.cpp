@@ -161,7 +161,7 @@ PLSRenderContextD3D::PLSRenderContextD3D(ComPtr<ID3D11Device> gpu,
 {
     D3D11_RASTERIZER_DESC rasterDesc;
     rasterDesc.FillMode = D3D11_FILL_SOLID;
-    rasterDesc.CullMode = D3D11_CULL_NONE;
+    rasterDesc.CullMode = D3D11_CULL_BACK;
     rasterDesc.FrontCounterClockwise = FALSE; // FrontCounterClockwise must be FALSE in order to
                                               // match the winding sense of interior triangulations.
     rasterDesc.DepthBias = 0;
@@ -227,34 +227,36 @@ PLSRenderContextD3D::PLSRenderContextD3D(ComPtr<ID3D11Device> gpu,
                                                             s.str().c_str(),
                                                             GLSL_tessellateFragmentMain,
                                                             "ps_5_0");
+        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
+        constexpr static UINT kTessAttribsStepRate = 2;
         D3D11_INPUT_ELEMENT_DESC attribsDesc[] = {{GLSL_a_p0p1_,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_FLOAT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   1},
+                                                   kTessAttribsStepRate},
                                                   {GLSL_a_p2p3_,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_FLOAT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   1},
-                                                  {GLSL_a_joinTangent,
+                                                   kTessAttribsStepRate},
+                                                  {GLSL_a_joinTan_and_ys,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_FLOAT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   1},
+                                                   kTessAttribsStepRate},
                                                   {GLSL_a_args,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_UINT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   1}};
+                                                   kTessAttribsStepRate}};
         VERIFY_OK(m_gpu->CreateInputLayout(attribsDesc,
                                            std::size(attribsDesc),
                                            vertexBlob->GetBufferPointer(),
@@ -588,31 +590,41 @@ void PLSRenderContextD3D::setPipelineLayoutAndShaders(DrawType drawType,
                                                            shader.c_str(),
                                                            GLSL_drawVertexMain,
                                                            "vs_5_0");
-            D3D11_INPUT_ELEMENT_DESC layoutDesc;
+            D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
+            size_t vertexAttribCount;
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
                 case DrawType::outerCurvePatches:
-                    layoutDesc = {GLSL_a_patchVertexData,
-                                  0,
-                                  DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                  kPatchVertexDataSlot,
-                                  0,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0};
+                    layoutDesc[0] = {GLSL_a_patchVertexData,
+                                     0,
+                                     DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                     kPatchVertexDataSlot,
+                                     D3D11_APPEND_ALIGNED_ELEMENT,
+                                     D3D11_INPUT_PER_VERTEX_DATA,
+                                     0};
+                    layoutDesc[1] = {GLSL_a_mirroredVertexData,
+                                     0,
+                                     DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                     kPatchVertexDataSlot,
+                                     D3D11_APPEND_ALIGNED_ELEMENT,
+                                     D3D11_INPUT_PER_VERTEX_DATA,
+                                     0};
+                    vertexAttribCount = 2;
                     break;
                 case DrawType::interiorTriangulation:
-                    layoutDesc = {GLSL_a_triangleVertex,
-                                  0,
-                                  DXGI_FORMAT_R32G32B32_FLOAT,
-                                  kTriangleVertexDataSlot,
-                                  0,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0};
+                    layoutDesc[0] = {GLSL_a_triangleVertex,
+                                     0,
+                                     DXGI_FORMAT_R32G32B32_FLOAT,
+                                     kTriangleVertexDataSlot,
+                                     0,
+                                     D3D11_INPUT_PER_VERTEX_DATA,
+                                     0};
+                    vertexAttribCount = 1;
                     break;
             }
-            VERIFY_OK(m_gpu->CreateInputLayout(&layoutDesc,
-                                               1,
+            VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
+                                               vertexAttribCount,
                                                blob->GetBufferPointer(),
                                                blob->GetBufferSize(),
                                                &drawVertexShader.layout));
@@ -743,7 +755,8 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
 
         m_gpuContext->OMSetRenderTargets(1, m_tessTextureRTV.GetAddressOf(), NULL);
 
-        m_gpuContext->DrawInstanced(4, tessVertexSpanCount, 0, 0);
+        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
+        m_gpuContext->DrawInstanced(4, tessVertexSpanCount * 2, 0, 0);
 
         if (m_isIntel)
         {

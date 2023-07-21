@@ -14,23 +14,24 @@ ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0, packed_float3, @a_triangleVertex);
 #else
 ATTR(0, float4, @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+ATTR(1, float4, @a_mirroredVertexData);
 #endif
 ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN(Varyings)
-NO_PERSPECTIVE VARYING(float4, v_paint);
+NO_PERSPECTIVE VARYING(0, float4, v_paint);
 #ifdef @DRAW_INTERIOR_TRIANGLES
-@OPTIONALLY_FLAT VARYING(half, v_windingWeight);
+@OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
 #else
-NO_PERSPECTIVE VARYING(half2, v_edgeDistance);
+NO_PERSPECTIVE VARYING(2, half2, v_edgeDistance);
 #endif
-@OPTIONALLY_FLAT VARYING(half, v_pathID);
+@OPTIONALLY_FLAT VARYING(3, half, v_pathID);
 #ifdef @ENABLE_PATH_CLIPPING
-@OPTIONALLY_FLAT VARYING(half, v_clipID);
+@OPTIONALLY_FLAT VARYING(4, half, v_clipID);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-@OPTIONALLY_FLAT VARYING(half, v_blendMode);
+@OPTIONALLY_FLAT VARYING(5, half, v_blendMode);
 #endif
 VARYING_BLOCK_END(_pos)
 
@@ -77,6 +78,7 @@ VERTEX_MAIN(@drawVertexMain,
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
 #else
     ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
+    ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
 #endif
 
     VARYING_INIT(varyings, v_paint, float4);
@@ -139,9 +141,19 @@ VERTEX_MAIN(@drawVertexMain,
     float strokeRadius = uintBitsToFloat(pathData.z);
 
     // Fix the tessellation vertex if we fetched the wrong one in order to guarantee we got the
-    // correct contour ID and flags.
+    // correct contour ID and flags, or if we belong to a mirrored contour and this vertex has an
+    // alternate position when mirrored.
+    uint mirroredContourFlag = contourIDWithFlags & MIRRORED_CONTOUR_FLAG;
+    if (mirroredContourFlag != 0u)
+    {
+        localVertexID = int(@a_mirroredVertexData.x);
+        outset = @a_mirroredVertexData.y;
+        fillCoverage = @a_mirroredVertexData.z;
+    }
     if (localVertexID != vertexIDOnContour)
     {
+        // This can peek one vertex before or after the contour, but the tessellator guarantees
+        // there is always at least one padding vertex at the beginning and end of the data.
         tessVertexIdx += localVertexID - vertexIDOnContour;
         uint4 replacementTessVertexData =
             TEXEL_FETCH(textures, @tessVertexTexture, tessTexelCoord(tessVertexIdx));
@@ -161,7 +173,10 @@ VERTEX_MAIN(@drawVertexMain,
         {
             tessVertexData = replacementTessVertexData;
         }
-        contourIDWithFlags = tessVertexData.w;
+        // MIRRORED_CONTOUR_FLAG is not preserved at vertexIndex0. Preserve it here. By not
+        // preserving this flag, the normal and mirrored contour can both share the same contour
+        // record.
+        contourIDWithFlags = tessVertexData.w | mirroredContourFlag;
     }
 
     // Finish unpacking tessVertexData.
@@ -172,6 +187,9 @@ VERTEX_MAIN(@drawVertexMain,
 
     if (strokeRadius != .0) // Is this a stroke?
     {
+        // Ensure strokes always emit clockwise triangles.
+        outset *= sign(determinant(mat));
+
         // Joins only emanate from the outer side of the stroke.
         if ((contourIDWithFlags & LEFT_JOIN_FLAG) != 0u)
             outset = min(outset, .0);
@@ -202,7 +220,11 @@ VERTEX_MAIN(@drawVertexMain,
             // This vertex belongs to a miter or bevel join. Begin by finding the bisector, which is
             // the same as the miter line. The first two vertices in the join peek forward to figure
             // out the bisector, and the final two peek backward.
-            int peekDir = (contourIDWithFlags & JOIN_TANGENT_0_FLAG) != 0u ? 2 : -2;
+            int peekDir = 2;
+            if ((contourIDWithFlags & JOIN_TANGENT_0_FLAG) == 0u)
+                peekDir = -peekDir;
+            if ((contourIDWithFlags & MIRRORED_CONTOUR_FLAG) != 0u)
+                peekDir = -peekDir;
             int2 otherJoinTexelCoord = tessTexelCoord(tessVertexIdx + peekDir);
             uint4 otherJoinData = TEXEL_FETCH(textures, @tessVertexTexture, otherJoinTexelCoord);
             float otherJoinTheta = uintBitsToFloat(otherJoinData.z);
@@ -298,6 +320,9 @@ VERTEX_MAIN(@drawVertexMain,
 
         // Offset the vertex for Manhattan AA.
         postTransformVertexOffset = sign(MUL(mat, outset * norm)) * AA_RADIUS;
+
+        if ((contourIDWithFlags & MIRRORED_CONTOUR_FLAG) != 0u)
+            fillCoverage = -fillCoverage;
 
         // "v_edgeDistance.y < 0" indicates to the fragment shader that this is a fill.
         v_edgeDistance = make_half2(fillCoverage, -1);
@@ -416,7 +441,7 @@ PLS_DECL4F(2, originalDstColorBuffer);
 PLS_DECL2F(3, clipBuffer);
 PLS_BLOCK_END
 
-PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)
+PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos)
 {
     VARYING_UNPACK(varyings, v_paint, float4);
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -465,12 +490,10 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
 #ifdef @DRAW_INTERIOR_TRIANGLES
     coverageCount += v_windingWeight;
 #else
-    if (v_edgeDistance.y >= .0 /*stroke*/)
+    if (v_edgeDistance.y >= .0) // Stroke.
         coverageCount = max(min(v_edgeDistance.x, v_edgeDistance.y), coverageCount);
-    else if (_clockwise /*clockwise fill*/)
+    else // Fill. (Back-face culling ensures v_edgeDistance.x is appropriately signed.)
         coverageCount += v_edgeDistance.x;
-    else /*counterclockwise fill*/
-        coverageCount -= v_edgeDistance.x;
 
     // Save the updated coverage.
     PLS_STORE2F(coverageCountBuffer, v_pathID, coverageCount);

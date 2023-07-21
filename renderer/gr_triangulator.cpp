@@ -409,6 +409,7 @@ void GrTriangulator::MonotonePoly::addEdge(Edge* edge)
 
 void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
                                       uint16_t pathID,
+                                      bool reverseTriangles,
                                       pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
     assert(monotonePoly->fWinding != 0);
@@ -440,7 +441,13 @@ void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
         Vertex* next = v->fNext;
         if (count == 3)
         {
-            return emitTriangle(prev, curr, next, monotonePoly->fWinding, pathID, bufferRing);
+            return emitTriangle(prev,
+                                curr,
+                                next,
+                                monotonePoly->fWinding,
+                                pathID,
+                                reverseTriangles,
+                                bufferRing);
         }
         double ax = static_cast<double>(curr->fPoint.x) - prev->fPoint.x;
         double ay = static_cast<double>(curr->fPoint.y) - prev->fPoint.y;
@@ -448,7 +455,13 @@ void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
         double by = static_cast<double>(next->fPoint.y) - curr->fPoint.y;
         if (ax * by - ay * bx >= 0.0)
         {
-            emitTriangle(prev, curr, next, monotonePoly->fWinding, pathID, bufferRing);
+            emitTriangle(prev,
+                         curr,
+                         next,
+                         monotonePoly->fWinding,
+                         pathID,
+                         reverseTriangles,
+                         bufferRing);
             v->fPrev->fNext = v->fNext;
             v->fNext->fPrev = v->fPrev;
             count--;
@@ -473,12 +486,11 @@ void GrTriangulator::emitTriangle(Vertex* prev,
                                   Vertex* next,
                                   int winding,
                                   uint16_t pathID,
+                                  bool reverseTriangles,
                                   pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
-    if (winding > 0)
+    if (reverseTriangles)
     {
-        // Ensure our triangles always wind in the same direction as if the path had been
-        // triangulated as a simple fan (a la red book).
         std::swap(prev, next);
     }
     return emit_triangle(prev, curr, next, winding, pathID, bufferRing);
@@ -564,6 +576,7 @@ Poly* GrTriangulator::Poly::addEdge(Edge* e, Side side, GrTriangulator* tri)
 
 void GrTriangulator::emitPoly(const Poly* poly,
                               uint16_t pathID,
+                              bool reverseTriangles,
                               pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
     if (poly->fCount < 3)
@@ -573,7 +586,7 @@ void GrTriangulator::emitPoly(const Poly* poly,
     TESS_LOG("emit() %d, size %d\n", poly->fID, poly->fCount);
     for (MonotonePoly* m = poly->fHead; m != nullptr; m = m->fNext)
     {
-        emitMonotonePoly(m, pathID, bufferRing);
+        emitMonotonePoly(m, pathID, reverseTriangles, bufferRing);
     }
 }
 
@@ -2074,13 +2087,14 @@ std::tuple<Poly*, bool> GrTriangulator::contoursToPolys(VertexList* contours, in
 void GrTriangulator::polysToTriangles(const Poly* polys,
                                       FillRule overrideFillType,
                                       uint16_t pathID,
+                                      bool reverseTriangles,
                                       pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
     for (const Poly* poly = polys; poly; poly = poly->fNext)
     {
         if (apply_fill_type(overrideFillType, poly))
         {
-            emitPoly(poly, pathID, bufferRing);
+            emitPoly(poly, pathID, reverseTriangles, bufferRing);
         }
     }
 }
@@ -2167,6 +2181,7 @@ size_t GrTriangulator::countMaxTriangleVertices(const Poly* polys) const
 size_t GrTriangulator::polysToTriangles(const Poly* polys,
                                         uint64_t maxVertexCount,
                                         uint16_t pathID,
+                                        bool reverseTriangles,
                                         pls::BufferRing<pls::TriangleVertex>* bufferRing) const
 {
     if (0 == maxVertexCount || maxVertexCount > std::numeric_limits<int32_t>::max())
@@ -2185,7 +2200,7 @@ size_t GrTriangulator::polysToTriangles(const Poly* polys,
 #endif
 
     size_t start = bufferRing->bytesWritten();
-    polysToTriangles(polys, fFillRule, pathID, bufferRing);
+    polysToTriangles(polys, fFillRule, pathID, reverseTriangles, bufferRing);
     size_t actualCount = (bufferRing->bytesWritten() - start) / vertexStride;
     assert(actualCount <= maxVertexCount * vertexStride);
     return actualCount;

@@ -77,9 +77,9 @@
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE)
 
 #ifdef @VERTEX
-#define VARYING(TYPE, NAME) out TYPE NAME
+#define VARYING(IDX, TYPE, NAME) out TYPE NAME
 #else
-#define VARYING(TYPE, NAME) in TYPE NAME
+#define VARYING(IDX, TYPE, NAME) in TYPE NAME
 #endif
 #define FLAT flat
 #define VARYING_BLOCK_BEGIN(NAME)
@@ -251,16 +251,14 @@
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE
 
 #ifdef @PLS_IMPL_RW_TEXTURE
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)           \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
     void main()                                                                                    \
     {                                                                                              \
-        bool _clockwise = gl_FrontFacing;                                                          \
         highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));
 #else
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _clockwise)           \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
     void main()                                                                                    \
-    {                                                                                              \
-        bool _clockwise = gl_FrontFacing;
+    {
 #endif
 
 #define EMIT_PLS }
