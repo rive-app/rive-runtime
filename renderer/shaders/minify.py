@@ -42,16 +42,17 @@ args = parser.parse_args()
 tokens = [
     "DEFINE",
     "IFDEF",
+    "TOKEN_PASTE",
     "DIRECTIVE",
     "LINE_COMMENT",
     "BLOCK_COMMENT",
     "WHITESPACE",
-    "ANNOTATION",
     "OP",
     "FLOAT",
     "HEX",
     "INT",
     "ID",
+    "UNKNOWN",
 ]
 
 # tracks which identifiers are declared via a #define macro
@@ -59,19 +60,25 @@ defines = set()
 
 # counts the number of times each ID is seen, to prioritize which IDs get the shortest names
 all_id_counts = defaultdict(int);
-def parse_id(name, exports):
+all_id_reference_counts = defaultdict(int);
+def parse_id(name, exports, *, is_reference):
     all_id_counts[name] += 1
+    if is_reference:
+        all_id_reference_counts[name] += 1
     # identifiers that begin with '@' get exported to C++ through #defines.
     if name[0] == '@':
         exports.add(name)
 
 # lexing functions used by PLY.
 def t_DEFINE(tok):
-    r"\#[ \t]*define[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)(?P<val>(((\\\n|.)(?!\/[\/\*]))*))"
+    r"\#[ \t]*define[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)(?P<arglist>\((\n|[^\)])*\))?(?P<val>(((\\\n|.)(?!\/[\/\*]))*))?"
     tok.define_id = re.match(t_DEFINE.__doc__, tok.value)['id']
-    tok.define_val = re.match(t_DEFINE.__doc__, tok.value)['val']
+    arglist = re.match(t_DEFINE.__doc__, tok.value)['arglist']
+    tok.define_arglist = Minifier(arglist, "", tok.lexer.exports) if arglist else None
+    val = re.match(t_DEFINE.__doc__, tok.value)['val']
+    tok.define_val = Minifier(val, "", tok.lexer.exports) if val else None
     defines.add(tok.define_id)
-    parse_id(tok.define_id, tok.lexer.exports)
+    parse_id(tok.define_id, tok.lexer.exports, is_reference=False)
     tok.lexer.lineno += tok.value.count('\n')
     return tok
 
@@ -79,7 +86,11 @@ def t_IFDEF(tok):
     r"(?P<tag>\#[ \t]*ifn?def)[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)"
     tok.ifdef_tag = re.match(t_IFDEF.__doc__, tok.value)['tag']
     tok.ifdef_id = re.match(t_IFDEF.__doc__, tok.value)['id']
-    parse_id(tok.ifdef_id, tok.lexer.exports)
+    parse_id(tok.ifdef_id, tok.lexer.exports, is_reference=True)
+    return tok
+
+def t_TOKEN_PASTE(tok):
+    r"\#\#"
     return tok
 
 def t_DIRECTIVE(tok):
@@ -99,12 +110,8 @@ def t_BLOCK_COMMENT(tok):
     return tok
 
 def t_WHITESPACE(tok):
-    r"\s+"
+    r"(\s|\\\r?\n)+"
     tok.lexer.lineno += tok.value.count('\n')
-    return tok
-
-def t_ANNOTATION(tok):
-    r"\[\[.*\]\]"
     return tok
 
 def t_OP(tok):
@@ -125,7 +132,11 @@ def t_INT(tok):
 
 def t_ID(tok):
     r"[\@\$]?[A-Za-z_][A-Za-z0-9_]*"
-    parse_id(tok.value, tok.lexer.exports)
+    parse_id(tok.value, tok.lexer.exports, is_reference=True)
+    return tok
+
+def t_UNKNOWN(tok):
+    r"."
     return tok
 
 def t_error(tok):
@@ -133,153 +144,147 @@ def t_error(tok):
 
 # identifier names that cannot be renamed
 glsl_reserved = {
-    "const", "uniform", "layout", "location", "centroid", "flat", "smooth", "break", "continue",
-    "do", "for", "while", "switch", "case", "default", "if", "else", "in", "out", "inout", "float",
-    "int", "void", "bool", "true", "false", "invariant", "discard", "return", "mat2", "mat3",
-    "mat4", "mat2x2", "mat2x3", "mat2x4", "mat3x2", "mat3x3", "mat3x4", "mat4x2", "mat4x3",
-    "mat4x4", "vec2", "vec3", "vec4", "ivec2", "ivec3", "ivec4", "bvec2", "bvec3", "bvec4", "uint",
-    "uvec2", "uvec3", "uvec4", "lowp", "mediump", "highp", "precision", "sampler2D", "sampler3D",
-    "samplerCube", "sampler2DShadow", "samplerCubeShadow", "sampler2DArray", "sampler2DArrayShadow",
-    "isampler2D", "isampler3D", "isamplerCube", "isampler2DArray", "usampler2D", "usampler3D",
-    "usamplerCube", "usampler2DArray", "struct", "radians", "degrees", "sin", "cos", "tan", "asin",
-    "acos", "atan", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "pow", "exp", "log",
-    "exp2", "log2", "sqrt", "sqrt", "inversesqrt", "inversesqrt", "abs", "abs", "abs", "sign",
-    "sign", "sign", "floor", "floor", "trunc", "trunc", "round", "round", "roundEven", "roundEven",
-    "ceil", "ceil", "fract", "fract", "mod", "mod", "mod", "mod", "min", "min", "min", "min", "min",
-    "min", "min", "min", "max", "max", "max", "max", "max", "max", "max", "max", "clamp", "clamp",
-    "clamp", "clamp", "clamp", "clamp", "clamp", "clamp", "mix", "mix", "mix", "mix", "mix", "mix",
-    "mix", "mix", "mix", "step", "step", "step", "step", "smoothstep", "smoothstep", "smoothstep",
-    "smoothstep", "modf", "modf", "isnan", "isnan", "isinf", "isinf", "floatBitsToInt",
-    "floatBitsToUint", "intBitsToFloat", "uintBitsToFloat", "fma", "fma", "fma", "frexp", "frexp",
-    "ldexp", "ldexp", "packSnorm2x16", "packHalf2x16", "unpackSnorm2x16", "unpackHalf2x16",
-    "packUnorm2x16", "unpackUnorm2x16", "packUnorm4x8", "packSnorm4x8", "unpackSnorm4x8",
-    "packDouble2x32", "unpackDouble2x32", "length", "length", "distance", "distance", "dot", "dot",
-    "cross", "cross", "normalize", "normalize", "faceforward", "faceforward", "reflect", "reflect",
-    "refract", "refract", "ftransform", "matrixCompMult", "matrixCompMult", "matrixCompMult",
-    "matrixCompMult", "matrixCompMult", "matrixCompMult", "matrixCompMult", "matrixCompMult",
-    "matrixCompMult", "outerProduct", "outerProduct", "outerProduct", "outerProduct",
-    "outerProduct", "outerProduct", "outerProduct", "outerProduct", "outerProduct", "transpose",
-    "transpose", "transpose", "transpose", "transpose", "transpose", "transpose", "transpose",
-    "transpose", "determinant", "determinant", "determinant", "inverse", "inverse", "inverse",
+    "EmitStreamVertex", "EmitVertex", "EmitVertex", "EndPrimitive", "EndPrimitive",
+    "EndStreamPrimitive", "abs", "abs", "abs", "acos", "acosh", "all", "allInvocations",
+    "allInvocationsEqual", "any", "anyInvocation", "asin", "asinh", "atan", "atan", "atanh",
+    "atomicAdd", "atomicAdd", "atomicAnd", "atomicAnd", "atomicCompSwap", "atomicCompSwap",
+    "atomicCounter", "atomicCounterAdd", "atomicCounterAnd", "atomicCounterCompSwap",
+    "atomicCounterDecrement", "atomicCounterExchange", "atomicCounterIncrement", "atomicCounterMax",
+    "atomicCounterMin", "atomicCounterOr", "atomicCounterSubtract", "atomicCounterXor",
+    "atomicExchange", "atomicExchange", "atomicMax", "atomicMax", "atomicMin", "atomicMin",
+    "atomicOr", "atomicOr", "atomicXor", "atomicXor", "barrier", "barrier",
+    "beginFragmentShaderOrderingINTEL", "beginInvocationInterlockARB", "beginInvocationInterlockNV",
+    "binding", "bitCount", "bitCount", "bitfieldExtract", "bitfieldExtract", "bitfieldInsert",
+    "bitfieldInsert", "bitfieldReverse", "bitfieldReverse", "bool", "break", "bvec2", "bvec3",
+    "bvec4", "case", "ceil", "ceil", "centroid", "clamp", "clamp", "clamp", "clamp", "clamp",
+    "clamp", "clamp", "clamp", "coherent", "const", "continue", "cos", "cosh", "cross", "cross",
+    "dFdx", "dFdx", "dFdxCoarse", "dFdxFine", "dFdy", "dFdy", "dFdyCoarse", "dFdyFine", "default",
+    "degrees", "determinant", "determinant", "determinant", "discard", "distance", "distance", "do",
+    "dot", "dot", "else", "endInvocationInterlockARB", "endInvocationInterlockNV", "equal", "equal",
+    "equal", "equal", "exp", "exp2", "faceforward", "faceforward", "false", "findLSB", "findLSB",
+    "findMSB", "findMSB", "flat", "float", "floatBitsToInt", "floatBitsToUint", "floor", "floor",
+    "fma", "fma", "fma", "for", "fract", "fract", "frexp", "frexp", "ftransform", "fwidth",
+    "fwidth", "fwidthCoarse", "fwidthFine", "greaterThan", "greaterThan", "greaterThan",
+    "greaterThanEqual", "greaterThanEqual", "greaterThanEqual", "groupMemoryBarrier", "highp", "if",
+    "iimage2D", "image2D", "imageAtomicAdd", "imageAtomicAdd", "imageAtomicAdd", "imageAtomicAdd",
+    "imageAtomicAnd", "imageAtomicAnd", "imageAtomicAnd", "imageAtomicAnd", "imageAtomicCompSwap",
+    "imageAtomicCompSwap", "imageAtomicCompSwap", "imageAtomicCompSwap", "imageAtomicExchange",
+    "imageAtomicExchange", "imageAtomicExchange", "imageAtomicExchange", "imageAtomicExchange",
+    "imageAtomicMax", "imageAtomicMax", "imageAtomicMax", "imageAtomicMax", "imageAtomicMin",
+    "imageAtomicMin", "imageAtomicMin", "imageAtomicMin", "imageAtomicOr", "imageAtomicOr",
+    "imageAtomicOr", "imageAtomicOr", "imageAtomicXor", "imageAtomicXor", "imageAtomicXor",
+    "imageAtomicXor", "imageLoad", "imageLoad", "imageLoad", "imageLoad", "imageLoad", "imageLoad",
+    "imageLoad", "imageLoad", "imageSamples", "imageSamples", "imageSize", "imageSize", "imageSize",
+    "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize",
+    "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize",
+    "imageSize", "imageSize", "imageStore", "imageStore", "imageStore", "imageStore", "imageStore",
+    "imageStore", "imageStore", "imageStore", "imageStore", "imulExtended", "in", "inout", "int",
+    "intBitsToFloat", "interpolateAtCentroid", "interpolateAtCentroid", "interpolateAtCentroid",
+    "interpolateAtCentroid", "interpolateAtCentroid", "interpolateAtCentroid",
+    "interpolateAtCentroid", "interpolateAtCentroid", "interpolateAtOffset", "interpolateAtOffset",
+    "interpolateAtOffset", "interpolateAtOffset", "interpolateAtOffset", "interpolateAtOffset",
+    "interpolateAtOffset", "interpolateAtSample", "interpolateAtSample", "interpolateAtSample",
+    "interpolateAtSample", "interpolateAtSample", "interpolateAtSample", "interpolateAtSample",
+    "interpolateAtSample", "invariant", "inverse", "inverse", "inverse", "inversesqrt",
+    "inversesqrt", "isampler2D", "isampler2DArray", "isampler3D", "isamplerCube", "isinf", "isinf",
+    "isnan", "isnan", "ivec2", "ivec3", "ivec4", "layout", "ldexp", "ldexp", "length", "length",
     "lessThan", "lessThan", "lessThan", "lessThanEqual", "lessThanEqual", "lessThanEqual",
-    "greaterThan", "greaterThan", "greaterThan", "greaterThanEqual", "greaterThanEqual",
-    "greaterThanEqual", "equal", "equal", "equal", "equal", "notEqual", "notEqual", "notEqual",
-    "notEqual", "any", "all", "not", "bitfieldExtract", "bitfieldExtract", "bitfieldInsert",
-    "bitfieldInsert", "bitfieldReverse", "bitfieldReverse", "bitCount", "bitCount", "findLSB",
-    "findLSB", "findMSB", "findMSB", "uaddCarry", "usubBorrow", "umulExtended", "imulExtended",
-    "texture2D", "texture2DProj", "texture2DProj", "textureCube", "texture1D", "texture1DProj",
-    "texture1DProj", "texture3D", "texture3DProj", "shadow1D", "shadow1DProj", "shadow2D",
-    "shadow2DProj", "texture3D", "texture3DProj", "shadow2DEXT", "shadow2DProjEXT", "texture2D",
-    "texture2DProj", "texture2DProj", "texture2DRect", "texture2DRectProj", "texture2DRectProj",
-    "texture2DGradEXT", "texture2DProjGradEXT", "texture2DProjGradEXT", "textureCubeGradEXT",
-    "textureVideoWEBGL", "texture2D", "texture2DProj", "texture2DProj", "textureCube", "texture3D",
-    "texture3DProj", "texture1D", "texture1DProj", "texture1DProj", "shadow1DProj", "shadow2D",
-    "shadow2DProj", "texture3D", "texture3DProj", "texture2DLod", "texture2DProjLod",
-    "texture2DProjLod", "textureCubeLod", "texture1DLod", "texture1DProjLod", "texture1DProjLod",
-    "shadow1DLod", "shadow1DProjLod", "shadow2DLod", "shadow2DProjLod", "texture3DLod",
-    "texture3DProjLod", "texture3DLod", "texture3DProjLod", "texture2DLod", "texture2DProjLod",
-    "texture2DProjLod", "textureCubeLod", "texture2DLodEXT", "texture2DProjLodEXT",
-    "texture2DProjLodEXT", "textureCubeLodEXT", "texture", "texture", "texture", "texture",
+    "location", "log", "log2", "lowp", "main", "mat2", "mat2x2", "mat2x3", "mat2x4", "mat3",
+    "mat3x2", "mat3x3", "mat3x4", "mat4", "mat4x2", "mat4x3", "mat4x4", "matrixCompMult",
+    "matrixCompMult", "matrixCompMult", "matrixCompMult", "matrixCompMult", "matrixCompMult",
+    "matrixCompMult", "matrixCompMult", "matrixCompMult", "max", "max", "max", "max", "max", "max",
+    "max", "max", "mediump", "memoryBarrier", "memoryBarrierAtomicCounter", "memoryBarrierBuffer",
+    "memoryBarrierImage", "memoryBarrierShared", "min", "min", "min", "min", "min", "min", "min",
+    "min", "mix", "mix", "mix", "mix", "mix", "mix", "mix", "mix", "mix", "mod", "mod", "mod",
+    "mod", "modf", "modf", "noise1", "noise2", "noise3", "noise4", "noperspective", "normalize",
+    "normalize", "not", "notEqual", "notEqual", "notEqual", "notEqual", "out", "outerProduct",
+    "outerProduct", "outerProduct", "outerProduct", "outerProduct", "outerProduct", "outerProduct",
+    "outerProduct", "outerProduct", "packDouble2x32", "packHalf2x16", "packSnorm2x16",
+    "packSnorm4x8", "packUnorm2x16", "packUnorm4x8", "pixelLocalLoadANGLE", "pixelLocalStoreANGLE",
+    "pow", "precision", "r16f", "r32f", "r32ui", "radians", "reflect", "reflect", "refract",
+    "refract", "return", "rg16f", "rgb_2_yuv", "rgba8", "rgba8i", "rgba8ui", "round", "round",
+    "roundEven", "roundEven", "sampler2D", "sampler2DArray", "sampler2DArrayShadow",
+    "sampler2DShadow", "sampler3D", "samplerCube", "samplerCubeShadow", "shadow1D", "shadow1DLod",
+    "shadow1DProj", "shadow1DProj", "shadow1DProjLod", "shadow2D", "shadow2D", "shadow2DEXT",
+    "shadow2DLod", "shadow2DProj", "shadow2DProj", "shadow2DProjEXT", "shadow2DProjLod", "sign",
+    "sign", "sign", "sin", "sinh", "smooth", "smoothstep", "smoothstep", "smoothstep", "smoothstep",
+    "sqrt", "sqrt", "std140", "step", "step", "step", "step", "struct", "subpassLoad",
+    "subpassLoad", "switch", "tan", "tanh", "texelFetch", "texelFetch", "texelFetch", "texelFetch",
+    "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch",
+    "texelFetch", "texelFetch", "texelFetch", "texelFetchOffset", "texelFetchOffset",
+    "texelFetchOffset", "texelFetchOffset", "texelFetchOffset", "texelFetchOffset", "texture",
     "texture", "texture", "texture", "texture", "texture", "texture", "texture", "texture",
     "texture", "texture", "texture", "texture", "texture", "texture", "texture", "texture",
-    "texture", "textureProj", "textureProj", "textureProj", "textureProj", "textureProj",
-    "textureProj", "textureProj", "textureProj", "textureProj", "textureProj", "textureProj",
-    "textureProj", "textureProj", "textureProj", "textureProj", "textureLod", "textureLod",
-    "textureLod", "textureLod", "textureLod", "textureLod", "textureLod", "textureLod",
-    "textureLod", "textureLod", "textureLod", "textureSize", "textureSize", "textureSize",
-    "textureSize", "textureSize", "textureSize", "textureSize", "textureSize", "textureSize",
-    "textureSize", "textureSize", "textureSize", "textureSize", "textureSize", "textureSize",
-    "textureSize", "textureSize", "textureSize", "textureSize", "textureSize", "textureSize",
-    "textureSize", "textureSize", "textureSize", "textureProjLod", "textureProjLod",
-    "textureProjLod", "textureProjLod", "textureProjLod", "textureProjLod", "textureProjLod",
-    "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch",
-    "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch",
-    "texelFetch", "textureGrad", "textureGrad", "textureGrad", "textureGrad", "textureGrad",
+    "texture", "texture", "texture", "texture", "texture", "texture", "texture", "texture",
+    "texture", "texture", "texture", "texture", "texture", "texture", "texture", "texture",
+    "texture", "texture", "texture", "texture1D", "texture1D", "texture1DLod", "texture1DProj",
+    "texture1DProj", "texture1DProj", "texture1DProj", "texture1DProjLod", "texture1DProjLod",
+    "texture2D", "texture2D", "texture2D", "texture2DGradEXT", "texture2DLod", "texture2DLod",
+    "texture2DLodEXT", "texture2DProj", "texture2DProj", "texture2DProj", "texture2DProj",
+    "texture2DProj", "texture2DProj", "texture2DProjGradEXT", "texture2DProjGradEXT",
+    "texture2DProjLod", "texture2DProjLod", "texture2DProjLod", "texture2DProjLod",
+    "texture2DProjLodEXT", "texture2DProjLodEXT", "texture2DRect", "texture2DRectProj",
+    "texture2DRectProj", "texture3D", "texture3D", "texture3D", "texture3D", "texture3DLod",
+    "texture3DLod", "texture3DProj", "texture3DProj", "texture3DProj", "texture3DProj",
+    "texture3DProjLod", "texture3DProjLod", "textureCube", "textureCube", "textureCubeGradEXT",
+    "textureCubeLod", "textureCubeLod", "textureCubeLodEXT", "textureGather", "textureGather",
+    "textureGather", "textureGather", "textureGather", "textureGather", "textureGather",
+    "textureGather", "textureGather", "textureGather", "textureGather", "textureGather",
+    "textureGather", "textureGather", "textureGather", "textureGather", "textureGather",
+    "textureGather", "textureGather", "textureGather", "textureGather", "textureGatherOffset",
+    "textureGatherOffset", "textureGatherOffset", "textureGatherOffset", "textureGatherOffset",
+    "textureGatherOffset", "textureGatherOffset", "textureGatherOffset", "textureGatherOffset",
+    "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets",
+    "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets",
+    "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets",
+    "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets", "textureGrad",
     "textureGrad", "textureGrad", "textureGrad", "textureGrad", "textureGrad", "textureGrad",
-    "textureGrad", "textureGrad", "textureGrad", "textureGrad", "textureProjGrad",
+    "textureGrad", "textureGrad", "textureGrad", "textureGrad", "textureGrad", "textureGrad",
+    "textureGrad", "textureGrad", "textureGradOffset", "textureGradOffset", "textureGradOffset",
+    "textureGradOffset", "textureGradOffset", "textureGradOffset", "textureGradOffset",
+    "textureGradOffset", "textureGradOffset", "textureGradOffset", "textureGradOffset",
+    "textureLod", "textureLod", "textureLod", "textureLod", "textureLod", "textureLod",
+    "textureLod", "textureLod", "textureLod", "textureLod", "textureLod", "textureLodOffset",
+    "textureLodOffset", "textureLodOffset", "textureLodOffset", "textureLodOffset",
+    "textureLodOffset", "textureLodOffset", "textureLodOffset", "textureOffset", "textureOffset",
+    "textureOffset", "textureOffset", "textureOffset", "textureOffset", "textureOffset",
+    "textureOffset", "textureOffset", "textureOffset", "textureOffset", "textureOffset",
+    "textureOffset", "textureOffset", "textureOffset", "textureOffset", "textureOffset",
+    "textureOffset", "textureOffset", "textureProj", "textureProj", "textureProj", "textureProj",
+    "textureProj", "textureProj", "textureProj", "textureProj", "textureProj", "textureProj",
+    "textureProj", "textureProj", "textureProj", "textureProj", "textureProj", "textureProj",
+    "textureProj", "textureProj", "textureProj", "textureProj", "textureProj", "textureProj",
+    "textureProj", "textureProj", "textureProj", "textureProj", "textureProjGrad",
     "textureProjGrad", "textureProjGrad", "textureProjGrad", "textureProjGrad", "textureProjGrad",
     "textureProjGrad", "textureProjGrad", "textureProjGrad", "textureProjGrad",
-    "textureQueryLevels", "textureQueryLevels", "textureQueryLevels", "textureQueryLevels",
-    "textureQueryLevels", "textureQueryLevels", "textureQueryLevels", "textureQueryLevels",
-    "textureQueryLevels", "textureQueryLevels", "textureQueryLevels", "textureQueryLevels",
-    "textureQueryLevels", "textureSamples", "textureSamples", "texture", "texture", "texture",
-    "texture", "textureProj", "textureProj", "textureProj", "texture", "texture", "textureProj",
-    "texture", "texture", "texture", "texture", "texture", "textureProj", "textureProj",
-    "textureProj", "texture", "texture", "texture", "textureProj", "textureProj", "texture",
-    "textureProj", "textureProj", "textureQueryLod", "textureQueryLod", "textureQueryLod",
-    "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod",
-    "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod",
-    "textureOffset", "textureOffset", "textureOffset", "textureOffset", "textureOffset",
-    "textureOffset", "textureOffset", "textureOffset", "textureOffset", "textureOffset",
-    "textureOffset", "textureProjOffset", "textureProjOffset", "textureProjOffset",
-    "textureProjOffset", "textureProjOffset", "textureProjOffset", "textureProjOffset",
-    "textureProjOffset", "textureProjOffset", "textureProjOffset", "textureLodOffset",
-    "textureLodOffset", "textureLodOffset", "textureLodOffset", "textureLodOffset",
-    "textureLodOffset", "textureLodOffset", "textureLodOffset", "textureProjLodOffset",
+    "textureProjGradOffset", "textureProjGradOffset", "textureProjGradOffset",
+    "textureProjGradOffset", "textureProjGradOffset", "textureProjGradOffset",
+    "textureProjGradOffset", "textureProjGradOffset", "textureProjGradOffset",
+    "textureProjGradOffset", "textureProjLod", "textureProjLod", "textureProjLod", "textureProjLod",
+    "textureProjLod", "textureProjLod", "textureProjLod", "textureProjLodOffset",
     "textureProjLodOffset", "textureProjLodOffset", "textureProjLodOffset", "textureProjLodOffset",
-    "textureProjLodOffset", "textureProjLodOffset", "texelFetchOffset", "texelFetchOffset",
-    "texelFetchOffset", "texelFetchOffset", "texelFetchOffset", "texelFetchOffset",
-    "textureGradOffset", "textureGradOffset", "textureGradOffset", "textureGradOffset",
-    "textureGradOffset", "textureGradOffset", "textureGradOffset", "textureGradOffset",
-    "textureGradOffset", "textureGradOffset", "textureGradOffset", "textureProjGradOffset",
-    "textureProjGradOffset", "textureProjGradOffset", "textureProjGradOffset",
-    "textureProjGradOffset", "textureProjGradOffset", "textureProjGradOffset",
-    "textureProjGradOffset", "textureProjGradOffset", "textureProjGradOffset", "textureOffset",
-    "textureOffset", "textureOffset", "textureOffset", "textureOffset", "textureOffset",
-    "textureOffset", "textureOffset", "textureProjOffset", "textureProjOffset", "textureProjOffset",
+    "textureProjLodOffset", "textureProjLodOffset", "textureProjOffset", "textureProjOffset",
     "textureProjOffset", "textureProjOffset", "textureProjOffset", "textureProjOffset",
-    "textureGather", "textureGather", "textureGather", "textureGather", "textureGather",
-    "textureGather", "textureGather", "textureGather", "textureGather", "textureGather",
-    "textureGather", "textureGather", "textureGather", "textureGather", "textureGather",
-    "textureGather", "textureGather", "textureGather", "textureGather", "textureGather",
-    "textureGather", "textureGatherOffset", "textureGatherOffset", "textureGatherOffset",
-    "textureGatherOffset", "textureGatherOffset", "textureGatherOffset", "textureGatherOffset",
-    "textureGatherOffset", "textureGatherOffset", "textureGatherOffsets", "textureGatherOffsets",
-    "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets",
-    "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets",
-    "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets", "textureGatherOffsets",
-    "textureGatherOffsets", "rgb_2_yuv", "yuv_2_rgb", "dFdx", "dFdy", "fwidth", "dFdx", "dFdy",
-    "fwidth", "dFdxFine", "dFdyFine", "dFdxCoarse", "dFdyCoarse", "fwidthFine", "fwidthCoarse",
-    "interpolateAtCentroid", "interpolateAtCentroid", "interpolateAtCentroid",
-    "interpolateAtCentroid", "interpolateAtSample", "interpolateAtSample", "interpolateAtSample",
-    "interpolateAtSample", "interpolateAtOffset", "interpolateAtOffset", "interpolateAtOffset",
-    "interpolateAtOffset", "interpolateAtCentroid", "interpolateAtCentroid",
-    "interpolateAtCentroid", "interpolateAtCentroid", "interpolateAtSample", "interpolateAtSample",
-    "interpolateAtSample", "interpolateAtSample", "interpolateAtOffset", "interpolateAtOffset",
-    "interpolateAtOffset", "atomicCounter", "atomicCounterIncrement", "atomicCounterDecrement",
-    "atomicCounterAdd", "atomicCounterSubtract", "atomicCounterMin", "atomicCounterMax",
-    "atomicCounterAnd", "atomicCounterOr", "atomicCounterXor", "atomicCounterExchange",
-    "atomicCounterCompSwap", "atomicAdd", "atomicAdd", "atomicMin", "atomicMin", "atomicMax",
-    "atomicMax", "atomicAnd", "atomicAnd", "atomicOr", "atomicOr", "atomicXor", "atomicXor",
-    "atomicExchange", "atomicExchange", "atomicCompSwap", "atomicCompSwap", "imageStore",
-    "imageStore", "imageStore", "imageStore", "imageStore", "imageStore", "imageStore",
-    "imageStore", "imageStore", "imageLoad", "imageLoad", "imageLoad", "imageLoad", "imageLoad",
-    "imageLoad", "imageLoad", "imageLoad", "imageSize", "imageSize", "imageSize", "imageSize",
-    "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize",
-    "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize", "imageSize",
-    "imageSize", "imageSamples", "imageSamples", "imageAtomicAdd", "imageAtomicAdd",
-    "imageAtomicMin", "imageAtomicMin", "imageAtomicMax", "imageAtomicMax", "imageAtomicAnd",
-    "imageAtomicAnd", "imageAtomicOr", "imageAtomicOr", "imageAtomicXor", "imageAtomicXor",
-    "imageAtomicExchange", "imageAtomicExchange", "imageAtomicExchange", "imageAtomicCompSwap",
-    "imageAtomicCompSwap", "imageAtomicAdd", "imageAtomicAdd", "imageAtomicMin", "imageAtomicMin",
-    "imageAtomicMax", "imageAtomicMax", "imageAtomicAnd", "imageAtomicAnd", "imageAtomicOr",
-    "imageAtomicOr", "imageAtomicXor", "imageAtomicXor", "imageAtomicExchange",
-    "imageAtomicExchange", "imageAtomicCompSwap", "imageAtomicCompSwap", "pixelLocalLoadANGLE",
-    "pixelLocalStoreANGLE", "beginInvocationInterlockNV", "endInvocationInterlockNV",
-    "beginFragmentShaderOrderingINTEL", "beginInvocationInterlockARB", "endInvocationInterlockARB",
-    "noise1", "noise2", "noise3", "noise4", "memoryBarrier", "memoryBarrierAtomicCounter",
-    "memoryBarrierBuffer", "memoryBarrierImage", "barrier", "memoryBarrierShared",
-    "groupMemoryBarrier", "barrier", "EmitVertex", "EndPrimitive", "EmitVertex", "EndPrimitive",
-    "EmitStreamVertex", "EndStreamPrimitive", "subpassLoad", "subpassLoad", "anyInvocation",
-    "allInvocations", "allInvocationsEqual", "r32ui", "rg16f", "rgba8", "rgba8ui", "rgba8i", "r32f",
-    "main",
-
-    # keywords borrowed from metal, used by metal.glsl
-    "using", "namespace", "metal", "inline", "template", "vec", "as_type", "constant",
-
-    # keywords borrowed from hlsl, used by hlsl.glsl
-    "f16tof32", "f32tof16", "atan2", "asfloat", "asint", "asuint", "frac", "lerp", "rsqrt",
-    "typedef", "min16int", "min16uint"
+    "textureProjOffset", "textureProjOffset", "textureProjOffset", "textureProjOffset",
+    "textureProjOffset", "textureProjOffset", "textureProjOffset", "textureProjOffset",
+    "textureProjOffset", "textureProjOffset", "textureProjOffset", "textureQueryLevels",
+    "textureQueryLevels", "textureQueryLevels", "textureQueryLevels", "textureQueryLevels",
+    "textureQueryLevels", "textureQueryLevels", "textureQueryLevels", "textureQueryLevels",
+    "textureQueryLevels", "textureQueryLevels", "textureQueryLevels", "textureQueryLevels",
+    "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod",
+    "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureQueryLod",
+    "textureQueryLod", "textureQueryLod", "textureQueryLod", "textureSamples", "textureSamples",
+    "textureSize", "textureSize", "textureSize", "textureSize", "textureSize", "textureSize",
+    "textureSize", "textureSize", "textureSize", "textureSize", "textureSize", "textureSize",
+    "textureSize", "textureSize", "textureSize", "textureSize", "textureSize", "textureSize",
+    "textureSize", "textureSize", "textureSize", "textureSize", "textureSize", "textureSize",
+    "textureVideoWEBGL", "transpose", "transpose", "transpose", "transpose", "transpose",
+    "transpose", "transpose", "transpose", "transpose", "true", "trunc", "trunc", "uaddCarry",
+    "uimage2D", "uint", "uintBitsToFloat", "umulExtended", "uniform", "unpackDouble2x32",
+    "unpackHalf2x16", "unpackSnorm2x16", "unpackSnorm4x8", "unpackUnorm2x16", "usampler2D",
+    "usampler2DArray", "usampler3D", "usamplerCube", "usubBorrow", "uvec2", "uvec3", "uvec4",
+    "vec2", "vec3", "vec4", "void", "volatile", "while", "yuv_2_rgb", "__pixel_localEXT",
+    "__pixel_local_inEXT", "__pixel_local_outEXT",
 }
 
 # rgba and stpq get rewritten to xyzw, so we only need to check xyzw here. This way we can keep
@@ -337,7 +342,6 @@ general_name_generator = NameGenerator(lower_and_upper_chars, "_0123456789" + lo
 used_new_names = set()
 
 def generate_new_name(*, force_upper_case):
-    global upper_case_name_generator, general_name_generator, used_new_names;
     name_generator = upper_case_name_generator if force_upper_case else general_name_generator
     while True:
         name = name_generator.next_name()
@@ -364,14 +368,14 @@ rgba_stpq_remap = {'r':'x', 'g':'y', 'b':'z', 'a':'w',
 
 # minifies a single GLSL file.
 class Minifier:
-    def __init__(self, in_filename):
+    def __init__(self, code, basename, exports=set()):
         # parse tokens.
         lexer = lex.lex()
-        lexer.exports = set()
-        lexer.input(open(in_filename).read())
+        lexer.exports = exports
+        lexer.input(code)
         self.tokens = [tok for tok in lexer];
-        self.exports = lexer.exports
-        self.basename = os.path.basename(in_filename)
+        self.exports = exports
+        self.basename = basename
 
 
     # Strips unneeded code from the tokens. Called after all Minifiers have been parsed.
@@ -380,19 +384,26 @@ class Minifier:
 
         # strip comments.
         self.tokens = \
-            [t for t in self.tokens if "COMMENT" not in t.type]
+            [tok for tok in self.tokens if "COMMENT" not in tok.type]
 
         # strip unused defines.
-        self.tokens = \
-            [t for t in self.tokens if t.type != "DEFINE" or all_id_counts[t.define_id] > 1]
+        self.tokens = [tok for tok in self.tokens if tok.type != "DEFINE"\
+                                                  or all_id_reference_counts[tok.define_id] > 0]
 
         # merge whitespace.
         unmerged,self.tokens = self.tokens,[]
-        for t in unmerged:
-            if t.type == "WHITESPACE" and len(self.tokens) > 0 and self.tokens[-1].type == "WHITESPACE":
-                self.tokens[-1].value += t.value
+        for tok in unmerged:
+            if tok.type == "DEFINE":
+                if tok.define_arglist != None:
+                    tok.define_arglist.strip_tokens()
+                if tok.define_val != None:
+                    tok.define_val.strip_tokens()
+            if (tok.type == "WHITESPACE"
+                and len(self.tokens) > 0
+                and self.tokens[-1].type == "WHITESPACE"):
+                self.tokens[-1].value += tok.value
             else:
-                self.tokens.append(t)
+                self.tokens.append(tok)
 
 
     # generates rewritten glsl from our tokens.
@@ -420,6 +431,10 @@ class Minifier:
             elif needs_whitespace and lasttoken_needs_whitespace:
                 out.write(' ')
 
+            # is_newline will be false once we output the token (unless this value otherwise gets
+            # updated).
+            is_newline = False
+
             if tok.type == "ID":
                 if (rgba_stpq_pattern.match(tok.value)
                     and lasttoken.type == "OP"
@@ -436,8 +451,16 @@ class Minifier:
                 out.write(new_names[tok.define_id]
                           if rename_exported_defines or tok.define_id[0] != '@'
                           else tok.define_id[1:])
+                if tok.define_arglist != None:
+                    is_newline = tok.define_arglist.emit_tokens_to_rewritten_glsl(\
+                        out,\
+                        rename_exported_defines=rename_exported_defines)
+                    assert(not is_newline)
                 if tok.define_val != None:
-                    out.write(tok.define_val)
+                    out.write(' ')
+                    is_newline = tok.define_val.emit_tokens_to_rewritten_glsl(\
+                        out,\
+                        rename_exported_defines=rename_exported_defines)
 
             elif tok.type == "IFDEF":
                 out.write(tok.ifdef_tag)
@@ -454,19 +477,17 @@ class Minifier:
             else:
                 out.write(tok.value)
 
-            if is_directive and not args.human_readable:
+            # Since we preserve whitespace in 'human_readable' mode, the newline after a
+            # preprocessor directive will happen for us automatically unless 'human_readable' is
+            # false.
+            if not args.human_readable and is_directive and not is_newline:
                 out.write('\n')
                 is_newline = True
-            else:
-                # Since we preserve whitespace in 'human_readable' mode, the newline after a
-                # preprocessor directive will happen automatically.
-                is_newline = False
 
             lasttoken = tok
             lasttoken_needs_whitespace = needs_whitespace
 
-        if not is_newline:
-            out.write('\n')
+        return is_newline
 
 
     def write_exports(self, outdir):
@@ -493,7 +514,9 @@ class Minifier:
         out.write("namespace glsl {\n")
         out.write('const char %s[] = R"===(' % os.path.splitext(self.basename)[0])
 
-        self.emit_tokens_to_rewritten_glsl(out, rename_exported_defines=True)
+        is_newline = self.emit_tokens_to_rewritten_glsl(out, rename_exported_defines=True)
+        if not is_newline:
+            out.write('\n')
 
         out.write(')===";\n')
         out.write("} // namespace glsl\n")
@@ -511,7 +534,7 @@ class Minifier:
 
 
 # parse all GLSL files before renaming. This keeps the renaming consistent across files.
-minifiers = [Minifier(f) for f in args.files]
+minifiers = [Minifier(open(f).read(), os.path.basename(f)) for f in args.files]
 generate_new_names()
 
 # minify all GLSL files.

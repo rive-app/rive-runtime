@@ -56,12 +56,6 @@
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
 #endif
 
-#ifndef @BASE_INSTANCE_POLYFILL
-#define INSTANCE_ID (gl_BaseInstance + gl_InstanceID)
-#else
-#define INSTANCE_ID gl_InstanceID
-#endif
-
 #define UNIFORM_BLOCK_BEGIN(N)                                                                     \
     layout(std140) uniform N                                                                       \
     {
