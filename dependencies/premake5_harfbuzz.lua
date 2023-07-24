@@ -262,8 +262,74 @@ do
         optimize 'On'
     end
 
+    filter {'system:macosx', 'options:variant=runtime'}
+    do
+        buildoptions {
+            '-Wimplicit-float-conversion -fembed-bitcode -arch arm64 -arch x86_64 -isysroot ' ..
+                (os.getenv('MACOS_SYSROOT') or '')
+        }
+    end
+
+    filter {'system:macosx', 'configurations:release'}
+    do
+        buildoptions {'-flto=full'}
+    end
+
+    filter {'system:ios'}
+    do
+        buildoptions {'-flto=full'}
+    end
+
     filter 'system:windows'
     do
         architecture 'x64'
+        defines {'_USE_MATH_DEFINES'}
+    end
+
+    filter {'system:ios', 'options:variant=system'}
+    do
+        buildoptions {
+            '-mios-version-min=10.0 -fembed-bitcode -arch armv7 -arch arm64 -arch arm64e -isysroot ' ..
+                (os.getenv('IOS_SYSROOT') or '')
+        }
+    end
+
+    filter {'system:ios', 'options:variant=emulator'}
+    do
+        buildoptions {
+            '-mios-version-min=10.0 -arch arm64 -arch x86_64 -arch i386 -isysroot ' .. (os.getenv('IOS_SYSROOT') or '')
+        }
+        targetdir '%{cfg.system}_sim/cache/bin/%{cfg.buildcfg}'
+        objdir '%{cfg.system}_sim/cache/obj/%{cfg.buildcfg}'
+    end
+
+    filter {'system:android', 'configurations:release'}
+    do
+        buildoptions {'-flto=full'}
+    end
+
+    -- Is there a way to pass 'arch' as a variable here?
+    filter {'system:android', 'options:arch=x86'}
+    do
+        targetdir '%{cfg.system}/cache/x86/bin/%{cfg.buildcfg}'
+        objdir '%{cfg.system}/cache/x86/obj/%{cfg.buildcfg}'
+    end
+
+    filter {'system:android', 'options:arch=x64'}
+    do
+        targetdir '%{cfg.system}/cache/x64/bin/%{cfg.buildcfg}'
+        objdir '%{cfg.system}/cache/x64/obj/%{cfg.buildcfg}'
+    end
+
+    filter {'system:android', 'options:arch=arm'}
+    do
+        targetdir '%{cfg.system}/cache/arm/bin/%{cfg.buildcfg}'
+        objdir '%{cfg.system}/cache/arm/obj/%{cfg.buildcfg}'
+    end
+
+    filter {'system:android', 'options:arch=arm64'}
+    do
+        targetdir '%{cfg.system}/cache/arm64/bin/%{cfg.buildcfg}'
+        objdir '%{cfg.system}/cache/arm64/obj/%{cfg.buildcfg}'
     end
 end

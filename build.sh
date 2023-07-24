@@ -32,8 +32,8 @@ if [ "$OPTION" = 'help' ]; then
 else
     build() {
         echo "Building Rive for platform=$platform option=$OPTION"
-        echo premake5 gmake2 "$1"
-        PREMAKE="premake5 gmake2 $1"
+        echo premake5 gmake2 --with_rive_text "$1"
+        PREMAKE="premake5 gmake2 --with_rive_text $1"
         eval "$PREMAKE"
         if [ "$OPTION" = "clean" ]; then
             make clean
