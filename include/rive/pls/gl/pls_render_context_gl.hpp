@@ -129,25 +129,21 @@ private:
                                                          size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                         Renderable,
                                                          size_t widthInItems,
                                                          size_t height,
                                                          size_t texelsPerItem,
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
 
-    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t capacity,
-                                                          size_t sizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makePixelUnpackBufferRing(size_t capacity,
+                                                              size_t itemSizeInBytes) override;
 
+    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t sizeInBytes) override;
+
+    void allocateGradientTexture(size_t height) override;
     void allocateTessellationTexture(size_t height) override;
 
-    void onFlush(FlushType,
-                 LoadAction,
-                 size_t gradSpanCount,
-                 size_t gradSpansHeight,
-                 size_t tessVertexSpanCount,
-                 size_t tessDataHeight,
-                 bool needsClipBuffer) override;
+    void onFlush(const FlushDescriptor&) override;
 
     // GL state wrapping.
     void bindProgram(GLuint);
@@ -164,6 +160,7 @@ private:
     GLuint m_colorRampProgram;
     GLuint m_colorRampVAO;
     GLuint m_colorRampFBO;
+    GLuint m_gradientTexture = 0;
 
     // Tessellation texture rendering.
     GLuint m_tessellateProgram;

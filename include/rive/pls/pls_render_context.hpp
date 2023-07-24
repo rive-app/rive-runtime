@@ -331,23 +331,19 @@ protected:
     virtual std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
                                                                  size_t itemSizeInBytes) = 0;
 
-    enum class Renderable : bool
-    {
-        no,
-        yes
-    };
-
     virtual std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                                 Renderable,
                                                                  size_t widthInItems,
                                                                  size_t height,
                                                                  size_t texelsPerItem,
                                                                  int textureIdx,
                                                                  TexelBufferRing::Filter) = 0;
 
-    virtual std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t capacity,
-                                                                  size_t sizeInBytes) = 0;
+    virtual std::unique_ptr<BufferRingImpl> makePixelUnpackBufferRing(size_t capacity,
+                                                                      size_t itemSizeInBytes) = 0;
 
+    virtual std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t sizeInBytes) = 0;
+
+    virtual void allocateGradientTexture(size_t height) = 0;
     virtual void allocateTessellationTexture(size_t height) = 0;
 
     const TexelBufferRing* pathBufferRing()
@@ -358,16 +354,14 @@ protected:
     {
         return static_cast<const TexelBufferRing*>(m_contourBuffer.impl());
     }
-    const TexelBufferRing* gradTexelBufferRing() const
+    const BufferRingImpl* simpleColorRampsBufferRing() const
     {
-        return static_cast<const TexelBufferRing*>(m_gradTexelBuffer.impl());
+        return m_simpleColorRampsBuffer.impl();
     }
     const BufferRingImpl* gradSpanBufferRing() const { return m_gradSpanBuffer.impl(); }
     const BufferRingImpl* tessSpanBufferRing() { return m_tessSpanBuffer.impl(); }
     const BufferRingImpl* triangleBufferRing() { return m_triangleBuffer.impl(); }
     const BufferRingImpl* uniformBufferRing() const { return m_uniformBuffer.impl(); }
-
-    size_t gradTextureRowsForSimpleRamps() const { return m_gradTextureRowsForSimpleRamps; }
 
     virtual void onBeginFrame() {}
 
@@ -413,13 +407,21 @@ protected:
         } fragmentFeatures;
     };
 
-    virtual void onFlush(FlushType,
-                         LoadAction,
-                         size_t gradSpanCount,
-                         size_t gradSpansHeight,
-                         size_t tessVertexSpanCount,
-                         size_t tessDataHeight,
-                         bool needsClipBuffer) = 0;
+    struct FlushDescriptor
+    {
+        FlushType flushType;
+        LoadAction loadAction;
+        size_t complexGradSpanCount;
+        size_t tessVertexSpanCount;
+        uint16_t simpleGradTexelsWidth;
+        uint16_t simpleGradTexelsHeight;
+        uint32_t complexGradRowsTop;
+        uint32_t complexGradRowsHeight;
+        uint32_t tessDataHeight;
+        bool needsClipBuffer;
+    };
+
+    virtual void onFlush(const FlushDescriptor&) = 0;
 
     const PlatformFeatures m_platformFeatures;
     const size_t m_maxPathID;
@@ -539,14 +541,19 @@ private:
     // Capacities of all our GPU resource allocations.
     struct GPUResourceLimits
     {
+        // Resources allocated at the beginning of a frame (before we actually know how big they
+        // will need to be).
         size_t maxPathID;
         size_t maxContourID;
         size_t maxSimpleGradients;
-        size_t maxComplexGradients;
         size_t maxComplexGradientSpans;
         size_t maxTessellationSpans;
-        size_t maxTessellationVertices;
-        size_t maxTriangleVertices;
+
+        // Resources allocated at flush time (after we already know exactly how big they need to
+        // be).
+        size_t triangleVertexBufferSize;
+        size_t gradientTextureHeight;
+        size_t tessellationTextureHeight;
 
         // "*this = max(*this, other)"
         void accumulateMax(const GPUResourceLimits& other)
@@ -554,13 +561,14 @@ private:
             maxPathID = std::max(maxPathID, other.maxPathID);
             maxContourID = std::max(maxContourID, other.maxContourID);
             maxSimpleGradients = std::max(maxSimpleGradients, other.maxSimpleGradients);
-            maxComplexGradients = std::max(maxComplexGradients, other.maxComplexGradients);
             maxComplexGradientSpans =
                 std::max(maxComplexGradientSpans, other.maxComplexGradientSpans);
             maxTessellationSpans = std::max(maxTessellationSpans, other.maxTessellationSpans);
-            maxTessellationVertices =
-                std::max(maxTessellationVertices, other.maxTessellationVertices);
-            maxTriangleVertices = std::max(maxTriangleVertices, other.maxTriangleVertices);
+            triangleVertexBufferSize =
+                std::max(triangleVertexBufferSize, other.triangleVertexBufferSize);
+            gradientTextureHeight = std::max(gradientTextureHeight, other.gradientTextureHeight);
+            tessellationTextureHeight =
+                std::max(tessellationTextureHeight, other.tessellationTextureHeight);
             static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
         }
 
@@ -575,19 +583,21 @@ private:
                 scaled.maxContourID = static_cast<double>(maxContourID) * scaleFactor;
             if (maxSimpleGradients > threshold.maxSimpleGradients)
                 scaled.maxSimpleGradients = static_cast<double>(maxSimpleGradients) * scaleFactor;
-            if (maxComplexGradients > threshold.maxComplexGradients)
-                scaled.maxComplexGradients = static_cast<double>(maxComplexGradients) * scaleFactor;
             if (maxComplexGradientSpans > threshold.maxComplexGradientSpans)
                 scaled.maxComplexGradientSpans =
                     static_cast<double>(maxComplexGradientSpans) * scaleFactor;
             if (maxTessellationSpans > threshold.maxTessellationSpans)
                 scaled.maxTessellationSpans =
                     static_cast<double>(maxTessellationSpans) * scaleFactor;
-            if (maxTessellationVertices > threshold.maxTessellationVertices)
-                scaled.maxTessellationVertices =
-                    static_cast<double>(maxTessellationVertices) * scaleFactor;
-            if (maxTriangleVertices > threshold.maxTriangleVertices)
-                scaled.maxTriangleVertices = static_cast<double>(maxTriangleVertices) * scaleFactor;
+            if (triangleVertexBufferSize > threshold.triangleVertexBufferSize)
+                scaled.triangleVertexBufferSize =
+                    static_cast<double>(triangleVertexBufferSize) * scaleFactor;
+            if (gradientTextureHeight > threshold.gradientTextureHeight)
+                scaled.gradientTextureHeight =
+                    static_cast<double>(gradientTextureHeight) * scaleFactor;
+            if (tessellationTextureHeight > threshold.tessellationTextureHeight)
+                scaled.tessellationTextureHeight =
+                    static_cast<double>(tessellationTextureHeight) * scaleFactor;
             static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
             return scaled;
         }
@@ -596,6 +606,18 @@ private:
         GPUResourceLimits makeScaled(double scaleFactor) const
         {
             return makeScaledIfLarger(GPUResourceLimits{}, scaleFactor);
+        }
+
+        // The resources we allocate at flush time don't need to grow preemptively, since we don't
+        // have to allocate them until we know exactly how big they need to be. This method provides
+        // a way to reset them to zero, thus preventing them from growing preemptively.
+        GPUResourceLimits resetFlushTimeLimits() const
+        {
+            GPUResourceLimits noFlushTimeLimits = *this;
+            noFlushTimeLimits.triangleVertexBufferSize = 0;
+            noFlushTimeLimits.gradientTextureHeight = 0;
+            noFlushTimeLimits.tessellationTextureHeight = 0;
+            return noFlushTimeLimits;
         }
     };
 
@@ -633,15 +655,15 @@ private:
 
     BufferRing<PathData> m_pathBuffer;
     BufferRing<ContourData> m_contourBuffer;
-    BufferRing<TwoTexelRamp> m_gradTexelBuffer; // Simple gradients get written by the CPU.
-    BufferRing<GradientSpan> m_gradSpanBuffer;  // Complex gradients get rendered by the GPU.
+    BufferRing<TwoTexelRamp> m_simpleColorRampsBuffer; // Simple gradients get written by the CPU.
+    BufferRing<GradientSpan> m_gradSpanBuffer;         // Complex gradients get rendered by the GPU.
     BufferRing<TessVertexSpan> m_tessSpanBuffer;
     BufferRing<TriangleVertex> m_triangleBuffer;
     BufferRing<FlushUniforms> m_uniformBuffer;
 
     // How many rows of the gradient texture are dedicated to simple (two-texel) ramps?
     // This is also the y-coordinate at which the complex color ramps begin.
-    size_t m_gradTextureRowsForSimpleRamps = 0;
+    size_t m_reservedGradTextureRowsForSimpleRamps = 0;
 
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;

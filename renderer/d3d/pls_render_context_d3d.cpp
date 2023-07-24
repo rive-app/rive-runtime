@@ -393,12 +393,19 @@ std::unique_ptr<BufferRingImpl> PLSRenderContextD3D::makeVertexBufferRing(size_t
                                            D3D11_BIND_VERTEX_BUFFER);
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextD3D::makeUniformBufferRing(size_t capacity,
-                                                                           size_t itemSizeInBytes)
+std::unique_ptr<BufferRingImpl> PLSRenderContextD3D::makePixelUnpackBufferRing(
+    size_t capacity,
+    size_t itemSizeInBytes)
+{
+    // It appears impossible to update a D3D texture from a GPU buffer.
+    return std::make_unique<CPUOnlyBufferRing>(capacity, itemSizeInBytes);
+}
+
+std::unique_ptr<BufferRingImpl> PLSRenderContextD3D::makeUniformBufferRing(size_t itemSizeInBytes)
 {
     return std::make_unique<BufferRingD3D>(m_gpu.Get(),
                                            m_gpuContext,
-                                           capacity,
+                                           1,
                                            itemSizeInBytes,
                                            D3D11_BIND_CONSTANT_BUFFER);
 }
@@ -409,7 +416,6 @@ public:
     TexelBufferD3D(ID3D11Device* gpu,
                    ComPtr<ID3D11DeviceContext> gpuContext,
                    Format format,
-                   bool renderable,
                    size_t widthInItems,
                    size_t height,
                    size_t texelsPerItem) :
@@ -417,27 +423,15 @@ public:
     {
         DXGI_FORMAT formatD3D = d3d_format(format);
         UINT bindFlags = D3D11_BIND_SHADER_RESOURCE;
-        if (renderable)
-        {
-            bindFlags |= D3D11_BIND_RENDER_TARGET;
-        }
         for (size_t i = 0; i < kBufferRingSize; ++i)
         {
             m_textures[i] =
                 make_simple_2d_texture(gpu, formatD3D, widthInTexels(), height, bindFlags);
             m_srvs[i] = make_simple_2d_srv(gpu, m_textures[i].Get(), formatD3D);
-            if (renderable)
-            {
-                m_rtvs[i] = make_simple_2d_rtv(gpu, m_textures[i].Get(), formatD3D);
-            }
         }
     }
 
     ID3D11ShaderResourceView* submittedSRV() const { return m_srvs[submittedBufferIdx()].Get(); }
-    ID3D11RenderTargetView* submittedRenderTargetView() const
-    {
-        return m_rtvs[submittedBufferIdx()].Get();
-    }
 
 private:
     void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) override
@@ -460,12 +454,10 @@ private:
     ComPtr<ID3D11DeviceContext> m_gpuContext;
     ComPtr<ID3D11Texture2D> m_textures[kBufferRingSize];
     ComPtr<ID3D11ShaderResourceView> m_srvs[kBufferRingSize];
-    ComPtr<ID3D11RenderTargetView> m_rtvs[kBufferRingSize];
 };
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextD3D::makeTexelBufferRing(
     TexelBufferRing::Format format,
-    Renderable renderable,
     size_t widthInItems,
     size_t height,
     size_t texelsPerItem,
@@ -475,7 +467,6 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextD3D::makeTexelBufferRing(
     return std::make_unique<TexelBufferD3D>(m_gpu.Get(),
                                             m_gpuContext,
                                             format,
-                                            renderable == Renderable::yes,
                                             widthInItems,
                                             height,
                                             texelsPerItem);
@@ -522,6 +513,19 @@ void PLSRenderTargetD3D::setTargetTexture(ID3D11Device* gpu, ComPtr<ID3D11Textur
 rcp<PLSRenderTargetD3D> PLSRenderContextD3D::makeRenderTarget(size_t width, size_t height)
 {
     return rcp(new PLSRenderTargetD3D(m_gpu.Get(), width, height));
+}
+
+void PLSRenderContextD3D::allocateGradientTexture(size_t height)
+{
+    m_gradTexture = make_simple_2d_texture(m_gpu.Get(),
+                                           DXGI_FORMAT_R8G8B8A8_UNORM,
+                                           kGradTextureWidth,
+                                           height,
+                                           D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+    m_gradTextureSRV =
+        make_simple_2d_srv(m_gpu.Get(), m_gradTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
+    m_gradTextureRTV =
+        make_simple_2d_rtv(m_gpu.Get(), m_gradTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
 }
 
 void PLSRenderContextD3D::allocateTessellationTexture(size_t height)
@@ -666,31 +670,20 @@ static ID3D11ShaderResourceView* submitted_srv(const TexelBufferRing* texelBuffe
     return static_cast<const TexelBufferD3D*>(texelBufferRing)->submittedSRV();
 }
 
-static ID3D11RenderTargetView* submitted_rtv(const TexelBufferRing* texelBufferRing)
-{
-    return static_cast<const TexelBufferD3D*>(texelBufferRing)->submittedRenderTargetView();
-}
-
-void PLSRenderContextD3D::onFlush(FlushType flushType,
-                                  LoadAction loadAction,
-                                  size_t gradSpanCount,
-                                  size_t gradSpansHeight,
-                                  size_t tessVertexSpanCount,
-                                  size_t tessDataHeight,
-                                  bool needsClipBuffer)
+void PLSRenderContextD3D::onFlush(const FlushDescriptor& desc)
 {
     auto renderTarget =
         static_cast<const PLSRenderTargetD3D*>(frameDescriptor().renderTarget.get());
 
     constexpr static UINT kZero[4]{};
-    if (loadAction == LoadAction::clear)
+    if (desc.loadAction == LoadAction::clear)
     {
         float clearColor4f[4];
         UnpackColorToRGBA32F(frameDescriptor().clearColor, clearColor4f);
         m_gpuContext->ClearUnorderedAccessViewFloat(renderTarget->m_targetUAV.Get(), clearColor4f);
     }
     m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_coverageUAV.Get(), kZero);
-    if (needsClipBuffer)
+    if (desc.needsClipBuffer)
     {
         m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_clipUAV.Get(), kZero);
     }
@@ -699,7 +692,7 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
     m_gpuContext->VSSetConstantBuffers(0, std::size(cbuffers), cbuffers);
 
     // Render the complex color ramps to the gradient texture.
-    if (gradSpanCount > 0)
+    if (desc.complexGradSpanCount > 0)
     {
         ID3D11Buffer* gradSpanBuffer = submitted_buffer(gradSpanBufferRing());
         UINT gradStride = sizeof(GradientSpan);
@@ -711,9 +704,9 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
         m_gpuContext->VSSetShader(m_colorRampVertexShader.Get(), NULL, 0);
 
         D3D11_VIEWPORT viewport = {0,
-                                   static_cast<float>(gradTextureRowsForSimpleRamps()),
+                                   static_cast<float>(desc.complexGradRowsTop),
                                    static_cast<float>(kGradTextureWidth),
-                                   static_cast<float>(gradSpansHeight),
+                                   static_cast<float>(desc.complexGradRowsHeight),
                                    0,
                                    1};
         m_gpuContext->RSSetViewports(1, &viewport);
@@ -721,14 +714,29 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
         m_gpuContext->PSSetShaderResources(0, 0, NULL);
         m_gpuContext->PSSetShader(m_colorRampPixelShader.Get(), NULL, 0);
 
-        ID3D11RenderTargetView* rtv = submitted_rtv(gradTexelBufferRing());
-        m_gpuContext->OMSetRenderTargets(1, &rtv, NULL);
+        m_gpuContext->OMSetRenderTargets(1, m_gradTextureRTV.GetAddressOf(), NULL);
 
-        m_gpuContext->DrawInstanced(4, gradSpanCount, 0, 0);
+        m_gpuContext->DrawInstanced(4, desc.complexGradSpanCount, 0, 0);
+    }
+
+    // Copy the simple color ramps to the gradient texture.
+    if (desc.simpleGradTexelsHeight > 0)
+    {
+        D3D11_BOX box;
+        box.left = 0;
+        box.right = desc.simpleGradTexelsWidth;
+        box.top = 0;
+        box.bottom = desc.simpleGradTexelsHeight;
+        box.front = 0;
+        box.back = 1;
+        const void* data =
+            static_cast<const CPUOnlyBufferRing*>(simpleColorRampsBufferRing())->submittedata();
+        m_gpuContext
+            ->UpdateSubresource(m_gradTexture.Get(), 0, &box, data, kGradTextureWidth * 4, 0);
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
-    if (tessVertexSpanCount > 0)
+    if (desc.tessVertexSpanCount > 0)
     {
         ID3D11Buffer* tessSpanBuffer = submitted_buffer(tessSpanBufferRing());
         UINT tessStride = sizeof(TessVertexSpan);
@@ -746,8 +754,12 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
         static_assert(kContourTextureIdx == 2);
         m_gpuContext->VSSetShaderResources(0, std::size(vsTextureViews), vsTextureViews);
 
-        D3D11_VIEWPORT viewport =
-            {0, 0, static_cast<float>(kTessTextureWidth), static_cast<float>(tessDataHeight), 0, 1};
+        D3D11_VIEWPORT viewport = {0,
+                                   0,
+                                   static_cast<float>(kTessTextureWidth),
+                                   static_cast<float>(desc.tessDataHeight),
+                                   0,
+                                   1};
         m_gpuContext->RSSetViewports(1, &viewport);
 
         m_gpuContext->PSSetShaderResources(0, 0, NULL);
@@ -756,7 +768,7 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
         m_gpuContext->OMSetRenderTargets(1, m_tessTextureRTV.GetAddressOf(), NULL);
 
         // Draw two instances per TessVertexSpan: one normal and one optional reflection.
-        m_gpuContext->DrawInstanced(4, tessVertexSpanCount * 2, 0, 0);
+        m_gpuContext->DrawInstanced(4, desc.tessVertexSpanCount * 2, 0, 0);
 
         if (m_isIntel)
         {
@@ -813,8 +825,7 @@ void PLSRenderContextD3D::onFlush(FlushType flushType,
         m_gpuContext->RSSetState(m_debugWireframeState.Get());
     }
 
-    ID3D11ShaderResourceView* gradTextureView = submitted_srv(gradTexelBufferRing());
-    m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, &gradTextureView);
+    m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, m_gradTextureSRV.GetAddressOf());
 
     for (const Draw& draw : m_drawList)
     {

@@ -111,6 +111,7 @@ void TexelBufferGL::submitTexels(int textureIdx, size_t updateWidthInTexels, siz
     glBindTexture(GL_TEXTURE_2D, m_ids[textureIdx]);
     if (updateWidthInTexels > 0 && updateHeight > 0)
     {
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,

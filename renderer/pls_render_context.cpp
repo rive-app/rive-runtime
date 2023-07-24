@@ -19,6 +19,18 @@ constexpr static double kGPUResourcePadding = 1.25;
 // When we exceed the capacity of a GPU resource mid-flush, double it immediately.
 constexpr static double kGPUResourceIntermediateGrowthFactor = 2;
 
+constexpr size_t kMinSimpleColorRampRows = 1;
+constexpr size_t kMaxSimpleColorRampRows = 256; // 65k simple gradients.
+
+constexpr size_t kMinComplexGradients = 31;
+constexpr size_t kMinGradTextureHeight = kMinSimpleColorRampRows + kMinComplexGradients;
+constexpr size_t kMaxGradTextureHeight = 2048; // TODO: Move this variable to PlatformFeatures.
+constexpr size_t kMaxComplexGradients = kMaxGradTextureHeight - kMaxSimpleColorRampRows;
+
+constexpr size_t kMinTessTextureHeight = 32;
+constexpr size_t kMaxTessTextureHeight = 2048; // GL_MAX_TEXTURE_SIZE spec minimum.
+constexpr size_t kMaxTessellationVertices = kMaxTessTextureHeight * kTessTextureWidth;
+
 uint32_t PLSRenderContext::ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
 {
     uint32_t defines = 0;
@@ -157,9 +169,9 @@ void PLSRenderContext::growExceededGPUResources(const GPUResourceLimits& targetL
 }
 
 // How tall to make a resource texture in order to support the given number of items.
-constexpr static size_t resource_texture_height(size_t widthInItems, size_t itemCount)
+template <size_t WidthInItems> constexpr static size_t resource_texture_height(size_t itemCount)
 {
-    return (itemCount + widthInItems - 1) / widthInItems;
+    return (itemCount + WidthInItems - 1) / WidthInItems;
 }
 
 void PLSRenderContext::allocateGPUResources(
@@ -206,20 +218,26 @@ void PLSRenderContext::allocateGPUResources(
 #define COUNT_RESOURCE_SIZE(SIZE_IN_BYTES)
 #endif
 
+    // One-time allocation of the uniform buffer ring.
+    if (m_uniformBuffer.impl() == nullptr)
+    {
+        m_uniformBuffer.reset(makeUniformBufferRing(sizeof(FlushUniforms)));
+    }
+    COUNT_RESOURCE_SIZE(m_uniformBuffer.totalSizeInBytes());
+
     // Path data texture ring.
     constexpr size_t kMinPathIDCount = kPathTextureWidthInItems * 32; // 32 texels tall.
-    size_t targetMaxPathID = resource_texture_height(kPathTextureWidthInItems, targets.maxPathID) *
+    size_t targetMaxPathID = resource_texture_height<kPathTextureWidthInItems>(targets.maxPathID) *
                              kPathTextureWidthInItems;
     targetMaxPathID = std::clamp(targetMaxPathID, kMinPathIDCount, m_maxPathID);
     size_t targetPathTextureHeight =
-        resource_texture_height(kPathTextureWidthInItems, targetMaxPathID);
+        resource_texture_height<kPathTextureWidthInItems>(targetMaxPathID);
     size_t currentPathTextureHeight =
-        resource_texture_height(kPathTextureWidthInItems, m_currentResourceLimits.maxPathID);
+        resource_texture_height<kPathTextureWidthInItems>(m_currentResourceLimits.maxPathID);
     if (shouldReallocate(targetPathTextureHeight, currentPathTextureHeight))
     {
         assert(!m_pathBuffer.mapped());
         m_pathBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
-                                               Renderable::no,
                                                kPathTextureWidthInItems,
                                                targetPathTextureHeight,
                                                kPathTexelsPerItem,
@@ -236,18 +254,17 @@ void PLSRenderContext::allocateGPUResources(
     // Contour data texture ring.
     constexpr size_t kMinContourIDCount = kContourTextureWidthInItems * 32; // 32 texels tall.
     size_t targetMaxContourID =
-        resource_texture_height(kContourTextureWidthInItems, targets.maxContourID) *
+        resource_texture_height<kContourTextureWidthInItems>(targets.maxContourID) *
         kContourTextureWidthInItems;
     targetMaxContourID = std::clamp(targetMaxContourID, kMinContourIDCount, kMaxContourID);
     size_t targetContourTextureHeight =
-        resource_texture_height(kContourTextureWidthInItems, targetMaxContourID);
+        resource_texture_height<kContourTextureWidthInItems>(targetMaxContourID);
     size_t currentContourTextureHeight =
-        resource_texture_height(kContourTextureWidthInItems, m_currentResourceLimits.maxContourID);
+        resource_texture_height<kContourTextureWidthInItems>(m_currentResourceLimits.maxContourID);
     if (shouldReallocate(targetContourTextureHeight, currentContourTextureHeight))
     {
         assert(!m_contourBuffer.mapped());
         m_contourBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
-                                                  Renderable::no,
                                                   kContourTextureWidthInItems,
                                                   targetContourTextureHeight,
                                                   kContourTexelsPerItem,
@@ -261,45 +278,30 @@ void PLSRenderContext::allocateGPUResources(
     }
     COUNT_RESOURCE_SIZE(m_contourBuffer.totalSizeInBytes());
 
-    // Gradient texture ring.
-    constexpr size_t kMinSimpleGradientsHeight = 1;
-    constexpr size_t kMaxSimpleGradientsHeight = 256; // 65k simple gradients.
-    constexpr size_t kMinComplexGradients = 31;
-    constexpr size_t kMaxComplexGradients =
-        2048 - kMaxSimpleGradientsHeight; // GL_MAX_TEXTURE_SIZE spec minimum.
+    // Simple gradient color ramp pixel unpack buffer ring.
     size_t targetSimpleGradientRows =
-        resource_texture_height(kGradTextureWidth, targets.maxSimpleGradients);
+        resource_texture_height<kGradTextureWidthInSimpleRamps>(targets.maxSimpleGradients);
     targetSimpleGradientRows =
-        std::clamp(targetSimpleGradientRows, kMinSimpleGradientsHeight, kMaxSimpleGradientsHeight);
-    size_t targetComplexGradients =
-        std::clamp(targets.maxComplexGradients, kMinComplexGradients, kMaxComplexGradients);
-    size_t targetGradTextureHeight = targetSimpleGradientRows + targetComplexGradients;
-    size_t currentGradTextureHeight =
-        resource_texture_height(kGradTextureWidthInSimpleRamps,
-                                m_currentResourceLimits.maxSimpleGradients) +
-        m_currentResourceLimits.maxComplexGradients;
+        std::clamp(targetSimpleGradientRows, kMinSimpleColorRampRows, kMaxSimpleColorRampRows);
     assert(m_currentResourceLimits.maxSimpleGradients % kGradTextureWidthInSimpleRamps == 0);
-    if (shouldReallocate(targetGradTextureHeight, currentGradTextureHeight))
+    assert(m_reservedGradTextureRowsForSimpleRamps ==
+           resource_texture_height<kGradTextureWidthInSimpleRamps>(
+               m_currentResourceLimits.maxSimpleGradients));
+    if (shouldReallocate(targetSimpleGradientRows, m_reservedGradTextureRowsForSimpleRamps))
     {
-        assert(!m_gradTexelBuffer.mapped());
-        m_gradTexelBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba8,
-                                                    Renderable::yes,
-                                                    kGradTextureWidthInSimpleRamps,
-                                                    targetGradTextureHeight,
-                                                    2, // 2 texels per simple ramp.
-                                                    kGradTextureIdx,
-                                                    TexelBufferRing::Filter::linear));
-        LOG_CHANGED_SIZE("gradient texture height",
-                         m_gradTextureRowsForSimpleRamps +
-                             m_currentResourceLimits.maxComplexGradients,
-                         targetGradTextureHeight,
-                         m_gradTexelBuffer.totalSizeInBytes());
-        m_gradTextureRowsForSimpleRamps = targetSimpleGradientRows;
+        assert(!m_simpleColorRampsBuffer.mapped());
+        m_simpleColorRampsBuffer.reset(
+            makePixelUnpackBufferRing(targetSimpleGradientRows * kGradTextureWidthInSimpleRamps,
+                                      sizeof(TwoTexelRamp)));
+        LOG_CHANGED_SIZE("maxSimpleGradients",
+                         m_reservedGradTextureRowsForSimpleRamps * kGradTextureWidthInSimpleRamps,
+                         targetSimpleGradientRows * kGradTextureWidthInSimpleRamps,
+                         m_simpleColorRampsBuffer.totalSizeInBytes());
         m_currentResourceLimits.maxSimpleGradients =
             targetSimpleGradientRows * kGradTextureWidthInSimpleRamps;
-        m_currentResourceLimits.maxComplexGradients = targetComplexGradients;
+        m_reservedGradTextureRowsForSimpleRamps = targetSimpleGradientRows;
     }
-    COUNT_RESOURCE_SIZE(m_gradTexelBuffer.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_simpleColorRampsBuffer.totalSizeInBytes());
 
     // Instance buffer ring for rendering complex gradients.
     constexpr size_t kMinComplexGradientSpans = kMinComplexGradients * 32;
@@ -321,9 +323,7 @@ void PLSRenderContext::allocateGPUResources(
     }
     COUNT_RESOURCE_SIZE(m_gradSpanBuffer.totalSizeInBytes());
 
-    // Instance buffer ring for rendering path tessellation data.
-    constexpr size_t kMinTessTextureHeight = 32;
-    constexpr size_t kMaxTessTextureHeight = 2048; // GL_MAX_TEXTURE_SIZE spec minimum.
+    // Instance buffer ring for rendering path tessellation vertices.
     constexpr size_t kMinTessellationSpans = kMinTessTextureHeight * kTessTextureWidth / 4;
     const size_t maxTessellationSpans = kMaxTessTextureHeight * kTessTextureWidth / 8; // ~100MiB
     size_t targetTessellationSpans =
@@ -345,45 +345,50 @@ void PLSRenderContext::allocateGPUResources(
     constexpr size_t kMinTriangleVertices = 3072 * 3; // 324 KiB
     // Triangle vertices don't have a maximum limit; we let the other components be the limiting
     // factor and allocate whatever buffer size we need at flush time.
-    size_t targetTriangleVertices = std::max(targets.maxTriangleVertices, kMinTriangleVertices);
-    if (shouldReallocate(targetTriangleVertices, m_currentResourceLimits.maxTriangleVertices))
+    size_t targetTriangleVertices =
+        std::max(targets.triangleVertexBufferSize, kMinTriangleVertices);
+    if (shouldReallocate(targetTriangleVertices, m_currentResourceLimits.triangleVertexBufferSize))
     {
         assert(!m_triangleBuffer.mapped());
         m_triangleBuffer.reset(
             makeVertexBufferRing(targetTriangleVertices, sizeof(TriangleVertex)));
-        LOG_CHANGED_SIZE("maxTriangleVertices",
-                         m_currentResourceLimits.maxTriangleVertices,
+        LOG_CHANGED_SIZE("triangleVertexBufferSize",
+                         m_currentResourceLimits.triangleVertexBufferSize,
                          targetTriangleVertices,
                          m_triangleBuffer.totalSizeInBytes());
-        m_currentResourceLimits.maxTriangleVertices = targetTriangleVertices;
+        m_currentResourceLimits.triangleVertexBufferSize = targetTriangleVertices;
     }
     COUNT_RESOURCE_SIZE(m_triangleBuffer.totalSizeInBytes());
 
-    // Texture that that path tessellation data is rendered into.
+    // Gradient color ramp texture.
+    size_t targetGradTextureHeight =
+        std::clamp(targets.gradientTextureHeight, kMinGradTextureHeight, kMaxGradTextureHeight);
+    if (shouldReallocate(targetGradTextureHeight, m_currentResourceLimits.gradientTextureHeight))
+    {
+        allocateGradientTexture(targetGradTextureHeight);
+        LOG_CHANGED_SIZE("gradientTextureHeight",
+                         m_currentResourceLimits.gradientTextureHeight,
+                         targetGradTextureHeight,
+                         targetGradTextureHeight * kGradTextureWidth * 4 * sizeof(uint8_t));
+        m_currentResourceLimits.gradientTextureHeight = targetGradTextureHeight;
+    }
+    COUNT_RESOURCE_SIZE((m_currentResourceLimits.gradientTextureHeight) * kGradTextureWidth * 4 *
+                        sizeof(uint8_t));
+
+    // Texture that path tessellation data is rendered into.
     size_t targetTessTextureHeight =
-        std::clamp(resource_texture_height(kTessTextureWidth, targets.maxTessellationVertices),
-                   kMinTessTextureHeight,
-                   kMaxTessTextureHeight);
-    if (shouldReallocate(targetTessTextureHeight * kTessTextureWidth,
-                         m_currentResourceLimits.maxTessellationVertices))
+        std::clamp(targets.tessellationTextureHeight, kMinTessTextureHeight, kMaxTessTextureHeight);
+    if (shouldReallocate(targetTessTextureHeight,
+                         m_currentResourceLimits.tessellationTextureHeight))
     {
         allocateTessellationTexture(targetTessTextureHeight);
-        LOG_CHANGED_SIZE("tessellation texture height",
-                         resource_texture_height(kTessTextureWidth,
-                                                 m_currentResourceLimits.maxTessellationVertices),
+        LOG_CHANGED_SIZE("tessellationTextureHeight",
+                         m_currentResourceLimits.tessellationTextureHeight,
                          targetTessTextureHeight,
                          targetTessTextureHeight * kTessTextureWidth * 4 * sizeof(uint32_t));
-        m_currentResourceLimits.maxTessellationVertices =
-            targetTessTextureHeight * kTessTextureWidth;
+        m_currentResourceLimits.tessellationTextureHeight = targetTessTextureHeight;
     }
     COUNT_RESOURCE_SIZE(targetTessTextureHeight * kTessTextureWidth * 4 * sizeof(uint32_t));
-
-    // One-time allocation of the uniform buffer ring.
-    if (m_uniformBuffer.impl() == nullptr)
-    {
-        m_uniformBuffer.reset(makeUniformBufferRing(1, sizeof(FlushUniforms)));
-    }
-    COUNT_RESOURCE_SIZE(m_uniformBuffer.totalSizeInBytes());
 }
 
 void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
@@ -392,7 +397,9 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
     // Auto-grow GPU allocations to service the maximum recent usage. If the recent usage is larger
     // than the current allocation, scale it by an additional kGPUResourcePadding since we have to
     // reallocate anyway.
-    growExceededGPUResources(m_maxRecentResourceUsage, kGPUResourcePadding);
+    // Also don't preemptively grow the resources we allocate a flush time, since we can just
+    // allocate the right sizes once we know exactly how big they need to be.
+    growExceededGPUResources(m_maxRecentResourceUsage.resetFlushTimeLimits(), kGPUResourcePadding);
     m_frameDescriptor = std::move(frameDescriptor);
     m_isFirstFlushOfFrame = true;
     onBeginFrame();
@@ -454,11 +461,6 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
             newLimits.maxTessellationSpans = maxTessellationSpans;
             needsRealloc = true;
         }
-        if (newLimits.maxTessellationVertices < maxTessVertexCountWithInternalPadding)
-        {
-            newLimits.maxTessellationVertices = maxTessVertexCountWithInternalPadding;
-            needsRealloc = true;
-        }
         assert(!m_pathBuffer.mapped());
         assert(!m_contourBuffer.mapped());
         assert(!m_tessSpanBuffer.mapped());
@@ -478,16 +480,14 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
     if (m_currentPathID + pathCount <= m_currentResourceLimits.maxPathID &&
         m_currentContourID + contourCount <= m_currentResourceLimits.maxContourID &&
         m_tessSpanBuffer.hasRoomFor(maxTessellationSpans) &&
-        m_tessVertexCount + maxTessVertexCountWithInternalPadding <=
-            m_currentResourceLimits.maxTessellationVertices)
+        m_tessVertexCount + maxTessVertexCountWithInternalPadding <= kMaxTessellationVertices)
     {
         assert(m_pathBuffer.hasRoomFor(pathCount));
         assert(m_contourBuffer.hasRoomFor(contourCount));
         RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve =
                             m_tessVertexCount +
                             tessVertexCounter.totalVertexCountIncludingReflectionsAndPadding());
-        assert(m_expectedTessVertexCountAtNextReserve <=
-               m_currentResourceLimits.maxTessellationVertices);
+        assert(m_expectedTessVertexCountAtNextReserve <= kMaxTessellationVertices);
         return true;
     }
 
@@ -517,10 +517,6 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
     const float* stops = gradient->stops();
     size_t stopCount = gradient->count();
 
-    // Even if all our color ramps end up being rendered on the GPU, ensuring the buffer ring is
-    // mapped causes the texture ring to cycle, which is what we want.
-    m_gradTexelBuffer.ensureMapped();
-
     uint32_t row, left, right;
     if (stopCount == 2 && stops[0] == 0)
     {
@@ -544,7 +540,8 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
                 return false;
             }
             rampTexelsIdx = m_simpleGradients.size() * 2;
-            m_gradTexelBuffer.set_back(colors);
+            m_simpleColorRampsBuffer.ensureMapped();
+            m_simpleColorRampsBuffer.set_back(colors);
             m_simpleGradients.insert({simpleKey, rampTexelsIdx});
         }
         row = rampTexelsIdx / kGradTextureWidth;
@@ -564,10 +561,10 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
         }
         else
         {
-            if (m_complexGradients.size() >= m_currentResourceLimits.maxComplexGradients)
+            if (m_complexGradients.size() >= kMaxComplexGradients)
             {
-                // We ran out of rows for complex gradients in the texture. The caller needs to
-                // flush and try again.
+                // We ran out of the maximum supported number of complex gradients. The caller needs
+                // to issue an intermediate flush.
                 return false;
             }
 
@@ -599,8 +596,8 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
             // Push "GradientSpan" instances that will render each section of the color ramp.
             ColorInt lastColor = colors[0];
             uint32_t lastXFixed = 0;
-            // The viewport will start at m_gradTextureRowsForSimpleRamps when rendering color
-            // ramps.
+            // The viewport will start at m_reservedGradTextureRowsForSimpleRamps when rendering
+            // color ramps.
             uint32_t y = static_cast<uint32_t>(m_complexGradients.size());
             // "stop * w + .5" converts a stop position to an x-coordinate in the gradient texture.
             // Stops should be aligned (ideally) on pixel centers to prevent bleed.
@@ -618,7 +615,7 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
             }
             m_gradSpanBuffer.set_back(lastXFixed, 65535u, y, lastColor, lastColor);
 
-            row = m_gradTextureRowsForSimpleRamps + m_complexGradients.size();
+            row = m_reservedGradTextureRowsForSimpleRamps + m_complexGradients.size();
             m_complexGradients.emplace(std::move(key), row);
         }
     }
@@ -689,7 +686,7 @@ void PLSRenderContext::pushPath(PatchType patchType,
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath =
                         m_tessVertexCount + tessVertexCountWithoutPadding);
     assert(m_expectedTessVertexCountAtEndOfPath <= m_expectedTessVertexCountAtNextReserve);
-    assert(m_expectedTessVertexCountAtEndOfPath <= m_currentResourceLimits.maxTessellationVertices);
+    assert(m_expectedTessVertexCountAtEndOfPath <= kMaxTessellationVertices);
 }
 
 void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount)
@@ -768,7 +765,7 @@ void PLSRenderContext::pushPaddingVertices(uint32_t count)
     constexpr static uint32_t kInvalidContourID = 0;
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = m_tessVertexCount + count;)
-    assert(m_expectedTessVertexCountAtEndOfPath <= m_currentResourceLimits.maxTessellationVertices);
+    assert(m_expectedTessVertexCountAtEndOfPath <= kMaxTessellationVertices);
     pushTessellationSpans(kEmptyCubic, {0, 0}, count, 0, 0, 1, kInvalidContourID);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
 }
@@ -942,20 +939,43 @@ void PLSRenderContext::flush(FlushType flushType)
         pushPaddingVertices(1);
     }
 
+    // Since we don't write these resources until flush time, we can wait to resize them until now,
+    // when we know exactly how large they need to be.
+    GPUResourceLimits newLimitsForFlushTimeResources{};
+    bool needsFlushTimeRealloc = false;
+    assert(m_triangleBuffer.capacity() == m_currentResourceLimits.triangleVertexBufferSize);
+    if (m_currentResourceLimits.triangleVertexBufferSize < m_maxTriangleVertexCount)
+    {
+        newLimitsForFlushTimeResources.triangleVertexBufferSize = m_maxTriangleVertexCount;
+        needsFlushTimeRealloc = true;
+    }
+    size_t requiredGradTextureHeight =
+        m_reservedGradTextureRowsForSimpleRamps + m_complexGradients.size();
+    if (m_currentResourceLimits.gradientTextureHeight < requiredGradTextureHeight)
+    {
+        newLimitsForFlushTimeResources.gradientTextureHeight = requiredGradTextureHeight;
+        needsFlushTimeRealloc = true;
+    }
+    size_t requiredTessTextureHeight =
+        resource_texture_height<kTessTextureWidth>(m_tessVertexCount);
+    if (m_currentResourceLimits.tessellationTextureHeight < requiredTessTextureHeight)
+    {
+        newLimitsForFlushTimeResources.tessellationTextureHeight = requiredTessTextureHeight;
+        needsFlushTimeRealloc = true;
+    }
+    if (needsFlushTimeRealloc)
+    {
+        growExceededGPUResources(newLimitsForFlushTimeResources, kGPUResourcePadding);
+    }
     if (m_maxTriangleVertexCount > 0)
     {
-        // Since we don't generate the triangle buffer until flush time, we can resize it now if it
-        // isn't large enough.
-        // TODO: More resources can be handled this way, e.g., the tessellation texture.
-        if (m_triangleBuffer.capacity() < m_maxTriangleVertexCount)
-        {
-            GPUResourceLimits newLimitsForTriangles{};
-            newLimitsForTriangles.maxTriangleVertices = m_maxTriangleVertexCount;
-            growExceededGPUResources(newLimitsForTriangles, kGPUResourcePadding);
-        }
         m_triangleBuffer.ensureMapped();
         assert(m_triangleBuffer.hasRoomFor(m_maxTriangleVertexCount));
     }
+    assert(m_complexGradients.size() <=
+           m_currentResourceLimits.gradientTextureHeight - m_reservedGradTextureRowsForSimpleRamps);
+    assert(m_tessVertexCount <=
+           m_currentResourceLimits.tessellationTextureHeight * kTessTextureWidth);
 
     // Finish calculating our DrawList.
     bool needsClipBuffer = false;
@@ -990,14 +1010,15 @@ void PLSRenderContext::flush(FlushType flushType)
     assert(drawIdx == m_drawListCount);
 
     // Determine how much to draw.
+    size_t simpleColorRampCount = m_simpleColorRampsBuffer.bytesWritten() / sizeof(TwoTexelRamp);
     size_t gradSpanCount = m_gradSpanBuffer.bytesWritten() / sizeof(GradientSpan);
     size_t tessVertexSpanCount = m_tessSpanBuffer.bytesWritten() / sizeof(TessVertexSpan);
-    size_t tessDataHeight = resource_texture_height(kTessTextureWidth, m_tessVertexCount);
+    size_t tessDataHeight = resource_texture_height<kTessTextureWidth>(m_tessVertexCount);
 
     // Upload all non-empty buffers before flushing.
     m_pathBuffer.submit();
     m_contourBuffer.submit();
-    m_gradTexelBuffer.submit();
+    m_simpleColorRampsBuffer.submit();
     m_gradSpanBuffer.submit();
     m_tessSpanBuffer.submit();
     m_triangleBuffer.submit();
@@ -1007,7 +1028,7 @@ void PLSRenderContext::flush(FlushType flushType)
                               tessDataHeight,
                               m_frameDescriptor.renderTarget->width(),
                               m_frameDescriptor.renderTarget->height(),
-                              gradTexelBufferRing()->height(),
+                              m_currentResourceLimits.gradientTextureHeight,
                               m_platformFeatures);
     if (!bits_equal(&m_cachedUniformData, &uniformData))
     {
@@ -1017,34 +1038,43 @@ void PLSRenderContext::flush(FlushType flushType)
         m_cachedUniformData = uniformData;
     }
 
-    onFlush(flushType,
-            m_isFirstFlushOfFrame ? frameDescriptor().loadAction : LoadAction::preserveRenderTarget,
-            gradSpanCount,
-            m_complexGradients.size(),
-            tessVertexSpanCount,
-            tessDataHeight,
-            needsClipBuffer);
+    FlushDescriptor flushDesc;
+    flushDesc.flushType = flushType;
+    flushDesc.loadAction =
+        m_isFirstFlushOfFrame ? frameDescriptor().loadAction : LoadAction::preserveRenderTarget;
+    flushDesc.complexGradSpanCount = gradSpanCount;
+    flushDesc.tessVertexSpanCount = tessVertexSpanCount;
+    flushDesc.simpleGradTexelsWidth = std::min(simpleColorRampCount * 2, kGradTextureWidth);
+    flushDesc.simpleGradTexelsHeight =
+        resource_texture_height<kGradTextureWidthInSimpleRamps>(simpleColorRampCount);
+    flushDesc.complexGradRowsTop = m_reservedGradTextureRowsForSimpleRamps;
+    flushDesc.complexGradRowsHeight = m_complexGradients.size();
+    flushDesc.tessDataHeight = tessDataHeight;
+    flushDesc.needsClipBuffer = needsClipBuffer;
+    onFlush(flushDesc);
 
     m_currentFrameResourceUsage.maxPathID += m_currentPathID;
     m_currentFrameResourceUsage.maxContourID += m_currentContourID;
     m_currentFrameResourceUsage.maxSimpleGradients += m_simpleGradients.size();
-    m_currentFrameResourceUsage.maxComplexGradients += m_complexGradients.size();
     m_currentFrameResourceUsage.maxComplexGradientSpans += gradSpanCount;
     m_currentFrameResourceUsage.maxTessellationSpans += tessVertexSpanCount;
-    m_currentFrameResourceUsage.maxTessellationVertices += m_tessVertexCount;
-    // Since we can defer allocating the triangle buffer until flush time, when we know exactly how
-    // many vertices it will need, we don't need to proactively count all the flushes in the frame.
-    // A simple max() will suffice.
-    m_currentFrameResourceUsage.maxTriangleVertices =
-        std::max(m_currentFrameResourceUsage.maxTriangleVertices, m_maxTriangleVertexCount);
+    m_currentFrameResourceUsage.triangleVertexBufferSize += m_maxTriangleVertexCount;
+    m_currentFrameResourceUsage.gradientTextureHeight +=
+        resource_texture_height<kGradTextureWidthInSimpleRamps>(m_simpleGradients.size()) +
+        m_complexGradients.size();
+    m_currentFrameResourceUsage.tessellationTextureHeight +=
+        resource_texture_height<kTessTextureWidth>(m_tessVertexCount);
     static_assert(sizeof(m_currentFrameResourceUsage) ==
                   sizeof(size_t) * 8); // Make sure we got every field.
 
     if (flushType == FlushType::intermediate)
     {
         // Intermediate flushes in a single frame are BAD. If the current frame's accumulative usage
-        // (across all flushes) of any resource is larger than the current allocation, double it.
-        growExceededGPUResources(m_currentFrameResourceUsage, kGPUResourceIntermediateGrowthFactor);
+        // (across all flushes) of any resource is larger than the current allocation, double it!
+        // Also don't preemptively grow the resources we allocate a flush time, since we can just
+        // allocate the right sizes once we know exactly how big they need to be.
+        growExceededGPUResources(m_currentFrameResourceUsage.resetFlushTimeLimits(),
+                                 kGPUResourceIntermediateGrowthFactor);
     }
     else
     {

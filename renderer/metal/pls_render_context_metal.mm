@@ -246,7 +246,6 @@ std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeVertexBufferRing(size
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextMetal::makeTexelBufferRing(
     TexelBufferRing::Format format,
-    Renderable,
     size_t widthInItems,
     size_t height,
     size_t texelsPerItem,
@@ -256,10 +255,28 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextMetal::makeTexelBufferRing(
     return std::make_unique<TexelBufferMetal>(m_gpu, format, widthInItems, height, texelsPerItem);
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeUniformBufferRing(size_t capacity,
-                                                                             size_t itemSizeInBytes)
+std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makePixelUnpackBufferRing(
+    size_t capacity, size_t itemSizeInBytes)
 {
     return std::make_unique<BufferMetal>(m_gpu, capacity, itemSizeInBytes);
+}
+
+std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeUniformBufferRing(size_t itemSizeInBytes)
+{
+    return std::make_unique<BufferMetal>(m_gpu, 1, itemSizeInBytes);
+}
+
+void PLSRenderContextMetal::allocateGradientTexture(size_t height)
+{
+    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+    desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+    desc.width = kGradTextureWidth;
+    desc.height = height;
+    desc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+    desc.textureType = MTLTextureType2D;
+    desc.mipmapLevelCount = 1;
+    desc.storageMode = MTLStorageModePrivate;
+    m_gradientTexture = [m_gpu newTextureWithDescriptor:desc];
 }
 
 void PLSRenderContextMetal::allocateTessellationTexture(size_t height)
@@ -293,24 +310,18 @@ static id<MTLTexture> mtl_texture(const TexelBufferRing* texelBufferRing)
     return static_cast<const TexelBufferMetal*>(texelBufferRing)->submittedTexture();
 }
 
-void PLSRenderContextMetal::onFlush(FlushType flushType,
-                                    LoadAction loadAction,
-                                    size_t gradSpanCount,
-                                    size_t gradSpansHeight,
-                                    size_t tessVertexSpanCount,
-                                    size_t tessDataHeight,
-                                    bool needsClipBuffer)
+void PLSRenderContextMetal::onFlush(const FlushDescriptor& desc)
 {
     auto* renderTarget =
         static_cast<const PLSRenderTargetMetal*>(frameDescriptor().renderTarget.get());
     id<MTLCommandBuffer> commandBuffer = [m_queue commandBuffer];
 
     // Render the complex color ramps to the gradient texture.
-    if (gradSpanCount > 0)
+    if (desc.complexGradSpanCount > 0)
     {
         MTLRenderPassDescriptor* gradPass = [MTLRenderPassDescriptor renderPassDescriptor];
         gradPass.renderTargetWidth = kGradTextureWidth;
-        gradPass.renderTargetHeight = gradTextureRowsForSimpleRamps() + gradSpansHeight;
+        gradPass.renderTargetHeight = desc.complexGradRowsTop + desc.complexGradRowsHeight;
         // TODO: Uploading the "simple" gradient texels directly to this texture requires us to use
         // MTLLoadActionLoad here, in addition to triple buffering the entire gradient texture. We
         // should consider different approaches:
@@ -321,16 +332,16 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         //     "gradPass.renderTargetHeight" in combination with MTLLoadActionDontCare. (Still
         //     requires triple buffering of the gradient texture.)
         //
-        gradPass.colorAttachments[0].loadAction = MTLLoadActionLoad;
+        gradPass.colorAttachments[0].loadAction = MTLLoadActionDontCare;
         gradPass.colorAttachments[0].storeAction = MTLStoreActionStore;
-        gradPass.colorAttachments[0].texture = mtl_texture(gradTexelBufferRing());
+        gradPass.colorAttachments[0].texture = m_gradientTexture;
 
         id<MTLRenderCommandEncoder> gradEncoder =
             [commandBuffer renderCommandEncoderWithDescriptor:gradPass];
         [gradEncoder setViewport:(MTLViewport){0.f,
-                                               static_cast<double>(gradTextureRowsForSimpleRamps()),
+                                               static_cast<double>(desc.complexGradRowsTop),
                                                kGradTextureWidth,
-                                               static_cast<float>(gradSpansHeight),
+                                               static_cast<float>(desc.complexGradRowsHeight),
                                                0.0,
                                                1.0}];
         [gradEncoder setRenderPipelineState:m_colorRampPipeline->pipelineState()];
@@ -340,16 +351,34 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
-                      instanceCount:gradSpanCount];
+                      instanceCount:desc.complexGradSpanCount];
         [gradEncoder endEncoding];
     }
 
+    // Copy the simple color ramps to the gradient texture.
+    if (desc.simpleGradTexelsHeight > 0)
+    {
+        id<MTLBlitCommandEncoder> blitEncoder = [commandBuffer blitCommandEncoder];
+        [blitEncoder copyFromBuffer:mtl_buffer(simpleColorRampsBufferRing())
+                       sourceOffset:0
+                  sourceBytesPerRow:kGradTextureWidth * 4
+                sourceBytesPerImage:desc.simpleGradTexelsHeight * kGradTextureWidth * 4
+                         sourceSize:MTLSizeMake(
+                                        desc.simpleGradTexelsWidth, desc.simpleGradTexelsHeight, 1)
+                          toTexture:m_gradientTexture
+                   destinationSlice:0
+                   destinationLevel:0
+                  destinationOrigin:MTLOriginMake(0, 0, 0)];
+
+        [blitEncoder endEncoding];
+    }
+
     // Tessellate all curves into vertices in the tessellation texture.
-    if (tessVertexSpanCount > 0)
+    if (desc.tessVertexSpanCount > 0)
     {
         MTLRenderPassDescriptor* tessPass = [MTLRenderPassDescriptor renderPassDescriptor];
         tessPass.renderTargetWidth = kTessTextureWidth;
-        tessPass.renderTargetHeight = tessDataHeight;
+        tessPass.renderTargetHeight = desc.tessDataHeight;
         tessPass.colorAttachments[0].loadAction = MTLLoadActionDontCare;
         tessPass.colorAttachments[0].storeAction = MTLStoreActionStore;
         tessPass.colorAttachments[0].texture = m_tessVertexTexture;
@@ -359,7 +388,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [tessEncoder setViewport:(MTLViewport){0.f,
                                                0.f,
                                                kTessTextureWidth,
-                                               static_cast<float>(tessDataHeight),
+                                               static_cast<float>(desc.tessDataHeight),
                                                0.0,
                                                1.0}];
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
@@ -372,14 +401,14 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
         [tessEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
-                      instanceCount:tessVertexSpanCount * 2];
+                      instanceCount:desc.tessVertexSpanCount * 2];
         [tessEncoder endEncoding];
     }
 
     // Set up the render pass that draws path patches and triangles.
     MTLRenderPassDescriptor* pass = [MTLRenderPassDescriptor renderPassDescriptor];
     pass.colorAttachments[0].texture = renderTarget->targetTexture();
-    if (loadAction == LoadAction::clear)
+    if (desc.loadAction == LoadAction::clear)
     {
         float cc[4];
         UnpackColorToRGBA32F(frameDescriptor().clearColor, cc);
@@ -417,7 +446,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
     [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
     [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
     [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
-    [encoder setFragmentTexture:mtl_texture(gradTexelBufferRing()) atIndex:kGradTextureIdx];
+    [encoder setFragmentTexture:m_gradientTexture atIndex:kGradTextureIdx];
     [encoder setCullMode:MTLCullModeBack];
     if (frameDescriptor().wireframe)
     {
@@ -478,7 +507,7 @@ void PLSRenderContextMetal::onFlush(FlushType flushType,
       thisFlushLock.unlock();
     }];
 
-    if (flushType == FlushType::intermediate)
+    if (desc.flushType == FlushType::intermediate)
     {
         // The frame isn't complete yet. The caller will begin preparing a new flush immediately
         // after this method returns, so lock buffers for the next flush now.

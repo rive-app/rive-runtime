@@ -180,11 +180,12 @@ PLSRenderContextGL::~PLSRenderContextGL()
     glDeleteProgram(m_colorRampProgram);
     glDeleteVertexArrays(1, &m_colorRampVAO);
     glDeleteFramebuffers(1, &m_colorRampFBO);
+    glDeleteTextures(1, &m_gradientTexture);
 
     glDeleteProgram(m_tessellateProgram);
     glDeleteVertexArrays(1, &m_tessellateVAO);
-    glDeleteTextures(1, &m_tessVertexTexture);
     glDeleteFramebuffers(1, &m_tessellateFBO);
+    glDeleteTextures(1, &m_tessVertexTexture);
 
     glDeleteVertexArrays(1, &m_drawVAO);
     glDeleteBuffers(1, &m_patchVerticesBuffer);
@@ -199,7 +200,6 @@ std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeVertexBufferRing(size_t 
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextGL::makeTexelBufferRing(
     TexelBufferRing::Format format,
-    Renderable,
     size_t widthInItems,
     size_t height,
     size_t texelsPerItem,
@@ -214,10 +214,37 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextGL::makeTexelBufferRing(
                                            filter);
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeUniformBufferRing(size_t capacity,
-                                                                          size_t sizeInBytes)
+std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makePixelUnpackBufferRing(
+    size_t capacity,
+    size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferGL>(GL_UNIFORM_BUFFER, capacity, sizeInBytes);
+    return std::make_unique<BufferGL>(GL_PIXEL_UNPACK_BUFFER, capacity, itemSizeInBytes);
+}
+
+std::unique_ptr<BufferRingImpl> PLSRenderContextGL::makeUniformBufferRing(size_t sizeInBytes)
+{
+    return std::make_unique<BufferGL>(GL_UNIFORM_BUFFER, 1, sizeInBytes);
+}
+
+void PLSRenderContextGL::allocateGradientTexture(size_t height)
+{
+    glDeleteTextures(1, &m_gradientTexture);
+
+    glGenTextures(1, &m_gradientTexture);
+    glActiveTexture(GL_TEXTURE0 + kGLTexIdxOffset + kGradTextureIdx);
+    glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kGradTextureWidth, height);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER,
+                           GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D,
+                           m_gradientTexture,
+                           0);
 }
 
 void PLSRenderContextGL::allocateTessellationTexture(size_t height)
@@ -358,41 +385,43 @@ static GLuint gl_buffer_id(const BufferRingImpl* bufferRing)
     return static_cast<const BufferGL*>(bufferRing)->submittedBufferID();
 }
 
-static GLuint gl_texture_id(const TexelBufferRing* texelBufferRing)
-{
-    return static_cast<const TexelBufferGL*>(texelBufferRing)->submittedTextureID();
-}
-
-void PLSRenderContextGL::onFlush(FlushType flushType,
-                                 LoadAction loadAction,
-                                 size_t gradSpanCount,
-                                 size_t gradSpansHeight,
-                                 size_t tessVertexSpanCount,
-                                 size_t tessDataHeight,
-                                 bool needsClipBuffer)
+void PLSRenderContextGL::onFlush(const FlushDescriptor& desc)
 {
     // All programs use the same set of per-flush uniforms.
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(uniformBufferRing()));
 
-    // Render the complex color ramps to the gradient texture.
-    if (gradSpanCount > 0)
+    // Render the complex color ramps into the gradient texture.
+    if (desc.complexGradSpanCount > 0)
     {
         glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
         bindVAO(m_colorRampVAO);
         glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, 0, nullptr);
-        glViewport(0, gradTextureRowsForSimpleRamps(), kGradTextureWidth, gradSpansHeight);
+        glViewport(0, desc.complexGradRowsTop, kGradTextureWidth, desc.complexGradRowsHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
-        glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D,
-                               gl_texture_id(gradTexelBufferRing()),
-                               0);
         bindProgram(m_colorRampProgram);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, gradSpanCount);
+        GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
+        glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.complexGradSpanCount);
+    }
+
+    // Copy the simple color ramps to the gradient texture.
+    if (desc.simpleGradTexelsHeight > 0)
+    {
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
+        glActiveTexture(GL_TEXTURE0 + kGLTexIdxOffset + kGradTextureIdx);
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        desc.simpleGradTexelsWidth,
+                        desc.simpleGradTexelsHeight,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        nullptr);
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
-    if (tessVertexSpanCount > 0)
+    if (desc.tessVertexSpanCount > 0)
     {
         glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
         bindVAO(m_tessellateVAO);
@@ -410,11 +439,13 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
                                GL_UNSIGNED_INT,
                                sizeof(TessVertexSpan),
                                reinterpret_cast<const void*>(offsetof(TessVertexSpan, x0x1)));
-        glViewport(0, 0, kTessTextureWidth, tessDataHeight);
+        glViewport(0, 0, kTessTextureWidth, desc.tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
         bindProgram(m_tessellateProgram);
+        GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
+        glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
         // Draw two instances per TessVertexSpan: one normal and one optional reflection.
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, tessVertexSpanCount * 2);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.tessVertexSpanCount * 2);
     }
 
     // Compile the draw programs before activating pixel local storage.
@@ -446,7 +477,10 @@ void PLSRenderContextGL::onFlush(FlushType flushType,
     }
 #endif
 
-    m_plsImpl->activatePixelLocalStorage(this, renderTarget(), loadAction, needsClipBuffer);
+    m_plsImpl->activatePixelLocalStorage(this,
+                                         renderTarget(),
+                                         desc.loadAction,
+                                         desc.needsClipBuffer);
 
     // Execute the DrawList.
     for (const Draw& draw : m_drawList)

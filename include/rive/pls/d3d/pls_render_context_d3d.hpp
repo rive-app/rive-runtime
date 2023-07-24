@@ -50,25 +50,21 @@ private:
                                                          size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                         Renderable,
                                                          size_t widthInItems,
                                                          size_t height,
                                                          size_t texelsPerItem,
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
 
-    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t capacity,
-                                                          size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makePixelUnpackBufferRing(size_t capacity,
+                                                              size_t itemSizeInBytes) override;
 
+    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t itemSizeInBytes) override;
+
+    void allocateGradientTexture(size_t height) override;
     void allocateTessellationTexture(size_t height) override;
 
-    void onFlush(FlushType,
-                 LoadAction,
-                 size_t gradSpanCount,
-                 size_t gradSpansHeight,
-                 size_t tessVertexSpanCount,
-                 size_t tessDataHeight,
-                 bool needsClipBuffer) override;
+    void onFlush(const FlushDescriptor&) override;
 
     void setPipelineLayoutAndShaders(DrawType, const ShaderFeatures&);
 
@@ -76,6 +72,11 @@ private:
 
     ComPtr<ID3D11Device> m_gpu;
     ComPtr<ID3D11DeviceContext> m_gpuContext;
+
+    ComPtr<ID3D11Texture2D> m_gradTexture;
+    ComPtr<ID3D11ShaderResourceView> m_gradTextureSRV;
+    ComPtr<ID3D11RenderTargetView> m_gradTextureRTV;
+
     ComPtr<ID3D11Texture2D> m_tessTexture;
     ComPtr<ID3D11ShaderResourceView> m_tessTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_tessTextureRTV;

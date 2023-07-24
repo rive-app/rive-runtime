@@ -148,6 +148,27 @@ protected:
     const size_t m_texelsPerItem;
 };
 
+// Buffer ring implementation for buffers that only exist on the CPU.
+class CPUOnlyBufferRing : public BufferRingImpl
+{
+public:
+    CPUOnlyBufferRing(size_t capacity, size_t itemSizeInBytes) :
+        BufferRingImpl(capacity, itemSizeInBytes)
+    {
+        for (int i = 0; i < kBufferRingSize; ++i)
+            m_cpuBuffers[i].reset(new char[capacity * itemSizeInBytes]);
+    }
+
+    const void* submittedata() const { return m_cpuBuffers[submittedBufferIdx()].get(); }
+
+protected:
+    void* onMapBuffer(int bufferIdx) override { return m_cpuBuffers[bufferIdx].get(); }
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override {}
+
+private:
+    std::unique_ptr<char[]> m_cpuBuffers[kBufferRingSize];
+};
+
 // Wrapper for an abstract BufferRingImpl that supports mapping buffers, writing an array of items
 // of the same type, and submitting for rendering.
 //

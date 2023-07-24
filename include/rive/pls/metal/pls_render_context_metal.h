@@ -34,16 +34,17 @@ private:
                                                          size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                         Renderable,
                                                          size_t widthInItems,
                                                          size_t height,
                                                          size_t texelsPerItem,
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
 
-    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t capacity,
-                                                          size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makePixelUnpackBufferRing(size_t capacity,
+                                                              size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t itemSizeInBytes) override;
 
+    void allocateGradientTexture(size_t height) override;
     void allocateTessellationTexture(size_t height) override;
 
     void onBeginFrame() override { lockNextBufferRingIndex(); }
@@ -53,13 +54,7 @@ private:
     // next buffers in our rings.
     void lockNextBufferRingIndex();
 
-    void onFlush(FlushType,
-                 LoadAction,
-                 size_t gradSpanCount,
-                 size_t gradSpansHeight,
-                 size_t tessVertexSpanCount,
-                 size_t tessDataHeight,
-                 bool needsClipBuffer) override;
+    void onFlush(const FlushDescriptor&) override;
 
     const id<MTLDevice> m_gpu;
     const id<MTLCommandQueue> m_queue;
@@ -69,6 +64,7 @@ private:
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
     std::unique_ptr<ColorRampPipeline> m_colorRampPipeline;
+    id<MTLTexture> m_gradientTexture = nullptr;
 
     // Renders tessellated vertices to the tessellation texture.
     class TessellatePipeline;
