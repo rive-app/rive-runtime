@@ -10,7 +10,8 @@
 void main()
 {
     // [-1, -1] .. [+1, +1]
-    gl_Position = vec4(mix(vec2(-1), vec2(1), equal(gl_VertexID & ivec2(1, 2), ivec2(0))), 0, 1);
+    gl_Position =
+        vec4(mix(vec2(-1, 1), vec2(1, -1), equal(gl_VertexID & ivec2(1, 2), ivec2(0))), 0, 1);
 }
 #endif
 
