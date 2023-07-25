@@ -91,6 +91,17 @@
         "int": 319,
         "string": "offset"
       }
+    },
+    "runId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 378,
+        "string": "runid"
+      },
+      "description": "Identifier used to which run should be targeted."
     }
   }
 }

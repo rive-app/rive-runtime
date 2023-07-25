@@ -41,6 +41,7 @@ public:
     static const uint16_t falloffFromPropertyKey = 317;
     static const uint16_t falloffToPropertyKey = 318;
     static const uint16_t offsetPropertyKey = 319;
+    static const uint16_t runIdPropertyKey = 378;
 
 private:
     float m_ModifyFrom = 0.0f;
@@ -53,6 +54,7 @@ private:
     float m_FalloffFrom = 0.0f;
     float m_FalloffTo = 1.0f;
     float m_Offset = 0.0f;
+    uint32_t m_RunId = -1;
 
 public:
     inline float modifyFrom() const { return m_ModifyFrom; }
@@ -165,6 +167,17 @@ public:
         offsetChanged();
     }
 
+    inline uint32_t runId() const { return m_RunId; }
+    void runId(uint32_t value)
+    {
+        if (m_RunId == value)
+        {
+            return;
+        }
+        m_RunId = value;
+        runIdChanged();
+    }
+
     Core* clone() const override;
     void copy(const TextModifierRangeBase& object)
     {
@@ -178,6 +191,7 @@ public:
         m_FalloffFrom = object.m_FalloffFrom;
         m_FalloffTo = object.m_FalloffTo;
         m_Offset = object.m_Offset;
+        m_RunId = object.m_RunId;
         ContainerComponent::copy(object);
     }
 
@@ -215,6 +229,9 @@ public:
             case offsetPropertyKey:
                 m_Offset = CoreDoubleType::deserialize(reader);
                 return true;
+            case runIdPropertyKey:
+                m_RunId = CoreUintType::deserialize(reader);
+                return true;
         }
         return ContainerComponent::deserialize(propertyKey, reader);
     }
@@ -230,6 +247,7 @@ protected:
     virtual void falloffFromChanged() {}
     virtual void falloffToChanged() {}
     virtual void offsetChanged() {}
+    virtual void runIdChanged() {}
 };
 } // namespace rive
 

@@ -579,6 +579,9 @@ public:
             case TextModifierRangeBase::modeValuePropertyKey:
                 object->as<TextModifierRangeBase>()->modeValue(value);
                 break;
+            case TextModifierRangeBase::runIdPropertyKey:
+                object->as<TextModifierRangeBase>()->runId(value);
+                break;
             case TextStyleFeatureBase::tagPropertyKey:
                 object->as<TextStyleFeatureBase>()->tag(value);
                 break;
@@ -1251,6 +1254,8 @@ public:
                 return object->as<TextModifierRangeBase>()->typeValue();
             case TextModifierRangeBase::modeValuePropertyKey:
                 return object->as<TextModifierRangeBase>()->modeValue();
+            case TextModifierRangeBase::runIdPropertyKey:
+                return object->as<TextModifierRangeBase>()->runId();
             case TextStyleFeatureBase::tagPropertyKey:
                 return object->as<TextStyleFeatureBase>()->tag();
             case TextStyleFeatureBase::featureValuePropertyKey:
@@ -1682,6 +1687,7 @@ public:
             case TextModifierRangeBase::unitsValuePropertyKey:
             case TextModifierRangeBase::typeValuePropertyKey:
             case TextModifierRangeBase::modeValuePropertyKey:
+            case TextModifierRangeBase::runIdPropertyKey:
             case TextStyleFeatureBase::tagPropertyKey:
             case TextStyleFeatureBase::featureValuePropertyKey:
             case TextVariationModifierBase::axisTagPropertyKey:

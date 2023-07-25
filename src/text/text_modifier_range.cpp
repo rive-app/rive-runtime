@@ -1,8 +1,10 @@
 #include "rive/text/text.hpp"
 #include "rive/text/text_modifier_range.hpp"
 #include "rive/text/text_modifier_group.hpp"
+#include "rive/text/text_value_run.hpp"
 #include "rive/text/glyph_lookup.hpp"
 #include "rive/animation/cubic_interpolator_component.hpp"
+#include "rive/core_context.hpp"
 
 using namespace rive;
 
@@ -12,6 +14,16 @@ StatusCode TextModifierRange::onAddedDirty(CoreContext* context)
     if (code != StatusCode::Ok)
     {
         return code;
+    }
+
+    if (runId() != Core::emptyId)
+    {
+        auto coreObject = context->resolve(runId());
+        if (coreObject == nullptr || !coreObject->is<TextValueRun>())
+        {
+            return StatusCode::MissingObject;
+        }
+        m_run = static_cast<TextValueRun*>(coreObject);
     }
 
     if (parent() != nullptr && parent()->is<TextModifierGroup>())
@@ -45,19 +57,26 @@ void TextModifierRange::computeRange(Span<const Unichar> text,
     {
         return;
     }
+    uint32_t start = 0;
+    uint32_t end = (uint32_t)text.size();
+    if (m_run != nullptr)
+    {
+        start = m_run->offset();
+        end = start + (uint32_t)m_run->text().size();
+    }
     switch (units())
     {
         case TextRangeUnits::charactersExcludingSpaces:
-            m_rangeMapper.fromCharacters(text, glyphLookup, true);
+            m_rangeMapper.fromCharacters(text, start, end, glyphLookup, true);
             break;
         case TextRangeUnits::words:
-            m_rangeMapper.fromWords(text);
+            m_rangeMapper.fromWords(text, start, end);
             break;
         case TextRangeUnits::lines:
-            m_rangeMapper.fromLines(text, shape, lines, glyphLookup);
+            m_rangeMapper.fromLines(text, start, end, shape, lines, glyphLookup);
             break;
         default:
-            m_rangeMapper.fromCharacters(text, glyphLookup);
+            m_rangeMapper.fromCharacters(text, start, end, glyphLookup);
             break;
     }
 }
@@ -208,7 +227,24 @@ float RangeMapper::unitToCharacterRange(float word) const
     return characters;
 }
 
-void RangeMapper::fromWords(Span<const Unichar> text)
+void RangeMapper::addRange(uint32_t indexFrom,
+                           uint32_t indexTo,
+                           uint32_t startOffset,
+                           uint32_t endOffset)
+{
+    if (indexTo > startOffset && endOffset > indexFrom)
+    {
+        uint32_t actualStart = std::max(startOffset, indexFrom);
+        uint32_t actualEnd = std::min(endOffset, indexTo);
+        if (actualEnd > actualStart)
+        {
+            m_unitCharacterIndices.push_back(actualStart);
+            m_unitLengths.push_back(actualEnd - actualStart);
+        }
+    }
+}
+
+void RangeMapper::fromWords(Span<const Unichar> text, uint32_t start, uint32_t end)
 {
     if (text.empty())
     {
@@ -218,17 +254,18 @@ void RangeMapper::fromWords(Span<const Unichar> text)
     bool wantWhiteSpace = false;
     uint32_t characterCount = 0;
     uint32_t index = 0;
+    uint32_t indexFrom = 0;
     for (Unichar unit : text)
     {
         if (wantWhiteSpace == isWhiteSpace(unit))
         {
             if (!wantWhiteSpace)
             {
-                m_unitCharacterIndices.push_back(index);
+                indexFrom = index;
             }
             else
             {
-                m_unitLengths.push_back(characterCount);
+                addRange(indexFrom, indexFrom + characterCount, start, end);
 
                 characterCount = 0;
             }
@@ -240,15 +277,16 @@ void RangeMapper::fromWords(Span<const Unichar> text)
         }
         index++;
     }
-
-    if (characterCount != 0)
+    if (characterCount > 0)
     {
-        m_unitLengths.push_back(characterCount);
-        m_unitCharacterIndices.push_back(index);
+        addRange(indexFrom, indexFrom + characterCount, start, end);
     }
+    m_unitCharacterIndices.push_back(end);
 }
 
 void RangeMapper::fromCharacters(Span<const Unichar> text,
+                                 uint32_t start,
+                                 uint32_t end,
                                  const GlyphLookup& glyphLookup,
                                  bool withoutSpaces)
 {
@@ -256,8 +294,7 @@ void RangeMapper::fromCharacters(Span<const Unichar> text,
     {
         return;
     }
-    uint32_t length = (uint32_t)text.size();
-    for (uint32_t i = 0; i < length;)
+    for (uint32_t i = start; i < end;)
     {
         Unichar unit = text[i];
         if (withoutSpaces && isWhiteSpace(unit))
@@ -272,10 +309,12 @@ void RangeMapper::fromCharacters(Span<const Unichar> text,
         i += codePoints;
     }
 
-    m_unitCharacterIndices.push_back(length);
+    m_unitCharacterIndices.push_back(end);
 }
 
 void RangeMapper::fromLines(Span<const Unichar> text,
+                            uint32_t start,
+                            uint32_t end,
                             const SimpleArray<Paragraph>& shape,
                             const SimpleArray<SimpleArray<GlyphLine>>& lines,
                             const GlyphLookup& glyphLookup)
@@ -298,9 +337,9 @@ void RangeMapper::fromLines(Span<const Unichar> text,
             uint32_t endGlyphIndex = line.endGlyphIndex == 0 ? 0 : line.endGlyphIndex - 1;
             uint32_t indexTo = rt.textIndices[endGlyphIndex];
             indexTo += glyphLookup.count(indexTo);
-            m_unitCharacterIndices.push_back(indexFrom);
-            m_unitLengths.push_back(indexTo - indexFrom);
+
+            addRange(indexFrom, indexTo, start, end);
         }
     }
-    m_unitCharacterIndices.push_back((uint32_t)text.size());
+    m_unitCharacterIndices.push_back(end);
 }

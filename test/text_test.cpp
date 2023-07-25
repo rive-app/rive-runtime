@@ -7,6 +7,7 @@
 #include "rive/text/text_modifier_range.hpp"
 #include "utils/no_op_renderer.hpp"
 #include "rive/text/utf.hpp"
+#include "rive/text/text_modifier_group.hpp"
 
 TEST_CASE("file with text loads correctly", "[text]")
 {
@@ -134,6 +135,75 @@ TEST_CASE("range mapper maps words", "[text]")
 {
     auto codePoints = toUnicode("one two three four");
     rive::RangeMapper rangeMapper;
-    rangeMapper.fromWords(codePoints);
+    rangeMapper.fromWords(codePoints, 0, (uint32_t)codePoints.size());
     REQUIRE(rangeMapper.unitCount() == 4);
+}
+
+TEST_CASE("run modifier ranges select runs", "[text]")
+{
+    auto file = ReadRiveFile("../../test/assets/modifier_to_run.riv");
+    auto artboard = file->artboard();
+
+    artboard->advance(0.0f);
+    rive::NoOpRenderer renderer;
+    artboard->draw(&renderer);
+
+    {
+        auto characterSelectedText = artboard->find<rive::Text>("Characters");
+        REQUIRE(characterSelectedText != nullptr);
+        REQUIRE(characterSelectedText->haveModifiers());
+        REQUIRE(characterSelectedText->modifierGroups().size() == 2);
+        auto firstModifierGroup = characterSelectedText->modifierGroups()[0];
+        REQUIRE(firstModifierGroup->ranges().size() == 1);
+        auto firstRange = firstModifierGroup->ranges()[0];
+        REQUIRE(firstRange->run() != nullptr);
+        for (int i = 0; i < 4; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+        }
+        // Run from 4-9 got selected.
+        REQUIRE(firstRange->run()->offset() == 4);
+        REQUIRE(firstRange->run()->text().size() == 5);
+        for (int i = 4; i < 9; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
+        }
+        for (int i = 9; i < 26; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+        }
+    }
+    {
+        auto wordSelectedText = artboard->find<rive::Text>("Words");
+        REQUIRE(wordSelectedText != nullptr);
+        REQUIRE(wordSelectedText->haveModifiers());
+        REQUIRE(wordSelectedText->modifierGroups().size() == 1);
+        auto firstModifierGroup = wordSelectedText->modifierGroups()[0];
+        REQUIRE(firstModifierGroup->ranges().size() == 1);
+        auto firstRange = firstModifierGroup->ranges()[0];
+        REQUIRE(firstRange->run() != nullptr);
+        for (int i = 0; i < 4; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+        }
+        // Run from 4-34 got selected.
+        REQUIRE(firstRange->run()->offset() == 4);
+        auto text = firstRange->run()->text();
+        REQUIRE(text.size() == 34);
+        for (int i = 4; i < 39; i++)
+        {
+            if (rive::isWhiteSpace(text[i - 4]))
+            {
+                REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+            }
+            else
+            {
+                REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
+            }
+        }
+        for (int i = 39; i < 50; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+        }
+    }
 }

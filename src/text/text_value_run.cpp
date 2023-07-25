@@ -41,3 +41,23 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
 
     return StatusCode::Ok;
 }
+
+uint32_t TextValueRun::offset() const
+{
+#ifdef WITH_RIVE_TEXT
+    Text* text = parent()->as<Text>();
+    uint32_t offset = 0;
+
+    for (const TextValueRun* run : text->runs())
+    {
+        if (run == this)
+        {
+            break;
+        }
+        offset += (uint32_t)run->text().size();
+    }
+    return offset;
+#else
+    return 0;
+#endif
+}

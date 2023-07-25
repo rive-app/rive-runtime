@@ -11,6 +11,7 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
     TextStyle* style() { return m_style; }
+    uint32_t offset() const;
 
 protected:
     void textChanged() override;

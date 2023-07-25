@@ -37,6 +37,7 @@ enum class TextRangeInterpolator : uint8_t
 };
 
 class GlyphLookup;
+class TextValueRun;
 class RangeMapper
 {
 public:
@@ -47,15 +48,19 @@ public:
     bool empty() { return m_unitLengths.empty(); }
 
     /// Compute ranges of words.
-    void fromWords(Span<const Unichar> text);
+    void fromWords(Span<const Unichar> text, uint32_t start, uint32_t end);
 
     /// Compute ranges of characters in text.
     void fromCharacters(Span<const Unichar> text,
+                        uint32_t start,
+                        uint32_t end,
                         const GlyphLookup& glyphLookup,
                         bool withoutSpaces = false);
 
     /// Compute ranges of lines.
     void fromLines(Span<const Unichar> text,
+                   uint32_t start,
+                   uint32_t end,
                    const SimpleArray<Paragraph>& shape,
                    const SimpleArray<SimpleArray<GlyphLine>>& lines,
                    const GlyphLookup& glyphLookup);
@@ -73,6 +78,9 @@ public:
         assert(at < m_unitLengths.size());
         return m_unitLengths[at];
     }
+
+    // Add (some of) unit at indexFrom to indexTo where it falls within the start/end offset.
+    void addRange(uint32_t indexFrom, uint32_t indexTo, uint32_t startOffset, uint32_t endOffset);
 
 private:
     /// Each item in this list represents the index (in unicode codepoints) of
@@ -128,6 +136,7 @@ private:
     float m_indexFalloffFrom = 0.0f;
     float m_indexFalloffTo = 0.0f;
     CubicInterpolatorComponent* m_interpolator = nullptr;
+    TextValueRun* m_run = nullptr;
 
     float offsetModifyFrom() const { return modifyFrom() + offset(); }
     float offsetModifyTo() const { return modifyTo() + offset(); }
@@ -135,6 +144,11 @@ private:
     float offsetFalloffTo() const { return falloffTo() + offset(); }
 
     float coverageAt(float t);
+
+public:
+#ifdef TESTING
+    TextValueRun* run() const { return m_run; }
+#endif
 };
 } // namespace rive
 
