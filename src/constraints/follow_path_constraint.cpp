@@ -15,6 +15,17 @@
 
 using namespace rive;
 
+static float positiveMod(float value, float range)
+{
+    assert(range > 0.0f);
+    float v = fmodf(value, range);
+    if (v < 0.0f)
+    {
+        v += range;
+    }
+    return v;
+}
+
 void FollowPathConstraint::distanceChanged() { markConstraintDirty(); }
 void FollowPathConstraint::orientChanged() { markConstraintDirty(); }
 
@@ -32,7 +43,8 @@ const Mat2D FollowPathConstraint::targetTransform() const
 
     const std::vector<MetricsPath*>& paths = metricsPath->paths();
     float totalLength = metricsPath->length();
-    float distanceUnits = totalLength * std::min(1.0f, std::max(0.0f, distance()));
+    float actualDistance = positiveMod(distance(), 1.0f);
+    float distanceUnits = totalLength * std::min(1.0f, std::max(0.0f, actualDistance));
     float runningLength = 0;
     ContourMeasure::PosTan posTan;
     for (auto path : paths)
@@ -46,30 +58,24 @@ const Mat2D FollowPathConstraint::targetTransform() const
         runningLength += pathLength;
     }
     Vec2D position = Vec2D(posTan.pos.x, posTan.pos.y);
-
     Mat2D transformB = Mat2D(m_Target->worldTransform());
-    transformB[4] = position.x;
-    transformB[5] = position.y;
 
+    if (orient())
+    {
+        transformB = Mat2D::fromRotation(std::atan2(posTan.tan.y, posTan.tan.x));
+    }
+    Vec2D offsetPosition = Vec2D();
     if (offset())
     {
         if (parent()->is<TransformComponent>())
         {
-            transformB *= parent()->as<TransformComponent>()->transform();
+            Mat2D components = parent()->as<TransformComponent>()->transform();
+            offsetPosition.x = components[4];
+            offsetPosition.y = components[5];
         }
     }
-    if (orient())
-    {
-        transformB *= Mat2D::fromRotation(std::atan2(posTan.tan.y, posTan.tan.x));
-    }
-    else
-    {
-        if (parent()->is<TransformComponent>())
-        {
-            auto comp = parent()->as<TransformComponent>()->worldTransform().decompose();
-            transformB *= Mat2D::fromRotation(comp.rotation());
-        }
-    }
+    transformB[4] = position.x + offsetPosition.x;
+    transformB[5] = position.y + offsetPosition.y;
     return transformB;
 }
 
@@ -102,27 +108,19 @@ void FollowPathConstraint::constrain(TransformComponent* component)
     m_ComponentsA = transformA.decompose();
     m_ComponentsB = transformB.decompose();
 
-    float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
-    float angleB = std::fmod(m_ComponentsB.rotation(), math::PI * 2);
-    float diff = angleB - angleA;
-    if (diff > math::PI)
-    {
-        diff -= math::PI * 2;
-    }
-    else if (diff < -math::PI)
-    {
-        diff += math::PI * 2;
-    }
-
     float t = strength();
     float ti = 1.0f - t;
 
-    m_ComponentsB.rotation(angleA + diff * t);
+    if (!orient())
+    {
+        float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
+        m_ComponentsB.rotation(angleA);
+    }
     m_ComponentsB.x(m_ComponentsA.x() * ti + m_ComponentsB.x() * t);
     m_ComponentsB.y(m_ComponentsA.y() * ti + m_ComponentsB.y() * t);
-    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti + m_ComponentsB.scaleX() * t);
-    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti + m_ComponentsB.scaleY() * t);
-    m_ComponentsB.skew(m_ComponentsA.skew() * ti + m_ComponentsB.skew() * t);
+    m_ComponentsB.scaleX(m_ComponentsA.scaleX());
+    m_ComponentsB.scaleY(m_ComponentsA.scaleY());
+    m_ComponentsB.skew(m_ComponentsA.skew());
 
     component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);
 }
