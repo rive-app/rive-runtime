@@ -24,7 +24,7 @@ public:
     GLuint sideFramebufferID() const { return m_sideFramebufferID; }
 
 private:
-    friend class PLSRenderContextGL;
+    friend class PLSRenderContextGLImpl;
 
     // Creates a render target that draws to an existing GL framebuffer. The caller must also call
     // allocateCoverageBackingTextures() and attach those textures to the framebuffer if needed.

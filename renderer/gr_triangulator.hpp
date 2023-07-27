@@ -18,7 +18,6 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/pls/pls.hpp"
-#include "rive/pls/buffer_ring.hpp"
 #include "rive/pls/trivial_block_allocator.hpp"
 
 namespace rive
@@ -99,7 +98,7 @@ protected:
                           FillRule overrideFillRule,
                           uint16_t pathID,
                           bool reverseTriangles,
-                          pls::BufferRing<pls::TriangleVertex>*) const;
+                          pls::WriteOnlyMappedMemory<pls::TriangleVertex>*) const;
 
     // The vertex sorting in step (3) is a merge sort, since it plays well with the linked list
     // of vertices (and the necessity of inserting new vertices on intersection).
@@ -148,18 +147,18 @@ protected:
     void emitMonotonePoly(const MonotonePoly*,
                           uint16_t pathID,
                           bool reverseTriangles,
-                          pls::BufferRing<pls::TriangleVertex>*) const;
+                          pls::WriteOnlyMappedMemory<pls::TriangleVertex>*) const;
     void emitTriangle(Vertex* prev,
                       Vertex* curr,
                       Vertex* next,
                       int winding,
                       uint16_t pathID,
                       bool reverseTriangles,
-                      pls::BufferRing<pls::TriangleVertex>*) const;
+                      pls::WriteOnlyMappedMemory<pls::TriangleVertex>*) const;
     void emitPoly(const Poly*,
                   uint16_t pathID,
                   bool reverseTriangles,
-                  pls::BufferRing<pls::TriangleVertex>*) const;
+                  pls::WriteOnlyMappedMemory<pls::TriangleVertex>*) const;
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
     void appendPointToContour(const Vec2D& p, VertexList* contour) const;
@@ -247,7 +246,7 @@ protected:
                             uint64_t maxVertexCount,
                             uint16_t pathID,
                             bool reverseTriangles,
-                            pls::BufferRing<pls::TriangleVertex>*) const;
+                            pls::WriteOnlyMappedMemory<pls::TriangleVertex>*) const;
 
     AABB fPathBounds;
     FillRule fFillRule;

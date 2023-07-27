@@ -27,6 +27,7 @@ public:
 
     size_t capacity() const { return m_capacity; }
     size_t itemSizeInBytes() const { return m_itemSizeInBytes; }
+    size_t totalSizeInBytes() const { return m_capacity * m_itemSizeInBytes * kBufferRingSize; }
 
     // Maps the next buffer in the ring.
     void* mapBuffer()
@@ -167,118 +168,5 @@ protected:
 
 private:
     std::unique_ptr<char[]> m_cpuBuffers[kBufferRingSize];
-};
-
-// Wrapper for an abstract BufferRingImpl that supports mapping buffers, writing an array of items
-// of the same type, and submitting for rendering.
-//
-// Intended usage pattern:
-//
-//  * Call ensureMapped() to map the next buffer in the ring.
-//  * push() all items for rendering.
-//  * Call submit() to unmap and submit the currently-mapped buffer for rendering, in whatever way
-//    that is meaningful for the PLSRenderContext implementation.
-//
-template <typename T> class BufferRing
-{
-public:
-    BufferRing() = default;
-    BufferRing(std::unique_ptr<BufferRingImpl> impl) { reset(std::move(impl)); }
-    BufferRing(BufferRing&& other) : m_impl(std::move(other.m_impl)) {}
-
-    void reset(std::unique_ptr<BufferRingImpl> impl)
-    {
-        assert(!mapped());
-        assert(impl->itemSizeInBytes() == sizeof(T));
-        m_impl = std::move(impl);
-    }
-
-    size_t totalSizeInBytes() const
-    {
-        return m_impl ? kBufferRingSize * m_impl->capacity() * m_impl->itemSizeInBytes() : 0;
-    }
-
-    size_t capacity() const { return m_impl->capacity(); }
-
-    // Maps the next buffer in the ring, if one is not already mapped.
-    RIVE_ALWAYS_INLINE void ensureMapped()
-    {
-        if (!mapped())
-        {
-            m_mappedMemory = m_nextMappedItem = reinterpret_cast<T*>(m_impl->mapBuffer());
-            m_mappingEnd = m_mappedMemory + m_impl->capacity();
-        }
-    }
-
-    const BufferRingImpl* impl() const { return m_impl.get(); }
-    BufferRingImpl* impl() { return m_impl.get(); }
-
-    // Is a buffer not mapped, or, has nothing been pushed yet to the currently-mapped buffer?
-    size_t empty() const
-    {
-        assert(!m_mappedMemory == !m_nextMappedItem);
-        return m_mappedMemory == m_nextMappedItem;
-    }
-
-    // How many bytes have been written to the currently-mapped buffer?
-    // (Returns 0 if no buffer is mapped.)
-    size_t bytesWritten() const
-    {
-        assert(!m_mappedMemory == !m_mappingEnd);
-        return reinterpret_cast<uintptr_t>(m_nextMappedItem) -
-               reinterpret_cast<uintptr_t>(m_mappedMemory);
-    }
-
-    // Is a buffer currently mapped?
-    bool mapped() const
-    {
-        assert(!m_mappedMemory == !m_nextMappedItem && !m_mappedMemory == !m_mappingEnd);
-        return m_mappedMemory != nullptr;
-    }
-
-    // Is there room to push() itemCount items to the currently-mapped buffer?
-    bool hasRoomFor(size_t itemCount)
-    {
-        assert(mapped());
-        return m_nextMappedItem + itemCount <= m_mappingEnd;
-    }
-
-    // Append and write a new item to the currently-mapped buffer. In order to enforce the
-    // write-only requirement of a mapped buffer, this method does not return any pointers to the
-    // client.
-    template <typename... Args> RIVE_ALWAYS_INLINE void emplace_back(Args&&... args)
-    {
-        push() = {std::forward<Args>(args)...};
-    }
-    template <typename... Args> RIVE_ALWAYS_INLINE void set_back(Args&&... args)
-    {
-        push().set(std::forward<Args>(args)...);
-    }
-
-    // Called after all the data for a frame has been push()-ed to the mapped buffer. Unmaps and
-    // submits the currently-mapped buffer (if any) for GPU rendering, in whatever way that is
-    // meaningful for the PLSRenderContext implementation.
-    void submit()
-    {
-        if (mapped())
-        {
-            m_impl->unmapAndSubmitBuffer(bytesWritten());
-            m_mappingEnd = m_nextMappedItem = m_mappedMemory = nullptr;
-        }
-        assert(!mapped());
-    }
-
-private:
-    template <typename... Args> RIVE_ALWAYS_INLINE T& push()
-    {
-        assert(mapped());
-        assert(hasRoomFor(1));
-        return *m_nextMappedItem++;
-    }
-
-    std::unique_ptr<BufferRingImpl> m_impl;
-    T* m_mappedMemory = nullptr;
-    T* m_nextMappedItem = nullptr;
-    const T* m_mappingEnd = nullptr;
 };
 } // namespace rive::pls

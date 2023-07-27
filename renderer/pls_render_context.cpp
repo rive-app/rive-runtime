@@ -8,6 +8,7 @@
 #include "pls_path.hpp"
 #include "pls_paint.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/pls/pls_render_context_impl.hpp"
 
 #include <string_view>
 
@@ -29,9 +30,9 @@ constexpr size_t kMaxComplexGradients = kMaxGradTextureHeight - kMaxSimpleColorR
 
 constexpr size_t kMinTessTextureHeight = 32;
 constexpr size_t kMaxTessTextureHeight = 2048; // GL_MAX_TEXTURE_SIZE spec minimum.
-constexpr size_t kMaxTessellationVertices = kMaxTessTextureHeight * kTessTextureWidth;
+constexpr size_t kMaxTessellationVertexCount = kMaxTessTextureHeight * kTessTextureWidth;
 
-uint32_t PLSRenderContext::ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
+uint32_t ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
 {
     uint32_t defines = 0;
     if (programFeatures.blendTier != BlendTier::srcOver)
@@ -56,7 +57,7 @@ uint32_t PLSRenderContext::ShaderFeatures::getPreprocessorDefines(SourceType sou
     return defines;
 }
 
-PLSRenderContext::BlendTier PLSRenderContext::BlendTierForBlendMode(PLSBlendMode blendMode)
+BlendTier PLSRenderContext::BlendTierForBlendMode(PLSBlendMode blendMode)
 {
     switch (blendMode)
     {
@@ -120,9 +121,10 @@ size_t DeepHashGradient::operator()(const GradientContentKey& key) const
     return x ^ y;
 }
 
-PLSRenderContext::PLSRenderContext(const PlatformFeatures& platformFeatures) :
-    m_platformFeatures(platformFeatures),
-    m_maxPathID(MaxPathID(m_platformFeatures.pathIDGranularity))
+PLSRenderContext::PLSRenderContext(std::unique_ptr<PLSRenderContextImpl> impl) :
+    m_platformFeatures(impl->platformFeatures()),
+    m_maxPathID(MaxPathID(m_platformFeatures.pathIDGranularity)),
+    m_impl(std::move(impl))
 {}
 
 PLSRenderContext::~PLSRenderContext()
@@ -218,13 +220,6 @@ void PLSRenderContext::allocateGPUResources(
 #define COUNT_RESOURCE_SIZE(SIZE_IN_BYTES)
 #endif
 
-    // One-time allocation of the uniform buffer ring.
-    if (m_uniformBuffer.impl() == nullptr)
-    {
-        m_uniformBuffer.reset(makeUniformBufferRing(sizeof(FlushUniforms)));
-    }
-    COUNT_RESOURCE_SIZE(m_uniformBuffer.totalSizeInBytes());
-
     // Path data texture ring.
     constexpr size_t kMinPathIDCount = kPathTextureWidthInItems * 32; // 32 texels tall.
     size_t targetMaxPathID = resource_texture_height<kPathTextureWidthInItems>(targets.maxPathID) *
@@ -236,20 +231,15 @@ void PLSRenderContext::allocateGPUResources(
         resource_texture_height<kPathTextureWidthInItems>(m_currentResourceLimits.maxPathID);
     if (shouldReallocate(targetPathTextureHeight, currentPathTextureHeight))
     {
-        assert(!m_pathBuffer.mapped());
-        m_pathBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
-                                               kPathTextureWidthInItems,
-                                               targetPathTextureHeight,
-                                               kPathTexelsPerItem,
-                                               kPathTextureIdx,
-                                               TexelBufferRing::Filter::nearest));
+        assert(!m_pathData);
+        m_impl->resizePathTexture(kPathTextureWidthInTexels, targetPathTextureHeight);
         LOG_CHANGED_SIZE("path texture height",
                          currentPathTextureHeight,
                          targetPathTextureHeight,
-                         m_pathBuffer.totalSizeInBytes());
+                         m_pathBuffer->totalSizeInBytes());
         m_currentResourceLimits.maxPathID = targetMaxPathID;
     }
-    COUNT_RESOURCE_SIZE(m_pathBuffer.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_pathBuffer->totalSizeInBytes());
 
     // Contour data texture ring.
     constexpr size_t kMinContourIDCount = kContourTextureWidthInItems * 32; // 32 texels tall.
@@ -263,109 +253,101 @@ void PLSRenderContext::allocateGPUResources(
         resource_texture_height<kContourTextureWidthInItems>(m_currentResourceLimits.maxContourID);
     if (shouldReallocate(targetContourTextureHeight, currentContourTextureHeight))
     {
-        assert(!m_contourBuffer.mapped());
-        m_contourBuffer.reset(makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
-                                                  kContourTextureWidthInItems,
-                                                  targetContourTextureHeight,
-                                                  kContourTexelsPerItem,
-                                                  pls::kContourTextureIdx,
-                                                  TexelBufferRing::Filter::nearest));
+        assert(!m_contourData);
+        m_impl->resizeContourTexture(kContourTextureWidthInTexels, targetContourTextureHeight);
         LOG_CHANGED_SIZE("contour texture height",
                          currentContourTextureHeight,
                          targetContourTextureHeight,
-                         m_contourBuffer.totalSizeInBytes());
+                         m_contourBuffer->totalSizeInBytes());
         m_currentResourceLimits.maxContourID = targetMaxContourID;
     }
-    COUNT_RESOURCE_SIZE(m_contourBuffer.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_contourBuffer->totalSizeInBytes());
 
     // Simple gradient color ramp pixel unpack buffer ring.
-    size_t targetSimpleGradientRows =
+    size_t targetSimpleGradientRowCount =
         resource_texture_height<kGradTextureWidthInSimpleRamps>(targets.maxSimpleGradients);
-    targetSimpleGradientRows =
-        std::clamp(targetSimpleGradientRows, kMinSimpleColorRampRows, kMaxSimpleColorRampRows);
+    targetSimpleGradientRowCount =
+        std::clamp(targetSimpleGradientRowCount, kMinSimpleColorRampRows, kMaxSimpleColorRampRows);
     assert(m_currentResourceLimits.maxSimpleGradients % kGradTextureWidthInSimpleRamps == 0);
-    assert(m_reservedGradTextureRowsForSimpleRamps ==
+    assert(m_reservedSimpleGradientRowCount ==
            resource_texture_height<kGradTextureWidthInSimpleRamps>(
                m_currentResourceLimits.maxSimpleGradients));
-    if (shouldReallocate(targetSimpleGradientRows, m_reservedGradTextureRowsForSimpleRamps))
+    if (shouldReallocate(targetSimpleGradientRowCount, m_reservedSimpleGradientRowCount))
     {
-        assert(!m_simpleColorRampsBuffer.mapped());
-        m_simpleColorRampsBuffer.reset(
-            makePixelUnpackBufferRing(targetSimpleGradientRows * kGradTextureWidthInSimpleRamps,
-                                      sizeof(TwoTexelRamp)));
+        assert(!m_simpleColorRampsData);
+        m_impl->resizeSimpleColorRampsBuffer(targetSimpleGradientRowCount *
+                                             kGradTextureWidthInSimpleRamps * sizeof(TwoTexelRamp));
         LOG_CHANGED_SIZE("maxSimpleGradients",
-                         m_reservedGradTextureRowsForSimpleRamps * kGradTextureWidthInSimpleRamps,
-                         targetSimpleGradientRows * kGradTextureWidthInSimpleRamps,
-                         m_simpleColorRampsBuffer.totalSizeInBytes());
+                         m_reservedSimpleGradientRowCount * kGradTextureWidthInSimpleRamps,
+                         targetSimpleGradientRowCount * kGradTextureWidthInSimpleRamps,
+                         m_simpleColorRampsBuffer->totalSizeInBytes());
         m_currentResourceLimits.maxSimpleGradients =
-            targetSimpleGradientRows * kGradTextureWidthInSimpleRamps;
-        m_reservedGradTextureRowsForSimpleRamps = targetSimpleGradientRows;
+            targetSimpleGradientRowCount * kGradTextureWidthInSimpleRamps;
+        m_reservedSimpleGradientRowCount = targetSimpleGradientRowCount;
     }
-    COUNT_RESOURCE_SIZE(m_simpleColorRampsBuffer.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_simpleColorRampsBuffer->totalSizeInBytes());
 
     // Instance buffer ring for rendering complex gradients.
     constexpr size_t kMinComplexGradientSpans = kMinComplexGradients * 32;
     constexpr size_t kMaxComplexGradientSpans = kMaxComplexGradients * 64;
-    size_t targetComplexGradientSpans = std::clamp(targets.maxComplexGradientSpans,
-                                                   kMinComplexGradientSpans,
-                                                   kMaxComplexGradientSpans);
-    if (shouldReallocate(targetComplexGradientSpans,
+    size_t targetComplexGradientSpanCount = std::clamp(targets.maxComplexGradientSpans,
+                                                       kMinComplexGradientSpans,
+                                                       kMaxComplexGradientSpans);
+    if (shouldReallocate(targetComplexGradientSpanCount,
                          m_currentResourceLimits.maxComplexGradientSpans))
     {
-        assert(!m_gradSpanBuffer.mapped());
-        m_gradSpanBuffer.reset(
-            makeVertexBufferRing(targetComplexGradientSpans, sizeof(GradientSpan)));
+        assert(!m_gradSpanData);
+        m_impl->resizeGradSpanBuffer(targetComplexGradientSpanCount * sizeof(GradientSpan));
         LOG_CHANGED_SIZE("maxComplexGradientSpans",
                          m_currentResourceLimits.maxComplexGradientSpans,
-                         targetComplexGradientSpans,
-                         m_gradSpanBuffer.totalSizeInBytes());
-        m_currentResourceLimits.maxComplexGradientSpans = targetComplexGradientSpans;
+                         targetComplexGradientSpanCount,
+                         m_gradSpanBuffer->totalSizeInBytes());
+        m_currentResourceLimits.maxComplexGradientSpans = targetComplexGradientSpanCount;
     }
-    COUNT_RESOURCE_SIZE(m_gradSpanBuffer.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_gradSpanBuffer->totalSizeInBytes());
 
     // Instance buffer ring for rendering path tessellation vertices.
     constexpr size_t kMinTessellationSpans = kMinTessTextureHeight * kTessTextureWidth / 4;
     const size_t maxTessellationSpans = kMaxTessTextureHeight * kTessTextureWidth / 8; // ~100MiB
-    size_t targetTessellationSpans =
+    size_t targetTessellationSpanCount =
         std::clamp(targets.maxTessellationSpans, kMinTessellationSpans, maxTessellationSpans);
-    if (shouldReallocate(targetTessellationSpans, m_currentResourceLimits.maxTessellationSpans))
+    if (shouldReallocate(targetTessellationSpanCount, m_currentResourceLimits.maxTessellationSpans))
     {
-        assert(!m_tessSpanBuffer.mapped());
-        m_tessSpanBuffer.reset(
-            makeVertexBufferRing(targetTessellationSpans, sizeof(TessVertexSpan)));
+        assert(!m_tessSpanData);
+        m_impl->resizeTessVertexSpanBuffer(targetTessellationSpanCount * sizeof(TessVertexSpan));
         LOG_CHANGED_SIZE("maxTessellationSpans",
                          m_currentResourceLimits.maxTessellationSpans,
-                         targetTessellationSpans,
-                         m_tessSpanBuffer.totalSizeInBytes());
-        m_currentResourceLimits.maxTessellationSpans = targetTessellationSpans;
+                         targetTessellationSpanCount,
+                         m_tessSpanBuffer->totalSizeInBytes());
+        m_currentResourceLimits.maxTessellationSpans = targetTessellationSpanCount;
     }
-    COUNT_RESOURCE_SIZE(m_tessSpanBuffer.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_tessSpanBuffer->totalSizeInBytes());
 
     // Instance buffer ring for literal triangles fed directly by the CPU.
-    constexpr size_t kMinTriangleVertices = 3072 * 3; // 324 KiB
+    constexpr size_t kMinTriangleVertexCount = 3072 * 3; // 324 KiB
     // Triangle vertices don't have a maximum limit; we let the other components be the limiting
     // factor and allocate whatever buffer size we need at flush time.
-    size_t targetTriangleVertices =
-        std::max(targets.triangleVertexBufferSize, kMinTriangleVertices);
-    if (shouldReallocate(targetTriangleVertices, m_currentResourceLimits.triangleVertexBufferSize))
+    size_t targetTriangleVertexCount =
+        std::max(targets.triangleVertexBufferCount, kMinTriangleVertexCount);
+    if (shouldReallocate(targetTriangleVertexCount,
+                         m_currentResourceLimits.triangleVertexBufferCount))
     {
-        assert(!m_triangleBuffer.mapped());
-        m_triangleBuffer.reset(
-            makeVertexBufferRing(targetTriangleVertices, sizeof(TriangleVertex)));
-        LOG_CHANGED_SIZE("triangleVertexBufferSize",
-                         m_currentResourceLimits.triangleVertexBufferSize,
-                         targetTriangleVertices,
-                         m_triangleBuffer.totalSizeInBytes());
-        m_currentResourceLimits.triangleVertexBufferSize = targetTriangleVertices;
+        assert(!m_triangleVertexData);
+        m_impl->resizeTriangleVertexBuffer(targetTriangleVertexCount * sizeof(TriangleVertex));
+        LOG_CHANGED_SIZE("triangleVertexBufferCount",
+                         m_currentResourceLimits.triangleVertexBufferCount,
+                         targetTriangleVertexCount,
+                         m_triangleBuffer->totalSizeInBytes());
+        m_currentResourceLimits.triangleVertexBufferCount = targetTriangleVertexCount;
     }
-    COUNT_RESOURCE_SIZE(m_triangleBuffer.totalSizeInBytes());
+    COUNT_RESOURCE_SIZE(m_triangleBuffer->totalSizeInBytes());
 
     // Gradient color ramp texture.
     size_t targetGradTextureHeight =
         std::clamp(targets.gradientTextureHeight, kMinGradTextureHeight, kMaxGradTextureHeight);
     if (shouldReallocate(targetGradTextureHeight, m_currentResourceLimits.gradientTextureHeight))
     {
-        allocateGradientTexture(targetGradTextureHeight);
+        m_impl->resizeGradientTexture(targetGradTextureHeight);
         LOG_CHANGED_SIZE("gradientTextureHeight",
                          m_currentResourceLimits.gradientTextureHeight,
                          targetGradTextureHeight,
@@ -381,7 +363,7 @@ void PLSRenderContext::allocateGPUResources(
     if (shouldReallocate(targetTessTextureHeight,
                          m_currentResourceLimits.tessellationTextureHeight))
     {
-        allocateTessellationTexture(targetTessTextureHeight);
+        m_impl->resizeTessellationTexture(targetTessTextureHeight);
         LOG_CHANGED_SIZE("tessellationTextureHeight",
                          m_currentResourceLimits.tessellationTextureHeight,
                          targetTessTextureHeight,
@@ -402,7 +384,7 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
     growExceededGPUResources(m_maxRecentResourceUsage.resetFlushTimeLimits(), kGPUResourcePadding);
     m_frameDescriptor = std::move(frameDescriptor);
     m_isFirstFlushOfFrame = true;
-    onBeginFrame();
+    m_impl->prepareToMapBuffers();
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
 }
 
@@ -461,9 +443,9 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
             newLimits.maxTessellationSpans = maxTessellationSpans;
             needsRealloc = true;
         }
-        assert(!m_pathBuffer.mapped());
-        assert(!m_contourBuffer.mapped());
-        assert(!m_tessSpanBuffer.mapped());
+        assert(!m_pathData);
+        assert(!m_contourData);
+        assert(!m_tessSpanData);
         if (needsRealloc)
         {
             // The very first draw of the flush overwhelmed our GPU resources. Since we haven't
@@ -472,22 +454,28 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
         }
     }
 
-    m_pathBuffer.ensureMapped();
-    m_contourBuffer.ensureMapped();
-    m_tessSpanBuffer.ensureMapped();
+    if (!m_pathData)
+    {
+        assert(!m_contourData);
+        assert(!m_tessSpanData);
+        m_pathData.reset(m_impl->mapPathTexture(), m_currentResourceLimits.maxPathID);
+        m_contourData.reset(m_impl->mapContourTexture(), m_currentResourceLimits.maxContourID);
+        m_tessSpanData.reset(m_impl->mapTessVertexSpanBuffer(),
+                             m_currentResourceLimits.maxTessellationSpans);
+    }
 
     // Does the path fit in our current buffers?
     if (m_currentPathID + pathCount <= m_currentResourceLimits.maxPathID &&
         m_currentContourID + contourCount <= m_currentResourceLimits.maxContourID &&
-        m_tessSpanBuffer.hasRoomFor(maxTessellationSpans) &&
-        m_tessVertexCount + maxTessVertexCountWithInternalPadding <= kMaxTessellationVertices)
+        m_tessSpanData.hasRoomFor(maxTessellationSpans) &&
+        m_tessVertexCount + maxTessVertexCountWithInternalPadding <= kMaxTessellationVertexCount)
     {
-        assert(m_pathBuffer.hasRoomFor(pathCount));
-        assert(m_contourBuffer.hasRoomFor(contourCount));
+        assert(m_pathData.hasRoomFor(pathCount));
+        assert(m_contourData.hasRoomFor(contourCount));
         RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve =
                             m_tessVertexCount +
                             tessVertexCounter.totalVertexCountIncludingReflectionsAndPadding());
-        assert(m_expectedTessVertexCountAtNextReserve <= kMaxTessellationVertices);
+        assert(m_expectedTessVertexCountAtNextReserve <= kMaxTessellationVertexCount);
         return true;
     }
 
@@ -540,8 +528,12 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
                 return false;
             }
             rampTexelsIdx = m_simpleGradients.size() * 2;
-            m_simpleColorRampsBuffer.ensureMapped();
-            m_simpleColorRampsBuffer.set_back(colors);
+            if (!m_simpleColorRampsData)
+            {
+                m_simpleColorRampsData.reset(m_impl->mapSimpleColorRampsBuffer(),
+                                             m_currentResourceLimits.maxSimpleGradients);
+            }
+            m_simpleColorRampsData.set_back(colors);
             m_simpleGradients.insert({simpleKey, rampTexelsIdx});
         }
         row = rampTexelsIdx / kGradTextureWidth;
@@ -572,7 +564,7 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
             // the gradient span buffer hasn't been mapped yet, we have a unique opportunity to grow
             // it if needed.
             size_t spanCount = stopCount + 1;
-            if (!m_gradSpanBuffer.mapped())
+            if (!m_gradSpanData)
             {
                 if (spanCount > m_currentResourceLimits.maxComplexGradientSpans)
                 {
@@ -583,10 +575,11 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
                     newLimits.maxComplexGradientSpans = spanCount;
                     growExceededGPUResources(newLimits, kGPUResourceIntermediateGrowthFactor);
                 }
-                m_gradSpanBuffer.ensureMapped();
+                m_gradSpanData.reset(m_impl->mapGradSpanBuffer(),
+                                     m_currentResourceLimits.maxComplexGradientSpans);
             }
 
-            if (!m_gradSpanBuffer.hasRoomFor(spanCount))
+            if (!m_gradSpanData.hasRoomFor(spanCount))
             {
                 // We ran out of instances for rendering complex color ramps. The caller needs to
                 // flush and try again.
@@ -596,7 +589,7 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
             // Push "GradientSpan" instances that will render each section of the color ramp.
             ColorInt lastColor = colors[0];
             uint32_t lastXFixed = 0;
-            // The viewport will start at m_reservedGradTextureRowsForSimpleRamps when rendering
+            // The viewport will start at m_reservedSimpleGradientRowCount when rendering
             // color ramps.
             uint32_t y = static_cast<uint32_t>(m_complexGradients.size());
             // "stop * w + .5" converts a stop position to an x-coordinate in the gradient texture.
@@ -609,13 +602,13 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
                 float x = stops[i] * w + .5f;
                 uint32_t xFixed = static_cast<uint32_t>(x * (65536.f / kGradTextureWidth));
                 assert(lastXFixed <= xFixed && xFixed < 65536);
-                m_gradSpanBuffer.set_back(lastXFixed, xFixed, y, lastColor, colors[i]);
+                m_gradSpanData.set_back(lastXFixed, xFixed, y, lastColor, colors[i]);
                 lastColor = colors[i];
                 lastXFixed = xFixed;
             }
-            m_gradSpanBuffer.set_back(lastXFixed, 65535u, y, lastColor, lastColor);
+            m_gradSpanData.set_back(lastXFixed, 65535u, y, lastColor, lastColor);
 
-            row = m_reservedGradTextureRowsForSimpleRamps + m_complexGradients.size();
+            row = m_reservedSimpleGradientRowCount + m_complexGradients.size();
             m_complexGradients.emplace(std::move(key), row);
         }
     }
@@ -640,11 +633,11 @@ void PLSRenderContext::pushPath(PatchType patchType,
 
     m_currentPathIsStroked = strokeRadius != 0;
     m_currentPathNeedsMirroredContours = !m_currentPathIsStroked;
-    m_pathBuffer.set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, paintData);
+    m_pathData.set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, paintData);
 
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
-    assert(m_currentPathID == m_pathBuffer.bytesWritten() / sizeof(PathData));
+    assert(m_currentPathID == m_pathData.bytesWritten() / sizeof(PathData));
 
     auto drawType = patchType == PatchType::midpointFan ? DrawType::midpointFanPatches
                                                         : DrawType::outerCurvePatches;
@@ -686,13 +679,13 @@ void PLSRenderContext::pushPath(PatchType patchType,
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath =
                         m_tessVertexCount + tessVertexCountWithoutPadding);
     assert(m_expectedTessVertexCountAtEndOfPath <= m_expectedTessVertexCountAtNextReserve);
-    assert(m_expectedTessVertexCountAtEndOfPath <= kMaxTessellationVertices);
+    assert(m_expectedTessVertexCountAtEndOfPath <= kMaxTessellationVertexCount);
 }
 
 void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount)
 {
     assert(m_didBeginFrame);
-    assert(!m_pathBuffer.empty());
+    assert(m_pathData.bytesWritten() > 0);
     assert(m_currentPathIsStroked || closed);
     assert(m_currentPathID != 0); // pathID can't be zero.
 
@@ -700,12 +693,10 @@ void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t padding
     {
         midpoint.x = closed ? 1 : 0;
     }
-    m_contourBuffer.emplace_back(midpoint,
-                                 m_currentPathID,
-                                 static_cast<uint32_t>(m_tessVertexCount));
+    m_contourData.emplace_back(midpoint, m_currentPathID, static_cast<uint32_t>(m_tessVertexCount));
     ++m_currentContourID;
     assert(0 < m_currentContourID && m_currentContourID <= kMaxContourID);
-    assert(m_currentContourID == m_contourBuffer.bytesWritten() / sizeof(ContourData));
+    assert(m_currentContourID == m_contourData.bytesWritten() / sizeof(ContourData));
 
     // The first curve of the contour will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument align the end of the contour on
@@ -765,7 +756,7 @@ void PLSRenderContext::pushPaddingVertices(uint32_t count)
     constexpr static uint32_t kInvalidContourID = 0;
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = m_tessVertexCount + count;)
-    assert(m_expectedTessVertexCountAtEndOfPath <= kMaxTessellationVertices);
+    assert(m_expectedTessVertexCountAtEndOfPath <= kMaxTessellationVertexCount);
     pushTessellationSpans(kEmptyCubic, {0, 0}, count, 0, 0, 1, kInvalidContourID);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
 }
@@ -783,15 +774,15 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushTessellationSpans(const Vec2D pts[
     int32_t x1 = x0 + totalVertexCount;
     for (;;)
     {
-        m_tessSpanBuffer.set_back(pts,
-                                  joinTangent,
-                                  static_cast<float>(y),
-                                  x0,
-                                  x1,
-                                  parametricSegmentCount,
-                                  polarSegmentCount,
-                                  joinSegmentCount,
-                                  contourIDWithFlags);
+        m_tessSpanData.set_back(pts,
+                                joinTangent,
+                                static_cast<float>(y),
+                                x0,
+                                x1,
+                                parametricSegmentCount,
+                                polarSegmentCount,
+                                joinSegmentCount,
+                                contourIDWithFlags);
         if (x1 > static_cast<int32_t>(kTessTextureWidth))
         {
             // The span was too long to fit on the current line. Wrap and draw it again, this
@@ -829,18 +820,18 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
 
     for (;;)
     {
-        m_tessSpanBuffer.set_back(pts,
-                                  joinTangent,
-                                  static_cast<float>(y),
-                                  x0,
-                                  x1,
-                                  static_cast<float>(reflectionY),
-                                  reflectionX0,
-                                  reflectionX1,
-                                  parametricSegmentCount,
-                                  polarSegmentCount,
-                                  joinSegmentCount,
-                                  contourIDWithFlags);
+        m_tessSpanData.set_back(pts,
+                                joinTangent,
+                                static_cast<float>(y),
+                                x0,
+                                x1,
+                                static_cast<float>(reflectionY),
+                                reflectionX0,
+                                reflectionX1,
+                                parametricSegmentCount,
+                                polarSegmentCount,
+                                joinSegmentCount,
+                                contourIDWithFlags);
         if (x1 > static_cast<int32_t>(kTessTextureWidth) || reflectionX1 < 0)
         {
             // Either the span or its reflection was too long to fit on the current line. Wrap and
@@ -891,7 +882,6 @@ void PLSRenderContext::pushDraw(DrawType drawType,
     if (m_drawList.empty() || m_drawList.tail().drawType != drawType)
     {
         m_drawList.emplace_back(this, drawType, baseVertex);
-        ++m_drawListCount;
     }
     ShaderFeatures* shaderFeatures = &m_drawList.tail().shaderFeatures;
     if (blendMode > PLSBlendMode::srcOver)
@@ -934,7 +924,7 @@ void PLSRenderContext::flush(FlushType flushType)
     // The final vertex of the final patch of each contour crosses over into the next contour. (This
     // is how we wrap around back to the beginning.) Therefore, the final contour of the flush needs
     // an out-of-contour vertex to cross into as well, so we emit a padding vertex here at the end.
-    if (!m_tessSpanBuffer.empty())
+    if (m_tessSpanData.bytesWritten() > 0)
     {
         pushPaddingVertices(1);
     }
@@ -943,14 +933,12 @@ void PLSRenderContext::flush(FlushType flushType)
     // when we know exactly how large they need to be.
     GPUResourceLimits newLimitsForFlushTimeResources{};
     bool needsFlushTimeRealloc = false;
-    assert(m_triangleBuffer.capacity() == m_currentResourceLimits.triangleVertexBufferSize);
-    if (m_currentResourceLimits.triangleVertexBufferSize < m_maxTriangleVertexCount)
+    if (m_currentResourceLimits.triangleVertexBufferCount < m_maxTriangleVertexCount)
     {
-        newLimitsForFlushTimeResources.triangleVertexBufferSize = m_maxTriangleVertexCount;
+        newLimitsForFlushTimeResources.triangleVertexBufferCount = m_maxTriangleVertexCount;
         needsFlushTimeRealloc = true;
     }
-    size_t requiredGradTextureHeight =
-        m_reservedGradTextureRowsForSimpleRamps + m_complexGradients.size();
+    size_t requiredGradTextureHeight = m_reservedSimpleGradientRowCount + m_complexGradients.size();
     if (m_currentResourceLimits.gradientTextureHeight < requiredGradTextureHeight)
     {
         newLimitsForFlushTimeResources.gradientTextureHeight = requiredGradTextureHeight;
@@ -969,11 +957,13 @@ void PLSRenderContext::flush(FlushType flushType)
     }
     if (m_maxTriangleVertexCount > 0)
     {
-        m_triangleBuffer.ensureMapped();
-        assert(m_triangleBuffer.hasRoomFor(m_maxTriangleVertexCount));
+        assert(!m_triangleVertexData);
+        m_triangleVertexData.reset(m_impl->mapTriangleVertexBuffer(),
+                                   m_currentResourceLimits.triangleVertexBufferCount);
+        assert(m_triangleVertexData.hasRoomFor(m_maxTriangleVertexCount));
     }
     assert(m_complexGradients.size() <=
-           m_currentResourceLimits.gradientTextureHeight - m_reservedGradTextureRowsForSimpleRamps);
+           m_currentResourceLimits.gradientTextureHeight - m_reservedSimpleGradientRowCount);
     assert(m_tessVertexCount <=
            m_currentResourceLimits.tessellationTextureHeight * kTessTextureWidth);
 
@@ -995,7 +985,7 @@ void PLSRenderContext::flush(FlushType flushType)
                 size_t actualVertexCount = maxVertexCount;
                 if (maxVertexCount > 0)
                 {
-                    actualVertexCount = draw.triangulator->polysToTriangles(&m_triangleBuffer);
+                    actualVertexCount = draw.triangulator->polysToTriangles(&m_triangleVertexData);
                 }
                 assert(actualVertexCount <= maxVertexCount);
                 draw.baseVertexOrInstance = writtenTriangleVertexCount;
@@ -1007,21 +997,51 @@ void PLSRenderContext::flush(FlushType flushType)
         needsClipBuffer = needsClipBuffer || draw.shaderFeatures.programFeatures.enablePathClipping;
         RIVE_DEBUG_CODE(++drawIdx;)
     }
-    assert(drawIdx == m_drawListCount);
+    assert(drawIdx == m_drawList.count());
 
     // Determine how much to draw.
-    size_t simpleColorRampCount = m_simpleColorRampsBuffer.bytesWritten() / sizeof(TwoTexelRamp);
-    size_t gradSpanCount = m_gradSpanBuffer.bytesWritten() / sizeof(GradientSpan);
-    size_t tessVertexSpanCount = m_tessSpanBuffer.bytesWritten() / sizeof(TessVertexSpan);
+    size_t simpleColorRampCount = m_simpleColorRampsData.bytesWritten() / sizeof(TwoTexelRamp);
+    size_t gradSpanCount = m_gradSpanData.bytesWritten() / sizeof(GradientSpan);
+    size_t tessVertexSpanCount = m_tessSpanData.bytesWritten() / sizeof(TessVertexSpan);
     size_t tessDataHeight = resource_texture_height<kTessTextureWidth>(m_tessVertexCount);
 
-    // Upload all non-empty buffers before flushing.
-    m_pathBuffer.submit();
-    m_contourBuffer.submit();
-    m_simpleColorRampsBuffer.submit();
-    m_gradSpanBuffer.submit();
-    m_tessSpanBuffer.submit();
-    m_triangleBuffer.submit();
+    // Unmap all non-empty buffers before flushing.
+    if (m_pathData)
+    {
+        size_t texelsWritten = m_pathData.bytesWritten() / (sizeof(uint32_t) * 4);
+        size_t widthWritten = std::min(texelsWritten, kPathTextureWidthInTexels);
+        size_t heightWritten = resource_texture_height<kPathTextureWidthInTexels>(texelsWritten);
+        m_impl->unmapPathTexture(widthWritten, heightWritten);
+        m_pathData.reset();
+    }
+    if (m_contourData)
+    {
+        size_t texelsWritten = m_contourData.bytesWritten() / (sizeof(uint32_t) * 4);
+        size_t widthWritten = std::min(texelsWritten, kContourTextureWidthInTexels);
+        size_t heightWritten = resource_texture_height<kContourTextureWidthInTexels>(texelsWritten);
+        m_impl->unmapContourTexture(widthWritten, heightWritten);
+        m_contourData.reset();
+    }
+    if (m_simpleColorRampsData)
+    {
+        m_impl->unmapSimpleColorRampsBuffer(m_simpleColorRampsData.bytesWritten());
+        m_simpleColorRampsData.reset();
+    }
+    if (m_gradSpanData)
+    {
+        m_impl->unmapGradSpanBuffer(m_gradSpanData.bytesWritten());
+        m_gradSpanData.reset();
+    }
+    if (m_tessSpanData)
+    {
+        m_impl->unmapTessVertexSpanBuffer(m_tessSpanData.bytesWritten());
+        m_tessSpanData.reset();
+    }
+    if (m_triangleVertexData)
+    {
+        m_impl->unmapTriangleVertexBuffer(m_triangleVertexData.bytesWritten());
+        m_triangleVertexData.reset();
+    }
 
     // Update the uniform buffer for drawing if needed.
     FlushUniforms uniformData(m_complexGradients.size(),
@@ -1032,33 +1052,35 @@ void PLSRenderContext::flush(FlushType flushType)
                               m_platformFeatures);
     if (!bits_equal(&m_cachedUniformData, &uniformData))
     {
-        m_uniformBuffer.ensureMapped();
-        m_uniformBuffer.emplace_back(uniformData);
-        m_uniformBuffer.submit();
+        m_impl->updateFlushUniforms(&uniformData);
         m_cachedUniformData = uniformData;
     }
 
     FlushDescriptor flushDesc;
-    flushDesc.flushType = flushType;
+    flushDesc.renderTarget = frameDescriptor().renderTarget.get();
     flushDesc.loadAction =
         m_isFirstFlushOfFrame ? frameDescriptor().loadAction : LoadAction::preserveRenderTarget;
+    flushDesc.clearColor = frameDescriptor().clearColor;
     flushDesc.complexGradSpanCount = gradSpanCount;
     flushDesc.tessVertexSpanCount = tessVertexSpanCount;
     flushDesc.simpleGradTexelsWidth = std::min(simpleColorRampCount * 2, kGradTextureWidth);
     flushDesc.simpleGradTexelsHeight =
         resource_texture_height<kGradTextureWidthInSimpleRamps>(simpleColorRampCount);
-    flushDesc.complexGradRowsTop = m_reservedGradTextureRowsForSimpleRamps;
+    flushDesc.complexGradRowsTop = m_reservedSimpleGradientRowCount;
     flushDesc.complexGradRowsHeight = m_complexGradients.size();
     flushDesc.tessDataHeight = tessDataHeight;
     flushDesc.needsClipBuffer = needsClipBuffer;
-    onFlush(flushDesc);
+    flushDesc.hasTriangleVertices = m_maxTriangleVertexCount > 0;
+    flushDesc.wireframe = frameDescriptor().wireframe;
+    flushDesc.drawList = &m_drawList;
+    m_impl->flush(flushDesc);
 
     m_currentFrameResourceUsage.maxPathID += m_currentPathID;
     m_currentFrameResourceUsage.maxContourID += m_currentContourID;
     m_currentFrameResourceUsage.maxSimpleGradients += m_simpleGradients.size();
     m_currentFrameResourceUsage.maxComplexGradientSpans += gradSpanCount;
     m_currentFrameResourceUsage.maxTessellationSpans += tessVertexSpanCount;
-    m_currentFrameResourceUsage.triangleVertexBufferSize += m_maxTriangleVertexCount;
+    m_currentFrameResourceUsage.triangleVertexBufferCount += m_maxTriangleVertexCount;
     m_currentFrameResourceUsage.gradientTextureHeight +=
         resource_texture_height<kGradTextureWidthInSimpleRamps>(m_simpleGradients.size()) +
         m_complexGradients.size();
@@ -1105,9 +1127,15 @@ void PLSRenderContext::flush(FlushType flushType)
     m_isFirstFlushOfFrame = false;
 
     m_drawList.reset();
-    m_drawListCount = 0;
 
     // Delete all objects that were allocted for this flush using the TrivialBlockAllocator.
     m_trivialPerFlushAllocator.reset();
+
+    if (flushType == FlushType::intermediate)
+    {
+        // The frame isn't complete yet. The caller will begin preparing a new flush immediately
+        // after this method returns, so lock buffers for the next flush now.
+        m_impl->prepareToMapBuffers();
+    }
 }
 } // namespace rive::pls

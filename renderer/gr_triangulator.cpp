@@ -114,11 +114,11 @@ bool GrTriangulator::Comparator::sweep_lt(const Vec2D& a, const Vec2D& b) const
 static inline void emit_vertex(Vertex* v,
                                int winding,
                                uint16_t pathID,
-                               pls::BufferRing<pls::TriangleVertex>* bufferRing)
+                               pls::WriteOnlyMappedMemory<pls::TriangleVertex>* mappedMemory)
 {
     // GrTriangulator and pls unfortunately have opposite winding senses.
     int16_t plsWeight = -winding;
-    bufferRing->emplace_back(v->fPoint, plsWeight, pathID);
+    mappedMemory->emplace_back(v->fPoint, plsWeight, pathID);
 }
 
 static void emit_triangle(Vertex* v0,
@@ -126,22 +126,22 @@ static void emit_triangle(Vertex* v0,
                           Vertex* v2,
                           int winding,
                           uint16_t pathID,
-                          pls::BufferRing<pls::TriangleVertex>* bufferRing)
+                          pls::WriteOnlyMappedMemory<pls::TriangleVertex>* mappedMemory)
 {
     TESS_LOG("emit_triangle %g (%g, %g) %d\n", v0->fID, v0->fPoint.x, v0->fPoint.y, v0->fAlpha);
     TESS_LOG("              %g (%g, %g) %d\n", v1->fID, v1->fPoint.x, v1->fPoint.y, v1->fAlpha);
     TESS_LOG("              %g (%g, %g) %d\n", v2->fID, v2->fPoint.x, v2->fPoint.y, v2->fAlpha);
 #if TESSELLATOR_WIREFRAME
-    emit_vertex(v0, winding, pathID, bufferRing);
-    emit_vertex(v1, winding, pathID, bufferRing);
-    emit_vertex(v1, winding, pathID, bufferRing);
-    emit_vertex(v2, winding, pathID, bufferRing);
-    emit_vertex(v2, winding, pathID, bufferRing);
-    emit_vertex(v0, winding, pathID, bufferRing);
+    emit_vertex(v0, winding, pathID, mappedMemory);
+    emit_vertex(v1, winding, pathID, mappedMemory);
+    emit_vertex(v1, winding, pathID, mappedMemory);
+    emit_vertex(v2, winding, pathID, mappedMemory);
+    emit_vertex(v2, winding, pathID, mappedMemory);
+    emit_vertex(v0, winding, pathID, mappedMemory);
 #else
-    emit_vertex(v0, winding, pathID, bufferRing);
-    emit_vertex(v1, winding, pathID, bufferRing);
-    emit_vertex(v2, winding, pathID, bufferRing);
+    emit_vertex(v0, winding, pathID, mappedMemory);
+    emit_vertex(v1, winding, pathID, mappedMemory);
+    emit_vertex(v2, winding, pathID, mappedMemory);
 #endif
 }
 
@@ -407,10 +407,11 @@ void GrTriangulator::MonotonePoly::addEdge(Edge* edge)
     }
 }
 
-void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
-                                      uint16_t pathID,
-                                      bool reverseTriangles,
-                                      pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+void GrTriangulator::emitMonotonePoly(
+    const MonotonePoly* monotonePoly,
+    uint16_t pathID,
+    bool reverseTriangles,
+    pls::WriteOnlyMappedMemory<pls::TriangleVertex>* mappedMemory) const
 {
     assert(monotonePoly->fWinding != 0);
     Edge* e = monotonePoly->fFirstEdge;
@@ -447,7 +448,7 @@ void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
                                 monotonePoly->fWinding,
                                 pathID,
                                 reverseTriangles,
-                                bufferRing);
+                                mappedMemory);
         }
         double ax = static_cast<double>(curr->fPoint.x) - prev->fPoint.x;
         double ay = static_cast<double>(curr->fPoint.y) - prev->fPoint.y;
@@ -461,7 +462,7 @@ void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
                          monotonePoly->fWinding,
                          pathID,
                          reverseTriangles,
-                         bufferRing);
+                         mappedMemory);
             v->fPrev->fNext = v->fNext;
             v->fNext->fPrev = v->fPrev;
             count--;
@@ -481,19 +482,20 @@ void GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
     }
 }
 
-void GrTriangulator::emitTriangle(Vertex* prev,
-                                  Vertex* curr,
-                                  Vertex* next,
-                                  int winding,
-                                  uint16_t pathID,
-                                  bool reverseTriangles,
-                                  pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+void GrTriangulator::emitTriangle(
+    Vertex* prev,
+    Vertex* curr,
+    Vertex* next,
+    int winding,
+    uint16_t pathID,
+    bool reverseTriangles,
+    pls::WriteOnlyMappedMemory<pls::TriangleVertex>* mappedMemory) const
 {
     if (reverseTriangles)
     {
         std::swap(prev, next);
     }
-    return emit_triangle(prev, curr, next, winding, pathID, bufferRing);
+    return emit_triangle(prev, curr, next, winding, pathID, mappedMemory);
 }
 
 GrTriangulator::Poly::Poly(Vertex* v, int winding) :
@@ -577,7 +579,7 @@ Poly* GrTriangulator::Poly::addEdge(Edge* e, Side side, GrTriangulator* tri)
 void GrTriangulator::emitPoly(const Poly* poly,
                               uint16_t pathID,
                               bool reverseTriangles,
-                              pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+                              pls::WriteOnlyMappedMemory<pls::TriangleVertex>* mappedMemory) const
 {
     if (poly->fCount < 3)
     {
@@ -586,7 +588,7 @@ void GrTriangulator::emitPoly(const Poly* poly,
     TESS_LOG("emit() %d, size %d\n", poly->fID, poly->fCount);
     for (MonotonePoly* m = poly->fHead; m != nullptr; m = m->fNext)
     {
-        emitMonotonePoly(m, pathID, reverseTriangles, bufferRing);
+        emitMonotonePoly(m, pathID, reverseTriangles, mappedMemory);
     }
 }
 
@@ -2084,17 +2086,18 @@ std::tuple<Poly*, bool> GrTriangulator::contoursToPolys(VertexList* contours, in
 }
 
 // Stage 6: Triangulate the monotone polygons into a vertex buffer.
-void GrTriangulator::polysToTriangles(const Poly* polys,
-                                      FillRule overrideFillType,
-                                      uint16_t pathID,
-                                      bool reverseTriangles,
-                                      pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+void GrTriangulator::polysToTriangles(
+    const Poly* polys,
+    FillRule overrideFillType,
+    uint16_t pathID,
+    bool reverseTriangles,
+    pls::WriteOnlyMappedMemory<pls::TriangleVertex>* mappedMemory) const
 {
     for (const Poly* poly = polys; poly; poly = poly->fNext)
     {
         if (apply_fill_type(overrideFillType, poly))
         {
-            emitPoly(poly, pathID, reverseTriangles, bufferRing);
+            emitPoly(poly, pathID, reverseTriangles, mappedMemory);
         }
     }
 }
@@ -2178,11 +2181,12 @@ size_t GrTriangulator::countMaxTriangleVertices(const Poly* polys) const
     return CountPoints(polys, fFillRule);
 }
 
-size_t GrTriangulator::polysToTriangles(const Poly* polys,
-                                        uint64_t maxVertexCount,
-                                        uint16_t pathID,
-                                        bool reverseTriangles,
-                                        pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+size_t GrTriangulator::polysToTriangles(
+    const Poly* polys,
+    uint64_t maxVertexCount,
+    uint16_t pathID,
+    bool reverseTriangles,
+    pls::WriteOnlyMappedMemory<pls::TriangleVertex>* mappedMemory) const
 {
     if (0 == maxVertexCount || maxVertexCount > std::numeric_limits<int32_t>::max())
     {
@@ -2199,9 +2203,9 @@ size_t GrTriangulator::polysToTriangles(const Poly* polys,
     }
 #endif
 
-    size_t start = bufferRing->bytesWritten();
-    polysToTriangles(polys, fFillRule, pathID, reverseTriangles, bufferRing);
-    size_t actualCount = (bufferRing->bytesWritten() - start) / vertexStride;
+    size_t start = mappedMemory->bytesWritten();
+    polysToTriangles(polys, fFillRule, pathID, reverseTriangles, mappedMemory);
+    size_t actualCount = (mappedMemory->bytesWritten() - start) / vertexStride;
     assert(actualCount <= maxVertexCount * vertexStride);
     return actualCount;
 }

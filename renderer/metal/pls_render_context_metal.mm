@@ -507,13 +507,6 @@ void PLSRenderContextMetal::onFlush(const FlushDescriptor& desc)
       thisFlushLock.unlock();
     }];
 
-    if (desc.flushType == FlushType::intermediate)
-    {
-        // The frame isn't complete yet. The caller will begin preparing a new flush immediately
-        // after this method returns, so lock buffers for the next flush now.
-        lockNextBufferRingIndex();
-    }
-
     [commandBuffer commit];
 }
 } // namespace rive::pls

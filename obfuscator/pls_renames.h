@@ -57,7 +57,7 @@
 #define PLSPaint r_38
 #define PLSPath r_39
 #define PLSRenderContext r_3a
-#define PLSRenderContextGL r_3b
+#define PLSRenderContextGLImpl r_3b
 #define PLSRenderContextMetal r_3c
 #define PLSRenderTarget r_3d
 #define PLSRenderTargetGL r_3e
