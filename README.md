@@ -4,7 +4,12 @@
 
 
 # rive-cpp
-C++ runtime for [Rive](https://rive.app). Provides these runtime features:
+
+![Rive hero image](https://cdn.rive.app/rive_logo_dark_bg.png)
+
+Rive C++ is a runtime library for [Rive](https://rive.app), a real-time interactive design and animation tool.
+
+The C++ runtime for Rive provides these runtime features:
 - Loading Artboards and their contents from **.riv** files.
 - Querying LinearAnimations and StateMachines from Artboards.
 - Making changes to Artboard hierarchy (fundamentally same guts used by LinearAnimations and StateMachines) and effienclty solving those changes via Artboard::advance.
