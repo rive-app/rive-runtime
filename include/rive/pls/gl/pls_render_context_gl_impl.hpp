@@ -9,7 +9,7 @@
 #include "rive/pls/gl/gles3.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "rive/pls/buffer_ring.hpp"
-#include "rive/pls/pls_render_context.hpp"
+#include "rive/pls/pls_render_context_buffer_ring_impl.hpp"
 #include <map>
 
 namespace rive::pls
@@ -19,17 +19,17 @@ class PLSPaint;
 class PLSRenderTargetGL;
 
 // OpenGL backend implementation of PLSRenderContext.
-class PLSRenderContextGL : public PLSRenderContext
+class PLSRenderContextGLImpl : public PLSRenderContextBufferRingImpl
 {
 public:
-    static std::unique_ptr<PLSRenderContextGL> Make();
-    ~PLSRenderContextGL() override;
+    static std::unique_ptr<PLSRenderContextGLImpl> Make();
+    ~PLSRenderContextGLImpl() override;
 
     // Creates a PLSRenderTarget that draws directly into the given GL framebuffer.
     // Returns null if the framebuffer doesn't support pixel local storage.
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID, size_t width, size_t height)
     {
-        return m_plsImpl->wrapGLRenderTarget(framebufferID, width, height, m_platformFeatures);
+        return m_plsImpl->wrapGLRenderTarget(framebufferID, width, height, platformFeatures());
     }
 
     // Creates a PLSRenderTarget that draws to a new, offscreen GL framebuffer. This method is
@@ -37,7 +37,7 @@ public:
     // results.
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(size_t width, size_t height)
     {
-        return m_plsImpl->makeOffscreenRenderTarget(width, height, m_platformFeatures);
+        return m_plsImpl->makeOffscreenRenderTarget(width, height, platformFeatures());
     }
 
 private:
@@ -55,11 +55,9 @@ private:
                                                                  size_t height,
                                                                  const PlatformFeatures&) = 0;
 
-        virtual void activatePixelLocalStorage(PLSRenderContextGL*,
-                                               const PLSRenderTargetGL*,
-                                               LoadAction,
-                                               bool needsClipBuffer) = 0;
-        virtual void deactivatePixelLocalStorage(PLSRenderContextGL*) = 0;
+        virtual void activatePixelLocalStorage(PLSRenderContextGLImpl*,
+                                               const PLSRenderContext::FlushDescriptor&) = 0;
+        virtual void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) = 0;
 
         virtual const char* shaderDefineName() const = 0;
 
@@ -105,7 +103,7 @@ private:
     public:
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
-        DrawProgram(PLSRenderContextGL*, DrawType, const ShaderFeatures&);
+        DrawProgram(PLSRenderContextGLImpl*, DrawType, const ShaderFeatures&);
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
@@ -118,12 +116,7 @@ private:
 
     class DrawShader;
 
-    PLSRenderContextGL(const PlatformFeatures&, GLExtensions, std::unique_ptr<PLSImpl>);
-
-    const PLSRenderTargetGL* renderTarget() const
-    {
-        return static_cast<const PLSRenderTargetGL*>(frameDescriptor().renderTarget.get());
-    }
+    PLSRenderContextGLImpl(const PlatformFeatures&, GLExtensions, std::unique_ptr<PLSImpl>);
 
     std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
                                                          size_t itemSizeInBytes) override;
@@ -143,7 +136,7 @@ private:
     void allocateGradientTexture(size_t height) override;
     void allocateTessellationTexture(size_t height) override;
 
-    void onFlush(const FlushDescriptor&) override;
+    void flush(const PLSRenderContext::FlushDescriptor&) override;
 
     // GL state wrapping.
     void bindProgram(GLuint);

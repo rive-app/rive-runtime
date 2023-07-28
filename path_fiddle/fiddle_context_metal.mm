@@ -2,7 +2,7 @@
 
 #include "rive/pls/pls_factory.hpp"
 #include "rive/pls/pls_renderer.hpp"
-#include "rive/pls/gl/pls_render_context_gl.hpp"
+#include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "rive/pls/metal/pls_render_context_metal.h"
 #include "rive/pls/metal/pls_render_target_metal.h"

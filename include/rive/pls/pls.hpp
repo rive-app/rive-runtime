@@ -12,6 +12,11 @@
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
 
+namespace rive
+{
+class GrInnerFanTriangulator;
+}
+
 // This header defines constants and data structures for Rive's pixel local storage path rendering
 // algorithm.
 //
@@ -62,6 +67,7 @@ constexpr static int MaxPathID(int granularity)
 // In order to support WebGL2, we implement the path data buffer as a texture.
 constexpr static size_t kPathTextureWidthInItems = 128;
 constexpr static size_t kPathTexelsPerItem = 3;
+constexpr static size_t kPathTextureWidthInTexels = kPathTextureWidthInItems * kPathTexelsPerItem;
 
 // Each contour has its own unique ID, which it uses to index a data record containing per-contour
 // information. This value is currently 16 bit.
@@ -72,6 +78,8 @@ static_assert((kMaxContourID & kContourIDMask) == kMaxContourID);
 // In order to support WebGL2, we implement the contour data buffer as a texture.
 constexpr static size_t kContourTextureWidthInItems = 256;
 constexpr static size_t kContourTexelsPerItem = 1;
+constexpr static size_t kContourTextureWidthInTexels =
+    kContourTextureWidthInItems * kContourTexelsPerItem;
 
 // Tessellation is performed by rendering vertices into a data texture. These values define the
 // dimensions of the tessellation data texture.
@@ -389,6 +397,56 @@ struct TriangleVertex
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
+template <typename T> class WriteOnlyMappedMemory
+{
+public:
+    WriteOnlyMappedMemory() { reset(); }
+    WriteOnlyMappedMemory(void* ptr, size_t count) { reset(ptr, count); }
+
+    void reset() { reset(nullptr, 0); }
+
+    void reset(void* ptr, size_t count)
+    {
+        m_mappedMemory = reinterpret_cast<T*>(ptr);
+        m_nextMappedItem = m_mappedMemory;
+        m_mappingEnd = m_mappedMemory + count;
+    }
+
+    operator bool() const { return m_mappedMemory; }
+
+    // How many bytes have been written to the buffer?
+    size_t bytesWritten() const
+    {
+        return reinterpret_cast<uintptr_t>(m_nextMappedItem) -
+               reinterpret_cast<uintptr_t>(m_mappedMemory);
+    }
+
+    // Is there room to push() itemCount items to the buffer?
+    bool hasRoomFor(size_t itemCount) { return m_nextMappedItem + itemCount <= m_mappingEnd; }
+
+    // Append and write a new item to the buffer. In order to enforce the write-only requirement of
+    // a mapped buffer, these methods do not return any pointers to the client.
+    template <typename... Args> RIVE_ALWAYS_INLINE void emplace_back(Args&&... args)
+    {
+        push() = {std::forward<Args>(args)...};
+    }
+    template <typename... Args> RIVE_ALWAYS_INLINE void set_back(Args&&... args)
+    {
+        push().set(std::forward<Args>(args)...);
+    }
+
+private:
+    template <typename... Args> RIVE_ALWAYS_INLINE T& push()
+    {
+        assert(hasRoomFor(1));
+        return *m_nextMappedItem++;
+    }
+
+    T* m_mappedMemory;
+    T* m_nextMappedItem;
+    const T* m_mappingEnd;
+};
+
 // Once all curves in a contour have been tessellated, we render the tessellated vertices in
 // "patches" (aka specific instanced geometry).
 //
@@ -481,6 +539,135 @@ constexpr static uint32_t kPatchIndexBufferCount =
     kMidpointFanPatchIndexCount + kOuterCurvePatchIndexCount;
 void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
                              uint16_t indices[kPatchIndexBufferCount]);
+
+enum class DrawType : uint8_t
+{
+    midpointFanPatches, // Standard paths and/or strokes.
+    outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
+    interiorTriangulation
+};
+
+constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+            return kMidpointFanPatchSegmentSpan;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchSegmentSpan;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+constexpr static uint32_t PatchIndexCount(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+            return kMidpointFanPatchIndexCount;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchIndexCount;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+constexpr static uintptr_t PatchBaseIndex(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+            return kMidpointFanPatchBaseIndex;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchBaseIndex;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+// Specifies what to do with the render target at the beginning of a flush.
+enum class LoadAction : bool
+{
+    clear,
+    preserveRenderTarget
+};
+
+// Indicates how much blendMode support will be needed in the "uber" draw shader.
+enum class BlendTier : uint8_t
+{
+    srcOver,     // Every draw uses srcOver.
+    advanced,    // Draws use srcOver *and* advanced blend modes, excluding HSL modes.
+    advancedHSL, // Draws use srcOver *and* advanced blend modes *and* advanced HSL modes.
+};
+
+// Used by ShaderFeatures to generate keys and source code.
+enum class SourceType : bool
+{
+    vertexOnly,
+    wholeProgram
+};
+
+// Indicates which "uber shader" features to enable in the draw shader.
+struct ShaderFeatures
+{
+    enum PreprocessorDefines : uint32_t
+    {
+        ENABLE_ADVANCED_BLEND = 1 << 0,
+        ENABLE_PATH_CLIPPING = 1 << 1,
+        ENABLE_EVEN_ODD = 1 << 2,
+        ENABLE_HSL_BLEND_MODES = 1 << 3,
+    };
+
+    // Returns a bitmask of which preprocessor macros must be defined in order to support the
+    // current feature set.
+    uint32_t getPreprocessorDefines(SourceType) const;
+
+    struct
+    {
+        BlendTier blendTier = BlendTier::srcOver;
+        bool enablePathClipping = false;
+    } programFeatures;
+
+    struct
+    {
+        bool enableEvenOdd = false;
+    } fragmentFeatures;
+};
+
+inline static uint32_t ShaderUniqueKey(SourceType sourceType,
+                                       DrawType drawType,
+                                       const ShaderFeatures& shaderFeatures)
+{
+    return (shaderFeatures.getPreprocessorDefines(sourceType) << 1) |
+           (drawType == DrawType::interiorTriangulation);
+}
+
+// Linked list of draws to be issued by the subclass during onFlush().
+struct Draw
+{
+    Draw(DrawType drawType_, uint32_t baseVertexOrInstance_) :
+        drawType(drawType_), baseVertexOrInstance(baseVertexOrInstance_)
+    {}
+    const DrawType drawType;
+    uint32_t baseVertexOrInstance;
+    uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
+    ShaderFeatures shaderFeatures;
+    GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
+};
+
+// Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
+// instead of rendering them.
+struct TwoTexelRamp
+{
+    void set(const ColorInt colors[2])
+    {
+        UnpackColorToRGBA8(colors[0], colorData);
+        UnpackColorToRGBA8(colors[1], colorData + 4);
+    }
+    uint8_t colorData[8];
+};
+static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
 template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)

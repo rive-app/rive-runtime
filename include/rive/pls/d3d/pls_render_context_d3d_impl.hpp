@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/pls/d3d/d3d11.hpp"
-#include "rive/pls/pls_render_context.hpp"
+#include "rive/pls/pls_render_context_buffer_ring_impl.hpp"
 #include <map>
 
 namespace rive::pls
@@ -22,7 +22,7 @@ public:
     ID3D11Texture2D* targetTexture() const { return m_targetTexture.Get(); }
 
 private:
-    friend class PLSRenderContextD3D;
+    friend class PLSRenderContextD3DImpl;
 
     PLSRenderTargetD3D(ID3D11Device*, size_t width, size_t height);
 
@@ -38,10 +38,10 @@ private:
 };
 
 // D3D backend implementation of PLSRenderContext.
-class PLSRenderContextD3D : public PLSRenderContext
+class PLSRenderContextD3DImpl : public PLSRenderContextBufferRingImpl
 {
 public:
-    PLSRenderContextD3D(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
+    PLSRenderContextD3DImpl(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
 
     rcp<PLSRenderTargetD3D> makeRenderTarget(size_t width, size_t height);
 
@@ -64,7 +64,7 @@ private:
     void allocateGradientTexture(size_t height) override;
     void allocateTessellationTexture(size_t height) override;
 
-    void onFlush(const FlushDescriptor&) override;
+    void flush(const PLSRenderContext::FlushDescriptor&) override;
 
     void setPipelineLayoutAndShaders(DrawType, const ShaderFeatures&);
 

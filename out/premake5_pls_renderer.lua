@@ -121,7 +121,7 @@ do
     do
         files {"../renderer/gl/buffer_ring_gl.cpp",
                "../renderer/gl/gl_utils.cpp",
-               "../renderer/gl/pls_render_context_gl.cpp",
+               "../renderer/gl/pls_render_context_gl_impl.cpp",
                "../renderer/gl/pls_render_target_gl.cpp"}
     end
 
