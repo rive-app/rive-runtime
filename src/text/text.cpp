@@ -345,7 +345,7 @@ void Text::buildRenderStyles()
                                                         &m_ellipsisRun));
             }
             const OrderedLine& orderedLine = m_orderedLines[lineIndex];
-            float x = 0.0f;
+            float x = line.startX;
             float renderY = y + line.baseline;
             for (auto glyphItr : orderedLine)
             {
