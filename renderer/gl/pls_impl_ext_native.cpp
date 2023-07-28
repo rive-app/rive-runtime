@@ -2,7 +2,7 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/pls/gl/pls_render_context_gl.hpp"
+#include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
 #include "gl/gl_utils.hpp"
 #include "rive/math/simd.hpp"
@@ -86,7 +86,7 @@ private:
     GLint m_clearColorUniLocation = -1;
 };
 
-class PLSRenderContextGL::PLSImplEXTNative : public PLSRenderContextGL::PLSImpl
+class PLSRenderContextGLImpl::PLSImplEXTNative : public PLSRenderContextGLImpl::PLSImpl
 {
 public:
     PLSImplEXTNative(const GLExtensions& extensions) : m_extensions(extensions)
@@ -120,30 +120,29 @@ public:
         return rcp(new PLSRenderTargetGL(width, height, platformFeatures));
     }
 
-    void activatePixelLocalStorage(PLSRenderContextGL* context,
-                                   const PLSRenderTargetGL* renderTarget,
-                                   LoadAction loadAction,
-                                   bool needsClipBuffer) override
+    void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
+                                   const PLSRenderContext::FlushDescriptor& desc) override
     {
-        assert(context->m_extensions.EXT_shader_pixel_local_storage);
-        assert(context->m_extensions.EXT_shader_framebuffer_fetch ||
-               context->m_extensions.ARM_shader_framebuffer_fetch);
+        assert(impl->m_extensions.EXT_shader_pixel_local_storage);
+        assert(impl->m_extensions.EXT_shader_framebuffer_fetch ||
+               impl->m_extensions.ARM_shader_framebuffer_fetch);
 
+        auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
         uint32_t ops = loadstoreops::kClearCoverage;
         float clearColor4f[4];
-        if (loadAction == LoadAction::clear)
+        if (desc.loadAction == LoadAction::clear)
         {
-            UnpackColorToRGBA32F(context->frameDescriptor().clearColor, clearColor4f);
+            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
             ops |= loadstoreops::kClearColor;
         }
         else
         {
             ops |= loadstoreops::kLoadColor;
         }
-        if (needsClipBuffer)
+        if (desc.needsClipBuffer)
         {
             ops |= loadstoreops::kClearClip;
         }
@@ -161,17 +160,17 @@ public:
                 m_plsLoadStorePrograms
                     .try_emplace(ops, ops, m_plsLoadStoreVertexShader, m_extensions)
                     .first->second;
-            context->bindProgram(plsProgram.id());
+            impl->bindProgram(plsProgram.id());
             if (plsProgram.clearColorUniLocation() >= 0)
             {
                 glUniform4fv(plsProgram.clearColorUniLocation(), 1, clearColor4f);
             }
-            context->bindVAO(m_plsLoadStoreVAO);
+            impl->bindVAO(m_plsLoadStoreVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGL* context) override
+    void deactivatePixelLocalStorage(PLSRenderContextGLImpl* impl) override
     {
         // Issue a fullscreen draw that transfers the color information in pixel local storage to
         // the main framebuffer.
@@ -179,8 +178,8 @@ public:
         const PLSLoadStoreProgram& plsProgram =
             m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader, m_extensions)
                 .first->second;
-        context->bindProgram(plsProgram.id());
-        context->bindVAO(m_plsLoadStoreVAO);
+        impl->bindProgram(plsProgram.id());
+        impl->bindVAO(m_plsLoadStoreVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
@@ -195,7 +194,7 @@ private:
     GLuint m_plsLoadStoreVAO = 0;
 };
 
-std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplEXTNative(
+std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplEXTNative(
     const GLExtensions& extensions)
 {
     return std::make_unique<PLSImplEXTNative>(extensions);

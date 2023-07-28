@@ -2,7 +2,7 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/pls/gl/pls_render_context_gl.hpp"
+#include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 
@@ -15,7 +15,7 @@ constexpr static GLenum kPLSDrawBuffers[4] = {GL_COLOR_ATTACHMENT0,
                                               GL_COLOR_ATTACHMENT2,
                                               GL_COLOR_ATTACHMENT3};
 
-class PLSRenderContextGL::PLSImplFramebufferFetch : public PLSRenderContextGL::PLSImpl
+class PLSRenderContextGLImpl::PLSImplFramebufferFetch : public PLSRenderContextGLImpl::PLSImpl
 {
 public:
     PLSImplFramebufferFetch(const GLExtensions& extensions) : m_extensions(extensions) {}
@@ -47,13 +47,12 @@ public:
         return renderTarget;
     }
 
-    void activatePixelLocalStorage(PLSRenderContextGL* context,
-                                   const PLSRenderTargetGL* renderTarget,
-                                   LoadAction loadAction,
-                                   bool needsClipBuffer) override
+    void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
+                                   const PLSRenderContext::FlushDescriptor& desc) override
     {
-        assert(context->m_extensions.EXT_shader_framebuffer_fetch);
+        assert(impl->m_extensions.EXT_shader_framebuffer_fetch);
 
+        auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
 
         // Enable multiple render targets, with a draw buffer for each PLS plane.
@@ -63,26 +62,26 @@ public:
         // exception of the color buffer after an intermediate flush.
         static_assert(kFramebufferPlaneIdx == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER,
-                                loadAction == LoadAction::clear ? 4 : 3,
-                                loadAction == LoadAction::clear ? kPLSDrawBuffers
-                                                                : kPLSDrawBuffers + 1);
+                                desc.loadAction == LoadAction::clear ? 4 : 3,
+                                desc.loadAction == LoadAction::clear ? kPLSDrawBuffers
+                                                                     : kPLSDrawBuffers + 1);
 
         // Clear the PLS planes.
         constexpr static uint32_t kZero[4]{};
-        if (loadAction == LoadAction::clear)
+        if (desc.loadAction == LoadAction::clear)
         {
             float clearColor4f[4];
-            UnpackColorToRGBA32F(context->frameDescriptor().clearColor, clearColor4f);
+            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
             glClearBufferfv(GL_COLOR, kFramebufferPlaneIdx, clearColor4f);
         }
         glClearBufferuiv(GL_COLOR, kCoveragePlaneIdx, kZero);
-        if (needsClipBuffer)
+        if (desc.needsClipBuffer)
         {
             glClearBufferuiv(GL_COLOR, kClipPlaneIdx, kZero);
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGL*) override
+    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) override
     {
         // Instruct the driver not to flush PLS contents from tiled memory, with the exception of
         // the color buffer.
@@ -124,8 +123,8 @@ private:
     const GLExtensions m_extensions;
 };
 
-std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplFramebufferFetch(
-    const GLExtensions& extensions)
+std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::
+    MakePLSImplFramebufferFetch(const GLExtensions& extensions)
 {
     return std::make_unique<PLSImplFramebufferFetch>(extensions);
 }

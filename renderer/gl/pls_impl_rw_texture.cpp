@@ -2,7 +2,7 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/pls/gl/pls_render_context_gl.hpp"
+#include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
 #include "../out/obj/generated/glsl.exports.h"
 
@@ -13,7 +13,7 @@ constexpr static GLenum kPLSDrawBuffers[4] = {GL_COLOR_ATTACHMENT0,
                                               GL_COLOR_ATTACHMENT2,
                                               GL_COLOR_ATTACHMENT3};
 
-class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
+class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::PLSImpl
 {
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
                                               size_t width,
@@ -39,22 +39,22 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
         return renderTarget;
     }
 
-    void activatePixelLocalStorage(PLSRenderContextGL* context,
-                                   const PLSRenderTargetGL* renderTarget,
-                                   LoadAction loadAction,
-                                   bool needsClipBuffer) override
+    void activatePixelLocalStorage(PLSRenderContextGLImpl*,
+                                   const PLSRenderContext::FlushDescriptor& desc) override
     {
+        auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
+
         // Clear the necessary textures.
         constexpr static GLuint kZero[4]{};
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->sideFramebufferID());
-        if (loadAction == LoadAction::clear)
+        if (desc.loadAction == LoadAction::clear)
         {
             float clearColor4f[4];
-            UnpackColorToRGBA32F(context->frameDescriptor().clearColor, clearColor4f);
+            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
             glClearBufferfv(GL_COLOR, kFramebufferPlaneIdx, clearColor4f);
         }
         glClearBufferuiv(GL_COLOR, kCoveragePlaneIdx, kZero);
-        if (needsClipBuffer)
+        if (desc.needsClipBuffer)
         {
             glClearBufferuiv(GL_COLOR, kClipPlaneIdx, kZero);
         }
@@ -81,7 +81,7 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
                            0,
                            GL_READ_WRITE,
                            GL_RGBA8);
-        if (needsClipBuffer)
+        if (desc.needsClipBuffer)
         {
             glBindImageTexture(kClipPlaneIdx,
                                renderTarget->m_clipTextureID,
@@ -96,7 +96,7 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGL*) override
+    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) override
     {
         glMemoryBarrier(GL_ALL_BARRIER_BITS);
     }
@@ -106,7 +106,7 @@ class PLSRenderContextGL::PLSImplRWTexture : public PLSRenderContextGL::PLSImpl
     void onBarrier() override { return glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); }
 };
 
-std::unique_ptr<PLSRenderContextGL::PLSImpl> PLSRenderContextGL::MakePLSImplRWTexture()
+std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplRWTexture()
 {
     return std::make_unique<PLSImplRWTexture>();
 }

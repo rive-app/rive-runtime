@@ -24,9 +24,7 @@ using MTLBuffer = void*;
 using MTLPixelFormat = void*;
 using MTLTextureUsage = void*;
 
-#include "rive/pls/metal/pls_render_context_metal.h"
-#include "rive/pls/metal/pls_render_target_metal.h"
-#include "buffer_ring_metal.h"
+#include "rive/pls/metal/pls_render_context_metal_impl.h"
 
 namespace rive::pls
 {

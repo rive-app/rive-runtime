@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/pls/pls_render_context.hpp"
+#include "rive/pls/pls_render_context_buffer_ring_impl.hpp"
 #include <map>
 #include <mutex>
 
@@ -14,24 +14,49 @@
 
 namespace rive::pls
 {
-class PLSRenderTargetMetal;
-
-// Metal backend implementation of PLSRenderContext.
-class PLSRenderContextMetal : public PLSRenderContext
+// Metal backend implementation of PLSRenderTarget.
+class PLSRenderTargetMetal : public PLSRenderTarget
 {
 public:
-    static std::unique_ptr<PLSRenderContextMetal> Make(id<MTLDevice>, id<MTLCommandQueue>);
-    ~PLSRenderContextMetal() override;
+    ~PLSRenderTargetMetal() override {}
+
+    MTLPixelFormat pixelFormat() const { return m_pixelFormat; }
+
+    void setTargetTexture(id<MTLTexture> texture);
+    id<MTLTexture> targetTexture() const { return m_targetTexture; }
+
+private:
+    friend class PLSRenderContextMetalImpl;
+
+    PLSRenderTargetMetal(id<MTLDevice> gpu,
+                         MTLPixelFormat pixelFormat,
+                         size_t width,
+                         size_t height,
+                         const PlatformFeatures&);
+
+    const MTLPixelFormat m_pixelFormat;
+    id<MTLTexture> m_targetTexture;
+    id<MTLTexture> m_coverageMemorylessTexture;
+    id<MTLTexture> m_originalDstColorMemorylessTexture;
+    id<MTLTexture> m_clipMemorylessTexture;
+};
+
+// Metal backend implementation of PLSRenderContextImpl.
+class PLSRenderContextMetalImpl : public PLSRenderContextBufferRingImpl
+{
+public:
+    static rcp<PLSRenderContextMetalImpl> Make(id<MTLDevice>, id<MTLCommandQueue>);
+    ~PLSRenderContextMetalImpl() override;
 
     id<MTLDevice> gpu() const { return m_gpu; }
 
     rcp<PLSRenderTargetMetal> makeRenderTarget(MTLPixelFormat, size_t width, size_t height);
 
 private:
-    PLSRenderContextMetal(const PlatformFeatures&, id<MTLDevice>, id<MTLCommandQueue>);
+    PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
 
-    std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
-                                                         size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
+                                                     size_t itemSizeInBytes) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
@@ -40,21 +65,19 @@ private:
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
 
-    std::unique_ptr<BufferRingImpl> makePixelUnpackBufferRing(size_t capacity,
-                                                              size_t itemSizeInBytes) override;
-    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
+                                                          size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t itemSizeInBytes) override;
 
-    void allocateGradientTexture(size_t height) override;
-    void allocateTessellationTexture(size_t height) override;
-
-    void onBeginFrame() override { lockNextBufferRingIndex(); }
+    void resizeGradientTexture(size_t height) override;
+    void resizeTessellationTexture(size_t height) override;
 
     // Obtains an exclusive lock on the next buffer ring index, potentially blocking until the GPU
     // has finished rendering with it. This ensures it is safe for the CPU to begin modifying the
     // next buffers in our rings.
-    void lockNextBufferRingIndex();
+    void prepareToMapBuffers() override;
 
-    void onFlush(const FlushDescriptor&) override;
+    void flush(const PLSRenderContext::FlushDescriptor&) override;
 
     const id<MTLDevice> m_gpu;
     const id<MTLCommandQueue> m_queue;

@@ -5,12 +5,12 @@
 #pragma once
 
 #include "rive/pls/d3d/d3d11.hpp"
-#include "rive/pls/pls_render_context.hpp"
+#include "rive/pls/pls_render_context_buffer_ring_impl.hpp"
 #include <map>
 
 namespace rive::pls
 {
-class PLSRenderTargetD3D;
+class PLSRenderContextD3DImpl;
 
 // D3D backend implementation of PLSRenderTarget.
 class PLSRenderTargetD3D : public PLSRenderTarget
@@ -22,7 +22,7 @@ public:
     ID3D11Texture2D* targetTexture() const { return m_targetTexture.Get(); }
 
 private:
-    friend class PLSRenderContextD3D;
+    friend class PLSRenderContextD3DImpl;
 
     PLSRenderTargetD3D(ID3D11Device*, size_t width, size_t height);
 
@@ -37,18 +37,15 @@ private:
     ComPtr<ID3D11UnorderedAccessView> m_clipUAV;
 };
 
-// D3D backend implementation of PLSRenderContext.
-class PLSRenderContextD3D : public PLSRenderContext
+// D3D backend implementation of PLSRenderContextImpl.
+class PLSRenderContextD3DImpl : public PLSRenderContextBufferRingImpl
 {
 public:
-    PLSRenderContextD3D(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
+    PLSRenderContextD3DImpl(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
 
     rcp<PLSRenderTargetD3D> makeRenderTarget(size_t width, size_t height);
 
 private:
-    std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
-                                                         size_t itemSizeInBytes) override;
-
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
                                                          size_t height,
@@ -56,15 +53,35 @@ private:
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
 
-    std::unique_ptr<BufferRingImpl> makePixelUnpackBufferRing(size_t capacity,
-                                                              size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
+                                                     size_t itemSizeInBytes) override;
 
-    std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
+                                                          size_t itemSizeInBytes) override
+    {
+        // It appears impossible to update a D3D texture from a GPU buffer; implement this resource
+        // directly from the main interface instead of PLSRenderContextBufferRingImpl.
+        RIVE_UNREACHABLE();
+    }
 
-    void allocateGradientTexture(size_t height) override;
-    void allocateTessellationTexture(size_t height) override;
+    void resizeSimpleColorRampsBuffer(size_t sizeInBytes) override
+    {
+        m_simpleColorRampsBuffer.resize(sizeInBytes / sizeof(TwoTexelRamp));
+    }
 
-    void onFlush(const FlushDescriptor&) override;
+    void mapSimpleColorRampsBuffer(WriteOnlyMappedMemory<TwoTexelRamp>* data) override
+    {
+        data->reset(m_simpleColorRampsBuffer.data(), m_simpleColorRampsBuffer.size());
+    }
+
+    void unmapSimpleColorRampsBuffer(size_t bytesWritten) override {}
+
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t itemSizeInBytes) override;
+
+    void resizeGradientTexture(size_t height) override;
+    void resizeTessellationTexture(size_t height) override;
+
+    void flush(const PLSRenderContext::FlushDescriptor&) override;
 
     void setPipelineLayoutAndShaders(DrawType, const ShaderFeatures&);
 
@@ -76,6 +93,9 @@ private:
     ComPtr<ID3D11Texture2D> m_gradTexture;
     ComPtr<ID3D11ShaderResourceView> m_gradTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_gradTextureRTV;
+    // It appears impossible to update a D3D texture from a GPU buffer, so we just write out the
+    // simple gradients to an intermediate CPU-side vector.
+    std::vector<TwoTexelRamp> m_simpleColorRampsBuffer;
 
     ComPtr<ID3D11Texture2D> m_tessTexture;
     ComPtr<ID3D11ShaderResourceView> m_tessTextureSRV;

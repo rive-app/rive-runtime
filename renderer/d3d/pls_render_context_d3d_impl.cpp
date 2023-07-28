@@ -2,7 +2,7 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/pls/d3d/pls_render_context_d3d.hpp"
+#include "rive/pls/d3d/pls_render_context_d3d_impl.hpp"
 
 #include <D3DCompiler.h>
 #include <sstream>
@@ -144,21 +144,13 @@ static ComPtr<ID3DBlob> compile_source_to_blob(ID3D11Device* gpu,
     return blob;
 }
 
-static PlatformFeatures platform_features_d3d()
+PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
+                                                 ComPtr<ID3D11DeviceContext> gpuContext,
+                                                 bool isIntel) :
+    m_isIntel(isIntel), m_gpu(gpu), m_gpuContext(gpuContext)
 {
-    PlatformFeatures platformFeatures;
-    platformFeatures.invertOffscreenY = true;
-    return platformFeatures;
-}
+    m_platformFeatures.invertOffscreenY = true;
 
-PLSRenderContextD3D::PLSRenderContextD3D(ComPtr<ID3D11Device> gpu,
-                                         ComPtr<ID3D11DeviceContext> gpuContext,
-                                         bool isIntel) :
-    PLSRenderContext(platform_features_d3d()),
-    m_isIntel(isIntel),
-    m_gpu(gpu),
-    m_gpuContext(gpuContext)
-{
     D3D11_RASTERIZER_DESC rasterDesc;
     rasterDesc.FillMode = D3D11_FILL_SOLID;
     rasterDesc.CullMode = D3D11_CULL_BACK;
@@ -330,86 +322,6 @@ PLSRenderContextD3D::PLSRenderContextD3D(ComPtr<ID3D11Device> gpu,
     m_gpuContext->PSSetSamplers(0, 1, m_gradSampler.GetAddressOf());
 }
 
-class BufferRingD3D : public BufferRingShadowImpl
-{
-public:
-    BufferRingD3D(ID3D11Device* gpu,
-                  ComPtr<ID3D11DeviceContext> gpuContext,
-                  size_t capacity,
-                  size_t itemSizeInBytes,
-                  UINT bindFlags) :
-        BufferRingShadowImpl(capacity, itemSizeInBytes), m_gpuContext(gpuContext)
-    {
-        D3D11_BUFFER_DESC desc{};
-        desc.ByteWidth = itemSizeInBytes * capacity;
-        desc.Usage = D3D11_USAGE_DEFAULT;
-        desc.BindFlags = bindFlags;
-        desc.CPUAccessFlags = 0;
-        desc.StructureByteStride = itemSizeInBytes;
-
-        for (size_t i = 0; i < kBufferRingSize; ++i)
-        {
-            VERIFY_OK(gpu->CreateBuffer(&desc, nullptr, m_buffers[i].GetAddressOf()));
-        }
-    }
-
-    ID3D11Buffer* submittedBuffer() const { return m_buffers[submittedBufferIdx()].Get(); }
-
-protected:
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
-    {
-        if (bytesWritten == capacity() * itemSizeInBytes())
-        {
-            // Constant buffers don't allow partial updates, so special-case the event where we
-            // update the entire buffer.
-            m_gpuContext
-                ->UpdateSubresource(m_buffers[bufferIdx].Get(), 0, NULL, shadowBuffer(), 0, 0);
-        }
-        else
-        {
-            D3D11_BOX box;
-            box.left = 0;
-            box.right = bytesWritten;
-            box.top = 0;
-            box.bottom = 1;
-            box.front = 0;
-            box.back = 1;
-            m_gpuContext
-                ->UpdateSubresource(m_buffers[bufferIdx].Get(), 0, &box, shadowBuffer(), 0, 0);
-        }
-    }
-
-    ComPtr<ID3D11DeviceContext> m_gpuContext;
-    ComPtr<ID3D11Buffer> m_buffers[kBufferRingSize];
-};
-
-std::unique_ptr<BufferRingImpl> PLSRenderContextD3D::makeVertexBufferRing(size_t capacity,
-                                                                          size_t itemSizeInBytes)
-{
-    return std::make_unique<BufferRingD3D>(m_gpu.Get(),
-                                           m_gpuContext,
-                                           capacity,
-                                           itemSizeInBytes,
-                                           D3D11_BIND_VERTEX_BUFFER);
-}
-
-std::unique_ptr<BufferRingImpl> PLSRenderContextD3D::makePixelUnpackBufferRing(
-    size_t capacity,
-    size_t itemSizeInBytes)
-{
-    // It appears impossible to update a D3D texture from a GPU buffer.
-    return std::make_unique<CPUOnlyBufferRing>(capacity, itemSizeInBytes);
-}
-
-std::unique_ptr<BufferRingImpl> PLSRenderContextD3D::makeUniformBufferRing(size_t itemSizeInBytes)
-{
-    return std::make_unique<BufferRingD3D>(m_gpu.Get(),
-                                           m_gpuContext,
-                                           1,
-                                           itemSizeInBytes,
-                                           D3D11_BIND_CONSTANT_BUFFER);
-}
-
 class TexelBufferD3D : public TexelBufferRing
 {
 public:
@@ -456,7 +368,7 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_srvs[kBufferRingSize];
 };
 
-std::unique_ptr<TexelBufferRing> PLSRenderContextD3D::makeTexelBufferRing(
+std::unique_ptr<TexelBufferRing> PLSRenderContextD3DImpl::makeTexelBufferRing(
     TexelBufferRing::Format format,
     size_t widthInItems,
     size_t height,
@@ -470,6 +382,77 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextD3D::makeTexelBufferRing(
                                             widthInItems,
                                             height,
                                             texelsPerItem);
+}
+
+class BufferRingD3D : public BufferRingShadowImpl
+{
+public:
+    BufferRingD3D(ID3D11Device* gpu,
+                  ComPtr<ID3D11DeviceContext> gpuContext,
+                  size_t capacity,
+                  size_t itemSizeInBytes,
+                  UINT bindFlags) :
+        BufferRingShadowImpl(capacity, itemSizeInBytes), m_gpuContext(gpuContext)
+    {
+        D3D11_BUFFER_DESC desc{};
+        desc.ByteWidth = itemSizeInBytes * capacity;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = bindFlags;
+        desc.CPUAccessFlags = 0;
+
+        for (size_t i = 0; i < kBufferRingSize; ++i)
+        {
+            VERIFY_OK(gpu->CreateBuffer(&desc, nullptr, m_buffers[i].GetAddressOf()));
+        }
+    }
+
+    ID3D11Buffer* submittedBuffer() const { return m_buffers[submittedBufferIdx()].Get(); }
+
+protected:
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
+    {
+        if (bytesWritten == capacity() * itemSizeInBytes())
+        {
+            // Constant buffers don't allow partial updates, so special-case the event where we
+            // update the entire buffer.
+            m_gpuContext
+                ->UpdateSubresource(m_buffers[bufferIdx].Get(), 0, NULL, shadowBuffer(), 0, 0);
+        }
+        else
+        {
+            D3D11_BOX box;
+            box.left = 0;
+            box.right = bytesWritten;
+            box.top = 0;
+            box.bottom = 1;
+            box.front = 0;
+            box.back = 1;
+            m_gpuContext
+                ->UpdateSubresource(m_buffers[bufferIdx].Get(), 0, &box, shadowBuffer(), 0, 0);
+        }
+    }
+
+    ComPtr<ID3D11DeviceContext> m_gpuContext;
+    ComPtr<ID3D11Buffer> m_buffers[kBufferRingSize];
+};
+
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t capacity,
+                                                                          size_t itemSizeInBytes)
+{
+    return std::make_unique<BufferRingD3D>(m_gpu.Get(),
+                                           m_gpuContext,
+                                           capacity,
+                                           itemSizeInBytes,
+                                           D3D11_BIND_VERTEX_BUFFER);
+}
+
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t itemSizeInBytes)
+{
+    return std::make_unique<BufferRingD3D>(m_gpu.Get(),
+                                           m_gpuContext,
+                                           1,
+                                           itemSizeInBytes,
+                                           D3D11_BIND_CONSTANT_BUFFER);
 }
 
 PLSRenderTargetD3D::PLSRenderTargetD3D(ID3D11Device* gpu, size_t width, size_t height) :
@@ -510,12 +493,12 @@ void PLSRenderTargetD3D::setTargetTexture(ID3D11Device* gpu, ComPtr<ID3D11Textur
     m_targetUAV = make_simple_2d_uav(gpu, m_targetTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
 }
 
-rcp<PLSRenderTargetD3D> PLSRenderContextD3D::makeRenderTarget(size_t width, size_t height)
+rcp<PLSRenderTargetD3D> PLSRenderContextD3DImpl::makeRenderTarget(size_t width, size_t height)
 {
     return rcp(new PLSRenderTargetD3D(m_gpu.Get(), width, height));
 }
 
-void PLSRenderContextD3D::allocateGradientTexture(size_t height)
+void PLSRenderContextD3DImpl::resizeGradientTexture(size_t height)
 {
     m_gradTexture = make_simple_2d_texture(m_gpu.Get(),
                                            DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -528,7 +511,7 @@ void PLSRenderContextD3D::allocateGradientTexture(size_t height)
         make_simple_2d_rtv(m_gpu.Get(), m_gradTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
 }
 
-void PLSRenderContextD3D::allocateTessellationTexture(size_t height)
+void PLSRenderContextD3DImpl::resizeTessellationTexture(size_t height)
 {
     m_tessTexture = make_simple_2d_texture(m_gpu.Get(),
                                            DXGI_FORMAT_R32G32B32A32_UINT,
@@ -541,8 +524,8 @@ void PLSRenderContextD3D::allocateTessellationTexture(size_t height)
         make_simple_2d_rtv(m_gpu.Get(), m_tessTexture.Get(), DXGI_FORMAT_R32G32B32A32_UINT);
 }
 
-void PLSRenderContextD3D::setPipelineLayoutAndShaders(DrawType drawType,
-                                                      const ShaderFeatures& shaderFeatures)
+void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
+                                                          const ShaderFeatures& shaderFeatures)
 {
     uint32_t vertexShaderKey = ShaderUniqueKey(SourceType::vertexOnly, drawType, shaderFeatures);
     auto vertexEntry = m_drawVertexShaders.find(vertexShaderKey);
@@ -660,7 +643,7 @@ void PLSRenderContextD3D::setPipelineLayoutAndShaders(DrawType drawType,
     m_gpuContext->PSSetShader(pixelEntry->second.Get(), NULL, 0);
 }
 
-static ID3D11Buffer* submitted_buffer(const BufferRingImpl* bufferRing)
+static ID3D11Buffer* submitted_buffer(const BufferRing* bufferRing)
 {
     return static_cast<const BufferRingD3D*>(bufferRing)->submittedBuffer();
 }
@@ -670,16 +653,15 @@ static ID3D11ShaderResourceView* submitted_srv(const TexelBufferRing* texelBuffe
     return static_cast<const TexelBufferD3D*>(texelBufferRing)->submittedSRV();
 }
 
-void PLSRenderContextD3D::onFlush(const FlushDescriptor& desc)
+void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
-    auto renderTarget =
-        static_cast<const PLSRenderTargetD3D*>(frameDescriptor().renderTarget.get());
+    auto renderTarget = static_cast<const PLSRenderTargetD3D*>(desc.renderTarget);
 
     constexpr static UINT kZero[4]{};
     if (desc.loadAction == LoadAction::clear)
     {
         float clearColor4f[4];
-        UnpackColorToRGBA32F(frameDescriptor().clearColor, clearColor4f);
+        UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
         m_gpuContext->ClearUnorderedAccessViewFloat(renderTarget->m_targetUAV.Get(), clearColor4f);
     }
     m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_coverageUAV.Get(), kZero);
@@ -722,6 +704,8 @@ void PLSRenderContextD3D::onFlush(const FlushDescriptor& desc)
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
+        assert(desc.simpleGradTexelsHeight * desc.simpleGradTexelsWidth <=
+               m_simpleColorRampsBuffer.size() * 2);
         D3D11_BOX box;
         box.left = 0;
         box.right = desc.simpleGradTexelsWidth;
@@ -729,10 +713,12 @@ void PLSRenderContextD3D::onFlush(const FlushDescriptor& desc)
         box.bottom = desc.simpleGradTexelsHeight;
         box.front = 0;
         box.back = 1;
-        const void* data =
-            static_cast<const CPUOnlyBufferRing*>(simpleColorRampsBufferRing())->submittedata();
-        m_gpuContext
-            ->UpdateSubresource(m_gradTexture.Get(), 0, &box, data, kGradTextureWidth * 4, 0);
+        m_gpuContext->UpdateSubresource(m_gradTexture.Get(),
+                                        0,
+                                        &box,
+                                        m_simpleColorRampsBuffer.data(),
+                                        kGradTextureWidth * 4,
+                                        0);
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
@@ -803,7 +789,11 @@ void PLSRenderContextD3D::onFlush(const FlushDescriptor& desc)
     static_assert(kTriangleVertexDataSlot == 1);
     UINT vertexStrides[] = {sizeof(PatchVertex), sizeof(TriangleVertex)};
     UINT vertexOffsets[] = {0, 0};
-    m_gpuContext->IASetVertexBuffers(0, 2, vertexBuffers, vertexStrides, vertexOffsets);
+    m_gpuContext->IASetVertexBuffers(0,
+                                     desc.hasTriangleVertices ? 2 : 1,
+                                     vertexBuffers,
+                                     vertexStrides,
+                                     vertexOffsets);
 
     ID3D11ShaderResourceView* vertexTextureViews[] = {m_tessTextureSRV.Get(),
                                                       submitted_srv(pathBufferRing()),
@@ -820,14 +810,14 @@ void PLSRenderContextD3D::onFlush(const FlushDescriptor& desc)
                                0,
                                1};
     m_gpuContext->RSSetViewports(1, &viewport);
-    if (frameDescriptor().wireframe)
+    if (desc.wireframe)
     {
         m_gpuContext->RSSetState(m_debugWireframeState.Get());
     }
 
     m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, m_gradTextureSRV.GetAddressOf());
 
-    for (const Draw& draw : m_drawList)
+    for (const Draw& draw : *desc.drawList)
     {
         if (draw.vertexOrInstanceCount == 0)
         {
@@ -857,7 +847,7 @@ void PLSRenderContextD3D::onFlush(const FlushDescriptor& desc)
         }
     }
 
-    if (frameDescriptor().wireframe)
+    if (desc.wireframe)
     {
         m_gpuContext->RSSetState(m_rasterState.Get());
     }

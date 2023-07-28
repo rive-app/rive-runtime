@@ -2,10 +2,9 @@
 
 #include "rive/pls/pls_factory.hpp"
 #include "rive/pls/pls_renderer.hpp"
-#include "rive/pls/gl/pls_render_context_gl.hpp"
+#include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
-#include "rive/pls/metal/pls_render_context_metal.h"
-#include "rive/pls/metal/pls_render_target_metal.h"
+#include "rive/pls/metal/pls_render_context_metal_impl.h"
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -45,7 +44,7 @@ public:
         m_swapchain.displaySyncEnabled = NO;
         nsWindow.contentView.layer = m_swapchain;
 
-        m_renderTarget = m_plsContext->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
+        m_renderTarget = m_impl->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
     }
 
     void toggleZoomWindow() override {}
@@ -84,8 +83,8 @@ private:
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
     id<CAMetalDrawable> m_surface = nil;
-    std::unique_ptr<PLSRenderContextMetal> m_plsContext =
-        PLSRenderContextMetal::Make(m_gpu, m_queue);
+    rcp<PLSRenderContextMetalImpl> m_impl = PLSRenderContextMetalImpl::Make(m_gpu, m_queue);
+    std::unique_ptr<PLSRenderContext> m_plsContext = std::make_unique<PLSRenderContext>(m_impl);
     CAMetalLayer* m_swapchain;
     rcp<PLSRenderTargetMetal> m_renderTarget;
 };

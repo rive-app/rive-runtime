@@ -16,7 +16,6 @@
 
 namespace rive
 {
-class GrInnerFanTriangulator;
 class RawPath;
 } // namespace rive
 
@@ -26,6 +25,7 @@ class GradientLibrary;
 class PLSGradient;
 class PLSPaint;
 class PLSPath;
+class PLSRenderContextImpl;
 
 // Used as a key for complex gradients.
 class GradientContentKey
@@ -76,24 +76,11 @@ public:
 //       }
 //   }
 //   context->flush();
-//
-// Furthermore, the subclass isues the actual rendering commands during onFlush(). Rendering is done
-// in two steps:
-//
-//  1. Tessellate all curves into positions and normals in the "tessellation texture".
-//  2. Render the tessellated curves using Rive's pixel local storage path rendering algorithm.
-//
 class PLSRenderContext
 {
 public:
-    virtual ~PLSRenderContext();
-
-    // Specifies what to do with the render target at the beginning of a flush.
-    enum class LoadAction : bool
-    {
-        clear,
-        preserveRenderTarget
-    };
+    PLSRenderContext(rcp<PLSRenderContextImpl>);
+    ~PLSRenderContext();
 
     // Options for controlling how and where a frame is rendered.
     struct FrameDescriptor
@@ -293,11 +280,11 @@ public:
     template <typename T> class PerFlushLinkedList
     {
     public:
-        void reset() { m_tail = m_head = nullptr; }
-
-        bool empty() const;
+        size_t count() const;
+        bool empty() const { return count() == 0; }
         T& tail() const;
         template <typename... Args> void emplace_back(PLSRenderContext* context, Args... args);
+        void reset();
 
         struct Node
         {
@@ -306,111 +293,34 @@ public:
             Node* next = nullptr;
         };
 
-        class Iter
+        template <typename U> class Iter
         {
         public:
             Iter(Node* current) : m_current(current) {}
             bool operator!=(const Iter& other) const { return m_current != other.m_current; }
             void operator++() { m_current = m_current->next; }
-            T& operator*() { return m_current->data; }
+            U& operator*() { return m_current->data; }
 
         private:
             Node* m_current;
         };
-        Iter begin() { return {m_head}; }
-        Iter end() { return {nullptr}; }
+        Iter<T> begin() { return {m_head}; }
+        Iter<T> end() { return {nullptr}; }
+        Iter<const T> begin() const { return {m_head}; }
+        Iter<const T> end() const { return {nullptr}; }
 
     private:
         Node* m_head = nullptr;
         Node* m_tail = nullptr;
+        size_t m_count = 0;
     };
 
-protected:
-    PLSRenderContext(const PlatformFeatures&);
-
-    virtual std::unique_ptr<BufferRingImpl> makeVertexBufferRing(size_t capacity,
-                                                                 size_t itemSizeInBytes) = 0;
-
-    virtual std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                                 size_t widthInItems,
-                                                                 size_t height,
-                                                                 size_t texelsPerItem,
-                                                                 int textureIdx,
-                                                                 TexelBufferRing::Filter) = 0;
-
-    virtual std::unique_ptr<BufferRingImpl> makePixelUnpackBufferRing(size_t capacity,
-                                                                      size_t itemSizeInBytes) = 0;
-
-    virtual std::unique_ptr<BufferRingImpl> makeUniformBufferRing(size_t sizeInBytes) = 0;
-
-    virtual void allocateGradientTexture(size_t height) = 0;
-    virtual void allocateTessellationTexture(size_t height) = 0;
-
-    const TexelBufferRing* pathBufferRing()
-    {
-        return static_cast<const TexelBufferRing*>(m_pathBuffer.impl());
-    }
-    const TexelBufferRing* contourBufferRing()
-    {
-        return static_cast<const TexelBufferRing*>(m_contourBuffer.impl());
-    }
-    const BufferRingImpl* simpleColorRampsBufferRing() const
-    {
-        return m_simpleColorRampsBuffer.impl();
-    }
-    const BufferRingImpl* gradSpanBufferRing() const { return m_gradSpanBuffer.impl(); }
-    const BufferRingImpl* tessSpanBufferRing() { return m_tessSpanBuffer.impl(); }
-    const BufferRingImpl* triangleBufferRing() { return m_triangleBuffer.impl(); }
-    const BufferRingImpl* uniformBufferRing() const { return m_uniformBuffer.impl(); }
-
-    virtual void onBeginFrame() {}
-
-    // Indicates how much blendMode support will be needed in the "uber" draw shader.
-    enum class BlendTier : uint8_t
-    {
-        srcOver,     // Every draw uses srcOver.
-        advanced,    // Draws use srcOver *and* advanced blend modes, excluding HSL modes.
-        advancedHSL, // Draws use srcOver *and* advanced blend modes *and* advanced HSL modes.
-    };
-
-    // Used by ShaderFeatures to generate keys and source code.
-    enum class SourceType : bool
-    {
-        vertexOnly,
-        wholeProgram
-    };
-
-    // Indicates which "uber shader" features to enable in the draw shader.
-    struct ShaderFeatures
-    {
-        enum PreprocessorDefines : uint32_t
-        {
-            ENABLE_ADVANCED_BLEND = 1 << 0,
-            ENABLE_PATH_CLIPPING = 1 << 1,
-            ENABLE_EVEN_ODD = 1 << 2,
-            ENABLE_HSL_BLEND_MODES = 1 << 3,
-        };
-
-        // Returns a bitmask of which preprocessor macros must be defined in order to support the
-        // current feature set.
-        uint32_t getPreprocessorDefines(SourceType) const;
-
-        struct
-        {
-            BlendTier blendTier = BlendTier::srcOver;
-            bool enablePathClipping = false;
-        } programFeatures;
-
-        struct
-        {
-            bool enableEvenOdd = false;
-        } fragmentFeatures;
-    };
-
+    // Describes a flush for PLSRenderContextImpl.
     struct FlushDescriptor
     {
-        FlushType flushType;
+        const PLSRenderTarget* renderTarget;
         LoadAction loadAction;
+        ColorInt clearColor = 0;
         size_t complexGradSpanCount;
         size_t tessVertexSpanCount;
         uint16_t simpleGradTexelsWidth;
@@ -419,87 +329,10 @@ protected:
         uint32_t complexGradRowsHeight;
         uint32_t tessDataHeight;
         bool needsClipBuffer;
+        bool hasTriangleVertices;
+        bool wireframe;
+        const PerFlushLinkedList<Draw>* drawList;
     };
-
-    virtual void onFlush(const FlushDescriptor&) = 0;
-
-    const PlatformFeatures m_platformFeatures;
-    const size_t m_maxPathID;
-
-    enum class DrawType : uint8_t
-    {
-        midpointFanPatches, // Standard paths and/or strokes.
-        outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
-        interiorTriangulation
-    };
-
-    constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
-    {
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-                return kMidpointFanPatchSegmentSpan;
-            case DrawType::outerCurvePatches:
-                return kOuterCurvePatchSegmentSpan;
-            default:
-                RIVE_UNREACHABLE();
-        }
-    }
-
-    constexpr static uint32_t PatchIndexCount(DrawType drawType)
-    {
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-                return kMidpointFanPatchIndexCount;
-            case DrawType::outerCurvePatches:
-                return kOuterCurvePatchIndexCount;
-            default:
-                RIVE_UNREACHABLE();
-        }
-    }
-
-    constexpr static uintptr_t PatchBaseIndex(DrawType drawType)
-    {
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-                return kMidpointFanPatchBaseIndex;
-            case DrawType::outerCurvePatches:
-                return kOuterCurvePatchBaseIndex;
-            default:
-                RIVE_UNREACHABLE();
-        }
-    }
-
-    static uint32_t ShaderUniqueKey(SourceType sourceType,
-                                    DrawType drawType,
-                                    const ShaderFeatures& shaderFeatures)
-    {
-        return (shaderFeatures.getPreprocessorDefines(sourceType) << 1) |
-               (drawType == DrawType::interiorTriangulation);
-    }
-
-    // Linked list of draws to be issued by the subclass during onFlush().
-    struct Draw
-    {
-        Draw(DrawType drawType_, uint32_t baseVertexOrInstance_) :
-            drawType(drawType_), baseVertexOrInstance(baseVertexOrInstance_)
-        {}
-        const DrawType drawType;
-        uint32_t baseVertexOrInstance;
-        uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
-        ShaderFeatures shaderFeatures;
-        GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
-    };
-
-    PerFlushLinkedList<Draw> m_drawList;
-    size_t m_drawListCount = 0;
-
-    // GrTriangulator provides an upper bound on the number of vertices it will emit. Triangulations
-    // are not writen out until the last minute, during flush(), and this variable provides an upper
-    // bound on the number of vertices that will be written.
-    size_t m_maxTriangleVertexCount = 0;
 
 private:
     static BlendTier BlendTierForBlendMode(PLSBlendMode);
@@ -551,7 +384,7 @@ private:
 
         // Resources allocated at flush time (after we already know exactly how big they need to
         // be).
-        size_t triangleVertexBufferSize;
+        size_t triangleVertexBufferCount;
         size_t gradientTextureHeight;
         size_t tessellationTextureHeight;
 
@@ -564,8 +397,8 @@ private:
             maxComplexGradientSpans =
                 std::max(maxComplexGradientSpans, other.maxComplexGradientSpans);
             maxTessellationSpans = std::max(maxTessellationSpans, other.maxTessellationSpans);
-            triangleVertexBufferSize =
-                std::max(triangleVertexBufferSize, other.triangleVertexBufferSize);
+            triangleVertexBufferCount =
+                std::max(triangleVertexBufferCount, other.triangleVertexBufferCount);
             gradientTextureHeight = std::max(gradientTextureHeight, other.gradientTextureHeight);
             tessellationTextureHeight =
                 std::max(tessellationTextureHeight, other.tessellationTextureHeight);
@@ -589,9 +422,9 @@ private:
             if (maxTessellationSpans > threshold.maxTessellationSpans)
                 scaled.maxTessellationSpans =
                     static_cast<double>(maxTessellationSpans) * scaleFactor;
-            if (triangleVertexBufferSize > threshold.triangleVertexBufferSize)
-                scaled.triangleVertexBufferSize =
-                    static_cast<double>(triangleVertexBufferSize) * scaleFactor;
+            if (triangleVertexBufferCount > threshold.triangleVertexBufferCount)
+                scaled.triangleVertexBufferCount =
+                    static_cast<double>(triangleVertexBufferCount) * scaleFactor;
             if (gradientTextureHeight > threshold.gradientTextureHeight)
                 scaled.gradientTextureHeight =
                     static_cast<double>(gradientTextureHeight) * scaleFactor;
@@ -614,7 +447,7 @@ private:
         GPUResourceLimits resetFlushTimeLimits() const
         {
             GPUResourceLimits noFlushTimeLimits = *this;
-            noFlushTimeLimits.triangleVertexBufferSize = 0;
+            noFlushTimeLimits.triangleVertexBufferCount = 0;
             noFlushTimeLimits.gradientTextureHeight = 0;
             noFlushTimeLimits.tessellationTextureHeight = 0;
             return noFlushTimeLimits;
@@ -633,37 +466,16 @@ private:
         const GPUResourceLimits& targets,
         std::function<bool(size_t targetSize, size_t currentSize)> shouldReallocate);
 
+    const rcp<PLSRenderContextImpl> m_impl;
+    const size_t m_maxPathID;
+
     GPUResourceLimits m_currentResourceLimits = {};
     GPUResourceLimits m_currentFrameResourceUsage = {};
     GPUResourceLimits m_maxRecentResourceUsage = {};
 
-    // Here we cache the contents of the uniform buffer. We use this cached value to determine
-    // whether the buffer needs to be updated at the beginning of a flush.
-    FlushUniforms m_cachedUniformData{0, 0, 0, 0, 0, m_platformFeatures};
-
-    // Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
-    // instead of rendering them.
-    struct TwoTexelRamp
-    {
-        void set(const ColorInt colors[2])
-        {
-            UnpackColorToRGBA8(colors[0], colorData);
-            UnpackColorToRGBA8(colors[1], colorData + 4);
-        }
-        uint8_t colorData[8];
-    };
-
-    BufferRing<PathData> m_pathBuffer;
-    BufferRing<ContourData> m_contourBuffer;
-    BufferRing<TwoTexelRamp> m_simpleColorRampsBuffer; // Simple gradients get written by the CPU.
-    BufferRing<GradientSpan> m_gradSpanBuffer;         // Complex gradients get rendered by the GPU.
-    BufferRing<TessVertexSpan> m_tessSpanBuffer;
-    BufferRing<TriangleVertex> m_triangleBuffer;
-    BufferRing<FlushUniforms> m_uniformBuffer;
-
     // How many rows of the gradient texture are dedicated to simple (two-texel) ramps?
     // This is also the y-coordinate at which the complex color ramps begin.
-    size_t m_reservedGradTextureRowsForSimpleRamps = 0;
+    size_t m_reservedSimpleGradientRowCount = 0;
 
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;
@@ -695,6 +507,25 @@ private:
     std::unordered_map<GradientContentKey, uint32_t, DeepHashGradient>
         m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
 
+    WriteOnlyMappedMemory<PathData> m_pathData;
+    WriteOnlyMappedMemory<ContourData> m_contourData;
+    // Simple gradients get written by the CPU.
+    WriteOnlyMappedMemory<TwoTexelRamp> m_simpleColorRampsData;
+    // Complex gradients get rendered by the GPU.
+    WriteOnlyMappedMemory<GradientSpan> m_gradSpanData;
+    WriteOnlyMappedMemory<TessVertexSpan> m_tessSpanData;
+
+    PerFlushLinkedList<Draw> m_drawList;
+
+    // GrTriangulator provides an upper bound on the number of vertices it will emit. Triangulations
+    // are not writen out until the last minute, during flush(), and this variable provides an upper
+    // bound on the number of vertices that will be written.
+    size_t m_maxTriangleVertexCount = 0;
+
+    // Here we cache the contents of the uniform buffer. We use this cached value to determine
+    // whether the buffer needs to be updated at the beginning of a flush.
+    FlushUniforms m_cachedUniformData;
+
     // Simple allocator for trivially-destructible data that needs to persist until the current
     // flush has completed. Any object created with this allocator is automatically deleted during
     // the next call to flush().
@@ -702,10 +533,11 @@ private:
     TrivialBlockAllocator m_trivialPerFlushAllocator{kPerFlushAllocatorInitialBlockSize};
 };
 
-template <typename T> bool PLSRenderContext::PerFlushLinkedList<T>::empty() const
+template <typename T> size_t PLSRenderContext::PerFlushLinkedList<T>::count() const
 {
     assert(!!m_head == !!m_tail);
-    return m_tail == nullptr;
+    assert(!!m_tail == !!m_count);
+    return m_count;
 }
 
 template <typename T> T& PLSRenderContext::PerFlushLinkedList<T>::tail() const
@@ -729,6 +561,13 @@ void PLSRenderContext::PerFlushLinkedList<T>::emplace_back(PLSRenderContext* con
         m_tail->next = node;
     }
     m_tail = node;
+    ++m_count;
 }
 
+template <typename T> void PLSRenderContext::PerFlushLinkedList<T>::reset()
+{
+    m_tail = nullptr;
+    m_head = nullptr;
+    m_count = 0;
+}
 } // namespace rive::pls

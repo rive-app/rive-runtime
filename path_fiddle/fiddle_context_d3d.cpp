@@ -2,7 +2,7 @@
 
 #include "rive/pls/pls_factory.hpp"
 #include "rive/pls/pls_renderer.hpp"
-#include "rive/pls/d3d/pls_render_context_d3d.hpp"
+#include "rive/pls/d3d/pls_render_context_d3d_impl.hpp"
 #include "rive/pls/d3d/d3d11.hpp"
 #include <array>
 #include <dxgi1_2.h>
@@ -25,7 +25,8 @@ public:
         m_d3dFactory(std::move(d3dFactory)),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext)),
-        m_plsContext(new PLSRenderContextD3D(m_gpu, m_gpuContext, isIntel))
+        m_impl(make_rcp<PLSRenderContextD3DImpl>(m_gpu, m_gpuContext, isIntel)),
+        m_plsContext(std::make_unique<PLSRenderContext>(m_impl))
     {}
 
     float dpiScale() const override { return 1; }
@@ -51,7 +52,7 @@ public:
                                                        NULL,
                                                        m_swapchain.GetAddressOf()));
 
-        m_renderTarget = m_plsContext->makeRenderTarget(width, height);
+        m_renderTarget = m_impl->makeRenderTarget(width, height);
     }
 
     void toggleZoomWindow() override {}
@@ -91,7 +92,8 @@ private:
     ComPtr<ID3D11Device> m_gpu;
     ComPtr<ID3D11DeviceContext> m_gpuContext;
     ComPtr<IDXGISwapChain1> m_swapchain;
-    std::unique_ptr<PLSRenderContextD3D> m_plsContext;
+    rcp<PLSRenderContextD3DImpl> m_impl;
+    std::unique_ptr<PLSRenderContext> m_plsContext;
     rcp<PLSRenderTargetD3D> m_renderTarget;
 };
 

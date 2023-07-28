@@ -2,10 +2,9 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/pls/metal/pls_render_context_metal.h"
+#include "rive/pls/metal/pls_render_context_metal_impl.h"
 
-#include "buffer_ring_metal.h"
-#include "rive/pls/metal/pls_render_target_metal.h"
+#include "rive/pls/buffer_ring.hpp"
 #include <sstream>
 
 #include "../out/obj/generated/color_ramp.exports.h"
@@ -34,7 +33,7 @@ static id<MTLRenderPipelineState> make_pipeline_state(id<MTLDevice> gpu,
 }
 
 // Renders color ramps to the gradient texture.
-class PLSRenderContextMetal::ColorRampPipeline
+class PLSRenderContextMetalImpl::ColorRampPipeline
 {
 public:
     ColorRampPipeline(id<MTLDevice> gpu, id<MTLLibrary> plsLibrary)
@@ -53,7 +52,7 @@ private:
 };
 
 // Renders tessellated vertices to the tessellation texture.
-class PLSRenderContextMetal::TessellatePipeline
+class PLSRenderContextMetalImpl::TessellatePipeline
 {
 public:
     TessellatePipeline(id<MTLDevice> gpu, id<MTLLibrary> plsLibrary)
@@ -72,10 +71,10 @@ private:
 };
 
 // Renders paths to the main render target.
-class PLSRenderContextMetal::DrawPipeline
+class PLSRenderContextMetalImpl::DrawPipeline
 {
 public:
-    DrawPipeline(PLSRenderContextMetal* context,
+    DrawPipeline(PLSRenderContextMetalImpl* context,
                  DrawType drawType,
                  const ShaderFeatures& shaderFeatures)
     {
@@ -110,7 +109,7 @@ public:
     }
 
 private:
-    id<MTLFunction> GetMainFunction(PLSRenderContextMetal* context,
+    id<MTLFunction> GetMainFunction(PLSRenderContextMetalImpl* context,
                                     DrawType drawType,
                                     SourceType sourceType,
                                     const ShaderFeatures& shaderFeatures)
@@ -167,36 +166,33 @@ static bool is_apple_ios_silicon(id<MTLDevice> gpu)
 }
 #endif
 
-std::unique_ptr<PLSRenderContextMetal> PLSRenderContextMetal::Make(id<MTLDevice> gpu,
-                                                                   id<MTLCommandQueue> queue)
+rcp<PLSRenderContextMetalImpl> PLSRenderContextMetalImpl::Make(id<MTLDevice> gpu,
+                                                               id<MTLCommandQueue> queue)
 {
     if (![gpu supportsFamily:MTLGPUFamilyApple1])
     {
         printf("error: GPU is not Apple family.");
         return nullptr;
     }
-    PlatformFeatures platformFeatures;
+    return rcp(new PLSRenderContextMetalImpl(gpu, queue));
+}
+
+PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCommandQueue> queue) :
+    m_gpu(gpu), m_queue(queue)
+{
 #ifdef RIVE_IOS
     if (!is_apple_ios_silicon(gpu))
     {
         // The PowerVR GPU, at least on A10, has fp16 precision issues. We can't use the the bottom
         // 3 bits of the path and clip IDs in order for our equality testing to work.
-        platformFeatures.pathIDGranularity = 8;
+        m_platformFeatures.pathIDGranularity = 8;
     }
 #endif
     // It appears, so far, that we don't need to use flat interpolation for path IDs on any Apple
     // device, and it's faster not to.
-    platformFeatures.avoidFlatVaryings = true;
-    platformFeatures.invertOffscreenY = true;
-    return std::unique_ptr<PLSRenderContextMetal>(
-        new PLSRenderContextMetal(platformFeatures, gpu, queue));
-}
+    m_platformFeatures.avoidFlatVaryings = true;
+    m_platformFeatures.invertOffscreenY = true;
 
-PLSRenderContextMetal::PLSRenderContextMetal(const PlatformFeatures& platformFeatures,
-                                             id<MTLDevice> gpu,
-                                             id<MTLCommandQueue> queue) :
-    PLSRenderContext(platformFeatures), m_gpu(gpu), m_queue(queue)
-{
     // Load the precompiled shaders.
     dispatch_data_t metallibData = dispatch_data_create(
 #ifdef RIVE_IOS
@@ -228,23 +224,115 @@ PLSRenderContextMetal::PLSRenderContextMetal(const PlatformFeatures& platformFea
                             reinterpret_cast<uint16_t*>(m_pathPatchIndexBuffer.contents));
 }
 
-PLSRenderContextMetal::~PLSRenderContextMetal() {}
+PLSRenderContextMetalImpl::~PLSRenderContextMetalImpl() {}
 
-rcp<PLSRenderTargetMetal> PLSRenderContextMetal::makeRenderTarget(MTLPixelFormat pixelFormat,
-                                                                  size_t width,
-                                                                  size_t height)
+// All PLS planes besides the main framebuffer can exist in ephemeral "memoryless" storage. This
+// means their contents are never actually written to main memory, and they only exist in fast tiled
+// memory.
+static id<MTLTexture> make_memoryless_pls_texture(id<MTLDevice> gpu,
+                                                  MTLPixelFormat pixelFormat,
+                                                  size_t width,
+                                                  size_t height)
 {
-    return rcp<PLSRenderTargetMetal>(
-        new PLSRenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
+    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+    desc.pixelFormat = pixelFormat;
+    desc.width = width;
+    desc.height = height;
+    desc.usage = MTLTextureUsageRenderTarget;
+    desc.textureType = MTLTextureType2D;
+    desc.mipmapLevelCount = 1;
+    desc.storageMode = MTLStorageModeMemoryless;
+    return [gpu newTextureWithDescriptor:desc];
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeVertexBufferRing(size_t capacity,
-                                                                            size_t itemSizeInBytes)
+PLSRenderTargetMetal::PLSRenderTargetMetal(id<MTLDevice> gpu,
+                                           MTLPixelFormat pixelFormat,
+                                           size_t width,
+                                           size_t height,
+                                           const PlatformFeatures& platformFeatures) :
+    PLSRenderTarget(width, height), m_pixelFormat(pixelFormat)
 {
-    return std::make_unique<BufferMetal>(m_gpu, capacity, itemSizeInBytes);
+    m_targetTexture = nil; // Will be configured later by setTargetTexture().
+    m_coverageMemorylessTexture =
+        make_memoryless_pls_texture(gpu, MTLPixelFormatRG16Float, width, height);
+    m_originalDstColorMemorylessTexture =
+        make_memoryless_pls_texture(gpu, m_pixelFormat, width, height);
+    m_clipMemorylessTexture =
+        make_memoryless_pls_texture(gpu, MTLPixelFormatRG16Float, width, height);
 }
 
-std::unique_ptr<TexelBufferRing> PLSRenderContextMetal::makeTexelBufferRing(
+void PLSRenderTargetMetal::setTargetTexture(id<MTLTexture> texture)
+{
+    assert(texture.width == width());
+    assert(texture.height == height());
+    assert(texture.pixelFormat == m_pixelFormat);
+    m_targetTexture = texture;
+}
+
+rcp<PLSRenderTargetMetal> PLSRenderContextMetalImpl::makeRenderTarget(MTLPixelFormat pixelFormat,
+                                                                      size_t width,
+                                                                      size_t height)
+{
+    return rcp(new PLSRenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
+}
+
+class TexelBufferMetal : public TexelBufferRing
+{
+public:
+    TexelBufferMetal(id<MTLDevice> gpu,
+                     Format format,
+                     size_t widthInItems,
+                     size_t height,
+                     size_t texelsPerItem,
+                     MTLTextureUsage extraUsageFlags = 0) :
+        TexelBufferRing(format, widthInItems, height, texelsPerItem)
+    {
+        MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+        switch (format)
+        {
+            case Format::rgba8:
+                desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+                break;
+            case Format::rgba32f:
+                desc.pixelFormat = MTLPixelFormatRGBA32Float;
+                break;
+            case Format::rgba32ui:
+                desc.pixelFormat = MTLPixelFormatRGBA32Uint;
+                break;
+        }
+        desc.width = widthInItems * texelsPerItem;
+        desc.height = height;
+        desc.mipmapLevelCount = 1;
+        desc.usage = MTLTextureUsageShaderRead | extraUsageFlags;
+        desc.storageMode = MTLStorageModeShared;
+        desc.textureType = MTLTextureType2D;
+        for (int i = 0; i < kBufferRingSize; ++i)
+        {
+            m_textures[i] = [gpu newTextureWithDescriptor:desc];
+        }
+    }
+
+    id<MTLTexture> submittedTexture() const { return m_textures[submittedBufferIdx()]; }
+
+protected:
+    void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) override
+    {
+        if (updateWidthInTexels > 0 && updateHeight > 0)
+        {
+            MTLRegion region = {MTLOriginMake(0, 0, 0),
+                                MTLSizeMake(updateWidthInTexels, updateHeight, 1)};
+            [m_textures[textureIdx] replaceRegion:region
+                                      mipmapLevel:0
+                                        withBytes:shadowBuffer()
+                                      bytesPerRow:widthInTexels() * BytesPerPixel(m_format)];
+        }
+    }
+
+private:
+    id<MTLTexture> m_textures[kBufferRingSize];
+};
+
+std::unique_ptr<TexelBufferRing> PLSRenderContextMetalImpl::makeTexelBufferRing(
     TexelBufferRing::Format format,
     size_t widthInItems,
     size_t height,
@@ -255,18 +343,47 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextMetal::makeTexelBufferRing(
     return std::make_unique<TexelBufferMetal>(m_gpu, format, widthInItems, height, texelsPerItem);
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makePixelUnpackBufferRing(
+class BufferMetal : public BufferRing
+{
+public:
+    BufferMetal(id<MTLDevice> gpu, size_t capacity, size_t itemSizeInBytes) :
+        BufferRing(capacity, itemSizeInBytes)
+    {
+        for (int i = 0; i < kBufferRingSize; ++i)
+        {
+            m_buffers[i] = [gpu newBufferWithLength:capacity * itemSizeInBytes
+                                            options:MTLResourceStorageModeShared];
+        }
+    }
+
+    id<MTLBuffer> submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
+
+protected:
+    void* onMapBuffer(int bufferIdx) override { return m_buffers[bufferIdx].contents; }
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override {}
+
+private:
+    id<MTLBuffer> m_buffers[kBufferRingSize];
+};
+
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size_t capacity,
+                                                                            size_t itemSizeInBytes)
+{
+    return std::make_unique<BufferMetal>(m_gpu, capacity, itemSizeInBytes);
+}
+
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makePixelUnpackBufferRing(
     size_t capacity, size_t itemSizeInBytes)
 {
     return std::make_unique<BufferMetal>(m_gpu, capacity, itemSizeInBytes);
 }
 
-std::unique_ptr<BufferRingImpl> PLSRenderContextMetal::makeUniformBufferRing(size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeUniformBufferRing(size_t itemSizeInBytes)
 {
     return std::make_unique<BufferMetal>(m_gpu, 1, itemSizeInBytes);
 }
 
-void PLSRenderContextMetal::allocateGradientTexture(size_t height)
+void PLSRenderContextMetalImpl::resizeGradientTexture(size_t height)
 {
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
@@ -279,7 +396,7 @@ void PLSRenderContextMetal::allocateGradientTexture(size_t height)
     m_gradientTexture = [m_gpu newTextureWithDescriptor:desc];
 }
 
-void PLSRenderContextMetal::allocateTessellationTexture(size_t height)
+void PLSRenderContextMetalImpl::resizeTessellationTexture(size_t height)
 {
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatRGBA32Uint;
@@ -292,7 +409,7 @@ void PLSRenderContextMetal::allocateTessellationTexture(size_t height)
     m_tessVertexTexture = [m_gpu newTextureWithDescriptor:desc];
 }
 
-void PLSRenderContextMetal::lockNextBufferRingIndex()
+void PLSRenderContextMetalImpl::prepareToMapBuffers()
 {
     // Wait until the GPU finishes rendering flush "N + 1 - kBufferRingSize". This ensures it
     // is safe for the CPU to begin modifying the next buffers in our rings.
@@ -300,7 +417,7 @@ void PLSRenderContextMetal::lockNextBufferRingIndex()
     m_bufferRingLocks[m_bufferRingIdx].lock();
 }
 
-static id<MTLBuffer> mtl_buffer(const BufferRingImpl* bufferRing)
+static id<MTLBuffer> mtl_buffer(const BufferRing* bufferRing)
 {
     return static_cast<const BufferMetal*>(bufferRing)->submittedBuffer();
 }
@@ -310,10 +427,9 @@ static id<MTLTexture> mtl_texture(const TexelBufferRing* texelBufferRing)
     return static_cast<const TexelBufferMetal*>(texelBufferRing)->submittedTexture();
 }
 
-void PLSRenderContextMetal::onFlush(const FlushDescriptor& desc)
+void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
-    auto* renderTarget =
-        static_cast<const PLSRenderTargetMetal*>(frameDescriptor().renderTarget.get());
+    auto* renderTarget = static_cast<const PLSRenderTargetMetal*>(desc.renderTarget);
     id<MTLCommandBuffer> commandBuffer = [m_queue commandBuffer];
 
     // Render the complex color ramps to the gradient texture.
@@ -411,7 +527,7 @@ void PLSRenderContextMetal::onFlush(const FlushDescriptor& desc)
     if (desc.loadAction == LoadAction::clear)
     {
         float cc[4];
-        UnpackColorToRGBA32F(frameDescriptor().clearColor, cc);
+        UnpackColorToRGBA32F(desc.clearColor, cc);
         pass.colorAttachments[0].loadAction = MTLLoadActionClear;
         pass.colorAttachments[0].clearColor = MTLClearColorMake(cc[0], cc[1], cc[2], cc[3]);
     }
@@ -448,13 +564,13 @@ void PLSRenderContextMetal::onFlush(const FlushDescriptor& desc)
     [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
     [encoder setFragmentTexture:m_gradientTexture atIndex:kGradTextureIdx];
     [encoder setCullMode:MTLCullModeBack];
-    if (frameDescriptor().wireframe)
+    if (desc.wireframe)
     {
         [encoder setTriangleFillMode:MTLTriangleFillModeLines];
     }
 
     // Execute the DrawList.
-    for (const Draw& draw : m_drawList)
+    for (const Draw& draw : *desc.drawList)
     {
         if (draw.vertexOrInstanceCount == 0)
         {
@@ -506,13 +622,6 @@ void PLSRenderContextMetal::onFlush(const FlushDescriptor& desc)
       assert(!thisFlushLock.try_lock()); // The mutex should already be locked.
       thisFlushLock.unlock();
     }];
-
-    if (desc.flushType == FlushType::intermediate)
-    {
-        // The frame isn't complete yet. The caller will begin preparing a new flush immediately
-        // after this method returns, so lock buffers for the next flush now.
-        lockNextBufferRingIndex();
-    }
 
     [commandBuffer commit];
 }

@@ -3,7 +3,7 @@
 #include "rive/pls/gl/gles3.hpp"
 #include "rive/pls/pls_factory.hpp"
 #include "rive/pls/pls_renderer.hpp"
-#include "rive/pls/gl/pls_render_context_gl.hpp"
+#include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 
 #ifdef RIVE_WASM
@@ -274,7 +274,7 @@ public:
 
     void onSizeChanged(int width, int height) override
     {
-        m_renderTarget = m_plsContext->makeOffscreenRenderTarget(width, height);
+        m_renderTarget = m_impl->makeOffscreenRenderTarget(width, height);
     }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
@@ -305,7 +305,8 @@ public:
     void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
 
 private:
-    std::unique_ptr<PLSRenderContextGL> m_plsContext = PLSRenderContextGL::Make();
+    rcp<PLSRenderContextGLImpl> m_impl = PLSRenderContextGLImpl::Make();
+    std::unique_ptr<PLSRenderContext> m_plsContext = std::make_unique<PLSRenderContext>(m_impl);
     rcp<PLSRenderTargetGL> m_renderTarget;
 };
 

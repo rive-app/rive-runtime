@@ -48,7 +48,7 @@ public:
     void setPathID(uint16_t pathID) { m_pathID = pathID; }
     uint16_t pathID() const { return m_pathID; }
 
-    size_t polysToTriangles(pls::BufferRing<pls::TriangleVertex>* bufferRing) const
+    size_t polysToTriangles(pls::WriteOnlyMappedMemory<pls::TriangleVertex>* bufferRing) const
 
     {
         if (m_polys == nullptr)
