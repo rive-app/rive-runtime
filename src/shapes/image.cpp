@@ -35,7 +35,7 @@ void Image::draw(Renderer* renderer)
     else
     {
         renderer->transform(worldTransform());
-        renderer->translate(-width / 2.0f, -height / 2.0f);
+        renderer->translate(-width * originX(), -height * originY());
         renderer->drawImage(renderImage, blendMode(), renderOpacity());
     }
 
@@ -57,7 +57,8 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
     }
     else
     {
-        auto mx = xform * worldTransform() * Mat2D::fromTranslate(-width * 0.5f, -height * 0.5f);
+        auto mx = xform * worldTransform() *
+                  Mat2D::fromTranslate(-width * originX(), -height * originY());
         HitTester tester(hinfo->area);
         tester.addRect(AABB(0, 0, (float)width, (float)height), mx);
         if (tester.test())
