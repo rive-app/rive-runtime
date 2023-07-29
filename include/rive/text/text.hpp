@@ -178,7 +178,8 @@ public:
     const TextStyle* styleFromShaperId(uint16_t id) const;
     bool modifierRangesNeedShape() const;
     AABB localBounds() const override;
-
+    void originXChanged() override;
+    void originYChanged() override;
 #ifdef WITH_RIVE_TEXT
     const std::vector<TextValueRun*>& runs() const { return m_runs; }
 #endif

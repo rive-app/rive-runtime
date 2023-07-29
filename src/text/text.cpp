@@ -708,6 +708,9 @@ Core* Text::hitTest(HitInfo*, const Mat2D&)
 
 void Text::originValueChanged() { markPaintDirty(); }
 
+void Text::originXChanged() { markPaintDirty(); }
+void Text::originYChanged() { markPaintDirty(); }
+
 #else
 // Text disabled.
 void Text::draw(Renderer* renderer) {}
@@ -728,4 +731,6 @@ const TextStyle* Text::styleFromShaperId(uint16_t id) const { return nullptr; }
 void Text::paragraphSpacingChanged() {}
 AABB Text::localBounds() const { return AABB(); }
 void Text::originValueChanged() {}
+void Text::originXChanged() {}
+void Text::originYChanged() {}
 #endif
