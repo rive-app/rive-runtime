@@ -259,48 +259,71 @@ void Text::buildRenderStyles()
 
     // Build up ordered runs as we go.
     int paragraphIndex = 0;
-    int lineIndex = 0;
     float y = 0.0f;
     float minY = 0.0f;
-    float maxX = 0.0f;
+    float maxWidth = 0.0f;
 
     int ellipsisLine = -1;
     bool isEllipsisLineLast = false;
     // Find the line to put the ellipsis on (line before the one that
     // overflows).
-    if (overflow() == TextOverflow::ellipsis && sizing() == TextSizing::fixed)
-    {
-        int lastLineIndex = -1;
-        for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
-        {
-            for (const GlyphLine& line : paragraphLines)
-            {
-                lastLineIndex++;
-                if (y + line.bottom <= height())
-                {
-                    ellipsisLine++;
-                }
-            }
+    bool wantEllipsis = overflow() == TextOverflow::ellipsis && sizing() == TextSizing::fixed;
 
-            if (!paragraphLines.empty())
-            {
-                y += paragraphLines.back().bottom;
-            }
-            y += paragraphSpace;
-        }
-        if (ellipsisLine == -1)
+    int lastLineIndex = -1;
+    for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
+    {
+        const Paragraph& paragraph = m_shape[paragraphIndex++];
+        for (const GlyphLine& line : paragraphLines)
         {
-            // Nothing fits, just show the first line and ellipse it.
-            ellipsisLine = 0;
+            const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
+            const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
+            float width = endRun.xpos[line.endGlyphIndex] - startRun.xpos[line.startGlyphIndex];
+            if (width > maxWidth)
+            {
+                maxWidth = width;
+            }
+            lastLineIndex++;
+            if (wantEllipsis && y + line.bottom <= height())
+            {
+                ellipsisLine++;
+            }
         }
-        isEllipsisLineLast = lastLineIndex == ellipsisLine;
-        y = 0.0f;
+
+        if (!paragraphLines.empty())
+        {
+            y += paragraphLines.back().bottom;
+        }
+        y += paragraphSpace;
     }
+    if (wantEllipsis && ellipsisLine == -1)
+    {
+        // Nothing fits, just show the first line and ellipse it.
+        ellipsisLine = 0;
+    }
+    isEllipsisLineLast = lastLineIndex == ellipsisLine;
+
+    int lineIndex = 0;
+    paragraphIndex = 0;
     if (textOrigin() == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
     {
         y -= m_lines[0][0].baseline;
         minY = y;
     }
+    switch (sizing())
+    {
+        case TextSizing::autoWidth:
+            m_bounds = AABB(0.0f, minY, maxWidth, std::max(minY, y - paragraphSpace));
+            break;
+        case TextSizing::autoHeight:
+            m_bounds = AABB(0.0f, minY, width(), std::max(minY, y - paragraphSpace));
+            break;
+        case TextSizing::fixed:
+            m_bounds = AABB(0.0f, minY, width(), minY + height());
+            break;
+    }
+
+    y = -m_bounds.height() * originY();
+    paragraphIndex = 0;
 
     bool hasModifiers = haveModifiers();
     if (hasModifiers)
@@ -345,7 +368,7 @@ void Text::buildRenderStyles()
                                                         &m_ellipsisRun));
             }
             const OrderedLine& orderedLine = m_orderedLines[lineIndex];
-            float x = line.startX;
+            float x = -m_bounds.width() * originX() + line.startX;
             float renderY = y + line.baseline;
             for (auto glyphItr : orderedLine)
             {
@@ -415,10 +438,6 @@ void Text::buildRenderStyles()
                     style->propagateOpacity(renderOpacity());
                 }
             }
-            if (x > maxX)
-            {
-                maxX = x;
-            }
             if (lineIndex == ellipsisLine)
             {
                 return;
@@ -431,25 +450,6 @@ void Text::buildRenderStyles()
         }
         y += paragraphSpace;
     }
-    switch (sizing())
-    {
-        case TextSizing::autoWidth:
-            m_bounds = AABB(0.0f, minY, maxX, std::max(minY, y - paragraphSpace));
-            break;
-        case TextSizing::autoHeight:
-            m_bounds = AABB(0.0f, minY, width(), std::max(minY, y - paragraphSpace));
-            break;
-        case TextSizing::fixed:
-            m_bounds = AABB(0.0f, minY, width(), minY + height());
-            break;
-    }
-}
-
-void Text::updateOriginWorldTransform()
-{
-    m_originWorldTransform =
-        m_WorldTransform *
-        Mat2D::fromTranslate(-m_bounds.width() * originX(), -m_bounds.height() * originY());
 }
 
 const TextStyle* Text::styleFromShaperId(uint16_t id) const
@@ -466,7 +466,7 @@ void Text::draw(Renderer* renderer)
         // transformations.
         renderer->save();
     }
-    renderer->transform(m_originWorldTransform);
+    renderer->transform(m_WorldTransform);
     if (overflow() == TextOverflow::clipped && m_clipRenderPath)
     {
         renderer->clipPath(m_clipRenderPath.get());
@@ -623,11 +623,6 @@ bool Text::modifierRangesNeedShape() const
 void Text::update(ComponentDirt value)
 {
     Super::update(value);
-
-    if (hasDirt(value, ComponentDirt::WorldTransform))
-    {
-        updateOriginWorldTransform();
-    }
 
     if (hasDirt(value, ComponentDirt::Path))
     {

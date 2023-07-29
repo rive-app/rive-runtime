@@ -8,14 +8,10 @@ using namespace rive;
 
 const Mat2D TransformConstraint::targetTransform() const
 {
-    if (originX() != 0.0f || originY() != 0.0f)
-    {
-        AABB bounds = m_Target->localBounds();
-        Mat2D local = Mat2D::fromTranslate(bounds.left() + bounds.width() * originX(),
-                                           bounds.top() + bounds.height() * originY());
-        return m_Target->worldTransform() * local;
-    }
-    return m_Target->worldTransform();
+    AABB bounds = m_Target->localBounds();
+    Mat2D local = Mat2D::fromTranslate(bounds.left() + bounds.width() * originX(),
+                                       bounds.top() + bounds.height() * originY());
+    return m_Target->worldTransform() * local;
 }
 
 void TransformConstraint::constrain(TransformComponent* component)

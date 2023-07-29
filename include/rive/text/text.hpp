@@ -221,7 +221,6 @@ private:
     std::vector<OrderedLine> m_orderedLines;
     GlyphRun m_ellipsisRun;
     std::unique_ptr<RenderPath> m_clipRenderPath;
-    Mat2D m_originWorldTransform;
     AABB m_bounds;
     std::vector<TextModifierGroup*> m_modifierGroups;
 
