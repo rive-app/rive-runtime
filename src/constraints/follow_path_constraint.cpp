@@ -153,14 +153,16 @@ void FollowPathConstraint::update(ComponentDirt value)
 
 StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
 {
-    Shape* shape = static_cast<Shape*>(m_Target);
-    shape->addDefaultPathSpace(PathSpace::FollowPath);
+    if (m_Target != nullptr && m_Target->is<Shape>())
+    {
+        Shape* shape = static_cast<Shape*>(m_Target);
+        shape->addDefaultPathSpace(PathSpace::FollowPath);
+    }
     return Super::onAddedClean(context);
 }
 
 void FollowPathConstraint::buildDependencies()
 {
-    assert(m_Target != nullptr);
     if (m_Target != nullptr && m_Target->is<Shape>()) // which should never happen
     {
         // Follow path should update after the target's path composer
