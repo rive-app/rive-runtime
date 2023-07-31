@@ -45,7 +45,7 @@ private:
 class PLSRenderContextMetalImpl : public PLSRenderContextBufferRingImpl
 {
 public:
-    static rcp<PLSRenderContextMetalImpl> Make(id<MTLDevice>, id<MTLCommandQueue>);
+    static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice>, id<MTLCommandQueue>);
     ~PLSRenderContextMetalImpl() override;
 
     id<MTLDevice> gpu() const { return m_gpu; }

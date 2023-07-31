@@ -44,7 +44,8 @@ public:
         m_swapchain.displaySyncEnabled = NO;
         nsWindow.contentView.layer = m_swapchain;
 
-        m_renderTarget = m_impl->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
+        auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextMetalImpl>();
+        m_renderTarget = plsContextImpl->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
     }
 
     void toggleZoomWindow() override {}
@@ -83,8 +84,8 @@ private:
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
     id<CAMetalDrawable> m_surface = nil;
-    rcp<PLSRenderContextMetalImpl> m_impl = PLSRenderContextMetalImpl::Make(m_gpu, m_queue);
-    std::unique_ptr<PLSRenderContext> m_plsContext = std::make_unique<PLSRenderContext>(m_impl);
+    std::unique_ptr<PLSRenderContext> m_plsContext =
+        PLSRenderContextMetalImpl::MakeContext(m_gpu, m_queue);
     CAMetalLayer* m_swapchain;
     rcp<PLSRenderTargetMetal> m_renderTarget;
 };

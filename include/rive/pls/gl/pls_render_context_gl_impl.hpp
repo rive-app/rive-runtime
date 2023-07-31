@@ -22,7 +22,7 @@ class PLSRenderTargetGL;
 class PLSRenderContextGLImpl : public PLSRenderContextBufferRingImpl
 {
 public:
-    static rcp<PLSRenderContextGLImpl> Make();
+    static std::unique_ptr<PLSRenderContext> MakeContext();
     ~PLSRenderContextGLImpl() override;
 
     // Creates a PLSRenderTarget that draws directly into the given GL framebuffer.
@@ -96,6 +96,12 @@ private:
     static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
     static std::unique_ptr<PLSImpl> MakePLSImplRWTexture();
 
+    static std::unique_ptr<PLSRenderContext> MakeContext(const char* rendererString,
+                                                         GLExtensions,
+                                                         std::unique_ptr<PLSImpl>);
+
+    PLSRenderContextGLImpl(const char* rendererString, GLExtensions, std::unique_ptr<PLSImpl>);
+
     // Wraps a compiled and linked GL program of draw.glsl, with a specific set of features enabled
     // via #define. The set of features to enable is dictated by ShaderFeatures.
     class DrawProgram
@@ -115,8 +121,6 @@ private:
     };
 
     class DrawShader;
-
-    PLSRenderContextGLImpl(const PlatformFeatures&, GLExtensions, std::unique_ptr<PLSImpl>);
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,

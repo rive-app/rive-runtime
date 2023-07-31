@@ -32,13 +32,19 @@ EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
 });
 #endif
 
-PLSRenderContextGLImpl::PLSRenderContextGLImpl(const PlatformFeatures& platformFeatures,
+PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                                GLExtensions extensions,
                                                std::unique_ptr<PLSImpl> plsImpl) :
     m_extensions(extensions), m_plsImpl(std::move(plsImpl))
 
 {
-    m_platformFeatures = platformFeatures;
+    if (strstr(rendererString, "Apple") && strstr(rendererString, "Metal"))
+    {
+        // In Metal, non-flat varyings preserve their exact value if all vertices in the triangle
+        // emit the same value, and we also see a small (5-10%) improvement from not using flat
+        // varyings.
+        m_platformFeatures.avoidFlatVaryings = true;
+    }
 
     m_shaderVersionString[kShaderVersionStringBuffSize - 1] = '\0';
 #ifdef _WIN32
@@ -278,7 +284,7 @@ public:
     DrawShader(const DrawShader&) = delete;
     DrawShader& operator=(const DrawShader&) = delete;
 
-    DrawShader(PLSRenderContextGLImpl* impl,
+    DrawShader(PLSRenderContextGLImpl* plsContextImpl,
                GLenum shaderType,
                DrawType drawType,
                const ShaderFeatures& shaderFeatures)
@@ -287,7 +293,7 @@ public:
             shaderType == GL_VERTEX_SHADER ? SourceType::vertexOnly : SourceType::wholeProgram;
 
         std::vector<const char*> defines;
-        defines.push_back(impl->m_plsImpl->shaderDefineName());
+        defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
         uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
         if (drawType == DrawType::interiorTriangulation)
         {
@@ -319,7 +325,7 @@ public:
                 sources.push_back(glsl::advanced_blend);
             }
         }
-        if (impl->platformFeatures().avoidFlatVaryings)
+        if (plsContextImpl->platformFeatures().avoidFlatVaryings)
         {
             sources.push_back("#define " GLSL_OPTIONALLY_FLAT "\n");
         }
@@ -333,8 +339,8 @@ public:
                                       defines.size(),
                                       sources.data(),
                                       sources.size(),
-                                      impl->m_extensions,
-                                      impl->m_shaderVersionString);
+                                      plsContextImpl->m_extensions,
+                                      plsContextImpl->m_shaderVersionString);
     }
 
     ~DrawShader() { glDeleteShader(m_id); }
@@ -345,7 +351,7 @@ private:
     GLuint m_id;
 };
 
-PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* impl,
+PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
                                                  DrawType drawType,
                                                  const ShaderFeatures& shaderFeatures)
 {
@@ -354,19 +360,22 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* impl,
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
     uint32_t vertexShaderKey = ShaderUniqueKey(SourceType::vertexOnly, drawType, shaderFeatures);
-    const DrawShader& vertexShader =
-        impl->m_vertexShaders
-            .try_emplace(vertexShaderKey, impl, GL_VERTEX_SHADER, drawType, shaderFeatures)
-            .first->second;
+    const DrawShader& vertexShader = plsContextImpl->m_vertexShaders
+                                         .try_emplace(vertexShaderKey,
+                                                      plsContextImpl,
+                                                      GL_VERTEX_SHADER,
+                                                      drawType,
+                                                      shaderFeatures)
+                                         .first->second;
     glAttachShader(m_id, vertexShader.id());
 
     // Every fragment shader is unique.
-    DrawShader fragmentShader(impl, GL_FRAGMENT_SHADER, drawType, shaderFeatures);
+    DrawShader fragmentShader(plsContextImpl, GL_FRAGMENT_SHADER, drawType, shaderFeatures);
     glAttachShader(m_id, fragmentShader.id());
 
     glutils::LinkProgram(m_id);
 
-    impl->bindProgram(m_id);
+    plsContextImpl->bindProgram(m_id);
     glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), 0);
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kGLTexIdxOffset + kTessVertexTextureIdx);
@@ -374,7 +383,7 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* impl,
     glUniform1i(glGetUniformLocation(m_id, GLSL_contourTexture),
                 kGLTexIdxOffset + kContourTextureIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kGLTexIdxOffset + kGradTextureIdx);
-    if (!impl->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
+    if (!plsContextImpl->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         m_baseInstancePolyfillLocation = glGetUniformLocation(m_id, GLSL_baseInstancePolyfill);
     }
@@ -563,7 +572,7 @@ void PLSRenderContextGLImpl::bindVAO(GLuint vao)
     }
 }
 
-rcp<PLSRenderContextGLImpl> PLSRenderContextGLImpl::Make()
+std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
 {
     GLExtensions extensions{};
     GLint extensionCount;
@@ -636,7 +645,6 @@ rcp<PLSRenderContextGLImpl> PLSRenderContextGLImpl::Make()
     }
 #endif
 
-    PlatformFeatures platformFeatures;
     GLenum rendererToken = GL_RENDERER;
 #ifdef RIVE_WASM
     if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
@@ -646,13 +654,6 @@ rcp<PLSRenderContextGLImpl> PLSRenderContextGLImpl::Make()
     }
 #endif
     const char* rendererString = reinterpret_cast<const char*>(glGetString(rendererToken));
-    if (strstr(rendererString, "Apple") && strstr(rendererString, "Metal"))
-    {
-        // In Metal, non-flat varyings preserve their exact value if all vertices in the triangle
-        // emit the same value, and we also see a small (5-10%) improvement from not using flat
-        // varyings.
-        platformFeatures.avoidFlatVaryings = true;
-    }
     if (strstr(rendererString, "Direct3D"))
     {
         // This extension is polyfilled on D3D anyway. Just don't use it so we can make sure to test
@@ -665,29 +666,24 @@ rcp<PLSRenderContextGLImpl> PLSRenderContextGLImpl::Make()
     if (extensions.EXT_shader_pixel_local_storage &&
         (extensions.ARM_shader_framebuffer_fetch || extensions.EXT_shader_framebuffer_fetch))
     {
-        return rcp(new PLSRenderContextGLImpl(platformFeatures,
-                                              extensions,
-                                              MakePLSImplEXTNative(extensions)));
+        return MakeContext(rendererString, extensions, MakePLSImplEXTNative(extensions));
     }
 
     if (extensions.EXT_shader_framebuffer_fetch)
     {
-        return rcp(new PLSRenderContextGLImpl(platformFeatures,
-                                              extensions,
-                                              MakePLSImplFramebufferFetch(extensions)));
+        return MakeContext(rendererString, extensions, MakePLSImplFramebufferFetch(extensions));
     }
 #endif
 
 #ifdef RIVE_DESKTOP_GL
     if (extensions.ANGLE_shader_pixel_local_storage_coherent)
     {
-        return rcp(new PLSRenderContextGLImpl(platformFeatures, extensions, MakePLSImplWebGL()));
+        return MakeContext(rendererString, extensions, MakePLSImplWebGL());
     }
 
     if (extensions.ARB_fragment_shader_interlock || extensions.INTEL_fragment_shader_ordering)
     {
-        return rcp(
-            new PLSRenderContextGLImpl(platformFeatures, extensions, MakePLSImplRWTexture()));
+        return MakeContext(rendererString, extensions, MakePLSImplRWTexture());
     }
 #endif
 
@@ -696,11 +692,21 @@ rcp<PLSRenderContextGLImpl> PLSRenderContextGLImpl::Make()
             emscripten_webgl_get_current_context()) &&
         emscripten_webgl_shader_pixel_local_storage_is_coherent())
     {
-        return rcp(new PLSRenderContextGLImpl(platformFeatures, extensions, MakePLSImplWebGL()));
+        return MakeContext(rendererString, extensions, MakePLSImplWebGL());
     }
 #endif
 
     fprintf(stderr, "Pixel local storage is not supported.\n");
     return nullptr;
+}
+
+std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
+    const char* rendererString,
+    GLExtensions extensions,
+    std::unique_ptr<PLSImpl> plsImpl)
+{
+    auto plsContextImpl = std::unique_ptr<PLSRenderContextGLImpl>(
+        new PLSRenderContextGLImpl(rendererString, extensions, std::move(plsImpl)));
+    return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
 }
 } // namespace rive::pls

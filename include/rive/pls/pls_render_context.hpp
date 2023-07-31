@@ -79,8 +79,10 @@ public:
 class PLSRenderContext
 {
 public:
-    PLSRenderContext(rcp<PLSRenderContextImpl>);
+    PLSRenderContext(std::unique_ptr<PLSRenderContextImpl>);
     ~PLSRenderContext();
+
+    template <typename T> T* static_impl_cast() { return static_cast<T*>(m_impl.get()); }
 
     // Options for controlling how and where a frame is rendered.
     struct FrameDescriptor
@@ -466,7 +468,7 @@ private:
         const GPUResourceLimits& targets,
         std::function<bool(size_t targetSize, size_t currentSize)> shouldReallocate);
 
-    const rcp<PLSRenderContextImpl> m_impl;
+    const std::unique_ptr<PLSRenderContextImpl> m_impl;
     const size_t m_maxPathID;
 
     GPUResourceLimits m_currentResourceLimits = {};

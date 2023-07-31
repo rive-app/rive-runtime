@@ -5,12 +5,11 @@
 #pragma once
 
 #include "rive/pls/pls_render_context.hpp"
-#include "rive/refcnt.hpp"
 
 namespace rive::pls
 {
 // This class manages GPU buffers and isues the actual rendering commands from PLSRenderContext.
-class PLSRenderContextImpl : public RefCnt<PLSRenderContextImpl>
+class PLSRenderContextImpl
 {
 public:
     virtual ~PLSRenderContextImpl() {}

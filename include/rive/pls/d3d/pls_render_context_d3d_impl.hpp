@@ -41,11 +41,15 @@ private:
 class PLSRenderContextD3DImpl : public PLSRenderContextBufferRingImpl
 {
 public:
-    PLSRenderContextD3DImpl(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
+    static std::unique_ptr<PLSRenderContext> MakeContext(ComPtr<ID3D11Device>,
+                                                         ComPtr<ID3D11DeviceContext>,
+                                                         bool isIntel);
 
     rcp<PLSRenderTargetD3D> makeRenderTarget(size_t width, size_t height);
 
 private:
+    PLSRenderContextD3DImpl(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
+
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
                                                          size_t height,

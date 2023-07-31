@@ -144,10 +144,20 @@ static ComPtr<ID3DBlob> compile_source_to_blob(ID3D11Device* gpu,
     return blob;
 }
 
+std::unique_ptr<PLSRenderContext> PLSRenderContextD3DImpl::MakeContext(
+    ComPtr<ID3D11Device> gpu,
+    ComPtr<ID3D11DeviceContext> gpuContext,
+    bool isIntel)
+{
+    auto plsContextImpl = std::unique_ptr<PLSRenderContextD3DImpl>(
+        new PLSRenderContextD3DImpl(std::move(gpu), std::move(gpuContext), isIntel));
+    return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
+}
+
 PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
                                                  ComPtr<ID3D11DeviceContext> gpuContext,
                                                  bool isIntel) :
-    m_isIntel(isIntel), m_gpu(gpu), m_gpuContext(gpuContext)
+    m_isIntel(isIntel), m_gpu(std::move(gpu)), m_gpuContext(std::move(gpuContext))
 {
     m_platformFeatures.invertOffscreenY = true;
 
@@ -279,9 +289,9 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
         D3D11_SUBRESOURCE_DATA vertexDataDesc{};
         vertexDataDesc.pSysMem = patchVertices;
 
-        VERIFY_OK(gpu->CreateBuffer(&vertexBufferDesc,
-                                    &vertexDataDesc,
-                                    m_patchVertexBuffer.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateBuffer(&vertexBufferDesc,
+                                      &vertexDataDesc,
+                                      m_patchVertexBuffer.GetAddressOf()));
     }
 
     {
@@ -293,8 +303,9 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
         D3D11_SUBRESOURCE_DATA indexDataDesc{};
         indexDataDesc.pSysMem = patchIndices;
 
-        VERIFY_OK(
-            gpu->CreateBuffer(&indexBufferDesc, &indexDataDesc, m_patchIndexBuffer.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateBuffer(&indexBufferDesc,
+                                      &indexDataDesc,
+                                      m_patchIndexBuffer.GetAddressOf()));
     }
 
     // Create a buffer for the uniforms that get updated every draw.
@@ -304,7 +315,7 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
         desc.StructureByteStride = sizeof(PerDrawUniforms);
-        VERIFY_OK(gpu->CreateBuffer(&desc, nullptr, m_perDrawUniforms.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_perDrawUniforms.GetAddressOf()));
     }
 
     // Create a sampler for the gradient texture.

@@ -25,8 +25,7 @@ public:
         m_d3dFactory(std::move(d3dFactory)),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext)),
-        m_impl(make_rcp<PLSRenderContextD3DImpl>(m_gpu, m_gpuContext, isIntel)),
-        m_plsContext(std::make_unique<PLSRenderContext>(m_impl))
+        m_plsContext(PLSRenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, isIntel))
     {}
 
     float dpiScale() const override { return 1; }
@@ -52,7 +51,8 @@ public:
                                                        NULL,
                                                        m_swapchain.GetAddressOf()));
 
-        m_renderTarget = m_impl->makeRenderTarget(width, height);
+        auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextD3DImpl>();
+        m_renderTarget = plsContextImpl->makeRenderTarget(width, height);
     }
 
     void toggleZoomWindow() override {}
@@ -92,7 +92,6 @@ private:
     ComPtr<ID3D11Device> m_gpu;
     ComPtr<ID3D11DeviceContext> m_gpuContext;
     ComPtr<IDXGISwapChain1> m_swapchain;
-    rcp<PLSRenderContextD3DImpl> m_impl;
     std::unique_ptr<PLSRenderContext> m_plsContext;
     rcp<PLSRenderTargetD3D> m_renderTarget;
 };

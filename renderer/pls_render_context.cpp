@@ -121,7 +121,7 @@ size_t DeepHashGradient::operator()(const GradientContentKey& key) const
     return x ^ y;
 }
 
-PLSRenderContext::PLSRenderContext(rcp<PLSRenderContextImpl> impl) :
+PLSRenderContext::PLSRenderContext(std::unique_ptr<PLSRenderContextImpl> impl) :
     m_impl(std::move(impl)), m_maxPathID(MaxPathID(m_impl->platformFeatures().pathIDGranularity))
 {}
 

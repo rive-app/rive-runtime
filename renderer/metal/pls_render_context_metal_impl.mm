@@ -166,15 +166,17 @@ static bool is_apple_ios_silicon(id<MTLDevice> gpu)
 }
 #endif
 
-rcp<PLSRenderContextMetalImpl> PLSRenderContextMetalImpl::Make(id<MTLDevice> gpu,
-                                                               id<MTLCommandQueue> queue)
+std::unique_ptr<PLSRenderContext> PLSRenderContextMetalImpl::MakeContext(id<MTLDevice> gpu,
+                                                                         id<MTLCommandQueue> queue)
 {
     if (![gpu supportsFamily:MTLGPUFamilyApple1])
     {
         printf("error: GPU is not Apple family.");
         return nullptr;
     }
-    return rcp(new PLSRenderContextMetalImpl(gpu, queue));
+    auto plsContextImpl =
+        std::unique_ptr<PLSRenderContextMetalImpl>(new PLSRenderContextMetalImpl(gpu, queue));
+    return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
 }
 
 PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCommandQueue> queue) :

@@ -274,7 +274,8 @@ public:
 
     void onSizeChanged(int width, int height) override
     {
-        m_renderTarget = m_impl->makeOffscreenRenderTarget(width, height);
+        auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextGLImpl>();
+        m_renderTarget = plsContextImpl->makeOffscreenRenderTarget(width, height);
     }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
@@ -305,8 +306,7 @@ public:
     void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
 
 private:
-    rcp<PLSRenderContextGLImpl> m_impl = PLSRenderContextGLImpl::Make();
-    std::unique_ptr<PLSRenderContext> m_plsContext = std::make_unique<PLSRenderContext>(m_impl);
+    std::unique_ptr<PLSRenderContext> m_plsContext = PLSRenderContextGLImpl::MakeContext();
     rcp<PLSRenderTargetGL> m_renderTarget;
 };
 
