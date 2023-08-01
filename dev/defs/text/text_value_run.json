@@ -11,6 +11,7 @@
       "typeRuntime": "uint",
       "initialValue": "Core.missingId",
       "initialValueRuntime": "-1",
+      "animates": true,
       "key": {
         "int": 272,
         "string": "styleid"

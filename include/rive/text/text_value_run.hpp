@@ -15,6 +15,7 @@ public:
 
 protected:
     void textChanged() override;
+    void styleIdChanged() override;
 
 private:
     TextStyle* m_style = nullptr;

@@ -2,6 +2,7 @@
 #include "rive/text/text.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
+#include "rive/artboard.hpp"
 
 using namespace rive;
 
@@ -40,6 +41,16 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
     m_style = static_cast<TextStyle*>(coreObject);
 
     return StatusCode::Ok;
+}
+
+void TextValueRun::styleIdChanged()
+{
+    auto coreObject = artboard()->resolve(styleId());
+    if (coreObject != nullptr && coreObject->is<TextStyle>())
+    {
+        m_style = static_cast<TextStyle*>(coreObject);
+        parent()->as<Text>()->markShapeDirty();
+    }
 }
 
 uint32_t TextValueRun::offset() const
