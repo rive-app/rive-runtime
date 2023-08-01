@@ -1,5 +1,8 @@
-#ifdef RIVE_RENDERER_TESS
-#include "viewer/tess/bitmap_decoder.hpp"
+/*
+ * Copyright 2023 Rive
+ */
+
+#include "rive/decoders/bitmap_decoder.hpp"
 #include <vector>
 
 Bitmap::Bitmap(uint32_t width,
@@ -33,11 +36,11 @@ size_t Bitmap::byteSize(PixelFormat format) const
 
 size_t Bitmap::byteSize() const { return byteSize(m_PixelFormat); }
 
-std::unique_ptr<Bitmap> DecodePng(rive::Span<const uint8_t> bytes);
-std::unique_ptr<Bitmap> DecodeJpeg(rive::Span<const uint8_t> bytes) { return nullptr; }
-std::unique_ptr<Bitmap> DecodeWebP(rive::Span<const uint8_t> bytes) { return nullptr; }
+std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount);
+std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount) { return nullptr; }
+std::unique_ptr<Bitmap> DecodeWebP(const uint8_t bytes[], size_t byteCount) { return nullptr; }
 
-using BitmapDecoder = std::unique_ptr<Bitmap> (*)(rive::Span<const uint8_t> bytes);
+using BitmapDecoder = std::unique_ptr<Bitmap> (*)(const uint8_t bytes[], size_t byteCount);
 struct ImageFormat
 {
     const char* name;
@@ -45,7 +48,7 @@ struct ImageFormat
     BitmapDecoder decodeImage;
 };
 
-std::unique_ptr<Bitmap> Bitmap::decode(rive::Span<const uint8_t> bytes)
+std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
 {
     static ImageFormat decoders[] = {
         {
@@ -71,19 +74,19 @@ std::unique_ptr<Bitmap> Bitmap::decode(rive::Span<const uint8_t> bytes)
 
         // Immediately discard decoders with fingerprints that are longer than
         // the file buffer.
-        if (recognizer.fingerprint.size() > bytes.size())
+        if (recognizer.fingerprint.size() > byteCount)
         {
             continue;
         }
 
         // If the fingerprint doesn't match, discrd this decoder. These are all bytes so .size() is
         // fine here.
-        if (std::memcmp(fingerprint.data(), bytes.data(), fingerprint.size()) != 0)
+        if (std::memcmp(fingerprint.data(), bytes, fingerprint.size()) != 0)
         {
             continue;
         }
 
-        auto bitmap = recognizer.decodeImage(bytes);
+        auto bitmap = recognizer.decodeImage(bytes, byteCount);
         if (!bitmap)
         {
             fprintf(stderr, "Bitmap::decode - failed to decode a %s.\n", recognizer.name);
@@ -117,4 +120,3 @@ void Bitmap::pixelFormat(PixelFormat format)
     m_Bytes = std::move(nextBytes);
     m_PixelFormat = format;
 }
-#endif

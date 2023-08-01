@@ -1,12 +1,12 @@
 #ifdef RIVE_RENDERER_TESS
 #include "viewer/tess/viewer_sokol_factory.hpp"
-#include "viewer/tess/bitmap_decoder.hpp"
+#include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/tess/sokol/sokol_tess_renderer.hpp"
 #include "sokol_gfx.h"
 
 std::unique_ptr<rive::RenderImage> ViewerSokolFactory::decodeImage(rive::Span<const uint8_t> bytes)
 {
-    auto bitmap = Bitmap::decode(bytes);
+    auto bitmap = Bitmap::decode(bytes.data(), bytes.size());
     if (bitmap)
     {
         // We have a bitmap, let's make an image.

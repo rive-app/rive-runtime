@@ -1,8 +1,11 @@
+/*
+ * Copyright 2023 Rive
+ */
+
 #ifndef _RIVE_BITMAP_DECODER_HPP_
 #define _RIVE_BITMAP_DECODER_HPP_
 
-#include "rive/rive_types.hpp"
-#include "rive/span.hpp"
+#include <memory>
 
 /// Bitmap will always take ownership of the bytes it is constructed with.
 class Bitmap
@@ -37,7 +40,7 @@ public:
     size_t byteSize(PixelFormat format) const;
     size_t bytesPerPixel(PixelFormat format) const;
 
-    static std::unique_ptr<Bitmap> decode(rive::Span<const uint8_t> bytes);
+    static std::unique_ptr<Bitmap> decode(const uint8_t bytes[], size_t byteCount);
 
     // Change the pixel format (note this will resize bytes).
     void pixelFormat(PixelFormat format);

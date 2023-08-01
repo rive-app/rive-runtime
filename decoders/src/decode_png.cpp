@@ -1,6 +1,10 @@
-#ifdef RIVE_RENDERER_TESS
-#include "viewer/tess/bitmap_decoder.hpp"
+/*
+ * Copyright 2023 Rive
+ */
+
+#include "rive/decoders/bitmap_decoder.hpp"
 #include "png.h"
+#include <algorithm>
 
 struct EncodedImageBuffer
 {
@@ -28,7 +32,7 @@ static void ReadDataFromMemory(png_structp png_ptr, png_bytep outBytes, png_size
     }
 }
 
-std::unique_ptr<Bitmap> DecodePng(rive::Span<const uint8_t> bytes)
+std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount)
 {
     png_structp png_ptr;
     png_infop info_ptr;
@@ -52,8 +56,8 @@ std::unique_ptr<Bitmap> DecodePng(rive::Span<const uint8_t> bytes)
     }
 
     EncodedImageBuffer stream = {
-        .bytes = bytes.data(),
-        .size = bytes.size(),
+        .bytes = bytes,
+        .size = byteCount,
         .position = 0,
     };
 
@@ -135,6 +139,5 @@ std::unique_ptr<Bitmap> DecodePng(rive::Span<const uint8_t> bytes)
             pixelFormat = Bitmap::PixelFormat::R;
             break;
     }
-    return rivestd::make_unique<Bitmap>(width, height, pixelFormat, pixelBuffer);
+    return std::make_unique<Bitmap>(width, height, pixelFormat, pixelBuffer);
 }
-#endif

@@ -1,7 +1,7 @@
 #ifdef RIVE_RENDERER_TESS
 #include "viewer/sample_tools/sample_atlas_packer.hpp"
 #include "utils/no_op_factory.hpp"
-#include "viewer/tess/bitmap_decoder.hpp"
+#include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/file.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/tess/sokol/sokol_tess_renderer.hpp"
@@ -29,7 +29,7 @@ class AtlasPackerFactory : public NoOpFactory
 {
     std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t> bytes) override
     {
-        auto bitmap = Bitmap::decode(bytes);
+        auto bitmap = Bitmap::decode(bytes.data(), bytes.size());
         if (bitmap)
         {
             // We have a bitmap, let's make an image.

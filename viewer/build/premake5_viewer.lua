@@ -12,7 +12,7 @@ rive_skia = '../../skia'
 skia = dependencies .. '/skia'
 
 if _OPTIONS.renderer == 'tess' then
-    dofile(path.join(path.getabsolute(dependencies) .. '/../..', 'premake5_libpng.lua'))
+    dofile(rive .. '/decoders/build/premake5.lua')
     dofile(path.join(path.getabsolute(rive_tess) .. '/build', 'premake5_tess.lua'))
 else
     -- tess renderer includes this
@@ -22,7 +22,7 @@ end
 project 'rive_viewer'
 do
     if _OPTIONS.renderer == 'tess' then
-        dependson 'libpng'
+        dependson 'rive_decoders'
     end
     kind 'ConsoleApp'
     language 'C++'
@@ -112,13 +112,14 @@ do
     do
         includedirs {
             rive_tess .. '/include',
-            libpng
+            rive .. '/decoders/include',
         }
         defines {
             'RIVE_RENDERER_TESS'
         }
         links {
             'rive_tess_renderer',
+            'rive_decoders',
             'libpng',
             'zlib'
         }
