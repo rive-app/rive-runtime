@@ -233,24 +233,6 @@ void Text::buildRenderStyles()
 {
     const float paragraphSpace = paragraphSpacing();
 
-    // Build the clip path if we want it.
-    if (overflow() == TextOverflow::clipped)
-    {
-        if (m_clipRenderPath == nullptr)
-        {
-            m_clipRenderPath = artboard()->factory()->makeEmptyRenderPath();
-        }
-        else
-        {
-            m_clipRenderPath->rewind();
-        }
-        m_clipRenderPath->addRect(0.0f, 0.0f, width(), height());
-    }
-    else
-    {
-        m_clipRenderPath = nullptr;
-    }
-
     for (TextStyle* style : m_renderStyles)
     {
         style->rewindPath();
@@ -262,6 +244,11 @@ void Text::buildRenderStyles()
     float y = 0.0f;
     float minY = 0.0f;
     float maxWidth = 0.0f;
+    if (textOrigin() == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
+    {
+        y -= m_lines[0][0].baseline;
+        minY = y;
+    }
 
     int ellipsisLine = -1;
     bool isEllipsisLineLast = false;
@@ -304,11 +291,6 @@ void Text::buildRenderStyles()
 
     int lineIndex = 0;
     paragraphIndex = 0;
-    if (textOrigin() == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
-    {
-        y -= m_lines[0][0].baseline;
-        minY = y;
-    }
     switch (sizing())
     {
         case TextSizing::autoWidth:
@@ -322,7 +304,32 @@ void Text::buildRenderStyles()
             break;
     }
 
+    // Build the clip path if we want it.
+    if (overflow() == TextOverflow::clipped)
+    {
+        if (m_clipRenderPath == nullptr)
+        {
+            m_clipRenderPath = artboard()->factory()->makeEmptyRenderPath();
+        }
+        else
+        {
+            m_clipRenderPath->rewind();
+        }
+
+        AABB bounds = localBounds();
+
+        m_clipRenderPath->addRect(bounds.minX, bounds.minY, bounds.width(), bounds.height());
+    }
+    else
+    {
+        m_clipRenderPath = nullptr;
+    }
+
     y = -m_bounds.height() * originY();
+    if (textOrigin() == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
+    {
+        y -= m_lines[0][0].baseline;
+    }
     paragraphIndex = 0;
 
     bool hasModifiers = haveModifiers();
@@ -692,8 +699,12 @@ void Text::update(ComponentDirt value)
 
 AABB Text::localBounds() const
 {
-    auto origin = m_bounds.pointAt(originX(), originY());
-    return AABB(origin, origin + m_bounds.size());
+    float width = m_bounds.width();
+    float height = m_bounds.height();
+    return AABB::fromLTWH(m_bounds.minX - width * originX(),
+                          m_bounds.minY - height * originY(),
+                          width,
+                          height);
 }
 
 Core* Text::hitTest(HitInfo*, const Mat2D&)
@@ -706,10 +717,22 @@ Core* Text::hitTest(HitInfo*, const Mat2D&)
     return nullptr;
 }
 
-void Text::originValueChanged() { markPaintDirty(); }
+void Text::originValueChanged()
+{
+    markPaintDirty();
+    markWorldTransformDirty();
+}
 
-void Text::originXChanged() { markPaintDirty(); }
-void Text::originYChanged() { markPaintDirty(); }
+void Text::originXChanged()
+{
+    markPaintDirty();
+    markWorldTransformDirty();
+}
+void Text::originYChanged()
+{
+    markPaintDirty();
+    markWorldTransformDirty();
+}
 
 #else
 // Text disabled.
