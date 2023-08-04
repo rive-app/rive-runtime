@@ -16,19 +16,18 @@ public:
     {
         if (newCapacity != m_capacity)
         {
-            delete[] m_data;
-            m_data = new T[newCapacity];
+            m_data.reset(new T[newCapacity]);
             m_capacity = newCapacity;
         }
         rewind();
     }
-    void rewind() { m_front = m_end = m_data; }
+    void rewind() { m_front = m_end = m_data.get(); }
 
     size_t capacity() const { return m_capacity; }
 
     T& push_back()
     {
-        assert(m_end < m_data + m_capacity);
+        assert(m_end < m_data.get() + m_capacity);
         return *m_end++;
     }
 
@@ -36,7 +35,7 @@ public:
 
     T* push_back_n(size_t n)
     {
-        assert(m_end + n <= m_data + m_capacity);
+        assert(m_end + n <= m_data.get() + m_capacity);
         T* ptr = m_end;
         m_end += n;
         return ptr;
@@ -58,7 +57,7 @@ public:
 
 private:
     size_t m_capacity = 0;
-    T* m_data = nullptr;
+    std::unique_ptr<T[]> m_data;
     T* m_front = nullptr;
     T* m_end = nullptr;
 };
