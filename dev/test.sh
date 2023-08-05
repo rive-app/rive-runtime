@@ -20,7 +20,7 @@ elif [ "$OPTION" = "clean" ]; then
   shift
 elif [ "$OPTION" = "memory" ]; then
   echo Will perform memory checks...
-  UTILITY='valgrind --leak-check=full'
+  UTILITY='leaks --atExit --'
   shift
 elif [ "$OPTION" = "debug" ]; then
   echo Starting debugger...

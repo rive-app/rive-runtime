@@ -101,8 +101,10 @@ public:
 
     SimpleArray<T>& operator=(SimpleArray<T>&& other)
     {
-        this->m_ptr = other.m_ptr;
-        this->m_size = other.m_size;
+        SimpleArrayHelper<T>::DestructArray(m_ptr, m_ptr + m_size);
+        free(m_ptr);
+        m_ptr = other.m_ptr;
+        m_size = other.m_size;
         other.m_ptr = nullptr;
         other.m_size = 0;
         return *this;
