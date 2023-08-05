@@ -429,11 +429,14 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
     size_t maxPaddingVertexSpans = pathCount + 1;
     size_t maxTessellationSpans = maxPaddingVertexSpans + curveCount + maxSpanBreakCount;
 
-    // Guard against the case where a single draw overwhelms our GPU resources. Since nothing has
-    // been mapped yet on the first draw, we have a unique opportunity at this time to grow our
-    // resources if needed.
-    if (m_currentPathID == 0)
+    if (!m_pathData)
     {
+        assert(!m_contourData);
+        assert(!m_tessSpanData);
+
+        // Guard against the case where a single draw overwhelms our GPU resources. Since nothing
+        // has been mapped yet on the first draw, we have a unique opportunity at this time to grow
+        // our resources if needed.
         GPUResourceLimits newLimits{};
         bool needsRealloc = false;
         if (newLimits.maxPathID < pathCount)
@@ -451,25 +454,19 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
             newLimits.maxTessellationSpans = maxTessellationSpans;
             needsRealloc = true;
         }
-        assert(!m_pathData);
-        assert(!m_contourData);
-        assert(!m_tessSpanData);
         if (needsRealloc)
         {
             // The very first draw of the flush overwhelmed our GPU resources. Since we haven't
             // mapped any buffers yet, grow these buffers to double the size that overwhelmed them.
             growExceededGPUResources(newLimits, kGPUResourceIntermediateGrowthFactor);
         }
-    }
 
-    if (!m_pathData)
-    {
-        assert(!m_contourData);
-        assert(!m_tessSpanData);
         m_impl->mapPathTexture(&m_pathData);
         assert(m_pathData.hasRoomFor(m_currentResourceLimits.maxPathID));
+
         m_impl->mapContourTexture(&m_contourData);
         assert(m_contourData.hasRoomFor(m_currentResourceLimits.maxContourID));
+
         m_impl->mapTessVertexSpanBuffer(&m_tessSpanData);
         assert(m_tessSpanData.hasRoomFor(m_currentResourceLimits.maxTessellationSpans));
     }
