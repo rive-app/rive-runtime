@@ -27,6 +27,11 @@ project 'rive_decoders'
         '../src/**.cpp'
     }
 
+    filter { "system:windows" }
+    do
+        architecture "x64"
+    end
+
     filter "configurations:debug"
     do
         defines {"DEBUG"}

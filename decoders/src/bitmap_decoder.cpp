@@ -44,7 +44,7 @@ using BitmapDecoder = std::unique_ptr<Bitmap> (*)(const uint8_t bytes[], size_t 
 struct ImageFormat
 {
     const char* name;
-    std::vector<const uint8_t> fingerprint;
+    std::vector<uint8_t> fingerprint;
     BitmapDecoder decodeImage;
 };
 
