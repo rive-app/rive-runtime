@@ -2,12 +2,12 @@
 
 set -e
 
-# Requires depot_tools and git: 
+# Requires depot_tools and git:
 #   https://skia.org/user/download
 # Build notes:
 #   https://skia.org/user/build
 # GLFW requires CMake
-getSkia () {
+getSkia() {
     SKIA_REPO=$1
     SKIA_STABLE_BRANCH=$2
     FOLDER_NAME=$3
@@ -29,7 +29,7 @@ getSkia () {
     echo "Checking out stable branch $SKIA_STABLE_BRANCH"
     git checkout $SKIA_STABLE_BRANCH
     python tools/git-sync-deps
-    cd .. 
+    cd ..
 }
 
 if [ $# -eq 0 ]; then
