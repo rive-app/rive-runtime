@@ -36,6 +36,7 @@ public:
     uint32_t height() const { return m_Height; }
     PixelFormat pixelFormat() const { return m_PixelFormat; }
     const uint8_t* bytes() const { return m_Bytes.get(); }
+    std::unique_ptr<const uint8_t[]> detachBytes() { return std::move(m_Bytes); }
     size_t byteSize() const;
     size_t byteSize(PixelFormat format) const;
     size_t bytesPerPixel(PixelFormat format) const;
