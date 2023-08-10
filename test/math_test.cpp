@@ -60,3 +60,23 @@ TEST_CASE("bit_cast", "[math]")
     CHECK(math::bit_cast<float>((1u << 31) | 0x7f800000) == -kInf);
     CHECK(std::isnan(math::bit_cast<float>(0x7fc00000)));
 }
+
+// Check math::nextlog2.
+TEST_CASE("nextlog2", "[math]")
+{
+    CHECK(math::msb(0) == 0);
+    CHECK(math::msb(1) == 1);
+    CHECK(math::msb(2) == 2);
+    CHECK(math::msb(3) == 2);
+    CHECK(math::msb(4) == 3);
+    CHECK(math::msb(5) == 3);
+    CHECK(math::msb(6) == 3);
+    CHECK(math::msb(7) == 3);
+    CHECK(math::msb(8) == 4);
+    CHECK(math::msb(9) == 4);
+    for (int i = 0; i < 29; ++i)
+    {
+        CHECK(math::msb(10 << i) == 4 + i);
+    }
+    CHECK(math::msb(0xffffffff) == 32);
+}
