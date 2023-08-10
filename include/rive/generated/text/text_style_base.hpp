@@ -32,11 +32,13 @@ public:
 
     static const uint16_t fontSizePropertyKey = 274;
     static const uint16_t lineHeightPropertyKey = 370;
+    static const uint16_t letterSpacingPropertyKey = 390;
     static const uint16_t fontAssetIdPropertyKey = 279;
 
 private:
     float m_FontSize = 12.0f;
     float m_LineHeight = -1.0f;
+    float m_LetterSpacing = 0.0f;
     uint32_t m_FontAssetId = -1;
 
 public:
@@ -62,6 +64,17 @@ public:
         lineHeightChanged();
     }
 
+    inline float letterSpacing() const { return m_LetterSpacing; }
+    void letterSpacing(float value)
+    {
+        if (m_LetterSpacing == value)
+        {
+            return;
+        }
+        m_LetterSpacing = value;
+        letterSpacingChanged();
+    }
+
     inline uint32_t fontAssetId() const { return m_FontAssetId; }
     void fontAssetId(uint32_t value)
     {
@@ -78,6 +91,7 @@ public:
     {
         m_FontSize = object.m_FontSize;
         m_LineHeight = object.m_LineHeight;
+        m_LetterSpacing = object.m_LetterSpacing;
         m_FontAssetId = object.m_FontAssetId;
         ContainerComponent::copy(object);
     }
@@ -92,6 +106,9 @@ public:
             case lineHeightPropertyKey:
                 m_LineHeight = CoreDoubleType::deserialize(reader);
                 return true;
+            case letterSpacingPropertyKey:
+                m_LetterSpacing = CoreDoubleType::deserialize(reader);
+                return true;
             case fontAssetIdPropertyKey:
                 m_FontAssetId = CoreUintType::deserialize(reader);
                 return true;
@@ -102,6 +119,7 @@ public:
 protected:
     virtual void fontSizeChanged() {}
     virtual void lineHeightChanged() {}
+    virtual void letterSpacingChanged() {}
     virtual void fontAssetIdChanged() {}
 };
 } // namespace rive

@@ -981,6 +981,9 @@ public:
             case TextStyleBase::lineHeightPropertyKey:
                 object->as<TextStyleBase>()->lineHeight(value);
                 break;
+            case TextStyleBase::letterSpacingPropertyKey:
+                object->as<TextStyleBase>()->letterSpacing(value);
+                break;
             case TextStyleAxisBase::axisValuePropertyKey:
                 object->as<TextStyleAxisBase>()->axisValue(value);
                 break;
@@ -1531,6 +1534,8 @@ public:
                 return object->as<TextStyleBase>()->fontSize();
             case TextStyleBase::lineHeightPropertyKey:
                 return object->as<TextStyleBase>()->lineHeight();
+            case TextStyleBase::letterSpacingPropertyKey:
+                return object->as<TextStyleBase>()->letterSpacing();
             case TextStyleAxisBase::axisValuePropertyKey:
                 return object->as<TextStyleAxisBase>()->axisValue();
             case TextBase::widthPropertyKey:
@@ -1830,6 +1835,7 @@ public:
             case TextModifierGroupBase::scaleYPropertyKey:
             case TextStyleBase::fontSizePropertyKey:
             case TextStyleBase::lineHeightPropertyKey:
+            case TextStyleBase::letterSpacingPropertyKey:
             case TextStyleAxisBase::axisValuePropertyKey:
             case TextBase::widthPropertyKey:
             case TextBase::heightPropertyKey:

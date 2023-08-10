@@ -38,7 +38,7 @@ enum class TextAlign : uint8_t
     center = 2
 };
 
-// A horizontal line of text with a paragraph, after line-breaking.
+// A horizontal line of text within a paragraph, after line-breaking.
 struct GlyphLine
 {
     uint32_t startRunIndex;
@@ -187,6 +187,7 @@ struct TextRun
     rcp<Font> font;
     float size;
     float lineHeight;
+    float letterSpacing;
     uint32_t unicharCount;
     uint32_t script;
     uint16_t styleId;
@@ -217,6 +218,7 @@ struct GlyphRun
     rcp<Font> font;
     float size;
     float lineHeight;
+    float letterSpacing;
 
     // List of glyphs, represented by font specific glyph ids. Length is equal to number of glyphs
     // in the run.

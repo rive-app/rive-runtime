@@ -212,6 +212,8 @@ void TextStyle::fontSizeChanged() { parent()->as<Text>()->markShapeDirty(); }
 
 void TextStyle::lineHeightChanged() { parent()->as<Text>()->markShapeDirty(); }
 
+void TextStyle::letterSpacingChanged() { parent()->as<Text>()->markShapeDirty(); }
+
 Core* TextStyle::clone() const
 {
     TextStyle* twin = TextStyleBase::clone()->as<TextStyle>();

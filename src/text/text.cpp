@@ -169,6 +169,7 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
             TextRun ellipsisRuns[] = {{ellipsisFont,
                                        ellipsisFontSize,
                                        run.lineHeight,
+                                       run.letterSpacing,
                                        (uint32_t)ellipsisCodePoints.size()}};
             auto nextEllipsisShape =
                 ellipsisFont->shapeText(ellipsisCodePoints, Span<TextRun>(ellipsisRuns, 1));
@@ -264,7 +265,8 @@ void Text::buildRenderStyles()
         {
             const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
             const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
-            float width = endRun.xpos[line.endGlyphIndex] - startRun.xpos[line.startGlyphIndex];
+            float width = endRun.xpos[line.endGlyphIndex] - startRun.xpos[line.startGlyphIndex] -
+                          endRun.letterSpacing;
             if (width > maxWidth)
             {
                 maxWidth = width;
@@ -544,6 +546,7 @@ bool StyledText::empty() const { return m_runs.empty(); }
 void StyledText::append(rcp<Font> font,
                         float size,
                         float lineHeight,
+                        float letterSpacing,
                         const std::string& text,
                         uint16_t styleId)
 {
@@ -554,7 +557,7 @@ void StyledText::append(rcp<Font> font,
         m_value.push_back(UTF::NextUTF8(&ptr));
         n += 1;
     }
-    m_runs.push_back({std::move(font), size, lineHeight, n, 0, styleId});
+    m_runs.push_back({std::move(font), size, lineHeight, letterSpacing, n, 0, styleId});
 }
 
 bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
@@ -570,7 +573,12 @@ bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
             runIndex++;
             continue;
         }
-        styledText.append(style->font(), style->fontSize(), style->lineHeight(), text, runIndex++);
+        styledText.append(style->font(),
+                          style->fontSize(),
+                          style->lineHeight(),
+                          style->letterSpacing(),
+                          text,
+                          runIndex++);
     }
     if (withModifiers)
     {

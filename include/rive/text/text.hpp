@@ -47,6 +47,7 @@ public:
     void append(rcp<Font> font,
                 float size,
                 float lineHeight,
+                float letterSpacing,
                 const std::string& text,
                 uint16_t styleId);
     const std::vector<Unichar>& unichars() const { return m_value; }

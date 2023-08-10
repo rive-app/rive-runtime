@@ -147,7 +147,7 @@ static rive::TextRun append(std::vector<rive::Unichar>* unichars,
         unichars->push_back(rive::UTF::NextUTF8(&ptr));
         n += 1;
     }
-    return {std::move(font), size, lineHeight, n};
+    return {std::move(font), size, lineHeight, 0.0f, n};
 }
 
 class TextContent : public ViewerContent

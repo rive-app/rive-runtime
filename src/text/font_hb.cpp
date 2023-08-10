@@ -345,18 +345,17 @@ static rive::GlyphRun shape_run(const rive::Unichar text[],
     gr.font = tr.font;
     gr.size = tr.size;
     gr.lineHeight = tr.lineHeight;
+    gr.letterSpacing = tr.letterSpacing;
     gr.styleId = tr.styleId;
     gr.dir = tr.dir;
 
     const float scale = tr.size / kStdScale;
     for (unsigned int i = 0; i < glyph_count; i++)
     {
-        //            hb_position_t x_offset  = glyph_pos[i].x_offset;
-        //            hb_position_t y_offset  = glyph_pos[i].y_offset;
         unsigned int index = tr.dir == rive::TextDirection::rtl ? glyph_count - 1 - i : i;
         gr.glyphs[i] = (uint16_t)glyph_info[index].codepoint;
         gr.textIndices[i] = textOffset + glyph_info[index].cluster;
-        gr.advances[i] = gr.xpos[i] = glyph_pos[index].x_advance * scale;
+        gr.advances[i] = gr.xpos[i] = glyph_pos[index].x_advance * scale + tr.letterSpacing;
         gr.offsets[i] =
             rive::Vec2D(glyph_pos[index].x_offset * scale, -glyph_pos[index].y_offset * scale);
     }
@@ -376,6 +375,7 @@ static rive::GlyphRun extract_subset(const rive::GlyphRun& orig, size_t start, s
     subset.font = std::move(orig.font);
     subset.size = orig.size;
     subset.lineHeight = orig.lineHeight;
+    subset.letterSpacing = orig.letterSpacing;
     subset.dir = orig.dir;
     subset.xpos.back() = 0; // since we're now the end of a run
     subset.styleId = orig.styleId;
@@ -408,6 +408,7 @@ static void perform_fallback(rive::rcp<rive::Font> fallbackFont,
                 fallbackFont,
                 orig.size,
                 orig.lineHeight,
+                origTextRun.letterSpacing,
                 textCount,
                 origTextRun.script,
                 orig.styleId,
@@ -477,6 +478,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
                 tr.font,
                 tr.size,
                 tr.lineHeight,
+                tr.letterSpacing,
                 tr.unicharCount - runTextIndex,
                 (uint32_t)lastScript,
                 tr.styleId,
@@ -514,6 +516,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
                         back.font,
                         back.size,
                         back.lineHeight,
+                        back.letterSpacing,
                         tr.unicharCount - runTextIndex,
                         (uint32_t)script,
                         back.styleId,

@@ -24,6 +24,15 @@
         "string": "lineheight"
       }
     },
+    "letterSpacing": {
+      "type": "double",
+      "initialValue": "0.0",
+      "animates": true,
+      "key": {
+        "int": 390,
+        "string": "letterspacing"
+      }
+    },
     "fontAssetId": {
       "type": "Id",
       "typeRuntime": "uint",
