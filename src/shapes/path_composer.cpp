@@ -24,7 +24,10 @@ void PathComposer::onDirty(ComponentDirt dirt)
 {
     if (m_deferredPathDirt)
     {
-        addDirt(ComponentDirt::Path);
+        // We'd deferred the update, let's make sure the rest of our
+        // dependencies update too. Constraints need to update too, stroke
+        // effects, etc.
+        m_Shape->pathChanged();
     }
 }
 
