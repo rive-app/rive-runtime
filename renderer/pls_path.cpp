@@ -15,13 +15,13 @@ PLSPath::PLSPath(FillRule fillRule, RawPath& rawPath)
 void PLSPath::rewind()
 {
     m_rawPath.rewind();
-    m_boundsDirty = true;
+    m_dirt = kAllDirt;
 }
 
 void PLSPath::moveTo(float x, float y)
 {
     m_rawPath.moveTo(x, y);
-    m_boundsDirty = true;
+    m_dirt = kAllDirt;
 }
 
 void PLSPath::lineTo(float x, float y)
@@ -35,7 +35,7 @@ void PLSPath::lineTo(float x, float y)
         m_rawPath.line(p1);
     }
 
-    m_boundsDirty = true;
+    m_dirt = kAllDirt;
 }
 
 void PLSPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y)
@@ -51,13 +51,13 @@ void PLSPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y)
         m_rawPath.cubic(p1, p2, p3);
     }
 
-    m_boundsDirty = true;
+    m_dirt = kAllDirt;
 }
 
 void PLSPath::close()
 {
     m_rawPath.close();
-    m_boundsDirty = true;
+    m_dirt = kAllDirt;
 }
 
 void PLSPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
@@ -69,16 +69,27 @@ void PLSPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
         // Prune any segments that became empty after the transform.
         m_rawPath.pruneEmptySegments(transformedPathIter);
     }
-    m_boundsDirty = true;
+    m_dirt = kAllDirt;
 }
 
 const AABB& PLSPath::getBounds()
 {
-    if (m_boundsDirty)
+    if (m_dirt & kPathBoundsDirt)
     {
         m_bounds = m_rawPath.bounds();
-        m_boundsDirty = false;
+        m_dirt &= ~kPathBoundsDirt;
     }
     return m_bounds;
+}
+
+uint64_t PLSPath::getUniqueID()
+{
+    static std::atomic<uint64_t> uniqueIDCounter = 0;
+    if (m_dirt & kUniqueIDDirt)
+    {
+        m_uniqueID = ++uniqueIDCounter;
+        m_dirt &= ~kUniqueIDDirt;
+    }
+    return m_uniqueID;
 }
 } // namespace rive::pls

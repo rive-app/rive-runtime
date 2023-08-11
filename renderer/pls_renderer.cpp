@@ -16,6 +16,21 @@ namespace rive::pls
 {
 constexpr static int kNumSegmentsInMiterOrBevelJoin = 5;
 
+void PLSRenderer::ClipElement::reset(const Mat2D& matrix_, PLSPath* path_)
+{
+    matrix = matrix_;
+    pathUniqueID = path_->getUniqueID();
+    path = path_->getRawPath();
+    pathBounds = path_->getBounds();
+    fillRule = path_->getFillRule();
+    clipID = 0; // This gets initialized lazily.
+}
+
+bool PLSRenderer::ClipElement::isEquivalent(const Mat2D& matrix_, PLSPath* path_) const
+{
+    return matrix_ == matrix && path_->getUniqueID() == pathUniqueID;
+}
+
 PLSRenderer::PLSRenderer(PLSRenderContext* context) : m_context(context) {}
 
 PLSRenderer::~PLSRenderer() {}
@@ -24,15 +39,15 @@ void PLSRenderer::save()
 {
     // Copy the matrix before pushing, in case the vector grows and invalidates the reference.
     Mat2D matrixCopy = m_stack.back().matrix;
-    m_stack.emplace_back(matrixCopy, m_clipStack.size());
+    m_stack.emplace_back(matrixCopy, m_clipStackHeight);
 }
 
 void PLSRenderer::restore()
 {
     assert(!m_stack.empty());
-    assert(m_clipStack.size() >= m_stack.back().clipStackHeight);
-    m_clipStack.resize(m_stack.back().clipStackHeight);
-    if (m_clipStack.empty())
+    assert(m_clipStackHeight >= m_stack.back().clipStackHeight);
+    m_clipStackHeight = m_stack.back().clipStackHeight;
+    if (m_clipStackHeight == 0)
     {
         m_hasArtboardClipCandidate = false;
     }
@@ -46,24 +61,26 @@ void PLSRenderer::transform(const Mat2D& matrix)
 
 bool PLSRenderer::applyClip(uint32_t* clipID)
 {
-    if (m_clipStack.empty())
+    if (m_clipStackHeight == 0)
     {
         *clipID = 0;
         return true;
     }
 
     // For now, only apply the final element of the clip stack.
-    ClipElement& clip = m_clipStack.back();
+    ClipElement& clip = m_clipStack[m_clipStackHeight - 1];
     // Ignore the first clip for now if it looks like an artboard clip.
-    if (m_clipStack.size() == 1 && m_hasArtboardClipCandidate)
+    if (m_clipStackHeight == 1 && m_hasArtboardClipCandidate)
     {
         *clipID = 0;
         return true;
     }
 
-    if (clip.clipID == 0)
+    // Generate a new clipID (definitely causing us to redraw the clip buffer) if the current clip
+    // hasn't been drawn yet and does not have an ID, OR if we are on a new flush. (New flushes
+    // invalidate the clip buffer.)
+    if (clip.clipID == 0 || m_clipStackFlushID != m_context->getFlushCount())
     {
-        // This clip element doesn't have an ID yet. Assign one.
         clip.clipID = m_context->generateClipID();
         if (clip.clipID == 0)
         {
@@ -115,7 +132,7 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         uint32_t clipID;
         if (!applyClip(&clipID))
         {
-            intermediateFlush();
+            m_context->flush(PLSRenderContext::FlushType::intermediate);
             continue;
         }
         m_pathBatch.emplace_back(&m_stack.back().matrix,
@@ -125,7 +142,7 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                                  clipID);
         if (!pushInternalPathBatch(paint))
         {
-            intermediateFlush();
+            m_context->flush(PLSRenderContext::FlushType::intermediate);
             continue;
         }
         return;
@@ -139,13 +156,39 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 void PLSRenderer::clipPath(RenderPath* renderPath)
 {
     PLSPath* path = static_cast<PLSPath*>(renderPath);
+
+    // Reset clip IDs if we've had a flush since the last clip.
+    if (m_clipStackFlushID != m_context->getFlushCount())
+    {
+        for (ClipElement& clip : m_clipStack)
+        {
+            clip.clipID = 0;
+        }
+        m_clipStackFlushID = m_context->getFlushCount();
+    }
+
     // If the first clip in the stack is an axis-aligned rectangle, assume it's the artboard clip.
-    if (m_clipStack.empty())
+    if (m_clipStackHeight == 0)
     {
         m_hasArtboardClipCandidate = IsAABB(path->getRawPath());
     }
-    m_clipStack.push_back(
-        {m_stack.back().matrix, path->getRawPath(), path->getBounds(), path->getFillRule(), 0});
+
+    // Only write a new clip element if this path isn't already on the stack from before. e.g.:
+    //
+    //     clipPath(samePath);
+    //     restore();
+    //     save();
+    //     clipPath(samePath); // <-- reuse the ClipElement (and clipID!) already in m_clipStack.
+    //
+    assert(m_clipStack.size() >= m_clipStackHeight);
+    if (m_clipStack.size() == m_clipStackHeight ||
+        !m_clipStack[m_clipStackHeight].isEquivalent(m_stack.back().matrix, path))
+    {
+        m_clipStack.resize(m_clipStackHeight);
+        m_clipStack.emplace_back(m_stack.back().matrix, path);
+    }
+    ++m_clipStackHeight;
+    m_clipStackFlushID = m_context->getFlushCount();
 }
 
 void PLSRenderer::drawImage(const RenderImage*, BlendMode, float opacity) {}
@@ -1557,17 +1600,6 @@ void PLSRenderer::pushEmulatedStrokeCapAsJoinBeforeCubic(const Vec2D cubic[],
                          strokeCapSegmentCount);
     RIVE_DEBUG_CODE(++m_pushedStrokeCapCount;)
     RIVE_DEBUG_CODE(++m_pushedEmptyStrokeCountForCaps;)
-}
-
-void PLSRenderer::intermediateFlush()
-{
-    m_context->flush(PLSRenderContext::FlushType::intermediate);
-
-    // Reset clip IDs, since these get reset by the context on flush.
-    for (ClipElement& clip : m_clipStack)
-    {
-        clip.clipID = 0;
-    }
 }
 
 bool PLSRenderer::IsAABB(const RawPath& path)

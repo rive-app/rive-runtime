@@ -84,6 +84,10 @@ public:
 
     template <typename T> T* static_impl_cast() { return static_cast<T*>(m_impl.get()); }
 
+    // Returns the number of flushes that have been executed over the entire lifetime of this class,
+    // intermediate or otherwise.
+    uint64_t getFlushCount() const { return m_flushCount; }
+
     // Options for controlling how and where a frame is rendered.
     struct FrameDescriptor
     {
@@ -470,6 +474,10 @@ private:
 
     const std::unique_ptr<PLSRenderContextImpl> m_impl;
     const size_t m_maxPathID;
+
+    // The number of flushes that have been executed over the entire lifetime of this class,
+    // intermediate or otherwise.
+    size_t m_flushCount = 0;
 
     GPUResourceLimits m_currentResourceLimits = {};
     GPUResourceLimits m_currentFrameResourceUsage = {};

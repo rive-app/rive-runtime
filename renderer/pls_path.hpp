@@ -31,11 +31,21 @@ public:
     FillRule getFillRule() const { return m_fillRule; }
 
     const AABB& getBounds();
+    uint64_t getUniqueID();
 
 private:
     FillRule m_fillRule = FillRule::nonZero;
     RawPath m_rawPath;
     AABB m_bounds;
-    bool m_boundsDirty = true;
+    uint64_t m_uniqueID;
+
+    enum Dirt
+    {
+        kPathBoundsDirt = 1,
+        kUniqueIDDirt = 4,
+        kAllDirt = ~0,
+    };
+
+    uint32_t m_dirt = kAllDirt;
 };
 } // namespace rive::pls

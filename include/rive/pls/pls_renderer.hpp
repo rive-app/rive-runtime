@@ -102,10 +102,6 @@ private:
                                                 uint32_t emulatedCapAsJoinFlags,
                                                 uint32_t strokeCapSegmentCount);
 
-    // Called when we ran out of room in GPU buffers. Does an intermediate flush of all currently
-    // queued GPU work.
-    void intermediateFlush();
-
     struct RenderState
     {
         RenderState(const Mat2D& m, size_t h) : matrix(m), clipStackHeight(h) {}
@@ -116,13 +112,21 @@ private:
 
     struct ClipElement
     {
+        ClipElement() = default;
+        ClipElement(const Mat2D& matrix_, PLSPath* path_) { reset(matrix_, path_); }
+        void reset(const Mat2D&, PLSPath*);
+        bool isEquivalent(const Mat2D&, PLSPath*) const;
+
         Mat2D matrix;
+        uint64_t pathUniqueID;
         RawPath path;
         AABB pathBounds;
         FillRule fillRule;
         uint32_t clipID;
     };
     std::vector<ClipElement> m_clipStack;
+    size_t m_clipStackHeight = 0;
+    uint64_t m_clipStackFlushID = -1; // Ensures we invalidate the clip stack after a flush.
     bool m_hasArtboardClipCandidate = false;
 
     PLSRenderContext* const m_context;

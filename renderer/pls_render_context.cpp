@@ -1143,5 +1143,7 @@ void PLSRenderContext::flush(FlushType flushType)
         // after this method returns, so lock buffers for the next flush now.
         m_impl->prepareToMapBuffers();
     }
+
+    ++m_flushCount;
 }
 } // namespace rive::pls
