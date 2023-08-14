@@ -1,144 +1,163 @@
-workspace "rive"
-configurations {"debug", "release"}
+workspace 'rive'
+configurations {'debug', 'release'}
 
 require 'setup_compiler'
 
 -- Are we in the "rive-pls" or "rive" repository?
-local handle = io.popen("git remote -v")
-local git_remote = handle:read("*a")
+local handle = io.popen('git remote -v')
+local git_remote = handle:read('*a')
 handle:close()
-if string.find(git_remote, "rive%-pls") then
+if string.find(git_remote, 'rive%-pls') then
     -- In rive-pls. Rive runtime is a submodule.
-    RIVE_RUNTIME_DIR = path.getabsolute("../submodules/rive-cpp")
+    RIVE_RUNTIME_DIR = path.getabsolute('../submodules/rive-cpp')
 else
     -- In rive. Rive runtime is further up the tree.
-    RIVE_RUNTIME_DIR = path.getabsolute("../../runtime")
+    RIVE_RUNTIME_DIR = path.getabsolute('../../runtime')
 end
 
-filter "system:windows or macosx or linux"
+filter 'system:windows or macosx or linux'
 do
     -- Define RIVE_DESKTOP_GL outside of a project so that it also gets defined for consumers. It is
     -- the responsibility of consumers to call gladLoadCustomLoader() when RIVE_DESKTOP_GL is
     -- defined.
-    defines {"RIVE_DESKTOP_GL"}
+    defines {'RIVE_DESKTOP_GL'}
 end
 
-filter "system:android"
+filter 'system:android'
 do
-    defines {"RIVE_GLES"}
+    defines {'RIVE_GLES'}
 end
 
-filter "system:ios"
+filter {'system:ios', 'options:variant=system'}
 do
-    defines {"RIVE_IOS"}
+    defines {'RIVE_IOS'}
 end
 
-filter "system:emscripten"
+filter {'system:ios', 'options:variant=simulator'}
 do
-    defines {"RIVE_WASM"}
+    defines {'RIVE_IOS_SIMULATOR'}
+end
+
+filter 'system:emscripten'
+do
+    defines {'RIVE_WASM'}
 end
 
 newoption {
-    trigger = "obfuscate",
-    description = "force-include ../obfuscator/pls_renames.h to obfuscate PLS variable names",
+    trigger = 'obfuscate',
+    description = 'force-include ../obfuscator/pls_renames.h to obfuscate PLS variable names'
 }
-filter {"options:obfuscate"}
+filter {'options:obfuscate'}
 do
-    forceincludes {"../obfuscator/pls_renames.h"}
+    forceincludes {'../obfuscator/pls_renames.h'}
 end
 
 filter {}
 
 -- Minify PLS shaders, and precompile them into metal libraries if targeting ios or macosx.
 newoption {
-    trigger = "human-readable-shaders",
-    description = "don't minimize or obfuscate shaders",
+    trigger = 'human-readable-shaders',
+    description = "don't minimize or obfuscate shaders"
 }
-project "rive_pls_shaders"
+project 'rive_pls_shaders'
 do
     kind 'Makefile'
-    local makecommand = "@make -C " .. path.getabsolute("../renderer/shaders")
-    if _OPTIONS["human-readable-shaders"]
-    then
-        makecommand = makecommand .. " FLAGS=--human-readable"
+    local makecommand = '@make -C ' .. path.getabsolute('../renderer/shaders')
+    if _OPTIONS['human-readable-shaders'] then
+        makecommand = makecommand .. ' FLAGS=--human-readable'
     end
-    cleancommands {makecommand .. " clean"}
+    cleancommands {makecommand .. ' clean'}
 
-    filter "system:macosx"
+    filter 'system:macosx'
     do
-        buildcommands {makecommand .. " rive_pls_macosx_metallib"}
-        rebuildcommands {makecommand .. " rive_pls_macosx_metallib"}
-    end
-
-    filter "system:ios"
-    do
-        buildcommands {makecommand .. " rive_pls_ios_metallib"}
-        rebuildcommands {makecommand .. " rive_pls_ios_metallib"}
+        buildcommands {makecommand .. ' rive_pls_macosx_metallib'}
+        rebuildcommands {makecommand .. ' rive_pls_macosx_metallib'}
     end
 
-    filter {"system:not macosx", "system:not ios"}
+    filter {'system:ios', 'options:variant=system'}
     do
-        buildcommands {makecommand .. " minify"}
-        rebuildcommands {makecommand .. " minify"}
+        buildcommands {makecommand .. ' rive_pls_ios_metallib'}
+        rebuildcommands {makecommand .. ' rive_pls_ios_metallib'}
     end
 
-    filter "system:windows"
+    filter {'system:ios', 'options:variant=simulator'}
     do
-        architecture "x64"
+        buildcommands {makecommand .. ' rive_pls_ios_simulator_metallib'}
+        rebuildcommands {makecommand .. ' rive_pls_ios_simulator_metallib'}
+    end
+
+    filter {'system:not macosx', 'system:not ios'}
+    do
+        buildcommands {makecommand .. ' minify'}
+        rebuildcommands {makecommand .. ' minify'}
+    end
+
+    filter 'system:windows'
+    do
+        architecture 'x64'
     end
 end
 
 newoption {
-    trigger = "nop-obj-c",
-    description = "include Metal classes, but as no-ops (for compilers that don't support Obj-C)",
+    trigger = 'nop-obj-c',
+    description = "include Metal classes, but as no-ops (for compilers that don't support Obj-C)"
 }
-project "rive_pls_renderer"
+project 'rive_pls_renderer'
 do
     dependson 'rive_pls_shaders'
     kind 'StaticLib'
-    language "C++"
-    cppdialect "C++17"
-    exceptionhandling "Off"
-    rtti "Off"
-    targetdir "%{cfg.buildcfg}"
-    objdir "obj/%{cfg.buildcfg}"
-    includedirs {"../include",
-                 "../glad",
-                 "../renderer",
-                 RIVE_RUNTIME_DIR .. "/include"}
-    flags { "FatalWarnings" }
+    language 'C++'
+    cppdialect 'C++17'
+    exceptionhandling 'Off'
+    rtti 'Off'
+    targetdir '%{cfg.buildcfg}'
+    objdir 'obj/%{cfg.buildcfg}'
+    includedirs {
+        '../include',
+        '../glad',
+        '../renderer',
+        RIVE_RUNTIME_DIR .. '/include'
+    }
+    flags {'FatalWarnings'}
 
-    files {"../renderer/*.cpp"}
+    files {'../renderer/*.cpp'}
 
     -- The Visual Studio clang toolset doesn't recognize -ffp-contract.
-    filter "system:not windows"
+    filter 'system:not windows'
     do
-        buildoptions {"-ffp-contract=on",
-                      "-fassociative-math"}
+        buildoptions {
+            '-ffp-contract=on',
+            '-fassociative-math'
+        }
     end
 
-    filter "system:windows or macosx or linux or android"
+    filter 'system:windows or macosx or linux or android'
     do
-        files {"../renderer/gl/buffer_ring_gl.cpp",
-               "../renderer/gl/gl_utils.cpp",
-               "../renderer/gl/pls_render_context_gl_impl.cpp",
-               "../renderer/gl/pls_render_target_gl.cpp"}
+        files {
+            '../renderer/gl/buffer_ring_gl.cpp',
+            '../renderer/gl/gl_utils.cpp',
+            '../renderer/gl/pls_render_context_gl_impl.cpp',
+            '../renderer/gl/pls_render_target_gl.cpp'
+        }
     end
 
-    filter "system:windows or macosx or linux"
+    filter 'system:windows or macosx or linux'
     do
-        files {"../renderer/gl/pls_impl_webgl.cpp", -- Emulate WebGL with ANGLE.
-               "../renderer/gl/pls_impl_rw_texture.cpp",
-               "../glad/glad.c",
-               "../glad/glad_custom.c"}  -- GL loader library for ANGLE.
+        files {
+            '../renderer/gl/pls_impl_webgl.cpp', -- Emulate WebGL with ANGLE.
+            '../renderer/gl/pls_impl_rw_texture.cpp',
+            '../glad/glad.c',
+            '../glad/glad_custom.c'
+        } -- GL loader library for ANGLE.
     end
 
-    filter "system:android"
+    filter 'system:android'
     do
-
-        files {"../renderer/gl/load_gles_extensions.cpp",
-               "../renderer/gl/pls_impl_ext_native.cpp",
-               "../renderer/gl/pls_impl_framebuffer_fetch.cpp"}
+        files {
+            '../renderer/gl/load_gles_extensions.cpp',
+            '../renderer/gl/pls_impl_ext_native.cpp',
+            '../renderer/gl/pls_impl_framebuffer_fetch.cpp'
+        }
 
         filter {'system:android', 'options:arch=x86'}
         do
@@ -165,75 +184,74 @@ do
         end
     end
 
-    filter {"system:macosx or ios", "options:not nop-obj-c"}
+    filter {'system:macosx or ios', 'options:not nop-obj-c'}
     do
-        files {"../renderer/metal/*.mm"}
-        buildoptions {"-fobjc-arc"}
+        files {'../renderer/metal/*.mm'}
+        buildoptions {'-fobjc-arc'}
     end
 
-    filter {"options:nop-obj-c"}
+    filter {'options:nop-obj-c'}
     do
-        files {"../renderer/metal/pls_metal_nop.cpp"}
+        files {'../renderer/metal/pls_metal_nop.cpp'}
     end
 
-    filter "system:windows"
+    filter 'system:windows'
     do
-        architecture "x64"
-        files {"../renderer/d3d/*.cpp"}
+        architecture 'x64'
+        files {'../renderer/d3d/*.cpp'}
     end
 
-    if os.host() == 'macosx'
-    then
-        iphoneos_sysroot = os.outputof("xcrun --sdk iphoneos --show-sdk-path")
-        iphonesimulator_sysroot = os.outputof("xcrun --sdk iphonesimulator --show-sdk-path")
+    if os.host() == 'macosx' then
+        iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
+        iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
 
-        filter "system:ios"
+        filter 'system:ios'
         do
-            buildoptions {"-Wno-deprecated-declarations"} -- Suppress warnings that GL is deprecated.
+            buildoptions {'-Wno-deprecated-declarations'} -- Suppress warnings that GL is deprecated.
         end
 
-        filter {"system:ios", "options:variant=system"}
+        filter {'system:ios', 'options:variant=system'}
         do
-            targetdir "iphoneos_%{cfg.buildcfg}"
-            objdir "obj/iphoneos_%{cfg.buildcfg}"
+            targetdir 'iphoneos_%{cfg.buildcfg}'
+            objdir 'obj/iphoneos_%{cfg.buildcfg}'
             buildoptions {
-                "--target=arm64-apple-ios13.0.0",
-                "-mios-version-min=13.0.0",
-                "-isysroot " .. iphoneos_sysroot,
+                '--target=arm64-apple-ios13.0.0',
+                '-mios-version-min=13.0.0',
+                '-isysroot ' .. iphoneos_sysroot
             }
         end
 
-        filter {"system:ios", "options:variant=simulator"}
+        filter {'system:ios', 'options:variant=simulator'}
         do
-            targetdir "iphonesimulator_%{cfg.buildcfg}"
-            objdir "obj/iphonesimulator_%{cfg.buildcfg}"
+            targetdir 'iphonesimulator_%{cfg.buildcfg}'
+            objdir 'obj/iphonesimulator_%{cfg.buildcfg}'
             buildoptions {
-                "--target=arm64-apple-ios13.0.0-simulator",
-                "-mios-version-min=13.0.0",
-                "-isysroot " .. iphonesimulator_sysroot,
+                '--target=arm64-apple-ios13.0.0-simulator',
+                '-mios-version-min=13.0.0',
+                '-isysroot ' .. iphonesimulator_sysroot
             }
         end
     end
 
-    filter "system:emscripten"
+    filter 'system:emscripten'
     do
-        targetdir "wasm_%{cfg.buildcfg}"
-        objdir "obj/wasm_%{cfg.buildcfg}"
-        files {"../renderer/gl/pls_impl_webgl.cpp"}
-        buildoptions {"-pthread"}
+        targetdir 'wasm_%{cfg.buildcfg}'
+        objdir 'obj/wasm_%{cfg.buildcfg}'
+        files {'../renderer/gl/pls_impl_webgl.cpp'}
+        buildoptions {'-pthread'}
     end
 
-    filter "configurations:debug"
+    filter 'configurations:debug'
     do
-        defines {"DEBUG"}
-        symbols "On"
+        defines {'DEBUG'}
+        symbols 'On'
     end
 
-    filter "configurations:release"
+    filter 'configurations:release'
     do
-        defines {"RELEASE"}
-        defines {"NDEBUG"}
-        optimize "On"
+        defines {'RELEASE'}
+        defines {'NDEBUG'}
+        optimize 'On'
     end
 end
 

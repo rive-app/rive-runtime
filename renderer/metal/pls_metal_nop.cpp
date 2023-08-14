@@ -32,6 +32,8 @@ const char* rive_pls_macosx_metallib;
 int rive_pls_macosx_metallib_len;
 const char* rive_pls_ios_metallib;
 int rive_pls_ios_metallib_len;
+const char* rive_pls_ios_simulator_metallib;
+int rive_pls_ios_simulator_metallib_len;
 void make_memoryless_pls_texture();
 void make_pipeline_state();
 } // namespace rive::pls

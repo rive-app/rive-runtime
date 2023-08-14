@@ -35,6 +35,7 @@ METAL_IOS_AIR_OUTPUTS := $(addprefix $(OUT)/, $(patsubst metal/%.metal, ios/%.ai
 
 rive_pls_macosx_metallib: $(OUT)/rive_pls_macosx.metallib.c
 rive_pls_ios_metallib: $(OUT)/rive_pls_ios.metallib.c
+rive_pls_ios_simulator_metallib: $(OUT)/rive_pls_ios_simulator.metallib.c
 
 ## The source files all get regenerated in a batch, so there's no need to separate out separate
 ## rules for each intermediate file.
@@ -61,6 +62,17 @@ $(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS)
 
 $(OUT)/rive_pls_ios.metallib.c: $(OUT)/ios/rive_pls_ios.metallib
 	xxd -i -n rive_pls_ios_metallib $(OUT)/ios/rive_pls_ios.metallib $(OUT)/rive_pls_ios.metallib.c
+
+$(OUT)/ios/rive_pls_ios_simulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS)
+	@mkdir -p $(OUT)/ios
+	$(foreach FILE, $(METAL_INPUTS), \
+		xcrun -sdk iphonesimulator metal -miphonesimulator-version-min=13 -ffast-math -ffp-contract=fast \
+		-c $(FILE) \
+		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
+	xcrun -sdk iphonesimulator metallib $(METAL_IOS_AIR_OUTPUTS) -o $(OUT)/ios/rive_pls_ios_simulator.metallib
+
+$(OUT)/rive_pls_ios_simulator.metallib.c: $(OUT)/ios/rive_pls_ios_simulator.metallib
+	xxd -i -n rive_pls_ios_simulator_metallib $(OUT)/ios/rive_pls_ios_simulator.metallib $(OUT)/rive_pls_ios_simulator.metallib.c
 
 
 ## Cleaning.

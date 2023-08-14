@@ -15,6 +15,8 @@ namespace rive::pls
 {
 #ifdef RIVE_IOS
 #include "../out/obj/generated/rive_pls_ios.metallib.c"
+#elif defined(RIVE_IOS_SIMULATOR)
+#include "../out/obj/generated/rive_pls_ios_simulator.metallib.c"
 #else
 #include "../out/obj/generated/rive_pls_macosx.metallib.c"
 #endif
@@ -200,6 +202,9 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCo
 #ifdef RIVE_IOS
         rive_pls_ios_metallib,
         rive_pls_ios_metallib_len,
+#elif defined(RIVE_IOS_SIMULATOR)
+        rive_pls_ios_simulator_metallib,
+        rive_pls_ios_simulator_metallib_len,
 #else
         rive_pls_macosx_metallib,
         rive_pls_macosx_metallib_len,
