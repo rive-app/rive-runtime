@@ -1,0 +1,57 @@
+{
+  "name": "Tag",
+  "key": {
+    "int": 166,
+    "string": "tag"
+  },
+  "runtime": false,
+  "properties": {
+    "name": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 383,
+        "string": "name"
+      },
+      "runtime": false
+    },
+    "colorValue": {
+      "type": "Color",
+      "initialValue": "0xFF57A5E0",
+      "key": {
+        "int": 384,
+        "string": "colorvalue"
+      },
+      "runtime": false
+    },
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 385,
+        "string": "flags"
+      },
+      "runtime": false
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 388,
+        "string": "order"
+      },
+      "description": "Order this tag shows up in the tags list.",
+      "runtime": false
+    },
+    "dependentIds": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 386,
+        "string": "dependentids"
+      },
+      "description": "Object ids assigned to this tag.",
+      "runtime": false
+    }
+  }
+}

@@ -1,19 +1,22 @@
-#include <rive/core/binary_reader.hpp>
-#include <rive/file.hpp>
-#include <rive/animation/state_machine_bool.hpp>
-#include <rive/animation/state_machine_layer.hpp>
-#include <rive/animation/state_machine_listener.hpp>
-#include <rive/animation/animation_state.hpp>
-#include <rive/animation/entry_state.hpp>
-#include <rive/animation/state_transition.hpp>
-#include <rive/animation/state_machine_instance.hpp>
-#include <rive/animation/state_machine_input_instance.hpp>
-#include <rive/animation/blend_state_1d.hpp>
-#include <rive/animation/blend_animation_1d.hpp>
-#include <rive/animation/blend_state_direct.hpp>
-#include <rive/animation/blend_state_transition.hpp>
-#include <rive/animation/listener_input_change.hpp>
-#include <rive/node.hpp>
+#include "rive/core/binary_reader.hpp"
+#include "rive/file.hpp"
+#include "rive/event.hpp"
+#include "rive/shapes/shape.hpp"
+#include "rive/animation/state_machine_bool.hpp"
+#include "rive/animation/state_machine_layer.hpp"
+#include "rive/animation/state_machine_listener.hpp"
+#include "rive/animation/animation_state.hpp"
+#include "rive/animation/entry_state.hpp"
+#include "rive/animation/state_transition.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/animation/blend_state_1d.hpp"
+#include "rive/animation/blend_animation_1d.hpp"
+#include "rive/animation/blend_state_direct.hpp"
+#include "rive/animation/blend_state_transition.hpp"
+#include "rive/animation/listener_input_change.hpp"
+#include "rive/animation/listener_fire_event.hpp"
+#include "rive/node.hpp"
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include <cstdio>
@@ -114,4 +117,50 @@ TEST_CASE("hit a toggle boolean listener", "[file]")
     stateMachine->pointerUp(rive::Vec2D(150.0f, 258.0f));
     // Got toggled back on after pressing
     REQUIRE(switchButton->value() == true);
+}
+
+TEST_CASE("events load correctly on a listener", "[events]")
+{
+    auto file = ReadRiveFile("../../test/assets/event_on_listener.riv");
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachineInstance = artboard->stateMachineAt(0);
+    REQUIRE(stateMachineInstance != nullptr);
+
+    artboard->advance(0.0f);
+    stateMachineInstance->advance(0.0f);
+
+    auto events = artboard->find<rive::Event>();
+    REQUIRE(events.size() == 4);
+
+    REQUIRE(stateMachineInstance->stateMachine()->listenerCount() == 1);
+    auto listener1 = stateMachineInstance->stateMachine()->listener(0);
+    auto target1 = artboard->resolve(listener1->targetId());
+    REQUIRE(target1->is<rive::Shape>());
+    REQUIRE(listener1->actionCount() == 2);
+    auto fireEvent1 = listener1->action(0);
+    REQUIRE(fireEvent1 != nullptr);
+    REQUIRE(fireEvent1->is<rive::ListenerFireEvent>());
+    REQUIRE(fireEvent1->as<rive::ListenerFireEvent>()->eventId() != 0);
+    auto event = artboard->resolve(fireEvent1->as<rive::ListenerFireEvent>()->eventId());
+    REQUIRE(event->is<rive::Event>());
+    REQUIRE(event->as<rive::Event>()->name() == "Footstep");
+
+    REQUIRE(stateMachineInstance->firedEventCount() == 0);
+    stateMachineInstance->pointerDown(rive::Vec2D(343.0f, 116.0f));
+    stateMachineInstance->pointerUp(rive::Vec2D(343.0f, 116.0f));
+
+    // There are two events on the listener.
+    REQUIRE(stateMachineInstance->firedEventCount() == 2);
+    auto firedEvent1 = stateMachineInstance->firedEventAt(0);
+    REQUIRE(firedEvent1->name() == "Footstep");
+    auto firedEvent2 = stateMachineInstance->firedEventAt(1);
+    REQUIRE(firedEvent2->name() == "Event 3");
+
+    // After advancing again the firedEventCount should return to 0.
+    stateMachineInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->firedEventCount() == 0);
 }

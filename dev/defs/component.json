@@ -36,6 +36,16 @@
       },
       "description": "Identifier used to track parent ContainerComponent."
     },
+    "tagIds": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 382,
+        "string": "tagids"
+      },
+      "description": "Assigned tag ids.",
+      "runtime": false
+    },
     "childOrder": {
       "type": "FractionalIndex",
       "initialValue": "FractionalIndex.invalid",

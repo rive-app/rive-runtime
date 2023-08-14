@@ -30,6 +30,7 @@
 #include "rive/animation/listener_action.hpp"
 #include "rive/animation/listener_align_target.hpp"
 #include "rive/animation/listener_bool_change.hpp"
+#include "rive/animation/listener_fire_event.hpp"
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/animation/listener_number_change.hpp"
 #include "rive/animation/listener_trigger_change.hpp"
@@ -86,13 +87,19 @@
 #include "rive/constraints/transform_space_constraint.hpp"
 #include "rive/constraints/translation_constraint.hpp"
 #include "rive/container_component.hpp"
+#include "rive/custom_property.hpp"
+#include "rive/custom_property_boolean.hpp"
+#include "rive/custom_property_number.hpp"
+#include "rive/custom_property_string.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
+#include "rive/event.hpp"
 #include "rive/joystick.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
+#include "rive/open_url_event.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/contour_mesh_vertex.hpp"
 #include "rive/shapes/cubic_asymmetric_vertex.hpp"
@@ -146,6 +153,8 @@ public:
         {
             case DrawTargetBase::typeKey:
                 return new DrawTarget();
+            case CustomPropertyNumberBase::typeKey:
+                return new CustomPropertyNumber();
             case DistanceConstraintBase::typeKey:
                 return new DistanceConstraint();
             case IKConstraintBase::typeKey:
@@ -166,6 +175,8 @@ public:
                 return new NestedArtboard();
             case SoloBase::typeKey:
                 return new Solo();
+            case ListenerFireEventBase::typeKey:
+                return new ListenerFireEvent();
             case NestedSimpleAnimationBase::typeKey:
                 return new NestedSimpleAnimation();
             case AnimationStateBase::typeKey:
@@ -294,14 +305,20 @@ public:
                 return new Image();
             case CubicDetachedVertexBase::typeKey:
                 return new CubicDetachedVertex();
+            case EventBase::typeKey:
+                return new Event();
             case DrawRulesBase::typeKey:
                 return new DrawRules();
+            case CustomPropertyBooleanBase::typeKey:
+                return new CustomPropertyBoolean();
             case ArtboardBase::typeKey:
                 return new Artboard();
             case JoystickBase::typeKey:
                 return new Joystick();
             case BackboardBase::typeKey:
                 return new Backboard();
+            case OpenUrlEventBase::typeKey:
+                return new OpenUrlEvent();
             case WeightBase::typeKey:
                 return new Weight();
             case BoneBase::typeKey:
@@ -330,6 +347,8 @@ public:
                 return new Text();
             case TextValueRunBase::typeKey:
                 return new TextValueRun();
+            case CustomPropertyStringBase::typeKey:
+                return new CustomPropertyString();
             case FolderBase::typeKey:
                 return new Folder();
             case ImageAssetBase::typeKey:
@@ -357,8 +376,14 @@ public:
             case KeyFrameStringBase::valuePropertyKey:
                 object->as<KeyFrameStringBase>()->value(value);
                 break;
+            case OpenUrlEventBase::urlPropertyKey:
+                object->as<OpenUrlEventBase>()->url(value);
+                break;
             case TextValueRunBase::textPropertyKey:
                 object->as<TextValueRunBase>()->text(value);
+                break;
+            case CustomPropertyStringBase::propertyValuePropertyKey:
+                object->as<CustomPropertyStringBase>()->propertyValue(value);
                 break;
             case AssetBase::namePropertyKey:
                 object->as<AssetBase>()->name(value);
@@ -410,6 +435,9 @@ public:
                 break;
             case SoloBase::activeComponentIdPropertyKey:
                 object->as<SoloBase>()->activeComponentId(value);
+                break;
+            case ListenerFireEventBase::eventIdPropertyKey:
+                object->as<ListenerFireEventBase>()->eventId(value);
                 break;
             case ListenerInputChangeBase::inputIdPropertyKey:
                 object->as<ListenerInputChangeBase>()->inputId(value);
@@ -549,6 +577,9 @@ public:
             case JoystickBase::handleSourceIdPropertyKey:
                 object->as<JoystickBase>()->handleSourceId(value);
                 break;
+            case OpenUrlEventBase::targetValuePropertyKey:
+                object->as<OpenUrlEventBase>()->targetValue(value);
+                break;
             case WeightBase::valuesPropertyKey:
                 object->as<WeightBase>()->values(value);
                 break;
@@ -624,6 +655,9 @@ public:
     {
         switch (propertyKey)
         {
+            case CustomPropertyNumberBase::propertyValuePropertyKey:
+                object->as<CustomPropertyNumberBase>()->propertyValue(value);
+                break;
             case ConstraintBase::strengthPropertyKey:
                 object->as<ConstraintBase>()->strength(value);
                 break;
@@ -1077,6 +1111,9 @@ public:
             case ClippingShapeBase::isVisiblePropertyKey:
                 object->as<ClippingShapeBase>()->isVisible(value);
                 break;
+            case CustomPropertyBooleanBase::propertyValuePropertyKey:
+                object->as<CustomPropertyBooleanBase>()->propertyValue(value);
+                break;
             case ArtboardBase::clipPropertyKey:
                 object->as<ArtboardBase>()->clip(value);
                 break;
@@ -1112,8 +1149,12 @@ public:
                 return object->as<StateMachineComponentBase>()->name();
             case KeyFrameStringBase::valuePropertyKey:
                 return object->as<KeyFrameStringBase>()->value();
+            case OpenUrlEventBase::urlPropertyKey:
+                return object->as<OpenUrlEventBase>()->url();
             case TextValueRunBase::textPropertyKey:
                 return object->as<TextValueRunBase>()->text();
+            case CustomPropertyStringBase::propertyValuePropertyKey:
+                return object->as<CustomPropertyStringBase>()->propertyValue();
             case AssetBase::namePropertyKey:
                 return object->as<AssetBase>()->name();
         }
@@ -1151,6 +1192,8 @@ public:
                 return object->as<NestedAnimationBase>()->animationId();
             case SoloBase::activeComponentIdPropertyKey:
                 return object->as<SoloBase>()->activeComponentId();
+            case ListenerFireEventBase::eventIdPropertyKey:
+                return object->as<ListenerFireEventBase>()->eventId();
             case ListenerInputChangeBase::inputIdPropertyKey:
                 return object->as<ListenerInputChangeBase>()->inputId();
             case AnimationStateBase::animationIdPropertyKey:
@@ -1243,6 +1286,8 @@ public:
                 return object->as<JoystickBase>()->joystickFlags();
             case JoystickBase::handleSourceIdPropertyKey:
                 return object->as<JoystickBase>()->handleSourceId();
+            case OpenUrlEventBase::targetValuePropertyKey:
+                return object->as<OpenUrlEventBase>()->targetValue();
             case WeightBase::valuesPropertyKey:
                 return object->as<WeightBase>()->values();
             case WeightBase::indicesPropertyKey:
@@ -1296,6 +1341,8 @@ public:
     {
         switch (propertyKey)
         {
+            case CustomPropertyNumberBase::propertyValuePropertyKey:
+                return object->as<CustomPropertyNumberBase>()->propertyValue();
             case ConstraintBase::strengthPropertyKey:
                 return object->as<ConstraintBase>()->strength();
             case DistanceConstraintBase::distancePropertyKey:
@@ -1601,6 +1648,8 @@ public:
                 return object->as<RectangleBase>()->linkCornerRadius();
             case ClippingShapeBase::isVisiblePropertyKey:
                 return object->as<ClippingShapeBase>()->isVisible();
+            case CustomPropertyBooleanBase::propertyValuePropertyKey:
+                return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case ArtboardBase::clipPropertyKey:
                 return object->as<ArtboardBase>()->clip();
             case TextModifierRangeBase::clampPropertyKey:
@@ -1629,7 +1678,9 @@ public:
             case AnimationBase::namePropertyKey:
             case StateMachineComponentBase::namePropertyKey:
             case KeyFrameStringBase::valuePropertyKey:
+            case OpenUrlEventBase::urlPropertyKey:
             case TextValueRunBase::textPropertyKey:
+            case CustomPropertyStringBase::propertyValuePropertyKey:
             case AssetBase::namePropertyKey:
                 return CoreStringType::id;
             case ComponentBase::parentIdPropertyKey:
@@ -1646,6 +1697,7 @@ public:
             case NestedArtboardBase::artboardIdPropertyKey:
             case NestedAnimationBase::animationIdPropertyKey:
             case SoloBase::activeComponentIdPropertyKey:
+            case ListenerFireEventBase::eventIdPropertyKey:
             case ListenerInputChangeBase::inputIdPropertyKey:
             case AnimationStateBase::animationIdPropertyKey:
             case NestedInputBase::inputIdPropertyKey:
@@ -1692,6 +1744,7 @@ public:
             case JoystickBase::yIdPropertyKey:
             case JoystickBase::joystickFlagsPropertyKey:
             case JoystickBase::handleSourceIdPropertyKey:
+            case OpenUrlEventBase::targetValuePropertyKey:
             case WeightBase::valuesPropertyKey:
             case WeightBase::indicesPropertyKey:
             case TendonBase::boneIdPropertyKey:
@@ -1716,6 +1769,7 @@ public:
             case TextValueRunBase::styleIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
                 return CoreUintType::id;
+            case CustomPropertyNumberBase::propertyValuePropertyKey:
             case ConstraintBase::strengthPropertyKey:
             case DistanceConstraintBase::distancePropertyKey:
             case TransformComponentConstraintBase::copyFactorPropertyKey:
@@ -1866,6 +1920,7 @@ public:
             case PointsPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
+            case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case ArtboardBase::clipPropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
                 return CoreBoolType::id;

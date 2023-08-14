@@ -106,6 +106,17 @@
         "string": "joystickflags"
       }
     },
+    "joystickOrder": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 314,
+        "string": "joystickorder"
+      },
+      "runtime": false,
+      "coop": false,
+      "journal": false
+    },
     "handleSourceId": {
       "type": "Id",
       "typeRuntime": "uint",

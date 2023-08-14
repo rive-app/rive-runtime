@@ -102,14 +102,14 @@
       "runtime": false,
       "coop": false
     },
-    "expandedAnimationFolders": {
+    "expandedFolders": {
       "type": "List<Id>",
       "initialValue": "[]",
       "key": {
         "int": 283,
         "string": "expandedanimationfolders"
       },
-      "description": "List of expanded animation folders",
+      "description": "List of expanded folders",
       "runtime": false,
       "coop": false
     },

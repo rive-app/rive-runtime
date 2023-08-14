@@ -1,0 +1,9 @@
+{
+  "name": "StateMachineInputFolder",
+  "key": {
+    "int": 149,
+    "string": "statemachineinputfolder"
+  },
+  "extends": "animation/state_machine_component_folder.json",
+  "runtime": false
+}

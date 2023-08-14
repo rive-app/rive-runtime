@@ -21,6 +21,7 @@ class Shape;
 class StateMachineLayerInstance;
 class HitShape;
 class NestedArtboard;
+class Event;
 
 class StateMachineInstance : public Scene
 {
@@ -72,7 +73,7 @@ public:
 
     // The number of state changes that occurred across all layers on the
     // previous advance.
-    size_t stateChangedCount() const;
+    std::size_t stateChangedCount() const;
 
     // Returns the state name for states that changed in layers on the
     // previously called advance. If the index of out of range, it returns
@@ -92,6 +93,18 @@ public:
     /// Allow anything referencing a concrete StateMachineInstace access to
     /// the backing artboard (explicitly not allowed on Scenes).
     Artboard* artboard() { return m_ArtboardInstance; }
+
+    /// Tracks an event that fired, will be cleared at the end of the next advance.
+    void fireEvent(Event* event);
+
+    /// Gets the number of events that fired since the last advance.
+    std::size_t firedEventCount() const;
+
+    /// Gets a fired event at an index < firedEventCount().
+    const Event* firedEventAt(std::size_t index) const;
+
+private:
+    std::vector<Event*> m_firedEvents;
 };
 } // namespace rive
 #endif

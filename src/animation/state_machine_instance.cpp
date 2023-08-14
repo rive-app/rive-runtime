@@ -485,6 +485,7 @@ StateMachineInstance::~StateMachineInstance()
 
 bool StateMachineInstance::advance(float seconds)
 {
+    m_firedEvents.clear();
     m_NeedsAdvance = false;
     for (size_t i = 0; i < m_LayerCount; i++)
     {
@@ -608,4 +609,17 @@ const LinearAnimationInstance* StateMachineInstance::currentAnimationByIndex(siz
         }
     }
     return nullptr;
+}
+
+void StateMachineInstance::fireEvent(Event* event) { m_firedEvents.push_back(event); }
+
+std::size_t StateMachineInstance::firedEventCount() const { return m_firedEvents.size(); }
+
+const Event* StateMachineInstance::firedEventAt(std::size_t index) const
+{
+    if (index >= m_firedEvents.size())
+    {
+        return nullptr;
+    }
+    return m_firedEvents[index];
 }
