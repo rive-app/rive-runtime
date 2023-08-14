@@ -3,6 +3,9 @@
  */
 
 #include "rive/decoders/bitmap_decoder.hpp"
+#include "rive/rive_types.hpp"
+#include <stdio.h>
+#include <string.h>
 #include <vector>
 
 Bitmap::Bitmap(uint32_t width,
@@ -27,6 +30,7 @@ size_t Bitmap::bytesPerPixel(PixelFormat format) const
         case PixelFormat::RGBA:
             return 4;
     }
+    RIVE_UNREACHABLE();
 }
 
 size_t Bitmap::byteSize(PixelFormat format) const
@@ -81,7 +85,7 @@ std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
 
         // If the fingerprint doesn't match, discrd this decoder. These are all bytes so .size() is
         // fine here.
-        if (std::memcmp(fingerprint.data(), bytes, fingerprint.size()) != 0)
+        if (memcmp(fingerprint.data(), bytes, fingerprint.size()) != 0)
         {
             continue;
         }
@@ -105,13 +109,13 @@ void Bitmap::pixelFormat(PixelFormat format)
     auto nextByteSize = byteSize(format);
     auto nextBytes = std::unique_ptr<uint8_t[]>(new uint8_t[nextByteSize]);
 
-    auto fromBytesPerPixel = bytesPerPixel(m_PixelFormat);
-    auto toBytesPerPixel = bytesPerPixel(format);
+    size_t fromBytesPerPixel = bytesPerPixel(m_PixelFormat);
+    size_t toBytesPerPixel = bytesPerPixel(format);
     int writeIndex = 0;
     int readIndex = 0;
-    for (int i = 0; i < m_Width * m_Height; i++)
+    for (uint32_t i = 0; i < m_Width * m_Height; i++)
     {
-        for (int j = 0; j < toBytesPerPixel; j++)
+        for (size_t j = 0; j < toBytesPerPixel; j++)
         {
             nextBytes[writeIndex++] = j < fromBytesPerPixel ? m_Bytes[readIndex++] : 255;
         }

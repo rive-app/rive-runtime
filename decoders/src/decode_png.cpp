@@ -4,8 +4,9 @@
 
 #include "rive/decoders/bitmap_decoder.hpp"
 #include "png.h"
-#include <cassert>
 #include <algorithm>
+#include <cassert>
+#include <string.h>
 
 struct EncodedImageBuffer
 {
@@ -56,11 +57,7 @@ std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount)
         return nullptr;
     }
 
-    EncodedImageBuffer stream = {
-        .bytes = bytes,
-        .position = 0,
-        .size = byteCount,
-    };
+    EncodedImageBuffer stream = {bytes, 0, byteCount};
 
     png_set_read_fn(png_ptr, &stream, ReadDataFromMemory);
 

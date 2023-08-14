@@ -20,6 +20,7 @@ project 'rive_decoders'
 
     includedirs {
         '../include',
+        '../../include',
         libpng,
     }
 
