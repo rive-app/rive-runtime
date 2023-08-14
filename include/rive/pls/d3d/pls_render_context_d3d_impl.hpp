@@ -50,6 +50,11 @@ public:
 private:
     PLSRenderContextD3DImpl(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
 
+    rcp<PLSTexture> makeImageTexture(uint32_t width,
+                                     uint32_t height,
+                                     uint32_t mipLevelCount,
+                                     const uint8_t imageDataRGBA[]) override;
+
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
                                                          size_t height,
@@ -139,6 +144,7 @@ private:
 
     ComPtr<ID3D11Buffer> m_perDrawUniforms;
 
-    ComPtr<ID3D11SamplerState> m_gradSampler;
+    ComPtr<ID3D11SamplerState> m_linearSampler;
+    ComPtr<ID3D11SamplerState> m_mipmapSampler;
 };
 } // namespace rive::pls

@@ -30,6 +30,8 @@ class GrInnerFanTriangulator;
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit
 namespace rive::pls
 {
+class PLSTexture;
+
 // Tessellate in parametric space until each segment is within 1/4 pixel of the true curve.
 constexpr static int kParametricPrecision = 4;
 
@@ -156,6 +158,11 @@ constexpr static int kTessVertexTextureIdx = 0;
 constexpr static int kPathTextureIdx = 1;
 constexpr static int kContourTextureIdx = 2;
 constexpr static int kGradTextureIdx = 3;
+constexpr static int kImageTextureIdx = 4;
+
+// Index at which we access each sampler.
+constexpr static int kLinearSamplerIdx = 0;
+constexpr static int kMipmapSamplerIdx = 1;
 
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
@@ -225,6 +232,7 @@ enum class PaintType : uint32_t
     solidColor,
     linearGradient,
     radialGradient,
+    image,
     clipReplace // Replace the clip buffer with path coverage instead of painting color.
 };
 
@@ -267,6 +275,11 @@ struct PaintData
         uint32_t span = (row << 20) | ((right - 1) << 10) | left;
         RIVE_INLINE_MEMCPY(data, &span, sizeof(float));
         RIVE_INLINE_MEMCPY(data + 1, coeffs, 3 * sizeof(float));
+    }
+    void setImage(float opacity)
+    {
+        // Images use the texture binding at kImageTextureIdx, so the paint data only needs opacity.
+        RIVE_INLINE_MEMCPY(data, &opacity, sizeof(float));
     }
     float data[4]; // Packed, type-specific paint data.
 };
@@ -658,6 +671,7 @@ struct Draw
     uint32_t baseVertexOrInstance;
     uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
     ShaderFeatures shaderFeatures;
+    const PLSTexture* imageTextureRef = nullptr;    // Must be released manually.
     GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
 };
 

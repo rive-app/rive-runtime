@@ -90,7 +90,7 @@ private:
         assert(paintType == PaintType::linearGradient || paintType == PaintType::radialGradient);
     }
 
-    PaintType m_paintType;
+    PaintType m_paintType; // Specifically, linearGradient or radialGradient.
     PLSGradDataArray<ColorInt> m_colors;
     PLSGradDataArray<float> m_stops;
     size_t m_count;
@@ -101,36 +101,38 @@ private:
 class PLSPaint : public RenderPaint
 {
 public:
+    PLSPaint();
+    ~PLSPaint();
+
     void style(RenderPaintStyle style) override { m_stroked = style == RenderPaintStyle::stroke; }
-    void color(ColorInt color) override
-    {
-        m_gradient.reset();
-        m_color = color;
-    }
+    void color(ColorInt color) override;
     void thickness(float thickness) override { m_thickness = fabsf(thickness); }
     void join(StrokeJoin join) override { m_join = join; }
     void cap(StrokeCap cap) override { m_cap = cap; }
     void blendMode(BlendMode mode) override;                  // Set a rive BlendMode.
     void blendMode(PLSBlendMode mode) { m_blendMode = mode; } // Set a pls BlendMode.
     void shader(rcp<RenderShader> shader) override;
+    void image(rcp<const PLSTexture>, float opacity);
     void invalidateStroke() override {}
 
-    PaintType getType() const
-    {
-        return m_gradient ? m_gradient->paintType() : PaintType::solidColor;
-    }
+    PaintType getType() const { return m_paintType; }
     bool getIsStroked() const { return m_stroked; }
     ColorInt getColor() const { return m_color; }
     float getThickness() const { return m_thickness; }
     const PLSGradient* getGradient() const { return m_gradient.get(); }
+    rcp<const PLSTexture> refImageTexture() const;
+    float getImageOpacity() const { return m_imageOpacity; }
     StrokeJoin getJoin() const { return m_join; }
     StrokeCap getCap() const { return m_cap; }
     PLSBlendMode getBlendMode() const { return m_blendMode; }
 
 private:
+    PaintType m_paintType = PaintType::solidColor;
     bool m_stroked = false;
     ColorInt m_color = 0xff000000;
     rcp<PLSGradient> m_gradient;
+    rcp<const PLSTexture> m_imageTexture;
+    float m_imageOpacity;
     float m_thickness = 1;
     StrokeJoin m_join = StrokeJoin::bevel;
     StrokeCap m_cap = StrokeCap::butt;

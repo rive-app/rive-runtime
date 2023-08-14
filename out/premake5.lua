@@ -5,6 +5,7 @@ require 'setup_compiler'
 
 dofile("premake5_pls_renderer.lua")
 dofile(RIVE_RUNTIME_DIR .. "/build/premake5.lua")
+dofile(RIVE_RUNTIME_DIR .. '/decoders/build/premake5.lua')
 
 newoption {
     trigger = "with-skia",
@@ -42,7 +43,15 @@ do
         "../path_fiddle/fiddle_context_gl.cpp",
     }
 
-    links {"rive", "rive_pls_renderer", "rive_harfbuzz", "rive_sheenbidi"}
+    links {
+        "rive",
+        "rive_pls_renderer",
+        "rive_decoders",
+        "libpng",
+        "zlib",
+        "rive_harfbuzz",
+        "rive_sheenbidi"
+    }
 
     filter "options:with-skia"
     do

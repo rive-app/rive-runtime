@@ -116,11 +116,15 @@ do
         '../include',
         '../glad',
         '../renderer',
-        RIVE_RUNTIME_DIR .. '/include'
+        RIVE_RUNTIME_DIR .. '/include',
+        RIVE_RUNTIME_DIR .. '/decoders/include',
     }
     flags {'FatalWarnings'}
 
-    files {'../renderer/*.cpp'}
+    files {
+        '../renderer/*.cpp',
+        '../renderer/decoding/*.cpp',
+    }
 
     -- The Visual Studio clang toolset doesn't recognize -ffp-contract.
     filter 'system:not windows'

@@ -36,7 +36,5 @@ public:
     std::unique_ptr<RenderPath> makeEmptyRenderPath() override;
 
     std::unique_ptr<RenderPaint> makeRenderPaint() override;
-
-    std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
 };
 } // namespace rive::pls

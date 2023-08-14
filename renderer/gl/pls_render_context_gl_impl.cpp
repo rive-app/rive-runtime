@@ -8,6 +8,7 @@
 #include "gl_utils.hpp"
 #include "pls_path.hpp"
 #include "pls_paint.hpp"
+#include "rive/pls/pls_image.hpp"
 #include <sstream>
 
 #include "../out/obj/generated/advanced_blend.glsl.hpp"
@@ -16,9 +17,9 @@
 #include "../out/obj/generated/draw.glsl.hpp"
 #include "../out/obj/generated/tessellate.glsl.hpp"
 
-// Offset all texture indices by 1 so we, and others who share our GL context, can use GL_TEXTURE0
-// as a scratch texture index.
-constexpr static int kGLTexIdxOffset = 1;
+// Offset all PLS texture indices by 1 so we, and others who share our GL context, can use
+// GL_TEXTURE0 as a scratch texture index.
+constexpr static int kPLSTexIdxOffset = 1;
 
 namespace rive::pls
 {
@@ -117,9 +118,9 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
                           0);
     glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathTexture),
-                kGLTexIdxOffset + kPathTextureIdx);
+                kPLSTexIdxOffset + kPathTextureIdx);
     glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourTexture),
-                kGLTexIdxOffset + kContourTextureIdx);
+                kPLSTexIdxOffset + kContourTextureIdx);
 
     glGenVertexArrays(1, &m_tessellateVAO);
     bindVAO(m_tessellateVAO);
@@ -200,6 +201,51 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
     glDeleteBuffers(1, &m_patchIndicesBuffer);
 }
 
+class PLSTextureGLImpl : public PLSTexture
+{
+public:
+    PLSTextureGLImpl(uint32_t width,
+                     uint32_t height,
+                     uint32_t mipLevelCount,
+                     const uint8_t imageDataRGBA[])
+    {
+        glGenTextures(1, &m_id);
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kImageTextureIdx);
+        glBindTexture(GL_TEXTURE_2D, m_id);
+        glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        width,
+                        height,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        imageDataRGBA);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+
+    ~PLSTextureGLImpl() override { glDeleteTextures(1, &m_id); }
+
+    GLuint id() const { return m_id; }
+
+private:
+    GLuint m_id = 0;
+};
+
+rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
+                                                         uint32_t height,
+                                                         uint32_t mipLevelCount,
+                                                         const uint8_t imageDataRGBA[])
+{
+    return make_rcp<PLSTextureGLImpl>(width, height, mipLevelCount, imageDataRGBA);
+}
+
 std::unique_ptr<TexelBufferRing> PLSRenderContextGLImpl::makeTexelBufferRing(
     TexelBufferRing::Format format,
     size_t widthInItems,
@@ -212,7 +258,7 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextGLImpl::makeTexelBufferRing(
                                            widthInItems,
                                            height,
                                            texelsPerItem,
-                                           GL_TEXTURE0 + kGLTexIdxOffset + textureIdx,
+                                           GL_TEXTURE0 + kPLSTexIdxOffset + textureIdx,
                                            filter);
 }
 
@@ -239,7 +285,7 @@ void PLSRenderContextGLImpl::resizeGradientTexture(size_t height)
     glDeleteTextures(1, &m_gradientTexture);
 
     glGenTextures(1, &m_gradientTexture);
-    glActiveTexture(GL_TEXTURE0 + kGLTexIdxOffset + kGradTextureIdx);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kGradTextureIdx);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kGradTextureWidth, height);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -260,7 +306,7 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(size_t height)
     glDeleteTextures(1, &m_tessVertexTexture);
 
     glGenTextures(1, &m_tessVertexTexture);
-    glActiveTexture(GL_TEXTURE0 + kGLTexIdxOffset + kTessVertexTextureIdx);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kTessVertexTextureIdx);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, kTessTextureWidth, height);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -378,11 +424,12 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     plsContextImpl->bindProgram(m_id);
     glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), 0);
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
-                kGLTexIdxOffset + kTessVertexTextureIdx);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kGLTexIdxOffset + kPathTextureIdx);
+                kPLSTexIdxOffset + kTessVertexTextureIdx);
+    glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kPLSTexIdxOffset + kPathTextureIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_contourTexture),
-                kGLTexIdxOffset + kContourTextureIdx);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kGLTexIdxOffset + kGradTextureIdx);
+                kPLSTexIdxOffset + kContourTextureIdx);
+    glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + kGradTextureIdx);
+    glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture), kPLSTexIdxOffset + kImageTextureIdx);
     if (!plsContextImpl->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         m_baseInstancePolyfillLocation = glGetUniformLocation(m_id, GLSL_baseInstancePolyfill);
@@ -419,7 +466,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     if (desc.simpleGradTexelsHeight > 0)
     {
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
-        glActiveTexture(GL_TEXTURE0 + kGLTexIdxOffset + kGradTextureIdx);
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kGradTextureIdx);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -498,10 +545,18 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
         {
             continue;
         }
+
         uint32_t fragmentShaderKey =
             ShaderUniqueKey(SourceType::wholeProgram, draw.drawType, draw.shaderFeatures);
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
         bindProgram(drawProgram.id());
+
+        if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(draw.imageTextureRef))
+        {
+            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kImageTextureIdx);
+            glBindTexture(GL_TEXTURE_2D, imageTextureGL->id());
+        }
+
         switch (DrawType drawType = draw.drawType)
         {
             case DrawType::midpointFanPatches:

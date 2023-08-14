@@ -1,6 +1,6 @@
 #include "fiddle_context.hpp"
 
-#include "rive/pls/pls_factory.hpp"
+#include "rive/pls/decoding/pls_decoding_factory.hpp"
 #include "rive/pls/pls_renderer.hpp"
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
@@ -27,7 +27,10 @@ public:
         return nsWindow.screen.backingScaleFactor;
     }
 
-    std::unique_ptr<Factory> makeFactory() override { return std::make_unique<PLSFactory>(); }
+    std::unique_ptr<Factory> makeFactory() override
+    {
+        return std::make_unique<PLSDecodingFactory>();
+    }
 
     void onSizeChanged(int width, int height) override
     {

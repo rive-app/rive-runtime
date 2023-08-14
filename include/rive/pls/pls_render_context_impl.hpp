@@ -8,6 +8,8 @@
 
 namespace rive::pls
 {
+class PLSTexture;
+
 // This class manages GPU buffers and isues the actual rendering commands from PLSRenderContext.
 class PLSRenderContextImpl
 {
@@ -16,9 +18,11 @@ public:
 
     const PlatformFeatures& platformFeatures() const { return m_platformFeatures; }
 
-    // Perform any synchronization or other tasks that need to run immediately before
-    // PLSRenderContext begins mapping buffers for the next flush.
-    virtual void prepareToMapBuffers() {}
+    // Creates an 8-bit, mipmapped texture that can be bound to the draw shader for an image paint.
+    virtual rcp<PLSTexture> makeImageTexture(uint32_t width,
+                                             uint32_t height,
+                                             uint32_t mipLevelCount,
+                                             const uint8_t imageDataRGBA[]) = 0;
 
     // Resize GPU resources. These methods cannot fail, and must allocate the exact size requested.
     // PLSRenderContext takes care to minimize how often these methods are called, while also
@@ -31,6 +35,10 @@ public:
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
     virtual void resizeGradientTexture(size_t height) = 0;
     virtual void resizeTessellationTexture(size_t height) = 0;
+
+    // Perform any synchronization or other tasks that need to run immediately before
+    // PLSRenderContext begins mapping buffers for the next flush.
+    virtual void prepareToMapBuffers() {}
 
     // Map GPU resources. (The implementation may wish to allocate the mappable resources in rings,
     // in order to avoid expensive synchronization with the GPU pipeline.

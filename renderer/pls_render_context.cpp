@@ -8,6 +8,7 @@
 #include "pls_path.hpp"
 #include "pls_paint.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/pls/pls_image.hpp"
 #include "rive/pls/pls_render_context_impl.hpp"
 
 #include <string_view>
@@ -129,6 +130,18 @@ PLSRenderContext::~PLSRenderContext()
 {
     // Always call flush() to avoid deadlock.
     assert(!m_didBeginFrame);
+    resetDrawList();
+}
+
+void PLSRenderContext::resetDrawList()
+{
+    // Manually release the draw list references before resetting the draw list to empty, since
+    // TrivialBlockAllocator prevents us from doing this automatically in a destructor.
+    for (Draw& draw : m_drawList)
+    {
+        safe_unref(draw.imageTextureRef);
+    }
+    m_drawList.reset();
 }
 
 void PLSRenderContext::resetGPUResources()
@@ -489,24 +502,36 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
     return false;
 }
 
-bool PLSRenderContext::pushPaint(const PLSPaint* paint, PaintData* data)
+bool PLSRenderContext::pushPaint(const PLSPaint* paint)
 {
     assert(m_didBeginFrame);
-    if (const PLSGradient* gradient = paint->getGradient())
+    switch (paint->getType())
     {
-        if (!pushGradient(gradient, data))
-        {
-            return false;
-        }
+        case PaintType::solidColor:
+            m_currentPaintData.setColor(paint->getColor());
+            m_currentImageTexture.reset();
+            break;
+        case PaintType::linearGradient:
+        case PaintType::radialGradient:
+            if (!pushGradientPaintData(paint->getGradient()))
+            {
+                return false;
+            }
+            m_currentImageTexture.reset();
+            break;
+        case PaintType::image:
+            m_currentPaintData.setImage(paint->getImageOpacity());
+            m_currentImageTexture = paint->refImageTexture();
+            break;
+        case PaintType::clipReplace:
+            RIVE_UNREACHABLE();
     }
-    else
-    {
-        data->setColor(paint->getColor());
-    }
+    m_currentBlendMode = paint->getBlendMode();
+    m_currentPaintType = paint->getType();
     return true;
 }
 
-bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* paintData)
+bool PLSRenderContext::pushGradientPaintData(const PLSGradient* gradient)
 {
     const ColorInt* colors = gradient->colors();
     const float* stops = gradient->stops();
@@ -620,20 +645,19 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
             m_complexGradients.emplace(std::move(key), row);
         }
     }
-    paintData->setGradient(row, left, right, gradient->coeffs());
+    m_currentPaintData.setGradient(row, left, right, gradient->coeffs());
     return true;
 }
 
-void PLSRenderContext::pushPath(PatchType patchType,
-                                const Mat2D& matrix,
-                                float strokeRadius,
-                                FillRule fillRule,
-                                PaintType paintType,
-                                uint32_t clipID,
-                                PLSBlendMode blendMode,
-                                const PaintData& paintData,
-                                uint32_t tessVertexCount,
-                                uint32_t paddingVertexCount)
+void PLSRenderContext::pushPathInternal(PatchType patchType,
+                                        const Mat2D& matrix,
+                                        float strokeRadius,
+                                        FillRule fillRule,
+                                        PaintType paintType,
+                                        uint32_t clipID,
+                                        PLSBlendMode blendMode,
+                                        uint32_t tessVertexCount,
+                                        uint32_t paddingVertexCount)
 {
     assert(m_didBeginFrame);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
@@ -641,7 +665,8 @@ void PLSRenderContext::pushPath(PatchType patchType,
 
     m_currentPathIsStroked = strokeRadius != 0;
     m_currentPathNeedsMirroredContours = !m_currentPathIsStroked;
-    m_pathData.set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, paintData);
+    m_pathData
+        .set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, m_currentPaintData);
 
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
@@ -865,19 +890,30 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
 }
 
 void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangulator,
-                                                 PaintType paintType,
-                                                 uint32_t clipID,
-                                                 PLSBlendMode blendMode)
+                                                 uint32_t clipID)
 {
     pushDraw(DrawType::interiorTriangulation,
              0,
              triangulator->fillRule(),
-             paintType,
+             m_currentPaintType,
              clipID,
-             blendMode);
+             m_currentBlendMode);
     m_maxTriangleVertexCount += triangulator->maxVertexCount();
     triangulator->setPathID(m_currentPathID);
     m_drawList.tail().triangulator = triangulator;
+}
+
+RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* currentDrawTexture,
+                                                       const PLSTexture* nextDrawTexture)
+{
+    if (currentDrawTexture == nullptr || nextDrawTexture == nullptr)
+    {
+        // We can always combine two draws if one or both do not use an image paint.
+        return true;
+    }
+    // Since the image paint's texture must be bound to a specific slot, we can't combine draws that
+    // use different textures.
+    return currentDrawTexture == nextDrawTexture;
 }
 
 void PLSRenderContext::pushDraw(DrawType drawType,
@@ -887,10 +923,24 @@ void PLSRenderContext::pushDraw(DrawType drawType,
                                 uint32_t clipID,
                                 PLSBlendMode blendMode)
 {
-    if (m_drawList.empty() || m_drawList.tail().drawType != drawType)
+    bool needsNewDraw =
+        m_drawList.empty() || m_drawList.tail().drawType != drawType ||
+        !can_combine_draw_images(m_drawList.tail().imageTextureRef, m_currentImageTexture.get());
+    if (needsNewDraw)
     {
         m_drawList.emplace_back(this, drawType, baseVertex);
     }
+
+    if (paintType == PaintType::image)
+    {
+        assert(m_currentImageTexture != nullptr);
+        if (m_drawList.tail().imageTextureRef == nullptr)
+        {
+            m_drawList.tail().imageTextureRef = safe_ref(m_currentImageTexture.get());
+        }
+        assert(m_drawList.tail().imageTextureRef == m_currentImageTexture.get());
+    }
+
     ShaderFeatures* shaderFeatures = &m_drawList.tail().shaderFeatures;
     if (blendMode > PLSBlendMode::srcOver)
     {
@@ -1122,6 +1172,11 @@ void PLSRenderContext::flush(FlushType flushType)
     m_simpleGradients.clear();
     m_complexGradients.clear();
 
+    m_currentPaintType = PaintType::solidColor;
+    m_currentBlendMode = PLSBlendMode::srcOver;
+    m_currentImageTexture.reset();
+    m_currentPaintData = {};
+
     m_tessVertexCount = 0;
     m_mirroredTessLocation = 0;
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve = 0);
@@ -1132,7 +1187,7 @@ void PLSRenderContext::flush(FlushType flushType)
 
     m_isFirstFlushOfFrame = false;
 
-    m_drawList.reset();
+    resetDrawList();
 
     // Delete all objects that were allocted for this flush using the TrivialBlockAllocator.
     m_trivialPerFlushAllocator.reset();

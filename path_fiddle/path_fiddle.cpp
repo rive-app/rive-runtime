@@ -362,7 +362,7 @@ int main(int argc, const char** argv)
             break;
     }
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
-    glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
+    // glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
     g_window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
     if (!g_window)
     {

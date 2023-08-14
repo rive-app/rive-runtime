@@ -111,6 +111,4 @@ std::unique_ptr<RenderPath> PLSFactory::makeEmptyRenderPath()
 }
 
 std::unique_ptr<RenderPaint> PLSFactory::makeRenderPaint() { return std::make_unique<PLSPaint>(); }
-
-std::unique_ptr<RenderImage> PLSFactory::decodeImage(Span<const uint8_t>) { return nullptr; }
 } // namespace rive::pls

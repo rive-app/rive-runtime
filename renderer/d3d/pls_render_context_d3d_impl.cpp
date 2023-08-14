@@ -4,6 +4,8 @@
 
 #include "rive/pls/d3d/pls_render_context_d3d_impl.hpp"
 
+#include "rive/pls/pls_image.hpp"
+
 #include <D3DCompiler.h>
 #include <sstream>
 
@@ -36,54 +38,27 @@ static DXGI_FORMAT d3d_format(TexelBufferRing::Format format)
 
 static ComPtr<ID3D11Texture2D> make_simple_2d_texture(ID3D11Device* gpu,
                                                       DXGI_FORMAT format,
-                                                      size_t width,
-                                                      size_t height,
-                                                      UINT bindFlags)
+                                                      UINT width,
+                                                      UINT height,
+                                                      UINT mipLevelCount,
+                                                      UINT bindFlags,
+                                                      UINT miscFlags = 0)
 {
     D3D11_TEXTURE2D_DESC desc{};
     desc.Width = width;
     desc.Height = height;
-    desc.MipLevels = 1;
+    desc.MipLevels = mipLevelCount;
     desc.ArraySize = 1;
     desc.Format = format;
     desc.SampleDesc.Count = 1;
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = bindFlags;
     desc.CPUAccessFlags = 0;
-    desc.MiscFlags = 0;
+    desc.MiscFlags = miscFlags;
 
     ComPtr<ID3D11Texture2D> tex;
     VERIFY_OK(gpu->CreateTexture2D(&desc, NULL, tex.GetAddressOf()));
     return tex;
-}
-
-static ComPtr<ID3D11ShaderResourceView> make_simple_2d_srv(ID3D11Device* gpu,
-                                                           ID3D11Texture2D* tex2D,
-                                                           DXGI_FORMAT format)
-{
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-    srvDesc.Format = format;
-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-    srvDesc.Texture2D.MipLevels = 1;
-
-    ComPtr<ID3D11ShaderResourceView> srv;
-    VERIFY_OK(gpu->CreateShaderResourceView(tex2D, &srvDesc, srv.GetAddressOf()));
-    return srv;
-}
-
-static ComPtr<ID3D11RenderTargetView> make_simple_2d_rtv(ID3D11Device* gpu,
-                                                         ID3D11Texture2D* tex2D,
-                                                         DXGI_FORMAT format)
-{
-    D3D11_RENDER_TARGET_VIEW_DESC rtDesc;
-    rtDesc.Format = format;
-    rtDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-    rtDesc.Texture2D.MipSlice = 0;
-
-    ComPtr<ID3D11RenderTargetView> rtv;
-    VERIFY_OK(gpu->CreateRenderTargetView(tex2D, &rtDesc, &rtv));
-    return rtv;
 }
 
 static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(ID3D11Device* gpu,
@@ -318,19 +293,90 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
         VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_perDrawUniforms.GetAddressOf()));
     }
 
-    // Create a sampler for the gradient texture.
-    D3D11_SAMPLER_DESC gradSamplerDesc;
-    gradSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    gradSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    gradSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    gradSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    gradSamplerDesc.MipLODBias = 0.0f;
-    gradSamplerDesc.MaxAnisotropy = 1;
-    gradSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    gradSamplerDesc.MinLOD = 0;
-    gradSamplerDesc.MaxLOD = 0;
-    VERIFY_OK(m_gpu->CreateSamplerState(&gradSamplerDesc, m_gradSampler.GetAddressOf()));
-    m_gpuContext->PSSetSamplers(0, 1, m_gradSampler.GetAddressOf());
+    // Create a linear sampler for the gradient texture.
+    D3D11_SAMPLER_DESC linearSamplerDesc;
+    linearSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+    linearSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    linearSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    linearSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    linearSamplerDesc.MipLODBias = 0.0f;
+    linearSamplerDesc.MaxAnisotropy = 1;
+    linearSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    linearSamplerDesc.MinLOD = 0;
+    linearSamplerDesc.MaxLOD = 0;
+    VERIFY_OK(m_gpu->CreateSamplerState(&linearSamplerDesc, m_linearSampler.GetAddressOf()));
+
+    // Create a mipmap sampler for the image textures.
+    D3D11_SAMPLER_DESC mipmapSamplerDesc;
+    mipmapSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    mipmapSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    mipmapSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    mipmapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    mipmapSamplerDesc.MipLODBias = 0.0f;
+    mipmapSamplerDesc.MaxAnisotropy = 1;
+    mipmapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    mipmapSamplerDesc.MinLOD = 0;
+    mipmapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    VERIFY_OK(m_gpu->CreateSamplerState(&mipmapSamplerDesc, m_mipmapSampler.GetAddressOf()));
+
+    ID3D11SamplerState* samplers[2] = {m_linearSampler.Get(), m_mipmapSampler.Get()};
+    static_assert(kLinearSamplerIdx == 0);
+    static_assert(kMipmapSamplerIdx == 1);
+    m_gpuContext->PSSetSamplers(0, 2, samplers);
+}
+
+class PLSTextureD3DImpl : public PLSTexture
+{
+public:
+    PLSTextureD3DImpl(ID3D11Device* gpu,
+                      ID3D11DeviceContext* gpuContext,
+                      UINT width,
+                      UINT height,
+                      UINT mipLevelCount,
+                      const uint8_t imageDataRGBA[])
+    {
+        m_texture = make_simple_2d_texture(gpu,
+                                           DXGI_FORMAT_R8G8B8A8_UNORM,
+                                           width,
+                                           height,
+                                           mipLevelCount,
+                                           D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+                                           D3D11_RESOURCE_MISC_GENERATE_MIPS);
+
+        // Specify the top-level image in the mipmap chain.
+        D3D11_BOX box;
+        box.left = 0;
+        box.right = width;
+        box.top = 0;
+        box.bottom = height;
+        box.front = 0;
+        box.back = 1;
+        gpuContext->UpdateSubresource(m_texture.Get(), 0, &box, imageDataRGBA, width * 4, 0);
+
+        // Create a view and generate mipmaps.
+        VERIFY_OK(gpu->CreateShaderResourceView(m_texture.Get(), NULL, m_srv.GetAddressOf()));
+        gpuContext->GenerateMips(m_srv.Get());
+    }
+
+    ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
+    ID3D11ShaderResourceView* const* srvAddressOf() const { return m_srv.GetAddressOf(); }
+
+private:
+    ComPtr<ID3D11Texture2D> m_texture;
+    ComPtr<ID3D11ShaderResourceView> m_srv;
+};
+
+rcp<PLSTexture> PLSRenderContextD3DImpl::makeImageTexture(uint32_t width,
+                                                          uint32_t height,
+                                                          uint32_t mipLevelCount,
+                                                          const uint8_t imageDataRGBA[])
+{
+    return make_rcp<PLSTextureD3DImpl>(m_gpu.Get(),
+                                       m_gpuContext.Get(),
+                                       width,
+                                       height,
+                                       mipLevelCount,
+                                       imageDataRGBA);
 }
 
 class TexelBufferD3D : public TexelBufferRing
@@ -349,8 +395,9 @@ public:
         for (size_t i = 0; i < kBufferRingSize; ++i)
         {
             m_textures[i] =
-                make_simple_2d_texture(gpu, formatD3D, widthInTexels(), height, bindFlags);
-            m_srvs[i] = make_simple_2d_srv(gpu, m_textures[i].Get(), formatD3D);
+                make_simple_2d_texture(gpu, formatD3D, widthInTexels(), height, 1, bindFlags);
+            VERIFY_OK(
+                gpu->CreateShaderResourceView(m_textures[i].Get(), NULL, m_srvs[i].GetAddressOf()));
         }
     }
 
@@ -473,16 +520,19 @@ PLSRenderTargetD3D::PLSRenderTargetD3D(ID3D11Device* gpu, size_t width, size_t h
                                                DXGI_FORMAT_R32_UINT,
                                                width,
                                                height,
+                                               1,
                                                D3D11_BIND_UNORDERED_ACCESS);
     m_originalDstColorTexture = make_simple_2d_texture(gpu,
                                                        DXGI_FORMAT_R8G8B8A8_UNORM,
                                                        width,
                                                        height,
+                                                       1,
                                                        D3D11_BIND_UNORDERED_ACCESS);
     m_clipTexture = make_simple_2d_texture(gpu,
                                            DXGI_FORMAT_R32_UINT,
                                            width,
                                            height,
+                                           1,
                                            D3D11_BIND_UNORDERED_ACCESS);
 
     m_coverageUAV = make_simple_2d_uav(gpu, m_coverageTexture.Get(), DXGI_FORMAT_R32_UINT);
@@ -515,11 +565,13 @@ void PLSRenderContextD3DImpl::resizeGradientTexture(size_t height)
                                            DXGI_FORMAT_R8G8B8A8_UNORM,
                                            kGradTextureWidth,
                                            height,
+                                           1,
                                            D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
-    m_gradTextureSRV =
-        make_simple_2d_srv(m_gpu.Get(), m_gradTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
-    m_gradTextureRTV =
-        make_simple_2d_rtv(m_gpu.Get(), m_gradTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(m_gradTexture.Get(),
+                                              NULL,
+                                              m_gradTextureSRV.GetAddressOf()));
+    VERIFY_OK(
+        m_gpu->CreateRenderTargetView(m_gradTexture.Get(), NULL, m_gradTextureRTV.GetAddressOf()));
 }
 
 void PLSRenderContextD3DImpl::resizeTessellationTexture(size_t height)
@@ -528,11 +580,13 @@ void PLSRenderContextD3DImpl::resizeTessellationTexture(size_t height)
                                            DXGI_FORMAT_R32G32B32A32_UINT,
                                            kTessTextureWidth,
                                            height,
+                                           1,
                                            D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
-    m_tessTextureSRV =
-        make_simple_2d_srv(m_gpu.Get(), m_tessTexture.Get(), DXGI_FORMAT_R32G32B32A32_UINT);
-    m_tessTextureRTV =
-        make_simple_2d_rtv(m_gpu.Get(), m_tessTexture.Get(), DXGI_FORMAT_R32G32B32A32_UINT);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(m_tessTexture.Get(),
+                                              NULL,
+                                              m_tessTextureSRV.GetAddressOf()));
+    VERIFY_OK(
+        m_gpu->CreateRenderTargetView(m_tessTexture.Get(), NULL, m_tessTextureRTV.GetAddressOf()));
 }
 
 void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
@@ -704,7 +758,10 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                    1};
         m_gpuContext->RSSetViewports(1, &viewport);
 
-        m_gpuContext->PSSetShaderResources(0, 0, NULL);
+        // Unbind the gradient texture before rendering it.
+        ID3D11ShaderResourceView* nullTextureView = nullptr;
+        m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, &nullTextureView);
+
         m_gpuContext->PSSetShader(m_colorRampPixelShader.Get(), NULL, 0);
 
         m_gpuContext->OMSetRenderTargets(1, m_gradTextureRTV.GetAddressOf(), NULL);
@@ -743,6 +800,8 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
         m_gpuContext->VSSetShader(m_tessellateVertexShader.Get(), NULL, 0);
+
+        // Unbind the tessellation texture before rendering it.
         ID3D11ShaderResourceView* vsTextureViews[] = {NULL,
                                                       submitted_srv(pathBufferRing()),
                                                       submitted_srv(contourBufferRing())};
@@ -759,7 +818,6 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                    1};
         m_gpuContext->RSSetViewports(1, &viewport);
 
-        m_gpuContext->PSSetShaderResources(0, 0, NULL);
         m_gpuContext->PSSetShader(m_tessellatePixelShader.Get(), NULL, 0);
 
         m_gpuContext->OMSetRenderTargets(1, m_tessTextureRTV.GetAddressOf(), NULL);
@@ -837,6 +895,13 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
 
         DrawType drawType = draw.drawType;
         setPipelineLayoutAndShaders(drawType, draw.shaderFeatures);
+
+        if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(draw.imageTextureRef))
+        {
+            m_gpuContext->PSSetShaderResources(kImageTextureIdx,
+                                               1,
+                                               imageTextureD3D->srvAddressOf());
+        }
 
         switch (drawType)
         {

@@ -37,9 +37,9 @@ VARYING_BLOCK_END(_pos)
 
 #ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
-TEXTURE_RGBA32UI(0, @tessVertexTexture);
-TEXTURE_RGBA32UI(1, @pathTexture);
-TEXTURE_RGBA32UI(2, @contourTexture);
+TEXTURE_RGBA32UI(TESS_VERTEX_TEXTURE_IDX, @tessVertexTexture);
+TEXTURE_RGBA32UI(PATH_TEXTURE_IDX, @pathTexture);
+TEXTURE_RGBA32UI(CONTOUR_TEXTURE_IDX, @contourTexture);
 VERTEX_TEXTURE_BLOCK_END
 
 int2 tessTexelCoord(int texelIndex)
@@ -359,42 +359,52 @@ VERTEX_MAIN(@drawVertexMain,
 
     // Unpack the paint once we have a position.
     uint4 paintData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(2, 0));
-    if (paintType != LINEAR_GRADIENT_PAINT_TYPE && paintType != RADIAL_GRADIENT_PAINT_TYPE)
+    if (paintType == SOLID_COLOR_PAINT_TYPE || paintType == CLIP_REPLACE_PAINT_TYPE)
     {
-        // The paint is a solid color or clip.
         v_paint = uintBitsToFloat(paintData);
     }
     else
     {
-        // The paint is a gradient.
-        uint span = paintData.x;
-        float row = float(span >> 20);
-        float x1 = float((span >> 10) & 0x3ffu);
-        float x0 = float(span & 0x3ffu);
-        // v_paint.a contains "-row" of the gradient ramp at texel center, in normalized space.
-        v_paint.a = (row + .5) * -uniforms.gradTextureInverseHeight;
-        // abs(v_paint.b) contains either:
-        //   - 2 if the gradient ramp spans an entire row.
-        //   - x0 of the gradient ramp in normalized space, if it's a simple 2-texel ramp.
-        if (x1 > x0 + 1.)
-            v_paint.b = 2.; // This ramp spans an entire row. Set it to 2 to convey this.
-        else
-            v_paint.b = x0 * (1. / GRAD_TEXTURE_WIDTH) + (.5 / GRAD_TEXTURE_WIDTH);
         float2 localCoord = MUL(inverse(mat), vertexPosition - translate);
-        float3 gradCoeffs = uintBitsToFloat(paintData.yzw);
-        if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
+        if (paintType == LINEAR_GRADIENT_PAINT_TYPE || paintType == RADIAL_GRADIENT_PAINT_TYPE)
         {
-            // The paint is a linear gradient.
-            v_paint.g = .0;
-            v_paint.r = dot(localCoord, gradCoeffs.xy) + gradCoeffs.z;
+            uint span = paintData.x;
+            float row = float(span >> 20);
+            float x1 = float((span >> 10) & 0x3ffu);
+            float x0 = float(span & 0x3ffu);
+            // v_paint.a contains "-row" of the gradient ramp at texel center, in normalized space.
+            v_paint.a = (row + .5) * -uniforms.gradTextureInverseHeight;
+            // abs(v_paint.b) contains either:
+            //   - 2 if the gradient ramp spans an entire row.
+            //   - x0 of the gradient ramp in normalized space, if it's a simple 2-texel ramp.
+            if (x1 > x0 + 1.)
+                v_paint.b = 2.; // This ramp spans an entire row. Set it to 2 to convey this.
+            else
+                v_paint.b = x0 * (1. / GRAD_TEXTURE_WIDTH) + (.5 / GRAD_TEXTURE_WIDTH);
+            float3 gradCoeffs = uintBitsToFloat(paintData.yzw);
+            if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
+            {
+                // The paint is a linear gradient.
+                v_paint.g = .0;
+                v_paint.r = dot(localCoord, gradCoeffs.xy) + gradCoeffs.z;
+            }
+            else
+            {
+                // The paint is a radial gradient. Mark v_paint.b negative to indicate this to the
+                // fragment shader. (v_paint.b can't be zero because the gradient ramp is aligned on
+                // pixel centers, so negating it will always produce a negative number.)
+                v_paint.b = -v_paint.b;
+                v_paint.rg = (localCoord - gradCoeffs.xy) / gradCoeffs.z;
+            }
         }
-        else
+        else // IMAGE_PAINT_TYPE
         {
-            // The paint is a radial gradient. Mark v_paint.b negative to indicate this to the
-            // fragment shader. (v_paint.b can't be zero because the gradient ramp is aligned on
-            // pixel centers, so negating it will always produce a negative number.)
-            v_paint.b = -v_paint.b;
-            v_paint.rg = (localCoord - gradCoeffs.xy) / gradCoeffs.z;
+            // v_paint.a <= -1. signals that the paint is an image.
+            // v_paint.b is the image opacity.
+            // v_paint.rg is the normalized image texture coordinate. (For now, we just
+            // pre-transform paths before rendering, such that localCoord == textureCoord.)
+            float opacity = uintBitsToFloat(paintData.x);
+            v_paint = float4(localCoord.x, localCoord.y, opacity, -2.);
         }
     }
 
@@ -429,10 +439,12 @@ VERTEX_MAIN(@drawVertexMain,
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN(FragmentTextures)
-TEXTURE_RGBA8(3, @gradTexture);
+TEXTURE_RGBA8(GRAD_TEXTURE_IDX, @gradTexture);
+TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
 FRAG_TEXTURE_BLOCK_END
 
-GRADIENT_SAMPLER_DECL(0, gradSampler)
+LINEAR_SAMPLER_DECL(LINEAR_SAMPLER_IDX, linearSampler)
+MIPMAP_SAMPLER_DECL(MIPMAP_SAMPLER_IDX, mipmapSampler)
 
 PLS_BLOCK_BEGIN
 PLS_DECL4F(0, framebuffer);
@@ -527,13 +539,12 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
         PLS_PRESERVE_VALUE(clipBuffer);
 
         half4 color;
-        if (v_paint.a >= .0)
+        if (v_paint.a >= .0) // Is the paint a solid color?
         {
-            color = make_half4(v_paint); // The paint is a solid color.
+            color = make_half4(v_paint);
         }
-        else
+        else if (v_paint.a > -1.) // Is paint is a gradient (linear or radial)?
         {
-            // The paint is a gradient (linear or radial).
             float t = v_paint.b > .0 ? /*linear*/ v_paint.r : /*radial*/ length(v_paint.rg);
             t = clamp(t, .0, 1.);
             float span = abs(v_paint.b);
@@ -541,7 +552,13 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
                                       (.5 / GRAD_TEXTURE_WIDTH)
                                 : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
             float row = -v_paint.a;
-            color = make_half4(TEXTURE_SAMPLE(textures, @gradTexture, gradSampler, float2(x, row)));
+            color =
+                make_half4(TEXTURE_SAMPLE(textures, @gradTexture, linearSampler, float2(x, row)));
+        }
+        else // The paint is an image.
+        {
+            color = TEXTURE_SAMPLE(textures, @imageTexture, mipmapSampler, v_paint.rg);
+            color.a *= v_paint.b; // paint.b holds the opacity of the image.
         }
         color.a *= coverage;
 

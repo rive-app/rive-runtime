@@ -102,7 +102,10 @@
 
 #define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) texelFetch(NAME, COORD, 0)
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
-#define GRADIENT_SAMPLER_DECL(IDX, NAME)
+
+// Sampling parameters in GL are API state tied to the texture.
+#define LINEAR_SAMPLER_DECL(IDX, NAME)
+#define MIPMAP_SAMPLER_DECL(IDX, NAME)
 
 // Define macros for implementing pixel local storage based on available extensions.
 #ifdef @PLS_IMPL_WEBGL

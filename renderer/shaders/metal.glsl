@@ -110,10 +110,14 @@
 #define TEXTURE_RGBA32F(IDX, NAME) [[$texture(IDX)]] $texture2d<float> NAME
 #define TEXTURE_RGBA8(IDX, NAME) [[$texture(IDX)]] $texture2d<half> NAME
 
+#define LINEAR_SAMPLER_DECL(IDX, NAME)                                                             \
+    $constexpr $sampler NAME($filter::$linear, $mip_filter::$none);
+#define MIPMAP_SAMPLER_DECL(IDX, NAME)                                                             \
+    $constexpr $sampler NAME($filter::$linear, $mip_filter::$linear);
+
 #define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) TEXTURE_BLOCK.NAME.$read(uint2(COORD))
-#define GRADIENT_SAMPLER_DECL(IDX, NAME)
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD)                                   \
-    TEXTURE_BLOCK.NAME.$sample($sampler($mag_filter::$linear, $min_filter::$linear), COORD)
+    TEXTURE_BLOCK.NAME.$sample(SAMPLER_NAME, COORD)
 
 #define PLS_BLOCK_BEGIN                                                                            \
     struct PLS                                                                                     \

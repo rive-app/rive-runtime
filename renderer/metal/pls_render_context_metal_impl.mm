@@ -5,6 +5,7 @@
 #include "rive/pls/metal/pls_render_context_metal_impl.h"
 
 #include "rive/pls/buffer_ring.hpp"
+#include "rive/pls/pls_image.hpp"
 #include <sstream>
 
 #include "../out/obj/generated/color_ramp.exports.h"
@@ -281,6 +282,57 @@ rcp<PLSRenderTargetMetal> PLSRenderContextMetalImpl::makeRenderTarget(MTLPixelFo
                                                                       size_t height)
 {
     return rcp(new PLSRenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
+}
+
+class PLSTextureMetalImpl : public PLSTexture
+{
+public:
+    PLSTextureMetalImpl(id<MTLDevice> gpu,
+                        id<MTLCommandQueue> queue,
+                        uint32_t width,
+                        uint32_t height,
+                        uint32_t mipLevelCount,
+                        const uint8_t imageDataRGBA[])
+    {
+        // Create the texture.
+        MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+        desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+        desc.width = width;
+        desc.height = height;
+        desc.mipmapLevelCount = mipLevelCount;
+        desc.usage = MTLTextureUsageShaderRead;
+        desc.storageMode = MTLStorageModeShared;
+        desc.textureType = MTLTextureType2D;
+        m_texture = [gpu newTextureWithDescriptor:desc];
+
+        // Specify the top-level image in the mipmap chain.
+        MTLRegion region = MTLRegionMake2D(0, 0, width, height);
+        [m_texture replaceRegion:region
+                     mipmapLevel:0
+                       withBytes:imageDataRGBA
+                     bytesPerRow:width * 4];
+
+        // Generate mipmaps.
+        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
+        id<MTLBlitCommandEncoder> mipEncoder = [commandBuffer blitCommandEncoder];
+        [mipEncoder generateMipmapsForTexture:m_texture];
+        [mipEncoder endEncoding];
+        [commandBuffer commit];
+    }
+
+    id<MTLTexture> texture() const { return m_texture; }
+
+private:
+    id<MTLTexture> m_texture;
+};
+
+rcp<PLSTexture> PLSRenderContextMetalImpl::makeImageTexture(uint32_t width,
+                                                            uint32_t height,
+                                                            uint32_t mipLevelCount,
+                                                            const uint8_t imageDataRGBA[])
+{
+    return make_rcp<PLSTextureMetalImpl>(
+        m_gpu, m_queue, width, height, mipLevelCount, imageDataRGBA);
 }
 
 class TexelBufferMetal : public TexelBufferRing
@@ -593,6 +645,12 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
             m_drawPipelines.try_emplace(pipelineKey, this, drawType, draw.shaderFeatures)
                 .first->second;
         [encoder setRenderPipelineState:drawPipeline.pipelineState(renderTarget->pixelFormat())];
+
+        // Bind the appropriate image texture, if any.
+        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTextureRef))
+        {
+            [encoder setFragmentTexture:imageTextureMetal->texture() atIndex:kImageTextureIdx];
+        }
 
         switch (drawType)
         {

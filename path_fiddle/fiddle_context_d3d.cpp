@@ -1,6 +1,6 @@
 #include "fiddle_context.hpp"
 
-#include "rive/pls/pls_factory.hpp"
+#include "rive/pls/decoding/pls_decoding_factory.hpp"
 #include "rive/pls/pls_renderer.hpp"
 #include "rive/pls/d3d/pls_render_context_d3d_impl.hpp"
 #include "rive/pls/d3d/d3d11.hpp"
@@ -30,7 +30,10 @@ public:
 
     float dpiScale() const override { return 1; }
 
-    std::unique_ptr<Factory> makeFactory() override { return std::make_unique<PLSFactory>(); }
+    std::unique_ptr<Factory> makeFactory() override
+    {
+        return std::make_unique<PLSDecodingFactory>();
+    }
 
     void onSizeChanged(int width, int height) override
     {

@@ -82,6 +82,10 @@ public:
     PLSRenderContext(std::unique_ptr<PLSRenderContextImpl>);
     ~PLSRenderContext();
 
+    // Manually releases all references in the draw list and then resets it back to empty.
+    void resetDrawList();
+
+    PLSRenderContextImpl* impl() { return m_impl.get(); }
     template <typename T> T* static_impl_cast() { return static_cast<T*>(m_impl.get()); }
 
     // Returns the number of flushes that have been executed over the entire lifetime of this class,
@@ -180,12 +184,36 @@ public:
                                        size_t curveCount,
                                        const TessVertexCounter&);
 
-    // Adds the given paint to the GPU data library and fills out 'PaintData' with the information
-    // required by the GPU to access it.
+    // Adds the given paint to the GPU data library and fills out 'm_currentPaintData' with the
+    // information required by the GPU to access it.
     //
     // Returns false if there wasn't room in the library, at which point the caller mush flush
     // before continuing.
-    [[nodiscard]] bool pushPaint(const PLSPaint*, PaintData*);
+    [[nodiscard]] bool pushPaint(const PLSPaint*);
+
+    // Pushes a record to the GPU for the given clip path, which will be referenced by future calls
+    // to pushContour() and pushCubic().
+    //
+    // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
+    // vertices, colocated at T=0. The caller must use this argument to align the beginning of the
+    // path on a boundary of the patch size. (See PLSRenderContext::TessVertexCounter.)
+    void pushClipPath(PatchType patchType,
+                      const Mat2D& matrix,
+                      FillRule fillRule,
+                      uint32_t clipID,
+                      uint32_t tessVertexCount,
+                      uint32_t paddingVertexCount)
+    {
+        pushPathInternal(patchType,
+                         matrix,
+                         0,
+                         fillRule,
+                         PaintType::clipReplace,
+                         clipID,
+                         PLSBlendMode::srcOver,
+                         tessVertexCount,
+                         paddingVertexCount);
+    }
 
     // Pushes a record to the GPU for the given path, which will be referenced by future calls to
     // pushContour() and pushCubic().
@@ -193,16 +221,24 @@ public:
     // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument to align the beginning of the
     // path on a boundary of the patch size. (See PLSRenderContext::TessVertexCounter.)
-    void pushPath(PatchType,
-                  const Mat2D&,
+    void pushPath(PatchType patchType,
+                  const Mat2D& matrix,
                   float strokeRadius,
-                  FillRule,
-                  PaintType,
+                  FillRule fillRule,
                   uint32_t clipID,
-                  PLSBlendMode,
-                  const PaintData&,
                   uint32_t tessVertexCount,
-                  uint32_t paddingVertexCount);
+                  uint32_t paddingVertexCount)
+    {
+        pushPathInternal(patchType,
+                         matrix,
+                         strokeRadius,
+                         fillRule,
+                         m_currentPaintType,
+                         clipID,
+                         m_currentBlendMode,
+                         tessVertexCount,
+                         paddingVertexCount);
+    }
 
     // Pushes a contour record to the GPU for the given contour, which references the most-recently
     // pushed path and will be referenced by future calls to pushCubic().
@@ -232,10 +268,7 @@ public:
 
     // Pushes triangles to be drawn using the data records from the most recent calls to pushPath()
     // and pushPaint().
-    void pushInteriorTriangulation(GrInnerFanTriangulator*,
-                                   PaintType,
-                                   uint32_t clipID,
-                                   PLSBlendMode);
+    void pushInteriorTriangulation(GrInnerFanTriangulator*, uint32_t clipID);
 
     enum class FlushType : bool
     {
@@ -345,7 +378,18 @@ private:
 
     // Allocates a horizontal span of texels in the gradient texture and schedules either a texture
     // upload or draw that fills it with the given gradient's color ramp.
-    [[nodiscard]] bool pushGradient(const PLSGradient*, PaintData*);
+    [[nodiscard]] bool pushGradientPaintData(const PLSGradient*);
+
+    // Internal implementation of pushClipPath() and pushPath().
+    void pushPathInternal(PatchType,
+                          const Mat2D&,
+                          float strokeRadius,
+                          FillRule,
+                          PaintType,
+                          uint32_t clipID,
+                          PLSBlendMode,
+                          uint32_t tessVertexCount,
+                          uint32_t paddingVertexCount);
 
     // Either appends a draw to m_drawList or merges into m_lastDraw.
     // Updates the draw's ShaderFeatures according to the passed parameters.
@@ -516,6 +560,12 @@ private:
     // the entire gradient texture width.
     std::unordered_map<GradientContentKey, uint32_t, DeepHashGradient>
         m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
+
+    // Most recent paint state.
+    PaintType m_currentPaintType = PaintType::solidColor;
+    PLSBlendMode m_currentBlendMode = PLSBlendMode::srcOver;
+    rcp<const PLSTexture> m_currentImageTexture;
+    PaintData m_currentPaintData{};
 
     WriteOnlyMappedMemory<PathData> m_pathData;
     WriteOnlyMappedMemory<ContourData> m_contourData;

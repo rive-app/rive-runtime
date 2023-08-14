@@ -11,6 +11,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/math/wangs_formula.hpp"
+#include "rive/pls/pls_image.hpp"
 
 namespace rive::pls
 {
@@ -191,7 +192,27 @@ void PLSRenderer::clipPath(RenderPath* renderPath)
     m_clipStackFlushID = m_context->getFlushCount();
 }
 
-void PLSRenderer::drawImage(const RenderImage*, BlendMode, float opacity) {}
+void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode, float opacity)
+{
+    // Implement drawImage() as drawPath() with a rectangle path and an image paint.
+    save();
+
+    auto image = static_cast<const PLSImage*>(renderImage);
+    scale(image->width(), image->height());
+
+    PLSPath path;
+    path.line({1, 0});
+    path.line({1, 1});
+    path.line({0, 1});
+
+    PLSPaint paint;
+    paint.image(image->refTexture(m_context->impl()), opacity);
+    paint.blendMode(blendMode);
+
+    drawPath(&path, &paint);
+
+    restore();
+}
 
 void PLSRenderer::drawImageMesh(const RenderImage*,
                                 rcp<RenderBuffer> vertices_f32,
@@ -1212,8 +1233,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     }
 
     // Attempt to push 'finalPathPaint' to the GPU buffers.
-    PaintData paintData;
-    if (!m_context->pushPaint(finalPathPaint, &paintData))
+    if (!m_context->pushPaint(finalPathPaint))
     {
         // The paint doesn't fit. Give up and let the caller flush and try again.
         return false;
@@ -1245,20 +1265,26 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
 
         // Push a path record.
         bool isClipPath = currentPathIdx != finalPathIdx;
-        PaintType paintType = isClipPath ? PaintType::clipReplace : finalPathPaint->getType();
-        PLSBlendMode blendMode =
-            isClipPath ? PLSBlendMode::srcOver : finalPathPaint->getBlendMode();
-
-        m_context->pushPath(path.triangulator ? PatchType::outerCurves : PatchType::midpointFan,
-                            *path.matrix,
-                            isClipPath ? 0 : strokeRadius,
-                            path.fillRule,
-                            paintType,
-                            path.clipID,
-                            blendMode,
-                            isClipPath ? PaintData{} : paintData,
-                            path.tessVertexCount,
-                            path.paddingVertexCount);
+        PatchType patchType = path.triangulator ? PatchType::outerCurves : PatchType::midpointFan;
+        if (isClipPath)
+        {
+            m_context->pushClipPath(patchType,
+                                    *path.matrix,
+                                    path.fillRule,
+                                    path.clipID,
+                                    path.tessVertexCount,
+                                    path.paddingVertexCount);
+        }
+        else
+        {
+            m_context->pushPath(patchType,
+                                *path.matrix,
+                                strokeRadius,
+                                path.fillRule,
+                                path.clipID,
+                                path.tessVertexCount,
+                                path.paddingVertexCount);
+        }
         RIVE_DEBUG_CODE(++pushedPathCount;)
 
         if (path.triangulator != nullptr)
@@ -1269,10 +1295,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                 m_context,
                 &path);
             RIVE_DEBUG_CODE(pushedContourCount += processedContourCount;)
-            m_context->pushInteriorTriangulation(path.triangulator,
-                                                 paintType,
-                                                 path.clipID,
-                                                 blendMode);
+            m_context->pushInteriorTriangulation(path.triangulator, path.clipID);
         }
         else
         {

@@ -4,8 +4,14 @@
 
 #include "pls_paint.hpp"
 
+#include "rive/pls/pls_image.hpp"
+
 namespace rive::pls
 {
+PLSPaint::PLSPaint() {}
+
+PLSPaint::~PLSPaint() {}
+
 rcp<PLSGradient> PLSGradient::MakeLinear(PLSGradDataArray<ColorInt>&& colors, // [count]
                                          PLSGradDataArray<float>&& stops,     // [count]
                                          size_t count,
@@ -79,8 +85,28 @@ void PLSPaint::blendMode(rive::BlendMode riveMode)
     m_blendMode = blend_mode_rive_to_pls(riveMode);
 }
 
+void PLSPaint::color(ColorInt color)
+{
+    m_imageTexture.reset();
+    m_gradient.reset();
+    m_color = color;
+    m_paintType = PaintType::solidColor;
+}
+
 void PLSPaint::shader(rcp<RenderShader> shader)
 {
+    m_imageTexture.reset();
     m_gradient = static_rcp_cast<PLSGradient>(std::move(shader));
+    m_paintType = m_gradient ? m_gradient->paintType() : PaintType::solidColor;
 }
+
+void PLSPaint::image(rcp<const PLSTexture> imageTexture, float opacity)
+{
+    m_imageOpacity = opacity;
+    m_imageTexture = std::move(imageTexture);
+    m_gradient.reset();
+    m_paintType = PaintType::image;
+}
+
+rcp<const PLSTexture> PLSPaint::refImageTexture() const { return m_imageTexture; }
 } // namespace rive::pls

@@ -55,8 +55,10 @@ public:
 private:
     PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
-                                                     size_t itemSizeInBytes) override;
+    rcp<PLSTexture> makeImageTexture(uint32_t width,
+                                     uint32_t height,
+                                     uint32_t mipLevelCount,
+                                     const uint8_t imageDataRGBA[]) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
@@ -64,6 +66,9 @@ private:
                                                          size_t texelsPerItem,
                                                          int textureIdx,
                                                          TexelBufferRing::Filter) override;
+
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
+                                                     size_t itemSizeInBytes) override;
 
     std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
                                                           size_t itemSizeInBytes) override;

@@ -40,8 +40,8 @@ INLINE float2x2 find_tangents(float2 p0, float2 p1, float2 p2, float2 p3)
 
 #ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
-TEXTURE_RGBA32UI(1, @pathTexture);
-TEXTURE_RGBA32UI(2, @contourTexture);
+TEXTURE_RGBA32UI(PATH_TEXTURE_IDX, @pathTexture);
+TEXTURE_RGBA32UI(CONTOUR_TEXTURE_IDX, @contourTexture);
 VERTEX_TEXTURE_BLOCK_END
 
 float cosine_between_vectors(float2 a, float2 b)
