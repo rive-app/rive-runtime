@@ -492,7 +492,7 @@ class Minifier:
 
     def write_exports(self, outdir):
         output_path = os.path.join(outdir, os.path.splitext(self.basename)[0] + ".exports.h")
-        print("Exporting %s identifiers -> %s" % (self.basename, output_path))
+        print("Exporting %s <- %s" % (output_path, self.basename))
         out = open(output_path, "w", newline='\n')
         out.write('#pragma once\n\n')
         for exp in sorted(self.exports):
@@ -502,7 +502,7 @@ class Minifier:
 
     def write_embedded_glsl(self, outdir):
         output_path = os.path.join(outdir, self.basename + ".hpp")
-        print("Embedding %s -> %s" % (self.basename, output_path))
+        print("Embedding %s <- %s" % (output_path, self.basename))
         out = open(output_path, "w", newline='\n')
         out.write("#pragma once\n\n")
 
@@ -527,7 +527,7 @@ class Minifier:
 
     def write_offline_glsl(self, outdir):
         output_path = os.path.join(outdir, os.path.splitext(self.basename)[0] + ".minified.glsl")
-        print("Minifying %s -> %s" % (self.basename, output_path))
+        print("Minifying %s <- %s" % (output_path, self.basename))
         out = open(output_path, "w", newline='\n')
         self.emit_tokens_to_rewritten_glsl(out, rename_exported_defines=False)
         out.close()

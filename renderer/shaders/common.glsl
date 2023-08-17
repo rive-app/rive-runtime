@@ -41,9 +41,6 @@
 #define GRAD_TEXTURE_IDX 3
 #define IMAGE_TEXTURE_IDX 4
 
-#define LINEAR_SAMPLER_IDX 0
-#define MIPMAP_SAMPLER_IDX 1
-
 // acos(1/4), because the miter limit is always 4.
 #define MITER_ANGLE_LIMIT 1.318116071652817965746
 

@@ -443,8 +443,8 @@ TEXTURE_RGBA8(GRAD_TEXTURE_IDX, @gradTexture);
 TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
 FRAG_TEXTURE_BLOCK_END
 
-LINEAR_SAMPLER_DECL(LINEAR_SAMPLER_IDX, linearSampler)
-MIPMAP_SAMPLER_DECL(MIPMAP_SAMPLER_IDX, mipmapSampler)
+SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
+SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 PLS_BLOCK_BEGIN
 PLS_DECL4F(0, framebuffer);
@@ -552,12 +552,11 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
                                       (.5 / GRAD_TEXTURE_WIDTH)
                                 : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
             float row = -v_paint.a;
-            color =
-                make_half4(TEXTURE_SAMPLE(textures, @gradTexture, linearSampler, float2(x, row)));
+            color = make_half4(TEXTURE_SAMPLE(textures, @gradTexture, gradSampler, float2(x, row)));
         }
         else // The paint is an image.
         {
-            color = TEXTURE_SAMPLE(textures, @imageTexture, mipmapSampler, v_paint.rg);
+            color = TEXTURE_SAMPLE(textures, @imageTexture, imageSampler, v_paint.rg);
             color.a *= v_paint.b; // paint.b holds the opacity of the image.
         }
         color.a *= coverage;

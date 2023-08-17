@@ -115,12 +115,13 @@ $typedef $min16uint ushort;
 #define TEXTURE_RGBA32F(IDX, NAME) uniform $Texture2D<float4> NAME : $register($t##IDX)
 #define TEXTURE_RGBA8(IDX, NAME) uniform $Texture2D<$unorm float4> NAME : $register($t##IDX)
 
+// SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler parameters are defined
+// at the API level.
+#define SAMPLER(TEXTURE_IDX, NAME) $SamplerState NAME : $register($s##TEXTURE_IDX);
+#define SAMPLER_LINEAR SAMPLER
+#define SAMPLER_MIPMAP SAMPLER
+
 #define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) NAME[COORD]
-
-#define SAMPLER_DECL(IDX, NAME) $SamplerState NAME : $register($s##IDX);
-#define LINEAR_SAMPLER_DECL SAMPLER_DECL
-#define MIPMAP_SAMPLER_DECL SAMPLER_DECL
-
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) NAME.$Sample(SAMPLER_NAME, COORD)
 
 #define PLS_INTERLOCK_BEGIN

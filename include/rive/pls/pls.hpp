@@ -160,10 +160,6 @@ constexpr static int kContourTextureIdx = 2;
 constexpr static int kGradTextureIdx = 3;
 constexpr static int kImageTextureIdx = 4;
 
-// Index at which we access each sampler.
-constexpr static int kLinearSamplerIdx = 0;
-constexpr static int kMipmapSamplerIdx = 1;
-
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {

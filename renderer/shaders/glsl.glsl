@@ -100,12 +100,13 @@
 #define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
 
+// SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling parameters are API-level
+// state tied to the texture.
+#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
+#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
+
 #define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) texelFetch(NAME, COORD, 0)
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
-
-// Sampling parameters in GL are API state tied to the texture.
-#define LINEAR_SAMPLER_DECL(IDX, NAME)
-#define MIPMAP_SAMPLER_DECL(IDX, NAME)
 
 // Define macros for implementing pixel local storage based on available extensions.
 #ifdef @PLS_IMPL_WEBGL

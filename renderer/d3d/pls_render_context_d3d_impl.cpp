@@ -320,9 +320,8 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     VERIFY_OK(m_gpu->CreateSamplerState(&mipmapSamplerDesc, m_mipmapSampler.GetAddressOf()));
 
     ID3D11SamplerState* samplers[2] = {m_linearSampler.Get(), m_mipmapSampler.Get()};
-    static_assert(kLinearSamplerIdx == 0);
-    static_assert(kMipmapSamplerIdx == 1);
-    m_gpuContext->PSSetSamplers(0, 2, samplers);
+    static_assert(kImageTextureIdx == kGradTextureIdx + 1);
+    m_gpuContext->PSSetSamplers(kGradTextureIdx, 2, samplers);
 }
 
 class PLSTextureD3DImpl : public PLSTexture

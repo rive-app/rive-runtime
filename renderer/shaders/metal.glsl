@@ -110,9 +110,9 @@
 #define TEXTURE_RGBA32F(IDX, NAME) [[$texture(IDX)]] $texture2d<float> NAME
 #define TEXTURE_RGBA8(IDX, NAME) [[$texture(IDX)]] $texture2d<half> NAME
 
-#define LINEAR_SAMPLER_DECL(IDX, NAME)                                                             \
+#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$none);
-#define MIPMAP_SAMPLER_DECL(IDX, NAME)                                                             \
+#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$linear);
 
 #define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) TEXTURE_BLOCK.NAME.$read(uint2(COORD))
