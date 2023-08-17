@@ -63,9 +63,11 @@ void ViewerContent::DumpCounters(const char label[])
     printf("\n");
 }
 
+#ifndef RIVE_SKIP_IMGUI
 #include "viewer/viewer_host.hpp"
 
 rive::Factory* ViewerContent::RiveFactory() { return ViewerHost::Factory(); }
+#endif
 
 #include "rive/text/font_hb.hpp"
 rive::rcp<rive::Font> ViewerContent::DecodeFont(rive::Span<const uint8_t> span)

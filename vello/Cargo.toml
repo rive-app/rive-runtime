@@ -1,0 +1,17 @@
+[package]
+name = "rive-vello"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+cc = { version = "1.0", features = ["parallel"] }
+walkdir = "2.3.3"
+
+[dependencies]
+clap = { version = "4.3.19", features = ["derive"] }
+image = "0.24.6"
+pollster = "0.3.0"
+smallvec = "1.8.0"
+vello = { git = "https://github.com/linebender/vello", rev = "3cb5462" }
+wgpu = "0.17.0"
+winit = "0.28.6"

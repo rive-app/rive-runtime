@@ -19,7 +19,9 @@ public:
     }
 
     void handleResize(int width, int height) override {}
+#ifndef RIVE_SKIP_IMGUI
     void handleImgui() override {}
+#endif
 };
 
 std::unique_ptr<ViewerContent> ViewerContent::Image(const char filename[])

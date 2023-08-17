@@ -338,6 +338,7 @@ public:
     }
 
     void handleResize(int width, int height) override {}
+#ifndef RIVE_SKIP_IMGUI
     void handleImgui() override
     {
         const char* alignOptions[] = {"left", "right", "center"};
@@ -347,6 +348,7 @@ public:
         ImGui::Combo("combo", &m_align, alignOptions, IM_ARRAYSIZE(alignOptions));
         ImGui::End();
     }
+#endif
 };
 
 static bool ends_width(const char str[], const char suffix[])

@@ -5,10 +5,14 @@
 #ifndef _RIVE_VIEWER_CONTENT_HPP_
 #define _RIVE_VIEWER_CONTENT_HPP_
 
+#include <vector>
+
 #include "rive/span.hpp"
 #include "rive/refcnt.hpp"
 
+#ifndef RIVE_SKIP_IMGUI
 #include "imgui.h"
+#endif
 
 namespace rive
 {
@@ -24,7 +28,9 @@ public:
 
     virtual void handleResize(int width, int height) = 0;
     virtual void handleDraw(rive::Renderer* renderer, double elapsed) = 0;
+#ifndef RIVE_SKIP_IMGUI
     virtual void handleImgui() = 0;
+#endif
 
     virtual void handlePointerMove(float x, float y) {}
     virtual void handlePointerDown(float x, float y) {}

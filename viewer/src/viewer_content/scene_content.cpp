@@ -209,6 +209,7 @@ public:
         renderer->restore();
     }
 
+#ifndef RIVE_SKIP_IMGUI
     void handleImgui() override
     {
         // For now the atlas packer only works with tess as it compiles in our
@@ -379,6 +380,7 @@ public:
             ImGui::Text("Drop a .riv file to preview.");
         }
     }
+#endif
 };
 
 std::unique_ptr<ViewerContent> ViewerContent::Scene(const char filename[])

@@ -387,6 +387,7 @@ public:
 
     void handleResize(int width, int height) override {}
 
+#ifndef RIVE_SKIP_IMGUI
     void handleImgui() override
     {
         ImGui::Begin("path", nullptr);
@@ -398,6 +399,7 @@ public:
         ImGui::SliderFloat("Flare radius", &m_flareRadius, 10, 100);
         ImGui::End();
     }
+#endif
 };
 
 std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[])

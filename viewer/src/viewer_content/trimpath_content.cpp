@@ -159,6 +159,7 @@ public:
 
     void handleResize(int width, int height) override {}
 
+#ifndef RIVE_SKIP_IMGUI
     void handleImgui() override
     {
         ImGui::Begin("trim", nullptr);
@@ -166,6 +167,7 @@ public:
         ImGui::SliderFloat("To", &m_trimTo, 0, 1);
         ImGui::End();
     }
+#endif
 };
 
 std::unique_ptr<ViewerContent> ViewerContent::TrimPath(const char[])
