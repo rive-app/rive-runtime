@@ -10,18 +10,6 @@ class LinearAnimation;
 
 class LinearAnimationInstance : public Scene
 {
-private:
-    const LinearAnimation* m_Animation = nullptr;
-    float m_Time;
-    float m_TotalTime;
-    float m_LastTotalTime;
-    float m_SpilledTime;
-
-    // float because it gets multiplied with other floats
-    float m_Direction;
-    bool m_DidLoop;
-    int m_LoopValue = -1;
-
 public:
     LinearAnimationInstance(const LinearAnimation*, ArtboardInstance*, float speedMultiplier = 1.0);
     LinearAnimationInstance(LinearAnimationInstance const&);
@@ -31,17 +19,17 @@ public:
     // animation will continue to animate after this advance.
     bool advance(float seconds);
 
-    void clearSpilledTime() { m_SpilledTime = 0; }
+    void clearSpilledTime() { m_spilledTime = 0; }
 
     // Returns a pointer to the instance's animation
-    const LinearAnimation* animation() const { return m_Animation; }
+    const LinearAnimation* animation() const { return m_animation; }
 
     // Returns the current point in time at which this instance has advance
     // to
-    float time() const { return m_Time; }
+    float time() const { return m_time; }
 
     // Returns the direction that we are currently playing in
-    float direction() const { return m_Direction; }
+    float direction() const { return m_direction; }
 
     // Update the direction of the animation instance, positive value for
     // forwards Negative for backwards
@@ -49,11 +37,11 @@ public:
     {
         if (direction > 0)
         {
-            m_Direction = 1;
+            m_direction = 1;
         }
         else
         {
-            m_Direction = -1;
+            m_direction = -1;
         }
     }
 
@@ -63,20 +51,20 @@ public:
     // Applies the animation instance to its artboard instance. The mix (a value
     // between 0 and 1) is the strength at which the animation is mixed with
     // other animations applied to the artboard.
-    void apply(float mix = 1.0f) const { m_Animation->apply(m_ArtboardInstance, m_Time, mix); }
+    void apply(float mix = 1.0f) const { m_animation->apply(m_artboardInstance, m_time, mix); }
 
     // Set when the animation is advanced, true if the animation has stopped
     // (oneShot), reached the end (loop), or changed direction (pingPong)
-    bool didLoop() const { return m_DidLoop; }
+    bool didLoop() const { return m_didLoop; }
 
     bool keepGoing() const
     {
-        return m_LoopValue != static_cast<int>(rive::Loop::oneShot) || !m_DidLoop;
+        return m_loopValue != static_cast<int>(rive::Loop::oneShot) || !m_didLoop;
     }
 
-    float totalTime() const { return m_TotalTime; }
-    float lastTotalTime() const { return m_LastTotalTime; }
-    float spilledTime() const { return m_SpilledTime; }
+    float totalTime() const { return m_totalTime; }
+    float lastTotalTime() const { return m_lastTotalTime; }
+    float spilledTime() const { return m_spilledTime; }
     float durationSeconds() const override;
 
     // Forwarded from animation
@@ -95,6 +83,18 @@ public:
     bool advanceAndApply(float seconds) override;
     std::string name() const override;
     void reset(float speedMultiplier);
+
+private:
+    const LinearAnimation* m_animation = nullptr;
+    float m_time;
+    float m_totalTime;
+    float m_lastTotalTime;
+    float m_spilledTime;
+
+    // float because it gets multiplied with other floats
+    float m_direction;
+    bool m_didLoop;
+    int m_loopValue = -1;
 };
 } // namespace rive
 #endif

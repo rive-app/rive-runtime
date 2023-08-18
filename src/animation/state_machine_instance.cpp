@@ -16,6 +16,7 @@
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_condition.hpp"
+#include "rive/animation/state_machine_fire_event.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
 #include "rive/nested_animation.hpp"
@@ -29,78 +30,61 @@ namespace rive
 {
 class StateMachineLayerInstance
 {
-private:
-    static const int maxIterations = 100;
-    const StateMachineLayer* m_Layer = nullptr;
-    ArtboardInstance* m_ArtboardInstance = nullptr;
-
-    StateInstance* m_AnyStateInstance = nullptr;
-    StateInstance* m_CurrentState = nullptr;
-    StateInstance* m_StateFrom = nullptr;
-
-    // const LayerState* m_CurrentState = nullptr;
-    // const LayerState* m_StateFrom = nullptr;
-    const StateTransition* m_Transition = nullptr;
-
-    bool m_HoldAnimationFrom = false;
-    // LinearAnimationInstance* m_AnimationInstance = nullptr;
-    // LinearAnimationInstance* m_AnimationInstanceFrom = nullptr;
-    float m_Mix = 1.0f;
-    float m_MixFrom = 1.0f;
-    bool m_StateChangedOnAdvance = false;
-
-    bool m_WaitingForExit = false;
-    /// Used to ensure a specific animation is applied on the next apply.
-    const LinearAnimation* m_HoldAnimation = nullptr;
-    float m_HoldTime = 0.0f;
-
 public:
     ~StateMachineLayerInstance()
     {
-        delete m_AnyStateInstance;
-        delete m_CurrentState;
-        delete m_StateFrom;
+        delete m_anyStateInstance;
+        delete m_currentState;
+        delete m_stateFrom;
     }
 
-    void init(const StateMachineLayer* layer, ArtboardInstance* instance)
+    void init(StateMachineInstance* stateMachineInstance,
+              const StateMachineLayer* layer,
+              ArtboardInstance* instance)
     {
-        m_ArtboardInstance = instance;
-        assert(m_Layer == nullptr);
-        m_AnyStateInstance = layer->anyState()->makeInstance(instance).release();
-        m_Layer = layer;
-        changeState(m_Layer->entryState());
+        m_stateMachineInstance = stateMachineInstance;
+        m_artboardInstance = instance;
+        assert(m_layer == nullptr);
+        m_anyStateInstance = layer->anyState()->makeInstance(instance).release();
+        m_layer = layer;
+        changeState(m_layer->entryState());
     }
 
     void updateMix(float seconds)
     {
-        if (m_Transition != nullptr && m_StateFrom != nullptr && m_Transition->duration() != 0)
+        if (m_transition != nullptr && m_stateFrom != nullptr && m_transition->duration() != 0)
         {
-            m_Mix = std::min(
+            m_mix = std::min(
                 1.0f,
-                std::max(0.0f, (m_Mix + seconds / m_Transition->mixTime(m_StateFrom->state()))));
+                std::max(0.0f, (m_mix + seconds / m_transition->mixTime(m_stateFrom->state()))));
+            if (m_mix == 1.0f && !m_transitionCompleted)
+            {
+                m_transitionCompleted = true;
+                fireEvents(StateMachineFireOccurance::atEnd, m_transition->events());
+            }
         }
         else
         {
-            m_Mix = 1.0f;
+            m_mix = 1.0f;
         }
     }
 
     bool advance(float seconds, Span<SMIInput*> inputs)
     {
-        m_StateChangedOnAdvance = false;
+        m_stateMachineChangedOnAdvance = false;
 
-        if (m_CurrentState != nullptr && m_CurrentState->keepGoing())
+        if (m_currentState != nullptr && m_currentState->keepGoing())
         {
-            m_CurrentState->advance(seconds, inputs);
+            m_currentState->advance(seconds, inputs);
         }
 
         updateMix(seconds);
 
-        if (m_StateFrom != nullptr && m_Mix < 1.0f && !m_HoldAnimationFrom)
+        if (m_stateFrom != nullptr && m_mix < 1.0f && !m_holdAnimationFrom)
         {
             // This didn't advance during our updateState, but it should now
             // that we realize we need to mix it in.
-            m_StateFrom->advance(seconds, inputs);
+            m_stateFrom->advance(seconds, inputs);
         }
 
         for (int i = 0; updateState(inputs, i != 0); i++)
@@ -116,16 +100,16 @@ public:
 
         apply();
 
-        m_CurrentState->clearSpilledTime();
+        m_currentState->clearSpilledTime();
 
-        return m_Mix != 1.0f || m_WaitingForExit ||
-               (m_CurrentState != nullptr && m_CurrentState->keepGoing());
+        return m_mix != 1.0f || m_waitingForExit ||
+               (m_currentState != nullptr && m_currentState->keepGoing());
     }
 
     bool isTransitioning()
     {
-        return m_Transition != nullptr && m_StateFrom != nullptr && m_Transition->duration() != 0 &&
-               m_Mix < 1.0f;
+        return m_transition != nullptr && m_stateFrom != nullptr && m_transition->duration() != 0 &&
+               m_mix < 1.0f;
     }
 
     bool updateState(Span<SMIInput*> inputs, bool ignoreTriggers)
@@ -137,24 +121,49 @@ public:
             return false;
         }
 
-        m_WaitingForExit = false;
+        m_waitingForExit = false;
 
-        if (tryChangeState(m_AnyStateInstance, inputs, ignoreTriggers))
+        if (tryChangeState(m_anyStateInstance, inputs, ignoreTriggers))
         {
             return true;
         }
 
-        return tryChangeState(m_CurrentState, inputs, ignoreTriggers);
+        return tryChangeState(m_currentState, inputs, ignoreTriggers);
+    }
+
+    void fireEvents(StateMachineFireOccurance occurs,
+                    const std::vector<StateMachineFireEvent*>& fireEvents)
+    {
+        for (auto event : fireEvents)
+        {
+            if (event->occurs() == occurs)
+            {
+                event->perform(m_stateMachineInstance);
+            }
+        }
     }
 
     bool changeState(const LayerState* stateTo)
     {
-        if ((m_CurrentState == nullptr ? nullptr : m_CurrentState->state()) == stateTo)
+        if ((m_currentState == nullptr ? nullptr : m_currentState->state()) == stateTo)
         {
             return false;
         }
-        m_CurrentState =
-            stateTo == nullptr ? nullptr : stateTo->makeInstance(m_ArtboardInstance).release();
+
+        // Fire end events for the state we're changing from.
+        if (m_currentState != nullptr)
+        {
+            fireEvents(StateMachineFireOccurance::atEnd, m_currentState->state()->events());
+        }
+
+        m_currentState =
+            stateTo == nullptr ? nullptr : stateTo->makeInstance(m_artboardInstance).release();
+
+        // Fire start events for the state we're changing to.
+        if (m_currentState != nullptr)
+        {
+            fireEvents(StateMachineFireOccurance::atStart, m_currentState->state()->events());
+        }
         return true;
     }
 
@@ -167,22 +176,33 @@ public:
             return false;
         }
         auto stateFrom = stateFromInstance->state();
-        auto outState = m_CurrentState;
+        auto outState = m_currentState;
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length; i++)
         {
             auto transition = stateFrom->transition(i);
             auto allowed = transition->allowed(stateFromInstance, inputs, ignoreTriggers);
             if (allowed == AllowTransition::yes && changeState(transition->stateTo()))
             {
-                m_StateChangedOnAdvance = true;
+                m_stateMachineChangedOnAdvance = true;
                 // state actually has changed
-                m_Transition = transition;
-                if (m_StateFrom != m_AnyStateInstance)
+                m_transition = transition;
+                fireEvents(StateMachineFireOccurance::atStart, transition->events());
+                if (transition->duration() == 0)
+                {
+                    m_transitionCompleted = true;
+                    fireEvents(StateMachineFireOccurance::atEnd, transition->events());
+                }
+                else
+                {
+                    m_transitionCompleted = false;
+                }
+
+                if (m_stateFrom != m_anyStateInstance)
                 {
                     // Old state from is done.
-                    delete m_StateFrom;
+                    delete m_stateFrom;
                 }
-                m_StateFrom = outState;
+                m_stateFrom = outState;
 
                 // If we had an exit time and wanted to pause on exit, make
                 // sure to hold the exit time. Delegate this to the
@@ -192,35 +212,35 @@ public:
                     // Make sure we apply this state. This only returns true
                     // when it's an animation state instance.
                     auto instance =
-                        static_cast<AnimationStateInstance*>(m_StateFrom)->animationInstance();
+                        static_cast<AnimationStateInstance*>(m_stateFrom)->animationInstance();
 
-                    m_HoldAnimation = instance->animation();
-                    m_HoldTime = instance->time();
+                    m_holdAnimation = instance->animation();
+                    m_holdTime = instance->time();
                 }
-                m_MixFrom = m_Mix;
+                m_mixFrom = m_mix;
 
                 // Keep mixing last animation that was mixed in.
-                if (m_Mix != 0.0f)
+                if (m_mix != 0.0f)
                 {
-                    m_HoldAnimationFrom = transition->pauseOnExit();
+                    m_holdAnimationFrom = transition->pauseOnExit();
                 }
-                if (m_StateFrom != nullptr && m_StateFrom->state()->is<AnimationState>() &&
-                    m_CurrentState != nullptr)
+                if (m_stateFrom != nullptr && m_stateFrom->state()->is<AnimationState>() &&
+                    m_currentState != nullptr)
                 {
                     auto instance =
-                        static_cast<AnimationStateInstance*>(m_StateFrom)->animationInstance();
+                        static_cast<AnimationStateInstance*>(m_stateFrom)->animationInstance();
 
                     auto spilledTime = instance->spilledTime();
-                    m_CurrentState->advance(spilledTime, inputs);
+                    m_currentState->advance(spilledTime, inputs);
                 }
-                m_Mix = 0.0f;
+                m_mix = 0.0f;
                 updateMix(0.0f);
-                m_WaitingForExit = false;
+                m_waitingForExit = false;
                 return true;
             }
             else if (allowed == AllowTransition::waitingForExit)
             {
-                m_WaitingForExit = true;
+                m_waitingForExit = true;
             }
         }
         return false;
@@ -228,45 +248,69 @@ public:
 
     void apply(/*Artboard* artboard*/)
     {
-        if (m_HoldAnimation != nullptr)
+        if (m_holdAnimation != nullptr)
         {
-            m_HoldAnimation->apply(m_ArtboardInstance, m_HoldTime, m_MixFrom);
-            m_HoldAnimation = nullptr;
+            m_holdAnimation->apply(m_artboardInstance, m_holdTime, m_mixFrom);
+            m_holdAnimation = nullptr;
         }
 
         CubicInterpolator* cubic = nullptr;
-        if (m_Transition != nullptr && m_Transition->interpolator() != nullptr)
+        if (m_transition != nullptr && m_transition->interpolator() != nullptr)
         {
-            cubic = m_Transition->interpolator();
+            cubic = m_transition->interpolator();
         }
 
-        if (m_StateFrom != nullptr && m_Mix < 1.0f)
+        if (m_stateFrom != nullptr && m_mix < 1.0f)
         {
-            auto fromMix = cubic != nullptr ? cubic->transform(m_MixFrom) : m_MixFrom;
-            m_StateFrom->apply(fromMix);
+            auto fromMix = cubic != nullptr ? cubic->transform(m_mixFrom) : m_mixFrom;
+            m_stateFrom->apply(fromMix);
         }
-        if (m_CurrentState != nullptr)
+        if (m_currentState != nullptr)
         {
-            auto mix = cubic != nullptr ? cubic->transform(m_Mix) : m_Mix;
-            m_CurrentState->apply(mix);
+            auto mix = cubic != nullptr ? cubic->transform(m_mix) : m_mix;
+            m_currentState->apply(mix);
         }
     }
 
-    bool stateChangedOnAdvance() const { return m_StateChangedOnAdvance; }
+    bool stateChangedOnAdvance() const { return m_stateMachineChangedOnAdvance; }
 
     const LayerState* currentState()
     {
-        return m_CurrentState == nullptr ? nullptr : m_CurrentState->state();
+        return m_currentState == nullptr ? nullptr : m_currentState->state();
     }
 
     const LinearAnimationInstance* currentAnimation() const
     {
-        if (m_CurrentState == nullptr || !m_CurrentState->state()->is<AnimationState>())
+        if (m_currentState == nullptr || !m_currentState->state()->is<AnimationState>())
         {
             return nullptr;
         }
-        return static_cast<AnimationStateInstance*>(m_CurrentState)->animationInstance();
+        return static_cast<AnimationStateInstance*>(m_currentState)->animationInstance();
     }
+
+private:
+    static const int maxIterations = 100;
+    StateMachineInstance* m_stateMachineInstance = nullptr;
+    const StateMachineLayer* m_layer = nullptr;
+    ArtboardInstance* m_artboardInstance = nullptr;
+
+    StateInstance* m_anyStateInstance = nullptr;
+    StateInstance* m_currentState = nullptr;
+    StateInstance* m_stateFrom = nullptr;
+
+    const StateTransition* m_transition = nullptr;
+    bool m_transitionCompleted = false;
+
+    bool m_holdAnimationFrom = false;
+
+    float m_mix = 1.0f;
+    float m_mixFrom = 1.0f;
+    bool m_stateMachineChangedOnAdvance = false;
+
+    bool m_waitingForExit = false;
+    /// Used to ensure a specific animation is applied on the next apply.
+    const LinearAnimation* m_holdAnimation = nullptr;
+    float m_holdTime = 0.0f;
 };
 
 /// Representation of a Shape from the Artboard Instance and all the listeners it
@@ -274,23 +318,23 @@ public:
 /// shapes that trigger multiple listeners.
 class HitShape
 {
-private:
-    Shape* m_Shape;
-
 public:
-    Shape* shape() const { return m_Shape; }
-    HitShape(Shape* shape) : m_Shape(shape) {}
+    Shape* shape() const { return m_shape; }
+    HitShape(Shape* shape) : m_shape(shape) {}
     bool isHovered = false;
     std::vector<const StateMachineListener*> listeners;
+
+private:
+    Shape* m_shape;
 };
 } // namespace rive
 
 void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
 {
-    if (m_ArtboardInstance->frameOrigin())
+    if (m_artboardInstance->frameOrigin())
     {
-        position -= Vec2D(m_ArtboardInstance->originX() * m_ArtboardInstance->width(),
-                          m_ArtboardInstance->originY() * m_ArtboardInstance->height());
+        position -= Vec2D(m_artboardInstance->originX() * m_artboardInstance->width(),
+                          m_artboardInstance->originY() * m_artboardInstance->height());
     }
 
     const float hitRadius = 2;
@@ -300,7 +344,7 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
                         position.y + hitRadius)
                        .round();
 
-    for (const auto& hitShape : m_HitShapes)
+    for (const auto& hitShape : m_hitShapes)
     {
 
         // TODO: quick reject.
@@ -340,7 +384,7 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
     // can be sorted by drawOrder so they can be iterated in one loop and early
     // out if any hit stops propagation (also require the ability to mark a hit
     // as able to stop propagation)
-    for (auto nestedArtboard : m_HitNestedArtboards)
+    for (auto nestedArtboard : m_hitNestedArtboards)
     {
         Vec2D nestedPosition;
         if (!nestedArtboard->worldToLocal(position, &nestedPosition))
@@ -389,12 +433,12 @@ void StateMachineInstance::pointerUp(Vec2D position)
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
-    Scene(instance), m_Machine(machine)
+    Scene(instance), m_machine(machine)
 {
     Counter::update(Counter::kStateMachineInstance, +1);
 
     const auto count = machine->inputCount();
-    m_InputInstances.resize(count);
+    m_inputInstances.resize(count);
     for (size_t i = 0; i < count; i++)
     {
         auto input = machine->input(i);
@@ -405,13 +449,13 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         switch (input->coreType())
         {
             case StateMachineBool::typeKey:
-                m_InputInstances[i] = new SMIBool(input->as<StateMachineBool>(), this);
+                m_inputInstances[i] = new SMIBool(input->as<StateMachineBool>(), this);
                 break;
             case StateMachineNumber::typeKey:
-                m_InputInstances[i] = new SMINumber(input->as<StateMachineNumber>(), this);
+                m_inputInstances[i] = new SMINumber(input->as<StateMachineNumber>(), this);
                 break;
             case StateMachineTrigger::typeKey:
-                m_InputInstances[i] = new SMITrigger(input->as<StateMachineTrigger>(), this);
+                m_inputInstances[i] = new SMITrigger(input->as<StateMachineTrigger>(), this);
                 break;
             default:
                 // Sanity check.
@@ -419,11 +463,11 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         }
     }
 
-    m_LayerCount = machine->layerCount();
-    m_Layers = new StateMachineLayerInstance[m_LayerCount];
-    for (size_t i = 0; i < m_LayerCount; i++)
+    m_layerCount = machine->layerCount();
+    m_layers = new StateMachineLayerInstance[m_layerCount];
+    for (size_t i = 0; i < m_layerCount; i++)
     {
-        m_Layers[i].init(machine->layer(i), m_ArtboardInstance);
+        m_layers[i].init(this, machine->layer(i), m_artboardInstance);
     }
 
     // Initialize listeners. Store a lookup table of shape id to hit shape
@@ -442,12 +486,12 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             auto itr = hitShapeLookup.find(id);
             if (itr == hitShapeLookup.end())
             {
-                auto shape = m_ArtboardInstance->resolve(id);
+                auto shape = m_artboardInstance->resolve(id);
                 if (shape != nullptr && shape->is<Shape>())
                 {
                     auto hs = rivestd::make_unique<HitShape>(shape->as<Shape>());
                     hitShapeLookup[id] = hitShape = hs.get();
-                    m_HitShapes.push_back(std::move(hs));
+                    m_hitShapes.push_back(std::move(hs));
                 }
                 else
                 {
@@ -467,18 +511,18 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     {
         if (nestedArtboard->hasNestedStateMachines())
         {
-            m_HitNestedArtboards.push_back(nestedArtboard);
+            m_hitNestedArtboards.push_back(nestedArtboard);
         }
     }
 }
 
 StateMachineInstance::~StateMachineInstance()
 {
-    for (auto inst : m_InputInstances)
+    for (auto inst : m_inputInstances)
     {
         delete inst;
     }
-    delete[] m_Layers;
+    delete[] m_layers;
 
     Counter::update(Counter::kStateMachineInstance, -1);
 }
@@ -486,40 +530,40 @@ StateMachineInstance::~StateMachineInstance()
 bool StateMachineInstance::advance(float seconds)
 {
     m_firedEvents.clear();
-    m_NeedsAdvance = false;
-    for (size_t i = 0; i < m_LayerCount; i++)
+    m_needsAdvance = false;
+    for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_Layers[i].advance(seconds, m_InputInstances))
+        if (m_layers[i].advance(seconds, m_inputInstances))
         {
-            m_NeedsAdvance = true;
+            m_needsAdvance = true;
         }
     }
 
-    for (auto inst : m_InputInstances)
+    for (auto inst : m_inputInstances)
     {
         inst->advanced();
     }
 
-    return m_NeedsAdvance;
+    return m_needsAdvance;
 }
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
     bool more = this->advance(seconds);
-    m_ArtboardInstance->advance(seconds);
+    m_artboardInstance->advance(seconds);
     return more;
 }
 
-void StateMachineInstance::markNeedsAdvance() { m_NeedsAdvance = true; }
-bool StateMachineInstance::needsAdvance() const { return m_NeedsAdvance; }
+void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }
+bool StateMachineInstance::needsAdvance() const { return m_needsAdvance; }
 
-std::string StateMachineInstance::name() const { return m_Machine->name(); }
+std::string StateMachineInstance::name() const { return m_machine->name(); }
 
 SMIInput* StateMachineInstance::input(size_t index) const
 {
-    if (index < m_InputInstances.size())
+    if (index < m_inputInstances.size())
     {
-        return m_InputInstances[index];
+        return m_inputInstances[index];
     }
     return nullptr;
 }
@@ -527,7 +571,7 @@ SMIInput* StateMachineInstance::input(size_t index) const
 template <typename SMType, typename InstType>
 InstType* StateMachineInstance::getNamedInput(const std::string& name) const
 {
-    for (const auto inst : m_InputInstances)
+    for (const auto inst : m_inputInstances)
     {
         auto input = inst->input();
         if (input->is<SMType>() && input->name() == name)
@@ -554,9 +598,9 @@ SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const
 size_t StateMachineInstance::stateChangedCount() const
 {
     size_t count = 0;
-    for (size_t i = 0; i < m_LayerCount; i++)
+    for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_Layers[i].stateChangedOnAdvance())
+        if (m_layers[i].stateChangedOnAdvance())
         {
             count++;
         }
@@ -567,13 +611,13 @@ size_t StateMachineInstance::stateChangedCount() const
 const LayerState* StateMachineInstance::stateChangedByIndex(size_t index) const
 {
     size_t count = 0;
-    for (size_t i = 0; i < m_LayerCount; i++)
+    for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_Layers[i].stateChangedOnAdvance())
+        if (m_layers[i].stateChangedOnAdvance())
         {
             if (count == index)
             {
-                return m_Layers[i].currentState();
+                return m_layers[i].currentState();
             }
             count++;
         }
@@ -584,9 +628,9 @@ const LayerState* StateMachineInstance::stateChangedByIndex(size_t index) const
 size_t StateMachineInstance::currentAnimationCount() const
 {
     size_t count = 0;
-    for (size_t i = 0; i < m_LayerCount; i++)
+    for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_Layers[i].currentAnimation() != nullptr)
+        if (m_layers[i].currentAnimation() != nullptr)
         {
             count++;
         }
@@ -597,13 +641,13 @@ size_t StateMachineInstance::currentAnimationCount() const
 const LinearAnimationInstance* StateMachineInstance::currentAnimationByIndex(size_t index) const
 {
     size_t count = 0;
-    for (size_t i = 0; i < m_LayerCount; i++)
+    for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_Layers[i].currentAnimation() != nullptr)
+        if (m_layers[i].currentAnimation() != nullptr)
         {
             if (count == index)
             {
-                return m_Layers[i].currentAnimation();
+                return m_layers[i].currentAnimation();
             }
             count++;
         }

@@ -3,16 +3,16 @@
 
 using namespace rive;
 
-Scene::Scene(ArtboardInstance* abi) : m_ArtboardInstance(abi)
+Scene::Scene(ArtboardInstance* abi) : m_artboardInstance(abi)
 {
-    assert(m_ArtboardInstance->isInstance());
+    assert(m_artboardInstance->isInstance());
 }
 
-float Scene::width() const { return m_ArtboardInstance->width(); }
+float Scene::width() const { return m_artboardInstance->width(); }
 
-float Scene::height() const { return m_ArtboardInstance->height(); }
+float Scene::height() const { return m_artboardInstance->height(); }
 
-void Scene::draw(Renderer* renderer) { m_ArtboardInstance->draw(renderer); }
+void Scene::draw(Renderer* renderer) { m_artboardInstance->draw(renderer); }
 
 void Scene::pointerDown(Vec2D) {}
 void Scene::pointerMove(Vec2D) {}

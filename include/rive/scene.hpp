@@ -19,14 +19,12 @@ class SMITrigger;
 class Scene
 {
 protected:
-    ArtboardInstance* m_ArtboardInstance;
-
     Scene(ArtboardInstance*);
 
 public:
     virtual ~Scene() {}
 
-    Scene(Scene const& lhs) : m_ArtboardInstance(lhs.m_ArtboardInstance) {}
+    Scene(Scene const& lhs) : m_artboardInstance(lhs.m_artboardInstance) {}
 
     float width() const;
     float height() const;
@@ -55,6 +53,9 @@ public:
     virtual SMIBool* getBool(const std::string&) const;
     virtual SMINumber* getNumber(const std::string&) const;
     virtual SMITrigger* getTrigger(const std::string&) const;
+
+protected:
+    ArtboardInstance* m_artboardInstance;
 };
 
 } // namespace rive

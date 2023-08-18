@@ -11,26 +11,26 @@ LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animatio
                                                  ArtboardInstance* instance,
                                                  float speedMultiplier) :
     Scene(instance),
-    m_Animation((assert(animation != nullptr), animation)),
-    m_Time((speedMultiplier >= 0) ? animation->startTime() : animation->endTime()),
-    m_TotalTime(0.0f),
-    m_LastTotalTime(0.0f),
-    m_SpilledTime(0.0f),
-    m_Direction(1)
+    m_animation((assert(animation != nullptr), animation)),
+    m_time((speedMultiplier >= 0) ? animation->startTime() : animation->endTime()),
+    m_totalTime(0.0f),
+    m_lastTotalTime(0.0f),
+    m_spilledTime(0.0f),
+    m_direction(1)
 {
     Counter::update(Counter::kLinearAnimationInstance, +1);
 }
 
 LinearAnimationInstance::LinearAnimationInstance(LinearAnimationInstance const& lhs) :
     Scene(lhs),
-    m_Animation(lhs.m_Animation),
-    m_Time(lhs.m_Time),
-    m_TotalTime(lhs.m_TotalTime),
-    m_LastTotalTime(lhs.m_LastTotalTime),
-    m_SpilledTime(lhs.m_SpilledTime),
-    m_Direction(lhs.m_Direction),
-    m_DidLoop(lhs.m_DidLoop),
-    m_LoopValue(lhs.m_LoopValue)
+    m_animation(lhs.m_animation),
+    m_time(lhs.m_time),
+    m_totalTime(lhs.m_totalTime),
+    m_lastTotalTime(lhs.m_lastTotalTime),
+    m_spilledTime(lhs.m_spilledTime),
+    m_direction(lhs.m_direction),
+    m_didLoop(lhs.m_didLoop),
+    m_loopValue(lhs.m_loopValue)
 {
     Counter::update(Counter::kLinearAnimationInstance, +1);
 }
@@ -44,30 +44,30 @@ bool LinearAnimationInstance::advanceAndApply(float seconds)
 {
     bool more = this->advance(seconds);
     this->apply();
-    m_ArtboardInstance->advance(seconds);
+    m_artboardInstance->advance(seconds);
     return more;
 }
 
 bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
-    const LinearAnimation& animation = *m_Animation;
-    float deltaSeconds = elapsedSeconds * animation.speed() * m_Direction;
+    const LinearAnimation& animation = *m_animation;
+    float deltaSeconds = elapsedSeconds * animation.speed() * m_direction;
     if (deltaSeconds == 0)
     {
         // we say keep going, if you advance by 0.
         // could argue that any further advances by 0 result in nothing so you should not keep going
         // could argue its saying, we are not at the end of the animation yet, so keep going
         // our runtimes currently expect the latter, so we say keep going!
-        m_DidLoop = false;
+        m_didLoop = false;
         return true;
     }
 
-    m_LastTotalTime = m_TotalTime;
-    m_TotalTime += std::abs(deltaSeconds);
-    m_Time += deltaSeconds;
+    m_lastTotalTime = m_totalTime;
+    m_totalTime += std::abs(deltaSeconds);
+    m_time += deltaSeconds;
 
     int fps = animation.fps();
-    float frames = m_Time * fps;
+    float frames = m_time * fps;
 
     int start = animation.enableWorkArea() ? animation.workStart() : 0;
     int end = animation.enableWorkArea() ? animation.workEnd() : animation.duration();
@@ -75,7 +75,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 
     bool keepGoing = true;
     bool didLoop = false;
-    m_SpilledTime = 0.0f;
+    m_spilledTime = 0.0f;
 
     // this has some issues when deltaSeconds is 0,
     // right now we basically assume we default to going forwards in that case
@@ -87,36 +87,36 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
             if (direction == 1 && frames > end)
             {
                 keepGoing = false;
-                m_SpilledTime = (frames - end) / fps;
+                m_spilledTime = (frames - end) / fps;
                 frames = (float)end;
-                m_Time = frames / fps;
+                m_time = frames / fps;
                 didLoop = true;
             }
             else if (direction == -1 && frames < start)
             {
                 keepGoing = false;
-                m_SpilledTime = (start - frames) / fps;
+                m_spilledTime = (start - frames) / fps;
                 frames = (float)start;
-                m_Time = frames / fps;
+                m_time = frames / fps;
                 didLoop = true;
             }
             break;
         case Loop::loop:
             if (direction == 1 && frames >= end)
             {
-                m_SpilledTime = (frames - end) / fps;
-                frames = m_Time * fps;
+                m_spilledTime = (frames - end) / fps;
+                frames = m_time * fps;
                 frames = start + std::fmod(frames - start, (float)range);
 
-                m_Time = frames / fps;
+                m_time = frames / fps;
                 didLoop = true;
             }
             else if (direction == -1 && frames <= start)
             {
-                m_SpilledTime = (start - frames) / fps;
-                frames = m_Time * fps;
+                m_spilledTime = (start - frames) / fps;
+                frames = m_time * fps;
                 frames = end - std::abs(std::fmod(start - frames, (float)range));
-                m_Time = frames / fps;
+                m_time = frames / fps;
                 didLoop = true;
             }
             break;
@@ -125,12 +125,12 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
             {
                 if (direction == 1 && frames >= end)
                 {
-                    m_SpilledTime = (frames - end) / fps;
+                    m_spilledTime = (frames - end) / fps;
                     frames = end + (end - frames);
                 }
                 else if (direction == -1 && frames < start)
                 {
-                    m_SpilledTime = (start - frames) / fps;
+                    m_spilledTime = (start - frames) / fps;
                     frames = start + (start - frames);
                 }
                 else
@@ -142,80 +142,80 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
                     // where animations are not advanced on regular intervals.
                     break;
                 }
-                m_Time = frames / fps;
-                m_Direction *= -1;
+                m_time = frames / fps;
+                m_direction *= -1;
                 direction *= -1;
                 didLoop = true;
             }
             break;
     }
 
-    m_DidLoop = didLoop;
+    m_didLoop = didLoop;
     return keepGoing;
 }
 
 void LinearAnimationInstance::time(float value)
 {
-    if (m_Time == value)
+    if (m_time == value)
     {
         return;
     }
-    m_Time = value;
+    m_time = value;
     // Make sure to keep last and total in relative lockstep so state machines
     // can track change even when setting time.
-    auto diff = m_TotalTime - m_LastTotalTime;
+    auto diff = m_totalTime - m_lastTotalTime;
 
-    int start = (m_Animation->enableWorkArea() ? m_Animation->workStart() : 0) * m_Animation->fps();
-    m_TotalTime = value - start;
-    m_LastTotalTime = m_TotalTime - diff;
+    int start = (m_animation->enableWorkArea() ? m_animation->workStart() : 0) * m_animation->fps();
+    m_totalTime = value - start;
+    m_lastTotalTime = m_totalTime - diff;
 
     // leaving this RIGHT now. but is this required? it kinda messes up
     // playing things backwards and seeking. what purpose does it solve?
-    m_Direction = 1;
+    m_direction = 1;
 }
 
 void LinearAnimationInstance::reset(float speedMultiplier = 1.0)
 {
-    m_Time = (speedMultiplier >= 0) ? m_Animation->startTime() : m_Animation->endTime();
+    m_time = (speedMultiplier >= 0) ? m_animation->startTime() : m_animation->endTime();
 }
 
-uint32_t LinearAnimationInstance::fps() const { return m_Animation->fps(); }
+uint32_t LinearAnimationInstance::fps() const { return m_animation->fps(); }
 
-uint32_t LinearAnimationInstance::duration() const { return m_Animation->duration(); }
+uint32_t LinearAnimationInstance::duration() const { return m_animation->duration(); }
 
-float LinearAnimationInstance::speed() const { return m_Animation->speed(); }
+float LinearAnimationInstance::speed() const { return m_animation->speed(); }
 
-float LinearAnimationInstance::startTime() const { return m_Animation->startTime(); }
+float LinearAnimationInstance::startTime() const { return m_animation->startTime(); }
 
-std::string LinearAnimationInstance::name() const { return m_Animation->name(); }
+std::string LinearAnimationInstance::name() const { return m_animation->name(); }
 
 bool LinearAnimationInstance::isTranslucent() const
 {
-    return m_ArtboardInstance->isTranslucent(this);
+    return m_artboardInstance->isTranslucent(this);
 }
 
 // Returns either the animation's default or overridden loop values
 int LinearAnimationInstance::loopValue() const
 {
-    if (m_LoopValue != -1)
+    if (m_loopValue != -1)
     {
-        return m_LoopValue;
+        return m_loopValue;
     }
-    return m_Animation->loopValue();
+    return m_animation->loopValue();
 }
 
 // Override the animation's loop value
 void LinearAnimationInstance::loopValue(int value)
 {
-    if (m_LoopValue == value)
+    if (m_loopValue == value)
     {
         return;
     }
-    if (m_LoopValue == -1 && m_Animation->loopValue() == value)
+    if (m_loopValue == -1 && m_animation->loopValue() == value)
     {
         return;
     }
-    m_LoopValue = value;
+    m_loopValue = value;
 }
 
-float LinearAnimationInstance::durationSeconds() const { return m_Animation->durationSeconds(); }
+float LinearAnimationInstance::durationSeconds() const { return m_animation->durationSeconds(); }

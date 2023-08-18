@@ -16,6 +16,7 @@
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/animation/listener_fire_event.hpp"
+#include "rive/animation/entry_state.hpp"
 #include "rive/node.hpp"
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
@@ -163,4 +164,54 @@ TEST_CASE("events load correctly on a listener", "[events]")
     // After advancing again the firedEventCount should return to 0.
     stateMachineInstance->advance(0.0f);
     REQUIRE(stateMachineInstance->firedEventCount() == 0);
+}
+
+TEST_CASE("events load correctly on a state and transition", "[events]")
+{
+    auto file = ReadRiveFile("../../test/assets/events_on_states.riv");
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachineInstance = artboard->stateMachineAt(0);
+    REQUIRE(stateMachineInstance != nullptr);
+
+    artboard->advance(0.0f);
+    stateMachineInstance->advance(0.0f);
+
+    REQUIRE(stateMachineInstance->stateMachine()->layerCount() == 1);
+    auto layer = stateMachineInstance->stateMachine()->layer(0);
+    REQUIRE(layer->stateCount() == 5);
+    REQUIRE(layer->entryState()->transitionCount() == 1);
+    auto transition = layer->entryState()->transition(0);
+
+    // No events on transition from entry.
+    REQUIRE(transition->events().size() == 0);
+    REQUIRE(transition->stateTo()->is<rive::AnimationState>());
+    auto firstAnimationState = transition->stateTo()->as<rive::AnimationState>();
+    REQUIRE(firstAnimationState->events().size() == 2);
+    REQUIRE(firstAnimationState->transitionCount() == 1);
+    transition = firstAnimationState->transition(0);
+    // Transition from first animation state to next one should have two events.
+    REQUIRE(transition->events().size() == 2);
+
+    // First should've fired as we immediately went to Timeline 1.
+    REQUIRE(stateMachineInstance->firedEventCount() == 1);
+    REQUIRE(stateMachineInstance->firedEventAt(0)->name() == "First");
+
+    stateMachineInstance->advance(1.0f);
+    // Exits after 2 seconds so 1 second in no events should've fired yet
+    REQUIRE(stateMachineInstance->firedEventCount() == 0);
+
+    stateMachineInstance->advance(1.0f);
+    // At 2 seconds 2 events should fire, one for exiting the state and for taking the transition.
+    REQUIRE(stateMachineInstance->firedEventCount() == 2);
+    REQUIRE(stateMachineInstance->firedEventAt(0)->name() == "Second");
+    REQUIRE(stateMachineInstance->firedEventAt(1)->name() == "Third");
+
+    stateMachineInstance->advance(1.0f);
+    // Another second in the transition should complete
+    REQUIRE(stateMachineInstance->firedEventCount() == 1);
+    REQUIRE(stateMachineInstance->firedEventAt(0)->name() == "Fourth");
 }

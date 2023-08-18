@@ -19,6 +19,7 @@
 #include "rive/importers/state_machine_layer_importer.hpp"
 #include "rive/importers/layer_state_importer.hpp"
 #include "rive/importers/state_transition_importer.hpp"
+#include "rive/importers/state_machine_layer_component_importer.hpp"
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/entry_state.hpp"
@@ -285,6 +286,13 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)
         {
             // Some previous stack item didn't resolve.
+            return ImportResult::malformed;
+        }
+        if (object->is<StateMachineLayerComponent>() &&
+            importStack.makeLatest(StateMachineLayerComponent::typeKey,
+                                   new StateMachineLayerComponentImporter(
+                                       object->as<StateMachineLayerComponent>())) != StatusCode::Ok)
+        {
             return ImportResult::malformed;
         }
     }

@@ -28,17 +28,7 @@ class StateMachineInstance : public Scene
     friend class SMIInput;
 
 private:
-    const StateMachine* m_Machine;
-    bool m_NeedsAdvance = false;
-
-    std::vector<SMIInput*> m_InputInstances; // we own each pointer
-    size_t m_LayerCount;
-    StateMachineLayerInstance* m_Layers;
-
     void markNeedsAdvance();
-
-    std::vector<std::unique_ptr<HitShape>> m_HitShapes;
-    std::vector<NestedArtboard*> m_HitNestedArtboards;
 
     /// Provide a hitListener if you want to process a down or an up for the pointer position
     /// too.
@@ -60,9 +50,9 @@ public:
     bool needsAdvance() const;
 
     // Returns a pointer to the instance's stateMachine
-    const StateMachine* stateMachine() const { return m_Machine; }
+    const StateMachine* stateMachine() const { return m_machine; }
 
-    size_t inputCount() const override { return m_InputInstances.size(); }
+    size_t inputCount() const override { return m_inputInstances.size(); }
     SMIInput* input(size_t index) const override;
     SMIBool* getBool(const std::string& name) const override;
     SMINumber* getNumber(const std::string& name) const override;
@@ -92,7 +82,7 @@ public:
 
     /// Allow anything referencing a concrete StateMachineInstace access to
     /// the backing artboard (explicitly not allowed on Scenes).
-    Artboard* artboard() { return m_ArtboardInstance; }
+    Artboard* artboard() { return m_artboardInstance; }
 
     /// Tracks an event that fired, will be cleared at the end of the next advance.
     void fireEvent(Event* event);
@@ -105,6 +95,13 @@ public:
 
 private:
     std::vector<Event*> m_firedEvents;
+    const StateMachine* m_machine;
+    bool m_needsAdvance = false;
+    std::vector<SMIInput*> m_inputInstances; // we own each pointer
+    size_t m_layerCount;
+    StateMachineLayerInstance* m_layers;
+    std::vector<std::unique_ptr<HitShape>> m_hitShapes;
+    std::vector<NestedArtboard*> m_hitNestedArtboards;
 };
 } // namespace rive
 #endif

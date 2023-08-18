@@ -45,6 +45,7 @@
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_component.hpp"
+#include "rive/animation/state_machine_fire_event.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_layer_component.hpp"
@@ -231,6 +232,8 @@ public:
                 return new KeyFrameColor();
             case StateMachineBase::typeKey:
                 return new StateMachine();
+            case StateMachineFireEventBase::typeKey:
+                return new StateMachineFireEvent();
             case EntryStateBase::typeKey:
                 return new EntryState();
             case LinearAnimationBase::typeKey:
@@ -510,6 +513,12 @@ public:
                 break;
             case StateTransitionBase::interpolatorIdPropertyKey:
                 object->as<StateTransitionBase>()->interpolatorId(value);
+                break;
+            case StateMachineFireEventBase::eventIdPropertyKey:
+                object->as<StateMachineFireEventBase>()->eventId(value);
+                break;
+            case StateMachineFireEventBase::occursValuePropertyKey:
+                object->as<StateMachineFireEventBase>()->occursValue(value);
                 break;
             case LinearAnimationBase::fpsPropertyKey:
                 object->as<LinearAnimationBase>()->fps(value);
@@ -1242,6 +1251,10 @@ public:
                 return object->as<StateTransitionBase>()->interpolationType();
             case StateTransitionBase::interpolatorIdPropertyKey:
                 return object->as<StateTransitionBase>()->interpolatorId();
+            case StateMachineFireEventBase::eventIdPropertyKey:
+                return object->as<StateMachineFireEventBase>()->eventId();
+            case StateMachineFireEventBase::occursValuePropertyKey:
+                return object->as<StateMachineFireEventBase>()->occursValue();
             case LinearAnimationBase::fpsPropertyKey:
                 return object->as<LinearAnimationBase>()->fps();
             case LinearAnimationBase::durationPropertyKey:
@@ -1722,6 +1735,8 @@ public:
             case StateTransitionBase::exitTimePropertyKey:
             case StateTransitionBase::interpolationTypePropertyKey:
             case StateTransitionBase::interpolatorIdPropertyKey:
+            case StateMachineFireEventBase::eventIdPropertyKey:
+            case StateMachineFireEventBase::occursValuePropertyKey:
             case LinearAnimationBase::fpsPropertyKey:
             case LinearAnimationBase::durationPropertyKey:
             case LinearAnimationBase::loopValuePropertyKey:
