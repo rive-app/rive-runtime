@@ -101,6 +101,7 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
     }
     assert(clip.clipID != 0);
     *clipID = clip.clipID;
+    m_clipStackFlushID = m_context->getFlushCount();
     return true;
 }
 
@@ -158,16 +159,6 @@ void PLSRenderer::clipPath(RenderPath* renderPath)
 {
     PLSPath* path = static_cast<PLSPath*>(renderPath);
 
-    // Reset clip IDs if we've had a flush since the last clip.
-    if (m_clipStackFlushID != m_context->getFlushCount())
-    {
-        for (ClipElement& clip : m_clipStack)
-        {
-            clip.clipID = 0;
-        }
-        m_clipStackFlushID = m_context->getFlushCount();
-    }
-
     // If the first clip in the stack is an axis-aligned rectangle, assume it's the artboard clip.
     if (m_clipStackHeight == 0)
     {
@@ -189,7 +180,6 @@ void PLSRenderer::clipPath(RenderPath* renderPath)
         m_clipStack.emplace_back(m_stack.back().matrix, path);
     }
     ++m_clipStackHeight;
-    m_clipStackFlushID = m_context->getFlushCount();
 }
 
 void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode, float opacity)
