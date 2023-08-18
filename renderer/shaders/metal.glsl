@@ -123,15 +123,15 @@
     struct PLS                                                                                     \
     {
 #define PLS_DECL4F(IDX, NAME) [[$color(IDX)]] half4 NAME
-#define PLS_DECL2F(IDX, NAME) [[$color(IDX)]] half2 NAME
+#define PLS_DECLUI(IDX, NAME) [[$color(IDX)]] uint NAME
 #define PLS_BLOCK_END                                                                              \
     }                                                                                              \
     ;
 
 #define PLS_LOAD4F(P) _inpls.P
-#define PLS_LOAD2F(P) _inpls.P
+#define PLS_LOADUI(P) _inpls.P
 #define PLS_STORE4F(P, V) _pls.P = (V)
-#define PLS_STORE2F(P, X, Y) _pls.P = half2(X, Y)
+#define PLS_STOREUI(P, V) _pls.P = (V)
 #define PLS_PRESERVE_VALUE(P) _pls.P = _inpls.P
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END

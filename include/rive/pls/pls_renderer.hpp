@@ -138,18 +138,24 @@ private:
                  const RawPath* rawPath_,
                  const AABB& pathBounds_,
                  FillRule fillRule_,
-                 uint32_t clipID_) :
+                 uint32_t clipID_,
+                 uint32_t outerClipID_) :
             matrix(matrix_),
             rawPath(rawPath_),
             pathBounds(pathBounds_),
             fillRule(fillRule_),
-            clipID(clipID_)
+            clipID(clipID_),
+            outerClipID(outerClipID_)
         {}
         const Mat2D* matrix;
         const RawPath* rawPath;
         AABB pathBounds;
         FillRule fillRule;
-        uint32_t clipID;
+        uint32_t clipID;      // ID to clip against if drawing a path;
+                              // ID to write to the clip buffer if updating the clip.
+        uint32_t outerClipID; // Ignored if drawing a path;
+                              // 0 if drawing a top-level clip;
+                              // ID to clip against if drawing a nested clip.
         GrInnerFanTriangulator* triangulator = nullptr; // Non-null if using interior triangulation.
         size_t firstContourIdx = 0;
         size_t contourCount = 0;

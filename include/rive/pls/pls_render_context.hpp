@@ -184,36 +184,14 @@ public:
                                        size_t curveCount,
                                        const TessVertexCounter&);
 
-    // Adds the given paint to the GPU data library and fills out 'm_currentPaintData' with the
-    // information required by the GPU to access it.
+    // Allocates a horizontal span of texels in the gradient texture and schedules either a texture
+    // upload or a draw that fills it with the given gradient's color ramp.
     //
-    // Returns false if there wasn't room in the library, at which point the caller mush flush
+    // Fills out a PaintData record that tells the shader how to access the new gradient.
+    //
+    // Returns false if the gradient texture is out of space, at which point the caller mush flush
     // before continuing.
-    [[nodiscard]] bool pushPaint(const PLSPaint*);
-
-    // Pushes a record to the GPU for the given clip path, which will be referenced by future calls
-    // to pushContour() and pushCubic().
-    //
-    // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
-    // vertices, colocated at T=0. The caller must use this argument to align the beginning of the
-    // path on a boundary of the patch size. (See PLSRenderContext::TessVertexCounter.)
-    void pushClipPath(PatchType patchType,
-                      const Mat2D& matrix,
-                      FillRule fillRule,
-                      uint32_t clipID,
-                      uint32_t tessVertexCount,
-                      uint32_t paddingVertexCount)
-    {
-        pushPathInternal(patchType,
-                         matrix,
-                         0,
-                         fillRule,
-                         PaintType::clipReplace,
-                         clipID,
-                         PLSBlendMode::srcOver,
-                         tessVertexCount,
-                         paddingVertexCount);
-    }
+    [[nodiscard]] bool pushGradient(const PLSGradient*, PaintData*);
 
     // Pushes a record to the GPU for the given path, which will be referenced by future calls to
     // pushContour() and pushCubic().
@@ -221,24 +199,17 @@ public:
     // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument to align the beginning of the
     // path on a boundary of the patch size. (See PLSRenderContext::TessVertexCounter.)
-    void pushPath(PatchType patchType,
-                  const Mat2D& matrix,
+    void pushPath(PatchType,
+                  const Mat2D&,
                   float strokeRadius,
-                  FillRule fillRule,
+                  FillRule,
+                  PaintType,
+                  const PaintData&,
+                  const PLSTexture* imageTexture,
+                  PLSBlendMode,
                   uint32_t clipID,
                   uint32_t tessVertexCount,
-                  uint32_t paddingVertexCount)
-    {
-        pushPathInternal(patchType,
-                         matrix,
-                         strokeRadius,
-                         fillRule,
-                         m_currentPaintType,
-                         clipID,
-                         m_currentBlendMode,
-                         tessVertexCount,
-                         paddingVertexCount);
-    }
+                  uint32_t paddingVertexCount);
 
     // Pushes a contour record to the GPU for the given contour, which references the most-recently
     // pushed path and will be referenced by future calls to pushCubic().
@@ -268,7 +239,12 @@ public:
 
     // Pushes triangles to be drawn using the data records from the most recent calls to pushPath()
     // and pushPaint().
-    void pushInteriorTriangulation(GrInnerFanTriangulator*, uint32_t clipID);
+    void pushInteriorTriangulation(GrInnerFanTriangulator*,
+                                   PaintType,
+                                   const PaintData&,
+                                   const PLSTexture* imageTexture,
+                                   PLSBlendMode,
+                                   uint32_t clipID);
 
     enum class FlushType : bool
     {
@@ -376,24 +352,16 @@ public:
 private:
     static BlendTier BlendTierForBlendMode(PLSBlendMode);
 
-    // Allocates a horizontal span of texels in the gradient texture and schedules either a texture
-    // upload or draw that fills it with the given gradient's color ramp.
-    [[nodiscard]] bool pushGradientPaintData(const PLSGradient*);
-
-    // Internal implementation of pushClipPath() and pushPath().
-    void pushPathInternal(PatchType,
-                          const Mat2D&,
-                          float strokeRadius,
-                          FillRule,
-                          PaintType,
-                          uint32_t clipID,
-                          PLSBlendMode,
-                          uint32_t tessVertexCount,
-                          uint32_t paddingVertexCount);
-
     // Either appends a draw to m_drawList or merges into m_lastDraw.
     // Updates the draw's ShaderFeatures according to the passed parameters.
-    void pushDraw(DrawType, size_t baseVertex, FillRule, PaintType, uint32_t clipID, PLSBlendMode);
+    void pushDraw(DrawType,
+                  size_t baseVertex,
+                  FillRule,
+                  PaintType,
+                  const PaintData&,
+                  const PLSTexture* imageTexture,
+                  PLSBlendMode,
+                  uint32_t clipID);
 
     // Writes padding vertices to the tessellation texture, with an invalid contour ID that is
     // guaranteed to not be the same ID as any neighbors.
@@ -560,12 +528,6 @@ private:
     // the entire gradient texture width.
     std::unordered_map<GradientContentKey, uint32_t, DeepHashGradient>
         m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
-
-    // Most recent paint state.
-    PaintType m_currentPaintType = PaintType::solidColor;
-    PLSBlendMode m_currentBlendMode = PLSBlendMode::srcOver;
-    rcp<const PLSTexture> m_currentImageTexture;
-    PaintData m_currentPaintData{};
 
     WriteOnlyMappedMemory<PathData> m_pathData;
     WriteOnlyMappedMemory<ContourData> m_contourData;

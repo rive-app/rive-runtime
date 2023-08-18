@@ -120,7 +120,7 @@ public:
     ColorInt getColor() const { return m_color; }
     float getThickness() const { return m_thickness; }
     const PLSGradient* getGradient() const { return m_gradient.get(); }
-    rcp<const PLSTexture> refImageTexture() const;
+    const PLSTexture* getImageTexture() const { return m_imageTexture.get(); }
     float getImageOpacity() const { return m_imageOpacity; }
     StrokeJoin getJoin() const { return m_join; }
     StrokeCap getCap() const { return m_cap; }

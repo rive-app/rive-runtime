@@ -606,17 +606,21 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         {
             s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
         }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_CLIPPING)
+        {
+            s << "#define " << GLSL_ENABLE_CLIPPING << '\n';
+        }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
         {
             s << "#define " << GLSL_ENABLE_ADVANCED_BLEND << '\n';
         }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_PATH_CLIPPING)
-        {
-            s << "#define " << GLSL_ENABLE_PATH_CLIPPING << '\n';
-        }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
         {
             s << "#define " << GLSL_ENABLE_EVEN_ODD << '\n';
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_NESTED_CLIPPING)
+        {
+            s << "#define " << GLSL_ENABLE_NESTED_CLIPPING << '\n';
         }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
         {

@@ -115,13 +115,13 @@
 
 #define PLS_BLOCK_BEGIN
 #define PLS_DECL4F(IDX, NAME) layout(binding = IDX, rgba8) uniform lowp pixelLocalANGLE NAME
-#define PLS_DECL2F(IDX, NAME) layout(binding = IDX, r32ui) uniform highp upixelLocalANGLE NAME
+#define PLS_DECLUI(IDX, NAME) layout(binding = IDX, r32ui) uniform highp upixelLocalANGLE NAME
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) pixelLocalLoadANGLE(P)
-#define PLS_LOAD2F(P) unpackHalf2x16(pixelLocalLoadANGLE(P).x)
+#define PLS_LOADUI(P) pixelLocalLoadANGLE(P).r
 #define PLS_STORE4F(P, V) pixelLocalStoreANGLE(P, V)
-#define PLS_STORE2F(P, X, Y) pixelLocalStoreANGLE(P, uvec4(packHalf2x16(vec2(X, Y))))
+#define PLS_STOREUI(P, V) pixelLocalStoreANGLE(P, uvec4(V))
 
 #define PLS_PRESERVE_VALUE(P)
 
@@ -142,15 +142,15 @@
     __pixel_localEXT PLS                                                                           \
     {
 #define PLS_DECL4F(IDX, NAME) layout(rgba8) lowp vec4 NAME
-#define PLS_DECL2F(IDX, NAME) layout(rg16f) mediump vec2 NAME
+#define PLS_DECLUI(IDX, NAME) layout(r32ui) highp uint NAME
 #define PLS_BLOCK_END                                                                              \
     }                                                                                              \
     ;
 
 #define PLS_LOAD4F(P) P
-#define PLS_LOAD2F(P) P
+#define PLS_LOADUI(P) P
 #define PLS_STORE4F(P, V) P = (V)
-#define PLS_STORE2F(P, X, Y) P = vec2(X, Y)
+#define PLS_STOREUI(P, V) P = (V)
 
 #define PLS_PRESERVE_VALUE(P)
 
@@ -165,13 +165,13 @@
 
 #define PLS_BLOCK_BEGIN
 #define PLS_DECL4F(IDX, NAME) layout(location = IDX) inout lowp vec4 NAME
-#define PLS_DECL2F(IDX, NAME) layout(location = IDX) inout highp uvec4 NAME
+#define PLS_DECLUI(IDX, NAME) layout(location = IDX) inout highp uvec4 NAME
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) P
-#define PLS_LOAD2F(P) unpackHalf2x16(P.x)
+#define PLS_LOADUI(P) P.r
 #define PLS_STORE4F(P, V) P = (V)
-#define PLS_STORE2F(P, X, Y) P.x = packHalf2x16(vec2(X, Y))
+#define PLS_STOREUI(P, V) P.r = (V)
 
 // When using multiple color attachments, we have to write a value to every color attachment, every
 // shader invocation, or else the contents become undefined.
@@ -196,13 +196,13 @@
 
 #define PLS_BLOCK_BEGIN
 #define PLS_DECL4F(IDX, NAME) layout(binding = IDX, rgba8) uniform lowp coherent image2D NAME
-#define PLS_DECL2F(IDX, NAME) layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+#define PLS_DECLUI(IDX, NAME) layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) imageLoad(P, plsCoord)
-#define PLS_LOAD2F(P) unpackHalf2x16(imageLoad(P, plsCoord).x)
+#define PLS_LOADUI(P) imageLoad(P, plsCoord).r
 #define PLS_STORE4F(P, V) imageStore(P, plsCoord, V)
-#define PLS_STORE2F(P, X, Y) imageStore(P, plsCoord, uvec4(packHalf2x16(vec2(X, Y))))
+#define PLS_STOREUI(P, V) imageStore(P, plsCoord, uvec4(V))
 
 #define PLS_PRESERVE_VALUE(P)
 

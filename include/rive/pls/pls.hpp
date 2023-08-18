@@ -6,6 +6,7 @@
 
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/math/math_types.hpp"
 #include "rive/math/path_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/math/vec2d.hpp"
@@ -229,7 +230,7 @@ enum class PaintType : uint32_t
     linearGradient,
     radialGradient,
     image,
-    clipReplace // Replace the clip buffer with path coverage instead of painting color.
+    clipUpdate, // Update the clip buffer instead of drawing to the framebuffer.
 };
 
 // Mirrors rive::BlendMode, but 0-based and contiguous for tighter packing.
@@ -261,23 +262,49 @@ enum class PLSBlendMode : uint32_t
 // Packs the data for a gradient or solid color into 4 floats.
 struct PaintData
 {
-    void setColor(ColorInt color) { UnpackColorToRGBA32F(color, data); }
-    void setGradient(uint32_t row, uint32_t left, uint32_t right, const float coeffs[3])
+    static PaintData MakeColor(ColorInt color)
     {
+        PaintData paintData;
+        UnpackColorToRGBA32F(color, reinterpret_cast<float*>(paintData.data));
+        return paintData;
+    }
+    const float* colorIfColor() const { return reinterpret_cast<const float*>(data); }
+
+    static PaintData MakeGradient(uint32_t row,
+                                  uint32_t left,
+                                  uint32_t right,
+                                  const float coeffs[3])
+    {
+        PaintData paintData;
         static_assert(kGradTextureWidth <= (1 << 10));
         assert(row < (1 << 12));
         // Subtract 1 from right so we can support a 1024-wide gradient texture (so the rightmost
         // pixel would be 0x3ff and still fit in 10 bits).
         uint32_t span = (row << 20) | ((right - 1) << 10) | left;
-        RIVE_INLINE_MEMCPY(data, &span, sizeof(float));
-        RIVE_INLINE_MEMCPY(data + 1, coeffs, 3 * sizeof(float));
+        paintData.data[0] = span;
+        RIVE_INLINE_MEMCPY(paintData.data + 1, coeffs, 3 * sizeof(float));
+        return paintData;
     }
-    void setImage(float opacity)
+
+    static PaintData MakeImage(float opacity)
     {
         // Images use the texture binding at kImageTextureIdx, so the paint data only needs opacity.
-        RIVE_INLINE_MEMCPY(data, &opacity, sizeof(float));
+        PaintData paintData;
+        paintData.data[0] = math::bit_cast<uint32_t>(opacity);
+        return paintData;
     }
-    float data[4]; // Packed, type-specific paint data.
+    float opacityIfImage() const { return math::bit_cast<float>(data[0]); }
+
+    static PaintData MakeClipUpdate(uint32_t outerClipID)
+    {
+        // outerClipID is the enclosing clip, or 0 if the clip being drawn is not nested.
+        PaintData paintData;
+        paintData.data[0] = outerClipID;
+        return paintData;
+    }
+    uint32_t outerClipIDIfClipUpdate() const { return data[0]; }
+
+    uint32_t data[4]; // Packed, type-specific paint data.
 };
 
 // Each path has a unique data record on the GPU that is accessed from the vertex shader.
@@ -627,10 +654,11 @@ struct ShaderFeatures
 {
     enum PreprocessorDefines : uint32_t
     {
-        ENABLE_ADVANCED_BLEND = 1 << 0,
-        ENABLE_PATH_CLIPPING = 1 << 1,
+        ENABLE_CLIPPING = 1 << 0,
+        ENABLE_ADVANCED_BLEND = 1 << 1,
         ENABLE_EVEN_ODD = 1 << 2,
-        ENABLE_HSL_BLEND_MODES = 1 << 3,
+        ENABLE_NESTED_CLIPPING = 1 << 3,
+        ENABLE_HSL_BLEND_MODES = 1 << 4,
     };
 
     // Returns a bitmask of which preprocessor macros must be defined in order to support the
@@ -640,12 +668,13 @@ struct ShaderFeatures
     struct
     {
         BlendTier blendTier = BlendTier::srcOver;
-        bool enablePathClipping = false;
+        bool enableClipping = false;
     } programFeatures;
 
     struct
     {
         bool enableEvenOdd = false;
+        bool enableNestedClipping = false;
     } fragmentFeatures;
 };
 

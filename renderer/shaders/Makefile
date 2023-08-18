@@ -28,10 +28,15 @@ $(MINIFY_STAMP): $(MINIFY_INPUTS) minify.py
 
 
 ## Metal shader offline compiling.
+DRAW_COMBINATIONS_METAL := $(OUT)/draw_combinations.metal
 METAL_INPUTS := $(wildcard metal/*.metal)
 METAL_MACOSX_AIR_OUTPUTS := \
 	$(addprefix $(OUT)/, $(patsubst metal/%.metal, macosx/%.air, $(METAL_INPUTS)))
 METAL_IOS_AIR_OUTPUTS := $(addprefix $(OUT)/, $(patsubst metal/%.metal, ios/%.air, $(METAL_INPUTS)))
+
+$(DRAW_COMBINATIONS_METAL): metal/generate_draw_combinations.py
+	@mkdir -p $(OUT)
+	python3 metal/generate_draw_combinations.py $(DRAW_COMBINATIONS_METAL)
 
 rive_pls_macosx_metallib: $(OUT)/rive_pls_macosx.metallib.c
 rive_pls_ios_metallib: $(OUT)/rive_pls_ios.metallib.c
@@ -39,7 +44,7 @@ rive_pls_ios_simulator_metallib: $(OUT)/rive_pls_ios_simulator.metallib.c
 
 ## The source files all get regenerated in a batch, so there's no need to separate out separate
 ## rules for each intermediate file.
-$(OUT)/macosx/rive_pls_macosx.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS)
+$(OUT)/macosx/rive_pls_macosx.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
 	@mkdir -p $(OUT)/macosx
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk macosx metal -ffast-math -ffp-contract=fast -fvisibility=hidden \
@@ -52,7 +57,7 @@ $(OUT)/rive_pls_macosx.metallib.c: $(OUT)/macosx/rive_pls_macosx.metallib
 		$(OUT)/macosx/rive_pls_macosx.metallib \
 		$(OUT)/rive_pls_macosx.metallib.c
 
-$(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS)
+$(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
 	@mkdir -p $(OUT)/ios
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk iphoneos metal -mios-version-min=13 -ffast-math -ffp-contract=fast \
@@ -63,7 +68,7 @@ $(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS)
 $(OUT)/rive_pls_ios.metallib.c: $(OUT)/ios/rive_pls_ios.metallib
 	xxd -i -n rive_pls_ios_metallib $(OUT)/ios/rive_pls_ios.metallib $(OUT)/rive_pls_ios.metallib.c
 
-$(OUT)/ios/rive_pls_ios_simulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS)
+$(OUT)/ios/rive_pls_ios_simulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
 	@mkdir -p $(OUT)/ios
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk iphonesimulator metal -miphonesimulator-version-min=13 -ffast-math -ffp-contract=fast \

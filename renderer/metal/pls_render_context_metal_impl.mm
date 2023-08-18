@@ -93,9 +93,9 @@ public:
             desc.vertexFunction = vertexMain;
             desc.fragmentFunction = fragmentMain;
             desc.colorAttachments[0].pixelFormat = pixelFormat;
-            desc.colorAttachments[1].pixelFormat = MTLPixelFormatRG16Float;
+            desc.colorAttachments[1].pixelFormat = MTLPixelFormatR32Uint;
             desc.colorAttachments[2].pixelFormat = pixelFormat;
-            desc.colorAttachments[3].pixelFormat = MTLPixelFormatRG16Float;
+            desc.colorAttachments[3].pixelFormat = MTLPixelFormatR32Uint;
             return make_pipeline_state(gpu, desc);
         };
         m_pipelineStateRGBA8 =
@@ -117,40 +117,38 @@ private:
                                     SourceType sourceType,
                                     const ShaderFeatures& shaderFeatures)
     {
-        // Namespaces beginning in 'r' indicate the normal Rive renderer.
-        char namespaceName[] = "r0000";
+        // Each feature corresponds to a specific index in the namespaceID. These must stay in sync
+        // with generate_draw_combinations.py.
+        char namespaceID[] = "000000";
+        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
         if (drawType == DrawType::interiorTriangulation)
         {
-            // Namespaces beginning in 't' indicate the special case when we draw non-overlapping
-            // interior triangles.
-            namespaceName[0] = 't';
+            namespaceID[0] = '1';
         }
-        // draw.metal uses the following bits in the namespace names for each flag:
-        //     ENABLE_ADVANCED_BLEND:   r0001 / t0001
-        //     ENABLE_PATH_CLIPPING:    r0010 / t0010
-        //     ENABLE_EVEN_ODD:         r0100 / t0100
-        //     ENABLE_HSL_BLEND_MODES:  r1000 / t1000
-        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_CLIPPING)
+        {
+            namespaceID[1] = '1';
+        }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
         {
-            namespaceName[4] = '1';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_PATH_CLIPPING)
-        {
-            namespaceName[3] = '1';
+            namespaceID[2] = '1';
         }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
         {
-            namespaceName[2] = '1';
+            namespaceID[3] = '1';
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_NESTED_CLIPPING)
+        {
+            namespaceID[4] = '1';
         }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
         {
-            namespaceName[1] = '1';
+            namespaceID[5] = '1';
         }
         const char* mainFunctionName =
             sourceType == SourceType::vertexOnly ? GLSL_drawVertexMain : GLSL_drawFragmentMain;
         NSString* fullyQualifiedName =
-            [NSString stringWithFormat:@"%s::%s", namespaceName, mainFunctionName];
+            [NSString stringWithFormat:@"r%s::%s", namespaceID, mainFunctionName];
         return [context->m_plsLibrary newFunctionWithName:fullyQualifiedName];
     }
 
@@ -262,11 +260,11 @@ PLSRenderTargetMetal::PLSRenderTargetMetal(id<MTLDevice> gpu,
 {
     m_targetTexture = nil; // Will be configured later by setTargetTexture().
     m_coverageMemorylessTexture =
-        make_memoryless_pls_texture(gpu, MTLPixelFormatRG16Float, width, height);
+        make_memoryless_pls_texture(gpu, MTLPixelFormatR32Uint, width, height);
     m_originalDstColorMemorylessTexture =
         make_memoryless_pls_texture(gpu, m_pixelFormat, width, height);
     m_clipMemorylessTexture =
-        make_memoryless_pls_texture(gpu, MTLPixelFormatRG16Float, width, height);
+        make_memoryless_pls_texture(gpu, MTLPixelFormatR32Uint, width, height);
 }
 
 void PLSRenderTargetMetal::setTargetTexture(id<MTLTexture> texture)

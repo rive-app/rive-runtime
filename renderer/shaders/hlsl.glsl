@@ -136,13 +136,13 @@ $typedef $min16uint ushort;
 
 #define PLS_BLOCK_BEGIN
 #define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<$unorm float4> NAME : $register($u##IDX)
-#define PLS_DECL2F(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
+#define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) P[_plsCoord]
-#define PLS_LOAD2F(P) unpackHalf2x16(P[_plsCoord])
-#define PLS_STORE4F(P, V) P[_plsCoord] = V
-#define PLS_STORE2F(P, X, Y) P[_plsCoord] = packHalf2x16(float2(X, Y))
+#define PLS_LOADUI(P) P[_plsCoord]
+#define PLS_STORE4F(P, V) P[_plsCoord] = (V)
+#define PLS_STOREUI(P, V) P[_plsCoord] = (V)
 
 #define PLS_PRESERVE_VALUE(P)
 

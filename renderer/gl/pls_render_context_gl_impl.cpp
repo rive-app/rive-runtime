@@ -345,17 +345,21 @@ public:
         {
             defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
         }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_CLIPPING)
+        {
+            defines.push_back(GLSL_ENABLE_CLIPPING);
+        }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
         {
             defines.push_back(GLSL_ENABLE_ADVANCED_BLEND);
         }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_PATH_CLIPPING)
-        {
-            defines.push_back(GLSL_ENABLE_PATH_CLIPPING);
-        }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
         {
             defines.push_back(GLSL_ENABLE_EVEN_ODD);
+        }
+        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_NESTED_CLIPPING)
+        {
+            defines.push_back(GLSL_ENABLE_NESTED_CLIPPING);
         }
         if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
         {

@@ -40,15 +40,19 @@ uint32_t ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
     {
         defines |= PreprocessorDefines::ENABLE_ADVANCED_BLEND;
     }
-    if (programFeatures.enablePathClipping)
+    if (programFeatures.enableClipping)
     {
-        defines |= PreprocessorDefines::ENABLE_PATH_CLIPPING;
+        defines |= PreprocessorDefines::ENABLE_CLIPPING;
     }
     if (sourceType != SourceType::vertexOnly)
     {
         if (fragmentFeatures.enableEvenOdd)
         {
             defines |= PreprocessorDefines::ENABLE_EVEN_ODD;
+        }
+        if (fragmentFeatures.enableNestedClipping)
+        {
+            defines |= PreprocessorDefines::ENABLE_NESTED_CLIPPING;
         }
         if (programFeatures.blendTier == BlendTier::advancedHSL)
         {
@@ -502,37 +506,9 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
     return false;
 }
 
-bool PLSRenderContext::pushPaint(const PLSPaint* paint)
+bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* paintData)
 {
     assert(m_didBeginFrame);
-    switch (paint->getType())
-    {
-        case PaintType::solidColor:
-            m_currentPaintData.setColor(paint->getColor());
-            m_currentImageTexture.reset();
-            break;
-        case PaintType::linearGradient:
-        case PaintType::radialGradient:
-            if (!pushGradientPaintData(paint->getGradient()))
-            {
-                return false;
-            }
-            m_currentImageTexture.reset();
-            break;
-        case PaintType::image:
-            m_currentPaintData.setImage(paint->getImageOpacity());
-            m_currentImageTexture = paint->refImageTexture();
-            break;
-        case PaintType::clipReplace:
-            RIVE_UNREACHABLE();
-    }
-    m_currentBlendMode = paint->getBlendMode();
-    m_currentPaintType = paint->getType();
-    return true;
-}
-
-bool PLSRenderContext::pushGradientPaintData(const PLSGradient* gradient)
-{
     const ColorInt* colors = gradient->colors();
     const float* stops = gradient->stops();
     size_t stopCount = gradient->count();
@@ -645,19 +621,21 @@ bool PLSRenderContext::pushGradientPaintData(const PLSGradient* gradient)
             m_complexGradients.emplace(std::move(key), row);
         }
     }
-    m_currentPaintData.setGradient(row, left, right, gradient->coeffs());
+    *paintData = PaintData::MakeGradient(row, left, right, gradient->coeffs());
     return true;
 }
 
-void PLSRenderContext::pushPathInternal(PatchType patchType,
-                                        const Mat2D& matrix,
-                                        float strokeRadius,
-                                        FillRule fillRule,
-                                        PaintType paintType,
-                                        uint32_t clipID,
-                                        PLSBlendMode blendMode,
-                                        uint32_t tessVertexCount,
-                                        uint32_t paddingVertexCount)
+void PLSRenderContext::pushPath(PatchType patchType,
+                                const Mat2D& matrix,
+                                float strokeRadius,
+                                FillRule fillRule,
+                                PaintType paintType,
+                                const PaintData& paintData,
+                                const PLSTexture* imageTexture,
+                                PLSBlendMode blendMode,
+                                uint32_t clipID,
+                                uint32_t tessVertexCount,
+                                uint32_t paddingVertexCount)
 {
     assert(m_didBeginFrame);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
@@ -665,8 +643,7 @@ void PLSRenderContext::pushPathInternal(PatchType patchType,
 
     m_currentPathIsStroked = strokeRadius != 0;
     m_currentPathNeedsMirroredContours = !m_currentPathIsStroked;
-    m_pathData
-        .set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, m_currentPaintData);
+    m_pathData.set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, paintData);
 
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
@@ -680,7 +657,14 @@ void PLSRenderContext::pushPathInternal(PatchType patchType,
     // The caller is responsible to pad each path so it begins on a multiple of the patch size.
     // (See PLSRenderContext::PathPaddingCalculator.)
     assert(baseInstance * patchSize == baseVertexToDraw);
-    pushDraw(drawType, baseInstance, fillRule, paintType, clipID, blendMode);
+    pushDraw(drawType,
+             baseInstance,
+             fillRule,
+             paintType,
+             paintData,
+             imageTexture,
+             blendMode,
+             clipID);
     assert(m_drawList.tail().baseVertexOrInstance + m_drawList.tail().vertexOrInstanceCount ==
            baseInstance);
     uint32_t vertexCountToDraw = tessVertexCount - paddingVertexCount;
@@ -890,14 +874,20 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
 }
 
 void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangulator,
+                                                 PaintType paintType,
+                                                 const PaintData& paintData,
+                                                 const PLSTexture* imageTexture,
+                                                 PLSBlendMode blendMode,
                                                  uint32_t clipID)
 {
     pushDraw(DrawType::interiorTriangulation,
              0,
              triangulator->fillRule(),
-             m_currentPaintType,
-             clipID,
-             m_currentBlendMode);
+             paintType,
+             paintData,
+             imageTexture,
+             blendMode,
+             clipID);
     m_maxTriangleVertexCount += triangulator->maxVertexCount();
     triangulator->setPathID(m_currentPathID);
     m_drawList.tail().triangulator = triangulator;
@@ -920,12 +910,13 @@ void PLSRenderContext::pushDraw(DrawType drawType,
                                 size_t baseVertex,
                                 FillRule fillRule,
                                 PaintType paintType,
-                                uint32_t clipID,
-                                PLSBlendMode blendMode)
+                                const PaintData& paintData,
+                                const PLSTexture* imageTexture,
+                                PLSBlendMode blendMode,
+                                uint32_t clipID)
 {
-    bool needsNewDraw =
-        m_drawList.empty() || m_drawList.tail().drawType != drawType ||
-        !can_combine_draw_images(m_drawList.tail().imageTextureRef, m_currentImageTexture.get());
+    bool needsNewDraw = m_drawList.empty() || m_drawList.tail().drawType != drawType ||
+                        !can_combine_draw_images(m_drawList.tail().imageTextureRef, imageTexture);
     if (needsNewDraw)
     {
         m_drawList.emplace_back(this, drawType, baseVertex);
@@ -933,28 +924,31 @@ void PLSRenderContext::pushDraw(DrawType drawType,
 
     if (paintType == PaintType::image)
     {
-        assert(m_currentImageTexture != nullptr);
+        assert(imageTexture != nullptr);
         if (m_drawList.tail().imageTextureRef == nullptr)
         {
-            m_drawList.tail().imageTextureRef = safe_ref(m_currentImageTexture.get());
+            m_drawList.tail().imageTextureRef = safe_ref(imageTexture);
         }
-        assert(m_drawList.tail().imageTextureRef == m_currentImageTexture.get());
+        assert(m_drawList.tail().imageTextureRef == imageTexture);
     }
 
     ShaderFeatures* shaderFeatures = &m_drawList.tail().shaderFeatures;
-    if (blendMode > PLSBlendMode::srcOver)
+    if (paintType != PaintType::clipUpdate && blendMode > PLSBlendMode::srcOver)
     {
-        assert(paintType != PaintType::clipReplace);
         shaderFeatures->programFeatures.blendTier =
             std::max(shaderFeatures->programFeatures.blendTier, BlendTierForBlendMode(blendMode));
     }
     if (clipID != 0)
     {
-        shaderFeatures->programFeatures.enablePathClipping = true;
+        shaderFeatures->programFeatures.enableClipping = true;
     }
     if (fillRule == FillRule::evenOdd)
     {
         shaderFeatures->fragmentFeatures.enableEvenOdd = true;
+    }
+    if (paintType == PaintType::clipUpdate && paintData.outerClipIDIfClipUpdate() != 0)
+    {
+        shaderFeatures->fragmentFeatures.enableNestedClipping = true;
     }
 }
 
@@ -1051,7 +1045,7 @@ void PLSRenderContext::flush(FlushType flushType)
                 break;
             }
         }
-        needsClipBuffer = needsClipBuffer || draw.shaderFeatures.programFeatures.enablePathClipping;
+        needsClipBuffer = needsClipBuffer || draw.shaderFeatures.programFeatures.enableClipping;
         RIVE_DEBUG_CODE(++drawIdx;)
     }
     assert(drawIdx == m_drawList.count());
@@ -1171,11 +1165,6 @@ void PLSRenderContext::flush(FlushType flushType)
 
     m_simpleGradients.clear();
     m_complexGradients.clear();
-
-    m_currentPaintType = PaintType::solidColor;
-    m_currentBlendMode = PLSBlendMode::srcOver;
-    m_currentImageTexture.reset();
-    m_currentPaintData = {};
 
     m_tessVertexCount = 0;
     m_mirroredTessLocation = 0;

@@ -68,39 +68,62 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
         return true;
     }
 
-    // For now, only apply the final element of the clip stack.
-    ClipElement& clip = m_clipStack[m_clipStackHeight - 1];
     // Ignore the first clip for now if it looks like an artboard clip.
-    if (m_clipStackHeight == 1 && m_hasArtboardClipCandidate)
+    size_t clipStackBottom = m_hasArtboardClipCandidate ? 1 : 0;
+    if (m_clipStackHeight <= clipStackBottom)
     {
         *clipID = 0;
         return true;
     }
 
-    // Generate a new clipID (definitely causing us to redraw the clip buffer) if the current clip
-    // hasn't been drawn yet and does not have an ID, OR if we are on a new flush. (New flushes
-    // invalidate the clip buffer.)
-    if (clip.clipID == 0 || m_clipStackFlushID != m_context->getFlushCount())
+    // Generate new clipIDs (definitely causing us to redraw the clip buffer) for each element that
+    // hasn't been assigned an ID yet, OR if we are on a new flush. (New flushes invalidate the clip
+    // buffer.)
+    bool needsClipInvalidate = m_clipStackFlushID != m_context->getFlushCount();
+    // Also detect which clip element (if any) is already rendered in the clip buffer.
+    size_t clipIdxCurrentlyInClipBuffer = clipStackBottom - 1; // i.e., "none".
+    for (size_t i = clipStackBottom; i < m_clipStackHeight; ++i)
     {
-        clip.clipID = m_context->generateClipID();
-        if (clip.clipID == 0)
+        ClipElement& clip = m_clipStack[i];
+        if (clip.clipID == 0 || needsClipInvalidate)
         {
-            return false; // The context is out of clip IDs. We will flush and try again.
+            clip.clipID = m_context->generateClipID();
+            assert(m_context->getClipContentID() != clip.clipID);
+            if (clip.clipID == 0)
+            {
+                return false; // The context is out of clipIDs. We will flush and try again.
+            }
+            continue;
+        }
+        if (clip.clipID == m_context->getClipContentID())
+        {
+            // This is the clip that's currently drawn in the clip buffer! We should only find a
+            // match once, so clipIdxCurrentlyInClipBuffer better be at the initial "none" value at
+            // this point.
+            assert(clipIdxCurrentlyInClipBuffer == clipStackBottom - 1);
+            clipIdxCurrentlyInClipBuffer = i;
         }
     }
 
-    if (m_context->getClipContentID() != clip.clipID)
+    // Draw the necessary updates to the clip buffer (i.e., draw every clip element after
+    // clipIdxCurrentlyInClipBuffer).
+    uint32_t outerClipID = clipIdxCurrentlyInClipBuffer == clipStackBottom - 1
+                               ? 0 // The next clip to be drawn is not nested.
+                               : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
+    for (size_t i = clipIdxCurrentlyInClipBuffer + 1; i < m_clipStackHeight; ++i)
     {
-        // The clip buffer does not contain the current clip stack. Update it.
+        const ClipElement& clip = m_clipStack[i];
+        assert(clip.clipID != 0);
         m_pathBatch.emplace_back(&clip.matrix,
                                  &clip.path,
                                  clip.pathBounds,
                                  clip.fillRule,
-                                 clip.clipID);
-        m_context->setClipContentID(clip.clipID);
+                                 clip.clipID,
+                                 outerClipID);
+        outerClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
     }
-    assert(clip.clipID != 0);
-    *clipID = clip.clipID;
+    *clipID = m_clipStack[m_clipStackHeight - 1].clipID;
+    m_context->setClipContentID(*clipID);
     m_clipStackFlushID = m_context->getFlushCount();
     return true;
 }
@@ -141,7 +164,8 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                                  &path->getRawPath(),
                                  path->getBounds(),
                                  path->getFillRule(),
-                                 clipID);
+                                 clipID,
+                                 0);
         if (!pushInternalPathBatch(paint))
         {
             m_context->flush(PLSRenderContext::FlushType::intermediate);
@@ -1222,11 +1246,27 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         return false;
     }
 
-    // Attempt to push 'finalPathPaint' to the GPU buffers.
-    if (!m_context->pushPaint(finalPathPaint))
+    // Set up rendering for 'finalPathPaint', including allocating span in the gradient texture, if
+    // needed.
+    PaintData finalPathPaintData;
+    switch (finalPathPaint->getType())
     {
-        // The paint doesn't fit. Give up and let the caller flush and try again.
-        return false;
+        case PaintType::solidColor:
+            finalPathPaintData = PaintData::MakeColor(finalPathPaint->getColor());
+            break;
+        case PaintType::linearGradient:
+        case PaintType::radialGradient:
+            if (!m_context->pushGradient(finalPathPaint->getGradient(), &finalPathPaintData))
+            {
+                // The gradient doesn't fit. Give up and let the caller flush and try again.
+                return false;
+            }
+            break;
+        case PaintType::image:
+            finalPathPaintData = PaintData::MakeImage(finalPathPaint->getImageOpacity());
+            break;
+        case PaintType::clipUpdate:
+            RIVE_UNREACHABLE();
     }
 
     // Iteration pass 3: Now that we have space reserved, push the whole batch of paths to the GPU.
@@ -1255,26 +1295,20 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
 
         // Push a path record.
         bool isClipPath = currentPathIdx != finalPathIdx;
-        PatchType patchType = path.triangulator ? PatchType::outerCurves : PatchType::midpointFan;
-        if (isClipPath)
-        {
-            m_context->pushClipPath(patchType,
-                                    *path.matrix,
-                                    path.fillRule,
-                                    path.clipID,
-                                    path.tessVertexCount,
-                                    path.paddingVertexCount);
-        }
-        else
-        {
-            m_context->pushPath(patchType,
-                                *path.matrix,
-                                strokeRadius,
-                                path.fillRule,
-                                path.clipID,
-                                path.tessVertexCount,
-                                path.paddingVertexCount);
-        }
+        PaintType currentPaintType = isClipPath ? PaintType::clipUpdate : finalPathPaint->getType();
+        const PaintData& currentPaintData =
+            isClipPath ? PaintData::MakeClipUpdate(path.outerClipID) : finalPathPaintData;
+        m_context->pushPath(path.triangulator ? PatchType::outerCurves : PatchType::midpointFan,
+                            *path.matrix,
+                            isClipPath ? 0 : strokeRadius, // Clips are never stroked.
+                            path.fillRule,
+                            currentPaintType,
+                            currentPaintData,
+                            finalPathPaint->getImageTexture(), // Ignored by clip updates.
+                            finalPathPaint->getBlendMode(),    // Ignored by clip updates.
+                            path.clipID,
+                            path.tessVertexCount,
+                            path.paddingVertexCount);
         RIVE_DEBUG_CODE(++pushedPathCount;)
 
         if (path.triangulator != nullptr)
@@ -1285,7 +1319,12 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                 m_context,
                 &path);
             RIVE_DEBUG_CODE(pushedContourCount += processedContourCount;)
-            m_context->pushInteriorTriangulation(path.triangulator, path.clipID);
+            m_context->pushInteriorTriangulation(path.triangulator,
+                                                 currentPaintType,
+                                                 currentPaintData,
+                                                 finalPathPaint->getImageTexture(),
+                                                 finalPathPaint->getBlendMode(),
+                                                 path.clipID);
         }
         else
         {

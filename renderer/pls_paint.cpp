@@ -107,6 +107,4 @@ void PLSPaint::image(rcp<const PLSTexture> imageTexture, float opacity)
     m_gradient.reset();
     m_paintType = PaintType::image;
 }
-
-rcp<const PLSTexture> PLSPaint::refImageTexture() const { return m_imageTexture; }
 } // namespace rive::pls
