@@ -134,7 +134,7 @@ private:
     rcp<const PLSTexture> m_imageTexture;
     float m_imageOpacity;
     float m_thickness = 1;
-    StrokeJoin m_join = StrokeJoin::bevel;
+    StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;
     PLSBlendMode m_blendMode = PLSBlendMode::srcOver;
 };
