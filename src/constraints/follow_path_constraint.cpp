@@ -35,24 +35,23 @@ const Mat2D FollowPathConstraint::targetTransform() const
     {
         return m_Target->worldTransform();
     }
-    MetricsPath* metricsPath = m_WorldPath.get();
-    if (metricsPath == nullptr)
+
+    float totalLength = 0.0f;
+    for (auto contour : m_contours)
     {
-        return m_Target->worldTransform();
+        totalLength += contour->length();
     }
 
-    const std::vector<MetricsPath*>& paths = metricsPath->paths();
-    float totalLength = metricsPath->length();
     float actualDistance = positiveMod(distance(), 1.0f);
     float distanceUnits = totalLength * std::min(1.0f, std::max(0.0f, actualDistance));
     float runningLength = 0;
     ContourMeasure::PosTan posTan;
-    for (auto path : paths)
+    for (auto contour : m_contours)
     {
-        float pathLength = path->length();
+        float pathLength = contour->length();
         if (distanceUnits < pathLength + runningLength)
         {
-            posTan = path->contourMeasure()->getPosTan(distanceUnits - runningLength);
+            posTan = contour->getPosTan(distanceUnits - runningLength);
             break;
         }
         runningLength += pathLength;
@@ -85,7 +84,6 @@ void FollowPathConstraint::constrain(TransformComponent* component)
     {
         return;
     }
-
     const Mat2D& transformA = component->worldTransform();
     Mat2D transformB(targetTransform());
     if (sourceSpace() == TransformSpace::local)
@@ -135,18 +133,18 @@ void FollowPathConstraint::update(ComponentDirt value)
     Shape* shape = static_cast<Shape*>(m_Target);
     if (hasDirt(value, ComponentDirt::Path))
     {
-        if (m_WorldPath == nullptr)
-        {
-            m_WorldPath = std::unique_ptr<MetricsPath>(new OnlyMetricsPath());
-        }
-        else
-        {
-            m_WorldPath->rewind();
-        }
+        m_rawPath.rewind();
+        m_contours.clear();
         for (auto path : shape->paths())
         {
-            const Mat2D& transform = path->pathTransform();
-            m_WorldPath->addPath(path->commandPath(), transform);
+            auto commandPath = static_cast<MetricsPath*>(path->commandPath());
+            commandPath->addToRawPath(m_rawPath, path->pathTransform());
+        }
+
+        auto measure = ContourMeasureIter(m_rawPath);
+        for (auto contour = measure.next(); contour != nullptr; contour = measure.next())
+        {
+            m_contours.push_back(contour);
         }
     }
 }

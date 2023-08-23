@@ -23,6 +23,11 @@ void MetricsPath::addPath(CommandPath* path, const Mat2D& transform)
     m_Paths.emplace_back(metricsPath);
 }
 
+RawPath::Iter MetricsPath::addToRawPath(RawPath& rawPath, const Mat2D& transform) const
+{
+    return rawPath.addPath(m_RawPath, &transform);
+}
+
 void MetricsPath::moveTo(float x, float y)
 {
     assert(m_RawPath.points().size() == 0);

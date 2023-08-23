@@ -8,10 +8,6 @@ namespace rive
 {
 class FollowPathConstraint : public FollowPathConstraintBase
 {
-private:
-    std::unique_ptr<MetricsPath> m_WorldPath;
-    TransformComponents m_ComponentsA;
-    TransformComponents m_ComponentsB;
 
 public:
     void distanceChanged() override;
@@ -21,6 +17,12 @@ public:
     void constrain(TransformComponent* component) override;
     void update(ComponentDirt value) override;
     void buildDependencies() override;
+
+private:
+    RawPath m_rawPath;
+    std::vector<rcp<ContourMeasure>> m_contours;
+    TransformComponents m_ComponentsA;
+    TransformComponents m_ComponentsB;
 };
 } // namespace rive
 

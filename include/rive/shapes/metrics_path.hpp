@@ -37,6 +37,9 @@ public:
     /// computeLength be called prior to trimming.
     void trim(float startLength, float endLength, bool moveTo, RenderPath* result);
 
+    /// Add this MetricsPath to a raw path with a transform.
+    RawPath::Iter addToRawPath(RawPath& rawPath, const Mat2D& transform) const;
+
 private:
     float computeLength(const Mat2D& transform);
 };
