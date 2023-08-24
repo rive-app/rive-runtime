@@ -72,12 +72,7 @@ public:
     bool advance(float seconds, Span<SMIInput*> inputs)
     {
         m_stateMachineChangedOnAdvance = false;
-
-        if (m_currentState != nullptr && m_currentState->keepGoing())
-        {
-            m_currentState->advance(seconds, inputs);
-        }
-
+        m_currentState->advance(seconds, inputs);
         updateMix(seconds);
 
         if (m_stateFrom != nullptr && m_mix < 1.0f && !m_holdAnimationFrom)

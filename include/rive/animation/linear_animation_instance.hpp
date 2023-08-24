@@ -59,7 +59,9 @@ public:
 
     bool keepGoing() const
     {
-        return m_loopValue != static_cast<int>(rive::Loop::oneShot) || !m_didLoop;
+        return this->loopValue() != static_cast<int>(rive::Loop::oneShot) ||
+               (m_direction > 0 && m_time < m_animation->durationSeconds()) ||
+               (m_direction < 0 && m_time > 0);
     }
 
     float totalTime() const { return m_totalTime; }

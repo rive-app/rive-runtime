@@ -52,30 +52,30 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
 {
     const LinearAnimation& animation = *m_animation;
     float deltaSeconds = elapsedSeconds * animation.speed() * m_direction;
+    m_spilledTime = 0.0f;
     if (deltaSeconds == 0)
     {
-        // we say keep going, if you advance by 0.
-        // could argue that any further advances by 0 result in nothing so you should not keep going
-        // could argue its saying, we are not at the end of the animation yet, so keep going
-        // our runtimes currently expect the latter, so we say keep going!
         m_didLoop = false;
         return true;
     }
 
     m_lastTotalTime = m_totalTime;
     m_totalTime += std::abs(deltaSeconds);
+
+    // NOTE:
+    // do not track spilled time, if our one shot loop is already completed.
+    // stop gap before we move spilled tracking into state machine logic.
+    bool killSpilledTime = !this->keepGoing();
+
     m_time += deltaSeconds;
 
     int fps = animation.fps();
     float frames = m_time * fps;
-
     int start = animation.enableWorkArea() ? animation.workStart() : 0;
     int end = animation.enableWorkArea() ? animation.workEnd() : animation.duration();
     int range = end - start;
 
-    bool keepGoing = true;
     bool didLoop = false;
-    m_spilledTime = 0.0f;
 
     // this has some issues when deltaSeconds is 0,
     // right now we basically assume we default to going forwards in that case
@@ -86,7 +86,6 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
         case Loop::oneShot:
             if (direction == 1 && frames > end)
             {
-                keepGoing = false;
                 m_spilledTime = (frames - end) / fps;
                 frames = (float)end;
                 m_time = frames / fps;
@@ -94,7 +93,6 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
             }
             else if (direction == -1 && frames < start)
             {
-                keepGoing = false;
                 m_spilledTime = (start - frames) / fps;
                 frames = (float)start;
                 m_time = frames / fps;
@@ -107,7 +105,6 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
                 m_spilledTime = (frames - end) / fps;
                 frames = m_time * fps;
                 frames = start + std::fmod(frames - start, (float)range);
-
                 m_time = frames / fps;
                 didLoop = true;
             }
@@ -150,8 +147,13 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
             break;
     }
 
+    if (killSpilledTime)
+    {
+        m_spilledTime = 0;
+    }
+
     m_didLoop = didLoop;
-    return keepGoing;
+    return this->keepGoing();
 }
 
 void LinearAnimationInstance::time(float value)
