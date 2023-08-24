@@ -1,4 +1,5 @@
 #include "rive/solo.hpp"
+#include "rive/constraints/constraint.hpp"
 #include "rive/artboard.hpp"
 
 using namespace rive;
@@ -8,6 +9,11 @@ void Solo::propagateCollapse(bool collapse)
     Core* active = collapse ? nullptr : artboard()->resolve(activeComponentId());
     for (Component* child : children())
     {
+        // We don't want to collapse constraints applied to the Solo
+        if (child->is<Constraint>())
+        {
+            continue;
+        }
         child->collapse(child != active);
     }
 }
