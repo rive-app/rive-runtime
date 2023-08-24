@@ -43,12 +43,20 @@ public:
                        BlendMode,
                        float opacity) override;
 
-    // Most likely temporary. Determines if a path is an axis-aligned rectangle that can be
-    // represented by the struct rive::AABB. Used to detect artboard clip candidates.
-    static bool IsAABB(const RawPath&);
+    // Determines if a path is an axis-aligned rectangle that can be represented by rive::AABB.
+    static bool IsAABB(const RawPath&, AABB* result);
+
+#ifdef TESTING
+    bool hasClipRect() const { return m_stack.back().hasClipRect; }
+    const AABB& getClipRect() const { return m_stack.back().clipRect; }
+    const Mat2D& getClipRectMatrix() const { return m_stack.back().clipRectMatrix; }
+#endif
 
 private:
     class InteriorTriangulationHelper;
+
+    void clipRect(AABB, PLSPath* originalPath);
+    void clipPath(PLSPath*);
 
     // Pushes any necessary clip updates to m_pathBatch and writes back the clipID the next path
     // should be drawn with.
@@ -104,11 +112,16 @@ private:
 
     struct RenderState
     {
-        RenderState(const Mat2D& m, size_t h) : matrix(m), clipStackHeight(h) {}
         Mat2D matrix;
-        size_t clipStackHeight;
+        size_t clipStackHeight = 0;
+        AABB clipRect;
+        Mat2D clipRectMatrix;
+        // Maps from pixel coordinates to a space where the clipRect is the normalized rectangle:
+        // [-1, -1, +1, +1]. Only valid if hasClipRect is true.
+        Mat2D pixelToNormalizedClipRect;
+        bool hasClipRect = false;
     };
-    std::vector<RenderState> m_stack{{Mat2D(), 0}};
+    std::vector<RenderState> m_stack{1};
 
     struct ClipElement
     {
@@ -125,9 +138,7 @@ private:
         uint32_t clipID;
     };
     std::vector<ClipElement> m_clipStack;
-    size_t m_clipStackHeight = 0;
     uint64_t m_clipStackFlushID = -1; // Ensures we invalidate the clip stack after a flush.
-    bool m_hasArtboardClipCandidate = false;
 
     PLSRenderContext* const m_context;
 

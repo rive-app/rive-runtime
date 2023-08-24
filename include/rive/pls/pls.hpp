@@ -12,6 +12,7 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
+#include <bitset>
 
 namespace rive
 {
@@ -69,7 +70,7 @@ constexpr static int MaxPathID(int granularity)
 
 // In order to support WebGL2, we implement the path data buffer as a texture.
 constexpr static size_t kPathTextureWidthInItems = 128;
-constexpr static size_t kPathTexelsPerItem = 3;
+constexpr static size_t kPathTexelsPerItem = 5;
 constexpr static size_t kPathTextureWidthInTexels = kPathTextureWidthInItems * kPathTexelsPerItem;
 
 // Each contour has its own unique ID, which it uses to index a data record containing per-contour
@@ -316,7 +317,8 @@ struct PathData
                                 PaintType paintType,
                                 uint32_t clipID,
                                 PLSBlendMode blendMode,
-                                const PaintData& paintData_)
+                                const PaintData& paintData_,
+                                const Mat2D* pixelToNormalizedClipRect_) // null if no clipRect.
     {
         matrix = m;
         strokeRadius = strokeRadius_;
@@ -329,11 +331,19 @@ struct PathData
         }
         params = localParams;
         paintData = paintData_;
+        // Force clipRect coverage to 1 if the caller did not provide a pixelToNormalizedClipRect_.
+        // (The shader uses tx and ty as uniform clipRect coverage if the matrix is singular.)
+        pixelToNormalizedClipRect =
+            pixelToNormalizedClipRect_ ? *pixelToNormalizedClipRect_ : Mat2D{0, 0, 0, 0, 1, 1};
     }
     Mat2D matrix;
     float strokeRadius; // "0" indicates that the path is filled, not stroked.
     uint32_t params;    // [fillRule, paintType, clipID, blendMode]
     PaintData paintData;
+    Mat2D pixelToNormalizedClipRect; // Maps from pixel coordinates to a space where the clipRect
+                                     // is the normalized rectangle: [-1, -1, +1, +1]
+    float pad0;
+    float pad1;
 };
 
 // Each contour of every path has a unique data record on the GPU that is accessed from the vertex
@@ -634,56 +644,27 @@ enum class LoadAction : bool
     preserveRenderTarget
 };
 
-// Indicates how much blendMode support will be needed in the "uber" draw shader.
-enum class BlendTier : uint8_t
+// Indicates which "uber shader" features to #define in the draw shader.
+enum ShaderFeatureFlags
 {
-    srcOver,     // Every draw uses srcOver.
-    advanced,    // Draws use srcOver *and* advanced blend modes, excluding HSL modes.
-    advancedHSL, // Draws use srcOver *and* advanced blend modes *and* advanced HSL modes.
+    // Whole program features.
+    ENABLE_CLIPPING,
+    ENABLE_CLIP_RECT,
+    ENABLE_ADVANCED_BLEND,
+
+    // Fragment-only features.
+    ENABLE_EVEN_ODD,
+    ENABLE_NESTED_CLIPPING,
+    ENABLE_HSL_BLEND_MODES,
 };
+constexpr static size_t kShaderFeatureCount = ENABLE_HSL_BLEND_MODES + 1;
+using ShaderFeatures = std::bitset<kShaderFeatureCount>;
+constexpr ShaderFeatures kVertexShaderFeaturesMask = (1 << ShaderFeatureFlags::ENABLE_EVEN_ODD) - 1;
+extern const char* kShaderFeatureGLSLNames[kShaderFeatureCount];
 
-// Used by ShaderFeatures to generate keys and source code.
-enum class SourceType : bool
+inline static uint32_t ShaderUniqueKey(DrawType drawType, ShaderFeatures shaderFeatures)
 {
-    vertexOnly,
-    wholeProgram
-};
-
-// Indicates which "uber shader" features to enable in the draw shader.
-struct ShaderFeatures
-{
-    enum PreprocessorDefines : uint32_t
-    {
-        ENABLE_CLIPPING = 1 << 0,
-        ENABLE_ADVANCED_BLEND = 1 << 1,
-        ENABLE_EVEN_ODD = 1 << 2,
-        ENABLE_NESTED_CLIPPING = 1 << 3,
-        ENABLE_HSL_BLEND_MODES = 1 << 4,
-    };
-
-    // Returns a bitmask of which preprocessor macros must be defined in order to support the
-    // current feature set.
-    uint32_t getPreprocessorDefines(SourceType) const;
-
-    struct
-    {
-        BlendTier blendTier = BlendTier::srcOver;
-        bool enableClipping = false;
-    } programFeatures;
-
-    struct
-    {
-        bool enableEvenOdd = false;
-        bool enableNestedClipping = false;
-    } fragmentFeatures;
-};
-
-inline static uint32_t ShaderUniqueKey(SourceType sourceType,
-                                       DrawType drawType,
-                                       const ShaderFeatures& shaderFeatures)
-{
-    return (shaderFeatures.getPreprocessorDefines(sourceType) << 1) |
-           (drawType == DrawType::interiorTriangulation);
+    return (shaderFeatures.to_ulong() << 1) | (drawType == DrawType::interiorTriangulation);
 }
 
 // Linked list of draws to be issued by the subclass during onFlush().
@@ -695,7 +676,7 @@ struct Draw
     const DrawType drawType;
     uint32_t baseVertexOrInstance;
     uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
-    ShaderFeatures shaderFeatures;
+    ShaderFeatures shaderFeatures = 0;
     const PLSTexture* imageTextureRef = nullptr;    // Must be released manually.
     GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
 };

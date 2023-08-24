@@ -589,47 +589,33 @@ void PLSRenderContextD3DImpl::resizeTessellationTexture(size_t height)
 }
 
 void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
-                                                          const ShaderFeatures& shaderFeatures)
+                                                          ShaderFeatures shaderFeatures)
 {
-    uint32_t vertexShaderKey = ShaderUniqueKey(SourceType::vertexOnly, drawType, shaderFeatures);
+    uint32_t vertexShaderKey =
+        ShaderUniqueKey(drawType, shaderFeatures & kVertexShaderFeaturesMask);
     auto vertexEntry = m_drawVertexShaders.find(vertexShaderKey);
 
-    uint32_t pixelShaderKey = ShaderUniqueKey(SourceType::wholeProgram, drawType, shaderFeatures);
+    uint32_t pixelShaderKey = ShaderUniqueKey(drawType, shaderFeatures);
     auto pixelEntry = m_drawPixelShaders.find(pixelShaderKey);
 
     if (vertexEntry == m_drawVertexShaders.end() || pixelEntry == m_drawPixelShaders.end())
     {
         std::ostringstream s;
-        uint64_t shaderFeatureDefines =
-            shaderFeatures.getPreprocessorDefines(SourceType::wholeProgram);
         if (drawType == DrawType::interiorTriangulation)
         {
             s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
         }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_CLIPPING)
+        for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
-            s << "#define " << GLSL_ENABLE_CLIPPING << '\n';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
-        {
-            s << "#define " << GLSL_ENABLE_ADVANCED_BLEND << '\n';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
-        {
-            s << "#define " << GLSL_ENABLE_EVEN_ODD << '\n';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_NESTED_CLIPPING)
-        {
-            s << "#define " << GLSL_ENABLE_NESTED_CLIPPING << '\n';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
-        {
-            s << "#define " << GLSL_ENABLE_HSL_BLEND_MODES << '\n';
+            if (shaderFeatures[i])
+            {
+                s << "#define " << kShaderFeatureGLSLNames[i] << '\n';
+            }
         }
         s << "#define " << GLSL_ENABLE_BASE_INSTANCE_POLYFILL << '\n';
         s << glsl::hlsl << '\n';
         s << glsl::common << '\n';
-        if (shaderFeatures.programFeatures.blendTier != BlendTier::srcOver)
+        if (shaderFeatures[ShaderFeatureFlags::ENABLE_ADVANCED_BLEND])
         {
             s << glsl::advanced_blend << '\n';
         }

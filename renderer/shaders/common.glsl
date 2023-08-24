@@ -58,7 +58,7 @@ INLINE int2 contour_texel_coord(uint contourIDWithFlags)
 INLINE int2 path_texel_coord(uint pathIDBits)
 {
     uint pathIdx = pathIDBits - 1u;
-    return int2((pathIdx & 0x7fu) * 3u, pathIdx >> 7);
+    return int2((pathIdx & 0x7fu) * 5u, pathIdx >> 7);
 }
 
 INLINE float2 unchecked_mix(float2 a, float2 b, float t) { return (b - a) * t + a; }

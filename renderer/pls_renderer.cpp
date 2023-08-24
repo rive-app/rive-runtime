@@ -38,20 +38,16 @@ PLSRenderer::~PLSRenderer() {}
 
 void PLSRenderer::save()
 {
-    // Copy the matrix before pushing, in case the vector grows and invalidates the reference.
-    Mat2D matrixCopy = m_stack.back().matrix;
-    m_stack.emplace_back(matrixCopy, m_clipStackHeight);
+    // Copy the back of the stack before pushing, in case the vector grows and invalidates the
+    // reference.
+    RenderState copy = m_stack.back();
+    m_stack.push_back(copy);
 }
 
 void PLSRenderer::restore()
 {
     assert(!m_stack.empty());
-    assert(m_clipStackHeight >= m_stack.back().clipStackHeight);
-    m_clipStackHeight = m_stack.back().clipStackHeight;
-    if (m_clipStackHeight == 0)
-    {
-        m_hasArtboardClipCandidate = false;
-    }
+    assert(m_stack.back().clipStackHeight >= m_stack.back().clipStackHeight);
     m_stack.pop_back();
 }
 
@@ -62,15 +58,8 @@ void PLSRenderer::transform(const Mat2D& matrix)
 
 bool PLSRenderer::applyClip(uint32_t* clipID)
 {
-    if (m_clipStackHeight == 0)
-    {
-        *clipID = 0;
-        return true;
-    }
-
-    // Ignore the first clip for now if it looks like an artboard clip.
-    size_t clipStackBottom = m_hasArtboardClipCandidate ? 1 : 0;
-    if (m_clipStackHeight <= clipStackBottom)
+    const size_t clipStackHeight = m_stack.back().clipStackHeight;
+    if (clipStackHeight == 0)
     {
         *clipID = 0;
         return true;
@@ -81,8 +70,8 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
     // buffer.)
     bool needsClipInvalidate = m_clipStackFlushID != m_context->getFlushCount();
     // Also detect which clip element (if any) is already rendered in the clip buffer.
-    size_t clipIdxCurrentlyInClipBuffer = clipStackBottom - 1; // i.e., "none".
-    for (size_t i = clipStackBottom; i < m_clipStackHeight; ++i)
+    size_t clipIdxCurrentlyInClipBuffer = -1; // i.e., "none".
+    for (size_t i = 0; i < clipStackHeight; ++i)
     {
         ClipElement& clip = m_clipStack[i];
         if (clip.clipID == 0 || needsClipInvalidate)
@@ -100,17 +89,17 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
             // This is the clip that's currently drawn in the clip buffer! We should only find a
             // match once, so clipIdxCurrentlyInClipBuffer better be at the initial "none" value at
             // this point.
-            assert(clipIdxCurrentlyInClipBuffer == clipStackBottom - 1);
+            assert(clipIdxCurrentlyInClipBuffer == -1);
             clipIdxCurrentlyInClipBuffer = i;
         }
     }
 
     // Draw the necessary updates to the clip buffer (i.e., draw every clip element after
     // clipIdxCurrentlyInClipBuffer).
-    uint32_t outerClipID = clipIdxCurrentlyInClipBuffer == clipStackBottom - 1
+    uint32_t outerClipID = clipIdxCurrentlyInClipBuffer == -1
                                ? 0 // The next clip to be drawn is not nested.
                                : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
-    for (size_t i = clipIdxCurrentlyInClipBuffer + 1; i < m_clipStackHeight; ++i)
+    for (size_t i = clipIdxCurrentlyInClipBuffer + 1; i < clipStackHeight; ++i)
     {
         const ClipElement& clip = m_clipStack[i];
         assert(clip.clipID != 0);
@@ -122,7 +111,7 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
                                  outerClipID);
         outerClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
     }
-    *clipID = m_clipStack[m_clipStackHeight - 1].clipID;
+    *clipID = m_clipStack[clipStackHeight - 1].clipID;
     m_context->setClipContentID(*clipID);
     m_clipStackFlushID = m_context->getFlushCount();
     return true;
@@ -181,14 +170,107 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 
 void PLSRenderer::clipPath(RenderPath* renderPath)
 {
-    PLSPath* path = static_cast<PLSPath*>(renderPath);
+    PLSPath* plsPath = static_cast<PLSPath*>(renderPath);
 
-    // If the first clip in the stack is an axis-aligned rectangle, assume it's the artboard clip.
-    if (m_clipStackHeight == 0)
+    // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT" shader feature.
+    // Multiple axis-aligned rectangles can be intersected into a single rectangle if their matrices
+    // are compatible.
+    AABB clipRectCandidate;
+    if (IsAABB(plsPath->getRawPath(), &clipRectCandidate))
     {
-        m_hasArtboardClipCandidate = IsAABB(path->getRawPath());
+        clipRect(clipRectCandidate, plsPath);
+    }
+    else
+    {
+        clipPath(plsPath);
+    }
+}
+
+// Finds a new rect, if such a rect exists, such that:
+//
+//     currentMatrix * rect == newMatrix * newRect
+//
+// Returns true if *rect was replaced with newRect.
+static bool transform_rect_to_new_space(AABB* rect,
+                                        const Mat2D& currentMatrix,
+                                        const Mat2D& newMatrix)
+{
+    if (currentMatrix == newMatrix)
+    {
+        return true;
+    }
+    Mat2D currentToNew;
+    if (!newMatrix.invert(&currentToNew))
+    {
+        return false;
+    }
+    currentToNew = currentToNew * currentMatrix;
+    float maxSkew = std::max(fabsf(currentToNew.xy()), fabsf(currentToNew.yx()));
+    float maxScale = std::max(fabsf(currentToNew.xx()), fabsf(currentToNew.yy()));
+    if (maxSkew > math::EPSILON && maxScale > math::EPSILON)
+    {
+        // Transforming this rect to the new view matrix would turn it into something that isn't a
+        // rect.
+        return false;
+    }
+    Vec2D pts[2] = {{rect->left(), rect->top()}, {rect->right(), rect->bottom()}};
+    currentToNew.mapPoints(pts, pts, 2);
+    float4 p = simd::load4f(pts);
+    float2 topLeft = simd::min(p.xy, p.zw);
+    float2 botRight = simd::max(p.xy, p.zw);
+    *rect = {topLeft.x, topLeft.y, botRight.x, botRight.y};
+    return true;
+}
+
+void PLSRenderer::clipRect(AABB rect, PLSPath* originalPath)
+{
+    // If there already is a clipRect, we can only accept another one by intersecting it with the
+    // existing one. This means the new rect must be axis-aligned with the existing clipRect.
+    if (m_stack.back().hasClipRect &&
+        !transform_rect_to_new_space(&rect, m_stack.back().matrix, m_stack.back().clipRectMatrix))
+    {
+        // 'rect' is not axis-aligned with the existing clipRect. Fall back to clipPath.
+        clipPath(originalPath);
+        return;
     }
 
+    if (!m_stack.back().hasClipRect)
+    {
+        // There wasn't an existing clipRect. This is the one!
+        m_stack.back().clipRect = rect;
+        m_stack.back().clipRectMatrix = m_stack.back().matrix;
+        m_stack.back().hasClipRect = true;
+    }
+    else
+    {
+        // Both rects are in the same space now. Intersect the two geometrically.
+        float4 a = simd::load4f(&m_stack.back().clipRect);
+        float4 b = simd::load4f(&rect);
+        float4 intersection = simd::join(simd::max(a.xy, b.xy), simd::min(a.zw, b.zw));
+        simd::store(&m_stack.back().clipRect, intersection);
+    }
+
+    // Find the matrix that transforms from pixel space to "normalized clipRect space", where the
+    // clipRect is the normalized rectangle: [-1, -1, +1, +1].
+    const AABB& clipRect = m_stack.back().clipRect;
+    Mat2D m = m_stack.back().clipRectMatrix * Mat2D(clipRect.width() * .5f,
+                                                    0,
+                                                    0,
+                                                    clipRect.height() * .5f,
+                                                    clipRect.center().x,
+                                                    clipRect.center().y);
+    if (clipRect.width() <= 0 || clipRect.height() <= 0 ||
+        !m.invert(&m_stack.back().pixelToNormalizedClipRect))
+    {
+        // If the width or height went zero or negative, or if m is non-invertible, force the
+        // clipRect coverage to 0. (The shader uses tx and ty as uniform clipRect coverage if the
+        // matrix is singular.)
+        m_stack.back().pixelToNormalizedClipRect = {0, 0, 0, 0, 0, 0};
+    }
+}
+
+void PLSRenderer::clipPath(PLSPath* path)
+{
     // Only write a new clip element if this path isn't already on the stack from before. e.g.:
     //
     //     clipPath(samePath);
@@ -196,14 +278,15 @@ void PLSRenderer::clipPath(RenderPath* renderPath)
     //     save();
     //     clipPath(samePath); // <-- reuse the ClipElement (and clipID!) already in m_clipStack.
     //
-    assert(m_clipStack.size() >= m_clipStackHeight);
-    if (m_clipStack.size() == m_clipStackHeight ||
-        !m_clipStack[m_clipStackHeight].isEquivalent(m_stack.back().matrix, path))
+    const size_t clipStackHeight = m_stack.back().clipStackHeight;
+    assert(m_clipStack.size() >= clipStackHeight);
+    if (m_clipStack.size() == clipStackHeight ||
+        !m_clipStack[clipStackHeight].isEquivalent(m_stack.back().matrix, path))
     {
-        m_clipStack.resize(m_clipStackHeight);
+        m_clipStack.resize(clipStackHeight);
         m_clipStack.emplace_back(m_stack.back().matrix, path);
     }
-    ++m_clipStackHeight;
+    m_stack.back().clipStackHeight = clipStackHeight + 1;
 }
 
 void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode, float opacity)
@@ -1298,6 +1381,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         PaintType currentPaintType = isClipPath ? PaintType::clipUpdate : finalPathPaint->getType();
         const PaintData& currentPaintData =
             isClipPath ? PaintData::MakeClipUpdate(path.outerClipID) : finalPathPaintData;
+        const Mat2D* pixelToNormalizedClipRect =
+            m_stack.back().hasClipRect ? &m_stack.back().pixelToNormalizedClipRect : nullptr;
         m_context->pushPath(path.triangulator ? PatchType::outerCurves : PatchType::midpointFan,
                             *path.matrix,
                             isClipPath ? 0 : strokeRadius, // Clips are never stroked.
@@ -1305,8 +1390,9 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                             currentPaintType,
                             currentPaintData,
                             finalPathPaint->getImageTexture(), // Ignored by clip updates.
-                            finalPathPaint->getBlendMode(),    // Ignored by clip updates.
                             path.clipID,
+                            pixelToNormalizedClipRect,
+                            finalPathPaint->getBlendMode(), // Ignored by clip updates.
                             path.tessVertexCount,
                             path.paddingVertexCount);
         RIVE_DEBUG_CODE(++pushedPathCount;)
@@ -1323,8 +1409,9 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                                                  currentPaintType,
                                                  currentPaintData,
                                                  finalPathPaint->getImageTexture(),
-                                                 finalPathPaint->getBlendMode(),
-                                                 path.clipID);
+                                                 path.clipID,
+                                                 pixelToNormalizedClipRect,
+                                                 finalPathPaint->getBlendMode());
         }
         else
         {
@@ -1654,23 +1741,39 @@ void PLSRenderer::pushEmulatedStrokeCapAsJoinBeforeCubic(const Vec2D cubic[],
     RIVE_DEBUG_CODE(++m_pushedEmptyStrokeCountForCaps;)
 }
 
-bool PLSRenderer::IsAABB(const RawPath& path)
+bool PLSRenderer::IsAABB(const RawPath& path, AABB* result)
 {
-    constexpr static size_t kAABBVerbCount = 5;
+    // Any quadrilateral begins with a move plus 3 lines.
+    constexpr static size_t kAABBVerbCount = 4;
     constexpr static PathVerb aabbVerbs[kAABBVerbCount] = {PathVerb::move,
                                                            PathVerb::line,
                                                            PathVerb::line,
-                                                           PathVerb::line,
-                                                           PathVerb::close};
+                                                           PathVerb::line};
     Span<const PathVerb> verbs = path.verbs();
-    if (verbs.count() != kAABBVerbCount || memcmp(verbs.data(), aabbVerbs, sizeof(aabbVerbs)) != 0)
+    if (verbs.count() < kAABBVerbCount || memcmp(verbs.data(), aabbVerbs, sizeof(aabbVerbs)) != 0)
     {
         return false;
     }
+
+    // Only accept extra verbs and points if every point after the quadrilateral is equal to p0.
     Span<const Vec2D> pts = path.points();
-    assert(pts.count() == 4);
+    for (size_t i = 4; i < pts.count(); ++i)
+    {
+        if (pts[i] != pts[0])
+        {
+            return false;
+        }
+    }
+
+    // We have a quadrilateral! Now check if it is an axis-aligned rectangle.
     float4 corners = {pts[0].x, pts[0].y, pts[2].x, pts[2].y};
     float4 oppositeCorners = {pts[1].x, pts[1].y, pts[3].x, pts[3].y};
-    return simd::all(corners == oppositeCorners.zyxw) || simd::all(corners == oppositeCorners.xwzy);
+    if (simd::all(corners == oppositeCorners.zyxw) || simd::all(corners == oppositeCorners.xwzy))
+    {
+        float4 r = simd::join(simd::min(corners.xy, corners.zw), simd::max(corners.xy, corners.zw));
+        simd::store(result, r);
+        return true;
+    }
+    return false;
 }
 } // namespace rive::pls

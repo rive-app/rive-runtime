@@ -333,47 +333,29 @@ public:
     DrawShader(PLSRenderContextGLImpl* plsContextImpl,
                GLenum shaderType,
                DrawType drawType,
-               const ShaderFeatures& shaderFeatures)
+               ShaderFeatures shaderFeatures)
     {
-        auto sourceType =
-            shaderType == GL_VERTEX_SHADER ? SourceType::vertexOnly : SourceType::wholeProgram;
-
         std::vector<const char*> defines;
         defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
-        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
         if (drawType == DrawType::interiorTriangulation)
         {
             defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
         }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_CLIPPING)
+        for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
-            defines.push_back(GLSL_ENABLE_CLIPPING);
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
-        {
-            defines.push_back(GLSL_ENABLE_ADVANCED_BLEND);
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
-        {
-            defines.push_back(GLSL_ENABLE_EVEN_ODD);
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_NESTED_CLIPPING)
-        {
-            defines.push_back(GLSL_ENABLE_NESTED_CLIPPING);
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
-        {
-            defines.push_back(GLSL_ENABLE_HSL_BLEND_MODES);
+            if (shaderFeatures[i])
+            {
+                assert(kVertexShaderFeaturesMask[i] || shaderType == GL_FRAGMENT_SHADER);
+                defines.push_back(kShaderFeatureGLSLNames[i]);
+            }
         }
 
         std::vector<const char*> sources;
         sources.push_back(glsl::common);
-        if (sourceType != SourceType::vertexOnly)
+        if (shaderType == GL_FRAGMENT_SHADER &&
+            shaderFeatures[ShaderFeatureFlags::ENABLE_ADVANCED_BLEND])
         {
-            if (shaderFeatures.programFeatures.blendTier > BlendTier::srcOver)
-            {
-                sources.push_back(glsl::advanced_blend);
-            }
+            sources.push_back(glsl::advanced_blend);
         }
         if (plsContextImpl->platformFeatures().avoidFlatVaryings)
         {
@@ -403,19 +385,20 @@ private:
 
 PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
                                                  DrawType drawType,
-                                                 const ShaderFeatures& shaderFeatures)
+                                                 ShaderFeatures shaderFeatures)
 {
     m_id = glCreateProgram();
 
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
-    uint32_t vertexShaderKey = ShaderUniqueKey(SourceType::vertexOnly, drawType, shaderFeatures);
+    ShaderFeatures vertexShaderFeatures = shaderFeatures & kVertexShaderFeaturesMask;
+    uint32_t vertexShaderKey = ShaderUniqueKey(drawType, vertexShaderFeatures);
     const DrawShader& vertexShader = plsContextImpl->m_vertexShaders
                                          .try_emplace(vertexShaderKey,
                                                       plsContextImpl,
                                                       GL_VERTEX_SHADER,
                                                       drawType,
-                                                      shaderFeatures)
+                                                      vertexShaderFeatures)
                                          .first->second;
     glAttachShader(m_id, vertexShader.id());
 
@@ -516,8 +499,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     {
         // Compile the draw program before activating pixel local storage.
         // Cache specific compilations of draw.glsl by ShaderFeatures.
-        uint32_t fragmentShaderKey =
-            ShaderUniqueKey(SourceType::wholeProgram, draw.drawType, draw.shaderFeatures);
+        uint32_t fragmentShaderKey = ShaderUniqueKey(draw.drawType, draw.shaderFeatures);
         m_drawPrograms.try_emplace(fragmentShaderKey, this, draw.drawType, draw.shaderFeatures);
     }
 
@@ -550,8 +532,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             continue;
         }
 
-        uint32_t fragmentShaderKey =
-            ShaderUniqueKey(SourceType::wholeProgram, draw.drawType, draw.shaderFeatures);
+        uint32_t fragmentShaderKey = ShaderUniqueKey(draw.drawType, draw.shaderFeatures);
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
         bindProgram(drawProgram.id());
 

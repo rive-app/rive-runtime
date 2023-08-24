@@ -33,6 +33,9 @@ NO_PERSPECTIVE VARYING(2, half2, v_edgeDistance);
 #ifdef @ENABLE_ADVANCED_BLEND
 @OPTIONALLY_FLAT VARYING(5, half, v_blendMode);
 #endif
+#ifdef @ENABLE_CLIP_RECT
+NO_PERSPECTIVE VARYING(6, float4, v_clipRect);
+#endif
 VARYING_BLOCK_END(_pos)
 
 #ifdef @VERTEX
@@ -98,6 +101,9 @@ VERTEX_MAIN(@drawVertexMain,
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_INIT(varyings, v_blendMode, half);
+#endif
+#ifdef @ENABLE_CLIP_RECT
+    VARYING_INIT(varyings, v_clipRect, float4);
 #endif
 
     bool shouldDiscardVertex = false;
@@ -360,6 +366,34 @@ VERTEX_MAIN(@drawVertexMain,
     v_blendMode = float(pathParams & 0xfu);
 #endif
 
+#ifdef @ENABLE_CLIP_RECT
+    // clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
+    // normalized rectangle: [-1, -1, 1, 1].
+    float2x2 clipRectInverseMatrix = make_float2x2(
+        uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(3, 0))));
+    float2 clipRectInverseTranslate =
+        uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(4, 0)).xy);
+    float2 clipRectAAWidth = abs(clipRectInverseMatrix[0]) + abs(clipRectInverseMatrix[1]);
+    if (clipRectAAWidth.x != .0 && clipRectAAWidth.y != .0)
+    {
+        float2 r = 1. / clipRectAAWidth;
+        float2 clipRectCoord =
+            MUL(clipRectInverseMatrix, vertexPosition) + clipRectInverseTranslate;
+        // v_clipRect interpolates the AA coverage, based on Manhattan distance in pixel space, to
+        // each edge of the clipRect. When the center of a pixel falls exactly on an edge, coverage
+        // should be .5.
+        const float coverageWhenDistanceIsZero = .5;
+        v_clipRect =
+            float4(clipRectCoord, -clipRectCoord) * r.xyxy + r.xyxy + coverageWhenDistanceIsZero;
+    }
+    else
+    {
+        // The caller gave us a singular clipRectInverseMatrix. This is a special case where we are
+        // expected to use tx and ty as uniform coverage.
+        v_clipRect = clipRectInverseTranslate.xyxy;
+    }
+#endif
+
     // Unpack the paint once we have a position.
     uint4 paintData = TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(2, 0));
     if (paintType == SOLID_COLOR_PAINT_TYPE)
@@ -444,6 +478,9 @@ VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_PACK(varyings, v_blendMode);
 #endif
+#ifdef @ENABLE_CLIP_RECT
+    VARYING_PACK(varyings, v_clipRect);
+#endif
     EMIT_VERTEX(varyings, _pos);
 }
 #endif
@@ -464,6 +501,13 @@ PLS_DECL4F(2, originalDstColorBuffer);
 PLS_DECLUI(3, clipBuffer);
 PLS_BLOCK_END
 
+INLINE half min_value(half4 min4)
+{
+    half2 min2 = min(min4.xy, min4.zw);
+    half min1 = min(min2.x, min2.y);
+    return min1;
+}
+
 PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos)
 {
     VARYING_UNPACK(varyings, v_paint, float4);
@@ -478,6 +522,9 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_UNPACK(varyings, v_blendMode, half);
+#endif
+#ifdef @ENABLE_CLIP_RECT
+    VARYING_UNPACK(varyings, v_clipRect, float4);
 #endif
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
@@ -516,7 +563,7 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
     if (v_pathID < .0 /*even-odd*/)
         coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
 #endif
-    coverage = min(coverage, make_half(1.)); // This also caps stroke coverage, which can be >1.
+    coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
 
 #ifdef @ENABLE_CLIPPING
     if (v_clipID < .0) // Update the clip buffer.
@@ -570,6 +617,10 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
             half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
             coverage = min(coverage, clipCoverage);
         }
+#endif
+#ifdef @ENABLE_CLIP_RECT
+        half clipRectCoverage = min_value(make_half4(v_clipRect));
+        coverage = clamp(clipRectCoverage, make_half(0), coverage);
 #endif
         PLS_PRESERVE_VALUE(clipBuffer);
 

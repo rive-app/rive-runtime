@@ -4,8 +4,23 @@
 
 #include "rive/pls/pls.hpp"
 
+#include "../out/obj/generated/draw.exports.h"
+
 namespace rive::pls
 {
+const char* kShaderFeatureGLSLNames[kShaderFeatureCount] = {GLSL_ENABLE_CLIPPING,
+                                                            GLSL_ENABLE_CLIP_RECT,
+                                                            GLSL_ENABLE_ADVANCED_BLEND,
+                                                            GLSL_ENABLE_EVEN_ODD,
+                                                            GLSL_ENABLE_NESTED_CLIPPING,
+                                                            GLSL_ENABLE_HSL_BLEND_MODES};
+static_assert(ShaderFeatureFlags::ENABLE_CLIPPING == 0);
+static_assert(ShaderFeatureFlags::ENABLE_CLIP_RECT == 1);
+static_assert(ShaderFeatureFlags::ENABLE_ADVANCED_BLEND == 2);
+static_assert(ShaderFeatureFlags::ENABLE_EVEN_ODD == 3);
+static_assert(ShaderFeatureFlags::ENABLE_NESTED_CLIPPING == 4);
+static_assert(ShaderFeatureFlags::ENABLE_HSL_BLEND_MODES == 5);
+
 constexpr static float pack_params(int32_t patchSegmentSpan, int32_t vertexType)
 {
     return static_cast<float>((patchSegmentSpan << 2) | vertexType);

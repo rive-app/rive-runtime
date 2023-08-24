@@ -33,62 +33,6 @@ constexpr size_t kMinTessTextureHeight = 32;
 constexpr size_t kMaxTessTextureHeight = 2048; // GL_MAX_TEXTURE_SIZE spec minimum.
 constexpr size_t kMaxTessellationVertexCount = kMaxTessTextureHeight * kTessTextureWidth;
 
-uint32_t ShaderFeatures::getPreprocessorDefines(SourceType sourceType) const
-{
-    uint32_t defines = 0;
-    if (programFeatures.blendTier != BlendTier::srcOver)
-    {
-        defines |= PreprocessorDefines::ENABLE_ADVANCED_BLEND;
-    }
-    if (programFeatures.enableClipping)
-    {
-        defines |= PreprocessorDefines::ENABLE_CLIPPING;
-    }
-    if (sourceType != SourceType::vertexOnly)
-    {
-        if (fragmentFeatures.enableEvenOdd)
-        {
-            defines |= PreprocessorDefines::ENABLE_EVEN_ODD;
-        }
-        if (fragmentFeatures.enableNestedClipping)
-        {
-            defines |= PreprocessorDefines::ENABLE_NESTED_CLIPPING;
-        }
-        if (programFeatures.blendTier == BlendTier::advancedHSL)
-        {
-            defines |= PreprocessorDefines::ENABLE_HSL_BLEND_MODES;
-        }
-    }
-    return defines;
-}
-
-BlendTier PLSRenderContext::BlendTierForBlendMode(PLSBlendMode blendMode)
-{
-    switch (blendMode)
-    {
-        case PLSBlendMode::srcOver:
-            return BlendTier::srcOver;
-        case PLSBlendMode::screen:
-        case PLSBlendMode::overlay:
-        case PLSBlendMode::darken:
-        case PLSBlendMode::lighten:
-        case PLSBlendMode::colorDodge:
-        case PLSBlendMode::colorBurn:
-        case PLSBlendMode::hardLight:
-        case PLSBlendMode::softLight:
-        case PLSBlendMode::difference:
-        case PLSBlendMode::exclusion:
-        case PLSBlendMode::multiply:
-            return BlendTier::advanced;
-        case PLSBlendMode::hue:
-        case PLSBlendMode::saturation:
-        case PLSBlendMode::color:
-        case PLSBlendMode::luminosity:
-            return BlendTier::advancedHSL;
-    }
-    RIVE_UNREACHABLE();
-}
-
 inline GradientContentKey::GradientContentKey(rcp<const PLSGradient> gradient) :
     m_gradient(std::move(gradient))
 {}
@@ -632,8 +576,9 @@ void PLSRenderContext::pushPath(PatchType patchType,
                                 PaintType paintType,
                                 const PaintData& paintData,
                                 const PLSTexture* imageTexture,
-                                PLSBlendMode blendMode,
                                 uint32_t clipID,
+                                const Mat2D* pixelToNormalizedClipRect,
+                                PLSBlendMode blendMode,
                                 uint32_t tessVertexCount,
                                 uint32_t paddingVertexCount)
 {
@@ -643,7 +588,14 @@ void PLSRenderContext::pushPath(PatchType patchType,
 
     m_currentPathIsStroked = strokeRadius != 0;
     m_currentPathNeedsMirroredContours = !m_currentPathIsStroked;
-    m_pathData.set_back(matrix, strokeRadius, fillRule, paintType, clipID, blendMode, paintData);
+    m_pathData.set_back(matrix,
+                        strokeRadius,
+                        fillRule,
+                        paintType,
+                        clipID,
+                        blendMode,
+                        paintData,
+                        pixelToNormalizedClipRect);
 
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
@@ -663,8 +615,9 @@ void PLSRenderContext::pushPath(PatchType patchType,
              paintType,
              paintData,
              imageTexture,
-             blendMode,
-             clipID);
+             clipID,
+             pixelToNormalizedClipRect,
+             blendMode);
     assert(m_drawList.tail().baseVertexOrInstance + m_drawList.tail().vertexOrInstanceCount ==
            baseInstance);
     uint32_t vertexCountToDraw = tessVertexCount - paddingVertexCount;
@@ -877,8 +830,9 @@ void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangu
                                                  PaintType paintType,
                                                  const PaintData& paintData,
                                                  const PLSTexture* imageTexture,
-                                                 PLSBlendMode blendMode,
-                                                 uint32_t clipID)
+                                                 uint32_t clipID,
+                                                 const Mat2D* pixelToNormalizedClipRect,
+                                                 PLSBlendMode blendMode)
 {
     pushDraw(DrawType::interiorTriangulation,
              0,
@@ -886,8 +840,9 @@ void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangu
              paintType,
              paintData,
              imageTexture,
-             blendMode,
-             clipID);
+             clipID,
+             pixelToNormalizedClipRect,
+             blendMode);
     m_maxTriangleVertexCount += triangulator->maxVertexCount();
     triangulator->setPathID(m_currentPathID);
     m_drawList.tail().triangulator = triangulator;
@@ -912,8 +867,9 @@ void PLSRenderContext::pushDraw(DrawType drawType,
                                 PaintType paintType,
                                 const PaintData& paintData,
                                 const PLSTexture* imageTexture,
-                                PLSBlendMode blendMode,
-                                uint32_t clipID)
+                                uint32_t clipID,
+                                bool hasClipRect,
+                                PLSBlendMode blendMode)
 {
     bool needsNewDraw = m_drawList.empty() || m_drawList.tail().drawType != drawType ||
                         !can_combine_draw_images(m_drawList.tail().imageTextureRef, imageTexture);
@@ -932,23 +888,49 @@ void PLSRenderContext::pushDraw(DrawType drawType,
         assert(m_drawList.tail().imageTextureRef == imageTexture);
     }
 
-    ShaderFeatures* shaderFeatures = &m_drawList.tail().shaderFeatures;
-    if (paintType != PaintType::clipUpdate && blendMode > PLSBlendMode::srcOver)
-    {
-        shaderFeatures->programFeatures.blendTier =
-            std::max(shaderFeatures->programFeatures.blendTier, BlendTierForBlendMode(blendMode));
-    }
+    ShaderFeatures& shaderFeatures = m_drawList.tail().shaderFeatures;
     if (clipID != 0)
     {
-        shaderFeatures->programFeatures.enableClipping = true;
+        shaderFeatures.set(ShaderFeatureFlags::ENABLE_CLIPPING);
+    }
+    if (hasClipRect && paintType != PaintType::clipUpdate)
+    {
+        shaderFeatures.set(ShaderFeatureFlags::ENABLE_CLIP_RECT);
     }
     if (fillRule == FillRule::evenOdd)
     {
-        shaderFeatures->fragmentFeatures.enableEvenOdd = true;
+        shaderFeatures.set(ShaderFeatureFlags::ENABLE_EVEN_ODD);
     }
     if (paintType == PaintType::clipUpdate && paintData.outerClipIDIfClipUpdate() != 0)
     {
-        shaderFeatures->fragmentFeatures.enableNestedClipping = true;
+        shaderFeatures.set(ShaderFeatureFlags::ENABLE_NESTED_CLIPPING);
+    }
+    if (paintType != PaintType::clipUpdate)
+    {
+        switch (blendMode)
+        {
+            case PLSBlendMode::hue:
+            case PLSBlendMode::saturation:
+            case PLSBlendMode::color:
+            case PLSBlendMode::luminosity:
+                shaderFeatures.set(ShaderFeatureFlags::ENABLE_HSL_BLEND_MODES);
+                [[fallthrough]];
+            case PLSBlendMode::screen:
+            case PLSBlendMode::overlay:
+            case PLSBlendMode::darken:
+            case PLSBlendMode::lighten:
+            case PLSBlendMode::colorDodge:
+            case PLSBlendMode::colorBurn:
+            case PLSBlendMode::hardLight:
+            case PLSBlendMode::softLight:
+            case PLSBlendMode::difference:
+            case PLSBlendMode::exclusion:
+            case PLSBlendMode::multiply:
+                shaderFeatures.set(ShaderFeatureFlags::ENABLE_ADVANCED_BLEND);
+                break;
+            case PLSBlendMode::srcOver:
+                break;
+        }
     }
 }
 
@@ -1045,7 +1027,8 @@ void PLSRenderContext::flush(FlushType flushType)
                 break;
             }
         }
-        needsClipBuffer = needsClipBuffer || draw.shaderFeatures.programFeatures.enableClipping;
+        needsClipBuffer =
+            needsClipBuffer || draw.shaderFeatures[ShaderFeatureFlags::ENABLE_CLIPPING];
         RIVE_DEBUG_CODE(++drawIdx;)
     }
     assert(drawIdx == m_drawList.count());

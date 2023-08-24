@@ -12,13 +12,21 @@ class Feature():
 # Each feature has a specific index. These must stay in sync with pls_render_context_metal_impl.mm.
 DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 0)
 ENABLE_CLIPPING = Feature('ENABLE_CLIPPING', 1)
-ENABLE_ADVANCED_BLEND = Feature('ENABLE_ADVANCED_BLEND', 2)
-ENABLE_EVEN_ODD = Feature('ENABLE_EVEN_ODD', 3)
-ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 4)
-ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 5)
+ENABLE_CLIP_RECT =  Feature('ENABLE_CLIP_RECT', 2)
+ENABLE_ADVANCED_BLEND = Feature('ENABLE_ADVANCED_BLEND', 3)
+ENABLE_EVEN_ODD = Feature('ENABLE_EVEN_ODD', 4)
+ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 5)
+ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 6)
 
-whole_program_features = {DRAW_INTERIOR_TRIANGLES, ENABLE_CLIPPING, ENABLE_ADVANCED_BLEND}
-fragment_only_features = {ENABLE_EVEN_ODD, ENABLE_NESTED_CLIPPING, ENABLE_HSL_BLEND_MODES}
+whole_program_features = {DRAW_INTERIOR_TRIANGLES,
+                          ENABLE_CLIPPING,
+                          ENABLE_CLIP_RECT,
+                          ENABLE_ADVANCED_BLEND}
+
+fragment_only_features = {ENABLE_EVEN_ODD,
+                          ENABLE_NESTED_CLIPPING,
+                          ENABLE_HSL_BLEND_MODES}
+
 all_features = whole_program_features.union(fragment_only_features)
 
 # Returns whether a valid program exists for the given feature set.
@@ -43,7 +51,7 @@ for n in range(0, len(all_features) + 1):
     for feature_set in itertools.combinations(all_features, n):
         if not is_valid_feature_set(feature_set):
             continue
-        namespace_id = ['0', '0', '0', '0', '0', '0']
+        namespace_id = ['0', '0', '0', '0', '0', '0', '0']
         for feature in feature_set:
             namespace_id[feature.index] = '1'
         out.write('namespace r%s\n' % ''.join(namespace_id))

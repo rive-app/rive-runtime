@@ -92,7 +92,7 @@ private:
 
     void flush(const PLSRenderContext::FlushDescriptor&) override;
 
-    void setPipelineLayoutAndShaders(DrawType, const ShaderFeatures&);
+    void setPipelineLayoutAndShaders(DrawType, ShaderFeatures);
 
     const bool m_isIntel;
 

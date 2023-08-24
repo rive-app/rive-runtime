@@ -81,10 +81,10 @@ public:
                  DrawType drawType,
                  const ShaderFeatures& shaderFeatures)
     {
-        id<MTLFunction> vertexMain =
-            GetMainFunction(context, drawType, SourceType::vertexOnly, shaderFeatures);
+        id<MTLFunction> vertexMain = GetFunction(
+            context, drawType, shaderFeatures & kVertexShaderFeaturesMask, GLSL_drawVertexMain);
         id<MTLFunction> fragmentMain =
-            GetMainFunction(context, drawType, SourceType::wholeProgram, shaderFeatures);
+            GetFunction(context, drawType, shaderFeatures, GLSL_drawFragmentMain);
         constexpr static auto makePipelineState = [](id<MTLDevice> gpu,
                                                      id<MTLFunction> vertexMain,
                                                      id<MTLFunction> fragmentMain,
@@ -112,43 +112,33 @@ public:
     }
 
 private:
-    id<MTLFunction> GetMainFunction(PLSRenderContextMetalImpl* context,
-                                    DrawType drawType,
-                                    SourceType sourceType,
-                                    const ShaderFeatures& shaderFeatures)
+    id<MTLFunction> GetFunction(PLSRenderContextMetalImpl* context,
+                                DrawType drawType,
+                                ShaderFeatures shaderFeatures,
+                                const char* functionName)
     {
         // Each feature corresponds to a specific index in the namespaceID. These must stay in sync
         // with generate_draw_combinations.py.
-        char namespaceID[] = "000000";
-        uint64_t shaderFeatureDefines = shaderFeatures.getPreprocessorDefines(sourceType);
+        char namespaceID[] = "0000000";
         if (drawType == DrawType::interiorTriangulation)
         {
             namespaceID[0] = '1';
         }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_CLIPPING)
+        for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
-            namespaceID[1] = '1';
+            if (shaderFeatures[i])
+            {
+                namespaceID[i + 1] = '1';
+            }
+            static_assert(ShaderFeatureFlags::ENABLE_CLIPPING == 0);
+            static_assert(ShaderFeatureFlags::ENABLE_CLIP_RECT == 1);
+            static_assert(ShaderFeatureFlags::ENABLE_ADVANCED_BLEND == 2);
+            static_assert(ShaderFeatureFlags::ENABLE_EVEN_ODD == 3);
+            static_assert(ShaderFeatureFlags::ENABLE_NESTED_CLIPPING == 4);
+            static_assert(ShaderFeatureFlags::ENABLE_HSL_BLEND_MODES == 5);
         }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_ADVANCED_BLEND)
-        {
-            namespaceID[2] = '1';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_EVEN_ODD)
-        {
-            namespaceID[3] = '1';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_NESTED_CLIPPING)
-        {
-            namespaceID[4] = '1';
-        }
-        if (shaderFeatureDefines & ShaderFeatures::PreprocessorDefines::ENABLE_HSL_BLEND_MODES)
-        {
-            namespaceID[5] = '1';
-        }
-        const char* mainFunctionName =
-            sourceType == SourceType::vertexOnly ? GLSL_drawVertexMain : GLSL_drawFragmentMain;
         NSString* fullyQualifiedName =
-            [NSString stringWithFormat:@"r%s::%s", namespaceID, mainFunctionName];
+            [NSString stringWithFormat:@"r%s::%s", namespaceID, functionName];
         return [context->m_plsLibrary newFunctionWithName:fullyQualifiedName];
     }
 
@@ -637,8 +627,7 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
         DrawType drawType = draw.drawType;
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
-        uint32_t pipelineKey =
-            ShaderUniqueKey(SourceType::wholeProgram, drawType, draw.shaderFeatures);
+        uint32_t pipelineKey = ShaderUniqueKey(drawType, draw.shaderFeatures);
         const DrawPipeline& drawPipeline =
             m_drawPipelines.try_emplace(pipelineKey, this, drawType, draw.shaderFeatures)
                 .first->second;

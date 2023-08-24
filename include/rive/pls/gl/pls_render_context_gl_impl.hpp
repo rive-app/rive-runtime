@@ -109,7 +109,7 @@ private:
     public:
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
-        DrawProgram(PLSRenderContextGLImpl*, DrawType, const ShaderFeatures&);
+        DrawProgram(PLSRenderContextGLImpl*, DrawType, ShaderFeatures);
         ~DrawProgram();
 
         GLuint id() const { return m_id; }

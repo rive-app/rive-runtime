@@ -292,7 +292,7 @@ glsl_reserved = {
 xyzw_pattern = re.compile(r"^[xyzw]{1,4}$")
 
 # HLSL registers (e.g., t0, u1) can't be overwritten by a #define.
-hlsl_register_pattern = re.compile(r"^[TtSsUu]\d+$")
+hlsl_register_pattern = re.compile(r"^[TtSsUuBb]\d+$")
 
 # can we rename to or from 'name'?
 def is_reserved_keyword(name):

@@ -206,8 +206,11 @@ public:
                   PaintType,
                   const PaintData&,
                   const PLSTexture* imageTexture,
-                  PLSBlendMode,
                   uint32_t clipID,
+                  // Maps from pixel coordinates to a space where the clipRect is the normalized
+                  // rectangle: [-1, -1, +1, +1]; null if there is no clipRect.
+                  const Mat2D* pixelToNormalizedClipRect,
+                  PLSBlendMode,
                   uint32_t tessVertexCount,
                   uint32_t paddingVertexCount);
 
@@ -239,12 +242,16 @@ public:
 
     // Pushes triangles to be drawn using the data records from the most recent calls to pushPath()
     // and pushPaint().
-    void pushInteriorTriangulation(GrInnerFanTriangulator*,
-                                   PaintType,
-                                   const PaintData&,
-                                   const PLSTexture* imageTexture,
-                                   PLSBlendMode,
-                                   uint32_t clipID);
+    void pushInteriorTriangulation(
+        GrInnerFanTriangulator*,
+        PaintType,
+        const PaintData&,
+        const PLSTexture* imageTexture,
+        uint32_t clipID,
+        // Maps from pixel coordinates to a space where the clipRect is the normalized rectangle:
+        // [-1, -1, +1, +1]; null if there is no clipRect.
+        const Mat2D* pixelToNormalizedClipRect,
+        PLSBlendMode);
 
     enum class FlushType : bool
     {
@@ -350,8 +357,6 @@ public:
     };
 
 private:
-    static BlendTier BlendTierForBlendMode(PLSBlendMode);
-
     // Either appends a draw to m_drawList or merges into m_lastDraw.
     // Updates the draw's ShaderFeatures according to the passed parameters.
     void pushDraw(DrawType,
@@ -360,8 +365,9 @@ private:
                   PaintType,
                   const PaintData&,
                   const PLSTexture* imageTexture,
-                  PLSBlendMode,
-                  uint32_t clipID);
+                  uint32_t clipID,
+                  bool hasClipRect,
+                  PLSBlendMode);
 
     // Writes padding vertices to the tessellation texture, with an invalid contour ID that is
     // guaranteed to not be the same ID as any neighbors.
