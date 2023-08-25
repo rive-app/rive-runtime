@@ -13,12 +13,10 @@ void Solo::propagateCollapse(bool collapse)
         // Some child components shouldn't be considered as part of the solo set
         // as they are more aking to properties of the solo itself. For those
         // components, simply pass on the collapse value of the solo itself.
-        switch (child->coreType())
+        if (child->is<Constraint>() || child->is<ClippingShape>())
         {
-            case ConstraintBase::typeKey:
-            case ClippingShapeBase::typeKey:
-                child->collapse(collapse);
-                continue;
+            child->collapse(collapse);
+            continue;
         }
 
         // This child is part of the solo set so only make it active if it's the
