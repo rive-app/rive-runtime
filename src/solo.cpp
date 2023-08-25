@@ -1,5 +1,6 @@
 #include "rive/solo.hpp"
 #include "rive/constraints/constraint.hpp"
+#include "rive/shapes/clipping_shape.hpp"
 #include "rive/artboard.hpp"
 
 using namespace rive;
@@ -9,11 +10,19 @@ void Solo::propagateCollapse(bool collapse)
     Core* active = collapse ? nullptr : artboard()->resolve(activeComponentId());
     for (Component* child : children())
     {
-        // We don't want to collapse constraints applied to the Solo
-        if (child->is<Constraint>())
+        // Some child components shouldn't be considered as part of the solo set
+        // as they are more aking to properties of the solo itself. For those
+        // components, simply pass on the collapse value of the solo itself.
+        switch (child->coreType())
         {
-            continue;
+            case ConstraintBase::typeKey:
+            case ClippingShapeBase::typeKey:
+                child->collapse(collapse);
+                continue;
         }
+
+        // This child is part of the solo set so only make it active if it's the
+        // currently marked solo object.
         child->collapse(child != active);
     }
 }
