@@ -461,7 +461,7 @@ bool PLSRenderContext::pushGradient(const PLSGradient* gradient, PaintData* pain
     if (stopCount == 2 && stops[0] == 0)
     {
         // This is a simple gradient that can be implemented by a two-texel color ramp.
-        assert(stops[1] == 1); // PLSFactory transforms gradients so that the final stop == 1.
+        assert(stops[1] == 1); // PLSGradient transforms the stops so that the final stop == 1.
         uint64_t simpleKey;
         static_assert(sizeof(simpleKey) == sizeof(ColorInt) * 2);
         RIVE_INLINE_MEMCPY(&simpleKey, gradient->colors(), sizeof(ColorInt) * 2);
@@ -1172,5 +1172,16 @@ void PLSRenderContext::flush(FlushType flushType)
     }
 
     ++m_flushCount;
+}
+
+rcp<RenderBuffer> PLSRenderContext::makeBufferU16(Span<const uint16_t> data) { return nullptr; }
+
+rcp<RenderBuffer> PLSRenderContext::makeBufferU32(Span<const uint32_t> data) { return nullptr; }
+
+rcp<RenderBuffer> PLSRenderContext::makeBufferF32(Span<const float> data) { return nullptr; }
+
+std::unique_ptr<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
+{
+    return std::make_unique<PLSImage>(m_impl->decodeImageTexture(encodedBytes));
 }
 } // namespace rive::pls

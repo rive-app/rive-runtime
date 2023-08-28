@@ -59,17 +59,20 @@ private:
 class PLSGradient : public RenderShader
 {
 public:
-    static rcp<PLSGradient> MakeLinear(PLSGradDataArray<ColorInt>&& colors, // [count]
-                                       PLSGradDataArray<float>&& stops,     // [count]
-                                       size_t count,
-                                       Vec2D start,
-                                       Vec2D end);
+    static rcp<PLSGradient> MakeLinear(float sx,
+                                       float sy,
+                                       float ex,
+                                       float ey,
+                                       const ColorInt colors[], // [count]
+                                       const float stops[],     // [count]
+                                       size_t count);
 
-    static rcp<PLSGradient> MakeRadial(PLSGradDataArray<ColorInt>&& colors, // [count]
-                                       PLSGradDataArray<float>&& stops,     // [count]
-                                       size_t count,
-                                       Vec2D center,
-                                       float radius);
+    static rcp<PLSGradient> MakeRadial(float cx,
+                                       float cy,
+                                       float radius,
+                                       const ColorInt colors[], // [count]
+                                       const float stops[],     // [count]
+                                       size_t count);
 
     PaintType paintType() const { return m_paintType; }
     const float* coeffs() const { return m_coeffs.data(); }
@@ -81,11 +84,15 @@ private:
     PLSGradient(PaintType paintType,
                 PLSGradDataArray<ColorInt>&& colors, // [count]
                 PLSGradDataArray<float>&& stops,     // [count]
-                size_t count) :
+                size_t count,
+                float coeffX,
+                float coeffY,
+                float coeffZ) :
         m_paintType(paintType),
         m_colors(std::move(colors)),
         m_stops(std::move(stops)),
-        m_count(count)
+        m_count(count),
+        m_coeffs{coeffX, coeffY, coeffZ}
     {
         assert(paintType == PaintType::linearGradient || paintType == PaintType::radialGradient);
     }

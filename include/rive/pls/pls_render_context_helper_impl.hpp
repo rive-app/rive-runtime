@@ -10,9 +10,11 @@
 namespace rive::pls
 {
 // PLSRenderContextImpl that uses BufferRing to manage GPU resources.
-class PLSRenderContextBufferRingImpl : public PLSRenderContextImpl
+class PLSRenderContextHelperImpl : public PLSRenderContextImpl
 {
 public:
+    rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
+
     void resizePathTexture(size_t width, size_t height) override;
     void resizeContourTexture(size_t width, size_t height) override;
     void resizeSimpleColorRampsBuffer(size_t sizeInBytes) override;
@@ -44,6 +46,11 @@ protected:
     const BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
     const BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
     const BufferRing* uniformBufferRing() const { return m_uniformBuffer.get(); }
+
+    virtual rcp<PLSTexture> makeImageTexture(uint32_t width,
+                                             uint32_t height,
+                                             uint32_t mipLevelCount,
+                                             const uint8_t imageDataRGBA[]) = 0;
 
     virtual std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                                  size_t widthInItems,

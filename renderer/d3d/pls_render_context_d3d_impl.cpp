@@ -332,7 +332,8 @@ public:
                       UINT width,
                       UINT height,
                       UINT mipLevelCount,
-                      const uint8_t imageDataRGBA[])
+                      const uint8_t imageDataRGBA[]) :
+        PLSTexture(width, height)
     {
         m_texture = make_simple_2d_texture(gpu,
                                            DXGI_FORMAT_R8G8B8A8_UNORM,

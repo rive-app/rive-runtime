@@ -9,7 +9,7 @@
 #include "rive/pls/gl/gles3.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "rive/pls/buffer_ring.hpp"
-#include "rive/pls/pls_render_context_buffer_ring_impl.hpp"
+#include "rive/pls/pls_render_context_helper_impl.hpp"
 #include <map>
 
 namespace rive::pls
@@ -19,7 +19,7 @@ class PLSPaint;
 class PLSRenderTargetGL;
 
 // OpenGL backend implementation of PLSRenderContextImpl.
-class PLSRenderContextGLImpl : public PLSRenderContextBufferRingImpl
+class PLSRenderContextGLImpl : public PLSRenderContextHelperImpl
 {
 public:
     static std::unique_ptr<PLSRenderContext> MakeContext();
@@ -39,6 +39,11 @@ public:
     {
         return m_plsImpl->makeOffscreenRenderTarget(width, height, m_platformFeatures);
     }
+
+    rcp<PLSTexture> makeImageTexture(uint32_t width,
+                                     uint32_t height,
+                                     uint32_t mipLevelCount,
+                                     const uint8_t imageDataRGBA[]) override;
 
 private:
     class DrawProgram;
@@ -121,11 +126,6 @@ private:
     };
 
     class DrawShader;
-
-    rcp<PLSTexture> makeImageTexture(uint32_t width,
-                                     uint32_t height,
-                                     uint32_t mipLevelCount,
-                                     const uint8_t imageDataRGBA[]) override;
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,

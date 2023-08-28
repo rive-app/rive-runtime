@@ -21,7 +21,7 @@ class FiddleContext
 public:
     virtual ~FiddleContext() {}
     virtual float dpiScale() const = 0;
-    virtual std::unique_ptr<rive::Factory> makeFactory() = 0;
+    virtual rive::Factory* factory() = 0;
     virtual void onSizeChanged(int width, int height) {}
     virtual void toggleZoomWindow() = 0;
     virtual std::unique_ptr<rive::Renderer> makeRenderer(int width, int height) = 0;

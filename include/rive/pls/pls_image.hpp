@@ -14,40 +14,45 @@ namespace rive::pls
 class PLSTexture : public RefCnt<PLSTexture>
 {
 public:
+    PLSTexture(uint32_t width, uint32_t height) : m_width(width), m_height(height) {}
     virtual ~PLSTexture() {}
+
+    uint32_t width() const { return m_width; }
+    uint32_t height() const { return m_height; }
+
+private:
+    uint32_t m_width;
+    uint32_t m_height;
 };
 
 class PLSImage : public RenderImage
 {
 public:
-    PLSImage(int width, int height, std::unique_ptr<const uint8_t[]> imageDataRGBA) :
-        m_tempImageDataRGBA(std::move(imageDataRGBA))
+    PLSImage(rcp<PLSTexture> texture) : PLSImage(texture->width(), texture->height())
+    {
+        resetTexture(std::move(texture));
+    }
+
+    rcp<PLSTexture> refTexture(PLSRenderContextImpl* plsContextImpl) const { return m_texture; }
+
+protected:
+    PLSImage(int width, int height)
     {
         m_Width = width;
         m_Height = height;
     }
 
-    rcp<PLSTexture> refTexture(PLSRenderContextImpl* plsContextImpl) const
+    void resetTexture(rcp<PLSTexture> texture = nullptr)
     {
-        if (m_texture == nullptr)
-        {
-            uint32_t mipLevelCount = math::msb(m_Width | m_Height);
-            m_texture = plsContextImpl->makeImageTexture(m_Width,
-                                                         m_Height,
-                                                         mipLevelCount,
-                                                         m_tempImageDataRGBA.get());
-            m_tempImageDataRGBA = nullptr;
-        }
-        return m_texture;
+        assert(texture == nullptr || texture->width() == m_Width);
+        assert(texture == nullptr || texture->height() == m_Height);
+        m_texture = std::move(texture);
     }
 
-protected:
     // Used by the android runtime to send m_texture off to the worker thread to be deleted.
     PLSTexture* releaseTexture() { return m_texture.release(); }
 
 private:
-    // Temporarily stores the image data until until the first call to refTexture().
-    mutable std::unique_ptr<const uint8_t[]> m_tempImageDataRGBA;
-    mutable rcp<PLSTexture> m_texture;
+    rcp<PLSTexture> m_texture;
 };
 } // namespace rive::pls

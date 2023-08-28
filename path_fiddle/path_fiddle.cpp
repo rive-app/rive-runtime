@@ -232,7 +232,6 @@ int lastWidth = 0, lastHeight = 0;
 double fpsLastTime = glfwGetTime();
 int fpsFrames = 0;
 
-std::unique_ptr<Factory> factory;
 std::unique_ptr<Renderer> renderer;
 std::unique_ptr<File> rivFile;
 std::unique_ptr<ArtboardInstance> artboard;
@@ -416,13 +415,13 @@ int main(int argc, const char** argv)
         fprintf(stderr, "Failed to create a fiddle context.\n");
         exit(-1);
     }
-    factory = s_fiddleContext->makeFactory();
+    Factory* factory = s_fiddleContext->factory();
 
     if (rivName)
     {
         std::ifstream rivStream(rivName, std::ios::binary);
         std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
-        rivFile = File::import(rivBytes, factory.get());
+        rivFile = File::import(rivBytes, factory);
         artboard = rivFile->artboardDefault();
         s_scene = artboard->animationAt(s_animation);
         s_scene->advanceAndApply(0);
@@ -536,6 +535,7 @@ void riveMainLoop()
             rawPath.close();
         }
 
+        Factory* factory = s_fiddleContext->factory();
         auto path = factory->makeRenderPath(rawPath, FillRule::nonZero);
 
         auto fillPaint = factory->makeRenderPaint();

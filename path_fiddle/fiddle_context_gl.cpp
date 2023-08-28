@@ -1,7 +1,6 @@
 #include "fiddle_context.hpp"
 
 #include "rive/pls/gl/gles3.hpp"
-#include "rive/pls/decoding/pls_decoding_factory.hpp"
 #include "rive/pls/pls_renderer.hpp"
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
@@ -208,10 +207,7 @@ public:
         }
     }
 
-    std::unique_ptr<rive::Factory> makeFactory() override
-    {
-        return std::make_unique<SkiaFactory>();
-    }
+    rive::Factory* factory() override { return &m_factory; }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
@@ -248,6 +244,7 @@ public:
     void shrinkGPUResourcesToFit() final {}
 
 private:
+    SkiaFactory m_factory;
     const sk_sp<GrDirectContext> m_grContext;
     sk_sp<SkSurface> m_skSurface;
 };
@@ -270,10 +267,7 @@ public:
         }
     }
 
-    std::unique_ptr<rive::Factory> makeFactory() override
-    {
-        return std::make_unique<PLSDecodingFactory>();
-    }
+    rive::Factory* factory() override { return m_plsContext.get(); }
 
     void onSizeChanged(int width, int height) override
     {

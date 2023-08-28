@@ -102,6 +102,10 @@ newoption {
     trigger = 'nop-obj-c',
     description = "include Metal classes, but as no-ops (for compilers that don't support Obj-C)"
 }
+newoption {
+    trigger = 'no-rive-decoders',
+    description = "don't use the rive_decoders library (built-in image decoding will fail)"
+}
 project 'rive_pls_renderer'
 do
     dependson 'rive_pls_shaders'
@@ -117,7 +121,6 @@ do
         '../glad',
         '../renderer',
         RIVE_RUNTIME_DIR .. '/include',
-        RIVE_RUNTIME_DIR .. '/decoders/include',
     }
     flags {'FatalWarnings'}
 
@@ -197,6 +200,12 @@ do
     filter {'options:nop-obj-c'}
     do
         files {'../renderer/metal/pls_metal_nop.cpp'}
+    end
+
+    filter {'options:not no-rive-decoders'}
+    do
+        includedirs {RIVE_RUNTIME_DIR .. '/decoders/include'}
+        defines {'RIVE_DECODERS'}
     end
 
     filter 'system:windows'

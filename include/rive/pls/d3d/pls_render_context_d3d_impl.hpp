@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/pls/d3d/d3d11.hpp"
-#include "rive/pls/pls_render_context_buffer_ring_impl.hpp"
+#include "rive/pls/pls_render_context_helper_impl.hpp"
 #include <map>
 
 namespace rive::pls
@@ -38,7 +38,7 @@ private:
 };
 
 // D3D backend implementation of PLSRenderContextImpl.
-class PLSRenderContextD3DImpl : public PLSRenderContextBufferRingImpl
+class PLSRenderContextD3DImpl : public PLSRenderContextHelperImpl
 {
 public:
     static std::unique_ptr<PLSRenderContext> MakeContext(ComPtr<ID3D11Device>,

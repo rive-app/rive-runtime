@@ -18,11 +18,9 @@ public:
 
     const PlatformFeatures& platformFeatures() const { return m_platformFeatures; }
 
-    // Creates an 8-bit, mipmapped texture that can be bound to the draw shader for an image paint.
-    virtual rcp<PLSTexture> makeImageTexture(uint32_t width,
-                                             uint32_t height,
-                                             uint32_t mipLevelCount,
-                                             const uint8_t imageDataRGBA[]) = 0;
+    // Decodes the image bytes and creates a texture that can be bound to the draw shader for an
+    // image paint.
+    virtual rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) = 0;
 
     // Resize GPU resources. These methods cannot fail, and must allocate the exact size requested.
     // PLSRenderContext takes care to minimize how often these methods are called, while also

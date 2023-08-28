@@ -8,6 +8,7 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/pls/buffer_ring.hpp"
 #include "rive/pls/pls.hpp"
+#include "rive/pls/pls_factory.hpp"
 #include "rive/pls/pls_render_target.hpp"
 #include "rive/pls/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/color.hpp"
@@ -76,7 +77,7 @@ public:
 //       }
 //   }
 //   context->flush();
-class PLSRenderContext
+class PLSRenderContext : public PLSFactory
 {
 public:
     PLSRenderContext(std::unique_ptr<PLSRenderContextImpl>);
@@ -355,6 +356,12 @@ public:
         bool wireframe;
         const PerFlushLinkedList<Draw>* drawList;
     };
+
+    // Backend-specific PLSFactory implementation.
+    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
+    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
+    rcp<RenderBuffer> makeBufferF32(Span<const float>) override;
+    std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
 
 private:
     // Either appends a draw to m_drawList or merges into m_lastDraw.

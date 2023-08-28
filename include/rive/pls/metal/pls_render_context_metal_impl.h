@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/pls/pls_render_context_buffer_ring_impl.hpp"
+#include "rive/pls/pls_render_context_helper_impl.hpp"
 #include <map>
 #include <mutex>
 
@@ -42,7 +42,7 @@ private:
 };
 
 // Metal backend implementation of PLSRenderContextImpl.
-class PLSRenderContextMetalImpl : public PLSRenderContextBufferRingImpl
+class PLSRenderContextMetalImpl : public PLSRenderContextHelperImpl
 {
 public:
     static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice>, id<MTLCommandQueue>);

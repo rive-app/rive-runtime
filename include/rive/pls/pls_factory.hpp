@@ -8,14 +8,10 @@
 
 namespace rive::pls
 {
-// Factory implementation for Rive's pixel local storage renderer.
+// Partial rive::Factory implementation for the PLS objects that are backend-agnostic.
 class PLSFactory : public Factory
 {
 public:
-    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
-    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
-    rcp<RenderBuffer> makeBufferF32(Span<const float>) override;
-
     rcp<RenderShader> makeLinearGradient(float sx,
                                          float sy,
                                          float ex,
