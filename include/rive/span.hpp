@@ -33,7 +33,6 @@ public:
     template <typename U, typename = typename std::enable_if<std::is_same<const U, T>::value>::type>
     constexpr Span(const Span<U>& that) : Span(that.data(), that.size())
     {}
-    constexpr Span(const Span&) = default;
     template <typename Container> constexpr Span(Container& c) : Span(c.data(), c.size()) {}
 
     T& operator[](size_t index) const

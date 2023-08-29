@@ -20,12 +20,12 @@ Mat2D Mat2D::fromRotation(float rad)
 Mat2D Mat2D::scale(Vec2D vec) const
 {
     return {
-        m_Buffer[0] * vec.x,
-        m_Buffer[1] * vec.x,
-        m_Buffer[2] * vec.y,
-        m_Buffer[3] * vec.y,
-        m_Buffer[4],
-        m_Buffer[5],
+        m_buffer[0] * vec.x,
+        m_buffer[1] * vec.x,
+        m_buffer[2] * vec.y,
+        m_buffer[3] * vec.y,
+        m_buffer[4],
+        m_buffer[5],
     };
 }
 
@@ -46,9 +46,9 @@ Mat2D Mat2D::multiply(const Mat2D& a, const Mat2D& b)
 void Mat2D::mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const
 {
     size_t i = 0;
-    float4 scale = float2{m_Buffer[0], m_Buffer[3]}.xyxy;
-    float4 skew = simd::load2f(m_Buffer + 1).yxyx;
-    float4 trans = simd::load2f(m_Buffer + 4).xyxy;
+    float4 scale = float2{m_buffer[0], m_buffer[3]}.xyxy;
+    float4 skew = simd::load2f(&m_buffer[1]).yxyx;
+    float4 trans = simd::load2f(&m_buffer[4]).xyxy;
     if (simd::all(skew.xy == 0.f))
     {
         // Scale + translate matrix.
@@ -89,8 +89,8 @@ void Mat2D::mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const
 
 bool Mat2D::invert(Mat2D* result) const
 {
-    float aa = m_Buffer[0], ab = m_Buffer[1], ac = m_Buffer[2], ad = m_Buffer[3], atx = m_Buffer[4],
-          aty = m_Buffer[5];
+    float aa = m_buffer[0], ab = m_buffer[1], ac = m_buffer[2], ad = m_buffer[3], atx = m_buffer[4],
+          aty = m_buffer[5];
 
     float det = aa * ad - ab * ac;
     if (det == 0.0f)
@@ -112,7 +112,7 @@ bool Mat2D::invert(Mat2D* result) const
 
 TransformComponents Mat2D::decompose() const
 {
-    float m0 = m_Buffer[0], m1 = m_Buffer[1], m2 = m_Buffer[2], m3 = m_Buffer[3];
+    float m0 = m_buffer[0], m1 = m_buffer[1], m2 = m_buffer[2], m3 = m_buffer[3];
 
     float rotation = (float)std::atan2(m1, m0);
     float denom = m0 * m0 + m1 * m1;
@@ -121,8 +121,8 @@ TransformComponents Mat2D::decompose() const
     float skewX = (float)std::atan2(m0 * m2 + m1 * m3, denom);
 
     TransformComponents result;
-    result.x(m_Buffer[4]);
-    result.y(m_Buffer[5]);
+    result.x(m_buffer[4]);
+    result.y(m_buffer[5]);
     result.scaleX(scaleX);
     result.scaleY(scaleY);
     result.rotation(rotation);
@@ -148,8 +148,8 @@ Mat2D Mat2D::compose(const TransformComponents& components)
 
 void Mat2D::scaleByValues(float sx, float sy)
 {
-    m_Buffer[0] *= sx;
-    m_Buffer[1] *= sx;
-    m_Buffer[2] *= sy;
-    m_Buffer[3] *= sy;
+    m_buffer[0] *= sx;
+    m_buffer[1] *= sx;
+    m_buffer[2] *= sy;
+    m_buffer[3] *= sy;
 }

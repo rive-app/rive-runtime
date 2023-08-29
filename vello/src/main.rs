@@ -39,7 +39,9 @@ fn main() {
 
     event_loop.run(move |event, _event_loop, control_flow| match event {
         Event::WindowEvent { ref event, .. } => {
-            let Some(render_state) = &mut render_state else { return };
+            let Some(render_state) = &mut render_state else {
+                return;
+            };
 
             match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
@@ -121,7 +123,9 @@ fn main() {
 
             frame_start_time = Instant::now();
 
-            let Some(render_state) = &mut render_state else { return };
+            let Some(render_state) = &mut render_state else {
+                return;
+            };
             let width = render_state.surface.config.width;
             let height = render_state.surface.config.height;
             let device_handle = &render_cx.devices[render_state.surface.dev_id];

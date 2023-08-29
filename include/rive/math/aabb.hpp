@@ -27,7 +27,6 @@ public:
     float minX, minY, maxX, maxY;
 
     AABB() : minX(0), minY(0), maxX(0), maxY(0) {}
-    AABB(const AABB& o) : minX(o.minX), minY(o.minY), maxX(o.maxX), maxY(o.maxY) {}
     AABB(const Vec2D& min, const Vec2D& max) : minX(min.x), minY(min.y), maxX(max.x), maxY(max.y) {}
     static AABB fromLTWH(float x, float y, float width, float height)
     {

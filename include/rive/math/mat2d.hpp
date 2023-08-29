@@ -2,6 +2,7 @@
 #define _RIVE_MAT2D_HPP_
 
 #include "rive/math/vec2d.hpp"
+#include <array>
 #include <cstddef>
 
 namespace rive
@@ -9,20 +10,16 @@ namespace rive
 class TransformComponents;
 class Mat2D
 {
-private:
-    float m_Buffer[6];
-
 public:
-    Mat2D() : m_Buffer{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f} {}
-    Mat2D(const Mat2D& copy) = default;
+    Mat2D() : m_buffer{{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}} {}
     Mat2D(float x1, float y1, float x2, float y2, float tx, float ty) :
-        m_Buffer{x1, y1, x2, y2, tx, ty}
+        m_buffer{{x1, y1, x2, y2, tx, ty}}
     {}
 
-    inline const float* values() const { return m_Buffer; }
+    inline const float* values() const { return &m_buffer[0]; }
 
-    float& operator[](std::size_t idx) { return m_Buffer[idx]; }
-    const float& operator[](std::size_t idx) const { return m_Buffer[idx]; }
+    float& operator[](std::size_t idx) { return m_buffer[idx]; }
+    const float& operator[](std::size_t idx) const { return m_buffer[idx]; }
 
     static Mat2D fromRotation(float rad);
     static Mat2D fromScale(float sx, float sy) { return {sx, 0, 0, sy, 0, 0}; }
@@ -65,21 +62,24 @@ public:
 
     static Mat2D multiply(const Mat2D& a, const Mat2D& b);
 
-    float xx() const { return m_Buffer[0]; }
-    float xy() const { return m_Buffer[1]; }
-    float yx() const { return m_Buffer[2]; }
-    float yy() const { return m_Buffer[3]; }
-    float tx() const { return m_Buffer[4]; }
-    float ty() const { return m_Buffer[5]; }
+    float xx() const { return m_buffer[0]; }
+    float xy() const { return m_buffer[1]; }
+    float yx() const { return m_buffer[2]; }
+    float yy() const { return m_buffer[3]; }
+    float tx() const { return m_buffer[4]; }
+    float ty() const { return m_buffer[5]; }
 
-    Vec2D translation() const { return {m_Buffer[4], m_Buffer[5]}; }
+    Vec2D translation() const { return {m_buffer[4], m_buffer[5]}; }
 
-    void xx(float value) { m_Buffer[0] = value; }
-    void xy(float value) { m_Buffer[1] = value; }
-    void yx(float value) { m_Buffer[2] = value; }
-    void yy(float value) { m_Buffer[3] = value; }
-    void tx(float value) { m_Buffer[4] = value; }
-    void ty(float value) { m_Buffer[5] = value; }
+    void xx(float value) { m_buffer[0] = value; }
+    void xy(float value) { m_buffer[1] = value; }
+    void yx(float value) { m_buffer[2] = value; }
+    void yy(float value) { m_buffer[3] = value; }
+    void tx(float value) { m_buffer[4] = value; }
+    void ty(float value) { m_buffer[5] = value; }
+
+private:
+    std::array<float, 6> m_buffer;
 };
 
 inline Vec2D operator*(const Mat2D& m, Vec2D v)

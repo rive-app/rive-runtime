@@ -13,7 +13,6 @@ public:
 
     constexpr Vec2D() : x(0), y(0) {}
     constexpr Vec2D(float x, float y) : x(x), y(y) {}
-    constexpr Vec2D(const Vec2D&) = default;
 
     float lengthSquared() const { return x * x + y * y; }
     float length() const;

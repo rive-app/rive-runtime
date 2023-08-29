@@ -68,7 +68,8 @@ do
         '-Wno-four-char-constants',
         '-Wno-unreachable-code',
         '-Wno-switch-enum',
-        '-Wno-missing-field-initializers'
+        '-Wno-missing-field-initializers',
+        '-Wno-unsafe-buffer-usage'
     }
 end
 
