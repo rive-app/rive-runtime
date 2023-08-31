@@ -8,18 +8,27 @@
 
 namespace rive::pls
 {
-const char* kShaderFeatureGLSLNames[kShaderFeatureCount] = {GLSL_ENABLE_CLIPPING,
-                                                            GLSL_ENABLE_CLIP_RECT,
-                                                            GLSL_ENABLE_ADVANCED_BLEND,
-                                                            GLSL_ENABLE_EVEN_ODD,
-                                                            GLSL_ENABLE_NESTED_CLIPPING,
-                                                            GLSL_ENABLE_HSL_BLEND_MODES};
-static_assert(ShaderFeatureFlags::ENABLE_CLIPPING == 0);
-static_assert(ShaderFeatureFlags::ENABLE_CLIP_RECT == 1);
-static_assert(ShaderFeatureFlags::ENABLE_ADVANCED_BLEND == 2);
-static_assert(ShaderFeatureFlags::ENABLE_EVEN_ODD == 3);
-static_assert(ShaderFeatureFlags::ENABLE_NESTED_CLIPPING == 4);
-static_assert(ShaderFeatureFlags::ENABLE_HSL_BLEND_MODES == 5);
+const char* GetShaderFeatureGLSLName(ShaderFeatures feature)
+{
+    switch (feature)
+    {
+        case ShaderFeatures::NONE:
+            RIVE_UNREACHABLE();
+        case ShaderFeatures::ENABLE_CLIPPING:
+            return GLSL_ENABLE_CLIPPING;
+        case ShaderFeatures::ENABLE_CLIP_RECT:
+            return GLSL_ENABLE_CLIP_RECT;
+        case ShaderFeatures::ENABLE_ADVANCED_BLEND:
+            return GLSL_ENABLE_ADVANCED_BLEND;
+        case ShaderFeatures::ENABLE_EVEN_ODD:
+            return GLSL_ENABLE_EVEN_ODD;
+        case ShaderFeatures::ENABLE_NESTED_CLIPPING:
+            return GLSL_ENABLE_NESTED_CLIPPING;
+        case ShaderFeatures::ENABLE_HSL_BLEND_MODES:
+            return GLSL_ENABLE_HSL_BLEND_MODES;
+    }
+    RIVE_UNREACHABLE();
+}
 
 constexpr static float pack_params(int32_t patchSegmentSpan, int32_t vertexType)
 {

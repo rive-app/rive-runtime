@@ -608,15 +608,16 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         }
         for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
-            if (shaderFeatures[i])
+            ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
+            if (shaderFeatures & feature)
             {
-                s << "#define " << kShaderFeatureGLSLNames[i] << '\n';
+                s << "#define " << GetShaderFeatureGLSLName(feature) << '\n';
             }
         }
         s << "#define " << GLSL_ENABLE_BASE_INSTANCE_POLYFILL << '\n';
         s << glsl::hlsl << '\n';
         s << glsl::common << '\n';
-        if (shaderFeatures[ShaderFeatureFlags::ENABLE_ADVANCED_BLEND])
+        if (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
             s << glsl::advanced_blend << '\n';
         }

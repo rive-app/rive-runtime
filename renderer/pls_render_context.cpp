@@ -891,19 +891,19 @@ void PLSRenderContext::pushDraw(DrawType drawType,
     ShaderFeatures& shaderFeatures = m_drawList.tail().shaderFeatures;
     if (clipID != 0)
     {
-        shaderFeatures.set(ShaderFeatureFlags::ENABLE_CLIPPING);
+        shaderFeatures |= ShaderFeatures::ENABLE_CLIPPING;
     }
     if (hasClipRect && paintType != PaintType::clipUpdate)
     {
-        shaderFeatures.set(ShaderFeatureFlags::ENABLE_CLIP_RECT);
+        shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
     }
     if (fillRule == FillRule::evenOdd)
     {
-        shaderFeatures.set(ShaderFeatureFlags::ENABLE_EVEN_ODD);
+        shaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
     }
     if (paintType == PaintType::clipUpdate && paintData.outerClipIDIfClipUpdate() != 0)
     {
-        shaderFeatures.set(ShaderFeatureFlags::ENABLE_NESTED_CLIPPING);
+        shaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
     }
     if (paintType != PaintType::clipUpdate)
     {
@@ -913,7 +913,7 @@ void PLSRenderContext::pushDraw(DrawType drawType,
             case PLSBlendMode::saturation:
             case PLSBlendMode::color:
             case PLSBlendMode::luminosity:
-                shaderFeatures.set(ShaderFeatureFlags::ENABLE_HSL_BLEND_MODES);
+                shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
                 [[fallthrough]];
             case PLSBlendMode::screen:
             case PLSBlendMode::overlay:
@@ -926,7 +926,7 @@ void PLSRenderContext::pushDraw(DrawType drawType,
             case PLSBlendMode::difference:
             case PLSBlendMode::exclusion:
             case PLSBlendMode::multiply:
-                shaderFeatures.set(ShaderFeatureFlags::ENABLE_ADVANCED_BLEND);
+                shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
                 break;
             case PLSBlendMode::srcOver:
                 break;
@@ -1028,7 +1028,7 @@ void PLSRenderContext::flush(FlushType flushType)
             }
         }
         needsClipBuffer =
-            needsClipBuffer || draw.shaderFeatures[ShaderFeatureFlags::ENABLE_CLIPPING];
+            needsClipBuffer || (draw.shaderFeatures & ShaderFeatures::ENABLE_CLIPPING);
         RIVE_DEBUG_CODE(++drawIdx;)
     }
     assert(drawIdx == m_drawList.count());

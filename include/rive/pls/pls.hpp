@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "rive/enum_bitset.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/math_types.hpp"
@@ -12,7 +13,6 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
-#include <bitset>
 
 namespace rive
 {
@@ -645,26 +645,30 @@ enum class LoadAction : bool
 };
 
 // Indicates which "uber shader" features to #define in the draw shader.
-enum ShaderFeatureFlags
+enum class ShaderFeatures
 {
+    NONE = 0,
+
     // Whole program features.
-    ENABLE_CLIPPING,
-    ENABLE_CLIP_RECT,
-    ENABLE_ADVANCED_BLEND,
+    ENABLE_CLIPPING = 1 << 0,
+    ENABLE_CLIP_RECT = 1 << 1,
+    ENABLE_ADVANCED_BLEND = 1 << 2,
 
     // Fragment-only features.
-    ENABLE_EVEN_ODD,
-    ENABLE_NESTED_CLIPPING,
-    ENABLE_HSL_BLEND_MODES,
+    ENABLE_EVEN_ODD = 1 << 3,
+    ENABLE_NESTED_CLIPPING = 1 << 4,
+    ENABLE_HSL_BLEND_MODES = 1 << 5,
 };
-constexpr static size_t kShaderFeatureCount = ENABLE_HSL_BLEND_MODES + 1;
-using ShaderFeatures = std::bitset<kShaderFeatureCount>;
-constexpr ShaderFeatures kVertexShaderFeaturesMask = (1 << ShaderFeatureFlags::ENABLE_EVEN_ODD) - 1;
-extern const char* kShaderFeatureGLSLNames[kShaderFeatureCount];
+RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
+constexpr static size_t kShaderFeatureCount = 6;
+constexpr static ShaderFeatures kVertexShaderFeaturesMask =
+    static_cast<ShaderFeatures>(static_cast<uint32_t>(ShaderFeatures::ENABLE_EVEN_ODD) - 1);
+extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
 inline static uint32_t ShaderUniqueKey(DrawType drawType, ShaderFeatures shaderFeatures)
 {
-    return (shaderFeatures.to_ulong() << 1) | (drawType == DrawType::interiorTriangulation);
+    return (static_cast<uint32_t>(shaderFeatures) << 1) |
+           (drawType == DrawType::interiorTriangulation);
 }
 
 // Linked list of draws to be issued by the subclass during onFlush().
@@ -676,7 +680,7 @@ struct Draw
     const DrawType drawType;
     uint32_t baseVertexOrInstance;
     uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
-    ShaderFeatures shaderFeatures = 0;
+    ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
     const PLSTexture* imageTextureRef = nullptr;    // Must be released manually.
     GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
 };

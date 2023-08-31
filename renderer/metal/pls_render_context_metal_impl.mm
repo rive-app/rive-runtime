@@ -126,16 +126,17 @@ private:
         }
         for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
-            if (shaderFeatures[i])
+            ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
+            if (shaderFeatures & feature)
             {
                 namespaceID[i + 1] = '1';
             }
-            static_assert(ShaderFeatureFlags::ENABLE_CLIPPING == 0);
-            static_assert(ShaderFeatureFlags::ENABLE_CLIP_RECT == 1);
-            static_assert(ShaderFeatureFlags::ENABLE_ADVANCED_BLEND == 2);
-            static_assert(ShaderFeatureFlags::ENABLE_EVEN_ODD == 3);
-            static_assert(ShaderFeatureFlags::ENABLE_NESTED_CLIPPING == 4);
-            static_assert(ShaderFeatureFlags::ENABLE_HSL_BLEND_MODES == 5);
+            static_assert((int)ShaderFeatures::ENABLE_CLIPPING == 1 << 0);
+            static_assert((int)ShaderFeatures::ENABLE_CLIP_RECT == 1 << 1);
+            static_assert((int)ShaderFeatures::ENABLE_ADVANCED_BLEND == 1 << 2);
+            static_assert((int)ShaderFeatures::ENABLE_EVEN_ODD == 1 << 3);
+            static_assert((int)ShaderFeatures::ENABLE_NESTED_CLIPPING == 1 << 4);
+            static_assert((int)ShaderFeatures::ENABLE_HSL_BLEND_MODES == 1 << 5);
         }
         NSString* fullyQualifiedName =
             [NSString stringWithFormat:@"r%s::%s", namespaceID, functionName];

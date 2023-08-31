@@ -344,17 +344,18 @@ public:
         }
         for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
-            if (shaderFeatures[i])
+            ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
+            if (shaderFeatures & feature)
             {
-                assert(kVertexShaderFeaturesMask[i] || shaderType == GL_FRAGMENT_SHADER);
-                defines.push_back(kShaderFeatureGLSLNames[i]);
+                assert((kVertexShaderFeaturesMask & feature) || shaderType == GL_FRAGMENT_SHADER);
+                defines.push_back(GetShaderFeatureGLSLName(feature));
             }
         }
 
         std::vector<const char*> sources;
         sources.push_back(glsl::common);
         if (shaderType == GL_FRAGMENT_SHADER &&
-            shaderFeatures[ShaderFeatureFlags::ENABLE_ADVANCED_BLEND])
+            (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
         {
             sources.push_back(glsl::advanced_blend);
         }
