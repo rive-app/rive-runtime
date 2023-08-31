@@ -69,6 +69,8 @@ TEST_CASE("fallback glyphs are found", "[text]")
 
     auto paragraphs = font->shapeText(unichars, truns);
     REQUIRE(paragraphs.size() == 1);
+    paragraphs = SimpleArray<Paragraph>();
+    REQUIRE(paragraphs.size() == 0);
     fallbackFonts.clear();
     Font::gFallbackProc = nullptr;
 }

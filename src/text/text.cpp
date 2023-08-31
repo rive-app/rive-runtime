@@ -232,13 +232,17 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
 
 void Text::buildRenderStyles()
 {
-    const float paragraphSpace = paragraphSpacing();
-
     for (TextStyle* style : m_renderStyles)
     {
         style->rewindPath();
     }
     m_renderStyles.clear();
+    if (m_shape.size() == 0)
+    {
+        m_bounds = AABB(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+    const float paragraphSpace = paragraphSpacing();
 
     // Build up ordered runs as we go.
     int paragraphIndex = 0;
@@ -683,6 +687,12 @@ void Text::update(ComponentDirt value)
                     group->computeCoverage(textSize);
                 }
             }
+        }
+        else
+        {
+            m_shape = SimpleArray<Paragraph>();
+            m_lines = SimpleArray<SimpleArray<GlyphLine>>();
+            m_glyphLookup.clear();
         }
         m_orderedLines.clear();
         m_ellipsisRun = {};

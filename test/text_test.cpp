@@ -41,10 +41,50 @@ TEST_CASE("simple text loads", "[text]")
 
     auto runObjects = artboard->find<rive::TextValueRun>();
     REQUIRE(runObjects.size() == 1);
+    REQUIRE(runObjects[0]->text() == "Hello World!");
+
+    rive::NoOpRenderer renderer;
 
     artboard->advance(0.0f);
-    rive::NoOpRenderer renderer;
     artboard->draw(&renderer);
+    {
+        REQUIRE(textObjects[0]->shape().size() == 1);
+        const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
+        REQUIRE(paragraph.runs.size() == 1);
+        REQUIRE(paragraph.runs[0].glyphs.size() == 12);
+    }
+
+    // Changing to "Just Hello" works.
+    runObjects[0]->text("Just Hello");
+    artboard->advance(0.0f);
+    artboard->draw(&renderer);
+    {
+        REQUIRE(textObjects[0]->shape().size() == 1);
+        const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
+        REQUIRE(paragraph.runs.size() == 1);
+        REQUIRE(paragraph.runs[0].glyphs.size() == 10);
+    }
+
+    // Changing to an empty space " " works.
+    runObjects[0]->text(" ");
+    artboard->advance(0.0f);
+    artboard->draw(&renderer);
+    {
+        REQUIRE(textObjects[0]->shape().size() == 1);
+        const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
+        REQUIRE(paragraph.runs.size() == 1);
+        REQUIRE(paragraph.runs[0].glyphs.size() == 1);
+    }
+
+    // Changing to completely empty works.
+    runObjects[0]->text("");
+    artboard->advance(0.0f);
+    artboard->draw(&renderer);
+    {
+        REQUIRE(textObjects[0]->shape().size() == 0);
+        REQUIRE(textObjects[0]->localBounds().width() == 0.0f);
+        REQUIRE(textObjects[0]->localBounds().height() == 0.0f);
+    }
 }
 
 TEST_CASE("ellipsis is shown", "[text]")
