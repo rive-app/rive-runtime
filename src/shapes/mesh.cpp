@@ -86,7 +86,12 @@ void Mesh::markSkinDirty() { addDirt(ComponentDirt::Vertices); }
 
 Core* Mesh::clone() const
 {
+    auto factory = artboard()->factory();
     auto clone = static_cast<Mesh*>(MeshBase::clone());
+    clone->m_VertexRenderBufferDirty = true;
+    clone->m_VertexRenderBuffer = factory->makeRenderBuffer(RenderBufferType::vertex,
+                                                            RenderBufferFlags::none,
+                                                            m_Vertices.size() * sizeof(Vec2D));
     clone->m_UVRenderBuffer = m_UVRenderBuffer;
     clone->m_IndexRenderBuffer = m_IndexRenderBuffer;
     return clone;
@@ -96,19 +101,36 @@ void Mesh::initializeSharedBuffers(RenderImage* renderImage)
 {
     Mat2D uvTransform = renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
 
-    std::vector<float> uv = std::vector<float>(m_Vertices.size() * 2);
-    std::size_t index = 0;
+    auto factory = artboard()->factory();
+    m_VertexRenderBufferDirty = true;
+    m_VertexRenderBuffer = factory->makeRenderBuffer(RenderBufferType::vertex,
+                                                     RenderBufferFlags::none,
+                                                     m_Vertices.size() * sizeof(Vec2D));
 
-    for (auto vertex : m_Vertices)
+    m_UVRenderBuffer = factory->makeRenderBuffer(RenderBufferType::vertex,
+                                                 RenderBufferFlags::mappedOnceAtInitialization,
+                                                 m_Vertices.size() * sizeof(Vec2D));
+    if (m_UVRenderBuffer)
     {
-        Vec2D xformedUV = uvTransform * Vec2D(vertex->u(), vertex->v());
-        uv[index++] = xformedUV.x;
-        uv[index++] = xformedUV.y;
+        float* uv = static_cast<float*>(m_UVRenderBuffer->map());
+        for (auto vertex : m_Vertices)
+        {
+            Vec2D xformedUV = uvTransform * Vec2D(vertex->u(), vertex->v());
+            *uv++ = xformedUV.x;
+            *uv++ = xformedUV.y;
+        }
+        m_UVRenderBuffer->unmap();
     }
 
-    auto factory = artboard()->factory();
-    m_UVRenderBuffer = factory->makeBufferF32(uv);
-    m_IndexRenderBuffer = factory->makeBufferU16(*m_IndexBuffer);
+    m_IndexRenderBuffer = factory->makeRenderBuffer(RenderBufferType::index,
+                                                    RenderBufferFlags::mappedOnceAtInitialization,
+                                                    m_IndexBuffer->size() * sizeof(uint16_t));
+    if (m_IndexRenderBuffer)
+    {
+        void* indexData = m_IndexRenderBuffer->map();
+        memcpy(indexData, m_IndexBuffer->data(), m_IndexRenderBuffer->sizeInBytes());
+        m_IndexRenderBuffer->unmap();
+    }
 }
 
 void Mesh::buildDependencies()
@@ -129,27 +151,22 @@ void Mesh::update(ComponentDirt value)
         {
             skin()->deform({(Vertex**)m_Vertices.data(), m_Vertices.size()});
         }
-        m_VertexRenderBuffer = nullptr;
+        m_VertexRenderBufferDirty = true;
     }
     Super::update(value);
 }
 
 void Mesh::draw(Renderer* renderer, const RenderImage* image, BlendMode blendMode, float opacity)
 {
-    if (m_VertexRenderBuffer == nullptr)
+    if (m_VertexRenderBufferDirty && m_VertexRenderBuffer != nullptr)
     {
-
-        std::vector<float> vertices(m_Vertices.size() * 2);
-        std::size_t index = 0;
+        Vec2D* mappedVertices = reinterpret_cast<Vec2D*>(m_VertexRenderBuffer->map());
         for (auto vertex : m_Vertices)
         {
-            auto translation = vertex->renderTranslation();
-            vertices[index++] = translation.x;
-            vertices[index++] = translation.y;
+            *mappedVertices++ = vertex->renderTranslation();
         }
-
-        auto factory = artboard()->factory();
-        m_VertexRenderBuffer = factory->makeBufferF32(vertices);
+        m_VertexRenderBuffer->unmap();
+        m_VertexRenderBufferDirty = false;
     }
 
     if (skin() == nullptr)
@@ -160,6 +177,8 @@ void Mesh::draw(Renderer* renderer, const RenderImage* image, BlendMode blendMod
                             m_VertexRenderBuffer,
                             m_UVRenderBuffer,
                             m_IndexRenderBuffer,
+                            static_cast<uint32_t>(m_Vertices.size()),
+                            static_cast<uint32_t>(m_IndexBuffer->size()),
                             blendMode,
                             opacity);
 }

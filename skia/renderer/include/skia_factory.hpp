@@ -14,9 +14,7 @@ namespace rive
 class SkiaFactory : public Factory
 {
 public:
-    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
-    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
-    rcp<RenderBuffer> makeBufferF32(Span<const float>) override;
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
     rcp<RenderShader> makeLinearGradient(float sx,
                                          float sy,

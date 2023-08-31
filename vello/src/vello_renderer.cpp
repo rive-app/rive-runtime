@@ -83,34 +83,28 @@ void VelloRenderer::drawImageMesh(const RenderImage* image,
                                   rcp<RenderBuffer> vertices,
                                   rcp<RenderBuffer> uvCoords,
                                   rcp<RenderBuffer> indices,
+                                  uint32_t vertexCount,
+                                  uint32_t indexCount,
                                   BlendMode blendMode,
                                   float opacity)
 {
     vello_renderer_draw_image_mesh(m_renderer,
                                    static_cast<const VelloImage*>(image)->image(),
                                    DataRenderBuffer::Cast(vertices.get())->vecs(),
-                                   vertices->count(),
+                                   vertexCount,
                                    DataRenderBuffer::Cast(uvCoords.get())->vecs(),
-                                   uvCoords->count(),
+                                   vertexCount,
                                    DataRenderBuffer::Cast(indices.get())->u16s(),
-                                   indices->count(),
+                                   indexCount,
                                    blendMode,
                                    opacity);
 }
 
-rcp<RenderBuffer> VelloFactory::makeBufferU16(Span<const uint16_t> data)
+rcp<RenderBuffer> VelloFactory::makeRenderBuffer(RenderBufferType type,
+                                                 RenderBufferFlags flags,
+                                                 size_t sizeInBytes)
 {
-    return DataRenderBuffer::Make(data);
-}
-
-rcp<RenderBuffer> VelloFactory::makeBufferU32(Span<const uint32_t> data)
-{
-    return DataRenderBuffer::Make(data);
-}
-
-rcp<RenderBuffer> VelloFactory::makeBufferF32(Span<const float> data)
-{
-    return DataRenderBuffer::Make(data);
+    return make_rcp<DataRenderBuffer>(type, flags, sizeInBytes);
 }
 
 rcp<RenderShader> VelloFactory::makeLinearGradient(float sx,

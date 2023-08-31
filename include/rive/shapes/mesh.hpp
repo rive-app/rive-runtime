@@ -18,6 +18,7 @@ protected:
     {};
     std::vector<MeshVertex*> m_Vertices;
     rcp<IndexBuffer> m_IndexBuffer;
+    bool m_VertexRenderBufferDirty = true;
 
     rcp<RenderBuffer> m_IndexRenderBuffer;
     rcp<RenderBuffer> m_VertexRenderBuffer;

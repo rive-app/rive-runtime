@@ -151,54 +151,76 @@ std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath()
 
 class SokolBuffer : public RenderBuffer
 {
-private:
-    sg_buffer m_Buffer;
-
 public:
-    SokolBuffer(size_t count, const sg_buffer_desc& desc) :
-        RenderBuffer(count), m_Buffer(sg_make_buffer(desc))
-    {}
-    ~SokolBuffer() { sg_destroy_buffer(m_Buffer); }
+    SokolBuffer(RenderBufferType type, RenderBufferFlags renderBufferFlags, size_t sizeInBytes) :
+        RenderBuffer(type, renderBufferFlags, sizeInBytes), m_mappedMemory(new char[sizeInBytes])
+    {
+        // If the buffer will be immutable, defer creation until the client unmaps for the only time
+        // and we have our initial data.
+        if (!(flags() & RenderBufferFlags::mappedOnceAtInitialization))
+        {
+            m_buffer = sg_make_buffer(makeNoDataBufferDesc());
+        }
+    }
+    ~SokolBuffer() { sg_destroy_buffer(m_buffer); }
 
-    sg_buffer buffer() { return m_Buffer; }
+    sg_buffer buffer()
+    {
+        // In the case of RenderBufferFlags::mappedOnceAtInitialization, the client is expected to
+        // map()/unmap() before we need to access this buffer for rendering.
+        assert(m_buffer.id);
+        return m_buffer;
+    }
+
+protected:
+    void* onMap() override
+    {
+        // An immutable buffer is only mapped once, and then we delete m_mappedMemory.
+        assert(m_mappedMemory);
+        return m_mappedMemory.get();
+    }
+
+    void onUnmap() override
+    {
+        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        {
+            // We are an immutable buffer. Creation was deferred until now.
+            assert(!m_buffer.id);
+            assert(m_mappedMemory);
+            sg_buffer_desc bufferDesc = makeNoDataBufferDesc();
+            bufferDesc.data = {m_mappedMemory.get(), sizeInBytes()};
+            m_buffer = sg_make_buffer(bufferDesc);
+            m_mappedMemory.reset(); // This buffer will never be mapped again.
+        }
+        else
+        {
+            assert(m_buffer.id);
+            sg_update_buffer(m_buffer,
+                             sg_range{.ptr = m_mappedMemory.get(), .size = sizeInBytes()});
+        }
+    }
+
+private:
+    sg_buffer_desc makeNoDataBufferDesc() const
+    {
+        return {
+            .size = sizeInBytes(),
+            .usage = (flags() & RenderBufferFlags::mappedOnceAtInitialization) ? SG_USAGE_IMMUTABLE
+                                                                               : SG_USAGE_STREAM,
+            .type = (type() == RenderBufferType::index) ? SG_BUFFERTYPE_INDEXBUFFER
+                                                        : SG_BUFFERTYPE_VERTEXBUFFER,
+        };
+    };
+
+    sg_buffer m_buffer{};
+    std::unique_ptr<char[]> m_mappedMemory;
 };
 
-rcp<RenderBuffer> SokolFactory::makeBufferU16(Span<const uint16_t> span)
+rcp<RenderBuffer> SokolFactory::makeRenderBuffer(RenderBufferType type,
+                                                 RenderBufferFlags flags,
+                                                 size_t sizeInBytes)
 {
-    return rcp<RenderBuffer>(new SokolBuffer(span.size(),
-                                             (sg_buffer_desc){
-                                                 .type = SG_BUFFERTYPE_INDEXBUFFER,
-                                                 .data =
-                                                     {
-                                                         span.data(),
-                                                         span.size_bytes(),
-                                                     },
-                                             }));
-}
-
-rcp<RenderBuffer> SokolFactory::makeBufferU32(Span<const uint32_t> span)
-{
-    return rcp<RenderBuffer>(new SokolBuffer(span.size(),
-                                             (sg_buffer_desc){
-                                                 .type = SG_BUFFERTYPE_INDEXBUFFER,
-                                                 .data =
-                                                     {
-                                                         span.data(),
-                                                         span.size_bytes(),
-                                                     },
-                                             }));
-}
-rcp<RenderBuffer> SokolFactory::makeBufferF32(Span<const float> span)
-{
-    return rcp<RenderBuffer>(new SokolBuffer(span.size(),
-                                             (sg_buffer_desc){
-                                                 .type = SG_BUFFERTYPE_VERTEXBUFFER,
-                                                 .data =
-                                                     {
-                                                         span.data(),
-                                                         span.size_bytes(),
-                                                     },
-                                             }));
+    return make_rcp<SokolBuffer>(type, flags, sizeInBytes);
 }
 
 sg_pipeline vectorPipeline(sg_shader shader,
@@ -582,6 +604,8 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
                                       rcp<RenderBuffer> vertices_f32,
                                       rcp<RenderBuffer> uvCoords_f32,
                                       rcp<RenderBuffer> indices_u16,
+                                      uint32_t vertexCount,
+                                      uint32_t indexCount,
                                       BlendMode blendMode,
                                       float opacity)
 {
@@ -600,7 +624,7 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
 
     sg_apply_bindings(&bind);
     sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vs_params));
-    sg_draw(0, indices_u16->count(), 1);
+    sg_draw(0, indexCount, 1);
 }
 
 class SokolGradient : public RenderShader

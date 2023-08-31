@@ -94,6 +94,8 @@ public:
                        rcp<RenderBuffer> vertices_f32,
                        rcp<RenderBuffer> uvCoords_f32,
                        rcp<RenderBuffer> indices_u16,
+                       uint32_t vertexCount,
+                       uint32_t indexCount,
                        BlendMode,
                        float opacity) override;
     void restore() override;

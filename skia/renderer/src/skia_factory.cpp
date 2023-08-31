@@ -158,16 +158,15 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
                                  rcp<RenderBuffer> vertices,
                                  rcp<RenderBuffer> uvCoords,
                                  rcp<RenderBuffer> indices,
+                                 uint32_t vertexCount,
+                                 uint32_t indexCount,
                                  BlendMode blendMode,
                                  float opacity)
 {
-    // need our vertices and uvs to agree
-    assert(vertices->count() == uvCoords->count());
-    // vertices and uvs are arrays of floats, so we need their counts to be
-    // even, since we treat them as arrays of points
-    assert((vertices->count() & 1) == 0);
-
-    const int vertexCount = vertices->count() >> 1;
+    // need our buffers and counts to agree
+    assert(vertices->sizeInBytes() == vertexCount * sizeof(Vec2D));
+    assert(uvCoords->sizeInBytes() == vertexCount * sizeof(Vec2D));
+    assert(indices->sizeInBytes() == indexCount * sizeof(uint16_t));
 
     SkMatrix scaleM;
 
@@ -177,7 +176,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     // The local matrix is ignored for drawVertices, so we have to manually scale
     // the UVs to match Skia's convention...
     std::vector<SkPoint> scaledUVs(vertexCount);
-    for (int i = 0; i < vertexCount; ++i)
+    for (uint32_t i = 0; i < vertexCount; ++i)
     {
         scaledUVs[i] = {uvs[i].fX * image->width(), uvs[i].fY * image->height()};
     }
@@ -200,15 +199,13 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
 
     const SkColor* no_colors = nullptr;
     auto vertexMode = SkVertices::kTriangles_VertexMode;
-    // clang-format off
     auto vt = SkVertices::MakeCopy(vertexMode,
                                    vertexCount,
                                    (const SkPoint*)DataRenderBuffer::Cast(vertices.get())->vecs(),
                                    uvs,
                                    no_colors,
-                                   indices->count(),
+                                   indexCount,
                                    DataRenderBuffer::Cast(indices.get())->u16s());
-    // clang-format on
 
     // The blend mode is ignored if we don't have colors && uvs
     m_Canvas->drawVertices(vt, SkBlendMode::kModulate, paint);
@@ -222,19 +219,11 @@ SkiaRenderImage::SkiaRenderImage(sk_sp<SkImage> image) : m_SkImage(std::move(ima
 
 // Factory
 
-rcp<RenderBuffer> SkiaFactory::makeBufferU16(Span<const uint16_t> data)
+rcp<RenderBuffer> SkiaFactory::makeRenderBuffer(RenderBufferType type,
+                                                RenderBufferFlags flags,
+                                                size_t sizeInBytes)
 {
-    return DataRenderBuffer::Make(data);
-}
-
-rcp<RenderBuffer> SkiaFactory::makeBufferU32(Span<const uint32_t> data)
-{
-    return DataRenderBuffer::Make(data);
-}
-
-rcp<RenderBuffer> SkiaFactory::makeBufferF32(Span<const float> data)
-{
-    return DataRenderBuffer::Make(data);
+    return make_rcp<DataRenderBuffer>(type, flags, sizeInBytes);
 }
 
 rcp<RenderShader> SkiaFactory::makeLinearGradient(float sx,

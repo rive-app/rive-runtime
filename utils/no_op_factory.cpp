@@ -39,9 +39,10 @@ public:
 };
 } // namespace
 
-rcp<RenderBuffer> NoOpFactory::makeBufferU16(Span<const uint16_t>) { return nullptr; }
-rcp<RenderBuffer> NoOpFactory::makeBufferU32(Span<const uint32_t>) { return nullptr; }
-rcp<RenderBuffer> NoOpFactory::makeBufferF32(Span<const float>) { return nullptr; }
+rcp<RenderBuffer> NoOpFactory::makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t)
+{
+    return nullptr;
+}
 
 rcp<RenderShader> NoOpFactory::makeLinearGradient(float sx,
                                                   float sy,

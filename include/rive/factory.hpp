@@ -27,9 +27,9 @@ public:
     Factory() {}
     virtual ~Factory() {}
 
-    virtual rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) = 0;
-    virtual rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) = 0;
-    virtual rcp<RenderBuffer> makeBufferF32(Span<const float>) = 0;
+    virtual rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
+                                               RenderBufferFlags,
+                                               size_t sizeInBytes) = 0;
 
     virtual rcp<RenderShader> makeLinearGradient(float sx,
                                                  float sy,

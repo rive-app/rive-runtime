@@ -420,6 +420,8 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
                                rcp<RenderBuffer> vertices,
                                rcp<RenderBuffer> uvCoords,
                                rcp<RenderBuffer> indices,
+                               uint32_t vertexCount,
+                               uint32_t indexCount,
                                BlendMode blendMode,
                                float opacity)
 {
@@ -432,7 +434,7 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
 
     auto scale = [sx, sy](Vec2D v) { return Vec2D{v.x * sx, v.y * sy}; };
 
-    auto triangles = indices->count() / 3;
+    auto triangles = indexCount / 3;
     auto ndx = DataRenderBuffer::Cast(indices.get())->u16s();
     auto pts = DataRenderBuffer::Cast(vertices.get())->vecs();
     auto uvs = DataRenderBuffer::Cast(uvCoords.get())->vecs();
@@ -479,19 +481,11 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
 
 // Factory
 
-rcp<RenderBuffer> CGFactory::makeBufferU16(Span<const uint16_t> data)
+rcp<RenderBuffer> CGFactory::makeRenderBuffer(RenderBufferType type,
+                                              RenderBufferFlags flags,
+                                              size_t sizeInBytes)
 {
-    return DataRenderBuffer::Make(data);
-}
-
-rcp<RenderBuffer> CGFactory::makeBufferU32(Span<const uint32_t> data)
-{
-    return DataRenderBuffer::Make(data);
-}
-
-rcp<RenderBuffer> CGFactory::makeBufferF32(Span<const float> data)
-{
-    return DataRenderBuffer::Make(data);
+    return make_rcp<DataRenderBuffer>(type, flags, sizeInBytes);
 }
 
 rcp<RenderShader> CGFactory::makeLinearGradient(float sx,

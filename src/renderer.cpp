@@ -80,9 +80,28 @@ void Renderer::rotate(float radians)
     this->transform(Mat2D(c, s, -s, c, 0, 0));
 }
 
-RenderBuffer::RenderBuffer(size_t count) : m_Count(count) { Counter::update(Counter::kBuffer, 1); }
+RenderBuffer::RenderBuffer(RenderBufferType type, RenderBufferFlags flags, size_t sizeInBytes) :
+    m_type(type), m_flags(flags), m_sizeInBytes(sizeInBytes)
+{
+    Counter::update(Counter::kBuffer, 1);
+}
 
 RenderBuffer::~RenderBuffer() { Counter::update(Counter::kBuffer, -1); }
+
+void* RenderBuffer::map()
+{
+    assert(m_mapCount == 0 || !(m_flags & RenderBufferFlags::mappedOnceAtInitialization));
+    assert(m_mapCount == m_unmapCount);
+    RIVE_DEBUG_CODE(++m_mapCount;)
+    return onMap();
+}
+
+void RenderBuffer::unmap()
+{
+    assert(m_unmapCount + 1 == m_mapCount);
+    RIVE_DEBUG_CODE(++m_unmapCount;)
+    onUnmap();
+}
 
 RenderShader::RenderShader() { Counter::update(Counter::kShader, 1); }
 RenderShader::~RenderShader() { Counter::update(Counter::kShader, -1); }

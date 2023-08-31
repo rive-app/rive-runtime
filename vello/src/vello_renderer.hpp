@@ -184,6 +184,8 @@ public:
                        rcp<RenderBuffer> vertices_f32,
                        rcp<RenderBuffer> uvCoords_f32,
                        rcp<RenderBuffer> indices_u16,
+                       uint32_t vertexCount,
+                       uint32_t indexCount,
                        BlendMode,
                        float opacity) override;
 };
@@ -191,9 +193,7 @@ public:
 class VelloFactory : public Factory
 {
 public:
-    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
-    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
-    rcp<RenderBuffer> makeBufferF32(Span<const float>) override;
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
     rcp<RenderShader> makeLinearGradient(float sx,
                                          float sy,

@@ -5,6 +5,7 @@
 #ifndef _RIVE_RENDERER_HPP_
 #define _RIVE_RENDERER_HPP_
 
+#include "rive/enum_bitset.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/command_path.hpp"
 #include "rive/layout.hpp"
@@ -27,16 +28,43 @@ class Vec2D;
 // Helper that computes a matrix to "align" content (source) to fit inside frame (destination).
 Mat2D computeAlignment(Fit, Alignment, const AABB& frame, const AABB& content);
 
-// A render buffer holds an immutable array of values
+enum class RenderBufferType
+{
+    index,
+    vertex,
+};
+
+enum class RenderBufferFlags
+{
+    none = 0,
+    mappedOnceAtInitialization = 1 << 0, // The client will map the buffer exactly one time, before
+                                         // rendering, and will never update it again.
+};
+RIVE_MAKE_ENUM_BITSET(RenderBufferFlags)
+
 class RenderBuffer : public RefCnt<RenderBuffer>
 {
-    const size_t m_Count;
-
 public:
-    RenderBuffer(size_t count);
+    RenderBuffer(RenderBufferType, RenderBufferFlags, size_t sizeInBytes);
     virtual ~RenderBuffer();
 
-    size_t count() const { return m_Count; }
+    RenderBufferType type() const { return m_type; }
+    RenderBufferFlags flags() const { return m_flags; }
+    size_t sizeInBytes() const { return m_sizeInBytes; }
+
+    void* map();
+    void unmap();
+
+protected:
+    virtual void* onMap() = 0;
+    virtual void onUnmap() = 0;
+
+private:
+    const RenderBufferType m_type;
+    const RenderBufferFlags m_flags;
+    const size_t m_sizeInBytes;
+    RIVE_DEBUG_CODE(size_t m_mapCount = 0;)
+    RIVE_DEBUG_CODE(size_t m_unmapCount = 0;)
 };
 
 enum class RenderPaintStyle
@@ -122,6 +150,8 @@ public:
                                rcp<RenderBuffer> vertices_f32,
                                rcp<RenderBuffer> uvCoords_f32,
                                rcp<RenderBuffer> indices_u16,
+                               uint32_t vertexCount,
+                               uint32_t indexCount,
                                BlendMode,
                                float opacity) = 0;
 
