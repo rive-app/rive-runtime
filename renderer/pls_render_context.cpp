@@ -1174,11 +1174,12 @@ void PLSRenderContext::flush(FlushType flushType)
     ++m_flushCount;
 }
 
-rcp<RenderBuffer> PLSRenderContext::makeBufferU16(Span<const uint16_t> data) { return nullptr; }
-
-rcp<RenderBuffer> PLSRenderContext::makeBufferU32(Span<const uint32_t> data) { return nullptr; }
-
-rcp<RenderBuffer> PLSRenderContext::makeBufferF32(Span<const float> data) { return nullptr; }
+rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType,
+                                                     RenderBufferFlags,
+                                                     size_t sizeInBytes)
+{
+    return nullptr;
+}
 
 std::unique_ptr<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {

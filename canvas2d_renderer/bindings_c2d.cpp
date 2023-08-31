@@ -60,6 +60,8 @@ public:
                        rive::rcp<rive::RenderBuffer> vertices_f32,
                        rive::rcp<rive::RenderBuffer> uvCoords_f32,
                        rive::rcp<rive::RenderBuffer> indices_u16,
+                       uint32_t vertexCount,
+                       uint32_t indexCount,
                        rive::BlendMode value,
                        float opacity) override
     {}
@@ -214,17 +216,11 @@ namespace rive
 {
 class C2DFactory : public Factory
 {
-    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t> data) override
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType type,
+                                       RenderBufferFlags,
+                                       size_t sizeInBytes) override
     {
-        return rive::DataRenderBuffer::Make(data);
-    }
-    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t> data) override
-    {
-        return rive::DataRenderBuffer::Make(data);
-    }
-    rcp<RenderBuffer> makeBufferF32(Span<const float> data) override
-    {
-        return rive::DataRenderBuffer::Make(data);
+        return make_rcp<DataRenderBuffer>(type, flags, sizeInBytes);
     }
 
     rcp<RenderShader> makeLinearGradient(float sx,

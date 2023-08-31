@@ -358,9 +358,7 @@ public:
     };
 
     // Backend-specific PLSFactory implementation.
-    rcp<RenderBuffer> makeBufferU16(Span<const uint16_t>) override;
-    rcp<RenderBuffer> makeBufferU32(Span<const uint32_t>) override;
-    rcp<RenderBuffer> makeBufferF32(Span<const float>) override;
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
     std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
 
 private:
