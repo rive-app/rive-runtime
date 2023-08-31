@@ -65,8 +65,7 @@ fn main() {
     let profile = env::var("PROFILE").unwrap();
 
     let mut cfg = cc::Build::new();
-    cfg.compiler("clang")
-        .cpp(true)
+    cfg.cpp(true)
         .flag_if_supported("-std=c++11") // for unix
         .warnings(false)
         .file(harfbuzz.join("src/harfbuzz.cc"));
@@ -90,13 +89,12 @@ fn main() {
     cfg.compile("harfbuzz");
 
     cc::Build::new()
-        .compiler("clang")
         .files(all_files_with_extension(sheen_bidi.join("Source"), "c"))
         .include(sheen_bidi.join("Headers"))
+        .warnings(false)
         .compile("sheenbidi");
 
     cc::Build::new()
-        .compiler("clang")
         .cpp(true)
         .files(all_files_with_extension("../src", "cpp"))
         .files(all_files_with_extension(
@@ -111,7 +109,7 @@ fn main() {
         .include(harfbuzz.join("src"))
         .include(sheen_bidi.join("Headers"))
         .flag("-std=c++14")
-        .flag("-Wno-everything")
+        .warnings(false)
         .define("RIVE_SKIP_IMGUI", None)
         .define("WITH_RIVE_TEXT", None)
         .compile("rive");

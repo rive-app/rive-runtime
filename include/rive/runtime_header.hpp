@@ -6,16 +6,16 @@
 
 namespace rive
 {
+
 /// Rive file runtime header. The header is fonud at the beginning of every
 /// Rive runtime file, and begins with a specific 4-byte format: "RIVE".
 /// This is followed by the major and minor version of Rive used to create
 /// the file. Finally the owner and file ids are at the end of header; these
 /// unsigned integers may be zero.
+static constexpr char kRuntimeHeaderFingerprint[] = "RIVE";
 class RuntimeHeader
 {
 private:
-    static constexpr char fingerprint[] = "RIVE";
-
     int m_MajorVersion;
     int m_MinorVersion;
     int m_FileId;
@@ -49,7 +49,7 @@ public:
         for (int i = 0; i < 4; i++)
         {
             auto b = reader.readByte();
-            if (fingerprint[i] != b)
+            if (kRuntimeHeaderFingerprint[i] != b)
             {
                 return false;
             }

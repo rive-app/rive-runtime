@@ -36,7 +36,7 @@
 static_assert(std::numeric_limits<float>::is_iec559,
               "Conformant IEEE 754 behavior for NaN and Inf is required.");
 
-#if defined(__clang__) || defined(__GNUC__)
+#if defined(__clang__)
 
 namespace rive
 {
