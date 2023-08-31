@@ -20,7 +20,7 @@ public:
 
     bool isJoystickFlagged(JoystickFlags flag) const
     {
-        return (((JoystickFlags)joystickFlags()) & flag) == flag;
+        return ((JoystickFlags)joystickFlags()) & flag;
     }
 
     bool canApplyBeforeUpdate() const { return m_handleSource == nullptr; }

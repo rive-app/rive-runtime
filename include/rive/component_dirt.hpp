@@ -1,6 +1,7 @@
 #ifndef _RIVE_DIRTY_FLAGS_HPP_
 #define _RIVE_DIRTY_FLAGS_HPP_
-#include <type_traits>
+
+#include "rive/enum_bitset.hpp"
 
 namespace rive
 {
@@ -62,52 +63,6 @@ enum class ComponentDirt : unsigned short
     /// All dirty. Every flag (apart from Collapsed) is set.
     Filthy = 0xFFFE
 };
-
-inline constexpr ComponentDirt operator&(ComponentDirt lhs, ComponentDirt rhs)
-{
-    return static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) &
-                                      static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
-}
-
-inline constexpr ComponentDirt operator^(ComponentDirt lhs, ComponentDirt rhs)
-{
-    return static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) ^
-                                      static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
-}
-
-inline constexpr ComponentDirt operator|(ComponentDirt lhs, ComponentDirt rhs)
-{
-    return static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) |
-                                      static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
-}
-
-inline constexpr ComponentDirt operator~(ComponentDirt rhs)
-{
-    return static_cast<ComponentDirt>(~static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
-}
-
-inline ComponentDirt& operator|=(ComponentDirt& lhs, ComponentDirt rhs)
-{
-    lhs = static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) |
-                                     static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
-
-    return lhs;
-}
-
-inline ComponentDirt& operator&=(ComponentDirt& lhs, ComponentDirt rhs)
-{
-    lhs = static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) &
-                                     static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
-
-    return lhs;
-}
-
-inline ComponentDirt& operator^=(ComponentDirt& lhs, ComponentDirt rhs)
-{
-    lhs = static_cast<ComponentDirt>(static_cast<std::underlying_type<ComponentDirt>::type>(lhs) ^
-                                     static_cast<std::underlying_type<ComponentDirt>::type>(rhs));
-
-    return lhs;
-}
+RIVE_MAKE_ENUM_BITSET(ComponentDirt)
 } // namespace rive
 #endif

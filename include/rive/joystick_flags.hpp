@@ -1,5 +1,8 @@
 #ifndef _RIVE_JOYSTICK_FLAGS_HPP_
 #define _RIVE_JOYSTICK_FLAGS_HPP_
+
+#include "rive/enum_bitset.hpp"
+
 namespace rive
 {
 enum class JoystickFlags : unsigned char
@@ -13,52 +16,6 @@ enum class JoystickFlags : unsigned char
     /// Whether this Joystick works in world space.
     worldSpace = 1 << 2
 };
-
-inline constexpr JoystickFlags operator&(JoystickFlags lhs, JoystickFlags rhs)
-{
-    return static_cast<JoystickFlags>(static_cast<std::underlying_type<JoystickFlags>::type>(lhs) &
-                                      static_cast<std::underlying_type<JoystickFlags>::type>(rhs));
-}
-
-inline constexpr JoystickFlags operator^(JoystickFlags lhs, JoystickFlags rhs)
-{
-    return static_cast<JoystickFlags>(static_cast<std::underlying_type<JoystickFlags>::type>(lhs) ^
-                                      static_cast<std::underlying_type<JoystickFlags>::type>(rhs));
-}
-
-inline constexpr JoystickFlags operator|(JoystickFlags lhs, JoystickFlags rhs)
-{
-    return static_cast<JoystickFlags>(static_cast<std::underlying_type<JoystickFlags>::type>(lhs) |
-                                      static_cast<std::underlying_type<JoystickFlags>::type>(rhs));
-}
-
-inline constexpr JoystickFlags operator~(JoystickFlags rhs)
-{
-    return static_cast<JoystickFlags>(~static_cast<std::underlying_type<JoystickFlags>::type>(rhs));
-}
-
-inline JoystickFlags& operator|=(JoystickFlags& lhs, JoystickFlags rhs)
-{
-    lhs = static_cast<JoystickFlags>(static_cast<std::underlying_type<JoystickFlags>::type>(lhs) |
-                                     static_cast<std::underlying_type<JoystickFlags>::type>(rhs));
-
-    return lhs;
-}
-
-inline JoystickFlags& operator&=(JoystickFlags& lhs, JoystickFlags rhs)
-{
-    lhs = static_cast<JoystickFlags>(static_cast<std::underlying_type<JoystickFlags>::type>(lhs) &
-                                     static_cast<std::underlying_type<JoystickFlags>::type>(rhs));
-
-    return lhs;
-}
-
-inline JoystickFlags& operator^=(JoystickFlags& lhs, JoystickFlags rhs)
-{
-    lhs = static_cast<JoystickFlags>(static_cast<std::underlying_type<JoystickFlags>::type>(lhs) ^
-                                     static_cast<std::underlying_type<JoystickFlags>::type>(rhs));
-
-    return lhs;
-}
+RIVE_MAKE_ENUM_BITSET(JoystickFlags)
 } // namespace rive
 #endif
