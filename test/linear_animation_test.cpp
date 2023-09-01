@@ -1,5 +1,6 @@
 #include <rive/artboard.hpp>
 #include <rive/animation/linear_animation.hpp>
+#include <rive/animation/linear_animation_instance.hpp>
 #include "utils/no_op_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
@@ -79,4 +80,32 @@ TEST_CASE("quantize goes to whole frames", "[animation]")
     animation->quantize(false);
     animation->apply(artboard, 0.5f);
     REQUIRE(ellipse->x() == 200.0f);
+}
+
+TEST_CASE("LinearAnimation reports when to keep going correctly", "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    linearAnimation->duration(60);
+    linearAnimation->fps(60);
+    linearAnimation->speed(1);
+    linearAnimation->enableWorkArea(true);
+    linearAnimation->workStart(30);
+    linearAnimation->workEnd(42);
+
+    auto animationInstance = rive::LinearAnimationInstance(linearAnimation, abi.get());
+
+    REQUIRE(animationInstance.advance(0.0f));
+    REQUIRE(animationInstance.time() == 0.5f);
+    REQUIRE(animationInstance.advance(0.1f));
+    REQUIRE(animationInstance.time() == 0.6f);
+    REQUIRE(!animationInstance.advance(0.2f));
+    REQUIRE(animationInstance.time() == 0.7f);
+
+    delete linearAnimation;
 }

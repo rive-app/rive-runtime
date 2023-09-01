@@ -31,6 +31,9 @@ public:
     // Returns the direction that we are currently playing in
     float direction() const { return m_direction; }
 
+    // Returns speed in the current direction of the animation.
+    float directedSpeed() const { return m_direction * speed(); }
+
     // Update the direction of the animation instance, positive value for
     // forwards Negative for backwards
     void direction(int direction)
@@ -60,8 +63,8 @@ public:
     bool keepGoing() const
     {
         return this->loopValue() != static_cast<int>(rive::Loop::oneShot) ||
-               (m_direction > 0 && m_time < m_animation->durationSeconds()) ||
-               (m_direction < 0 && m_time > 0);
+               (directedSpeed() > 0 && m_time < m_animation->endSeconds()) ||
+               (directedSpeed() < 0 && m_time > m_animation->startSeconds());
     }
 
     float totalTime() const { return m_totalTime; }
