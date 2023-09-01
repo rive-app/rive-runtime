@@ -65,9 +65,8 @@ private:
     // Returns false if the operation failed, at which point the caller should flush and try again.
     [[nodiscard]] bool applyClip(uint32_t* clipID);
 
-    // Pushes all paths in m_pathBatch to the GPU. All paths in the batch are assumed to be clip
-    // updates except the final one, which is drawn with 'finalPathPaint'.
-    [[nodiscard]] bool pushInternalPathBatch(PLSPaint* finalPathPaint);
+    // Pushes all paths in m_pathBatch to the GPU.
+    [[nodiscard]] bool pushInternalPathBatch();
 
     struct ContourData
     {
@@ -151,19 +150,19 @@ private:
                  const RawPath* rawPath_,
                  const AABB& pathBounds_,
                  FillRule fillRule_,
+                 pls::PaintType paintType_,
+                 const PLSPaint* paint_,
                  uint32_t clipID_,
-                 uint32_t outerClipID_) :
-            matrix(matrix_),
-            rawPath(rawPath_),
-            pathBounds(pathBounds_),
-            fillRule(fillRule_),
-            clipID(clipID_),
-            outerClipID(outerClipID_)
-        {}
+                 uint32_t outerClipID_);
+
         const Mat2D* matrix;
         const RawPath* rawPath;
         AABB pathBounds;
         FillRule fillRule;
+        pls::PaintType paintType;
+        const PLSPaint* paint;
+        bool stroked;
+        float strokeMatrixMaxScale;
         uint32_t clipID;      // ID to clip against if drawing a path;
                               // ID to write to the clip buffer if updating the clip.
         uint32_t outerClipID; // Ignored if drawing a path;
@@ -174,6 +173,7 @@ private:
         size_t contourCount = 0;
         uint32_t tessVertexCount = 0;
         uint32_t paddingVertexCount = 0;
+        pls::PaintData paintRenderData; // Tells the GPU how to render the paint (or clip).
     };
     std::vector<PathDraw> m_pathBatch;
 

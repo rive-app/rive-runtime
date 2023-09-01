@@ -32,6 +32,27 @@ bool PLSRenderer::ClipElement::isEquivalent(const Mat2D& matrix_, PLSPath* path_
     return matrix_ == matrix && path_->getUniqueID() == pathUniqueID;
 }
 
+PLSRenderer::PathDraw::PathDraw(const Mat2D* matrix_,
+                                const RawPath* rawPath_,
+                                const AABB& pathBounds_,
+                                FillRule fillRule_,
+                                pls::PaintType paintType_,
+                                const PLSPaint* paint_,
+                                uint32_t clipID_,
+                                uint32_t outerClipID_) :
+    matrix(matrix_),
+    rawPath(rawPath_),
+    pathBounds(pathBounds_),
+    fillRule(fillRule_),
+    paintType(paintType_),
+    paint(paint_),
+    stroked(paint != nullptr && paint->getIsStroked()),
+    strokeMatrixMaxScale(stroked ? matrix->findMaxScale() : 0),
+    clipID(clipID_),
+    outerClipID(outerClipID_)
+{
+}
+
 PLSRenderer::PLSRenderer(PLSRenderContext* context) : m_context(context) {}
 
 PLSRenderer::~PLSRenderer() {}
@@ -107,6 +128,8 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
                                  &clip.path,
                                  clip.pathBounds,
                                  clip.fillRule,
+                                 pls::PaintType::clipUpdate,
+                                 nullptr,
                                  clip.clipID,
                                  outerClipID);
         outerClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
@@ -153,9 +176,11 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                                  &path->getRawPath(),
                                  path->getBounds(),
                                  path->getFillRule(),
+                                 paint->getType(),
+                                 paint,
                                  clipID,
                                  0);
-        if (!pushInternalPathBatch(paint))
+        if (!pushInternalPathBatch())
         {
             m_context->flush(PLSRenderContext::FlushType::intermediate);
             continue;
@@ -792,38 +817,38 @@ private:
     RIVE_DEBUG_CODE(size_t m_writtenTessVertexCount = 0;)
 };
 
-bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
+bool PLSRenderer::pushInternalPathBatch()
 {
-    // Only the final path in the batch uses 'finalPathPaint', which may or may not be stroked.
-    size_t strokeIdx = finalPathPaint->getIsStroked() ? m_pathBatch.size() - 1
-                                                      : std::numeric_limits<size_t>::max();
-    float strokeMatrixMaxScale =
-        finalPathPaint->getIsStroked() ? m_pathBatch.back().matrix->findMaxScale() : 0;
-    float strokeRadius = finalPathPaint->getIsStroked() ? finalPathPaint->getThickness() * .5f : 0;
-
     // Count up how much temporary storage this function will need to reserve in CPU buffers.
     size_t maxStrokedCurvesBeforeChops = 0;
     size_t maxStrokedCurvesAfterChops = 0;
     size_t maxTotalCurvesAfterChops = 0;
-    PLSPaint clipPaint;
-    for (size_t i = 0; i < m_pathBatch.size(); ++i)
+    size_t maxTangentPairs = 0;
+    bool hasStrokes = false;
+    for (const PathDraw& path : m_pathBatch)
     {
-        const RawPath* rawPath = m_pathBatch[i].rawPath;
+        const RawPath* rawPath = path.rawPath;
         if (rawPath->empty())
         {
             continue;
         }
-        bool stroked = i == strokeIdx; // (Will never be true if finalPathPaint is not stroked.)
         // Reserve enough space to record all the info we might need for this path.
         assert(rawPath->verbs()[0] == PathVerb::move);
         // Every path has at least 1 (non-curve) move.
         size_t maxCurves = rawPath->verbs().size() - 1;
         // Stroked cubics can be chopped into a maximum of 5 segments.
-        size_t maxCurvesAfterChops = stroked ? maxCurves * 5 : maxCurves;
-        if (stroked)
+        size_t maxCurvesAfterChops = path.stroked ? maxCurves * 5 : maxCurves;
+        if (path.stroked)
         {
             maxStrokedCurvesBeforeChops += maxCurves;
+            if (path.paint->getJoin() == StrokeJoin::round)
+            {
+                // If the stroke has round joins, we also record the tangents between (pre-chopped)
+                // joins in order to calculate how many vertices are in each round join.
+                maxTangentPairs += maxCurves;
+            }
             maxStrokedCurvesAfterChops += maxCurvesAfterChops;
+            hasStrokes = true;
         }
         maxTotalCurvesAfterChops += maxCurvesAfterChops;
     }
@@ -834,10 +859,9 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         std::max(maxTotalCurvesAfterChops + 3, m_parametricSegmentCounts_pow4.capacity()));
     m_parametricSegmentCounts.resize(
         std::max(maxTotalCurvesAfterChops + 3, m_parametricSegmentCounts.capacity()));
-    size_t maxTangentPairs = 0;
     if (maxStrokedCurvesAfterChops != 0)
     {
-        assert(finalPathPaint->getIsStroked());
+        assert(hasStrokes);
         // Each stroked curve will record the number of chops it requires (either 0, 1, or 2).
         m_numChops.resizeAndRewind(std::max(maxStrokedCurvesBeforeChops, m_numChops.capacity()));
         // We only chop into this queue if a cubic has one chop. More chops in a single cubic
@@ -849,14 +873,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         // (4 floats) so we can measure its rotation.
         maxTangentPairs += maxStrokedCurvesAfterChops;
     }
-    if (finalPathPaint->getIsStroked())
+    if (hasStrokes)
     {
-        // If the stroke has round joins, we also record the tangents between (pre-chopped) joins in
-        // order to calculate how many vertices are in each round join.
-        if (finalPathPaint->getJoin() == StrokeJoin::round)
-        {
-            maxTangentPairs += maxStrokedCurvesBeforeChops;
-        }
         // Reserve temporary CPU storage for the loops that follow.
         // (+3 because we process these values in SIMD batches of 4, an may begin at n - 1.)
         m_tangentPairs.resize(std::max(maxTangentPairs + 3, m_tangentPairs.capacity()));
@@ -873,16 +891,15 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     size_t lineCount = 0;
     size_t curveCount = 0;
     size_t rotationCount = 0; // We measure rotations on both curves and round joins.
-    for (size_t i = 0; i < m_pathBatch.size(); ++i)
+    for (PathDraw& path : m_pathBatch)
     {
-        PathDraw& path = m_pathBatch[i];
         if (path.rawPath->empty())
         {
             continue;
         }
 
         size_t pathContourCount = 0;
-        bool stroked = i == strokeIdx; // (Will never be true if finalPathPaint is not stroked.)
+        bool stroked = path.stroked;
         assert(path.triangulator == nullptr);
         if (!stroked && FindTransformedArea(path.pathBounds, *path.matrix) > 512 * 512)
         {
@@ -895,7 +912,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         }
         else
         {
-            bool roundJoinStroked = stroked && finalPathPaint->getJoin() == StrokeJoin::round;
+            bool roundJoinStroked = stroked && path.paint->getJoin() == StrokeJoin::round;
             wangs_formula::VectorXform vectorXform(*path.matrix);
             RawPath::Iter startOfContour = path.rawPath->begin();
             RawPath::Iter end = path.rawPath->end();
@@ -1051,7 +1068,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                                                         localChopBuffer,
                                                         t,
                                                         numChops,
-                                                        strokeMatrixMaxScale);
+                                                        path.strokeMatrixMaxScale);
                                 p = localChopBuffer;
                                 numChops *= 2;
                                 break;
@@ -1113,15 +1130,12 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     size_t contourFirstRotationIdx = 0;
     size_t emptyStrokeCountForCaps = 0;
     PLSRenderContext::TessVertexCounter tessVertexCounter(m_context);
-    for (size_t currentPathIdx = 0; currentPathIdx < m_pathBatch.size(); ++currentPathIdx)
+    for (PathDraw& path : m_pathBatch)
     {
-        PathDraw& path = m_pathBatch[currentPathIdx];
         if (path.rawPath->empty())
         {
             continue;
         }
-
-        bool stroked = currentPathIdx == strokeIdx;
 
         // (If we used interior triangulation, interiorTriHelper already counted the path's vertices
         // for us.)
@@ -1132,7 +1146,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             // a multiple of the patch size.
             if (path.tessVertexCount > 0)
             {
-                assert(!stroked);
+                assert(!path.stroked);
                 path.paddingVertexCount =
                     tessVertexCounter.countPath<kOuterCurvePatchSegmentSpan>(path.tessVertexCount,
                                                                              false);
@@ -1172,11 +1186,13 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                     contourVertexCount -= m_parametricSegmentCounts[j];
                 }
 
-                if (stroked)
+                if (path.stroked)
                 {
                     // Finish calculating and counting polar segments for each stroked curve and
                     // round join.
-                    const float r_ = strokeRadius * strokeMatrixMaxScale;
+                    const PLSPaint* paint = path.paint;
+                    float strokeRadius = paint->getThickness() * .5f;
+                    const float r_ = strokeRadius * path.strokeMatrixMaxScale;
                     const float polarSegmentsPerRad =
                         pathutils::CalcPolarSegmentsPerRadian<kPolarPrecision>(r_);
                     for (j = contourFirstRotationIdx; j < contour->endRotationIdx; j += 4)
@@ -1217,7 +1233,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                     }
 
                     // Count joins.
-                    if (finalPathPaint->getJoin() == StrokeJoin::round)
+                    if (paint->getJoin() == StrokeJoin::round)
                     {
                         // Round joins share their beginning and ending vertices with the curve on
                         // either side. Therefore, the number of vertices we need to allocate for a
@@ -1240,12 +1256,12 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                     bool needsCaps;
                     if (!empty)
                     {
-                        cap = finalPathPaint->getCap();
+                        cap = paint->getCap();
                         needsCaps = !contour->closed;
                     }
                     else
                     {
-                        cap = empty_stroke_cap(finalPathPaint, contour->closed);
+                        cap = empty_stroke_cap(paint, contour->closed);
                         needsCaps =
                             cap != StrokeCap::butt; // Ignore butt caps when the contour is empty.
                     }
@@ -1310,7 +1326,7 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
             {
                 path.paddingVertexCount =
                     tessVertexCounter.countPath<kMidpointFanPatchSegmentSpan>(path.tessVertexCount,
-                                                                              stroked);
+                                                                              path.stroked);
                 path.tessVertexCount += path.paddingVertexCount;
             }
         }
@@ -1331,27 +1347,30 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         return false;
     }
 
-    // Set up rendering for 'finalPathPaint', including allocating span in the gradient texture, if
+    // Set up rendering for the paints, including allocating span in the gradient texture, if
     // needed.
-    PaintData finalPathPaintData;
-    switch (finalPathPaint->getType())
+    for (PathDraw& path : m_pathBatch)
     {
-        case PaintType::solidColor:
-            finalPathPaintData = PaintData::MakeColor(finalPathPaint->getColor());
-            break;
-        case PaintType::linearGradient:
-        case PaintType::radialGradient:
-            if (!m_context->pushGradient(finalPathPaint->getGradient(), &finalPathPaintData))
-            {
-                // The gradient doesn't fit. Give up and let the caller flush and try again.
-                return false;
-            }
-            break;
-        case PaintType::image:
-            finalPathPaintData = PaintData::MakeImage(finalPathPaint->getImageOpacity());
-            break;
-        case PaintType::clipUpdate:
-            RIVE_UNREACHABLE();
+        switch (path.paintType)
+        {
+            case PaintType::solidColor:
+                path.paintRenderData = PaintData::MakeColor(path.paint->getColor());
+                break;
+            case PaintType::linearGradient:
+            case PaintType::radialGradient:
+                if (!m_context->pushGradient(path.paint->getGradient(), &path.paintRenderData))
+                {
+                    // The gradient doesn't fit. Give up and let the caller flush and try again.
+                    return false;
+                }
+                break;
+            case PaintType::image:
+                path.paintRenderData = PaintData::MakeImage(path.paint->getImageOpacity());
+                break;
+            case PaintType::clipUpdate:
+                path.paintRenderData = PaintData::MakeClipUpdate(path.outerClipID);
+                break;
+        }
     }
 
     // Iteration pass 3: Now that we have space reserved, push the whole batch of paths to the GPU.
@@ -1366,10 +1385,8 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
     size_t curveIdx = 0;
     size_t rotationIdx = 0;
     RawPath::Iter startOfContour;
-    size_t finalPathIdx = m_pathBatch.size() - 1; // All paths are clips except the final one.
-    for (size_t currentPathIdx = 0; currentPathIdx < m_pathBatch.size(); ++currentPathIdx)
+    for (PathDraw& path : m_pathBatch)
     {
-        PathDraw& path = m_pathBatch[currentPathIdx];
         if (path.tessVertexCount == 0)
         {
             RIVE_DEBUG_CODE(skippedContourCount += path.contourCount;)
@@ -1379,22 +1396,22 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
         assert(!path.rawPath->empty());
 
         // Push a path record.
-        bool isClipPath = currentPathIdx != finalPathIdx;
-        PaintType currentPaintType = isClipPath ? PaintType::clipUpdate : finalPathPaint->getType();
-        const PaintData& currentPaintData =
-            isClipPath ? PaintData::MakeClipUpdate(path.outerClipID) : finalPathPaintData;
+        bool isClipUpdate = path.paintType == PaintType::clipUpdate;
+        const PLSTexture* imageTexture = isClipUpdate ? nullptr : path.paint->getImageTexture();
         const Mat2D* pixelToNormalizedClipRect =
             m_stack.back().hasClipRect ? &m_stack.back().pixelToNormalizedClipRect : nullptr;
+        pls::PLSBlendMode blendMode =
+            isClipUpdate ? pls::PLSBlendMode::srcOver : path.paint->getBlendMode();
         m_context->pushPath(path.triangulator ? PatchType::outerCurves : PatchType::midpointFan,
                             *path.matrix,
-                            isClipPath ? 0 : strokeRadius, // Clips are never stroked.
+                            path.stroked ? path.paint->getThickness() * .5f : 0,
                             path.fillRule,
-                            currentPaintType,
-                            currentPaintData,
-                            finalPathPaint->getImageTexture(), // Ignored by clip updates.
+                            path.paintType,
+                            path.paintRenderData,
+                            imageTexture,
                             path.clipID,
                             pixelToNormalizedClipRect,
-                            finalPathPaint->getBlendMode(), // Ignored by clip updates.
+                            blendMode, // Ignored by clip updates.
                             path.tessVertexCount,
                             path.paddingVertexCount);
         RIVE_DEBUG_CODE(++pushedPathCount;)
@@ -1408,12 +1425,12 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                 &path);
             RIVE_DEBUG_CODE(pushedContourCount += processedContourCount;)
             m_context->pushInteriorTriangulation(path.triangulator,
-                                                 currentPaintType,
-                                                 currentPaintData,
-                                                 finalPathPaint->getImageTexture(),
+                                                 path.paintType,
+                                                 path.paintRenderData,
+                                                 imageTexture,
                                                  path.clipID,
                                                  pixelToNormalizedClipRect,
-                                                 finalPathPaint->getBlendMode());
+                                                 blendMode);
         }
         else
         {
@@ -1428,12 +1445,11 @@ bool PLSRenderer::pushInternalPathBatch(PLSPaint* finalPathPaint)
                             contour,
                             curveIdx,
                             rotationIdx,
-                            strokeMatrixMaxScale,
-                            currentPathIdx == strokeIdx ? finalPathPaint : nullptr);
+                            path.strokeMatrixMaxScale,
+                            path.stroked ? path.paint : nullptr);
                 assert(m_pushedCurveCount == contour.endCurveIdx);
                 assert(m_pushedRotationCount == contour.endRotationIdx);
-                assert(m_pushedStrokeJoinCount ==
-                       (currentPathIdx == strokeIdx ? contour.strokeJoinCount : 0));
+                assert(m_pushedStrokeJoinCount == (path.stroked ? contour.strokeJoinCount : 0));
                 assert(m_pushedStrokeCapCount == (contour.strokeCapSegmentCount != 0 ? 2 : 0));
                 curveIdx = contour.endCurveIdx;
                 rotationIdx = contour.endRotationIdx;
