@@ -6,8 +6,6 @@
 
 using namespace rive;
 
-static Mat2D identity;
-
 PathComposer::PathComposer(Shape* shape) : m_Shape(shape), m_deferredPathDirt(false) {}
 
 void PathComposer::buildDependencies()

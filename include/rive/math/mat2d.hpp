@@ -11,8 +11,8 @@ class TransformComponents;
 class Mat2D
 {
 public:
-    Mat2D() : m_buffer{{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}} {}
-    Mat2D(float x1, float y1, float x2, float y2, float tx, float ty) :
+    constexpr Mat2D() : m_buffer{{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}} {}
+    constexpr Mat2D(float x1, float y1, float x2, float y2, float tx, float ty) :
         m_buffer{{x1, y1, x2, y2, tx, ty}}
     {}
 
