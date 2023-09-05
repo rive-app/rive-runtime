@@ -178,7 +178,7 @@ public:
     // Reserves space for 'pathCount', 'contourCount', 'curveCount', and 'tessVertexCount' records
     // in their respective GPU buffers, prior to calling pushPath(), pushContour(), pushCubic().
     //
-    // Returns false if there was too much data to accomodate, at which point the caller mush flush
+    // Returns false if there was too much data to accomodate, at which point the caller must flush
     // before continuing.
     [[nodiscard]] bool reservePathData(size_t pathCount,
                                        size_t contourCount,
@@ -190,7 +190,7 @@ public:
     //
     // Fills out a PaintData record that tells the shader how to access the new gradient.
     //
-    // Returns false if the gradient texture is out of space, at which point the caller mush flush
+    // Returns false if the gradient texture is out of space, at which point the caller must flush
     // before continuing.
     [[nodiscard]] bool pushGradient(const PLSGradient*, PaintData*);
 
@@ -208,9 +208,7 @@ public:
                   const PaintData&,
                   const PLSTexture* imageTexture,
                   uint32_t clipID,
-                  // Maps from pixel coordinates to a space where the clipRect is the normalized
-                  // rectangle: [-1, -1, +1, +1]; null if there is no clipRect.
-                  const Mat2D* pixelToNormalizedClipRect,
+                  const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
                   PLSBlendMode,
                   uint32_t tessVertexCount,
                   uint32_t paddingVertexCount);
@@ -243,16 +241,31 @@ public:
 
     // Pushes triangles to be drawn using the data records from the most recent calls to pushPath()
     // and pushPaint().
-    void pushInteriorTriangulation(
-        GrInnerFanTriangulator*,
-        PaintType,
-        const PaintData&,
-        const PLSTexture* imageTexture,
-        uint32_t clipID,
-        // Maps from pixel coordinates to a space where the clipRect is the normalized rectangle:
-        // [-1, -1, +1, +1]; null if there is no clipRect.
-        const Mat2D* pixelToNormalizedClipRect,
-        PLSBlendMode);
+    void pushInteriorTriangulation(GrInnerFanTriangulator*,
+                                   PaintType,
+                                   const PaintData&,
+                                   const PLSTexture* imageTexture,
+                                   uint32_t clipID,
+                                   bool hasClipRect,
+                                   PLSBlendMode);
+
+    // Reserves space for a single image mesh in the GPU buffers.
+    //
+    // Returns false if there was not room for another image mesh, at which point the caller must
+    // flush before continuing.
+    [[nodiscard]] bool reserveImageMeshData();
+
+    // Pushes an image mesh to the draw list.
+    void pushImageMesh(const Mat2D&,
+                       float opacity,
+                       const PLSTexture* imageTexture,
+                       const RenderBuffer* vertexBuffer,
+                       const RenderBuffer* uvBuffer,
+                       const RenderBuffer* indexBuffer,
+                       uint32_t indexCount,
+                       uint32_t clipID,
+                       const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
+                       PLSBlendMode);
 
     enum class FlushType : bool
     {
@@ -338,6 +351,39 @@ public:
         size_t m_count = 0;
     };
 
+    // Linked list of draws to be issued by the impl during onFlush().
+    struct Draw
+    {
+        Draw(DrawType drawType_, uint32_t baseElement_) :
+            drawType(drawType_), baseElement(baseElement_)
+        {}
+
+        // We can't have a destructor because we're block-allocated. Instead, the context calls this
+        // method before clearing the drawList to release all our held references.
+        void releaseRefs();
+
+        const DrawType drawType;
+        uint32_t baseElement;      // Base vertex, index, or instance.
+        uint32_t elementCount = 0; // Vertex, index, or instance count. Calculated during flush().
+        ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
+        const PLSTexture* imageTextureRef = nullptr;
+
+        // DrawType-specific data that must be initialized by the caller.
+        union
+        {
+            struct // DrawType::interiorTriangulation.
+            {
+                GrInnerFanTriangulator* triangulator;
+            };
+            struct // DrawType::imageMesh.
+            {
+                const RenderBuffer* vertexBufferRef;
+                const RenderBuffer* uvBufferRef;
+                const RenderBuffer* indexBufferRef;
+            };
+        };
+    };
+
     // Describes a flush for PLSRenderContextImpl.
     struct FlushDescriptor
     {
@@ -364,11 +410,18 @@ public:
 private:
     // Either appends a draw to m_drawList or merges into m_lastDraw.
     // Updates the draw's ShaderFeatures according to the passed parameters.
+    void pushPathDraw(DrawType,
+                      size_t baseVertex,
+                      FillRule,
+                      PaintType,
+                      const PaintData&,
+                      const PLSTexture* imageTexture,
+                      uint32_t clipID,
+                      bool hasClipRect,
+                      PLSBlendMode);
     void pushDraw(DrawType,
                   size_t baseVertex,
-                  FillRule,
                   PaintType,
-                  const PaintData&,
                   const PLSTexture* imageTexture,
                   uint32_t clipID,
                   bool hasClipRect,
@@ -410,6 +463,7 @@ private:
         size_t maxSimpleGradients;
         size_t maxComplexGradientSpans;
         size_t maxTessellationSpans;
+        size_t maxImageMeshUniforms;
 
         // Resources allocated at flush time (after we already know exactly how big they need to
         // be).
@@ -426,12 +480,13 @@ private:
             maxComplexGradientSpans =
                 std::max(maxComplexGradientSpans, other.maxComplexGradientSpans);
             maxTessellationSpans = std::max(maxTessellationSpans, other.maxTessellationSpans);
+            maxImageMeshUniforms = std::max(maxImageMeshUniforms, other.maxImageMeshUniforms);
             triangleVertexBufferCount =
                 std::max(triangleVertexBufferCount, other.triangleVertexBufferCount);
             gradientTextureHeight = std::max(gradientTextureHeight, other.gradientTextureHeight);
             tessellationTextureHeight =
                 std::max(tessellationTextureHeight, other.tessellationTextureHeight);
-            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
+            static_assert(sizeof(*this) == sizeof(size_t) * 9); // Make sure we got every field.
         }
 
         // Scale each limit > threshold by a factor of "scaleFactor".
@@ -451,6 +506,9 @@ private:
             if (maxTessellationSpans > threshold.maxTessellationSpans)
                 scaled.maxTessellationSpans =
                     static_cast<double>(maxTessellationSpans) * scaleFactor;
+            if (maxImageMeshUniforms > threshold.maxImageMeshUniforms)
+                scaled.maxImageMeshUniforms =
+                    static_cast<double>(maxImageMeshUniforms) * scaleFactor;
             if (triangleVertexBufferCount > threshold.triangleVertexBufferCount)
                 scaled.triangleVertexBufferCount =
                     static_cast<double>(triangleVertexBufferCount) * scaleFactor;
@@ -460,7 +518,7 @@ private:
             if (tessellationTextureHeight > threshold.tessellationTextureHeight)
                 scaled.tessellationTextureHeight =
                     static_cast<double>(tessellationTextureHeight) * scaleFactor;
-            static_assert(sizeof(*this) == sizeof(size_t) * 8); // Make sure we got every field.
+            static_assert(sizeof(*this) == sizeof(size_t) * 9); // Make sure we got every field.
             return scaled;
         }
 
@@ -540,13 +598,14 @@ private:
     std::unordered_map<GradientContentKey, uint32_t, DeepHashGradient>
         m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
 
-    WriteOnlyMappedMemory<PathData> m_pathData;
-    WriteOnlyMappedMemory<ContourData> m_contourData;
+    WriteOnlyMappedMemory<pls::PathData> m_pathData;
+    WriteOnlyMappedMemory<pls::ContourData> m_contourData;
     // Simple gradients get written by the CPU.
-    WriteOnlyMappedMemory<TwoTexelRamp> m_simpleColorRampsData;
+    WriteOnlyMappedMemory<pls::TwoTexelRamp> m_simpleColorRampsData;
     // Complex gradients get rendered by the GPU.
-    WriteOnlyMappedMemory<GradientSpan> m_gradSpanData;
-    WriteOnlyMappedMemory<TessVertexSpan> m_tessSpanData;
+    WriteOnlyMappedMemory<pls::GradientSpan> m_gradSpanData;
+    WriteOnlyMappedMemory<pls::TessVertexSpan> m_tessSpanData;
+    WriteOnlyMappedMemory<pls::ImageMeshUniforms> m_imageMeshUniformData;
 
     PerFlushLinkedList<Draw> m_drawList;
 

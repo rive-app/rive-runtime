@@ -33,7 +33,11 @@ public:
     PLSLoadStoreProgram(const PLSLoadStoreProgram&) = delete;
     PLSLoadStoreProgram& operator=(const PLSLoadStoreProgram&) = delete;
 
-    PLSLoadStoreProgram(uint32_t ops, GLuint vertexShader, const GLExtensions& extensions)
+    PLSLoadStoreProgram(uint32_t ops,
+                        GLuint vertexShader,
+                        const GLExtensions& extensions,
+                        rcp<GLState> state) :
+        m_state(std::move(state))
     {
         std::vector<const char*> defines{GLSL_PLS_IMPL_EXT_NATIVE};
         if (ops & loadstoreops::kClearColor)
@@ -57,7 +61,7 @@ public:
             defines.push_back(GLSL_CLEAR_CLIP);
         }
 
-        const char* source = glsl::pls_load_store_ext;
+        const char* source = pls::glsl::pls_load_store_ext;
 
         m_id = glCreateProgram();
         glAttachShader(m_id, vertexShader);
@@ -76,7 +80,7 @@ public:
         }
     }
 
-    ~PLSLoadStoreProgram() { glDeleteProgram(m_id); }
+    ~PLSLoadStoreProgram() { m_state->deleteProgram(m_id); }
 
     GLuint id() const { return m_id; }
     GLint clearColorUniLocation() const { return m_clearColorUniLocation; }
@@ -84,24 +88,28 @@ public:
 private:
     GLuint m_id;
     GLint m_clearColorUniLocation = -1;
+    const rcp<GLState> m_state;
 };
 
 class PLSRenderContextGLImpl::PLSImplEXTNative : public PLSRenderContextGLImpl::PLSImpl
 {
 public:
-    PLSImplEXTNative(const GLExtensions& extensions) : m_extensions(extensions)
-    {
-        // We have to manually implement load/store operations from a shader when using
-        // EXT_shader_pixel_local_storage.
-        m_plsLoadStoreVertexShader =
-            glutils::CompileShader(GL_VERTEX_SHADER, glsl::pls_load_store_ext, extensions);
-        glGenVertexArrays(1, &m_plsLoadStoreVAO);
-    }
+    PLSImplEXTNative(const GLExtensions& extensions) : m_extensions(extensions) {}
 
     ~PLSImplEXTNative()
     {
         glDeleteShader(m_plsLoadStoreVertexShader);
-        glDeleteVertexArrays(1, &m_plsLoadStoreVAO);
+        m_state->deleteVAO(m_plsLoadStoreVAO);
+    }
+
+    void init(rcp<GLState> state) override
+    {
+        // We have to manually implement load/store operations from a shader when using
+        // EXT_shader_pixel_local_storage.
+        m_plsLoadStoreVertexShader =
+            glutils::CompileShader(GL_VERTEX_SHADER, pls::glsl::pls_load_store_ext, m_extensions);
+        glGenVertexArrays(1, &m_plsLoadStoreVAO);
+        m_state = std::move(state);
     }
 
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
@@ -156,16 +164,19 @@ public:
         else
         {
             // Otherwise we have to initialize pixel local storage with a fullscreen draw.
-            const PLSLoadStoreProgram& plsProgram =
-                m_plsLoadStorePrograms
-                    .try_emplace(ops, ops, m_plsLoadStoreVertexShader, m_extensions)
-                    .first->second;
-            impl->bindProgram(plsProgram.id());
+            const PLSLoadStoreProgram& plsProgram = m_plsLoadStorePrograms
+                                                        .try_emplace(ops,
+                                                                     ops,
+                                                                     m_plsLoadStoreVertexShader,
+                                                                     m_extensions,
+                                                                     m_state)
+                                                        .first->second;
+            m_state->bindProgram(plsProgram.id());
             if (plsProgram.clearColorUniLocation() >= 0)
             {
                 glUniform4fv(plsProgram.clearColorUniLocation(), 1, clearColor4f);
             }
-            impl->bindVAO(m_plsLoadStoreVAO);
+            m_state->bindVAO(m_plsLoadStoreVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
     }
@@ -175,11 +186,15 @@ public:
         // Issue a fullscreen draw that transfers the color information in pixel local storage to
         // the main framebuffer.
         uint32_t ops = loadstoreops::kStoreColor;
-        const PLSLoadStoreProgram& plsProgram =
-            m_plsLoadStorePrograms.try_emplace(ops, ops, m_plsLoadStoreVertexShader, m_extensions)
-                .first->second;
-        impl->bindProgram(plsProgram.id());
-        impl->bindVAO(m_plsLoadStoreVAO);
+        const PLSLoadStoreProgram& plsProgram = m_plsLoadStorePrograms
+                                                    .try_emplace(ops,
+                                                                 ops,
+                                                                 m_plsLoadStoreVertexShader,
+                                                                 m_extensions,
+                                                                 m_state)
+                                                    .first->second;
+        m_state->bindProgram(plsProgram.id());
+        m_state->bindVAO(m_plsLoadStoreVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
@@ -192,6 +207,7 @@ private:
     std::map<uint32_t, PLSLoadStoreProgram> m_plsLoadStorePrograms; // Keyed by loadstoreops.
     GLuint m_plsLoadStoreVertexShader = 0;
     GLuint m_plsLoadStoreVAO = 0;
+    rcp<GLState> m_state;
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplEXTNative(

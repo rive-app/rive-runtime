@@ -5,19 +5,24 @@
 #include "rive/pls/d3d/pls_render_context_d3d_impl.hpp"
 
 #include "rive/pls/pls_image.hpp"
+#include "shaders/constants.glsl"
 
 #include <D3DCompiler.h>
 #include <sstream>
 
 #include "../out/obj/generated/advanced_blend.glsl.hpp"
 #include "../out/obj/generated/color_ramp.glsl.hpp"
+#include "../out/obj/generated/constants.glsl.hpp"
 #include "../out/obj/generated/common.glsl.hpp"
-#include "../out/obj/generated/draw.glsl.hpp"
+#include "../out/obj/generated/draw_image_mesh.glsl.hpp"
+#include "../out/obj/generated/draw_path.glsl.hpp"
 #include "../out/obj/generated/hlsl.glsl.hpp"
 #include "../out/obj/generated/tessellate.glsl.hpp"
 
 constexpr static UINT kPatchVertexDataSlot = 0;
 constexpr static UINT kTriangleVertexDataSlot = 1;
+constexpr static UINT kImageMeshVertexDataSlot = 2;
+constexpr static UINT kImageMeshUVDataSlot = 3;
 
 namespace rive::pls
 {
@@ -136,6 +141,7 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
 {
     m_platformFeatures.invertOffscreenY = true;
 
+    // Create a default raster state for path and offscreen draws.
     D3D11_RASTERIZER_DESC rasterDesc;
     rasterDesc.FillMode = D3D11_FILL_SOLID;
     rasterDesc.CullMode = D3D11_CULL_BACK;
@@ -148,17 +154,26 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     rasterDesc.ScissorEnable = FALSE;
     rasterDesc.MultisampleEnable = FALSE;
     rasterDesc.AntialiasedLineEnable = FALSE;
-    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_rasterState.GetAddressOf()));
-    m_gpuContext->RSSetState(m_rasterState.Get());
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_pathRasterState[0].GetAddressOf()));
 
-    // Make one more raster state for wireframe, for debugging purposes.
+    // ...And with wireframe for debugging.
     rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
-    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_debugWireframeState.GetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_pathRasterState[1].GetAddressOf()));
+
+    // Create a raster state without face culling for drawing image meshes.
+    rasterDesc.FillMode = D3D11_FILL_SOLID;
+    rasterDesc.CullMode = D3D11_CULL_NONE;
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_imageMeshRasterState[0].GetAddressOf()));
+
+    // ...And once more with wireframe for debugging.
+    rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_imageMeshRasterState[1].GetAddressOf()));
 
     // Compile the shaders that render gradient color ramps.
     {
         std::ostringstream s;
         s << glsl::hlsl << '\n';
+        s << glsl::constants << '\n';
         s << glsl::common << '\n';
         s << glsl::color_ramp << '\n';
         ComPtr<ID3DBlob> vertexBlob = compile_source_to_blob(m_gpu.Get(),
@@ -192,6 +207,7 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     {
         std::ostringstream s;
         s << glsl::hlsl << '\n';
+        s << glsl::constants << '\n';
         s << glsl::common << '\n';
         s << glsl::tessellate << '\n';
         ComPtr<ID3DBlob> vertexBlob = compile_source_to_blob(m_gpu.Get(),
@@ -283,14 +299,23 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
                                       m_patchIndexBuffer.GetAddressOf()));
     }
 
-    // Create a buffer for the uniforms that get updated every draw.
+    // Create buffers for uniforms.
     {
         D3D11_BUFFER_DESC desc{};
-        desc.ByteWidth = sizeof(PerDrawUniforms);
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-        desc.StructureByteStride = sizeof(PerDrawUniforms);
-        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_perDrawUniforms.GetAddressOf()));
+
+        desc.ByteWidth = sizeof(pls::FlushUniforms);
+        desc.StructureByteStride = sizeof(pls::FlushUniforms);
+        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_flushUniforms.GetAddressOf()));
+
+        desc.ByteWidth = sizeof(pls::ImageMeshUniforms);
+        desc.StructureByteStride = sizeof(pls::ImageMeshUniforms);
+        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_imageMeshUniforms.GetAddressOf()));
+
+        desc.ByteWidth = sizeof(BaseInstanceUniform);
+        desc.StructureByteStride = sizeof(BaseInstanceUniform);
+        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_baseInstanceUniform.GetAddressOf()));
     }
 
     // Create a linear sampler for the gradient texture.
@@ -322,6 +347,84 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     ID3D11SamplerState* samplers[2] = {m_linearSampler.Get(), m_mipmapSampler.Get()};
     static_assert(kImageTextureIdx == kGradTextureIdx + 1);
     m_gpuContext->PSSetSamplers(kGradTextureIdx, 2, samplers);
+}
+
+class RenderBufferD3DImpl : public RenderBuffer
+{
+public:
+    RenderBufferD3DImpl(RenderBufferType renderBufferType,
+                        RenderBufferFlags renderBufferFlags,
+                        size_t sizeInBytes,
+                        ComPtr<ID3D11Device> gpu,
+                        ComPtr<ID3D11DeviceContext> gpuContext) :
+        RenderBuffer(renderBufferType, renderBufferFlags, sizeInBytes),
+        m_gpu(std::move(gpu)),
+        m_gpuContext(std::move(gpuContext))
+    {
+        m_desc.ByteWidth = sizeInBytes;
+        m_desc.BindFlags =
+            type() == RenderBufferType::vertex ? D3D11_BIND_VERTEX_BUFFER : D3D11_BIND_INDEX_BUFFER;
+        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        {
+            m_desc.Usage = D3D11_USAGE_IMMUTABLE;
+            m_desc.CPUAccessFlags = 0;
+            m_mappedMemoryForImmutableBuffer.reset(new char[sizeInBytes]);
+        }
+        else
+        {
+            m_desc.Usage = D3D11_USAGE_DYNAMIC;
+            m_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            VERIFY_OK(m_gpu->CreateBuffer(&m_desc, nullptr, m_buffer.GetAddressOf()));
+        }
+    }
+
+    ID3D11Buffer* buffer() const { return m_buffer.Get(); }
+
+protected:
+    void* onMap() override
+    {
+        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        {
+            assert(m_mappedMemoryForImmutableBuffer);
+            return m_mappedMemoryForImmutableBuffer.get();
+        }
+        else
+        {
+            D3D11_MAPPED_SUBRESOURCE mappedSubresource;
+            m_gpuContext->Map(m_buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedSubresource);
+            return mappedSubresource.pData;
+        }
+    }
+
+    void onUnmap() override
+    {
+        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        {
+            assert(!m_buffer);
+            D3D11_SUBRESOURCE_DATA bufferDataDesc{};
+            bufferDataDesc.pSysMem = m_mappedMemoryForImmutableBuffer.get();
+            VERIFY_OK(m_gpu->CreateBuffer(&m_desc, &bufferDataDesc, m_buffer.GetAddressOf()));
+            m_mappedMemoryForImmutableBuffer.reset(); // This buffer will only be mapped once.
+        }
+        else
+        {
+            m_gpuContext->Unmap(m_buffer.Get(), 0);
+        }
+    }
+
+private:
+    const ComPtr<ID3D11Device> m_gpu;
+    const ComPtr<ID3D11DeviceContext> m_gpuContext;
+    D3D11_BUFFER_DESC m_desc{};
+    ComPtr<ID3D11Buffer> m_buffer;
+    std::unique_ptr<char[]> m_mappedMemoryForImmutableBuffer;
+};
+
+rcp<RenderBuffer> PLSRenderContextD3DImpl::makeRenderBuffer(RenderBufferType type,
+                                                            RenderBufferFlags flags,
+                                                            size_t sizeInBytes)
+{
+    return make_rcp<RenderBufferD3DImpl>(type, flags, sizeInBytes, m_gpu, m_gpuContext);
 }
 
 class PLSTextureD3DImpl : public PLSTexture
@@ -504,13 +607,20 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t
                                            D3D11_BIND_VERTEX_BUFFER);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makePixelUnpackBufferRing(
+    size_t capacity,
+    size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferRingD3D>(m_gpu.Get(),
-                                           m_gpuContext,
-                                           1,
-                                           itemSizeInBytes,
-                                           D3D11_BIND_CONSTANT_BUFFER);
+    // It appears impossible to update a D3D texture from a GPU buffer; store this data on the heap
+    // and upload it to the texture at flush time.
+    return std::make_unique<HeapBufferRing>(capacity, itemSizeInBytes);
+}
+
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t capacity,
+                                                                           size_t itemSizeInBytes)
+{
+    // In D3D we update uniform data inline with commands, rather than filling a buffer up front.
+    return std::make_unique<HeapBufferRing>(capacity, itemSizeInBytes);
 }
 
 PLSRenderTargetD3D::PLSRenderTargetD3D(ID3D11Device* gpu, size_t width, size_t height) :
@@ -616,12 +726,23 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         }
         s << "#define " << GLSL_ENABLE_BASE_INSTANCE_POLYFILL << '\n';
         s << glsl::hlsl << '\n';
+        s << glsl::constants << '\n';
         s << glsl::common << '\n';
         if (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
             s << glsl::advanced_blend << '\n';
         }
-        s << glsl::draw << '\n';
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+            case DrawType::outerCurvePatches:
+            case DrawType::interiorTriangulation:
+                s << pls::glsl::draw_path << '\n';
+                break;
+            case DrawType::imageMesh:
+                s << pls::glsl::draw_image_mesh << '\n';
+                break;
+        }
 
         const std::string shader = s.str();
 
@@ -664,6 +785,23 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                                      D3D11_INPUT_PER_VERTEX_DATA,
                                      0};
                     vertexAttribCount = 1;
+                    break;
+                case DrawType::imageMesh:
+                    layoutDesc[0] = {GLSL_a_position,
+                                     0,
+                                     DXGI_FORMAT_R32G32_FLOAT,
+                                     kImageMeshVertexDataSlot,
+                                     D3D11_APPEND_ALIGNED_ELEMENT,
+                                     D3D11_INPUT_PER_VERTEX_DATA,
+                                     0};
+                    layoutDesc[1] = {GLSL_a_texCoord,
+                                     0,
+                                     DXGI_FORMAT_R32G32_FLOAT,
+                                     kImageMeshUVDataSlot,
+                                     D3D11_APPEND_ALIGNED_ELEMENT,
+                                     D3D11_INPUT_PER_VERTEX_DATA,
+                                     0};
+                    vertexAttribCount = 2;
                     break;
             }
             VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
@@ -709,6 +847,11 @@ static ID3D11ShaderResourceView* submitted_srv(const TexelBufferRing* texelBuffe
     return static_cast<const TexelBufferD3D*>(texelBufferRing)->submittedSRV();
 }
 
+static const void* heap_buffer_contents(const BufferRing* bufferRing)
+{
+    return static_cast<const HeapBufferRing*>(bufferRing)->contents();
+}
+
 void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<const PLSRenderTargetD3D*>(desc.renderTarget);
@@ -726,8 +869,23 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_clipUAV.Get(), kZero);
     }
 
-    ID3D11Buffer* cbuffers[] = {submitted_buffer(uniformBufferRing()), m_perDrawUniforms.Get()};
+    ID3D11Buffer* cbuffers[] = {m_flushUniforms.Get(),
+                                m_imageMeshUniforms.Get(),
+                                m_baseInstanceUniform.Get()};
+    static_assert(FLUSH_UNIFORM_BUFFER_IDX == 0);
+    static_assert(IMAGE_MESH_UNIFORM_BUFFER_IDX == 1);
+    static_assert(BASE_INSTANCE_UNIFORM_BUFFER_IDX == 2);
     m_gpuContext->VSSetConstantBuffers(0, std::size(cbuffers), cbuffers);
+
+    m_gpuContext->RSSetState(m_pathRasterState[0].Get());
+
+    // All programs use the same set of per-flush uniforms.
+    m_gpuContext->UpdateSubresource(m_flushUniforms.Get(),
+                                    0,
+                                    NULL,
+                                    heap_buffer_contents(flushUniformBufferRing()),
+                                    0,
+                                    0);
 
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
@@ -764,7 +922,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
     if (desc.simpleGradTexelsHeight > 0)
     {
         assert(desc.simpleGradTexelsHeight * desc.simpleGradTexelsWidth <=
-               m_simpleColorRampsBuffer.size() * 2);
+               simpleColorRampsBufferRing()->capacity() * 2);
         D3D11_BOX box;
         box.left = 0;
         box.right = desc.simpleGradTexelsWidth;
@@ -775,7 +933,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         m_gpuContext->UpdateSubresource(m_gradTexture.Get(),
                                         0,
                                         &box,
-                                        m_simpleColorRampsBuffer.data(),
+                                        heap_buffer_contents(simpleColorRampsBufferRing()),
                                         kGradTextureWidth * 4,
                                         0);
     }
@@ -823,6 +981,9 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         }
     }
 
+    auto imageMeshUniformData = static_cast<const pls::ImageMeshUniforms*>(
+        heap_buffer_contents(imageMeshUniformBufferRing()));
+
     // Execute the DrawList.
     ID3D11UnorderedAccessView* plsUAVs[] = {renderTarget->m_targetUAV.Get(),
                                             renderTarget->m_coverageUAV.Get(),
@@ -841,7 +1002,6 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                                             NULL);
 
     m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
 
     ID3D11Buffer* vertexBuffers[] = {m_patchVertexBuffer.Get(),
                                      submitted_buffer(triangleBufferRing())};
@@ -870,16 +1030,15 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                0,
                                1};
     m_gpuContext->RSSetViewports(1, &viewport);
-    if (desc.wireframe)
-    {
-        m_gpuContext->RSSetState(m_debugWireframeState.Get());
-    }
 
+    m_gpuContext->PSSetConstantBuffers(IMAGE_MESH_UNIFORM_BUFFER_IDX,
+                                       1,
+                                       m_imageMeshUniforms.GetAddressOf());
     m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, m_gradTextureSRV.GetAddressOf());
 
     for (const Draw& draw : *desc.drawList)
     {
-        if (draw.vertexOrInstanceCount == 0)
+        if (draw.elementCount == 0)
         {
             continue;
         }
@@ -899,24 +1058,50 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
             {
-                PerDrawUniforms uniforms(draw.baseVertexOrInstance);
-                m_gpuContext->UpdateSubresource(m_perDrawUniforms.Get(), 0, NULL, &uniforms, 0, 0);
+                m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+                m_gpuContext->RSSetState(m_pathRasterState[desc.wireframe].Get());
+                BaseInstanceUniform baseInstance(draw.baseElement);
+                m_gpuContext
+                    ->UpdateSubresource(m_baseInstanceUniform.Get(), 0, NULL, &baseInstance, 0, 0);
                 m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
-                                                   draw.vertexOrInstanceCount,
+                                                   draw.elementCount,
                                                    PatchBaseIndex(drawType),
                                                    0,
-                                                   draw.baseVertexOrInstance);
+                                                   draw.baseElement);
                 break;
             }
             case DrawType::interiorTriangulation:
-                m_gpuContext->Draw(draw.vertexOrInstanceCount, draw.baseVertexOrInstance);
+            {
+                m_gpuContext->RSSetState(m_pathRasterState[desc.wireframe].Get());
+                m_gpuContext->Draw(draw.elementCount, draw.baseElement);
                 break;
+            }
+            case DrawType::imageMesh:
+            {
+                auto vertexBuffer = static_cast<const RenderBufferD3DImpl*>(draw.vertexBufferRef);
+                auto uvBuffer = static_cast<const RenderBufferD3DImpl*>(draw.uvBufferRef);
+                auto indexBuffer = static_cast<const RenderBufferD3DImpl*>(draw.indexBufferRef);
+                ID3D11Buffer* imageMeshBuffers[] = {vertexBuffer->buffer(), uvBuffer->buffer()};
+                UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
+                UINT imageMeshOffsets[] = {0, 0};
+                m_gpuContext->IASetVertexBuffers(kImageMeshVertexDataSlot,
+                                                 2,
+                                                 imageMeshBuffers,
+                                                 imageMeshStrides,
+                                                 imageMeshOffsets);
+                static_assert(kImageMeshUVDataSlot == kImageMeshVertexDataSlot + 1);
+                m_gpuContext->IASetIndexBuffer(indexBuffer->buffer(), DXGI_FORMAT_R16_UINT, 0);
+                m_gpuContext->RSSetState(m_imageMeshRasterState[desc.wireframe].Get());
+                m_gpuContext->UpdateSubresource(m_imageMeshUniforms.Get(),
+                                                0,
+                                                NULL,
+                                                imageMeshUniformData++,
+                                                0,
+                                                0);
+                m_gpuContext->DrawIndexed(draw.elementCount, draw.baseElement, 0);
+                break;
+            }
         }
-    }
-
-    if (desc.wireframe)
-    {
-        m_gpuContext->RSSetState(m_rasterState.Get());
     }
 }
 } // namespace rive::pls

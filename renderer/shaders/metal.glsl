@@ -57,10 +57,10 @@
 #define atan $atan2
 #define inversesqrt $rsqrt
 
-#define UNIFORM_BLOCK_BEGIN(N)                                                                     \
-    struct N                                                                                       \
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
+    struct NAME                                                                                    \
     {
-#define UNIFORM_BLOCK_END(N)                                                                       \
+#define UNIFORM_BLOCK_END(NAME)                                                                    \
     }                                                                                              \
     ;
 
@@ -151,9 +151,32 @@
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
         uint _instanceID [[$instance_id]],                                                         \
-        $constant Uniforms& uniforms [[$buffer(0)]],                                               \
+        $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
         $constant Attrs* attrs [[$buffer(1)]],                                                     \
         VertexTextures textures)                                                                   \
+    {                                                                                              \
+        Varyings varyings;                                                                         \
+        float4 _pos;
+
+#define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
+                               Uniforms,                                                           \
+                               uniforms,                                                           \
+                               MeshUniforms,                                                       \
+                               meshUniforms,                                                       \
+                               PositionAttr,                                                       \
+                               position,                                                           \
+                               UVAttr,                                                             \
+                               uv,                                                                 \
+                               Varyings,                                                           \
+                               varyings,                                                           \
+                               _vertexID,                                                          \
+                               _pos)                                                               \
+    $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
+        uint _vertexID [[$vertex_id]],                                                             \
+        $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
+        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_MESH_UNIFORM_BUFFER_IDX)]],           \
+        $constant PositionAttr* position [[$buffer(2)]],                                           \
+        $constant UVAttr* uv [[$buffer(3)]])                                                       \
     {                                                                                              \
         Varyings varyings;                                                                         \
         float4 _pos;
@@ -176,6 +199,22 @@
     $__attribute__(($visibility("default"))) PLS $fragment NAME(PLS _inpls,                        \
                                                                 Varyings varyings [[$stage_in]],   \
                                                                 FragmentTextures textures)         \
+    {                                                                                              \
+        PLS _pls;
+
+#define IMAGE_MESH_PLS_MAIN(NAME,                                                                  \
+                            MeshUniforms,                                                          \
+                            meshUniforms,                                                          \
+                            Varyings,                                                              \
+                            varyings,                                                              \
+                            FragmentTextures,                                                      \
+                            textures,                                                              \
+                            _pos)                                                                  \
+    $__attribute__(($visibility("default"))) PLS $fragment NAME(                                   \
+        PLS _inpls,                                                                                \
+        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_MESH_UNIFORM_BUFFER_IDX)]],           \
+        Varyings varyings [[$stage_in]],                                                           \
+        FragmentTextures textures)                                                                 \
     {                                                                                              \
         PLS _pls;
 

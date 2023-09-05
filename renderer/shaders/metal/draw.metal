@@ -4,6 +4,7 @@
 
 #define VERTEX
 #include "../../../out/obj/generated/metal.minified.glsl"
+#include "../../../out/obj/generated/constants.minified.glsl"
 #include "../../../out/obj/generated/common.minified.glsl"
 #undef VERTEX
 

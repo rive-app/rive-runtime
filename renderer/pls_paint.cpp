@@ -100,49 +100,9 @@ rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
                                radius));
 }
 
-static PLSBlendMode blend_mode_rive_to_pls(rive::BlendMode riveMode)
-{
-    switch (riveMode)
-    {
-        case rive::BlendMode::srcOver:
-            return PLSBlendMode::srcOver;
-        case rive::BlendMode::screen:
-            return PLSBlendMode::screen;
-        case rive::BlendMode::overlay:
-            return PLSBlendMode::overlay;
-        case rive::BlendMode::darken:
-            return PLSBlendMode::darken;
-        case rive::BlendMode::lighten:
-            return PLSBlendMode::lighten;
-        case rive::BlendMode::colorDodge:
-            return PLSBlendMode::colorDodge;
-        case rive::BlendMode::colorBurn:
-            return PLSBlendMode::colorBurn;
-        case rive::BlendMode::hardLight:
-            return PLSBlendMode::hardLight;
-        case rive::BlendMode::softLight:
-            return PLSBlendMode::softLight;
-        case rive::BlendMode::difference:
-            return PLSBlendMode::difference;
-        case rive::BlendMode::exclusion:
-            return PLSBlendMode::exclusion;
-        case rive::BlendMode::multiply:
-            return PLSBlendMode::multiply;
-        case rive::BlendMode::hue:
-            return PLSBlendMode::hue;
-        case rive::BlendMode::saturation:
-            return PLSBlendMode::saturation;
-        case rive::BlendMode::color:
-            return PLSBlendMode::color;
-        case rive::BlendMode::luminosity:
-            return PLSBlendMode::luminosity;
-    }
-    RIVE_UNREACHABLE();
-}
-
 void PLSPaint::blendMode(rive::BlendMode riveMode)
 {
-    m_blendMode = blend_mode_rive_to_pls(riveMode);
+    m_blendMode = pls::BlendModeRiveToPLS(riveMode);
 }
 
 void PLSPaint::color(ColorInt color)

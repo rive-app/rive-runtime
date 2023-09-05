@@ -57,38 +57,40 @@ GLuint CompileShader(GLuint type,
                      const GLExtensions& extensions,
                      const char* versionString)
 {
-    std::vector<const char*> sources;
-    sources.push_back(versionString ? versionString : "#version 300 es\n");
+    std::ostringstream shaderSource;
+    if (versionString != nullptr)
+    {
+        shaderSource << versionString;
+    }
+    else
+    {
+        shaderSource << "#version 300 es\n";
+    }
     if (type == GL_VERTEX_SHADER)
     {
-        sources.push_back("#define " GLSL_VERTEX "\n");
+        shaderSource << "#define " GLSL_VERTEX "\n";
     }
     else if (GL_FRAGMENT_SHADER)
     {
-        sources.push_back("#define " GLSL_FRAGMENT "\n");
+        shaderSource << "#define " GLSL_FRAGMENT "\n";
     }
     if (type == GL_VERTEX_SHADER && !extensions.ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        sources.push_back("#define " GLSL_ENABLE_BASE_INSTANCE_POLYFILL "\n");
+        shaderSource << "#define " GLSL_ENABLE_BASE_INSTANCE_POLYFILL "\n";
     }
-    std::ostringstream definesStream;
     for (size_t i = 0; i < numDefines; ++i)
     {
-        definesStream << "#define " << defines[i] << "\n";
+        shaderSource << "#define " << defines[i] << "\n";
     }
-    std::string definesString;
-    if (numDefines > 0)
-    {
-        definesString = definesStream.str();
-        sources.push_back(definesString.c_str());
-    }
-    sources.push_back(rive::pls::glsl::glsl);
+    shaderSource << rive::pls::glsl::glsl << "\n";
     for (size_t i = 0; i < numInputSources; ++i)
     {
-        sources.push_back(inputSources[i]);
+        shaderSource << inputSources[i] << "\n";
     }
+    const std::string& shaderSourceStr = shaderSource.str();
+    const char* shaderSourceCStr = shaderSourceStr.c_str();
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, sources.size(), sources.data(), nullptr);
+    glShaderSource(shader, 1, &shaderSourceCStr, nullptr);
     glCompileShader(shader);
     GLint isCompiled = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
@@ -100,14 +102,11 @@ GLuint CompileShader(GLuint type,
         glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
         fprintf(stderr, "Failed to compile shader\n");
         int l = 1;
-        for (const char* s : sources)
+        std::stringstream stream(shaderSourceCStr);
+        std::string lineStr;
+        while (std::getline(stream, lineStr, '\n'))
         {
-            std::stringstream stream(s);
-            std::string lineStr;
-            while (std::getline(stream, lineStr, '\n'))
-            {
-                fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
-            }
+            fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
         }
         fprintf(stderr, "%s\n", &infoLog[0]);
         fflush(stderr);

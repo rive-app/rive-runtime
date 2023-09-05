@@ -50,8 +50,7 @@ PLSRenderer::PathDraw::PathDraw(const Mat2D* matrix_,
     strokeMatrixMaxScale(stroked ? matrix->findMaxScale() : 0),
     clipID(clipID_),
     outerClipID(outerClipID_)
-{
-}
+{}
 
 PLSRenderer::PLSRenderer(PLSRenderContext* context) : m_context(context) {}
 
@@ -124,14 +123,14 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
     {
         const ClipElement& clip = m_clipStack[i];
         assert(clip.clipID != 0);
-        m_pathBatch.emplace_back(&clip.matrix,
-                                 &clip.path,
-                                 clip.pathBounds,
-                                 clip.fillRule,
-                                 pls::PaintType::clipUpdate,
-                                 nullptr,
-                                 clip.clipID,
-                                 outerClipID);
+        m_internalPathBatch.emplace_back(&clip.matrix,
+                                         &clip.path,
+                                         clip.pathBounds,
+                                         clip.fillRule,
+                                         pls::PaintType::clipUpdate,
+                                         nullptr,
+                                         clip.clipID,
+                                         outerClipID);
         outerClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
     }
     *clipID = m_clipStack[clipStackHeight - 1].clipID;
@@ -144,8 +143,8 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 {
     PLSPath* path = static_cast<PLSPath*>(renderPath);
     PLSPaint* paint = static_cast<PLSPaint*>(renderPaint);
-
     bool stroked = paint->getIsStroked();
+
     if (stroked && m_context->frameDescriptor().strokesDisabled)
     {
         return;
@@ -154,43 +153,42 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     {
         return;
     }
-
-    // A stroke width of zero means a path is filled in PLS.
+    // A stroke width of zero in PLS means a path is filled.
     if (stroked && paint->getThickness() <= 0)
     {
         return;
     }
 
-    // Make (up to) two attempts to draw the path plus any necessary clip updates in a single batch.
-    // If the first attempt fails, flush to make room and try again.
-    for (size_t i = 0; i < 2; ++i)
+    if (!pushPathDraw(path, paint))
     {
-        m_pathBatch.clear();
-        uint32_t clipID;
-        if (!applyClip(&clipID))
+        // There wasn't room in the GPU buffers for this path draw. Flush and try again.
+        m_context->flush(PLSRenderContext::FlushType::intermediate);
+        if (!pushPathDraw(path, paint))
         {
-            m_context->flush(PLSRenderContext::FlushType::intermediate);
-            continue;
+            fprintf(stderr,
+                    "PLSRenderer::drawPath failed. The path and/or clip stack and/or paint are too "
+                    "complex.\n");
         }
-        m_pathBatch.emplace_back(&m_stack.back().matrix,
-                                 &path->getRawPath(),
-                                 path->getBounds(),
-                                 path->getFillRule(),
-                                 paint->getType(),
-                                 paint,
-                                 clipID,
-                                 0);
-        if (!pushInternalPathBatch())
-        {
-            m_context->flush(PLSRenderContext::FlushType::intermediate);
-            continue;
-        }
-        return;
     }
+}
 
-    fprintf(
-        stderr,
-        "PLSRenderer::drawPath failed. The path and/or clip stack and/or paint are too complex.\n");
+bool PLSRenderer::pushPathDraw(PLSPath* path, PLSPaint* paint)
+{
+    m_internalPathBatch.clear();
+    uint32_t clipID;
+    if (!applyClip(&clipID))
+    {
+        return false;
+    }
+    m_internalPathBatch.emplace_back(&m_stack.back().matrix,
+                                     &path->getRawPath(),
+                                     path->getBounds(),
+                                     path->getFillRule(),
+                                     paint->getType(),
+                                     paint,
+                                     clipID,
+                                     0);
+    return pushInternalPathBatchToContext();
 }
 
 void PLSRenderer::clipPath(RenderPath* renderPath)
@@ -275,23 +273,8 @@ void PLSRenderer::clipRect(AABB rect, PLSPath* originalPath)
         simd::store(&m_stack.back().clipRect, intersection);
     }
 
-    // Find the matrix that transforms from pixel space to "normalized clipRect space", where the
-    // clipRect is the normalized rectangle: [-1, -1, +1, +1].
-    const AABB& clipRect = m_stack.back().clipRect;
-    Mat2D m = m_stack.back().clipRectMatrix * Mat2D(clipRect.width() * .5f,
-                                                    0,
-                                                    0,
-                                                    clipRect.height() * .5f,
-                                                    clipRect.center().x,
-                                                    clipRect.center().y);
-    if (clipRect.width() <= 0 || clipRect.height() <= 0 ||
-        !m.invert(&m_stack.back().pixelToNormalizedClipRect))
-    {
-        // If the width or height went zero or negative, or if m is non-invertible, force the
-        // clipRect coverage to 0. (The shader uses tx and ty as uniform clipRect coverage if the
-        // matrix is singular.)
-        m_stack.back().pixelToNormalizedClipRect = {0, 0, 0, 0, 0, 0};
-    }
+    m_stack.back().clipRectInverseMatrix.reset(m_stack.back().clipRectMatrix,
+                                               m_stack.back().clipRect);
 }
 
 void PLSRenderer::clipPath(PLSPath* path)
@@ -328,7 +311,7 @@ void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode,
     path.line({0, 1});
 
     PLSPaint paint;
-    paint.image(image->refTexture(m_context->impl()), opacity);
+    paint.image(image->refTexture(), opacity);
     paint.blendMode(blendMode);
 
     drawPath(&path, &paint);
@@ -336,15 +319,82 @@ void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode,
     restore();
 }
 
-void PLSRenderer::drawImageMesh(const RenderImage*,
+void PLSRenderer::drawImageMesh(const RenderImage* renderImage,
                                 rcp<RenderBuffer> vertices_f32,
                                 rcp<RenderBuffer> uvCoords_f32,
                                 rcp<RenderBuffer> indices_u16,
                                 uint32_t vertexCount,
                                 uint32_t indexCount,
-                                BlendMode,
+                                BlendMode blendMode,
                                 float opacity)
-{}
+{
+    const PLSTexture* plsTexture = static_cast<const PLSImage*>(renderImage)->getTexture();
+    assert(vertices_f32);
+    assert(uvCoords_f32);
+    assert(indices_u16);
+
+    if (!pushImageMeshDraw(plsTexture,
+                           vertices_f32.get(),
+                           uvCoords_f32.get(),
+                           indices_u16.get(),
+                           vertexCount,
+                           indexCount,
+                           blendMode,
+                           opacity))
+    {
+        // There wasn't room in the GPU buffers for this image mesh draw. Flush and try again.
+        m_context->flush(PLSRenderContext::FlushType::intermediate);
+        if (!pushImageMeshDraw(plsTexture,
+                               vertices_f32.get(),
+                               uvCoords_f32.get(),
+                               indices_u16.get(),
+                               vertexCount,
+                               indexCount,
+                               blendMode,
+                               opacity))
+        {
+            fprintf(stderr, "PLSRenderer::drawImageMesh failed. The clip stack is too complex.\n");
+        }
+    }
+}
+
+bool PLSRenderer::pushImageMeshDraw(const PLSTexture* plsTexture,
+                                    RenderBuffer* vertices_f32,
+                                    RenderBuffer* uvCoords_f32,
+                                    RenderBuffer* indices_u16,
+                                    uint32_t vertexCount,
+                                    uint32_t indexCount,
+                                    BlendMode blendMode,
+                                    float opacity)
+{
+    if (!m_context->reserveImageMeshData())
+    {
+        return false;
+    }
+    m_internalPathBatch.clear();
+    uint32_t clipID;
+    if (!applyClip(&clipID))
+    {
+        return false;
+    }
+    // Draw clip paths into the clip buffer (if any).
+    if (!m_internalPathBatch.empty() && !pushInternalPathBatchToContext())
+    {
+        return false;
+    }
+    m_context->pushImageMesh(m_stack.back().matrix,
+                             opacity,
+                             plsTexture,
+                             vertices_f32,
+                             uvCoords_f32,
+                             indices_u16,
+                             indexCount,
+                             clipID,
+                             m_stack.back().hasClipRect ? &m_stack.back().clipRectInverseMatrix
+                                                        : nullptr,
+                             pls::BlendModeRiveToPLS(blendMode));
+    return true;
+}
 
 namespace
 {
@@ -817,7 +867,7 @@ private:
     RIVE_DEBUG_CODE(size_t m_writtenTessVertexCount = 0;)
 };
 
-bool PLSRenderer::pushInternalPathBatch()
+bool PLSRenderer::pushInternalPathBatchToContext()
 {
     // Count up how much temporary storage this function will need to reserve in CPU buffers.
     size_t maxStrokedCurvesBeforeChops = 0;
@@ -825,7 +875,7 @@ bool PLSRenderer::pushInternalPathBatch()
     size_t maxTotalCurvesAfterChops = 0;
     size_t maxTangentPairs = 0;
     bool hasStrokes = false;
-    for (const PathDraw& path : m_pathBatch)
+    for (const PathDraw& path : m_internalPathBatch)
     {
         const RawPath* rawPath = path.rawPath;
         if (rawPath->empty())
@@ -891,7 +941,7 @@ bool PLSRenderer::pushInternalPathBatch()
     size_t lineCount = 0;
     size_t curveCount = 0;
     size_t rotationCount = 0; // We measure rotations on both curves and round joins.
-    for (PathDraw& path : m_pathBatch)
+    for (PathDraw& path : m_internalPathBatch)
     {
         if (path.rawPath->empty())
         {
@@ -1130,7 +1180,7 @@ bool PLSRenderer::pushInternalPathBatch()
     size_t contourFirstRotationIdx = 0;
     size_t emptyStrokeCountForCaps = 0;
     PLSRenderContext::TessVertexCounter tessVertexCounter(m_context);
-    for (PathDraw& path : m_pathBatch)
+    for (PathDraw& path : m_internalPathBatch)
     {
         if (path.rawPath->empty())
         {
@@ -1338,7 +1388,7 @@ bool PLSRenderer::pushInternalPathBatch()
     // Attempt to reserve space on the GPU for our entire batch of paths.
     size_t curveReserveCount =
         curveCount + lineCount + emptyStrokeCountForCaps + interiorTriHelper.patchCount();
-    if (!m_context->reservePathData(m_pathBatch.size(),
+    if (!m_context->reservePathData(m_internalPathBatch.size(),
                                     contourCount,
                                     curveReserveCount,
                                     tessVertexCounter))
@@ -1349,7 +1399,7 @@ bool PLSRenderer::pushInternalPathBatch()
 
     // Set up rendering for the paints, including allocating span in the gradient texture, if
     // needed.
-    for (PathDraw& path : m_pathBatch)
+    for (PathDraw& path : m_internalPathBatch)
     {
         switch (path.paintType)
         {
@@ -1385,7 +1435,7 @@ bool PLSRenderer::pushInternalPathBatch()
     size_t curveIdx = 0;
     size_t rotationIdx = 0;
     RawPath::Iter startOfContour;
-    for (PathDraw& path : m_pathBatch)
+    for (PathDraw& path : m_internalPathBatch)
     {
         if (path.tessVertexCount == 0)
         {
@@ -1398,8 +1448,8 @@ bool PLSRenderer::pushInternalPathBatch()
         // Push a path record.
         bool isClipUpdate = path.paintType == PaintType::clipUpdate;
         const PLSTexture* imageTexture = isClipUpdate ? nullptr : path.paint->getImageTexture();
-        const Mat2D* pixelToNormalizedClipRect =
-            m_stack.back().hasClipRect ? &m_stack.back().pixelToNormalizedClipRect : nullptr;
+        const pls::ClipRectInverseMatrix* clipRectInverseMatrix =
+            m_stack.back().hasClipRect ? &m_stack.back().clipRectInverseMatrix : nullptr;
         pls::PLSBlendMode blendMode =
             isClipUpdate ? pls::PLSBlendMode::srcOver : path.paint->getBlendMode();
         m_context->pushPath(path.triangulator ? PatchType::outerCurves : PatchType::midpointFan,
@@ -1410,7 +1460,7 @@ bool PLSRenderer::pushInternalPathBatch()
                             path.paintRenderData,
                             imageTexture,
                             path.clipID,
-                            pixelToNormalizedClipRect,
+                            clipRectInverseMatrix,
                             blendMode, // Ignored by clip updates.
                             path.tessVertexCount,
                             path.paddingVertexCount);
@@ -1429,7 +1479,7 @@ bool PLSRenderer::pushInternalPathBatch()
                                                  path.paintRenderData,
                                                  imageTexture,
                                                  path.clipID,
-                                                 pixelToNormalizedClipRect,
+                                                 clipRectInverseMatrix != nullptr,
                                                  blendMode);
         }
         else
@@ -1460,7 +1510,7 @@ bool PLSRenderer::pushInternalPathBatch()
     }
 
     // Make sure we only pushed the amount of data we reserved.
-    assert(pushedPathCount + skippedPathCount == m_pathBatch.size());
+    assert(pushedPathCount + skippedPathCount == m_internalPathBatch.size());
     assert(pushedContourCount + skippedContourCount == contourCount);
     assert(m_pushedLineCount == lineCount);
     assert(m_pushedCurveCount == curveCount);

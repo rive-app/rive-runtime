@@ -4,10 +4,52 @@
 
 #include "rive/pls/pls.hpp"
 
-#include "../out/obj/generated/draw.exports.h"
+#include "rive/refcnt.hpp"
+
+#include "../out/obj/generated/draw_path.exports.h"
 
 namespace rive::pls
 {
+PLSBlendMode BlendModeRiveToPLS(rive::BlendMode riveMode)
+{
+    switch (riveMode)
+    {
+        case rive::BlendMode::srcOver:
+            return PLSBlendMode::srcOver;
+        case rive::BlendMode::screen:
+            return PLSBlendMode::screen;
+        case rive::BlendMode::overlay:
+            return PLSBlendMode::overlay;
+        case rive::BlendMode::darken:
+            return PLSBlendMode::darken;
+        case rive::BlendMode::lighten:
+            return PLSBlendMode::lighten;
+        case rive::BlendMode::colorDodge:
+            return PLSBlendMode::colorDodge;
+        case rive::BlendMode::colorBurn:
+            return PLSBlendMode::colorBurn;
+        case rive::BlendMode::hardLight:
+            return PLSBlendMode::hardLight;
+        case rive::BlendMode::softLight:
+            return PLSBlendMode::softLight;
+        case rive::BlendMode::difference:
+            return PLSBlendMode::difference;
+        case rive::BlendMode::exclusion:
+            return PLSBlendMode::exclusion;
+        case rive::BlendMode::multiply:
+            return PLSBlendMode::multiply;
+        case rive::BlendMode::hue:
+            return PLSBlendMode::hue;
+        case rive::BlendMode::saturation:
+            return PLSBlendMode::saturation;
+        case rive::BlendMode::color:
+            return PLSBlendMode::color;
+        case rive::BlendMode::luminosity:
+            return PLSBlendMode::luminosity;
+    }
+    RIVE_UNREACHABLE();
+}
+
 const char* GetShaderFeatureGLSLName(ShaderFeatures feature)
 {
     switch (feature)
@@ -222,5 +264,23 @@ float FindTransformedArea(const AABB& bounds, const Mat2D& matrix)
                   screenSpacePts[2] - screenSpacePts[0],
                   screenSpacePts[3] - screenSpacePts[0]};
     return (fabsf(Vec2D::cross(v[0], v[1])) + fabsf(Vec2D::cross(v[1], v[2]))) * .5f;
+}
+
+void ClipRectInverseMatrix::reset(const Mat2D& clipMatrix, const AABB& clipRect)
+{
+    // Find the matrix that transforms from pixel space to "normalized clipRect space", where the
+    // clipRect is the normalized rectangle: [-1, -1, +1, +1].
+    Mat2D m = clipMatrix * Mat2D(clipRect.width() * .5f,
+                                 0,
+                                 0,
+                                 clipRect.height() * .5f,
+                                 clipRect.center().x,
+                                 clipRect.center().y);
+    if (clipRect.width() <= 0 || clipRect.height() <= 0 || !m.invert(&m_inverseMatrix))
+    {
+        // If the width or height went zero or negative, or if "m" is non-invertible, clip away
+        // everything.
+        *this = Empty();
+    }
 }
 } // namespace rive::pls

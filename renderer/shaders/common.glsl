@@ -2,52 +2,7 @@
  * Copyright 2022 Rive
  */
 
-// Common definitions shared by multiple shaders.
-
-#define TESS_TEXTURE_WIDTH 2048.
-#define TESS_TEXTURE_WIDTH_LOG2 11
-
-// Flags that must stay in sync with pls.hpp.
-#define RETROFITTED_TRIANGLE_FLAG (1u << 31)
-#define CULL_EXCESS_TESSELLATION_SEGMENTS_FLAG (1u << 30)
-#define JOIN_TYPE_MASK (3u << 28)
-#define MITER_CLIP_JOIN (3u << 28)
-#define MITER_REVERT_JOIN (2u << 28)
-#define BEVEL_JOIN (1u << 28)
-#define EMULATED_STROKE_CAP_FLAG (1u << 27)
-
-// Internal flags.
-#define MIRRORED_CONTOUR_FLAG (1u << 26)
-#define JOIN_TANGENT_0_FLAG (1u << 25)
-#define JOIN_TANGENT_INNER_FLAG (1u << 24)
-#define LEFT_JOIN_FLAG (1u << 23)
-#define RIGHT_JOIN_FLAG (1u << 22)
-#define CONTOUR_ID_MASK 0xffffu
-
-#define PI 3.141592653589793238
-
-#define GRAD_TEXTURE_WIDTH 512.
-
-#define EVEN_ODD_FLAG (1u << 31)
-#define SOLID_COLOR_PAINT_TYPE 0u
-#define LINEAR_GRADIENT_PAINT_TYPE 1u
-#define RADIAL_GRADIENT_PAINT_TYPE 2u
-#define IMAGE_PAINT_TYPE 3u
-#define CLIP_UPDATE_PAINT_TYPE 4u
-
-#define TESS_VERTEX_TEXTURE_IDX 0
-#define PATH_TEXTURE_IDX 1
-#define CONTOUR_TEXTURE_IDX 2
-#define GRAD_TEXTURE_IDX 3
-#define IMAGE_TEXTURE_IDX 4
-
-// acos(1/4), because the miter limit is always 4.
-#define MITER_ANGLE_LIMIT 1.318116071652817965746
-
-// Raw bit representation of the largest denormalized fp16 value. We offset all (1-based) path IDs
-// by this value in order to avoid denorms, which have been empirically unreliable on Android as ID
-// values.
-#define MAX_DENORM_F16 1023u
+// Common functions shared by multiple shaders.
 
 INLINE int2 contour_texel_coord(uint contourIDWithFlags)
 {
@@ -62,6 +17,11 @@ INLINE int2 path_texel_coord(uint pathIDBits)
 }
 
 INLINE float2 unchecked_mix(float2 a, float2 b, float t) { return (b - a) * t + a; }
+
+INLINE half id_bits_to_f16(uint idBits, uint pathIDGranularity)
+{
+    return idBits == 0u ? .0 : unpackHalf2x16((idBits + MAX_DENORM_F16) * pathIDGranularity).r;
+}
 
 INLINE float atan2(float2 v)
 {
@@ -83,8 +43,41 @@ INLINE half4 unmultiply(half4 color)
 
 INLINE float2x2 make_float2x2(float4 f) { return float2x2(f.xy, f.zw); }
 
+INLINE half min_value(half4 min4)
+{
+    half2 min2 = min(min4.xy, min4.zw);
+    half min1 = min(min2.x, min2.y);
+    return min1;
+}
+
 #ifdef @VERTEX
-UNIFORM_BLOCK_BEGIN(@Uniforms)
+// Calculates the Manhattan distance in pixels from the given pixelPosition, to the point at each
+// edge of the clipRect where coverage = 0.
+//
+// clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
+// normalized rectangle: [-1, -1, 1, 1].
+INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
+                                                float2 clipRectInverseTranslate,
+                                                float2 pixelPosition)
+{
+    float2 clipRectAAWidth = abs(clipRectInverseMatrix[0]) + abs(clipRectInverseMatrix[1]);
+    if (clipRectAAWidth.x != .0 && clipRectAAWidth.y != .0)
+    {
+        float2 r = 1. / clipRectAAWidth;
+        float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) + clipRectInverseTranslate;
+        // When the center of a pixel falls exactly on an edge, coverage should be .5.
+        const float coverageWhenDistanceIsZero = .5;
+        return float4(clipRectCoord, -clipRectCoord) * r.xyxy + r.xyxy + coverageWhenDistanceIsZero;
+    }
+    else
+    {
+        // The caller gave us a singular clipRectInverseMatrix. This is a special case where we are
+        // expected to use tx and ty as uniform coverage.
+        return clipRectInverseTranslate.xyxy;
+    }
+}
+
+UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @Uniforms)
 float gradInverseViewportY;
 float tessInverseViewportY;
 float renderTargetInverseViewportX;
@@ -92,6 +85,6 @@ float renderTargetInverseViewportY;
 float gradTextureInverseHeight;
 uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
 float vertexDiscardValue;
-uint pad;
+uint padding;
 UNIFORM_BLOCK_END(uniforms)
 #endif

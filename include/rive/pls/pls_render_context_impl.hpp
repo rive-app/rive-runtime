@@ -18,6 +18,8 @@ public:
 
     const PlatformFeatures& platformFeatures() const { return m_platformFeatures; }
 
+    virtual rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) = 0;
+
     // Decodes the image bytes and creates a texture that can be bound to the draw shader for an
     // image paint.
     virtual rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) = 0;
@@ -33,6 +35,7 @@ public:
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
     virtual void resizeGradientTexture(size_t height) = 0;
     virtual void resizeTessellationTexture(size_t height) = 0;
+    virtual void resizeImageMeshUniformBuffer(size_t sizeInBytes) = 0;
 
     // Perform any synchronization or other tasks that need to run immediately before
     // PLSRenderContext begins mapping buffers for the next flush.
@@ -41,12 +44,14 @@ public:
     // Map GPU resources. (The implementation may wish to allocate the mappable resources in rings,
     // in order to avoid expensive synchronization with the GPU pipeline.
     // See PLSRenderContextBufferRingImpl.)
-    virtual void mapPathTexture(WriteOnlyMappedMemory<PathData>*) = 0;
-    virtual void mapContourTexture(WriteOnlyMappedMemory<ContourData>*) = 0;
-    virtual void mapSimpleColorRampsBuffer(WriteOnlyMappedMemory<TwoTexelRamp>*) = 0;
-    virtual void mapGradSpanBuffer(WriteOnlyMappedMemory<GradientSpan>*) = 0;
-    virtual void mapTessVertexSpanBuffer(WriteOnlyMappedMemory<TessVertexSpan>*) = 0;
-    virtual void mapTriangleVertexBuffer(WriteOnlyMappedMemory<TriangleVertex>*) = 0;
+    virtual void mapPathTexture(WriteOnlyMappedMemory<pls::PathData>*) = 0;
+    virtual void mapContourTexture(WriteOnlyMappedMemory<pls::ContourData>*) = 0;
+    virtual void mapSimpleColorRampsBuffer(WriteOnlyMappedMemory<pls::TwoTexelRamp>*) = 0;
+    virtual void mapGradSpanBuffer(WriteOnlyMappedMemory<pls::GradientSpan>*) = 0;
+    virtual void mapTessVertexSpanBuffer(WriteOnlyMappedMemory<pls::TessVertexSpan>*) = 0;
+    virtual void mapTriangleVertexBuffer(WriteOnlyMappedMemory<pls::TriangleVertex>*) = 0;
+    virtual void mapImageMeshUniformBuffer(WriteOnlyMappedMemory<pls::ImageMeshUniforms>*) = 0;
+    virtual void mapFlushUniformBuffer(WriteOnlyMappedMemory<pls::FlushUniforms>*) = 0;
 
     // Unmap GPU resources. All resources will be unmapped before flush().
     virtual void unmapPathTexture(size_t widthWritten, size_t heightWritten) = 0;
@@ -55,10 +60,8 @@ public:
     virtual void unmapGradSpanBuffer(size_t bytesWritten) = 0;
     virtual void unmapTessVertexSpanBuffer(size_t bytesWritten) = 0;
     virtual void unmapTriangleVertexBuffer(size_t bytesWritten) = 0;
-
-    // Update the FlushUniforms used by the Rive renderer shaders. This method is called immediately
-    // before flush(), and only if the uniform data has changed.
-    virtual void updateFlushUniforms(const FlushUniforms*) = 0;
+    virtual void unmapImageMeshUniformBuffer(size_t bytesWritten) = 0;
+    virtual void unmapFlushUniformBuffer() = 0;
 
     // Perform rendering in three steps:
     //
@@ -74,6 +77,7 @@ public:
     virtual void flush(const PLSRenderContext::FlushDescriptor&) = 0;
 
 protected:
+    using Draw = PLSRenderContext::Draw;
     PlatformFeatures m_platformFeatures;
 };
 } // namespace rive::pls

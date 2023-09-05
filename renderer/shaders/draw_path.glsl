@@ -58,15 +58,10 @@ float calc_aa_radius(float2x2 mat, float2 normalized)
     return (abs(v.x) + abs(v.y)) * (1. / dot(v, v)) * AA_RADIUS;
 }
 
-half id_bits_to_f16(uint idBits, uint pathIDGranularity)
-{
-    return idBits == 0u ? .0 : unpackHalf2x16((idBits + MAX_DENORM_F16) * pathIDGranularity).r;
-}
-
 #ifdef @ENABLE_BASE_INSTANCE_POLYFILL
 // Define a uniform that will supply the base instance if we're on a platform that doesn't provide
 // this as a built-in.
-BASE_INSTANCE_POLYFILL_DECL(@baseInstancePolyfill);
+BASE_INSTANCE_POLYFILL_DECL(BASE_INSTANCE_UNIFORM_BUFFER_IDX, @baseInstancePolyfill);
 #endif
 
 VERTEX_MAIN(@drawVertexMain,
@@ -373,25 +368,9 @@ VERTEX_MAIN(@drawVertexMain,
         uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(3, 0))));
     float2 clipRectInverseTranslate =
         uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, pathTexelCoord + int2(4, 0)).xy);
-    float2 clipRectAAWidth = abs(clipRectInverseMatrix[0]) + abs(clipRectInverseMatrix[1]);
-    if (clipRectAAWidth.x != .0 && clipRectAAWidth.y != .0)
-    {
-        float2 r = 1. / clipRectAAWidth;
-        float2 clipRectCoord =
-            MUL(clipRectInverseMatrix, vertexPosition) + clipRectInverseTranslate;
-        // v_clipRect interpolates the AA coverage, based on Manhattan distance in pixel space, to
-        // each edge of the clipRect. When the center of a pixel falls exactly on an edge, coverage
-        // should be .5.
-        const float coverageWhenDistanceIsZero = .5;
-        v_clipRect =
-            float4(clipRectCoord, -clipRectCoord) * r.xyxy + r.xyxy + coverageWhenDistanceIsZero;
-    }
-    else
-    {
-        // The caller gave us a singular clipRectInverseMatrix. This is a special case where we are
-        // expected to use tx and ty as uniform coverage.
-        v_clipRect = clipRectInverseTranslate.xyxy;
-    }
+    v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
+                                                   clipRectInverseTranslate,
+                                                   vertexPosition);
 #endif
 
     // Unpack the paint once we have a position.
@@ -500,13 +479,6 @@ PLS_DECLUI(1, coverageCountBuffer);
 PLS_DECL4F(2, originalDstColorBuffer);
 PLS_DECLUI(3, clipBuffer);
 PLS_BLOCK_END
-
-INLINE half min_value(half4 min4)
-{
-    half2 min2 = min(min4.xy, min4.zw);
-    half min1 = min(min2.x, min2.y);
-    return min1;
-}
 
 PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos)
 {
@@ -669,7 +641,7 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (v_blendMode != .0 /*srcOver*/)
+        if (v_blendMode != .0 /*!srcOver*/)
         {
 #ifdef @ENABLE_HSL_BLEND_MODES
             color = advanced_hsl_blend(

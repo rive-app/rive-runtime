@@ -53,7 +53,6 @@ struct GLExtensions
 #define glPixelLocalStorageBarrierWEBGL glPixelLocalStorageBarrierANGLE
 #define glPixelLocalStorageBarrierWEBGL glPixelLocalStorageBarrierANGLE
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL GL_FIRST_VERTEX_CONVENTION_ANGLE
-#define RIVE_WEBGL
 #endif
 
 #ifdef RIVE_GLES
@@ -75,10 +74,9 @@ extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 #import <OpenGLES/ES3/glext.h>
 #endif
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 #include <GLES3/gl3.h>
 #include <webgl/webgl2_ext.h>
 #define GL_UNMASKED_RENDERER_WEBGL 0x9246
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL 0x8E4D
-#define RIVE_WEBGL
 #endif

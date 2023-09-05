@@ -87,9 +87,30 @@ void PLSRenderContext::resetDrawList()
     // TrivialBlockAllocator prevents us from doing this automatically in a destructor.
     for (Draw& draw : m_drawList)
     {
-        safe_unref(draw.imageTextureRef);
+        draw.releaseRefs();
     }
     m_drawList.reset();
+}
+
+void PLSRenderContext::Draw::releaseRefs()
+{
+    safe_unref(imageTextureRef);
+    imageTextureRef = nullptr;
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+            break;
+        case DrawType::imageMesh:
+            safe_unref(vertexBufferRef);
+            safe_unref(uvBufferRef);
+            safe_unref(indexBufferRef);
+            vertexBufferRef = nullptr;
+            uvBufferRef = nullptr;
+            indexBufferRef = nullptr;
+            break;
+    }
 }
 
 void PLSRenderContext::resetGPUResources()
@@ -291,6 +312,26 @@ void PLSRenderContext::allocateGPUResources(
     }
     COUNT_RESOURCE_SIZE(m_currentResourceLimits.maxTessellationSpans * sizeof(TessVertexSpan) *
                         kBufferRingSize);
+
+    // Uniform buffer containing data for each image mesh draw.
+    constexpr size_t kMinImageMeshUniforms = 64;     // 4KiB * 3
+    constexpr size_t kMaxImageMeshUniforms = 131072; // 8MiB * 3
+    size_t targetImageMeshUniforms =
+        std::clamp(targets.maxImageMeshUniforms, kMinImageMeshUniforms, kMaxImageMeshUniforms);
+    if (shouldReallocate(targetImageMeshUniforms, m_currentResourceLimits.maxImageMeshUniforms))
+    {
+        assert(!m_imageMeshUniformData);
+        m_impl->resizeImageMeshUniformBuffer(targetImageMeshUniforms *
+                                             sizeof(pls::ImageMeshUniforms));
+        LOG_CHANGED_SIZE("maxImageMeshUniforms",
+                         m_currentResourceLimits.maxImageMeshUniforms,
+                         targetImageMeshUniforms,
+                         targetImageMeshUniforms * sizeof(pls::ImageMeshUniforms) *
+                             pls::kBufferRingSize);
+        m_currentResourceLimits.maxImageMeshUniforms = targetImageMeshUniforms;
+    }
+    COUNT_RESOURCE_SIZE(m_currentResourceLimits.maxImageMeshUniforms *
+                        sizeof(pls::ImageMeshUniforms) * pls::kBufferRingSize);
 
     // Instance buffer ring for literal triangles fed directly by the CPU.
     constexpr size_t kMinTriangleVertexCount = 3072 * 3; // 324 KiB
@@ -577,7 +618,7 @@ void PLSRenderContext::pushPath(PatchType patchType,
                                 const PaintData& paintData,
                                 const PLSTexture* imageTexture,
                                 uint32_t clipID,
-                                const Mat2D* pixelToNormalizedClipRect,
+                                const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
                                 PLSBlendMode blendMode,
                                 uint32_t tessVertexCount,
                                 uint32_t paddingVertexCount)
@@ -595,7 +636,7 @@ void PLSRenderContext::pushPath(PatchType patchType,
                         clipID,
                         blendMode,
                         paintData,
-                        pixelToNormalizedClipRect);
+                        clipRectInverseMatrix);
 
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
@@ -609,17 +650,16 @@ void PLSRenderContext::pushPath(PatchType patchType,
     // The caller is responsible to pad each path so it begins on a multiple of the patch size.
     // (See PLSRenderContext::PathPaddingCalculator.)
     assert(baseInstance * patchSize == baseVertexToDraw);
-    pushDraw(drawType,
-             baseInstance,
-             fillRule,
-             paintType,
-             paintData,
-             imageTexture,
-             clipID,
-             pixelToNormalizedClipRect,
-             blendMode);
-    assert(m_drawList.tail().baseVertexOrInstance + m_drawList.tail().vertexOrInstanceCount ==
-           baseInstance);
+    pushPathDraw(drawType,
+                 baseInstance,
+                 fillRule,
+                 paintType,
+                 paintData,
+                 imageTexture,
+                 clipID,
+                 clipRectInverseMatrix != nullptr,
+                 blendMode);
+    assert(m_drawList.tail().baseElement + m_drawList.tail().elementCount == baseInstance);
     uint32_t vertexCountToDraw = tessVertexCount - paddingVertexCount;
     if (m_currentPathNeedsMirroredContours)
     {
@@ -628,7 +668,7 @@ void PLSRenderContext::pushPath(PatchType patchType,
     uint32_t instanceCount = vertexCountToDraw / patchSize;
     // The caller is responsible to pad each contour so it ends on a multiple of the patch size.
     assert(instanceCount * patchSize == vertexCountToDraw);
-    m_drawList.tail().vertexOrInstanceCount += instanceCount;
+    m_drawList.tail().elementCount += instanceCount;
 
     // The first curve of the path will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument align the beginning of the path
@@ -831,21 +871,87 @@ void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangu
                                                  const PaintData& paintData,
                                                  const PLSTexture* imageTexture,
                                                  uint32_t clipID,
-                                                 const Mat2D* pixelToNormalizedClipRect,
+                                                 bool hasClipRect,
                                                  PLSBlendMode blendMode)
 {
-    pushDraw(DrawType::interiorTriangulation,
-             0,
-             triangulator->fillRule(),
-             paintType,
-             paintData,
-             imageTexture,
-             clipID,
-             pixelToNormalizedClipRect,
-             blendMode);
+    pushPathDraw(DrawType::interiorTriangulation,
+                 0,
+                 triangulator->fillRule(),
+                 paintType,
+                 paintData,
+                 imageTexture,
+                 clipID,
+                 hasClipRect,
+                 blendMode);
     m_maxTriangleVertexCount += triangulator->maxVertexCount();
     triangulator->setPathID(m_currentPathID);
     m_drawList.tail().triangulator = triangulator;
+}
+
+bool PLSRenderContext::reserveImageMeshData()
+{
+    if (!m_imageMeshUniformData)
+    {
+        m_impl->mapImageMeshUniformBuffer(&m_imageMeshUniformData);
+        assert(m_imageMeshUniformData.hasRoomFor(1));
+    }
+    return m_imageMeshUniformData.hasRoomFor(1);
+}
+
+void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
+                                     float opacity,
+                                     const PLSTexture* imageTexture,
+                                     const RenderBuffer* vertexBuffer,
+                                     const RenderBuffer* uvBuffer,
+                                     const RenderBuffer* indexBuffer,
+                                     uint32_t indexCount,
+                                     uint32_t clipID,
+                                     const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
+                                     PLSBlendMode blendMode)
+{
+    m_imageMeshUniformData.emplace_back(matrix,
+                                        opacity,
+                                        clipRectInverseMatrix,
+                                        clipID,
+                                        blendMode);
+
+    pushDraw(DrawType::imageMesh,
+             0,
+             PaintType::image,
+             imageTexture,
+             clipID,
+             clipRectInverseMatrix != nullptr,
+             blendMode);
+
+    Draw& draw = m_drawList.tail();
+    draw.elementCount = indexCount;
+    draw.vertexBufferRef = safe_ref(vertexBuffer);
+    draw.uvBufferRef = safe_ref(uvBuffer);
+    draw.indexBufferRef = safe_ref(indexBuffer);
+    assert((draw.shaderFeatures & pls::kImageMeshShaderFeaturesMask) == draw.shaderFeatures);
+}
+
+void PLSRenderContext::pushPathDraw(DrawType drawType,
+                                    size_t baseVertex,
+                                    FillRule fillRule,
+                                    PaintType paintType,
+                                    const PaintData& paintData,
+                                    const PLSTexture* imageTexture,
+                                    uint32_t clipID,
+                                    bool hasClipRect,
+                                    PLSBlendMode blendMode)
+{
+    pushDraw(drawType, baseVertex, paintType, imageTexture, clipID, hasClipRect, blendMode);
+
+    ShaderFeatures& shaderFeatures = m_drawList.tail().shaderFeatures;
+    if (fillRule == FillRule::evenOdd)
+    {
+        shaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
+    }
+    if (paintType == PaintType::clipUpdate && paintData.outerClipIDIfClipUpdate() != 0)
+    {
+        shaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
+    }
 }
 
 RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* currentDrawTexture,
@@ -863,16 +969,26 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* current
 
 void PLSRenderContext::pushDraw(DrawType drawType,
                                 size_t baseVertex,
-                                FillRule fillRule,
                                 PaintType paintType,
-                                const PaintData& paintData,
                                 const PLSTexture* imageTexture,
                                 uint32_t clipID,
                                 bool hasClipRect,
                                 PLSBlendMode blendMode)
 {
-    bool needsNewDraw = m_drawList.empty() || m_drawList.tail().drawType != drawType ||
-                        !can_combine_draw_images(m_drawList.tail().imageTextureRef, imageTexture);
+    bool needsNewDraw;
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+            needsNewDraw =
+                m_drawList.empty() || m_drawList.tail().drawType != drawType ||
+                !can_combine_draw_images(m_drawList.tail().imageTextureRef, imageTexture);
+            break;
+        case DrawType::interiorTriangulation:
+        case DrawType::imageMesh:
+            // We can't combine interior triangulations or image meshes yet.
+            needsNewDraw = true;
+    }
     if (needsNewDraw)
     {
         m_drawList.emplace_back(this, drawType, baseVertex);
@@ -896,14 +1012,6 @@ void PLSRenderContext::pushDraw(DrawType drawType,
     if (hasClipRect && paintType != PaintType::clipUpdate)
     {
         shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
-    }
-    if (fillRule == FillRule::evenOdd)
-    {
-        shaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
-    }
-    if (paintType == PaintType::clipUpdate && paintData.outerClipIDIfClipUpdate() != 0)
-    {
-        shaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
     }
     if (paintType != PaintType::clipUpdate)
     {
@@ -1010,6 +1118,7 @@ void PLSRenderContext::flush(FlushType flushType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
+            case DrawType::imageMesh:
                 break;
             case DrawType::interiorTriangulation:
             {
@@ -1021,8 +1130,8 @@ void PLSRenderContext::flush(FlushType flushType)
                     actualVertexCount = draw.triangulator->polysToTriangles(&triangleVertexData);
                 }
                 assert(actualVertexCount <= maxVertexCount);
-                draw.baseVertexOrInstance = writtenTriangleVertexCount;
-                draw.vertexOrInstanceCount = actualVertexCount;
+                draw.baseElement = writtenTriangleVertexCount;
+                draw.elementCount = actualVertexCount;
                 writtenTriangleVertexCount += actualVertexCount;
                 break;
             }
@@ -1037,6 +1146,8 @@ void PLSRenderContext::flush(FlushType flushType)
     size_t simpleColorRampCount = m_simpleColorRampsData.bytesWritten() / sizeof(TwoTexelRamp);
     size_t gradSpanCount = m_gradSpanData.bytesWritten() / sizeof(GradientSpan);
     size_t tessVertexSpanCount = m_tessSpanData.bytesWritten() / sizeof(TessVertexSpan);
+    size_t imageMeshUniformCount =
+        m_imageMeshUniformData.bytesWritten() / sizeof(pls::ImageMeshUniforms);
     size_t tessDataHeight = resource_texture_height<kTessTextureWidth>(m_tessVertexCount);
 
     // Unmap all non-empty buffers before flushing.
@@ -1071,6 +1182,11 @@ void PLSRenderContext::flush(FlushType flushType)
         m_impl->unmapTessVertexSpanBuffer(m_tessSpanData.bytesWritten());
         m_tessSpanData.reset();
     }
+    if (m_imageMeshUniformData)
+    {
+        m_impl->unmapImageMeshUniformBuffer(m_imageMeshUniformData.bytesWritten());
+        m_imageMeshUniformData.reset();
+    }
     if (triangleVertexData)
     {
         m_impl->unmapTriangleVertexBuffer(triangleVertexData.bytesWritten());
@@ -1085,8 +1201,10 @@ void PLSRenderContext::flush(FlushType flushType)
                               m_impl->platformFeatures());
     if (!bits_equal(&m_cachedUniformData, &uniformData))
     {
-        m_impl->updateFlushUniforms(&uniformData);
-        m_cachedUniformData = uniformData;
+        WriteOnlyMappedMemory<pls::FlushUniforms> flushUniformData;
+        m_impl->mapFlushUniformBuffer(&flushUniformData);
+        flushUniformData.emplace_back(uniformData);
+        m_impl->unmapFlushUniformBuffer();
     }
 
     FlushDescriptor flushDesc;
@@ -1113,6 +1231,7 @@ void PLSRenderContext::flush(FlushType flushType)
     m_currentFrameResourceUsage.maxSimpleGradients += m_simpleGradients.size();
     m_currentFrameResourceUsage.maxComplexGradientSpans += gradSpanCount;
     m_currentFrameResourceUsage.maxTessellationSpans += tessVertexSpanCount;
+    m_currentFrameResourceUsage.maxImageMeshUniforms += imageMeshUniformCount;
     m_currentFrameResourceUsage.triangleVertexBufferCount += m_maxTriangleVertexCount;
     m_currentFrameResourceUsage.gradientTextureHeight +=
         resource_texture_height<kGradTextureWidthInSimpleRamps>(m_simpleGradients.size()) +
@@ -1120,7 +1239,7 @@ void PLSRenderContext::flush(FlushType flushType)
     m_currentFrameResourceUsage.tessellationTextureHeight +=
         resource_texture_height<kTessTextureWidth>(m_tessVertexCount);
     static_assert(sizeof(m_currentFrameResourceUsage) ==
-                  sizeof(size_t) * 8); // Make sure we got every field.
+                  sizeof(size_t) * 9); // Make sure we got every field.
 
     if (flushType == FlushType::intermediate)
     {
@@ -1174,15 +1293,16 @@ void PLSRenderContext::flush(FlushType flushType)
     ++m_flushCount;
 }
 
-rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType,
-                                                     RenderBufferFlags,
+rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType type,
+                                                     RenderBufferFlags flags,
                                                      size_t sizeInBytes)
 {
-    return nullptr;
+    return m_impl->makeRenderBuffer(type, flags, sizeInBytes);
 }
 
 std::unique_ptr<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {
-    return std::make_unique<PLSImage>(m_impl->decodeImageTexture(encodedBytes));
+    rcp<PLSTexture> texture = m_impl->decodeImageTexture(encodedBytes);
+    return texture != nullptr ? std::make_unique<PLSImage>(std::move(texture)) : nullptr;
 }
 } // namespace rive::pls

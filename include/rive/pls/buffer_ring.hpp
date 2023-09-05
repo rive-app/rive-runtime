@@ -148,4 +148,23 @@ protected:
     const size_t m_height;
     const size_t m_texelsPerItem;
 };
+
+// BufferRingShadowImpl that resides solely in CPU memory, and therefore doesn't require a ring.
+class HeapBufferRing : public BufferRing
+{
+public:
+    HeapBufferRing(size_t capacity, size_t itemSizeInBytes) :
+        BufferRing(capacity, itemSizeInBytes), m_contents(new uint8_t[capacity * itemSizeInBytes])
+    {}
+
+    const void* contents() const { return m_contents.get(); }
+    void* contents() { return m_contents.get(); }
+
+protected:
+    void* onMapBuffer(int bufferIdx) override { return contents(); }
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override {}
+
+private:
+    std::unique_ptr<uint8_t[]> m_contents;
+};
 } // namespace rive::pls

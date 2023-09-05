@@ -8,13 +8,17 @@
 #include "gl_utils.hpp"
 #include "pls_path.hpp"
 #include "pls_paint.hpp"
+#include "rive/pls/gl/pls_render_buffer_gl_impl.hpp"
 #include "rive/pls/pls_image.hpp"
+#include "shaders/constants.glsl"
 #include <sstream>
 
 #include "../out/obj/generated/advanced_blend.glsl.hpp"
 #include "../out/obj/generated/color_ramp.glsl.hpp"
+#include "../out/obj/generated/constants.glsl.hpp"
 #include "../out/obj/generated/common.glsl.hpp"
-#include "../out/obj/generated/draw.glsl.hpp"
+#include "../out/obj/generated/draw_path.glsl.hpp"
+#include "../out/obj/generated/draw_image_mesh.glsl.hpp"
 #include "../out/obj/generated/tessellate.glsl.hpp"
 
 // Offset all PLS texture indices by 1 so we, and others who share our GL context, can use
@@ -23,7 +27,7 @@ constexpr static int kPLSTexIdxOffset = 1;
 
 namespace rive::pls
 {
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
     const ext = Module["ctx"].getExtension("WEBGL_provoking_vertex");
     if (ext)
@@ -65,13 +69,13 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 #endif
 
     m_colorRampProgram = glCreateProgram();
-    const char* colorRampSources[] = {glsl::common, glsl::color_ramp};
+    const char* colorRampSources[] = {glsl::constants, glsl::common, glsl::color_ramp};
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_VERTEX_SHADER,
                                     nullptr,
                                     0,
                                     colorRampSources,
-                                    2,
+                                    std::size(colorRampSources),
                                     m_extensions,
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_colorRampProgram,
@@ -79,7 +83,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     nullptr,
                                     0,
                                     colorRampSources,
-                                    2,
+                                    std::size(colorRampSources),
                                     m_extensions,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_colorRampProgram);
@@ -88,20 +92,20 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                           0);
 
     glGenVertexArrays(1, &m_colorRampVAO);
-    bindVAO(m_colorRampVAO);
+    m_state->bindVAO(m_colorRampVAO);
     glEnableVertexAttribArray(0);
     glVertexAttribDivisor(0, 1);
 
     glGenFramebuffers(1, &m_colorRampFBO);
 
     m_tessellateProgram = glCreateProgram();
-    const char* tessellateSources[] = {glsl::common, glsl::tessellate};
+    const char* tessellateSources[] = {glsl::constants, glsl::common, glsl::tessellate};
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_VERTEX_SHADER,
                                     nullptr,
                                     0,
                                     tessellateSources,
-                                    2,
+                                    std::size(tessellateSources),
                                     m_extensions,
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_tessellateProgram,
@@ -109,11 +113,11 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     nullptr,
                                     0,
                                     tessellateSources,
-                                    2,
+                                    std::size(tessellateSources),
                                     m_extensions,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_tessellateProgram);
-    bindProgram(m_tessellateProgram);
+    m_state->bindProgram(m_tessellateProgram);
     glUniformBlockBinding(m_tessellateProgram,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
                           0);
@@ -123,7 +127,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                 kPLSTexIdxOffset + kContourTextureIdx);
 
     glGenVertexArrays(1, &m_tessellateVAO);
-    bindVAO(m_tessellateVAO);
+    m_state->bindVAO(m_tessellateVAO);
     for (int i = 0; i < 4; ++i)
     {
         glEnableVertexAttribArray(i);
@@ -133,19 +137,24 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 
     glGenFramebuffers(1, &m_tessellateFBO);
 
+    glGenBuffers(1, &m_flushUniformBuffer);
+    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_flushUniformBuffer);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(pls::FlushUniforms), nullptr, GL_DYNAMIC_DRAW);
+
     glGenVertexArrays(1, &m_drawVAO);
-    bindVAO(m_drawVAO);
+    m_state->bindVAO(m_drawVAO);
 
     PatchVertex patchVertices[kPatchVertexBufferCount];
     uint16_t patchIndices[kPatchIndexBufferCount];
     GeneratePatchBufferData(patchVertices, patchIndices);
 
     glGenBuffers(1, &m_patchVerticesBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, m_patchVerticesBuffer);
+    m_state->bindBuffer(GL_ARRAY_BUFFER, m_patchVerticesBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(patchVertices), patchVertices, GL_STATIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, FLUSH_UNIFORM_BUFFER_IDX, m_flushUniformBuffer);
 
     glGenBuffers(1, &m_patchIndicesBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_patchIndicesBuffer);
+    m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_patchIndicesBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(patchIndices), patchIndices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
@@ -160,12 +169,21 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                           reinterpret_cast<void*>(sizeof(float) * 4));
 
     glGenVertexArrays(1, &m_interiorTrianglesVAO);
-    bindVAO(m_interiorTrianglesVAO);
+    m_state->bindVAO(m_interiorTrianglesVAO);
     glEnableVertexAttribArray(0);
+
+    glGenBuffers(1, &m_imageMeshUniformBuffer);
+    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_imageMeshUniformBuffer);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(pls::ImageMeshUniforms), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, IMAGE_MESH_UNIFORM_BUFFER_IDX, m_imageMeshUniformBuffer);
+
+    glGenVertexArrays(1, &m_imageMeshVAO);
+    m_state->bindVAO(m_imageMeshVAO);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
     glFrontFace(GL_CW);
     glCullFace(GL_BACK);
-    glEnable(GL_CULL_FACE);
 
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
@@ -174,7 +192,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     // very costly for ANGLE to implement the OpenGL convention of "last" on these backends. To
     // workaround this, ANGLE provides the ANGLE_provoking_vertex extension. When this extension is
     // present, we can just set the provoking vertex to "first" and trust that it will be fast.
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
     set_provoking_vertex_webgl(GL_FIRST_VERTEX_CONVENTION_WEBGL);
 #elif defined(RIVE_DESKTOP_GL)
     if (m_extensions.ANGLE_provoking_vertex)
@@ -182,23 +200,39 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
     }
 #endif
+
+    m_plsImpl->init(m_state);
 }
 
 PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 {
-    glDeleteProgram(m_colorRampProgram);
-    glDeleteVertexArrays(1, &m_colorRampVAO);
+    m_state->deleteBuffer(m_flushUniformBuffer);
+
+    m_state->deleteProgram(m_colorRampProgram);
+    m_state->deleteVAO(m_colorRampVAO);
     glDeleteFramebuffers(1, &m_colorRampFBO);
     glDeleteTextures(1, &m_gradientTexture);
 
-    glDeleteProgram(m_tessellateProgram);
-    glDeleteVertexArrays(1, &m_tessellateVAO);
+    m_state->deleteProgram(m_tessellateProgram);
+    m_state->deleteVAO(m_tessellateVAO);
     glDeleteFramebuffers(1, &m_tessellateFBO);
     glDeleteTextures(1, &m_tessVertexTexture);
 
-    glDeleteVertexArrays(1, &m_drawVAO);
-    glDeleteBuffers(1, &m_patchVerticesBuffer);
-    glDeleteBuffers(1, &m_patchIndicesBuffer);
+    m_state->deleteVAO(m_drawVAO);
+    m_state->deleteBuffer(m_patchVerticesBuffer);
+    m_state->deleteBuffer(m_patchIndicesBuffer);
+
+    m_state->deleteVAO(m_interiorTrianglesVAO);
+
+    m_state->deleteBuffer(m_imageMeshUniformBuffer);
+    m_state->deleteVAO(m_imageMeshVAO);
+}
+
+rcp<RenderBuffer> PLSRenderContextGLImpl::makeRenderBuffer(RenderBufferType type,
+                                                           RenderBufferFlags flags,
+                                                           size_t sizeInBytes)
+{
+    return make_rcp<PLSRenderBufferGLImpl>(type, flags, sizeInBytes, m_state);
 }
 
 class PLSTextureGLImpl : public PLSTexture
@@ -207,14 +241,15 @@ public:
     PLSTextureGLImpl(uint32_t width,
                      uint32_t height,
                      uint32_t mipLevelCount,
-                     const uint8_t imageDataRGBA[]) :
-        PLSTexture(width, height)
+                     const uint8_t imageDataRGBA[],
+                     rcp<GLState> state) :
+        PLSTexture(width, height), m_state(std::move(state))
     {
         glGenTextures(1, &m_id);
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kImageTextureIdx);
         glBindTexture(GL_TEXTURE_2D, m_id);
         glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -236,6 +271,7 @@ public:
     GLuint id() const { return m_id; }
 
 private:
+    const rcp<GLState> m_state;
     GLuint m_id = 0;
 };
 
@@ -244,7 +280,7 @@ rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
                                                          uint32_t mipLevelCount,
                                                          const uint8_t imageDataRGBA[])
 {
-    return make_rcp<PLSTextureGLImpl>(width, height, mipLevelCount, imageDataRGBA);
+    return make_rcp<PLSTextureGLImpl>(width, height, mipLevelCount, imageDataRGBA, m_state);
 }
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextGLImpl::makeTexelBufferRing(
@@ -260,25 +296,28 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextGLImpl::makeTexelBufferRing(
                                            height,
                                            texelsPerItem,
                                            GL_TEXTURE0 + kPLSTexIdxOffset + textureIdx,
-                                           filter);
+                                           filter,
+                                           m_state);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacity,
                                                                          size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferGL>(GL_ARRAY_BUFFER, capacity, itemSizeInBytes);
+    return std::make_unique<BufferGL>(GL_ARRAY_BUFFER, capacity, itemSizeInBytes, m_state);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makePixelUnpackBufferRing(
     size_t capacity,
     size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferGL>(GL_PIXEL_UNPACK_BUFFER, capacity, itemSizeInBytes);
+    return std::make_unique<BufferGL>(GL_PIXEL_UNPACK_BUFFER, capacity, itemSizeInBytes, m_state);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t sizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacity,
+                                                                          size_t sizeInBytes)
 {
-    return std::make_unique<BufferGL>(GL_UNIFORM_BUFFER, 1, sizeInBytes);
+    // In GL we update uniform data inline with commands, rather than filling a buffer up front.
+    return std::make_unique<HeapBufferRing>(capacity, sizeInBytes);
 }
 
 void PLSRenderContextGLImpl::resizeGradientTexture(size_t height)
@@ -323,8 +362,9 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(size_t height)
                            0);
 }
 
-// Wraps a compiled GL shader of draw.glsl, either vertex or fragment, with a specific set of
-// features enabled via #define. The set of features to enable is dictated by ShaderFeatures.
+// Wraps a compiled GL shader of draw_path.glsl or draw_image_mesh.glsl, either vertex or fragment,
+// with a specific set of features enabled via #define. The set of features to enable is dictated by
+// ShaderFeatures.
 class PLSRenderContextGLImpl::DrawShader
 {
 public:
@@ -338,10 +378,6 @@ public:
     {
         std::vector<const char*> defines;
         defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
-        if (drawType == DrawType::interiorTriangulation)
-        {
-            defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
-        }
         for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
             ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
@@ -353,6 +389,7 @@ public:
         }
 
         std::vector<const char*> sources;
+        sources.push_back(glsl::constants);
         sources.push_back(glsl::common);
         if (shaderType == GL_FRAGMENT_SHADER &&
             (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
@@ -367,7 +404,20 @@ public:
         {
             sources.push_back("#define " GLSL_OPTIONALLY_FLAT " flat\n");
         }
-        sources.push_back(glsl::draw);
+        switch (drawType)
+        {
+            case DrawType::interiorTriangulation:
+                defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
+                [[fallthrough]];
+            case DrawType::midpointFanPatches:
+            case DrawType::outerCurvePatches:
+                sources.push_back(pls::glsl::draw_path);
+                break;
+            case DrawType::imageMesh:
+                sources.push_back(pls::glsl::draw_image_mesh);
+                break;
+        }
+
         m_id = glutils::CompileShader(shaderType,
                                       defines.data(),
                                       defines.size(),
@@ -387,7 +437,8 @@ private:
 
 PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
                                                  DrawType drawType,
-                                                 ShaderFeatures shaderFeatures)
+                                                 ShaderFeatures shaderFeatures) :
+    m_state(plsContextImpl->m_state)
 {
     m_id = glCreateProgram();
 
@@ -410,8 +461,16 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
 
     glutils::LinkProgram(m_id);
 
-    plsContextImpl->bindProgram(m_id);
-    glUniformBlockBinding(m_id, glGetUniformBlockIndex(m_id, GLSL_Uniforms), 0);
+    m_state->bindProgram(m_id);
+    glUniformBlockBinding(m_id,
+                          glGetUniformBlockIndex(m_id, GLSL_Uniforms),
+                          FLUSH_UNIFORM_BUFFER_IDX);
+    if (drawType == DrawType::imageMesh)
+    {
+        glUniformBlockBinding(m_id,
+                              glGetUniformBlockIndex(m_id, GLSL_MeshUniforms),
+                              IMAGE_MESH_UNIFORM_BUFFER_IDX);
+    }
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kPLSTexIdxOffset + kTessVertexTextureIdx);
     glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kPLSTexIdxOffset + kPathTextureIdx);
@@ -425,27 +484,37 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     }
 }
 
-PLSRenderContextGLImpl::DrawProgram::~DrawProgram() { glDeleteProgram(m_id); }
+PLSRenderContextGLImpl::DrawProgram::~DrawProgram() { m_state->deleteProgram(m_id); }
 
 static GLuint gl_buffer_id(const BufferRing* bufferRing)
 {
     return static_cast<const BufferGL*>(bufferRing)->submittedBufferID();
 }
 
+static const void* heap_buffer_contents(const BufferRing* bufferRing)
+{
+    return static_cast<const HeapBufferRing*>(bufferRing)->contents();
+}
+
 void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
     // All programs use the same set of per-flush uniforms.
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl_buffer_id(uniformBufferRing()));
+    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_flushUniformBuffer);
+    glBufferSubData(GL_UNIFORM_BUFFER,
+                    0,
+                    sizeof(pls::FlushUniforms),
+                    heap_buffer_contents(flushUniformBufferRing()));
 
     // Render the complex color ramps into the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
-        glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
-        bindVAO(m_colorRampVAO);
+        m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
+        m_state->bindVAO(m_colorRampVAO);
+        m_state->enableFaceCulling(true);
         glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, 0, nullptr);
         glViewport(0, desc.complexGradRowsTop, kGradTextureWidth, desc.complexGradRowsHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
-        bindProgram(m_colorRampProgram);
+        m_state->bindProgram(m_colorRampProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.complexGradSpanCount);
@@ -454,7 +523,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
+        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kGradTextureIdx);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
@@ -470,8 +539,9 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
-        bindVAO(m_tessellateVAO);
+        m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
+        m_state->bindVAO(m_tessellateVAO);
+        m_state->enableFaceCulling(true);
         for (uintptr_t i = 0; i < 3; ++i)
         {
             glVertexAttribPointer(i,
@@ -488,7 +558,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                                reinterpret_cast<const void*>(offsetof(TessVertexSpan, x0x1)));
         glViewport(0, 0, kTessTextureWidth, desc.tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
-        bindProgram(m_tessellateProgram);
+        m_state->bindProgram(m_tessellateProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
         // Draw two instances per TessVertexSpan: one normal and one optional reflection.
@@ -500,7 +570,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     for (const Draw& draw : *desc.drawList)
     {
         // Compile the draw program before activating pixel local storage.
-        // Cache specific compilations of draw.glsl by ShaderFeatures.
+        // Cache specific compilations by DrawType and ShaderFeatures.
         uint32_t fragmentShaderKey = ShaderUniqueKey(draw.drawType, draw.shaderFeatures);
         m_drawPrograms.try_emplace(fragmentShaderKey, this, draw.drawType, draw.shaderFeatures);
     }
@@ -508,8 +578,8 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
     if (desc.hasTriangleVertices)
     {
-        bindVAO(m_interiorTrianglesVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(triangleBufferRing()));
+        m_state->bindVAO(m_interiorTrianglesVAO);
+        m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(triangleBufferRing()));
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     }
 
@@ -526,17 +596,20 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
 
     m_plsImpl->activatePixelLocalStorage(this, desc);
 
+    auto imageMeshUniformData = static_cast<const pls::ImageMeshUniforms*>(
+        heap_buffer_contents(imageMeshUniformBufferRing()));
+
     // Execute the DrawList.
     for (const Draw& draw : *desc.drawList)
     {
-        if (draw.vertexOrInstanceCount == 0)
+        if (draw.elementCount == 0)
         {
             continue;
         }
 
         uint32_t fragmentShaderKey = ShaderUniqueKey(draw.drawType, draw.shaderFeatures);
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
-        bindProgram(drawProgram.id());
+        m_state->bindProgram(drawProgram.id());
 
         if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(draw.imageTextureRef))
         {
@@ -551,7 +624,8 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             {
                 // Draw PLS patches that connect the tessellation vertices.
                 m_plsImpl->ensureRasterOrderingEnabled(true);
-                bindVAO(m_drawVAO);
+                m_state->bindVAO(m_drawVAO);
+                m_state->enableFaceCulling(true);
                 uint32_t indexCount = PatchIndexCount(drawType);
                 uint32_t baseIndex = PatchBaseIndex(drawType);
                 void* indexOffset = reinterpret_cast<void*>(baseIndex * sizeof(uint16_t));
@@ -561,28 +635,52 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                                                            indexCount,
                                                            GL_UNSIGNED_SHORT,
                                                            indexOffset,
-                                                           draw.vertexOrInstanceCount,
-                                                           draw.baseVertexOrInstance);
+                                                           draw.elementCount,
+                                                           draw.baseElement);
                 }
                 else
                 {
-                    glUniform1i(drawProgram.baseInstancePolyfillLocation(),
-                                draw.baseVertexOrInstance);
+                    glUniform1i(drawProgram.baseInstancePolyfillLocation(), draw.baseElement);
                     glDrawElementsInstanced(GL_TRIANGLES,
                                             indexCount,
                                             GL_UNSIGNED_SHORT,
                                             indexOffset,
-                                            draw.vertexOrInstanceCount);
+                                            draw.elementCount);
                 }
                 break;
             }
             case DrawType::interiorTriangulation:
-                // Draw generic triangles.
+            {
                 m_plsImpl->ensureRasterOrderingEnabled(false);
-                bindVAO(m_interiorTrianglesVAO);
-                glDrawArrays(GL_TRIANGLES, draw.baseVertexOrInstance, draw.vertexOrInstanceCount);
+                m_state->bindVAO(m_interiorTrianglesVAO);
+                m_state->enableFaceCulling(true);
+                glDrawArrays(GL_TRIANGLES, draw.baseElement, draw.elementCount);
                 m_plsImpl->barrier();
                 break;
+            }
+            case DrawType::imageMesh:
+            {
+                auto vertexBuffer = static_cast<const PLSRenderBufferGLImpl*>(draw.vertexBufferRef);
+                auto uvBuffer = static_cast<const PLSRenderBufferGLImpl*>(draw.uvBufferRef);
+                auto indexBuffer = static_cast<const PLSRenderBufferGLImpl*>(draw.indexBufferRef);
+                m_state->bindVAO(m_imageMeshVAO);
+                m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+                m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->submittedBufferID());
+                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+                m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer->submittedBufferID());
+                m_state->bindBuffer(GL_UNIFORM_BUFFER, m_imageMeshUniformBuffer);
+                glBufferSubData(GL_UNIFORM_BUFFER,
+                                0,
+                                sizeof(pls::ImageMeshUniforms),
+                                imageMeshUniformData++);
+                m_state->enableFaceCulling(false);
+                glDrawElements(GL_TRIANGLES,
+                               draw.elementCount,
+                               GL_UNSIGNED_SHORT,
+                               reinterpret_cast<const void*>(draw.baseElement * sizeof(uint16_t)));
+                break;
+            }
         }
     }
 
@@ -594,24 +692,6 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
         glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_FILL_ANGLE);
     }
 #endif
-}
-
-void PLSRenderContextGLImpl::bindProgram(GLuint programID)
-{
-    if (programID != m_boundProgramID)
-    {
-        glUseProgram(programID);
-        m_boundProgramID = programID;
-    }
-}
-
-void PLSRenderContextGLImpl::bindVAO(GLuint vao)
-{
-    if (vao != m_boundVAO)
-    {
-        glBindVertexArray(vao);
-        m_boundVAO = vao;
-    }
 }
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
@@ -688,7 +768,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
 #endif
 
     GLenum rendererToken = GL_RENDERER;
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
     if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
                                           "WEBGL_debug_renderer_info"))
     {
@@ -729,7 +809,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
     }
 #endif
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
     if (emscripten_webgl_enable_WEBGL_shader_pixel_local_storage(
             emscripten_webgl_get_current_context()) &&
         emscripten_webgl_shader_pixel_local_storage_is_coherent())

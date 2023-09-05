@@ -4,12 +4,9 @@
 
 #pragma once
 
-#include "rive/math/mat2d.hpp"
-#include "rive/math/vec2d.hpp"
-#include "rive/pls/gl/gles3.hpp"
-#include "rive/pls/gl/pls_render_target_gl.hpp"
-#include "rive/pls/buffer_ring.hpp"
+#include "rive/pls/gl/gl_state.hpp"
 #include "rive/pls/pls_render_context_helper_impl.hpp"
+#include "rive/pls/gl/pls_render_target_gl.hpp"
 #include <map>
 
 namespace rive::pls
@@ -40,10 +37,14 @@ public:
         return m_plsImpl->makeOffscreenRenderTarget(width, height, m_platformFeatures);
     }
 
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
+
     rcp<PLSTexture> makeImageTexture(uint32_t width,
                                      uint32_t height,
                                      uint32_t mipLevelCount,
                                      const uint8_t imageDataRGBA[]) override;
+
+    GLState* state() const { return m_state.get(); }
 
 private:
     class DrawProgram;
@@ -52,6 +53,8 @@ private:
     class PLSImpl
     {
     public:
+        virtual void init(rcp<GLState>) {}
+
         virtual rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
                                                           size_t width,
                                                           size_t height,
@@ -107,8 +110,9 @@ private:
 
     PLSRenderContextGLImpl(const char* rendererString, GLExtensions, std::unique_ptr<PLSImpl>);
 
-    // Wraps a compiled and linked GL program of draw.glsl, with a specific set of features enabled
-    // via #define. The set of features to enable is dictated by ShaderFeatures.
+    // Wraps a compiled and linked GL program of draw_path.glsl or draw_image_mesh.glsl, with a
+    // specific set of features enabled via #define. The set of features to enable is dictated by
+    // ShaderFeatures.
     class DrawProgram
     {
     public:
@@ -123,6 +127,7 @@ private:
     private:
         GLuint m_id;
         GLint m_baseInstancePolyfillLocation = -1;
+        const rcp<GLState> m_state;
     };
 
     class DrawShader;
@@ -140,16 +145,12 @@ private:
     std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
                                                           size_t itemSizeInBytes) override;
 
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t sizeInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity, size_t sizeInBytes) override;
 
     void resizeGradientTexture(size_t height) override;
     void resizeTessellationTexture(size_t height) override;
 
     void flush(const PLSRenderContext::FlushDescriptor&) override;
-
-    // GL state wrapping.
-    void bindProgram(GLuint);
-    void bindVAO(GLuint);
 
     GLExtensions m_extensions;
 
@@ -173,13 +174,14 @@ private:
     // Not all programs have a unique vertex shader, so we cache and reuse them where possible.
     std::map<uint32_t, DrawShader> m_vertexShaders;
     std::map<uint32_t, DrawProgram> m_drawPrograms;
+    GLuint m_flushUniformBuffer;
     GLuint m_drawVAO;
-    GLuint m_interiorTrianglesVAO;
     GLuint m_patchVerticesBuffer;
     GLuint m_patchIndicesBuffer;
+    GLuint m_interiorTrianglesVAO;
+    GLuint m_imageMeshUniformBuffer;
+    GLuint m_imageMeshVAO;
 
-    // Cached GL state.
-    GLuint m_boundProgramID = 0;
-    GLuint m_boundVAO = 0;
+    const rcp<GLState> m_state = make_rcp<GLState>();
 };
 } // namespace rive::pls

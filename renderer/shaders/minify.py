@@ -304,11 +304,15 @@ def is_reserved_keyword(name):
            or name.startswith("__pixel_local")\
            or name.endswith("ANGLE")
 
-# A leading '@' indicates identifier names that should be exported.
-# A leading '$' indicates identifier names that should not be renamed.
-# This method removes both, if they exist.
 def remove_leading_annotation(name):
-    return name[1:] if name[0] == '@' or name[0] == '$' else name
+    if name[0] == '@':
+        # A leading '@' indicates identifier names that should be exported. Rename '@my_var' to
+        # '_EXPORTED_my_var' to enforce that '@my_var' and 'my_var' are not interchangeable.
+        return '_EXPORTED_' + name[1:]
+    if name[0] == '$':
+        # A leading '$' indicates identifier names that should not be renamed.
+        return name[1:]
+    return name
 
 # Generates new identifier names to rewrite our variables.
 class NameGenerator:

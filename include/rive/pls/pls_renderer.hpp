@@ -60,13 +60,29 @@ private:
     void clipRect(AABB, PLSPath* originalPath);
     void clipPath(PLSPath*);
 
-    // Pushes any necessary clip updates to m_pathBatch and writes back the clipID the next path
-    // should be drawn with.
+    // Implements drawPath() by pushing to m_context. Returns false if there was not enough room in
+    // the GPU buffers to draw the path, at which point the caller mush flush before continuing.
+    [[nodiscard]] bool pushPathDraw(PLSPath*, PLSPaint*);
+
+    // Implements drawImageMesh() by pushing to m_context. Returns false if there was not enough
+    // room in the GPU buffers to draw the path, at which point the caller mush flush before
+    // continuing.
+    [[nodiscard]] bool pushImageMeshDraw(const PLSTexture*,
+                                         RenderBuffer* vertices_f32,
+                                         RenderBuffer* uvCoords_f32,
+                                         RenderBuffer* indices_u16,
+                                         uint32_t vertexCount,
+                                         uint32_t indexCount,
+                                         BlendMode,
+                                         float opacity);
+
+    // Pushes any necessary clip updates to m_internalPathBatch and writes back the clipID the next
+    // path should be drawn with.
     // Returns false if the operation failed, at which point the caller should flush and try again.
     [[nodiscard]] bool applyClip(uint32_t* clipID);
 
-    // Pushes all paths in m_pathBatch to the GPU.
-    [[nodiscard]] bool pushInternalPathBatch();
+    // Pushes all paths in m_internalPathBatch to m_context.
+    [[nodiscard]] bool pushInternalPathBatchToContext();
 
     struct ContourData
     {
@@ -117,9 +133,7 @@ private:
         size_t clipStackHeight = 0;
         AABB clipRect;
         Mat2D clipRectMatrix;
-        // Maps from pixel coordinates to a space where the clipRect is the normalized rectangle:
-        // [-1, -1, +1, +1]. Only valid if hasClipRect is true.
-        Mat2D pixelToNormalizedClipRect;
+        pls::ClipRectInverseMatrix clipRectInverseMatrix;
         bool hasClipRect = false;
     };
     std::vector<RenderState> m_stack{1};
@@ -175,7 +189,7 @@ private:
         uint32_t paddingVertexCount = 0;
         pls::PaintData paintRenderData; // Tells the GPU how to render the paint (or clip).
     };
-    std::vector<PathDraw> m_pathBatch;
+    std::vector<PathDraw> m_internalPathBatch;
 
     // Temporary storage used during drawPath. Stored as a persistent class member to avoid
     // redundant mallocs.

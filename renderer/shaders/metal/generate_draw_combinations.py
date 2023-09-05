@@ -37,13 +37,21 @@ def is_valid_feature_set(feature_set):
         return False
     return True
 
-# Returns whether the given feature is the *simplest* set that defines a unique vertex shader.
+# Returns whether the given feature set is the *simplest* set that defines a unique vertex shader.
 # (Many feature sets produce identical vertex shaders.)
 def is_unique_vertex_feature_set(feature_set):
     # Fragment-only features have no effect on the vertex shader.
     if fragment_only_features.intersection(feature_set):
         return False
     return True
+
+non_image_mesh_features = {DRAW_INTERIOR_TRIANGLES,
+                           ENABLE_EVEN_ODD,
+                           ENABLE_NESTED_CLIPPING}
+
+# Returns whether the given feature set is compatible with an image mesh shader.
+def is_image_mesh_feature_set(feature_set):
+    return not non_image_mesh_features.intersection(feature_set)
 
 # Organize all combinations of valid features into their own namespace.
 out = open(sys.argv[1], 'w', newline='\n')
@@ -54,16 +62,21 @@ for n in range(0, len(all_features) + 1):
         namespace_id = ['0', '0', '0', '0', '0', '0', '0']
         for feature in feature_set:
             namespace_id[feature.index] = '1'
-        out.write('namespace r%s\n' % ''.join(namespace_id))
-        out.write('{\n')
         if is_unique_vertex_feature_set(feature_set):
             out.write('#define VERTEX\n')
         for feature in feature_set:
             out.write('#define %s\n' % feature.name)
-        out.write('#include "draw.minified.glsl"\n')
+        out.write('namespace p%s\n' % ''.join(namespace_id))
+        out.write('{\n')
+        out.write('#include "draw_path.minified.glsl"\n')
+        out.write('}\n')
+        if is_image_mesh_feature_set(feature_set):
+            out.write('namespace m%s\n' % ''.join(namespace_id))
+            out.write('{\n')
+            out.write('#include "draw_image_mesh.minified.glsl"\n')
+            out.write('}\n')
         for feature in reversed(feature_set):
             out.write('#undef %s\n' % feature.name)
         if is_unique_vertex_feature_set(feature_set):
             out.write('#undef VERTEX\n')
-        out.write('}\n')
         out.write('\n')

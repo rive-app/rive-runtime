@@ -33,7 +33,8 @@ public:
         resetTexture(std::move(texture));
     }
 
-    rcp<PLSTexture> refTexture(PLSRenderContextImpl* plsContextImpl) const { return m_texture; }
+    rcp<PLSTexture> refTexture() const { return m_texture; }
+    const PLSTexture* getTexture() const { return m_texture.get(); }
 
 protected:
     PLSImage(int width, int height)

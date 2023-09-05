@@ -11,13 +11,15 @@
 #include "rive/math/path_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
 
 namespace rive
 {
 class GrInnerFanTriangulator;
-}
+class RenderBuffer;
+} // namespace rive
 
 // This header defines constants and data structures for Rive's pixel local storage path rendering
 // algorithm.
@@ -172,40 +174,12 @@ struct PlatformFeatures
                                    // and tessellation textures.)
 };
 
-// Per-flush shared uniforms used by all shaders.
-struct FlushUniforms
-{
-    FlushUniforms() = default;
-
-    FlushUniforms(size_t complexGradientsHeight,
-                  size_t tessDataHeight,
-                  size_t renderTargetWidth,
-                  size_t renderTargetHeight,
-                  size_t gradTextureHeight,
-                  const PlatformFeatures& platformFeatures) :
-        inverseViewports(
-            (platformFeatures.invertOffscreenY ? float4{-2.f, -2.f, 2.f, 2.f} : float4(2.f)) /
-            float4{static_cast<float>(complexGradientsHeight),
-                   static_cast<float>(tessDataHeight),
-                   static_cast<float>(renderTargetWidth),
-                   static_cast<float>(renderTargetHeight)}),
-        gradTextureInverseHeight(1.f / static_cast<float>(gradTextureHeight)),
-        pathIDGranularity(platformFeatures.pathIDGranularity)
-    {}
-
-    float4 inverseViewports = 0; // [complexGradientsY, tessDataY, renderTargetX, renderTargetY]
-    float gradTextureInverseHeight = 0;
-    uint32_t pathIDGranularity = 0; // Spacing between adjacent path IDs (1 if IEEE compliant).
-    float vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
-    uint32_t pad = 0;
-};
-static_assert(sizeof(FlushUniforms) == 8 * sizeof(uint32_t));
-
-// Gradient color stops are implemented as a horizontal span of pixels in a global gradient texture.
-// They are rendered by "GradientSpan" instances.
+// Gradient color stops are implemented as a horizontal span of pixels in a global gradient
+// texture. They are rendered by "GradientSpan" instances.
 struct GradientSpan
 {
-    // x0Fixed and x1Fixed are normalized texel x coordinates, in the fixed-point range 0..65535.
+    // x0Fixed and x1Fixed are normalized texel x coordinates, in the fixed-point range
+    // 0..65535.
     RIVE_ALWAYS_INLINE void set(uint32_t x0Fixed,
                                 uint32_t x1Fixed,
                                 float y_,
@@ -260,6 +234,8 @@ enum class PLSBlendMode : uint32_t
     luminosity,
 };
 
+PLSBlendMode BlendModeRiveToPLS(rive::BlendMode);
+
 // Packs the data for a gradient or solid color into 4 floats.
 struct PaintData
 {
@@ -279,8 +255,8 @@ struct PaintData
         PaintData paintData;
         static_assert(kGradTextureWidth <= (1 << 10));
         assert(row < (1 << 12));
-        // Subtract 1 from right so we can support a 1024-wide gradient texture (so the rightmost
-        // pixel would be 0x3ff and still fit in 10 bits).
+        // Subtract 1 from right so we can support a 1024-wide gradient texture (so the
+        // rightmost pixel would be 0x3ff and still fit in 10 bits).
         uint32_t span = (row << 20) | ((right - 1) << 10) | left;
         paintData.data[0] = span;
         RIVE_INLINE_MEMCPY(paintData.data + 1, coeffs, 3 * sizeof(float));
@@ -289,7 +265,8 @@ struct PaintData
 
     static PaintData MakeImage(float opacity)
     {
-        // Images use the texture binding at kImageTextureIdx, so the paint data only needs opacity.
+        // Images use the texture binding at kImageTextureIdx, so the paint data only needs
+        // opacity.
         PaintData paintData;
         paintData.data[0] = math::bit_cast<uint32_t>(opacity);
         return paintData;
@@ -308,6 +285,25 @@ struct PaintData
     uint32_t data[4]; // Packed, type-specific paint data.
 };
 
+// This class encapsulates a matrix that maps from pixel coordinates to a space where the clipRect
+// is the normalized rectangle: [-1, -1, +1, +1]
+class ClipRectInverseMatrix
+{
+public:
+    // When the clipRect inverse matrix is singular (e.g., all 0 in scale and skew), the shader
+    // uses tx and ty as fixed clip coverage values instead of finding edge distances.
+    constexpr static ClipRectInverseMatrix WideOpen() { return Mat2D{0, 0, 0, 0, 1, 1}; }
+    constexpr static ClipRectInverseMatrix Empty() { return Mat2D{0, 0, 0, 0, 0, 0}; }
+
+    ClipRectInverseMatrix() = default;
+
+    void reset(const Mat2D& clipMatrix, const AABB& clipRect);
+
+private:
+    constexpr ClipRectInverseMatrix(const Mat2D& inverseMatrix) : m_inverseMatrix(inverseMatrix) {}
+    Mat2D m_inverseMatrix;
+};
+
 // Each path has a unique data record on the GPU that is accessed from the vertex shader.
 struct PathData
 {
@@ -318,7 +314,7 @@ struct PathData
                                 uint32_t clipID,
                                 PLSBlendMode blendMode,
                                 const PaintData& paintData_,
-                                const Mat2D* pixelToNormalizedClipRect_) // null if no clipRect.
+                                const ClipRectInverseMatrix* clipRectInverseMatrix_)
     {
         matrix = m;
         strokeRadius = strokeRadius_;
@@ -331,39 +327,40 @@ struct PathData
         }
         params = localParams;
         paintData = paintData_;
-        // Force clipRect coverage to 1 if the caller did not provide a pixelToNormalizedClipRect_.
-        // (The shader uses tx and ty as uniform clipRect coverage if the matrix is singular.)
-        pixelToNormalizedClipRect =
-            pixelToNormalizedClipRect_ ? *pixelToNormalizedClipRect_ : Mat2D{0, 0, 0, 0, 1, 1};
+        clipRectInverseMatrix = clipRectInverseMatrix_ != nullptr
+                                    ? *clipRectInverseMatrix_
+                                    : ClipRectInverseMatrix::WideOpen();
     }
     Mat2D matrix;
     float strokeRadius; // "0" indicates that the path is filled, not stroked.
     uint32_t params;    // [fillRule, paintType, clipID, blendMode]
     PaintData paintData;
-    Mat2D pixelToNormalizedClipRect; // Maps from pixel coordinates to a space where the clipRect
-                                     // is the normalized rectangle: [-1, -1, +1, +1]
-    float pad0;
-    float pad1;
+    ClipRectInverseMatrix clipRectInverseMatrix;
+    float padding0;
+    float padding1;
 };
 
-// Each contour of every path has a unique data record on the GPU that is accessed from the vertex
-// shader.
+// Each contour of every path has a unique data record on the GPU that is accessed from the
+// vertex shader.
 struct ContourData
 {
+    ContourData(Vec2D midpoint_, uint32_t pathID_, uint32_t vertexIndex0_) :
+        midpoint(midpoint_), pathID(pathID_), vertexIndex0(vertexIndex0_)
+    {}
     Vec2D midpoint;        // Midpoint of the curve endpoints in just this contour.
     uint32_t pathID;       // ID of the path this contour belongs to.
     uint32_t vertexIndex0; // Index of the first tessellation vertex of the contour.
 };
 
-// Each curve gets tessellated into vertices. This is performed by rendering a horizontal span of
-// positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan defines
-// one instance of a horizontal tessellation span for rendering.
+// Each curve gets tessellated into vertices. This is performed by rendering a horizontal span
+// of positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan
+// defines one instance of a horizontal tessellation span for rendering.
 //
-// Each span has an optional reflection, rendered right to left, with the same vertices in reverse
-// order. These are used to draw mirrored patches with negative coverage when we have back-face
-// culling enabled. This emits every triangle twice, once clockwise and once counterclockwise, and
-// back-face culling naturally selects the triangle with the appropriately signed coverage
-// (discarding the other).
+// Each span has an optional reflection, rendered right to left, with the same vertices in
+// reverse order. These are used to draw mirrored patches with negative coverage when we have
+// back-face culling enabled. This emits every triangle twice, once clockwise and once
+// counterclockwise, and back-face culling naturally selects the triangle with the appropriately
+// signed coverage (discarding the other).
 struct TessVertexSpan
 {
     RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
@@ -446,6 +443,65 @@ struct TriangleVertex
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
+// Per-draw uniforms used by image meshes.
+struct ImageMeshUniforms
+{
+    ImageMeshUniforms() = default;
+
+    RIVE_ALWAYS_INLINE ImageMeshUniforms(const Mat2D& matrix_,
+                                         float opacity_,
+                                         const ClipRectInverseMatrix* clipRectInverseMatrix_,
+                                         uint32_t clipID_,
+                                         PLSBlendMode blendMode_) :
+        matrix(matrix_),
+        opacity(opacity_),
+        clipRectInverseMatrix(clipRectInverseMatrix_ != nullptr
+                                  ? *clipRectInverseMatrix_
+                                  : ClipRectInverseMatrix::WideOpen()),
+        clipID(clipID_),
+        blendMode(static_cast<uint32_t>(blendMode_))
+    {}
+
+    Mat2D matrix;
+    float opacity;
+    float padding = 0;
+    ClipRectInverseMatrix clipRectInverseMatrix;
+    uint32_t clipID;
+    uint32_t blendMode;
+};
+static_assert(offsetof(ImageMeshUniforms, matrix) % 16 == 0);
+static_assert(offsetof(ImageMeshUniforms, clipRectInverseMatrix) % 16 == 0);
+static_assert(sizeof(ImageMeshUniforms) == 16 * sizeof(float));
+
+// Per-flush shared uniforms used by all shaders.
+struct FlushUniforms
+{
+    FlushUniforms() = default;
+
+    FlushUniforms(size_t complexGradientsHeight,
+                  size_t tessDataHeight,
+                  size_t renderTargetWidth,
+                  size_t renderTargetHeight,
+                  size_t gradTextureHeight,
+                  const PlatformFeatures& platformFeatures) :
+        inverseViewports(
+            (platformFeatures.invertOffscreenY ? float4{-2.f, -2.f, 2.f, 2.f} : float4(2.f)) /
+            float4{static_cast<float>(complexGradientsHeight),
+                   static_cast<float>(tessDataHeight),
+                   static_cast<float>(renderTargetWidth),
+                   static_cast<float>(renderTargetHeight)}),
+        gradTextureInverseHeight(1.f / static_cast<float>(gradTextureHeight)),
+        pathIDGranularity(platformFeatures.pathIDGranularity)
+    {}
+
+    float4 inverseViewports = 0; // [complexGradientsY, tessDataY, renderTargetX, renderTargetY]
+    float gradTextureInverseHeight = 0;
+    uint32_t pathIDGranularity = 0; // Spacing between adjacent path IDs (1 if IEEE compliant).
+    float vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
+    uint32_t padding = 0;
+};
+static_assert(sizeof(FlushUniforms) == 8 * sizeof(uint32_t));
+
 // Represents a block of mapped GPU memory. Since it can be extremely expensive to read mapped
 // memory, we use this class to enforce the write-only nature of this memory.
 template <typename T> class WriteOnlyMappedMemory
@@ -475,11 +531,11 @@ public:
     // Is there room to push() itemCount items to the buffer?
     bool hasRoomFor(size_t itemCount) { return m_nextMappedItem + itemCount <= m_mappingEnd; }
 
-    // Append and write a new item to the buffer. In order to enforce the write-only requirement of
-    // a mapped buffer, these methods do not return any pointers to the client.
+    // Append and write a new item to the buffer. In order to enforce the write-only requirement
+    // of a mapped buffer, these methods do not return any pointers to the client.
     template <typename... Args> RIVE_ALWAYS_INLINE void emplace_back(Args&&... args)
     {
-        push() = {std::forward<Args>(args)...};
+        new (&push()) T(std::forward<Args>(args)...);
     }
     template <typename... Args> RIVE_ALWAYS_INLINE void set_back(Args&&... args)
     {
@@ -508,20 +564,20 @@ private:
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit#heading=h.dcd0c58pxfs5
 //
 // A single patch spans N tessellation segments, connecting N + 1 tessellation vertices. It is
-// composed of a an AA border and fan triangles. The specifics of the fan triangles depend on the
-// PatchType.
+// composed of a an AA border and fan triangles. The specifics of the fan triangles depend on
+// the PatchType.
 enum class PatchType
 {
-    // Patches fan around the contour midpoint. Outer edges are inset by ~1px, followed by a ~1px AA
-    // ramp.
+    // Patches fan around the contour midpoint. Outer edges are inset by ~1px, followed by a
+    // ~1px AA ramp.
     midpointFan,
 
-    // Patches only cover the AA ramps and interiors of bezier curves. The interior path triangles
-    // that connect the outer curves are triangulated on the CPU to eliminate overlap, and are drawn
-    // in a separate call. AA ramps are split down the middle (on the same lines as the interior
-    // triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset AA ramp that
-    // overlaps the inner tessellation and has negative coverage. A lone bowtie join is emitted at
-    // the end of the patch to tie the outer curves together.
+    // Patches only cover the AA ramps and interiors of bezier curves. The interior path
+    // triangles that connect the outer curves are triangulated on the CPU to eliminate overlap,
+    // and are drawn in a separate call. AA ramps are split down the middle (on the same lines
+    // as the interior triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
+    // AA ramp that overlaps the inner tessellation and has negative coverage. A lone bowtie
+    // join is emitted at the end of the patch to tie the outer curves together.
     outerCurves,
 };
 
@@ -537,8 +593,8 @@ struct PatchVertex
     }
 
     // Patch vertices can have an optional, alternate position when mirrored. This is so we can
-    // ensure the diagonals inside the stroke line up on both versions of the patch (mirrored and
-    // not).
+    // ensure the diagonals inside the stroke line up on both versions of the patch (mirrored
+    // and not).
     void setMirroredPosition(float localVertexID_, float outset_, float fillCoverage_)
     {
         mirroredVertexID = localVertexID_;
@@ -556,15 +612,15 @@ struct PatchVertex
     float mirroredVertexID;
     float mirroredOutset;
     float mirroredFillCoverage;
-    int32_t pad = 0;
+    int32_t padding = 0;
 };
 static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
 
 // # of tessellation segments spanned by the midpoint fan patch.
 constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
 
-// # of tessellation segments spanned by the outer curve patch. (In this particular instance, the
-// final segment is a bowtie join with zero length and no fan triangle.)
+// # of tessellation segments spanned by the outer curve patch. (In this particular instance,
+// the final segment is a bowtie join with zero length and no fan triangle.)
 constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
 
 // Define vertex and index buffers that contain all the triangles in every PatchType.
@@ -595,7 +651,8 @@ enum class DrawType : uint8_t
 {
     midpointFanPatches, // Standard paths and/or strokes.
     outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
-    interiorTriangulation
+    interiorTriangulation,
+    imageMesh,
 };
 
 constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
@@ -661,29 +718,32 @@ enum class ShaderFeatures
 };
 RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
 constexpr static size_t kShaderFeatureCount = 6;
-constexpr static ShaderFeatures kVertexShaderFeaturesMask =
-    static_cast<ShaderFeatures>(static_cast<uint32_t>(ShaderFeatures::ENABLE_EVEN_ODD) - 1);
+constexpr static ShaderFeatures kVertexShaderFeaturesMask = ShaderFeatures::ENABLE_CLIPPING |
+                                                            ShaderFeatures::ENABLE_CLIP_RECT |
+                                                            ShaderFeatures::ENABLE_ADVANCED_BLEND;
+constexpr static ShaderFeatures kImageMeshShaderFeaturesMask =
+    ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
+    ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_HSL_BLEND_MODES;
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
 inline static uint32_t ShaderUniqueKey(DrawType drawType, ShaderFeatures shaderFeatures)
 {
-    return (static_cast<uint32_t>(shaderFeatures) << 1) |
-           (drawType == DrawType::interiorTriangulation);
+    uint32_t drawTypeKey;
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+            drawTypeKey = 0;
+            break;
+        case DrawType::interiorTriangulation:
+            drawTypeKey = 1;
+            break;
+        case DrawType::imageMesh:
+            drawTypeKey = 2;
+            break;
+    }
+    return (static_cast<uint32_t>(shaderFeatures) << 2) | drawTypeKey;
 }
-
-// Linked list of draws to be issued by the subclass during onFlush().
-struct Draw
-{
-    Draw(DrawType drawType_, uint32_t baseVertexOrInstance_) :
-        drawType(drawType_), baseVertexOrInstance(baseVertexOrInstance_)
-    {}
-    const DrawType drawType;
-    uint32_t baseVertexOrInstance;
-    uint32_t vertexOrInstanceCount = 0; // Calculated during PLSRenderContext::flush().
-    ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
-    const PLSTexture* imageTextureRef = nullptr;    // Must be released manually.
-    GrInnerFanTriangulator* triangulator = nullptr; // Used by "interiorTriangulation" draws.
-};
 
 // Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
 // instead of rendering them.

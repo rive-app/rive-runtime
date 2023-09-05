@@ -72,8 +72,8 @@ $typedef $min16uint ushort;
 #define ATTR_LOAD(T, A, N, I)
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE) TYPE NAME = attrs.NAME
 
-#define UNIFORM_BLOCK_BEGIN(NAME)                                                                  \
-    $cbuffer NAME : $register($b0)                                                                 \
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
+    $cbuffer NAME : $register($b##IDX)                                                             \
     {                                                                                              \
         struct                                                                                     \
         {
@@ -147,8 +147,8 @@ $typedef $min16uint ushort;
 #define PLS_PRESERVE_VALUE(P)
 
 #ifdef @ENABLE_BASE_INSTANCE_POLYFILL
-#define BASE_INSTANCE_POLYFILL_DECL(NAME)                                                          \
-    $cbuffer NAME##_cbuff : $register($b1)                                                         \
+#define BASE_INSTANCE_POLYFILL_DECL(IDX, NAME)                                                     \
+    $cbuffer NAME##_cbuff : $register($b##IDX)                                                     \
     {                                                                                              \
         uint NAME;                                                                                 \
         uint NAME##_pad0;                                                                          \
@@ -175,6 +175,26 @@ $typedef $min16uint ushort;
         Varyings varyings;                                                                         \
         float4 _pos;
 
+#define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
+                               Uniforms,                                                           \
+                               uniforms,                                                           \
+                               MeshUniforms,                                                       \
+                               meshUniforms,                                                       \
+                               PositionAttr,                                                       \
+                               position,                                                           \
+                               UVAttr,                                                             \
+                               uv,                                                                 \
+                               Varyings,                                                           \
+                               varyings,                                                           \
+                               _vertexID,                                                          \
+                               _pos)                                                               \
+    Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID                                 \
+                  : $SV_VertexID, uint _instanceID                                                 \
+                  : $SV_InstanceID)                                                                \
+    {                                                                                              \
+        Varyings varyings;                                                                         \
+        float4 _pos;
+
 #define EMIT_VERTEX(varyings, _pos)                                                                \
     }                                                                                              \
     varyings._pos = _pos;                                                                          \
@@ -191,6 +211,16 @@ $typedef $min16uint ushort;
 #define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
     [$earlydepthstencil] void NAME(Varyings varyings) {                                            \
         int2 _plsCoord = int2(floor(varyings._pos.xy));
+
+#define IMAGE_MESH_PLS_MAIN(NAME,                                                                  \
+                            MeshUniforms,                                                          \
+                            meshUniforms,                                                          \
+                            Varyings,                                                              \
+                            varyings,                                                              \
+                            FragmentTextures,                                                      \
+                            textures,                                                              \
+                            _pos)                                                                  \
+    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)
 
 #define EMIT_PLS }
 

@@ -50,6 +50,8 @@ public:
 private:
     PLSRenderContextD3DImpl(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, bool isIntel);
 
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
+
     rcp<PLSTexture> makeImageTexture(uint32_t width,
                                      uint32_t height,
                                      uint32_t mipLevelCount,
@@ -66,26 +68,10 @@ private:
                                                      size_t itemSizeInBytes) override;
 
     std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
-                                                          size_t itemSizeInBytes) override
-    {
-        // It appears impossible to update a D3D texture from a GPU buffer; implement this resource
-        // directly from the main interface instead of PLSRenderContextBufferRingImpl.
-        RIVE_UNREACHABLE();
-    }
+                                                          size_t itemSizeInBytes) override;
 
-    void resizeSimpleColorRampsBuffer(size_t sizeInBytes) override
-    {
-        m_simpleColorRampsBuffer.resize(sizeInBytes / sizeof(TwoTexelRamp));
-    }
-
-    void mapSimpleColorRampsBuffer(WriteOnlyMappedMemory<TwoTexelRamp>* data) override
-    {
-        data->reset(m_simpleColorRampsBuffer.data(), m_simpleColorRampsBuffer.size());
-    }
-
-    void unmapSimpleColorRampsBuffer(size_t bytesWritten) override {}
-
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity,
+                                                      size_t itemSizeInBytes) override;
 
     void resizeGradientTexture(size_t height) override;
     void resizeTessellationTexture(size_t height) override;
@@ -102,16 +88,13 @@ private:
     ComPtr<ID3D11Texture2D> m_gradTexture;
     ComPtr<ID3D11ShaderResourceView> m_gradTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_gradTextureRTV;
-    // It appears impossible to update a D3D texture from a GPU buffer, so we just write out the
-    // simple gradients to an intermediate CPU-side vector.
-    std::vector<TwoTexelRamp> m_simpleColorRampsBuffer;
 
     ComPtr<ID3D11Texture2D> m_tessTexture;
     ComPtr<ID3D11ShaderResourceView> m_tessTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_tessTextureRTV;
 
-    ComPtr<ID3D11RasterizerState> m_rasterState;
-    ComPtr<ID3D11RasterizerState> m_debugWireframeState;
+    ComPtr<ID3D11RasterizerState> m_pathRasterState[2];
+    ComPtr<ID3D11RasterizerState> m_imageMeshRasterState[2];
 
     ComPtr<ID3D11InputLayout> m_colorRampLayout;
     ComPtr<ID3D11VertexShader> m_colorRampVertexShader;
@@ -132,17 +115,19 @@ private:
     ComPtr<ID3D11Buffer> m_patchVertexBuffer;
     ComPtr<ID3D11Buffer> m_patchIndexBuffer;
 
-    struct PerDrawUniforms
+    struct BaseInstanceUniform
     {
-        PerDrawUniforms(uint32_t baseInstance_) : baseInstance(baseInstance_) {}
+        BaseInstanceUniform(uint32_t baseInstance_) : baseInstance(baseInstance_) {}
         uint32_t baseInstance;
         uint32_t pad0;
         uint32_t pad1;
         uint32_t pad2;
     };
-    static_assert(sizeof(PerDrawUniforms) == 16);
+    static_assert(sizeof(BaseInstanceUniform) == 16);
 
-    ComPtr<ID3D11Buffer> m_perDrawUniforms;
+    ComPtr<ID3D11Buffer> m_flushUniforms;
+    ComPtr<ID3D11Buffer> m_imageMeshUniforms;
+    ComPtr<ID3D11Buffer> m_baseInstanceUniform;
 
     ComPtr<ID3D11SamplerState> m_linearSampler;
     ComPtr<ID3D11SamplerState> m_mipmapSampler;

@@ -4,7 +4,7 @@
 
 #include "rive/pls/gl/gles3.hpp"
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 #endif
@@ -166,7 +166,7 @@ double now()
            1e-9;
 }
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 EM_JS(int, window_inner_width, (), { return window["innerWidth"]; });
 EM_JS(int, window_inner_height, (), { return window["innerHeight"]; });
 #endif
@@ -195,7 +195,7 @@ static void mainLoop();
 
 int main(int argc, const char* argv[])
 {
-#if RIVE_WASM
+#if RIVE_WEBGL
     emscripten_set_main_loop(mainLoop, 0, false);
 #endif
 
@@ -279,7 +279,7 @@ int main(int argc, const char* argv[])
     }
 #endif
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
     if (!emscripten_webgl_enable_WEBGL_shader_pixel_local_storage(
             emscripten_webgl_get_current_context()))
     {
@@ -370,7 +370,7 @@ int main(int argc, const char* argv[])
 
 static void mainLoop()
 {
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
     {
         // Fit the canvas to the browser window size.
         int windowWidth = window_inner_width();

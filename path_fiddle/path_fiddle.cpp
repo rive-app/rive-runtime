@@ -5,6 +5,7 @@
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -14,7 +15,7 @@
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 #include <sstream>
@@ -55,14 +56,15 @@ static bool s_paused = false;
 static int s_dragIdx = -1;
 static float2 s_dragLastPos;
 
-static int s_animation = 0;
+static int s_animation = -1;
+static int s_stateMachine = -1;
 static int s_horzRepeat = 0;
 static int s_upRepeat = 0;
 static int s_downRepeat = 0;
 
 std::unique_ptr<Scene> s_scene;
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 EM_JS(int, window_inner_width, (), { return window["innerWidth"]; });
 EM_JS(int, window_inner_height, (), { return window["innerHeight"]; });
 EM_JS(char*, get_location_hash_str, (), {
@@ -244,7 +246,7 @@ int main(int argc, const char** argv)
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
     emscripten_set_main_loop(riveMainLoop, 0, false);
 
     // Override argc/argv with the window location hash string.
@@ -313,6 +315,8 @@ int main(int argc, const char** argv)
             g_preferIntelGPU = true;
         }
         else if (sscanf(argv[i], "-a%i", &s_animation))
+        {}
+        else if (sscanf(argv[i], "-s%i", &s_stateMachine))
         {}
         else if (sscanf(argv[i], "-h%i", &s_horzRepeat))
         {}
@@ -423,7 +427,18 @@ int main(int argc, const char** argv)
         std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
         rivFile = File::import(rivBytes, factory);
         artboard = rivFile->artboardDefault();
-        s_scene = artboard->animationAt(s_animation);
+        if (s_stateMachine >= 0)
+        {
+            s_scene = artboard->stateMachineAt(s_stateMachine);
+        }
+        else if (s_animation >= 0)
+        {
+            s_scene = artboard->animationAt(s_animation);
+        }
+        else
+        {
+            s_scene = artboard->animationAt(0);
+        }
         s_scene->advanceAndApply(0);
     }
 
@@ -450,7 +465,7 @@ int main(int argc, const char** argv)
 
 void riveMainLoop()
 {
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
     {
         // Fit the canvas to the browser window size.
         int windowWidth = window_inner_width();

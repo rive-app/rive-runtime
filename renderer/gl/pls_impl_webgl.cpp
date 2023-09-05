@@ -6,7 +6,7 @@
 
 #include <stdio.h>
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 #endif

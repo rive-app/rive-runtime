@@ -40,7 +40,7 @@ end
 
 filter 'system:emscripten'
 do
-    defines {'RIVE_WASM'}
+    defines {'RIVE_WEBGL'}
 end
 
 newoption {
@@ -142,7 +142,9 @@ do
     do
         files {
             '../renderer/gl/buffer_ring_gl.cpp',
+            '../renderer/gl/gl_state.cpp',
             '../renderer/gl/gl_utils.cpp',
+            '../renderer/gl/pls_render_buffer_gl_impl.cpp',
             '../renderer/gl/pls_render_context_gl_impl.cpp',
             '../renderer/gl/pls_render_target_gl.cpp'
         }

@@ -5,7 +5,7 @@
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 
-#ifdef RIVE_WASM
+#ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 #endif
@@ -30,12 +30,17 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
     {
         printf("GL ERROR: %s\n", message);
         fflush(stdout);
+        assert(0);
     }
     else if (type == GL_DEBUG_TYPE_PERFORMANCE)
     {
         if (strcmp(message,
                    "API_ID_REDUNDANT_FBO performance warning has been generated. Redundant state "
                    "change in glBindFramebuffer API call, FBO 0, \"\", already bound.") == 0)
+        {
+            return;
+        }
+        if (strstr(message, "is being recompiled based on GL state."))
         {
             return;
         }

@@ -56,8 +56,8 @@
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
 #endif
 
-#define UNIFORM_BLOCK_BEGIN(N)                                                                     \
-    layout(std140) uniform N                                                                       \
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
+    layout(std140) uniform NAME                                                                    \
     {
 // clang-format barrier... Otherwise it tries to merge this #define into the above macro...
 #define UNIFORM_BLOCK_END(NAME)                                                                    \
@@ -209,7 +209,7 @@
 #endif
 
 #ifdef @ENABLE_BASE_INSTANCE_POLYFILL
-#define BASE_INSTANCE_POLYFILL_DECL(NAME) uniform int NAME
+#define BASE_INSTANCE_POLYFILL_DECL(IDX, NAME) uniform int NAME
 // The Qualcomm compiler doesn't like how clang-format handles these lines.
 // clang-format off
 #define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
@@ -233,6 +233,11 @@
         vec4 _pos;
 // clang-format on
 #endif
+
+// clang-format off
+#define IMAGE_MESH_VERTEX_MAIN(NAME, Uniforms, uniforms, MeshUniforms, meshUniforms, PositionAttr, position, UVAttr, uv, Varyings, varyings, _vertexID, _pos) \
+    VERTEX_MAIN(NAME, Uniforms, uniforms, PositionAttr, position, Varyings, varyings, _, _, _vertexID, _instanceID, _pos)
+// clang-format on
 
 #define VARYING_INIT(varyings, NAME, TYPE)
 #define VARYING_PACK(varyings, NAME)
@@ -258,6 +263,11 @@
     void main()                                                                                    \
     {
 #endif
+
+// clang-format off
+#define IMAGE_MESH_PLS_MAIN(NAME, MeshUniforms, meshUniforms, Varyings, varyings, FragmentTextures, textures, _pos) \
+    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)
+// clang-format on
 
 #define EMIT_PLS }
 

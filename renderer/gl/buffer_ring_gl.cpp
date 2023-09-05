@@ -4,26 +4,33 @@
 
 #include "buffer_ring_gl.hpp"
 
+#include "rive/pls/gl/gl_state.hpp"
 #include <algorithm>
 
 namespace rive::pls
 {
-BufferGL::BufferGL(GLenum target, size_t capacity, size_t itemSizeInBytes) :
-    BufferRingShadowImpl(capacity, itemSizeInBytes), m_target(target)
+BufferGL::BufferGL(GLenum target, size_t capacity, size_t itemSizeInBytes, rcp<GLState> state) :
+    BufferRingShadowImpl(capacity, itemSizeInBytes), m_target(target), m_state(std::move(state))
 {
     glGenBuffers(kBufferRingSize, m_ids);
     for (int i = 0; i < kBufferRingSize; ++i)
     {
-        glBindBuffer(m_target, m_ids[i]);
+        m_state->bindBuffer(m_target, m_ids[i]);
         glBufferData(m_target, capacity * itemSizeInBytes, nullptr, GL_DYNAMIC_DRAW);
     }
 }
 
-BufferGL::~BufferGL() { glDeleteBuffers(kBufferRingSize, m_ids); }
+BufferGL::~BufferGL()
+{
+    for (int i = 0; i < kBufferRingSize; ++i)
+    {
+        m_state->deleteBuffer(m_ids[i]);
+    }
+}
 
 void BufferGL::onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
 {
-    glBindBuffer(m_target, m_ids[bufferIdx]);
+    m_state->bindBuffer(m_target, m_ids[bufferIdx]);
     glBufferSubData(m_target, 0, bytesWritten, shadowBuffer());
 }
 
@@ -85,9 +92,11 @@ TexelBufferGL::TexelBufferGL(Format format,
                              size_t height,
                              size_t texelsPerItem,
                              GLenum activeTextureIdx,
-                             Filter filter) :
+                             Filter filter,
+                             rcp<GLState> state) :
     TexelBufferRing(format, widthInItems, height, texelsPerItem),
-    m_activeTextureIdx(activeTextureIdx)
+    m_activeTextureIdx(activeTextureIdx),
+    m_state(std::move(state))
 {
     GLenum filterGL = filter_gl(filter);
     glGenTextures(kBufferRingSize, m_ids);
@@ -111,7 +120,7 @@ void TexelBufferGL::submitTexels(int textureIdx, size_t updateWidthInTexels, siz
     glBindTexture(GL_TEXTURE_2D, m_ids[textureIdx]);
     if (updateWidthInTexels > 0 && updateHeight > 0)
     {
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,

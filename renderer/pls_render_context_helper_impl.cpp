@@ -76,6 +76,12 @@ void PLSRenderContextHelperImpl::resizeTriangleVertexBuffer(size_t sizeInBytes)
         makeVertexBufferRing(sizeInBytes / sizeof(TriangleVertex), sizeof(TriangleVertex));
 }
 
+void PLSRenderContextHelperImpl::resizeImageMeshUniformBuffer(size_t sizeInBytes)
+{
+    m_imageMeshUniformBuffer = makeUniformBufferRing(sizeInBytes / sizeof(pls::ImageMeshUniforms),
+                                                     sizeof(pls::ImageMeshUniforms));
+}
+
 void PLSRenderContextHelperImpl::mapPathTexture(WriteOnlyMappedMemory<PathData>* pathData)
 {
     pathData->reset(m_pathBuffer->mapBuffer(), m_pathBuffer->capacity());
@@ -111,6 +117,25 @@ void PLSRenderContextHelperImpl::mapTriangleVertexBuffer(
     triangleVertexData->reset(m_triangleBuffer->mapBuffer(), m_triangleBuffer->capacity());
 }
 
+void PLSRenderContextHelperImpl::mapImageMeshUniformBuffer(
+    WriteOnlyMappedMemory<pls::ImageMeshUniforms>* imageMeshUniformData)
+{
+    imageMeshUniformData->reset(m_imageMeshUniformBuffer->mapBuffer(),
+                                m_imageMeshUniformBuffer->capacity());
+}
+
+void PLSRenderContextHelperImpl::mapFlushUniformBuffer(
+    WriteOnlyMappedMemory<pls::FlushUniforms>* flushUniformData)
+{
+    if (m_flushUniformBuffer == nullptr)
+    {
+        // Allocate the flushUniformBuffer lazily size it doesn't have a corresponding 'resize()'
+        // call where we can allocate it.
+        m_flushUniformBuffer = makeUniformBufferRing(1, sizeof(pls::FlushUniforms));
+    }
+    flushUniformData->reset(m_flushUniformBuffer->mapBuffer(), 1);
+}
+
 void PLSRenderContextHelperImpl::unmapPathTexture(size_t widthWritten, size_t heightWritten)
 {
     m_pathBuffer->unmapAndSubmitBuffer(heightWritten * widthWritten * 4 * 4);
@@ -141,13 +166,13 @@ void PLSRenderContextHelperImpl::unmapTriangleVertexBuffer(size_t bytesWritten)
     m_triangleBuffer->unmapAndSubmitBuffer(bytesWritten);
 }
 
-void PLSRenderContextHelperImpl::updateFlushUniforms(const FlushUniforms* uniformData)
+void PLSRenderContextHelperImpl::unmapImageMeshUniformBuffer(size_t bytesWritten)
 {
-    if (m_uniformBuffer == nullptr)
-    {
-        m_uniformBuffer = makeUniformBufferRing(sizeof(FlushUniforms));
-    }
-    memcpy(m_uniformBuffer->mapBuffer(), uniformData, sizeof(FlushUniforms));
-    m_uniformBuffer->unmapAndSubmitBuffer(sizeof(FlushUniforms));
+    m_imageMeshUniformBuffer->unmapAndSubmitBuffer(bytesWritten);
+}
+
+void PLSRenderContextHelperImpl::unmapFlushUniformBuffer()
+{
+    m_flushUniformBuffer->unmapAndSubmitBuffer(sizeof(pls::FlushUniforms));
 }
 } // namespace rive::pls
