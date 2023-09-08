@@ -1,5 +1,6 @@
 #include "rive/animation/animation_state_instance.hpp"
 #include "rive/animation/animation_state.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 
 using namespace rive;
 
@@ -23,9 +24,10 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
 
 // NOTE:: should we return bool here? we are not currently using the output of this, we are instead
 // using m_keepGoing directly.
-void AnimationStateInstance::advance(float seconds, Span<SMIInput*>)
+void AnimationStateInstance::advance(float seconds, StateMachineInstance* stateMachineInstance)
 {
-    m_KeepGoing = m_AnimationInstance.advance(seconds * state()->as<AnimationState>()->speed());
+    m_KeepGoing = m_AnimationInstance.advance(seconds * state()->as<AnimationState>()->speed(),
+                                              stateMachineInstance);
 }
 
 void AnimationStateInstance::apply(float mix) { m_AnimationInstance.apply(mix); }

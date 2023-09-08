@@ -23,6 +23,8 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/rive_counter.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/core/field_types/core_callback_type.hpp"
+#include "rive/generated/core_registry.hpp"
 #include <unordered_map>
 
 using namespace rive;
@@ -69,20 +71,20 @@ public:
         }
     }
 
-    bool advance(float seconds, Span<SMIInput*> inputs)
+    bool advance(float seconds)
     {
         m_stateMachineChangedOnAdvance = false;
-        m_currentState->advance(seconds, inputs);
+        m_currentState->advance(seconds, m_stateMachineInstance);
         updateMix(seconds);
 
         if (m_stateFrom != nullptr && m_mix < 1.0f && !m_holdAnimationFrom)
         {
             // This didn't advance during our updateState, but it should now
             // that we realize we need to mix it in.
-            m_stateFrom->advance(seconds, inputs);
+            m_stateFrom->advance(seconds, m_stateMachineInstance);
         }
 
-        for (int i = 0; updateState(inputs, i != 0); i++)
+        for (int i = 0; updateState(i != 0); i++)
         {
             apply();
 
@@ -107,7 +109,7 @@ public:
                m_mix < 1.0f;
     }
 
-    bool updateState(Span<SMIInput*> inputs, bool ignoreTriggers)
+    bool updateState(bool ignoreTriggers)
     {
         // Don't allow changing state while a transition is taking place
         // (we're mixing one state onto another).
@@ -118,12 +120,12 @@ public:
 
         m_waitingForExit = false;
 
-        if (tryChangeState(m_anyStateInstance, inputs, ignoreTriggers))
+        if (tryChangeState(m_anyStateInstance, ignoreTriggers))
         {
             return true;
         }
 
-        return tryChangeState(m_currentState, inputs, ignoreTriggers);
+        return tryChangeState(m_currentState, ignoreTriggers);
     }
 
     void fireEvents(StateMachineFireOccurance occurs,
@@ -162,9 +164,7 @@ public:
         return true;
     }
 
-    bool tryChangeState(StateInstance* stateFromInstance,
-                        Span<SMIInput*> inputs,
-                        bool ignoreTriggers)
+    bool tryChangeState(StateInstance* stateFromInstance, bool ignoreTriggers)
     {
         if (stateFromInstance == nullptr)
         {
@@ -175,7 +175,8 @@ public:
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length; i++)
         {
             auto transition = stateFrom->transition(i);
-            auto allowed = transition->allowed(stateFromInstance, inputs, ignoreTriggers);
+            auto allowed =
+                transition->allowed(stateFromInstance, m_stateMachineInstance, ignoreTriggers);
             if (allowed == AllowTransition::yes && changeState(transition->stateTo()))
             {
                 m_stateMachineChangedOnAdvance = true;
@@ -226,7 +227,7 @@ public:
                         static_cast<AnimationStateInstance*>(m_stateFrom)->animationInstance();
 
                     auto spilledTime = instance->spilledTime();
-                    m_currentState->advance(spilledTime, inputs);
+                    m_currentState->advance(spilledTime, m_stateMachineInstance);
                 }
                 m_mix = 0.0f;
                 updateMix(0.0f);
@@ -524,11 +525,11 @@ StateMachineInstance::~StateMachineInstance()
 
 bool StateMachineInstance::advance(float seconds)
 {
-    m_firedEvents.clear();
+    m_reportedEvents.clear();
     m_needsAdvance = false;
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].advance(seconds, m_inputInstances))
+        if (m_layers[i].advance(seconds))
         {
             m_needsAdvance = true;
         }
@@ -650,15 +651,27 @@ const LinearAnimationInstance* StateMachineInstance::currentAnimationByIndex(siz
     return nullptr;
 }
 
-void StateMachineInstance::fireEvent(Event* event) { m_firedEvents.push_back(event); }
-
-std::size_t StateMachineInstance::firedEventCount() const { return m_firedEvents.size(); }
-
-const Event* StateMachineInstance::firedEventAt(std::size_t index) const
+void StateMachineInstance::reportEvent(Event* event, float delaySeconds)
 {
-    if (index >= m_firedEvents.size())
+    m_reportedEvents.push_back(EventReport(event, delaySeconds));
+}
+
+std::size_t StateMachineInstance::reportedEventCount() const { return m_reportedEvents.size(); }
+
+const EventReport StateMachineInstance::reportedEventAt(std::size_t index) const
+{
+    if (index >= m_reportedEvents.size())
     {
-        return nullptr;
+        return EventReport(nullptr, 0.0f);
     }
-    return m_firedEvents[index];
+    return m_reportedEvents[index];
+}
+
+void StateMachineInstance::reportKeyedCallback(uint32_t objectId,
+                                               uint32_t propertyKey,
+                                               float elapsedSeconds)
+{
+    auto coreObject = m_artboardInstance->resolve(objectId);
+    CallbackData data(this, elapsedSeconds);
+    CoreRegistry::setCallback(coreObject, propertyKey, data);
 }

@@ -9,7 +9,7 @@
 namespace rive
 {
 class LayerState;
-class SMIInput;
+class StateMachineInstance;
 class ArtboardInstance;
 
 /// Represents an instance of a state tracked by the State Machine.
@@ -21,7 +21,7 @@ private:
 public:
     StateInstance(const LayerState* layerState);
     virtual ~StateInstance();
-    virtual void advance(float seconds, Span<SMIInput*> inputs) = 0;
+    virtual void advance(float seconds, StateMachineInstance* stateMachineInstance) = 0;
     virtual void apply(float mix) = 0;
 
     /// Returns true when the State Machine needs to keep advancing this

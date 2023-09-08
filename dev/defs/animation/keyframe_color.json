@@ -4,7 +4,7 @@
     "int": 37,
     "string": "keyframecolor"
   },
-  "extends": "animation/keyframe.json",
+  "extends": "animation/interpolating_keyframe.json",
   "properties": {
     "value": {
       "type": "Color",

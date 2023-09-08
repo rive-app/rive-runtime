@@ -4,7 +4,7 @@
     "int": 30,
     "string": "keyframedouble"
   },
-  "extends": "animation/keyframe.json",
+  "extends": "animation/interpolating_keyframe.json",
   "properties": {
     "value": {
       "type": "double",

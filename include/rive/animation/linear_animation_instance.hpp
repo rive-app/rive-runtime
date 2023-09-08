@@ -7,6 +7,7 @@
 namespace rive
 {
 class LinearAnimation;
+class KeyedCallbackReporter;
 
 class LinearAnimationInstance : public Scene
 {
@@ -17,7 +18,8 @@ public:
 
     // Advance the animation by the specified time. Returns true if the
     // animation will continue to animate after this advance.
-    bool advance(float seconds);
+    bool advance(float seconds, KeyedCallbackReporter* reporter);
+    bool advance(float seconds) { return advance(seconds, nullptr); }
 
     void clearSpilledTime() { m_spilledTime = 0; }
 

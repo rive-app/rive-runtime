@@ -1,13 +1,13 @@
 #ifndef _RIVE_KEY_FRAME_DOUBLE_BASE_HPP_
 #define _RIVE_KEY_FRAME_DOUBLE_BASE_HPP_
-#include "rive/animation/keyframe.hpp"
+#include "rive/animation/interpolating_keyframe.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
-class KeyFrameDoubleBase : public KeyFrame
+class KeyFrameDoubleBase : public InterpolatingKeyFrame
 {
 protected:
-    typedef KeyFrame Super;
+    typedef InterpolatingKeyFrame Super;
 
 public:
     static const uint16_t typeKey = 30;
@@ -19,6 +19,7 @@ public:
         switch (typeKey)
         {
             case KeyFrameDoubleBase::typeKey:
+            case InterpolatingKeyFrameBase::typeKey:
             case KeyFrameBase::typeKey:
                 return true;
             default:
@@ -49,7 +50,7 @@ public:
     void copy(const KeyFrameDoubleBase& object)
     {
         m_Value = object.m_Value;
-        KeyFrame::copy(object);
+        InterpolatingKeyFrame::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -60,7 +61,7 @@ public:
                 m_Value = CoreDoubleType::deserialize(reader);
                 return true;
         }
-        return KeyFrame::deserialize(propertyKey, reader);
+        return InterpolatingKeyFrame::deserialize(propertyKey, reader);
     }
 
 protected:

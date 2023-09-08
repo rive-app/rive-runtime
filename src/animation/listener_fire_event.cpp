@@ -11,5 +11,5 @@ void ListenerFireEvent::perform(StateMachineInstance* stateMachineInstance, Vec2
     {
         return;
     }
-    stateMachineInstance->fireEvent(coreEvent->as<Event>());
+    stateMachineInstance->reportEvent(coreEvent->as<Event>());
 }

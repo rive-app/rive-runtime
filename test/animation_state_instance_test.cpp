@@ -1,9 +1,10 @@
-#include <rive/animation/loop.hpp>
-#include <rive/animation/linear_animation.hpp>
-#include <rive/animation/linear_animation_instance.hpp>
+#include "rive/animation/loop.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 
-#include <rive/animation/animation_state.hpp>
-#include <rive/animation/animation_state_instance.hpp>
+#include "rive/animation/animation_state.hpp"
+#include "rive/animation/animation_state_instance.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "utils/no_op_factory.hpp"
 #include "rive/scene.hpp"
 #include <catch.hpp>
@@ -30,8 +31,9 @@ TEST_CASE("AnimationStateInstance advances in step with animation speed 1", "[an
         new rive::AnimationStateInstance(animationState, abi.get());
 
     // play from beginning.
-    std::vector<rive::SMIInput*> m_InputInstances;
-    animationStateInstance->advance(2.0, m_InputInstances);
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+    animationStateInstance->advance(2.0, &stateMachineInstance);
 
     REQUIRE(animationStateInstance->animationInstance()->time() == 2.0);
     REQUIRE(animationStateInstance->animationInstance()->totalTime() == 2.0);
@@ -49,6 +51,9 @@ TEST_CASE("AnimationStateInstance advances twice as fast when speed is doubled",
     rive::Artboard ab(&emptyFactory);
     auto abi = ab.instance();
 
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+
     rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
     // duration in seconds is 5
     linearAnimation->duration(10);
@@ -63,8 +68,7 @@ TEST_CASE("AnimationStateInstance advances twice as fast when speed is doubled",
         new rive::AnimationStateInstance(animationState, abi.get());
 
     // play from beginning.
-    std::vector<rive::SMIInput*> m_InputInstances;
-    animationStateInstance->advance(2.0, m_InputInstances);
+    animationStateInstance->advance(2.0, &stateMachineInstance);
 
     REQUIRE(animationStateInstance->animationInstance()->time() == 4.0);
     REQUIRE(animationStateInstance->animationInstance()->totalTime() == 4.0);
@@ -96,8 +100,9 @@ TEST_CASE("AnimationStateInstance advances half as fast when speed is halved", "
         new rive::AnimationStateInstance(animationState, abi.get());
 
     // play from beginning.
-    std::vector<rive::SMIInput*> m_InputInstances;
-    animationStateInstance->advance(2.0, m_InputInstances);
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+    animationStateInstance->advance(2.0, &stateMachineInstance);
 
     REQUIRE(animationStateInstance->animationInstance()->time() == 1.0);
     REQUIRE(animationStateInstance->animationInstance()->totalTime() == 1.0);
@@ -129,8 +134,9 @@ TEST_CASE("AnimationStateInstance advances backwards when speed is negative", "[
         new rive::AnimationStateInstance(animationState, abi.get());
 
     // play from beginning.
-    std::vector<rive::SMIInput*> m_InputInstances;
-    animationStateInstance->advance(2.0, m_InputInstances);
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+    animationStateInstance->advance(2.0, &stateMachineInstance);
 
     // backwards 2 seconds from 5.
     REQUIRE(animationStateInstance->animationInstance()->time() == 3.0);

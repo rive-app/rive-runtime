@@ -150,20 +150,20 @@ TEST_CASE("events load correctly on a listener", "[events]")
     REQUIRE(event->is<rive::Event>());
     REQUIRE(event->as<rive::Event>()->name() == "Footstep");
 
-    REQUIRE(stateMachineInstance->firedEventCount() == 0);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 0);
     stateMachineInstance->pointerDown(rive::Vec2D(343.0f, 116.0f));
     stateMachineInstance->pointerUp(rive::Vec2D(343.0f, 116.0f));
 
     // There are two events on the listener.
-    REQUIRE(stateMachineInstance->firedEventCount() == 2);
-    auto firedEvent1 = stateMachineInstance->firedEventAt(0);
-    REQUIRE(firedEvent1->name() == "Footstep");
-    auto firedEvent2 = stateMachineInstance->firedEventAt(1);
-    REQUIRE(firedEvent2->name() == "Event 3");
+    REQUIRE(stateMachineInstance->reportedEventCount() == 2);
+    auto reportedEvent1 = stateMachineInstance->reportedEventAt(0);
+    REQUIRE(reportedEvent1.event()->name() == "Footstep");
+    auto reportedEvent2 = stateMachineInstance->reportedEventAt(1);
+    REQUIRE(reportedEvent2.event()->name() == "Event 3");
 
-    // After advancing again the firedEventCount should return to 0.
+    // After advancing again the reportedEventCount should return to 0.
     stateMachineInstance->advance(0.0f);
-    REQUIRE(stateMachineInstance->firedEventCount() == 0);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 0);
 }
 
 TEST_CASE("events load correctly on a state and transition", "[events]")
@@ -197,21 +197,47 @@ TEST_CASE("events load correctly on a state and transition", "[events]")
     REQUIRE(transition->events().size() == 2);
 
     // First should've fired as we immediately went to Timeline 1.
-    REQUIRE(stateMachineInstance->firedEventCount() == 1);
-    REQUIRE(stateMachineInstance->firedEventAt(0)->name() == "First");
+    REQUIRE(stateMachineInstance->reportedEventCount() == 1);
+    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "First");
 
     stateMachineInstance->advance(1.0f);
     // Exits after 2 seconds so 1 second in no events should've fired yet
-    REQUIRE(stateMachineInstance->firedEventCount() == 0);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 0);
 
     stateMachineInstance->advance(1.0f);
     // At 2 seconds 2 events should fire, one for exiting the state and for taking the transition.
-    REQUIRE(stateMachineInstance->firedEventCount() == 2);
-    REQUIRE(stateMachineInstance->firedEventAt(0)->name() == "Second");
-    REQUIRE(stateMachineInstance->firedEventAt(1)->name() == "Third");
+    REQUIRE(stateMachineInstance->reportedEventCount() == 2);
+    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "Second");
+    REQUIRE(stateMachineInstance->reportedEventAt(1).event()->name() == "Third");
 
     stateMachineInstance->advance(1.0f);
     // Another second in the transition should complete
-    REQUIRE(stateMachineInstance->firedEventCount() == 1);
-    REQUIRE(stateMachineInstance->firedEventAt(0)->name() == "Fourth");
+    REQUIRE(stateMachineInstance->reportedEventCount() == 1);
+    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "Fourth");
+}
+
+TEST_CASE("timeline events load correctly and report", "[events]")
+{
+    auto file = ReadRiveFile("../../test/assets/timeline_event_test.riv");
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachineInstance = artboard->stateMachineAt(0);
+    REQUIRE(stateMachineInstance != nullptr);
+
+    artboard->advance(0.0f);
+    stateMachineInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 0);
+
+    stateMachineInstance->advance(0.4f);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 0);
+
+    stateMachineInstance->advance(0.2f);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 1);
+    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "Half");
+
+    // Event should've occurred right at 0.5 seconds.
+    REQUIRE(stateMachineInstance->reportedEventAt(0).secondsDelay() == Approx(0.1f));
 }

@@ -6,6 +6,7 @@
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/blend_state.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 
 namespace rive
 {
@@ -52,7 +53,7 @@ public:
 
     bool keepGoing() const override { return m_KeepGoing; }
 
-    void advance(float seconds, Span<SMIInput*>) override
+    void advance(float seconds, StateMachineInstance* stateMachineInstance) override
     {
         // NOTE: we are intentionally ignoring the animationInstances' keepGoing
         // return value.
@@ -62,7 +63,7 @@ public:
         {
             if (animation.m_AnimationInstance.keepGoing())
             {
-                animation.m_AnimationInstance.advance(seconds);
+                animation.m_AnimationInstance.advance(seconds, stateMachineInstance);
             }
         }
     }

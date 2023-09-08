@@ -4,5 +4,15 @@
     "int": 128,
     "string": "event"
   },
-  "extends": "container_component.json"
+  "extends": "container_component.json",
+  "properties": {
+    "trigger": {
+      "type": "callback",
+      "animates": true,
+      "key": {
+        "int": 395,
+        "string": "trigger"
+      }
+    }
+  }
 }

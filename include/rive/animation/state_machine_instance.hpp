@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <vector>
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/scene.hpp"
 
@@ -22,10 +23,24 @@ class StateMachineLayerInstance;
 class HitShape;
 class NestedArtboard;
 class Event;
+class KeyedProperty;
 
-class StateMachineInstance : public Scene
+class EventReport
+{
+public:
+    EventReport(Event* event, float secondsDelay) : m_event(event), m_secondsDelay(secondsDelay) {}
+    Event* event() const { return m_event; }
+    float secondsDelay() const { return m_secondsDelay; }
+
+private:
+    Event* m_event;
+    float m_secondsDelay;
+};
+
+class StateMachineInstance : public Scene, public KeyedCallbackReporter
 {
     friend class SMIInput;
+    friend class KeyedProperty;
 
 private:
     void markNeedsAdvance();
@@ -84,17 +99,23 @@ public:
     /// the backing artboard (explicitly not allowed on Scenes).
     Artboard* artboard() { return m_artboardInstance; }
 
-    /// Tracks an event that fired, will be cleared at the end of the next advance.
-    void fireEvent(Event* event);
+    /// Tracks an event that reported, will be cleared at the end of the next advance.
+    void reportEvent(Event* event, float secondsDelay = 0.0f);
 
-    /// Gets the number of events that fired since the last advance.
-    std::size_t firedEventCount() const;
+    /// Gets the number of events that reported since the last advance.
+    std::size_t reportedEventCount() const;
 
-    /// Gets a fired event at an index < firedEventCount().
-    const Event* firedEventAt(std::size_t index) const;
+    /// Gets a reported event at an index < reportedEventCount().
+    const EventReport reportedEventAt(std::size_t index) const;
+
+    /// Report which time based events have elapsed on a timeline within this
+    /// state machine.
+    void reportKeyedCallback(uint32_t objectId,
+                             uint32_t propertyKey,
+                             float elapsedSeconds) override;
 
 private:
-    std::vector<Event*> m_firedEvents;
+    std::vector<EventReport> m_reportedEvents;
     const StateMachine* m_machine;
     bool m_needsAdvance = false;
     std::vector<SMIInput*> m_inputInstances; // we own each pointer

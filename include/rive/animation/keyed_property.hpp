@@ -5,11 +5,9 @@
 namespace rive
 {
 class KeyFrame;
+class KeyedCallbackReporter;
 class KeyedProperty : public KeyedPropertyBase
 {
-private:
-    std::vector<std::unique_ptr<KeyFrame>> m_KeyFrames;
-
 public:
     KeyedProperty();
     ~KeyedProperty() override;
@@ -17,9 +15,20 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
 
+    /// Report any keyframes that occured between secondsFrom and secondsTo.
+    void reportKeyedCallbacks(KeyedCallbackReporter* reporter,
+                              uint32_t objectId,
+                              float secondsFrom,
+                              float secondsTo) const;
+
+    /// Apply interpolating key frames.
     void apply(Core* object, float time, float mix);
 
     StatusCode import(ImportStack& importStack) override;
+
+private:
+    int closestFrameIndex(float seconds, int exactOffset = 0) const;
+    std::vector<std::unique_ptr<KeyFrame>> m_keyFrames;
 };
 } // namespace rive
 

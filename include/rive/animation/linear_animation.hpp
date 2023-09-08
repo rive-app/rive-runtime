@@ -7,6 +7,7 @@ namespace rive
 {
 class Artboard;
 class KeyedObject;
+class KeyedCallbackReporter;
 
 class LinearAnimation : public LinearAnimationBase
 {
@@ -45,6 +46,10 @@ public:
     // Used in testing to check how many animations gets deleted.
     static int deleteCount;
 #endif
+
+    void reportKeyedCallbacks(KeyedCallbackReporter* reporter,
+                              float secondsFrom,
+                              float secondsTo) const;
 };
 } // namespace rive
 

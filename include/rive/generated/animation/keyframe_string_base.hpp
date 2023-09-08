@@ -1,14 +1,14 @@
 #ifndef _RIVE_KEY_FRAME_STRING_BASE_HPP_
 #define _RIVE_KEY_FRAME_STRING_BASE_HPP_
 #include <string>
-#include "rive/animation/keyframe.hpp"
+#include "rive/animation/interpolating_keyframe.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
 namespace rive
 {
-class KeyFrameStringBase : public KeyFrame
+class KeyFrameStringBase : public InterpolatingKeyFrame
 {
 protected:
-    typedef KeyFrame Super;
+    typedef InterpolatingKeyFrame Super;
 
 public:
     static const uint16_t typeKey = 142;
@@ -20,6 +20,7 @@ public:
         switch (typeKey)
         {
             case KeyFrameStringBase::typeKey:
+            case InterpolatingKeyFrameBase::typeKey:
             case KeyFrameBase::typeKey:
                 return true;
             default:
@@ -50,7 +51,7 @@ public:
     void copy(const KeyFrameStringBase& object)
     {
         m_Value = object.m_Value;
-        KeyFrame::copy(object);
+        InterpolatingKeyFrame::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -61,7 +62,7 @@ public:
                 m_Value = CoreStringType::deserialize(reader);
                 return true;
         }
-        return KeyFrame::deserialize(propertyKey, reader);
+        return InterpolatingKeyFrame::deserialize(propertyKey, reader);
     }
 
 protected:

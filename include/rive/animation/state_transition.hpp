@@ -13,7 +13,7 @@ class StateMachineLayerImporter;
 class StateTransitionImporter;
 class TransitionCondition;
 class StateInstance;
-class SMIInput;
+class StateMachineInstance;
 class LinearAnimation;
 class LinearAnimationInstance;
 
@@ -59,7 +59,7 @@ public:
     /// Returns AllowTransition::yes when this transition can be taken from
     /// stateFrom with the given inputs.
     AllowTransition allowed(StateInstance* stateFrom,
-                            Span<SMIInput*> inputs,
+                            StateMachineInstance* stateMachineInstance,
                             bool ignoreTriggers) const;
 
     /// Whether the animation is held at exit or if it keeps advancing

@@ -7,25 +7,15 @@ class CubicInterpolator;
 
 class KeyFrame : public KeyFrameBase
 {
-private:
-    CubicInterpolator* m_Interpolator = nullptr;
-    float m_Seconds;
-
 public:
-    inline float seconds() const { return m_Seconds; }
-    inline CubicInterpolator* interpolator() const { return m_Interpolator; }
+    inline float seconds() const { return m_seconds; }
 
     void computeSeconds(int fps);
 
-    StatusCode onAddedDirty(CoreContext* context) override;
-    virtual void apply(Core* object, int propertyKey, float mix) = 0;
-    virtual void applyInterpolation(Core* object,
-                                    int propertyKey,
-                                    float seconds,
-                                    const KeyFrame* nextFrame,
-                                    float mix) = 0;
-
     StatusCode import(ImportStack& importStack) override;
+
+private:
+    float m_seconds;
 };
 } // namespace rive
 

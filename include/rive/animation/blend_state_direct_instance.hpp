@@ -11,7 +11,7 @@ class BlendStateDirectInstance : public BlendStateInstance<BlendStateDirect, Ble
 {
 public:
     BlendStateDirectInstance(const BlendStateDirect* blendState, ArtboardInstance* instance);
-    void advance(float seconds, Span<SMIInput*> inputs) override;
+    void advance(float seconds, StateMachineInstance* stateMachineInstance) override;
 };
 } // namespace rive
 #endif

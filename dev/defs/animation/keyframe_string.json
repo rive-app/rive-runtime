@@ -4,7 +4,7 @@
     "int": 142,
     "string": "keyframestring"
   },
-  "extends": "animation/keyframe.json",
+  "extends": "animation/interpolating_keyframe.json",
   "properties": {
     "value": {
       "type": "String",

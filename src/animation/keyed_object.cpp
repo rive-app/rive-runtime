@@ -3,6 +3,7 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/artboard.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
+#include "rive/generated/core_registry.hpp"
 
 using namespace rive;
 
@@ -11,7 +12,7 @@ KeyedObject::~KeyedObject() {}
 
 void KeyedObject::addKeyedProperty(std::unique_ptr<KeyedProperty> property)
 {
-    m_KeyedProperties.push_back(std::move(property));
+    m_keyedProperties.push_back(std::move(property));
 }
 
 StatusCode KeyedObject::onAddedDirty(CoreContext* context)
@@ -22,7 +23,7 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
-    for (auto& property : m_KeyedProperties)
+    for (auto& property : m_keyedProperties)
     {
         StatusCode code;
         if ((code = property->onAddedDirty(context)) != StatusCode::Ok)
@@ -35,11 +36,25 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
 
 StatusCode KeyedObject::onAddedClean(CoreContext* context)
 {
-    for (auto& property : m_KeyedProperties)
+    for (auto& property : m_keyedProperties)
     {
         property->onAddedClean(context);
     }
     return StatusCode::Ok;
+}
+
+void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
+                                       float secondsFrom,
+                                       float secondsTo) const
+{
+    for (const std::unique_ptr<KeyedProperty>& property : m_keyedProperties)
+    {
+        if (!CoreRegistry::isCallback(property->propertyKey()))
+        {
+            continue;
+        }
+        property->reportKeyedCallbacks(reporter, objectId(), secondsFrom, secondsTo);
+    }
 }
 
 void KeyedObject::apply(Artboard* artboard, float time, float mix)
@@ -49,8 +64,12 @@ void KeyedObject::apply(Artboard* artboard, float time, float mix)
     {
         return;
     }
-    for (auto& property : m_KeyedProperties)
+    for (std::unique_ptr<KeyedProperty>& property : m_keyedProperties)
     {
+        if (CoreRegistry::isCallback(property->propertyKey()))
+        {
+            continue;
+        }
         property->apply(object, time, mix);
     }
 }

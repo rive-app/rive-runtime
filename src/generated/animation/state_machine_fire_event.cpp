@@ -26,5 +26,5 @@ void StateMachineFireEvent::perform(StateMachineInstance* stateMachineInstance) 
     {
         return;
     }
-    stateMachineInstance->fireEvent(coreEvent->as<Event>());
+    stateMachineInstance->reportEvent(coreEvent->as<Event>());
 }

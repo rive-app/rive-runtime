@@ -6,11 +6,9 @@ namespace rive
 {
 class Artboard;
 class KeyedProperty;
+class KeyedCallbackReporter;
 class KeyedObject : public KeyedObjectBase
 {
-private:
-    std::vector<std::unique_ptr<KeyedProperty>> m_KeyedProperties;
-
 public:
     KeyedObject();
     ~KeyedObject() override;
@@ -18,9 +16,15 @@ public:
 
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
+    void reportKeyedCallbacks(KeyedCallbackReporter* reporter,
+                              float secondsFrom,
+                              float secondsTo) const;
     void apply(Artboard* coreContext, float time, float mix);
 
     StatusCode import(ImportStack& importStack) override;
+
+private:
+    std::vector<std::unique_ptr<KeyedProperty>> m_keyedProperties;
 };
 } // namespace rive
 

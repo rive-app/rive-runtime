@@ -8,6 +8,7 @@
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/layer_state_importer.hpp"
 
@@ -136,7 +137,7 @@ const LinearAnimation* StateTransition::exitTimeAnimation(const LayerState* from
 }
 
 AllowTransition StateTransition::allowed(StateInstance* stateFrom,
-                                         Span<SMIInput*> inputs,
+                                         StateMachineInstance* stateMachineInstance,
                                          bool ignoreTriggers) const
 {
     if (isDisabled())
@@ -147,7 +148,7 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
     for (auto condition : m_Conditions)
     {
         // N.B. state machine instance sanitizes these for us...
-        auto input = inputs[condition->inputId()];
+        auto input = stateMachineInstance->input(condition->inputId());
 
         if ((ignoreTriggers && condition->is<TransitionTriggerCondition>()) ||
             !condition->evaluate(input))

@@ -26,6 +26,9 @@ class Definition {
       .where((property) => property.isRuntime)
       .toList(growable: false);
 
+  Iterable<Property> get storedProperties =>
+      properties.where((property) => property.getExportType().storesData);
+
   Definition? _extensionOf;
   Key? _key;
   bool _isAbstract = false;
@@ -167,13 +170,13 @@ class Definition {
         code.writeln('static const uint16_t ${property.name}PropertyKey = '
             '${property.key!.intValue};');
       }
-      if (properties.any((prop) => !prop.isEncoded)) {
+      if (storedProperties.any((prop) => !prop.isEncoded)) {
         code.writeln('private:');
       }
 
       // Write fields.
       for (final property in properties) {
-        if (property.isEncoded) {
+        if (property.isEncoded || !property.getExportType().storesData) {
           // Encoded properties don't store data, it's up to the implementation
           // to decode and store what it needs.
           continue;
@@ -195,7 +198,13 @@ class Definition {
       // Write getter/setters.
       code.writeln('public:');
       for (final property in properties) {
-        if (property.isEncoded) {
+        if (!property.getExportType().storesData) {
+          code.writeln((property.isSetOverride ? '' : 'virtual ') +
+              'void ${property.name}' +
+              '(const ${property.type.cppName}& value) ' +
+              (property.isSetOverride ? 'override' : '') +
+              '= 0;');
+        } else if (property.isEncoded) {
           // Encoded properties just have a pure virtual decoder that needs to
           // be implemented. Also requires an implemention of copyPropertyName
           // as that will no longer automatically be copied by the generated
@@ -235,9 +244,9 @@ class Definition {
       code.writeln('Core* clone() const override;');
     }
 
-    if (properties.isNotEmpty || _extensionOf == null) {
+    if (storedProperties.isNotEmpty || _extensionOf == null) {
       code.writeln('void copy(const ${_name}Base& object) {');
-      for (final property in properties) {
+      for (final property in storedProperties) {
         if (property.isEncoded) {
           code.writeln('copy${property.capitalizedName}(object);');
         } else {
@@ -255,7 +264,7 @@ class Definition {
       code.writeln('bool deserialize(uint16_t propertyKey, '
           'BinaryReader& reader) override {');
 
-      if (properties.isNotEmpty) {
+      if (storedProperties.isNotEmpty) {
         code.writeln('switch (propertyKey){');
         for (final property in properties) {
           code.writeln('case ${property.name}PropertyKey:');
@@ -279,8 +288,8 @@ class Definition {
     }
 
     code.writeln('protected:');
-    if (properties.isNotEmpty) {
-      for (final property in properties) {
+    if (storedProperties.isNotEmpty) {
+      for (final property in storedProperties) {
         code.writeln('virtual void ${property.name}Changed() {}');
       }
     }
@@ -465,6 +474,9 @@ class Definition {
       ctxCode.writeln('}}');
     }
     for (final fieldType in getSetFieldTypes.keys) {
+      if (!fieldType.storesData) {
+        continue;
+      }
       ctxCode.writeln(
           'static ${fieldType.cppName} get${fieldType.capitalizedName}('
           'Core* object, int propertyKey){');
@@ -488,6 +500,9 @@ class Definition {
     ctxCode.writeln('switch(propertyKey) {');
 
     for (final fieldType in usedFieldTypes.keys) {
+      if (!fieldType.storesData) {
+        continue;
+      }
       var properties = usedFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
@@ -499,6 +514,28 @@ class Definition {
     }
 
     ctxCode.writeln('default: return -1;}}');
+
+    ctxCode.writeln('''
+      static bool isCallback(uint32_t propertyKey) {
+        switch(propertyKey) {''');
+    for (final fieldType in usedFieldTypes.keys) {
+      var properties = usedFieldTypes[fieldType];
+      if (properties != null) {
+        bool found = false;
+        for (final property in properties) {
+          if (property.getExportType().name == 'callback') {
+            found = true;
+            ctxCode.write('case ${property.definition._name}Base');
+            ctxCode.write('::${property.name}PropertyKey:');
+          }
+        }
+        if (found) {
+          ctxCode.writeln('return true;');
+        }
+      }
+    }
+    ctxCode.writeln('default:return false;');
+    ctxCode.writeln('}}');
 
     ctxCode.writeln('};}');
 

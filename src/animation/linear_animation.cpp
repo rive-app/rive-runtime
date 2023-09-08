@@ -1,5 +1,6 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/artboard.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/import_stack.hpp"
@@ -114,4 +115,14 @@ float LinearAnimation::globalToLocalSeconds(float seconds) const
             return direction == 0 ? localTime + startTime() : endTime() - localTime;
     }
     RIVE_UNREACHABLE();
+}
+
+void LinearAnimation::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
+                                           float secondsFrom,
+                                           float secondsTo) const
+{
+    for (const auto& object : m_KeyedObjects)
+    {
+        object->reportKeyedCallbacks(reporter, secondsFrom, secondsTo);
+    }
 }

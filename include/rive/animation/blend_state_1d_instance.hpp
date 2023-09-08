@@ -16,7 +16,7 @@ private:
 
 public:
     BlendState1DInstance(const BlendState1D* blendState, ArtboardInstance* instance);
-    void advance(float seconds, Span<SMIInput*> inputs) override;
+    void advance(float seconds, StateMachineInstance* stateMachineInstance) override;
 };
 } // namespace rive
 #endif

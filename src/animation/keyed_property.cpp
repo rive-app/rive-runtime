@@ -1,6 +1,8 @@
 #include "rive/animation/keyed_property.hpp"
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyframe.hpp"
+#include "rive/animation/interpolating_keyframe.hpp"
+#include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/keyed_object_importer.hpp"
 
@@ -11,23 +13,22 @@ KeyedProperty::~KeyedProperty() {}
 
 void KeyedProperty::addKeyFrame(std::unique_ptr<KeyFrame> keyframe)
 {
-    m_KeyFrames.push_back(std::move(keyframe));
+    m_keyFrames.push_back(std::move(keyframe));
 }
 
-void KeyedProperty::apply(Core* object, float seconds, float mix)
+int KeyedProperty::closestFrameIndex(float seconds, int exactOffset) const
 {
-    assert(!m_KeyFrames.empty());
-
     int idx = 0;
     int mid = 0;
-    float closestSeconds = 0.0f;
+    float closestSeconds = 0;
     int start = 0;
-    auto numKeyFrames = static_cast<int>(m_KeyFrames.size());
+    auto numKeyFrames = static_cast<int>(m_keyFrames.size());
     int end = numKeyFrames - 1;
+
     while (start <= end)
     {
         mid = (start + end) >> 1;
-        closestSeconds = m_KeyFrames[mid]->seconds();
+        closestSeconds = m_keyFrames[mid]->seconds();
         if (closestSeconds < seconds)
         {
             start = mid + 1;
@@ -38,23 +39,54 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
         }
         else
         {
-            idx = start = mid;
-            break;
+            return mid + exactOffset;
         }
         idx = start;
     }
+    return idx;
+}
+
+void KeyedProperty::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
+                                         uint32_t objectId,
+                                         float secondsFrom,
+                                         float secondsTo) const
+{
+    int idx = closestFrameIndex(secondsFrom, 1);
+    int idxTo = closestFrameIndex(secondsTo, 1);
+
+    if (idxTo < idx)
+    {
+        auto swap = idx;
+        idx = idxTo;
+        idxTo = swap;
+    }
+    while (idxTo > idx)
+    {
+        const std::unique_ptr<KeyFrame>& frame = m_keyFrames[idx];
+        reporter->reportKeyedCallback(objectId, propertyKey(), secondsTo - frame->seconds());
+        idx++;
+    }
+}
+
+void KeyedProperty::apply(Core* object, float seconds, float mix)
+{
+    assert(!m_keyFrames.empty());
+
+    int idx = closestFrameIndex(seconds);
     int pk = propertyKey();
 
     if (idx == 0)
     {
-        m_KeyFrames[0]->apply(object, pk, mix);
+        static_cast<InterpolatingKeyFrame*>(m_keyFrames[0].get())->apply(object, pk, mix);
     }
     else
     {
-        if (idx < numKeyFrames)
+        if (idx < static_cast<int>(m_keyFrames.size()))
         {
-            KeyFrame* fromFrame = m_KeyFrames[idx - 1].get();
-            KeyFrame* toFrame = m_KeyFrames[idx].get();
+            InterpolatingKeyFrame* fromFrame =
+                static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx - 1].get());
+            InterpolatingKeyFrame* toFrame =
+                static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx].get());
             if (seconds == toFrame->seconds())
             {
                 toFrame->apply(object, pk, mix);
@@ -73,7 +105,7 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
         }
         else
         {
-            m_KeyFrames[idx - 1]->apply(object, pk, mix);
+            static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx - 1].get())->apply(object, pk, mix);
         }
     }
 }
@@ -81,7 +113,7 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
 StatusCode KeyedProperty::onAddedDirty(CoreContext* context)
 {
     StatusCode code;
-    for (auto& keyframe : m_KeyFrames)
+    for (auto& keyframe : m_keyFrames)
     {
         if ((code = keyframe->onAddedDirty(context)) != StatusCode::Ok)
         {
@@ -94,7 +126,7 @@ StatusCode KeyedProperty::onAddedDirty(CoreContext* context)
 StatusCode KeyedProperty::onAddedClean(CoreContext* context)
 {
     StatusCode code;
-    for (auto& keyframe : m_KeyFrames)
+    for (auto& keyframe : m_keyFrames)
     {
         if ((code = keyframe->onAddedClean(context)) != StatusCode::Ok)
         {

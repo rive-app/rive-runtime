@@ -1,6 +1,7 @@
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/loop.hpp"
+#include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/rive_counter.hpp"
 #include <cmath>
 #include <cassert>
@@ -48,7 +49,7 @@ bool LinearAnimationInstance::advanceAndApply(float seconds)
     return more;
 }
 
-bool LinearAnimationInstance::advance(float elapsedSeconds)
+bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporter* reporter)
 {
     const LinearAnimation& animation = *m_animation;
     float deltaSeconds = elapsedSeconds * animation.speed() * m_direction;
@@ -67,7 +68,12 @@ bool LinearAnimationInstance::advance(float elapsedSeconds)
     // stop gap before we move spilled tracking into state machine logic.
     bool killSpilledTime = !this->keepGoing();
 
+    float lastTime = m_time;
     m_time += deltaSeconds;
+    if (reporter != nullptr)
+    {
+        animation.reportKeyedCallbacks(reporter, lastTime, m_time);
+    }
 
     int fps = animation.fps();
     float frames = m_time * fps;

@@ -17,10 +17,12 @@
 #include "rive/animation/cubic_value_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
+#include "rive/animation/interpolating_keyframe.hpp"
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyed_property.hpp"
 #include "rive/animation/keyframe.hpp"
 #include "rive/animation/keyframe_bool.hpp"
+#include "rive/animation/keyframe_callback.hpp"
 #include "rive/animation/keyframe_color.hpp"
 #include "rive/animation/keyframe_double.hpp"
 #include "rive/animation/keyframe_id.hpp"
@@ -252,6 +254,8 @@ public:
                 return new NestedNumber();
             case BlendState1DBase::typeKey:
                 return new BlendState1D();
+            case KeyFrameCallbackBase::typeKey:
+                return new KeyFrameCallback();
             case NestedRemapAnimationBase::typeKey:
                 return new NestedRemapAnimation();
             case TransitionBoolConditionBase::typeKey:
@@ -478,11 +482,11 @@ public:
             case KeyFrameBase::framePropertyKey:
                 object->as<KeyFrameBase>()->frame(value);
                 break;
-            case KeyFrameBase::interpolationTypePropertyKey:
-                object->as<KeyFrameBase>()->interpolationType(value);
+            case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
+                object->as<InterpolatingKeyFrameBase>()->interpolationType(value);
                 break;
-            case KeyFrameBase::interpolatorIdPropertyKey:
-                object->as<KeyFrameBase>()->interpolatorId(value);
+            case InterpolatingKeyFrameBase::interpolatorIdPropertyKey:
+                object->as<InterpolatingKeyFrameBase>()->interpolatorId(value);
                 break;
             case KeyFrameIdBase::valuePropertyKey:
                 object->as<KeyFrameIdBase>()->value(value);
@@ -1146,6 +1150,15 @@ public:
                 break;
         }
     }
+    static void setCallback(Core* object, int propertyKey, CallbackData value)
+    {
+        switch (propertyKey)
+        {
+            case EventBase::triggerPropertyKey:
+                object->as<EventBase>()->trigger(value);
+                break;
+        }
+    }
     static std::string getString(Core* object, int propertyKey)
     {
         switch (propertyKey)
@@ -1227,10 +1240,10 @@ public:
                 return object->as<StateMachineListenerBase>()->listenerTypeValue();
             case KeyFrameBase::framePropertyKey:
                 return object->as<KeyFrameBase>()->frame();
-            case KeyFrameBase::interpolationTypePropertyKey:
-                return object->as<KeyFrameBase>()->interpolationType();
-            case KeyFrameBase::interpolatorIdPropertyKey:
-                return object->as<KeyFrameBase>()->interpolatorId();
+            case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
+                return object->as<InterpolatingKeyFrameBase>()->interpolationType();
+            case InterpolatingKeyFrameBase::interpolatorIdPropertyKey:
+                return object->as<InterpolatingKeyFrameBase>()->interpolatorId();
             case KeyFrameIdBase::valuePropertyKey:
                 return object->as<KeyFrameIdBase>()->value();
             case ListenerBoolChangeBase::valuePropertyKey:
@@ -1723,8 +1736,8 @@ public:
             case StateMachineListenerBase::targetIdPropertyKey:
             case StateMachineListenerBase::listenerTypeValuePropertyKey:
             case KeyFrameBase::framePropertyKey:
-            case KeyFrameBase::interpolationTypePropertyKey:
-            case KeyFrameBase::interpolatorIdPropertyKey:
+            case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
+            case InterpolatingKeyFrameBase::interpolatorIdPropertyKey:
             case KeyFrameIdBase::valuePropertyKey:
             case ListenerBoolChangeBase::valuePropertyKey:
             case ListenerAlignTargetBase::targetIdPropertyKey:
@@ -1948,6 +1961,16 @@ public:
                 return CoreBytesType::id;
             default:
                 return -1;
+        }
+    }
+    static bool isCallback(uint32_t propertyKey)
+    {
+        switch (propertyKey)
+        {
+            case EventBase::triggerPropertyKey:
+                return true;
+            default:
+                return false;
         }
     }
 };

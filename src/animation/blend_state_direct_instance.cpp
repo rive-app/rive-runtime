@@ -11,9 +11,11 @@ BlendStateDirectInstance::BlendStateDirectInstance(const BlendStateDirect* blend
     BlendStateInstance<BlendStateDirect, BlendAnimationDirect>(blendState, instance)
 {}
 
-void BlendStateDirectInstance::advance(float seconds, Span<SMIInput*> inputs)
+void BlendStateDirectInstance::advance(float seconds, StateMachineInstance* stateMachineInstance)
 {
-    BlendStateInstance<BlendStateDirect, BlendAnimationDirect>::advance(seconds, inputs);
+    BlendStateInstance<BlendStateDirect, BlendAnimationDirect>::advance(seconds,
+                                                                        stateMachineInstance);
+
     for (auto& animation : m_AnimationInstances)
     {
         if (animation.blendAnimation()->blendSource() ==
@@ -24,7 +26,7 @@ void BlendStateDirectInstance::advance(float seconds, Span<SMIInput*> inputs)
         }
         else
         {
-            auto inputInstance = inputs[animation.blendAnimation()->inputId()];
+            auto inputInstance = stateMachineInstance->input(animation.blendAnimation()->inputId());
             auto numberInput = static_cast<const SMINumber*>(inputInstance);
             auto value = numberInput->value();
             animation.mix(std::min(1.0f, std::max(0.0f, value / 100.0f)));

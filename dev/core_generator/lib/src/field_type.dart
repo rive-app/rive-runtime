@@ -16,11 +16,14 @@ abstract class FieldType {
   final String _runtimeCoreType;
   String get runtimeCoreType => _runtimeCoreType;
 
+  final bool storesData;
+
   FieldType(
     this.name,
     this._runtimeCoreType, {
     String? cppName,
     this.include,
+    this.storesData = true,
   }) {
     _cppName = cppName ?? name;
     _types[name] = this;
