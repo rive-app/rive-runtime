@@ -52,7 +52,7 @@ public:
 
     rcp<PLSRenderTargetMetal> makeRenderTarget(MTLPixelFormat, size_t width, size_t height);
 
-private:
+protected:
     PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
@@ -78,6 +78,7 @@ private:
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity,
                                                       size_t itemSizeInBytes) override;
 
+private:
     void resizeGradientTexture(size_t height) override;
     void resizeTessellationTexture(size_t height) override;
 
