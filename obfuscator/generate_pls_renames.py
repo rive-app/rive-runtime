@@ -19,7 +19,8 @@ unrenameable = {
     'drawPath', 'flush', 'get', 'height', 'id', 'join', 'lineTo', 'loadAction',
     'makeEmptyRenderPath', 'makeRenderPaint', 'makeRenderPath', 'moveTo', 'path', 'pixelFormat',
     'pop', 'pop_front', 'push', 'push_back', 'renderTarget', 'restore', 'rewind', 'save',
-    'setColor', 'transform', 'width', 'begin', 'end', 'reset'}
+    'setColor', 'transform', 'width', 'begin', 'end', 'reset', 'init', 'MakeLinear', 'MakeRadial',
+    'contents'}
 swizzle_pattern = re.compile(r"^([xyzw]{1,4}|[rgba]{1,4}|[stpq]{1,4})$")
 private_symbols = set()
 
