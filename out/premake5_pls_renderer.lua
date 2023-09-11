@@ -106,6 +106,10 @@ newoption {
     trigger = 'no-rive-decoders',
     description = "don't use the rive_decoders library (built-in image decoding will fail)"
 }
+newoption {
+    trigger = 'fat-lib',
+    description = "(Apple only): build the library for all architectures"
+}
 project 'rive_pls_renderer'
 do
     dependson 'rive_pls_shaders'
@@ -243,9 +247,31 @@ do
             buildoptions {
                 '--target=arm64-apple-ios13.0.0-simulator',
                 '-mios-version-min=13.0.0',
+                '-isysroot ' .. iphonesimulator_sysroot
+            }
+        end
+
+        filter {'system:macosx', 'options:fat-lib'}
+        do
+            buildoptions {
                 '-arch x86_64',
                 '-arch arm64',
-                '-isysroot ' .. iphonesimulator_sysroot
+            }
+        end
+
+        filter {'system:ios', 'options:variant=system', 'options:fat-lib'}
+        do
+            buildoptions {
+                '-arch arm64',
+                '-arch arm64e',
+            }
+        end
+
+        filter {'system:ios', 'options:variant=simulator', 'options:fat-lib'}
+        do
+            buildoptions {
+                '-arch x86_64',
+                '-arch arm64',
             }
         end
     end
