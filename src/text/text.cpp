@@ -11,17 +11,27 @@ using namespace rive;
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 
+void GlyphItr::tryAdvanceRun()
+{
+    while (true)
+    {
+        auto run = *m_run;
+        if (m_glyphIndex == m_line->endGlyphIndex(run) && run != m_line->lastRun())
+        {
+            m_run++;
+            m_glyphIndex = m_line->startGlyphIndex(*m_run);
+        }
+        else
+        {
+            break;
+        }
+    }
+}
 GlyphItr& GlyphItr::operator++()
 {
     auto run = *m_run;
     m_glyphIndex += run->dir == TextDirection::ltr ? 1 : -1;
-
-    // Did we reach the end of the run?
-    if (m_glyphIndex == m_line->endGlyphIndex(run) && run != m_line->lastRun())
-    {
-        m_run++;
-        m_glyphIndex = m_line->startGlyphIndex(*m_run);
-    }
+    tryAdvanceRun();
     return *this;
 }
 
@@ -380,6 +390,7 @@ void Text::buildRenderStyles()
                                                         isEllipsisLineLast,
                                                         &m_ellipsisRun));
             }
+
             const OrderedLine& orderedLine = m_orderedLines[lineIndex];
             float x = -m_bounds.width() * originX() + line.startX;
             float renderY = y + line.baseline;

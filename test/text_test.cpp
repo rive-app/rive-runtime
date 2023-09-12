@@ -247,3 +247,23 @@ TEST_CASE("run modifier ranges select runs", "[text]")
         }
     }
 }
+
+TEST_CASE("double new line type works", "[text]")
+{
+    auto file = ReadRiveFile("../../test/assets/double_line.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+
+    auto styleObjects = artboard->find<rive::TextStyle>();
+    REQUIRE(styleObjects.size() == 1);
+
+    auto runObjects = artboard->find<rive::TextValueRun>();
+    REQUIRE(runObjects.size() == 9);
+
+    artboard->advance(0.0f);
+    auto text = textObjects[0];
+    auto lines = text->orderedLines();
+    REQUIRE(lines.size() == 3);
+}

@@ -72,6 +72,8 @@ public:
         m_line(line), m_run(run), m_glyphIndex(glyphIndex)
     {}
 
+    void tryAdvanceRun();
+
     bool operator!=(const GlyphItr& that) const
     {
         return m_run != that.m_run || m_glyphIndex != that.m_glyphIndex;
@@ -116,7 +118,9 @@ public:
     GlyphItr begin() const
     {
         auto runItr = m_runs.data();
-        return GlyphItr(this, runItr, startGlyphIndex(*runItr));
+        auto itr = GlyphItr(this, runItr, startGlyphIndex(*runItr));
+        itr.tryAdvanceRun();
+        return itr;
     }
 
     GlyphItr end() const
