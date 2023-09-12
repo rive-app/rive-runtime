@@ -5,7 +5,9 @@ using namespace rive;
 
 void KeyFrameString::apply(Core* object, int propertyKey, float mix)
 {
-    CoreRegistry::setString(object, propertyKey, value());
+    if (mix > 0) {
+        CoreRegistry::setString(object, propertyKey, value());
+    }
 }
 
 void KeyFrameString::applyInterpolation(Core* object,
@@ -14,5 +16,7 @@ void KeyFrameString::applyInterpolation(Core* object,
                                         const KeyFrame* nextFrame,
                                         float mix)
 {
-    CoreRegistry::setString(object, propertyKey, value());
+    if (mix > 0) {
+        CoreRegistry::setString(object, propertyKey, value());
+    }
 }
