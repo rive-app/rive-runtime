@@ -427,6 +427,10 @@ void Artboard::update(ComponentDirt value)
         m_ClipPath = factory()->makeRenderPath(clip);
         m_BackgroundPath = factory()->makeRenderPath(bg);
     }
+    if (hasDirt(value, ComponentDirt::RenderOpacity))
+    {
+        propagateOpacity(childOpacity());
+    }
 }
 
 bool Artboard::updateComponents()
