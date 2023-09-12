@@ -116,8 +116,7 @@ public:
     void thickness(float thickness) override { m_thickness = fabsf(thickness); }
     void join(StrokeJoin join) override { m_join = join; }
     void cap(StrokeCap cap) override { m_cap = cap; }
-    void blendMode(BlendMode mode) override;                  // Set a rive BlendMode.
-    void blendMode(PLSBlendMode mode) { m_blendMode = mode; } // Set a pls BlendMode.
+    void blendMode(BlendMode mode) override { m_blendMode = mode; }
     void shader(rcp<RenderShader> shader) override;
     void image(rcp<const PLSTexture>, float opacity);
     void invalidateStroke() override {}
@@ -131,7 +130,7 @@ public:
     float getImageOpacity() const { return m_imageOpacity; }
     StrokeJoin getJoin() const { return m_join; }
     StrokeCap getCap() const { return m_cap; }
-    PLSBlendMode getBlendMode() const { return m_blendMode; }
+    BlendMode getBlendMode() const { return m_blendMode; }
 
 private:
     PaintType m_paintType = PaintType::solidColor;
@@ -143,6 +142,6 @@ private:
     float m_thickness = 1;
     StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;
-    PLSBlendMode m_blendMode = PLSBlendMode::srcOver;
+    BlendMode m_blendMode = BlendMode::srcOver;
 };
 } // namespace rive::pls

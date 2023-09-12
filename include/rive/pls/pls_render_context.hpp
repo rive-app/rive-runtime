@@ -209,7 +209,7 @@ public:
                   const PLSTexture* imageTexture,
                   uint32_t clipID,
                   const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
-                  PLSBlendMode,
+                  BlendMode,
                   uint32_t tessVertexCount,
                   uint32_t paddingVertexCount);
 
@@ -234,7 +234,7 @@ public:
     // "joinTangent" is the ending tangent of the join that follows the cubic.
     void pushCubic(const Vec2D pts[4],
                    Vec2D joinTangent,
-                   uint32_t additionalPLSFlags,
+                   uint32_t additionalContourFlags,
                    uint32_t parametricSegmentCount,
                    uint32_t polarSegmentCount,
                    uint32_t joinSegmentCount);
@@ -247,7 +247,7 @@ public:
                                    const PLSTexture* imageTexture,
                                    uint32_t clipID,
                                    bool hasClipRect,
-                                   PLSBlendMode);
+                                   BlendMode);
 
     // Reserves space for a single image mesh in the GPU buffers.
     //
@@ -265,7 +265,7 @@ public:
                        uint32_t indexCount,
                        uint32_t clipID,
                        const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
-                       PLSBlendMode);
+                       BlendMode);
 
     enum class FlushType : bool
     {
@@ -418,14 +418,14 @@ private:
                       const PLSTexture* imageTexture,
                       uint32_t clipID,
                       bool hasClipRect,
-                      PLSBlendMode);
+                      BlendMode);
     void pushDraw(DrawType,
                   size_t baseVertex,
                   PaintType,
                   const PLSTexture* imageTexture,
                   uint32_t clipID,
                   bool hasClipRect,
-                  PLSBlendMode);
+                  BlendMode);
 
     // Writes padding vertices to the tessellation texture, with an invalid contour ID that is
     // guaranteed to not be the same ID as any neighbors.

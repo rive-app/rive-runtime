@@ -5,50 +5,15 @@
 #include "rive/pls/pls.hpp"
 
 #include "rive/refcnt.hpp"
+#include "shaders/constants.glsl"
 
 #include "../out/obj/generated/draw_path.exports.h"
 
 namespace rive::pls
 {
-PLSBlendMode BlendModeRiveToPLS(rive::BlendMode riveMode)
-{
-    switch (riveMode)
-    {
-        case rive::BlendMode::srcOver:
-            return PLSBlendMode::srcOver;
-        case rive::BlendMode::screen:
-            return PLSBlendMode::screen;
-        case rive::BlendMode::overlay:
-            return PLSBlendMode::overlay;
-        case rive::BlendMode::darken:
-            return PLSBlendMode::darken;
-        case rive::BlendMode::lighten:
-            return PLSBlendMode::lighten;
-        case rive::BlendMode::colorDodge:
-            return PLSBlendMode::colorDodge;
-        case rive::BlendMode::colorBurn:
-            return PLSBlendMode::colorBurn;
-        case rive::BlendMode::hardLight:
-            return PLSBlendMode::hardLight;
-        case rive::BlendMode::softLight:
-            return PLSBlendMode::softLight;
-        case rive::BlendMode::difference:
-            return PLSBlendMode::difference;
-        case rive::BlendMode::exclusion:
-            return PLSBlendMode::exclusion;
-        case rive::BlendMode::multiply:
-            return PLSBlendMode::multiply;
-        case rive::BlendMode::hue:
-            return PLSBlendMode::hue;
-        case rive::BlendMode::saturation:
-            return PLSBlendMode::saturation;
-        case rive::BlendMode::color:
-            return PLSBlendMode::color;
-        case rive::BlendMode::luminosity:
-            return PLSBlendMode::luminosity;
-    }
-    RIVE_UNREACHABLE();
-}
+static_assert(kGradTextureWidth == GRAD_TEXTURE_WIDTH);
+static_assert(kTessTextureWidth == TESS_TEXTURE_WIDTH);
+static_assert(kTessTextureWidthLog2 == TESS_TEXTURE_WIDTH_LOG2);
 
 const char* GetShaderFeatureGLSLName(ShaderFeatures feature)
 {
@@ -89,7 +54,7 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
                                                                   : kOuterCurvePatchSegmentSpan;
     for (int i = 0; i < patchSegmentSpan; ++i)
     {
-        float params = pack_params(patchSegmentSpan, flags::kStrokeVertex);
+        float params = pack_params(patchSegmentSpan, STROKE_VERTEX);
         float l = static_cast<float>(i);
         float r = l + 1;
         if (patchType == PatchType::outerCurves)
@@ -127,7 +92,7 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     // Bottom (negative coverage) side of the AA border.
     if (patchType == PatchType::outerCurves)
     {
-        float params = pack_params(patchSegmentSpan, flags::kStrokeVertex);
+        float params = pack_params(patchSegmentSpan, STROKE_VERTEX);
         for (int i = 0; i < patchSegmentSpan; ++i)
         {
             float l = static_cast<float>(i);
@@ -157,7 +122,7 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     assert((fanSegmentSpan & (fanSegmentSpan - 1)) == 0); // The fan must be a power of two.
     for (int i = 0; i <= fanSegmentSpan; ++i)
     {
-        float params = pack_params(patchSegmentSpan, flags::kFanVertex);
+        float params = pack_params(patchSegmentSpan, FAN_VERTEX);
         if (patchType == PatchType::outerCurves)
         {
             vertices[vertexCount].set(static_cast<float>(i), 0.f, 1, params);
@@ -174,10 +139,7 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     size_t midpointIdx = vertexCount;
     if (patchType == PatchType::midpointFan)
     {
-        vertices[vertexCount++].set(0,
-                                    0,
-                                    1,
-                                    pack_params(patchSegmentSpan, flags::kFanMidpointVertex));
+        vertices[vertexCount++].set(0, 0, 1, pack_params(patchSegmentSpan, FAN_MIDPOINT_VERTEX));
     }
     assert(vertexCount == (patchType == PatchType::outerCurves ? kOuterCurvePatchVertexCount
                                                                : kMidpointFanPatchVertexCount));
@@ -283,4 +245,92 @@ void ClipRectInverseMatrix::reset(const Mat2D& clipMatrix, const AABB& clipRect)
         *this = Empty();
     }
 }
+
+static uint32_t paint_type_to_glsl_id(PaintType paintType)
+{
+    return static_cast<uint32_t>(paintType);
+    static_assert((int)PaintType::solidColor == SOLID_COLOR_PAINT_TYPE);
+    static_assert((int)PaintType::linearGradient == LINEAR_GRADIENT_PAINT_TYPE);
+    static_assert((int)PaintType::radialGradient == RADIAL_GRADIENT_PAINT_TYPE);
+    static_assert((int)PaintType::image == IMAGE_PAINT_TYPE);
+    static_assert((int)PaintType::clipUpdate == CLIP_UPDATE_PAINT_TYPE);
+}
+
+static uint32_t get_glsl_blend_mode(BlendMode riveMode)
+{
+    switch (riveMode)
+    {
+        case BlendMode::srcOver:
+            return BLEND_SRC_OVER;
+        case BlendMode::screen:
+            return BLEND_MODE_SCREEN;
+        case BlendMode::overlay:
+            return BLEND_MODE_OVERLAY;
+        case BlendMode::darken:
+            return BLEND_MODE_DARKEN;
+        case BlendMode::lighten:
+            return BLEND_MODE_LIGHTEN;
+        case BlendMode::colorDodge:
+            return BLEND_MODE_COLORDODGE;
+        case BlendMode::colorBurn:
+            return BLEND_MODE_COLORBURN;
+        case BlendMode::hardLight:
+            return BLEND_MODE_HARDLIGHT;
+        case BlendMode::softLight:
+            return BLEND_MODE_SOFTLIGHT;
+        case BlendMode::difference:
+            return BLEND_MODE_DIFFERENCE;
+        case BlendMode::exclusion:
+            return BLEND_MODE_EXCLUSION;
+        case BlendMode::multiply:
+            return BLEND_MODE_MULTIPLY;
+        case BlendMode::hue:
+            return BLEND_MODE_HUE;
+        case BlendMode::saturation:
+            return BLEND_MODE_SATURATION;
+        case BlendMode::color:
+            return BLEND_MODE_COLOR;
+        case BlendMode::luminosity:
+            return BLEND_MODE_LUMINOSITY;
+    }
+    RIVE_UNREACHABLE();
+}
+
+void PathData::set(const Mat2D& m,
+                   float strokeRadius_,
+                   FillRule fillRule,
+                   PaintType paintType,
+                   uint32_t clipID,
+                   BlendMode riveBlendMode,
+                   const PaintData& paintData_,
+                   const ClipRectInverseMatrix* clipRectInverseMatrix_)
+{
+    matrix = m;
+    strokeRadius = strokeRadius_;
+    uint32_t localParams = get_glsl_blend_mode(riveBlendMode);
+    localParams |= clipID << 4;
+    localParams |= paint_type_to_glsl_id(paintType) << 20;
+    if (fillRule == FillRule::evenOdd && strokeRadius_ == 0)
+    {
+        localParams |= EVEN_ODD_PATH_FLAG;
+    }
+    params = localParams;
+    paintData = paintData_;
+    clipRectInverseMatrix = clipRectInverseMatrix_ != nullptr ? *clipRectInverseMatrix_
+                                                              : ClipRectInverseMatrix::WideOpen();
+}
+
+ImageMeshUniforms::ImageMeshUniforms(const Mat2D& matrix_,
+                                     float opacity_,
+                                     const ClipRectInverseMatrix* clipRectInverseMatrix_,
+                                     uint32_t clipID_,
+                                     BlendMode riveBlendMode) :
+    matrix(matrix_),
+    opacity(opacity_),
+    clipRectInverseMatrix(clipRectInverseMatrix_ != nullptr ? *clipRectInverseMatrix_
+                                                            : ClipRectInverseMatrix::WideOpen()),
+    clipID(clipID_),
+    blendMode(get_glsl_blend_mode(riveBlendMode))
+{}
+
 } // namespace rive::pls

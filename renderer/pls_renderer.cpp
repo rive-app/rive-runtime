@@ -12,6 +12,7 @@
 #include "rive/math/simd.hpp"
 #include "rive/math/wangs_formula.hpp"
 #include "rive/pls/pls_image.hpp"
+#include "shaders/constants.glsl"
 
 namespace rive::pls
 {
@@ -392,7 +393,7 @@ bool PLSRenderer::pushImageMeshDraw(const PLSTexture* plsTexture,
                              clipID,
                              m_stack.back().hasClipRect ? &m_stack.back().clipRectInverseMatrix
                                                         : nullptr,
-                             pls::BlendModeRiveToPLS(blendMode));
+                             blendMode);
     return true;
 }
 
@@ -695,7 +696,7 @@ public:
                         {
                             context->pushCubic(convert_line_to_cubic(pts[-1], p0).data(),
                                                {0, 0},
-                                               flags::kCullExcessTessellationSegments,
+                                               CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                                                kPatchSegmentCountExcludingJoin,
                                                1,
                                                kJoinSegmentCount);
@@ -722,7 +723,7 @@ public:
                     {
                         context->pushCubic(convert_line_to_cubic(pts).data(),
                                            {0, 0},
-                                           flags::kCullExcessTessellationSegments,
+                                           CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                                            kPatchSegmentCountExcludingJoin,
                                            1,
                                            kJoinSegmentCount);
@@ -744,7 +745,7 @@ public:
                         {
                             context->pushCubic(pts,
                                                {0, 0},
-                                               flags::kCullExcessTessellationSegments,
+                                               CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                                                kPatchSegmentCountExcludingJoin,
                                                1,
                                                kJoinSegmentCount);
@@ -766,7 +767,7 @@ public:
                             {
                                 context->pushCubic(chop,
                                                    {0, 0},
-                                                   flags::kCullExcessTessellationSegments,
+                                                   CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                                                    kPatchSegmentCountExcludingJoin,
                                                    1,
                                                    kJoinSegmentCount);
@@ -788,7 +789,7 @@ public:
             {
                 context->pushCubic(convert_line_to_cubic(lastPt, p0).data(),
                                    {0, 0},
-                                   flags::kCullExcessTessellationSegments,
+                                   CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                                    kPatchSegmentCountExcludingJoin,
                                    1,
                                    kJoinSegmentCount);
@@ -818,7 +819,7 @@ public:
                 Vec2D triangleAsCubic[4] = {node->fPts[0], node->fPts[1], {0, 0}, node->fPts[2]};
                 context->pushCubic(triangleAsCubic,
                                    {0, 0},
-                                   flags::kRetrofittedTriangle,
+                                   RETROFITTED_TRIANGLE_CONTOUR_FLAG,
                                    kPatchSegmentCountExcludingJoin,
                                    1,
                                    kJoinSegmentCount);
@@ -1450,8 +1451,7 @@ bool PLSRenderer::pushInternalPathBatchToContext()
         const PLSTexture* imageTexture = isClipUpdate ? nullptr : path.paint->getImageTexture();
         const pls::ClipRectInverseMatrix* clipRectInverseMatrix =
             m_stack.back().hasClipRect ? &m_stack.back().clipRectInverseMatrix : nullptr;
-        pls::PLSBlendMode blendMode =
-            isClipUpdate ? pls::PLSBlendMode::srcOver : path.paint->getBlendMode();
+        BlendMode blendMode = isClipUpdate ? BlendMode::srcOver : path.paint->getBlendMode();
         m_context->pushPath(path.triangulator ? PatchType::outerCurves : PatchType::midpointFan,
                             *path.matrix,
                             path.stroked ? path.paint->getThickness() * .5f : 0,
@@ -1523,6 +1523,20 @@ bool PLSRenderer::pushInternalPathBatchToContext()
     return true;
 }
 
+static uint32_t join_type_flags(StrokeJoin join)
+{
+    switch (join)
+    {
+        case StrokeJoin::miter:
+            return MITER_REVERT_JOIN_CONTOUR_FLAG;
+        case StrokeJoin::round:
+            return 0;
+        case StrokeJoin::bevel:
+            return BEVEL_JOIN_CONTOUR_FLAG;
+    }
+    RIVE_UNREACHABLE();
+}
+
 void PLSRenderer::pushContour(RawPath::Iter iter,
                               const ContourData& contour,
                               size_t curveIdx,
@@ -1543,20 +1557,20 @@ void PLSRenderer::pushContour(RawPath::Iter iter,
     uint32_t emulatedCapAsJoinFlags = 0;
     if (strokePaint != nullptr)
     {
-        joinTypeFlags = flags::JoinTypeFlags(strokePaint->getJoin());
+        joinTypeFlags = join_type_flags(strokePaint->getJoin());
         roundJoinStroked = joinTypeFlags == 0;
         if (contour.strokeCapSegmentCount != 0)
         {
             StrokeCap cap = !contour.closed ? strokePaint->getCap()
                                             : empty_stroke_cap(strokePaint, contour.closed);
-            emulatedCapAsJoinFlags = flags::kEmulatedStrokeCap;
+            emulatedCapAsJoinFlags = EMULATED_STROKE_CAP_CONTOUR_FLAG;
             if (cap == StrokeCap::square)
             {
-                emulatedCapAsJoinFlags |= flags::kMiterClipJoin;
+                emulatedCapAsJoinFlags |= MITER_CLIP_JOIN_CONTOUR_FLAG;
             }
             else if (cap == StrokeCap::butt)
             {
-                emulatedCapAsJoinFlags |= flags::kBevelJoin;
+                emulatedCapAsJoinFlags |= BEVEL_JOIN_CONTOUR_FLAG;
             }
             needsFirstEmulatedCapAsJoin = true;
         }

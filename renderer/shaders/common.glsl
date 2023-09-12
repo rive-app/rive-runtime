@@ -4,6 +4,8 @@
 
 // Common functions shared by multiple shaders.
 
+#define PI 3.141592653589793238
+
 INLINE int2 contour_texel_coord(uint contourIDWithFlags)
 {
     uint contourTexelIdx = (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;

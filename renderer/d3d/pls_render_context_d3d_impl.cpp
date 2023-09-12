@@ -345,8 +345,8 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     VERIFY_OK(m_gpu->CreateSamplerState(&mipmapSamplerDesc, m_mipmapSampler.GetAddressOf()));
 
     ID3D11SamplerState* samplers[2] = {m_linearSampler.Get(), m_mipmapSampler.Get()};
-    static_assert(kImageTextureIdx == kGradTextureIdx + 1);
-    m_gpuContext->PSSetSamplers(kGradTextureIdx, 2, samplers);
+    static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+    m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 2, samplers);
 }
 
 class RenderBufferD3DImpl : public RenderBuffer
@@ -909,7 +909,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
 
         // Unbind the gradient texture before rendering it.
         ID3D11ShaderResourceView* nullTextureView = nullptr;
-        m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, &nullTextureView);
+        m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 1, &nullTextureView);
 
         m_gpuContext->PSSetShader(m_colorRampPixelShader.Get(), NULL, 0);
 
@@ -954,9 +954,9 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         ID3D11ShaderResourceView* vsTextureViews[] = {NULL,
                                                       submitted_srv(pathBufferRing()),
                                                       submitted_srv(contourBufferRing())};
-        static_assert(kTessVertexTextureIdx == 0);
-        static_assert(kPathTextureIdx == 1);
-        static_assert(kContourTextureIdx == 2);
+        static_assert(TESS_VERTEX_TEXTURE_IDX == 0);
+        static_assert(PATH_TEXTURE_IDX == 1);
+        static_assert(CONTOUR_TEXTURE_IDX == 2);
         m_gpuContext->VSSetShaderResources(0, std::size(vsTextureViews), vsTextureViews);
 
         D3D11_VIEWPORT viewport = {0,
@@ -989,10 +989,10 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                             renderTarget->m_coverageUAV.Get(),
                                             renderTarget->m_originalDstColorUAV.Get(),
                                             renderTarget->m_clipUAV.Get()};
-    static_assert(kFramebufferPlaneIdx == 0);
-    static_assert(kCoveragePlaneIdx == 1);
-    static_assert(kOriginalDstColorPlaneIdx == 2);
-    static_assert(kClipPlaneIdx == 3);
+    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+    static_assert(COVERAGE_PLANE_IDX == 1);
+    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 2);
+    static_assert(CLIP_PLANE_IDX == 3);
     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(0,
                                                             NULL,
                                                             NULL,
@@ -1018,9 +1018,9 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
     ID3D11ShaderResourceView* vertexTextureViews[] = {m_tessTextureSRV.Get(),
                                                       submitted_srv(pathBufferRing()),
                                                       submitted_srv(contourBufferRing())};
-    static_assert(kTessVertexTextureIdx == 0);
-    static_assert(kPathTextureIdx == 1);
-    static_assert(kContourTextureIdx == 2);
+    static_assert(TESS_VERTEX_TEXTURE_IDX == 0);
+    static_assert(PATH_TEXTURE_IDX == 1);
+    static_assert(CONTOUR_TEXTURE_IDX == 2);
     m_gpuContext->VSSetShaderResources(0, std::size(vertexTextureViews), vertexTextureViews);
 
     D3D11_VIEWPORT viewport = {0,
@@ -1034,7 +1034,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
     m_gpuContext->PSSetConstantBuffers(IMAGE_MESH_UNIFORM_BUFFER_IDX,
                                        1,
                                        m_imageMeshUniforms.GetAddressOf());
-    m_gpuContext->PSSetShaderResources(kGradTextureIdx, 1, m_gradTextureSRV.GetAddressOf());
+    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 1, m_gradTextureSRV.GetAddressOf());
 
     for (const Draw& draw : *desc.drawList)
     {
@@ -1048,7 +1048,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
 
         if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(draw.imageTextureRef))
         {
-            m_gpuContext->PSSetShaderResources(kImageTextureIdx,
+            m_gpuContext->PSSetShaderResources(IMAGE_TEXTURE_IDX,
                                                1,
                                                imageTextureD3D->srvAddressOf());
         }

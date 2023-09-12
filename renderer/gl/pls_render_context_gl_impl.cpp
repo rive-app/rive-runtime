@@ -122,9 +122,9 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
                           0);
     glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathTexture),
-                kPLSTexIdxOffset + kPathTextureIdx);
+                kPLSTexIdxOffset + PATH_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourTexture),
-                kPLSTexIdxOffset + kContourTextureIdx);
+                kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
 
     glGenVertexArrays(1, &m_tessellateVAO);
     m_state->bindVAO(m_tessellateVAO);
@@ -246,7 +246,7 @@ public:
         PLSTexture(width, height), m_state(std::move(state))
     {
         glGenTextures(1, &m_id);
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kImageTextureIdx);
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
         glBindTexture(GL_TEXTURE_2D, m_id);
         glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
         m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -325,7 +325,7 @@ void PLSRenderContextGLImpl::resizeGradientTexture(size_t height)
     glDeleteTextures(1, &m_gradientTexture);
 
     glGenTextures(1, &m_gradientTexture);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kGradTextureIdx);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kGradTextureWidth, height);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -346,7 +346,7 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(size_t height)
     glDeleteTextures(1, &m_tessVertexTexture);
 
     glGenTextures(1, &m_tessVertexTexture);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kTessVertexTextureIdx);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, kTessTextureWidth, height);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -472,12 +472,13 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                               IMAGE_MESH_UNIFORM_BUFFER_IDX);
     }
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
-                kPLSTexIdxOffset + kTessVertexTextureIdx);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kPLSTexIdxOffset + kPathTextureIdx);
+                kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kPLSTexIdxOffset + PATH_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_id, GLSL_contourTexture),
-                kPLSTexIdxOffset + kContourTextureIdx);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + kGradTextureIdx);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture), kPLSTexIdxOffset + kImageTextureIdx);
+                kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
+    glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+    glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture),
+                kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
     if (!plsContextImpl->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         m_baseInstancePolyfillLocation = glGetUniformLocation(m_id, GLSL_baseInstancePolyfill);
@@ -524,7 +525,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     if (desc.simpleGradTexelsHeight > 0)
     {
         m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kGradTextureIdx);
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -613,7 +614,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
 
         if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(draw.imageTextureRef))
         {
-            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + kImageTextureIdx);
+            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->id());
         }
 

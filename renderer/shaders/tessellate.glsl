@@ -94,14 +94,14 @@ VERTEX_MAIN(@tessellateVertexMain,
     uint contourIDWithFlags = @a_args.w;
     if (x1 < x0) // Are we a reflection?
     {
-        contourIDWithFlags |= MIRRORED_CONTOUR_FLAG;
+        contourIDWithFlags |= MIRRORED_CONTOUR_CONTOUR_FLAG;
     }
     if ((x1 - x0) * uniforms.tessInverseViewportY < .0)
     {
         // Make sure we always emit clockwise triangles. Swap the top and bottom vertices.
         coord.y = 2. * y + 1. - coord.y;
     }
-    if ((contourIDWithFlags & CULL_EXCESS_TESSELLATION_SEGMENTS_FLAG) != 0u)
+    if ((contourIDWithFlags & CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG) != 0u)
     {
         // This span may have more tessellation vertices allocated to it than necessary (e.g.,
         // outerCurve patches all have a fixed patch size, regardless of how many segments the curve
@@ -145,8 +145,8 @@ VERTEX_MAIN(@tessellateVertexMain,
         float2x2 joinTangents = float2x2(tangents[1], @a_joinTan_and_ys.xy);
         float joinTheta = acos(cosine_between_vectors(joinTangents[0], joinTangents[1]));
         float joinSpan = float(joinSegmentCount);
-        if ((contourIDWithFlags & (JOIN_TYPE_MASK | EMULATED_STROKE_CAP_FLAG)) ==
-            EMULATED_STROKE_CAP_FLAG)
+        if ((contourIDWithFlags & (JOIN_TYPE_MASK | EMULATED_STROKE_CAP_CONTOUR_FLAG)) ==
+            EMULATED_STROKE_CAP_CONTOUR_FLAG)
         {
             // Round caps emulated as joins need to emit vertices at T=0 and T=1, unlike normal
             // round joins. The fragment shader will handle most of this, but here we need to adjust
@@ -224,11 +224,11 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain, Varyings, varyings)
             // Miter or bevel join vertices snap to either tangents[0] or tangents[1], and get
             // adjusted in the shader that follows.
             if (mergedVertexID < 2.5) // With 5 join segments, this branch will see IDs: 1, 2, 3, 4.
-                contourIDWithFlags |= JOIN_TANGENT_0_FLAG;
+                contourIDWithFlags |= JOIN_TANGENT_0_CONTOUR_FLAG;
             if (mergedVertexID > 1.5 && mergedVertexID < 3.5)
-                contourIDWithFlags |= JOIN_TANGENT_INNER_FLAG;
+                contourIDWithFlags |= JOIN_TANGENT_INNER_CONTOUR_FLAG;
         }
-        else if ((contourIDWithFlags & EMULATED_STROKE_CAP_FLAG) != 0u)
+        else if ((contourIDWithFlags & EMULATED_STROKE_CAP_CONTOUR_FLAG) != 0u)
         {
             // Round caps emulated as joins need to emit vertices at T=0 and T=1, unlike normal
             // round joins. Preserve the same number of vertices (the CPU should have given us two
@@ -239,7 +239,8 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain, Varyings, varyings)
             mergedVertexID--;
         }
         radsPerPolarSegment = v_joinArgs.z; // radsPerJoinSegment.
-        contourIDWithFlags |= radsPerPolarSegment < .0 ? LEFT_JOIN_FLAG : RIGHT_JOIN_FLAG;
+        contourIDWithFlags |=
+            radsPerPolarSegment < .0 ? LEFT_JOIN_CONTOUR_FLAG : RIGHT_JOIN_CONTOUR_FLAG;
     }
 
     float2 tessCoord;
@@ -253,7 +254,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain, Varyings, varyings)
         tessCoord = isTan0 ? p0 : p3;
         theta = atan2(isTan0 ? tangents[0] : tangents[1]);
     }
-    else if ((contourIDWithFlags & RETROFITTED_TRIANGLE_FLAG) != 0u)
+    else if ((contourIDWithFlags & RETROFITTED_TRIANGLE_CONTOUR_FLAG) != 0u)
     {
         // This cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
         // This is used to squeeze in more rare triangles, like "grout" triangles from self

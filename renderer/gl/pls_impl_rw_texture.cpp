@@ -4,6 +4,8 @@
 
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
+#include "shaders/constants.glsl"
+
 #include "../out/obj/generated/glsl.exports.h"
 
 namespace rive::pls
@@ -51,30 +53,30 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glClearBufferfv(GL_COLOR, kFramebufferPlaneIdx, clearColor4f);
+            glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
         }
-        glClearBufferuiv(GL_COLOR, kCoveragePlaneIdx, kZero);
+        glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kZero);
         if (desc.needsClipBuffer)
         {
-            glClearBufferuiv(GL_COLOR, kClipPlaneIdx, kZero);
+            glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
         }
 
         // Bind the RW textures.
-        glBindImageTexture(kFramebufferPlaneIdx,
+        glBindImageTexture(FRAMEBUFFER_PLANE_IDX,
                            renderTarget->m_offscreenTextureID,
                            0,
                            GL_FALSE,
                            0,
                            GL_READ_WRITE,
                            GL_RGBA8);
-        glBindImageTexture(kCoveragePlaneIdx,
+        glBindImageTexture(COVERAGE_PLANE_IDX,
                            renderTarget->m_coverageTextureID,
                            0,
                            GL_FALSE,
                            0,
                            GL_READ_WRITE,
                            GL_R32UI);
-        glBindImageTexture(kOriginalDstColorPlaneIdx,
+        glBindImageTexture(ORIGINAL_DST_COLOR_PLANE_IDX,
                            renderTarget->m_originalDstColorTextureID,
                            0,
                            GL_FALSE,
@@ -83,7 +85,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                            GL_RGBA8);
         if (desc.needsClipBuffer)
         {
-            glBindImageTexture(kClipPlaneIdx,
+            glBindImageTexture(CLIP_PLANE_IDX,
                                renderTarget->m_clipTextureID,
                                0,
                                GL_FALSE,

@@ -56,21 +56,6 @@
 //
 
 #ifdef @ENABLE_ADVANCED_BLEND
-#define BLEND_MODE_SCREEN 1u
-#define BLEND_MODE_OVERLAY 2u
-#define BLEND_MODE_DARKEN 3u
-#define BLEND_MODE_LIGHTEN 4u
-#define BLEND_MODE_COLORDODGE 5u
-#define BLEND_MODE_COLORBURN 6u
-#define BLEND_MODE_HARDLIGHT 7u
-#define BLEND_MODE_SOFTLIGHT 8u
-#define BLEND_MODE_DIFFERENCE 9u
-#define BLEND_MODE_EXCLUSION 10u
-#define BLEND_MODE_MULTIPLY 11u
-#define BLEND_MODE_HUE 12u
-#define BLEND_MODE_SATURATION 13u
-#define BLEND_MODE_COLOR 14u
-#define BLEND_MODE_LUMINOSITY 15u
 
 #ifdef @ENABLE_HSL_BLEND_MODES
 // When using one of the HSL blend equations in table X.2 as the blend equation, the RGB color

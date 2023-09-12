@@ -5,6 +5,7 @@
 #include "rive/pls/pls_render_context_helper_impl.hpp"
 
 #include "rive/pls/pls_image.hpp"
+#include "shaders/constants.glsl"
 
 #ifdef RIVE_DECODERS
 #include "rive/decoders/bitmap_decoder.hpp"
@@ -38,7 +39,7 @@ void PLSRenderContextHelperImpl::resizePathTexture(size_t width, size_t height)
                                        width / kPathTexelsPerItem,
                                        height,
                                        kPathTexelsPerItem,
-                                       kPathTextureIdx,
+                                       PATH_TEXTURE_IDX,
                                        TexelBufferRing::Filter::nearest);
 }
 
@@ -48,7 +49,7 @@ void PLSRenderContextHelperImpl::resizeContourTexture(size_t width, size_t heigh
                                           width / kContourTexelsPerItem,
                                           height,
                                           kContourTexelsPerItem,
-                                          pls::kContourTextureIdx,
+                                          CONTOUR_TEXTURE_IDX,
                                           TexelBufferRing::Filter::nearest);
 }
 

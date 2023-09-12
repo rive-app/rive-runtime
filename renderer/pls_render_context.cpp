@@ -619,7 +619,7 @@ void PLSRenderContext::pushPath(PatchType patchType,
                                 const PLSTexture* imageTexture,
                                 uint32_t clipID,
                                 const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-                                PLSBlendMode blendMode,
+                                BlendMode blendMode,
                                 uint32_t tessVertexCount,
                                 uint32_t paddingVertexCount)
 {
@@ -716,7 +716,7 @@ void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t padding
 
 void PLSRenderContext::pushCubic(const Vec2D pts[4],
                                  Vec2D joinTangent,
-                                 uint32_t additionalPLSFlags,
+                                 uint32_t additionalContourFlags,
                                  uint32_t parametricSegmentCount,
                                  uint32_t polarSegmentCount,
                                  uint32_t joinSegmentCount)
@@ -745,7 +745,7 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
                                       parametricSegmentCount,
                                       polarSegmentCount,
                                       joinSegmentCount,
-                                      m_currentContourID | additionalPLSFlags);
+                                      m_currentContourID | additionalContourFlags);
     }
     else
     {
@@ -755,7 +755,7 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
                               parametricSegmentCount,
                               polarSegmentCount,
                               joinSegmentCount,
-                              m_currentContourID | additionalPLSFlags);
+                              m_currentContourID | additionalContourFlags);
     }
 }
 
@@ -872,7 +872,7 @@ void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangu
                                                  const PLSTexture* imageTexture,
                                                  uint32_t clipID,
                                                  bool hasClipRect,
-                                                 PLSBlendMode blendMode)
+                                                 BlendMode blendMode)
 {
     pushPathDraw(DrawType::interiorTriangulation,
                  0,
@@ -907,13 +907,9 @@ void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
                                      uint32_t indexCount,
                                      uint32_t clipID,
                                      const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-                                     PLSBlendMode blendMode)
+                                     BlendMode blendMode)
 {
-    m_imageMeshUniformData.emplace_back(matrix,
-                                        opacity,
-                                        clipRectInverseMatrix,
-                                        clipID,
-                                        blendMode);
+    m_imageMeshUniformData.emplace_back(matrix, opacity, clipRectInverseMatrix, clipID, blendMode);
 
     pushDraw(DrawType::imageMesh,
              0,
@@ -939,7 +935,7 @@ void PLSRenderContext::pushPathDraw(DrawType drawType,
                                     const PLSTexture* imageTexture,
                                     uint32_t clipID,
                                     bool hasClipRect,
-                                    PLSBlendMode blendMode)
+                                    BlendMode blendMode)
 {
     pushDraw(drawType, baseVertex, paintType, imageTexture, clipID, hasClipRect, blendMode);
 
@@ -973,7 +969,7 @@ void PLSRenderContext::pushDraw(DrawType drawType,
                                 const PLSTexture* imageTexture,
                                 uint32_t clipID,
                                 bool hasClipRect,
-                                PLSBlendMode blendMode)
+                                BlendMode blendMode)
 {
     bool needsNewDraw;
     switch (drawType)
@@ -1017,26 +1013,26 @@ void PLSRenderContext::pushDraw(DrawType drawType,
     {
         switch (blendMode)
         {
-            case PLSBlendMode::hue:
-            case PLSBlendMode::saturation:
-            case PLSBlendMode::color:
-            case PLSBlendMode::luminosity:
+            case BlendMode::hue:
+            case BlendMode::saturation:
+            case BlendMode::color:
+            case BlendMode::luminosity:
                 shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
                 [[fallthrough]];
-            case PLSBlendMode::screen:
-            case PLSBlendMode::overlay:
-            case PLSBlendMode::darken:
-            case PLSBlendMode::lighten:
-            case PLSBlendMode::colorDodge:
-            case PLSBlendMode::colorBurn:
-            case PLSBlendMode::hardLight:
-            case PLSBlendMode::softLight:
-            case PLSBlendMode::difference:
-            case PLSBlendMode::exclusion:
-            case PLSBlendMode::multiply:
+            case BlendMode::screen:
+            case BlendMode::overlay:
+            case BlendMode::darken:
+            case BlendMode::lighten:
+            case BlendMode::colorDodge:
+            case BlendMode::colorBurn:
+            case BlendMode::hardLight:
+            case BlendMode::softLight:
+            case BlendMode::difference:
+            case BlendMode::exclusion:
+            case BlendMode::multiply:
                 shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
                 break;
-            case PLSBlendMode::srcOver:
+            case BlendMode::srcOver:
                 break;
         }
     }

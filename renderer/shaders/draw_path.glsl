@@ -4,10 +4,6 @@
 
 #define AA_RADIUS .5
 
-#define STROKE_VERTEX 0
-#define FAN_VERTEX 1
-#define FAN_MIDPOINT_VERTEX 2
-
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -149,7 +145,7 @@ VERTEX_MAIN(@drawVertexMain,
     // Fix the tessellation vertex if we fetched the wrong one in order to guarantee we got the
     // correct contour ID and flags, or if we belong to a mirrored contour and this vertex has an
     // alternate position when mirrored.
-    uint mirroredContourFlag = contourIDWithFlags & MIRRORED_CONTOUR_FLAG;
+    uint mirroredContourFlag = contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG;
     if (mirroredContourFlag != 0u)
     {
         localVertexID = int(@a_mirroredVertexData.x);
@@ -179,7 +175,7 @@ VERTEX_MAIN(@drawVertexMain,
         {
             tessVertexData = replacementTessVertexData;
         }
-        // MIRRORED_CONTOUR_FLAG is not preserved at vertexIndex0. Preserve it here. By not
+        // MIRRORED_CONTOUR_CONTOUR_FLAG is not preserved at vertexIndex0. Preserve it here. By not
         // preserving this flag, the normal and mirrored contour can both share the same contour
         // record.
         contourIDWithFlags = tessVertexData.w | mirroredContourFlag;
@@ -197,9 +193,9 @@ VERTEX_MAIN(@drawVertexMain,
         outset *= sign(determinant(mat));
 
         // Joins only emanate from the outer side of the stroke.
-        if ((contourIDWithFlags & LEFT_JOIN_FLAG) != 0u)
+        if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
             outset = min(outset, .0);
-        if ((contourIDWithFlags & RIGHT_JOIN_FLAG) != 0u)
+        if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)
             outset = max(outset, .0);
 
         float aaRadius = calc_aa_radius(mat, norm);
@@ -227,9 +223,9 @@ VERTEX_MAIN(@drawVertexMain,
             // the same as the miter line. The first two vertices in the join peek forward to figure
             // out the bisector, and the final two peek backward.
             int peekDir = 2;
-            if ((contourIDWithFlags & JOIN_TANGENT_0_FLAG) == 0u)
+            if ((contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) == 0u)
                 peekDir = -peekDir;
-            if ((contourIDWithFlags & MIRRORED_CONTOUR_FLAG) != 0u)
+            if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
                 peekDir = -peekDir;
             int2 otherJoinTexelCoord = tessTexelCoord(tessVertexIdx + peekDir);
             uint4 otherJoinData = TEXEL_FETCH(textures, @tessVertexTexture, otherJoinTexelCoord);
@@ -237,8 +233,8 @@ VERTEX_MAIN(@drawVertexMain,
             float joinAngle = abs(otherJoinTheta - theta);
             if (joinAngle > PI)
                 joinAngle = 2. * PI - joinAngle;
-            bool isTan0 = (contourIDWithFlags & JOIN_TANGENT_0_FLAG) != 0u;
-            bool isLeftJoin = (contourIDWithFlags & LEFT_JOIN_FLAG) != 0u;
+            bool isTan0 = (contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) != 0u;
+            bool isLeftJoin = (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
             float bisectTheta = joinAngle * (isTan0 == isLeftJoin ? -.5 : .5) + theta;
             float2 bisector = float2(sin(bisectTheta), -cos(bisectTheta));
             float bisectAARadius = calc_aa_radius(mat, bisector);
@@ -249,15 +245,15 @@ VERTEX_MAIN(@drawVertexMain,
             // there is not an obvious solution to antialias them without an ink bleed.
             float miterRatio = cos(joinAngle * .5);
             float clipRadius;
-            if ((joinType == MITER_CLIP_JOIN) ||
-                (joinType == MITER_REVERT_JOIN && miterRatio >= .25))
+            if ((joinType == MITER_CLIP_JOIN_CONTOUR_FLAG) ||
+                (joinType == MITER_REVERT_JOIN_CONTOUR_FLAG && miterRatio >= .25))
             {
                 // Miter!
                 // We currently use hard coded miter limits:
                 //   * 1 for square caps being emulated as miter-clip joins.
                 //   * 4, which is the SVG default, for all other miter joins.
                 float miterInverseLimit =
-                    (contourIDWithFlags & EMULATED_STROKE_CAP_FLAG) != 0u ? 1. : .25;
+                    (contourIDWithFlags & EMULATED_STROKE_CAP_CONTOUR_FLAG) != 0u ? 1. : .25;
                 clipRadius = strokeRadius * (1. / max(miterRatio, miterInverseLimit));
             }
             else
@@ -266,7 +262,7 @@ VERTEX_MAIN(@drawVertexMain,
                 clipRadius = strokeRadius * miterRatio + /* 1/2px bleed! */ bisectAARadius;
             }
             float clipAARadius = clipRadius + bisectAARadius;
-            if ((contourIDWithFlags & JOIN_TANGENT_INNER_FLAG) != 0u)
+            if ((contourIDWithFlags & JOIN_TANGENT_INNER_CONTOUR_FLAG) != 0u)
             {
                 // Reposition the inner join vertices at the miter-clip positions. Leave the outer
                 // join vertices as duplicates on the surrounding curve endpoints. We emit duplicate
@@ -300,7 +296,7 @@ VERTEX_MAIN(@drawVertexMain,
             // the clip distance.
             float2 pt = abs(outset) * vertexOffset;
             float clipDistance = (clipAARadius - dot(pt, bisector)) / (bisectAARadius * 2.);
-            if ((contourIDWithFlags & LEFT_JOIN_FLAG) != 0u)
+            if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
                 v_edgeDistance.y = make_half(clipDistance);
             else
                 v_edgeDistance.x = make_half(clipDistance);
@@ -327,7 +323,7 @@ VERTEX_MAIN(@drawVertexMain,
         // Offset the vertex for Manhattan AA.
         postTransformVertexOffset = sign(MUL(mat, outset * norm)) * AA_RADIUS;
 
-        if ((contourIDWithFlags & MIRRORED_CONTOUR_FLAG) != 0u)
+        if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
             fillCoverage = -fillCoverage;
 
         // "v_edgeDistance.y < 0" indicates to the fragment shader that this is a fill.
@@ -335,7 +331,8 @@ VERTEX_MAIN(@drawVertexMain,
 
         // If we're actually just drawing a triangle, throw away the entire patch except a single
         // fan triangle.
-        if ((contourIDWithFlags & RETROFITTED_TRIANGLE_FLAG) != 0u && vertexType != FAN_VERTEX)
+        if ((contourIDWithFlags & RETROFITTED_TRIANGLE_CONTOUR_FLAG) != 0u &&
+            vertexType != FAN_VERTEX)
             shouldDiscardVertex = true;
     }
     float2 vertexPosition = MUL(mat, origin) + postTransformVertexOffset + translate;
@@ -346,7 +343,7 @@ VERTEX_MAIN(@drawVertexMain,
     v_pathID = id_bits_to_f16(pathIDBits, uniforms.pathIDGranularity);
 
     // Indicate even-odd fill rule by making pathID negative.
-    if ((pathParams & EVEN_ODD_FLAG) != 0u)
+    if ((pathParams & EVEN_ODD_PATH_FLAG) != 0u)
         v_pathID = -v_pathID;
 
     uint paintType = (pathParams >> 20) & 7u;
@@ -474,10 +471,10 @@ SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 PLS_BLOCK_BEGIN
-PLS_DECL4F(0, framebuffer);
-PLS_DECLUI(1, coverageCountBuffer);
-PLS_DECL4F(2, originalDstColorBuffer);
-PLS_DECLUI(3, clipBuffer);
+PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
+PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
+PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
+PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
 
 PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos)
@@ -641,7 +638,7 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (v_blendMode != .0 /*!srcOver*/)
+        if (v_blendMode != make_half(BLEND_SRC_OVER))
         {
 #ifdef @ENABLE_HSL_BLEND_MODES
             color = advanced_hsl_blend(

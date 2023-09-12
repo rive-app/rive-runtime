@@ -5,6 +5,7 @@
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
 #include "rive/pls/gl/pls_render_target_gl.hpp"
+#include "shaders/constants.glsl"
 
 #include "../out/obj/generated/glsl.exports.h"
 
@@ -60,7 +61,7 @@ public:
 
         // Instruct the driver not to load existing PLS plane contents into tiled memory, with the
         // exception of the color buffer after an intermediate flush.
-        static_assert(kFramebufferPlaneIdx == 0);
+        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER,
                                 desc.loadAction == LoadAction::clear ? 4 : 3,
                                 desc.loadAction == LoadAction::clear ? kPLSDrawBuffers
@@ -72,12 +73,12 @@ public:
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glClearBufferfv(GL_COLOR, kFramebufferPlaneIdx, clearColor4f);
+            glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
         }
-        glClearBufferuiv(GL_COLOR, kCoveragePlaneIdx, kZero);
+        glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kZero);
         if (desc.needsClipBuffer)
         {
-            glClearBufferuiv(GL_COLOR, kClipPlaneIdx, kZero);
+            glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
         }
     }
 
@@ -85,7 +86,7 @@ public:
     {
         // Instruct the driver not to flush PLS contents from tiled memory, with the exception of
         // the color buffer.
-        static_assert(kFramebufferPlaneIdx == 0);
+        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, kPLSDrawBuffers + 1);
 
         // Don't restore glDrawBuffers. The client can assume we've changed it, if we have a wrapped

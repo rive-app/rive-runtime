@@ -5,6 +5,7 @@
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 
 #include "rive/pls/pls.hpp"
+#include "shaders/constants.glsl"
 
 namespace rive::pls
 {
@@ -76,7 +77,7 @@ void PLSRenderTargetGL::attachTexturesToCurrentFramebuffer()
     if (m_offscreenTextureID != 0)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + kFramebufferPlaneIdx,
+                               GL_COLOR_ATTACHMENT0 + FRAMEBUFFER_PLANE_IDX,
                                GL_TEXTURE_2D,
                                m_offscreenTextureID,
                                0);
@@ -84,7 +85,7 @@ void PLSRenderTargetGL::attachTexturesToCurrentFramebuffer()
     if (m_coverageTextureID != 0)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + kCoveragePlaneIdx,
+                               GL_COLOR_ATTACHMENT0 + COVERAGE_PLANE_IDX,
                                GL_TEXTURE_2D,
                                m_coverageTextureID,
                                0);
@@ -92,7 +93,7 @@ void PLSRenderTargetGL::attachTexturesToCurrentFramebuffer()
     if (m_originalDstColorTextureID != 0)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + kOriginalDstColorPlaneIdx,
+                               GL_COLOR_ATTACHMENT0 + ORIGINAL_DST_COLOR_PLANE_IDX,
                                GL_TEXTURE_2D,
                                m_originalDstColorTextureID,
                                0);
@@ -100,7 +101,7 @@ void PLSRenderTargetGL::attachTexturesToCurrentFramebuffer()
     if (m_clipTextureID != 0)
     {
         glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + kClipPlaneIdx,
+                               GL_COLOR_ATTACHMENT0 + CLIP_PLANE_IDX,
                                GL_TEXTURE_2D,
                                m_clipTextureID,
                                0);

@@ -4,6 +4,8 @@
 
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
+#include "shaders/constants.glsl"
+
 #include <stdio.h>
 
 #ifdef RIVE_WEBGL
@@ -33,19 +35,19 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
     {
         auto renderTarget = rcp(new PLSRenderTargetGL(width, height, platformFeatures));
         renderTarget->allocateCoverageBackingTextures();
-        glFramebufferTexturePixelLocalStorageWEBGL(kFramebufferPlaneIdx,
+        glFramebufferTexturePixelLocalStorageWEBGL(FRAMEBUFFER_PLANE_IDX,
                                                    renderTarget->m_offscreenTextureID,
                                                    0,
                                                    0);
-        glFramebufferTexturePixelLocalStorageWEBGL(kCoveragePlaneIdx,
+        glFramebufferTexturePixelLocalStorageWEBGL(COVERAGE_PLANE_IDX,
                                                    renderTarget->m_coverageTextureID,
                                                    0,
                                                    0);
-        glFramebufferTexturePixelLocalStorageWEBGL(kOriginalDstColorPlaneIdx,
+        glFramebufferTexturePixelLocalStorageWEBGL(ORIGINAL_DST_COLOR_PLANE_IDX,
                                                    renderTarget->m_originalDstColorTextureID,
                                                    0,
                                                    0);
-        glFramebufferTexturePixelLocalStorageWEBGL(kClipPlaneIdx,
+        glFramebufferTexturePixelLocalStorageWEBGL(CLIP_PLANE_IDX,
                                                    renderTarget->m_clipTextureID,
                                                    0,
                                                    0);
@@ -63,7 +65,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glFramebufferPixelLocalClearValuefvWEBGL(kFramebufferPlaneIdx, clearColor4f);
+            glFramebufferPixelLocalClearValuefvWEBGL(FRAMEBUFFER_PLANE_IDX, clearColor4f);
         }
 
         GLenum loadOps[4] = {(GLenum)(desc.loadAction == LoadAction::clear ? GL_LOAD_OP_CLEAR_WEBGL

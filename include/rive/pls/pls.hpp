@@ -98,72 +98,6 @@ static_assert(1 << kTessTextureWidthLog2 == kTessTextureWidth);
 constexpr size_t kGradTextureWidth = 512;
 constexpr size_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
 
-// Flags for on-GPU rendering data.
-namespace flags
-{
-// Tells shaders that a cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
-// This is used to squeeze in more rare triangles, like "grout" triangles from self intersections on
-// interior triangulation, where it wouldn't be worth it to put them in their own dedicated draw
-// call.
-constexpr static uint32_t kRetrofittedTriangle = 1u << 31;
-
-// Tells the tessellation shader to re-run Wang's formula on the given curve, figure out how many
-// segments it actually needs, and make any excess segments degenerate by co-locating their vertices
-// at T=0. (Used on the "outerCurve" patches that are drawn with interior triangulations.)
-constexpr static uint32_t kCullExcessTessellationSegments = 1u << 30;
-
-// Flags for specifying the join type.
-constexpr static uint32_t kJoinTypeMask = 3u << 28;
-constexpr static uint32_t kMiterClipJoin = 3u << 28;   // Miter that clips when too sharp.
-constexpr static uint32_t kMiterRevertJoin = 2u << 28; // Standard miter that pops when too sharp.
-constexpr static uint32_t kBevelJoin = 1u << 28;
-
-// When a join is being used to emulate a stroke cap, the shader emits additional vertices at T=0
-// and T=1 for round joins, and changes the miter limit to 1 for miter-clip joins.
-constexpr static uint32_t kEmulatedStrokeCap = 1u << 27;
-
-RIVE_ALWAYS_INLINE static uint32_t JoinTypeFlags(StrokeJoin join)
-{
-    switch (join)
-    {
-        case StrokeJoin::miter:
-            return flags::kMiterRevertJoin;
-        case StrokeJoin::round:
-            return 0;
-        case StrokeJoin::bevel:
-            return flags::kBevelJoin;
-    }
-    RIVE_UNREACHABLE();
-}
-
-// Tells the GPU that a given path has an even-odd fill rule.
-constexpr static uint32_t kEvenOdd = 1u << 31;
-
-// Tells the GPU that a given paint is a gradient.
-constexpr static uint32_t kGradient = 1u << 30;
-
-// Tells the GPU that a given gradient is a radial gradient.
-constexpr static uint32_t kRadialGradient = 1u << 29;
-
-// Says which part of the patch a vertex belongs to.
-constexpr static int32_t kStrokeVertex = 0;
-constexpr static int32_t kFanVertex = 1;
-constexpr static int32_t kFanMidpointVertex = 2;
-} // namespace flags
-
-// Index of each pixel local storage plane.
-constexpr static int kFramebufferPlaneIdx = 0;
-constexpr static int kCoveragePlaneIdx = 1;
-constexpr static int kOriginalDstColorPlaneIdx = 2;
-constexpr static int kClipPlaneIdx = 3;
-
-// Index at which we access each texture.
-constexpr static int kTessVertexTextureIdx = 0;
-constexpr static int kPathTextureIdx = 1;
-constexpr static int kContourTextureIdx = 2;
-constexpr static int kGradTextureIdx = 3;
-constexpr static int kImageTextureIdx = 4;
-
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {
@@ -208,34 +142,6 @@ enum class PaintType : uint32_t
     clipUpdate, // Update the clip buffer instead of drawing to the framebuffer.
 };
 
-// Mirrors rive::BlendMode, but 0-based and contiguous for tighter packing.
-enum class PLSBlendMode : uint32_t
-{
-    // Tier 1.
-    srcOver,
-
-    // Tier 2.
-    screen,
-    overlay,
-    darken,
-    lighten,
-    colorDodge,
-    colorBurn,
-    hardLight,
-    softLight,
-    difference,
-    exclusion,
-    multiply,
-
-    // Tier 3.
-    hue,
-    saturation,
-    color,
-    luminosity,
-};
-
-PLSBlendMode BlendModeRiveToPLS(rive::BlendMode);
-
 // Packs the data for a gradient or solid color into 4 floats.
 struct PaintData
 {
@@ -265,7 +171,7 @@ struct PaintData
 
     static PaintData MakeImage(float opacity)
     {
-        // Images use the texture binding at kImageTextureIdx, so the paint data only needs
+        // Images use the texture binding at IMAGE_TEXTURE_IDX, so the paint data only needs
         // opacity.
         PaintData paintData;
         paintData.data[0] = math::bit_cast<uint32_t>(opacity);
@@ -307,30 +213,15 @@ private:
 // Each path has a unique data record on the GPU that is accessed from the vertex shader.
 struct PathData
 {
-    RIVE_ALWAYS_INLINE void set(const Mat2D& m,
-                                float strokeRadius_, // 0 if the path is filled.
-                                FillRule fillRule,
-                                PaintType paintType,
-                                uint32_t clipID,
-                                PLSBlendMode blendMode,
-                                const PaintData& paintData_,
-                                const ClipRectInverseMatrix* clipRectInverseMatrix_)
-    {
-        matrix = m;
-        strokeRadius = strokeRadius_;
-        uint32_t localParams = static_cast<uint32_t>(blendMode);
-        localParams |= clipID << 4;
-        localParams |= static_cast<uint32_t>(paintType) << 20;
-        if (fillRule == FillRule::evenOdd && strokeRadius_ == 0)
-        {
-            localParams |= flags::kEvenOdd;
-        }
-        params = localParams;
-        paintData = paintData_;
-        clipRectInverseMatrix = clipRectInverseMatrix_ != nullptr
-                                    ? *clipRectInverseMatrix_
-                                    : ClipRectInverseMatrix::WideOpen();
-    }
+    void set(const Mat2D&,
+             float strokeRadius_, // 0 if the path is filled.
+             FillRule,
+             PaintType,
+             uint32_t clipID,
+             BlendMode,
+             const PaintData&,
+             const ClipRectInverseMatrix*);
+
     Mat2D matrix;
     float strokeRadius; // "0" indicates that the path is filled, not stroked.
     uint32_t params;    // [fillRule, paintType, clipID, blendMode]
@@ -448,19 +339,11 @@ struct ImageMeshUniforms
 {
     ImageMeshUniforms() = default;
 
-    RIVE_ALWAYS_INLINE ImageMeshUniforms(const Mat2D& matrix_,
-                                         float opacity_,
-                                         const ClipRectInverseMatrix* clipRectInverseMatrix_,
-                                         uint32_t clipID_,
-                                         PLSBlendMode blendMode_) :
-        matrix(matrix_),
-        opacity(opacity_),
-        clipRectInverseMatrix(clipRectInverseMatrix_ != nullptr
-                                  ? *clipRectInverseMatrix_
-                                  : ClipRectInverseMatrix::WideOpen()),
-        clipID(clipID_),
-        blendMode(static_cast<uint32_t>(blendMode_))
-    {}
+    ImageMeshUniforms(const Mat2D&,
+                      float opacity,
+                      const ClipRectInverseMatrix*,
+                      uint32_t clipID,
+                      BlendMode);
 
     Mat2D matrix;
     float opacity;

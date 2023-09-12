@@ -620,8 +620,8 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
         [tessEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing()) offset:0 atIndex:0];
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:1];
-        [tessEncoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
-        [tessEncoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
+        [tessEncoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:PATH_TEXTURE_IDX];
+        [tessEncoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:CONTOUR_TEXTURE_IDX];
         [tessEncoder setCullMode:MTLCullModeBack];
         // Draw two instances per TessVertexSpan: one normal and one optional reflection.
         [tessEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
@@ -669,10 +669,10 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                                        0.0,
                                        1.0}];
     [encoder setVertexBuffer:mtl_buffer(flushUniformBufferRing()) offset:0 atIndex:0];
-    [encoder setVertexTexture:m_tessVertexTexture atIndex:kTessVertexTextureIdx];
-    [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:kPathTextureIdx];
-    [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:kContourTextureIdx];
-    [encoder setFragmentTexture:m_gradientTexture atIndex:kGradTextureIdx];
+    [encoder setVertexTexture:m_tessVertexTexture atIndex:TESS_VERTEX_TEXTURE_IDX];
+    [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:PATH_TEXTURE_IDX];
+    [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:CONTOUR_TEXTURE_IDX];
+    [encoder setFragmentTexture:m_gradientTexture atIndex:GRAD_TEXTURE_IDX];
     if (desc.wireframe)
     {
         [encoder setTriangleFillMode:MTLTriangleFillModeLines];
@@ -700,7 +700,7 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
         // Bind the appropriate image texture, if any.
         if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTextureRef))
         {
-            [encoder setFragmentTexture:imageTextureMetal->texture() atIndex:kImageTextureIdx];
+            [encoder setFragmentTexture:imageTextureMetal->texture() atIndex:IMAGE_TEXTURE_IDX];
         }
 
         switch (drawType)

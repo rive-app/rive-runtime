@@ -100,11 +100,6 @@ rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
                                radius));
 }
 
-void PLSPaint::blendMode(rive::BlendMode riveMode)
-{
-    m_blendMode = pls::BlendModeRiveToPLS(riveMode);
-}
-
 void PLSPaint::color(ColorInt color)
 {
     m_imageTexture.reset();
