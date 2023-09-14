@@ -47,7 +47,8 @@ rive_pls_ios_simulator_metallib: $(OUT)/rive_pls_ios_simulator.metallib.c
 $(OUT)/macosx/rive_pls_macosx.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
 	@mkdir -p $(OUT)/macosx
 	$(foreach FILE, $(METAL_INPUTS), \
-		xcrun -sdk macosx metal -ffast-math -ffp-contract=fast -fvisibility=hidden \
+		xcrun -sdk macosx metal \
+		-ffast-math -ffp-contract=fast -fpreserve-invariance -fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/macosx/%.air, $(FILE));)
 	xcrun -sdk macosx metallib $(METAL_MACOSX_AIR_OUTPUTS) -o $(OUT)/macosx/rive_pls_macosx.metallib
@@ -60,7 +61,9 @@ $(OUT)/rive_pls_macosx.metallib.c: $(OUT)/macosx/rive_pls_macosx.metallib
 $(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
 	@mkdir -p $(OUT)/ios
 	$(foreach FILE, $(METAL_INPUTS), \
-		xcrun -sdk iphoneos metal -mios-version-min=13 -ffast-math -ffp-contract=fast \
+		xcrun -sdk iphoneos metal \
+		-mios-version-min=13 -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
 	xcrun -sdk iphoneos metallib $(METAL_IOS_AIR_OUTPUTS) -o $(OUT)/ios/rive_pls_ios.metallib
@@ -71,7 +74,9 @@ $(OUT)/rive_pls_ios.metallib.c: $(OUT)/ios/rive_pls_ios.metallib
 $(OUT)/ios/rive_pls_ios_simulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
 	@mkdir -p $(OUT)/ios
 	$(foreach FILE, $(METAL_INPUTS), \
-		xcrun -sdk iphonesimulator metal -miphonesimulator-version-min=13 -ffast-math -ffp-contract=fast \
+		xcrun -sdk iphonesimulator metal \
+		-miphonesimulator-version-min=13 -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
 	xcrun -sdk iphonesimulator metallib $(METAL_IOS_AIR_OUTPUTS) -o $(OUT)/ios/rive_pls_ios_simulator.metallib

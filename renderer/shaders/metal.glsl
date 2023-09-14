@@ -84,7 +84,7 @@
 // than flat on M1.
 #define @OPTIONALLY_FLAT
 #define VARYING_BLOCK_END(_pos)                                                                    \
-    float4 _pos [[$position]];                                                                     \
+    float4 _pos [[$position]] [[$invariant]];                                                      \
     }                                                                                              \
     ;
 
