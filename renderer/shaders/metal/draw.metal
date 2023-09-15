@@ -18,4 +18,6 @@
 #undef ENABLE_HSL_BLEND_MODES
 #undef ENABLE_ADVANCED_BLEND
 
+#undef FRAGMENT
+
 #include "../../../out/obj/generated/draw_combinations.metal"

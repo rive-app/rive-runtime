@@ -14,6 +14,8 @@
 
 namespace rive::pls
 {
+class BackgroundShaderCompiler;
+
 // Metal backend implementation of PLSRenderTarget.
 class PLSRenderTargetMetal : public PLSRenderTarget
 {
@@ -52,15 +54,23 @@ public:
 
     rcp<PLSRenderTargetMetal> makeRenderTarget(MTLPixelFormat, size_t width, size_t height);
 
-protected:
-    PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
-
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
     rcp<PLSTexture> makeImageTexture(uint32_t width,
                                      uint32_t height,
                                      uint32_t mipLevelCount,
                                      const uint8_t imageDataRGBA[]) override;
+
+    // Wait for shaders to compile inline with rendering (causing jank), instead of compiling in a
+    // background thread asynchronously, and using alternative compatible shaders until the
+    // compilations complete. This is mostly intended for testing.
+    void enableSynchronousShaderCompilations(bool enabled)
+    {
+        m_shouldWaitForShaderCompilations = enabled;
+    }
+
+protected:
+    PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
 
     std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
                                                          size_t widthInItems,
@@ -79,6 +89,9 @@ protected:
                                                       size_t itemSizeInBytes) override;
 
 private:
+    // Renders paths to the main render target.
+    class DrawPipeline;
+
     void resizeGradientTexture(size_t height) override;
     void resizeTessellationTexture(size_t height) override;
 
@@ -87,12 +100,19 @@ private:
     // next buffers in our rings.
     void prepareToMapBuffers() override;
 
+    // Returns the specific DrawPipeline for the given feature set, if it has been compiled. If it
+    // has not finished compiling yet, returns a (potentially slower) draw pipeline that can draw a
+    // superset of the given features.
+    const DrawPipeline* findCompatibleDrawPipeline(pls::DrawType, pls::ShaderFeatures);
+
     void flush(const PLSRenderContext::FlushDescriptor&) override;
 
     const id<MTLDevice> m_gpu;
     const id<MTLCommandQueue> m_queue;
 
-    id<MTLLibrary> m_plsLibrary;
+    id<MTLLibrary> m_plsPrecompiledLibrary;
+    std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
+    bool m_shouldWaitForShaderCompilations = false;
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
@@ -104,9 +124,7 @@ private:
     std::unique_ptr<TessellatePipeline> m_tessPipeline;
     id<MTLTexture> m_tessVertexTexture = nullptr;
 
-    // Renders paths to the main render target.
-    class DrawPipeline;
-    std::map<uint32_t, DrawPipeline> m_drawPipelines;
+    std::map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
     id<MTLBuffer> m_pathPatchVertexBuffer;
     id<MTLBuffer> m_pathPatchIndexBuffer;
 

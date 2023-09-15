@@ -4,14 +4,13 @@
 
 #include "rive/pls/metal/pls_render_context_metal_impl.h"
 
+#include "background_shader_compiler.h"
 #include "rive/pls/buffer_ring.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 #include <sstream>
 
 #include "../out/obj/generated/color_ramp.exports.h"
-#include "../out/obj/generated/draw_image_mesh.exports.h"
-#include "../out/obj/generated/draw_path.exports.h"
 #include "../out/obj/generated/tessellate.exports.h"
 
 namespace rive::pls
@@ -31,7 +30,7 @@ static id<MTLRenderPipelineState> make_pipeline_state(id<MTLDevice> gpu,
     id<MTLRenderPipelineState> state = [gpu newRenderPipelineStateWithDescriptor:desc error:&err];
     if (!state)
     {
-        printf("%s\n", err.localizedDescription.UTF8String);
+        fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
         exit(-1);
     }
     return state;
@@ -79,54 +78,21 @@ private:
 class PLSRenderContextMetalImpl::DrawPipeline
 {
 public:
-    DrawPipeline(PLSRenderContextMetalImpl* context,
-                 DrawType drawType,
-                 const ShaderFeatures& shaderFeatures)
+    // Precompiled functions are embedded in namespaces. Return the fully qualified name of the
+    // desired function, including its namespace.
+    static NSString* GetPrecompiledFunctionName(DrawType drawType,
+                                                ShaderFeatures shaderFeatures,
+                                                id<MTLLibrary> precompiledLibrary,
+                                                const char* functionBaseName)
     {
-        id<MTLFunction> vertexMain = GetFunction(
-            context, drawType, shaderFeatures & kVertexShaderFeaturesMask, GLSL_drawVertexMain);
-        id<MTLFunction> fragmentMain =
-            GetFunction(context, drawType, shaderFeatures, GLSL_drawFragmentMain);
-        constexpr static auto makePipelineState = [](id<MTLDevice> gpu,
-                                                     id<MTLFunction> vertexMain,
-                                                     id<MTLFunction> fragmentMain,
-                                                     MTLPixelFormat pixelFormat) {
-            MTLRenderPipelineDescriptor* desc = [[MTLRenderPipelineDescriptor alloc] init];
-            desc.vertexFunction = vertexMain;
-            desc.fragmentFunction = fragmentMain;
-            desc.colorAttachments[0].pixelFormat = pixelFormat;
-            desc.colorAttachments[1].pixelFormat = MTLPixelFormatR32Uint;
-            desc.colorAttachments[2].pixelFormat = pixelFormat;
-            desc.colorAttachments[3].pixelFormat = MTLPixelFormatR32Uint;
-            return make_pipeline_state(gpu, desc);
-        };
-        m_pipelineStateRGBA8 =
-            makePipelineState(context->m_gpu, vertexMain, fragmentMain, MTLPixelFormatRGBA8Unorm);
-        m_pipelineStateBGRA8 =
-            makePipelineState(context->m_gpu, vertexMain, fragmentMain, MTLPixelFormatBGRA8Unorm);
-    }
-
-    id<MTLRenderPipelineState> pipelineState(MTLPixelFormat pixelFormat) const
-    {
-        assert(pixelFormat == MTLPixelFormatRGBA8Unorm || pixelFormat == MTLPixelFormatBGRA8Unorm);
-        return pixelFormat == MTLPixelFormatRGBA8Unorm ? m_pipelineStateRGBA8
-                                                       : m_pipelineStateBGRA8;
-    }
-
-private:
-    id<MTLFunction> GetFunction(PLSRenderContextMetalImpl* context,
-                                DrawType drawType,
-                                ShaderFeatures shaderFeatures,
-                                const char* functionName)
-    {
-        // Each feature corresponds to a specific index in the namespaceID. These must stay in sync
-        // with generate_draw_combinations.py.
+        // Each feature corresponds to a specific index in the namespaceID. These must stay in
+        // sync with generate_draw_combinations.py.
         char namespaceID[] = "0000000";
         if (drawType == DrawType::interiorTriangulation)
         {
             namespaceID[0] = '1';
         }
-        for (size_t i = 0; i < kShaderFeatureCount; ++i)
+        for (size_t i = 0; i < pls::kShaderFeatureCount; ++i)
         {
             ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
             if (shaderFeatures & feature)
@@ -140,6 +106,7 @@ private:
             static_assert((int)ShaderFeatures::ENABLE_NESTED_CLIPPING == 1 << 4);
             static_assert((int)ShaderFeatures::ENABLE_HSL_BLEND_MODES == 1 << 5);
         }
+
         char namespacePrefix;
         switch (drawType)
         {
@@ -152,11 +119,45 @@ private:
                 namespacePrefix = 'm';
                 break;
         }
-        NSString* fullyQualifiedName =
-            [NSString stringWithFormat:@"%c%s::%s", namespacePrefix, namespaceID, functionName];
-        return [context->m_plsLibrary newFunctionWithName:fullyQualifiedName];
+
+        return
+            [NSString stringWithFormat:@"%c%s::%s", namespacePrefix, namespaceID, functionBaseName];
     }
 
+    DrawPipeline(id<MTLDevice> gpu,
+                 id<MTLLibrary> library,
+                 NSString* vertexFunctionName,
+                 NSString* fragmentFunctionName)
+    {
+        constexpr static auto makePipelineState = [](id<MTLDevice> gpu,
+                                                     id<MTLFunction> vertexMain,
+                                                     id<MTLFunction> fragmentMain,
+                                                     MTLPixelFormat pixelFormat) {
+            MTLRenderPipelineDescriptor* desc = [[MTLRenderPipelineDescriptor alloc] init];
+            desc.vertexFunction = vertexMain;
+            desc.fragmentFunction = fragmentMain;
+            desc.colorAttachments[0].pixelFormat = pixelFormat;
+            desc.colorAttachments[1].pixelFormat = MTLPixelFormatR32Uint;
+            desc.colorAttachments[2].pixelFormat = pixelFormat;
+            desc.colorAttachments[3].pixelFormat = MTLPixelFormatR32Uint;
+            return make_pipeline_state(gpu, desc);
+        };
+        id<MTLFunction> vertexMain = [library newFunctionWithName:vertexFunctionName];
+        id<MTLFunction> fragmentMain = [library newFunctionWithName:fragmentFunctionName];
+        m_pipelineStateRGBA8 =
+            makePipelineState(gpu, vertexMain, fragmentMain, MTLPixelFormatRGBA8Unorm);
+        m_pipelineStateBGRA8 =
+            makePipelineState(gpu, vertexMain, fragmentMain, MTLPixelFormatBGRA8Unorm);
+    }
+
+    id<MTLRenderPipelineState> pipelineState(MTLPixelFormat pixelFormat) const
+    {
+        assert(pixelFormat == MTLPixelFormatRGBA8Unorm || pixelFormat == MTLPixelFormatBGRA8Unorm);
+        return pixelFormat == MTLPixelFormatRGBA8Unorm ? m_pipelineStateRGBA8
+                                                       : m_pipelineStateBGRA8;
+    }
+
+private:
     id<MTLRenderPipelineState> m_pipelineStateRGBA8;
     id<MTLRenderPipelineState> m_pipelineStateBGRA8;
 };
@@ -256,7 +257,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextMetalImpl::MakeContext(id<MTLD
 {
     if (![gpu supportsFamily:MTLGPUFamilyApple1])
     {
-        printf("error: GPU is not Apple family.");
+        fprintf(stderr, "error: GPU is not Apple family.");
         return nullptr;
     }
     auto plsContextImpl =
@@ -265,7 +266,9 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextMetalImpl::MakeContext(id<MTLD
 }
 
 PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCommandQueue> queue) :
-    m_gpu(gpu), m_queue(queue)
+    m_gpu(gpu),
+    m_queue(queue),
+    m_backgroundShaderCompiler(std::make_unique<BackgroundShaderCompiler>(m_gpu))
 {
 #ifdef RIVE_IOS
     if (!is_apple_ios_silicon(gpu))
@@ -295,15 +298,34 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCo
         nil,
         nil);
     NSError* err = [NSError errorWithDomain:@"pls_metallib_load" code:200 userInfo:nil];
-    m_plsLibrary = [m_gpu newLibraryWithData:metallibData error:&err];
-    if (m_plsLibrary == nil)
+    m_plsPrecompiledLibrary = [m_gpu newLibraryWithData:metallibData error:&err];
+    if (m_plsPrecompiledLibrary == nil)
     {
-        printf("Failed to load pls metallib.\n");
-        printf("%s\n", err.localizedDescription.UTF8String);
+        fprintf(stderr, "Failed to load pls metallib.\n");
+        fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
         exit(-1);
     }
-    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(gpu, m_plsLibrary);
-    m_tessPipeline = std::make_unique<TessellatePipeline>(gpu, m_plsLibrary);
+
+    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(gpu, m_plsPrecompiledLibrary);
+    m_tessPipeline = std::make_unique<TessellatePipeline>(gpu, m_plsPrecompiledLibrary);
+
+    // Load the fully-featured, pre-compiled draw shaders.
+    for (auto drawType :
+         {DrawType::midpointFanPatches, DrawType::interiorTriangulation, DrawType::imageMesh})
+    {
+        pls::ShaderFeatures allShaderFeatures = pls::AllShaderFeaturesForDrawType(drawType);
+        uint32_t pipelineKey = ShaderUniqueKey(drawType, allShaderFeatures);
+        m_drawPipelines[pipelineKey] = std::make_unique<DrawPipeline>(
+            m_gpu,
+            m_plsPrecompiledLibrary,
+            DrawPipeline::GetPrecompiledFunctionName(drawType,
+                                                     allShaderFeatures &
+                                                         pls::kVertexShaderFeaturesMask,
+                                                     m_plsPrecompiledLibrary,
+                                                     GLSL_drawVertexMain),
+            DrawPipeline::GetPrecompiledFunctionName(
+                drawType, allShaderFeatures, m_plsPrecompiledLibrary, GLSL_drawFragmentMain));
+    }
 
     // Create vertex and index buffers for the different PLS patches.
     m_pathPatchVertexBuffer = [gpu newBufferWithLength:kPatchVertexBufferCount * sizeof(PatchVertex)
@@ -535,6 +557,47 @@ static id<MTLTexture> mtl_texture(const TexelBufferRing* texelBufferRing)
     return static_cast<const TexelBufferMetalImpl*>(texelBufferRing)->submittedTexture();
 }
 
+const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
+    findCompatibleDrawPipeline(pls::DrawType drawType, pls::ShaderFeatures shaderFeatures)
+{
+    uint32_t pipelineKey = pls::ShaderUniqueKey(drawType, shaderFeatures);
+    auto pipelineIter = m_drawPipelines.find(pipelineKey);
+    if (pipelineIter == m_drawPipelines.end())
+    {
+        // The shader for this pipeline hasn't been scheduled for compiling yet. Schedule it to
+        // compile in the background.
+        m_backgroundShaderCompiler->pushJob(
+            {.drawType = drawType, .shaderFeatures = shaderFeatures});
+        pipelineIter = m_drawPipelines.insert({pipelineKey, nullptr}).first;
+    }
+
+    if (pipelineIter->second == nullptr)
+    {
+        // The shader for this pipeline hasn't finished compiling yet. Poll and see if it's done.
+        BackgroundCompileJob job;
+        while (m_backgroundShaderCompiler->popFinishedJob(&job, m_shouldWaitForShaderCompilations))
+        {
+            uint32_t jobKey = pls::ShaderUniqueKey(job.drawType, job.shaderFeatures);
+            m_drawPipelines[jobKey] = std::make_unique<DrawPipeline>(
+                m_gpu, job.compiledLibrary, @GLSL_drawVertexMain, @GLSL_drawFragmentMain);
+            if (jobKey == pipelineKey)
+            {
+                assert(pipelineIter->second != nullptr);
+                break;
+            }
+        }
+        if (pipelineIter->second == nullptr)
+        {
+            // The shader for pipeline set hasn't finished compiling. Use the pipeline that has all
+            // features enabled while we wait for it to finish.
+            pipelineKey = ShaderUniqueKey(drawType, pls::AllShaderFeaturesForDrawType(drawType));
+            pipelineIter = m_drawPipelines.find(pipelineKey);
+            assert(pipelineIter->second != nullptr);
+        }
+    }
+    return pipelineIter->second.get();
+}
+
 void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
     auto* renderTarget = static_cast<const PLSRenderTargetMetal*>(desc.renderTarget);
@@ -546,16 +609,6 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
         MTLRenderPassDescriptor* gradPass = [MTLRenderPassDescriptor renderPassDescriptor];
         gradPass.renderTargetWidth = kGradTextureWidth;
         gradPass.renderTargetHeight = desc.complexGradRowsTop + desc.complexGradRowsHeight;
-        // TODO: Uploading the "simple" gradient texels directly to this texture requires us to use
-        // MTLLoadActionLoad here, in addition to triple buffering the entire gradient texture. We
-        // should consider different approaches:
-        //
-        //   * Upload the simple texels from the CPU to a separate buffer, and then transfer.
-        //   * Just render the simple ramps too.
-        //   * Upload the simple texels to the bottom of the texture, and then use
-        //     "gradPass.renderTargetHeight" in combination with MTLLoadActionDontCare. (Still
-        //     requires triple buffering of the gradient texture.)
-        //
         gradPass.colorAttachments[0].loadAction = MTLLoadActionDontCare;
         gradPass.colorAttachments[0].storeAction = MTLStoreActionStore;
         gradPass.colorAttachments[0].texture = m_gradientTexture;
@@ -688,14 +741,10 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
             continue;
         }
 
-        DrawType drawType = draw.drawType;
-
         // Setup the pipeline for this specific drawType and shaderFeatures.
-        uint32_t pipelineKey = ShaderUniqueKey(drawType, draw.shaderFeatures);
-        const DrawPipeline& drawPipeline =
-            m_drawPipelines.try_emplace(pipelineKey, this, drawType, draw.shaderFeatures)
-                .first->second;
-        [encoder setRenderPipelineState:drawPipeline.pipelineState(renderTarget->pixelFormat())];
+        const DrawPipeline* drawPipeline =
+            findCompatibleDrawPipeline(draw.drawType, draw.shaderFeatures);
+        [encoder setRenderPipelineState:drawPipeline->pipelineState(renderTarget->pixelFormat())];
 
         // Bind the appropriate image texture, if any.
         if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTextureRef))
@@ -703,6 +752,7 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
             [encoder setFragmentTexture:imageTextureMetal->texture() atIndex:IMAGE_TEXTURE_IDX];
         }
 
+        DrawType drawType = draw.drawType;
         switch (drawType)
         {
             case DrawType::midpointFanPatches:

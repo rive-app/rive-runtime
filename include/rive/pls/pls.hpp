@@ -607,7 +607,19 @@ constexpr static ShaderFeatures kVertexShaderFeaturesMask = ShaderFeatures::ENAB
 constexpr static ShaderFeatures kImageMeshShaderFeaturesMask =
     ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
     ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_HSL_BLEND_MODES;
-extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
+
+constexpr static ShaderFeatures AllShaderFeaturesForDrawType(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+            return static_cast<pls::ShaderFeatures>((1 << pls::kShaderFeatureCount) - 1);
+        case DrawType::imageMesh:
+            return kImageMeshShaderFeaturesMask;
+    }
+}
 
 inline static uint32_t ShaderUniqueKey(DrawType drawType, ShaderFeatures shaderFeatures)
 {
@@ -627,6 +639,8 @@ inline static uint32_t ShaderUniqueKey(DrawType drawType, ShaderFeatures shaderF
     }
     return (static_cast<uint32_t>(shaderFeatures) << 2) | drawTypeKey;
 }
+
+extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
 // Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
 // instead of rendering them.

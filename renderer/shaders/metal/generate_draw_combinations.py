@@ -1,5 +1,6 @@
 import itertools
 import sys
+from enum import Enum
 
 # Organizes all combinations of valid features for draw.glsl into their own custom-named namespace.
 # Generates MSL code to declare each namespace and #include draw.glsl with corresponding #defines.
@@ -53,30 +54,60 @@ non_image_mesh_features = {DRAW_INTERIOR_TRIANGLES,
 def is_image_mesh_feature_set(feature_set):
     return not non_image_mesh_features.intersection(feature_set)
 
-# Organize all combinations of valid features into their own namespace.
-out = open(sys.argv[1], 'w', newline='\n')
-for n in range(0, len(all_features) + 1):
-    for feature_set in itertools.combinations(all_features, n):
-        if not is_valid_feature_set(feature_set):
-            continue
-        namespace_id = ['0', '0', '0', '0', '0', '0', '0']
-        for feature in feature_set:
-            namespace_id[feature.index] = '1'
-        if is_unique_vertex_feature_set(feature_set):
-            out.write('#define VERTEX\n')
-        for feature in feature_set:
-            out.write('#define %s\n' % feature.name)
+ShaderType = Enum('ShaderType', ['VERTEX', 'FRAGMENT'])
+DrawType = Enum('DrawType', ['PATH', 'IMAGE_MESH'])
+
+def emit_shader(out, shader_type, draw_type, feature_set):
+    assert(is_valid_feature_set(feature_set))
+    if shader_type == ShaderType.VERTEX:
+        assert(is_unique_vertex_feature_set(feature_set))
+        out.write('#define VERTEX\n')
+    else:
+        out.write('#define FRAGMENT\n')
+    if draw_type == DrawType.IMAGE_MESH:
+        assert(is_image_mesh_feature_set(feature_set))
+    namespace_id = ['0', '0', '0', '0', '0', '0', '0']
+    for feature in feature_set:
+        namespace_id[feature.index] = '1'
+    for feature in feature_set:
+        out.write('#define %s\n' % feature.name)
+    if draw_type == DrawType.PATH:
         out.write('namespace p%s\n' % ''.join(namespace_id))
         out.write('{\n')
         out.write('#include "draw_path.minified.glsl"\n')
         out.write('}\n')
-        if is_image_mesh_feature_set(feature_set):
-            out.write('namespace m%s\n' % ''.join(namespace_id))
-            out.write('{\n')
-            out.write('#include "draw_image_mesh.minified.glsl"\n')
-            out.write('}\n')
-        for feature in reversed(feature_set):
-            out.write('#undef %s\n' % feature.name)
-        if is_unique_vertex_feature_set(feature_set):
-            out.write('#undef VERTEX\n')
-        out.write('\n')
+    else:
+        out.write('namespace m%s\n' % ''.join(namespace_id))
+        out.write('{\n')
+        out.write('#include "draw_image_mesh.minified.glsl"\n')
+        out.write('}\n')
+    for feature in feature_set:
+        out.write('#undef %s\n' % feature.name)
+    if shader_type == ShaderType.VERTEX:
+        out.write('#undef VERTEX\n')
+    else:
+        out.write('#undef FRAGMENT\n')
+    out.write('\n')
+
+# Organize all combinations of valid features into their own namespace.
+out = open(sys.argv[1], 'w', newline='\n')
+
+# Precompile the bare minimum set of shaders required to draw everything. We can compile more
+# specialized shaders in the background at runtime, and use the fully-featured (slower) shaders
+# while waiting for the compilations to complete.
+emit_shader(out, ShaderType.VERTEX, DrawType.PATH, whole_program_features)
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, all_features)
+emit_shader(out, ShaderType.VERTEX, DrawType.PATH,
+            whole_program_features.difference({DRAW_INTERIOR_TRIANGLES}))
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH,
+            all_features.difference({DRAW_INTERIOR_TRIANGLES}))
+emit_shader(out, ShaderType.VERTEX, DrawType.IMAGE_MESH,
+            whole_program_features.difference(non_image_mesh_features))
+emit_shader(out, ShaderType.FRAGMENT, DrawType.IMAGE_MESH,
+            all_features.difference(non_image_mesh_features))
+
+# If we wanted to emit all combos...
+# for n in range(0, len(all_features) + 1):
+#     for feature_set in itertools.combinations(all_features, n):
+#         if not is_valid_feature_set(feature_set):
+#             continue
