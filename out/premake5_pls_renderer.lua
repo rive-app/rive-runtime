@@ -107,8 +107,8 @@ newoption {
     description = "don't use the rive_decoders library (built-in image decoding will fail)"
 }
 newoption {
-    trigger = 'fat-lib',
-    description = "(Apple only): build the library for all architectures"
+    trigger = 'universal-release',
+    description = "(Apple only): build a universal binary to release to the store"
 }
 project 'rive_pls_renderer'
 do
@@ -251,7 +251,7 @@ do
             }
         end
 
-        filter {'system:macosx', 'options:fat-lib'}
+        filter {'system:macosx', 'options:universal-release'}
         do
             buildoptions {
                 '-arch x86_64',
@@ -259,15 +259,14 @@ do
             }
         end
 
-        filter {'system:ios', 'options:variant=system', 'options:fat-lib'}
+        filter {'system:ios', 'options:variant=system', 'options:universal-release'}
         do
             buildoptions {
                 '-arch arm64',
-                '-arch arm64e',
             }
         end
 
-        filter {'system:ios', 'options:variant=simulator', 'options:fat-lib'}
+        filter {'system:ios', 'options:variant=simulator', 'options:universal-release'}
         do
             buildoptions {
                 '-arch x86_64',
