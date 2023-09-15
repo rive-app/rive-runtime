@@ -25,6 +25,7 @@
 #include "rive/shapes/shape.hpp"
 #include "rive/core/field_types/core_callback_type.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/math/math_types.hpp"
 #include <unordered_map>
 
 using namespace rive;

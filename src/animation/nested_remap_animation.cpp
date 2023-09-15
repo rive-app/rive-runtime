@@ -20,7 +20,7 @@ void NestedRemapAnimation::initializeAnimation(ArtboardInstance* artboard)
 
 void NestedRemapAnimation::advance(float elapsedSeconds)
 {
-    if (m_AnimationInstance != nullptr)
+    if (m_AnimationInstance != nullptr && mix() != 0.0f)
     {
         m_AnimationInstance->apply(mix());
     }

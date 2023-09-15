@@ -63,6 +63,9 @@ public:
         {
             if (animation.m_AnimationInstance.keepGoing())
             {
+                // Should animations with m_Mix == 0.0 advance? They will
+                // trigger events and the event properties (if any) will not be
+                // updated by animationInstance.apply
                 animation.m_AnimationInstance.advance(seconds, stateMachineInstance);
             }
         }
@@ -73,6 +76,10 @@ public:
         for (auto& animation : m_AnimationInstances)
         {
             float m = mix * animation.m_Mix;
+            if (m == 0.0f)
+            {
+                continue;
+            }
             animation.m_AnimationInstance.apply(m);
         }
     }

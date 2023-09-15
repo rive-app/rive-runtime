@@ -11,6 +11,9 @@ void NestedSimpleAnimation::advance(float elapsedSeconds)
         {
             m_AnimationInstance->advance(elapsedSeconds * speed());
         }
-        m_AnimationInstance->apply(mix());
+        if (mix() != 0.0f)
+        {
+            m_AnimationInstance->apply(mix());
+        }
     }
 }
