@@ -472,17 +472,11 @@ RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(Vec2D p0, Vec2D p1
 RIVE_ALWAYS_INLINE Vec2D find_cubic_tan0(const Vec2D p[4])
 {
     Vec2D tan0 = (p[0] != p[1] ? p[1] : p[1] != p[2] ? p[2] : p[3]) - p[0];
-    // RawPath should have discarded empty cubics, and FindCubicConvex180Chops should have enough
-    // slop to not produce empty chops.
-    assert((tan0 != Vec2D{0, 0}));
     return tan0;
 }
 RIVE_ALWAYS_INLINE Vec2D find_cubic_tan1(const Vec2D p[4])
 {
     Vec2D tan1 = p[3] - (p[3] != p[2] ? p[2] : p[2] != p[1] ? p[1] : p[0]);
-    // RawPath should have discarded empty cubics, and FindCubicConvex180Chops should have enough
-    // slop to not produce empty chops.
-    assert((tan1 != Vec2D{0, 0}));
     return tan1;
 }
 RIVE_ALWAYS_INLINE void find_cubic_tangents(const Vec2D p[4], Vec2D tangents[2])
