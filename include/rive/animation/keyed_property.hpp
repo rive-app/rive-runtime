@@ -19,7 +19,8 @@ public:
     void reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                               uint32_t objectId,
                               float secondsFrom,
-                              float secondsTo) const;
+                              float secondsTo,
+                              int secondsFromExactOffset) const;
 
     /// Apply interpolating key frames.
     void apply(Core* object, float time, float mix);

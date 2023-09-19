@@ -45,7 +45,8 @@ StatusCode KeyedObject::onAddedClean(CoreContext* context)
 
 void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                        float secondsFrom,
-                                       float secondsTo) const
+                                       float secondsTo,
+                                       int secondsFromExactOffset) const
 {
     for (const std::unique_ptr<KeyedProperty>& property : m_keyedProperties)
     {
@@ -53,7 +54,11 @@ void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
         {
             continue;
         }
-        property->reportKeyedCallbacks(reporter, objectId(), secondsFrom, secondsTo);
+        property->reportKeyedCallbacks(reporter,
+                                       objectId(),
+                                       secondsFrom,
+                                       secondsTo,
+                                       secondsFromExactOffset);
     }
 }
 

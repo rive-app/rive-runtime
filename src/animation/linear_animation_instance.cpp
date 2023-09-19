@@ -113,6 +113,10 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
                 frames = start + std::fmod(frames - start, (float)range);
                 m_time = frames / fps;
                 didLoop = true;
+                if (reporter != nullptr)
+                {
+                    animation.reportKeyedCallbacks(reporter, 0.0f, m_time);
+                }
             }
             else if (direction == -1 && frames <= start)
             {
@@ -121,6 +125,10 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
                 frames = end - std::abs(std::fmod(start - frames, (float)range));
                 m_time = frames / fps;
                 didLoop = true;
+                if (reporter != nullptr)
+                {
+                    animation.reportKeyedCallbacks(reporter, end / (float)fps, m_time);
+                }
             }
             break;
         case Loop::pingPong:
@@ -130,11 +138,13 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
                 {
                     m_spilledTime = (frames - end) / fps;
                     frames = end + (end - frames);
+                    lastTime = end / (float)fps;
                 }
                 else if (direction == -1 && frames < start)
                 {
                     m_spilledTime = (start - frames) / fps;
                     frames = start + (start - frames);
+                    lastTime = start / (float)fps;
                 }
                 else
                 {
@@ -149,6 +159,10 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
                 m_direction *= -1;
                 direction *= -1;
                 didLoop = true;
+                if (reporter != nullptr)
+                {
+                    animation.reportKeyedCallbacks(reporter, lastTime, m_time);
+                }
             }
             break;
     }

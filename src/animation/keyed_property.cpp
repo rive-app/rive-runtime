@@ -49,9 +49,10 @@ int KeyedProperty::closestFrameIndex(float seconds, int exactOffset) const
 void KeyedProperty::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                          uint32_t objectId,
                                          float secondsFrom,
-                                         float secondsTo) const
+                                         float secondsTo,
+                                         int secondsFromExactOffset) const
 {
-    int idx = closestFrameIndex(secondsFrom, 1);
+    int idx = closestFrameIndex(secondsFrom, secondsFromExactOffset);
     int idxTo = closestFrameIndex(secondsTo, 1);
 
     if (idxTo < idx)

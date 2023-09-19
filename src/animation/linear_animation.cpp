@@ -121,8 +121,14 @@ void LinearAnimation::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                            float secondsFrom,
                                            float secondsTo) const
 {
+    int secondsFromExactOffset =
+        startTime() == secondsFrom &&
+                (speed() >= 0 ? secondsFrom < secondsTo : secondsFrom < secondsTo)
+            ? 0
+            : 1;
+
     for (const auto& object : m_KeyedObjects)
     {
-        object->reportKeyedCallbacks(reporter, secondsFrom, secondsTo);
+        object->reportKeyedCallbacks(reporter, secondsFrom, secondsTo, secondsFromExactOffset);
     }
 }
