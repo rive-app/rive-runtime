@@ -438,7 +438,6 @@ class PLSTextureMetalImpl : public PLSTexture
 {
 public:
     PLSTextureMetalImpl(id<MTLDevice> gpu,
-                        id<MTLCommandQueue> queue,
                         uint32_t width,
                         uint32_t height,
                         uint32_t mipLevelCount,
@@ -462,19 +461,25 @@ public:
                      mipmapLevel:0
                        withBytes:imageDataRGBA
                      bytesPerRow:width * 4];
+    }
 
-        // Generate mipmaps.
-        id<MTLCommandBuffer> commandBuffer = [queue commandBuffer];
-        id<MTLBlitCommandEncoder> mipEncoder = [commandBuffer blitCommandEncoder];
-        [mipEncoder generateMipmapsForTexture:m_texture];
-        [mipEncoder endEncoding];
-        [commandBuffer commit];
+    void ensureMipmaps(id<MTLCommandBuffer> commandBuffer) const
+    {
+        if (m_mipsDirty)
+        {
+            // Generate mipmaps.
+            id<MTLBlitCommandEncoder> mipEncoder = [commandBuffer blitCommandEncoder];
+            [mipEncoder generateMipmapsForTexture:m_texture];
+            [mipEncoder endEncoding];
+            m_mipsDirty = false;
+        }
     }
 
     id<MTLTexture> texture() const { return m_texture; }
 
 private:
     id<MTLTexture> m_texture;
+    mutable bool m_mipsDirty = true;
 };
 
 rcp<PLSTexture> PLSRenderContextMetalImpl::makeImageTexture(uint32_t width,
@@ -482,8 +487,7 @@ rcp<PLSTexture> PLSRenderContextMetalImpl::makeImageTexture(uint32_t width,
                                                             uint32_t mipLevelCount,
                                                             const uint8_t imageDataRGBA[])
 {
-    return make_rcp<PLSTextureMetalImpl>(
-        m_gpu, m_queue, width, height, mipLevelCount, imageDataRGBA);
+    return make_rcp<PLSTextureMetalImpl>(m_gpu, width, height, mipLevelCount, imageDataRGBA);
 }
 
 std::unique_ptr<TexelBufferRing> PLSRenderContextMetalImpl::makeTexelBufferRing(
@@ -688,6 +692,16 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                          indexBufferOffset:0
                              instanceCount:desc.tessVertexSpanCount];
         [tessEncoder endEncoding];
+    }
+
+    // Generate mipmaps if needed.
+    for (const Draw& draw : *desc.drawList)
+    {
+        // Bind the appropriate image texture, if any.
+        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTextureRef))
+        {
+            imageTextureMetal->ensureMipmaps(commandBuffer);
+        }
     }
 
     // Set up the render pass that draws path patches and triangles.
