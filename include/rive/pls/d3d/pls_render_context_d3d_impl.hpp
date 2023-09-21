@@ -103,6 +103,7 @@ private:
     ComPtr<ID3D11InputLayout> m_tessellateLayout;
     ComPtr<ID3D11VertexShader> m_tessellateVertexShader;
     ComPtr<ID3D11PixelShader> m_tessellatePixelShader;
+    ComPtr<ID3D11Buffer> m_tessSpanIndexBuffer;
 
     struct DrawVertexShader
     {

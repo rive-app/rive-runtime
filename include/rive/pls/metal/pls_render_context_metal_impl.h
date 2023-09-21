@@ -122,6 +122,7 @@ private:
     // Renders tessellated vertices to the tessellation texture.
     class TessellatePipeline;
     std::unique_ptr<TessellatePipeline> m_tessPipeline;
+    id<MTLBuffer> m_tessSpanIndexBuffer = nullptr;
     id<MTLTexture> m_tessVertexTexture = nullptr;
 
     std::map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;

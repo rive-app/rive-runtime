@@ -221,35 +221,34 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
                                                             GLSL_tessellateFragmentMain,
                                                             "ps_5_0");
         // Draw two instances per TessVertexSpan: one normal and one optional reflection.
-        constexpr static UINT kTessAttribsStepRate = 2;
         D3D11_INPUT_ELEMENT_DESC attribsDesc[] = {{GLSL_a_p0p1_,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_FLOAT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   kTessAttribsStepRate},
+                                                   1},
                                                   {GLSL_a_p2p3_,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_FLOAT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   kTessAttribsStepRate},
+                                                   1},
                                                   {GLSL_a_joinTan_and_ys,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_FLOAT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   kTessAttribsStepRate},
+                                                   1},
                                                   {GLSL_a_args,
                                                    0,
                                                    DXGI_FORMAT_R32G32B32A32_UINT,
                                                    0,
                                                    D3D11_APPEND_ALIGNED_ELEMENT,
                                                    D3D11_INPUT_PER_INSTANCE_DATA,
-                                                   kTessAttribsStepRate}};
+                                                   1}};
         VERIFY_OK(m_gpu->CreateInputLayout(attribsDesc,
                                            std::size(attribsDesc),
                                            vertexBlob->GetBufferPointer(),
@@ -263,6 +262,19 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
                                            pixelBlob->GetBufferSize(),
                                            nullptr,
                                            &m_tessellatePixelShader));
+
+        D3D11_BUFFER_DESC tessIndexBufferDesc{};
+        tessIndexBufferDesc.ByteWidth = sizeof(pls::kTessSpanIndices);
+        tessIndexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        tessIndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        tessIndexBufferDesc.StructureByteStride = sizeof(pls::kTessSpanIndices);
+
+        D3D11_SUBRESOURCE_DATA tessIndexDataDesc{};
+        tessIndexDataDesc.pSysMem = pls::kTessSpanIndices;
+
+        VERIFY_OK(m_gpu->CreateBuffer(&tessIndexBufferDesc,
+                                      &tessIndexDataDesc,
+                                      m_tessSpanIndexBuffer.GetAddressOf()));
     }
 
     // Set up the path patch rendering buffers.
@@ -945,8 +957,9 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         UINT tessStride = sizeof(TessVertexSpan);
         UINT tessOffset = 0;
         m_gpuContext->IASetVertexBuffers(0, 1, &tessSpanBuffer, &tessStride, &tessOffset);
+        m_gpuContext->IASetIndexBuffer(m_tessSpanIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
         m_gpuContext->IASetInputLayout(m_tessellateLayout.Get());
-        m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+        m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         m_gpuContext->VSSetShader(m_tessellateVertexShader.Get(), NULL, 0);
 
@@ -971,8 +984,11 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
 
         m_gpuContext->OMSetRenderTargets(1, m_tessTextureRTV.GetAddressOf(), NULL);
 
-        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
-        m_gpuContext->DrawInstanced(4, desc.tessVertexSpanCount * 2, 0, 0);
+        m_gpuContext->DrawIndexedInstanced(std::size(pls::kTessSpanIndices),
+                                           desc.tessVertexSpanCount,
+                                           0,
+                                           0,
+                                           0);
 
         if (m_isIntel)
         {

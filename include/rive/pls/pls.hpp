@@ -133,6 +133,88 @@ struct GradientSpan
     uint32_t color1;
 };
 
+// Each curve gets tessellated into vertices. This is performed by rendering a horizontal span
+// of positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan
+// defines one instance of a horizontal tessellation span for rendering.
+//
+// Each span has an optional reflection, rendered right to left, with the same vertices in
+// reverse order. These are used to draw mirrored patches with negative coverage when we have
+// back-face culling enabled. This emits every triangle twice, once clockwise and once
+// counterclockwise, and back-face culling naturally selects the triangle with the appropriately
+// signed coverage (discarding the other).
+struct TessVertexSpan
+{
+    RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
+                                Vec2D joinTangent_,
+                                float y_,
+                                int32_t x0,
+                                int32_t x1,
+                                uint32_t parametricSegmentCount,
+                                uint32_t polarSegmentCount,
+                                uint32_t joinSegmentCount,
+                                uint32_t contourIDWithFlags_)
+    {
+        set(pts_,
+            joinTangent_,
+            y_,
+            x0,
+            x1,
+            std::numeric_limits<float>::quiet_NaN(), // Discard the reflection.
+            -1,
+            -1,
+            parametricSegmentCount,
+            polarSegmentCount,
+            joinSegmentCount,
+            contourIDWithFlags_);
+    }
+
+    RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
+                                Vec2D joinTangent_,
+                                float y_,
+                                int32_t x0,
+                                int32_t x1,
+                                float reflectionY_,
+                                int32_t reflectionX0,
+                                int32_t reflectionX1,
+                                uint32_t parametricSegmentCount,
+                                uint32_t polarSegmentCount,
+                                uint32_t joinSegmentCount,
+                                uint32_t contourIDWithFlags_)
+    {
+        RIVE_INLINE_MEMCPY(pts, pts_, sizeof(pts));
+        joinTangent = joinTangent_;
+        y = y_;
+        reflectionY = reflectionY_;
+        x0x1 = (x1 << 16) | (x0 & 0xffff);
+        reflectionX0X1 = (reflectionX1 << 16) | (reflectionX0 & 0xffff);
+        segmentCounts =
+            (joinSegmentCount << 20) | (polarSegmentCount << 10) | parametricSegmentCount;
+        contourIDWithFlags = contourIDWithFlags_;
+
+        // Ensure we didn't lose any data from packing.
+        assert(x0 == x0x1 << 16 >> 16);
+        assert(x1 == x0x1 >> 16);
+        assert(reflectionX0 == reflectionX0X1 << 16 >> 16);
+        assert(reflectionX1 == reflectionX0X1 >> 16);
+        assert((segmentCounts & 0x3ff) == parametricSegmentCount);
+        assert(((segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
+        assert(segmentCounts >> 20 == joinSegmentCount);
+    }
+
+    Vec2D pts[4];      // Cubic bezier curve.
+    Vec2D joinTangent; // Ending tangent of the join that follows the cubic.
+    float y;
+    float reflectionY;
+    int32_t x0x1;
+    int32_t reflectionX0X1;
+    uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount, parametricSegmentCount]
+    uint32_t contourIDWithFlags; // flags | contourID
+};
+static_assert(sizeof(TessVertexSpan) == sizeof(float) * 16);
+
+// Tessellation spans are drawn as two distinct, 1px-tall rectangles: the span and its reflection.
+constexpr uint16_t kTessSpanIndices[12] = {0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7};
+
 enum class PaintType : uint32_t
 {
     solidColor,
@@ -242,85 +324,6 @@ struct ContourData
     uint32_t pathID;       // ID of the path this contour belongs to.
     uint32_t vertexIndex0; // Index of the first tessellation vertex of the contour.
 };
-
-// Each curve gets tessellated into vertices. This is performed by rendering a horizontal span
-// of positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan
-// defines one instance of a horizontal tessellation span for rendering.
-//
-// Each span has an optional reflection, rendered right to left, with the same vertices in
-// reverse order. These are used to draw mirrored patches with negative coverage when we have
-// back-face culling enabled. This emits every triangle twice, once clockwise and once
-// counterclockwise, and back-face culling naturally selects the triangle with the appropriately
-// signed coverage (discarding the other).
-struct TessVertexSpan
-{
-    RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
-                                Vec2D joinTangent_,
-                                float y_,
-                                int32_t x0,
-                                int32_t x1,
-                                uint32_t parametricSegmentCount,
-                                uint32_t polarSegmentCount,
-                                uint32_t joinSegmentCount,
-                                uint32_t contourIDWithFlags_)
-    {
-        set(pts_,
-            joinTangent_,
-            y_,
-            x0,
-            x1,
-            std::numeric_limits<float>::quiet_NaN(), // Discard the reflection.
-            -1,
-            -1,
-            parametricSegmentCount,
-            polarSegmentCount,
-            joinSegmentCount,
-            contourIDWithFlags_);
-    }
-
-    RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
-                                Vec2D joinTangent_,
-                                float y_,
-                                int32_t x0,
-                                int32_t x1,
-                                float reflectionY_,
-                                int32_t reflectionX0,
-                                int32_t reflectionX1,
-                                uint32_t parametricSegmentCount,
-                                uint32_t polarSegmentCount,
-                                uint32_t joinSegmentCount,
-                                uint32_t contourIDWithFlags_)
-    {
-        RIVE_INLINE_MEMCPY(pts, pts_, sizeof(pts));
-        joinTangent = joinTangent_;
-        y = y_;
-        reflectionY = reflectionY_;
-        x0x1 = (x1 << 16) | (x0 & 0xffff);
-        reflectionX0X1 = (reflectionX1 << 16) | (reflectionX0 & 0xffff);
-        segmentCounts =
-            (joinSegmentCount << 20) | (polarSegmentCount << 10) | parametricSegmentCount;
-        contourIDWithFlags = contourIDWithFlags_;
-
-        // Ensure we didn't lose any data from packing.
-        assert(x0 == x0x1 << 16 >> 16);
-        assert(x1 == x0x1 >> 16);
-        assert(reflectionX0 == reflectionX0X1 << 16 >> 16);
-        assert(reflectionX1 == reflectionX0X1 >> 16);
-        assert((segmentCounts & 0x3ff) == parametricSegmentCount);
-        assert(((segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
-        assert(segmentCounts >> 20 == joinSegmentCount);
-    }
-
-    Vec2D pts[4];      // Cubic bezier curve.
-    Vec2D joinTangent; // Ending tangent of the join that follows the cubic.
-    float y;
-    float reflectionY;
-    int32_t x0x1;
-    int32_t reflectionX0X1;
-    uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount, parametricSegmentCount]
-    uint32_t contourIDWithFlags; // flags | contourID
-};
-static_assert(sizeof(TessVertexSpan) == sizeof(float) * 16);
 
 // Per-vertex data for shaders that draw triangles.
 struct TriangleVertex

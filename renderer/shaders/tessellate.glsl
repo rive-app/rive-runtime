@@ -66,10 +66,10 @@ VERTEX_MAIN(@tessellateVertexMain,
             _pos)
 {
     // Each instance repeats twice. Once for normal patch(es) and once for reflection(s).
-    ATTR_UNPACK(_instanceID >> 1, attrs, @a_p0p1_, float4);
-    ATTR_UNPACK(_instanceID >> 1, attrs, @a_p2p3_, float4);
-    ATTR_UNPACK(_instanceID >> 1, attrs, @a_joinTan_and_ys, float4);
-    ATTR_UNPACK(_instanceID >> 1, attrs, @a_args, uint4);
+    ATTR_UNPACK(_instanceID, attrs, @a_p0p1_, float4);
+    ATTR_UNPACK(_instanceID, attrs, @a_p2p3_, float4);
+    ATTR_UNPACK(_instanceID, attrs, @a_joinTan_and_ys, float4);
+    ATTR_UNPACK(_instanceID, attrs, @a_args, uint4);
 
     VARYING_INIT(varyings, v_p0p1, float4);
     VARYING_INIT(varyings, v_p2p3, float4);
@@ -82,8 +82,8 @@ VERTEX_MAIN(@tessellateVertexMain,
     float2 p2 = @a_p2p3_.xy;
     float2 p3 = @a_p2p3_.zw;
     // Odd-numbered instances are reflections.
-    float y = (_instanceID & 1) == 0 ? @a_joinTan_and_ys.z : @a_joinTan_and_ys.w;
-    int x0x1 = int((_instanceID & 1) == 0 ? @a_args.x : @a_args.y);
+    float y = _vertexID < 4 ? @a_joinTan_and_ys.z : @a_joinTan_and_ys.w;
+    int x0x1 = int(_vertexID < 4 ? @a_args.x : @a_args.y);
     float x0 = float(x0x1 << 16 >> 16);
     float x1 = float(x0x1 >> 16);
     float2 coord = float2((_vertexID & 1) == 0 ? x0 : x1, (_vertexID & 2) == 0 ? y + 1. : y);

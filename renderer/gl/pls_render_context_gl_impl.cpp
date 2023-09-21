@@ -132,8 +132,15 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     {
         glEnableVertexAttribArray(i);
         // Draw two instances per TessVertexSpan: one normal and one optional reflection.
-        glVertexAttribDivisor(i, 2);
+        glVertexAttribDivisor(i, 1);
     }
+
+    glGenBuffers(1, &m_tessSpanIndexBuffer);
+    m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_tessSpanIndexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(pls::kTessSpanIndices),
+                 pls::kTessSpanIndices,
+                 GL_STATIC_DRAW);
 
     glGenFramebuffers(1, &m_tessellateFBO);
 
@@ -215,6 +222,7 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 
     m_state->deleteProgram(m_tessellateProgram);
     m_state->deleteVAO(m_tessellateVAO);
+    m_state->deleteBuffer(m_tessSpanIndexBuffer);
     glDeleteFramebuffers(1, &m_tessellateFBO);
     glDeleteTextures(1, &m_tessVertexTexture);
 
@@ -562,8 +570,11 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
         m_state->bindProgram(m_tessellateProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.tessVertexSpanCount * 2);
+        glDrawElementsInstanced(GL_TRIANGLES,
+                                std::size(pls::kTessSpanIndices),
+                                GL_UNSIGNED_SHORT,
+                                0,
+                                desc.tessVertexSpanCount);
     }
 
     // Compile the draw programs before activating pixel local storage.

@@ -168,6 +168,7 @@ private:
     // Tessellation texture rendering.
     GLuint m_tessellateProgram;
     GLuint m_tessellateVAO;
+    GLuint m_tessSpanIndexBuffer;
     GLuint m_tessellateFBO;
     GLuint m_tessVertexTexture = 0;
 

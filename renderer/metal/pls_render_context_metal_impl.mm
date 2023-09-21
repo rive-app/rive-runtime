@@ -308,6 +308,9 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCo
 
     m_colorRampPipeline = std::make_unique<ColorRampPipeline>(gpu, m_plsPrecompiledLibrary);
     m_tessPipeline = std::make_unique<TessellatePipeline>(gpu, m_plsPrecompiledLibrary);
+    m_tessSpanIndexBuffer = [gpu newBufferWithBytes:pls::kTessSpanIndices
+                                             length:sizeof(pls::kTessSpanIndices)
+                                            options:MTLResourceStorageModeShared];
 
     // Load the fully-featured, pre-compiled draw shaders.
     for (auto drawType :
@@ -676,11 +679,12 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
         [tessEncoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:PATH_TEXTURE_IDX];
         [tessEncoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:CONTOUR_TEXTURE_IDX];
         [tessEncoder setCullMode:MTLCullModeBack];
-        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
-        [tessEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
-                        vertexStart:0
-                        vertexCount:4
-                      instanceCount:desc.tessVertexSpanCount * 2];
+        [tessEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                                indexCount:std::size(pls::kTessSpanIndices)
+                                 indexType:MTLIndexTypeUInt16
+                               indexBuffer:m_tessSpanIndexBuffer
+                         indexBufferOffset:0
+                             instanceCount:desc.tessVertexSpanCount];
         [tessEncoder endEncoding];
     }
 
