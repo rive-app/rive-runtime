@@ -175,13 +175,13 @@ private:
     // Not all programs have a unique vertex shader, so we cache and reuse them where possible.
     std::map<uint32_t, DrawShader> m_vertexShaders;
     std::map<uint32_t, DrawProgram> m_drawPrograms;
-    GLuint m_flushUniformBuffer;
-    GLuint m_drawVAO;
-    GLuint m_patchVerticesBuffer;
-    GLuint m_patchIndicesBuffer;
-    GLuint m_interiorTrianglesVAO;
-    GLuint m_imageMeshUniformBuffer;
-    GLuint m_imageMeshVAO;
+    GLuint m_flushUniformBuffer = 0;
+    GLuint m_imageMeshUniformBuffer = 0;
+    GLuint m_drawVAO = 0;
+    GLuint m_patchVerticesBuffer = 0;
+    GLuint m_patchIndicesBuffer = 0;
+    GLuint m_interiorTrianglesVAO = 0;
+    GLuint m_imageMeshVAO = 0;
 
     const rcp<GLState> m_state = make_rcp<GLState>();
 };

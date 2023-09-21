@@ -6,9 +6,11 @@
 
 #include "rive/pls/gl/gles3.hpp"
 #include <cstddef>
+#include <string>
 
 namespace glutils
 {
+
 // A nullptr for versionString will default to "#version 300 es\n".
 void CompileAndAttachShader(GLuint program,
                             GLuint type,
@@ -37,6 +39,14 @@ void CompileAndAttachShader(GLuint program,
                                    size_t numSources,
                                    const GLExtensions&,
                                    const char* versionString = nullptr);
+
+std::string BuildShader(GLuint type,
+                        const char* defines[],
+                        size_t numDefines,
+                        const char* sources[],
+                        size_t numSources,
+                        const GLExtensions& extensions,
+                        const char* versionString = nullptr);
 
 void LinkProgram(GLuint program);
 } // namespace glutils

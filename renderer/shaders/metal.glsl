@@ -118,6 +118,8 @@
 #define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) TEXTURE_BLOCK.NAME.$read(uint2(COORD))
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD)                                   \
     TEXTURE_BLOCK.NAME.$sample(SAMPLER_NAME, COORD)
+#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
+    TEXTURE_BLOCK.NAME.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
 
 #define PLS_BLOCK_BEGIN                                                                            \
     struct PLS                                                                                     \
@@ -152,7 +154,7 @@
         uint _vertexID [[$vertex_id]],                                                             \
         uint _instanceID [[$instance_id]],                                                         \
         $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
-        $constant Attrs* attrs [[$buffer(1)]],                                                     \
+        $constant Attrs* attrs [[$buffer(0)]],                                                     \
         VertexTextures textures)                                                                   \
     {                                                                                              \
         Varyings varyings;                                                                         \
@@ -175,8 +177,8 @@
         uint _vertexID [[$vertex_id]],                                                             \
         $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
         $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_MESH_UNIFORM_BUFFER_IDX)]],           \
-        $constant PositionAttr* position [[$buffer(2)]],                                           \
-        $constant UVAttr* uv [[$buffer(3)]])                                                       \
+        $constant PositionAttr* position [[$buffer(0)]],                                           \
+        $constant UVAttr* uv [[$buffer(1)]])                                                       \
     {                                                                                              \
         Varyings varyings;                                                                         \
         float4 _pos;

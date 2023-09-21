@@ -1,5 +1,6 @@
 #include "fiddle_context.hpp"
 
+#include "path_fiddle.hpp"
 #include "rive/pls/gl/gles3.hpp"
 #include "rive/pls/pls_renderer.hpp"
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
@@ -95,7 +96,7 @@ public:
 
     ~FiddleContextGL() { glDeleteFramebuffers(1, &m_zoomWindowFBO); }
 
-    float dpiScale() const override
+    float dpiScale(GLFWwindow*) const override
     {
 #ifdef __APPLE__
         return 2;
@@ -128,19 +129,20 @@ public:
         }
     }
 
-    void end() final
+    void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
+        assert(pixelData == nullptr); // Not implemented yet.
         onEnd();
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         if (m_zoomWindowFBO)
         {
             // Blit the zoom window.
             double xd, yd;
-            glfwGetCursorPos(g_window, &xd, &yd);
-            xd *= dpiScale();
-            yd *= dpiScale();
+            glfwGetCursorPos(window, &xd, &yd);
+            xd *= dpiScale(window);
+            yd *= dpiScale(window);
             int width = 0, height = 0;
-            glfwGetFramebufferSize(g_window, &width, &height);
+            glfwGetFramebufferSize(window, &width, &height);
             int x = xd, y = height - yd;
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_zoomWindowFBO);
             glBlitFramebuffer(x - kZoomWindowWidth / 2,
@@ -184,7 +186,12 @@ private:
     GLuint m_zoomWindowFBO = 0;
 };
 
-#ifdef RIVE_SKIA
+#ifndef RIVE_SKIA
+
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia() { return nullptr; }
+
+#else
+
 #include "skia_factory.hpp"
 #include "skia_renderer.hpp"
 #include "skia/include/core/SkCanvas.h"
@@ -214,6 +221,8 @@ public:
 
     rive::Factory* factory() override { return &m_factory; }
 
+    rive::pls::PLSRenderContext* plsContextOrNull() override { return nullptr; }
+
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
         GrBackendRenderTarget backendRT(width,
@@ -238,9 +247,9 @@ public:
         return std::make_unique<SkiaRenderer>(m_skSurface->getCanvas());
     }
 
-    void begin() override
+    void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
     {
-        m_skSurface->getCanvas()->clear({.25, .25, .25, 1});
+        m_skSurface->getCanvas()->clear(frameDescriptor.clearColor);
         m_grContext->resetContext();
     }
 
@@ -258,6 +267,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia()
 {
     return std::make_unique<FiddleContextGLSkia>();
 }
+
 #endif
 
 class FiddleContextGLPLS : public FiddleContextGL
@@ -274,7 +284,9 @@ public:
 
     rive::Factory* factory() override { return m_plsContext.get(); }
 
-    void onSizeChanged(int width, int height) override
+    rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+
+    void onSizeChanged(GLFWwindow* window, int width, int height) override
     {
         auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextGLImpl>();
         m_renderTarget = plsContextImpl->makeOffscreenRenderTarget(width, height);
@@ -285,14 +297,9 @@ public:
         return std::make_unique<PLSRenderer>(m_plsContext.get());
     }
 
-    void begin() override
+    void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
     {
-        PLSRenderContext::FrameDescriptor frameDescriptor;
         frameDescriptor.renderTarget = m_renderTarget;
-        frameDescriptor.clearColor = 0xff404040;
-        frameDescriptor.wireframe = g_wireframe;
-        frameDescriptor.fillsDisabled = g_disableFill;
-        frameDescriptor.strokesDisabled = g_disableStroke;
         m_plsContext->beginFrame(std::move(frameDescriptor));
     }
 

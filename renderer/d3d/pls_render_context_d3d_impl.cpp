@@ -321,13 +321,13 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
         desc.StructureByteStride = sizeof(pls::FlushUniforms);
         VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_flushUniforms.GetAddressOf()));
 
+        desc.ByteWidth = sizeof(DrawUniforms);
+        desc.StructureByteStride = sizeof(DrawUniforms);
+        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_drawUniforms.GetAddressOf()));
+
         desc.ByteWidth = sizeof(pls::ImageMeshUniforms);
         desc.StructureByteStride = sizeof(pls::ImageMeshUniforms);
         VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_imageMeshUniforms.GetAddressOf()));
-
-        desc.ByteWidth = sizeof(BaseInstanceUniform);
-        desc.StructureByteStride = sizeof(BaseInstanceUniform);
-        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_baseInstanceUniform.GetAddressOf()));
     }
 
     // Create a linear sampler for the gradient texture.
@@ -882,12 +882,11 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
     }
 
     ID3D11Buffer* cbuffers[] = {m_flushUniforms.Get(),
-                                m_imageMeshUniforms.Get(),
-                                m_baseInstanceUniform.Get()};
-    static_assert(FLUSH_UNIFORM_BUFFER_IDX == 0);
-    static_assert(IMAGE_MESH_UNIFORM_BUFFER_IDX == 1);
-    static_assert(BASE_INSTANCE_UNIFORM_BUFFER_IDX == 2);
-    m_gpuContext->VSSetConstantBuffers(0, std::size(cbuffers), cbuffers);
+                                m_drawUniforms.Get(),
+                                m_imageMeshUniforms.Get()};
+    static_assert(DRAW_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
+    static_assert(IMAGE_MESH_UNIFORM_BUFFER_IDX == DRAW_UNIFORM_BUFFER_IDX + 1);
+    m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX, std::size(cbuffers), cbuffers);
 
     m_gpuContext->RSSetState(m_pathRasterState[0].Get());
 
@@ -1076,9 +1075,8 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
             {
                 m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
                 m_gpuContext->RSSetState(m_pathRasterState[desc.wireframe].Get());
-                BaseInstanceUniform baseInstance(draw.baseElement);
-                m_gpuContext
-                    ->UpdateSubresource(m_baseInstanceUniform.Get(), 0, NULL, &baseInstance, 0, 0);
+                DrawUniforms drawUniforms(draw.baseElement);
+                m_gpuContext->UpdateSubresource(m_drawUniforms.Get(), 0, NULL, &drawUniforms, 0, 0);
                 m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
                                                    draw.elementCount,
                                                    PatchBaseIndex(drawType),

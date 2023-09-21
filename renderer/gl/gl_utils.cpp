@@ -57,6 +57,49 @@ GLuint CompileShader(GLuint type,
                      const GLExtensions& extensions,
                      const char* versionString)
 {
+    const std::string& shaderSourceStr = BuildShader(type,
+                                                     defines,
+                                                     numDefines,
+                                                     inputSources,
+                                                     numInputSources,
+                                                     extensions,
+                                                     versionString);
+    const char* shaderSourceCStr = shaderSourceStr.c_str();
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &shaderSourceCStr, nullptr);
+    glCompileShader(shader);
+    GLint isCompiled = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
+    if (isCompiled == GL_FALSE)
+    {
+        GLint maxLength = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
+        std::vector<GLchar> infoLog(maxLength);
+        glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
+        fprintf(stderr, "Failed to compile shader\n");
+        int l = 1;
+        std::stringstream stream(shaderSourceCStr);
+        std::string lineStr;
+        while (std::getline(stream, lineStr, '\n'))
+        {
+            fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
+        }
+        fprintf(stderr, "%s\n", &infoLog[0]);
+        fflush(stderr);
+        glDeleteShader(shader);
+        exit(-1);
+    }
+    return shader;
+}
+
+std::string BuildShader(GLuint type,
+                        const char* defines[],
+                        size_t numDefines,
+                        const char* inputSources[],
+                        size_t numInputSources,
+                        const GLExtensions& extensions,
+                        const char* versionString)
+{
     std::ostringstream shaderSource;
     if (versionString != nullptr)
     {
@@ -87,33 +130,7 @@ GLuint CompileShader(GLuint type,
     {
         shaderSource << inputSources[i] << "\n";
     }
-    const std::string& shaderSourceStr = shaderSource.str();
-    const char* shaderSourceCStr = shaderSourceStr.c_str();
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &shaderSourceCStr, nullptr);
-    glCompileShader(shader);
-    GLint isCompiled = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
-    if (isCompiled == GL_FALSE)
-    {
-        GLint maxLength = 0;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
-        std::vector<GLchar> infoLog(maxLength);
-        glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
-        fprintf(stderr, "Failed to compile shader\n");
-        int l = 1;
-        std::stringstream stream(shaderSourceCStr);
-        std::string lineStr;
-        while (std::getline(stream, lineStr, '\n'))
-        {
-            fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
-        }
-        fprintf(stderr, "%s\n", &infoLog[0]);
-        fflush(stderr);
-        glDeleteShader(shader);
-        exit(-1);
-    }
-    return shader;
+    return shaderSource.str();
 }
 
 void LinkProgram(GLuint program)

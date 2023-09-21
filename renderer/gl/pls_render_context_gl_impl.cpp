@@ -89,7 +89,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     glutils::LinkProgram(m_colorRampProgram);
     glUniformBlockBinding(m_colorRampProgram,
                           glGetUniformBlockIndex(m_colorRampProgram, GLSL_Uniforms),
-                          0);
+                          FLUSH_UNIFORM_BUFFER_IDX);
 
     glGenVertexArrays(1, &m_colorRampVAO);
     m_state->bindVAO(m_colorRampVAO);
@@ -120,7 +120,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     m_state->bindProgram(m_tessellateProgram);
     glUniformBlockBinding(m_tessellateProgram,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
-                          0);
+                          FLUSH_UNIFORM_BUFFER_IDX);
     glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathTexture),
                 kPLSTexIdxOffset + PATH_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourTexture),
@@ -147,6 +147,12 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     glGenBuffers(1, &m_flushUniformBuffer);
     m_state->bindBuffer(GL_UNIFORM_BUFFER, m_flushUniformBuffer);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(pls::FlushUniforms), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, FLUSH_UNIFORM_BUFFER_IDX, m_flushUniformBuffer);
+
+    glGenBuffers(1, &m_imageMeshUniformBuffer);
+    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_imageMeshUniformBuffer);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(pls::ImageMeshUniforms), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, IMAGE_MESH_UNIFORM_BUFFER_IDX, m_imageMeshUniformBuffer);
 
     glGenVertexArrays(1, &m_drawVAO);
     m_state->bindVAO(m_drawVAO);
@@ -158,7 +164,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     glGenBuffers(1, &m_patchVerticesBuffer);
     m_state->bindBuffer(GL_ARRAY_BUFFER, m_patchVerticesBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(patchVertices), patchVertices, GL_STATIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, FLUSH_UNIFORM_BUFFER_IDX, m_flushUniformBuffer);
 
     glGenBuffers(1, &m_patchIndicesBuffer);
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_patchIndicesBuffer);
@@ -178,11 +183,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     glGenVertexArrays(1, &m_interiorTrianglesVAO);
     m_state->bindVAO(m_interiorTrianglesVAO);
     glEnableVertexAttribArray(0);
-
-    glGenBuffers(1, &m_imageMeshUniformBuffer);
-    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_imageMeshUniformBuffer);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(pls::ImageMeshUniforms), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, IMAGE_MESH_UNIFORM_BUFFER_IDX, m_imageMeshUniformBuffer);
 
     glGenVertexArrays(1, &m_imageMeshVAO);
     m_state->bindVAO(m_imageMeshVAO);
@@ -214,6 +214,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 {
     m_state->deleteBuffer(m_flushUniformBuffer);
+    m_state->deleteBuffer(m_imageMeshUniformBuffer);
 
     m_state->deleteProgram(m_colorRampProgram);
     m_state->deleteVAO(m_colorRampVAO);
@@ -232,7 +233,6 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 
     m_state->deleteVAO(m_interiorTrianglesVAO);
 
-    m_state->deleteBuffer(m_imageMeshUniformBuffer);
     m_state->deleteVAO(m_imageMeshVAO);
 }
 

@@ -33,6 +33,15 @@ do
     defines {'RIVE_IOS'}
 end
 
+newoption {
+    trigger = "with-dawn",
+    description = "compile in support for webgpu via dawn",
+}
+filter {"options:with-dawn"}
+do
+    defines {'RIVE_DAWN'}
+end
+
 filter {'system:ios', 'options:variant=simulator'}
 do
     defines {'RIVE_IOS_SIMULATOR'}
@@ -66,7 +75,10 @@ do
     if _OPTIONS['human-readable-shaders'] then
         makecommand = makecommand .. ' FLAGS=--human-readable'
     end
+
     cleancommands {makecommand .. ' clean'}
+    buildcommands {makecommand .. ' minify'}
+    rebuildcommands {makecommand .. ' minify'}
 
     filter 'system:macosx'
     do
@@ -86,10 +98,10 @@ do
         rebuildcommands {makecommand .. ' rive_pls_ios_simulator_metallib'}
     end
 
-    filter {'system:not macosx', 'system:not ios'}
+    filter {'options:with-dawn'}
     do
-        buildcommands {makecommand .. ' minify'}
-        rebuildcommands {makecommand .. ' minify'}
+        buildcommands {makecommand .. ' spirv'}
+        rebuildcommands {makecommand .. ' spirv'}
     end
 
     filter 'system:windows'
@@ -201,6 +213,18 @@ do
     do
         files {'../renderer/metal/*.mm'}
         buildoptions {'-fobjc-arc'}
+    end
+
+    filter {"options:with-dawn"}
+    do
+        includedirs {
+            "../dependencies/dawn/include",
+            "../dependencies/dawn/out/release/gen/include",
+        }
+        files {
+            "../dependencies/dawn/out/release/gen/src/dawn/webgpu_cpp.cpp",
+            "../renderer/webgpu/**.cpp",
+        }
     end
 
     filter {'options:nop-obj-c'}

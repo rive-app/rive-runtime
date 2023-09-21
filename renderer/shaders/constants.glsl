@@ -62,17 +62,19 @@
 #define ORIGINAL_DST_COLOR_PLANE_IDX 2
 #define CLIP_PLANE_IDX 3
 
-// Index at which we access each texture.
+// Index at which we access each resource.
 #define TESS_VERTEX_TEXTURE_IDX 0
 #define PATH_TEXTURE_IDX 1
 #define CONTOUR_TEXTURE_IDX 2
 #define GRAD_TEXTURE_IDX 3
 #define IMAGE_TEXTURE_IDX 4
+#define FLUSH_UNIFORM_BUFFER_IDX 5
+#define DRAW_UNIFORM_BUFFER_IDX 6
+#define IMAGE_MESH_UNIFORM_BUFFER_IDX 7
 
-// Index at which we access each uniform buffer.
-#define FLUSH_UNIFORM_BUFFER_IDX 0
-#define IMAGE_MESH_UNIFORM_BUFFER_IDX 1
-#define BASE_INSTANCE_UNIFORM_BUFFER_IDX 2
+// Samplers are accessed at the same index as their corresponding texture, so we put them in a
+// separate binding set.
+#define SAMPLER_BINDINGS_SET 1
 
 // acos(1/4), because the miter limit is always 4.
 #define MITER_ANGLE_LIMIT 1.318116071652817965746

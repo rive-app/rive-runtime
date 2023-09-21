@@ -39,8 +39,7 @@ do
     flags { "FatalWarnings" }
 
     files {
-        "../path_fiddle/path_fiddle.cpp",
-        "../path_fiddle/fiddle_context_gl.cpp",
+        "../path_fiddle/**.cpp",
     }
 
     links {
@@ -63,9 +62,29 @@ do
         links {"skia", "rive_skia_renderer"}
     end
 
+    filter "options:with-dawn"
+    do
+        includedirs {
+            "../dependencies/dawn/include",
+            "../dependencies/dawn/out/release/gen/include",
+        }
+        libdirs {
+            "../dependencies/dawn/out/release/obj/src/dawn",
+            "../dependencies/dawn/out/release/obj/src/dawn/native",
+            "../dependencies/dawn/out/release/obj/src/dawn/platform",
+            "../dependencies/dawn/out/release/obj/src/dawn/platform",
+        }
+        links {
+            "dawn_native_static",
+            "webgpu_dawn",
+            "dawn_platform_static",
+            "dawn_proc_static",
+            "IOSurface.framework",
+        }
+    end
+
     filter "system:windows"
     do
-        files {"../path_fiddle/fiddle_context_d3d.cpp"}
         architecture "x64"
         defines {"RIVE_WINDOWS", "_CRT_SECURE_NO_WARNINGS"}
         libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
@@ -74,7 +93,7 @@ do
 
     filter "system:macosx"
     do
-        files {"../path_fiddle/fiddle_context_metal.mm"}
+        files {"../path_fiddle/**.mm"}
         buildoptions {"-fobjc-arc"}
         links {"glfw3",
                "Cocoa.framework",

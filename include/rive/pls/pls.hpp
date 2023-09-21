@@ -132,6 +132,7 @@ struct GradientSpan
     uint32_t color0;
     uint32_t color1;
 };
+static_assert(sizeof(GradientSpan) == sizeof(uint32_t) * 4);
 
 // Each curve gets tessellated into vertices. This is performed by rendering a horizontal span
 // of positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan
@@ -337,28 +338,6 @@ struct TriangleVertex
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
-// Per-draw uniforms used by image meshes.
-struct ImageMeshUniforms
-{
-    ImageMeshUniforms() = default;
-
-    ImageMeshUniforms(const Mat2D&,
-                      float opacity,
-                      const ClipRectInverseMatrix*,
-                      uint32_t clipID,
-                      BlendMode);
-
-    Mat2D matrix;
-    float opacity;
-    float padding = 0;
-    ClipRectInverseMatrix clipRectInverseMatrix;
-    uint32_t clipID;
-    uint32_t blendMode;
-};
-static_assert(offsetof(ImageMeshUniforms, matrix) % 16 == 0);
-static_assert(offsetof(ImageMeshUniforms, clipRectInverseMatrix) % 16 == 0);
-static_assert(sizeof(ImageMeshUniforms) == 16 * sizeof(float));
-
 // Per-flush shared uniforms used by all shaders.
 struct FlushUniforms
 {
@@ -387,6 +366,28 @@ struct FlushUniforms
     uint32_t padding = 0;
 };
 static_assert(sizeof(FlushUniforms) == 8 * sizeof(uint32_t));
+
+// Per-draw uniforms used by image meshes.
+struct ImageMeshUniforms
+{
+    ImageMeshUniforms() = default;
+
+    ImageMeshUniforms(const Mat2D&,
+                      float opacity,
+                      const ClipRectInverseMatrix*,
+                      uint32_t clipID,
+                      BlendMode);
+
+    Mat2D matrix;
+    float opacity;
+    float padding = 0;
+    ClipRectInverseMatrix clipRectInverseMatrix;
+    uint32_t clipID;
+    uint32_t blendMode;
+};
+static_assert(offsetof(ImageMeshUniforms, matrix) % 16 == 0);
+static_assert(offsetof(ImageMeshUniforms, clipRectInverseMatrix) % 16 == 0);
+static_assert(sizeof(ImageMeshUniforms) == 16 * sizeof(float));
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive to read mapped
 // memory, we use this class to enforce the write-only nature of this memory.

@@ -628,7 +628,7 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
         [gradEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                               offset:0
                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
-        [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing()) offset:0 atIndex:1];
+        [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing()) offset:0 atIndex:0];
         [gradEncoder setCullMode:MTLCullModeBack];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
@@ -674,8 +674,10 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                                                0.0,
                                                1.0}];
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
-        [tessEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing()) offset:0 atIndex:0];
-        [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:1];
+        [tessEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
+                              offset:0
+                             atIndex:FLUSH_UNIFORM_BUFFER_IDX];
+        [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:0];
         [tessEncoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:PATH_TEXTURE_IDX];
         [tessEncoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:CONTOUR_TEXTURE_IDX];
         [tessEncoder setCullMode:MTLCullModeBack];
@@ -725,7 +727,9 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                                        static_cast<float>(renderTarget->height()),
                                        0.0,
                                        1.0}];
-    [encoder setVertexBuffer:mtl_buffer(flushUniformBufferRing()) offset:0 atIndex:0];
+    [encoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
+                      offset:0
+                     atIndex:FLUSH_UNIFORM_BUFFER_IDX];
     [encoder setVertexTexture:m_tessVertexTexture atIndex:TESS_VERTEX_TEXTURE_IDX];
     [encoder setVertexTexture:mtl_texture(pathBufferRing()) atIndex:PATH_TEXTURE_IDX];
     [encoder setVertexTexture:mtl_texture(contourBufferRing()) atIndex:CONTOUR_TEXTURE_IDX];
@@ -763,7 +767,7 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
-                [encoder setVertexBuffer:m_pathPatchVertexBuffer offset:0 atIndex:1];
+                [encoder setVertexBuffer:m_pathPatchVertexBuffer offset:0 atIndex:0];
                 [encoder setCullMode:MTLCullModeBack];
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                     indexCount:PatchIndexCount(drawType)
@@ -777,7 +781,7 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
             }
             case DrawType::interiorTriangulation:
             {
-                [encoder setVertexBuffer:mtl_buffer(triangleBufferRing()) offset:0 atIndex:1];
+                [encoder setVertexBuffer:mtl_buffer(triangleBufferRing()) offset:0 atIndex:0];
                 [encoder setCullMode:MTLCullModeBack];
                 [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                             vertexStart:draw.baseElement
@@ -791,9 +795,9 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                 auto indexBuffer = static_cast<const RenderBufferMetalImpl*>(draw.indexBufferRef);
                 [encoder setVertexBuffer:mtl_buffer(imageMeshUniformBufferRing())
                                   offset:meshDataOffset
-                                 atIndex:1];
-                [encoder setVertexBuffer:vertexBuffer->submittedBuffer() offset:0 atIndex:2];
-                [encoder setVertexBuffer:uvBuffer->submittedBuffer() offset:0 atIndex:3];
+                                 atIndex:IMAGE_MESH_UNIFORM_BUFFER_IDX];
+                [encoder setVertexBuffer:vertexBuffer->submittedBuffer() offset:0 atIndex:0];
+                [encoder setVertexBuffer:uvBuffer->submittedBuffer() offset:0 atIndex:1];
                 [encoder setFragmentBuffer:mtl_buffer(imageMeshUniformBufferRing())
                                     offset:meshDataOffset
                                    atIndex:IMAGE_MESH_UNIFORM_BUFFER_IDX];

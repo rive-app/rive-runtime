@@ -116,19 +116,19 @@ private:
     ComPtr<ID3D11Buffer> m_patchVertexBuffer;
     ComPtr<ID3D11Buffer> m_patchIndexBuffer;
 
-    struct BaseInstanceUniform
+    struct DrawUniforms
     {
-        BaseInstanceUniform(uint32_t baseInstance_) : baseInstance(baseInstance_) {}
+        DrawUniforms(uint32_t baseInstance_) : baseInstance(baseInstance_) {}
         uint32_t baseInstance;
         uint32_t pad0;
         uint32_t pad1;
         uint32_t pad2;
     };
-    static_assert(sizeof(BaseInstanceUniform) == 16);
+    static_assert(sizeof(DrawUniforms) == 16);
 
     ComPtr<ID3D11Buffer> m_flushUniforms;
+    ComPtr<ID3D11Buffer> m_drawUniforms;
     ComPtr<ID3D11Buffer> m_imageMeshUniforms;
-    ComPtr<ID3D11Buffer> m_baseInstanceUniform;
 
     ComPtr<ID3D11SamplerState> m_linearSampler;
     ComPtr<ID3D11SamplerState> m_mipmapSampler;

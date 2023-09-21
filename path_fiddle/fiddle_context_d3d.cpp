@@ -1,5 +1,11 @@
 #include "fiddle_context.hpp"
 
+#ifndef _WIN32
+
+std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions) { return nullptr; }
+
+#else
+
 #include "rive/pls/pls_renderer.hpp"
 #include "rive/pls/d3d/pls_render_context_d3d_impl.hpp"
 #include "rive/pls/d3d/d3d11.hpp"
@@ -27,11 +33,13 @@ public:
         m_plsContext(PLSRenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, isIntel))
     {}
 
-    float dpiScale() const override { return 1; }
+    float dpiScale(GLFWwindow*) const override { return 1; }
 
     rive::Factory* factory() override { return m_plsContext.get(); }
 
-    void onSizeChanged(int width, int height) override
+    rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+
+    void onSizeChanged(GLFWwindow* window, int width, int height) override
     {
         m_swapchain.Reset();
 
@@ -44,7 +52,7 @@ public:
         scd.BufferCount = 2;
         scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
         VERIFY_OK(m_d3dFactory->CreateSwapChainForHwnd(m_gpu.Get(),
-                                                       glfwGetWin32Window(g_window),
+                                                       glfwGetWin32Window(window),
                                                        &scd,
                                                        NULL,
                                                        NULL,
@@ -52,6 +60,7 @@ public:
 
         auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextD3DImpl>();
         m_renderTarget = plsContextImpl->makeRenderTarget(width, height);
+        m_readbackTexture = nullptr;
     }
 
     void toggleZoomWindow() override {}
@@ -61,26 +70,53 @@ public:
         return std::make_unique<PLSRenderer>(m_plsContext.get());
     }
 
-    void begin() override
+    void begin(rive::pls::PLSRenderContext::FrameDescriptor&& frameDescriptor) override
     {
         ComPtr<ID3D11Texture2D> backBuffer;
         VERIFY_OK(m_swapchain->GetBuffer(0,
                                          __uuidof(ID3D11Texture2D),
                                          reinterpret_cast<void**>(backBuffer.GetAddressOf())));
         m_renderTarget->setTargetTexture(m_gpu.Get(), std::move(backBuffer));
-
-        PLSRenderContext::FrameDescriptor frameDescriptor;
         frameDescriptor.renderTarget = m_renderTarget;
-        frameDescriptor.clearColor = 0xff404040;
-        frameDescriptor.wireframe = g_wireframe;
-        frameDescriptor.fillsDisabled = g_disableFill;
-        frameDescriptor.strokesDisabled = g_disableStroke;
         m_plsContext->beginFrame(std::move(frameDescriptor));
     }
 
-    void end() override
+    void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
     {
         m_plsContext->flush();
+        if (pixelData != nullptr)
+        {
+            uint32_t w = m_renderTarget->width();
+            uint32_t h = m_renderTarget->height();
+            if (m_readbackTexture == nullptr)
+            {
+                D3D11_TEXTURE2D_DESC readbackTexDesc{};
+                readbackTexDesc.Width = w;
+                readbackTexDesc.Height = h;
+                readbackTexDesc.MipLevels = 1;
+                readbackTexDesc.ArraySize = 1;
+                readbackTexDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                readbackTexDesc.SampleDesc.Count = 1;
+                readbackTexDesc.Usage = D3D11_USAGE_STAGING;
+                readbackTexDesc.BindFlags = 0;
+                readbackTexDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+                readbackTexDesc.MiscFlags = 0;
+                VERIFY_OK(m_gpu->CreateTexture2D(&readbackTexDesc,
+                                                 nullptr,
+                                                 m_readbackTexture.GetAddressOf()));
+            }
+
+            D3D11_MAPPED_SUBRESOURCE map;
+            m_gpuContext->CopyResource(m_readbackTexture.Get(), m_renderTarget->targetTexture());
+            m_gpuContext->Map(m_readbackTexture.Get(), 0, D3D11_MAP_READ, 0, &map);
+            pixelData->resize(h * w * 4);
+            for (int y = 0; y < h; ++y)
+            {
+                auto row = reinterpret_cast<const char*>(map.pData) + map.RowPitch * y;
+                memcpy(pixelData->data() + (h - y - 1) * w * 4, row, w * 4);
+            }
+            m_gpuContext->Unmap(m_readbackTexture.Get(), 0);
+        }
         m_swapchain->Present(0, 0);
     }
 
@@ -91,11 +127,12 @@ private:
     ComPtr<ID3D11Device> m_gpu;
     ComPtr<ID3D11DeviceContext> m_gpuContext;
     ComPtr<IDXGISwapChain1> m_swapchain;
+    ComPtr<ID3D11Texture2D> m_readbackTexture;
     std::unique_ptr<PLSRenderContext> m_plsContext;
     rcp<PLSRenderTargetD3D> m_renderTarget;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS()
+std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions options)
 {
     // Create a DXGIFactory object.
     ComPtr<IDXGIFactory2> factory;
@@ -110,7 +147,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS()
         adapter->GetDesc(&adapterDesc);
         isIntel = adapterDesc.VendorId == 0x163C || adapterDesc.VendorId == 0x8086 ||
                   adapterDesc.VendorId == 0x8087;
-        if (isIntel == g_preferIntelGPU)
+        if (isIntel == options.preferIntelGPU)
         {
             break;
         }
@@ -145,3 +182,5 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS()
                                                  std::move(gpuContext),
                                                  isIntel);
 }
+
+#endif

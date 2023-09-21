@@ -284,7 +284,7 @@ glsl_reserved = {
     "unpackHalf2x16", "unpackSnorm2x16", "unpackSnorm4x8", "unpackUnorm2x16", "usampler2D",
     "usampler2DArray", "usampler3D", "usamplerCube", "usubBorrow", "uvec2", "uvec3", "uvec4",
     "vec2", "vec3", "vec4", "void", "volatile", "while", "yuv_2_rgb", "__pixel_localEXT",
-    "__pixel_local_inEXT", "__pixel_local_outEXT",
+    "__pixel_local_inEXT", "__pixel_local_outEXT", "set", "texture2D", "utexture2D", "sampler",
 }
 
 # rgba and stpq get rewritten to xyzw, so we only need to check xyzw here. This way we can keep

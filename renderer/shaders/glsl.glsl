@@ -56,9 +56,15 @@
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
 #endif
 
+#ifdef @TARGET_VULKAN
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
+    layout(binding = IDX, std140) uniform NAME                                                     \
+    {
+#else
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
     layout(std140) uniform NAME                                                                    \
     {
+#endif
 // clang-format barrier... Otherwise it tries to merge this #define into the above macro...
 #define UNIFORM_BLOCK_END(NAME)                                                                    \
     }                                                                                              \
@@ -71,9 +77,17 @@
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE)
 
 #ifdef @VERTEX
+#ifdef @TARGET_VULKAN
+#define VARYING(IDX, TYPE, NAME) layout(location = IDX) out TYPE NAME
+#else
 #define VARYING(IDX, TYPE, NAME) out TYPE NAME
+#endif
+#else
+#ifdef @TARGET_VULKAN
+#define VARYING(IDX, TYPE, NAME) layout(location = IDX) in TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) in TYPE NAME
+#endif
 #endif
 #define FLAT flat
 #define VARYING_BLOCK_BEGIN(NAME)
@@ -96,6 +110,19 @@
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
+#ifdef @TARGET_VULKAN
+#define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp utexture2D NAME
+#define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp texture2D NAME
+#define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump texture2D NAME
+
+#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
+    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
+#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
+    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
+
+#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
+    textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
+#else
 #define TEXTURE_RGBA32UI(IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
@@ -105,8 +132,12 @@
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
 
-#define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) texelFetch(NAME, COORD, 0)
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
+#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
+    textureGrad(NAME, COORD, DDX, DDY)
+#endif
+
+#define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) texelFetch(NAME, COORD, 0)
 
 // Define macros for implementing pixel local storage based on available extensions.
 #ifdef @PLS_IMPL_WEBGL
@@ -208,6 +239,31 @@
 
 #endif
 
+#ifdef @TARGET_VULKAN
+
+#define PLS_BLOCK_BEGIN
+#define PLS_DECL4F(IDX, NAME) layout(location = IDX) out lowp vec4 NAME
+// FIXME: WebGPU doesn't support subpassLoad. Use PLS once it's implemented.
+// layout(input_attachment_index=IDX, binding=IDX, set=2) uniform lowp subpassInput i##NAME
+#define PLS_DECLUI(IDX, NAME) layout(location = IDX) out highp uvec4 NAME
+// FIXME: WebGPU doesn't support subpassLoad. Use PLS once it's implemented.
+// layout(input_attachment_index=IDX, binding=IDX, set=2) uniform lowp usubpassInput i##NAME
+#define PLS_BLOCK_END
+
+// FIXME: WebGPU doesn't support subpassLoad. Use PLS once it's implemented.
+// #define PLS_LOAD4F(P) subpassLoad(i##P)
+// #define PLS_LOADUI(P) subpassLoad(i##P).r
+#define PLS_LOAD4F(P) vec4(0)
+#define PLS_LOADUI(P) 0u
+#define PLS_STORE4F(P, V) P = (V)
+#define PLS_STOREUI(P, V) P.r = (V)
+
+#define PLS_PRESERVE_VALUE(P)
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#endif
+
 #ifdef @ENABLE_BASE_INSTANCE_POLYFILL
 #define BASE_INSTANCE_POLYFILL_DECL(IDX, NAME) uniform int NAME
 // The Qualcomm compiler doesn't like how clang-format handles these lines.
@@ -248,7 +304,7 @@
     gl_Position = _pos;
 
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
-    out DATA_TYPE _fd;                                                                             \
+    layout(location = 0) out DATA_TYPE _fd;                                                        \
     void main()
 
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE

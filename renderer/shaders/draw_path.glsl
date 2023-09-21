@@ -57,7 +57,7 @@ float calc_aa_radius(float2x2 mat, float2 normalized)
 #ifdef @ENABLE_BASE_INSTANCE_POLYFILL
 // Define a uniform that will supply the base instance if we're on a platform that doesn't provide
 // this as a built-in.
-BASE_INSTANCE_POLYFILL_DECL(BASE_INSTANCE_UNIFORM_BUFFER_IDX, @baseInstancePolyfill);
+BASE_INSTANCE_POLYFILL_DECL(DRAW_UNIFORM_BUFFER_IDX, @baseInstancePolyfill);
 #endif
 
 VERTEX_MAIN(@drawVertexMain,
@@ -496,6 +496,17 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
     VARYING_UNPACK(varyings, v_clipRect, float4);
 #endif
 
+#ifdef @TARGET_VULKAN
+    // Strict validators require derivatives (i.e., for a mipmapped texture sample) to be computed
+    // within uniform control flow.
+    // Our control flow for texture sampling is uniform for an entire triangle, so we're fine, but
+    // the validators don't know this.
+    // If this might be a problem (e.g., for WebGPU), just find the potential image paint
+    // derivatives here.
+    float2 imagePaintDDX = dFdx(v_paint.rg);
+    float2 imagePaintDDY = dFdy(v_paint.rg);
+#endif
+
 #ifndef @DRAW_INTERIOR_TRIANGLES
     // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_BEGIN;
@@ -607,11 +618,29 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
                                       (.5 / GRAD_TEXTURE_WIDTH)
                                 : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
             float row = -v_paint.a;
-            color = make_half4(TEXTURE_SAMPLE(textures, @gradTexture, gradSampler, float2(x, row)));
+            // Our gradient texture is not mipmapped. Issue a texture-sample that explicitly does
+            // not find derivatives for LOD computation (by specifying derivatives directly).
+            color = make_half4(TEXTURE_SAMPLE_GRAD(textures,
+                                                   @gradTexture,
+                                                   gradSampler,
+                                                   float2(x, row),
+                                                   float2(0, 0),
+                                                   float2(0, 0)));
         }
         else // The paint is an image.
         {
+#ifdef @TARGET_VULKAN
+            // Vulkan validators require explicit derivatives when sampling a texture in
+            // "non-uniform" control flow. See above.
+            color = TEXTURE_SAMPLE_GRAD(textures,
+                                        @imageTexture,
+                                        imageSampler,
+                                        v_paint.rg,
+                                        imagePaintDDX,
+                                        imagePaintDDY);
+#else
             color = TEXTURE_SAMPLE(textures, @imageTexture, imageSampler, v_paint.rg);
+#endif
             color.a *= v_paint.b; // paint.b holds the opacity of the image.
         }
         color.a *= coverage;
@@ -652,8 +681,12 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
         else
 #endif
         {
+#ifndef @TARGET_VULKAN
+            // FIXME: Framebuffer reads are not implemented yet in WebGPU, so we can't blend.
+            // Remove this #ifndef once its fully implemented.
             color.rgb *= color.a;
             color = color + dstColor * (1. - color.a);
+#endif
         }
 
         PLS_STORE4F(framebuffer, color);

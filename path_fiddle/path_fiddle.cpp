@@ -1,5 +1,6 @@
 #include "fiddle_context.hpp"
 
+#include "path_fiddle.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
@@ -23,11 +24,11 @@
 
 using namespace rive;
 
-bool g_preferIntelGPU = false;
-GLFWwindow* g_window = nullptr;
-bool g_wireframe = false;
-bool g_disableFill = false;
-bool g_disableStroke = false;
+static FiddleContextOptions s_options;
+static GLFWwindow* s_window = nullptr;
+static bool s_wireframe = false;
+static bool s_disableFill = false;
+static bool s_disableStroke = false;
 
 static std::unique_ptr<FiddleContext> s_fiddleContext;
 
@@ -80,8 +81,9 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 {
     double x, y;
     glfwGetCursorPos(window, &x, &y);
-    x *= s_fiddleContext->dpiScale();
-    y *= s_fiddleContext->dpiScale();
+    float dpiScale = s_fiddleContext->dpiScale(s_window);
+    x *= dpiScale;
+    y *= dpiScale;
     s_dragLastPos = float2{(float)x, (float)y};
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
@@ -102,8 +104,9 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 
 static void mousemove_callback(GLFWwindow* window, double x, double y)
 {
-    x *= s_fiddleContext->dpiScale();
-    y *= s_fiddleContext->dpiScale();
+    float dpiScale = s_fiddleContext->dpiScale(s_window);
+    x *= dpiScale;
+    y *= dpiScale;
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
     {
         float2 pos = float2{(float)x, (float)y};
@@ -157,7 +160,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 s_strokeWidth *= 1.5f;
                 break;
             case GLFW_KEY_W:
-                g_wireframe = !g_wireframe;
+                s_wireframe = !s_wireframe;
                 break;
             case GLFW_KEY_C:
                 s_cap = static_cast<StrokeCap>((static_cast<int>(s_cap) + 1) % 3);
@@ -166,10 +169,10 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 s_doClose = !s_doClose;
                 break;
             case GLFW_KEY_S:
-                g_disableStroke = !g_disableStroke;
+                s_disableStroke = !s_disableStroke;
                 break;
             case GLFW_KEY_F:
-                g_disableFill = !g_disableFill;
+                s_disableFill = !s_disableFill;
                 break;
             case GLFW_KEY_P:
                 s_paused = !s_paused;
@@ -200,7 +203,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 s_scale *= 1.25;
                 double x = 0, y = 0;
                 glfwGetCursorPos(window, &x, &y);
-                float2 cursorPos = float2{(float)x, (float)y} * s_fiddleContext->dpiScale();
+                float2 cursorPos = float2{(float)x, (float)y} * s_fiddleContext->dpiScale(s_window);
                 s_translate = cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
                 break;
             }
@@ -210,12 +213,17 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 s_scale /= 1.25;
                 double x = 0, y = 0;
                 glfwGetCursorPos(window, &x, &y);
-                float2 cursorPos = float2{(float)x, (float)y} * s_fiddleContext->dpiScale();
+                float2 cursorPos = float2{(float)x, (float)y} * s_fiddleContext->dpiScale(s_window);
                 s_translate = cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
                 break;
             }
         }
     }
+}
+
+void glfw_error_callback(int code, const char* message)
+{
+    printf("GLFW error: %i - %s\n", code, message);
 }
 
 bool skia = false;
@@ -224,7 +232,8 @@ enum class API
 {
     gl,
     metal,
-    d3d
+    d3d,
+    dawn,
 };
 
 API api = API::gl;
@@ -282,6 +291,10 @@ int main(int argc, const char** argv)
         {
             api = API::metal;
         }
+        else if (!strcmp(argv[i], "--dawn"))
+        {
+            api = API::dawn;
+        }
         else if (!strcmp(argv[i], "--d3d"))
         {
             api = API::d3d;
@@ -312,7 +325,7 @@ int main(int argc, const char** argv)
         }
         else if (!strcmp(argv[i], "--intel") || !strcmp(argv[i], "-i"))
         {
-            g_preferIntelGPU = true;
+            s_options.preferIntelGPU = true;
         }
         else if (sscanf(argv[i], "-a%i", &s_animation))
         {}
@@ -334,6 +347,8 @@ int main(int argc, const char** argv)
         }
     }
 
+    glfwSetErrorCallback(glfw_error_callback);
+
     if (!glfwInit())
     {
         fprintf(stderr, "Failed to initialize glfw.\n");
@@ -346,6 +361,7 @@ int main(int argc, const char** argv)
     {
         case API::metal:
         case API::d3d:
+        case API::dawn:
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
             break;
@@ -366,20 +382,23 @@ int main(int argc, const char** argv)
     }
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
     // glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
-    g_window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
-    if (!g_window)
+    s_window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
+    if (!s_window)
     {
         glfwTerminate();
         fprintf(stderr, "Failed to create window.\n");
         return -1;
     }
 
-    glfwSetWindowTitle(g_window, "Rive Renderer");
-    glfwSetMouseButtonCallback(g_window, mouse_button_callback);
-    glfwSetCursorPosCallback(g_window, mousemove_callback);
-    glfwSetKeyCallback(g_window, key_callback);
-    glfwMakeContextCurrent(g_window);
-    glfwShowWindow(g_window);
+    glfwSetWindowTitle(s_window, "Rive Renderer");
+    glfwSetMouseButtonCallback(s_window, mouse_button_callback);
+    glfwSetCursorPosCallback(s_window, mousemove_callback);
+    glfwSetKeyCallback(s_window, key_callback);
+    if (api == API::gl)
+    {
+        glfwMakeContextCurrent(s_window);
+    }
+    glfwShowWindow(s_window);
 
     switch (api)
     {
@@ -389,9 +408,7 @@ int main(int argc, const char** argv)
                 fprintf(stderr, "Skia not supported on Metal yet.\n");
                 break;
             }
-#ifdef __APPLE__
-            s_fiddleContext = FiddleContext::MakeMetalPLS();
-#endif
+            s_fiddleContext = FiddleContext::MakeMetalPLS(s_options);
             break;
         case API::d3d:
             if (skia)
@@ -399,16 +416,20 @@ int main(int argc, const char** argv)
                 fprintf(stderr, "Skia not supported on d3d yet.\n");
                 break;
             }
-#ifdef _WIN32
-            s_fiddleContext = FiddleContext::MakeD3DPLS();
-#endif
+            s_fiddleContext = FiddleContext::MakeD3DPLS(s_options);
+            break;
+        case API::dawn:
+            if (skia)
+            {
+                fprintf(stderr, "Skia not supported on dawn yet.\n");
+                break;
+            }
+            s_fiddleContext = FiddleContext::MakeDawnPLS(s_options);
             break;
         case API::gl:
             if (skia)
             {
-#ifdef RIVE_SKIA
                 s_fiddleContext = FiddleContext::MakeGLSkia();
-#endif
                 break;
             }
             s_fiddleContext = FiddleContext::MakeGLPLS();
@@ -443,11 +464,18 @@ int main(int argc, const char** argv)
     }
 
 #ifdef RIVE_DESKTOP_GL
-    glfwSwapInterval(0);
-    while (!glfwWindowShouldClose(g_window))
+    if (api == API::gl)
+    {
+        glfwSwapInterval(0);
+    }
+    while (!glfwWindowShouldClose(s_window))
     {
         riveMainLoop();
-        glfwSwapBuffers(g_window);
+        s_fiddleContext->tick();
+        if (api == API::gl)
+        {
+            glfwSwapBuffers(s_window);
+        }
         if (s_scene)
         {
             glfwPollEvents();
@@ -474,27 +502,33 @@ void riveMainLoop()
         int canvasExpectedWidth = windowWidth * devicePixelRatio;
         int canvasExpectedHeight = windowHeight * devicePixelRatio;
         int canvasWidth, canvasHeight;
-        glfwGetFramebufferSize(g_window, &canvasWidth, &canvasHeight);
+        glfwGetFramebufferSize(s_window, &canvasWidth, &canvasHeight);
         if (canvasWidth != canvasExpectedWidth || canvasHeight != canvasExpectedHeight)
         {
-            glfwSetWindowSize(g_window, canvasExpectedWidth, canvasExpectedHeight);
+            glfwSetWindowSize(s_window, canvasExpectedWidth, canvasExpectedHeight);
             emscripten_set_element_css_size("#canvas", windowWidth, windowHeight);
         }
     }
 #endif
 
     int width = 0, height = 0;
-    glfwGetFramebufferSize(g_window, &width, &height);
+    glfwGetFramebufferSize(s_window, &width, &height);
     if (lastWidth != width || lastHeight != height)
     {
         printf("size changed to %ix%i\n", width, height);
         lastWidth = width;
         lastHeight = height;
-        s_fiddleContext->onSizeChanged(width, height);
+        s_fiddleContext->onSizeChanged(s_window, width, height);
         renderer = s_fiddleContext->makeRenderer(width, height);
     }
 
-    s_fiddleContext->begin();
+    rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
+        .clearColor = 0xff404040,
+        .wireframe = s_wireframe,
+        .fillsDisabled = s_disableFill,
+        .strokesDisabled = s_disableStroke,
+    };
+    s_fiddleContext->begin(std::move(frameDescriptor));
 
     int instances = 1;
     if (s_scene)
@@ -584,7 +618,7 @@ void riveMainLoop()
         renderer->drawPath(pointPath.get(), pointPaint.get());
     }
 
-    s_fiddleContext->end();
+    s_fiddleContext->end(s_window);
 
     if (s_scene)
     {
@@ -622,7 +656,7 @@ void riveMainLoop()
                          width,
                          height);
             }
-            glfwSetWindowTitle(g_window, title);
+            glfwSetWindowTitle(s_window, title);
             fpsFrames = 0;
             fpsLastTime = time;
             s_fiddleContext->shrinkGPUResourcesToFit();

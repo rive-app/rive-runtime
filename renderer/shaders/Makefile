@@ -85,6 +85,18 @@ $(OUT)/rive_pls_ios_simulator.metallib.c: $(OUT)/ios/rive_pls_ios_simulator.meta
 	xxd -i -n rive_pls_ios_simulator_metallib $(OUT)/ios/rive_pls_ios_simulator.metallib $(OUT)/rive_pls_ios_simulator.metallib.c
 
 
+## SPIRV compilation.
+SPIRV_INPUTS := $(wildcard spirv/*.vert) $(wildcard spirv/*.frag)
+SPIRV_OUTPUTS := $(addprefix $(OUT)/, \
+				 $(patsubst %.vert, %.vert.h, $(patsubst %.frag, %.frag.h, $(SPIRV_INPUTS))))
+
+$(OUT)/spirv/%.h: spirv/% $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslang -V --vn $(subst .,_,$(notdir $<)) -o $@ $<
+
+spirv: $(SPIRV_OUTPUTS)
+
+
 ## Cleaning.
 clean:
 	@rm -fr $(OUT)
