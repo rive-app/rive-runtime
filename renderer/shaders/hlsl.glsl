@@ -72,8 +72,10 @@ $typedef $min16uint ushort;
 #define ATTR_LOAD(T, A, N, I)
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE) TYPE NAME = attrs.NAME
 
+#define UNIFORM_BUFFER_REGISTER(IDX) $register($b##IDX)
+
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
-    $cbuffer NAME : $register($b##IDX)                                                             \
+    $cbuffer NAME : UNIFORM_BUFFER_REGISTER(IDX)                                                   \
     {                                                                                              \
         struct                                                                                     \
         {
@@ -148,18 +150,6 @@ $typedef $min16uint ushort;
 
 #define PLS_PRESERVE_VALUE(P)
 
-#ifdef @ENABLE_BASE_INSTANCE_POLYFILL
-#define BASE_INSTANCE_POLYFILL_DECL(IDX, NAME)                                                     \
-    $cbuffer NAME##_cbuff : $register($b##IDX)                                                     \
-    {                                                                                              \
-        uint NAME;                                                                                 \
-        uint NAME##_pad0;                                                                          \
-        uint NAME##_pad1;                                                                          \
-        uint NAME##_pad2;                                                                          \
-    }
-
-#endif
-
 #define VERTEX_MAIN(NAME,                                                                          \
                     Uniforms,                                                                      \
                     uniforms,                                                                      \
@@ -172,8 +162,18 @@ $typedef $min16uint ushort;
                     _vertexID,                                                                     \
                     _instanceID,                                                                   \
                     _pos)                                                                          \
-    Varyings NAME(Attrs attrs, uint _vertexID : $SV_VertexID, uint _instanceID : $SV_InstanceID)   \
+    $cbuffer DrawUniforms : UNIFORM_BUFFER_REGISTER(DRAW_UNIFORM_BUFFER_IDX)                       \
     {                                                                                              \
+        uint baseInstance;                                                                         \
+        uint NAME##_pad0;                                                                          \
+        uint NAME##_pad1;                                                                          \
+        uint NAME##_pad2;                                                                          \
+    }                                                                                              \
+    Varyings NAME(Attrs attrs, uint _vertexID                                                      \
+                  : $SV_VertexID, uint _instanceIDWithoutBase                                      \
+                  : $SV_InstanceID)                                                                \
+    {                                                                                              \
+        uint _instanceID = _instanceIDWithoutBase + baseInstance;                                  \
         Varyings varyings;                                                                         \
         float4 _pos;
 
@@ -190,9 +190,7 @@ $typedef $min16uint ushort;
                                varyings,                                                           \
                                _vertexID,                                                          \
                                _pos)                                                               \
-    Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID                                 \
-                  : $SV_VertexID, uint _instanceID                                                 \
-                  : $SV_InstanceID)                                                                \
+    Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID : $SV_VertexID)                 \
     {                                                                                              \
         Varyings varyings;                                                                         \
         float4 _pos;

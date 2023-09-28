@@ -53,6 +53,7 @@ struct GLExtensions
 #define glPixelLocalStorageBarrierWEBGL glPixelLocalStorageBarrierANGLE
 #define glPixelLocalStorageBarrierWEBGL glPixelLocalStorageBarrierANGLE
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL GL_FIRST_VERTEX_CONVENTION_ANGLE
+#define GL_SHADER_PIXEL_LOCAL_STORAGE_EXT 0x8F64
 #endif
 
 #ifdef RIVE_GLES

@@ -15,10 +15,9 @@ namespace glutils
 void CompileAndAttachShader(GLuint program,
                             GLuint type,
                             const char* source,
-                            const GLExtensions& extensions,
                             const char* versionString)
 {
-    CompileAndAttachShader(program, type, nullptr, 0, &source, 1, extensions, versionString);
+    CompileAndAttachShader(program, type, nullptr, 0, &source, 1, versionString);
 }
 
 void CompileAndAttachShader(GLuint program,
@@ -27,7 +26,6 @@ void CompileAndAttachShader(GLuint program,
                             size_t numDefines,
                             const char* inputSources[],
                             size_t numInputSources,
-                            const GLExtensions& extensions,
                             const char* versionString)
 {
     GLuint shader = CompileShader(type,
@@ -35,18 +33,14 @@ void CompileAndAttachShader(GLuint program,
                                   numDefines,
                                   inputSources,
                                   numInputSources,
-                                  extensions,
                                   versionString);
     glAttachShader(program, shader);
     glDeleteShader(shader);
 }
 
-GLuint CompileShader(GLuint type,
-                     const char* source,
-                     const GLExtensions& extensions,
-                     const char* versionString)
+GLuint CompileShader(GLuint type, const char* source, const char* versionString)
 {
-    return CompileShader(type, nullptr, 0, &source, 1, extensions, versionString);
+    return CompileShader(type, nullptr, 0, &source, 1, versionString);
 }
 
 GLuint CompileShader(GLuint type,
@@ -54,16 +48,35 @@ GLuint CompileShader(GLuint type,
                      size_t numDefines,
                      const char* inputSources[],
                      size_t numInputSources,
-                     const GLExtensions& extensions,
                      const char* versionString)
 {
-    const std::string& shaderSourceStr = BuildShader(type,
-                                                     defines,
-                                                     numDefines,
-                                                     inputSources,
-                                                     numInputSources,
-                                                     extensions,
-                                                     versionString);
+    std::ostringstream shaderSource;
+    if (versionString != nullptr)
+    {
+        shaderSource << versionString;
+    }
+    else
+    {
+        shaderSource << "#version 300 es\n";
+    }
+    if (type == GL_VERTEX_SHADER)
+    {
+        shaderSource << "#define " GLSL_VERTEX "\n";
+    }
+    else if (GL_FRAGMENT_SHADER)
+    {
+        shaderSource << "#define " GLSL_FRAGMENT "\n";
+    }
+    for (size_t i = 0; i < numDefines; ++i)
+    {
+        shaderSource << "#define " << defines[i] << "\n";
+    }
+    shaderSource << rive::pls::glsl::glsl << "\n";
+    for (size_t i = 0; i < numInputSources; ++i)
+    {
+        shaderSource << inputSources[i] << "\n";
+    }
+    const std::string& shaderSourceStr = shaderSource.str();
     const char* shaderSourceCStr = shaderSourceStr.c_str();
     GLuint shader = glCreateShader(type);
     glShaderSource(shader, 1, &shaderSourceCStr, nullptr);
@@ -90,47 +103,6 @@ GLuint CompileShader(GLuint type,
         exit(-1);
     }
     return shader;
-}
-
-std::string BuildShader(GLuint type,
-                        const char* defines[],
-                        size_t numDefines,
-                        const char* inputSources[],
-                        size_t numInputSources,
-                        const GLExtensions& extensions,
-                        const char* versionString)
-{
-    std::ostringstream shaderSource;
-    if (versionString != nullptr)
-    {
-        shaderSource << versionString;
-    }
-    else
-    {
-        shaderSource << "#version 300 es\n";
-    }
-    if (type == GL_VERTEX_SHADER)
-    {
-        shaderSource << "#define " GLSL_VERTEX "\n";
-    }
-    else if (GL_FRAGMENT_SHADER)
-    {
-        shaderSource << "#define " GLSL_FRAGMENT "\n";
-    }
-    if (type == GL_VERTEX_SHADER && !extensions.ANGLE_base_vertex_base_instance_shader_builtin)
-    {
-        shaderSource << "#define " GLSL_ENABLE_BASE_INSTANCE_POLYFILL "\n";
-    }
-    for (size_t i = 0; i < numDefines; ++i)
-    {
-        shaderSource << "#define " << defines[i] << "\n";
-    }
-    shaderSource << rive::pls::glsl::glsl << "\n";
-    for (size_t i = 0; i < numInputSources; ++i)
-    {
-        shaderSource << inputSources[i] << "\n";
-    }
-    return shaderSource.str();
 }
 
 void LinkProgram(GLuint program)

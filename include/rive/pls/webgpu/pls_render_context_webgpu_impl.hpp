@@ -4,9 +4,6 @@
 
 #pragma once
 
-// For GLExtensions.
-#include "rive/pls/gl/gles3.hpp"
-
 #include "rive/pls/pls_render_context_helper_impl.hpp"
 
 #include <map>
@@ -62,7 +59,7 @@ public:
     }
 
 private:
-    PLSRenderContextWebGPUImpl(wgpu::Device device, wgpu::Queue queue, GLExtensions extensions);
+    PLSRenderContextWebGPUImpl(wgpu::Device device, wgpu::Queue queue);
 
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
                                                      size_t itemSizeInBytes) override;
@@ -85,11 +82,6 @@ private:
     void prepareToMapBuffers() override {}
 
     void flush(const PLSRenderContext::FlushDescriptor&) override;
-
-    wgpu::ShaderModule DrawModule(GLExtensions extensions,
-                                  const ShaderFeatures& shaderFeatures,
-                                  GLuint type,
-                                  DrawType drawType);
 
     wgpu::Device m_device;
     wgpu::Queue m_queue;

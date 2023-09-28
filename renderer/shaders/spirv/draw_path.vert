@@ -3,9 +3,7 @@
 #extension GL_EXT_samplerless_texture_functions : require
 #define VERTEX
 #define TARGET_VULKAN
-#define gl_VertexID gl_VertexIndex
-#define gl_BaseInstance 0
-#define gl_InstanceID gl_InstanceIndex
+#define ENABLE_INSTANCE_INDEX
 #define OPTIONALLY_FLAT flat
 #define ENABLE_CLIPPING
 #define ENABLE_CLIP_RECT

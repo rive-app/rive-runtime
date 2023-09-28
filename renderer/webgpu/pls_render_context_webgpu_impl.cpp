@@ -5,9 +5,8 @@
 #include <sstream>
 #include <string>
 
-#include "../gl/gl_utils.hpp"
-#include "../shaders/constants.glsl"
 #include "rive/pls/webgpu/pls_render_context_webgpu_impl.hpp"
+#include "shaders/constants.glsl"
 
 #include "../out/obj/generated/spirv/color_ramp.vert.h"
 #include "../out/obj/generated/spirv/color_ramp.frag.h"
@@ -380,9 +379,7 @@ private:
     wgpu::RenderPipeline m_renderPipeline;
 };
 
-PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(wgpu::Device device,
-                                                       wgpu::Queue queue,
-                                                       GLExtensions extensions) :
+PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(wgpu::Device device, wgpu::Queue queue) :
     m_device(device),
     m_queue(queue),
     m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_device)),
@@ -1107,9 +1104,8 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
 std::unique_ptr<PLSRenderContext> PLSRenderContextWebGPUImpl::MakeContext(wgpu::Device device,
                                                                           wgpu::Queue queue)
 {
-    GLExtensions extensions{};
-    auto plsContextImpl = std::unique_ptr<PLSRenderContextWebGPUImpl>(
-        new PLSRenderContextWebGPUImpl(device, queue, extensions));
+    auto plsContextImpl =
+        std::unique_ptr<PLSRenderContextWebGPUImpl>(new PLSRenderContextWebGPUImpl(device, queue));
     return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
 }
 } // namespace rive::pls

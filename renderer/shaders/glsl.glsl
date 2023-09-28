@@ -264,31 +264,36 @@
 
 #endif
 
-#ifdef @ENABLE_BASE_INSTANCE_POLYFILL
-#define BASE_INSTANCE_POLYFILL_DECL(IDX, NAME) uniform int NAME
-// The Qualcomm compiler doesn't like how clang-format handles these lines.
+#ifdef @TARGET_VULKAN
+#define gl_VertexID gl_VertexIndex
+#endif
+
 // clang-format off
-#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
-    void main()                                                                                    \
-    {                                                                                              \
-        int _vertexID = gl_VertexID;                                                               \
-        int _instanceID = gl_InstanceID;                                                           \
-        vec4 _pos;
-// clang-format on
+#ifdef @ENABLE_INSTANCE_INDEX
+#  ifdef @TARGET_VULKAN
+#    define INSTANCE_INDEX gl_InstanceIndex
+#  else
+#    ifdef @ENABLE_INSTANCE_INDEX_UNIFORM_POLYFILL
+       uniform int @baseInstancePolyfill;
+#      define INSTANCE_INDEX (gl_InstanceID + @baseInstancePolyfill)
+#    else
+#        define INSTANCE_INDEX (gl_InstanceID + gl_BaseInstance)
+#    endif
+#  endif
 #else
-#ifdef GL_ANGLE_base_vertex_base_instance_shader_builtin
-#extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
+#  define INSTANCE_INDEX 0
 #endif
+// clang-format on
+
 // The Qualcomm compiler doesn't like how clang-format handles these lines.
 // clang-format off
 #define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
     void main()                                                                                    \
     {                                                                                              \
         int _vertexID = gl_VertexID;                                                               \
-        int _instanceID = gl_BaseInstance + gl_InstanceID;                                         \
+        int _instanceID = INSTANCE_INDEX;                                                          \
         vec4 _pos;
 // clang-format on
-#endif
 
 // clang-format off
 #define IMAGE_MESH_VERTEX_MAIN(NAME, Uniforms, uniforms, MeshUniforms, meshUniforms, PositionAttr, position, UVAttr, uv, Varyings, varyings, _vertexID, _pos) \

@@ -76,7 +76,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     0,
                                     colorRampSources,
                                     std::size(colorRampSources),
-                                    m_extensions,
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_FRAGMENT_SHADER,
@@ -84,7 +83,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     0,
                                     colorRampSources,
                                     std::size(colorRampSources),
-                                    m_extensions,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_colorRampProgram);
     glUniformBlockBinding(m_colorRampProgram,
@@ -106,7 +104,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     0,
                                     tessellateSources,
                                     std::size(tessellateSources),
-                                    m_extensions,
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_FRAGMENT_SHADER,
@@ -114,7 +111,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     0,
                                     tessellateSources,
                                     std::size(tessellateSources),
-                                    m_extensions,
                                     m_shaderVersionString);
     glutils::LinkProgram(m_tessellateProgram);
     m_state->bindProgram(m_tessellateProgram);
@@ -414,11 +410,21 @@ public:
         }
         switch (drawType)
         {
-            case DrawType::interiorTriangulation:
-                defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
-                [[fallthrough]];
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
+                if (shaderType == GL_VERTEX_SHADER)
+                {
+                    defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
+                    if (!plsContextImpl->m_extensions
+                             .ANGLE_base_vertex_base_instance_shader_builtin)
+                    {
+                        defines.push_back(GLSL_ENABLE_INSTANCE_INDEX_UNIFORM_POLYFILL);
+                    }
+                }
+                sources.push_back(pls::glsl::draw_path);
+                break;
+            case DrawType::interiorTriangulation:
+                defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
                 sources.push_back(pls::glsl::draw_path);
                 break;
             case DrawType::imageMesh:
@@ -431,7 +437,6 @@ public:
                                       defines.size(),
                                       sources.data(),
                                       sources.size(),
-                                      plsContextImpl->m_extensions,
                                       plsContextImpl->m_shaderVersionString);
     }
 

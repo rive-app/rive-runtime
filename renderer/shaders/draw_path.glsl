@@ -54,12 +54,6 @@ float calc_aa_radius(float2x2 mat, float2 normalized)
     return (abs(v.x) + abs(v.y)) * (1. / dot(v, v)) * AA_RADIUS;
 }
 
-#ifdef @ENABLE_BASE_INSTANCE_POLYFILL
-// Define a uniform that will supply the base instance if we're on a platform that doesn't provide
-// this as a built-in.
-BASE_INSTANCE_POLYFILL_DECL(DRAW_UNIFORM_BUFFER_IDX, @baseInstancePolyfill);
-#endif
-
 VERTEX_MAIN(@drawVertexMain,
             @Uniforms,
             uniforms,
@@ -111,9 +105,6 @@ VERTEX_MAIN(@drawVertexMain,
     // Fetch a vertex that definitely belongs to the contour we're drawing.
     int vertexIDOnContour = min(localVertexID, patchSegmentSpan - 1);
     int tessVertexIdx = _instanceID * patchSegmentSpan + vertexIDOnContour;
-#ifdef @ENABLE_BASE_INSTANCE_POLYFILL
-    tessVertexIdx += @baseInstancePolyfill * patchSegmentSpan;
-#endif
     uint4 tessVertexData = TEXEL_FETCH(textures, @tessVertexTexture, tessTexelCoord(tessVertexIdx));
     uint contourIDWithFlags = tessVertexData.w;
 

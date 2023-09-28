@@ -736,9 +736,8 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 s << "#define " << GetShaderFeatureGLSLName(feature) << '\n';
             }
         }
-        s << "#define " << GLSL_ENABLE_BASE_INSTANCE_POLYFILL << '\n';
-        s << glsl::hlsl << '\n';
         s << glsl::constants << '\n';
+        s << glsl::hlsl << '\n';
         s << glsl::common << '\n';
         if (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
