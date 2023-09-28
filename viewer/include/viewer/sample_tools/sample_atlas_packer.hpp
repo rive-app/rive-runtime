@@ -2,7 +2,7 @@
 #define _RIVE_SAMPLE_ATLAS_PACKER_HPP_
 
 #include "rive/span.hpp"
-#include "rive/file_asset_resolver.hpp"
+#include "rive/file_asset_loader.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/renderer.hpp"
 #include "rive/tess/sokol/sokol_tess_renderer.hpp"
@@ -65,7 +65,7 @@ public:
     SampleAtlas* atlas(std::size_t index);
 };
 
-class SampleAtlasResolver : public FileAssetResolver
+class SampleAtlasLoader : public FileAssetLoader
 {
 private:
     SampleAtlasPacker* m_packer;

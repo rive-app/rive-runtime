@@ -16,7 +16,7 @@ StatusCode FileAsset::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-std::string FileAsset::uniqueFilename()
+std::string FileAsset::uniqueFilename() const
 {
     // remove final extension
     std::string uniqueFilename = name();
@@ -28,3 +28,16 @@ std::string FileAsset::uniqueFilename()
     }
     return uniqueFilename + "-" + std::to_string(assetId()) + "." + fileExtension();
 }
+
+void FileAsset::copyCdnUuid(const FileAssetBase& object)
+{
+    // Should never be called.
+    assert(false);
+}
+
+void FileAsset::decodeCdnUuid(Span<const uint8_t> value)
+{
+    m_cdnUuid = std::vector<uint8_t>(value.begin(), value.end());
+}
+
+Span<const uint8_t> FileAsset::cdnUuid() const { return m_cdnUuid; }

@@ -12,7 +12,7 @@ StatusCode FileAssetContents::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
-    fileAssetImporter->loadContents(std::unique_ptr<FileAssetContents>(this));
+    fileAssetImporter->onFileAssetContents(std::unique_ptr<FileAssetContents>(this));
 
     return Super::import(importStack);
 }

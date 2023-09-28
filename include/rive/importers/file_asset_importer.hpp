@@ -9,22 +9,21 @@ namespace rive
 {
 class FileAsset;
 class FileAssetContents;
-class FileAssetResolver;
+class FileAssetLoader;
 class Factory;
 
 class FileAssetImporter : public ImportStackObject
 {
 private:
-    bool m_LoadedContents = false;
     FileAsset* m_FileAsset;
-    FileAssetResolver* m_FileAssetResolver;
+    FileAssetLoader* m_FileAssetLoader;
     Factory* m_Factory;
     // we will delete this when we go out of scope
     std::unique_ptr<FileAssetContents> m_Content;
 
 public:
-    FileAssetImporter(FileAsset*, FileAssetResolver*, Factory*);
-    void loadContents(std::unique_ptr<FileAssetContents> contents);
+    FileAssetImporter(FileAsset*, FileAssetLoader*, Factory*);
+    void onFileAssetContents(std::unique_ptr<FileAssetContents> contents);
     StatusCode resolve() override;
 };
 } // namespace rive

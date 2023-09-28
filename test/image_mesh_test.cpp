@@ -5,7 +5,7 @@
 #include <rive/shapes/image.hpp>
 #include <rive/shapes/mesh.hpp>
 #include <rive/assets/image_asset.hpp>
-#include <rive/relative_local_asset_resolver.hpp>
+#include <rive/relative_local_asset_loader.hpp>
 #include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
 #include <catch.hpp>

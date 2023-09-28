@@ -1,7 +1,7 @@
 #ifndef _RIVE_RELATIVE_LOCAL_ASSET_RESOLVER_HPP_
 #define _RIVE_RELATIVE_LOCAL_ASSET_RESOLVER_HPP_
 
-#include "rive/file_asset_resolver.hpp"
+#include "rive/file_asset_loader.hpp"
 #include "rive/assets/file_asset.hpp"
 #include <cstdio>
 #include <string>
@@ -11,16 +11,16 @@ namespace rive
 class FileAsset;
 class Factory;
 
-/// An implementation of FileAssetResolver which finds the assets in a local
+/// An implementation of FileAssetLoader which finds the assets in a local
 /// path relative to the original .riv file looking for them.
-class RelativeLocalAssetResolver : public FileAssetResolver
+class RelativeLocalAssetLoader : public FileAssetLoader
 {
 private:
     std::string m_Path;
     Factory* m_Factory;
 
 public:
-    RelativeLocalAssetResolver(std::string filename, Factory* factory) : m_Factory(factory)
+    RelativeLocalAssetLoader(std::string filename, Factory* factory) : m_Factory(factory)
     {
         std::size_t finalSlash = filename.rfind('/');
 

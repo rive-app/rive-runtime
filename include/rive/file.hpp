@@ -4,7 +4,7 @@
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
 #include "rive/factory.hpp"
-#include "rive/file_asset_resolver.hpp"
+#include "rive/file_asset_loader.hpp"
 #include <vector>
 #include <set>
 
@@ -55,11 +55,11 @@ private:
 
     Factory* m_Factory;
 
-    /// The helper used to resolve assets when they're not provided in-band
+    /// The helper used to load assets when they're not provided in-band
     /// with the file.
-    FileAssetResolver* m_AssetResolver;
+    FileAssetLoader* m_AssetLoader;
 
-    File(Factory*, FileAssetResolver*);
+    File(Factory*, FileAssetLoader*);
 
 public:
     ~File();
@@ -68,13 +68,13 @@ public:
     /// Imports a Rive file from a binary buffer.
     /// @param data the raw date of the file.
     /// @param result is an optional status result.
-    /// @param assetResolver is an optional helper to resolve assets which
+    /// @param assetLoader is an optional helper to load assets which
     /// cannot be found in-band.
     /// @returns a pointer to the file, or null on failure.
     static std::unique_ptr<File> import(Span<const uint8_t> data,
                                         Factory*,
                                         ImportResult* result = nullptr,
-                                        FileAssetResolver* assetResolver = nullptr);
+                                        FileAssetLoader* assetLoader = nullptr);
 
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_Backboard.get(); }

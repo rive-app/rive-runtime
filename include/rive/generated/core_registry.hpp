@@ -395,6 +395,9 @@ public:
             case AssetBase::namePropertyKey:
                 object->as<AssetBase>()->name(value);
                 break;
+            case FileAssetBase::cdnBaseUrlPropertyKey:
+                object->as<FileAssetBase>()->cdnBaseUrl(value);
+                break;
         }
     }
     static void setUint(Core* object, int propertyKey, uint32_t value)
@@ -1179,6 +1182,8 @@ public:
                 return object->as<CustomPropertyStringBase>()->propertyValue();
             case AssetBase::namePropertyKey:
                 return object->as<AssetBase>()->name();
+            case FileAssetBase::cdnBaseUrlPropertyKey:
+                return object->as<FileAssetBase>()->cdnBaseUrl();
         }
         return "";
     }
@@ -1708,6 +1713,7 @@ public:
             case TextValueRunBase::textPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
             case AssetBase::namePropertyKey:
+            case FileAssetBase::cdnBaseUrlPropertyKey:
                 return CoreStringType::id;
             case ComponentBase::parentIdPropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
@@ -1957,6 +1963,7 @@ public:
             case GradientStopBase::colorValuePropertyKey:
                 return CoreColorType::id;
             case MeshBase::triangleIndexBytesPropertyKey:
+            case FileAssetBase::cdnUuidPropertyKey:
             case FileAssetContentsBase::bytesPropertyKey:
                 return CoreBytesType::id;
             default:

@@ -20,7 +20,7 @@ public:
     std::size_t decodedByteSize = 0;
 #endif
     bool decode(Span<const uint8_t>, Factory*) override;
-    std::string fileExtension() override;
+    std::string fileExtension() const override;
     RenderImage* renderImage() const { return m_RenderImage.get(); }
     void renderImage(std::unique_ptr<RenderImage> renderImage);
 };

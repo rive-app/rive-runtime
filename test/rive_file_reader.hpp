@@ -11,7 +11,8 @@ static rive::NoOpFactory gNoOpFactory;
 
 static inline std::unique_ptr<rive::File> ReadRiveFile(const char path[],
                                                        rive::Factory* factory = nullptr,
-                                                       rive::FileAssetResolver* resolver = nullptr)
+                                                       rive::FileAssetLoader* loader = nullptr,
+                                                       bool loadInBandAssets = true)
 {
     if (!factory)
     {
@@ -29,7 +30,7 @@ static inline std::unique_ptr<rive::File> ReadRiveFile(const char path[],
     fclose(fp);
 
     rive::ImportResult result;
-    auto file = rive::File::import(bytes, factory, &result, resolver);
+    auto file = rive::File::import(bytes, factory, &result, loader);
     REQUIRE(result == rive::ImportResult::success);
     REQUIRE(file.get() != nullptr);
     REQUIRE(file->artboard() != nullptr);

@@ -9,6 +9,6 @@ bool FontAsset::decode(Span<const uint8_t> data, Factory* factory)
     m_font = factory->decodeFont(data);
     return m_font != nullptr;
 }
-std::string FontAsset::fileExtension() { return "ttf"; }
+std::string FontAsset::fileExtension() const { return "ttf"; }
 
 void FontAsset::font(rcp<Font> font) { m_font = std::move(font); }

@@ -121,8 +121,8 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
     return object;
 }
 
-File::File(Factory* factory, FileAssetResolver* assetResolver) :
-    m_Factory(factory), m_AssetResolver(assetResolver)
+File::File(Factory* factory, FileAssetLoader* assetLoader) :
+    m_Factory(factory), m_AssetLoader(assetLoader)
 {
     Counter::update(Counter::kFile, +1);
 
@@ -134,7 +134,7 @@ File::~File() { Counter::update(Counter::kFile, -1); }
 std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
                                    Factory* factory,
                                    ImportResult* result,
-                                   FileAssetResolver* assetResolver)
+                                   FileAssetLoader* assetLoader)
 {
     BinaryReader reader(bytes);
     RuntimeHeader header;
@@ -161,7 +161,8 @@ std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
         }
         return nullptr;
     }
-    auto file = std::unique_ptr<File>(new File(factory, assetResolver));
+    auto file = std::unique_ptr<File>(new File(factory, assetLoader));
+
     auto readResult = file->read(reader, header);
     if (readResult != ImportResult::success)
     {
@@ -279,7 +280,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ImageAsset::typeKey:
             case FontAsset::typeKey:
                 stackObject =
-                    new FileAssetImporter(object->as<FileAsset>(), m_AssetResolver, m_Factory);
+                    new FileAssetImporter(object->as<FileAsset>(), m_AssetLoader, m_Factory);
                 stackType = FileAsset::typeKey;
                 break;
         }

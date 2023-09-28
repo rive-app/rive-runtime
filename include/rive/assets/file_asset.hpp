@@ -9,12 +9,19 @@ namespace rive
 class Factory;
 class FileAsset : public FileAssetBase
 {
+private:
+    std::vector<uint8_t> m_cdnUuid;
+
 public:
+    Span<const uint8_t> cdnUuid() const;
+
+    void decodeCdnUuid(Span<const uint8_t> value) override;
+    void copyCdnUuid(const FileAssetBase& object) override;
     virtual bool decode(Span<const uint8_t>, Factory*) = 0;
-    virtual std::string fileExtension() = 0;
+    virtual std::string fileExtension() const = 0;
     StatusCode import(ImportStack& importStack) override;
 
-    std::string uniqueFilename();
+    std::string uniqueFilename() const;
 };
 } // namespace rive
 

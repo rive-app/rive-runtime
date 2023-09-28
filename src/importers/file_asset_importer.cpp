@@ -1,38 +1,39 @@
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/assets/file_asset.hpp"
-#include "rive/file_asset_resolver.hpp"
+#include "rive/file_asset_loader.hpp"
 #include "rive/span.hpp"
 #include <cstdint>
 
 using namespace rive;
 
 FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
-                                     FileAssetResolver* assetResolver,
+                                     FileAssetLoader* assetLoader,
                                      Factory* factory) :
-    m_FileAsset(fileAsset), m_FileAssetResolver(assetResolver), m_Factory(factory)
+    m_FileAsset(fileAsset), m_FileAssetLoader(assetLoader), m_Factory(factory)
 {}
 
-void FileAssetImporter::loadContents(std::unique_ptr<FileAssetContents> contents)
+// if file asset contents are found when importing a rive file, store those for when we resolve 
+// the importer later
+void FileAssetImporter::onFileAssetContents(std::unique_ptr<FileAssetContents> contents)
 {
     // we should only ever be called once
     assert(!m_Content);
     m_Content = std::move(contents);
-
-    auto data = m_Content->bytes();
-    if (m_FileAsset->decode(data, m_Factory))
-    {
-        m_LoadedContents = true;
-    }
 }
 
 StatusCode FileAssetImporter::resolve()
 {
-    if (!m_LoadedContents && m_FileAssetResolver != nullptr)
+    // If we have a file asset loader that commits to loading the file asset, let it handle it
+    if (m_FileAssetLoader != nullptr && m_FileAssetLoader->willLoadContents(*m_FileAsset))
     {
-        // Contents weren't available in-band, or they couldn't be decoded. Try
-        // to find them out of band.
-        m_FileAssetResolver->loadContents(*m_FileAsset);
+        m_FileAssetLoader->loadContents(*m_FileAsset);
+    }
+    // If we do not, but we have found in band contents, load those
+    else if (m_Content != nullptr)
+    {
+        auto data = m_Content->bytes();
+        m_FileAsset->decode(data, m_Factory);
     }
 
     // Note that it's ok for an asset to not resolve (or to resolve async).

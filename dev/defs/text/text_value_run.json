@@ -27,6 +27,16 @@
         "string": "text_value"
       },
       "description": "The text string value."
+    },
+    "fieldHeight": {
+      "type": "double",
+      "initialValue": "98.0",
+      "key": {
+        "int": 398,
+        "string": "fieldheight"
+      },
+      "runtime": false,
+      "coop": false
     }
   }
 }

@@ -20,4 +20,4 @@ void ImageAsset::renderImage(std::unique_ptr<RenderImage> renderImage)
     m_RenderImage = std::move(renderImage);
 }
 
-std::string ImageAsset::fileExtension() { return "png"; }
+std::string ImageAsset::fileExtension() const { return "png"; }
