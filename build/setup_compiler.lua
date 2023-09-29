@@ -2,10 +2,17 @@
 -- premake5 still doesn't accept "--os=emscripten" from the command line. To work around this we add
 -- a custom "--wasm" flag that sets system to "emscripten" for us.
 newoption {
-    trigger = "wasm",
-    description = "use emscripten",
+    trigger = 'emsdk',
+    value = 'type',
+    description = 'Build with emscripten',
+    allowed = {
+        {'none', "don't use emscripten"},
+        {'wasm', 'build WASM with emscripten'},
+        {'js', 'build Javascript with emscripten'},
+    },
+    default = 'none'
 }
-if _OPTIONS['wasm']
+if _OPTIONS['emsdk'] ~= 'none'
 then
     -- Target emscripten via https://github.com/TurkeyMan/premake-emscripten.git
     -- Premake doesn't properly load the _preload.lua for this module, so we load it here manually.
@@ -18,13 +25,25 @@ end
 
 filter {'system:emscripten'}
 do
+    linkoptions {
+        "-sALLOW_MEMORY_GROWTH",
+    }
+end
+
+filter {'system:emscripten', 'options:emsdk=wasm'}
+do
     buildoptions {
         "-msimd128",
     }
     linkoptions {
-        "-sMIN_WEBGL_VERSION=2",
-        "-sMAX_WEBGL_VERSION=2",
-        "-sALLOW_MEMORY_GROWTH",
+        "-sWASM=1",
+    }
+end
+
+filter {'system:emscripten', 'options:emsdk=js'}
+do
+    linkoptions {
+        "-sWASM=0",
     }
 end
 
