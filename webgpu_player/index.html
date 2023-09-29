@@ -1,0 +1,37 @@
+<canvas id="canvas" width=800 height=800></canvas>
+<script src="webgpu_player.js"></script>
+<script>
+async function draw()
+{
+    const canvas = document.getElementById("canvas");
+    const wgpu = canvas.getContext("webgpu");
+
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      throw new Error("No appropriate GPUAdapter found.");
+    }
+
+    const device = await adapter.requestDevice();
+
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+    wgpu.configure({
+      device: device,
+      format: canvasFormat,
+    });
+
+    const queue = device.queue;
+    Module._riveInitPlayer(800, 800, JsValStore.add(device), JsValStore.add(queue), false);
+
+    const mainLoop = () => {
+        const targetTextureView = wgpu.getCurrentTexture().createView();
+        Module._riveMainLoop(performance.now() / 1000, JsValStore.add(targetTextureView));
+        requestAnimationFrame(mainLoop);
+    };
+    mainLoop();
+}
+if (Module.calledRun)
+    draw();
+else
+    Module.onRuntimeInitialized = draw;
+
+</script>

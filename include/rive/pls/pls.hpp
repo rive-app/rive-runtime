@@ -104,8 +104,10 @@ struct PlatformFeatures
     uint8_t pathIDGranularity = 1; // Workaround for precision issues. Determines how far apart we
                                    // space unique path IDs.
     bool avoidFlatVaryings = false;
-    bool invertOffscreenY = false; // Invert Y when drawing to offscreen render targets? (Gradient
-                                   // and tessellation textures.)
+    bool invertOffscreenY = false;  // Invert Y when drawing to offscreen render targets? (Gradient
+                                    // and tessellation textures.)
+    bool uninvertOnScreenY = false; // Specifies whether the graphics layer appends a negation of Y
+                                    // to on-screen vertex shaders that needs to be undone.
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient
@@ -343,18 +345,38 @@ struct FlushUniforms
 {
     FlushUniforms() = default;
 
+    inline static float4 InverseViewports(size_t complexGradientsHeight,
+                                          size_t tessDataHeight,
+                                          size_t renderTargetWidth,
+                                          size_t renderTargetHeight,
+                                          const PlatformFeatures& platformFeatures)
+    {
+        float4 numerators = 2;
+        if (platformFeatures.invertOffscreenY)
+        {
+            numerators.xy = -numerators.xy;
+        }
+        if (platformFeatures.uninvertOnScreenY)
+        {
+            numerators.w = -numerators.w;
+        }
+        return numerators / float4{static_cast<float>(complexGradientsHeight),
+                                   static_cast<float>(tessDataHeight),
+                                   static_cast<float>(renderTargetWidth),
+                                   static_cast<float>(renderTargetHeight)};
+    }
+
     FlushUniforms(size_t complexGradientsHeight,
                   size_t tessDataHeight,
                   size_t renderTargetWidth,
                   size_t renderTargetHeight,
                   size_t gradTextureHeight,
                   const PlatformFeatures& platformFeatures) :
-        inverseViewports(
-            (platformFeatures.invertOffscreenY ? float4{-2.f, -2.f, 2.f, 2.f} : float4(2.f)) /
-            float4{static_cast<float>(complexGradientsHeight),
-                   static_cast<float>(tessDataHeight),
-                   static_cast<float>(renderTargetWidth),
-                   static_cast<float>(renderTargetHeight)}),
+        inverseViewports(InverseViewports(complexGradientsHeight,
+                                          tessDataHeight,
+                                          renderTargetWidth,
+                                          renderTargetHeight,
+                                          platformFeatures)),
         gradTextureInverseHeight(1.f / static_cast<float>(gradTextureHeight)),
         pathIDGranularity(platformFeatures.pathIDGranularity)
     {}

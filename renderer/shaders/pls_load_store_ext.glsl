@@ -17,6 +17,19 @@ void main()
 
 #ifdef @FRAGMENT
 
+#ifdef @CLEAR_COLOR
+#if __VERSION__ > 300
+layout(binding = 0, std140) uniform ClearColor { uniform highp vec4 value; }
+clearColor;
+#define COLOR_CLEAR_VALUE clearColor.value
+#else
+uniform mediump vec4 @clearColor;
+#define COLOR_CLEAR_VALUE @clearColor
+#endif
+#endif
+
+#ifdef GL_EXT_shader_pixel_local_storage
+
 #ifdef @STORE_COLOR
 __pixel_local_inEXT PLS
 #else
@@ -29,11 +42,7 @@ __pixel_local_outEXT PLS
     layout(r32ui) highp uint clipBuffer;
 };
 
-#ifdef @CLEAR_COLOR
-uniform mediump vec4 @clearColor;
-#endif
-
-#if !defined(GL_ARM_shader_framebuffer_fetch)
+#ifndef GL_ARM_shader_framebuffer_fetch
 #ifdef @LOAD_COLOR
 layout(location = 0) inout mediump vec4 fragColor;
 #endif
@@ -46,11 +55,11 @@ layout(location = 0) out mediump vec4 fragColor;
 void main()
 {
 #ifdef @CLEAR_COLOR
-    framebuffer = @clearColor;
+    framebuffer = COLOR_CLEAR_VALUE;
 #endif
 
 #ifdef @LOAD_COLOR
-#if defined(GL_ARM_shader_framebuffer_fetch)
+#ifdef GL_ARM_shader_framebuffer_fetch
     framebuffer = gl_LastFragColorARM;
 #else
     framebuffer = fragColor;
@@ -69,5 +78,13 @@ void main()
     fragColor = framebuffer;
 #endif
 }
+
+#else
+
+// This shader is being parsed by WebGPU for introspection purposes.
+layout(location = 0) out mediump vec4 unused;
+void main() { unused = vec4(0, 1, 0, 1); }
+
+#endif // GL_EXT_shader_pixel_local_storage
 
 #endif // FRAGMENT

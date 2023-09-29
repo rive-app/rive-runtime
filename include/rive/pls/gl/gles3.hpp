@@ -26,6 +26,7 @@ struct GLExtensions
 #ifdef RIVE_DESKTOP_GL
 #include "glad_custom.h"
 #define GL_APIENTRY GLAPIENTRY
+#define GL_WEBGL_shader_pixel_local_storage 1
 #define GL_MAX_PIXEL_LOCAL_STORAGE_PLANES_WEBGL GL_MAX_PIXEL_LOCAL_STORAGE_PLANES_ANGLE
 #define GL_MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_WEBGL                             \
     GL_MAX_COLOR_ATTACHMENTS_WITH_ACTIVE_PIXEL_LOCAL_STORAGE_ANGLE
@@ -50,7 +51,6 @@ struct GLExtensions
 #define glFramebufferPixelLocalClearValueuivWEBGL glFramebufferPixelLocalClearValueuivANGLE
 #define glBeginPixelLocalStorageWEBGL glBeginPixelLocalStorageANGLE
 #define glEndPixelLocalStorageWEBGL glEndPixelLocalStorageANGLE
-#define glPixelLocalStorageBarrierWEBGL glPixelLocalStorageBarrierANGLE
 #define glPixelLocalStorageBarrierWEBGL glPixelLocalStorageBarrierANGLE
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL GL_FIRST_VERTEX_CONVENTION_ANGLE
 #define GL_SHADER_PIXEL_LOCAL_STORAGE_EXT 0x8F64
@@ -80,4 +80,5 @@ extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 #include <webgl/webgl2_ext.h>
 #define GL_UNMASKED_RENDERER_WEBGL 0x9246
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL 0x8E4D
+
 #endif

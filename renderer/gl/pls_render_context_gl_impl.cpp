@@ -418,7 +418,7 @@ public:
                     if (!plsContextImpl->m_extensions
                              .ANGLE_base_vertex_base_instance_shader_builtin)
                     {
-                        defines.push_back(GLSL_ENABLE_INSTANCE_INDEX_UNIFORM_POLYFILL);
+                        defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
                     }
                 }
                 sources.push_back(pls::glsl::draw_path);
@@ -494,7 +494,9 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
     if (!plsContextImpl->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        m_baseInstancePolyfillLocation = glGetUniformLocation(m_id, GLSL_baseInstancePolyfill);
+        // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
+        // SPIRV-Cross sytems.
+        m_spirvCrossBaseInstanceLocation = glGetUniformLocation(m_id, "SPIRV_Cross_BaseInstance");
     }
 }
 
@@ -657,7 +659,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                 }
                 else
                 {
-                    glUniform1i(drawProgram.baseInstancePolyfillLocation(), draw.baseElement);
+                    glUniform1i(drawProgram.spirvCrossBaseInstanceLocation(), draw.baseElement);
                     glDrawElementsInstanced(GL_TRIANGLES,
                                             indexCount,
                                             GL_UNSIGNED_SHORT,

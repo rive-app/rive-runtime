@@ -52,11 +52,11 @@
 
 #define INLINE
 
-#if defined(GL_ANGLE_base_vertex_base_instance_shader_builtin)
+#ifdef GL_ANGLE_base_vertex_base_instance_shader_builtin
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
 #endif
 
-#ifdef @TARGET_VULKAN
+#if __VERSION__ > 300
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
     layout(binding = IDX, std140) uniform NAME                                                     \
     {
@@ -77,13 +77,13 @@
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE)
 
 #ifdef @VERTEX
-#ifdef @TARGET_VULKAN
+#if __VERSION__ > 300
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) out TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) out TYPE NAME
 #endif
 #else
-#ifdef @TARGET_VULKAN
+#if __VERSION__ > 300
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) in TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) in TYPE NAME
@@ -93,12 +93,19 @@
 #define VARYING_BLOCK_BEGIN(NAME)
 #define VARYING_BLOCK_END(_pos)
 
-#if defined(GL_NV_shader_noperspective_interpolation)
-#extension GL_NV_shader_noperspective_interpolation : require
-#define NO_PERSPECTIVE noperspective
+// clang-format off
+#ifdef @TARGET_VULKAN
+   // Since Vulkan is compiled offline and not all platforms support noperspective, don't use it.
+#  define NO_PERSPECTIVE
 #else
-#define NO_PERSPECTIVE
+#  ifdef GL_NV_shader_noperspective_interpolation
+#    extension GL_NV_shader_noperspective_interpolation : require
+#    define NO_PERSPECTIVE noperspective
+#  else
+#    define NO_PERSPECTIVE
+#  endif
 #endif
+// clang-format on
 
 #ifdef @VERTEX
 #define VERTEX_TEXTURE_BLOCK_BEGIN(NAME)
@@ -114,24 +121,28 @@
 #define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp utexture2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp texture2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump texture2D NAME
-
-#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
-    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
-#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
-    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
-
-#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
-    textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
+#elif __VERSION__ > 300
+#define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp usampler2D NAME
+#define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp sampler2D NAME
+#define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump sampler2D NAME
 #else
 #define TEXTURE_RGBA32UI(IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
+#endif
 
+#ifdef @TARGET_VULKAN
+#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
+    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
+#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
+    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
+#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
+    textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
+#else
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling parameters are API-level
 // state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
-
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
 #define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
     textureGrad(NAME, COORD, DDX, DDY)
@@ -163,7 +174,7 @@
 
 #ifdef @PLS_IMPL_EXT_NATIVE
 
-#extension GL_EXT_shader_pixel_local_storage : require
+#extension GL_EXT_shader_pixel_local_storage : enable
 
 // We need one of the framebuffer fetch extensions for the shader that loads the framebuffer.
 #extension GL_ARM_shader_framebuffer_fetch : enable
@@ -273,9 +284,11 @@
 #  ifdef @TARGET_VULKAN
 #    define INSTANCE_INDEX gl_InstanceIndex
 #  else
-#    ifdef @ENABLE_INSTANCE_INDEX_UNIFORM_POLYFILL
-       uniform int @baseInstancePolyfill;
-#      define INSTANCE_INDEX (gl_InstanceID + @baseInstancePolyfill)
+#    ifdef @ENABLE_SPIRV_CROSS_BASE_INSTANCE
+       // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
+       // SPIRV-Cross sytems that search for it by name.
+       uniform int $SPIRV_Cross_BaseInstance;
+#      define INSTANCE_INDEX (gl_InstanceID + $SPIRV_Cross_BaseInstance)
 #    else
 #        define INSTANCE_INDEX (gl_InstanceID + gl_BaseInstance)
 #    endif
@@ -295,7 +308,15 @@
         vec4 _pos;
 // clang-format on
 
+// The Qualcomm compiler doesn't like how clang-format handles these lines.
 // clang-format off
+#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
+    void main()                                                                                    \
+    {                                                                                              \
+        int _vertexID = gl_VertexID;                                                               \
+        int _instanceID = INSTANCE_INDEX;                                                          \
+        vec4 _pos;
+
 #define IMAGE_MESH_VERTEX_MAIN(NAME, Uniforms, uniforms, MeshUniforms, meshUniforms, PositionAttr, position, UVAttr, uv, Varyings, varyings, _vertexID, _pos) \
     VERTEX_MAIN(NAME, Uniforms, uniforms, PositionAttr, position, Varyings, varyings, _, _, _vertexID, _instanceID, _pos)
 // clang-format on

@@ -17,4 +17,4 @@ else
     gclient sync
 fi
 
-ninja -C out/release -j20 webgpu_dawn_static
+ninja -C out/release -j20 webgpu_dawn_static cpp proc_static

@@ -301,6 +301,7 @@ def is_reserved_keyword(name):
            or hlsl_register_pattern.match(name)\
            or name.startswith("$")\
            or name.startswith("gl_")\
+           or name.startswith("GL_")\
            or name.startswith("__pixel_local")\
            or name.endswith("ANGLE")
 

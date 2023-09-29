@@ -22,7 +22,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeDawnPLS(FiddleContextOptions o
 using namespace rive;
 using namespace rive::pls;
 
-void print_device_error(WGPUErrorType errorType, const char* message, void*)
+static void print_device_error(WGPUErrorType errorType, const char* message, void*)
 {
     const char* errorTypeName = "";
     switch (errorType)
@@ -46,19 +46,39 @@ void print_device_error(WGPUErrorType errorType, const char* message, void*)
     printf("%s error: %s\n", errorTypeName, message);
 }
 
-void device_lost_callback(WGPUDeviceLostReason reason, const char* message, void*)
+static void device_lost_callback(WGPUDeviceLostReason reason, const char* message, void*)
 {
     printf("device lost: %s\n", message);
 }
 
-void device_log_callback(WGPULoggingType type, const char* message, void*)
+static void device_log_callback(WGPULoggingType type, const char* message, void*)
 {
     printf("Device log %s\n", message);
 }
 
-float GetDawnWindowBackingScaleFactor(GLFWwindow*, bool retina);
-std::unique_ptr<wgpu::ChainedStruct> SetupDawnWindowAndGetSurfaceDescriptorCocoa(GLFWwindow*,
-                                                                                 bool retina);
+#ifdef __APPLE__
+extern float GetDawnWindowBackingScaleFactor(GLFWwindow*, bool retina);
+extern std::unique_ptr<wgpu::ChainedStruct> SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow*,
+                                                                                   bool retina);
+#else
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
+
+static float GetDawnWindowBackingScaleFactor(GLFWwindow*, bool retina) { return 1; }
+
+static std::unique_ptr<wgpu::ChainedStruct> SetupDawnWindowAndGetSurfaceDescriptor(
+    GLFWwindow* window,
+    bool retina)
+{
+    std::unique_ptr<wgpu::SurfaceDescriptorFromWindowsHWND> desc =
+        std::make_unique<wgpu::SurfaceDescriptorFromWindowsHWND>();
+    desc->hwnd = glfwGetWin32Window(window);
+    desc->hinstance = GetModuleHandle(nullptr);
+    return std::move(desc);
+}
+#endif
 
 class FiddleContextDawnPLS : public FiddleContext
 {
@@ -69,8 +89,9 @@ public:
         instanceDescriptor.features.timedWaitAnyEnable = true;
         m_instance = std::make_unique<dawn::native::Instance>(&instanceDescriptor);
 
-        wgpu::RequestAdapterOptions adapterOptions = {};
-        adapterOptions.backendType = wgpu::BackendType::Metal;
+        wgpu::RequestAdapterOptions adapterOptions = {
+            .powerPreference = wgpu::PowerPreference::HighPerformance,
+        };
 
         // Get an adapter for the backend to use, and create the device.
         auto adapters = m_instance->EnumerateAdapters(&adapterOptions);
@@ -109,19 +130,19 @@ public:
         };
 
         std::vector<WGPUFeatureName> requiredFeatures = {
-            WGPUFeatureName_IndirectFirstInstance,
-            WGPUFeatureName_ShaderF16,
-            WGPUFeatureName_BGRA8UnormStorage,
-            WGPUFeatureName_Float32Filterable,
-            WGPUFeatureName_DawnInternalUsages,
-            WGPUFeatureName_DawnMultiPlanarFormats,
-            WGPUFeatureName_DawnNative,
-            WGPUFeatureName_ImplicitDeviceSynchronization,
+            // WGPUFeatureName_IndirectFirstInstance,
+            // WGPUFeatureName_ShaderF16,
+            // WGPUFeatureName_BGRA8UnormStorage,
+            // WGPUFeatureName_Float32Filterable,
+            // WGPUFeatureName_DawnInternalUsages,
+            // WGPUFeatureName_DawnMultiPlanarFormats,
+            // WGPUFeatureName_DawnNative,
+            // WGPUFeatureName_ImplicitDeviceSynchronization,
             WGPUFeatureName_SurfaceCapabilities,
-            WGPUFeatureName_TransientAttachments,
-            WGPUFeatureName_DualSourceBlending,
-            WGPUFeatureName_Norm16TextureFormats,
-            WGPUFeatureName_HostMappedPointer,
+            // WGPUFeatureName_TransientAttachments,
+            // WGPUFeatureName_DualSourceBlending,
+            // WGPUFeatureName_Norm16TextureFormats,
+            // WGPUFeatureName_HostMappedPointer,
             // WGPUFeatureName_ChromiumExperimentalReadWriteStorageTexture,
         };
 
@@ -157,7 +178,7 @@ public:
 
         // Create the swapchain
         auto surfaceChainedDesc =
-            SetupDawnWindowAndGetSurfaceDescriptorCocoa(window, m_options.retinaDisplay);
+            SetupDawnWindowAndGetSurfaceDescriptor(window, m_options.retinaDisplay);
         WGPUSurfaceDescriptor surfaceDesc = {
             .nextInChain = reinterpret_cast<WGPUChainedStruct*>(surfaceChainedDesc.get()),
         };
@@ -165,7 +186,7 @@ public:
 
         WGPUSwapChainDescriptor swapChainDesc = {
             .usage = WGPUTextureUsage_RenderAttachment,
-            .format = static_cast<WGPUTextureFormat>(wgpu::TextureFormat::BGRA8Unorm),
+            .format = WGPUTextureFormat_BGRA8Unorm,
             .width = static_cast<uint32_t>(width),
             .height = static_cast<uint32_t>(height),
             .presentMode = WGPUPresentMode_Immediate, // No vsync.

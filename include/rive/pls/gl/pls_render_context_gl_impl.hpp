@@ -122,11 +122,11 @@ private:
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
-        GLint baseInstancePolyfillLocation() const { return m_baseInstancePolyfillLocation; }
+        GLint spirvCrossBaseInstanceLocation() const { return m_spirvCrossBaseInstanceLocation; }
 
     private:
         GLuint m_id;
-        GLint m_baseInstancePolyfillLocation = -1;
+        GLint m_spirvCrossBaseInstanceLocation = -1;
         const rcp<GLState> m_state;
     };
 

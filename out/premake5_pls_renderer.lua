@@ -42,6 +42,15 @@ do
     defines {'RIVE_DAWN'}
 end
 
+newoption {
+    trigger = "with-webgpu",
+    description = "compile in native support for webgpu",
+}
+filter {"options:with-webgpu"}
+do
+    defines {'RIVE_WEBGPU'}
+end
+
 filter {'system:ios', 'options:variant=simulator'}
 do
     defines {'RIVE_IOS_SIMULATOR'}
@@ -98,7 +107,7 @@ do
         rebuildcommands {makecommand .. ' rive_pls_ios_simulator_metallib'}
     end
 
-    filter {'options:with-dawn'}
+    filter {'options:with-dawn or with-webgpu'}
     do
         buildcommands {makecommand .. ' spirv'}
         rebuildcommands {makecommand .. ' spirv'}
@@ -224,7 +233,14 @@ do
         }
         files {
             "../dependencies/dawn/out/release/gen/src/dawn/webgpu_cpp.cpp",
+        }
+    end
+
+    filter {"options:with-webgpu or with-dawn"}
+    do
+        files {
             "../renderer/webgpu/**.cpp",
+            '../renderer/gl/load_store_actions_ext.cpp',
         }
     end
 
@@ -302,8 +318,8 @@ do
 
     filter 'system:emscripten'
     do
-        targetdir 'wasm_%{cfg.buildcfg}'
-        objdir 'obj/wasm_%{cfg.buildcfg}'
+        targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
+        objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
         files {'../renderer/gl/pls_impl_webgl.cpp'}
         buildoptions {'-pthread'}
     end

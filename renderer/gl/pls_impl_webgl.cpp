@@ -17,6 +17,17 @@
 
 namespace rive::pls
 {
+#ifndef GL_WEBGL_shader_pixel_local_storage
+
+// WEBGL_shader_pixel_local_storage bindings aren't in mainline emcsripten yet. Don't implement this
+// interface if we don't have bindings.
+std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplWebGL()
+{
+    return nullptr;
+}
+
+#else
+
 class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSImpl
 {
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
@@ -93,4 +104,5 @@ std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLS
 {
     return std::make_unique<PLSImplWebGL>();
 }
+#endif
 } // namespace rive::pls

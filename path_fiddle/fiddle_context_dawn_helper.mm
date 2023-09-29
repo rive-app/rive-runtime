@@ -30,8 +30,8 @@ float GetDawnWindowBackingScaleFactor(GLFWwindow* window, bool retina)
     return retina ? nsWindow.backingScaleFactor : 1;
 }
 
-std::unique_ptr<wgpu::ChainedStruct> SetupDawnWindowAndGetSurfaceDescriptorCocoa(GLFWwindow* window,
-                                                                                 bool retina)
+std::unique_ptr<wgpu::ChainedStruct> SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow* window,
+                                                                            bool retina)
 {
     @autoreleasepool
     {

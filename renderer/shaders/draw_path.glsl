@@ -422,7 +422,7 @@ VERTEX_MAIN(@drawVertexMain,
 
     _pos.xy = vertexPosition * float2(uniforms.renderTargetInverseViewportX,
                                       -uniforms.renderTargetInverseViewportY) +
-              float2(-1, 1);
+              sign(float2(-1, uniforms.renderTargetInverseViewportY));
     _pos.zw = float2(0, 1);
     if (shouldDiscardVertex)
     {

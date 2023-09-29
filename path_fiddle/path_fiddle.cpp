@@ -221,7 +221,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     }
 }
 
-void glfw_error_callback(int code, const char* message)
+static void glfw_error_callback(int code, const char* message)
 {
     printf("GLFW error: %i - %s\n", code, message);
 }
