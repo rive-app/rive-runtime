@@ -123,7 +123,7 @@ void LinearGradient::applyTo(RenderPaint* renderPaint, float opacityModifier) co
     for (size_t i = 0; i < count; ++i)
     {
         colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
-        stops[i] = m_Stops[i]->position();
+        stops[i] = std::max(0.0f, std::min(m_Stops[i]->position(), 1.0f));
     }
 
     makeGradient(renderPaint, start, end, colors, stops, count);
