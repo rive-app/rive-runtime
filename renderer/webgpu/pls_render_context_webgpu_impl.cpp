@@ -33,6 +33,32 @@ static void enable_shader_pixel_local_storage_ext(wgpu::RenderPassEncoder, bool 
 {
     RIVE_UNREACHABLE();
 }
+
+static void write_texture(wgpu::Queue queue,
+                          wgpu::Texture texture,
+                          uint32_t bytesPerRow,
+                          uint32_t width,
+                          uint32_t height,
+                          const void* data,
+                          size_t dataSize)
+{
+    wgpu::ImageCopyTexture dest = {
+        .texture = texture,
+    };
+    wgpu::TextureDataLayout layout = {
+        .bytesPerRow = bytesPerRow,
+    };
+    wgpu::Extent3D extent = {
+        .width = width,
+        .height = height,
+    };
+    queue.WriteTexture(&dest, data, dataSize, &layout, &extent);
+}
+
+static void write_buffer(wgpu::Queue queue, wgpu::Buffer buffer, const void* data, size_t dataSize)
+{
+    queue.WriteBuffer(buffer, 0, data, dataSize);
+}
 #endif
 
 #ifdef RIVE_WEBGPU
@@ -50,6 +76,61 @@ static void enable_shader_pixel_local_storage_ext(wgpu::RenderPassEncoder render
     enable_shader_pixel_local_storage_ext_js(
         emscripten_webgpu_export_render_pass_encoder(renderPass.Get()),
         enabled);
+}
+
+EM_JS(void,
+      write_texture_js,
+      (int queue,
+       int texture,
+       uint32_t bytesPerRow,
+       uint32_t width,
+       uint32_t height,
+       uintptr_t indexU8,
+       size_t dataSize),
+      {
+          queue = JsValStore.get(queue);
+          texture = JsValStore.get(texture);
+          // Copy data off the WASM heap before sending it to WebGPU bindings.
+          const data = new Uint8Array(dataSize);
+          data.set(Module.HEAPU8.subarray(indexU8, indexU8 + dataSize));
+          queue.writeTexture({texture},
+                             data,
+                             {bytesPerRow : bytesPerRow},
+                             {width : width, height : height});
+      });
+
+static void write_texture(wgpu::Queue queue,
+                          wgpu::Texture texture,
+                          uint32_t bytesPerRow,
+                          uint32_t width,
+                          uint32_t height,
+                          const void* data,
+                          size_t dataSize)
+{
+    write_texture_js(emscripten_webgpu_export_queue(queue.Get()),
+                     emscripten_webgpu_export_texture(texture.Get()),
+                     bytesPerRow,
+                     width,
+                     height,
+                     reinterpret_cast<uintptr_t>(data),
+                     dataSize);
+}
+
+EM_JS(void, write_buffer_js, (int queue, int buffer, uintptr_t indexU8, size_t dataSize), {
+    queue = JsValStore.get(queue);
+    buffer = JsValStore.get(buffer);
+    // Copy data off the WASM heap before sending it to WebGPU bindings.
+    const data = new Uint8Array(dataSize);
+    data.set(Module.HEAPU8.subarray(indexU8, indexU8 + dataSize));
+    queue.writeBuffer(buffer, 0, data, 0, dataSize);
+});
+
+static void write_buffer(wgpu::Queue queue, wgpu::Buffer buffer, const void* data, size_t dataSize)
+{
+    write_buffer_js(emscripten_webgpu_export_queue(queue.Get()),
+                    emscripten_webgpu_export_buffer(buffer.Get()),
+                    reinterpret_cast<uintptr_t>(data),
+                    dataSize);
 }
 #endif
 
@@ -836,7 +917,7 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
 
     patchBufferDesc.size = (kPatchIndexBufferCount * sizeof(uint16_t));
     patchBufferDesc.size = (patchBufferDesc.size + 3) & ~3; // Round up to a multiple of 4.
-    patchBufferDesc.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Index;
+    patchBufferDesc.usage = wgpu::BufferUsage::Index;
     m_pathPatchIndexBuffer = m_device.CreateBuffer(&patchBufferDesc);
 
     GeneratePatchBufferData(
@@ -940,21 +1021,13 @@ protected:
     {
         if (updateWidthInTexels > 0 && updateHeight > 0)
         {
-            wgpu::ImageCopyTexture dest{
-                .texture = m_textures[textureIdx],
-            };
-            wgpu::TextureDataLayout layout{
-                .bytesPerRow = static_cast<uint32_t>(widthInTexels() * BytesPerPixel(m_format)),
-            };
-            wgpu::Extent3D extent{
-                .width = static_cast<uint32_t>(updateWidthInTexels),
-                .height = static_cast<uint32_t>(updateHeight),
-            };
-            m_queue.WriteTexture(&dest,
-                                 shadowBuffer(),
-                                 capacity() * itemSizeInBytes(),
-                                 &layout,
-                                 &extent);
+            write_texture(m_queue,
+                          m_textures[textureIdx],
+                          static_cast<uint32_t>(widthInTexels() * BytesPerPixel(m_format)),
+                          static_cast<uint32_t>(updateWidthInTexels),
+                          static_cast<uint32_t>(updateHeight),
+                          shadowBuffer(),
+                          capacity() * itemSizeInBytes());
         }
     }
 
@@ -980,7 +1053,7 @@ std::unique_ptr<TexelBufferRing> PLSRenderContextWebGPUImpl::makeTexelBufferRing
                                                texelsPerItem);
 }
 
-class BufferWebGPU : public BufferRing
+class BufferWebGPU : public BufferRingShadowImpl
 {
 public:
     BufferWebGPU(wgpu::Device device,
@@ -988,7 +1061,7 @@ public:
                  size_t capacity,
                  size_t itemSizeInBytes,
                  wgpu::BufferUsage usage) :
-        BufferRing(capacity, itemSizeInBytes), m_queue(queue)
+        BufferRingShadowImpl(capacity, itemSizeInBytes), m_queue(queue)
     {
         for (int i = 0; i < kBufferRingSize; ++i)
         {
@@ -997,33 +1070,20 @@ public:
                 .size = capacity * itemSizeInBytes,
             };
             m_buffers[i] = device.CreateBuffer(&desc);
-
-            m_stagingBuffers[i] = malloc(capacity * itemSizeInBytes);
-        }
-    }
-
-    ~BufferWebGPU()
-    {
-        for (int i = 0; i < kBufferRingSize; ++i)
-        {
-            free(m_stagingBuffers[i]);
         }
     }
 
     wgpu::Buffer submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
 
 protected:
-    void* onMapBuffer(int bufferIdx) override { return m_stagingBuffers[bufferIdx]; }
-
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override
     {
-        m_queue.WriteBuffer(m_buffers[bufferIdx], 0, m_stagingBuffers[bufferIdx], bytesWritten);
+        write_buffer(m_queue, m_buffers[bufferIdx], shadowBuffer(), bytesWritten);
     }
 
 private:
     const wgpu::Queue m_queue;
     wgpu::Buffer m_buffers[kBufferRingSize];
-    void* m_stagingBuffers[kBufferRingSize];
 };
 
 std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeVertexBufferRing(size_t capacity,

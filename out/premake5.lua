@@ -157,6 +157,7 @@ do
         'test -f obj/generated/marty.riv.c || xxd -n marty_riv -i ../../../gold/rivs/marty.riv obj/generated/marty.riv.c',
         'test -f obj/generated/Knight_square_2.riv.c || xxd -n Knight_square_2_riv -i ../../../gold/rivs/Knight_square_2.riv obj/generated/Knight_square_2.riv.c',
         'test -f obj/generated/Rope.riv.c || xxd -n Rope_riv -i ../../../gold/rivs/Rope.riv obj/generated/Rope.riv.c',
+        'test -f obj/generated/Skills.riv.c || xxd -n Skills_riv -i ../../../gold/rivs/Skills.riv obj/generated/Skills.riv.c',
     }
 
     filter 'system:windows'

@@ -21,6 +21,18 @@ wgpu::ShaderModule EmJsHandle::compileShaderModule(wgpu::Device device,
 {
     RIVE_UNREACHABLE();
 }
+
+wgpu::ShaderModule EmJsHandle::compileSPIRVShaderModule(wgpu::Device device,
+                                                        const uint32_t* code,
+                                                        uint32_t codeSize)
+{
+    wgpu::ShaderModuleSPIRVDescriptor spirvDesc;
+    spirvDesc.code = code;
+    spirvDesc.codeSize = codeSize;
+    wgpu::ShaderModuleDescriptor descriptor;
+    descriptor.nextInChain = &spirvDesc;
+    return device.CreateShaderModule(&descriptor);
+}
 #endif
 
 #ifdef RIVE_WEBGPU
@@ -52,16 +64,27 @@ wgpu::ShaderModule EmJsHandle::compileShaderModule(wgpu::Device device,
                                              language);
     return wgpu::ShaderModule::Acquire(emscripten_webgpu_import_shader_module(m_handle));
 }
-#endif
+
+EM_JS(int, compile_spirv_shader_module_js, (int device, uintptr_t indexU32, uint32_t codeSize), {
+    device = JsValStore.get(device);
+    // Copy data off the WASM heap before sending it to WebGPU bindings.
+    const code = new Uint32Array(codeSize);
+    code.set(Module.HEAPU32.subarray(indexU32, indexU32 + codeSize));
+    const shader = device.createShaderModule({
+        language : "spirv",
+        code : code,
+    });
+    return JsValStore.add(shader);
+});
 
 wgpu::ShaderModule EmJsHandle::compileSPIRVShaderModule(wgpu::Device device,
                                                         const uint32_t* code,
                                                         uint32_t codeSize)
 {
-    wgpu::ShaderModuleSPIRVDescriptor spirvDesc;
-    spirvDesc.code = code;
-    spirvDesc.codeSize = codeSize;
-    wgpu::ShaderModuleDescriptor descriptor;
-    descriptor.nextInChain = &spirvDesc;
-    return device.CreateShaderModule(&descriptor);
+    assert(reinterpret_cast<uintptr_t>(code) % sizeof(uint32_t) == 0);
+    m_handle = compile_spirv_shader_module_js(emscripten_webgpu_export_device(device.Get()),
+                                              reinterpret_cast<uintptr_t>(code) / sizeof(uint32_t),
+                                              codeSize);
+    return wgpu::ShaderModule::Acquire(emscripten_webgpu_import_shader_module(m_handle));
 }
+#endif

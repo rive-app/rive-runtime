@@ -32,6 +32,7 @@
 #include "../out/obj/generated/marty.riv.c"
 // #include "../out/obj/generated/Knight_square_2.riv.c"
 // #include "../out/obj/generated/Rope.riv.c"
+// #include "../out/obj/generated/Skills.riv.c"
 
 using namespace rive;
 using namespace rive::pls;
@@ -66,8 +67,9 @@ void riveInitPlayer(int w,
     // s_rivFile =
     //     File::import({Knight_square_2_riv, std::size(Knight_square_2_riv)}, s_plsContext.get());
     // s_rivFile = File::import({Rope_riv, std::size(Rope_riv)}, s_plsContext.get());
+    // s_rivFile = File::import({Skills_riv, std::size(Skills_riv)}, s_plsContext.get());
     s_artboard = s_rivFile->artboardDefault();
-    s_scene = s_artboard->defaultScene();
+    s_scene = s_artboard->animationAt(0);
     s_scene->advanceAndApply(0);
 
     s_width = w;
