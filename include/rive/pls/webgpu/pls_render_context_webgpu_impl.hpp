@@ -60,18 +60,12 @@ public:
 
     rcp<PLSRenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat, size_t width, size_t height);
 
-    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override
-    {
-        return nullptr;
-    }
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
     rcp<PLSTexture> makeImageTexture(uint32_t width,
                                      uint32_t height,
                                      uint32_t mipLevelCount,
-                                     const uint8_t imageDataRGBA[]) override
-    {
-        return nullptr;
-    }
+                                     const uint8_t imageDataRGBA[]) override;
 
 private:
     PLSRenderContextWebGPUImpl(wgpu::Device device,
@@ -142,7 +136,7 @@ private:
     wgpu::BindGroupLayout m_drawBindGroupLayouts[2];
     wgpu::Sampler m_linearSampler;
     wgpu::Sampler m_mipmapSampler;
-    wgpu::BindGroup m_samplerBindGroup;
+    wgpu::BindGroup m_samplerBindings;
     wgpu::PipelineLayout m_drawPipelineLayout;
     wgpu::Buffer m_pathPatchVertexBuffer;
     wgpu::Buffer m_pathPatchIndexBuffer;

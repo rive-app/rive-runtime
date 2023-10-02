@@ -158,6 +158,8 @@ do
         'test -f obj/generated/Knight_square_2.riv.c || xxd -n Knight_square_2_riv -i ../../../gold/rivs/Knight_square_2.riv obj/generated/Knight_square_2.riv.c',
         'test -f obj/generated/Rope.riv.c || xxd -n Rope_riv -i ../../../gold/rivs/Rope.riv obj/generated/Rope.riv.c',
         'test -f obj/generated/Skills.riv.c || xxd -n Skills_riv -i ../../../gold/rivs/Skills.riv obj/generated/Skills.riv.c',
+        'test -f obj/generated/falling.riv.c || xxd -n falling_riv -i ../../../gold/rivs/falling.riv obj/generated/falling.riv.c',
+        'test -f obj/generated/tape.riv.c || xxd -n tape_riv -i ../../../gold/rivs/tape.riv obj/generated/tape.riv.c',
     }
 
     filter 'system:windows'

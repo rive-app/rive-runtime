@@ -2,10 +2,9 @@
  * Copyright 2023 Rive
  */
 
-#include <sstream>
-#include <string>
-
 #include "rive/pls/webgpu/pls_render_context_webgpu_impl.hpp"
+
+#include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
 #include "../out/obj/generated/spirv/color_ramp.vert.h"
@@ -16,6 +15,8 @@
 #include "../out/obj/generated/spirv/draw_path.frag.h"
 #include "../out/obj/generated/spirv/draw_interior_triangles.vert.h"
 #include "../out/obj/generated/spirv/draw_interior_triangles.frag.h"
+#include "../out/obj/generated/spirv/draw_image_mesh.vert.h"
+#include "../out/obj/generated/spirv/draw_image_mesh.frag.h"
 
 #include "../out/obj/generated/pls_load_store_ext.glsl.hpp"
 #include "../out/obj/generated/glsl.glsl.hpp"
@@ -24,6 +25,9 @@
 #include "../out/obj/generated/advanced_blend.glsl.hpp"
 #include "../out/obj/generated/draw_path.glsl.hpp"
 #include "../out/obj/generated/draw_image_mesh.glsl.hpp"
+
+#include <sstream>
+#include <string>
 
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
@@ -44,6 +48,7 @@ static void write_texture(wgpu::Queue queue,
 {
     wgpu::ImageCopyTexture dest = {
         .texture = texture,
+        .mipLevel = 0,
     };
     wgpu::TextureDataLayout layout = {
         .bytesPerRow = bytesPerRow,
@@ -590,17 +595,25 @@ public:
                         std::size(draw_interior_triangles_frag));
                     break;
                 case DrawType::imageMesh:
-                    RIVE_UNREACHABLE(); // Unimplemented.
+                    vertexShader = m_vertexShaderHandle.compileSPIRVShaderModule(
+                        context->m_device,
+                        draw_image_mesh_vert,
+                        std::size(draw_image_mesh_vert));
+                    fragmentShader = m_fragmentShaderHandle.compileSPIRVShaderModule(
+                        context->m_device,
+                        draw_image_mesh_frag,
+                        std::size(draw_image_mesh_frag));
                     break;
             }
         }
 
         std::vector<wgpu::VertexAttribute> attrs;
-        size_t attrsStride;
+        std::vector<wgpu::VertexBufferLayout> vertexBufferLayouts;
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
+            {
                 attrs = {
                     {
                         .format = wgpu::VertexFormat::Float32x4,
@@ -613,9 +626,19 @@ public:
                         .shaderLocation = 1,
                     },
                 };
-                attrsStride = sizeof(pls::PatchVertex);
+
+                vertexBufferLayouts = {
+                    {
+                        .arrayStride = sizeof(pls::PatchVertex),
+                        .stepMode = wgpu::VertexStepMode::Vertex,
+                        .attributeCount = std::size(attrs),
+                        .attributes = attrs.data(),
+                    },
+                };
                 break;
+            }
             case DrawType::interiorTriangulation:
+            {
                 attrs = {
                     {
                         .format = wgpu::VertexFormat::Float32x3,
@@ -623,19 +646,47 @@ public:
                         .shaderLocation = 0,
                     },
                 };
-                attrsStride = sizeof(pls::TriangleVertex);
+
+                vertexBufferLayouts = {
+                    {
+                        .arrayStride = sizeof(pls::TriangleVertex),
+                        .stepMode = wgpu::VertexStepMode::Vertex,
+                        .attributeCount = std::size(attrs),
+                        .attributes = attrs.data(),
+                    },
+                };
                 break;
+            }
             case DrawType::imageMesh:
-                RIVE_UNREACHABLE();
+                attrs = {
+                    {
+                        .format = wgpu::VertexFormat::Float32x2,
+                        .offset = 0,
+                        .shaderLocation = 0,
+                    },
+                    {
+                        .format = wgpu::VertexFormat::Float32x2,
+                        .offset = 0,
+                        .shaderLocation = 1,
+                    },
+                };
+
+                vertexBufferLayouts = {
+                    {
+                        .arrayStride = sizeof(float) * 2,
+                        .stepMode = wgpu::VertexStepMode::Vertex,
+                        .attributeCount = 1,
+                        .attributes = &attrs[0],
+                    },
+                    {
+                        .arrayStride = sizeof(float) * 2,
+                        .stepMode = wgpu::VertexStepMode::Vertex,
+                        .attributeCount = 1,
+                        .attributes = &attrs[1],
+                    },
+                };
                 break;
         }
-
-        wgpu::VertexBufferLayout vertexBufferLayout = {
-            .arrayStride = attrsStride,
-            .stepMode = wgpu::VertexStepMode::Vertex,
-            .attributeCount = std::size(attrs),
-            .attributes = attrs.data(),
-        };
 
         for (auto framebufferFormat :
              {wgpu::TextureFormat::BGRA8Unorm, wgpu::TextureFormat::RGBA8Unorm})
@@ -664,14 +715,15 @@ public:
                     {
                         .module = vertexShader,
                         .entryPoint = "main",
-                        .bufferCount = 1,
-                        .buffers = &vertexBufferLayout,
+                        .bufferCount = std::size(vertexBufferLayouts),
+                        .buffers = vertexBufferLayouts.data(),
                     },
                 .primitive =
                     {
                         .topology = wgpu::PrimitiveTopology::TriangleList,
                         .frontFace = context->m_frontFaceForOnScreenDraws,
-                        .cullMode = wgpu::CullMode::Back,
+                        .cullMode = drawType != DrawType::imageMesh ? wgpu::CullMode::Back
+                                                                    : wgpu::CullMode::None,
                     },
                 .fragment = &fragmentState,
             };
@@ -785,10 +837,12 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
         },
         {
             .binding = IMAGE_MESH_UNIFORM_BUFFER_IDX,
-            .visibility = wgpu::ShaderStage::Vertex,
+            .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
             .buffer =
                 {
                     .type = wgpu::BufferBindingType::Uniform,
+                    .hasDynamicOffset = true,
+                    .minBindingSize = sizeof(pls::ImageMeshUniforms),
                 },
         },
     };
@@ -847,7 +901,7 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
 
     m_mipmapSampler = m_device.CreateSampler(&mipmapSamplerDesc);
 
-    wgpu::BindGroupEntry samplerBindings[] = {
+    wgpu::BindGroupEntry samplerBindingEntries[] = {
         {
             .binding = GRAD_TEXTURE_IDX,
             .sampler = m_linearSampler,
@@ -860,11 +914,11 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
 
     wgpu::BindGroupDescriptor samplerBindGroupDesc = {
         .layout = m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
-        .entryCount = std::size(samplerBindings),
-        .entries = samplerBindings,
+        .entryCount = std::size(samplerBindingEntries),
+        .entries = samplerBindingEntries,
     };
 
-    m_samplerBindGroup = m_device.CreateBindGroup(&samplerBindGroupDesc);
+    m_samplerBindings = m_device.CreateBindGroup(&samplerBindGroupDesc);
 
     wgpu::PipelineLayoutDescriptor drawPipelineLayoutDesc = {
         .bindGroupLayoutCount = std::size(m_drawBindGroupLayouts),
@@ -973,6 +1027,142 @@ rcp<PLSRenderTargetWebGPU> PLSRenderContextWebGPUImpl::makeRenderTarget(
     return rcp(new PLSRenderTargetWebGPU(m_device, framebufferFormat, width, height));
 }
 
+class RenderBufferWebGPUImpl : public RenderBuffer
+{
+public:
+    RenderBufferWebGPUImpl(wgpu::Device device,
+                           wgpu::Queue queue,
+                           RenderBufferType renderBufferType,
+                           RenderBufferFlags renderBufferFlags,
+                           size_t sizeInBytes) :
+        RenderBuffer(renderBufferType, renderBufferFlags, sizeInBytes),
+        m_device(device),
+        m_queue(queue)
+    {
+        bool mappedOnceAtInitialization = flags() & RenderBufferFlags::mappedOnceAtInitialization;
+        int bufferCount = mappedOnceAtInitialization ? 1 : pls::kBufferRingSize;
+        wgpu::BufferDescriptor desc = {
+            .usage = type() == RenderBufferType::index ? wgpu::BufferUsage::Index
+                                                       : wgpu::BufferUsage::Vertex,
+            // WebGPU buffer sizes must be multiples of 4.
+            .size = math::round_up_to_multiple_of<4>(sizeInBytes),
+            .mappedAtCreation = mappedOnceAtInitialization,
+        };
+        if (!mappedOnceAtInitialization)
+        {
+            desc.usage |= wgpu::BufferUsage::CopyDst;
+        }
+        for (int i = 0; i < bufferCount; ++i)
+        {
+            m_buffers[i] = device.CreateBuffer(&desc);
+        }
+    }
+
+    wgpu::Buffer submittedBuffer() const { return m_buffers[m_submittedBufferIdx]; }
+
+protected:
+    void* onMap() override
+    {
+        m_submittedBufferIdx = (m_submittedBufferIdx + 1) % pls::kBufferRingSize;
+        assert(m_buffers[m_submittedBufferIdx] != nullptr);
+        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        {
+            return m_buffers[m_submittedBufferIdx].GetMappedRange();
+        }
+        else
+        {
+            if (m_stagingBuffer == nullptr)
+            {
+                m_stagingBuffer.reset(new uint8_t[sizeInBytes()]);
+            }
+            return m_stagingBuffer.get();
+        }
+    }
+
+    void onUnmap() override
+    {
+        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        {
+            m_buffers[m_submittedBufferIdx].Unmap();
+        }
+        else
+        {
+            write_buffer(m_queue,
+                         m_buffers[m_submittedBufferIdx],
+                         m_stagingBuffer.get(),
+                         sizeInBytes());
+        }
+    }
+
+private:
+    const wgpu::Device m_device;
+    const wgpu::Queue m_queue;
+    wgpu::Buffer m_buffers[pls::kBufferRingSize];
+    int m_submittedBufferIdx = -1;
+    std::unique_ptr<uint8_t[]> m_stagingBuffer;
+};
+
+rcp<RenderBuffer> PLSRenderContextWebGPUImpl::makeRenderBuffer(RenderBufferType type,
+                                                               RenderBufferFlags flags,
+                                                               size_t sizeInBytes)
+{
+    return make_rcp<RenderBufferWebGPUImpl>(m_device, m_queue, type, flags, sizeInBytes);
+}
+
+class PLSTextureWebGPUImpl : public PLSTexture
+{
+public:
+    PLSTextureWebGPUImpl(wgpu::Device device,
+                         wgpu::Queue queue,
+                         uint32_t width,
+                         uint32_t height,
+                         uint32_t mipLevelCount,
+                         const uint8_t imageDataRGBA[]) :
+        PLSTexture(width, height)
+    {
+        wgpu::TextureDescriptor desc = {
+            .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = {width, height},
+            .format = wgpu::TextureFormat::RGBA8Unorm,
+            // TODO: implement mipmap generation.
+            .mipLevelCount = 1, // mipLevelCount,
+        };
+
+        m_texture = device.CreateTexture(&desc);
+        m_textureView = m_texture.CreateView();
+
+        // Specify the top-level image in the mipmap chain.
+        // TODO: implement mipmap generation.
+        write_texture(queue,
+                      m_texture,
+                      width * 4,
+                      width,
+                      height,
+                      imageDataRGBA,
+                      height * width * 4);
+    }
+
+    wgpu::TextureView textureView() const { return m_textureView; }
+
+private:
+    wgpu::Texture m_texture;
+    wgpu::TextureView m_textureView;
+};
+
+rcp<PLSTexture> PLSRenderContextWebGPUImpl::makeImageTexture(uint32_t width,
+                                                             uint32_t height,
+                                                             uint32_t mipLevelCount,
+                                                             const uint8_t imageDataRGBA[])
+{
+    return make_rcp<PLSTextureWebGPUImpl>(m_device,
+                                          m_queue,
+                                          width,
+                                          height,
+                                          mipLevelCount,
+                                          imageDataRGBA);
+}
+
 class TexelBufferWebGPU : public TexelBufferRing
 {
 public:
@@ -985,7 +1175,7 @@ public:
                       wgpu::TextureUsage extraUsageFlags = wgpu::TextureUsage::None) :
         TexelBufferRing(format, widthInItems, height, texelsPerItem), m_queue(queue)
     {
-        wgpu::TextureDescriptor desc{
+        wgpu::TextureDescriptor desc = {
             .usage =
                 wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst | extraUsageFlags,
             .dimension = wgpu::TextureDimension::e2D,
@@ -1061,12 +1251,12 @@ public:
                  wgpu::BufferUsage usage) :
         BufferRingShadowImpl(capacity, itemSizeInBytes), m_queue(queue)
     {
-        for (int i = 0; i < kBufferRingSize; ++i)
+        wgpu::BufferDescriptor desc = {
+            .usage = wgpu::BufferUsage::CopyDst | usage,
+            .size = capacity * itemSizeInBytes,
+        };
+        for (int i = 0; i < pls::kBufferRingSize; ++i)
         {
-            wgpu::BufferDescriptor desc{
-                .usage = wgpu::BufferUsage::CopyDst | usage,
-                .size = capacity * itemSizeInBytes,
-            };
             m_buffers[i] = device.CreateBuffer(&desc);
         }
     }
@@ -1159,7 +1349,7 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
-        wgpu::BindGroupEntry bindings[] = {
+        wgpu::BindGroupEntry bindingEntries[] = {
             {
                 .binding = FLUSH_UNIFORM_BUFFER_IDX,
                 .buffer = webgpu_buffer(flushUniformBufferRing()),
@@ -1168,11 +1358,11 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
 
         wgpu::BindGroupDescriptor bindGroupDesc = {
             .layout = m_colorRampPipeline->bindGroupLayout(),
-            .entryCount = std::size(bindings),
-            .entries = bindings,
+            .entryCount = std::size(bindingEntries),
+            .entries = bindingEntries,
         };
 
-        wgpu::BindGroup bindGroup = m_device.CreateBindGroup(&bindGroupDesc);
+        wgpu::BindGroup bindings = m_device.CreateBindGroup(&bindGroupDesc);
 
         wgpu::RenderPassColorAttachment attachment = {
             .view = m_gradientTextureView,
@@ -1195,7 +1385,7 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                              1.0);
         gradPass.SetPipeline(m_colorRampPipeline->renderPipeline());
         gradPass.SetVertexBuffer(0, webgpu_buffer(gradSpanBufferRing()));
-        gradPass.SetBindGroup(0, bindGroup);
+        gradPass.SetBindGroup(0, bindings);
         gradPass.Draw(4, desc.complexGradSpanCount, 0, 0);
         gradPass.End();
     }
@@ -1225,7 +1415,7 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        wgpu::BindGroupEntry bindings[] = {
+        wgpu::BindGroupEntry bindingEntries[] = {
             {
                 .binding = PATH_TEXTURE_IDX,
                 .textureView = webgpu_texture_view(pathBufferRing()),
@@ -1242,11 +1432,11 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
 
         wgpu::BindGroupDescriptor bindGroupDesc = {
             .layout = m_tessellatePipeline->bindGroupLayout(),
-            .entryCount = std::size(bindings),
-            .entries = bindings,
+            .entryCount = std::size(bindingEntries),
+            .entries = bindingEntries,
         };
 
-        wgpu::BindGroup bindGroup = m_device.CreateBindGroup(&bindGroupDesc);
+        wgpu::BindGroup bindings = m_device.CreateBindGroup(&bindGroupDesc);
 
         wgpu::RenderPassColorAttachment attachment{
             .view = m_tessVertexTextureView,
@@ -1270,49 +1460,10 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
         tessPass.SetPipeline(m_tessellatePipeline->renderPipeline());
         tessPass.SetVertexBuffer(0, webgpu_buffer(tessSpanBufferRing()));
         tessPass.SetIndexBuffer(m_tessSpanIndexBuffer, wgpu::IndexFormat::Uint16);
-        tessPass.SetBindGroup(0, bindGroup);
+        tessPass.SetBindGroup(0, bindings);
         tessPass.DrawIndexed(std::size(pls::kTessSpanIndices), desc.tessVertexSpanCount, 0);
         tessPass.End();
     }
-
-    wgpu::BindGroupEntry bindings[] = {
-        {
-            .binding = TESS_VERTEX_TEXTURE_IDX,
-            .textureView = m_tessVertexTextureView,
-        },
-        {
-            .binding = PATH_TEXTURE_IDX,
-            .textureView = webgpu_texture_view(pathBufferRing()),
-        },
-        {
-            .binding = CONTOUR_TEXTURE_IDX,
-            .textureView = webgpu_texture_view(contourBufferRing()),
-        },
-        {
-            .binding = GRAD_TEXTURE_IDX,
-            .textureView = m_gradientTextureView,
-        },
-        {
-            .binding = IMAGE_TEXTURE_IDX,
-            .textureView = m_nullImagePaintTextureView,
-        },
-        {
-            .binding = FLUSH_UNIFORM_BUFFER_IDX,
-            .buffer = webgpu_buffer(flushUniformBufferRing()),
-        },
-        {
-            .binding = IMAGE_MESH_UNIFORM_BUFFER_IDX,
-            .buffer = webgpu_buffer(imageMeshUniformBufferRing()),
-        },
-    };
-
-    wgpu::BindGroupDescriptor bindGroupDesc = {
-        .layout = m_drawBindGroupLayouts[0],
-        .entryCount = std::size(bindings),
-        .entries = bindings,
-    };
-
-    wgpu::BindGroup bindGroup = m_device.CreateBindGroup(&bindGroupDesc);
 
     wgpu::RenderPassColorAttachment plsAttachments[4]{
         {
@@ -1383,7 +1534,7 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
             memcpy(uniformData, clearColor.data(), sizeof(clearColor));
             m_loadStoreEXTUniforms->unmapAndSubmitBuffer(sizeof(clearColor));
 
-            wgpu::BindGroupEntry uniformBindings[] = {
+            wgpu::BindGroupEntry uniformBindingEntries[] = {
                 {
                     .binding = 0,
                     .buffer = webgpu_buffer(m_loadStoreEXTUniforms.get()),
@@ -1392,24 +1543,25 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
 
             wgpu::BindGroupDescriptor uniformBindGroupDesc = {
                 .layout = loadPipeline.bindGroupLayout(),
-                .entryCount = std::size(uniformBindings),
-                .entries = uniformBindings,
+                .entryCount = std::size(uniformBindingEntries),
+                .entries = uniformBindingEntries,
             };
 
-            wgpu::BindGroup uniformBindGroup = m_device.CreateBindGroup(&uniformBindGroupDesc);
-
-            pass.SetBindGroup(0, uniformBindGroup);
+            wgpu::BindGroup uniformBindings = m_device.CreateBindGroup(&uniformBindGroupDesc);
+            pass.SetBindGroup(0, uniformBindings);
         }
 
         pass.SetPipeline(loadPipeline.renderPipeline(renderTarget->framebufferFormat()));
         pass.Draw(4);
     }
 
-    pass.SetBindGroup(0, bindGroup);
-    pass.SetBindGroup(1, m_samplerBindGroup);
-    pass.SetIndexBuffer(m_pathPatchIndexBuffer, wgpu::IndexFormat::Uint16);
+    pass.SetBindGroup(1, m_samplerBindings);
 
     // Execute the DrawList.
+    wgpu::TextureView currentImageTextureView = m_nullImagePaintTextureView;
+    wgpu::BindGroup bindings;
+    uint32_t meshUniformDataOffset = 0;
+    bool needsNewBindings = true;
     for (const Draw& draw : *desc.drawList)
     {
         if (draw.elementCount == 0)
@@ -1418,9 +1570,63 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
         }
 
         DrawType drawType = draw.drawType;
-        if (drawType == DrawType::imageMesh)
+
+        // Bind the appropriate image texture, if any.
+        if (auto imageTexture = static_cast<const PLSTextureWebGPUImpl*>(draw.imageTextureRef))
         {
-            continue; // Unimplemented.
+            currentImageTextureView = imageTexture->textureView();
+            needsNewBindings = true;
+        }
+
+        if (needsNewBindings)
+        {
+            wgpu::BindGroupEntry bindingEntries[] = {
+                {
+                    .binding = TESS_VERTEX_TEXTURE_IDX,
+                    .textureView = m_tessVertexTextureView,
+                },
+                {
+                    .binding = PATH_TEXTURE_IDX,
+                    .textureView = webgpu_texture_view(pathBufferRing()),
+                },
+                {
+                    .binding = CONTOUR_TEXTURE_IDX,
+                    .textureView = webgpu_texture_view(contourBufferRing()),
+                },
+                {
+                    .binding = GRAD_TEXTURE_IDX,
+                    .textureView = m_gradientTextureView,
+                },
+                {
+                    .binding = IMAGE_TEXTURE_IDX,
+                    .textureView = currentImageTextureView,
+                },
+                {
+                    .binding = FLUSH_UNIFORM_BUFFER_IDX,
+                    .buffer = webgpu_buffer(flushUniformBufferRing()),
+                },
+                {
+                    .binding = IMAGE_MESH_UNIFORM_BUFFER_IDX,
+                    .buffer = webgpu_buffer(imageMeshUniformBufferRing()),
+                    .size = sizeof(pls::ImageMeshUniforms),
+                },
+            };
+
+            wgpu::BindGroupDescriptor bindGroupDesc = {
+                .layout = m_drawBindGroupLayouts[0],
+                .entryCount = std::size(bindingEntries),
+                .entries = bindingEntries,
+            };
+
+            bindings = m_device.CreateBindGroup(&bindGroupDesc);
+        }
+
+        if (needsNewBindings ||
+            // Image meshes always re-bind because they update the dynamic offset to their uniforms.
+            drawType == DrawType::imageMesh)
+        {
+            pass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
+            needsNewBindings = false;
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
@@ -1440,6 +1646,7 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
             {
                 // Draw PLS patches that connect the tessellation vertices.
                 pass.SetVertexBuffer(0, m_pathPatchVertexBuffer);
+                pass.SetIndexBuffer(m_pathPatchIndexBuffer, wgpu::IndexFormat::Uint16);
                 pass.DrawIndexed(pls::PatchIndexCount(drawType),
                                  draw.elementCount,
                                  pls::PatchBaseIndex(drawType),
@@ -1455,6 +1662,16 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
             }
             case DrawType::imageMesh:
             {
+                auto vertexBuffer =
+                    static_cast<const RenderBufferWebGPUImpl*>(draw.vertexBufferRef);
+                auto uvBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.uvBufferRef);
+                auto indexBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.indexBufferRef);
+                pass.SetVertexBuffer(0, vertexBuffer->submittedBuffer());
+                pass.SetVertexBuffer(1, uvBuffer->submittedBuffer());
+                pass.SetIndexBuffer(indexBuffer->submittedBuffer(), wgpu::IndexFormat::Uint16);
+                pass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
+                pass.DrawIndexed(draw.elementCount, 1, draw.baseElement);
+                meshUniformDataOffset += sizeof(pls::ImageMeshUniforms);
                 break;
             }
         }

@@ -140,16 +140,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 
     glGenFramebuffers(1, &m_tessellateFBO);
 
-    glGenBuffers(1, &m_flushUniformBuffer);
-    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_flushUniformBuffer);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(pls::FlushUniforms), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, FLUSH_UNIFORM_BUFFER_IDX, m_flushUniformBuffer);
-
-    glGenBuffers(1, &m_imageMeshUniformBuffer);
-    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_imageMeshUniformBuffer);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(pls::ImageMeshUniforms), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, IMAGE_MESH_UNIFORM_BUFFER_IDX, m_imageMeshUniformBuffer);
-
     glGenVertexArrays(1, &m_drawVAO);
     m_state->bindVAO(m_drawVAO);
 
@@ -209,9 +199,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 
 PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 {
-    m_state->deleteBuffer(m_flushUniformBuffer);
-    m_state->deleteBuffer(m_imageMeshUniformBuffer);
-
     m_state->deleteProgram(m_colorRampProgram);
     m_state->deleteVAO(m_colorRampVAO);
     glDeleteFramebuffers(1, &m_colorRampFBO);
@@ -321,7 +308,7 @@ std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t
                                                                           size_t sizeInBytes)
 {
     // In GL we update uniform data inline with commands, rather than filling a buffer up front.
-    return std::make_unique<HeapBufferRing>(capacity, sizeInBytes);
+    return std::make_unique<BufferGL>(GL_UNIFORM_BUFFER, capacity, sizeInBytes, m_state);
 }
 
 void PLSRenderContextGLImpl::resizeGradientTexture(size_t height)
@@ -507,19 +494,12 @@ static GLuint gl_buffer_id(const BufferRing* bufferRing)
     return static_cast<const BufferGL*>(bufferRing)->submittedBufferID();
 }
 
-static const void* heap_buffer_contents(const BufferRing* bufferRing)
-{
-    return static_cast<const HeapBufferRing*>(bufferRing)->contents();
-}
-
 void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
     // All programs use the same set of per-flush uniforms.
-    m_state->bindBuffer(GL_UNIFORM_BUFFER, m_flushUniformBuffer);
-    glBufferSubData(GL_UNIFORM_BUFFER,
-                    0,
-                    sizeof(pls::FlushUniforms),
-                    heap_buffer_contents(flushUniformBufferRing()));
+    glBindBufferBase(GL_UNIFORM_BUFFER,
+                     FLUSH_UNIFORM_BUFFER_IDX,
+                     gl_buffer_id(flushUniformBufferRing()));
 
     // Render the complex color ramps into the gradient texture.
     if (desc.complexGradSpanCount > 0)
@@ -615,10 +595,8 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
 
     m_plsImpl->activatePixelLocalStorage(this, desc);
 
-    auto imageMeshUniformData = static_cast<const pls::ImageMeshUniforms*>(
-        heap_buffer_contents(imageMeshUniformBufferRing()));
-
     // Execute the DrawList.
+    size_t meshUniformDataOffset = 0;
     for (const Draw& draw : *desc.drawList)
     {
         if (draw.elementCount == 0)
@@ -688,16 +666,17 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                 m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->submittedBufferID());
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
                 m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer->submittedBufferID());
-                m_state->bindBuffer(GL_UNIFORM_BUFFER, m_imageMeshUniformBuffer);
-                glBufferSubData(GL_UNIFORM_BUFFER,
-                                0,
-                                sizeof(pls::ImageMeshUniforms),
-                                imageMeshUniformData++);
+                glBindBufferRange(GL_UNIFORM_BUFFER,
+                                  IMAGE_MESH_UNIFORM_BUFFER_IDX,
+                                  gl_buffer_id(imageMeshUniformBufferRing()),
+                                  meshUniformDataOffset,
+                                  sizeof(pls::ImageMeshUniforms));
                 m_state->enableFaceCulling(false);
                 glDrawElements(GL_TRIANGLES,
                                draw.elementCount,
                                GL_UNSIGNED_SHORT,
                                reinterpret_cast<const void*>(draw.baseElement * sizeof(uint16_t)));
+                meshUniformDataOffset += sizeof(pls::ImageMeshUniforms);
                 break;
             }
         }

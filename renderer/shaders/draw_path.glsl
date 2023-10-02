@@ -611,12 +611,8 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
             float row = -v_paint.a;
             // Our gradient texture is not mipmapped. Issue a texture-sample that explicitly does
             // not find derivatives for LOD computation (by specifying derivatives directly).
-            color = make_half4(TEXTURE_SAMPLE_GRAD(textures,
-                                                   @gradTexture,
-                                                   gradSampler,
-                                                   float2(x, row),
-                                                   float2(0, 0),
-                                                   float2(0, 0)));
+            color = make_half4(
+                TEXTURE_SAMPLE_LOD(textures, @gradTexture, gradSampler, float2(x, row), .0));
         }
         else // The paint is an image.
         {

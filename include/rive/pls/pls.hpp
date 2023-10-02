@@ -406,10 +406,11 @@ struct ImageMeshUniforms
     ClipRectInverseMatrix clipRectInverseMatrix;
     uint32_t clipID;
     uint32_t blendMode;
+    uint8_t padTo256Bytes[192]; // Uniform blocks must be multiples of 256 bytes in size.
 };
 static_assert(offsetof(ImageMeshUniforms, matrix) % 16 == 0);
 static_assert(offsetof(ImageMeshUniforms, clipRectInverseMatrix) % 16 == 0);
-static_assert(sizeof(ImageMeshUniforms) == 16 * sizeof(float));
+static_assert(sizeof(ImageMeshUniforms) == 256);
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive to read mapped
 // memory, we use this class to enforce the write-only nature of this memory.

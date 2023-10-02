@@ -1,7 +1,6 @@
 #version 310 es
 #extension GL_GOOGLE_include_directive : require
 #define FRAGMENT
-#define PLS_IMPL_SUBPASS_LOAD
 #define TARGET_VULKAN
 #define OPTIONALLY_FLAT flat
 #define ENABLE_CLIPPING

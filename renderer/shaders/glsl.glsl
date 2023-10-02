@@ -136,6 +136,10 @@
     layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
     layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
+#define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD)                                   \
+    texture(sampler2D(NAME, SAMPLER_NAME), COORD)
+#define TEXTURE_SAMPLE_LOD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, LOD)                          \
+    textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
 #else
@@ -144,6 +148,8 @@
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
 #define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
+#define TEXTURE_SAMPLE_LOD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, LOD)                          \
+    textureLod(NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
     textureGrad(NAME, COORD, DDX, DDY)
 #endif
