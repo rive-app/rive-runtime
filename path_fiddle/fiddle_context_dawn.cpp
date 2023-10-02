@@ -230,7 +230,7 @@ public:
             // Read back pixels from the framebuffer!
             uint32_t w = m_renderTarget->width();
             uint32_t h = m_renderTarget->height();
-            uint32_t rowBytesInReadBuff = (w * 4 + 255) & ~0xff; // multiple of 256
+            uint32_t rowBytesInReadBuff = math::round_up_to_multiple_of<256>(w * 4);
 
             // Create a buffer to receive the pixels.
             if (!m_pixelReadBuff)

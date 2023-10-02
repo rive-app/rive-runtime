@@ -913,7 +913,8 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
     m_pathPatchVertexBuffer = m_device.CreateBuffer(&patchBufferDesc);
 
     patchBufferDesc.size = (kPatchIndexBufferCount * sizeof(uint16_t));
-    patchBufferDesc.size = (patchBufferDesc.size + 3) & ~3; // Round up to a multiple of 4.
+    // WebGPU buffer sizes must be multiples of 4.
+    patchBufferDesc.size = math::round_up_to_multiple_of<4>(patchBufferDesc.size);
     patchBufferDesc.usage = wgpu::BufferUsage::Index;
     m_pathPatchIndexBuffer = m_device.CreateBuffer(&patchBufferDesc);
 

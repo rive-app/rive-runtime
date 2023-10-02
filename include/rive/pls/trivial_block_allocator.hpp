@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "rive/math/math_types.hpp"
 #include <cassert>
 #include <memory>
 #include <vector>
@@ -32,7 +33,7 @@ public:
     void* alloc(size_t allocSize)
     {
         // Align all allocations on 8-byte boundaries.
-        allocSize = (allocSize + 7) & ~size_t(7);
+        allocSize = math::round_up_to_multiple_of<8>(allocSize);
 
         // Ensure there is room for this allocation in our newest block, pushing a new one if
         // needed.
