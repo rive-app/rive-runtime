@@ -6,7 +6,7 @@
 
 #include "rive/pls/pls_render_context.hpp"
 #include "rive/enum_bitset.hpp"
-#include <string>
+#include <iostream>
 
 namespace rive::pls
 {
@@ -28,6 +28,6 @@ RIVE_MAKE_ENUM_BITSET(LoadStoreActionsEXT)
 LoadStoreActionsEXT BuildLoadActionsEXT(const PLSRenderContext::FlushDescriptor&,
                                         std::array<float, 4>* clearColor4f);
 
-// Returns pls_load_store_ext.glsl with the appropriate #defines prepended.
-std::string BuildLoadStoreEXTGLSL(LoadStoreActionsEXT);
+// Appends pls_load_store_ext.glsl to the stream, with the appropriate #defines prepended.
+std::ostream& BuildLoadStoreEXTGLSL(std::ostream&, LoadStoreActionsEXT);
 } // namespace rive::pls

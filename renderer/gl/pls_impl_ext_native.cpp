@@ -9,6 +9,7 @@
 #include "rive/math/simd.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include <vector>
+#include <sstream>
 
 #include "../out/obj/generated/pls_load_store_ext.exports.h"
 
@@ -30,17 +31,16 @@ public:
     {
         m_id = glCreateProgram();
         glAttachShader(m_id, vertexShader);
-        const char* defines[] = {GLSL_PLS_IMPL_EXT_NATIVE};
-        std::string source = BuildLoadStoreEXTGLSL(actions).c_str();
-        const char* sources[] = {source.c_str()};
-        glutils::CompileAndAttachShader(m_id,
-                                        GL_FRAGMENT_SHADER,
-                                        defines,
-                                        std::size(defines),
-                                        sources,
-                                        std::size(sources));
-        glutils::LinkProgram(m_id);
 
+        std::ostringstream glsl;
+        glsl << "#version 300 es\n";
+        glsl << "#define " GLSL_FRAGMENT "\n";
+        BuildLoadStoreEXTGLSL(glsl, actions);
+        GLuint fragmentShader = glutils::CompileRawGLSL(GL_FRAGMENT_SHADER, glsl.str().c_str());
+        glAttachShader(m_id, fragmentShader);
+        glDeleteShader(fragmentShader);
+
+        glutils::LinkProgram(m_id);
         if (actions & LoadStoreActionsEXT::clearColor)
         {
             m_colorClearUniLocation = glGetUniformLocation(m_id, GLSL_clearColor);
@@ -73,9 +73,11 @@ public:
     {
         // The load/store actions are all done in the fragment shader, so there is one single vertex
         // shader, and we use LoadStoreActionsEXT::none when compiling it.
-        m_plsLoadStoreVertexShader =
-            glutils::CompileShader(GL_VERTEX_SHADER,
-                                   BuildLoadStoreEXTGLSL(LoadStoreActionsEXT::none).c_str());
+        std::ostringstream glsl;
+        glsl << "#version 300 es\n";
+        glsl << "#define " GLSL_VERTEX "\n";
+        BuildLoadStoreEXTGLSL(glsl, LoadStoreActionsEXT::none);
+        m_plsLoadStoreVertexShader = glutils::CompileRawGLSL(GL_VERTEX_SHADER, glsl.str().c_str());
         glGenVertexArrays(1, &m_plsLoadStoreVAO);
         m_state = std::move(state);
     }

@@ -35,12 +35,7 @@ void CompileAndAttachShader(GLuint program,
                                    size_t numSources,
                                    const char* versionString = nullptr);
 
-std::string BuildShader(GLuint type,
-                        const char* defines[],
-                        size_t numDefines,
-                        const char* sources[],
-                        size_t numSources,
-                        const char* versionString = nullptr);
+[[nodiscard]] GLuint CompileRawGLSL(GLuint shaderType, const char* rawGLSL);
 
 void LinkProgram(GLuint program);
 } // namespace glutils

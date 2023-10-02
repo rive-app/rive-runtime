@@ -32,9 +32,8 @@ LoadStoreActionsEXT BuildLoadActionsEXT(const PLSRenderContext::FlushDescriptor&
     return actions;
 }
 
-std::string BuildLoadStoreEXTGLSL(LoadStoreActionsEXT actions)
+std::ostream& BuildLoadStoreEXTGLSL(std::ostream& shader, LoadStoreActionsEXT actions)
 {
-    std::ostringstream shader;
     auto addDefine = [&shader](const char* name) { shader << "#define " << name << "\n"; };
     if (actions & LoadStoreActionsEXT::clearColor)
     {
@@ -57,6 +56,6 @@ std::string BuildLoadStoreEXTGLSL(LoadStoreActionsEXT actions)
         addDefine(GLSL_CLEAR_CLIP);
     }
     shader << pls::glsl::pls_load_store_ext;
-    return shader.str();
+    return shader;
 }
 } // namespace rive::pls

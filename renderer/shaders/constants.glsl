@@ -11,33 +11,33 @@
 // This is used to squeeze in more rare triangles, like "grout" triangles from self intersections on
 // interior triangulation, where it wouldn't be worth it to put them in their own dedicated draw
 // call.
-#define RETROFITTED_TRIANGLE_CONTOUR_FLAG (1u << 31)
+#define RETROFITTED_TRIANGLE_CONTOUR_FLAG (1u << 31u)
 
 // Tells the tessellation shader to re-run Wang's formula on the given curve, figure out how many
 // segments it actually needs, and make any excess segments degenerate by co-locating their vertices
 // at T=0. (Used on the "outerCurve" patches that are drawn with interior triangulations.)
-#define CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG (1u << 30)
+#define CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG (1u << 30u)
 
 // Flags for specifying the join type.
-#define JOIN_TYPE_MASK (3u << 28)
-#define MITER_CLIP_JOIN_CONTOUR_FLAG (3u << 28)
-#define MITER_REVERT_JOIN_CONTOUR_FLAG (2u << 28)
-#define BEVEL_JOIN_CONTOUR_FLAG (1u << 28)
+#define JOIN_TYPE_MASK (3u << 28u)
+#define MITER_CLIP_JOIN_CONTOUR_FLAG (3u << 28u)
+#define MITER_REVERT_JOIN_CONTOUR_FLAG (2u << 28u)
+#define BEVEL_JOIN_CONTOUR_FLAG (1u << 28u)
 
 // When a join is being used to emulate a stroke cap, the shader emits additional vertices at T=0
 // and T=1 for round joins, and changes the miter limit to 1 for miter-clip joins.
-#define EMULATED_STROKE_CAP_CONTOUR_FLAG (1u << 27)
+#define EMULATED_STROKE_CAP_CONTOUR_FLAG (1u << 27u)
 
 // Internal contour flags.
-#define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 26)
-#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 25)
-#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 24)
-#define LEFT_JOIN_CONTOUR_FLAG (1u << 23)
-#define RIGHT_JOIN_CONTOUR_FLAG (1u << 22)
+#define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 26u)
+#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 25u)
+#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 24u)
+#define LEFT_JOIN_CONTOUR_FLAG (1u << 23u)
+#define RIGHT_JOIN_CONTOUR_FLAG (1u << 22u)
 #define CONTOUR_ID_MASK 0xffffu
 
 // Tells the GPU that a given path has an even-odd fill rule.
-#define EVEN_ODD_PATH_FLAG (1u << 31)
+#define EVEN_ODD_PATH_FLAG (1u << 31u)
 
 // Says which part of the patch a vertex belongs to.
 #define STROKE_VERTEX 0

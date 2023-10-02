@@ -28,12 +28,8 @@ void CompileAndAttachShader(GLuint program,
                             size_t numInputSources,
                             const char* versionString)
 {
-    GLuint shader = CompileShader(type,
-                                  defines,
-                                  numDefines,
-                                  inputSources,
-                                  numInputSources,
-                                  versionString);
+    GLuint shader =
+        CompileShader(type, defines, numDefines, inputSources, numInputSources, versionString);
     glAttachShader(program, shader);
     glDeleteShader(shader);
 }
@@ -76,10 +72,13 @@ GLuint CompileShader(GLuint type,
     {
         shaderSource << inputSources[i] << "\n";
     }
-    const std::string& shaderSourceStr = shaderSource.str();
-    const char* shaderSourceCStr = shaderSourceStr.c_str();
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &shaderSourceCStr, nullptr);
+    return CompileRawGLSL(type, shaderSource.str().c_str());
+}
+
+[[nodiscard]] GLuint CompileRawGLSL(GLuint shaderType, const char* rawGLSL)
+{
+    GLuint shader = glCreateShader(shaderType);
+    glShaderSource(shader, 1, &rawGLSL, nullptr);
     glCompileShader(shader);
     GLint isCompiled = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
@@ -91,7 +90,7 @@ GLuint CompileShader(GLuint type,
         glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
         fprintf(stderr, "Failed to compile shader\n");
         int l = 1;
-        std::stringstream stream(shaderSourceCStr);
+        std::stringstream stream(rawGLSL);
         std::string lineStr;
         while (std::getline(stream, lineStr, '\n'))
         {
