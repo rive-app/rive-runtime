@@ -61,8 +61,8 @@ TEST_CASE("bit_cast", "[math]")
     CHECK(std::isnan(math::bit_cast<float>(0x7fc00000)));
 }
 
-// Check math::nextlog2.
-TEST_CASE("nextlog2", "[math]")
+// Check math::msb.
+TEST_CASE("msb", "[math]")
 {
     CHECK(math::msb(0) == 0);
     CHECK(math::msb(1) == 1);
@@ -79,4 +79,21 @@ TEST_CASE("nextlog2", "[math]")
         CHECK(math::msb(10 << i) == 4 + i);
     }
     CHECK(math::msb(0xffffffff) == 32);
+}
+
+// Check math::round_up_to_multiple_of.
+TEST_CASE("round_up_to_multiple_of", "[math]")
+{
+    CHECK(math::round_up_to_multiple_of<4>(0) == 0);
+    CHECK(math::round_up_to_multiple_of<4>(3) == 4);
+    CHECK(math::round_up_to_multiple_of<8>(16) == 16);
+    CHECK(math::round_up_to_multiple_of<8>(24) == 24);
+    CHECK(math::round_up_to_multiple_of<8>(25) == 32);
+    CHECK(math::round_up_to_multiple_of<8>(31) == 32);
+    CHECK(math::round_up_to_multiple_of<8>(32) == 32);
+    for (size_t i = 0; i < 10; ++i)
+    {
+        CHECK(math::round_up_to_multiple_of<1>(i) == i);
+    }
+    CHECK(math::round_up_to_multiple_of<2>(~size_t(0)) == 0);
 }

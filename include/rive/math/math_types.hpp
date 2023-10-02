@@ -81,6 +81,15 @@ RIVE_ALWAYS_INLINE static uint32_t msb(uint32_t x)
     return (doubleBits >> 52) - 1022;
 #endif
 }
+
+// Returns x rounded up to the next multiple of N.
+// If x is already a multiple of N, returns x.
+template <size_t N> RIVE_ALWAYS_INLINE constexpr size_t round_up_to_multiple_of(size_t x)
+{
+    static_assert(N != 0 && (N & (N - 1)) == 0,
+                  "math::round_up_to_multiple_of<> only supports powers of 2.");
+    return (x + (N - 1)) & ~(N - 1);
+}
 } // namespace math
 
 template <typename T> T lerp(const T& a, const T& b, float t) { return a + (b - a) * t; }
