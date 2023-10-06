@@ -2,6 +2,7 @@
 #include <rive/bones/tendon.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
+#include <rive/span.hpp>
 #include <rive/shapes/clipping_shape.hpp>
 #include <rive/shapes/path_vertex.hpp>
 #include <rive/shapes/points_path.hpp>
@@ -15,6 +16,32 @@
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
+
+
+class PretendAssetLoader : public rive ::FileAssetLoader
+{
+
+public:
+    rive::FileAsset* attemptedAsset;
+
+    bool loadContents(rive::FileAsset& asset, rive::Span<const uint8_t> inBandBytes) override
+    {
+        attemptedAsset = &asset;
+        return true;
+    }
+};
+
+class RejectAssetLoader : public rive ::FileAssetLoader
+{
+
+public:
+    rive::FileAsset* attemptedAsset;
+
+    bool loadContents(rive::FileAsset& asset, rive::Span<const uint8_t> inBandBytes) override
+    {
+        return false;
+    }
+};
 
 TEST_CASE("Load asset with in-band image", "[asset]")
 {
@@ -38,19 +65,10 @@ TEST_CASE("Load asset with in-band image", "[asset]")
     REQUIRE(firstAsset->as<rive::ImageAsset>()->decodedByteSize == 308);
 }
 
-class TestAssetLoader : public rive ::FileAssetLoader
+
+TEST_CASE("Load asset with in-band image, passing responsibility to loader", "[asset]")
 {
-
-public:
-    rive::FileAsset* attemptedAsset;
-
-    bool willLoadContents(rive::FileAsset& asset) override { return true; }
-    void loadContents(rive::FileAsset& asset) override { attemptedAsset = &asset; }
-};
-
-TEST_CASE("Load asset with in-band image, disabling loading in band assets", "[asset]")
-{
-    auto loader = TestAssetLoader();
+    auto loader = PretendAssetLoader();
 
     // our Loader has not attempted to load any asset.
     REQUIRE(loader.attemptedAsset == nullptr);
@@ -83,4 +101,15 @@ TEST_CASE("Load asset with in-band image, disabling loading in band assets", "[a
 
     REQUIRE(loader.attemptedAsset->uniqueFilename() == "1x1-45022.png");
     REQUIRE(loader.attemptedAsset->fileExtension() == "png");
+}
+
+TEST_CASE("Load asset with in-band image, rejecting the loading responsiblity as loader", "[asset]")
+{
+    auto loader = RejectAssetLoader();
+    auto file = ReadRiveFile("../../test/assets/in_band_asset.riv", nullptr, &loader);
+    auto assets = file->assets();
+    auto firstAsset = assets[0];
+    REQUIRE(firstAsset->is<rive::ImageAsset>());
+    // our loader does not handle loading the asset, so we load the in band contents.
+    REQUIRE(firstAsset->as<rive::ImageAsset>()->decodedByteSize == 308);
 }

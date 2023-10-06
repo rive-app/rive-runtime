@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <vector>
+#include "rive/span.hpp"
 
 namespace rive
 {
@@ -12,21 +13,14 @@ class FileAssetLoader
 public:
     virtual ~FileAssetLoader() {}
 
-    /// The return value sets the intention for handling loading the contents
-    /// of the given asset. When no asset loader commits to handling the contents 
-    /// we will load assets in band if provided. 
-    /// 
-    /// @param asset describes the asset that Rive is looking for the
-    /// contents of.
-    virtual bool willLoadContents(FileAsset& asset) {
-        return true;
-    }
-
     /// Load the contents of the given asset
     ///
     /// @param asset describes the asset that Rive is looking for the
-    /// contents of.
-    virtual void loadContents(FileAsset& asset) = 0;
+    /// contents of. 
+    /// @param inBandBytes is a pointer to the bytes in question
+    /// @returns bool indicating if we are loading or have loaded the contents
+
+    virtual bool loadContents(FileAsset& asset, Span<const uint8_t> inBandBytes) = 0;
 };
 } // namespace rive
 #endif

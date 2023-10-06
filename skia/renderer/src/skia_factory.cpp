@@ -284,12 +284,12 @@ std::unique_ptr<RenderPaint> SkiaFactory::makeRenderPaint()
 
 std::unique_ptr<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encoded)
 {
-    sk_sp<SkData> data = SkData::MakeWithoutCopy(encoded.data(), encoded.size());
+    sk_sp<SkData> data = SkData::MakeWithCopy(encoded.data(), encoded.size());
     auto image = SkImage::MakeFromEncoded(data);
 
     if (image)
     {
-        // Our optimized skia buld seems to have broken lazy-image decode.
+        // Our optimized skia build seems to have broken lazy-image decode.
         // As a work-around for now, force the image to be decoded.
         image = image->makeRasterImage();
     }

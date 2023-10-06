@@ -5,6 +5,7 @@
 #include "rive/assets/file_asset.hpp"
 #include <cstdio>
 #include <string>
+#include "rive/span.hpp"
 
 namespace rive
 {
@@ -30,7 +31,7 @@ public:
         }
     }
 
-    void loadContents(FileAsset& asset) override
+    bool loadContents(FileAsset& asset, Span<const uint8_t> inBandBytes) override
     {
         std::string filename = m_Path + asset.uniqueFilename();
         FILE* fp = fopen(filename.c_str(), "rb");
@@ -44,6 +45,7 @@ public:
             asset.decode(Span<const uint8_t>(bytes, length), m_Factory);
         }
         delete[] bytes;
+        return true;
     }
 };
 } // namespace rive

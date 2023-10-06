@@ -2,7 +2,7 @@
 
 set -e
 
-# Requires depot_tools and git: 
+# Requires depot_tools and git:
 #   https://skia.org/user/download
 # Build notes:
 #   https://skia.org/user/build
@@ -37,8 +37,9 @@ bin/gn gen out/wasm --type=static_library --args=" \
     skia_use_icu=false \
     skia_use_libheif=false \
     skia_use_system_libpng=false \
+    skia_use_system_libjpeg_turbo=false \
     skia_use_libjpeg_turbo_encode=false \
-    skia_use_libjpeg_turbo_decode=false \
+    skia_use_libjpeg_turbo_decode=true \
     skia_use_libwebp_encode=false \
     skia_use_libwebp_decode=false \
     skia_use_lua=false \
@@ -59,6 +60,7 @@ bin/gn gen out/wasm --type=static_library --args=" \
     skia_enable_tools = false \
     skia_enable_skgpu_v1 = true \
     "
+
 ninja -C out/wasm libskia.a
 du -hs out/wasm/libskia.a
 

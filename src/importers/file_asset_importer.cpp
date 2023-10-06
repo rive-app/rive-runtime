@@ -24,18 +24,23 @@ void FileAssetImporter::onFileAssetContents(std::unique_ptr<FileAssetContents> c
 
 StatusCode FileAssetImporter::resolve()
 {
-    // If we have a file asset loader that commits to loading the file asset, let it handle it
-    if (m_FileAssetLoader != nullptr && m_FileAssetLoader->willLoadContents(*m_FileAsset))
+    
+    Span<const uint8_t> bytes;
+    if (m_Content != nullptr)
     {
-        m_FileAssetLoader->loadContents(*m_FileAsset);
-    }
-    // If we do not, but we have found in band contents, load those
-    else if (m_Content != nullptr)
-    {
-        auto data = m_Content->bytes();
-        m_FileAsset->decode(data, m_Factory);
+        bytes = m_Content->bytes();
     }
 
+    // If we have a file asset loader, lets give it the opportunity to claim responsibility for loading the asset
+    if (m_FileAssetLoader != nullptr && m_FileAssetLoader->loadContents(*m_FileAsset, bytes))
+    {
+        return StatusCode::Ok;
+    }
+    // If we do not, but we have found in band contents, load those
+    else if (bytes.size() > 0){
+        m_FileAsset->decode(bytes, m_Factory);
+    }
+    
     // Note that it's ok for an asset to not resolve (or to resolve async).
     return StatusCode::Ok;
 }
