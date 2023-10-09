@@ -10,6 +10,7 @@ class TextValueRun : public TextValueRunBase
 public:
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
+    StatusCode import(ImportStack& importStack) override;
     TextStyle* style() { return m_style; }
     uint32_t offset() const;
 

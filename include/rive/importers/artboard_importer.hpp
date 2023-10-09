@@ -9,6 +9,8 @@ class Core;
 class Artboard;
 class LinearAnimation;
 class StateMachine;
+class TextValueRun;
+class Event;
 class ArtboardImporter : public ImportStackObject
 {
 private:
@@ -19,6 +21,8 @@ public:
     void addComponent(Core* object);
     void addAnimation(LinearAnimation* animation);
     void addStateMachine(StateMachine* stateMachine);
+    void addTextValueRun(TextValueRun* textValueRun);
+    void addEvent(Event* event);
     StatusCode resolve() override;
     const Artboard* artboard() const { return m_Artboard; }
 

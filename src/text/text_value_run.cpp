@@ -3,6 +3,7 @@
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/artboard.hpp"
+#include "rive/importers/artboard_importer.hpp"
 
 using namespace rive;
 
@@ -41,6 +42,17 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
     m_style = static_cast<TextStyle*>(coreObject);
 
     return StatusCode::Ok;
+}
+
+StatusCode TextValueRun::import(ImportStack& importStack)
+{
+    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    if (artboardImporter == nullptr)
+    {
+        return StatusCode::MissingObject;
+    }
+    artboardImporter->addTextValueRun(this);
+    return Super::import(importStack);
 }
 
 void TextValueRun::styleIdChanged()

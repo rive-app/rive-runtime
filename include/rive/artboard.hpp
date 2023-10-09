@@ -9,6 +9,8 @@
 #include "rive/math/aabb.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
+#include "rive/text/text_value_run.hpp"
+#include "rive/event.hpp"
 
 #include <queue>
 #include <vector>
@@ -27,6 +29,8 @@ class LinearAnimationInstance;
 class Scene;
 class StateMachineInstance;
 class Joystick;
+class TextValueRun;
+class Event;
 
 class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer
 {
@@ -38,6 +42,8 @@ private:
     std::vector<Core*> m_Objects;
     std::vector<LinearAnimation*> m_Animations;
     std::vector<StateMachine*> m_StateMachines;
+    std::vector<TextValueRun*> m_TextValueRuns;
+    std::vector<Event*> m_Events;
     std::vector<Component*> m_DependencyOrder;
     std::vector<Drawable*> m_Drawables;
     std::vector<DrawTarget*> m_DrawTargets;
@@ -65,6 +71,8 @@ public:
     void addObject(Core* object);
     void addAnimation(LinearAnimation* object);
     void addStateMachine(StateMachine* object);
+    void addTextValueRun(TextValueRun* object);
+    void addEvent(Event* object);
 
 public:
     Artboard() {}
@@ -146,6 +154,12 @@ public:
     size_t stateMachineCount() const { return m_StateMachines.size(); }
     std::string stateMachineNameAt(size_t index) const;
 
+    size_t textValueRunCount() const { return m_TextValueRuns.size(); }
+    TextValueRun* textValueRunAt(size_t index) const;
+
+    size_t eventCount() const { return m_Events.size(); }
+    Event* eventAt(size_t index) const;
+
     LinearAnimation* firstAnimation() const { return animation(0); }
     LinearAnimation* animation(const std::string& name) const;
     LinearAnimation* animation(size_t index) const;
@@ -190,6 +204,14 @@ public:
         for (auto stateMachine : m_StateMachines)
         {
             artboardClone->m_StateMachines.push_back(stateMachine);
+        }
+        for (auto textRun : m_TextValueRuns)
+        {
+            artboardClone->m_TextValueRuns.push_back(textRun);
+        }
+        for (auto event : m_Events)
+        {
+            artboardClone->m_Events.push_back(event);
         }
 
         if (artboardClone->initialize() != StatusCode::Ok)

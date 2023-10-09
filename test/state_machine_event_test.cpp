@@ -120,6 +120,24 @@ TEST_CASE("hit a toggle boolean listener", "[file]")
     REQUIRE(switchButton->value() == true);
 }
 
+TEST_CASE("can query for all rive events", "[events]")
+{
+    auto file = ReadRiveFile("../../test/assets/event_on_listener.riv");
+    auto artboard = file->artboard();
+
+    auto eventCount = artboard->eventCount();
+    REQUIRE(eventCount == 4);
+}
+
+TEST_CASE("can query for a rive event at a given index", "[events]")
+{
+    auto file = ReadRiveFile("../../test/assets/event_on_listener.riv");
+    auto artboard = file->artboard();
+
+    auto event = artboard->eventAt(0);
+    REQUIRE(event->name() == "Somewhere.com");
+}
+
 TEST_CASE("events load correctly on a listener", "[events]")
 {
     auto file = ReadRiveFile("../../test/assets/event_on_listener.riv");

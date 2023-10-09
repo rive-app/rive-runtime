@@ -2,6 +2,8 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine.hpp"
+#include "rive/text/text_value_run.hpp"
+#include "rive/event.hpp"
 #include "rive/artboard.hpp"
 
 using namespace rive;
@@ -19,6 +21,13 @@ void ArtboardImporter::addStateMachine(StateMachine* stateMachine)
 {
     m_Artboard->addStateMachine(stateMachine);
 }
+
+void ArtboardImporter::addTextValueRun(TextValueRun* textValueRun)
+{
+    m_Artboard->addTextValueRun(textValueRun);
+}
+
+void ArtboardImporter::addEvent(Event* event) { m_Artboard->addEvent(event); }
 
 StatusCode ArtboardImporter::resolve() { return m_Artboard->initialize(); }
 
