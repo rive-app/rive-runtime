@@ -668,9 +668,7 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
         else
 #endif
         {
-#ifndef @TARGET_VULKAN
-            // FIXME: Framebuffer reads are not implemented yet in WebGPU, so we can't blend.
-            // Remove this #ifndef once its fully implemented.
+#ifndef @PLS_IMPL_NONE // Only attempt to blend if we can read the framebuffer.
             color.rgb *= color.a;
             color = color + dstColor * (1. - color.a);
 #endif

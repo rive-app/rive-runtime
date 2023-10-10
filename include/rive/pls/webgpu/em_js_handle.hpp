@@ -23,7 +23,7 @@ class EmJsHandle
 {
 public:
     EmJsHandle() : m_handle(0) {}
-    EmJsHandle(int handle) : m_handle(handle) {}
+    explicit EmJsHandle(int handle) : m_handle(handle) {}
     ~EmJsHandle();
 
     EmJsHandle(const EmJsHandle&) = delete;

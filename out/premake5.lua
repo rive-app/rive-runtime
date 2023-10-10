@@ -150,6 +150,7 @@ end
 -- Embed some .rivs into .c files so we don't have to implement file loading.
 project "webgpu_player_rivs"
 do
+    dependson 'rive_pls_shaders' -- to create the out/obj/generated directory
     kind 'Makefile'
 
     buildcommands {

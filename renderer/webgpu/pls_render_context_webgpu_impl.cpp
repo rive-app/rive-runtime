@@ -4,6 +4,7 @@
 
 #include "rive/pls/webgpu/pls_render_context_webgpu_impl.hpp"
 
+#include "pls_render_context_webgpu_vulkan.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
@@ -486,28 +487,55 @@ public:
                  DrawType drawType,
                  ShaderFeatures shaderFeatures)
     {
+        PixelLocalStorageType plsType = context->m_pixelLocalStorageType;
         wgpu::ShaderModule vertexShader, fragmentShader;
-        if (context->m_pixelLocalStorageType ==
-            PixelLocalStorageType::EXT_shader_pixel_local_storage)
+        if (plsType == PixelLocalStorageType::subpassLoad ||
+            plsType == PixelLocalStorageType::EXT_shader_pixel_local_storage)
         {
+            const char* language;
+            const char* versionString;
+            if (plsType == PixelLocalStorageType::EXT_shader_pixel_local_storage)
+            {
+                language = "glsl-raw";
+                versionString = "#version 310 es";
+            }
+            else
+            {
+                language = "glsl";
+                versionString = "#version 460";
+            }
+
             std::ostringstream glsl;
             auto addDefine = [&glsl](const char* name) { glsl << "#define " << name << "\n"; };
-            // If we are being compiled by SPIRV transpiler for introspection,
-            // GL_EXT_shader_pixel_local_storage will not be defined.
-            glsl << "#ifdef GL_EXT_shader_pixel_local_storage\n";
-            addDefine(GLSL_PLS_IMPL_EXT_NATIVE);
-            glsl << "#else\n";
-            glsl << "#extension GL_EXT_samplerless_texture_functions : enable\n";
-            addDefine(GLSL_TARGET_VULKAN);
-            glsl << "#endif\n";
+            if (plsType == PixelLocalStorageType::EXT_shader_pixel_local_storage)
+            {
+                glsl << "#ifdef GL_EXT_shader_pixel_local_storage\n";
+                addDefine(GLSL_PLS_IMPL_EXT_NATIVE);
+                glsl << "#else\n";
+                glsl << "#extension GL_EXT_samplerless_texture_functions : enable\n";
+                addDefine(GLSL_TARGET_VULKAN);
+                // If we are being compiled by SPIRV transpiler for introspection,
+                // GL_EXT_shader_pixel_local_storage will not be defined.
+                addDefine(GLSL_PLS_IMPL_NONE);
+                glsl << "#endif\n";
+            }
+            else
+            {
+                glsl << "#extension GL_EXT_samplerless_texture_functions : enable\n";
+                addDefine(GLSL_TARGET_VULKAN);
+                addDefine(GLSL_PLS_IMPL_SUBPASS_LOAD);
+            }
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
                 case DrawType::outerCurvePatches:
                     addDefine(GLSL_ENABLE_INSTANCE_INDEX);
-                    // The WebGPU layer automatically searches for a uniform named
-                    // "SPIRV_Cross_BaseInstance" and manages it for us.
-                    addDefine(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
+                    if (plsType == PixelLocalStorageType::EXT_shader_pixel_local_storage)
+                    {
+                        // The WebGPU layer automatically searches for a uniform named
+                        // "SPIRV_Cross_BaseInstance" and manages it for us.
+                        addDefine(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
+                    }
                     break;
                 case DrawType::interiorTriangulation:
                     addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
@@ -551,23 +579,22 @@ public:
             }
 
             std::ostringstream vertexGLSL;
-            vertexGLSL << "#version 310 es\n";
+            vertexGLSL << versionString << "\n";
             vertexGLSL << "#pragma shader_stage(vertex)\n";
             vertexGLSL << "#define " GLSL_VERTEX "\n";
             vertexGLSL << glsl.str();
+            vertexShader = m_vertexShaderHandle.compileShaderModule(context->m_device,
+                                                                    vertexGLSL.str().c_str(),
+                                                                    language);
 
             std::ostringstream fragmentGLSL;
-            fragmentGLSL << "#version 310 es\n";
+            fragmentGLSL << versionString << "\n";
             fragmentGLSL << "#pragma shader_stage(fragment)\n";
             fragmentGLSL << "#define " GLSL_FRAGMENT "\n";
             fragmentGLSL << glsl.str();
-
-            vertexShader = m_vertexShaderHandle.compileShaderModule(context->m_device,
-                                                                    vertexGLSL.str().c_str(),
-                                                                    "glsl-raw");
             fragmentShader = m_fragmentShaderHandle.compileShaderModule(context->m_device,
                                                                         fragmentGLSL.str().c_str(),
-                                                                        "glsl-raw");
+                                                                        language);
         }
         else
         {
@@ -607,129 +634,16 @@ public:
             }
         }
 
-        std::vector<wgpu::VertexAttribute> attrs;
-        std::vector<wgpu::VertexBufferLayout> vertexBufferLayouts;
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-            case DrawType::outerCurvePatches:
-            {
-                attrs = {
-                    {
-                        .format = wgpu::VertexFormat::Float32x4,
-                        .offset = 0,
-                        .shaderLocation = 0,
-                    },
-                    {
-                        .format = wgpu::VertexFormat::Float32x4,
-                        .offset = 4 * sizeof(float),
-                        .shaderLocation = 1,
-                    },
-                };
-
-                vertexBufferLayouts = {
-                    {
-                        .arrayStride = sizeof(pls::PatchVertex),
-                        .stepMode = wgpu::VertexStepMode::Vertex,
-                        .attributeCount = std::size(attrs),
-                        .attributes = attrs.data(),
-                    },
-                };
-                break;
-            }
-            case DrawType::interiorTriangulation:
-            {
-                attrs = {
-                    {
-                        .format = wgpu::VertexFormat::Float32x3,
-                        .offset = 0,
-                        .shaderLocation = 0,
-                    },
-                };
-
-                vertexBufferLayouts = {
-                    {
-                        .arrayStride = sizeof(pls::TriangleVertex),
-                        .stepMode = wgpu::VertexStepMode::Vertex,
-                        .attributeCount = std::size(attrs),
-                        .attributes = attrs.data(),
-                    },
-                };
-                break;
-            }
-            case DrawType::imageMesh:
-                attrs = {
-                    {
-                        .format = wgpu::VertexFormat::Float32x2,
-                        .offset = 0,
-                        .shaderLocation = 0,
-                    },
-                    {
-                        .format = wgpu::VertexFormat::Float32x2,
-                        .offset = 0,
-                        .shaderLocation = 1,
-                    },
-                };
-
-                vertexBufferLayouts = {
-                    {
-                        .arrayStride = sizeof(float) * 2,
-                        .stepMode = wgpu::VertexStepMode::Vertex,
-                        .attributeCount = 1,
-                        .attributes = &attrs[0],
-                    },
-                    {
-                        .arrayStride = sizeof(float) * 2,
-                        .stepMode = wgpu::VertexStepMode::Vertex,
-                        .attributeCount = 1,
-                        .attributes = &attrs[1],
-                    },
-                };
-                break;
-        }
-
         for (auto framebufferFormat :
              {wgpu::TextureFormat::BGRA8Unorm, wgpu::TextureFormat::RGBA8Unorm})
         {
-            wgpu::ColorTargetState colorTargets[] = {
-                {.format = framebufferFormat},
-                {.format = wgpu::TextureFormat::R32Uint},
-                {.format = framebufferFormat},
-                {.format = wgpu::TextureFormat::R32Uint},
-            };
-
-            wgpu::FragmentState fragmentState = {
-                .module = fragmentShader,
-                .entryPoint = "main",
-                .targetCount = static_cast<size_t>(
-                    context->m_pixelLocalStorageType ==
-                            PixelLocalStorageType::EXT_shader_pixel_local_storage
-                        ? 1
-                        : 4),
-                .targets = colorTargets,
-            };
-
-            wgpu::RenderPipelineDescriptor desc = {
-                .layout = context->m_drawPipelineLayout,
-                .vertex =
-                    {
-                        .module = vertexShader,
-                        .entryPoint = "main",
-                        .bufferCount = std::size(vertexBufferLayouts),
-                        .buffers = vertexBufferLayouts.data(),
-                    },
-                .primitive =
-                    {
-                        .topology = wgpu::PrimitiveTopology::TriangleList,
-                        .frontFace = context->m_frontFaceForOnScreenDraws,
-                        .cullMode = drawType != DrawType::imageMesh ? wgpu::CullMode::Back
-                                                                    : wgpu::CullMode::None,
-                    },
-                .fragment = &fragmentState,
-            };
-
-            m_renderPipelines[RenderPipelineIdx(framebufferFormat)] =
-                context->m_device.CreateRenderPipeline(&desc);
+            int pipelineIdx = RenderPipelineIdx(framebufferFormat);
+            m_renderPipelines[pipelineIdx] =
+                context->makePLSDrawPipeline(drawType,
+                                             framebufferFormat,
+                                             vertexShader,
+                                             fragmentShader,
+                                             &m_renderPipelineHandles[pipelineIdx]);
         }
     }
 
@@ -749,6 +663,7 @@ private:
     EmJsHandle m_vertexShaderHandle;
     EmJsHandle m_fragmentShaderHandle;
     wgpu::RenderPipeline m_renderPipelines[2];
+    EmJsHandle m_renderPipelineHandles[2];
 };
 
 PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
@@ -780,7 +695,10 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
         // the driver.
         m_frontFaceForOnScreenDraws = wgpu::FrontFace::CCW;
     }
+}
 
+void PLSRenderContextWebGPUImpl::initGPUObjects()
+{
     wgpu::BindGroupLayoutEntry drawBindingLayouts[] = {
         {
             .binding = TESS_VERTEX_TEXTURE_IDX,
@@ -847,12 +765,12 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
         },
     };
 
-    wgpu::BindGroupLayoutDescriptor bindingsDesc = {
+    wgpu::BindGroupLayoutDescriptor drawBindingsDesc = {
         .entryCount = std::size(drawBindingLayouts),
         .entries = drawBindingLayouts,
     };
 
-    m_drawBindGroupLayouts[0] = m_device.CreateBindGroupLayout(&bindingsDesc);
+    m_drawBindGroupLayouts[0] = m_device.CreateBindGroupLayout(&drawBindingsDesc);
 
     wgpu::BindGroupLayoutEntry drawBindingSamplerLayouts[] = {
         {
@@ -920,8 +838,14 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
 
     m_samplerBindings = m_device.CreateBindGroup(&samplerBindGroupDesc);
 
+    bool needsPLSTextureBindings = m_pixelLocalStorageType == PixelLocalStorageType::subpassLoad;
+    if (needsPLSTextureBindings)
+    {
+        m_drawBindGroupLayouts[PLS_TEXTURE_BINDINGS_SET] = initPLSTextureBindGroup();
+    }
+
     wgpu::PipelineLayoutDescriptor drawPipelineLayoutDesc = {
-        .bindGroupLayoutCount = std::size(m_drawBindGroupLayouts),
+        .bindGroupLayoutCount = static_cast<size_t>(needsPLSTextureBindings ? 3 : 2),
         .bindGroupLayouts = m_drawBindGroupLayouts,
     };
 
@@ -986,32 +910,35 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
         .format = wgpu::TextureFormat::RGBA8Unorm,
     };
 
-    m_nullImagePaintTexture = device.CreateTexture(&nullImagePaintTextureDesc);
+    m_nullImagePaintTexture = m_device.CreateTexture(&nullImagePaintTextureDesc);
     m_nullImagePaintTextureView = m_nullImagePaintTexture.CreateView();
 }
+
+PLSRenderContextWebGPUImpl::~PLSRenderContextWebGPUImpl() {}
 
 PLSRenderTargetWebGPU::PLSRenderTargetWebGPU(wgpu::Device device,
                                              wgpu::TextureFormat framebufferFormat,
                                              size_t width,
-                                             size_t height) :
+                                             size_t height,
+                                             wgpu::TextureUsage additionalTextureFlags) :
     PLSRenderTarget(width, height), m_framebufferFormat(framebufferFormat)
 {
     wgpu::TextureDescriptor desc = {
-        .usage = wgpu::TextureUsage::RenderAttachment, // | wgpu::TextureUsage::TransientAttachment,
+        .usage = wgpu::TextureUsage::RenderAttachment | additionalTextureFlags,
         .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
     };
 
     desc.format = m_framebufferFormat;
-    m_originalDstColorMemorylessTexture = device.CreateTexture(&desc);
+    m_originalDstColorTexture = device.CreateTexture(&desc);
 
     desc.format = wgpu::TextureFormat::R32Uint;
-    m_coverageMemorylessTexture = device.CreateTexture(&desc);
-    m_clipMemorylessTexture = device.CreateTexture(&desc);
+    m_coverageTexture = device.CreateTexture(&desc);
+    m_clipTexture = device.CreateTexture(&desc);
 
     m_targetTextureView = {}; // Will be configured later by setTargetTexture().
-    m_coverageMemorylessTextureView = m_coverageMemorylessTexture.CreateView();
-    m_originalDstColorMemorylessTextureView = m_originalDstColorMemorylessTexture.CreateView();
-    m_clipMemorylessTextureView = m_clipMemorylessTexture.CreateView();
+    m_coverageTextureView = m_coverageTexture.CreateView();
+    m_originalDstColorTextureView = m_originalDstColorTexture.CreateView();
+    m_clipTextureView = m_clipTexture.CreateView();
 }
 
 void PLSRenderTargetWebGPU::setTargetTextureView(wgpu::TextureView textureView)
@@ -1024,7 +951,11 @@ rcp<PLSRenderTargetWebGPU> PLSRenderContextWebGPUImpl::makeRenderTarget(
     size_t width,
     size_t height)
 {
-    return rcp(new PLSRenderTargetWebGPU(m_device, framebufferFormat, width, height));
+    return rcp(new PLSRenderTargetWebGPU(m_device,
+                                         framebufferFormat,
+                                         width,
+                                         height,
+                                         wgpu::TextureUsage::None));
 }
 
 class RenderBufferWebGPUImpl : public RenderBuffer
@@ -1331,6 +1262,180 @@ void PLSRenderContextWebGPUImpl::resizeTessellationTexture(size_t height)
     m_tessVertexTextureView = m_tessVertexTexture.CreateView();
 }
 
+wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
+    rive::pls::DrawType drawType,
+    wgpu::TextureFormat framebufferFormat,
+    wgpu::ShaderModule vertexShader,
+    wgpu::ShaderModule fragmentShader,
+    EmJsHandle* pipelineJSHandleIfNeeded)
+{
+    std::vector<wgpu::VertexAttribute> attrs;
+    std::vector<wgpu::VertexBufferLayout> vertexBufferLayouts;
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+        {
+            attrs = {
+                {
+                    .format = wgpu::VertexFormat::Float32x4,
+                    .offset = 0,
+                    .shaderLocation = 0,
+                },
+                {
+                    .format = wgpu::VertexFormat::Float32x4,
+                    .offset = 4 * sizeof(float),
+                    .shaderLocation = 1,
+                },
+            };
+
+            vertexBufferLayouts = {
+                {
+                    .arrayStride = sizeof(pls::PatchVertex),
+                    .stepMode = wgpu::VertexStepMode::Vertex,
+                    .attributeCount = std::size(attrs),
+                    .attributes = attrs.data(),
+                },
+            };
+            break;
+        }
+        case DrawType::interiorTriangulation:
+        {
+            attrs = {
+                {
+                    .format = wgpu::VertexFormat::Float32x3,
+                    .offset = 0,
+                    .shaderLocation = 0,
+                },
+            };
+
+            vertexBufferLayouts = {
+                {
+                    .arrayStride = sizeof(pls::TriangleVertex),
+                    .stepMode = wgpu::VertexStepMode::Vertex,
+                    .attributeCount = std::size(attrs),
+                    .attributes = attrs.data(),
+                },
+            };
+            break;
+        }
+        case DrawType::imageMesh:
+            attrs = {
+                {
+                    .format = wgpu::VertexFormat::Float32x2,
+                    .offset = 0,
+                    .shaderLocation = 0,
+                },
+                {
+                    .format = wgpu::VertexFormat::Float32x2,
+                    .offset = 0,
+                    .shaderLocation = 1,
+                },
+            };
+
+            vertexBufferLayouts = {
+                {
+                    .arrayStride = sizeof(float) * 2,
+                    .stepMode = wgpu::VertexStepMode::Vertex,
+                    .attributeCount = 1,
+                    .attributes = &attrs[0],
+                },
+                {
+                    .arrayStride = sizeof(float) * 2,
+                    .stepMode = wgpu::VertexStepMode::Vertex,
+                    .attributeCount = 1,
+                    .attributes = &attrs[1],
+                },
+            };
+            break;
+    }
+
+    wgpu::ColorTargetState colorTargets[] = {
+        {.format = framebufferFormat},
+        {.format = wgpu::TextureFormat::R32Uint},
+        {.format = framebufferFormat},
+        {.format = wgpu::TextureFormat::R32Uint},
+    };
+
+    wgpu::FragmentState fragmentState = {
+        .module = fragmentShader,
+        .entryPoint = "main",
+        .targetCount = static_cast<size_t>(
+            m_pixelLocalStorageType == PixelLocalStorageType::EXT_shader_pixel_local_storage ? 1
+                                                                                             : 4),
+        .targets = colorTargets,
+    };
+
+    wgpu::RenderPipelineDescriptor desc = {
+        .layout = m_drawPipelineLayout,
+        .vertex =
+            {
+                .module = vertexShader,
+                .entryPoint = "main",
+                .bufferCount = std::size(vertexBufferLayouts),
+                .buffers = vertexBufferLayouts.data(),
+            },
+        .primitive =
+            {
+                .topology = wgpu::PrimitiveTopology::TriangleList,
+                .frontFace = m_frontFaceForOnScreenDraws,
+                .cullMode =
+                    drawType != DrawType::imageMesh ? wgpu::CullMode::Back : wgpu::CullMode::None,
+            },
+        .fragment = &fragmentState,
+    };
+
+    return m_device.CreateRenderPipeline(&desc);
+}
+
+wgpu::RenderPassEncoder PLSRenderContextWebGPUImpl::makePLSRenderPass(
+    wgpu::CommandEncoder encoder,
+    const PLSRenderTargetWebGPU* renderTarget,
+    wgpu::LoadOp loadOp,
+    const wgpu::Color& clearColor,
+    EmJsHandle* renderPassJSHandleIfNeeded)
+{
+    wgpu::RenderPassColorAttachment plsAttachments[4] = {
+        {
+            // framebuffer
+            .view = renderTarget->m_targetTextureView,
+            .loadOp = loadOp,
+            .storeOp = wgpu::StoreOp::Store,
+            .clearValue = clearColor,
+        },
+        {
+            // coverage
+            .view = renderTarget->m_coverageTextureView,
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Discard,
+            .clearValue = {},
+        },
+        {
+            // originalDstColor
+            .view = renderTarget->m_originalDstColorTextureView,
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Discard,
+            .clearValue = {},
+        },
+        {
+            // clip
+            .view = renderTarget->m_clipTextureView,
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Discard,
+            .clearValue = {},
+        },
+    };
+
+    wgpu::RenderPassDescriptor passDesc = {
+        .colorAttachmentCount = static_cast<size_t>(
+            m_pixelLocalStorageType == PixelLocalStorageType::EXT_shader_pixel_local_storage ? 1
+                                                                                             : 4),
+        .colorAttachments = plsAttachments,
+    };
+
+    return encoder.BeginRenderPass(&passDesc);
+}
+
 static wgpu::Buffer webgpu_buffer(const BufferRing* bufferRing)
 {
     return static_cast<const BufferWebGPU*>(bufferRing)->submittedBuffer();
@@ -1465,60 +1570,60 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
         tessPass.End();
     }
 
-    wgpu::RenderPassColorAttachment plsAttachments[4]{
-        {
-            // framebuffer
-            .view = renderTarget->m_targetTextureView,
-            .storeOp = wgpu::StoreOp::Store,
-        },
-        {
-            // coverage
-            .view = renderTarget->m_coverageMemorylessTextureView,
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Discard,
-            .clearValue = {},
-        },
-        {
-            // originalDstColor
-            .view = renderTarget->m_originalDstColorMemorylessTextureView,
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Discard,
-            .clearValue = {},
-        },
-        {
-            // clip
-            .view = renderTarget->m_clipMemorylessTextureView,
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Discard,
-            .clearValue = {},
-        },
-    };
-
+    wgpu::LoadOp loadOp;
+    wgpu::Color clearColor;
     if (desc.loadAction == LoadAction::clear)
     {
+        loadOp = wgpu::LoadOp::Clear;
         float cc[4];
         UnpackColorToRGBA32F(desc.clearColor, cc);
-        plsAttachments[0].loadOp = wgpu::LoadOp::Clear;
-        plsAttachments[0].clearValue = wgpu::Color{cc[0], cc[1], cc[2], cc[3]};
+        clearColor = {cc[0], cc[1], cc[2], cc[3]};
     }
     else
     {
-        plsAttachments[0].loadOp = wgpu::LoadOp::Load;
+        loadOp = wgpu::LoadOp::Load;
     }
 
-    wgpu::RenderPassDescriptor passDesc = {
-        .colorAttachmentCount = static_cast<size_t>(
-            m_pixelLocalStorageType == PixelLocalStorageType::EXT_shader_pixel_local_storage ? 1
-                                                                                             : 4),
-        .colorAttachments = plsAttachments,
-    };
+    EmJsHandle drawPassJSHandle;
+    wgpu::RenderPassEncoder drawPass =
+        makePLSRenderPass(encoder, renderTarget, loadOp, clearColor, &drawPassJSHandle);
+    drawPass.SetViewport(0.f, 0.f, renderTarget->width(), renderTarget->height(), 0.0, 1.0);
 
-    wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&passDesc);
-    pass.SetViewport(0.f, 0.f, renderTarget->width(), renderTarget->height(), 0.0, 1.0);
+    bool needsPLSTextureBindings = m_pixelLocalStorageType == PixelLocalStorageType::subpassLoad;
+    if (needsPLSTextureBindings)
+    {
+        wgpu::BindGroupEntry plsTextureBindingEntries[] = {
+            {
+                .binding = FRAMEBUFFER_PLANE_IDX,
+                .textureView = renderTarget->m_targetTextureView,
+            },
+            {
+                .binding = COVERAGE_PLANE_IDX,
+                .textureView = renderTarget->m_coverageTextureView,
+            },
+            {
+                .binding = ORIGINAL_DST_COLOR_PLANE_IDX,
+                .textureView = renderTarget->m_originalDstColorTextureView,
+            },
+            {
+                .binding = CLIP_PLANE_IDX,
+                .textureView = renderTarget->m_clipTextureView,
+            },
+        };
+
+        wgpu::BindGroupDescriptor plsTextureBindingsGroupDesc = {
+            .layout = m_drawBindGroupLayouts[PLS_TEXTURE_BINDINGS_SET],
+            .entryCount = std::size(plsTextureBindingEntries),
+            .entries = plsTextureBindingEntries,
+        };
+
+        wgpu::BindGroup plsTextureBindings = m_device.CreateBindGroup(&plsTextureBindingsGroupDesc);
+        drawPass.SetBindGroup(PLS_TEXTURE_BINDINGS_SET, plsTextureBindings);
+    }
 
     if (m_pixelLocalStorageType == PixelLocalStorageType::EXT_shader_pixel_local_storage)
     {
-        enable_shader_pixel_local_storage_ext(pass, true);
+        enable_shader_pixel_local_storage_ext(drawPass, true);
 
         // Draw the load action for EXT_shader_pixel_local_storage.
         std::array<float, 4> clearColor;
@@ -1548,14 +1653,14 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
             };
 
             wgpu::BindGroup uniformBindings = m_device.CreateBindGroup(&uniformBindGroupDesc);
-            pass.SetBindGroup(0, uniformBindings);
+            drawPass.SetBindGroup(0, uniformBindings);
         }
 
-        pass.SetPipeline(loadPipeline.renderPipeline(renderTarget->framebufferFormat()));
-        pass.Draw(4);
+        drawPass.SetPipeline(loadPipeline.renderPipeline(renderTarget->framebufferFormat()));
+        drawPass.Draw(4);
     }
 
-    pass.SetBindGroup(1, m_samplerBindings);
+    drawPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
 
     // Execute the DrawList.
     wgpu::TextureView currentImageTextureView = m_nullImagePaintTextureView;
@@ -1625,7 +1730,7 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
             // Image meshes always re-bind because they update the dynamic offset to their uniforms.
             drawType == DrawType::imageMesh)
         {
-            pass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
+            drawPass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
             needsNewBindings = false;
         }
 
@@ -1637,7 +1742,7 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                              drawType,
                              draw.shaderFeatures)
                 .first->second;
-        pass.SetPipeline(drawPipeline.renderPipeline(renderTarget->framebufferFormat()));
+        drawPass.SetPipeline(drawPipeline.renderPipeline(renderTarget->framebufferFormat()));
 
         switch (drawType)
         {
@@ -1645,19 +1750,19 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
-                pass.SetVertexBuffer(0, m_pathPatchVertexBuffer);
-                pass.SetIndexBuffer(m_pathPatchIndexBuffer, wgpu::IndexFormat::Uint16);
-                pass.DrawIndexed(pls::PatchIndexCount(drawType),
-                                 draw.elementCount,
-                                 pls::PatchBaseIndex(drawType),
-                                 0,
-                                 draw.baseElement);
+                drawPass.SetVertexBuffer(0, m_pathPatchVertexBuffer);
+                drawPass.SetIndexBuffer(m_pathPatchIndexBuffer, wgpu::IndexFormat::Uint16);
+                drawPass.DrawIndexed(pls::PatchIndexCount(drawType),
+                                     draw.elementCount,
+                                     pls::PatchBaseIndex(drawType),
+                                     0,
+                                     draw.baseElement);
                 break;
             }
             case DrawType::interiorTriangulation:
             {
-                pass.SetVertexBuffer(0, webgpu_buffer(triangleBufferRing()));
-                pass.Draw(draw.elementCount, 1, draw.baseElement);
+                drawPass.SetVertexBuffer(0, webgpu_buffer(triangleBufferRing()));
+                drawPass.Draw(draw.elementCount, 1, draw.baseElement);
                 break;
             }
             case DrawType::imageMesh:
@@ -1666,11 +1771,11 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                     static_cast<const RenderBufferWebGPUImpl*>(draw.vertexBufferRef);
                 auto uvBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.uvBufferRef);
                 auto indexBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.indexBufferRef);
-                pass.SetVertexBuffer(0, vertexBuffer->submittedBuffer());
-                pass.SetVertexBuffer(1, uvBuffer->submittedBuffer());
-                pass.SetIndexBuffer(indexBuffer->submittedBuffer(), wgpu::IndexFormat::Uint16);
-                pass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
-                pass.DrawIndexed(draw.elementCount, 1, draw.baseElement);
+                drawPass.SetVertexBuffer(0, vertexBuffer->submittedBuffer());
+                drawPass.SetVertexBuffer(1, uvBuffer->submittedBuffer());
+                drawPass.SetIndexBuffer(indexBuffer->submittedBuffer(), wgpu::IndexFormat::Uint16);
+                drawPass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
+                drawPass.DrawIndexed(draw.elementCount, 1, draw.baseElement);
                 meshUniformDataOffset += sizeof(pls::ImageMeshUniforms);
                 break;
             }
@@ -1686,13 +1791,13 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                                                       actions,
                                                       renderTarget->framebufferFormat());
         LoadStoreEXTPipeline* storePipeline = &it.first->second;
-        pass.SetPipeline(storePipeline->renderPipeline(renderTarget->framebufferFormat()));
-        pass.Draw(4);
+        drawPass.SetPipeline(storePipeline->renderPipeline(renderTarget->framebufferFormat()));
+        drawPass.Draw(4);
 
-        enable_shader_pixel_local_storage_ext(pass, false);
+        enable_shader_pixel_local_storage_ext(drawPass, false);
     }
 
-    pass.End();
+    drawPass.End();
 
     wgpu::CommandBuffer commands = encoder.Finish();
     m_queue.Submit(1, &commands);
@@ -1704,10 +1809,25 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextWebGPUImpl::MakeContext(
     const pls::PlatformFeatures& baselinePlatformFeatures,
     PixelLocalStorageType pixelLocalStorageType)
 {
-    return std::make_unique<PLSRenderContext>(std::unique_ptr<PLSRenderContextWebGPUImpl>(
-        new PLSRenderContextWebGPUImpl(device,
-                                       queue,
-                                       baselinePlatformFeatures,
-                                       pixelLocalStorageType)));
+    std::unique_ptr<PLSRenderContextWebGPUImpl> impl;
+    switch (pixelLocalStorageType)
+    {
+        case PixelLocalStorageType::subpassLoad:
+#ifdef RIVE_WEBGPU
+            impl = std::unique_ptr<PLSRenderContextWebGPUImpl>(
+                new PLSRenderContextWebGPUVulkan(device, queue, baselinePlatformFeatures));
+            break;
+#endif
+        case PixelLocalStorageType::EXT_shader_pixel_local_storage:
+        case PixelLocalStorageType::none:
+            impl = std::unique_ptr<PLSRenderContextWebGPUImpl>(
+                new PLSRenderContextWebGPUImpl(device,
+                                               queue,
+                                               baselinePlatformFeatures,
+                                               pixelLocalStorageType));
+            break;
+    }
+    impl->initGPUObjects();
+    return std::make_unique<PLSRenderContext>(std::move(impl));
 }
 } // namespace rive::pls

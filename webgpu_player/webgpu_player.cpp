@@ -114,15 +114,11 @@ EmJsHandle s_queueHandle;
 
 extern "C"
 {
-    void EMSCRIPTEN_KEEPALIVE riveInitPlayer(int w,
-                                             int h,
-                                             int gpuID,
-                                             int queueID,
-                                             bool uninvertOnScreenY,
-                                             bool EXT_shader_pixel_local_storage)
+    void EMSCRIPTEN_KEEPALIVE
+    riveInitPlayer(int w, int h, int gpuID, int queueID, bool uninvertOnScreenY, int plsType)
     {
-        s_gpuHandle = gpuID;
-        s_queueHandle = queueID;
+        s_gpuHandle = EmJsHandle(gpuID);
+        s_queueHandle = EmJsHandle(queueID);
         pls::PlatformFeatures platformFeatures;
         if (uninvertOnScreenY)
         {
@@ -133,9 +129,7 @@ extern "C"
                        wgpu::Device::Acquire(emscripten_webgpu_import_device(s_gpuHandle.get())),
                        emscripten_webgpu_import_queue(s_queueHandle.get()),
                        platformFeatures,
-                       EXT_shader_pixel_local_storage
-                           ? PixelLocalStorageType::EXT_shader_pixel_local_storage
-                           : PixelLocalStorageType::bestEffort);
+                       static_cast<PixelLocalStorageType>(plsType));
     }
 
     void EMSCRIPTEN_KEEPALIVE riveMainLoop(double timestamp, int textureViewID)
@@ -337,7 +331,7 @@ int main(int argc, const char** argv)
                    device.Get(),
                    device.GetQueue(),
                    PlatformFeatures{},
-                   PixelLocalStorageType::bestEffort);
+                   PixelLocalStorageType::none);
 
     while (!glfwWindowShouldClose(s_window))
     {

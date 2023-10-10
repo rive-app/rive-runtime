@@ -12,6 +12,8 @@
 
 namespace rive::pls
 {
+class PLSRenderContextWebGPUVulkan;
+
 class PLSRenderTargetWebGPU : public PLSRenderTarget
 {
 public:
@@ -21,22 +23,24 @@ public:
 
 private:
     friend class PLSRenderContextWebGPUImpl;
+    friend class PLSRenderContextWebGPUVulkan;
 
     PLSRenderTargetWebGPU(wgpu::Device device,
                           wgpu::TextureFormat framebufferFormat,
                           size_t width,
-                          size_t height);
+                          size_t height,
+                          wgpu::TextureUsage additionalTextureFlags);
 
     const wgpu::TextureFormat m_framebufferFormat;
 
-    wgpu::Texture m_coverageMemorylessTexture;
-    wgpu::Texture m_originalDstColorMemorylessTexture;
-    wgpu::Texture m_clipMemorylessTexture;
+    wgpu::Texture m_coverageTexture;
+    wgpu::Texture m_originalDstColorTexture;
+    wgpu::Texture m_clipTexture;
 
     wgpu::TextureView m_targetTextureView;
-    wgpu::TextureView m_coverageMemorylessTextureView;
-    wgpu::TextureView m_originalDstColorMemorylessTextureView;
-    wgpu::TextureView m_clipMemorylessTextureView;
+    wgpu::TextureView m_coverageTextureView;
+    wgpu::TextureView m_originalDstColorTextureView;
+    wgpu::TextureView m_clipTextureView;
 };
 
 class PLSRenderContextWebGPUImpl : public PLSRenderContextHelperImpl
@@ -44,21 +48,29 @@ class PLSRenderContextWebGPUImpl : public PLSRenderContextHelperImpl
 public:
     enum class PixelLocalStorageType
     {
+        // Pixel local storage cannot be supported; make a best reasonable effort to draw shapes.
+        none,
+
         // Backend is OpenGL ES 3.1+ and has GL_EXT_shader_pixel_local_storage. Use "raw-glsl"
         // shaders that take advantage of the extension.
         EXT_shader_pixel_local_storage,
 
-        // Pixel local storage cannot be supported; make a best reasonable effort to draw shapes.
-        bestEffort,
+        // Backend is Vulkan with VK_EXT_rasterization_order_attachment_access. Use nonstandard
+        // WebGPU APIs to set up vulkan input attachments and subpassLoad() in shaders.
+        subpassLoad,
     };
 
     static std::unique_ptr<PLSRenderContext> MakeContext(
         wgpu::Device,
         wgpu::Queue,
         const pls::PlatformFeatures& baselinePlatformFeatures = {},
-        PixelLocalStorageType = PixelLocalStorageType::bestEffort);
+        PixelLocalStorageType = PixelLocalStorageType::none);
 
-    rcp<PLSRenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat, size_t width, size_t height);
+    virtual ~PLSRenderContextWebGPUImpl();
+
+    virtual rcp<PLSRenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat,
+                                                        size_t width,
+                                                        size_t height);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
@@ -67,11 +79,41 @@ public:
                                      uint32_t mipLevelCount,
                                      const uint8_t imageDataRGBA[]) override;
 
-private:
+protected:
     PLSRenderContextWebGPUImpl(wgpu::Device device,
                                wgpu::Queue queue,
                                const pls::PlatformFeatures& baselinePlatformFeatures,
                                PixelLocalStorageType);
+
+    // Create the BindGroupLayout that binds the PLS attachments as textures. This is not necessary
+    // on all implementations.
+    virtual wgpu::BindGroupLayout initPLSTextureBindGroup()
+    {
+        // Only supported by PLSRenderContextWebGPUVulkan for now.
+        RIVE_UNREACHABLE();
+    }
+
+    // Create a standard PLS "draw" pipeline for the current implementation.
+    virtual wgpu::RenderPipeline makePLSDrawPipeline(rive::pls::DrawType drawType,
+                                                     wgpu::TextureFormat framebufferFormat,
+                                                     wgpu::ShaderModule vertexShader,
+                                                     wgpu::ShaderModule fragmentShader,
+                                                     EmJsHandle* pipelineJSHandleIfNeeded);
+
+    // Create a standard PLS "draw" render pass for the current implementation.
+    virtual wgpu::RenderPassEncoder makePLSRenderPass(wgpu::CommandEncoder,
+                                                      const PLSRenderTargetWebGPU*,
+                                                      wgpu::LoadOp,
+                                                      const wgpu::Color& clearColor,
+                                                      EmJsHandle* renderPassJSHandleIfNeeded);
+
+    wgpu::Device device() const { return m_device; }
+    wgpu::FrontFace frontFaceForOnScreenDraws() const { return m_frontFaceForOnScreenDraws; }
+    wgpu::PipelineLayout drawPipelineLayout() const { return m_drawPipelineLayout; }
+
+private:
+    // Called outside the constructor so we can use virtual methods.
+    void initGPUObjects();
 
     // PLS always expects a clockwise front face.
     constexpr static wgpu::FrontFace kFrontFaceForOffscreenDraws = wgpu::FrontFace::CW;
@@ -133,7 +175,7 @@ private:
     // Draw paths and image meshes using the gradient and tessellation textures.
     class DrawPipeline;
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
-    wgpu::BindGroupLayout m_drawBindGroupLayouts[2];
+    wgpu::BindGroupLayout m_drawBindGroupLayouts[3];
     wgpu::Sampler m_linearSampler;
     wgpu::Sampler m_mipmapSampler;
     wgpu::BindGroup m_samplerBindings;

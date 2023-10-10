@@ -256,20 +256,37 @@
 
 #endif
 
-#ifdef @TARGET_VULKAN
+#ifdef @PLS_IMPL_SUBPASS_LOAD
+
+#define PLS_BLOCK_BEGIN
+#define PLS_DECL4F(IDX, NAME)                                                                      \
+    layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
+        uniform lowp subpassInput _in_##NAME;                                                      \
+    layout(location = IDX) out lowp vec4 NAME
+#define PLS_DECLUI(IDX, NAME)                                                                      \
+    layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
+        uniform lowp usubpassInput _in_##NAME;                                                     \
+    layout(location = IDX) out highp uvec4 NAME
+#define PLS_BLOCK_END
+
+#define PLS_LOAD4F(P) subpassLoad(_in_##P)
+#define PLS_LOADUI(P) subpassLoad(_in_##P).r
+#define PLS_STORE4F(P, V) P = (V)
+#define PLS_STOREUI(P, V) P.r = (V)
+
+#define PLS_PRESERVE_VALUE(P) P = subpassLoad(_in_##P)
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#endif
+
+#ifdef @PLS_IMPL_NONE
 
 #define PLS_BLOCK_BEGIN
 #define PLS_DECL4F(IDX, NAME) layout(location = IDX) out lowp vec4 NAME
-// FIXME: WebGPU doesn't support subpassLoad. Use PLS once it's implemented.
-// layout(input_attachment_index=IDX, binding=IDX, set=2) uniform lowp subpassInput i##NAME
 #define PLS_DECLUI(IDX, NAME) layout(location = IDX) out highp uvec4 NAME
-// FIXME: WebGPU doesn't support subpassLoad. Use PLS once it's implemented.
-// layout(input_attachment_index=IDX, binding=IDX, set=2) uniform lowp usubpassInput i##NAME
 #define PLS_BLOCK_END
 
-// FIXME: WebGPU doesn't support subpassLoad. Use PLS once it's implemented.
-// #define PLS_LOAD4F(P) subpassLoad(i##P)
-// #define PLS_LOADUI(P) subpassLoad(i##P).r
 #define PLS_LOAD4F(P) vec4(0)
 #define PLS_LOADUI(P) 0u
 #define PLS_STORE4F(P, V) P = (V)

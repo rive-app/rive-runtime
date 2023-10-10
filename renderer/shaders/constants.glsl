@@ -76,6 +76,10 @@
 // separate binding set.
 #define SAMPLER_BINDINGS_SET 1
 
+// PLS textures are accessed at the same index as their PLS planes, so we put them in a separate
+// binding set.
+#define PLS_TEXTURE_BINDINGS_SET 2
+
 // acos(1/4), because the miter limit is always 4.
 #define MITER_ANGLE_LIMIT 1.318116071652817965746
 
