@@ -51,6 +51,7 @@ private:
 
     template <typename SMType, typename InstType>
     InstType* getNamedInput(const std::string& name) const;
+    void notifyEventListeners(std::vector<EventReport> events, NestedArtboard* source);
 
 public:
     StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
@@ -99,6 +100,12 @@ public:
     /// the backing artboard (explicitly not allowed on Scenes).
     Artboard* artboard() { return m_artboardInstance; }
 
+    void setParentStateMachineInstance(StateMachineInstance* instance) { m_parentStateMachineInstance = instance; }
+    StateMachineInstance* parentStateMachineInstance() { return m_parentStateMachineInstance; }
+
+    void setParentNestedArtboard(NestedArtboard* artboard) { m_parentNestedArtboard = artboard; }
+    NestedArtboard* parentNestedArtboard() { return m_parentNestedArtboard; }
+
     /// Tracks an event that reported, will be cleared at the end of the next advance.
     void reportEvent(Event* event, float secondsDelay = 0.0f);
 
@@ -123,6 +130,8 @@ private:
     StateMachineLayerInstance* m_layers;
     std::vector<std::unique_ptr<HitShape>> m_hitShapes;
     std::vector<NestedArtboard*> m_hitNestedArtboards;
+    StateMachineInstance* m_parentStateMachineInstance = nullptr;
+    NestedArtboard* m_parentNestedArtboard = nullptr;
 };
 } // namespace rive
 #endif

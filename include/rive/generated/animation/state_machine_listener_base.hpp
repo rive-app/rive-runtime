@@ -30,10 +30,12 @@ public:
 
     static const uint16_t targetIdPropertyKey = 224;
     static const uint16_t listenerTypeValuePropertyKey = 225;
+    static const uint16_t eventIdPropertyKey = 399;
 
 private:
     uint32_t m_TargetId = 0;
     uint32_t m_ListenerTypeValue = 0;
+    uint32_t m_EventId = -1;
 
 public:
     inline uint32_t targetId() const { return m_TargetId; }
@@ -58,11 +60,23 @@ public:
         listenerTypeValueChanged();
     }
 
+    inline uint32_t eventId() const { return m_EventId; }
+    void eventId(uint32_t value)
+    {
+        if (m_EventId == value)
+        {
+            return;
+        }
+        m_EventId = value;
+        eventIdChanged();
+    }
+
     Core* clone() const override;
     void copy(const StateMachineListenerBase& object)
     {
         m_TargetId = object.m_TargetId;
         m_ListenerTypeValue = object.m_ListenerTypeValue;
+        m_EventId = object.m_EventId;
         StateMachineComponent::copy(object);
     }
 
@@ -76,6 +90,9 @@ public:
             case listenerTypeValuePropertyKey:
                 m_ListenerTypeValue = CoreUintType::deserialize(reader);
                 return true;
+            case eventIdPropertyKey:
+                m_EventId = CoreUintType::deserialize(reader);
+                return true;
         }
         return StateMachineComponent::deserialize(propertyKey, reader);
     }
@@ -83,6 +100,7 @@ public:
 protected:
     virtual void targetIdChanged() {}
     virtual void listenerTypeValueChanged() {}
+    virtual void eventIdChanged() {}
 };
 } // namespace rive
 

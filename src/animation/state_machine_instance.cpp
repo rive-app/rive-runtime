@@ -408,6 +408,7 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
                         break;
                     case ListenerType::enter:
                     case ListenerType::exit:
+                    case ListenerType::event:
                         break;
                 }
             }
@@ -509,6 +510,18 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         if (nestedArtboard->hasNestedStateMachines())
         {
             m_hitNestedArtboards.push_back(nestedArtboard);
+            for (auto animation : nestedArtboard->nestedAnimations())
+            {
+                if (animation->is<NestedStateMachine>())
+                {
+                    animation->as<NestedStateMachine>()
+                        ->stateMachineInstance()
+                        ->setParentNestedArtboard(nestedArtboard);
+                    animation->as<NestedStateMachine>()
+                        ->stateMachineInstance()
+                        ->setParentStateMachineInstance(this);
+                }
+            }
         }
     }
 }
@@ -526,6 +539,7 @@ StateMachineInstance::~StateMachineInstance()
 
 bool StateMachineInstance::advance(float seconds)
 {
+    this->notifyEventListeners(m_reportedEvents, nullptr);
     m_reportedEvents.clear();
     m_needsAdvance = false;
     for (size_t i = 0; i < m_layerCount; i++)
@@ -675,4 +689,37 @@ void StateMachineInstance::reportKeyedCallback(uint32_t objectId,
     auto coreObject = m_artboardInstance->resolve(objectId);
     CallbackData data(this, elapsedSeconds);
     CoreRegistry::setCallback(coreObject, propertyKey, data);
+}
+
+void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events, NestedArtboard* source)
+{
+    if (events.size() > 0)
+    {
+        // We trigger the listeners in order
+        for (size_t i = 0; i < m_machine->listenerCount(); i++)
+        {
+            auto listener = m_machine->listener(i);
+            auto target = artboard()->resolve(listener->targetId());
+            if (listener != nullptr && 
+                listener->listenerType() == ListenerType::event &&
+                (source == nullptr || source == target))
+            {
+                for (const auto event : events)
+                {
+                    auto sourceArtboard = source == nullptr ? artboard() : source->artboard();
+                    auto listenerEvent = sourceArtboard->resolve(listener->eventId());
+                    if (listenerEvent == event.event())
+                    {
+                        listener->performChanges(this, Vec2D());
+                        break;
+                    }
+                }
+            }
+        }
+        // Bubble the event up to parent artboard state machines immediately
+        if (m_parentStateMachineInstance != nullptr)
+        {
+            m_parentStateMachineInstance->notifyEventListeners(events, m_parentNestedArtboard);
+        }
+    }
 }

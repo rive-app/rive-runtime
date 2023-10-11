@@ -482,6 +482,9 @@ public:
             case StateMachineListenerBase::listenerTypeValuePropertyKey:
                 object->as<StateMachineListenerBase>()->listenerTypeValue(value);
                 break;
+            case StateMachineListenerBase::eventIdPropertyKey:
+                object->as<StateMachineListenerBase>()->eventId(value);
+                break;
             case KeyFrameBase::framePropertyKey:
                 object->as<KeyFrameBase>()->frame(value);
                 break;
@@ -1243,6 +1246,8 @@ public:
                 return object->as<StateMachineListenerBase>()->targetId();
             case StateMachineListenerBase::listenerTypeValuePropertyKey:
                 return object->as<StateMachineListenerBase>()->listenerTypeValue();
+            case StateMachineListenerBase::eventIdPropertyKey:
+                return object->as<StateMachineListenerBase>()->eventId();
             case KeyFrameBase::framePropertyKey:
                 return object->as<KeyFrameBase>()->frame();
             case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
@@ -1741,6 +1746,7 @@ public:
             case KeyedPropertyBase::propertyKeyPropertyKey:
             case StateMachineListenerBase::targetIdPropertyKey:
             case StateMachineListenerBase::listenerTypeValuePropertyKey:
+            case StateMachineListenerBase::eventIdPropertyKey:
             case KeyFrameBase::framePropertyKey:
             case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
             case InterpolatingKeyFrameBase::interpolatorIdPropertyKey:

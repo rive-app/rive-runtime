@@ -9,6 +9,7 @@ enum class ListenerType : int
     down = 2,
     up = 3,
     move = 4,
+    event = 5,
 };
 }
 #endif
