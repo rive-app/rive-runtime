@@ -1,6 +1,6 @@
-use std::time::Instant;
+use std::{fs, time::Instant};
 
-use rive_vello::{VelloRenderer, ViewerContent};
+use rive_rs::{Artboard, File, Instantiate, Viewport};
 use vello::{
     kurbo::{Affine, Rect, Vec2},
     peniko::{Color, Fill},
@@ -24,7 +24,8 @@ const FRAME_STATS_CAPACITY: usize = 30;
 const SCROLL_FACTOR_THRESHOLD: f64 = 100.0;
 
 fn main() {
-    let mut viewer_content: Option<ViewerContent> = None;
+    let mut viewport = Viewport::default();
+    let mut scene: Option<Box<dyn rive_rs::Scene>> = None;
 
     let event_loop = EventLoop::new();
     let mut cached_window: Option<Window> = None;
@@ -46,9 +47,7 @@ fn main() {
             match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::Resized(size) => {
-                    if let Some(viewer_content) = &viewer_content {
-                        viewer_content.handle_resize(size.width, size.height);
-                    }
+                    viewport.resize(size.width, size.height);
 
                     render_cx.resize_surface(&mut render_state.surface, size.width, size.height);
                     render_state.window.request_redraw();
@@ -58,19 +57,23 @@ fn main() {
                     button: MouseButton::Left,
                     ..
                 } => {
-                    if let Some(viewer_content) = &viewer_content {
-                        let handler = match state {
-                            ElementState::Pressed => ViewerContent::handle_pointer_down,
-                            ElementState::Released => ViewerContent::handle_pointer_up,
-                        };
-
-                        handler(viewer_content, mouse_pos);
+                    if let Some(scene) = &mut scene {
+                        match state {
+                            ElementState::Pressed => scene.pointer_down(
+                                mouse_pos.x as f32,
+                                mouse_pos.y as f32,
+                                &viewport,
+                            ),
+                            ElementState::Released => {
+                                scene.pointer_up(mouse_pos.x as f32, mouse_pos.y as f32, &viewport)
+                            }
+                        }
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     mouse_pos = Vec2::new(position.x, position.y);
-                    if let Some(viewer_content) = &viewer_content {
-                        viewer_content.handle_pointer_move(mouse_pos);
+                    if let Some(scene) = &mut scene {
+                        scene.pointer_move(mouse_pos.x as f32, mouse_pos.y as f32, &viewport);
                     }
                 }
                 WindowEvent::MouseWheel { delta, .. } => match delta {
@@ -84,12 +87,12 @@ fn main() {
                     }
                 },
                 WindowEvent::DroppedFile(path) => {
-                    viewer_content = ViewerContent::new(path);
+                    scene = Some({
+                        let file = File::new(&fs::read(path).unwrap()).unwrap();
+                        let artboard = Artboard::instantiate(&file, None).unwrap();
 
-                    if let Some(viewer_content) = &viewer_content {
-                        let size = render_state.window.inner_size();
-                        viewer_content.handle_resize(size.width, size.height);
-                    }
+                        Box::<dyn rive_rs::Scene>::instantiate(&artboard, None).unwrap()
+                    });
                 }
                 _ => {}
             }
@@ -100,7 +103,7 @@ fn main() {
             }
         }
         Event::RedrawRequested(_) => {
-            let mut vello_renderer = VelloRenderer::default();
+            let mut rive_renderer = rive_rs::Renderer::default();
             let factor = (scroll_delta / SCROLL_FACTOR_THRESHOLD).max(1.0) as u32;
 
             let elapsed = &frame_start_time.elapsed();
@@ -142,15 +145,15 @@ fn main() {
                 .get_current_texture()
                 .expect("failed to get surface texture");
 
-            let mut scene = Scene::default();
-            let mut builder = SceneBuilder::for_scene(&mut scene);
+            let mut vello_scene = Scene::default();
+            let mut builder = SceneBuilder::for_scene(&mut vello_scene);
 
-            if let Some(viewer_content) = &mut viewer_content {
-                viewer_content.handle_draw(&mut vello_renderer, elapsed.as_secs_f64());
+            if let Some(scene) = &mut scene {
+                scene.advance_and_maybe_draw(&mut rive_renderer, *elapsed, &mut viewport);
 
                 for i in 0..factor.pow(2) {
                     builder.append(
-                        &vello_renderer.scene,
+                        rive_renderer.scene(),
                         Some(
                             Affine::default()
                                 .then_scale(1.0 / factor as f64)
@@ -162,7 +165,7 @@ fn main() {
                     );
                 }
             } else {
-                // Vello currently crashes when rendering an empty scene.
+                // Vello doesn't draw base color when there is no geometry.
                 builder.fill(
                     Fill::NonZero,
                     Affine::IDENTITY,
@@ -172,17 +175,19 @@ fn main() {
                 );
             }
 
-            vello::block_on_wgpu(
-                &device_handle.device,
-                renderer.as_mut().unwrap().render_to_surface_async(
+            if !vello_scene.data().is_empty() {
+                vello::block_on_wgpu(
                     &device_handle.device,
-                    &device_handle.queue,
-                    &scene,
-                    &surface_texture,
-                    &render_params,
-                ),
-            )
-            .expect("failed to render to surface");
+                    renderer.as_mut().unwrap().render_to_surface_async(
+                        &device_handle.device,
+                        &device_handle.queue,
+                        &vello_scene,
+                        &surface_texture,
+                        &render_params,
+                    ),
+                )
+                .expect("failed to render to surface");
+            }
 
             surface_texture.present();
             device_handle.device.poll(wgpu::Maintain::Poll);
@@ -220,6 +225,7 @@ fn main() {
                             timestamp_period: render_cx.devices[render_state.surface.dev_id]
                                 .queue
                                 .get_timestamp_period(),
+                            use_cpu: false,
                         },
                     )
                     .expect("Could create renderer"),
