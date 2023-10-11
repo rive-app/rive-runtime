@@ -29,9 +29,11 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t inputIdPropertyKey = 227;
+    static const uint16_t nestedInputIdPropertyKey = 400;
 
 private:
     uint32_t m_InputId = -1;
+    uint32_t m_NestedInputId = -1;
 
 public:
     inline uint32_t inputId() const { return m_InputId; }
@@ -45,9 +47,21 @@ public:
         inputIdChanged();
     }
 
+    inline uint32_t nestedInputId() const { return m_NestedInputId; }
+    void nestedInputId(uint32_t value)
+    {
+        if (m_NestedInputId == value)
+        {
+            return;
+        }
+        m_NestedInputId = value;
+        nestedInputIdChanged();
+    }
+
     void copy(const ListenerInputChangeBase& object)
     {
         m_InputId = object.m_InputId;
+        m_NestedInputId = object.m_NestedInputId;
         ListenerAction::copy(object);
     }
 
@@ -58,12 +72,16 @@ public:
             case inputIdPropertyKey:
                 m_InputId = CoreUintType::deserialize(reader);
                 return true;
+            case nestedInputIdPropertyKey:
+                m_NestedInputId = CoreUintType::deserialize(reader);
+                return true;
         }
         return ListenerAction::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void inputIdChanged() {}
+    virtual void nestedInputIdChanged() {}
 };
 } // namespace rive
 

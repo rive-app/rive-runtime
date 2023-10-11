@@ -4,5 +4,15 @@
     "int": 122,
     "string": "nestedTrigger"
   },
-  "extends": "animation/nested_input.json"
+  "extends": "animation/nested_input.json",
+  "properties": {
+    "fire": {
+      "type": "callback",
+      "animates": true,
+      "key": {
+        "int": 401,
+        "string": "fire"
+      }
+    }
+  }
 }

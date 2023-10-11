@@ -17,6 +17,17 @@
         "string": "inputid"
       },
       "description": "Id of the StateMachineInput referenced."
+    },
+    "nestedInputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 400,
+        "string": "nestedinputid"
+      },
+      "description": "Id of the NestedInput referenced if this is listening to a nested input."
     }
   }
 }

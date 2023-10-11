@@ -452,6 +452,9 @@ public:
             case ListenerInputChangeBase::inputIdPropertyKey:
                 object->as<ListenerInputChangeBase>()->inputId(value);
                 break;
+            case ListenerInputChangeBase::nestedInputIdPropertyKey:
+                object->as<ListenerInputChangeBase>()->nestedInputId(value);
+                break;
             case AnimationStateBase::animationIdPropertyKey:
                 object->as<AnimationStateBase>()->animationId(value);
                 break;
@@ -1141,6 +1144,18 @@ public:
                 break;
         }
     }
+    static void setCallback(Core* object, int propertyKey, CallbackData value)
+    {
+        switch (propertyKey)
+        {
+            case NestedTriggerBase::firePropertyKey:
+                object->as<NestedTriggerBase>()->fire(value);
+                break;
+            case EventBase::triggerPropertyKey:
+                object->as<EventBase>()->trigger(value);
+                break;
+        }
+    }
     static void setColor(Core* object, int propertyKey, int value)
     {
         switch (propertyKey)
@@ -1153,15 +1168,6 @@ public:
                 break;
             case GradientStopBase::colorValuePropertyKey:
                 object->as<GradientStopBase>()->colorValue(value);
-                break;
-        }
-    }
-    static void setCallback(Core* object, int propertyKey, CallbackData value)
-    {
-        switch (propertyKey)
-        {
-            case EventBase::triggerPropertyKey:
-                object->as<EventBase>()->trigger(value);
                 break;
         }
     }
@@ -1226,6 +1232,8 @@ public:
                 return object->as<ListenerFireEventBase>()->eventId();
             case ListenerInputChangeBase::inputIdPropertyKey:
                 return object->as<ListenerInputChangeBase>()->inputId();
+            case ListenerInputChangeBase::nestedInputIdPropertyKey:
+                return object->as<ListenerInputChangeBase>()->nestedInputId();
             case AnimationStateBase::animationIdPropertyKey:
                 return object->as<AnimationStateBase>()->animationId();
             case NestedInputBase::inputIdPropertyKey:
@@ -1736,6 +1744,7 @@ public:
             case SoloBase::activeComponentIdPropertyKey:
             case ListenerFireEventBase::eventIdPropertyKey:
             case ListenerInputChangeBase::inputIdPropertyKey:
+            case ListenerInputChangeBase::nestedInputIdPropertyKey:
             case AnimationStateBase::animationIdPropertyKey:
             case NestedInputBase::inputIdPropertyKey:
             case KeyedObjectBase::objectIdPropertyKey:
@@ -1980,6 +1989,7 @@ public:
     {
         switch (propertyKey)
         {
+            case NestedTriggerBase::firePropertyKey:
             case EventBase::triggerPropertyKey:
                 return true;
             default:

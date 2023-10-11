@@ -1,7 +1,10 @@
 #include "rive/animation/listener_trigger_change.hpp"
+#include "rive/animation/nested_trigger.hpp"
+#include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/core/field_types/core_callback_type.hpp"
 
 using namespace rive;
 
@@ -16,12 +19,27 @@ bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) co
 void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
                                     Vec2D position) const
 {
-    auto inputInstance = stateMachineInstance->input(inputId());
-    if (inputInstance == nullptr)
+    if (nestedInputId() != Core::emptyId) 
     {
-        return;
+        auto nestedInputInstance = stateMachineInstance->artboard()->resolve(nestedInputId());
+        if (nestedInputInstance == nullptr) 
+        {
+            return;
+        }
+        auto nestedTriggerInput = static_cast<NestedTrigger*>(nestedInputInstance);
+        if (nestedTriggerInput != nullptr) {
+            nestedTriggerInput->fire(CallbackData(stateMachineInstance, 0));
+        }
+    } else {
+        auto inputInstance = stateMachineInstance->input(inputId());
+        if (inputInstance == nullptr)
+        {
+            return;
+        }
+        // If it's not null, it must be our correct type (why we validate at load time).
+        auto triggerInput = static_cast<SMITrigger*>(inputInstance);
+        if (triggerInput != nullptr) {
+            triggerInput->fire();
+        }
     }
-    // If it's not null, it must be our correct type (why we validate at load time).
-    auto triggerInput = static_cast<SMITrigger*>(inputInstance);
-    triggerInput->fire();
 }

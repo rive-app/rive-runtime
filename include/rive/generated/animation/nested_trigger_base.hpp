@@ -1,6 +1,7 @@
 #ifndef _RIVE_NESTED_TRIGGER_BASE_HPP_
 #define _RIVE_NESTED_TRIGGER_BASE_HPP_
 #include "rive/animation/nested_input.hpp"
+#include "rive/core/field_types/core_callback_type.hpp"
 namespace rive
 {
 class NestedTriggerBase : public NestedInput
@@ -27,6 +28,11 @@ public:
     }
 
     uint16_t coreType() const override { return typeKey; }
+
+    static const uint16_t firePropertyKey = 401;
+
+public:
+    virtual void fire(const CallbackData& value) = 0;
 
     Core* clone() const override;
 
