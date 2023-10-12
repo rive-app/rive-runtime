@@ -6,6 +6,6 @@ edition = "2021"
 [dependencies]
 pollster = "0.3.0"
 rive-rs = { path = "../../rive_rs", features = ["vello"] }
-vello = { workspace = true }
+vello = { git = "https://github.com/linebender/vello", rev = "ee3a076" }
 wgpu = "0.17.0"
 winit = "0.28.6"
