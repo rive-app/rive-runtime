@@ -8,7 +8,7 @@
 #ifdef RIVE_BUILD_FOR_APPLE
 
 #include "cg_skia_factory.hpp"
-#include "mac_utils.hpp"
+#include "cg_renderer.hpp"
 
 #if defined(RIVE_BUILD_FOR_OSX)
 #include <ApplicationServices/ApplicationServices.h>
@@ -24,7 +24,7 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
 {
     std::vector<uint8_t> pixels;
 
-    AutoCF image = DecodeToCGImage(span);
+    AutoCF image = CGRenderer::DecodeToCGImage(span);
     if (!image)
     {
         return pixels;

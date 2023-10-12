@@ -24,6 +24,7 @@ do
     objdir '%{cfg.system}/obj/%{cfg.buildcfg}'
     includedirs {
         '../include',
+        '../../../cg_renderer/include',
         '../../../include'
     }
 

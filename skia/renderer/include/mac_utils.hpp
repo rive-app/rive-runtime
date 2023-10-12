@@ -3,16 +3,10 @@
 
 #include "rive/rive_types.hpp"
 #include "rive/span.hpp"
+#include "utils/auto_cf.hpp"
 #include <string>
 
 #ifdef RIVE_BUILD_FOR_APPLE
-
-#if defined(RIVE_BUILD_FOR_OSX)
-#include <ApplicationServices/ApplicationServices.h>
-#elif defined(RIVE_BUILD_FOR_IOS)
-#include <CoreFoundation/CoreFoundation.h>
-#include <CoreGraphics/CGImage.h>
-#endif
 
 template <size_t N, typename T> class AutoSTArray
 {
@@ -61,67 +55,6 @@ static inline std::string tag2str(uint32_t tag)
     return str;
 }
 
-template <typename T> class AutoCF
-{
-    T m_obj;
-
-public:
-    AutoCF(T obj = nullptr) : m_obj(obj) {}
-    AutoCF(const AutoCF& other)
-    {
-        if (other.m_obj)
-        {
-            CFRetain(other.m_obj);
-        }
-        m_obj = other.m_obj;
-    }
-    AutoCF(AutoCF&& other)
-    {
-        m_obj = other.m_obj;
-        other.m_obj = nullptr;
-    }
-    ~AutoCF()
-    {
-        if (m_obj)
-        {
-            CFRelease(m_obj);
-        }
-    }
-
-    AutoCF& operator=(const AutoCF& other)
-    {
-        if (m_obj != other.m_obj)
-        {
-            if (other.m_obj)
-            {
-                CFRetain(other.m_obj);
-            }
-            if (m_obj)
-            {
-                CFRelease(m_obj);
-            }
-            m_obj = other.m_obj;
-        }
-        return *this;
-    }
-
-    void reset(T obj)
-    {
-        if (obj != m_obj)
-        {
-            if (m_obj)
-            {
-                CFRelease(m_obj);
-            }
-            m_obj = obj;
-        }
-    }
-
-    operator T() const { return m_obj; }
-    operator bool() const { return m_obj != nullptr; }
-    T get() const { return m_obj; }
-};
-
 static inline float find_float(CFDictionaryRef dict, const void* key)
 {
     auto num = (CFNumberRef)CFDictionaryGetValue(dict, key);
@@ -154,12 +87,6 @@ static inline float number_as_float(CFNumberRef num)
     CFNumberGetValue(num, kCFNumberFloat32Type, &value);
     return value;
 }
-
-namespace rive
-{
-AutoCF<CGImageRef> DecodeToCGImage(Span<const uint8_t>);
-AutoCF<CGImageRef> FlipCGImageInY(AutoCF<CGImageRef>);
-} // namespace rive
 
 #endif
 #endif

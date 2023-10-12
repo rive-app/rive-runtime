@@ -6,6 +6,7 @@
 #define _RIVE_CG_RENDERER_HPP_
 
 #include "rive/renderer.hpp"
+#include "utils/auto_cf.hpp"
 
 #if defined(RIVE_BUILD_FOR_OSX)
 #include <ApplicationServices/ApplicationServices.h>
@@ -39,6 +40,9 @@ public:
                        uint32_t indexCount,
                        BlendMode,
                        float opacity) override;
+
+    static AutoCF<CGImageRef> DecodeToCGImage(Span<const uint8_t>);
+    static AutoCF<CGImageRef> FlipCGImageInY(AutoCF<CGImageRef>);
 };
 } // namespace rive
 #endif
