@@ -2,7 +2,6 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/loop.hpp"
 #include "rive/animation/keyed_callback_reporter.hpp"
-#include "rive/rive_counter.hpp"
 #include <cmath>
 #include <cassert>
 
@@ -18,9 +17,7 @@ LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animatio
     m_lastTotalTime(0.0f),
     m_spilledTime(0.0f),
     m_direction(1)
-{
-    Counter::update(Counter::kLinearAnimationInstance, +1);
-}
+{}
 
 LinearAnimationInstance::LinearAnimationInstance(LinearAnimationInstance const& lhs) :
     Scene(lhs),
@@ -32,14 +29,9 @@ LinearAnimationInstance::LinearAnimationInstance(LinearAnimationInstance const& 
     m_direction(lhs.m_direction),
     m_didLoop(lhs.m_didLoop),
     m_loopValue(lhs.m_loopValue)
-{
-    Counter::update(Counter::kLinearAnimationInstance, +1);
-}
+{}
 
-LinearAnimationInstance::~LinearAnimationInstance()
-{
-    Counter::update(Counter::kLinearAnimationInstance, -1);
-}
+LinearAnimationInstance::~LinearAnimationInstance() {}
 
 bool LinearAnimationInstance::advanceAndApply(float seconds)
 {

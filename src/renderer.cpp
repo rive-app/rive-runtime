@@ -1,6 +1,5 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/renderer.hpp"
-#include "rive/rive_counter.hpp"
 #include "rive/text_engine.hpp"
 
 using namespace rive;
@@ -82,11 +81,9 @@ void Renderer::rotate(float radians)
 
 RenderBuffer::RenderBuffer(RenderBufferType type, RenderBufferFlags flags, size_t sizeInBytes) :
     m_type(type), m_flags(flags), m_sizeInBytes(sizeInBytes)
-{
-    Counter::update(Counter::kBuffer, 1);
-}
+{}
 
-RenderBuffer::~RenderBuffer() { Counter::update(Counter::kBuffer, -1); }
+RenderBuffer::~RenderBuffer() {}
 
 void* RenderBuffer::map()
 {
@@ -103,21 +100,18 @@ void RenderBuffer::unmap()
     onUnmap();
 }
 
-RenderShader::RenderShader() { Counter::update(Counter::kShader, 1); }
-RenderShader::~RenderShader() { Counter::update(Counter::kShader, -1); }
+RenderShader::RenderShader() {}
+RenderShader::~RenderShader() {}
 
-RenderPaint::RenderPaint() { Counter::update(Counter::kPaint, 1); }
-RenderPaint::~RenderPaint() { Counter::update(Counter::kPaint, -1); }
+RenderPaint::RenderPaint() {}
+RenderPaint::~RenderPaint() {}
 
-RenderImage::RenderImage(const Mat2D& uvTransform) : m_uvTransform(uvTransform)
-{
-    Counter::update(Counter::kImage, 1);
-}
-RenderImage::RenderImage() { Counter::update(Counter::kImage, 1); }
-RenderImage::~RenderImage() { Counter::update(Counter::kImage, -1); }
+RenderImage::RenderImage(const Mat2D& uvTransform) : m_uvTransform(uvTransform) {}
+RenderImage::RenderImage() {}
+RenderImage::~RenderImage() {}
 
-RenderPath::RenderPath() { Counter::update(Counter::kPath, 1); }
-RenderPath::~RenderPath() { Counter::update(Counter::kPath, -1); }
+RenderPath::RenderPath() {}
+RenderPath::~RenderPath() {}
 
 bool rive::isWhiteSpace(Unichar c) { return c <= ' ' || c == 0x2028; }
 

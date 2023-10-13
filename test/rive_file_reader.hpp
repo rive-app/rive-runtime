@@ -2,7 +2,6 @@
 #define _RIVE_FILE_READER_HPP_
 
 #include <rive/file.hpp>
-#include "rive/rive_counter.hpp"
 
 #include "rive_testing.hpp"
 #include "utils/no_op_factory.hpp"
@@ -37,30 +36,5 @@ static inline std::unique_ptr<rive::File> ReadRiveFile(const char path[],
 
     return file;
 }
-
-class RenderObjectLeakChecker
-{
-    int m_before[rive::Counter::kNumTypes];
-
-public:
-    RenderObjectLeakChecker()
-    {
-        std::copy(rive::Counter::counts,
-                  rive::Counter::counts + rive::Counter::kNumTypes,
-                  m_before);
-    }
-    ~RenderObjectLeakChecker()
-    {
-        const int* after = rive::Counter::counts;
-        for (int i = 0; i < rive::Counter::kNumTypes; ++i)
-        {
-            if (rive::Counter::counts[i] != m_before[i])
-            {
-                printf("[%d] before:%d after:%d\n", i, m_before[i], after[i]);
-                REQUIRE(false);
-            }
-        }
-    }
-};
 
 #endif

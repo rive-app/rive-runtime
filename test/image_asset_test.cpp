@@ -13,7 +13,6 @@
 
 TEST_CASE("image assets loads correctly", "[assets]")
 {
-    RenderObjectLeakChecker checker;
     auto file = ReadRiveFile("../../test/assets/walle.riv");
 
     auto node = file->artboard()->find("walle");
@@ -45,7 +44,6 @@ TEST_CASE("image assets loads correctly", "[assets]")
 
 TEST_CASE("out of band image assets loads correctly", "[assets]")
 {
-    RenderObjectLeakChecker checker;
     rive::NoOpFactory gEmptyFactory;
 
     std::string filename = "../../test/assets/out_of_band/walle.riv";

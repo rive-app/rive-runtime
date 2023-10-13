@@ -3,7 +3,6 @@
  */
 
 #include "viewer/viewer_content.hpp"
-#include "rive/rive_counter.hpp"
 #include <vector>
 
 ViewerContent::~ViewerContent() { DumpCounters("After deleting content"); }

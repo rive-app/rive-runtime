@@ -21,7 +21,6 @@
 #include "rive/math/hit_test.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
-#include "rive/rive_counter.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/core/field_types/core_callback_type.hpp"
 #include "rive/generated/core_registry.hpp"
@@ -433,8 +432,6 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
     Scene(instance), m_machine(machine)
 {
-    Counter::update(Counter::kStateMachineInstance, +1);
-
     const auto count = machine->inputCount();
     m_inputInstances.resize(count);
     for (size_t i = 0; i < count; i++)
@@ -533,8 +530,6 @@ StateMachineInstance::~StateMachineInstance()
         delete inst;
     }
     delete[] m_layers;
-
-    Counter::update(Counter::kStateMachineInstance, -1);
 }
 
 bool StateMachineInstance::advance(float seconds)
@@ -691,7 +686,8 @@ void StateMachineInstance::reportKeyedCallback(uint32_t objectId,
     CoreRegistry::setCallback(coreObject, propertyKey, data);
 }
 
-void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events, NestedArtboard* source)
+void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events,
+                                                NestedArtboard* source)
 {
     if (events.size() > 0)
     {
@@ -700,8 +696,7 @@ void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events,
         {
             auto listener = m_machine->listener(i);
             auto target = artboard()->resolve(listener->targetId());
-            if (listener != nullptr && 
-                listener->listenerType() == ListenerType::event &&
+            if (listener != nullptr && listener->listenerType() == ListenerType::event &&
                 (source == nullptr || source == target))
             {
                 for (const auto event : events)

@@ -1,5 +1,4 @@
 #include "rive/file.hpp"
-#include "rive/rive_counter.hpp"
 #include "rive/runtime_header.hpp"
 #include "rive/animation/animation.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
@@ -124,12 +123,10 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
 File::File(Factory* factory, FileAssetLoader* assetLoader) :
     m_Factory(factory), m_AssetLoader(assetLoader)
 {
-    Counter::update(Counter::kFile, +1);
-
     assert(factory);
 }
 
-File::~File() { Counter::update(Counter::kFile, -1); }
+File::~File() {}
 
 std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
                                    Factory* factory,
