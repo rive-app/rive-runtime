@@ -17,9 +17,7 @@ void main()
 
 #ifdef @FRAGMENT
 
-#ifdef GL_EXT_shader_pixel_local_storage
-
-#extension GL_EXT_shader_pixel_local_storage : require
+#extension GL_EXT_shader_pixel_local_storage : enable
 #extension GL_ARM_shader_framebuffer_fetch : enable
 #extension GL_EXT_shader_framebuffer_fetch : enable
 
@@ -27,21 +25,12 @@ void main()
 #if __VERSION__ > 300
 layout(binding = 0, std140) uniform ClearColor { uniform highp vec4 value; }
 clearColor;
-#define COLOR_CLEAR_VALUE clearColor.value
 #else
 uniform mediump vec4 @clearColor;
-#define COLOR_CLEAR_VALUE @clearColor
 #endif
 #endif
 
-#ifdef @LOAD_COLOR
-#ifdef GL_ARM_shader_framebuffer_fetch
-#define COLOR_LOAD_VALUE gl_LastFragColorARM
-#else
-layout(location = 0) inout mediump vec4 fragColor;
-#define COLOR_LOAD_VALUE fragColor
-#endif
-#endif
+#ifdef GL_EXT_shader_pixel_local_storage
 
 #ifdef @STORE_COLOR
 __pixel_local_inEXT PLS
@@ -55,6 +44,12 @@ __pixel_local_outEXT PLS
     layout(r32ui) highp uint clipBuffer;
 };
 
+#ifndef GL_ARM_shader_framebuffer_fetch
+#ifdef @LOAD_COLOR
+layout(location = 0) inout mediump vec4 fragColor;
+#endif
+#endif
+
 #ifdef @STORE_COLOR
 layout(location = 0) out mediump vec4 fragColor;
 #endif
@@ -62,11 +57,19 @@ layout(location = 0) out mediump vec4 fragColor;
 void main()
 {
 #ifdef @CLEAR_COLOR
-    framebuffer = COLOR_CLEAR_VALUE;
+#if __VERSION__ > 300
+    framebuffer = clearColor.value;
+#else
+    framebuffer = @clearColor;
+#endif
 #endif
 
 #ifdef @LOAD_COLOR
-    framebuffer = COLOR_LOAD_VALUE;
+#ifdef GL_ARM_shader_framebuffer_fetch
+    framebuffer = gl_LastFragColorARM;
+#else
+    framebuffer = fragColor;
+#endif
 #endif
 
 #ifdef @CLEAR_COVERAGE

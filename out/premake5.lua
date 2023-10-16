@@ -147,31 +147,8 @@ do
     end
 end
 
--- Embed some .rivs into .c files so we don't have to implement file loading.
-project "webgpu_player_rivs"
-do
-    dependson 'rive_pls_shaders' -- to create the out/obj/generated directory
-    kind 'Makefile'
-
-    buildcommands {
-        'mkdir -p obj/generated',
-        'test -f obj/generated/marty.riv.c || xxd -n marty_riv -i ../../../gold/rivs/marty.riv obj/generated/marty.riv.c',
-        'test -f obj/generated/Knight_square_2.riv.c || xxd -n Knight_square_2_riv -i ../../../gold/rivs/Knight_square_2.riv obj/generated/Knight_square_2.riv.c',
-        'test -f obj/generated/Rope.riv.c || xxd -n Rope_riv -i ../../../gold/rivs/Rope.riv obj/generated/Rope.riv.c',
-        'test -f obj/generated/Skills.riv.c || xxd -n Skills_riv -i ../../../gold/rivs/Skills.riv obj/generated/Skills.riv.c',
-        'test -f obj/generated/falling.riv.c || xxd -n falling_riv -i ../../../gold/rivs/falling.riv obj/generated/falling.riv.c',
-        'test -f obj/generated/tape.riv.c || xxd -n tape_riv -i ../../../gold/rivs/tape.riv obj/generated/tape.riv.c',
-    }
-
-    filter 'system:windows'
-    do
-        architecture 'x64'
-    end
-end
-
 project "webgpu_player"
 do
-    dependson 'webgpu_player_rivs'
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++17"
@@ -189,6 +166,17 @@ do
     files {
         "../webgpu_player/webgpu_player.cpp",
         "../webgpu_player/index.html",
+        "../webgpu_player/rive.js",
+        "../../../gold/rivs/LumberjackFinal.riv",
+        "../../../gold/rivs/Santa_Claus.riv",
+        "../../../gold/rivs/Coffee_Cup.riv",
+        "../../../gold/rivs/skull_404.riv",
+        "../../../gold/rivs/octopus_loop.riv",
+        "../../../gold/rivs/planets.riv",
+        "../../../gold/rivs/Timer.riv",
+        "../../../gold/rivs/icons_vampire-aquamonster.riv",
+        "../../../gold/rivs/towersDemo.riv",
+        "../../../gold/rivs/skills_demov1.riv",
     }
 
     links {
@@ -261,7 +249,7 @@ do
         targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
         objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
         linkoptions {
-            "-sEXPORTED_FUNCTIONS=_riveInitPlayer,_riveMainLoop",
+            "-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultScene,_ArtboardInstance_align,_ArtboardInstance_destroy,_Scene_advanceAndApply,_Scene_draw,_Scene_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free",
             "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
             "-sSINGLE_FILE",
             "-sUSE_WEBGPU",
@@ -269,7 +257,7 @@ do
         }
     end
 
-    filter 'files:**.html'
+    filter 'files:**.html or **.riv or **.js'
     do
         buildmessage "Copying %{file.relpath} to %{cfg.targetdir}"
         buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}

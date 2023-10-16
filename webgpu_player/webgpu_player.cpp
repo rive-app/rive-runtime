@@ -29,27 +29,13 @@
 #define EMSCRIPTEN_KEEPALIVE
 #endif
 
-#include "../out/obj/generated/marty.riv.c"
-// #include "../out/obj/generated/Knight_square_2.riv.c"
-// #include "../out/obj/generated/Rope.riv.c"
-// #include "../out/obj/generated/Skills.riv.c"
-// #include "../out/obj/generated/falling.riv.c"
-// #include "../out/obj/generated/tape.riv.c"
-
 using namespace rive;
 using namespace rive::pls;
 using PixelLocalStorageType = PLSRenderContextWebGPUImpl::PixelLocalStorageType;
 
-static std::unique_ptr<File> s_rivFile;
-static std::unique_ptr<ArtboardInstance> s_artboard;
-static std::unique_ptr<Scene> s_scene;
-
 static std::unique_ptr<PLSRenderContext> s_plsContext;
 static rcp<PLSRenderTargetWebGPU> s_renderTarget;
 static std::unique_ptr<Renderer> s_renderer;
-
-static int s_width, s_height;
-double s_lastTimestamp = 0;
 
 void riveInitPlayer(int w,
                     int h,
@@ -64,80 +50,199 @@ void riveInitPlayer(int w,
         w,
         h);
     s_renderer = std::make_unique<PLSRenderer>(s_plsContext.get());
-
-    s_rivFile = File::import({marty_riv, std::size(marty_riv)}, s_plsContext.get());
-    // s_rivFile =
-    //     File::import({Knight_square_2_riv, std::size(Knight_square_2_riv)}, s_plsContext.get());
-    // s_rivFile = File::import({Rope_riv, std::size(Rope_riv)}, s_plsContext.get());
-    // s_rivFile = File::import({Skills_riv, std::size(Skills_riv)}, s_plsContext.get());
-    // s_rivFile = File::import({falling_riv, std::size(falling_riv)}, s_plsContext.get());
-    // s_rivFile = File::import({tape_riv, std::size(tape_riv)}, s_plsContext.get());
-    s_artboard = s_rivFile->artboardDefault();
-    s_scene = s_artboard->defaultScene();
-    s_scene->advanceAndApply(0);
-
-    s_width = w;
-    s_height = h;
-}
-
-void riveMainLoop(double timestamp, wgpu::TextureView targetTextureView)
-{
-    s_renderTarget->setTargetTextureView(targetTextureView);
-
-    rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
-        .renderTarget = s_renderTarget,
-        .clearColor = 0xff8030ff,
-    };
-    s_plsContext->beginFrame(std::move(frameDescriptor));
-
-    s_renderer->save();
-    s_renderer->transform(computeAlignment(rive::Fit::contain,
-                                           rive::Alignment::center,
-                                           rive::AABB(0, 0, s_width, s_height),
-                                           s_artboard->bounds()));
-    s_scene->draw(s_renderer.get());
-    s_renderer->restore();
-
-    if (s_lastTimestamp != 0)
-    {
-        s_scene->advanceAndApply(timestamp - s_lastTimestamp);
-    }
-    s_lastTimestamp = timestamp;
-
-    s_plsContext->flush();
 }
 
 #ifdef RIVE_WEBGPU
 
-EmJsHandle s_gpuHandle;
+EmJsHandle s_deviceHandle;
 EmJsHandle s_queueHandle;
+EmJsHandle s_textureViewHandle;
 
 extern "C"
 {
-    void EMSCRIPTEN_KEEPALIVE
-    riveInitPlayer(int w, int h, int gpuID, int queueID, bool uninvertOnScreenY, int plsType)
+    void EMSCRIPTEN_KEEPALIVE RiveInitialize(int deviceID,
+                                             int queueID,
+                                             int canvasWidth,
+                                             int canvasHeight,
+                                             bool invertedY,
+                                             int pixelLocalStorageType)
     {
-        s_gpuHandle = EmJsHandle(gpuID);
+        s_deviceHandle = EmJsHandle(deviceID);
         s_queueHandle = EmJsHandle(queueID);
         pls::PlatformFeatures platformFeatures;
-        if (uninvertOnScreenY)
+        if (invertedY)
         {
             platformFeatures.uninvertOnScreenY = true;
         }
-        riveInitPlayer(w,
-                       h,
-                       wgpu::Device::Acquire(emscripten_webgpu_import_device(s_gpuHandle.get())),
+        riveInitPlayer(canvasWidth,
+                       canvasHeight,
+                       wgpu::Device::Acquire(emscripten_webgpu_import_device(s_deviceHandle.get())),
                        emscripten_webgpu_import_queue(s_queueHandle.get()),
                        platformFeatures,
-                       static_cast<PixelLocalStorageType>(plsType));
+                       static_cast<PixelLocalStorageType>(pixelLocalStorageType));
     }
 
-    void EMSCRIPTEN_KEEPALIVE riveMainLoop(double timestamp, int textureViewID)
+    intptr_t EMSCRIPTEN_KEEPALIVE RiveBeginRendering(int textureViewID,
+                                                     int loadAction,
+                                                     ColorInt clearColor)
     {
-        EmJsHandle textureViewHandle = EmJsHandle(textureViewID);
-        riveMainLoop(timestamp,
-                     wgpu::TextureView::Acquire(
-                         emscripten_webgpu_import_texture_view(textureViewHandle.get())));
+        s_textureViewHandle = EmJsHandle(textureViewID);
+        auto targetTextureView = wgpu::TextureView::Acquire(
+            emscripten_webgpu_import_texture_view(s_textureViewHandle.get()));
+        s_renderTarget->setTargetTextureView(targetTextureView);
+
+        rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
+            .renderTarget = s_renderTarget,
+            .loadAction = static_cast<pls::LoadAction>(loadAction),
+            .clearColor = clearColor,
+        };
+        s_plsContext->beginFrame(std::move(frameDescriptor));
+
+        s_renderer->save();
+        return reinterpret_cast<intptr_t>(s_renderer.get());
+    }
+
+    void EMSCRIPTEN_KEEPALIVE RiveFlushRendering()
+    {
+        s_renderer->restore();
+        s_plsContext->flush();
+        s_textureViewHandle = EmJsHandle();
+    }
+
+    intptr_t EMSCRIPTEN_KEEPALIVE RiveLoadFile(intptr_t wasmBytesPtr, size_t length)
+    {
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(wasmBytesPtr);
+        std::unique_ptr<File> file = File::import({bytes, length}, s_plsContext.get());
+        return reinterpret_cast<intptr_t>(file.release());
+    }
+
+    intptr_t EMSCRIPTEN_KEEPALIVE File_artboardNamed(intptr_t nativePtr, const char* name)
+    {
+        auto file = reinterpret_cast<File*>(nativePtr);
+        std::unique_ptr<ArtboardInstance> artboard = file->artboardNamed(name);
+        return reinterpret_cast<intptr_t>(artboard.release());
+    }
+
+    intptr_t EMSCRIPTEN_KEEPALIVE File_artboardDefault(intptr_t nativePtr)
+    {
+        auto file = reinterpret_cast<File*>(nativePtr);
+        std::unique_ptr<ArtboardInstance> artboard = file->artboardDefault();
+        return reinterpret_cast<intptr_t>(artboard.release());
+    }
+
+    void EMSCRIPTEN_KEEPALIVE File_destroy(intptr_t nativePtr)
+    {
+        auto file = reinterpret_cast<File*>(nativePtr);
+        delete file;
+    }
+
+    int EMSCRIPTEN_KEEPALIVE ArtboardInstance_width(intptr_t nativePtr)
+    {
+        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
+        return artboard->bounds().width();
+    }
+
+    int EMSCRIPTEN_KEEPALIVE ArtboardInstance_height(intptr_t nativePtr)
+    {
+        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
+        return artboard->bounds().height();
+    }
+
+    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_stateMachineNamed(intptr_t nativePtr,
+                                                                     const char* name)
+    {
+        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
+        std::unique_ptr<Scene> scene = artboard->stateMachineNamed(name);
+        return reinterpret_cast<intptr_t>(scene.release());
+    }
+
+    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_animationNamed(intptr_t nativePtr,
+                                                                  const char* name)
+    {
+        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
+        std::unique_ptr<Scene> scene = artboard->animationNamed(name);
+        return reinterpret_cast<intptr_t>(scene.release());
+    }
+
+    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_defaultScene(intptr_t nativePtr)
+    {
+        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
+        std::unique_ptr<Scene> scene = artboard->defaultScene();
+        return reinterpret_cast<intptr_t>(scene.release());
+    }
+
+    void EMSCRIPTEN_KEEPALIVE ArtboardInstance_align(intptr_t nativePtr,
+                                                     intptr_t rendererNativePtr,
+                                                     float frameLeft,
+                                                     float frameTop,
+                                                     float frameRight,
+                                                     float frameBot,
+                                                     int fitValue,
+                                                     float alignmentX,
+                                                     float alignmentY)
+    {
+        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
+        auto renderer = reinterpret_cast<PLSRenderer*>(rendererNativePtr);
+        auto fit = static_cast<Fit>(fitValue);
+        Alignment alignment = {alignmentX, alignmentY};
+        AABB frame = {frameLeft, frameTop, frameRight, frameBot};
+        renderer->align(fit, alignment, frame, artboard->bounds());
+    }
+
+    void EMSCRIPTEN_KEEPALIVE ArtboardInstance_destroy(intptr_t nativePtr)
+    {
+        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
+        delete artboard;
+    }
+
+    void EMSCRIPTEN_KEEPALIVE Scene_advanceAndApply(intptr_t nativePtr, double elapsed)
+    {
+        auto scene = reinterpret_cast<Scene*>(nativePtr);
+        scene->advanceAndApply(elapsed);
+    }
+
+    void EMSCRIPTEN_KEEPALIVE Scene_draw(intptr_t nativePtr, intptr_t rendererNativePtr)
+    {
+        auto scene = reinterpret_cast<Scene*>(nativePtr);
+        auto rendrer = reinterpret_cast<PLSRenderer*>(rendererNativePtr);
+        scene->draw(rendrer);
+    }
+
+    void EMSCRIPTEN_KEEPALIVE Scene_destroy(intptr_t nativePtr)
+    {
+        auto scene = reinterpret_cast<Scene*>(nativePtr);
+        delete scene;
+    }
+
+    void EMSCRIPTEN_KEEPALIVE Renderer_save(intptr_t nativePtr)
+    {
+        auto renderer = reinterpret_cast<PLSRenderer*>(nativePtr);
+        renderer->save();
+    }
+
+    void EMSCRIPTEN_KEEPALIVE Renderer_restore(intptr_t nativePtr)
+    {
+        auto renderer = reinterpret_cast<PLSRenderer*>(nativePtr);
+        renderer->restore();
+    }
+
+    void EMSCRIPTEN_KEEPALIVE Renderer_translate(intptr_t nativePtr, float x, float y)
+    {
+        auto renderer = reinterpret_cast<PLSRenderer*>(nativePtr);
+        renderer->translate(x, y);
+    }
+
+    void EMSCRIPTEN_KEEPALIVE Renderer_transform(intptr_t nativePtr,
+                                                 float xx,
+                                                 float xy,
+                                                 float yx,
+                                                 float yy,
+                                                 float tx,
+                                                 float ty)
+    {
+        auto renderer = reinterpret_cast<PLSRenderer*>(nativePtr);
+        Mat2D matrix(xx, xy, yx, yy, tx, ty);
+        renderer->transform(matrix);
     }
 }
 
@@ -149,6 +254,8 @@ extern "C"
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 #endif
+
+#include <fstream>
 
 static void glfw_error_callback(int code, const char* message)
 {
@@ -333,9 +440,41 @@ int main(int argc, const char** argv)
                    PlatformFeatures{},
                    PixelLocalStorageType::none);
 
+    std::ifstream rivStream("../../../gold/rivs/marty.riv", std::ios::binary);
+    std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
+    std::unique_ptr<File> rivFile = File::import(rivBytes, s_plsContext.get());
+    std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
+    std::unique_ptr<Scene> scene = artboard->defaultScene();
+    scene->advanceAndApply(0);
+
+    double lastTimestamp = 0;
+
     while (!glfwWindowShouldClose(s_window))
     {
-        riveMainLoop(glfwGetTime(), s_swapchain.GetCurrentTextureView().Get());
+        double timestamp = glfwGetTime();
+        s_renderTarget->setTargetTextureView(s_swapchain.GetCurrentTextureView());
+
+        rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
+            .renderTarget = s_renderTarget,
+            .clearColor = 0xff8030ff,
+        };
+        s_plsContext->beginFrame(std::move(frameDescriptor));
+
+        s_renderer->save();
+        s_renderer->transform(computeAlignment(rive::Fit::contain,
+                                               rive::Alignment::center,
+                                               rive::AABB(0, 0, w, h),
+                                               artboard->bounds()));
+        scene->draw(s_renderer.get());
+        s_renderer->restore();
+
+        if (lastTimestamp != 0)
+        {
+            scene->advanceAndApply(timestamp - lastTimestamp);
+        }
+        lastTimestamp = timestamp;
+
+        s_plsContext->flush();
         s_swapchain.Present();
         device.Tick();
         glfwPollEvents();
