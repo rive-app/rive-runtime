@@ -27,6 +27,7 @@ TEST_CASE("Image assets with cdn information loads correctly", "[cdn]")
     // this is a 16 byte uuid, any good ideas on how to manage this test?
     // we could convert it to a string for the getter...
     REQUIRE(firstAsset->cdnUuid().size() == 16);
+    REQUIRE(strcmp("edcb1816-8405-4983-acd2-16db48d85df4", firstAsset->cdnUuidStr().c_str()) == 0);
     REQUIRE(firstAsset->cdnBaseUrl() == "https://public.uat.rive.app/cdn/uuid");
 
     REQUIRE(firstAsset->uniqueFilename() == "one-45008.png");

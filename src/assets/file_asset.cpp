@@ -1,3 +1,7 @@
+#include <sstream>
+#include <iomanip>
+#include <array>
+
 #include "rive/assets/file_asset.hpp"
 #include "rive/backboard.hpp"
 #include "rive/importers/backboard_importer.hpp"
@@ -41,3 +45,26 @@ void FileAsset::decodeCdnUuid(Span<const uint8_t> value)
 }
 
 Span<const uint8_t> FileAsset::cdnUuid() const { return m_cdnUuid; }
+
+std::string FileAsset::cdnUuidStr() const
+{
+    constexpr uint8_t uuidSize = 16;
+    if (m_cdnUuid.size() != uuidSize)
+    {
+        return "";
+    }
+    const std::array<const int, uuidSize>
+        indices{3, 2, 1, 0, 5, 4, 7, 6, 9, 8, 15, 14, 13, 12, 11, 10};
+
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (int idx : indices)
+    {
+        ss << std::setw(2) // always 2 chars
+           << static_cast<unsigned int>(m_cdnUuid[idx]);
+        if (idx == 0 || idx == 4 || idx == 6 || idx == 8)
+            ss << '-';
+    }
+
+    return ss.str();
+}

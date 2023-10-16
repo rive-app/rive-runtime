@@ -14,6 +14,7 @@ private:
 
 public:
     Span<const uint8_t> cdnUuid() const;
+    std::string cdnUuidStr() const;
 
     void decodeCdnUuid(Span<const uint8_t> value) override;
     void copyCdnUuid(const FileAssetBase& object) override;
