@@ -22,8 +22,11 @@ public:
     float normalizeLength()
     {
         const float len = this->length();
-        x /= len;
-        y /= len;
+        if (len > 0)
+        {
+            x /= len;
+            y /= len;
+        }
         return len;
     }
 
