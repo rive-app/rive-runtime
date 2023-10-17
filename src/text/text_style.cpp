@@ -80,12 +80,15 @@ const rcp<Font> TextStyle::font() const
     {
         return m_variableFont;
     }
-    return m_fontAsset == nullptr ? nullptr : m_fontAsset->font();
+
+    auto asset = fontAsset();
+    return asset == nullptr ? nullptr : asset->font();
 }
 
 void TextStyle::updateVariableFont()
 {
-    rcp<Font> baseFont = m_fontAsset == nullptr ? nullptr : m_fontAsset->font();
+    auto asset = fontAsset();
+    rcp<Font> baseFont = asset == nullptr ? nullptr : asset->font();
     if (baseFont == nullptr)
     {
         // Not ready yet.
@@ -185,16 +188,13 @@ void TextStyle::draw(Renderer* renderer)
     }
 }
 
-void TextStyle::assets(const std::vector<FileAsset*>& assets)
+uint32_t TextStyle::assetId() { return this->fontAssetId(); }
+
+void TextStyle::setAsset(FileAsset* asset)
 {
-    if ((size_t)fontAssetId() >= assets.size())
-    {
-        return;
-    }
-    auto asset = assets[fontAssetId()];
     if (asset->is<FontAsset>())
     {
-        m_fontAsset = asset->as<FontAsset>();
+        FileAssetReferencer::setAsset(asset);
     }
 }
 
@@ -217,6 +217,10 @@ void TextStyle::letterSpacingChanged() { parent()->as<Text>()->markShapeDirty();
 Core* TextStyle::clone() const
 {
     TextStyle* twin = TextStyleBase::clone()->as<TextStyle>();
-    twin->m_fontAsset = m_fontAsset;
+    if (m_fileAsset != nullptr)
+    {
+        twin->setAsset(m_fileAsset);
+    }
+
     return twin;
 }

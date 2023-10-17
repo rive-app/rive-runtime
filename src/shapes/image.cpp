@@ -12,8 +12,9 @@ using namespace rive;
 void Image::draw(Renderer* renderer)
 {
     rive::RenderImage* renderImage;
-    if (m_ImageAsset == nullptr || renderOpacity() == 0.0f ||
-        (renderImage = m_ImageAsset->renderImage()) == nullptr)
+    rive::ImageAsset* asset = this->imageAsset();
+    if (asset == nullptr || renderOpacity() == 0.0f ||
+        (renderImage = asset->renderImage()) == nullptr)
     {
         return;
     }
@@ -46,7 +47,7 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
 {
     // TODO: handle clip?
 
-    auto renderImage = m_ImageAsset->renderImage();
+    auto renderImage = imageAsset()->renderImage();
     int width = renderImage->width();
     int height = renderImage->height();
 
@@ -79,22 +80,21 @@ StatusCode Image::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-void Image::assets(const std::vector<FileAsset*>& assets)
+// Question: thoughts on this? it looks a bit odd to me,
+// maybe there's a trick i'm missing here .. (could also implement getAssetId...)
+uint32_t Image::assetId() { return ImageBase::assetId(); }
+
+void Image::setAsset(FileAsset* asset)
 {
-    if ((size_t)assetId() >= assets.size())
-    {
-        return;
-    }
-    auto asset = assets[assetId()];
     if (asset->is<ImageAsset>())
     {
-        m_ImageAsset = asset->as<ImageAsset>();
+        FileAssetReferencer::setAsset(asset);
 
         // If we have a mesh and we're in the source artboard, let's initialize
         // the mesh buffers.
         if (m_Mesh != nullptr && !artboard()->isInstance())
         {
-            m_Mesh->initializeSharedBuffers(m_ImageAsset->renderImage());
+            m_Mesh->initializeSharedBuffers(imageAsset()->renderImage());
         }
     }
 }
@@ -102,7 +102,10 @@ void Image::assets(const std::vector<FileAsset*>& assets)
 Core* Image::clone() const
 {
     Image* twin = ImageBase::clone()->as<Image>();
-    twin->m_ImageAsset = m_ImageAsset;
+    if (m_fileAsset != nullptr)
+    {
+        twin->setAsset(m_fileAsset);
+    }
     return twin;
 }
 

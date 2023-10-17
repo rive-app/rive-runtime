@@ -1,8 +1,17 @@
 #include "rive/assets/file_asset_referencer.hpp"
 #include "rive/backboard.hpp"
+#include "rive/assets/file_asset.hpp"
 #include "rive/importers/backboard_importer.hpp"
 
 using namespace rive;
+
+FileAssetReferencer::~FileAssetReferencer()
+{
+    if (m_fileAsset != nullptr)
+    {
+        m_fileAsset->removeFileAssetReferencer(this);
+    }
+}
 
 StatusCode FileAssetReferencer::registerReferencer(ImportStack& importStack)
 {
@@ -15,3 +24,9 @@ StatusCode FileAssetReferencer::registerReferencer(ImportStack& importStack)
 
     return StatusCode::Ok;
 }
+
+void FileAssetReferencer::setAsset(FileAsset* asset)
+{
+    m_fileAsset = asset;
+    asset->addFileAssetReferencer(this);
+};

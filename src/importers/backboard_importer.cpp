@@ -74,7 +74,13 @@ StatusCode BackboardImporter::resolve()
     }
     for (auto referencer : m_FileAssetReferencers)
     {
-        referencer->assets(m_FileAssets);
+        auto index = (size_t)referencer->assetId();
+        if (index >= m_FileAssets.size())
+        {
+            continue;
+        }
+        auto asset = m_FileAssets[index];
+        referencer->setAsset(asset);
     }
 
     return StatusCode::Ok;

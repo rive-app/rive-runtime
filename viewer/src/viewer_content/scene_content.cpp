@@ -122,8 +122,6 @@ class SceneContent : public ViewerContent
         {
             m_CurrentScene->inputCount();
         }
-
-        DumpCounters("After loading file");
     }
 
     void initAnimation(int index)
@@ -140,8 +138,6 @@ class SceneContent : public ViewerContent
             m_CurrentScene = m_ArtboardInstance->animationAt(index);
             m_CurrentScene->inputCount();
         }
-
-        DumpCounters("After loading file");
     }
 
 public:

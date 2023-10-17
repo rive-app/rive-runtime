@@ -5,7 +5,7 @@
 #include "viewer/viewer_content.hpp"
 #include <vector>
 
-ViewerContent::~ViewerContent() { DumpCounters("After deleting content"); }
+ViewerContent::~ViewerContent() {}
 
 const char* gCounterNames[] = {
     "file",
@@ -44,22 +44,6 @@ std::vector<uint8_t> ViewerContent::LoadFile(const char filename[])
         bytes.resize(0);
     }
     return bytes;
-}
-
-void ViewerContent::DumpCounters(const char label[])
-{
-    assert(sizeof(gCounterNames) / sizeof(gCounterNames[0]) == rive::Counter::kLastType + 1);
-
-    if (label == nullptr)
-    {
-        label = "Counters";
-    }
-    printf("%s:", label);
-    for (int i = 0; i <= rive::Counter::kLastType; ++i)
-    {
-        printf(" [%s]:%d", gCounterNames[i], rive::Counter::counts[i]);
-    }
-    printf("\n");
 }
 
 #ifndef RIVE_SKIP_IMGUI

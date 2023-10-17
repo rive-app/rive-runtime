@@ -19,6 +19,9 @@ else
     dofile(path.join(path.getabsolute(rive) .. '/build', 'premake5.lua'))
 end
 
+
+dofile(path.join(path.getabsolute(rive) .. '/cg_renderer/build', 'premake5.lua'))
+
 project 'rive_viewer'
 do
     if _OPTIONS.renderer == 'tess' then
@@ -75,7 +78,8 @@ do
             'Cocoa.framework',
             'IOKit.framework',
             'CoreVideo.framework',
-            'OpenGL.framework'
+            'OpenGL.framework',
+            'rive_cg_renderer'
         }
         files {
             '../src/**.m',
@@ -221,7 +225,7 @@ do
         }
         links {
             'skia',
-            'rive_skia_renderer'
+            'rive_skia_renderer',
         }
     end
 

@@ -12,17 +12,17 @@ class Mesh;
 class Image : public ImageBase, public FileAssetReferencer
 {
 private:
-    ImageAsset* m_ImageAsset = nullptr;
     Mesh* m_Mesh = nullptr;
 
 public:
     Mesh* mesh() const;
     void setMesh(Mesh* mesh);
-    ImageAsset* imageAsset() const { return m_ImageAsset; }
+    ImageAsset* imageAsset() const { return (ImageAsset*)m_fileAsset; }
     void draw(Renderer* renderer) override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     StatusCode import(ImportStack& importStack) override;
-    void assets(const std::vector<FileAsset*>& assets) override;
+    void setAsset(FileAsset*) override;
+    uint32_t assetId() override;
     Core* clone() const override;
 };
 } // namespace rive

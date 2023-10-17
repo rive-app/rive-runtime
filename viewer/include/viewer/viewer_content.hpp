@@ -65,7 +65,6 @@ public:
     static std::unique_ptr<ViewerContent> TrimPath(const char[]);
 
     static std::vector<uint8_t> LoadFile(const char path[]);
-    static void DumpCounters(const char label[]);
 
     // Abstracts which rive Factory is currently used.
     static rive::Factory* RiveFactory();

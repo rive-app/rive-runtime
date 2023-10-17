@@ -27,8 +27,11 @@ public:
     TextStyle();
     void buildDependencies() override;
     const rcp<Font> font() const;
-    void assets(const std::vector<FileAsset*>& assets) override;
+    void setAsset(FileAsset*) override;
+    uint32_t assetId() override;
     StatusCode import(ImportStack& importStack) override;
+
+    FontAsset* fontAsset() const { return (FontAsset*)m_fileAsset; }
 
     bool addPath(const RawPath& rawPath, float opacity);
     void rewindPath();
@@ -38,7 +41,6 @@ public:
     void updateVariableFont();
     StatusCode onAddedClean(CoreContext* context) override;
     void onDirty(ComponentDirt dirt) override;
-    // void update(ComponentDirt value) override;
 
 protected:
     void fontSizeChanged() override;
@@ -49,7 +51,6 @@ private:
     std::unique_ptr<TextVariationHelper> m_variationHelper;
     std::unordered_map<float, std::unique_ptr<RenderPath>> m_opacityPaths;
     rcp<Font> m_variableFont;
-    FontAsset* m_fontAsset = nullptr;
     std::unique_ptr<RenderPath> m_path;
     bool m_hasContents = false;
     std::vector<Font::Coord> m_coords;
