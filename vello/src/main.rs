@@ -1,6 +1,6 @@
 use std::{fs, time::Instant};
 
-use rive_rs::{Artboard, File, Instantiate, Viewport};
+use rive_rs::{Artboard, File, Handle, Instantiate, Viewport};
 use vello::{
     kurbo::{Affine, Rect, Vec2},
     peniko::{Color, Fill},
@@ -89,9 +89,9 @@ fn main() {
                 WindowEvent::DroppedFile(path) => {
                     scene = Some({
                         let file = File::new(&fs::read(path).unwrap()).unwrap();
-                        let artboard = Artboard::instantiate(&file, None).unwrap();
+                        let artboard = Artboard::instantiate(&file, Handle::Default).unwrap();
 
-                        Box::<dyn rive_rs::Scene>::instantiate(&artboard, None).unwrap()
+                        Box::<dyn rive_rs::Scene>::instantiate(&artboard, Handle::Default).unwrap()
                     });
                 }
                 _ => {}
