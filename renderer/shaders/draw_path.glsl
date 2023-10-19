@@ -547,11 +547,12 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
             // This is a nested clip. Intersect coverage with the enclosing clip (outerClipID).
             half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
             half clipContentID = clipData.g;
-            half outerClipCoverage = .0;
-            if (clipContentID == outerClipID)
+            half outerClipCoverage;
+            if (clipContentID != clipID)
             {
-                // First hit: clipBuffer contains outerClipCoverage.
-                outerClipCoverage = clipData.r;
+                // First hit: either clipBuffer contains outerClipCoverage, or this pixel is not
+                // inside the outer clip and outerClipCoverage is zero.
+                outerClipCoverage = clipContentID == outerClipID ? clipData.r : .0;
 #ifndef @DRAW_INTERIOR_TRIANGLES
                 // Stash outerClipCoverage before overwriting clipBuffer, in case we hit this pixel
                 // again and need it. (Not necessary when drawing interior triangles because they
@@ -559,7 +560,7 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
                 PLS_STORE4F(originalDstColorBuffer, make_half4(outerClipCoverage, 0, 0, 0));
 #endif
             }
-            else if (clipContentID == clipID)
+            else
             {
                 // Subsequent hit: outerClipCoverage is stashed in originalDstColorBuffer.
                 outerClipCoverage = PLS_LOAD4F(originalDstColorBuffer).r;
