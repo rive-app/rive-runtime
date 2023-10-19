@@ -166,17 +166,32 @@ do
     files {
         "../webgpu_player/webgpu_player.cpp",
         "../webgpu_player/index.html",
+        "../webgpu_player/icons.html",
         "../webgpu_player/rive.js",
-        "../../../gold/rivs/LumberjackFinal.riv",
         "../../../gold/rivs/Santa_Claus.riv",
         "../../../gold/rivs/Coffee_Cup.riv",
         "../../../gold/rivs/skull_404.riv",
         "../../../gold/rivs/octopus_loop.riv",
         "../../../gold/rivs/planets.riv",
         "../../../gold/rivs/Timer.riv",
-        "../../../gold/rivs/icons_vampire-aquamonster.riv",
+        "../../../gold/rivs/adventuretime_marceline-pb.riv",
         "../../../gold/rivs/towersDemo.riv",
         "../../../gold/rivs/skills_demov1.riv",
+        "../../../gold/rivs/car_demo.riv",
+        "../../../gold/rivs/cloud_icon.riv",
+        "../../../gold/rivs/coffee_loader.riv",
+        "../../../gold/rivs/documentation.riv",
+        "../../../gold/rivs/fire_button.riv",
+        "../../../gold/rivs/lumberjackfinal.riv",
+        "../../../gold/rivs/mail_box.riv",
+        "../../../gold/rivs/new_file.riv",
+        "../../../gold/rivs/poison_loader.riv",
+        "../../../gold/rivs/popsicle_loader.riv",
+        "../../../gold/rivs/radio_button_example.riv",
+        "../../../gold/rivs/avatar_demo.riv",
+        "../../../gold/rivs/stopwatch.riv",
+        "../../../gold/rivs/volume_bars.riv",
+        "../../../gold/rivs/travel_icons.riv",
     }
 
     links {
@@ -249,7 +264,7 @@ do
         targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
         objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
         linkoptions {
-            "-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultScene,_ArtboardInstance_align,_ArtboardInstance_destroy,_Scene_advanceAndApply,_Scene_draw,_Scene_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free",
+            "-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultStateMachine,_ArtboardInstance_align,_ArtboardInstance_destroy,_StateMachineInstance_setBool,_StateMachineInstance_setNumber,_StateMachineInstance_fireTrigger,_StateMachineInstance_pointerDown,_StateMachineInstance_pointerMove,_StateMachineInstance_pointerUp,_StateMachineInstance_advanceAndApply,_StateMachineInstance_draw,_StateMachineInstance_destroy,_LinearAnimationInstance_advanceAndApply,_LinearAnimationInstance_draw,_LinearAnimationInstance_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free",
             "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
             "-sSINGLE_FILE",
             "-sUSE_WEBGPU",

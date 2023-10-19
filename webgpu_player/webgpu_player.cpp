@@ -7,6 +7,7 @@
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/pls/pls_render_context.hpp"
 #include "rive/pls/pls_renderer.hpp"
@@ -152,23 +153,23 @@ extern "C"
                                                                      const char* name)
     {
         auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<Scene> scene = artboard->stateMachineNamed(name);
-        return reinterpret_cast<intptr_t>(scene.release());
+        std::unique_ptr<StateMachineInstance> stateMachine = artboard->stateMachineNamed(name);
+        return reinterpret_cast<intptr_t>(stateMachine.release());
     }
 
     intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_animationNamed(intptr_t nativePtr,
                                                                   const char* name)
     {
         auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<Scene> scene = artboard->animationNamed(name);
-        return reinterpret_cast<intptr_t>(scene.release());
+        std::unique_ptr<LinearAnimationInstance> animation = artboard->animationNamed(name);
+        return reinterpret_cast<intptr_t>(animation.release());
     }
 
-    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_defaultScene(intptr_t nativePtr)
+    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_defaultStateMachine(intptr_t nativePtr)
     {
         auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<Scene> scene = artboard->defaultScene();
-        return reinterpret_cast<intptr_t>(scene.release());
+        std::unique_ptr<StateMachineInstance> stateMachine = artboard->defaultStateMachine();
+        return reinterpret_cast<intptr_t>(stateMachine.release());
     }
 
     void EMSCRIPTEN_KEEPALIVE ArtboardInstance_align(intptr_t nativePtr,
@@ -195,23 +196,96 @@ extern "C"
         delete artboard;
     }
 
-    void EMSCRIPTEN_KEEPALIVE Scene_advanceAndApply(intptr_t nativePtr, double elapsed)
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_setBool(intptr_t nativePtr,
+                                                           const char* inputName,
+                                                           int value)
     {
-        auto scene = reinterpret_cast<Scene*>(nativePtr);
-        scene->advanceAndApply(elapsed);
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        if (SMIBool* input = stateMachine->getBool(inputName))
+        {
+            input->value(static_cast<bool>(value));
+        }
     }
 
-    void EMSCRIPTEN_KEEPALIVE Scene_draw(intptr_t nativePtr, intptr_t rendererNativePtr)
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_setNumber(intptr_t nativePtr,
+                                                             const char* inputName,
+                                                             float value)
     {
-        auto scene = reinterpret_cast<Scene*>(nativePtr);
-        auto rendrer = reinterpret_cast<PLSRenderer*>(rendererNativePtr);
-        scene->draw(rendrer);
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        if (SMINumber* input = stateMachine->getNumber(inputName))
+        {
+            input->value(value);
+        }
     }
 
-    void EMSCRIPTEN_KEEPALIVE Scene_destroy(intptr_t nativePtr)
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_fireTrigger(intptr_t nativePtr,
+                                                               const char* inputName)
     {
-        auto scene = reinterpret_cast<Scene*>(nativePtr);
-        delete scene;
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        if (SMITrigger* input = stateMachine->getTrigger(inputName))
+        {
+            input->fire();
+        }
+    }
+
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerDown(intptr_t nativePtr, float x, float y)
+    {
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        return stateMachine->pointerDown({x, y});
+    }
+
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerMove(intptr_t nativePtr, float x, float y)
+    {
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        return stateMachine->pointerMove({x, y});
+    }
+
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerUp(intptr_t nativePtr, float x, float y)
+    {
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        return stateMachine->pointerUp({x, y});
+    }
+
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_advanceAndApply(intptr_t nativePtr,
+                                                                   double elapsed)
+    {
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        stateMachine->advanceAndApply(elapsed);
+    }
+
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_draw(intptr_t nativePtr,
+                                                        intptr_t rendererNativePtr)
+    {
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        auto renderer = reinterpret_cast<PLSRenderer*>(rendererNativePtr);
+        stateMachine->draw(renderer);
+    }
+
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_destroy(intptr_t nativePtr)
+    {
+        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
+        delete stateMachine;
+    }
+
+    void EMSCRIPTEN_KEEPALIVE LinearAnimationInstance_advanceAndApply(intptr_t nativePtr,
+                                                                      double elapsed)
+    {
+        auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
+        animation->advanceAndApply(elapsed);
+    }
+
+    void EMSCRIPTEN_KEEPALIVE LinearAnimationInstance_draw(intptr_t nativePtr,
+                                                           intptr_t rendererNativePtr)
+    {
+        auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
+        auto renderer = reinterpret_cast<PLSRenderer*>(rendererNativePtr);
+        animation->draw(renderer);
+    }
+
+    void EMSCRIPTEN_KEEPALIVE LinearAnimationInstance_destroy(intptr_t nativePtr)
+    {
+        auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
+        delete animation;
     }
 
     void EMSCRIPTEN_KEEPALIVE Renderer_save(intptr_t nativePtr)

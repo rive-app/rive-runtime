@@ -2,28 +2,30 @@
 <script src="rive.js"></script>
 <script src="webgpu_player.js"></script>
 <script>
-const assets = {};
-
 async function loadRiveAsset(args)
 {
-    const asset = {};
-    asset.file = RiveLoadFile(await download(args.url));
+    const file = RiveLoadFile(await download(args.url));
+    let artboard;
     if (args.artboard) {
-        asset.artboard = asset.file.artboardNamed(args.artboard);
+        artboard = file.artboardNamed(args.artboard);
     } else {
-        asset.artboard = asset.file.artboardDefault();
+        artboard = file.artboardDefault();
     }
+    let asset;
     if (args.stateMachine) {
-        asset.scene = asset.artboard.stateMachineNamed(args.stateMachine);
+        asset = artboard.stateMachineNamed(args.stateMachine);
     } else if (args.animation) {
-        asset.scene = asset.artboard.animationNamed(args.animation);
+        asset = artboard.animationNamed(args.animation);
     } else {
-        asset.scene = asset.artboard.defaultScene();
+        asset = artboard.defaultStateMachine();
     }
+    asset.artboard = artboard;
+    asset.file = file;
     return asset;
 }
 
-const data = {totalElapsed: 0};
+const data = {};
+const assets = {};
 
 async function wgpuDataInitialize(wgpu, canvas, adapter, device)
 {
@@ -45,8 +47,14 @@ async function wgpuDataInitialize(wgpu, canvas, adapter, device)
     assets.mercury = await loadRiveAsset({url:"planets.riv", artboard:"Mercury",
                                           animation:"MercuryIdle"});
     assets.timer = await loadRiveAsset({url:"Timer.riv", animation:"Esample"});
-    assets.aquamonster = await loadRiveAsset({url:"icons_vampire-aquamonster.riv",
-                                              animation:"loop"});
+    assets.adventureTime = await loadRiveAsset({url:"adventuretime_marceline-pb.riv",
+                                                artboard:"AdventureTime_FtMarcelinePB",
+                                                stateMachine:"State Machine 1"});
+    setInterval(function() {
+        // Simulate a mouse click on assets.adventureTime every 2.5 seconds.
+        assets.adventureTime.pointerDown(200, 200);
+        assets.adventureTime.pointerUp(200, 200);
+    }, 2500);
     assets.towers = await loadRiveAsset({url:"towersDemo.riv"});
 }
 
@@ -69,10 +77,11 @@ let totalElapsed = 0;
 
 async function wgpuRender(args)
 {
+
     const elapsed = lastTimestamp ? (args.timestamp - lastTimestamp) / 1000 : 0;
     lastTimestamp = args.timestamp;
     for (asset in assets) {
-        assets[asset].scene.advanceAndApply(elapsed);
+        assets[asset].advanceAndApply(elapsed);
     }
 
     const targetTextureView = data.wgpu.getCurrentTexture().createView();
@@ -83,29 +92,29 @@ async function wgpuRender(args)
     renderer.save();
     assets.skills.artboard.align(renderer, middleFrame, RIVE_FIT_FIT_HEIGHT, [.38, 0]);
     renderer.transform(1.5, 0, 0, 1.5, 0, -250);
-    assets.skills.scene.draw(renderer);
+    assets.skills.draw(renderer);
     renderer.restore();
 
     renderer.save();
     assets.santa.artboard.align(renderer, middleFrame, RIVE_FIT_FIT_HEIGHT, [-.5, 0]);
-    assets.santa.scene.draw(renderer);
+    assets.santa.draw(renderer);
     renderer.restore();
 
     renderer.save();
     assets.coffee.artboard.align(renderer, dock, RIVE_FIT_FIT_HEIGHT, RIVE_ALIGNMENT_BOTTOM_CENTER);
     renderer.transform(2, 0, 0, 2, -40, -600);
-    assets.coffee.scene.draw(renderer);
+    assets.coffee.draw(renderer);
     renderer.restore();
 
     renderer.save();
-    assets.skull.artboard.align(renderer, dock, RIVE_FIT_FIT_HEIGHT, [.55, 1]);
-    assets.skull.scene.draw(renderer);
+    assets.skull.artboard.align(renderer, dock, RIVE_FIT_FIT_HEIGHT, [.565, 1]);
+    assets.skull.draw(renderer);
     renderer.restore();
 
     renderer.save();
     assets.octopus.artboard.align(renderer, dock, RIVE_FIT_FIT_HEIGHT, RIVE_ALIGNMENT_BOTTOM_LEFT);
     renderer.transform(1.7, 0, 0, 1.7, 90, -240);
-    assets.octopus.scene.draw(renderer);
+    assets.octopus.draw(renderer);
     renderer.restore();
 
     renderer.save();
@@ -117,26 +126,26 @@ async function wgpuRender(args)
     const sx = Math.sin(totalElapsed) * .7;
     renderer.transform(cx, sx, -sx, cx, 0, 0);
     renderer.translate(-mercuryCenterX, -mercuryCenterY);
-    assets.mercury.scene.draw(renderer);
+    assets.mercury.draw(renderer);
     renderer.restore();
 
     renderer.save();
-    assets.timer.artboard.align(renderer, dock, RIVE_FIT_FIT_HEIGHT, [.33, 1]);
+    assets.timer.artboard.align(renderer, dock, RIVE_FIT_FIT_HEIGHT, [.31, 1]);
     renderer.translate(0, -assets.timer.artboard.height() * .125);
-    assets.timer.scene.draw(renderer);
+    assets.timer.draw(renderer);
     renderer.restore();
 
     renderer.save();
-    assets.aquamonster.artboard.align(
+    assets.adventureTime.artboard.align(
         renderer, dock, RIVE_FIT_FIT_HEIGHT, RIVE_ALIGNMENT_BOTTOM_RIGHT);
-    renderer.translate(-260, 0);
-    assets.aquamonster.scene.draw(renderer);
+    renderer.translate(-160, 0);
+    assets.adventureTime.draw(renderer);
     renderer.restore();
 
     renderer.save();
     assets.towers.artboard.align(renderer, dock, RIVE_FIT_FIT_HEIGHT, [-.28, 1]);
     renderer.transform(.85, 0, 0, .85, 0, 20);
-    assets.towers.scene.draw(renderer);
+    assets.towers.draw(renderer);
     renderer.restore();
 
     RiveFlushRendering();

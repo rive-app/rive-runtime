@@ -77,22 +77,22 @@ function ArtboardInstance(nativePtr)
     this.width = () => Module._ArtboardInstance_width(this.nativePtr)
     this.height = () => Module._ArtboardInstance_height(this.nativePtr)
     this.stateMachineNamed = function(name) {
-        const scenePtr = Module.ccall('ArtboardInstance_stateMachineNamed',
-                                      'number',
-                                      ['number', 'string'],
-                                      [this.nativePtr, name]);
-        return scenePtr ? new Scene(scenePtr) : null;
+        const stateMachinePtr = Module.ccall('ArtboardInstance_stateMachineNamed',
+                                             'number',
+                                             ['number', 'string'],
+                                             [this.nativePtr, name]);
+        return stateMachinePtr ? new StateMachineInstance(stateMachinePtr) : null;
     }
     this.animationNamed = function(name) {
-        const scenePtr = Module.ccall('ArtboardInstance_animationNamed',
-                                      'number',
-                                      ['number', 'string'],
-                                      [this.nativePtr, name]);
-        return scenePtr ? new Scene(scenePtr) : null;
+        const animationPtr = Module.ccall('ArtboardInstance_animationNamed',
+                                          'number',
+                                          ['number', 'string'],
+                                          [this.nativePtr, name]);
+        return animationPtr ? new LinearAnimationInstance(animationPtr) : null;
     }
-    this.defaultScene = function() {
-        const scenePtr = Module._ArtboardInstance_defaultScene(this.nativePtr);
-        return scenePtr ? new Scene(scenePtr) : null;
+    this.defaultStateMachine = function() {
+        const stateMachinePtr = Module._ArtboardInstance_defaultStateMachine(this.nativePtr);
+        return stateMachinePtr ? new StateMachineInstance(stateMachinePtr) : null;
     }
     this.align = function(renderer, frameBounds, fit, alignment) {
         Module._ArtboardInstance_align(this.nativePtr,
@@ -108,12 +108,41 @@ function ArtboardInstance(nativePtr)
     this.destroy = () => Module._ArtboardInstance_destroy(this.nativePtr);
 }
 
-function Scene(nativePtr)
+function StateMachineInstance(nativePtr)
 {
     this.nativePtr = nativePtr;
-    this.advanceAndApply = (elapsed) => Module._Scene_advanceAndApply(this.nativePtr, elapsed);
-    this.draw = (renderer) => Module._Scene_draw(this.nativePtr, renderer.nativePtr);
-    this.destroy = () => Module._Scene_destroy(this.nativePtr);
+    this.setBool = (inputName, value) =>
+        Module.ccall('StateMachineInstance_setBool', null,
+                     ['number', 'string', 'number'],
+                     [this.nativePtr, inputName, value]);
+    this.setNumber = (inputName, value) =>
+        Module.ccall('StateMachineInstance_setNumber', null,
+                     ['number', 'string', 'number'],
+                     [this.nativePtr, inputName, value]);
+    this.fireTrigger = (inputName) =>
+        Module.ccall('StateMachineInstance_fireTrigger', null,
+                     ['number', 'string'],
+                     [this.nativePtr, inputName]);
+    this.pointerDown = (x, y) =>
+        Module._StateMachineInstance_pointerDown(this.nativePtr, x, y);
+    this.pointerMove = (x, y) =>
+        Module._StateMachineInstance_pointerMove(this.nativePtr, x, y);
+    this.pointerUp = (x, y) =>
+        Module._StateMachineInstance_pointerUp(this.nativePtr, x, y);
+    this.advanceAndApply = (elapsed) =>
+        Module._StateMachineInstance_advanceAndApply(this.nativePtr, elapsed);
+    this.draw = (renderer) => Module._StateMachineInstance_draw(this.nativePtr, renderer.nativePtr);
+    this.destroy = () => Module._StateMachineInstance_destroy(this.nativePtr);
+}
+
+function LinearAnimationInstance(nativePtr)
+{
+    this.nativePtr = nativePtr;
+    this.advanceAndApply = (elapsed) =>
+        Module._LinearAnimationInstance_advanceAndApply(this.nativePtr, elapsed);
+    this.draw = (renderer) =>
+        Module._LinearAnimationInstance_draw(this.nativePtr, renderer.nativePtr);
+    this.destroy = () => Module._LinearAnimationInstance_destroy(this.nativePtr);
 }
 
 function Renderer(nativePtr)

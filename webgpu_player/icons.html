@@ -1,0 +1,231 @@
+<canvas id="canvas" style="width:960; height:540" width=1920 height=1080></canvas>
+<script src="rive.js"></script>
+<script src="webgpu_player.js"></script>
+<script>
+async function loadRiveAsset(args)
+{
+    const file = RiveLoadFile(await download(args.url));
+    let artboard;
+    if (args.artboard) {
+        artboard = file.artboardNamed(args.artboard);
+    } else {
+        artboard = file.artboardDefault();
+    }
+    let asset;
+    if (args.stateMachine) {
+        asset = artboard.stateMachineNamed(args.stateMachine);
+    } else if (args.animation) {
+        asset = artboard.animationNamed(args.animation);
+    } else {
+        asset = artboard.defaultStateMachine();
+    }
+    asset.artboard = artboard;
+    asset.file = file;
+    return asset;
+}
+
+const data = {};
+const assets = {};
+
+function sleep(ms)
+{
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function wgpuDataInitialize(wgpu, canvas, adapter, device)
+{
+    data.device = device;
+    data.queue = device.queue;
+    data.width = canvas.width;
+    data.height = canvas.height;
+    data.wgpu = wgpu;
+
+    // Rive has to be initialized before loading assets.
+    const invertY = false
+    RiveInitialize(data.device, data.queue, data.width, data.height, invertY, RIVE_PLS_TYPE_NONE);
+
+    assets.car_demo = await loadRiveAsset({url:"car_demo.riv"});
+    assets.cloud_icon = await loadRiveAsset({url:"cloud_icon.riv"});
+    assets.coffee_loader = await loadRiveAsset({url:"coffee_loader.riv"});
+    assets.documentation = await loadRiveAsset({url:"documentation.riv"});
+    assets.fire_button = await loadRiveAsset({url:"fire_button.riv"});
+    assets.lumberjackfinal = await loadRiveAsset({url:"lumberjackfinal.riv"});
+    assets.mail_box = await loadRiveAsset({url:"mail_box.riv"});
+    assets.new_file = await loadRiveAsset({url:"new_file.riv"});
+    assets.poison_loader = await loadRiveAsset({url:"poison_loader.riv"});
+    assets.popsicle_loader = await loadRiveAsset({url:"popsicle_loader.riv"});
+    assets.radio_button_example = await loadRiveAsset({url:"radio_button_example.riv"});
+    assets.avatar_demo = await loadRiveAsset({url:"avatar_demo.riv"});
+    assets.stopwatch = await loadRiveAsset({url:"stopwatch.riv"});
+    assets.vomune_bars = await loadRiveAsset({url:"volume_bars.riv", animation:"Example"});
+    assets.travel_icons = await loadRiveAsset({url:"travel_icons.riv", artboard:"GPS",
+                                               animation:"Animation 1"});
+
+    // Update assets that have a number input from 1-100.
+    let lastPercentage = 0;
+    setInterval(function() {
+        // Go to 150 in order to pause at the end.
+        let percentage = (totalElapsed * 25) % 150;
+        if (percentage < lastPercentage)
+            percentage = 0; // Make sure we hit zero on our way around to reset the animation.
+        assets.coffee_loader.setNumber("numLoader", percentage);
+        assets.popsicle_loader.setNumber("percentage", percentage);
+        lastPercentage = percentage;
+    }, 8);
+
+    // Simple cloud routine.
+    setInterval(async function() {
+        assets.cloud_icon.setBool("isHover", true);
+        await sleep(1500);
+        assets.cloud_icon.setBool("isPressed", true);
+        await sleep(200);
+        assets.cloud_icon.setBool("isPressed", false);
+        assets.cloud_icon.setBool("isHover", false);
+    }, 6700);
+
+    let pressed = false;
+    setInterval(function() {
+        // Click the new_file button.
+        assets.new_file.pointerDown(75, 75);
+        assets.new_file.pointerUp(75, 75);
+
+        // Toggle the radio_button_example and avatar_demo.
+        pressed = !pressed;
+        assets.radio_button_example.setBool("Pressed", pressed);
+        assets.avatar_demo.setBool("isPressed", pressed);
+
+        // Fire the stopwatch.
+        assets.stopwatch.fireTrigger("Pressed");
+    }, 5000);
+
+    // Simple mailbox routine.
+    setInterval(async function() {
+        assets.mail_box.setBool("Mail_in/out", false);
+        await sleep(2000);
+        assets.mail_box.setBool("Mail_in/out", true);
+        await sleep(2000);
+        assets.mail_box.fireTrigger("Hover/Pressed");
+    }, 6000);
+
+    assets.radio_button_example.cell_size = 40;
+}
+
+const fps = new function() {
+    this.frames = 0;
+    this.seconds = 0;
+    this.tick = function(elapsed) {
+        ++this.frames;
+        this.seconds += elapsed;
+        if (this.seconds >= 2) {
+            console.log((this.frames / this.seconds).toFixed(2) + " FPS");
+            this.frames = 0;
+            this.seconds = 0;
+        }
+    };
+};
+
+let lastTimestamp = 0;
+let totalElapsed = 0;
+
+async function wgpuRender(args)
+{
+    const COLS = 5;
+    const ROWS = Math.ceil(Object.keys(assets).length / COLS);
+    const CELL_SIZE = 128;
+    const CELL_SPACING = CELL_SIZE * 5/4;
+
+    const targetTextureView = data.wgpu.getCurrentTexture().createView();
+    const renderer = RiveBeginRendering(targetTextureView, RIVE_LOAD_ACTION_CLEAR, 0xff8030ff);
+    const elapsed = lastTimestamp ? (args.timestamp - lastTimestamp) / 1000 : 0;
+    lastTimestamp = args.timestamp;
+
+    renderer.translate((data.width - CELL_SPACING * (COLS - 1)) / 2,
+                       (data.height - CELL_SPACING * (ROWS - 1)) / 2);
+    renderer.save();
+    let i = 0;
+    for (asset in assets) {
+        assets[asset].advanceAndApply(elapsed);
+
+        renderer.save();
+        const cell_size = assets[asset].cell_size || CELL_SIZE;
+        assets[asset].artboard.align(renderer,
+                                     [-cell_size/2, -cell_size/2, cell_size/2, cell_size/2],
+                                     RIVE_FIT_CONTAIN,
+                                     RIVE_ALIGNMENT_CENTER);
+        assets[asset].draw(renderer);
+        renderer.restore();
+
+        if (++i % COLS == 0) {
+            renderer.restore();
+            renderer.translate(0, CELL_SPACING);
+            renderer.save();
+        } else {
+            renderer.translate(CELL_SPACING, 0);
+        }
+    }
+    renderer.restore();
+
+    RiveFlushRendering();
+    totalElapsed += elapsed;
+    fps.tick(elapsed);
+}
+
+function download(url)
+{
+    return new Promise(function (resolve, reject) {
+        let xhr = new XMLHttpRequest();
+        xhr.open("GET", url);
+        xhr.responseType = "arraybuffer";
+        xhr.onload = function () {
+            if (this.status >= 200 && this.status < 300) {
+                resolve(new Uint8Array(xhr.response));
+            } else {
+                reject({
+                    status: this.status,
+                    statusText: xhr.statusText
+                });
+            }
+        };
+        xhr.onerror = function () {
+            reject({
+                status: this.status,
+                statusText: xhr.statusText
+            });
+        };
+        xhr.send();
+    });
+}
+
+async function main()
+{
+    const canvas = document.getElementById("canvas");
+    const wgpu = canvas.getContext("webgpu");
+
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      throw new Error("No appropriate GPUAdapter found.");
+    }
+
+    const device = await adapter.requestDevice();
+
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+    wgpu.configure({
+      device: device,
+      format: canvasFormat,
+    });
+
+    await wgpuDataInitialize(wgpu, canvas, adapter, device);
+
+    const mainLoop = async () => {
+        await wgpuRender({timestamp:performance.now()});
+        requestAnimationFrame(mainLoop);
+    };
+    requestAnimationFrame(mainLoop);
+}
+
+if (Module.calledRun) {
+    main();
+} else {
+    Module.onRuntimeInitialized = main;
+}
+</script>
