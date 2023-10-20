@@ -6,12 +6,14 @@
 using namespace rive;
 class StateMachineInstance;
 
-void NestedBool::nestedValueChanged() {
+void NestedBool::nestedValueChanged()
+{
     auto inputInstance = input();
-    if (inputInstance != nullptr) 
+    if (inputInstance != nullptr)
     {
         auto boolInput = static_cast<SMIBool*>(inputInstance);
-        if (boolInput != nullptr) {
+        if (boolInput != nullptr)
+        {
             boolInput->value(nestedValue());
         }
     }

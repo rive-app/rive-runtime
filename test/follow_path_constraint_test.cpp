@@ -27,7 +27,6 @@ TEST_CASE("follow path constraint updates world transform", "[file]")
     REQUIRE(targetComponents.y() == rectComponents.y());
 }
 
-
 TEST_CASE("follow path with 0 opacity constraint updates world transform", "[file]")
 {
     auto file = ReadRiveFile("../../test/assets/follow_path_with_0_opacity.riv");

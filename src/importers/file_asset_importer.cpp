@@ -13,7 +13,7 @@ FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
     m_FileAsset(fileAsset), m_FileAssetLoader(assetLoader), m_Factory(factory)
 {}
 
-// if file asset contents are found when importing a rive file, store those for when we resolve 
+// if file asset contents are found when importing a rive file, store those for when we resolve
 // the importer later
 void FileAssetImporter::onFileAssetContents(std::unique_ptr<FileAssetContents> contents)
 {
@@ -24,23 +24,25 @@ void FileAssetImporter::onFileAssetContents(std::unique_ptr<FileAssetContents> c
 
 StatusCode FileAssetImporter::resolve()
 {
-    
+
     Span<const uint8_t> bytes;
     if (m_Content != nullptr)
     {
         bytes = m_Content->bytes();
     }
 
-    // If we have a file asset loader, lets give it the opportunity to claim responsibility for loading the asset
+    // If we have a file asset loader, lets give it the opportunity to claim responsibility for
+    // loading the asset
     if (m_FileAssetLoader != nullptr && m_FileAssetLoader->loadContents(*m_FileAsset, bytes))
     {
         return StatusCode::Ok;
     }
     // If we do not, but we have found in band contents, load those
-    else if (bytes.size() > 0){
+    else if (bytes.size() > 0)
+    {
         m_FileAsset->decode(bytes, m_Factory);
     }
-    
+
     // Note that it's ok for an asset to not resolve (or to resolve async).
     return StatusCode::Ok;
 }

@@ -9,11 +9,13 @@ class NestedInput : public NestedInputBase
 {
 public:
 protected:
-    SMIInput* input() {
+    SMIInput* input()
+    {
         auto parent = this->parent();
-        if (parent != nullptr && parent->is<NestedStateMachine>()) 
+        if (parent != nullptr && parent->is<NestedStateMachine>())
         {
-            StateMachineInstance* smInstance = parent->as<NestedStateMachine>()->stateMachineInstance();
+            StateMachineInstance* smInstance =
+                parent->as<NestedStateMachine>()->stateMachineInstance();
             auto inputInstance = smInstance->input(this->inputId());
             return inputInstance;
         }

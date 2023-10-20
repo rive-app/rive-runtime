@@ -9,10 +9,10 @@ namespace rive
 class FileAsset;
 class FileAssetReferencer
 {
-protected: 
+protected:
     FileAsset* m_fileAsset = nullptr;
-public:
 
+public:
     virtual ~FileAssetReferencer() = 0;
     virtual void setAsset(FileAsset* asset);
     virtual uint32_t assetId() = 0;

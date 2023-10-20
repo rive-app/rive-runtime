@@ -6,12 +6,14 @@
 using namespace rive;
 class StateMachineInstance;
 
-void NestedNumber::nestedValueChanged() {
+void NestedNumber::nestedValueChanged()
+{
     auto inputInstance = input();
-    if (inputInstance != nullptr) 
+    if (inputInstance != nullptr)
     {
         auto numInput = static_cast<SMINumber*>(inputInstance);
-        if (numInput != nullptr) {
+        if (numInput != nullptr)
+        {
             numInput->value(nestedValue());
         }
     }

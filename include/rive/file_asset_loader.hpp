@@ -16,7 +16,7 @@ public:
     /// Load the contents of the given asset
     ///
     /// @param asset describes the asset that Rive is looking for the
-    /// contents of. 
+    /// contents of.
     /// @param inBandBytes is a pointer to the bytes in question
     /// @returns bool indicating if we are loading or have loaded the contents
 

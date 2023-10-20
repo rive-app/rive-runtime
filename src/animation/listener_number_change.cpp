@@ -17,18 +17,21 @@ bool ListenerNumberChange::validateInputType(const StateMachineInput* input) con
 
 void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance, Vec2D position) const
 {
-    if (nestedInputId() != Core::emptyId) 
+    if (nestedInputId() != Core::emptyId)
     {
         auto nestedInputInstance = stateMachineInstance->artboard()->resolve(nestedInputId());
-        if (nestedInputInstance == nullptr) 
+        if (nestedInputInstance == nullptr)
         {
             return;
         }
         auto nestedNumberInput = static_cast<NestedNumber*>(nestedInputInstance);
-        if (nestedNumberInput != nullptr) {
+        if (nestedNumberInput != nullptr)
+        {
             nestedNumberInput->nestedValue(value());
         }
-    } else {
+    }
+    else
+    {
         auto inputInstance = stateMachineInstance->input(inputId());
         if (inputInstance == nullptr)
         {
@@ -36,7 +39,8 @@ void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance, V
         }
         // If it's not null, it must be our correct type (why we validate at load time).
         auto numberInput = static_cast<SMINumber*>(inputInstance);
-        if (numberInput != nullptr) {
+        if (numberInput != nullptr)
+        {
             numberInput->value(value());
         }
     }

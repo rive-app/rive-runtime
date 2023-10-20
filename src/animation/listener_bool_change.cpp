@@ -17,15 +17,16 @@ bool ListenerBoolChange::validateInputType(const StateMachineInput* input) const
 
 void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance, Vec2D position) const
 {
-    if (nestedInputId() != Core::emptyId) 
+    if (nestedInputId() != Core::emptyId)
     {
         auto nestedInputInstance = stateMachineInstance->artboard()->resolve(nestedInputId());
-        if (nestedInputInstance == nullptr) 
+        if (nestedInputInstance == nullptr)
         {
             return;
         }
         auto nestedBoolInput = static_cast<NestedBool*>(nestedInputInstance);
-        if (nestedBoolInput != nullptr) {
+        if (nestedBoolInput != nullptr)
+        {
             switch (value())
             {
                 case 0:
@@ -39,7 +40,9 @@ void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance, Vec
                     break;
             }
         }
-    } else {
+    }
+    else
+    {
         auto inputInstance = stateMachineInstance->input(inputId());
         if (inputInstance == nullptr)
         {
@@ -47,7 +50,8 @@ void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance, Vec
         }
         // If it's not null, it must be our correct type (why we validate at load time).
         auto boolInput = static_cast<SMIBool*>(inputInstance);
-        if (boolInput != nullptr) {
+        if (boolInput != nullptr)
+        {
             switch (value())
             {
                 case 0:

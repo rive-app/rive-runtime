@@ -27,9 +27,9 @@ sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height
 void skiaPresentSurface(sk_sp<SkSurface> surface);
 
 // Experimental flag, until we complete coregraphics_host
-//#define TEST_CG_RENDERER
+// #define TEST_CG_RENDERER
 
-//#define SW_SKIA_MODE
+// #define SW_SKIA_MODE
 
 #ifdef TEST_CG_RENDERER
 #include "cg_factory.hpp"

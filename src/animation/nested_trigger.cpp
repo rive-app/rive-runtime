@@ -6,14 +6,15 @@
 using namespace rive;
 class StateMachineInstance;
 
-void NestedTrigger::fire(const CallbackData& value) {
+void NestedTrigger::fire(const CallbackData& value)
+{
     auto inputInstance = input();
-    if (inputInstance != nullptr) 
+    if (inputInstance != nullptr)
     {
         auto numInput = static_cast<SMITrigger*>(inputInstance);
-        if (numInput != nullptr) {
+        if (numInput != nullptr)
+        {
             numInput->fire();
         }
     }
-    
 }

@@ -100,7 +100,10 @@ public:
     /// the backing artboard (explicitly not allowed on Scenes).
     Artboard* artboard() { return m_artboardInstance; }
 
-    void setParentStateMachineInstance(StateMachineInstance* instance) { m_parentStateMachineInstance = instance; }
+    void setParentStateMachineInstance(StateMachineInstance* instance)
+    {
+        m_parentStateMachineInstance = instance;
+    }
     StateMachineInstance* parentStateMachineInstance() { return m_parentStateMachineInstance; }
 
     void setParentNestedArtboard(NestedArtboard* artboard) { m_parentNestedArtboard = artboard; }

@@ -21,9 +21,8 @@ void Shape::addPath(Path* path)
 
 bool Shape::canDeferPathUpdate()
 {
-    return renderOpacity() == 0
-        && (pathSpace() & PathSpace::Clipping) != PathSpace::Clipping
-        && (pathSpace() & PathSpace::FollowPath) != PathSpace::FollowPath;
+    return renderOpacity() == 0 && (pathSpace() & PathSpace::Clipping) != PathSpace::Clipping &&
+           (pathSpace() & PathSpace::FollowPath) != PathSpace::FollowPath;
 }
 
 void Shape::update(ComponentDirt value)

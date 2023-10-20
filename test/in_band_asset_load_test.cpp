@@ -17,7 +17,6 @@
 #include <catch.hpp>
 #include <cstdio>
 
-
 class PretendAssetLoader : public rive ::FileAssetLoader
 {
 
@@ -64,7 +63,6 @@ TEST_CASE("Load asset with in-band image", "[asset]")
     // we load in band assets, so the decoded size >0
     REQUIRE(firstAsset->as<rive::ImageAsset>()->decodedByteSize == 308);
 }
-
 
 TEST_CASE("Load asset with in-band image, passing responsibility to loader", "[asset]")
 {

@@ -19,18 +19,21 @@ bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) co
 void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
                                     Vec2D position) const
 {
-    if (nestedInputId() != Core::emptyId) 
+    if (nestedInputId() != Core::emptyId)
     {
         auto nestedInputInstance = stateMachineInstance->artboard()->resolve(nestedInputId());
-        if (nestedInputInstance == nullptr) 
+        if (nestedInputInstance == nullptr)
         {
             return;
         }
         auto nestedTriggerInput = static_cast<NestedTrigger*>(nestedInputInstance);
-        if (nestedTriggerInput != nullptr) {
+        if (nestedTriggerInput != nullptr)
+        {
             nestedTriggerInput->fire(CallbackData(stateMachineInstance, 0));
         }
-    } else {
+    }
+    else
+    {
         auto inputInstance = stateMachineInstance->input(inputId());
         if (inputInstance == nullptr)
         {
@@ -38,7 +41,8 @@ void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
         }
         // If it's not null, it must be our correct type (why we validate at load time).
         auto triggerInput = static_cast<SMITrigger*>(inputInstance);
-        if (triggerInput != nullptr) {
+        if (triggerInput != nullptr)
+        {
             triggerInput->fire();
         }
     }
