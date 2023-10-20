@@ -13,22 +13,36 @@ namespace rive::pls
 class GLState : public RefCnt<GLState>
 {
 public:
-    void enableFaceCulling(bool);
+    GLState(const GLExtensions& extensions) { reset(extensions); }
 
-    void deleteProgram(GLuint);
-    void deleteVAO(GLuint);
-    void deleteBuffer(GLuint);
+    void reset(const GLExtensions&);
+
+    void enableFaceCulling(bool);
 
     void bindProgram(GLuint);
     void bindVAO(GLuint);
     void bindBuffer(GLenum target, GLuint);
 
+    void deleteProgram(GLuint);
+    void deleteVAO(GLuint);
+    void deleteBuffer(GLuint);
+
 private:
-    bool m_faceCullingEnabled = false;
-    GLuint m_boundProgramID = 0;
-    GLuint m_boundVAO = 0;
-    GLuint m_boundArrayBuffer = 0;
-    GLuint m_boundUniformBuffer = 0;
-    GLuint m_boundPixelUnpackBuffer = 0;
+    bool m_faceCullingEnabled;
+    GLuint m_boundProgramID;
+    GLuint m_boundVAO;
+    GLuint m_boundArrayBufferID;
+    GLuint m_boundUniformBufferID;
+    GLuint m_boundPixelUnpackBufferID;
+
+    struct
+    {
+        bool faceCullingEnabled : 1;
+        bool boundProgramID : 1;
+        bool boundVAO : 1;
+        bool boundArrayBufferID : 1;
+        bool boundUniformBufferID : 1;
+        bool boundPixelUnpackBufferID : 1;
+    } m_validState;
 };
 } // namespace rive::pls

@@ -27,20 +27,12 @@ constexpr static int kPLSTexIdxOffset = 1;
 
 namespace rive::pls
 {
-#ifdef RIVE_WEBGL
-EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
-    const ext = Module["ctx"].getExtension("WEBGL_provoking_vertex");
-    if (ext)
-    {
-        ext.provokingVertexWEBGL(convention);
-    }
-});
-#endif
-
 PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                                GLExtensions extensions,
                                                std::unique_ptr<PLSImpl> plsImpl) :
-    m_extensions(extensions), m_plsImpl(std::move(plsImpl))
+    m_extensions(extensions),
+    m_plsImpl(std::move(plsImpl)),
+    m_state(make_rcp<GLState>(m_extensions))
 
 {
     if (strstr(rendererString, "Apple") && strstr(rendererString, "Metal"))
@@ -174,25 +166,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     m_state->bindVAO(m_imageMeshVAO);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-
-    glFrontFace(GL_CW);
-    glCullFace(GL_BACK);
-
-    // ANGLE_shader_pixel_local_storage doesn't allow dither.
-    glDisable(GL_DITHER);
-
-    // D3D and Metal both have a provoking vertex convention of "first" for flat varyings, and it's
-    // very costly for ANGLE to implement the OpenGL convention of "last" on these backends. To
-    // workaround this, ANGLE provides the ANGLE_provoking_vertex extension. When this extension is
-    // present, we can just set the provoking vertex to "first" and trust that it will be fast.
-#ifdef RIVE_WEBGL
-    set_provoking_vertex_webgl(GL_FIRST_VERTEX_CONVENTION_WEBGL);
-#elif defined(RIVE_DESKTOP_GL)
-    if (m_extensions.ANGLE_provoking_vertex)
-    {
-        glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
-    }
-#endif
 
     m_plsImpl->init(m_state);
 }

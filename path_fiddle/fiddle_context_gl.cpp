@@ -299,6 +299,7 @@ public:
 
     void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
     {
+        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->resetGLState();
         frameDescriptor.renderTarget = m_renderTarget;
         m_plsContext->beginFrame(std::move(frameDescriptor));
     }

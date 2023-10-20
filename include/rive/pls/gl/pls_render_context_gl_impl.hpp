@@ -22,6 +22,9 @@ public:
     static std::unique_ptr<PLSRenderContext> MakeContext();
     ~PLSRenderContextGLImpl() override;
 
+    // Called when the GL context has been modified outside of Rive.
+    void resetGLState() { m_state->reset(m_extensions); }
+
     // Creates a PLSRenderTarget that draws directly into the given GL framebuffer.
     // Returns null if the framebuffer doesn't support pixel local storage.
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID, size_t width, size_t height)
@@ -181,6 +184,6 @@ private:
     GLuint m_interiorTrianglesVAO = 0;
     GLuint m_imageMeshVAO = 0;
 
-    const rcp<GLState> m_state = make_rcp<GLState>();
+    const rcp<GLState> m_state;
 };
 } // namespace rive::pls
