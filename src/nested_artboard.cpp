@@ -123,7 +123,7 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
 
 bool NestedArtboard::advance(float elapsedSeconds)
 {
-    if (m_Artboard == nullptr)
+    if (m_Artboard == nullptr || isCollapsed())
     {
         return false;
     }
