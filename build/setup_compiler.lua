@@ -140,6 +140,20 @@ end
 
 filter{}
 
+newoption {
+    trigger = "with-rtti",
+    description = "don't disable rtti (nonstandard for Rive)",
+}
+newoption {
+    trigger = "with-exceptions",
+    description = "don't disable exceptions (nonstandard for Rive)",
+}
+filter {"options:not with-rtti"} rtti "Off"
+filter {"options:with-rtti"} rtti "On"
+filter {"options:not with-exceptions"} exceptionhandling "Off"
+filter {"options:with-exceptions"} exceptionhandling "On"
+filter{}
+
 -- Don't use filter() here because we don't want to generate the "ndk-redirect-*" files if not
 -- building for android.
 if _OPTIONS["os"] == "android"

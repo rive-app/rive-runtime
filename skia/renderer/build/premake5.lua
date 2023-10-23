@@ -37,8 +37,6 @@ do
     flags {
         'FatalCompileWarnings',
     }
-    exceptionhandling 'off'
-    rtti 'off'
 
     filter "system:windows"
     do

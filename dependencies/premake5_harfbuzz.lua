@@ -223,9 +223,6 @@ do
         harfbuzz .. '/src/graph/gsubgpos-context.cc'
     }
 
-    exceptionhandling 'off'
-    rtti 'off'
-
     warnings 'Off'
 
     defines {

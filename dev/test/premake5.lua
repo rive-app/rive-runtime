@@ -28,6 +28,7 @@ do
     objdir 'build/obj/%{cfg.buildcfg}'
     flags {'FatalWarnings'}
     buildoptions {'-Wall', '-fno-exceptions', '-fno-rtti'}
+    exceptionhandling "On"
 
     includedirs {
         './include',

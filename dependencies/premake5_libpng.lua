@@ -10,8 +10,6 @@ do
     cppdialect 'C++17'
     targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
     objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
-    rtti "Off"
-    exceptionhandling "Off"
     os.copyfile(libpng .. '/scripts/pnglibconf.h.prebuilt', libpng .. '/pnglibconf.h')
     includedirs {
         './',
@@ -57,8 +55,6 @@ do
     cppdialect 'C++17'
     targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
     objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
-    rtti "Off"
-    exceptionhandling "Off"
     defines {'ZLIB_IMPLEMENTATION'}
     includedirs {
         zlib
