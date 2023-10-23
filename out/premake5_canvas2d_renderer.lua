@@ -8,9 +8,7 @@ do
     kind 'StaticLib'
     language "C++"
     cppdialect "C++17"
-    exceptionhandling "Off"
     floatingpoint "Fast" -- Enable FMAs
-    rtti "Off"
     targetdir "wasm_%{cfg.buildcfg}"
     objdir "obj/wasm_%{cfg.buildcfg}"
     includedirs {"../../runtime/include"}

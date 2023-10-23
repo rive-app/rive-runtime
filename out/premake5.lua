@@ -27,8 +27,6 @@ do
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++17"
-    exceptionhandling "Off"
-    rtti "Off"
     targetdir "%{cfg.buildcfg}"
     objdir "obj/%{cfg.buildcfg}"
     includedirs {"../include",
@@ -152,8 +150,6 @@ do
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++17"
-    exceptionhandling "Off"
-    rtti "Off"
     targetdir "%{cfg.buildcfg}"
     objdir "obj/%{cfg.buildcfg}"
     includedirs {"../include",
@@ -298,8 +294,6 @@ do
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++17"
-    exceptionhandling "Off"
-    rtti "Off"
     targetdir "%{cfg.buildcfg}"
     objdir "obj/%{cfg.buildcfg}"
     includedirs {"../",

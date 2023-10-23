@@ -137,8 +137,6 @@ do
     kind 'StaticLib'
     language 'C++'
     cppdialect 'C++17'
-    exceptionhandling 'Off'
-    rtti 'Off'
     targetdir '%{cfg.buildcfg}'
     objdir 'obj/%{cfg.buildcfg}'
     includedirs {
