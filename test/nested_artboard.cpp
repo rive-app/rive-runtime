@@ -31,7 +31,8 @@ TEST_CASE("collapsed nested artboards do not advance", "[solo]")
     auto movingShapes = redNestedArtboardArtboard->find<rive::Shape>();
     auto redRect = movingShapes.at(0);
     REQUIRE(redRect->x() > 50);
-    auto greenNestedArtboard = stateMachine->artboard()->find<rive::NestedArtboard>("green-artboard");
+    auto greenNestedArtboard =
+        stateMachine->artboard()->find<rive::NestedArtboard>("green-artboard");
     auto greenNestedArtboardArtboard = greenNestedArtboard->artboard();
     auto greenMovingShapes = greenNestedArtboardArtboard->find<rive::Shape>();
     auto greenRect = greenMovingShapes.at(0);
