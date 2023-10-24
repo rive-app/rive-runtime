@@ -1,15 +1,15 @@
-#ifndef _RIVE_CUBIC_VALUE_INTERPOLATOR_BASE_HPP_
-#define _RIVE_CUBIC_VALUE_INTERPOLATOR_BASE_HPP_
-#include "rive/animation/cubic_interpolator.hpp"
+#ifndef _RIVE_KEY_FRAME_INTERPOLATOR_BASE_HPP_
+#define _RIVE_KEY_FRAME_INTERPOLATOR_BASE_HPP_
+#include "rive/core.hpp"
 namespace rive
 {
-class CubicValueInterpolatorBase : public CubicInterpolator
+class KeyFrameInterpolatorBase : public Core
 {
 protected:
-    typedef CubicInterpolator Super;
+    typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 138;
+    static const uint16_t typeKey = 175;
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
@@ -17,8 +17,6 @@ public:
     {
         switch (typeKey)
         {
-            case CubicValueInterpolatorBase::typeKey:
-            case CubicInterpolatorBase::typeKey:
             case KeyFrameInterpolatorBase::typeKey:
                 return true;
             default:
@@ -28,7 +26,9 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+    void copy(const KeyFrameInterpolatorBase& object) {}
+
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override { return false; }
 
 protected:
 };

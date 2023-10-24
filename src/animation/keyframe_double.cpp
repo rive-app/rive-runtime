@@ -39,9 +39,9 @@ void KeyFrameDouble::applyInterpolation(Core* object,
     float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
 
     float frameValue;
-    if (CubicInterpolator* cubic = interpolator())
+    if (KeyFrameInterpolator* keyframeInterpolator = interpolator())
     {
-        frameValue = cubic->transformValue(value(), nextDouble.value(), f);
+        frameValue = keyframeInterpolator->transformValue(value(), nextDouble.value(), f);
     }
     else
     {

@@ -3,8 +3,6 @@
 #include "rive/generated/animation/keyframe_base.hpp"
 namespace rive
 {
-class CubicInterpolator;
-
 class KeyFrame : public KeyFrameBase
 {
 public:

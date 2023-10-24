@@ -32,9 +32,9 @@ void KeyFrameColor::applyInterpolation(Core* object,
     const KeyFrameColor& nextColor = *kfc;
     float f = (currentTime - seconds()) / (nextColor.seconds() - seconds());
 
-    if (CubicInterpolator* cubic = interpolator())
+    if (KeyFrameInterpolator* keyframeInterpolator = interpolator())
     {
-        f = cubic->transform(f);
+        f = keyframeInterpolator->transform(f);
     }
 
     applyColor(object, propertyKey, mix, colorLerp(value(), nextColor.value(), f));

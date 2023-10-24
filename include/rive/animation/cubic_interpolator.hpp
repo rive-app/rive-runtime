@@ -10,14 +10,6 @@ class CubicInterpolator : public CubicInterpolatorBase
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
 
-    /// Convert a linear interpolation value to an eased one.
-    virtual float transformValue(float valueFrom, float valueTo, float factor) = 0;
-
-    /// Convert a linear interpolation factor to an eased one.
-    virtual float transform(float factor) const = 0;
-
-    StatusCode import(ImportStack& importStack) override;
-
 protected:
     CubicInterpolatorSolver m_solver;
 };

@@ -15,6 +15,7 @@
 #include "rive/animation/cubic_interpolator.hpp"
 #include "rive/animation/cubic_interpolator_component.hpp"
 #include "rive/animation/cubic_value_interpolator.hpp"
+#include "rive/animation/elastic_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
 #include "rive/animation/interpolating_keyframe.hpp"
@@ -26,6 +27,7 @@
 #include "rive/animation/keyframe_color.hpp"
 #include "rive/animation/keyframe_double.hpp"
 #include "rive/animation/keyframe_id.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/keyframe_string.hpp"
 #include "rive/animation/layer_state.hpp"
 #include "rive/animation/linear_animation.hpp"
@@ -248,6 +250,8 @@ public:
                 return new BlendStateDirect();
             case NestedStateMachineBase::typeKey:
                 return new NestedStateMachine();
+            case ElasticInterpolatorBase::typeKey:
+                return new ElasticInterpolator();
             case ExitStateBase::typeKey:
                 return new ExitState();
             case NestedNumberBase::typeKey:
@@ -548,6 +552,9 @@ public:
             case LinearAnimationBase::workEndPropertyKey:
                 object->as<LinearAnimationBase>()->workEnd(value);
                 break;
+            case ElasticInterpolatorBase::easingValuePropertyKey:
+                object->as<ElasticInterpolatorBase>()->easingValue(value);
+                break;
             case BlendState1DBase::inputIdPropertyKey:
                 object->as<BlendState1DBase>()->inputId(value);
                 break;
@@ -781,6 +788,12 @@ public:
                 break;
             case LinearAnimationBase::speedPropertyKey:
                 object->as<LinearAnimationBase>()->speed(value);
+                break;
+            case ElasticInterpolatorBase::amplitudePropertyKey:
+                object->as<ElasticInterpolatorBase>()->amplitude(value);
+                break;
+            case ElasticInterpolatorBase::periodPropertyKey:
+                object->as<ElasticInterpolatorBase>()->period(value);
                 break;
             case NestedNumberBase::nestedValuePropertyKey:
                 object->as<NestedNumberBase>()->nestedValue(value);
@@ -1296,6 +1309,8 @@ public:
                 return object->as<LinearAnimationBase>()->workStart();
             case LinearAnimationBase::workEndPropertyKey:
                 return object->as<LinearAnimationBase>()->workEnd();
+            case ElasticInterpolatorBase::easingValuePropertyKey:
+                return object->as<ElasticInterpolatorBase>()->easingValue();
             case BlendState1DBase::inputIdPropertyKey:
                 return object->as<BlendState1DBase>()->inputId();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
@@ -1455,6 +1470,10 @@ public:
                 return object->as<KeyFrameDoubleBase>()->value();
             case LinearAnimationBase::speedPropertyKey:
                 return object->as<LinearAnimationBase>()->speed();
+            case ElasticInterpolatorBase::amplitudePropertyKey:
+                return object->as<ElasticInterpolatorBase>()->amplitude();
+            case ElasticInterpolatorBase::periodPropertyKey:
+                return object->as<ElasticInterpolatorBase>()->period();
             case NestedNumberBase::nestedValuePropertyKey:
                 return object->as<NestedNumberBase>()->nestedValue();
             case NestedRemapAnimationBase::timePropertyKey:
@@ -1776,6 +1795,7 @@ public:
             case LinearAnimationBase::loopValuePropertyKey:
             case LinearAnimationBase::workStartPropertyKey:
             case LinearAnimationBase::workEndPropertyKey:
+            case ElasticInterpolatorBase::easingValuePropertyKey:
             case BlendState1DBase::inputIdPropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case StrokeBase::capPropertyKey:
@@ -1853,6 +1873,8 @@ public:
             case ListenerNumberChangeBase::valuePropertyKey:
             case KeyFrameDoubleBase::valuePropertyKey:
             case LinearAnimationBase::speedPropertyKey:
+            case ElasticInterpolatorBase::amplitudePropertyKey:
+            case ElasticInterpolatorBase::periodPropertyKey:
             case NestedNumberBase::nestedValuePropertyKey:
             case NestedRemapAnimationBase::timePropertyKey:
             case BlendAnimation1DBase::valuePropertyKey:

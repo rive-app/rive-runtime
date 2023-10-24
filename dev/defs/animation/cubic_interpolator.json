@@ -6,6 +6,7 @@
   },
   "abstract": true,
   "exportsWithContext": true,
+  "extends": "animation/keyframe_interpolator.json",
   "properties": {
     "x1": {
       "type": "double",

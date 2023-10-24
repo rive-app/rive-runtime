@@ -15,16 +15,7 @@ TEST_CASE("test cubic value load and interpolate properly", "[file]")
     auto greyRect = artboard->find<rive::Node>("grey_rectangle");
     REQUIRE(greyRect != nullptr);
 
-    int interpolatorCount = 0;
-    for (auto object : artboard->objects())
-    {
-        if (object->coreType() == rive::CubicValueInterpolatorBase::typeKey)
-        {
-            interpolatorCount++;
-        }
-    }
-
-    REQUIRE(interpolatorCount == 3);
+    REQUIRE(artboard->find<rive::CubicValueInterpolatorBase>().size() == 3);
 
     auto animation = artboard->animation("Timeline 1");
     REQUIRE(animation != nullptr);

@@ -1,13 +1,13 @@
 #ifndef _RIVE_CUBIC_INTERPOLATOR_BASE_HPP_
 #define _RIVE_CUBIC_INTERPOLATOR_BASE_HPP_
-#include "rive/core.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
-class CubicInterpolatorBase : public Core
+class CubicInterpolatorBase : public KeyFrameInterpolator
 {
 protected:
-    typedef Core Super;
+    typedef KeyFrameInterpolator Super;
 
 public:
     static const uint16_t typeKey = 139;
@@ -19,6 +19,7 @@ public:
         switch (typeKey)
         {
             case CubicInterpolatorBase::typeKey:
+            case KeyFrameInterpolatorBase::typeKey:
                 return true;
             default:
                 return false;
@@ -89,6 +90,7 @@ public:
         m_Y1 = object.m_Y1;
         m_X2 = object.m_X2;
         m_Y2 = object.m_Y2;
+        KeyFrameInterpolator::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -108,7 +110,7 @@ public:
                 m_Y2 = CoreDoubleType::deserialize(reader);
                 return true;
         }
-        return false;
+        return KeyFrameInterpolator::deserialize(propertyKey, reader);
     }
 
 protected:
