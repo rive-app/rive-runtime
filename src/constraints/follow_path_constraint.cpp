@@ -43,13 +43,17 @@ const Mat2D FollowPathConstraint::targetTransform() const
     }
 
     float actualDistance = positiveMod(distance(), 1.0f);
+    if (distance() != 0 && actualDistance == 0)
+    {
+        actualDistance = 1;
+    }
     float distanceUnits = totalLength * std::min(1.0f, std::max(0.0f, actualDistance));
     float runningLength = 0;
     ContourMeasure::PosTan posTan;
     for (auto contour : m_contours)
     {
         float pathLength = contour->length();
-        if (distanceUnits < pathLength + runningLength)
+        if (distanceUnits <= pathLength + runningLength)
         {
             posTan = contour->getPosTan(distanceUnits - runningLength);
             break;
