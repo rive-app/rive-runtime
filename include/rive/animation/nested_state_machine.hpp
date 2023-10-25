@@ -8,11 +8,13 @@
 namespace rive
 {
 class ArtboardInstance;
+class NestedInput;
 class StateMachineInstance;
 class NestedStateMachine : public NestedStateMachineBase
 {
 private:
     std::unique_ptr<StateMachineInstance> m_StateMachineInstance;
+    std::vector<NestedInput*> m_nestedInputs;
 
 public:
     NestedStateMachine();
@@ -24,6 +26,8 @@ public:
     void pointerMove(Vec2D position);
     void pointerDown(Vec2D position);
     void pointerUp(Vec2D position);
+
+    void addNestedInput(NestedInput* input);
 };
 } // namespace rive
 

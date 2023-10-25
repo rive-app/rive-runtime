@@ -6,7 +6,9 @@
 using namespace rive;
 class StateMachineInstance;
 
-void NestedBool::nestedValueChanged()
+void NestedBool::nestedValueChanged() { this->applyValue(); }
+
+void NestedBool::applyValue()
 {
     auto inputInstance = input();
     if (inputInstance != nullptr)

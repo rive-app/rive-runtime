@@ -7,6 +7,8 @@ namespace rive
 class NestedNumber : public NestedNumberBase
 {
 public:
+    void applyValue() override;
+
 protected:
     void nestedValueChanged() override;
 };

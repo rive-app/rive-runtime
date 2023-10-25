@@ -8,6 +8,19 @@ namespace rive
 class NestedInput : public NestedInputBase
 {
 public:
+    StatusCode onAddedDirty(CoreContext* context) override
+    {
+        StatusCode result = Super::onAddedDirty(context);
+        auto parent = this->parent();
+        if (parent != nullptr && parent->is<NestedStateMachine>())
+        {
+            parent->as<NestedStateMachine>()->addNestedInput(this);
+        }
+        return result;
+    }
+
+    virtual void applyValue() {}
+
 protected:
     SMIInput* input()
     {

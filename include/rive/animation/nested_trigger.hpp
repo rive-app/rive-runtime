@@ -7,6 +7,7 @@ namespace rive
 class NestedTrigger : public NestedTriggerBase
 {
 public:
+    void applyValue() override;
     void fire(const CallbackData& value) override;
 };
 } // namespace rive

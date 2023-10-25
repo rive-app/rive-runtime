@@ -6,7 +6,9 @@
 using namespace rive;
 class StateMachineInstance;
 
-void NestedTrigger::fire(const CallbackData& value)
+void NestedTrigger::fire(const CallbackData& value) { this->applyValue(); }
+
+void NestedTrigger::applyValue()
 {
     auto inputInstance = input();
     if (inputInstance != nullptr)

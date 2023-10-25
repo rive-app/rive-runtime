@@ -1,3 +1,6 @@
+#include "rive/animation/nested_bool.hpp"
+#include "rive/animation/nested_input.hpp"
+#include "rive/animation/nested_number.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 
@@ -17,6 +20,16 @@ void NestedStateMachine::advance(float elapsedSeconds)
 void NestedStateMachine::initializeAnimation(ArtboardInstance* artboard)
 {
     m_StateMachineInstance = artboard->stateMachineAt(animationId());
+    auto count = m_nestedInputs.size();
+    for (size_t i = 0; i < count; i++)
+    {
+        auto nestedInput = m_nestedInputs[i];
+        if (nestedInput->is<NestedBool>() || nestedInput->is<NestedNumber>())
+        {
+            nestedInput->applyValue();
+        }
+    }
+    m_nestedInputs.clear();
 }
 
 StateMachineInstance* NestedStateMachine::stateMachineInstance()
@@ -47,3 +60,5 @@ void NestedStateMachine::pointerUp(Vec2D position)
         m_StateMachineInstance->pointerUp(position);
     }
 }
+
+void NestedStateMachine::addNestedInput(NestedInput* input) { m_nestedInputs.push_back(input); }
