@@ -292,7 +292,7 @@ class C2DFactory : public Factory
         return std::unique_ptr<RenderPaint>(ptr);
     }
 
-    std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t> bytes) override { return nullptr; }
+    rcp<RenderImage> decodeImage(Span<const uint8_t> bytes) override { return nullptr; }
 };
 
 std::unique_ptr<rive::Factory> MakeC2DFactory() { return std::make_unique<rive::C2DFactory>(); }

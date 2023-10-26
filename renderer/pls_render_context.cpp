@@ -1296,9 +1296,9 @@ rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType type,
     return m_impl->makeRenderBuffer(type, flags, sizeInBytes);
 }
 
-std::unique_ptr<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
+rcp<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {
     rcp<PLSTexture> texture = m_impl->decodeImageTexture(encodedBytes);
-    return texture != nullptr ? std::make_unique<PLSImage>(std::move(texture)) : nullptr;
+    return texture != nullptr ? make_rcp<PLSImage>(std::move(texture)) : nullptr;
 }
 } // namespace rive::pls

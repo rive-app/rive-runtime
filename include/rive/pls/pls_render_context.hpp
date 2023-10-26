@@ -405,7 +405,7 @@ public:
 
     // Backend-specific PLSFactory implementation.
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
-    std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
+    rcp<RenderImage> decodeImage(Span<const uint8_t>) override;
 
 private:
     // Either appends a draw to m_drawList or merges into m_lastDraw.
