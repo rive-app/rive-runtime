@@ -11,10 +11,15 @@ using namespace rive;
 
 void Image::draw(Renderer* renderer)
 {
-    rive::RenderImage* renderImage;
+
     rive::ImageAsset* asset = this->imageAsset();
-    if (asset == nullptr || renderOpacity() == 0.0f ||
-        (renderImage = asset->renderImage()) == nullptr)
+    if (asset == nullptr || renderOpacity() == 0.0f)
+    {
+        return;
+    }
+
+    rive::RenderImage* renderImage = asset->renderImage();
+    if (renderImage == nullptr)
     {
         return;
     }

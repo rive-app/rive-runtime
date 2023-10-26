@@ -123,6 +123,7 @@ public:
         return *this;
     }
 
+    // move assignment operator
     rcp<T>& operator=(rcp<T>&& other)
     {
         this->reset(other.release());

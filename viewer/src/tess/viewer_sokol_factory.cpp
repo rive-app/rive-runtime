@@ -4,7 +4,7 @@
 #include "rive/tess/sokol/sokol_tess_renderer.hpp"
 #include "sokol_gfx.h"
 
-std::unique_ptr<rive::RenderImage> ViewerSokolFactory::decodeImage(rive::Span<const uint8_t> bytes)
+rive::rcp<rive::RenderImage> ViewerSokolFactory::decodeImage(rive::Span<const uint8_t> bytes)
 {
     auto bitmap = Bitmap::decode(bytes.data(), bytes.size());
     if (bitmap)
@@ -26,10 +26,10 @@ std::unique_ptr<rive::RenderImage> ViewerSokolFactory::decodeImage(rive::Span<co
             new rive::SokolRenderImageResource(bitmap->bytes(), bitmap->width(), bitmap->height()));
 
         static rive::Mat2D identity;
-        return rivestd::make_unique<rive::SokolRenderImage>(imageGpuResource,
-                                                            bitmap->width(),
-                                                            bitmap->height(),
-                                                            identity);
+        return rive::make_rcp<rive::SokolRenderImage>(imageGpuResource,
+                                                      bitmap->width(),
+                                                      bitmap->height(),
+                                                      identity);
     }
     return nullptr;
 }

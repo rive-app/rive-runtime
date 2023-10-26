@@ -6,6 +6,6 @@
 class ViewerSokolFactory : public rive::SokolFactory
 {
 public:
-    std::unique_ptr<rive::RenderImage> decodeImage(rive::Span<const uint8_t>) override;
+    rive::rcp<rive::RenderImage> decodeImage(rive::Span<const uint8_t>) override;
 };
 #endif

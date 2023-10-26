@@ -11,11 +11,11 @@ bool ImageAsset::decode(Span<const uint8_t> data, Factory* factory)
 #ifdef TESTING
     decodedByteSize = data.size();
 #endif
-    m_RenderImage = factory->decodeImage(data);
+    renderImage(factory->decodeImage(data));
     return m_RenderImage != nullptr;
 }
 
-void ImageAsset::renderImage(std::unique_ptr<RenderImage> renderImage)
+void ImageAsset::renderImage(rcp<RenderImage> renderImage)
 {
     m_RenderImage = std::move(renderImage);
 }

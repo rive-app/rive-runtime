@@ -104,7 +104,7 @@ public:
     virtual void invalidateStroke() = 0;
 };
 
-class RenderImage
+class RenderImage : public RefCnt<RenderImage>
 {
 protected:
     int m_Width = 0;

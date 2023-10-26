@@ -8,10 +8,10 @@
 
 class ImageContent : public ViewerContent
 {
-    std::unique_ptr<rive::RenderImage> m_image;
+    rive::rcp<rive::RenderImage> m_image;
 
 public:
-    ImageContent(std::unique_ptr<rive::RenderImage> image) : m_image(std::move(image)) {}
+    ImageContent(rive::rcp<rive::RenderImage> image) { m_image = std::move(image); }
 
     void handleDraw(rive::Renderer* renderer, double) override
     {

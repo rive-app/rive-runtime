@@ -35,7 +35,7 @@ class NoOpFactory : public Factory
 
     std::unique_ptr<RenderPaint> makeRenderPaint() override;
 
-    std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
+    rcp<RenderImage> decodeImage(Span<const uint8_t>) override;
 };
 } // namespace rive
 #endif

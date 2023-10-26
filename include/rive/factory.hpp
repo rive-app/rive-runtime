@@ -56,7 +56,7 @@ public:
 
     virtual std::unique_ptr<RenderPaint> makeRenderPaint() = 0;
 
-    virtual std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) = 0;
+    virtual rcp<RenderImage> decodeImage(Span<const uint8_t>) = 0;
 
     virtual rcp<Font> decodeFont(Span<const uint8_t>);
 

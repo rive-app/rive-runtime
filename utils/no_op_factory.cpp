@@ -80,7 +80,4 @@ std::unique_ptr<RenderPaint> NoOpFactory::makeRenderPaint()
     return rivestd::make_unique<NoOpRenderPaint>();
 }
 
-std::unique_ptr<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>)
-{
-    return std::unique_ptr<NoOpRenderImage>();
-}
+rcp<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>) { return nullptr; }

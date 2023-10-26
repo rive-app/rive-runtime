@@ -518,9 +518,9 @@ std::unique_ptr<RenderPaint> CGFactory::makeRenderPaint()
     return std::make_unique<CGRenderPaint>();
 }
 
-std::unique_ptr<RenderImage> CGFactory::decodeImage(Span<const uint8_t> encoded)
+rcp<RenderImage> CGFactory::decodeImage(Span<const uint8_t> encoded)
 {
-    return std::make_unique<CGRenderImage>(encoded);
+    return make_rcp<CGRenderImage>(encoded);
 }
 
 AutoCF<CGImageRef> CGRenderer::FlipCGImageInY(AutoCF<CGImageRef> image)

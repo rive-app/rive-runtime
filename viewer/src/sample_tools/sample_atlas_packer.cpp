@@ -27,7 +27,7 @@ public:
 
 class AtlasPackerFactory : public NoOpFactory
 {
-    std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t> bytes) override
+    rcp<RenderImage> decodeImage(Span<const uint8_t> bytes) override
     {
         auto bitmap = Bitmap::decode(bytes.data(), bytes.size());
         if (bitmap)
@@ -40,9 +40,7 @@ class AtlasPackerFactory : public NoOpFactory
                 bitmap->pixelFormat(Bitmap::PixelFormat::RGBA);
             }
 
-            return rivestd::make_unique<AtlasRenderImage>(bitmap->bytes(),
-                                                          bitmap->width(),
-                                                          bitmap->height());
+            return make_rcp<AtlasRenderImage>(bitmap->bytes(), bitmap->width(), bitmap->height());
         }
         return nullptr;
     }

@@ -282,7 +282,7 @@ std::unique_ptr<RenderPaint> SkiaFactory::makeRenderPaint()
     return std::make_unique<SkiaRenderPaint>();
 }
 
-std::unique_ptr<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encoded)
+rcp<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encoded)
 {
     sk_sp<SkData> data = SkData::MakeWithCopy(encoded.data(), encoded.size());
     auto image = SkImage::MakeFromEncoded(data);
@@ -309,5 +309,5 @@ std::unique_ptr<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encode
         }
     }
 
-    return image ? std::make_unique<SkiaRenderImage>(std::move(image)) : nullptr;
+    return image ? make_rcp<SkiaRenderImage>(std::move(image)) : nullptr;
 }

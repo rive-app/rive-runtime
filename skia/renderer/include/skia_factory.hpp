@@ -37,7 +37,7 @@ public:
 
     std::unique_ptr<RenderPaint> makeRenderPaint() override;
 
-    std::unique_ptr<RenderImage> decodeImage(Span<const uint8_t>) override;
+    rcp<RenderImage> decodeImage(Span<const uint8_t>) override;
 
     //
     // New virtual for access the platform's codecs
