@@ -35,9 +35,16 @@ public:
     // Creates a PLSRenderTarget that draws to a new, offscreen GL framebuffer. This method is
     // guaranteed to succeed, but the caller must call glBlitFramebuffer() to view the rendering
     // results.
-    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(size_t width, size_t height)
+    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
+        size_t width,
+        size_t height,
+        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership =
+            PLSRenderTargetGL::TargetTextureOwnership::internal)
     {
-        return m_plsImpl->makeOffscreenRenderTarget(width, height, m_platformFeatures);
+        return m_plsImpl->makeOffscreenRenderTarget(width,
+                                                    height,
+                                                    targetTextureOwnership,
+                                                    m_platformFeatures);
     }
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
@@ -62,9 +69,11 @@ private:
                                                           size_t width,
                                                           size_t height,
                                                           const PlatformFeatures&) = 0;
-        virtual rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(size_t width,
-                                                                 size_t height,
-                                                                 const PlatformFeatures&) = 0;
+        virtual rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
+            size_t width,
+            size_t height,
+            PLSRenderTargetGL::TargetTextureOwnership,
+            const PlatformFeatures&) = 0;
 
         virtual void activatePixelLocalStorage(PLSRenderContextGLImpl*,
                                                const PLSRenderContext::FlushDescriptor&) = 0;

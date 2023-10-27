@@ -29,9 +29,11 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
         size_t width,
         size_t height,
+        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
         const PlatformFeatures& platformFeatures) override
     {
-        auto renderTarget = rcp(new PLSRenderTargetGL(width, height, platformFeatures));
+        auto renderTarget =
+            rcp(new PLSRenderTargetGL(width, height, targetTextureOwnership, platformFeatures));
         glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, width);
         glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height);
         renderTarget->allocateCoverageBackingTextures();
@@ -49,6 +51,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         // Clear the necessary textures.
         constexpr static GLuint kZero[4]{};
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->sideFramebufferID());
+        renderTarget->reattachTargetTextureIfDifferent();
         if (desc.loadAction == LoadAction::clear)
         {
             float clearColor4f[4];
@@ -63,7 +66,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
 
         // Bind the RW textures.
         glBindImageTexture(FRAMEBUFFER_PLANE_IDX,
-                           renderTarget->m_offscreenTextureID,
+                           renderTarget->m_targetTextureID,
                            0,
                            GL_FALSE,
                            0,

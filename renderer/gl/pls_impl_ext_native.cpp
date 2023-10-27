@@ -93,9 +93,10 @@ public:
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
         size_t width,
         size_t height,
+        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
         const PlatformFeatures& platformFeatures) override
     {
-        return rcp(new PLSRenderTargetGL(width, height, platformFeatures));
+        return rcp(new PLSRenderTargetGL(width, height, targetTextureOwnership, platformFeatures));
     }
 
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
@@ -107,6 +108,7 @@ public:
 
         auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
+        renderTarget->reattachTargetTextureIfDifferent();
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
         std::array<float, 4> clearColor4f;

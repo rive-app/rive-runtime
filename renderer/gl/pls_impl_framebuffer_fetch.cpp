@@ -33,18 +33,20 @@ public:
         auto renderTarget =
             rcp(new PLSRenderTargetGL(framebufferID, width, height, platformFeatures));
         renderTarget->allocateCoverageBackingTextures();
-        renderTarget->attachTexturesToCurrentFramebuffer();
+        renderTarget->attachCoverageTexturesToCurrentFramebuffer();
         return renderTarget;
     }
 
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
         size_t width,
         size_t height,
+        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
         const PlatformFeatures& platformFeatures) override
     {
-        auto renderTarget = rcp(new PLSRenderTargetGL(width, height, platformFeatures));
+        auto renderTarget =
+            rcp(new PLSRenderTargetGL(width, height, targetTextureOwnership, platformFeatures));
         renderTarget->allocateCoverageBackingTextures();
-        renderTarget->attachTexturesToCurrentFramebuffer();
+        renderTarget->attachCoverageTexturesToCurrentFramebuffer();
         return renderTarget;
     }
 
@@ -55,6 +57,7 @@ public:
 
         auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
+        renderTarget->reattachTargetTextureIfDifferent();
 
         // Enable multiple render targets, with a draw buffer for each PLS plane.
         glDrawBuffers(4, kPLSDrawBuffers);

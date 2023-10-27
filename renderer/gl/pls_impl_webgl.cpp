@@ -42,14 +42,12 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
         size_t width,
         size_t height,
+        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
         const PlatformFeatures& platformFeatures) override
     {
-        auto renderTarget = rcp(new PLSRenderTargetGL(width, height, platformFeatures));
+        auto renderTarget =
+            rcp(new PLSRenderTargetGL(width, height, targetTextureOwnership, platformFeatures));
         renderTarget->allocateCoverageBackingTextures();
-        glFramebufferTexturePixelLocalStorageWEBGL(FRAMEBUFFER_PLANE_IDX,
-                                                   renderTarget->m_offscreenTextureID,
-                                                   0,
-                                                   0);
         glFramebufferTexturePixelLocalStorageWEBGL(COVERAGE_PLANE_IDX,
                                                    renderTarget->m_coverageTextureID,
                                                    0,
@@ -70,7 +68,25 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                                    const PLSRenderContext::FlushDescriptor& desc) override
     {
         auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
-        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
+        if (GLuint newTargetTextureID = renderTarget->targetTextureIDIfDifferent())
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->sideFramebufferID());
+            glFramebufferTexture2D(GL_FRAMEBUFFER,
+                                   GL_COLOR_ATTACHMENT0 + FRAMEBUFFER_PLANE_IDX,
+                                   GL_TEXTURE_2D,
+                                   newTargetTextureID,
+                                   0);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
+            glFramebufferTexturePixelLocalStorageWEBGL(FRAMEBUFFER_PLANE_IDX,
+                                                       newTargetTextureID,
+                                                       0,
+                                                       0);
+        }
+        else
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
+        }
 
         if (desc.loadAction == LoadAction::clear)
         {
