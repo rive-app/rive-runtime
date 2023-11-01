@@ -243,8 +243,16 @@
 #endif
 
 #define PLS_BLOCK_BEGIN
+#ifdef @TARGET_VULKAN
+#define PLS_DECL4F(IDX, NAME)                                                                      \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgba8) uniform lowp coherent image2D NAME
+#define PLS_DECLUI(IDX, NAME)                                                                      \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)                                   \
+        uniform highp coherent uimage2D NAME
+#else
 #define PLS_DECL4F(IDX, NAME) layout(binding = IDX, rgba8) uniform lowp coherent image2D NAME
 #define PLS_DECLUI(IDX, NAME) layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+#endif
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(P) imageLoad(P, plsCoord)
