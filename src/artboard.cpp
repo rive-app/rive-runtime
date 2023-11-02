@@ -617,6 +617,18 @@ AABB Artboard::bounds() const
                : AABB::fromLTWH(-width() * originX(), -height() * originY(), width(), height());
 }
 
+bool Artboard::isTranslucent() const
+{
+    for (const auto sp : m_ShapePaints)
+    {
+        if (!sp->isTranslucent())
+        {
+            return false; // one opaque fill is sufficient to be opaque
+        }
+    }
+    return true;
+}
+
 bool Artboard::isTranslucent(const LinearAnimation* anim) const
 {
     // For now we're conservative/lazy -- if we see that any of our paints are
@@ -635,15 +647,7 @@ bool Artboard::isTranslucent(const LinearAnimation* anim) const
 
     // If we get here, we have no animations, so just check our paints for
     // opacity
-
-    for (const auto sp : m_ShapePaints)
-    {
-        if (!sp->isTranslucent())
-        {
-            return false; // one opaque fill is sufficient to be opaque
-        }
-    }
-    return true;
+    return this->isTranslucent();
 }
 
 bool Artboard::isTranslucent(const LinearAnimationInstance* inst) const

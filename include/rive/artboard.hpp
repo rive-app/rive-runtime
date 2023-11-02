@@ -120,6 +120,7 @@ public:
     AABB bounds() const;
 
     // Can we hide these from the public? (they use playable)
+    bool isTranslucent() const;
     bool isTranslucent(const LinearAnimation*) const;
     bool isTranslucent(const LinearAnimationInstance*) const;
 
