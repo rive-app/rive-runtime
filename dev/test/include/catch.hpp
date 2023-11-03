@@ -262,6 +262,11 @@ namespace Catch {
 // _MSVC_TRADITIONAL == 0 means new conformant preprocessor
 // _MSVC_TRADITIONAL == 1 means old traditional non-conformant preprocessor
 #if !defined(__clang__) // Handle Clang masquerading for msvc
+
+// Rive disabled warning based on discussion
+// https://2dimensions.slack.com/archives/CLLCU09T6/p1699024342752529
+#pragma warning( disable : 5267 )
+
 #if !defined(_MSVC_TRADITIONAL) || (defined(_MSVC_TRADITIONAL) && _MSVC_TRADITIONAL)
 #define CATCH_INTERNAL_CONFIG_TRADITIONAL_MSVC_PREPROCESSOR
 #endif // MSVC_TRADITIONAL
