@@ -53,10 +53,12 @@ void Path::buildDependencies()
     // Make sure this is called once the shape has all of the paints added
     // (paints get added during the added cycle so buildDependencies is a good
     // time to do this.)
-    m_CommandPath = m_Shape->makeCommandPath(PathSpace::Neither);
+    m_CommandPath = m_Shape->makeCommandPath(m_DefaultPathSpace);
 }
 
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
+
+void Path::addDefaultPathSpace(PathSpace space) { m_DefaultPathSpace |= space; }
 
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 

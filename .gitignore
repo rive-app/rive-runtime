@@ -82,5 +82,9 @@ skia/**/build/android
 /build/macosx
 /build/android
 /skia/dependencies/skia_rive_optimized
+/skia/dependencies/skia_debug
 /skia/dependencies/skia-experimental
 dependencies/windows/cache
+
+# Local development setup
+compile_commands.json
