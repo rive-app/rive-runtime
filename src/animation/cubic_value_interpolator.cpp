@@ -36,3 +36,9 @@ float CubicValueInterpolator::transform(float factor) const
     assert(false);
     return factor;
 }
+
+StatusCode CubicValueInterpolator::onAddedDirty(CoreContext* context)
+{
+    computeParameters();
+    return Super::onAddedDirty(context);
+}

@@ -19,6 +19,7 @@ public:
     CubicValueInterpolator();
     float transformValue(float valueFrom, float valueTo, float factor) override;
     float transform(float factor) const override;
+    StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive
 
