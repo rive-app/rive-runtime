@@ -15,6 +15,14 @@ bool ListenerBoolChange::validateInputType(const StateMachineInput* input) const
     return input == nullptr || input->is<StateMachineBool>();
 }
 
+bool ListenerBoolChange::validateNestedInputType(const NestedInput* input) const
+{
+    // A null nested input is valid as the StateMachine can attempt to limp along if we
+    // introduce new input types that old conditions are expected to handle in
+    // newer runtimes. The older runtimes will just evaluate them to true.
+    return input == nullptr || input->is<NestedBool>();
+}
+
 void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance, Vec2D position) const
 {
     if (nestedInputId() != Core::emptyId)

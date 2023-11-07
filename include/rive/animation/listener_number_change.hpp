@@ -4,10 +4,12 @@
 
 namespace rive
 {
+class NestedInput;
 class ListenerNumberChange : public ListenerNumberChangeBase
 {
 public:
     bool validateInputType(const StateMachineInput* input) const override;
+    bool validateNestedInputType(const NestedInput* input) const override;
     void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const override;
 };
 } // namespace rive

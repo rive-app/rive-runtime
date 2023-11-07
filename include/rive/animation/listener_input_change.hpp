@@ -4,12 +4,14 @@
 
 namespace rive
 {
+class NestedInput;
 class StateMachineInput;
 class ListenerInputChange : public ListenerInputChangeBase
 {
 public:
     StatusCode import(ImportStack& importStack) override;
     virtual bool validateInputType(const StateMachineInput* input) const { return true; }
+    virtual bool validateNestedInputType(const NestedInput* input) const { return true; }
 };
 } // namespace rive
 
