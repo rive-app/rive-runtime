@@ -41,24 +41,6 @@ public:
     /// Minor version number supported by the runtime.
     static const int minorVersion = 0;
 
-private:
-    /// The file's backboard. All Rive files have a single backboard
-    /// where the artboards live.
-    std::unique_ptr<Backboard> m_Backboard;
-
-    /// We just keep these alive for the life of this File
-    std::vector<std::unique_ptr<FileAsset>> m_FileAssets;
-
-    /// List of artboards in the file. Each artboard encapsulates a set of
-    /// Rive components and animations.
-    std::vector<std::unique_ptr<Artboard>> m_Artboards;
-
-    Factory* m_Factory;
-
-    /// The helper used to load assets when they're not provided in-band
-    /// with the file.
-    FileAssetLoader* m_AssetLoader;
-
     File(Factory*, FileAssetLoader*);
 
 public:
@@ -77,13 +59,13 @@ public:
                                         FileAssetLoader* assetLoader = nullptr);
 
     /// @returns the file's backboard. All files have exactly one backboard.
-    Backboard* backboard() const { return m_Backboard.get(); }
+    Backboard* backboard() const { return m_backboard; }
 
     /// @returns the number of artboards in the file.
-    size_t artboardCount() const { return m_Artboards.size(); }
+    size_t artboardCount() const { return m_artboards.size(); }
     std::string artboardNameAt(size_t index) const;
 
-    std::vector<const FileAsset*> assets() const;
+    const std::vector<FileAsset*>& assets() const;
 
     // Instances
     std::unique_ptr<ArtboardInstance> artboardDefault() const;
@@ -113,6 +95,23 @@ public:
 
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);
+
+    /// The file's backboard. All Rive files have a single backboard
+    /// where the artboards live.
+    Backboard* m_backboard;
+
+    /// We just keep these alive for the life of this File
+    std::vector<FileAsset*> m_fileAssets;
+
+    /// List of artboards in the file. Each artboard encapsulates a set of
+    /// Rive components and animations.
+    std::vector<Artboard*> m_artboards;
+
+    Factory* m_factory;
+
+    /// The helper used to load assets when they're not provided in-band
+    /// with the file.
+    FileAssetLoader* m_assetLoader;
 };
 } // namespace rive
 #endif

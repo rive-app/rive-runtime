@@ -121,12 +121,24 @@ static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header
 }
 
 File::File(Factory* factory, FileAssetLoader* assetLoader) :
-    m_Factory(factory), m_AssetLoader(assetLoader)
+    m_factory(factory), m_assetLoader(assetLoader)
 {
     assert(factory);
 }
 
-File::~File() {}
+File::~File()
+{
+    for (auto artboard : m_artboards)
+    {
+        delete artboard;
+    }
+    // Assets delete after artboards as they reference them.
+    for (auto asset : m_fileAssets)
+    {
+        delete asset;
+    }
+    delete m_backboard;
+}
 
 std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
                                    Factory* factory,
@@ -188,20 +200,20 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             switch (object->coreType())
             {
                 case Backboard::typeKey:
-                    m_Backboard.reset(object->as<Backboard>());
+                    m_backboard = object->as<Backboard>();
                     break;
                 case Artboard::typeKey:
                 {
                     Artboard* ab = object->as<Artboard>();
-                    ab->m_Factory = m_Factory;
-                    m_Artboards.push_back(std::unique_ptr<Artboard>(ab));
+                    ab->m_Factory = m_factory;
+                    m_artboards.push_back(ab);
                 }
                 break;
                 case ImageAsset::typeKey:
                 case FontAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
-                    m_FileAssets.push_back(std::unique_ptr<FileAsset>(fa));
+                    m_fileAssets.push_back(fa);
                 }
                 break;
             }
@@ -277,7 +289,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ImageAsset::typeKey:
             case FontAsset::typeKey:
                 stackObject =
-                    new FileAssetImporter(object->as<FileAsset>(), m_AssetLoader, m_Factory);
+                    new FileAssetImporter(object->as<FileAsset>(), m_assetLoader, m_factory);
                 stackType = FileAsset::typeKey;
                 break;
         }
@@ -301,11 +313,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 
 Artboard* File::artboard(std::string name) const
 {
-    for (const auto& artboard : m_Artboards)
+    for (const auto& artboard : m_artboards)
     {
         if (artboard->name() == name)
         {
-            return artboard.get();
+            return artboard;
         }
     }
     return nullptr;
@@ -313,20 +325,20 @@ Artboard* File::artboard(std::string name) const
 
 Artboard* File::artboard() const
 {
-    if (m_Artboards.empty())
+    if (m_artboards.empty())
     {
         return nullptr;
     }
-    return m_Artboards[0].get();
+    return m_artboards[0];
 }
 
 Artboard* File::artboard(size_t index) const
 {
-    if (index >= m_Artboards.size())
+    if (index >= m_artboards.size())
     {
         return nullptr;
     }
-    return m_Artboards[index].get();
+    return m_artboards[index];
 }
 
 std::string File::artboardNameAt(size_t index) const
@@ -353,15 +365,7 @@ std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
     return ab ? ab->instance() : nullptr;
 }
 
-std::vector<const FileAsset*> File::assets() const
-{
-    std::vector<const FileAsset*> assets;
-    for (auto itr = m_FileAssets.begin(); itr != m_FileAssets.end(); itr++)
-    {
-        assets.push_back(itr->get());
-    }
-    return assets;
-}
+const std::vector<FileAsset*>& File::assets() const { return m_fileAssets; }
 
 #ifdef WITH_RIVE_TOOLS
 const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,

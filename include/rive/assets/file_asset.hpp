@@ -35,13 +35,18 @@ public:
 
     void removeFileAssetReferencer(FileAssetReferencer* referencer)
     {
-        m_fileAssetReferencers.erase(
-            std::remove_if(m_fileAssetReferencers.begin(),
-                           m_fileAssetReferencers.end(),
-                           [&referencer](FileAssetReferencer* otherReferencer) {
-                               return otherReferencer == referencer;
-                           }),
-            m_fileAssetReferencers.end());
+        auto itr = m_fileAssetReferencers.begin();
+        while (itr != m_fileAssetReferencers.end())
+        {
+            if (*itr == referencer)
+            {
+                itr = m_fileAssetReferencers.erase(itr);
+            }
+            else
+            {
+                itr++;
+            }
+        }
     }
 
     std::string uniqueFilename() const;

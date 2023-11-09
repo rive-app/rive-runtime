@@ -27,6 +27,13 @@ StatusCode FileAssetReferencer::registerReferencer(ImportStack& importStack)
 
 void FileAssetReferencer::setAsset(FileAsset* asset)
 {
+    if (m_fileAsset != nullptr)
+    {
+        m_fileAsset->removeFileAssetReferencer(this);
+    }
     m_fileAsset = asset;
-    asset->addFileAssetReferencer(this);
+    if (asset != nullptr)
+    {
+        asset->addFileAssetReferencer(this);
+    }
 };
