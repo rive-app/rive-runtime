@@ -64,7 +64,6 @@ const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
 void Path::buildPath(CommandPath& commandPath) const
 {
-
     const bool isClosed = isPathClosed();
     const std::vector<PathVertex*>& vertices = m_Vertices;
 
@@ -244,8 +243,7 @@ void Path::update(ComponentDirt value)
 {
     Super::update(value);
 
-    assert(m_CommandPath != nullptr);
-    if (hasDirt(value, ComponentDirt::Path))
+    if (m_CommandPath != nullptr && hasDirt(value, ComponentDirt::Path))
     {
         if (m_Shape->canDeferPathUpdate())
         {
