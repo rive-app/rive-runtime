@@ -670,7 +670,8 @@ void PLSRenderTargetD3D::setTargetTexture(ID3D11Device* gpu, ComPtr<ID3D11Textur
     tex->GetDesc(&desc);
     assert(desc.Width == width());
     assert(desc.Height == height());
-    assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM);
+    assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
+           desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
 #endif
     m_targetTexture = std::move(tex);
     m_targetUAV = make_simple_2d_uav(gpu, m_targetTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);

@@ -1220,6 +1220,7 @@ void PLSRenderContext::flush(FlushType flushType)
     flushDesc.hasTriangleVertices = m_maxTriangleVertexCount > 0;
     flushDesc.wireframe = frameDescriptor().wireframe;
     flushDesc.drawList = &m_drawList;
+    flushDesc.backendSpecificData = frameDescriptor().backendSpecificData;
     m_impl->flush(flushDesc);
 
     m_currentFrameResourceUsage.maxPathID += m_currentPathID;

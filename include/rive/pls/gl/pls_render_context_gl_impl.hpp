@@ -23,7 +23,7 @@ public:
     ~PLSRenderContextGLImpl() override;
 
     // Called when the GL context has been modified outside of Rive.
-    void resetGLState() { m_state->reset(m_extensions); }
+    void resetGLState();
 
     // Creates a PLSRenderTarget that draws directly into the given GL framebuffer.
     // Returns null if the framebuffer doesn't support pixel local storage.

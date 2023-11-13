@@ -192,6 +192,16 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
     m_state->deleteVAO(m_imageMeshVAO);
 }
 
+void PLSRenderContextGLImpl::resetGLState()
+{
+    m_state->reset(m_extensions);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
+
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
+}
+
 rcp<RenderBuffer> PLSRenderContextGLImpl::makeRenderBuffer(RenderBufferType type,
                                                            RenderBufferFlags flags,
                                                            size_t sizeInBytes)

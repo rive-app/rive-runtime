@@ -104,6 +104,9 @@ public:
         bool wireframe = false;
         bool fillsDisabled = false;
         bool strokesDisabled = false;
+
+        // Only used for metal backend.
+        void* backendSpecificData = nullptr;
     };
 
     // Called at the beginning of a frame and establishes where and how it will be rendered.
@@ -401,6 +404,7 @@ public:
         bool hasTriangleVertices;
         bool wireframe;
         const PerFlushLinkedList<Draw>* drawList;
+        void* backendSpecificData = nullptr;
     };
 
     // Backend-specific PLSFactory implementation.

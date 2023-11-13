@@ -608,7 +608,11 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
 void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
     auto* renderTarget = static_cast<const PLSRenderTargetMetal*>(desc.renderTarget);
-    id<MTLCommandBuffer> commandBuffer = [m_queue commandBuffer];
+
+    id<MTLCommandBuffer> commandBuffer =
+        desc.backendSpecificData != nullptr
+            ? (__bridge id<MTLCommandBuffer>)desc.backendSpecificData
+            : [m_queue commandBuffer];
 
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
@@ -836,6 +840,11 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
       thisFlushLock.unlock();
     }];
 
-    [commandBuffer commit];
+    // Commit our commandBuffer if it's one generated on our own queue. If it's
+    // external, then whoever supplied it is responsible for committing.
+    if (desc.backendSpecificData == nullptr)
+    {
+        [commandBuffer commit];
+    }
 }
 } // namespace rive::pls

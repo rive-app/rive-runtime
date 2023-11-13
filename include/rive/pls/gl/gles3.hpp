@@ -5,6 +5,7 @@
 #pragma once
 
 #include <string.h>
+#include <stdio.h>
 
 struct GLExtensions
 {
