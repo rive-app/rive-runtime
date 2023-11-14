@@ -59,8 +59,11 @@ void PathComposer::update(ComponentDirt value)
             // Get all the paths into local shape space.
             for (auto path : m_Shape->paths())
             {
-                const auto localTransform = inverseWorld * path->pathTransform();
-                m_LocalPath->addPath(path->commandPath(), localTransform);
+                if (!path->isHidden())
+                {
+                    const auto localTransform = inverseWorld * path->pathTransform();
+                    m_LocalPath->addPath(path->commandPath(), localTransform);
+                }
             }
         }
         if ((space & PathSpace::World) == PathSpace::World)
@@ -77,8 +80,11 @@ void PathComposer::update(ComponentDirt value)
             }
             for (auto path : m_Shape->paths())
             {
-                const Mat2D& transform = path->pathTransform();
-                m_WorldPath->addPath(path->commandPath(), transform);
+                if (!path->isHidden())
+                {
+                    const Mat2D& transform = path->pathTransform();
+                    m_WorldPath->addPath(path->commandPath(), transform);
+                }
             }
         }
     }

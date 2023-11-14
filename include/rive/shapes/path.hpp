@@ -56,6 +56,7 @@ public:
     virtual void markPathDirty();
     virtual bool isPathClosed() const { return true; }
     void onDirty(ComponentDirt dirt) override;
+    inline bool isHidden() const { return (pathFlags() & 0x1) == 0x1; }
 #ifdef ENABLE_QUERY_FLAT_VERTICES
     FlattenedPath* makeFlat(bool transformToParent);
 #endif

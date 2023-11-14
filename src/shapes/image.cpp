@@ -6,6 +6,7 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/shapes/mesh.hpp"
 #include "rive/artboard.hpp"
+#include "rive/clip_result.hpp"
 
 using namespace rive;
 
@@ -24,25 +25,30 @@ void Image::draw(Renderer* renderer)
         return;
     }
 
-    if (!clip(renderer))
+    ClipResult clipResult = clip(renderer);
+
+    if (clipResult == ClipResult::noClip)
     {
         // We didn't clip, so make sure to save as we'll be doing some
         // transformations.
         renderer->save();
     }
 
-    auto width = renderImage->width();
-    auto height = renderImage->height();
+    if (clipResult != ClipResult::emptyClip)
+    {
+        auto width = renderImage->width();
+        auto height = renderImage->height();
 
-    if (m_Mesh != nullptr)
-    {
-        m_Mesh->draw(renderer, renderImage, blendMode(), renderOpacity());
-    }
-    else
-    {
-        renderer->transform(worldTransform());
-        renderer->translate(-width * originX(), -height * originY());
-        renderer->drawImage(renderImage, blendMode(), renderOpacity());
+        if (m_Mesh != nullptr)
+        {
+            m_Mesh->draw(renderer, renderImage, blendMode(), renderOpacity());
+        }
+        else
+        {
+            renderer->transform(worldTransform());
+            renderer->translate(-width * originX(), -height * originY());
+            renderer->drawImage(renderImage, blendMode(), renderOpacity());
+        }
     }
 
     renderer->restore();

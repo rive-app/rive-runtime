@@ -6,6 +6,7 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/path_composer.hpp"
+#include "rive/clip_result.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -74,26 +75,30 @@ void Shape::draw(Renderer* renderer)
     {
         return;
     }
-    auto shouldRestore = clip(renderer);
+    ClipResult clipResult = clip(renderer);
 
-    for (auto shapePaint : m_ShapePaints)
+    if (clipResult != ClipResult::emptyClip)
     {
-        if (!shapePaint->isVisible())
+        for (auto shapePaint : m_ShapePaints)
         {
-            continue;
+            if (!shapePaint->isVisible())
+            {
+                continue;
+            }
+            renderer->save();
+            bool paintsInLocal = (shapePaint->pathSpace() & PathSpace::Local) == PathSpace::Local;
+            if (paintsInLocal)
+            {
+                renderer->transform(worldTransform());
+            }
+            shapePaint->draw(renderer,
+                             paintsInLocal ? m_PathComposer.localPath()
+                                           : m_PathComposer.worldPath());
+            renderer->restore();
         }
-        renderer->save();
-        bool paintsInLocal = (shapePaint->pathSpace() & PathSpace::Local) == PathSpace::Local;
-        if (paintsInLocal)
-        {
-            renderer->transform(worldTransform());
-        }
-        shapePaint->draw(renderer,
-                         paintsInLocal ? m_PathComposer.localPath() : m_PathComposer.worldPath());
-        renderer->restore();
     }
 
-    if (shouldRestore)
+    if (clipResult != ClipResult::noClip)
     {
         renderer->restore();
     }
@@ -192,4 +197,16 @@ StatusCode Shape::onAddedDirty(CoreContext* context)
     }
     // This ensures context propagates to path composer too.
     return m_PathComposer.onAddedDirty(context);
+}
+
+bool Shape::isEmpty()
+{
+    for (auto path : m_Paths)
+    {
+        if (!path->isHidden())
+        {
+            return false;
+        }
+    }
+    return true;
 }

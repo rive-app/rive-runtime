@@ -5,6 +5,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
+#include "rive/clip_result.hpp"
 #include <cassert>
 
 using namespace rive;
@@ -57,14 +58,18 @@ void NestedArtboard::draw(Renderer* renderer)
     {
         return;
     }
-    if (!clip(renderer))
+    ClipResult clipResult = clip(renderer);
+    if (clipResult == ClipResult::noClip)
     {
         // We didn't clip, so make sure to save as we'll be doing some
         // transformations.
         renderer->save();
     }
-    renderer->transform(worldTransform());
-    m_Artboard->draw(renderer);
+    if (clipResult != ClipResult::emptyClip)
+    {
+        renderer->transform(worldTransform());
+        m_Artboard->draw(renderer);
+    }
     renderer->restore();
 }
 

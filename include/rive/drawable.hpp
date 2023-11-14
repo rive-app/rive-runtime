@@ -3,6 +3,7 @@
 #include "rive/generated/drawable_base.hpp"
 #include "rive/hit_info.hpp"
 #include "rive/renderer.hpp"
+#include "rive/clip_result.hpp"
 #include <vector>
 
 namespace rive
@@ -25,7 +26,7 @@ private:
 
 public:
     BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
-    bool clip(Renderer* renderer) const;
+    ClipResult clip(Renderer* renderer) const;
     virtual void draw(Renderer* renderer) = 0;
     virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;
     void addClippingShape(ClippingShape* shape);

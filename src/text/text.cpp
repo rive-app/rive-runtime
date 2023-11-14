@@ -10,6 +10,7 @@ using namespace rive;
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
+#include "rive/clip_result.hpp"
 
 void GlyphItr::tryAdvanceRun()
 {
@@ -484,20 +485,25 @@ const TextStyle* Text::styleFromShaperId(uint16_t id) const
 
 void Text::draw(Renderer* renderer)
 {
-    if (!clip(renderer))
+
+    ClipResult clipResult = clip(renderer);
+    if (clipResult == ClipResult::noClip)
     {
         // We didn't clip, so make sure to save as we'll be doing some
         // transformations.
         renderer->save();
     }
-    renderer->transform(m_WorldTransform);
-    if (overflow() == TextOverflow::clipped && m_clipRenderPath)
+    if (clipResult != ClipResult::emptyClip)
     {
-        renderer->clipPath(m_clipRenderPath.get());
-    }
-    for (auto style : m_renderStyles)
-    {
-        style->draw(renderer);
+        renderer->transform(m_WorldTransform);
+        if (overflow() == TextOverflow::clipped && m_clipRenderPath)
+        {
+            renderer->clipPath(m_clipRenderPath.get());
+        }
+        for (auto style : m_renderStyles)
+        {
+            style->draw(renderer);
+        }
     }
     renderer->restore();
 }
