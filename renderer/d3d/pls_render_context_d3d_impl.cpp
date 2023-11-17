@@ -889,6 +889,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
     m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX, std::size(cbuffers), cbuffers);
 
     m_gpuContext->RSSetState(m_pathRasterState[0].Get());
+    m_gpuContext->OMSetBlendState(NULL, NULL, ~0);
 
     // All programs use the same set of per-flush uniforms.
     m_gpuContext->UpdateSubresource(m_flushUniforms.Get(),
