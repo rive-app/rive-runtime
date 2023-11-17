@@ -129,6 +129,45 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextD3DImpl::MakeContext(
     ComPtr<ID3D11DeviceContext> gpuContext,
     bool isIntel)
 {
+    D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
+    HRESULT result = gpu->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2,
+                                              &d3d11Options2,
+                                              sizeof(D3D11_FEATURE_DATA_D3D11_OPTIONS2));
+    if (!SUCCEEDED(result))
+    {
+        fprintf(stderr, "Failed to query D3D11_FEATURE_D3D11_OPTIONS2.\n");
+        return nullptr;
+    }
+    if (!d3d11Options2.ROVsSupported)
+    {
+        fprintf(stderr, "Rasterizer order views are not supported.\n");
+        return nullptr;
+    }
+    if (!d3d11Options2.TypedUAVLoadAdditionalFormats)
+    {
+        fprintf(stderr, "Additional UAV formats are not supported.\n");
+        return nullptr;
+    }
+    // TypedUAVLoadAdditionalFormats is true. Now check if we can both load and
+    // store RGBA8:
+    // https://learn.microsoft.com/en-us/windows/win32/direct3d11/typed-unordered-access-view-loads.
+    D3D11_FEATURE_DATA_FORMAT_SUPPORT2 d3d11Format2{};
+    d3d11Format2.InFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    result = gpu->CheckFeatureSupport(D3D11_FEATURE_FORMAT_SUPPORT2,
+                                      &d3d11Format2,
+                                      sizeof(d3d11Format2));
+    if (!SUCCEEDED(result))
+    {
+        fprintf(stderr, "Failed to query D3D11_FEATURE_FORMAT_SUPPORT2.\n");
+        return nullptr;
+    }
+    constexpr UINT loadStoreFlags =
+        D3D11_FORMAT_SUPPORT2_UAV_TYPED_LOAD | D3D11_FORMAT_SUPPORT2_UAV_TYPED_STORE;
+    if ((d3d11Format2.OutFormatSupport2 & loadStoreFlags) != loadStoreFlags)
+    {
+        fprintf(stderr, "RGBA8 UAVs are not supported.\n");
+        return nullptr;
+    }
     auto plsContextImpl = std::unique_ptr<PLSRenderContextD3DImpl>(
         new PLSRenderContextD3DImpl(std::move(gpu), std::move(gpuContext), isIntel));
     return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
