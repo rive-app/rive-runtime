@@ -15,10 +15,12 @@ StatusCode Tendon::onAddedDirty(CoreContext* context)
     bind[4] = tx();
     bind[5] = ty();
 
-    if (!bind.invert(&m_InverseBind))
-    {
-        return StatusCode::FailedInversion;
-    }
+    // Internally, this inversion can fail because of a division by 0.
+    // 'm_InverseBind' will default to an identity matrix. Although
+    // this can be treated as undefined behavior, the editor lets it go
+    // through, and nothing really breaks, it just can look odd. So we
+    // allow the runtime to behave in the same way and return StatusCode::Ok.
+    bind.invert(&m_InverseBind);
 
     StatusCode code = Super::onAddedDirty(context);
     if (code != StatusCode::Ok)
