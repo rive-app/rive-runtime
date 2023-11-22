@@ -47,6 +47,7 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     void buildDependencies() override;
     virtual const Mat2D& pathTransform() const;
+    bool collapse(bool value) override;
     CommandPath* commandPath() const { return m_CommandPath.get(); }
     void update(ComponentDirt value) override;
 

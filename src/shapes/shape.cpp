@@ -203,10 +203,13 @@ bool Shape::isEmpty()
 {
     for (auto path : m_Paths)
     {
-        if (!path->isHidden())
+        if (!path->isHidden() && !path->isCollapsed())
         {
             return false;
         }
     }
     return true;
 }
+
+// Do constraints need to be marked as dirty too? From tests it doesn't seem they do.
+void Shape::pathCollapseChanged() { m_PathComposer.pathCollapseChanged(); }

@@ -462,7 +462,7 @@ bool Artboard::updateComponents()
                 {
                     continue;
                 }
-                component->m_Dirt &= ComponentDirt::Collapsed;
+                component->m_Dirt = ComponentDirt::None;
                 component->update(d);
 
                 // If the update changed the dirt depth by adding dirt

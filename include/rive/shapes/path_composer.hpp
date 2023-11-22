@@ -23,6 +23,8 @@ public:
 
     CommandPath* localPath() const { return m_LocalPath.get(); }
     CommandPath* worldPath() const { return m_WorldPath.get(); }
+
+    void pathCollapseChanged();
 };
 } // namespace rive
 #endif

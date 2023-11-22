@@ -266,6 +266,17 @@ void Path::update(ComponentDirt value)
     // }
 }
 
+bool Path::collapse(bool value)
+{
+    bool changed = Super::collapse(value);
+    if (changed && m_Shape != nullptr)
+    {
+        m_Shape->pathCollapseChanged();
+    }
+
+    return changed;
+}
+
 #ifdef ENABLE_QUERY_FLAT_VERTICES
 
 class DisplayCubicVertex : public CubicVertex

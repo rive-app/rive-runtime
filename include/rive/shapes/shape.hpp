@@ -45,6 +45,7 @@ public:
     void addDefaultPathSpace(PathSpace space);
     StatusCode onAddedDirty(CoreContext* context) override;
     bool isEmpty();
+    void pathCollapseChanged();
 };
 } // namespace rive
 
