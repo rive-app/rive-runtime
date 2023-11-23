@@ -215,31 +215,42 @@ StatusCode Artboard::initialize()
 
     sortDependencies();
 
-    DrawTarget root;
-    // Build up the draw order. Look for draw targets and build
-    // their dependencies.
+    std::vector<DrawRules*> rulesList;
+    // Build the rules in the right order. We use the map componentDrawRules
+    // to make sure we traverse the objects in the right order from parent
+    // to child, and add the rules accordingly.
     for (auto object : m_Objects)
     {
         if (object == nullptr)
         {
             continue;
         }
-        if (object->is<DrawTarget>())
+        auto itr = componentDrawRules.find(object);
+        if (itr != componentDrawRules.end())
         {
-            DrawTarget* target = object->as<DrawTarget>();
+            rulesList.emplace_back(componentDrawRules[object]);
+        }
+    }
+    DrawTarget root;
+    // Build up the draw order. Look for draw targets and build
+    // their dependencies.
+    for (auto rules : rulesList)
+    {
+        for (auto child : rules->children())
+        {
+            auto target = child->as<DrawTarget>();
             root.addDependent(target);
-
             auto dependentRules = target->drawable()->flattenedDrawRules;
             if (dependentRules != nullptr)
             {
                 // Because we don't store targets on rules, we need
                 // to find the targets that belong to this rule
                 // here.
-                for (auto object2 : m_Objects)
+                for (auto object : m_Objects)
                 {
-                    if (object2 != nullptr && object2->is<DrawTarget>())
+                    if (object != nullptr && object->is<DrawTarget>())
                     {
-                        DrawTarget* dependentTarget = object2->as<DrawTarget>();
+                        DrawTarget* dependentTarget = object->as<DrawTarget>();
                         if (dependentTarget->parent() == dependentRules)
                         {
                             dependentTarget->addDependent(target);
