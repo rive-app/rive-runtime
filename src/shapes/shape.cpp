@@ -110,8 +110,11 @@ bool Shape::hitTest(const IAABB& area) const
 
     for (auto path : m_Paths)
     {
-        tester.setXform(path->pathTransform());
-        path->buildPath(tester);
+        if (!path->isCollapsed())
+        {
+            tester.setXform(path->pathTransform());
+            path->buildPath(tester);
+        }
     }
     return tester.wasHit();
 }

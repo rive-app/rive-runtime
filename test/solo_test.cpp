@@ -1,6 +1,7 @@
 #include <rive/solo.hpp>
 #include <rive/shapes/shape.hpp>
 #include <rive/animation/state_machine_instance.hpp>
+#include <rive/animation/state_machine_input_instance.hpp>
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
@@ -149,4 +150,67 @@ TEST_CASE("nested solos work", "[solo]")
     REQUIRE(g->isCollapsed() == false);
     REQUIRE(h->isCollapsed() == true);
     REQUIRE(i->isCollapsed() == true);
+}
+
+TEST_CASE("hit test on solos", "[solo]")
+{
+    auto file = ReadRiveFile("../../test/assets/hit_test_solos.riv");
+
+    auto artboard = file->artboard()->instance();
+
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    stateMachine->advance(0.0f);
+    artboard->advance(0.0f);
+
+    auto toggle = stateMachine->getBool("hovered");
+    REQUIRE(toggle != nullptr);
+
+    // Inactive shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 100.0f));
+    REQUIRE(toggle->value() == true);
+
+    // // Active shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 300.0f));
+    REQUIRE(toggle->value() == false);
+
+    // // Inactive shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 400.0f));
+    REQUIRE(toggle->value() == false);
+
+    // Switches active shape to middle one
+    stateMachine->advance(1.5f);
+    artboard->advance(1.5f);
+
+    // Inactive shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 100.0f));
+    REQUIRE(toggle->value() == false);
+
+    // // Active shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 300.0f));
+    REQUIRE(toggle->value() == true);
+
+    // // Inactive shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 400.0f));
+    REQUIRE(toggle->value() == false);
+
+    // Switches active shape to last one
+    stateMachine->advance(1.0f);
+    artboard->advance(1.0f);
+
+    // Inactive shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 100.0f));
+    REQUIRE(toggle->value() == false);
+
+    // // Inactive shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 300.0f));
+    REQUIRE(toggle->value() == false);
+
+    // // Active shape position
+    stateMachine->pointerMove(rive::Vec2D(200.0f, 400.0f));
+    REQUIRE(toggle->value() == true);
 }
