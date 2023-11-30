@@ -16,7 +16,7 @@ const Mat2D TransformConstraint::targetTransform() const
 
 void TransformConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr)
+    if (m_Target == nullptr || m_Target->isCollapsed())
     {
         return;
     }

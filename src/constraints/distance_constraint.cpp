@@ -14,7 +14,7 @@ enum class Mode
 
 void DistanceConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr)
+    if (m_Target == nullptr || m_Target->isCollapsed())
     {
         return;
     }

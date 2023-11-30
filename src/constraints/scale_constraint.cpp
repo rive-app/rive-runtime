@@ -7,6 +7,10 @@ using namespace rive;
 
 void ScaleConstraint::constrain(TransformComponent* component)
 {
+    if (m_Target != nullptr && m_Target->isCollapsed())
+    {
+        return;
+    }
     const Mat2D& transformA = component->worldTransform();
     Mat2D transformB;
     m_ComponentsA = transformA.decompose();

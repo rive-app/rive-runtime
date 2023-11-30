@@ -14,6 +14,34 @@ StatusCode TransformComponent::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
+bool TransformComponent::collapse(bool value)
+{
+    if (!Super::collapse(value))
+    {
+        return false;
+    }
+    for (auto d : dependents())
+    {
+        if (d->is<TransformComponent>())
+        {
+            auto dependent = d->as<TransformComponent>();
+            dependent->markDirtyIfConstrained();
+        }
+    }
+    return true;
+}
+
+// If the component has any constraints applied we mark it as dirty
+// because one of its constraining targets has changed its collapse
+// status.
+void TransformComponent::markDirtyIfConstrained()
+{
+    if (m_Constraints.size() > 0)
+    {
+        addDirt(ComponentDirt::WorldTransform, true);
+    }
+}
+
 void TransformComponent::buildDependencies()
 {
     if (parent() != nullptr)

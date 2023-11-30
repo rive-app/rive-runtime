@@ -17,6 +17,7 @@ private:
     std::vector<Constraint*> m_Constraints;
 
 public:
+    bool collapse(bool value) override;
     const std::vector<Constraint*>& constraints() const { return m_Constraints; }
     StatusCode onAddedClean(CoreContext* context) override;
     void buildDependencies() override;
@@ -45,6 +46,7 @@ public:
 
     void addConstraint(Constraint* constraint);
     virtual AABB localBounds() const;
+    void markDirtyIfConstrained();
 };
 } // namespace rive
 

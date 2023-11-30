@@ -86,7 +86,7 @@ const Mat2D FollowPathConstraint::targetTransform() const
 
 void FollowPathConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr)
+    if (m_Target == nullptr || m_Target->isCollapsed())
     {
         return;
     }

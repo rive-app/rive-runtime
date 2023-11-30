@@ -219,7 +219,7 @@ void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation)
 
 void IKConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr)
+    if (m_Target == nullptr || m_Target->isCollapsed())
     {
         return;
     }

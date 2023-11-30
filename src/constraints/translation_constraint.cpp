@@ -8,6 +8,10 @@ using namespace rive;
 
 void TranslationConstraint::constrain(TransformComponent* component)
 {
+    if (m_Target != nullptr && m_Target->isCollapsed())
+    {
+        return;
+    }
     Mat2D& transformA = component->mutableWorldTransform();
     Vec2D translationA(transformA[4], transformA[5]);
     Vec2D translationB;
