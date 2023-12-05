@@ -33,7 +33,8 @@ StatusCode FileAssetImporter::resolve()
 
     // If we have a file asset loader, lets give it the opportunity to claim responsibility for
     // loading the asset
-    if (m_FileAssetLoader != nullptr && m_FileAssetLoader->loadContents(*m_FileAsset, bytes))
+    if (m_FileAssetLoader != nullptr &&
+        m_FileAssetLoader->loadContents(*m_FileAsset, bytes, m_Factory))
     {
         return StatusCode::Ok;
     }

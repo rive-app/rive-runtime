@@ -23,7 +23,9 @@ class PretendAssetLoader : public rive ::FileAssetLoader
 public:
     rive::FileAsset* attemptedAsset;
 
-    bool loadContents(rive::FileAsset& asset, rive::Span<const uint8_t> inBandBytes) override
+    bool loadContents(rive::FileAsset& asset,
+                      rive::Span<const uint8_t> inBandBytes,
+                      rive::Factory* factory) override
     {
         attemptedAsset = &asset;
         return true;
@@ -36,7 +38,9 @@ class RejectAssetLoader : public rive ::FileAssetLoader
 public:
     rive::FileAsset* attemptedAsset;
 
-    bool loadContents(rive::FileAsset& asset, rive::Span<const uint8_t> inBandBytes) override
+    bool loadContents(rive::FileAsset& asset,
+                      rive::Span<const uint8_t> inBandBytes,
+                      rive::Factory* factory) override
     {
         return false;
     }

@@ -20,7 +20,9 @@ public:
     /// @param inBandBytes is a pointer to the bytes in question
     /// @returns bool indicating if we are loading or have loaded the contents
 
-    virtual bool loadContents(FileAsset& asset, Span<const uint8_t> inBandBytes) = 0;
+    virtual bool loadContents(FileAsset& asset,
+                              Span<const uint8_t> inBandBytes,
+                              Factory* factory) = 0;
 };
 } // namespace rive
 #endif

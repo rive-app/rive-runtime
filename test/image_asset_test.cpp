@@ -47,7 +47,7 @@ TEST_CASE("out of band image assets loads correctly", "[assets]")
     rive::NoOpFactory gEmptyFactory;
 
     std::string filename = "../../test/assets/out_of_band/walle.riv";
-    rive::RelativeLocalAssetLoader loader(filename, &gEmptyFactory);
+    rive::RelativeLocalAssetLoader loader(filename);
 
     auto file = ReadRiveFile(filename.c_str(), &gEmptyFactory, &loader);
 

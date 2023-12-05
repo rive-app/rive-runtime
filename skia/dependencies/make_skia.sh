@@ -175,8 +175,8 @@ ninja -C out/iossim_x64
 bin/gn gen out/iossim_arm64 --type=static_library --args=" \
     target_os=\"ios\" \
     target_cpu=\"arm64\" \
-    extra_cflags=[\"-fno-rtti\", \"-fembed-bitcode\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\", \"--target=arm64-apple-ios12.0.0-simulator\"] \
-    extra_ldflags=[\"--target=arm64-apple-ios12.0.0-simulator\"] \
+    extra_cflags=[\"-fno-rtti\", \"-fembed-bitcode\", \"-flto=full\", \"-DSK_DISABLE_SKPICTURE\", \"-DSK_DISABLE_TEXT\", \"-DRIVE_OPTIMIZED\", \"-DSK_DISABLE_LEGACY_SHADERCONTEXT\", \"-DSK_DISABLE_LOWP_RASTER_PIPELINE\", \"-DSK_FORCE_RASTER_PIPELINE_BLITTER\", \"-DSK_DISABLE_AAA\", \"-DSK_DISABLE_EFFECT_DESERIALIZATION\", \"--target=arm64-apple-ios13.0.0-simulator\"] \
+    extra_ldflags=[\"--target=arm64-apple-ios13.0.0-simulator\"] \
     is_official_build=true \
     skia_use_angle=false \
     skia_use_dng_sdk=false \
