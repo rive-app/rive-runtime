@@ -51,7 +51,7 @@ do
     defines {'RIVE_WEBGPU'}
 end
 
-filter {'system:ios', 'options:variant=simulator'}
+filter {'system:ios', 'options:variant=emulator'}
 do
     defines {'RIVE_IOS_SIMULATOR'}
 end
@@ -101,7 +101,7 @@ do
         rebuildcommands {makecommand .. ' rive_pls_ios_metallib'}
     end
 
-    filter {'system:ios', 'options:variant=simulator'}
+    filter {'system:ios', 'options:variant=emulator'}
     do
         buildcommands {makecommand .. ' rive_pls_ios_simulator_metallib'}
         rebuildcommands {makecommand .. ' rive_pls_ios_simulator_metallib'}
@@ -279,7 +279,7 @@ do
             }
         end
 
-        filter {'system:ios', 'options:variant=simulator'}
+        filter {'system:ios', 'options:variant=emulator'}
         do
             targetdir 'iphonesimulator_%{cfg.buildcfg}'
             objdir 'obj/iphonesimulator_%{cfg.buildcfg}'
@@ -305,7 +305,7 @@ do
             }
         end
 
-        filter {'system:ios', 'options:variant=simulator', 'options:universal-release'}
+        filter {'system:ios', 'options:variant=emulator', 'options:universal-release'}
         do
             buildoptions {
                 '-arch x86_64',
@@ -342,7 +342,7 @@ newoption {
     description = 'Choose a particular variant to build',
     allowed = {
         {'system', 'Builds the static library for the provided system'},
-        {'simulator', 'Builds for an emulator/simulator for the provided system'}
+        {'emulator', 'Builds for an emulator/simulator for the provided system'}
     },
     default = 'system'
 }
