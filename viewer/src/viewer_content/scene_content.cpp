@@ -252,7 +252,7 @@ public:
                     // our riv file with the images stripped out of it.
                     rive::ImportResult loadAtlasedResult;
 
-                    rive::SampleAtlasResolver resolver(&atlasPacker);
+                    rive::SampleAtlasLoader resolver(&atlasPacker);
                     if (auto file = rive::File::import(strippedBytes,
                                                        RiveFactory(),
                                                        &loadAtlasedResult,

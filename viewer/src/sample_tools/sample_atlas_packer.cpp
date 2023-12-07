@@ -196,9 +196,9 @@ bool SampleAtlasPacker::find(const ImageAsset& asset, SampleAtlasLocation* locat
     return false;
 }
 
-SampleAtlasResolver::SampleAtlasResolver(SampleAtlasPacker* packer) : m_packer(packer) {}
+SampleAtlasLoader::SampleAtlasLoader(SampleAtlasPacker* packer) : m_packer(packer) {}
 
-void SampleAtlasResolver::loadContents(FileAsset& asset)
+bool SampleAtlasLoader::loadContents(FileAsset& asset, Span<const uint8_t> inBandBytes, Factory*)
 {
     if (asset.is<ImageAsset>())
     {
@@ -234,11 +234,13 @@ void SampleAtlasResolver::loadContents(FileAsset& asset)
             // renderer (and hence will know which RenderImage they need to
             // make).
 
-            imageAsset->renderImage(rivestd::make_unique<SokolRenderImage>(imageResource,
-                                                                           location.width,
-                                                                           location.height,
-                                                                           location.transform));
+            imageAsset->renderImage(make_rcp<SokolRenderImage>(imageResource,
+                                                               location.width,
+                                                               location.height,
+                                                               location.transform));
+            return true;
         }
     }
+    return false;
 }
 #endif

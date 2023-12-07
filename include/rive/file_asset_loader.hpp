@@ -7,6 +7,7 @@
 
 namespace rive
 {
+class Factory;
 class FileAsset;
 class FileAssetLoader
 {

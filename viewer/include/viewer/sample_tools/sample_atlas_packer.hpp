@@ -72,8 +72,8 @@ private:
     std::unordered_map<uint32_t, rive::rcp<rive::SokolRenderImageResource>> m_sharedImageResources;
 
 public:
-    SampleAtlasResolver(SampleAtlasPacker* packer);
-    void loadContents(FileAsset& asset) override;
+    SampleAtlasLoader(SampleAtlasPacker* packer);
+    bool loadContents(FileAsset& asset, Span<const uint8_t> inBandBytes, Factory*) override;
 };
 } // namespace rive
 #endif
