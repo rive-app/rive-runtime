@@ -152,9 +152,21 @@ public:
 
     id<MTLRenderPipelineState> pipelineState(MTLPixelFormat pixelFormat) const
     {
-        assert(pixelFormat == MTLPixelFormatRGBA8Unorm || pixelFormat == MTLPixelFormatBGRA8Unorm);
-        return pixelFormat == MTLPixelFormatRGBA8Unorm ? m_pipelineStateRGBA8
-                                                       : m_pipelineStateBGRA8;
+        assert(pixelFormat == MTLPixelFormatRGBA8Unorm ||
+               pixelFormat == MTLPixelFormatRGBA16Float ||
+               pixelFormat == MTLPixelFormatRGBA8Unorm_sRGB ||
+               pixelFormat == MTLPixelFormatBGRA8Unorm ||
+               pixelFormat == MTLPixelFormatBGRA8Unorm_sRGB);
+
+        switch (pixelFormat)
+        {
+            case MTLPixelFormatRGBA8Unorm_sRGB:
+            case MTLPixelFormatRGBA8Unorm:
+            case MTLPixelFormatRGBA16Float:
+                return m_pipelineStateRGBA8;
+            default:
+                return m_pipelineStateBGRA8;
+        }
     }
 
 private:
