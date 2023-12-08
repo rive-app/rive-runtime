@@ -81,7 +81,7 @@ static void convertColor(ColorInt c, CGFloat rgba[])
     rgba[3] = colorAlpha(c) * kByteToUnit;
 }
 
-class CGRenderPath : public RenderPath
+class CGRenderPath : public lite_rtti_override<RenderPath, CGRenderPath>
 {
 private:
     AutoCF<CGMutablePathRef> m_path = CGPathCreateMutable();
@@ -156,7 +156,7 @@ public:
     void close() override { CGPathCloseSubpath(m_path); }
 };
 
-class CGRenderShader : public RenderShader
+class CGRenderShader : public lite_rtti_override<RenderShader, CGRenderShader>
 {
 public:
     CGRenderShader() {}
@@ -167,7 +167,7 @@ public:
     virtual void draw(CGContextRef) {}
 };
 
-class CGRenderPaint : public RenderPaint
+class CGRenderPaint : public lite_rtti_override<RenderPaint, CGRenderPaint>
 {
 private:
     bool m_isStroke = false;
@@ -176,7 +176,7 @@ private:
     CGLineJoin m_join = kCGLineJoinMiter;
     CGLineCap m_cap = kCGLineCapButt;
     CGBlendMode m_blend = kCGBlendModeNormal;
-    rcp<RenderShader> m_shader;
+    rcp<CGRenderShader> m_shader;
 
 public:
     CGRenderPaint() {}
@@ -184,7 +184,7 @@ public:
     bool isStroke() const { return m_isStroke; }
     float opacity() const { return m_rgba[3]; }
 
-    CGRenderShader* shader() const { return static_cast<CGRenderShader*>(m_shader.get()); }
+    CGRenderShader* shader() const { return m_shader.get(); }
 
     void apply(CGContextRef ctx)
     {
@@ -211,7 +211,10 @@ public:
     void join(StrokeJoin value) override { m_join = convert(value); }
     void cap(StrokeCap value) override { m_cap = convert(value); }
     void blendMode(BlendMode value) override { m_blend = convert(value); }
-    void shader(rcp<RenderShader> sh) override { m_shader = std::move(sh); }
+    void shader(rcp<RenderShader> sh) override
+    {
+        m_shader = lite_rtti_rcp_cast<CGRenderShader>(std::move(sh));
+    }
     void invalidateStroke() override {}
 };
 
@@ -299,7 +302,7 @@ public:
     }
 };
 
-class CGRenderImage : public RenderImage
+class CGRenderImage : public lite_rtti_override<RenderImage, CGRenderImage>
 {
 public:
     AutoCF<CGImageRef> m_image;
@@ -318,11 +321,6 @@ public:
     void applyLocalMatrix(CGContextRef ctx) const
     {
         CGContextConcatCTM(ctx, CGAffineTransformMake(1, 0, 0, -1, 0, (float)m_Height));
-    }
-
-    static const CGRenderImage* Cast(const RenderImage* image)
-    {
-        return static_cast<const CGRenderImage*>(image);
     }
 };
 
@@ -348,8 +346,8 @@ void CGRenderer::transform(const Mat2D& m) { CGContextConcatCTM(m_ctx, convert(m
 
 void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
-    auto cgpaint = static_cast<CGRenderPaint*>(paint);
-    auto cgpath = static_cast<CGRenderPath*>(path);
+    LITE_RTTI_CAST_OR_RETURN(cgpaint, CGRenderPaint*, paint);
+    LITE_RTTI_CAST_OR_RETURN(cgpath, CGRenderPath*, path);
 
     cgpaint->apply(m_ctx);
 
@@ -381,7 +379,7 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 
 void CGRenderer::clipPath(RenderPath* path)
 {
-    auto cgpath = static_cast<CGRenderPath*>(path);
+    LITE_RTTI_CAST_OR_RETURN(cgpath, CGRenderPath*, path);
 
     CGContextBeginPath(m_ctx);
     CGContextAddPath(m_ctx, cgpath->path());
@@ -390,12 +388,13 @@ void CGRenderer::clipPath(RenderPath* path)
 
 void CGRenderer::drawImage(const RenderImage* image, BlendMode blendMode, float opacity)
 {
+    LITE_RTTI_CAST_OR_RETURN(cgimg, const CGRenderImage*, image);
+
     auto bounds = CGRectMake(0, 0, image->width(), image->height());
 
     CGContextSaveGState(m_ctx);
     CGContextSetAlpha(m_ctx, opacity);
     CGContextSetBlendMode(m_ctx, convert(blendMode));
-    auto cgimg = CGRenderImage::Cast(image);
     cgimg->applyLocalMatrix(m_ctx);
     CGContextDrawImage(m_ctx, bounds, cgimg->m_image);
     CGContextRestoreGState(m_ctx);
@@ -417,7 +416,11 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
                                BlendMode blendMode,
                                float opacity)
 {
-    auto cgimage = CGRenderImage::Cast(image);
+    LITE_RTTI_CAST_OR_RETURN(cgimage, const CGRenderImage*, image);
+    LITE_RTTI_CAST_OR_RETURN(cgindices, DataRenderBuffer*, indices.get());
+    LITE_RTTI_CAST_OR_RETURN(cgvertices, DataRenderBuffer*, vertices.get());
+    LITE_RTTI_CAST_OR_RETURN(cguvcoords, DataRenderBuffer*, uvCoords.get());
+
     auto const localMatrix = cgimage->localM2D();
 
     const float sx = image->width();
@@ -427,9 +430,9 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
     auto scale = [sx, sy](Vec2D v) { return Vec2D{v.x * sx, v.y * sy}; };
 
     auto triangles = indexCount / 3;
-    auto ndx = DataRenderBuffer::Cast(indices.get())->u16s();
-    auto pts = DataRenderBuffer::Cast(vertices.get())->vecs();
-    auto uvs = DataRenderBuffer::Cast(uvCoords.get())->vecs();
+    auto ndx = cgindices->u16s();
+    auto pts = cgvertices->vecs();
+    auto uvs = cguvcoords->vecs();
 
     // We use the path to set the clip for each triangle. Since calling
     // CGContextClip() resets the path, we only need to this once at

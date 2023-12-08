@@ -12,11 +12,11 @@ namespace rive
 
 // Generic subclass of RenderBuffer that just stores the data on the cpu.
 //
-class DataRenderBuffer : public RenderBuffer
+class DataRenderBuffer : public lite_rtti_override<RenderBuffer, DataRenderBuffer>
 {
 public:
     DataRenderBuffer(RenderBufferType type, RenderBufferFlags flags, size_t sizeInBytes) :
-        RenderBuffer(type, flags, sizeInBytes)
+        lite_rtti_override(type, flags, sizeInBytes)
     {
         m_storage = malloc(sizeInBytes);
     }
@@ -28,11 +28,6 @@ public:
     const uint16_t* u16s() const { return reinterpret_cast<const uint16_t*>(m_storage); }
 
     const Vec2D* vecs() const { return reinterpret_cast<const Vec2D*>(f32s()); }
-
-    static const DataRenderBuffer* Cast(const RenderBuffer* buffer)
-    {
-        return static_cast<const DataRenderBuffer*>(buffer);
-    }
 
 protected:
     void* onMap() override { return m_storage; }

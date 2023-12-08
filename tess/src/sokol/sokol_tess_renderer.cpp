@@ -15,11 +15,11 @@ static void fillColorBuffer(float* buffer, ColorInt value)
     buffer[3] = colorOpacity(value);
 }
 
-class SokolRenderPath : public TessRenderPath
+class SokolRenderPath : public lite_rtti_override<TessRenderPath, SokolRenderPath>
 {
 public:
     SokolRenderPath() {}
-    SokolRenderPath(RawPath& rawPath, FillRule fillRule) : TessRenderPath(rawPath, fillRule) {}
+    SokolRenderPath(RawPath& rawPath, FillRule fillRule) : lite_rtti_override(rawPath, fillRule) {}
 
     ~SokolRenderPath()
     {
@@ -66,7 +66,8 @@ public:
         {
             for (auto& subPath : m_subPaths)
             {
-                static_cast<SokolRenderPath*>(subPath.path())->drawStroke(stroke);
+                LITE_RTTI_CAST_OR_CONTINUE(sokolPath, SokolRenderPath*, subPath.path());
+                sokolPath->drawStroke(stroke);
             }
             return;
         }
@@ -149,11 +150,12 @@ std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath()
     return rivestd::make_unique<SokolRenderPath>();
 }
 
-class SokolBuffer : public RenderBuffer
+class SokolBuffer : public lite_rtti_override<RenderBuffer, SokolBuffer>
 {
 public:
     SokolBuffer(RenderBufferType type, RenderBufferFlags renderBufferFlags, size_t sizeInBytes) :
-        RenderBuffer(type, renderBufferFlags, sizeInBytes), m_mappedMemory(new char[sizeInBytes])
+        lite_rtti_override(type, renderBufferFlags, sizeInBytes),
+        m_mappedMemory(new char[sizeInBytes])
     {
         // If the buffer will be immutable, defer creation until the client unmaps for the only time
         // and we have our initial data.
@@ -581,12 +583,13 @@ void SokolTessRenderer::orthographicProjection(float left,
 
 void SokolTessRenderer::drawImage(const RenderImage* image, BlendMode, float opacity)
 {
+    LITE_RTTI_CAST_OR_RETURN(sokolImage, const SokolRenderImage*, image);
+
     vs_params_t vs_params;
 
     const Mat2D& world = transform();
     vs_params.mvp = m_Projection * world;
 
-    auto sokolImage = static_cast<const SokolRenderImage*>(image);
     setPipeline(m_meshPipeline);
     sg_bindings bind = {
         .vertex_buffers[0] = sokolImage->vertexBuffer(),
@@ -609,6 +612,11 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
                                       BlendMode blendMode,
                                       float opacity)
 {
+    LITE_RTTI_CAST_OR_RETURN(sokolVertices, SokolBuffer*, vertices_f32.get());
+    LITE_RTTI_CAST_OR_RETURN(sokolUVCoords, SokolBuffer*, uvCoords_f32.get());
+    LITE_RTTI_CAST_OR_RETURN(sokolIndices, SokolBuffer*, indices_u16.get());
+    LITE_RTTI_CAST_OR_RETURN(sokolRenderImage, const SokolRenderImage*, renderImage);
+
     vs_params_t vs_params;
 
     const Mat2D& world = transform();
@@ -616,10 +624,10 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
 
     setPipeline(m_meshPipeline);
     sg_bindings bind = {
-        .vertex_buffers[0] = static_cast<SokolBuffer*>(vertices_f32.get())->buffer(),
-        .vertex_buffers[1] = static_cast<SokolBuffer*>(uvCoords_f32.get())->buffer(),
-        .index_buffer = static_cast<SokolBuffer*>(indices_u16.get())->buffer(),
-        .fs_images[SLOT_tex] = static_cast<const SokolRenderImage*>(renderImage)->image(),
+        .vertex_buffers[0] = sokolVertices->buffer(),
+        .vertex_buffers[1] = sokolUVCoords->buffer(),
+        .index_buffer = sokolIndices->buffer(),
+        .fs_images[SLOT_tex] = sokolRenderImage->image(),
     };
 
     sg_apply_bindings(&bind);
@@ -627,7 +635,7 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
     sg_draw(0, indexCount, 1);
 }
 
-class SokolGradient : public RenderShader
+class SokolGradient : public lite_rtti_override<RenderShader, SokolGradient>
 {
 private:
     Vec2D m_start;
@@ -722,11 +730,11 @@ rcp<RenderShader> SokolFactory::makeRadialGradient(float cx,
     return rcp<RenderShader>(new SokolGradient(cx, cy, radius, colors, stops, count));
 }
 
-class SokolRenderPaint : public RenderPaint
+class SokolRenderPaint : public lite_rtti_override<RenderPaint, SokolRenderPaint>
 {
 private:
     fs_path_uniforms_t m_uniforms = {0};
-    rcp<RenderShader> m_shader;
+    rcp<SokolGradient> m_shader;
     RenderPaintStyle m_style;
     std::unique_ptr<ContourStroke> m_stroke;
     bool m_strokeDirty = false;
@@ -801,13 +809,16 @@ public:
     void blendMode(BlendMode value) override { m_blendMode = value; }
     BlendMode blendMode() const { return m_blendMode; }
 
-    void shader(rcp<RenderShader> shader) override { m_shader = shader; }
+    void shader(rcp<RenderShader> shader) override
+    {
+        m_shader = lite_rtti_rcp_cast<SokolGradient>(std::move(shader));
+    }
 
     void draw(vs_path_params_t& vertexUniforms, SokolRenderPath* path)
     {
         if (m_shader)
         {
-            static_cast<SokolGradient*>(m_shader.get())->bind(vertexUniforms, m_uniforms);
+            m_shader->bind(vertexUniforms, m_uniforms);
         }
 
         sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vertexUniforms));
@@ -984,11 +995,11 @@ void SokolTessRenderer::applyClipping()
         if (decr)
         {
             // Draw appliedPath.path() with decr pipeline
+            LITE_RTTI_CAST_OR_CONTINUE(sokolPath, SokolRenderPath*, appliedPath.path());
             setPipeline(m_decClipPipeline);
             vs_params.mvp = m_Projection * appliedPath.transform();
             sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vs_params));
             sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(uniforms));
-            auto sokolPath = static_cast<SokolRenderPath*>(appliedPath.path());
             sokolPath->drawFill();
         }
     }
@@ -1002,11 +1013,11 @@ void SokolTessRenderer::applyClipping()
             continue;
         }
         // Draw nextClipPath.path() with incr pipeline
+        LITE_RTTI_CAST_OR_CONTINUE(sokolPath, SokolRenderPath*, nextClipPath.path());
         setPipeline(m_incClipPipeline);
         vs_params.mvp = m_Projection * nextClipPath.transform();
         sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vs_params));
         sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(uniforms));
-        auto sokolPath = static_cast<SokolRenderPath*>(nextClipPath.path());
         sokolPath->drawFill();
     }
 
@@ -1030,7 +1041,8 @@ void SokolTessRenderer::setPipeline(sg_pipeline pipeline)
 
 void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
-    auto sokolPaint = static_cast<SokolRenderPaint*>(paint);
+    LITE_RTTI_CAST_OR_RETURN(sokolPath, SokolRenderPath*, path);
+    LITE_RTTI_CAST_OR_RETURN(sokolPaint, SokolRenderPaint*, paint);
 
     applyClipping();
     vs_path_params_t vs_params = {.fillType = 0};
@@ -1056,7 +1068,7 @@ void SokolTessRenderer::drawPath(RenderPath* path, RenderPaint* paint)
             break;
     }
 
-    static_cast<SokolRenderPaint*>(paint)->draw(vs_params, static_cast<SokolRenderPath*>(path));
+    sokolPaint->draw(vs_params, sokolPath);
 }
 
 SokolRenderImageResource::SokolRenderImageResource(const uint8_t* bytes,
@@ -1076,7 +1088,7 @@ SokolRenderImage::SokolRenderImage(rcp<SokolRenderImageResource> image,
                                    uint32_t height,
                                    const Mat2D& uvTransform) :
 
-    RenderImage(uvTransform), m_gpuImage(image)
+    lite_rtti_override(uvTransform), m_gpuImage(image)
 
 {
     float halfWidth = width / 2.0f;

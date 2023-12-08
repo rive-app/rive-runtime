@@ -16,6 +16,7 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
+#include "utils/lite_rtti.hpp"
 
 #include <cmath>
 #include <stdio.h>
@@ -42,7 +43,7 @@ enum class RenderBufferFlags
 };
 RIVE_MAKE_ENUM_BITSET(RenderBufferFlags)
 
-class RenderBuffer : public RefCnt<RenderBuffer>
+class RenderBuffer : public RefCnt<RenderBuffer>, public enable_lite_rtti<RenderBuffer>
 {
 public:
     RenderBuffer(RenderBufferType, RenderBufferFlags, size_t sizeInBytes);
@@ -81,14 +82,14 @@ enum class RenderPaintStyle
  *  It is common that a shader may be created with a 'localMatrix'. If this is
  *  not null, then it is applied to the shader's domain before the Renderer's CTM.
  */
-class RenderShader : public RefCnt<RenderShader>
+class RenderShader : public RefCnt<RenderShader>, public enable_lite_rtti<RenderShader>
 {
 public:
     RenderShader();
     virtual ~RenderShader();
 };
 
-class RenderPaint
+class RenderPaint : public enable_lite_rtti<RenderPaint>
 {
 public:
     RenderPaint();
@@ -104,7 +105,7 @@ public:
     virtual void invalidateStroke() = 0;
 };
 
-class RenderImage : public RefCnt<RenderImage>
+class RenderImage : public RefCnt<RenderImage>, public enable_lite_rtti<RenderImage>
 {
 protected:
     int m_Width = 0;
@@ -121,7 +122,7 @@ public:
     const Mat2D& uvTransform() const { return m_uvTransform; }
 };
 
-class RenderPath : public CommandPath
+class RenderPath : public CommandPath, public enable_lite_rtti<RenderPath>
 {
 public:
     RenderPath();

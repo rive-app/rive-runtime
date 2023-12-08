@@ -12,7 +12,7 @@ namespace rive
 {
 
 class ContourStroke;
-class TessRenderPath : public RenderPath
+class TessRenderPath : public lite_rtti_override<RenderPath, TessRenderPath>
 {
 private:
     // TessRenderPath stores a RawPath so that it can use utility classes

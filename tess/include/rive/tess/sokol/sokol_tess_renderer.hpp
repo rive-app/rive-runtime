@@ -27,7 +27,7 @@ public:
 
 // The unique render image associated with a given source Rive asset. Can be stored in sub-region of
 // an actual graphics device image (SokolRenderImageResource).
-class SokolRenderImage : public RenderImage
+class SokolRenderImage : public lite_rtti_override<RenderImage, SokolRenderImage>
 {
 private:
     rcp<SokolRenderImageResource> m_gpuImage;

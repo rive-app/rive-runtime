@@ -24,7 +24,7 @@ using namespace rive;
 // skia's has/had bugs in trilerp, so backing down to nearest mip
 const SkSamplingOptions gSampling(SkFilterMode::kLinear, SkMipmapMode::kNearest);
 
-class SkiaRenderPath : public RenderPath
+class SkiaRenderPath : public lite_rtti_override<RenderPath, SkiaRenderPath>
 {
 private:
     SkPath m_Path;
@@ -44,7 +44,7 @@ public:
     virtual void close() override;
 };
 
-class SkiaRenderPaint : public RenderPaint
+class SkiaRenderPaint : public lite_rtti_override<RenderPaint, SkiaRenderPaint>
 {
 private:
     SkPaint m_Paint;
@@ -64,7 +64,7 @@ public:
     void invalidateStroke() override {}
 };
 
-class SkiaRenderImage : public RenderImage
+class SkiaRenderImage : public lite_rtti_override<RenderImage, SkiaRenderImage>
 {
 private:
     sk_sp<SkImage> m_SkImage;
@@ -75,7 +75,7 @@ public:
     sk_sp<SkImage> skImage() const { return m_SkImage; }
 };
 
-class SkiaRenderShader : public RenderShader
+class SkiaRenderShader : public lite_rtti_override<RenderShader, SkiaRenderShader>
 {
 public:
     SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}
@@ -88,7 +88,8 @@ void SkiaRenderPath::fillRule(FillRule value) { m_Path.setFillType(ToSkia::conve
 void SkiaRenderPath::rewind() { m_Path.rewind(); }
 void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
 {
-    m_Path.addPath(static_cast<SkiaRenderPath*>(path)->m_Path, ToSkia::convert(transform));
+    LITE_RTTI_CAST_OR_RETURN(skPath, SkiaRenderPath*, path);
+    m_Path.addPath(skPath->m_Path, ToSkia::convert(transform));
 }
 
 void SkiaRenderPath::moveTo(float x, float y) { m_Path.moveTo(x, y); }
@@ -122,7 +123,7 @@ void SkiaRenderPaint::blendMode(BlendMode value) { m_Paint.setBlendMode(ToSkia::
 
 void SkiaRenderPaint::shader(rcp<RenderShader> rsh)
 {
-    SkiaRenderShader* sksh = (SkiaRenderShader*)rsh.get();
+    SkiaRenderShader* sksh = lite_rtti_cast<SkiaRenderShader*>(rsh.get());
     m_Paint.setShader(sksh ? sksh->shader : nullptr);
 }
 
@@ -134,21 +135,23 @@ void SkiaRenderer::transform(const Mat2D& transform)
 }
 void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
-    m_Canvas->drawPath(static_cast<SkiaRenderPath*>(path)->path(),
-                       static_cast<SkiaRenderPaint*>(paint)->paint());
+    LITE_RTTI_CAST_OR_RETURN(skPath, SkiaRenderPath*, path);
+    LITE_RTTI_CAST_OR_RETURN(skPaint, SkiaRenderPaint*, paint);
+    m_Canvas->drawPath(skPath->path(), skPaint->paint());
 }
 
 void SkiaRenderer::clipPath(RenderPath* path)
 {
-    m_Canvas->clipPath(static_cast<SkiaRenderPath*>(path)->path(), true);
+    LITE_RTTI_CAST_OR_RETURN(skPath, SkiaRenderPath*, path);
+    m_Canvas->clipPath(skPath->path(), true);
 }
 
 void SkiaRenderer::drawImage(const RenderImage* image, BlendMode blendMode, float opacity)
 {
+    LITE_RTTI_CAST_OR_RETURN(skiaImage, const SkiaRenderImage*, image);
     SkPaint paint;
     paint.setAlphaf(opacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
-    auto skiaImage = static_cast<const SkiaRenderImage*>(image);
     m_Canvas->drawImage(skiaImage->skImage(), 0.0f, 0.0f, gSampling, &paint);
 }
 
@@ -163,6 +166,11 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
                                  BlendMode blendMode,
                                  float opacity)
 {
+    LITE_RTTI_CAST_OR_RETURN(skImage, const SkiaRenderImage*, image);
+    LITE_RTTI_CAST_OR_RETURN(skVertices, DataRenderBuffer*, vertices.get());
+    LITE_RTTI_CAST_OR_RETURN(skUVCoords, DataRenderBuffer*, uvCoords.get());
+    LITE_RTTI_CAST_OR_RETURN(skIndices, DataRenderBuffer*, indices.get());
+
     // need our buffers and counts to agree
     assert(vertices->sizeInBytes() == vertexCount * sizeof(Vec2D));
     assert(uvCoords->sizeInBytes() == vertexCount * sizeof(Vec2D));
@@ -170,7 +178,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
 
     SkMatrix scaleM;
 
-    auto uvs = (const SkPoint*)DataRenderBuffer::Cast(uvCoords.get())->vecs();
+    auto uvs = (const SkPoint*)skUVCoords->vecs();
 
 #ifdef SKIA_BUG_13047
     // The local matrix is ignored for drawVertices, so we have to manually scale
@@ -189,7 +197,7 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     scaleM = SkMatrix::Scale(2.0f / image->width(), 2.0f / image->height());
 #endif
 
-    auto skiaImage = static_cast<const SkiaRenderImage*>(image)->skImage();
+    auto skiaImage = skImage->skImage();
     auto shader = skiaImage->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, gSampling, &scaleM);
 
     SkPaint paint;
@@ -201,11 +209,11 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
     auto vertexMode = SkVertices::kTriangles_VertexMode;
     auto vt = SkVertices::MakeCopy(vertexMode,
                                    vertexCount,
-                                   (const SkPoint*)DataRenderBuffer::Cast(vertices.get())->vecs(),
+                                   (const SkPoint*)skVertices->vecs(),
                                    uvs,
                                    no_colors,
                                    indexCount,
-                                   DataRenderBuffer::Cast(indices.get())->u16s());
+                                   skIndices->u16s());
 
     // The blend mode is ignored if we don't have colors && uvs
     m_Canvas->drawVertices(vt, SkBlendMode::kModulate, paint);

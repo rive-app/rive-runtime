@@ -9,7 +9,7 @@
 
 using namespace rive;
 
-class AtlasRenderImage : public RenderImage
+class AtlasRenderImage : public lite_rtti_override<RenderImage, AtlasRenderImage>
 {
 private:
     std::vector<uint8_t> m_Pixels;
@@ -62,7 +62,9 @@ void SampleAtlasPacker::pack(Span<const uint8_t> rivBytes)
                 Mat2D uvTransform;
 
                 auto imageAsset = asset->as<ImageAsset>();
-                auto renderImage = static_cast<AtlasRenderImage*>(imageAsset->renderImage());
+                LITE_RTTI_CAST_OR_CONTINUE(renderImage,
+                                           AtlasRenderImage*,
+                                           imageAsset->renderImage());
 
                 if (m_atlases.empty())
                 {
