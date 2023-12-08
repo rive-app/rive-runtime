@@ -25,7 +25,7 @@ private:
     uint32_t m_height;
 };
 
-class PLSImage : public RenderImage
+class PLSImage : public lite_rtti_override<RenderImage, PLSImage>
 {
 public:
     PLSImage(rcp<PLSTexture> texture) : PLSImage(texture->width(), texture->height())

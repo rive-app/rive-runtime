@@ -13,7 +13,7 @@ namespace rive::pls
 class GLState;
 
 // OpenGL backend implementation of rive::RenderBuffer.
-class PLSRenderBufferGLImpl : public RenderBuffer
+class PLSRenderBufferGLImpl : public lite_rtti_override<RenderBuffer, PLSRenderBufferGLImpl>
 {
 public:
     PLSRenderBufferGLImpl(RenderBufferType, RenderBufferFlags, size_t, rcp<GLState>);

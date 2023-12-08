@@ -400,7 +400,7 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 2, samplers);
 }
 
-class RenderBufferD3DImpl : public RenderBuffer
+class RenderBufferD3DImpl : public lite_rtti_override<RenderBuffer, RenderBufferD3DImpl>
 {
 public:
     RenderBufferD3DImpl(RenderBufferType renderBufferType,
@@ -408,7 +408,7 @@ public:
                         size_t sizeInBytes,
                         ComPtr<ID3D11Device> gpu,
                         ComPtr<ID3D11DeviceContext> gpuContext) :
-        RenderBuffer(renderBufferType, renderBufferFlags, sizeInBytes),
+        lite_rtti_override(renderBufferType, renderBufferFlags, sizeInBytes),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext))
     {
@@ -1036,9 +1036,6 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         }
     }
 
-    auto imageMeshUniformData = static_cast<const pls::ImageMeshUniforms*>(
-        heap_buffer_contents(imageMeshUniformBufferRing()));
-
     // Execute the DrawList.
     ID3D11UnorderedAccessView* plsUAVs[] = {renderTarget->m_targetUAV.Get(),
                                             renderTarget->m_coverageUAV.Get(),
@@ -1091,6 +1088,9 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                        m_imageMeshUniforms.GetAddressOf());
     m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 1, m_gradTextureSRV.GetAddressOf());
 
+    const uint8_t* const imageMeshUniformData =
+        static_cast<const uint8_t*>(heap_buffer_contents(imageMeshUniformBufferRing()));
+
     for (const Draw& draw : *desc.drawList)
     {
         if (draw.elementCount == 0)
@@ -1132,9 +1132,13 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
             }
             case DrawType::imageMesh:
             {
-                auto vertexBuffer = static_cast<const RenderBufferD3DImpl*>(draw.vertexBufferRef);
-                auto uvBuffer = static_cast<const RenderBufferD3DImpl*>(draw.uvBufferRef);
-                auto indexBuffer = static_cast<const RenderBufferD3DImpl*>(draw.indexBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
+                                        const RenderBufferD3DImpl*,
+                                        draw.vertexBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferD3DImpl*, draw.uvBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer,
+                                        const RenderBufferD3DImpl*,
+                                        draw.indexBufferRef);
                 ID3D11Buffer* imageMeshBuffers[] = {vertexBuffer->buffer(), uvBuffer->buffer()};
                 UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
                 UINT imageMeshOffsets[] = {0, 0};
@@ -1149,7 +1153,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                 m_gpuContext->UpdateSubresource(m_imageMeshUniforms.Get(),
                                                 0,
                                                 NULL,
-                                                imageMeshUniformData++,
+                                                imageMeshUniformData + draw.imageMeshDataOffset,
                                                 0,
                                                 0);
                 m_gpuContext->DrawIndexed(draw.elementCount, draw.baseElement, 0);

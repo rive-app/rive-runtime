@@ -579,7 +579,6 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     m_plsImpl->activatePixelLocalStorage(this, desc);
 
     // Execute the DrawList.
-    size_t meshUniformDataOffset = 0;
     for (const Draw& draw : *desc.drawList)
     {
         if (draw.elementCount == 0)
@@ -640,9 +639,13 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             }
             case DrawType::imageMesh:
             {
-                auto vertexBuffer = static_cast<const PLSRenderBufferGLImpl*>(draw.vertexBufferRef);
-                auto uvBuffer = static_cast<const PLSRenderBufferGLImpl*>(draw.uvBufferRef);
-                auto indexBuffer = static_cast<const PLSRenderBufferGLImpl*>(draw.indexBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
+                                        const PLSRenderBufferGLImpl*,
+                                        draw.vertexBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const PLSRenderBufferGLImpl*, draw.uvBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer,
+                                        const PLSRenderBufferGLImpl*,
+                                        draw.indexBufferRef);
                 m_state->bindVAO(m_imageMeshVAO);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -652,14 +655,13 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_MESH_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageMeshUniformBufferRing()),
-                                  meshUniformDataOffset,
+                                  draw.imageMeshDataOffset,
                                   sizeof(pls::ImageMeshUniforms));
                 m_state->enableFaceCulling(false);
                 glDrawElements(GL_TRIANGLES,
                                draw.elementCount,
                                GL_UNSIGNED_SHORT,
                                reinterpret_cast<const void*>(draw.baseElement * sizeof(uint16_t)));
-                meshUniformDataOffset += sizeof(pls::ImageMeshUniforms);
                 break;
             }
         }

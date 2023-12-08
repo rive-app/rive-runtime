@@ -142,8 +142,9 @@ bool PLSRenderer::applyClip(uint32_t* clipID)
 
 void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 {
-    PLSPath* path = static_cast<PLSPath*>(renderPath);
-    PLSPaint* paint = static_cast<PLSPaint*>(renderPaint);
+    LITE_RTTI_CAST_OR_RETURN(path, PLSPath*, renderPath);
+    LITE_RTTI_CAST_OR_RETURN(paint, PLSPaint*, renderPaint);
+
     bool stroked = paint->getIsStroked();
 
     if (stroked && m_context->frameDescriptor().strokesDisabled)
@@ -194,19 +195,19 @@ bool PLSRenderer::pushPathDraw(PLSPath* path, PLSPaint* paint)
 
 void PLSRenderer::clipPath(RenderPath* renderPath)
 {
-    PLSPath* plsPath = static_cast<PLSPath*>(renderPath);
+    LITE_RTTI_CAST_OR_RETURN(path, PLSPath*, renderPath);
 
     // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT" shader feature.
     // Multiple axis-aligned rectangles can be intersected into a single rectangle if their matrices
     // are compatible.
     AABB clipRectCandidate;
-    if (IsAABB(plsPath->getRawPath(), &clipRectCandidate))
+    if (IsAABB(path->getRawPath(), &clipRectCandidate))
     {
-        clipRect(clipRectCandidate, plsPath);
+        clipRect(clipRectCandidate, path);
     }
     else
     {
-        clipPath(plsPath);
+        clipPath(path);
     }
 }
 
@@ -300,10 +301,11 @@ void PLSRenderer::clipPath(PLSPath* path)
 
 void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode, float opacity)
 {
+    LITE_RTTI_CAST_OR_RETURN(image, const PLSImage*, renderImage);
+
     // Implement drawImage() as drawPath() with a rectangle path and an image paint.
     save();
 
-    auto image = static_cast<const PLSImage*>(renderImage);
     scale(image->width(), image->height());
 
     PLSPath path;
@@ -329,7 +331,9 @@ void PLSRenderer::drawImageMesh(const RenderImage* renderImage,
                                 BlendMode blendMode,
                                 float opacity)
 {
-    const PLSTexture* plsTexture = static_cast<const PLSImage*>(renderImage)->getTexture();
+    LITE_RTTI_CAST_OR_RETURN(image, const PLSImage*, renderImage);
+    const PLSTexture* plsTexture = image->getTexture();
+
     assert(vertices_f32);
     assert(uvCoords_f32);
     assert(indices_u16);

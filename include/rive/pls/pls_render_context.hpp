@@ -383,6 +383,7 @@ public:
                 const RenderBuffer* vertexBufferRef;
                 const RenderBuffer* uvBufferRef;
                 const RenderBuffer* indexBufferRef;
+                size_t imageMeshDataOffset;
             };
         };
     };

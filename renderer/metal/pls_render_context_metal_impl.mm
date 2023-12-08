@@ -403,14 +403,14 @@ rcp<PLSRenderTargetMetal> PLSRenderContextMetalImpl::makeRenderTarget(MTLPixelFo
     return rcp(new PLSRenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
 }
 
-class RenderBufferMetalImpl : public RenderBuffer
+class RenderBufferMetalImpl : public lite_rtti_override<RenderBuffer, RenderBufferMetalImpl>
 {
 public:
     RenderBufferMetalImpl(RenderBufferType renderBufferType,
                           RenderBufferFlags renderBufferFlags,
                           size_t sizeInBytes,
                           id<MTLDevice> gpu) :
-        RenderBuffer(renderBufferType, renderBufferFlags, sizeInBytes), m_gpu(gpu)
+        lite_rtti_override(renderBufferType, renderBufferFlags, sizeInBytes), m_gpu(gpu)
     {
         int bufferCount =
             flags() & RenderBufferFlags::mappedOnceAtInitialization ? 1 : pls::kBufferRingSize;
@@ -769,8 +769,6 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
         [encoder setTriangleFillMode:MTLTriangleFillModeLines];
     }
 
-    size_t meshDataOffset = 0;
-
     // Execute the DrawList.
     for (const Draw& draw : *desc.drawList)
     {
@@ -820,24 +818,25 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
             }
             case DrawType::imageMesh:
             {
-                auto vertexBuffer = static_cast<const RenderBufferMetalImpl*>(draw.vertexBufferRef);
-                auto uvBuffer = static_cast<const RenderBufferMetalImpl*>(draw.uvBufferRef);
-                auto indexBuffer = static_cast<const RenderBufferMetalImpl*>(draw.indexBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(
+                    vertexBuffer, const RenderBufferMetalImpl*, draw.vertexBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferMetalImpl*, draw.uvBufferRef);
+                LITE_RTTI_CAST_OR_BREAK(
+                    indexBuffer, const RenderBufferMetalImpl*, draw.indexBufferRef);
                 [encoder setVertexBuffer:mtl_buffer(imageMeshUniformBufferRing())
-                                  offset:meshDataOffset
+                                  offset:draw.imageMeshDataOffset
                                  atIndex:IMAGE_MESH_UNIFORM_BUFFER_IDX];
+                [encoder setFragmentBuffer:mtl_buffer(imageMeshUniformBufferRing())
+                                    offset:draw.imageMeshDataOffset
+                                   atIndex:IMAGE_MESH_UNIFORM_BUFFER_IDX];
                 [encoder setVertexBuffer:vertexBuffer->submittedBuffer() offset:0 atIndex:0];
                 [encoder setVertexBuffer:uvBuffer->submittedBuffer() offset:0 atIndex:1];
-                [encoder setFragmentBuffer:mtl_buffer(imageMeshUniformBufferRing())
-                                    offset:meshDataOffset
-                                   atIndex:IMAGE_MESH_UNIFORM_BUFFER_IDX];
                 [encoder setCullMode:MTLCullModeNone];
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                     indexCount:draw.elementCount
                                      indexType:MTLIndexTypeUInt16
                                    indexBuffer:indexBuffer->submittedBuffer()
                              indexBufferOffset:draw.baseElement * sizeof(uint16_t)];
-                meshDataOffset += sizeof(pls::ImageMeshUniforms);
                 break;
             }
         }

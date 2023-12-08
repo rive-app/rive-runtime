@@ -56,7 +56,7 @@ private:
 };
 
 // RenderShader implementation for Rive's pixel local storage renderer.
-class PLSGradient : public RenderShader
+class PLSGradient : public lite_rtti_override<RenderShader, PLSGradient>
 {
 public:
     static rcp<PLSGradient> MakeLinear(float sx,
@@ -105,7 +105,7 @@ private:
 };
 
 // RenderPaint implementation for Rive's pixel local storage renderer.
-class PLSPaint : public RenderPaint
+class PLSPaint : public lite_rtti_override<RenderPaint, PLSPaint>
 {
 public:
     PLSPaint();

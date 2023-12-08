@@ -909,6 +909,7 @@ void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
                                      const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
                                      BlendMode blendMode)
 {
+    size_t imageMeshDataOffset = m_imageMeshUniformData.bytesWritten();
     m_imageMeshUniformData.emplace_back(matrix, opacity, clipRectInverseMatrix, clipID, blendMode);
 
     pushDraw(DrawType::imageMesh,
@@ -924,6 +925,7 @@ void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
     draw.vertexBufferRef = safe_ref(vertexBuffer);
     draw.uvBufferRef = safe_ref(uvBuffer);
     draw.indexBufferRef = safe_ref(indexBuffer);
+    draw.imageMeshDataOffset = imageMeshDataOffset;
     assert((draw.shaderFeatures & pls::kImageMeshShaderFeaturesMask) == draw.shaderFeatures);
 }
 

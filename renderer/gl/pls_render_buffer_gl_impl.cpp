@@ -11,7 +11,7 @@ namespace rive::pls
 PLSRenderBufferGLImpl::PLSRenderBufferGLImpl(RenderBufferType type,
                                              RenderBufferFlags flags,
                                              size_t sizeInBytes) :
-    RenderBuffer(type, flags, sizeInBytes),
+    lite_rtti_override(type, flags, sizeInBytes),
     m_target(type == RenderBufferType::vertex ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER)
 {}
 

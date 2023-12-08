@@ -10,7 +10,7 @@
 namespace rive::pls
 {
 // RenderPath implementation for Rive's pixel local storage renderer.
-class PLSPath : public RenderPath
+class PLSPath : public lite_rtti_override<RenderPath, PLSPath>
 {
 public:
     PLSPath() = default;
