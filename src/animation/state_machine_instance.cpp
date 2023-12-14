@@ -382,6 +382,10 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
     // as able to stop propagation)
     for (auto nestedArtboard : m_hitNestedArtboards)
     {
+        if (nestedArtboard->isCollapsed())
+        {
+            continue;
+        }
         Vec2D nestedPosition;
         if (!nestedArtboard->worldToLocal(position, &nestedPosition))
         {

@@ -1,7 +1,11 @@
 #include <rive/solo.hpp>
 #include <rive/shapes/shape.hpp>
+#include <rive/shapes/path.hpp>
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/state_machine_input_instance.hpp>
+#include <rive/nested_artboard.hpp>
+#include <rive/shapes/paint/fill.hpp>
+#include <rive/shapes/paint/solid_color.hpp>
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
@@ -213,4 +217,92 @@ TEST_CASE("hit test on solos", "[solo]")
     // // Active shape position
     stateMachine->pointerMove(rive::Vec2D(200.0f, 400.0f));
     REQUIRE(toggle->value() == true);
+}
+
+TEST_CASE("hit test on nested artboards in solos", "[solo]")
+{
+    auto file = ReadRiveFile("../../test/assets/pointer_events_nested_artboards_in_solos.riv");
+
+    auto mainArtboard = file->artboard()->instance();
+
+    auto green_color = 0xFF00B511;
+    auto red_color = 0xFFC80000;
+    auto gray_color = 0xFF747474;
+
+    REQUIRE(mainArtboard->find("Parent-Artboard") != nullptr);
+    auto artboard = mainArtboard->find<rive::Artboard>("Parent-Artboard");
+
+    REQUIRE(artboard != nullptr);
+    artboard->updateComponents();
+    REQUIRE(artboard->is<rive::Artboard>());
+    REQUIRE(artboard->find("Nested-Artboard-Active") != nullptr);
+    auto nestedArtboardActive = artboard->find<rive::NestedArtboard>("Nested-Artboard-Active");
+    REQUIRE(nestedArtboardActive->artboard() != nullptr);
+
+    auto nestedArtboardActiveArtboardInstance = nestedArtboardActive->artboard();
+    auto activeRect =
+        nestedArtboardActiveArtboardInstance->find<rive::Shape>("Clickable-Rectangle");
+    REQUIRE(activeRect != nullptr);
+    auto activeRectFill = activeRect->children()[1]->as<rive::Fill>();
+    REQUIRE(activeRectFill != nullptr);
+    auto activeRectFillSolidColor = activeRectFill->paint()->as<rive::SolidColor>();
+    REQUIRE(activeRectFillSolidColor != nullptr);
+
+    REQUIRE(artboard->find("Nested-Artboard-Inactive") != nullptr);
+    auto nestedArtboardInactive = artboard->find<rive::NestedArtboard>("Nested-Artboard-Inactive");
+    REQUIRE(nestedArtboardInactive->artboard() != nullptr);
+    auto nestedArtboardInactiveArtboardInstance = nestedArtboardInactive->artboard();
+    auto inactiveRect =
+        nestedArtboardInactiveArtboardInstance->find<rive::Shape>("Clickable-Rectangle");
+    REQUIRE(inactiveRect != nullptr);
+    auto inactiveRectFill = inactiveRect->children()[1]->as<rive::Fill>();
+    REQUIRE(inactiveRectFill != nullptr);
+    auto inactiveRectFillSolidColor = inactiveRectFill->paint()->as<rive::SolidColor>();
+    REQUIRE(inactiveRectFillSolidColor != nullptr);
+
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachine = mainArtboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    // Initialize state machine
+    stateMachine->advance(0.0f);
+    mainArtboard->advance(0.0f);
+
+    REQUIRE(nestedArtboardActive->isCollapsed() == false);
+    REQUIRE(nestedArtboardInactive->isCollapsed() == true);
+    REQUIRE(activeRectFillSolidColor->colorValue() == green_color);
+    REQUIRE(inactiveRectFillSolidColor->colorValue() == gray_color);
+
+    // Advance to a position in the timeline where the inactive artboard
+    // is active so it is rendered once
+    stateMachine->advance(0.1f);
+    mainArtboard->advance(0.1f);
+
+    REQUIRE(nestedArtboardActive->isCollapsed() == true);
+    REQUIRE(nestedArtboardInactive->isCollapsed() == false);
+    REQUIRE(inactiveRectFillSolidColor->colorValue() == green_color);
+
+    // Advance to a position in the timeline where the active artboard is active
+    stateMachine->advance(0.1f);
+    mainArtboard->advance(0.1f);
+
+    REQUIRE(nestedArtboardActive->isCollapsed() == false);
+    REQUIRE(nestedArtboardInactive->isCollapsed() == true);
+
+    // Apply pointer up
+    stateMachine->pointerUp(rive::Vec2D(200.0f, 200.0f));
+    stateMachine->advance(0.0f);
+    artboard->advance(0.0f);
+
+    // Advance to activate the inactive artboard again so it redraws
+    stateMachine->advance(0.1f);
+    artboard->advance(0.1f);
+    REQUIRE(nestedArtboardActive->isCollapsed() == true);
+    REQUIRE(nestedArtboardInactive->isCollapsed() == false);
+
+    // If the test succeeds the active nested artboard should have changed to red
+    REQUIRE(activeRectFillSolidColor->colorValue() == red_color);
+    // And the inactive artboard should have stayed green
+    REQUIRE(inactiveRectFillSolidColor->colorValue() == green_color);
 }

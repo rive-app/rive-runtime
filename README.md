@@ -14,7 +14,7 @@ The C++ runtime for Rive provides these runtime features:
 - Querying LinearAnimations and StateMachines from Artboards.
 - Making changes to Artboard hierarchy (fundamentally same guts used by LinearAnimations and StateMachines) and effienclty solving those changes via Artboard::advance.
 - Abstract Renderer for submitting high level vector path commands with retained path objects to optimize and minimize path re-computation (ultimately up to the concrete rendering implementation).
-- Example concrete renderer written in C++ with [Skia](https://skia.org/). Skia renderer code is in [skia/renderer/src/skia_renderer.cpp](skia/renderer/src/skia_renderer.cpp).
+- Example concrete renderer written in C++ with [Skia](https://skia.org/). Skia renderer code is in [skia/renderer/src/skia_factory.cpp](skia/renderer/src/skia_factory.cpp).
 
 ## Build System
 We use [premake5](https://premake.github.io/). The Rive dev team primarily works on MacOS. There is some work done by the community to also support Windows and Linux. PRs welcomed for specific platforms you wish to support! We encourage you to use premake as it's highly extensible and configurable for a variety of platforms.
