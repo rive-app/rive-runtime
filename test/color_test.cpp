@@ -26,3 +26,18 @@ TEST_CASE("unpacking", "[color]")
     CHECK(color4fPremul[2] == Approx(color4f[2] * color4f[3]));
     CHECK(color4fPremul[3] == Approx(color4f[3]));
 }
+
+TEST_CASE("color lerp", "[color]")
+{
+    // Lerping this color with a mix value > 1 returns a negative value
+    // that overflows the unsigned int
+    // If this is not clamped correctly, the result would be off.
+    rive::ColorInt colorFrom = 0x90909090;
+    rive::ColorInt colorTo = 0x1E1E1E1E;
+    float mix = 1.3f;
+    rive::ColorInt colorLerped = rive::colorLerp(colorFrom, colorTo, mix);
+    CHECK(rive::colorRed(colorLerped) == 0);
+    CHECK(rive::colorGreen(colorLerped) == 0);
+    CHECK(rive::colorBlue(colorLerped) == 0);
+    CHECK(rive::colorAlpha(colorLerped) == 0);
+}
