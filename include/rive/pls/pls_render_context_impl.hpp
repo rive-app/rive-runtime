@@ -35,7 +35,7 @@ public:
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
     virtual void resizeGradientTexture(size_t height) = 0;
     virtual void resizeTessellationTexture(size_t height) = 0;
-    virtual void resizeImageMeshUniformBuffer(size_t sizeInBytes) = 0;
+    virtual void resizeImageDrawUniformBuffer(size_t sizeInBytes) = 0;
 
     // Perform any synchronization or other tasks that need to run immediately before
     // PLSRenderContext begins mapping buffers for the next flush.
@@ -50,7 +50,7 @@ public:
     virtual void mapGradSpanBuffer(WriteOnlyMappedMemory<pls::GradientSpan>*) = 0;
     virtual void mapTessVertexSpanBuffer(WriteOnlyMappedMemory<pls::TessVertexSpan>*) = 0;
     virtual void mapTriangleVertexBuffer(WriteOnlyMappedMemory<pls::TriangleVertex>*) = 0;
-    virtual void mapImageMeshUniformBuffer(WriteOnlyMappedMemory<pls::ImageMeshUniforms>*) = 0;
+    virtual void mapImageDrawUniformBuffer(WriteOnlyMappedMemory<pls::ImageDrawUniforms>*) = 0;
     virtual void mapFlushUniformBuffer(WriteOnlyMappedMemory<pls::FlushUniforms>*) = 0;
 
     // Unmap GPU resources. All resources will be unmapped before flush().
@@ -60,7 +60,7 @@ public:
     virtual void unmapGradSpanBuffer(size_t bytesWritten) = 0;
     virtual void unmapTessVertexSpanBuffer(size_t bytesWritten) = 0;
     virtual void unmapTriangleVertexBuffer(size_t bytesWritten) = 0;
-    virtual void unmapImageMeshUniformBuffer(size_t bytesWritten) = 0;
+    virtual void unmapImageDrawUniformBuffer(size_t bytesWritten) = 0;
     virtual void unmapFlushUniformBuffer() = 0;
 
     // Perform rendering in three steps:

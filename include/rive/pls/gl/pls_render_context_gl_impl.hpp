@@ -130,7 +130,7 @@ private:
     public:
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
-        DrawProgram(PLSRenderContextGLImpl*, DrawType, ShaderFeatures);
+        DrawProgram(PLSRenderContextGLImpl*, DrawType, ShaderFeatures, pls::InterlockMode);
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
@@ -187,11 +187,28 @@ private:
     // Not all programs have a unique vertex shader, so we cache and reuse them where possible.
     std::map<uint32_t, DrawShader> m_vertexShaders;
     std::map<uint32_t, DrawProgram> m_drawPrograms;
+
+    // Vertex/index buffers for drawing paths.
     GLuint m_drawVAO = 0;
     GLuint m_patchVerticesBuffer = 0;
     GLuint m_patchIndicesBuffer = 0;
     GLuint m_interiorTrianglesVAO = 0;
+
+    // Vertex/index buffers for drawing image rects. (Atomic mode only, and only used when bindless
+    // textures aren't supported.)
+    GLuint m_imageRectVAO = 0;
+    GLuint m_imageRectVertexBuffer = 0;
+    GLuint m_imageRectIndexBuffer = 0;
+
     GLuint m_imageMeshVAO = 0;
+    GLuint m_plsResolveVAO = 0;
+
+    // Extra buffers for the experimental atomic mode.
+    GLuint m_paintBuffer = 0;
+    GLuint m_paintMatrixBuffer = 0;
+    GLuint m_paintTranslateBuffer = 0;
+    GLuint m_clipRectMatrixBuffer = 0;
+    GLuint m_clipRectTranslateBuffer = 0;
 
     const rcp<GLState> m_state;
 };

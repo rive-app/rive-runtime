@@ -4,7 +4,14 @@
 
 // Common functions shared by multiple shaders.
 
-#define PI 3.141592653589793238
+#define PI float(3.141592653589793238)
+#define AA_RADIUS float(.5)
+
+#define TEXTURE_DEREF_SAMPLE(TEXTURE_BLOCK, TEXTURE, SAMPLER_NAME, COORD)                          \
+    TEXTURE_SAMPLE(TEXTURE_DEREF(TEXTURE_BLOCK, TEXTURE), SAMPLER_NAME, COORD)
+
+#define TEXEL_DEREF_FETCH(TEXTURE_BLOCK, TEXTURE, COORD)                                           \
+    TEXEL_FETCH(TEXTURE_DEREF(TEXTURE_BLOCK, TEXTURE), COORD)
 
 INLINE int2 contour_texel_coord(uint contourIDWithFlags)
 {
@@ -52,7 +59,27 @@ INLINE half min_value(half4 min4)
     return min1;
 }
 
+INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
+
 #ifdef @VERTEX
+UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @Uniforms)
+float gradInverseViewportY;
+float tessInverseViewportY;
+float renderTargetInverseViewportX;
+float renderTargetInverseViewportY;
+float gradTextureInverseHeight;
+uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
+float vertexDiscardValue;
+uint padding;
+UNIFORM_BLOCK_END(uniforms)
+
+#define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                                                   \
+    float4((COORD).x* uniforms.renderTargetInverseViewportX - 1.,                                  \
+           (COORD).y * -uniforms.renderTargetInverseViewportY +                                    \
+               sign(uniforms.renderTargetInverseViewportY),                                        \
+           .0,                                                                                     \
+           1.)
+
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to the point at each
 // edge of the clipRect where coverage = 0.
 //
@@ -78,15 +105,4 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
         return clipRectInverseTranslate.xyxy;
     }
 }
-
-UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @Uniforms)
-float gradInverseViewportY;
-float tessInverseViewportY;
-float renderTargetInverseViewportX;
-float renderTargetInverseViewportY;
-float gradTextureInverseHeight;
-uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
-float vertexDiscardValue;
-uint padding;
-UNIFORM_BLOCK_END(uniforms)
 #endif

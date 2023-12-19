@@ -4,7 +4,6 @@
 
 #include "rive/pls/webgpu/pls_render_context_webgpu_impl.hpp"
 
-#include "pls_render_context_webgpu_vulkan.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
@@ -19,7 +18,6 @@
 #include "../out/obj/generated/spirv/draw_image_mesh.vert.h"
 #include "../out/obj/generated/spirv/draw_image_mesh.frag.h"
 
-#include "../out/obj/generated/pls_load_store_ext.glsl.hpp"
 #include "../out/obj/generated/glsl.glsl.hpp"
 #include "../out/obj/generated/constants.glsl.hpp"
 #include "../out/obj/generated/common.glsl.hpp"
@@ -32,7 +30,6 @@
 
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
-#include "../out/obj/generated/glsl.exports.h"
 
 static void enable_shader_pixel_local_storage_ext(wgpu::RenderPassEncoder, bool enabled)
 {
@@ -244,7 +241,7 @@ public:
     }
 
 private:
-    const wgpu::TextureFormat m_framebufferFormat;
+    const wgpu::TextureFormat m_framebufferFormat RIVE_MAYBE_UNUSED;
     wgpu::BindGroupLayout m_bindGroupLayout;
     EmJsHandle m_fragmentShaderHandle;
     wgpu::RenderPipeline m_renderPipeline;
@@ -540,8 +537,12 @@ public:
                 case DrawType::interiorTriangulation:
                     addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
                     break;
+                case DrawType::imageRect:
+                    RIVE_UNREACHABLE();
                 case DrawType::imageMesh:
                     break;
+                case DrawType::plsAtomicResolve:
+                    RIVE_UNREACHABLE();
             }
             for (size_t i = 0; i < pls::kShaderFeatureCount; ++i)
             {
@@ -573,9 +574,13 @@ public:
                 case DrawType::interiorTriangulation:
                     glsl << pls::glsl::draw_path << '\n';
                     break;
+                case DrawType::imageRect:
+                    RIVE_UNREACHABLE();
                 case DrawType::imageMesh:
                     glsl << pls::glsl::draw_image_mesh << '\n';
                     break;
+                case DrawType::plsAtomicResolve:
+                    RIVE_UNREACHABLE();
             }
 
             std::ostringstream vertexGLSL;
@@ -621,6 +626,8 @@ public:
                         draw_interior_triangles_frag,
                         std::size(draw_interior_triangles_frag));
                     break;
+                case DrawType::imageRect:
+                    RIVE_UNREACHABLE();
                 case DrawType::imageMesh:
                     vertexShader = m_vertexShaderHandle.compileSPIRVShaderModule(
                         context->m_device,
@@ -631,6 +638,8 @@ public:
                         draw_image_mesh_frag,
                         std::size(draw_image_mesh_frag));
                     break;
+                case DrawType::plsAtomicResolve:
+                    RIVE_UNREACHABLE();
             }
         }
 
@@ -754,13 +763,13 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
                 },
         },
         {
-            .binding = IMAGE_MESH_UNIFORM_BUFFER_IDX,
+            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
             .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
             .buffer =
                 {
                     .type = wgpu::BufferBindingType::Uniform,
                     .hasDynamicOffset = true,
-                    .minBindingSize = sizeof(pls::ImageMeshUniforms),
+                    .minBindingSize = sizeof(pls::ImageDrawUniforms),
                 },
         },
     };
@@ -1319,6 +1328,8 @@ wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
             };
             break;
         }
+        case DrawType::imageRect:
+            RIVE_UNREACHABLE();
         case DrawType::imageMesh:
             attrs = {
                 {
@@ -1348,6 +1359,8 @@ wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
                 },
             };
             break;
+        case DrawType::plsAtomicResolve:
+            RIVE_UNREACHABLE();
     }
 
     wgpu::ColorTargetState colorTargets[] = {
@@ -1711,9 +1724,9 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                     .buffer = webgpu_buffer(flushUniformBufferRing()),
                 },
                 {
-                    .binding = IMAGE_MESH_UNIFORM_BUFFER_IDX,
-                    .buffer = webgpu_buffer(imageMeshUniformBufferRing()),
-                    .size = sizeof(pls::ImageMeshUniforms),
+                    .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+                    .buffer = webgpu_buffer(imageDrawUniformBufferRing()),
+                    .size = sizeof(pls::ImageDrawUniforms),
                 },
             };
 
@@ -1737,7 +1750,9 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
         // Setup the pipeline for this specific drawType and shaderFeatures.
         const DrawPipeline& drawPipeline =
             m_drawPipelines
-                .try_emplace(pls::ShaderUniqueKey(drawType, draw.shaderFeatures),
+                .try_emplace(pls::ShaderUniqueKey(drawType,
+                                                  draw.shaderFeatures,
+                                                  pls::InterlockMode::rasterOrdered),
                              this,
                              drawType,
                              draw.shaderFeatures)
@@ -1765,6 +1780,8 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                 drawPass.Draw(draw.elementCount, 1, draw.baseElement);
                 break;
             }
+            case DrawType::imageRect:
+                RIVE_UNREACHABLE();
             case DrawType::imageMesh:
             {
                 auto vertexBuffer =
@@ -1776,9 +1793,11 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                 drawPass.SetIndexBuffer(indexBuffer->submittedBuffer(), wgpu::IndexFormat::Uint16);
                 drawPass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
                 drawPass.DrawIndexed(draw.elementCount, 1, draw.baseElement);
-                meshUniformDataOffset += sizeof(pls::ImageMeshUniforms);
+                meshUniformDataOffset += sizeof(pls::ImageDrawUniforms);
                 break;
             }
+            case DrawType::plsAtomicResolve:
+                RIVE_UNREACHABLE();
         }
     }
 

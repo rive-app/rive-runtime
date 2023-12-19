@@ -95,6 +95,20 @@ GLAPI PFNGLPROVOKINGVERTEXANGLEPROC glad_glProvokingVertexANGLE;
 #define glProvokingVertexANGLE glad_glProvokingVertexANGLE
 #endif  /* GL_ANGLE_provoking_vertex */
 
+#ifndef GL_ARB_bindless_texture
+#define GL_ARB_bindless_texture 1
+GLAPI int GLAD_GL_ARB_bindless_texture;
+typedef GLuint64 (APIENTRYP PFNGLGETTEXTUREHANDLEARB) (GLuint texture);
+GLAPI PFNGLGETTEXTUREHANDLEARB glad_glGetTextureHandleARB;
+#define glGetTextureHandleARB glad_glGetTextureHandleARB
+typedef void (APIENTRYP PFNGLMAKETEXTUREHANDLERESIDENTARB) (GLuint64 handle);
+GLAPI PFNGLMAKETEXTUREHANDLERESIDENTARB glad_glMakeTextureHandleResidentARB;
+#define glMakeTextureHandleResidentARB glad_glMakeTextureHandleResidentARB
+typedef void (APIENTRYP PFNGLMAKETEXTUREHANDLENONRESIDENTARB) (GLuint64 handle);
+GLAPI PFNGLMAKETEXTUREHANDLENONRESIDENTARB glad_glMakeTextureHandleNonResidentARB;
+#define glMakeTextureHandleNonResidentARB glad_glMakeTextureHandleNonResidentARB
+#endif  /* GL_ARB_bindless_texture */
+
 #ifdef __cplusplus
 }
 #endif

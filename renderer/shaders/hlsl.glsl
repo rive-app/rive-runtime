@@ -7,7 +7,7 @@
 
 // HLSL warns that it will unroll the loops through r,g,b values in advanced_blend.glsl, but
 // unrolling these loops is exactly what we want.
-#pragma warning(disable : 3550)
+#pragma $warning($disable : 3550)
 
 // #define native hlsl types if their names are being rewritten.
 #define _ARE_TOKEN_NAMES_PRESERVED
@@ -61,6 +61,9 @@ $typedef $min16uint ushort;
 #define make_ushort4 $min16uint4
 
 #define make_half3x4 $half3x4
+
+#define INLINE $inline
+#define OUT(ARG_TYPE) out ARG_TYPE
 
 #define ATTR_BLOCK_BEGIN(NAME)                                                                     \
     struct NAME                                                                                    \
@@ -116,6 +119,8 @@ $typedef $min16uint ushort;
 #define TEXTURE_RGBA32UI(IDX, NAME) uniform $Texture2D<uint4> NAME : $register($t##IDX)
 #define TEXTURE_RGBA32F(IDX, NAME) uniform $Texture2D<float4> NAME : $register($t##IDX)
 #define TEXTURE_RGBA8(IDX, NAME) uniform $Texture2D<$unorm float4> NAME : $register($t##IDX)
+#define TEX32UIREF $Texture2D<uint4>
+#define TEXTURE_DEREF(TEXTURE_BLOCK, NAME) NAME
 
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler parameters are defined
 // at the API level.
@@ -123,21 +128,20 @@ $typedef $min16uint ushort;
 #define SAMPLER_LINEAR SAMPLER
 #define SAMPLER_MIPMAP SAMPLER
 
-#define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) NAME[COORD]
-#define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) NAME.$Sample(SAMPLER_NAME, COORD)
-#define TEXTURE_SAMPLE_LOD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, LOD)                          \
+#define TEXEL_FETCH(NAME, COORD) NAME[COORD]
+#define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) NAME.$Sample(SAMPLER_NAME, COORD)
+#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                                         \
     NAME.$SampleLevel(SAMPLER_NAME, COORD, LOD)
-#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
+#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)                                   \
     NAME.$SampleGrad(SAMPLER_NAME, COORD, DDX, DDY)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
-#ifdef @DRAW_INTERIOR_TRIANGLES
-// The interior triangles don't overlap, so therefore don't need rasterizer ordering.
-#define PLS_TEX2D $RWTexture2D
-#else
+#ifdef @ENABLE_RASTERIZER_ORDERED_VIEWS
 #define PLS_TEX2D $RasterizerOrderedTexture2D
+#else
+#define PLS_TEX2D $RWTexture2D
 #endif
 
 #define PLS_BLOCK_BEGIN
@@ -145,12 +149,30 @@ $typedef $min16uint ushort;
 #define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P) P[_plsCoord]
-#define PLS_LOADUI(P) P[_plsCoord]
-#define PLS_STORE4F(P, V) P[_plsCoord] = (V)
-#define PLS_STOREUI(P, V) P[_plsCoord] = (V)
+#define PLS_LOAD4F(P, _plsCoord) P[_plsCoord]
+#define PLS_LOADUI(P, _plsCoord) P[_plsCoord]
+#define PLS_STORE4F(P, V, _plsCoord) P[_plsCoord] = (V)
+#define PLS_STOREUI(P, V, _plsCoord) P[_plsCoord] = (V)
 
-#define PLS_PRESERVE_VALUE(P)
+INLINE uint pls_atomic_max(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
+{
+    uint originalValue;
+    $InterlockedMax(plane[_plsCoord], x, originalValue);
+    return originalValue;
+}
+
+#define PLS_ATOMIC_MAX(PLANE, X, _plsCoord) pls_atomic_max(PLANE, _plsCoord, X)
+
+INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
+{
+    uint originalValue;
+    $InterlockedAdd(plane[_plsCoord], x, originalValue);
+    return originalValue;
+}
+
+#define PLS_ATOMIC_ADD(PLANE, X, _plsCoord) pls_atomic_add(PLANE, _plsCoord, X)
+
+#define PLS_PRESERVE_VALUE(P, _plsCoord)
 
 #define VERTEX_MAIN(NAME,                                                                          \
                     Uniforms,                                                                      \
@@ -210,23 +232,23 @@ $typedef $min16uint ushort;
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
     [$earlydepthstencil] void NAME(Varyings varyings) {                                            \
-        int2 _plsCoord = int2(floor(varyings._pos.xy));
+        float2 _pos = varyings._pos.xy;\
+        int2 _plsCoord = int2(floor(_pos));
 
-#define IMAGE_MESH_PLS_MAIN(NAME,                                                                  \
+#define IMAGE_DRAW_PLS_MAIN(NAME,                                                                  \
                             MeshUniforms,                                                          \
                             meshUniforms,                                                          \
                             Varyings,                                                              \
                             varyings,                                                              \
                             FragmentTextures,                                                      \
                             textures,                                                              \
-                            _pos)                                                                  \
-    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)
+                            _pos,                                                                  \
+                            _plsCoord)                                                             \
+    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)
 
 #define EMIT_PLS }
-
-#define INLINE $inline
 
 #define uintBitsToFloat $asfloat
 #define intBitsToFloat $asfloat
@@ -243,6 +265,11 @@ $typedef $min16uint ushort;
 // in GLSL and Metal. We can work around this entirely by reversing the arguments to mul().
 #define MUL(A, B) $mul(B, A)
 
+#define STORAGE_BUFFER(IDX, STRUCT_NAME, TYPE, NAME)                                               \
+    $StructuredBuffer<TYPE> NAME : $register($t##IDX)
+
+#define STORAGE_BUFFER_AT(NAME, I) NAME[I]
+
 INLINE half2 unpackHalf2x16(uint u)
 {
     uint y = (u >> 16);
@@ -255,6 +282,12 @@ INLINE uint packHalf2x16(float2 v)
     uint x = $f32tof16(v.x);
     uint y = $f32tof16(v.y);
     return (y << 16) | x;
+}
+
+INLINE half4 unpackUnorm4x8(uint u)
+{
+    uint4 vals = (u >> uint4(0, 8, 16, 24)) & 0xff;
+    return float4(vals) * (1. / 255.);
 }
 
 INLINE float atan(float y, float x) { return $atan2(y, x); }

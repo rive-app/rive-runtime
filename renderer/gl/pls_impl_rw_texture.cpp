@@ -49,18 +49,35 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
 
         // Clear the necessary textures.
-        constexpr static GLuint kZero[4]{};
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->sideFramebufferID());
         renderTarget->reattachTargetTextureIfDifferent();
-        if (desc.loadAction == LoadAction::clear)
+        if (desc.canSkipColorClear())
         {
-            float clearColor4f[4];
-            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
+            // We can accomplish a clear of the color buffer while the shader resolves coverage,
+            // instead of calling glClear. The fill for pathID=0 is automatically configured to be
+            // a solid fill matching the clear color, so we just have to clear the coverage buffer
+            // to solid coverage. This ensures the clear color gets written out fully opaque.
+            constexpr static GLuint kCoverageOne[4]{static_cast<GLuint>(FIXED_COVERAGE_ONE)};
+            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kCoverageOne);
         }
-        glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kZero);
+        else
+        {
+            if (desc.loadAction == LoadAction::clear)
+            {
+                float clearColor4f[4];
+                UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+                glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
+            }
+            // Clear the coverage buffer to pathID=0, and with a value that means "zero coverage" in
+            // atomic mode. In non-atomic mode all we need is for pathID to be zero. In atomic mode,
+            // the additional "zero coverage" value makes sure nothing gets written out at this
+            // pixel when resolving.
+            constexpr static GLuint kCoverageZero[4]{static_cast<GLuint>(FIXED_COVERAGE_ZERO)};
+            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kCoverageZero);
+        }
         if (desc.needsClipBuffer)
         {
+            constexpr static GLuint kZero[4]{};
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
         }
 
@@ -98,17 +115,20 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
 
     void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) override
     {
-        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
     }
 
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_RW_TEXTURE; }
 
-    void onBarrier() override { return glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT); }
+    void onBarrier() override
+    {
+        return glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    }
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplRWTexture()

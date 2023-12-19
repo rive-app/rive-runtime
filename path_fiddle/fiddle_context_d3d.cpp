@@ -76,7 +76,7 @@ public:
         VERIFY_OK(m_swapchain->GetBuffer(0,
                                          __uuidof(ID3D11Texture2D),
                                          reinterpret_cast<void**>(backBuffer.GetAddressOf())));
-        m_renderTarget->setTargetTexture(m_gpu.Get(), std::move(backBuffer));
+        m_renderTarget->setTargetTexture(std::move(backBuffer));
         frameDescriptor.renderTarget = m_renderTarget;
         m_plsContext->beginFrame(std::move(frameDescriptor));
     }

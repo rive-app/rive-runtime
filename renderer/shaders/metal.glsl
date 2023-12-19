@@ -49,6 +49,7 @@
 #define make_ushort ushort
 
 #define INLINE $inline
+#define OUT(ARG_TYPE) $thread ARG_TYPE&
 
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
@@ -115,13 +116,15 @@
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$linear);
 
-#define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) TEXTURE_BLOCK.NAME.$read(uint2(COORD))
-#define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD)                                   \
-    TEXTURE_BLOCK.NAME.$sample(SAMPLER_NAME, COORD)
-#define TEXTURE_SAMPLE_LOD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, LOD)                          \
-    TEXTURE_BLOCK.NAME.$sample(SAMPLER_NAME, COORD, $level(LOD))
-#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
-    TEXTURE_BLOCK.NAME.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
+#define TEXEL_FETCH(TEXTURE, COORD) TEXTURE.$read(uint2(COORD))
+#define TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD) TEXTURE.$sample(SAMPLER_NAME, COORD)
+#define TEXTURE_SAMPLE_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)                                      \
+    TEXTURE.$sample(SAMPLER_NAME, COORD, $level(LOD))
+#define TEXTURE_SAMPLE_GRAD(TEXTURE, SAMPLER_NAME, COORD, DDX, DDY)                                \
+    TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
+
+#define TEX32UIREF $const $thread $texture2d<uint>&
+#define TEXTURE_DEREF(TEXTURE_BLOCK, NAME) TEXTURE_BLOCK.NAME
 
 #define PLS_BLOCK_BEGIN                                                                            \
     struct PLS                                                                                     \
@@ -132,11 +135,11 @@
     }                                                                                              \
     ;
 
-#define PLS_LOAD4F(P) _inpls.P
-#define PLS_LOADUI(P) _inpls.P
-#define PLS_STORE4F(P, V) _pls.P = (V)
-#define PLS_STOREUI(P, V) _pls.P = (V)
-#define PLS_PRESERVE_VALUE(P) _pls.P = _inpls.P
+#define PLS_LOAD4F(P, _plsCoord) _inpls.P
+#define PLS_LOADUI(P, _plsCoord) _inpls.P
+#define PLS_STORE4F(P, V, _plsCoord) _pls.P = (V)
+#define PLS_STOREUI(P, V, _plsCoord) _pls.P = (V)
+#define PLS_PRESERVE_VALUE(P, _plsCoord) _pls.P = _inpls.P
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
@@ -178,7 +181,7 @@
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
         $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
-        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_MESH_UNIFORM_BUFFER_IDX)]],           \
+        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],           \
         $constant PositionAttr* position [[$buffer(0)]],                                           \
         $constant UVAttr* uv [[$buffer(1)]])                                                       \
     {                                                                                              \
@@ -199,24 +202,25 @@
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
     $__attribute__(($visibility("default"))) PLS $fragment NAME(PLS _inpls,                        \
                                                                 Varyings varyings [[$stage_in]],   \
                                                                 FragmentTextures textures)         \
     {                                                                                              \
         PLS _pls;
 
-#define IMAGE_MESH_PLS_MAIN(NAME,                                                                  \
+#define IMAGE_DRAW_PLS_MAIN(NAME,                                                                  \
                             MeshUniforms,                                                          \
                             meshUniforms,                                                          \
                             Varyings,                                                              \
                             varyings,                                                              \
                             FragmentTextures,                                                      \
                             textures,                                                              \
-                            _pos)                                                                  \
+                            _pos,                                                                  \
+                            _plsCoord)                                                             \
     $__attribute__(($visibility("default"))) PLS $fragment NAME(                                   \
         PLS _inpls,                                                                                \
-        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_MESH_UNIFORM_BUFFER_IDX)]],           \
+        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],           \
         Varyings varyings [[$stage_in]],                                                           \
         FragmentTextures textures)                                                                 \
     {                                                                                              \

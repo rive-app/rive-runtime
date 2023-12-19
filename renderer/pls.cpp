@@ -4,7 +4,6 @@
 
 #include "rive/pls/pls.hpp"
 
-#include "rive/refcnt.hpp"
 #include "shaders/constants.glsl"
 
 #include "../out/obj/generated/draw_path.exports.h"
@@ -256,7 +255,7 @@ static uint32_t paint_type_to_glsl_id(PaintType paintType)
     static_assert((int)PaintType::clipUpdate == CLIP_UPDATE_PAINT_TYPE);
 }
 
-static uint32_t get_glsl_blend_mode(BlendMode riveMode)
+uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
 {
     switch (riveMode)
     {
@@ -307,7 +306,7 @@ void PathData::set(const Mat2D& m,
 {
     matrix = m;
     strokeRadius = strokeRadius_;
-    uint32_t localParams = get_glsl_blend_mode(riveBlendMode);
+    uint32_t localParams = ConvertBlendModeToPLSBlendMode(riveBlendMode);
     localParams |= clipID << 4;
     localParams |= paint_type_to_glsl_id(paintType) << 20;
     if (fillRule == FillRule::evenOdd && strokeRadius_ == 0)
@@ -320,17 +319,16 @@ void PathData::set(const Mat2D& m,
                                                               : ClipRectInverseMatrix::WideOpen();
 }
 
-ImageMeshUniforms::ImageMeshUniforms(const Mat2D& matrix_,
+ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix_,
                                      float opacity_,
                                      const ClipRectInverseMatrix* clipRectInverseMatrix_,
                                      uint32_t clipID_,
-                                     BlendMode riveBlendMode) :
+                                     BlendMode blendMode_) :
     matrix(matrix_),
     opacity(opacity_),
     clipRectInverseMatrix(clipRectInverseMatrix_ != nullptr ? *clipRectInverseMatrix_
                                                             : ClipRectInverseMatrix::WideOpen()),
     clipID(clipID_),
-    blendMode(get_glsl_blend_mode(riveBlendMode))
+    blendMode(ConvertBlendModeToPLSBlendMode(blendMode_))
 {}
-
 } // namespace rive::pls

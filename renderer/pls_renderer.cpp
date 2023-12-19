@@ -303,23 +303,82 @@ void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode,
 {
     LITE_RTTI_CAST_OR_RETURN(image, const PLSImage*, renderImage);
 
-    // Implement drawImage() as drawPath() with a rectangle path and an image paint.
+    // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
     save();
-
     scale(image->width(), image->height());
 
-    PLSPath path;
-    path.line({1, 0});
-    path.line({1, 1});
-    path.line({0, 1});
+    if (m_context->frameDescriptor().enableExperimentalAtomicMode &&
+        !m_context->impl()->platformFeatures().supportsBindlessTextures)
+    {
+        // When we don't have bindless textures in atomic mode, we have to draw images as a
+        // specialized non-overlapping antialiased draw. This allows us to bind the texture and draw
+        // it in its entirety in a single pass.
+        const PLSTexture* plsTexture = static_cast<const PLSImage*>(renderImage)->getTexture();
+        if (!pushImageRectDraw(plsTexture, blendMode, opacity))
+        {
+            // There wasn't room in the GPU buffers for this image rect draw. Flush and try again.
+            m_context->flush(PLSRenderContext::FlushType::intermediate);
+            if (!pushImageRectDraw(plsTexture, blendMode, opacity))
+            {
+                fprintf(stderr, "PLSRenderer::drawImage failed. The clip stack is too complex.\n");
+            }
+        }
+    }
+    else
+    {
+        // Implement drawImage() as drawPath() with a rectangle path and an image paint.
+        PLSPath path;
+        path.line({1, 0});
+        path.line({1, 1});
+        path.line({0, 1});
 
-    PLSPaint paint;
-    paint.image(image->refTexture(), opacity);
-    paint.blendMode(blendMode);
+        PLSPaint paint;
+        paint.image(image->refTexture(), opacity);
+        paint.blendMode(blendMode);
 
-    drawPath(&path, &paint);
+        drawPath(&path, &paint);
+    }
 
     restore();
+}
+
+bool PLSRenderer::drawClipForImageIfNeeded(uint32_t* clipID)
+{
+    m_internalPathBatch.clear();
+    if (!applyClip(clipID))
+    {
+        return false;
+    }
+    if (!m_internalPathBatch.empty() && !pushInternalPathBatchToContext())
+    {
+        return false;
+    }
+    return true;
+}
+
+bool PLSRenderer::pushImageRectDraw(const PLSTexture* plsTexture,
+                                    BlendMode blendMode,
+                                    float opacity)
+{
+    assert(!m_context->impl()->platformFeatures().supportsBindlessTextures);
+    assert(m_context->frameDescriptor().enableExperimentalAtomicMode);
+    if (!m_context->reserveImageDrawUniforms())
+    {
+        return false;
+    }
+    uint32_t clipID;
+    if (!drawClipForImageIfNeeded(&clipID))
+    {
+        return false;
+    }
+    m_context->pushImageRect(m_stack.back().matrix,
+                             opacity,
+                             plsTexture,
+                             clipID,
+                             m_stack.back().hasClipRect ? &m_stack.back().clipRectInverseMatrix
+                                                        : nullptr,
+                             blendMode);
+    return true;
 }
 
 void PLSRenderer::drawImageMesh(const RenderImage* renderImage,
@@ -372,18 +431,12 @@ bool PLSRenderer::pushImageMeshDraw(const PLSTexture* plsTexture,
                                     BlendMode blendMode,
                                     float opacity)
 {
-    if (!m_context->reserveImageMeshData())
+    if (!m_context->reserveImageDrawUniforms())
     {
         return false;
     }
-    m_internalPathBatch.clear();
     uint32_t clipID;
-    if (!applyClip(&clipID))
-    {
-        return false;
-    }
-    // Draw clip paths into the clip buffer (if any).
-    if (!m_internalPathBatch.empty() && !pushInternalPathBatchToContext())
+    if (!drawClipForImageIfNeeded(&clipID))
     {
         return false;
     }

@@ -15,6 +15,7 @@ struct GLExtensions
     bool ANGLE_polygon_mode : 1;
     bool ANGLE_provoking_vertex : 1;
     bool ARM_shader_framebuffer_fetch : 1;
+    bool ARB_bindless_texture : 1;
     bool ARB_fragment_shader_interlock : 1;
     bool EXT_base_instance : 1;
     bool INTEL_fragment_shader_ordering : 1;

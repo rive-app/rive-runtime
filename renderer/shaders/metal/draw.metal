@@ -6,6 +6,11 @@
 #include "../../../out/obj/generated/metal.minified.glsl"
 #include "../../../out/obj/generated/constants.minified.glsl"
 #include "../../../out/obj/generated/common.minified.glsl"
+#define DRAW_PATH
+#define DRAW_INTERIOR_TRIANGLES
+#include "../../../out/obj/generated/draw_path_common.minified.glsl"
+#undef DRAW_INTERIOR_TRIANGLES
+#undef DRAW_PATH
 #undef VERTEX
 
 #define ENABLE_ADVANCED_BLEND

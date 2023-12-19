@@ -83,7 +83,7 @@ def t_DEFINE(tok):
     return tok
 
 def t_IFDEF(tok):
-    r"(?P<tag>\#[ \t]*ifn?def)[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)"
+    r"\#[ \t]*(?P<tag>ifn?def)[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)"
     tok.ifdef_tag = re.match(t_IFDEF.__doc__, tok.value)['tag']
     tok.ifdef_id = re.match(t_IFDEF.__doc__, tok.value)['id']
     parse_id(tok.ifdef_id, tok.lexer.exports, is_reference=True)
@@ -95,7 +95,8 @@ def t_TOKEN_PASTE(tok):
 
 def t_DIRECTIVE(tok):
     r"\#[ \t]*(?P<val>(((\\\n|.)(?!\/[\/\*]))*))"
-    tok.directive_val = re.match(t_DIRECTIVE.__doc__, tok.value)['val']
+    val = re.match(t_DIRECTIVE.__doc__, tok.value)['val']
+    tok.directive_val = Minifier(val, "", tok.lexer.exports) if val else None
     tok.lexer.lineno += tok.value.count('\n')
     return tok
 
@@ -208,7 +209,7 @@ glsl_reserved = {
     "shadow1DProj", "shadow1DProj", "shadow1DProjLod", "shadow2D", "shadow2D", "shadow2DEXT",
     "shadow2DLod", "shadow2DProj", "shadow2DProj", "shadow2DProjEXT", "shadow2DProjLod", "sign",
     "sign", "sign", "sin", "sinh", "smooth", "smoothstep", "smoothstep", "smoothstep", "smoothstep",
-    "sqrt", "sqrt", "std140", "step", "step", "step", "step", "struct", "subpassLoad",
+    "sqrt", "sqrt", "std140", "std430", "step", "step", "step", "step", "struct", "subpassLoad",
     "subpassLoad", "switch", "tan", "tanh", "texelFetch", "texelFetch", "texelFetch", "texelFetch",
     "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch", "texelFetch",
     "texelFetch", "texelFetch", "texelFetch", "texelFetchOffset", "texelFetchOffset",
@@ -285,20 +286,25 @@ glsl_reserved = {
     "usampler2DArray", "usampler3D", "usamplerCube", "usubBorrow", "uvec2", "uvec3", "uvec4",
     "vec2", "vec3", "vec4", "void", "volatile", "while", "yuv_2_rgb", "__pixel_localEXT",
     "__pixel_local_inEXT", "__pixel_local_outEXT", "set", "texture2D", "utexture2D", "sampler",
-    "subpassInput", "usubpassInput", "input_attachment_index",
+    "subpassInput", "usubpassInput", "input_attachment_index", "readonly", "buffer",
+    "unpackUnorm4x8", "defined", "elif", "extension", "enable", "require", "endif", "pragma",
 }
 
 # rgba and stpq get rewritten to xyzw, so we only need to check xyzw here. This way we can keep
 # renaming to names like, e.g., "rg".
 xyzw_pattern = re.compile(r"^[xyzw]{1,4}$")
 
+# HLSL registers base names can't be overwritten by macro arguments if token pasting (e.g. t##IDX).
+hlsl_register_base_names = ['t', 's', 'u', 'b']
+
 # HLSL registers (e.g., t0, u1) can't be overwritten by a #define.
-hlsl_register_pattern = re.compile(r"^[TtSsUuBb]\d+$")
+hlsl_register_pattern = re.compile(r"^[tsub]\d+$")
 
 # can we rename to or from 'name'?
 def is_reserved_keyword(name):
     return name in glsl_reserved\
            or xyzw_pattern.match(name)\
+           or name in hlsl_register_base_names\
            or hlsl_register_pattern.match(name)\
            or name.startswith("$")\
            or name.startswith("gl_")\
@@ -404,6 +410,9 @@ class Minifier:
                     tok.define_arglist.strip_tokens()
                 if tok.define_val != None:
                     tok.define_val.strip_tokens()
+            if tok.type == "DIRECTIVE":
+                if tok.directive_val != None:
+                    tok.directive_val.strip_tokens()
             if (tok.type == "WHITESPACE"
                 and len(self.tokens) > 0
                 and self.tokens[-1].type == "WHITESPACE"):
@@ -469,6 +478,7 @@ class Minifier:
                         rename_exported_defines=rename_exported_defines)
 
             elif tok.type == "IFDEF":
+                out.write('#')
                 out.write(tok.ifdef_tag)
                 out.write(' ')
                 out.write(new_names[tok.ifdef_id]
@@ -478,7 +488,9 @@ class Minifier:
             elif tok.type == "DIRECTIVE":
                 out.write("#")
                 if tok.directive_val != None:
-                    out.write(tok.directive_val)
+                    is_newline = tok.directive_val.emit_tokens_to_rewritten_glsl(\
+                        out,\
+                        rename_exported_defines=rename_exported_defines)
 
             else:
                 out.write(tok.value)

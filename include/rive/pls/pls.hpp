@@ -13,7 +13,6 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
-#include "rive/shapes/paint/stroke_join.hpp"
 
 namespace rive
 {
@@ -108,6 +107,9 @@ struct PlatformFeatures
                                     // and tessellation textures.)
     bool uninvertOnScreenY = false; // Specifies whether the graphics layer appends a negation of Y
                                     // to on-screen vertex shaders that needs to be undone.
+    bool fragCoordBottomUp = false; // Does the built-in pixel coordinate in the fragment shader go
+                                    // bottom-up or top-down?
+    bool supportsBindlessTextures = false;
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient
@@ -216,7 +218,38 @@ struct TessVertexSpan
 static_assert(sizeof(TessVertexSpan) == sizeof(float) * 16);
 
 // Tessellation spans are drawn as two distinct, 1px-tall rectangles: the span and its reflection.
-constexpr uint16_t kTessSpanIndices[12] = {0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7};
+constexpr uint16_t kTessSpanIndices[4 * 3] = {0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7};
+
+// ImageRects are a special type of non-overlapping antialiased draw that we only have to use when
+// we don't have bindless textures in atomic mode. They allow us to bind a texture and draw it in
+// its entirety in a single pass.
+struct ImageRectVertex
+{
+    float x;
+    float y;
+    float aaOffsetX;
+    float aaOffsetY;
+};
+
+constexpr ImageRectVertex kImageRectVertices[12] = {
+    {0, 0, .0, -1},
+    {1, 0, .0, -1},
+    {1, 0, +1, .0},
+    {1, 1, +1, .0},
+    {1, 1, .0, +1},
+    {0, 1, .0, +1},
+    {0, 1, -1, .0},
+    {0, 0, -1, .0},
+    {0, 0, +1, +1},
+    {1, 0, -1, +1},
+    {1, 1, -1, -1},
+    {0, 1, +1, -1},
+};
+
+constexpr uint16_t kImageRectIndices[14 * 3] = {
+    8,  0, 9, 9, 0, 1,  1,  2, 9, 9, 2, 10, 10, 2, 3, 3, 4,  10, 10, 4, 11,
+    11, 4, 5, 5, 6, 11, 11, 6, 8, 8, 6, 7,  7,  0, 8, 9, 10, 8,  10, 8, 11,
+};
 
 enum class PaintType : uint32_t
 {
@@ -288,12 +321,17 @@ public:
 
     ClipRectInverseMatrix() = default;
 
+    const Mat2D& inverseMatrix() const { return m_inverseMatrix; }
+
     void reset(const Mat2D& clipMatrix, const AABB& clipRect);
 
 private:
     constexpr ClipRectInverseMatrix(const Mat2D& inverseMatrix) : m_inverseMatrix(inverseMatrix) {}
     Mat2D m_inverseMatrix;
 };
+
+// Convert a BlendMode to the tightly-packed range used by PLS shaders.
+uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode);
 
 // Each path has a unique data record on the GPU that is accessed from the vertex shader.
 struct PathData
@@ -390,11 +428,11 @@ struct FlushUniforms
 static_assert(sizeof(FlushUniforms) == 8 * sizeof(uint32_t));
 
 // Per-draw uniforms used by image meshes.
-struct ImageMeshUniforms
+struct ImageDrawUniforms
 {
-    ImageMeshUniforms() = default;
+    ImageDrawUniforms() = default;
 
-    ImageMeshUniforms(const Mat2D&,
+    ImageDrawUniforms(const Mat2D&,
                       float opacity,
                       const ClipRectInverseMatrix*,
                       uint32_t clipID,
@@ -408,9 +446,9 @@ struct ImageMeshUniforms
     uint32_t blendMode;
     uint8_t padTo256Bytes[192]; // Uniform blocks must be multiples of 256 bytes in size.
 };
-static_assert(offsetof(ImageMeshUniforms, matrix) % 16 == 0);
-static_assert(offsetof(ImageMeshUniforms, clipRectInverseMatrix) % 16 == 0);
-static_assert(sizeof(ImageMeshUniforms) == 256);
+static_assert(offsetof(ImageDrawUniforms, matrix) % 16 == 0);
+static_assert(offsetof(ImageDrawUniforms, clipRectInverseMatrix) % 16 == 0);
+static_assert(sizeof(ImageDrawUniforms) == 256);
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive to read mapped
 // memory, we use this class to enforce the write-only nature of this memory.
@@ -562,7 +600,9 @@ enum class DrawType : uint8_t
     midpointFanPatches, // Standard paths and/or strokes.
     outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
     interiorTriangulation,
+    imageRect,
     imageMesh,
+    plsAtomicResolve,
 };
 
 constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
@@ -631,7 +671,7 @@ constexpr static size_t kShaderFeatureCount = 6;
 constexpr static ShaderFeatures kVertexShaderFeaturesMask = ShaderFeatures::ENABLE_CLIPPING |
                                                             ShaderFeatures::ENABLE_CLIP_RECT |
                                                             ShaderFeatures::ENABLE_ADVANCED_BLEND;
-constexpr static ShaderFeatures kImageMeshShaderFeaturesMask =
+constexpr static ShaderFeatures kImageDrawShaderFeaturesMask =
     ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
     ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_HSL_BLEND_MODES;
 
@@ -642,13 +682,24 @@ constexpr static ShaderFeatures AllShaderFeaturesForDrawType(DrawType drawType)
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
+        case DrawType::plsAtomicResolve:
             return static_cast<pls::ShaderFeatures>((1 << pls::kShaderFeatureCount) - 1);
+        case DrawType::imageRect:
         case DrawType::imageMesh:
-            return kImageMeshShaderFeaturesMask;
+            return kImageDrawShaderFeaturesMask;
     }
 }
 
-inline static uint32_t ShaderUniqueKey(DrawType drawType, ShaderFeatures shaderFeatures)
+// Synchronization method for pixel local storage with overlapping frragments.
+enum class InterlockMode
+{
+    rasterOrdered,
+    experimentalAtomics,
+};
+
+inline static uint32_t ShaderUniqueKey(DrawType drawType,
+                                       ShaderFeatures shaderFeatures,
+                                       InterlockMode interlockMode)
 {
     uint32_t drawTypeKey;
     switch (drawType)
@@ -660,11 +711,20 @@ inline static uint32_t ShaderUniqueKey(DrawType drawType, ShaderFeatures shaderF
         case DrawType::interiorTriangulation:
             drawTypeKey = 1;
             break;
-        case DrawType::imageMesh:
+        case DrawType::imageRect:
             drawTypeKey = 2;
             break;
+        case DrawType::imageMesh:
+            drawTypeKey = 3;
+            break;
+        case DrawType::plsAtomicResolve:
+            drawTypeKey = 4;
+            break;
     }
-    return (static_cast<uint32_t>(shaderFeatures) << 2) | drawTypeKey;
+    uint32_t key = static_cast<uint32_t>(shaderFeatures);
+    key = (key << 3) | drawTypeKey;
+    key = (key << 1) | static_cast<uint32_t>(interlockMode);
+    return key;
 }
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);

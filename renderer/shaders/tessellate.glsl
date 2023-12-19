@@ -108,9 +108,9 @@ VERTEX_MAIN(@tessellateVertexMain,
         // actually needs). Re-run Wang's formula to figure out how many segments we actually need,
         // and make any excess segments degenerate by co-locating their vertices at T=0.
         uint pathIDBits =
-            TEXEL_FETCH(textures, @contourTexture, contour_texel_coord(contourIDWithFlags)).z;
-        float2x2 mat = make_float2x2(
-            uintBitsToFloat(TEXEL_FETCH(textures, @pathTexture, path_texel_coord(pathIDBits))));
+            TEXEL_DEREF_FETCH(textures, @contourTexture, contour_texel_coord(contourIDWithFlags)).z;
+        float2x2 mat = make_float2x2(uintBitsToFloat(
+            TEXEL_DEREF_FETCH(textures, @pathTexture, path_texel_coord(pathIDBits))));
         float2 d0 = MUL(mat, -2. * p1 + p2 + p0);
 
         float2 d1 = MUL(mat, -2. * p2 + p3 + p1);

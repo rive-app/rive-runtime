@@ -1,14 +1,11 @@
 #include "fiddle_context.hpp"
 
-#include "path_fiddle.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
-#include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 
-#include <cmath>
 #include <fstream>
 #include <iterator>
 #include <vector>
@@ -26,6 +23,7 @@ using namespace rive;
 
 static FiddleContextOptions s_options;
 static GLFWwindow* s_window = nullptr;
+static bool s_atomicMode = false;
 static bool s_wireframe = false;
 static bool s_disableFill = false;
 static bool s_disableStroke = false;
@@ -131,6 +129,9 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         {
             case GLFW_KEY_ESCAPE:
                 glfwSetWindowShouldClose(window, 1);
+                break;
+            case GLFW_KEY_A:
+                s_atomicMode = !s_atomicMode;
                 break;
             case GLFW_KEY_D:
                 printf("static float s_scale = %f;\n", s_scale);
@@ -341,6 +342,10 @@ int main(int argc, const char** argv)
         {
             s_paused = true;
         }
+        else if (!strcmp(argv[i], "--atomic"))
+        {
+            s_atomicMode = true;
+        }
         else
         {
             rivName = argv[i];
@@ -524,6 +529,7 @@ void riveMainLoop()
 
     rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
         .clearColor = 0xff404040,
+        .enableExperimentalAtomicMode = s_atomicMode,
         .wireframe = s_wireframe,
         .fillsDisabled = s_disableFill,
         .strokesDisabled = s_disableStroke,

@@ -8,6 +8,7 @@
 #include "../out/obj/generated/constants.glsl.hpp"
 #include "../out/obj/generated/common.glsl.hpp"
 #include "../out/obj/generated/advanced_blend.glsl.hpp"
+#include "../out/obj/generated/draw_path_common.glsl.hpp"
 #include "../out/obj/generated/draw_path.glsl.hpp"
 #include "../out/obj/generated/draw_image_mesh.glsl.hpp"
 
@@ -99,16 +100,24 @@ void BackgroundShaderCompiler::threadMain()
 
         switch (drawType)
         {
-            case DrawType::interiorTriangulation:
-                defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
-                [[fallthrough]];
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
+                defines[@GLSL_DRAW_PATH] = @"";
+                [source appendFormat:@"%s\n", pls::glsl::draw_path_common];
                 [source appendFormat:@"%s\n", pls::glsl::draw_path];
                 break;
+            case DrawType::interiorTriangulation:
+                defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
+                [source appendFormat:@"%s\n", pls::glsl::draw_path_common];
+                [source appendFormat:@"%s\n", pls::glsl::draw_path];
+                break;
+            case DrawType::imageRect:
+                RIVE_UNREACHABLE();
             case DrawType::imageMesh:
                 [source appendFormat:@"%s\n", pls::glsl::draw_image_mesh];
                 break;
+            case DrawType::plsAtomicResolve:
+                RIVE_UNREACHABLE();
         }
 
         NSError* err = [NSError errorWithDomain:@"pls_compile" code:200 userInfo:nil];

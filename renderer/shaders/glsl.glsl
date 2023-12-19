@@ -51,12 +51,17 @@
 #define make_half3x4 mat3x4
 
 #define INLINE
+#define OUT(ARG_TYPE) out ARG_TYPE
 
 #ifdef GL_ANGLE_base_vertex_base_instance_shader_builtin
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
 #endif
 
-#if __VERSION__ > 300
+#ifdef @ENABLE_BINDLESS_TEXTURES
+#extension GL_ARB_bindless_texture : require
+#endif
+
+#if $__VERSION__ > 300
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
     layout(binding = IDX, std140) uniform NAME                                                     \
     {
@@ -77,13 +82,13 @@
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE)
 
 #ifdef @VERTEX
-#if __VERSION__ > 300
+#if $__VERSION__ > 300
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) out TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) out TYPE NAME
 #endif
 #else
-#if __VERSION__ > 300
+#if $__VERSION__ > 300
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) in TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) in TYPE NAME
@@ -121,40 +126,41 @@
 #define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp utexture2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp texture2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump texture2D NAME
-#elif __VERSION__ > 300
+#define TEX32UIREF highp utexture2D
+#elif $__VERSION__ > 300
 #define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump sampler2D NAME
+#define TEX32UIREF highp usampler2D
 #else
 #define TEXTURE_RGBA32UI(IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
+#define TEX32UIREF highp usampler2D
 #endif
+#define TEXTURE_DEREF(TEXTURE_BLOCK, NAME) NAME
 
 #ifdef @TARGET_VULKAN
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
     layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
     layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
-#define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD)                                   \
-    texture(sampler2D(NAME, SAMPLER_NAME), COORD)
-#define TEXTURE_SAMPLE_LOD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, LOD)                          \
+#define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(sampler2D(NAME, SAMPLER_NAME), COORD)
+#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                                         \
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
-#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
+#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)                                   \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
 #else
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling parameters are API-level
 // state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
-#define TEXTURE_SAMPLE(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
-#define TEXTURE_SAMPLE_LOD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, LOD)                          \
-    textureLod(NAME, COORD, LOD)
-#define TEXTURE_SAMPLE_GRAD(TEXTURE_BLOCK, NAME, SAMPLER_NAME, COORD, DDX, DDY)                    \
-    textureGrad(NAME, COORD, DDX, DDY)
+#define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
+#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD) textureLod(NAME, COORD, LOD)
+#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY) textureGrad(NAME, COORD, DDX, DDY)
 #endif
 
-#define TEXEL_FETCH(TEXTURE_BLOCK, NAME, COORD) texelFetch(NAME, COORD, 0)
+#define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
 
 // Define macros for implementing pixel local storage based on available extensions.
 #ifdef @PLS_IMPL_WEBGL
@@ -166,12 +172,12 @@
 #define PLS_DECLUI(IDX, NAME) layout(binding = IDX, r32ui) uniform highp upixelLocalANGLE NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P) pixelLocalLoadANGLE(P)
-#define PLS_LOADUI(P) pixelLocalLoadANGLE(P).r
-#define PLS_STORE4F(P, V) pixelLocalStoreANGLE(P, V)
-#define PLS_STOREUI(P, V) pixelLocalStoreANGLE(P, uvec4(V))
+#define PLS_LOAD4F(P, _plsCoord) pixelLocalLoadANGLE(P)
+#define PLS_LOADUI(P, _plsCoord) pixelLocalLoadANGLE(P).r
+#define PLS_STORE4F(P, V, _plsCoord) pixelLocalStoreANGLE(P, V)
+#define PLS_STOREUI(P, V, _plsCoord) pixelLocalStoreANGLE(P, uvec4(V))
 
-#define PLS_PRESERVE_VALUE(P)
+#define PLS_PRESERVE_VALUE(P, _plsCoord)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -195,12 +201,12 @@
     }                                                                                              \
     ;
 
-#define PLS_LOAD4F(P) P
-#define PLS_LOADUI(P) P
-#define PLS_STORE4F(P, V) P = (V)
-#define PLS_STOREUI(P, V) P = (V)
+#define PLS_LOAD4F(P, _plsCoord) P
+#define PLS_LOADUI(P, _plsCoord) P
+#define PLS_STORE4F(P, V, _plsCoord) P = (V)
+#define PLS_STOREUI(P, V, _plsCoord) P = (V)
 
-#define PLS_PRESERVE_VALUE(P)
+#define PLS_PRESERVE_VALUE(P, _plsCoord)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -216,14 +222,14 @@
 #define PLS_DECLUI(IDX, NAME) layout(location = IDX) inout highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P) P
-#define PLS_LOADUI(P) P.r
-#define PLS_STORE4F(P, V) P = (V)
-#define PLS_STOREUI(P, V) P.r = (V)
+#define PLS_LOAD4F(P, _plsCoord) P
+#define PLS_LOADUI(P, _plsCoord) P.r
+#define PLS_STORE4F(P, V, _plsCoord) P = (V)
+#define PLS_STOREUI(P, V, _plsCoord) P.r = (V)
 
 // When using multiple color attachments, we have to write a value to every color attachment, every
 // shader invocation, or else the contents become undefined.
-#define PLS_PRESERVE_VALUE(P) P = P
+#define PLS_PRESERVE_VALUE(P, _plsCoord) P = P
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -240,6 +246,9 @@
 #extension GL_INTEL_fragment_shader_ordering : require
 #define PLS_INTERLOCK_BEGIN beginFragmentShaderOrderingINTEL()
 #define PLS_INTERLOCK_END
+#else
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
 #endif
 
 #define PLS_BLOCK_BEGIN
@@ -255,12 +264,15 @@
 #endif
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P) imageLoad(P, plsCoord)
-#define PLS_LOADUI(P) imageLoad(P, plsCoord).r
-#define PLS_STORE4F(P, V) imageStore(P, plsCoord, V)
-#define PLS_STOREUI(P, V) imageStore(P, plsCoord, uvec4(V))
+#define PLS_LOAD4F(P, _plsCoord) imageLoad(P, _plsCoord)
+#define PLS_LOADUI(P, _plsCoord) imageLoad(P, _plsCoord).r
+#define PLS_STORE4F(P, V, _plsCoord) imageStore(P, _plsCoord, V)
+#define PLS_STOREUI(P, V, _plsCoord) imageStore(P, _plsCoord, uvec4(V))
 
-#define PLS_PRESERVE_VALUE(P)
+#define PLS_ATOMIC_MAX(PLANE, X, _plsCoord) imageAtomicMax(PLANE, _plsCoord, X)
+#define PLS_ATOMIC_ADD(PLANE, X, _plsCoord) imageAtomicAdd(PLANE, _plsCoord, X)
+
+#define PLS_PRESERVE_VALUE(P, _plsCoord)
 
 #endif
 
@@ -277,12 +289,12 @@
     layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P) subpassLoad(_in_##P)
-#define PLS_LOADUI(P) subpassLoad(_in_##P).r
-#define PLS_STORE4F(P, V) P = (V)
-#define PLS_STOREUI(P, V) P.r = (V)
+#define PLS_LOAD4F(P, _plsCoord) subpassLoad(_in_##P)
+#define PLS_LOADUI(P, _plsCoord) subpassLoad(_in_##P).r
+#define PLS_STORE4F(P, V, _plsCoord) P = (V)
+#define PLS_STOREUI(P, V, _plsCoord) P.r = (V)
 
-#define PLS_PRESERVE_VALUE(P) P = subpassLoad(_in_##P)
+#define PLS_PRESERVE_VALUE(P, _plsCoord) P = subpassLoad(_in_##P)
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
@@ -295,12 +307,12 @@
 #define PLS_DECLUI(IDX, NAME) layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P) vec4(0)
-#define PLS_LOADUI(P) 0u
-#define PLS_STORE4F(P, V) P = (V)
-#define PLS_STOREUI(P, V) P.r = (V)
+#define PLS_LOAD4F(P, _plsCoord) vec4(0)
+#define PLS_LOADUI(P, _plsCoord) 0u
+#define PLS_STORE4F(P, V, _plsCoord) P = (V)
+#define PLS_STOREUI(P, V, _plsCoord) P.r = (V)
 
-#define PLS_PRESERVE_VALUE(P)
+#define PLS_PRESERVE_VALUE(P, _plsCoord)
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
@@ -367,24 +379,31 @@
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE
 
 #ifdef @PLS_IMPL_RW_TEXTURE
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
     void main()                                                                                    \
     {                                                                                              \
-        highp ivec2 plsCoord = ivec2(floor(gl_FragCoord.xy));
+        float2 _pos = gl_FragCoord.xy;                                                             \
+        int2 _plsCoord = ivec2(floor(_pos));
 #else
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)                       \
+#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
     void main()                                                                                    \
     {
 #endif
 
 // clang-format off
-#define IMAGE_MESH_PLS_MAIN(NAME, MeshUniforms, meshUniforms, Varyings, varyings, FragmentTextures, textures, _pos) \
-    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos)
+#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord) \
+    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)
 // clang-format on
 
 #define EMIT_PLS }
 
 #define MUL(A, B) ((A) * (B))
+
+#define STORAGE_BUFFER(IDX, STRUCT_NAME, TYPE, NAME)                                               \
+    layout(std430, binding = IDX) readonly buffer STRUCT_NAME { TYPE values[]; }                   \
+    NAME
+
+#define STORAGE_BUFFER_AT(NAME, I) NAME.values[I]
 
 precision highp float;
 precision highp int;

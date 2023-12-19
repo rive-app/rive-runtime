@@ -38,6 +38,9 @@ PFNGLGETFRAMEBUFFERPIXELLOCALSTORAGEPARAMETERFVANGLEPROC glad_glGetFramebufferPi
 PFNGLGETFRAMEBUFFERPIXELLOCALSTORAGEPARAMETERIVANGLEPROC glad_glGetFramebufferPixelLocalStorageParameterivANGLE = NULL;
 PFNGLPOLYGONMODEANGLEPROC glad_glPolygonModeANGLE = NULL;
 PFNGLPROVOKINGVERTEXANGLEPROC glad_glProvokingVertexANGLE = NULL;
+PFNGLGETTEXTUREHANDLEARB glad_glGetTextureHandleARB = NULL;
+PFNGLMAKETEXTUREHANDLERESIDENTARB glad_glMakeTextureHandleResidentARB = NULL;
+PFNGLMAKETEXTUREHANDLENONRESIDENTARB glad_glMakeTextureHandleNonResidentARB = NULL;
 /* #ifdef RIVE_DESKTOP_GL */
 /* #endif */
 int GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin = 0;
@@ -45,6 +48,7 @@ int GLAD_GL_ANGLE_shader_pixel_local_storage = 0;
 int GLAD_GL_ANGLE_shader_pixel_local_storage_coherent = 0;
 int GLAD_GL_ANGLE_polygon_mode = 0;
 int GLAD_GL_ANGLE_provoking_vertex = 0;
+int GLAD_GL_ARB_bindless_texture = 0;
 static void load_GL_ANGLE_shader_pixel_local_storage(GLADloadproc load) {
     if(!GLAD_GL_ANGLE_shader_pixel_local_storage) return;
     glad_glFramebufferMemorylessPixelLocalStorageANGLE = (PFNGLFRAMEBUFFERMEMORYLESSPIXELLOCALSTORAGEANGLEPROC)load("glFramebufferMemorylessPixelLocalStorageANGLE");
@@ -65,6 +69,12 @@ static void load_GL_ANGLE_polygon_mode(GLADloadproc load) {
 static void load_GL_ANGLE_provoking_vertex(GLADloadproc load) {
     if(!GLAD_GL_ANGLE_provoking_vertex) return;
     glad_glProvokingVertexANGLE = (PFNGLPROVOKINGVERTEXANGLEPROC)load("glProvokingVertexANGLE");
+}
+static void load_GL_ARB_bindless_texture(GLADloadproc load) {
+    if(!GLAD_GL_ARB_bindless_texture) return;
+    glad_glGetTextureHandleARB = (PFNGLGETTEXTUREHANDLEARB)load("glGetTextureHandleARB");
+    glad_glMakeTextureHandleResidentARB = (PFNGLMAKETEXTUREHANDLERESIDENTARB)load("glMakeTextureHandleResidentARB");
+    glad_glMakeTextureHandleNonResidentARB = (PFNGLMAKETEXTUREHANDLENONRESIDENTARB)load("glMakeTextureHandleNonResidentARB");
 }
 int gladLoadCustomLoader(GLADloadproc load) {
     int ret = gladLoadGLES2Loader(load);
@@ -102,10 +112,15 @@ int gladLoadCustomLoader(GLADloadproc load) {
         {
             GLAD_GL_ANGLE_provoking_vertex = 1;
         }
+        else if (strcmp(ext, "GL_ARB_bindless_texture") == 0)
+        {
+            GLAD_GL_ARB_bindless_texture = 1;
+        }
     }
     load_GL_ANGLE_shader_pixel_local_storage(load);
     load_GL_ANGLE_polygon_mode(load);
     load_GL_ANGLE_provoking_vertex(load);
     load_Desktop_GL(load);
+    load_GL_ARB_bindless_texture(load);
     return ret;
 }

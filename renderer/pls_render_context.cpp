@@ -5,11 +5,10 @@
 #include "rive/pls/pls_render_context.hpp"
 
 #include "gr_inner_fan_triangulator.hpp"
-#include "pls_path.hpp"
 #include "pls_paint.hpp"
-#include "rive/math/math_types.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "rive/pls/pls_render_context_impl.hpp"
+#include "shaders/constants.glsl"
 
 #include <string_view>
 
@@ -101,6 +100,8 @@ void PLSRenderContext::Draw::releaseRefs()
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
+        case DrawType::imageRect:
+        case DrawType::plsAtomicResolve:
             break;
         case DrawType::imageMesh:
             safe_unref(vertexBufferRef);
@@ -314,24 +315,24 @@ void PLSRenderContext::allocateGPUResources(
                         kBufferRingSize);
 
     // Uniform buffer containing data for each image mesh draw.
-    constexpr size_t kMinImageMeshUniforms = 64;     // 4KiB * 3
-    constexpr size_t kMaxImageMeshUniforms = 131072; // 8MiB * 3
-    size_t targetImageMeshUniforms =
-        std::clamp(targets.maxImageMeshUniforms, kMinImageMeshUniforms, kMaxImageMeshUniforms);
-    if (shouldReallocate(targetImageMeshUniforms, m_currentResourceLimits.maxImageMeshUniforms))
+    constexpr size_t kMinImageDrawUniforms = 64;     // 4KiB * 3
+    constexpr size_t kMaxImageDrawUniforms = 131072; // 8MiB * 3
+    size_t targetImageDrawUniforms =
+        std::clamp(targets.maxImageDrawUniforms, kMinImageDrawUniforms, kMaxImageDrawUniforms);
+    if (shouldReallocate(targetImageDrawUniforms, m_currentResourceLimits.maxImageDrawUniforms))
     {
-        assert(!m_imageMeshUniformData);
-        m_impl->resizeImageMeshUniformBuffer(targetImageMeshUniforms *
-                                             sizeof(pls::ImageMeshUniforms));
-        LOG_CHANGED_SIZE("maxImageMeshUniforms",
-                         m_currentResourceLimits.maxImageMeshUniforms,
-                         targetImageMeshUniforms,
-                         targetImageMeshUniforms * sizeof(pls::ImageMeshUniforms) *
+        assert(!m_imageDrawUniformData);
+        m_impl->resizeImageDrawUniformBuffer(targetImageDrawUniforms *
+                                             sizeof(pls::ImageDrawUniforms));
+        LOG_CHANGED_SIZE("maxImageDrawUniforms",
+                         m_currentResourceLimits.maxImageDrawUniforms,
+                         targetImageDrawUniforms,
+                         targetImageDrawUniforms * sizeof(pls::ImageDrawUniforms) *
                              pls::kBufferRingSize);
-        m_currentResourceLimits.maxImageMeshUniforms = targetImageMeshUniforms;
+        m_currentResourceLimits.maxImageDrawUniforms = targetImageDrawUniforms;
     }
-    COUNT_RESOURCE_SIZE(m_currentResourceLimits.maxImageMeshUniforms *
-                        sizeof(pls::ImageMeshUniforms) * pls::kBufferRingSize);
+    COUNT_RESOURCE_SIZE(m_currentResourceLimits.maxImageDrawUniforms *
+                        sizeof(pls::ImageDrawUniforms) * pls::kBufferRingSize);
 
     // Instance buffer ring for literal triangles fed directly by the CPU.
     constexpr size_t kMinTriangleVertexCount = 3072 * 3; // 324 KiB
@@ -395,6 +396,10 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
     m_frameDescriptor = std::move(frameDescriptor);
     m_isFirstFlushOfFrame = true;
     m_impl->prepareToMapBuffers();
+    if (m_frameDescriptor.enableExperimentalAtomicMode && m_atomicModeData == nullptr)
+    {
+        m_atomicModeData = std::make_unique<ExperimentalAtomicModeData>();
+    }
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
 }
 
@@ -690,6 +695,150 @@ void PLSRenderContext::pushPath(PatchType patchType,
                         m_tessVertexCount + tessVertexCountWithoutPadding);
     assert(m_expectedTessVertexCountAtEndOfPath <= m_expectedTessVertexCountAtNextReserve);
     assert(m_expectedTessVertexCountAtEndOfPath <= kMaxTessellationVertexCount);
+
+    if (m_frameDescriptor.enableExperimentalAtomicMode)
+    {
+        // Atomic mode fetches the paint and clip info from storage buffers in the fragment shader.
+        m_atomicModeData->setDataForPath(m_currentPathID,
+                                         matrix,
+                                         fillRule,
+                                         paintType,
+                                         paintData,
+                                         imageTexture,
+                                         clipID,
+                                         clipRectInverseMatrix,
+                                         blendMode,
+                                         m_frameDescriptor.renderTarget.get(),
+                                         m_currentResourceLimits.gradientTextureHeight,
+                                         m_impl->platformFeatures());
+    }
+}
+
+static uint32_t pack_glsl_unorm4x8(uint4 rgbaInteger)
+{
+    rgbaInteger <<= uint4{0, 8, 16, 24};
+    rgbaInteger.xy |= rgbaInteger.zw;
+    rgbaInteger.x |= rgbaInteger.y;
+    return rgbaInteger.x;
+}
+
+static uint32_t pack_glsl_unorm4x8(float4 rgba)
+{
+    uint4 rgbaInteger = simd::cast<uint32_t>(simd::clamp(rgba, float4(0), float4(1)) * 255.f);
+    return pack_glsl_unorm4x8(rgbaInteger);
+}
+
+static uint32_t pack_glsl_unorm4x8(ColorInt riveColor)
+{
+    // Swizzle the riveColor to the order GLSL expects in unpackUnorm4x8().
+    uint4 rgbaInteger = (uint4(riveColor) >> uint4{16, 8, 0, 24}) & 0xffu;
+    return pack_glsl_unorm4x8(rgbaInteger);
+}
+
+void PLSRenderContext::ExperimentalAtomicModeData::setDataForPath(
+    uint32_t pathID,
+    const Mat2D& matrix,
+    FillRule fillRule,
+    pls::PaintType paintType,
+    const pls::PaintData& paintData,
+    const PLSTexture* imageTexture,
+    uint32_t clipID,
+    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
+    BlendMode blendMode,
+    const PLSRenderTarget* renderTarget,
+    float gradientTextureHeight,
+    const PlatformFeatures& platformFeatures)
+{
+    uint32_t shiftedClipID = clipID << 16;
+    uint32_t shiftedBlendMode = pls::ConvertBlendModeToPLSBlendMode(blendMode) << 4;
+    m_imageTextures[pathID] = nullptr;
+    switch (paintType)
+    {
+        case PaintType::solidColor:
+        {
+            m_paints[pathID].params = shiftedClipID | shiftedBlendMode | SOLID_COLOR_PAINT_TYPE;
+            m_paints[pathID].color = pack_glsl_unorm4x8(simd::load4f(&paintData.data));
+            break;
+        }
+        case PaintType::linearGradient:
+        case PaintType::radialGradient:
+        case PaintType::image:
+        {
+            Mat2D paintMatrix;
+            matrix.invert(&paintMatrix);
+            if (platformFeatures.fragCoordBottomUp)
+            {
+                // Flip gl_FragCoord.y.
+                paintMatrix = paintMatrix * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+            }
+            if (paintType == PaintType::image)
+            {
+                m_paints[pathID].params = shiftedClipID | shiftedBlendMode | IMAGE_PAINT_TYPE;
+                m_paints[pathID].opacity = paintData.opacityIfImage();
+                m_imageTextures[pathID] = imageTexture;
+            }
+            else
+            {
+                float gradCoeffs[3];
+                memcpy(gradCoeffs, paintData.data + 1, 3 * sizeof(float));
+                if (paintType == PaintType::linearGradient)
+                {
+                    m_paints[pathID].params =
+                        shiftedClipID | shiftedBlendMode | LINEAR_GRADIENT_PAINT_TYPE;
+                    paintMatrix =
+                        Mat2D(gradCoeffs[0], 0, gradCoeffs[1], 0, gradCoeffs[2], 0) * paintMatrix;
+                }
+                else
+                {
+                    m_paints[pathID].params =
+                        shiftedClipID | shiftedBlendMode | RADIAL_GRADIENT_PAINT_TYPE;
+                    float w = 1 / gradCoeffs[2];
+                    paintMatrix =
+                        Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) * paintMatrix;
+                }
+                uint32_t span = paintData.data[0];
+                uint32_t row = span >> 20;
+                uint32_t x0 = span & 0x3ff;
+                uint32_t x1 = (span >> 10) & 0x3ff;
+                m_paints[pathID].gradTextureY = static_cast<float>(row) + .5f;
+                // Generate a mapping from gradient T to an x-coord in the gradient texture.
+                m_paintTranslates[pathID].gradTextureHorizontalSpan = {
+                    (x1 - x0) * GRAD_TEXTURE_INVERSE_WIDTH,
+                    (x0 + .5f) * GRAD_TEXTURE_INVERSE_WIDTH};
+            }
+            m_paintMatrices[pathID] = {paintMatrix.xx(),
+                                       paintMatrix.xy(),
+                                       paintMatrix.yx(),
+                                       paintMatrix.yy()};
+            m_paintTranslates[pathID].translate = {paintMatrix.tx(), paintMatrix.ty()};
+            break;
+        }
+        case PaintType::clipUpdate:
+        {
+            uint32_t outerClipID = paintData.outerClipIDIfClipUpdate();
+            m_paints[pathID].params = (outerClipID << 16) | CLIP_UPDATE_PAINT_TYPE;
+            m_paints[pathID].shiftedClipReplacementID = shiftedClipID;
+            break;
+        }
+    }
+    if (fillRule == FillRule::evenOdd)
+    {
+        m_paints[pathID].params |= ATOMIC_MODE_FLAG_EVEN_ODD;
+    }
+    if (clipRectInverseMatrix != nullptr)
+    {
+        m_paints[pathID].params |= ATOMIC_MODE_FLAG_HAS_CLIP_RECT;
+        Mat2D m = clipRectInverseMatrix->inverseMatrix();
+        if (platformFeatures.fragCoordBottomUp)
+        {
+            // Flip gl_FragCoord.y.
+            m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+        }
+        m_clipRectMatrices[pathID] = {m.xx(), m.xy(), m.yx(), m.yy()};
+        m_clipRectTranslates[pathID].translate = {m.tx(), m.ty()};
+        m_clipRectTranslates[pathID].inverseFwidth = {-1.f / (fabsf(m.xx()) + fabsf(m.xy())),
+                                                      -1.f / (fabsf(m.yx()) + fabsf(m.yy()))};
+    }
 }
 
 void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount)
@@ -888,14 +1037,51 @@ void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangu
     m_drawList.tail().triangulator = triangulator;
 }
 
-bool PLSRenderContext::reserveImageMeshData()
+bool PLSRenderContext::reserveImageDrawUniforms()
 {
-    if (!m_imageMeshUniformData)
+    if (!m_imageDrawUniformData)
     {
-        m_impl->mapImageMeshUniformBuffer(&m_imageMeshUniformData);
-        assert(m_imageMeshUniformData.hasRoomFor(1));
+        m_impl->mapImageDrawUniformBuffer(&m_imageDrawUniformData);
+        assert(m_imageDrawUniformData.hasRoomFor(1));
     }
-    return m_imageMeshUniformData.hasRoomFor(1);
+    return m_imageDrawUniformData.hasRoomFor(1);
+}
+
+void PLSRenderContext::pushImageRect(const Mat2D& matrix,
+                                     float opacity,
+                                     const PLSTexture* imageTexture,
+                                     uint32_t clipID,
+                                     const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
+                                     BlendMode blendMode)
+{
+    if (m_impl->platformFeatures().supportsBindlessTextures)
+    {
+        fprintf(stderr,
+                "PLSRenderContext::pushImageRect is only supported when the platform does not "
+                "support bindless textures.\n");
+        return;
+    }
+    if (!frameDescriptor().enableExperimentalAtomicMode)
+    {
+        fprintf(stderr, "PLSRenderContext::pushImageRect is only supported in atomic mode.\n");
+        return;
+    }
+
+    size_t imageDrawDataOffset = m_imageDrawUniformData.bytesWritten();
+    m_imageDrawUniformData.emplace_back(matrix, opacity, clipRectInverseMatrix, clipID, blendMode);
+
+    pushDraw(DrawType::imageRect,
+             0,
+             PaintType::image,
+             imageTexture,
+             clipID,
+             clipRectInverseMatrix != nullptr,
+             blendMode);
+
+    Draw& draw = m_drawList.tail();
+    draw.elementCount = 1;
+    draw.imageDrawDataOffset = imageDrawDataOffset;
+    assert((draw.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == draw.shaderFeatures);
 }
 
 void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
@@ -909,8 +1095,8 @@ void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
                                      const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
                                      BlendMode blendMode)
 {
-    size_t imageMeshDataOffset = m_imageMeshUniformData.bytesWritten();
-    m_imageMeshUniformData.emplace_back(matrix, opacity, clipRectInverseMatrix, clipID, blendMode);
+    size_t imageDrawDataOffset = m_imageDrawUniformData.bytesWritten();
+    m_imageDrawUniformData.emplace_back(matrix, opacity, clipRectInverseMatrix, clipID, blendMode);
 
     pushDraw(DrawType::imageMesh,
              0,
@@ -925,8 +1111,8 @@ void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
     draw.vertexBufferRef = safe_ref(vertexBuffer);
     draw.uvBufferRef = safe_ref(uvBuffer);
     draw.indexBufferRef = safe_ref(indexBuffer);
-    draw.imageMeshDataOffset = imageMeshDataOffset;
-    assert((draw.shaderFeatures & pls::kImageMeshShaderFeaturesMask) == draw.shaderFeatures);
+    draw.imageDrawDataOffset = imageDrawDataOffset;
+    assert((draw.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == draw.shaderFeatures);
 }
 
 void PLSRenderContext::pushPathDraw(DrawType drawType,
@@ -979,12 +1165,15 @@ void PLSRenderContext::pushDraw(DrawType drawType,
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
             needsNewDraw =
-                m_drawList.empty() || m_drawList.tail().drawType != drawType ||
+                m_frameDescriptor.enableExperimentalAtomicMode || m_drawList.empty() ||
+                m_drawList.tail().drawType != drawType ||
                 !can_combine_draw_images(m_drawList.tail().imageTextureRef, imageTexture);
             break;
         case DrawType::interiorTriangulation:
+        case DrawType::imageRect:
         case DrawType::imageMesh:
-            // We can't combine interior triangulations or image meshes yet.
+        case DrawType::plsAtomicResolve:
+            // We can't combine interior triangulations or image draws yet.
             needsNewDraw = true;
     }
     if (needsNewDraw)
@@ -1110,13 +1299,16 @@ void PLSRenderContext::flush(FlushType flushType)
     bool needsClipBuffer = false;
     RIVE_DEBUG_CODE(size_t drawIdx = 0;)
     size_t writtenTriangleVertexCount = 0;
+    auto combinedShaderFeatures = pls::ShaderFeatures::NONE;
     for (Draw& draw : m_drawList)
     {
         switch (draw.drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
+            case DrawType::imageRect:
             case DrawType::imageMesh:
+            case DrawType::plsAtomicResolve:
                 break;
             case DrawType::interiorTriangulation:
             {
@@ -1137,15 +1329,25 @@ void PLSRenderContext::flush(FlushType flushType)
         needsClipBuffer =
             needsClipBuffer || (draw.shaderFeatures & ShaderFeatures::ENABLE_CLIPPING);
         RIVE_DEBUG_CODE(++drawIdx;)
+        combinedShaderFeatures |= draw.shaderFeatures;
+    }
+    if (m_frameDescriptor.enableExperimentalAtomicMode)
+    {
+        // Atomic mode needs one more draw to resolve all the pixels.
+        Draw& draw = m_drawList.emplace_back(this, DrawType::plsAtomicResolve, 0);
+        draw.elementCount = 1;
+        draw.shaderFeatures = combinedShaderFeatures;
+        RIVE_DEBUG_CODE(++drawIdx;)
     }
     assert(drawIdx == m_drawList.count());
 
     // Determine how much to draw.
+    size_t pathCount = m_pathData.bytesWritten() / sizeof(pls::PathData);
     size_t simpleColorRampCount = m_simpleColorRampsData.bytesWritten() / sizeof(TwoTexelRamp);
     size_t gradSpanCount = m_gradSpanData.bytesWritten() / sizeof(GradientSpan);
     size_t tessVertexSpanCount = m_tessSpanData.bytesWritten() / sizeof(TessVertexSpan);
-    size_t imageMeshUniformCount =
-        m_imageMeshUniformData.bytesWritten() / sizeof(pls::ImageMeshUniforms);
+    size_t imageDrawUniformCount =
+        m_imageDrawUniformData.bytesWritten() / sizeof(pls::ImageDrawUniforms);
     size_t tessDataHeight = resource_texture_height<kTessTextureWidth>(m_tessVertexCount);
 
     // Unmap all non-empty buffers before flushing.
@@ -1180,10 +1382,10 @@ void PLSRenderContext::flush(FlushType flushType)
         m_impl->unmapTessVertexSpanBuffer(m_tessSpanData.bytesWritten());
         m_tessSpanData.reset();
     }
-    if (m_imageMeshUniformData)
+    if (m_imageDrawUniformData)
     {
-        m_impl->unmapImageMeshUniformBuffer(m_imageMeshUniformData.bytesWritten());
-        m_imageMeshUniformData.reset();
+        m_impl->unmapImageDrawUniformBuffer(m_imageDrawUniformData.bytesWritten());
+        m_imageDrawUniformData.reset();
     }
     if (triangleVertexData)
     {
@@ -1203,26 +1405,51 @@ void PLSRenderContext::flush(FlushType flushType)
         m_impl->mapFlushUniformBuffer(&flushUniformData);
         flushUniformData.emplace_back(uniformData);
         m_impl->unmapFlushUniformBuffer();
+        m_cachedUniformData = uniformData;
     }
 
     FlushDescriptor flushDesc;
-    flushDesc.renderTarget = frameDescriptor().renderTarget.get();
+    flushDesc.backendSpecificData = m_frameDescriptor.backendSpecificData;
+    flushDesc.renderTarget = m_frameDescriptor.renderTarget.get();
     flushDesc.loadAction =
-        m_isFirstFlushOfFrame ? frameDescriptor().loadAction : LoadAction::preserveRenderTarget;
-    flushDesc.clearColor = frameDescriptor().clearColor;
+        m_isFirstFlushOfFrame ? m_frameDescriptor.loadAction : LoadAction::preserveRenderTarget;
+    flushDesc.clearColor = m_frameDescriptor.clearColor;
+    flushDesc.combinedShaderFeatures = combinedShaderFeatures;
     flushDesc.complexGradSpanCount = gradSpanCount;
     flushDesc.tessVertexSpanCount = tessVertexSpanCount;
-    flushDesc.simpleGradTexelsWidth = std::min(simpleColorRampCount * 2, kGradTextureWidth);
-    flushDesc.simpleGradTexelsHeight =
-        resource_texture_height<kGradTextureWidthInSimpleRamps>(simpleColorRampCount);
-    flushDesc.complexGradRowsTop = m_reservedSimpleGradientRowCount;
-    flushDesc.complexGradRowsHeight = m_complexGradients.size();
-    flushDesc.tessDataHeight = tessDataHeight;
+    flushDesc.simpleGradTexelsWidth =
+        static_cast<uint16_t>(std::min(simpleColorRampCount * 2, kGradTextureWidth));
+    flushDesc.simpleGradTexelsHeight = static_cast<uint16_t>(
+        resource_texture_height<kGradTextureWidthInSimpleRamps>(simpleColorRampCount));
+    flushDesc.complexGradRowsTop = static_cast<uint32_t>(m_reservedSimpleGradientRowCount);
+    flushDesc.complexGradRowsHeight = static_cast<uint32_t>(m_complexGradients.size());
+    flushDesc.tessDataHeight = static_cast<uint32_t>(tessDataHeight);
     flushDesc.needsClipBuffer = needsClipBuffer;
     flushDesc.hasTriangleVertices = m_maxTriangleVertexCount > 0;
-    flushDesc.wireframe = frameDescriptor().wireframe;
+    flushDesc.wireframe = m_frameDescriptor.wireframe;
     flushDesc.drawList = &m_drawList;
-    flushDesc.backendSpecificData = frameDescriptor().backendSpecificData;
+    flushDesc.pathCount = pathCount;
+    if (m_frameDescriptor.enableExperimentalAtomicMode)
+    {
+        // Configure pathID 0 to resolve to the clear color, so we can avoid clearing the
+        // framebuffer in certain cases.
+        m_atomicModeData->m_paints[0].params = SOLID_COLOR_PAINT_TYPE;
+        m_atomicModeData->m_paints[0].color = pack_glsl_unorm4x8(flushDesc.clearColor);
+        m_atomicModeData->m_imageTextures[0] = nullptr;
+
+        // Normalize the gradient Y coordinates now that we know how tall the texture is.
+        for (uint32_t i = 1; i <= pathCount; ++i)
+        {
+            uint32_t paintType = m_atomicModeData->m_paints[i].params & 0xfu;
+            if (paintType == LINEAR_GRADIENT_PAINT_TYPE || paintType == RADIAL_GRADIENT_PAINT_TYPE)
+            {
+                m_atomicModeData->m_paints[i].gradTextureY *= uniformData.gradTextureInverseHeight;
+            }
+        }
+
+        flushDesc.interlockMode = pls::InterlockMode::experimentalAtomics;
+        flushDesc.experimentalAtomicModeData = m_atomicModeData.get();
+    }
     m_impl->flush(flushDesc);
 
     m_currentFrameResourceUsage.maxPathID += m_currentPathID;
@@ -1230,7 +1457,7 @@ void PLSRenderContext::flush(FlushType flushType)
     m_currentFrameResourceUsage.maxSimpleGradients += m_simpleGradients.size();
     m_currentFrameResourceUsage.maxComplexGradientSpans += gradSpanCount;
     m_currentFrameResourceUsage.maxTessellationSpans += tessVertexSpanCount;
-    m_currentFrameResourceUsage.maxImageMeshUniforms += imageMeshUniformCount;
+    m_currentFrameResourceUsage.maxImageDrawUniforms += imageDrawUniformCount;
     m_currentFrameResourceUsage.triangleVertexBufferCount += m_maxTriangleVertexCount;
     m_currentFrameResourceUsage.gradientTextureHeight +=
         resource_texture_height<kGradTextureWidthInSimpleRamps>(m_simpleGradients.size()) +

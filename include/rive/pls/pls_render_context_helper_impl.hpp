@@ -21,7 +21,7 @@ public:
     void resizeGradSpanBuffer(size_t sizeInBytes) override;
     void resizeTessVertexSpanBuffer(size_t sizeInBytes) override;
     void resizeTriangleVertexBuffer(size_t sizeInBytes) override;
-    void resizeImageMeshUniformBuffer(size_t sizeInBytes) override;
+    void resizeImageDrawUniformBuffer(size_t sizeInBytes) override;
 
     void mapPathTexture(WriteOnlyMappedMemory<pls::PathData>*) override;
     void mapContourTexture(WriteOnlyMappedMemory<pls::ContourData>*) override;
@@ -29,7 +29,7 @@ public:
     void mapGradSpanBuffer(WriteOnlyMappedMemory<pls::GradientSpan>*) override;
     void mapTessVertexSpanBuffer(WriteOnlyMappedMemory<pls::TessVertexSpan>*) override;
     void mapTriangleVertexBuffer(WriteOnlyMappedMemory<pls::TriangleVertex>*) override;
-    void mapImageMeshUniformBuffer(WriteOnlyMappedMemory<pls::ImageMeshUniforms>*) override;
+    void mapImageDrawUniformBuffer(WriteOnlyMappedMemory<pls::ImageDrawUniforms>*) override;
     void mapFlushUniformBuffer(WriteOnlyMappedMemory<pls::FlushUniforms>*) override;
 
     void unmapPathTexture(size_t widthWritten, size_t heightWritten) override;
@@ -38,7 +38,7 @@ public:
     void unmapGradSpanBuffer(size_t bytesWritten) override;
     void unmapTessVertexSpanBuffer(size_t bytesWritten) override;
     void unmapTriangleVertexBuffer(size_t bytesWritten) override;
-    void unmapImageMeshUniformBuffer(size_t bytesWritten) override;
+    void unmapImageDrawUniformBuffer(size_t bytesWritten) override;
     void unmapFlushUniformBuffer() override;
 
 protected:
@@ -48,7 +48,7 @@ protected:
     const BufferRing* gradSpanBufferRing() const { return m_gradSpanBuffer.get(); }
     const BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
     const BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
-    const BufferRing* imageMeshUniformBufferRing() const { return m_imageMeshUniformBuffer.get(); }
+    const BufferRing* imageDrawUniformBufferRing() const { return m_imageDrawUniformBuffer.get(); }
     const BufferRing* flushUniformBufferRing() const { return m_flushUniformBuffer.get(); }
 
     virtual rcp<PLSTexture> makeImageTexture(uint32_t width,
@@ -79,7 +79,7 @@ private:
     std::unique_ptr<BufferRing> m_gradSpanBuffer;
     std::unique_ptr<BufferRing> m_tessSpanBuffer;
     std::unique_ptr<BufferRing> m_triangleBuffer;
-    std::unique_ptr<BufferRing> m_imageMeshUniformBuffer;
+    std::unique_ptr<BufferRing> m_imageDrawUniformBuffer;
     std::unique_ptr<BufferRing> m_flushUniformBuffer;
 };
 } // namespace rive::pls

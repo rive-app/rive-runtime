@@ -2,10 +2,11 @@
  * Copyright 2022 Rive
  */
 
-#define TESS_TEXTURE_WIDTH 2048.
+#define TESS_TEXTURE_WIDTH float(2048)
 #define TESS_TEXTURE_WIDTH_LOG2 11
 
-#define GRAD_TEXTURE_WIDTH 512.
+#define GRAD_TEXTURE_WIDTH float(512)
+#define GRAD_TEXTURE_INVERSE_WIDTH float(0.001953125)
 
 // Tells shaders that a cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
 // This is used to squeeze in more rare triangles, like "grout" triangles from self intersections on
@@ -70,7 +71,7 @@
 #define IMAGE_TEXTURE_IDX 4
 #define FLUSH_UNIFORM_BUFFER_IDX 5
 #define DRAW_UNIFORM_BUFFER_IDX 6
-#define IMAGE_MESH_UNIFORM_BUFFER_IDX 7
+#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 7
 
 // Samplers are accessed at the same index as their corresponding texture, so we put them in a
 // separate binding set.
@@ -105,3 +106,22 @@
 #define BLEND_MODE_SATURATION 13u
 #define BLEND_MODE_COLOR 14u
 #define BLEND_MODE_LUMINOSITY 15u
+
+// Fixed-point coverage values for the experimental atomic mode.
+// Atomic mode uses 7:9 fixed point, so the winding number breaks if a shape has more than 64
+// levels of self overlap in either winding direction at any point.
+#define FIXED_COVERAGE_FACTOR float(512)
+#define FIXED_COVERAGE_INVERSE_FACTOR float(0.001953125)
+#define FIXED_COVERAGE_ZERO float(1 << 15)
+#define FIXED_COVERAGE_ONE (FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_ZERO)
+
+// Binding points for the experimental atomic mode storage buffers.
+#define PAINT_STORAGE_BUFFER_IDX 8
+#define PAINT_MATRIX_STORAGE_BUFFER_IDX 9
+#define PAINT_TRANSLATE_STORAGE_BUFFER_IDX 10
+#define CLIPRECT_MATRIX_STORAGE_BUFFER_IDX 11
+#define CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX 12
+
+// Flags for the experimental atomic mode.
+#define ATOMIC_MODE_FLAG_EVEN_ODD 0x100u
+#define ATOMIC_MODE_FLAG_HAS_CLIP_RECT 0x200u

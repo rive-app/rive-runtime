@@ -6,20 +6,30 @@
 
 #include "buffer_ring_gl.hpp"
 #include "gl_utils.hpp"
-#include "pls_path.hpp"
-#include "pls_paint.hpp"
 #include "rive/pls/gl/pls_render_buffer_gl_impl.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
-#include <sstream>
 
 #include "../out/obj/generated/advanced_blend.glsl.hpp"
 #include "../out/obj/generated/color_ramp.glsl.hpp"
 #include "../out/obj/generated/constants.glsl.hpp"
 #include "../out/obj/generated/common.glsl.hpp"
+#include "../out/obj/generated/draw_path_common.glsl.hpp"
 #include "../out/obj/generated/draw_path.glsl.hpp"
 #include "../out/obj/generated/draw_image_mesh.glsl.hpp"
 #include "../out/obj/generated/tessellate.glsl.hpp"
+
+#ifdef RIVE_GLES
+// In an effort to save space on Android, and since GLES doesn't have storage buffers, don't include
+// the atomic sources.
+namespace rive::pls::glsl
+{
+const char atomic_draw[] = "";
+}
+#else
+#include "../out/obj/generated/atomic_draw.glsl.hpp"
+#define ENABLE_PLS_EXPERIMENTAL_ATOMICS
+#endif
 
 // Offset all PLS texture indices by 1 so we, and others who share our GL context, can use
 // GL_TEXTURE0 as a scratch texture index.
@@ -27,6 +37,8 @@ constexpr static int kPLSTexIdxOffset = 1;
 
 namespace rive::pls
 {
+using ExperimentalAtomicModeData = PLSRenderContext::ExperimentalAtomicModeData;
+
 PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                                GLExtensions extensions,
                                                std::unique_ptr<PLSImpl> plsImpl) :
@@ -41,6 +53,11 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         // emit the same value, and we also see a small (5-10%) improvement from not using flat
         // varyings.
         m_platformFeatures.avoidFlatVaryings = true;
+    }
+    m_platformFeatures.fragCoordBottomUp = true;
+    if (m_extensions.ARB_bindless_texture)
+    {
+        m_platformFeatures.supportsBindlessTextures = true;
     }
 
     m_shaderVersionString[kShaderVersionStringBuffSize - 1] = '\0';
@@ -189,7 +206,18 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 
     m_state->deleteVAO(m_interiorTrianglesVAO);
 
+    m_state->deleteVAO(m_imageRectVAO);
+    m_state->deleteBuffer(m_imageRectVertexBuffer);
+    m_state->deleteBuffer(m_imageRectIndexBuffer);
+
     m_state->deleteVAO(m_imageMeshVAO);
+    m_state->deleteVAO(m_plsResolveVAO);
+
+    m_state->deleteBuffer(m_paintBuffer);
+    m_state->deleteBuffer(m_paintMatrixBuffer);
+    m_state->deleteBuffer(m_paintTranslateBuffer);
+    m_state->deleteBuffer(m_clipRectMatrixBuffer);
+    m_state->deleteBuffer(m_clipRectTranslateBuffer);
 }
 
 void PLSRenderContextGLImpl::resetGLState()
@@ -240,13 +268,36 @@ public:
         glGenerateMipmap(GL_TEXTURE_2D);
     }
 
-    ~PLSTextureGLImpl() override { glDeleteTextures(1, &m_id); }
+    ~PLSTextureGLImpl() override
+    {
+#ifdef RIVE_DESKTOP_GL
+        if (m_bindlessHandle != 0)
+        {
+            glMakeTextureHandleNonResidentARB(m_bindlessHandle);
+            m_bindlessHandle = 0;
+        }
+#endif
+        assert(m_bindlessHandle == 0);
+    }
 
     GLuint id() const { return m_id; }
+
+    GLuint64 bindlessHandle(const GLExtensions& extensions) const
+    {
+#ifdef RIVE_DESKTOP_GL
+        if (extensions.ARB_bindless_texture && m_bindlessHandle == 0)
+        {
+            m_bindlessHandle = glGetTextureHandleARB(m_id);
+            glMakeTextureHandleResidentARB(m_bindlessHandle);
+        }
+#endif
+        return m_bindlessHandle;
+    }
 
 private:
     const rcp<GLState> m_state;
     GLuint m_id = 0;
+    mutable GLuint64 m_bindlessHandle = 0;
 };
 
 rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
@@ -348,8 +399,17 @@ public:
     DrawShader(PLSRenderContextGLImpl* plsContextImpl,
                GLenum shaderType,
                DrawType drawType,
-               ShaderFeatures shaderFeatures)
+               ShaderFeatures shaderFeatures,
+               pls::InterlockMode interlockMode)
     {
+#ifndef ENABLE_PLS_EXPERIMENTAL_ATOMICS
+        if (interlockMode == pls::InterlockMode::experimentalAtomics)
+        {
+            // Don't draw anything in atomic mode if support for it isn't compiled in.
+            return;
+        }
+#endif
+
         std::vector<const char*> defines;
         defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
         for (size_t i = 0; i < kShaderFeatureCount; ++i)
@@ -391,15 +451,41 @@ public:
                         defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
                     }
                 }
-                sources.push_back(pls::glsl::draw_path);
+                defines.push_back(GLSL_DRAW_PATH);
+                sources.push_back(pls::glsl::draw_path_common);
+                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdered
+                                      ? pls::glsl::draw_path
+                                      : pls::glsl::atomic_draw);
                 break;
             case DrawType::interiorTriangulation:
                 defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
-                sources.push_back(pls::glsl::draw_path);
+                sources.push_back(pls::glsl::draw_path_common);
+                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdered
+                                      ? pls::glsl::draw_path
+                                      : pls::glsl::atomic_draw);
+                break;
+            case DrawType::imageRect:
+                assert(interlockMode == pls::InterlockMode::experimentalAtomics);
+                defines.push_back(GLSL_DRAW_IMAGE);
+                defines.push_back(GLSL_DRAW_IMAGE_RECT);
+                sources.push_back(pls::glsl::atomic_draw);
                 break;
             case DrawType::imageMesh:
-                sources.push_back(pls::glsl::draw_image_mesh);
+                defines.push_back(GLSL_DRAW_IMAGE);
+                defines.push_back(GLSL_DRAW_IMAGE_MESH);
+                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdered
+                                      ? pls::glsl::draw_image_mesh
+                                      : pls::glsl::atomic_draw);
                 break;
+            case DrawType::plsAtomicResolve:
+                assert(interlockMode == pls::InterlockMode::experimentalAtomics);
+                defines.push_back(GLSL_RESOLVE_PLS);
+                sources.push_back(pls::glsl::atomic_draw);
+                break;
+        }
+        if (plsContextImpl->m_extensions.ARB_bindless_texture)
+        {
+            defines.push_back(GLSL_ENABLE_BINDLESS_TEXTURES);
         }
 
         m_id = glutils::CompileShader(shaderType,
@@ -415,12 +501,13 @@ public:
     GLuint id() const { return m_id; }
 
 private:
-    GLuint m_id;
+    GLuint m_id = 0;
 };
 
 PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
                                                  DrawType drawType,
-                                                 ShaderFeatures shaderFeatures) :
+                                                 ShaderFeatures shaderFeatures,
+                                                 pls::InterlockMode interlockMode) :
     m_state(plsContextImpl->m_state)
 {
     m_id = glCreateProgram();
@@ -428,18 +515,23 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
     ShaderFeatures vertexShaderFeatures = shaderFeatures & kVertexShaderFeaturesMask;
-    uint32_t vertexShaderKey = ShaderUniqueKey(drawType, vertexShaderFeatures);
+    uint32_t vertexShaderKey = pls::ShaderUniqueKey(drawType, vertexShaderFeatures, interlockMode);
     const DrawShader& vertexShader = plsContextImpl->m_vertexShaders
                                          .try_emplace(vertexShaderKey,
                                                       plsContextImpl,
                                                       GL_VERTEX_SHADER,
                                                       drawType,
-                                                      vertexShaderFeatures)
+                                                      vertexShaderFeatures,
+                                                      interlockMode)
                                          .first->second;
     glAttachShader(m_id, vertexShader.id());
 
     // Every fragment shader is unique.
-    DrawShader fragmentShader(plsContextImpl, GL_FRAGMENT_SHADER, drawType, shaderFeatures);
+    DrawShader fragmentShader(plsContextImpl,
+                              GL_FRAGMENT_SHADER,
+                              drawType,
+                              shaderFeatures,
+                              interlockMode);
     glAttachShader(m_id, fragmentShader.id());
 
     glutils::LinkProgram(m_id);
@@ -448,11 +540,11 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     glUniformBlockBinding(m_id,
                           glGetUniformBlockIndex(m_id, GLSL_Uniforms),
                           FLUSH_UNIFORM_BUFFER_IDX);
-    if (drawType == DrawType::imageMesh)
+    if (drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
     {
         glUniformBlockBinding(m_id,
-                              glGetUniformBlockIndex(m_id, GLSL_MeshUniforms),
-                              IMAGE_MESH_UNIFORM_BUFFER_IDX);
+                              glGetUniformBlockIndex(m_id, GLSL_ImageDrawUniforms),
+                              IMAGE_DRAW_UNIFORM_BUFFER_IDX);
     }
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
@@ -479,10 +571,163 @@ static GLuint gl_buffer_id(const BufferRing* bufferRing)
 
 void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
 {
+    auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
+
     // All programs use the same set of per-flush uniforms.
     glBindBufferBase(GL_UNIFORM_BUFFER,
                      FLUSH_UNIFORM_BUFFER_IDX,
                      gl_buffer_id(flushUniformBufferRing()));
+
+#ifdef ENABLE_PLS_EXPERIMENTAL_ATOMICS
+    if (desc.interlockMode == pls::InterlockMode::experimentalAtomics)
+    {
+        if (m_paintBuffer == 0)
+        {
+            // This is the first flush with "atomic mode" enabled. Allocate the additional resources
+            // for atomic mode.
+            if (!m_extensions.ARB_bindless_texture)
+            {
+                // We only have to draw imageRects when in atomic mode and bindless textures are not
+                // supported.
+                assert(m_imageRectVAO == 0);
+                glGenVertexArrays(1, &m_imageRectVAO);
+                m_state->bindVAO(m_imageRectVAO);
+
+                assert(m_imageRectVertexBuffer == 0);
+                glGenBuffers(1, &m_imageRectVertexBuffer);
+                m_state->bindBuffer(GL_ARRAY_BUFFER, m_imageRectVertexBuffer);
+                glBufferData(GL_ARRAY_BUFFER,
+                             sizeof(pls::kImageRectVertices),
+                             pls::kImageRectVertices,
+                             GL_STATIC_DRAW);
+
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0,
+                                      4,
+                                      GL_FLOAT,
+                                      GL_FALSE,
+                                      sizeof(pls::ImageRectVertex),
+                                      nullptr);
+
+                assert(m_imageRectIndexBuffer == 0);
+                glGenBuffers(1, &m_imageRectIndexBuffer);
+                m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_imageRectIndexBuffer);
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                             sizeof(pls::kImageRectIndices),
+                             pls::kImageRectIndices,
+                             GL_STATIC_DRAW);
+            }
+
+            assert(m_plsResolveVAO == 0);
+            glGenVertexArrays(1, &m_plsResolveVAO);
+
+            assert(m_paintBuffer == 0);
+            glGenBuffers(1, &m_paintBuffer);
+            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintBuffer);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,
+                         sizeof(ExperimentalAtomicModeData::m_paints),
+                         nullptr,
+                         GL_DYNAMIC_DRAW);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, PAINT_STORAGE_BUFFER_IDX, m_paintBuffer);
+
+            assert(m_paintMatrixBuffer == 0);
+            glGenBuffers(1, &m_paintMatrixBuffer);
+            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintMatrixBuffer);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,
+                         sizeof(ExperimentalAtomicModeData::m_paintMatrices),
+                         nullptr,
+                         GL_DYNAMIC_DRAW);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
+                             PAINT_MATRIX_STORAGE_BUFFER_IDX,
+                             m_paintMatrixBuffer);
+
+            assert(m_paintTranslateBuffer == 0);
+            glGenBuffers(1, &m_paintTranslateBuffer);
+            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintTranslateBuffer);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,
+                         sizeof(ExperimentalAtomicModeData::m_paintTranslates),
+                         nullptr,
+                         GL_DYNAMIC_DRAW);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
+                             PAINT_TRANSLATE_STORAGE_BUFFER_IDX,
+                             m_paintTranslateBuffer);
+
+            assert(m_clipRectMatrixBuffer == 0);
+            glGenBuffers(1, &m_clipRectMatrixBuffer);
+            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectMatrixBuffer);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,
+                         sizeof(ExperimentalAtomicModeData::m_clipRectMatrices),
+                         nullptr,
+                         GL_DYNAMIC_DRAW);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
+                             CLIPRECT_MATRIX_STORAGE_BUFFER_IDX,
+                             m_clipRectMatrixBuffer);
+
+            assert(m_clipRectTranslateBuffer == 0);
+            glGenBuffers(1, &m_clipRectTranslateBuffer);
+            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectTranslateBuffer);
+            glBufferData(GL_SHADER_STORAGE_BUFFER,
+                         sizeof(ExperimentalAtomicModeData::m_clipRectTranslates),
+                         nullptr,
+                         GL_DYNAMIC_DRAW);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
+                             CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX,
+                             m_clipRectTranslateBuffer);
+        }
+
+        assert(desc.experimentalAtomicModeData);
+        ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
+        if (m_extensions.ARB_bindless_texture)
+        {
+            // We support bindless textures, so write out image texture handles.
+            for (uint32_t i = 1; i <= desc.pathCount; ++i)
+            {
+                if (auto imageTextureGL =
+                        static_cast<const PLSTextureGLImpl*>(atomicModeData.m_imageTextures[i]))
+                {
+                    GLuint64 handle = imageTextureGL->bindlessHandle(m_extensions);
+                    atomicModeData.m_paintTranslates[i].bindlessTextureHandle[0] = handle;
+                    atomicModeData.m_paintTranslates[i].bindlessTextureHandle[1] = handle >> 32;
+                }
+            }
+        }
+
+        // Fill in the atomic mode buffers.
+        size_t bufferCount = desc.pathCount + 1;
+        m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintBuffer);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                        0,
+                        bufferCount * sizeof(*atomicModeData.m_paints),
+                        atomicModeData.m_paints);
+
+        m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintMatrixBuffer);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                        0,
+                        bufferCount * sizeof(*atomicModeData.m_paintMatrices),
+                        atomicModeData.m_paintMatrices);
+
+        m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintTranslateBuffer);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                        0,
+                        bufferCount * sizeof(*atomicModeData.m_paintTranslates),
+                        atomicModeData.m_paintTranslates);
+
+        if (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT)
+        {
+            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectMatrixBuffer);
+            glBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                            0,
+                            bufferCount * sizeof(*atomicModeData.m_clipRectMatrices),
+                            atomicModeData.m_clipRectMatrices);
+
+            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectTranslateBuffer);
+            glBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                            0,
+                            bufferCount * sizeof(*atomicModeData.m_clipRectTranslates),
+                            atomicModeData.m_clipRectTranslates);
+        }
+    }
+#endif // ENABLE_PLS_EXPERIMENTAL_ATOMICS
 
     // Render the complex color ramps into the gradient texture.
     if (desc.complexGradSpanCount > 0)
@@ -553,8 +798,16 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
     {
         // Compile the draw program before activating pixel local storage.
         // Cache specific compilations by DrawType and ShaderFeatures.
-        uint32_t fragmentShaderKey = ShaderUniqueKey(draw.drawType, draw.shaderFeatures);
-        m_drawPrograms.try_emplace(fragmentShaderKey, this, draw.drawType, draw.shaderFeatures);
+        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
+                                  ? desc.combinedShaderFeatures
+                                  : draw.shaderFeatures;
+        uint32_t fragmentShaderKey =
+            pls::ShaderUniqueKey(draw.drawType, shaderFeatures, desc.interlockMode);
+        m_drawPrograms.try_emplace(fragmentShaderKey,
+                                   this,
+                                   draw.drawType,
+                                   shaderFeatures,
+                                   desc.interlockMode);
     }
 
     // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
@@ -565,7 +818,6 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     }
 
-    auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
     glViewport(0, 0, renderTarget->width(), renderTarget->height());
 
 #ifdef RIVE_DESKTOP_GL
@@ -586,8 +838,16 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             continue;
         }
 
-        uint32_t fragmentShaderKey = ShaderUniqueKey(draw.drawType, draw.shaderFeatures);
+        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
+                                  ? desc.combinedShaderFeatures
+                                  : draw.shaderFeatures;
+        uint32_t fragmentShaderKey =
+            pls::ShaderUniqueKey(draw.drawType, shaderFeatures, desc.interlockMode);
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
+        if (drawProgram.id() == 0)
+        {
+            continue;
+        }
         m_state->bindProgram(drawProgram.id());
 
         if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(draw.imageTextureRef))
@@ -602,7 +862,8 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
-                m_plsImpl->ensureRasterOrderingEnabled(true);
+                m_plsImpl->ensureRasterOrderingEnabled(desc.interlockMode ==
+                                                       pls::InterlockMode::rasterOrdered);
                 m_state->bindVAO(m_drawVAO);
                 m_state->enableFaceCulling(true);
                 uint32_t indexCount = PatchIndexCount(drawType);
@@ -634,11 +895,35 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                 m_state->bindVAO(m_interiorTrianglesVAO);
                 m_state->enableFaceCulling(true);
                 glDrawArrays(GL_TRIANGLES, draw.baseElement, draw.elementCount);
-                m_plsImpl->barrier();
+                // Atomic mode inserts barriers after every draw.
+                if (desc.interlockMode == pls::InterlockMode::rasterOrdered)
+                {
+                    m_plsImpl->barrier();
+                }
+                break;
+            }
+            case DrawType::imageRect:
+            {
+                assert(!m_extensions.ARB_bindless_texture);
+                assert(m_imageRectVAO != 0); // Should have gotten lazily allocated by now.
+                m_plsImpl->ensureRasterOrderingEnabled(false);
+                m_state->bindVAO(m_imageRectVAO);
+                glBindBufferRange(GL_UNIFORM_BUFFER,
+                                  IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+                                  gl_buffer_id(imageDrawUniformBufferRing()),
+                                  draw.imageDrawDataOffset,
+                                  sizeof(pls::ImageDrawUniforms));
+                m_state->enableFaceCulling(false);
+                glDrawElements(GL_TRIANGLES,
+                               std::size(pls::kImageRectIndices),
+                               GL_UNSIGNED_SHORT,
+                               nullptr);
                 break;
             }
             case DrawType::imageMesh:
             {
+                m_plsImpl->ensureRasterOrderingEnabled(desc.interlockMode ==
+                                                       pls::InterlockMode::rasterOrdered);
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         const PLSRenderBufferGLImpl*,
                                         draw.vertexBufferRef);
@@ -653,10 +938,10 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
                 m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer->submittedBufferID());
                 glBindBufferRange(GL_UNIFORM_BUFFER,
-                                  IMAGE_MESH_UNIFORM_BUFFER_IDX,
-                                  gl_buffer_id(imageMeshUniformBufferRing()),
-                                  draw.imageMeshDataOffset,
-                                  sizeof(pls::ImageMeshUniforms));
+                                  IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+                                  gl_buffer_id(imageDrawUniformBufferRing()),
+                                  draw.imageDrawDataOffset,
+                                  sizeof(pls::ImageDrawUniforms));
                 m_state->enableFaceCulling(false);
                 glDrawElements(GL_TRIANGLES,
                                draw.elementCount,
@@ -664,6 +949,15 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
                                reinterpret_cast<const void*>(draw.baseElement * sizeof(uint16_t)));
                 break;
             }
+            case DrawType::plsAtomicResolve:
+                m_plsImpl->ensureRasterOrderingEnabled(false);
+                m_state->bindVAO(m_plsResolveVAO);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                break;
+        }
+        if (desc.interlockMode == pls::InterlockMode::experimentalAtomics)
+        {
+            m_plsImpl->barrier();
         }
     }
 
@@ -736,6 +1030,10 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
     }
 #ifdef RIVE_DESKTOP_GL
     // We implement some ES extensions with core Desktop GL in glad_custom.c.
+    if (GLAD_GL_ARB_bindless_texture)
+    {
+        extensions.ARB_bindless_texture = true;
+    }
     if (GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin)
     {
         extensions.ANGLE_base_vertex_base_instance_shader_builtin = true;

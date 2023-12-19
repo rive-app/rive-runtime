@@ -64,9 +64,20 @@ private:
     // the GPU buffers to draw the path, at which point the caller mush flush before continuing.
     [[nodiscard]] bool pushPathDraw(PLSPath*, PLSPaint*);
 
-    // Implements drawImageMesh() by pushing to m_context. Returns false if there was not enough
-    // room in the GPU buffers to draw the path, at which point the caller mush flush before
-    // continuing.
+    // Image draws don't use the same path batch as clip updates, so the clip needs to be drawn as
+    // a separate step.
+    [[nodiscard]] bool drawClipForImageIfNeeded(uint32_t* clipID);
+
+    // Implements drawImage() by pushing to m_context.
+    // This should only be used when we don't have bindless textures in atomic mode. Otherwise,
+    // images should be drawn as rectangular paths with an image paint.
+    // Returns false if there was not enough room in the GPU buffers to draw the path, at which
+    // point the caller mush flush before continuing.
+    [[nodiscard]] bool pushImageRectDraw(const PLSTexture*, BlendMode, float opacity);
+
+    // Implements drawImageMesh() by pushing to m_context.
+    // Returns false if there was not enough room in the GPU buffers to draw the path, at which
+    // point the caller mush flush before continuing.
     [[nodiscard]] bool pushImageMeshDraw(const PLSTexture*,
                                          RenderBuffer* vertices_f32,
                                          RenderBuffer* uvCoords_f32,

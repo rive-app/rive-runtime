@@ -115,9 +115,13 @@ public:
             case DrawType::interiorTriangulation:
                 namespacePrefix = 'p';
                 break;
+            case DrawType::imageRect:
+                RIVE_UNREACHABLE();
             case DrawType::imageMesh:
                 namespacePrefix = 'm';
                 break;
+            case DrawType::plsAtomicResolve:
+                RIVE_UNREACHABLE();
         }
 
         return
@@ -329,7 +333,8 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCo
          {DrawType::midpointFanPatches, DrawType::interiorTriangulation, DrawType::imageMesh})
     {
         pls::ShaderFeatures allShaderFeatures = pls::AllShaderFeaturesForDrawType(drawType);
-        uint32_t pipelineKey = ShaderUniqueKey(drawType, allShaderFeatures);
+        uint32_t pipelineKey =
+            ShaderUniqueKey(drawType, allShaderFeatures, pls::InterlockMode::rasterOrdered);
         m_drawPipelines[pipelineKey] = std::make_unique<DrawPipeline>(
             m_gpu,
             m_plsPrecompiledLibrary,
@@ -579,7 +584,8 @@ static id<MTLTexture> mtl_texture(const TexelBufferRing* texelBufferRing)
 const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
     findCompatibleDrawPipeline(pls::DrawType drawType, pls::ShaderFeatures shaderFeatures)
 {
-    uint32_t pipelineKey = pls::ShaderUniqueKey(drawType, shaderFeatures);
+    uint32_t pipelineKey =
+        pls::ShaderUniqueKey(drawType, shaderFeatures, pls::InterlockMode::rasterOrdered);
     auto pipelineIter = m_drawPipelines.find(pipelineKey);
     if (pipelineIter == m_drawPipelines.end())
     {
@@ -596,7 +602,8 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
         BackgroundCompileJob job;
         while (m_backgroundShaderCompiler->popFinishedJob(&job, m_shouldWaitForShaderCompilations))
         {
-            uint32_t jobKey = pls::ShaderUniqueKey(job.drawType, job.shaderFeatures);
+            uint32_t jobKey = pls::ShaderUniqueKey(
+                job.drawType, job.shaderFeatures, pls::InterlockMode::rasterOrdered);
             m_drawPipelines[jobKey] = std::make_unique<DrawPipeline>(
                 m_gpu, job.compiledLibrary, @GLSL_drawVertexMain, @GLSL_drawFragmentMain);
             if (jobKey == pipelineKey)
@@ -609,7 +616,9 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
         {
             // The shader for pipeline set hasn't finished compiling. Use the pipeline that has all
             // features enabled while we wait for it to finish.
-            pipelineKey = ShaderUniqueKey(drawType, pls::AllShaderFeaturesForDrawType(drawType));
+            pipelineKey = ShaderUniqueKey(drawType,
+                                          pls::AllShaderFeaturesForDrawType(drawType),
+                                          pls::InterlockMode::rasterOrdered);
             pipelineIter = m_drawPipelines.find(pipelineKey);
             assert(pipelineIter->second != nullptr);
         }
@@ -816,6 +825,8 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                             vertexCount:draw.elementCount];
                 break;
             }
+            case DrawType::imageRect:
+                RIVE_UNREACHABLE();
             case DrawType::imageMesh:
             {
                 LITE_RTTI_CAST_OR_BREAK(
@@ -823,12 +834,12 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                 LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferMetalImpl*, draw.uvBufferRef);
                 LITE_RTTI_CAST_OR_BREAK(
                     indexBuffer, const RenderBufferMetalImpl*, draw.indexBufferRef);
-                [encoder setVertexBuffer:mtl_buffer(imageMeshUniformBufferRing())
-                                  offset:draw.imageMeshDataOffset
-                                 atIndex:IMAGE_MESH_UNIFORM_BUFFER_IDX];
-                [encoder setFragmentBuffer:mtl_buffer(imageMeshUniformBufferRing())
-                                    offset:draw.imageMeshDataOffset
-                                   atIndex:IMAGE_MESH_UNIFORM_BUFFER_IDX];
+                [encoder setVertexBuffer:mtl_buffer(imageDrawUniformBufferRing())
+                                  offset:draw.imageDrawDataOffset
+                                 atIndex:IMAGE_DRAW_UNIFORM_BUFFER_IDX];
+                [encoder setFragmentBuffer:mtl_buffer(imageDrawUniformBufferRing())
+                                    offset:draw.imageDrawDataOffset
+                                   atIndex:IMAGE_DRAW_UNIFORM_BUFFER_IDX];
                 [encoder setVertexBuffer:vertexBuffer->submittedBuffer() offset:0 atIndex:0];
                 [encoder setVertexBuffer:uvBuffer->submittedBuffer() offset:0 atIndex:1];
                 [encoder setCullMode:MTLCullModeNone];
@@ -839,6 +850,8 @@ void PLSRenderContextMetalImpl::flush(const PLSRenderContext::FlushDescriptor& d
                              indexBufferOffset:draw.baseElement * sizeof(uint16_t)];
                 break;
             }
+            case DrawType::plsAtomicResolve:
+                RIVE_UNREACHABLE();
         }
     }
     [encoder endEncoding];

@@ -77,10 +77,10 @@ void PLSRenderContextHelperImpl::resizeTriangleVertexBuffer(size_t sizeInBytes)
         makeVertexBufferRing(sizeInBytes / sizeof(TriangleVertex), sizeof(TriangleVertex));
 }
 
-void PLSRenderContextHelperImpl::resizeImageMeshUniformBuffer(size_t sizeInBytes)
+void PLSRenderContextHelperImpl::resizeImageDrawUniformBuffer(size_t sizeInBytes)
 {
-    m_imageMeshUniformBuffer = makeUniformBufferRing(sizeInBytes / sizeof(pls::ImageMeshUniforms),
-                                                     sizeof(pls::ImageMeshUniforms));
+    m_imageDrawUniformBuffer = makeUniformBufferRing(sizeInBytes / sizeof(pls::ImageDrawUniforms),
+                                                     sizeof(pls::ImageDrawUniforms));
 }
 
 void PLSRenderContextHelperImpl::mapPathTexture(WriteOnlyMappedMemory<PathData>* pathData)
@@ -118,11 +118,11 @@ void PLSRenderContextHelperImpl::mapTriangleVertexBuffer(
     triangleVertexData->reset(m_triangleBuffer->mapBuffer(), m_triangleBuffer->capacity());
 }
 
-void PLSRenderContextHelperImpl::mapImageMeshUniformBuffer(
-    WriteOnlyMappedMemory<pls::ImageMeshUniforms>* imageMeshUniformData)
+void PLSRenderContextHelperImpl::mapImageDrawUniformBuffer(
+    WriteOnlyMappedMemory<pls::ImageDrawUniforms>* imageDrawUniformData)
 {
-    imageMeshUniformData->reset(m_imageMeshUniformBuffer->mapBuffer(),
-                                m_imageMeshUniformBuffer->capacity());
+    imageDrawUniformData->reset(m_imageDrawUniformBuffer->mapBuffer(),
+                                m_imageDrawUniformBuffer->capacity());
 }
 
 void PLSRenderContextHelperImpl::mapFlushUniformBuffer(
@@ -167,9 +167,9 @@ void PLSRenderContextHelperImpl::unmapTriangleVertexBuffer(size_t bytesWritten)
     m_triangleBuffer->unmapAndSubmitBuffer(bytesWritten);
 }
 
-void PLSRenderContextHelperImpl::unmapImageMeshUniformBuffer(size_t bytesWritten)
+void PLSRenderContextHelperImpl::unmapImageDrawUniformBuffer(size_t bytesWritten)
 {
-    m_imageMeshUniformBuffer->unmapAndSubmitBuffer(bytesWritten);
+    m_imageDrawUniformBuffer->unmapAndSubmitBuffer(bytesWritten);
 }
 
 void PLSRenderContextHelperImpl::unmapFlushUniformBuffer()
