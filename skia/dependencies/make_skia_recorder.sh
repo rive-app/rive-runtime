@@ -30,7 +30,9 @@ build_skia_recorder() {
         skia_use_angle=false \
         skia_use_dng_sdk=false \
         skia_use_egl=false \
-        skia_use_expat=false \
+        skia_use_expat=true \
+        skia_use_system_expat=false \
+        skia_enable_svg=true \
         skia_use_fontconfig=false \
         skia_use_freetype=false \
         skia_use_icu=false \
