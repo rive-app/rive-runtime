@@ -241,7 +241,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             origin = midpoint;
 
         // Offset the vertex for Manhattan AA.
-        postTransformVertexOffset = sign(MUL(o_M, outset * norm)) * AA_RADIUS;
+        postTransformVertexOffset = sign(MUL(outset * norm, inverse(o_M))) * AA_RADIUS;
 
         if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
             fillCoverage = -fillCoverage;
