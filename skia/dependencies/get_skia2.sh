@@ -77,6 +77,10 @@ getSkia () {
 
     echo "Checking out branch $SKIA_BRANCH"
     git checkout $SKIA_BRANCH
+    # Remove piet-gpu from dependencies because repository does not exist anymore
+    sed -i.bak -r 's/.*piet.*//g' "$PWD/DEPS"
+
+
     python tools/git-sync-deps
 
     popd 

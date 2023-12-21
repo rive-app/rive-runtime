@@ -7,6 +7,7 @@
 
 #include "include/core/SkMatrix.h"
 #include "include/core/SkPaint.h"
+#include "include/core/SkBlendMode.h"
 #include "include/core/SkPath.h"
 #include "include/core/SkPathTypes.h"
 #include "include/core/SkTileMode.h"
