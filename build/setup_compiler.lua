@@ -135,6 +135,7 @@ do
         "5262", -- MSVC\14.34.31933\include\atomic(917,9): implicit fall-through occurs here;
                 -- are you missing a break statement?
         "5264", -- 'rive::math::PI': 'const' variable is not used
+        "4647", -- behavior change: __is_pod(rive::Vec2D) has different value in previous versions
     }
 end
 

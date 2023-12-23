@@ -11,7 +11,7 @@ class Vec2D
 public:
     float x, y;
 
-    constexpr Vec2D() : x(0), y(0) {}
+    Vec2D() = default;
     constexpr Vec2D(float x, float y) : x(x), y(y) {}
 
     float lengthSquared() const { return x * x + y * y; }
@@ -76,6 +76,7 @@ public:
         return *this;
     }
 };
+static_assert(std::is_pod<Vec2D>::value, "Vec2D must be plain-old-data");
 
 inline Vec2D operator*(const Vec2D& v, float s) { return {v.x * s, v.y * s}; }
 inline Vec2D operator*(float s, const Vec2D& v) { return {v.x * s, v.y * s}; }
