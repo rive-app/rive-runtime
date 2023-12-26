@@ -5,6 +5,7 @@
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/static_scene.hpp"
 
 #include <fstream>
 #include <iterator>
@@ -464,6 +465,11 @@ int main(int argc, const char** argv)
         else
         {
             s_scene = artboard->animationAt(0);
+        }
+        if (s_scene == nullptr)
+        {
+            // This is a riv without any animations or state machines. Just draw the artboard.
+            s_scene = std::make_unique<StaticScene>(artboard.get());
         }
         s_scene->advanceAndApply(0);
     }
