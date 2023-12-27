@@ -2,9 +2,7 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/component.hpp"
-#include "rive/renderer.hpp"
 #include "rive/shapes/metrics_path.hpp"
-#include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_style.hpp"
@@ -48,7 +46,7 @@ void ShapePaintContainer::invalidateStrokeEffects()
     }
 }
 
-std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace space)
+rcp<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace space)
 {
     // Force a render path if we specifically request to use it for clipping or
     // this shape is used for clipping.
@@ -79,19 +77,19 @@ std::unique_ptr<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace spac
     auto factory = getArtboard()->factory();
     if (needForEffects && needForRender)
     {
-        return std::unique_ptr<CommandPath>(new RenderMetricsPath(factory->makeEmptyRenderPath()));
+        return make_rcp<RenderMetricsPath>(factory->makeEmptyRenderPath());
     }
     else if (needForConstraint)
     {
-        return std::unique_ptr<CommandPath>(new RenderMetricsPath(factory->makeEmptyRenderPath()));
+        return make_rcp<RenderMetricsPath>(factory->makeEmptyRenderPath());
     }
     else if (needForEffects)
     {
-        return std::unique_ptr<CommandPath>(new OnlyMetricsPath());
+        return make_rcp<OnlyMetricsPath>();
     }
     else
     {
-        return std::unique_ptr<CommandPath>(factory->makeEmptyRenderPath());
+        return factory->makeEmptyRenderPath();
     }
 }
 

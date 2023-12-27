@@ -1,6 +1,5 @@
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
-#include "rive/animation/animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/dependency_sorter.hpp"
 #include "rive/draw_rules.hpp"
@@ -9,7 +8,6 @@
 #include "rive/drawable.hpp"
 #include "rive/animation/keyed_object.hpp"
 #include "rive/factory.hpp"
-#include "rive/node.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/importers/import_stack.hpp"
@@ -21,7 +19,6 @@
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
 
-#include <stack>
 #include <unordered_map>
 
 using namespace rive;

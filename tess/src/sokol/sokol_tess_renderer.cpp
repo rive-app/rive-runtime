@@ -140,15 +140,12 @@ public:
 };
 
 // Returns a full-formed RenderPath -- can be treated as immutable
-std::unique_ptr<RenderPath> SokolFactory::makeRenderPath(RawPath& rawPath, FillRule rule)
+rcp<RenderPath> SokolFactory::makeRenderPath(RawPath& rawPath, FillRule rule)
 {
-    return rivestd::make_unique<SokolRenderPath>(rawPath, rule);
+    return make_rcp<SokolRenderPath>(rawPath, rule);
 }
 
-std::unique_ptr<RenderPath> SokolFactory::makeEmptyRenderPath()
-{
-    return rivestd::make_unique<SokolRenderPath>();
-}
+rcp<RenderPath> SokolFactory::makeEmptyRenderPath() { return make_rcp<SokolRenderPath>(); }
 
 class SokolBuffer : public lite_rtti_override<RenderBuffer, SokolBuffer>
 {
@@ -930,10 +927,7 @@ public:
     }
 };
 
-std::unique_ptr<RenderPaint> SokolFactory::makeRenderPaint()
-{
-    return rivestd::make_unique<SokolRenderPaint>();
-}
+rcp<RenderPaint> SokolFactory::makeRenderPaint() { return make_rcp<SokolRenderPaint>(); }
 
 void SokolTessRenderer::restore()
 {

@@ -82,9 +82,9 @@ public:
 class TestNoOpFactory : public rive::NoOpFactory
 {
 public:
-    std::unique_ptr<rive::RenderPath> makeEmptyRenderPath() override
+    rive::rcp<rive::RenderPath> makeEmptyRenderPath() override
     {
-        return rivestd::make_unique<TestRenderPath>();
+        return rive::make_rcp<TestRenderPath>();
     }
 };
 } // namespace

@@ -11,7 +11,7 @@
 
 using namespace rive;
 
-std::unique_ptr<RenderPath> Factory::makeRenderPath(const AABB& r)
+rcp<RenderPath> Factory::makeRenderPath(const AABB& r)
 {
     RawPath rawPath;
     rawPath.addRect(r);

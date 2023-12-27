@@ -226,7 +226,7 @@ private:
     // Runs ordered by paragraph line.
     std::vector<OrderedLine> m_orderedLines;
     GlyphRun m_ellipsisRun;
-    std::unique_ptr<RenderPath> m_clipRenderPath;
+    rcp<RenderPath> m_clipRenderPath;
     AABB m_bounds;
     std::vector<TextModifierGroup*> m_modifierGroups;
 

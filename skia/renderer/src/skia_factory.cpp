@@ -264,12 +264,12 @@ rcp<RenderShader> SkiaFactory::makeRadialGradient(float cx,
     return rcp<RenderShader>(new SkiaRenderShader(std::move(sh)));
 }
 
-std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
+rcp<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
 {
     const bool isVolatile = false; // ???
     const SkScalar* conicWeights = nullptr;
     const int conicWeightCount = 0;
-    return std::make_unique<SkiaRenderPath>(
+    return make_rcp<SkiaRenderPath>(
         SkPath::Make(reinterpret_cast<const SkPoint*>(rawPath.points().data()),
                      rawPath.points().size(),
                      (uint8_t*)rawPath.verbs().data(),
@@ -280,15 +280,9 @@ std::unique_ptr<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRu
                      isVolatile));
 }
 
-std::unique_ptr<RenderPath> SkiaFactory::makeEmptyRenderPath()
-{
-    return std::make_unique<SkiaRenderPath>();
-}
+rcp<RenderPath> SkiaFactory::makeEmptyRenderPath() { return make_rcp<SkiaRenderPath>(); }
 
-std::unique_ptr<RenderPaint> SkiaFactory::makeRenderPaint()
-{
-    return std::make_unique<SkiaRenderPaint>();
-}
+rcp<RenderPaint> SkiaFactory::makeRenderPaint() { return make_rcp<SkiaRenderPaint>(); }
 
 rcp<RenderImage> SkiaFactory::decodeImage(Span<const uint8_t> encoded)
 {

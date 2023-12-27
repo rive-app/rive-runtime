@@ -10,7 +10,6 @@
 #include "rive/command_path.hpp"
 #include "rive/layout.hpp"
 #include "rive/refcnt.hpp"
-#include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -18,7 +17,6 @@
 #include "rive/shapes/paint/stroke_join.hpp"
 #include "utils/lite_rtti.hpp"
 
-#include <cmath>
 #include <stdio.h>
 #include <cstdint>
 
@@ -89,7 +87,7 @@ public:
     virtual ~RenderShader();
 };
 
-class RenderPaint : public enable_lite_rtti<RenderPaint>
+class RenderPaint : public RefCnt<RenderPaint>, public enable_lite_rtti<RenderPaint>
 {
 public:
     RenderPaint();

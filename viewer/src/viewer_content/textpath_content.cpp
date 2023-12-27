@@ -72,7 +72,7 @@ static void warp_in_place(ContourMeasure* meas, RawPath* path)
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<RenderPath> make_rpath(RawPath& path)
+static rcp<RenderPath> make_rpath(RawPath& path)
 {
     return ViewerContent::RiveFactory()->makeRenderPath(path, FillRule::nonZero);
 }
@@ -114,7 +114,7 @@ class TextPathContent : public ViewerContent
 {
     std::vector<Unichar> m_unichars;
     FontGlyphRuns m_gruns;
-    std::unique_ptr<RenderPaint> m_paint;
+    rcp<RenderPaint> m_paint;
     AABB m_gbounds;
 
     std::vector<Vec2D> m_pathpts;

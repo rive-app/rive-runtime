@@ -2,7 +2,6 @@
 #define _RIVE_CLIPPING_SHAPE_HPP_
 #include "rive/renderer.hpp"
 #include "rive/generated/shapes/clipping_shape_base.hpp"
-#include <stdio.h>
 #include <vector>
 
 namespace rive
@@ -15,7 +14,7 @@ class ClippingShape : public ClippingShapeBase
 private:
     std::vector<Shape*> m_Shapes;
     Node* m_Source = nullptr;
-    std::unique_ptr<RenderPath> m_RenderPath;
+    rcp<RenderPath> m_RenderPath;
 
     // The actual render path used for clipping, which may be different from
     // the stored render path. For example if there's only one clipping

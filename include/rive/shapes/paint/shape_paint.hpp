@@ -12,7 +12,7 @@ class ShapePaintMutator;
 class ShapePaint : public ShapePaintBase
 {
 protected:
-    std::unique_ptr<RenderPaint> m_RenderPaint;
+    rcp<RenderPaint> m_RenderPaint;
     ShapePaintMutator* m_PaintMutator = nullptr;
 
 public:

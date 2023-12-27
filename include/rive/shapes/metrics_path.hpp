@@ -60,10 +60,10 @@ public:
 class RenderMetricsPath : public MetricsPath
 {
 private:
-    std::unique_ptr<RenderPath> m_RenderPath;
+    rcp<RenderPath> m_RenderPath;
 
 public:
-    RenderMetricsPath(std::unique_ptr<RenderPath>);
+    RenderMetricsPath(rcp<RenderPath>);
     RenderPath* renderPath() override { return m_RenderPath.get(); }
     void addPath(CommandPath* path, const Mat2D& transform) override;
 

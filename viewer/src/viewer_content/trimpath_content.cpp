@@ -40,7 +40,7 @@ static RawPath make_quad_path(Span<const Vec2D> pts)
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<RenderPath> make_rpath(RawPath& path)
+static rcp<RenderPath> make_rpath(RawPath& path)
 {
     return ViewerContent::RiveFactory()->makeRenderPath(path, FillRule::nonZero);
 }

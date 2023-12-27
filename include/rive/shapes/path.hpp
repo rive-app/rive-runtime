@@ -37,7 +37,7 @@ class Path : public PathBase
 {
 protected:
     Shape* m_Shape = nullptr;
-    std::unique_ptr<CommandPath> m_CommandPath;
+    rcp<CommandPath> m_CommandPath;
     std::vector<PathVertex*> m_Vertices;
     bool m_deferredPathDirt = false;
     PathSpace m_DefaultPathSpace = PathSpace::Neither;

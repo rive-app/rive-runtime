@@ -1,6 +1,7 @@
 #ifndef _RIVE_PATH_COMPOSER_HPP_
 #define _RIVE_PATH_COMPOSER_HPP_
 #include "rive/component.hpp"
+#include "rive/refcnt.hpp"
 namespace rive
 {
 class Shape;
@@ -10,8 +11,8 @@ class PathComposer : public Component
 {
 private:
     Shape* m_Shape;
-    std::unique_ptr<CommandPath> m_LocalPath;
-    std::unique_ptr<CommandPath> m_WorldPath;
+    rcp<CommandPath> m_LocalPath;
+    rcp<CommandPath> m_WorldPath;
     bool m_deferredPathDirt;
 
 public:

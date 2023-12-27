@@ -49,13 +49,13 @@ protected:
 
 private:
     std::unique_ptr<TextVariationHelper> m_variationHelper;
-    std::unordered_map<float, std::unique_ptr<RenderPath>> m_opacityPaths;
+    std::unordered_map<float, rcp<RenderPath>> m_opacityPaths;
     rcp<Font> m_variableFont;
-    std::unique_ptr<RenderPath> m_path;
+    rcp<RenderPath> m_path;
     bool m_hasContents = false;
     std::vector<Font::Coord> m_coords;
     std::vector<TextStyleAxis*> m_variations;
-    std::vector<std::unique_ptr<RenderPaint>> m_paintPool;
+    std::vector<rcp<RenderPaint>> m_paintPool;
 };
 } // namespace rive
 

@@ -3,13 +3,14 @@
 
 #include "rive/math/mat2d.hpp"
 #include "rive/math/path_types.hpp"
+#include "rive/refcnt.hpp"
 
 namespace rive
 {
 class RenderPath;
 
 /// Abstract path used to build up commands used for rendering.
-class CommandPath
+class CommandPath : public RefCnt<CommandPath>
 {
 public:
     virtual ~CommandPath() {}

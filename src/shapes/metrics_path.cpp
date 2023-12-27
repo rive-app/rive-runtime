@@ -1,7 +1,5 @@
-#include "rive/core/type_conversions.hpp"
 #include "rive/shapes/metrics_path.hpp"
 #include "rive/renderer.hpp"
-#include "rive/math/cubic_utilities.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/math/contour_measure.hpp"
 
@@ -79,9 +77,7 @@ void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPa
     tmp.addTo(result);
 }
 
-RenderMetricsPath::RenderMetricsPath(std::unique_ptr<RenderPath> path) :
-    m_RenderPath(std::move(path))
-{}
+RenderMetricsPath::RenderMetricsPath(rcp<RenderPath> path) : m_RenderPath(std::move(path)) {}
 
 void RenderMetricsPath::addPath(CommandPath* path, const Mat2D& transform)
 {

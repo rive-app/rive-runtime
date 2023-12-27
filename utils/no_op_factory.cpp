@@ -1,5 +1,4 @@
 #include "utils/no_op_factory.hpp"
-#include "utils/no_op_renderer.hpp"
 
 using namespace rive;
 
@@ -65,19 +64,13 @@ rcp<RenderShader> NoOpFactory::makeRadialGradient(float cx,
     return nullptr;
 }
 
-std::unique_ptr<RenderPath> NoOpFactory::makeRenderPath(RawPath&, FillRule)
+rcp<RenderPath> NoOpFactory::makeRenderPath(RawPath&, FillRule)
 {
-    return rivestd::make_unique<NoOpRenderPath>();
+    return make_rcp<NoOpRenderPath>();
 }
 
-std::unique_ptr<RenderPath> NoOpFactory::makeEmptyRenderPath()
-{
-    return rivestd::make_unique<NoOpRenderPath>();
-}
+rcp<RenderPath> NoOpFactory::makeEmptyRenderPath() { return make_rcp<NoOpRenderPath>(); }
 
-std::unique_ptr<RenderPaint> NoOpFactory::makeRenderPaint()
-{
-    return rivestd::make_unique<NoOpRenderPaint>();
-}
+rcp<RenderPaint> NoOpFactory::makeRenderPaint() { return make_rcp<NoOpRenderPaint>(); }
 
 rcp<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>) { return nullptr; }

@@ -10,9 +10,7 @@
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
-#include "rive/math/mat2d.hpp"
 
-#include <cmath>
 #include <stdio.h>
 #include <cstdint>
 
@@ -49,12 +47,12 @@ public:
     // Returns a full-formed RenderPath -- can be treated as immutable
     // This call might swap out the arrays backing the points and verbs in the given RawPath, so the
     // caller can expect it to be in an undefined state upon return.
-    virtual std::unique_ptr<RenderPath> makeRenderPath(RawPath&, FillRule) = 0;
+    virtual rcp<RenderPath> makeRenderPath(RawPath&, FillRule) = 0;
 
     // Deprecated -- working to make RenderPath's immutable
-    virtual std::unique_ptr<RenderPath> makeEmptyRenderPath() = 0;
+    virtual rcp<RenderPath> makeEmptyRenderPath() = 0;
 
-    virtual std::unique_ptr<RenderPaint> makeRenderPaint() = 0;
+    virtual rcp<RenderPaint> makeRenderPaint() = 0;
 
     virtual rcp<RenderImage> decodeImage(Span<const uint8_t>) = 0;
 
@@ -62,7 +60,7 @@ public:
 
     // Non-virtual helpers
 
-    std::unique_ptr<RenderPath> makeRenderPath(const AABB&);
+    rcp<RenderPath> makeRenderPath(const AABB&);
 };
 
 } // namespace rive

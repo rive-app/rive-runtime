@@ -7,7 +7,6 @@
 #include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
-#include <cstdio>
 
 TEST_CASE("clipping loads correctly", "[clipping]")
 {
@@ -48,10 +47,9 @@ public:
 
 class ClippingFactory : public rive::NoOpFactory
 {
-    std::unique_ptr<rive::RenderPath> makeRenderPath(rive::RawPath& rawPath,
-                                                     rive::FillRule) override
+    rive::rcp<rive::RenderPath> makeRenderPath(rive::RawPath& rawPath, rive::FillRule) override
     {
-        return rivestd::make_unique<ClipTestRenderPath>(rawPath);
+        return rive::make_rcp<ClipTestRenderPath>(rawPath);
     }
 };
 

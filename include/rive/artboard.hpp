@@ -52,8 +52,8 @@ private:
     bool m_JoysticksApplyBeforeUpdate = true;
 
     unsigned int m_DirtDepth = 0;
-    std::unique_ptr<RenderPath> m_BackgroundPath;
-    std::unique_ptr<RenderPath> m_ClipPath;
+    rcp<RenderPath> m_BackgroundPath;
+    rcp<RenderPath> m_ClipPath;
     Factory* m_Factory = nullptr;
     Drawable* m_FirstDrawable = nullptr;
     bool m_IsInstance = false;

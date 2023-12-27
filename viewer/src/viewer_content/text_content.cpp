@@ -114,9 +114,7 @@ static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> mi
     return nullptr;
 }
 
-static std::unique_ptr<rive::RenderPath> make_line(rive::Factory* factory,
-                                                   rive::Vec2D a,
-                                                   rive::Vec2D b)
+static rive::rcp<rive::RenderPath> make_line(rive::Factory* factory, rive::Vec2D a, rive::Vec2D b)
 {
     rive::RawPath rawPath;
     rawPath.move(a);

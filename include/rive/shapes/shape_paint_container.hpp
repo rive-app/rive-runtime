@@ -1,6 +1,6 @@
 #ifndef _RIVE_SHAPE_PAINT_CONTAINER_HPP_
 #define _RIVE_SHAPE_PAINT_CONTAINER_HPP_
-#include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/shapes/path_space.hpp"
 #include <vector>
 
@@ -35,7 +35,7 @@ public:
 
     void invalidateStrokeEffects();
 
-    std::unique_ptr<CommandPath> makeCommandPath(PathSpace space);
+    rcp<CommandPath> makeCommandPath(PathSpace space);
 
     void propagateOpacity(float opacity);
 
