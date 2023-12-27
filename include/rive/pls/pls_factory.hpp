@@ -27,10 +27,10 @@ public:
                                          const float stops[],     // [count]
                                          size_t count) override;
 
-    std::unique_ptr<RenderPath> makeRenderPath(RawPath&, FillRule) override;
+    rcp<RenderPath> makeRenderPath(RawPath&, FillRule) override;
 
-    std::unique_ptr<RenderPath> makeEmptyRenderPath() override;
+    rcp<RenderPath> makeEmptyRenderPath() override;
 
-    std::unique_ptr<RenderPaint> makeRenderPaint() override;
+    rcp<RenderPaint> makeRenderPaint() override;
 };
 } // namespace rive::pls

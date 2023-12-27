@@ -6,8 +6,6 @@
 
 #include "pls_paint.hpp"
 #include "pls_path.hpp"
-#include "rive/math/math_types.hpp"
-#include "rive/math/simd.hpp"
 #include "rive/pls/pls_renderer.hpp"
 
 namespace rive::pls
@@ -35,15 +33,12 @@ rcp<RenderShader> PLSFactory::makeRadialGradient(float cx,
     return PLSGradient::MakeRadial(cx, cy, radius, colors, stops, count);
 }
 
-std::unique_ptr<RenderPath> PLSFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
+rcp<RenderPath> PLSFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
 {
-    return std::make_unique<PLSPath>(fillRule, rawPath);
+    return make_rcp<PLSPath>(fillRule, rawPath);
 }
 
-std::unique_ptr<RenderPath> PLSFactory::makeEmptyRenderPath()
-{
-    return std::make_unique<PLSPath>();
-}
+rcp<RenderPath> PLSFactory::makeEmptyRenderPath() { return make_rcp<PLSPath>(); }
 
-std::unique_ptr<RenderPaint> PLSFactory::makeRenderPaint() { return std::make_unique<PLSPaint>(); }
+rcp<RenderPaint> PLSFactory::makeRenderPaint() { return make_rcp<PLSPaint>(); }
 } // namespace rive::pls
