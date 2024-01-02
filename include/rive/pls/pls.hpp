@@ -33,6 +33,7 @@ class RenderBuffer;
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit
 namespace rive::pls
 {
+class PLSRenderTarget;
 class PLSTexture;
 
 // Tessellate in parametric space until each segment is within 1/4 pixel of the true curve.
@@ -746,6 +747,67 @@ struct TwoTexelRamp
     uint8_t colorData[8];
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
+
+// Extra data for when FrameDescriptor::enableExperimentalAtomicMode is enabled.
+// TODO: integrate this data more cleanly if/when the atomic mode proves ready to ship.
+struct ExperimentalAtomicModeData
+{
+    // +1 so we can index by pathID (pathID is always >0), and use index 0 for the clear color.
+    constexpr static size_t kBufferLength = pls::MaxPathID(1) + 1;
+
+    const PLSTexture* m_imageTextures[kBufferLength];
+
+    struct Paint
+    {
+        uint32_t params; // [clipID, flags, paintType]
+        union
+        {
+            uint32_t color;
+            float gradTextureY;
+            float opacity;
+            uint32_t shiftedClipReplacementID;
+        };
+    } m_paints[kBufferLength];
+    static_assert(sizeof(Paint) == sizeof(uint32_t) * 2);
+
+    std::array<float, 4> m_paintMatrices[kBufferLength];
+
+    struct PaintTranslate
+    {
+        Vec2D translate;
+        union
+        {
+            std::array<float, 2> gradTextureHorizontalSpan;
+            std::array<uint32_t, 2> bindlessTextureHandle;
+        };
+    } m_paintTranslates[kBufferLength];
+    static_assert(sizeof(PaintTranslate) == sizeof(float) * 4);
+
+    std::array<float, 4> m_clipRectMatrices[kBufferLength];
+
+    struct ClipRectTranslate
+    {
+        Vec2D translate;
+        Vec2D inverseFwidth; // -1 / fwidth(clipMatrix * pixelPosition) -- for antialiasing.
+    } m_clipRectTranslates[kBufferLength];
+
+    // Fills in the buffers at index 'pathID' with the info for drawing the given path.
+    void setDataForPath(uint32_t pathID,
+                        const Mat2D&,
+                        FillRule,
+                        pls::PaintType,
+                        const pls::PaintData&,
+                        const PLSTexture*,
+                        uint32_t clipID,
+                        const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
+                        BlendMode,
+                        const PLSRenderTarget*,
+                        float gradientTextureHeight,
+                        const PlatformFeatures&);
+
+    // Configure the clear color and normalize gradient Y-coordinates.
+    void finalize(size_t pathCount, ColorInt clearColor, float gradTextureInverseHeight);
+};
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
 template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)

@@ -29,23 +29,6 @@ constexpr static UINT kImageMeshUVDataSlot = 4;
 
 namespace rive::pls
 {
-using ExperimentalAtomicModeData = PLSRenderContext::ExperimentalAtomicModeData;
-
-static DXGI_FORMAT d3d_format(TexelBufferRing::Format format)
-{
-
-    switch (format)
-    {
-        case TexelBufferRing::Format::rgba32f:
-            return DXGI_FORMAT_R32G32B32A32_FLOAT;
-        case TexelBufferRing::Format::rgba32ui:
-            return DXGI_FORMAT_R32G32B32A32_UINT;
-        case TexelBufferRing::Format::rgba8:
-            return DXGI_FORMAT_R8G8B8A8_UNORM;
-    }
-    RIVE_UNREACHABLE();
-}
-
 static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(ID3D11Device* gpu,
                                                             ID3D11Texture2D* tex,
                                                             DXGI_FORMAT format)
@@ -551,65 +534,6 @@ rcp<PLSTexture> PLSRenderContextD3DImpl::makeImageTexture(uint32_t width,
     return make_rcp<PLSTextureD3DImpl>(this, width, height, mipLevelCount, imageDataRGBA);
 }
 
-class TexelBufferD3D : public TexelBufferRing
-{
-public:
-    TexelBufferD3D(PLSRenderContextD3DImpl* plsImpl,
-                   Format format,
-                   size_t widthInItems,
-                   size_t height,
-                   size_t texelsPerItem) :
-        TexelBufferRing(format, widthInItems, height, texelsPerItem),
-        m_gpuContext(plsImpl->gpuContext())
-    {
-        DXGI_FORMAT formatD3D = d3d_format(format);
-        UINT bindFlags = D3D11_BIND_SHADER_RESOURCE;
-        for (size_t i = 0; i < kBufferRingSize; ++i)
-        {
-            m_textures[i] =
-                plsImpl->makeSimple2DTexture(formatD3D, widthInTexels(), height, 1, bindFlags);
-            VERIFY_OK(plsImpl->gpu()->CreateShaderResourceView(m_textures[i].Get(),
-                                                               NULL,
-                                                               m_srvs[i].GetAddressOf()));
-        }
-    }
-
-    ID3D11ShaderResourceView* submittedSRV() const { return m_srvs[submittedBufferIdx()].Get(); }
-
-private:
-    void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) override
-    {
-        D3D11_BOX box;
-        box.left = 0;
-        box.right = updateWidthInTexels;
-        box.top = 0;
-        box.bottom = updateHeight;
-        box.front = 0;
-        box.back = 1;
-        m_gpuContext->UpdateSubresource(m_textures[textureIdx].Get(),
-                                        0,
-                                        &box,
-                                        shadowBuffer(),
-                                        widthInItems() * itemSizeInBytes(),
-                                        0);
-    }
-
-    ComPtr<ID3D11DeviceContext> m_gpuContext;
-    ComPtr<ID3D11Texture2D> m_textures[kBufferRingSize];
-    ComPtr<ID3D11ShaderResourceView> m_srvs[kBufferRingSize];
-};
-
-std::unique_ptr<TexelBufferRing> PLSRenderContextD3DImpl::makeTexelBufferRing(
-    TexelBufferRing::Format format,
-    size_t widthInItems,
-    size_t height,
-    size_t texelsPerItem,
-    int textureIdx,
-    TexelBufferRing::Filter)
-{
-    return std::make_unique<TexelBufferD3D>(this, format, widthInItems, height, texelsPerItem);
-}
-
 class BufferRingD3D : public BufferRingShadowImpl
 {
 public:
@@ -687,8 +611,8 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_
 }
 
 PLSRenderTargetD3D::PLSRenderTargetD3D(PLSRenderContextD3DImpl* plsImpl,
-                                       size_t width,
-                                       size_t height) :
+                                       uint32_t width,
+                                       uint32_t height) :
     PLSRenderTarget(width, height), m_gpu(plsImpl->gpu())
 {
     m_coverageTexture = plsImpl->makeSimple2DTexture(DXGI_FORMAT_R32_UINT,
@@ -728,15 +652,39 @@ void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
         make_simple_2d_uav(m_gpu.Get(), m_targetTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
 }
 
-rcp<PLSRenderTargetD3D> PLSRenderContextD3DImpl::makeRenderTarget(size_t width, size_t height)
+rcp<PLSRenderTargetD3D> PLSRenderContextD3DImpl::makeRenderTarget(uint32_t width, uint32_t height)
 {
     return rcp(new PLSRenderTargetD3D(this, width, height));
 }
 
-void PLSRenderContextD3DImpl::resizeGradientTexture(size_t height)
+void PLSRenderContextD3DImpl::resizePathTexture(uint32_t width, uint32_t height)
+{
+    m_pathTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
+                                        width,
+                                        height,
+                                        1,
+                                        D3D11_BIND_SHADER_RESOURCE);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(m_pathTexture.Get(),
+                                              NULL,
+                                              m_pathTextureSRV.GetAddressOf()));
+}
+
+void PLSRenderContextD3DImpl::resizeContourTexture(uint32_t width, uint32_t height)
+{
+    m_contourTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
+                                           width,
+                                           height,
+                                           1,
+                                           D3D11_BIND_SHADER_RESOURCE);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(m_contourTexture.Get(),
+                                              NULL,
+                                              m_contourTextureSRV.GetAddressOf()));
+}
+
+void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     m_gradTexture = makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
-                                        kGradTextureWidth,
+                                        width,
                                         height,
                                         1,
                                         D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
@@ -747,10 +695,10 @@ void PLSRenderContextD3DImpl::resizeGradientTexture(size_t height)
         m_gpu->CreateRenderTargetView(m_gradTexture.Get(), NULL, m_gradTextureRTV.GetAddressOf()));
 }
 
-void PLSRenderContextD3DImpl::resizeTessellationTexture(size_t height)
+void PLSRenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     m_tessTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
-                                        kTessTextureWidth,
+                                        width,
                                         height,
                                         1,
                                         D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
@@ -942,17 +890,13 @@ static ID3D11Buffer* submitted_buffer(const BufferRing* bufferRing)
     return static_cast<const BufferRingD3D*>(bufferRing)->submittedBuffer();
 }
 
-static ID3D11ShaderResourceView* submitted_srv(const TexelBufferRing* texelBufferRing)
+static const char* heap_buffer_contents(const BufferRing* bufferRing)
 {
-    return static_cast<const TexelBufferD3D*>(texelBufferRing)->submittedSRV();
+    auto heapBuffer = static_cast<const HeapBufferRing*>(bufferRing);
+    return reinterpret_cast<const char*>(heapBuffer->contents());
 }
 
-static const void* heap_buffer_contents(const BufferRing* bufferRing)
-{
-    return static_cast<const HeapBufferRing*>(bufferRing)->contents();
-}
-
-void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
+void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<const PLSRenderTargetD3D*>(desc.renderTarget);
 
@@ -968,50 +912,52 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
             m_imageRectIndexBuffer = makeSimpleImmutableBuffer(sizeof(pls::kImageRectIndices),
                                                                D3D11_BIND_INDEX_BUFFER,
                                                                pls::kImageRectIndices);
-            m_paintBuffer = makeSimpleStructuredBuffer(ExperimentalAtomicModeData::kBufferLength,
-                                                       sizeof(ExperimentalAtomicModeData::Paint));
+            m_paintBuffer =
+                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
+                                           sizeof(pls::ExperimentalAtomicModeData::Paint));
             m_paintMatrixBuffer =
-                makeSimpleStructuredBuffer(ExperimentalAtomicModeData::kBufferLength,
+                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
                                            sizeof(float) * 2 * 2);
             m_paintTranslateBuffer =
-                makeSimpleStructuredBuffer(ExperimentalAtomicModeData::kBufferLength,
-                                           sizeof(ExperimentalAtomicModeData::PaintTranslate));
+                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
+                                           sizeof(pls::ExperimentalAtomicModeData::PaintTranslate));
             m_clipRectMatrixBuffer =
-                makeSimpleStructuredBuffer(ExperimentalAtomicModeData::kBufferLength,
+                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
                                            sizeof(float) * 2 * 2);
-            m_clipRectTranslateBuffer =
-                makeSimpleStructuredBuffer(ExperimentalAtomicModeData::kBufferLength,
-                                           sizeof(ExperimentalAtomicModeData::ClipRectTranslate));
+            m_clipRectTranslateBuffer = makeSimpleStructuredBuffer(
+                pls::ExperimentalAtomicModeData::kBufferLength,
+                sizeof(pls::ExperimentalAtomicModeData::ClipRectTranslate));
 
             m_paintBufferSRV =
                 makeSimpleStructuredBufferSRV(m_paintBuffer.Get(),
-                                              ExperimentalAtomicModeData::kBufferLength);
+                                              pls::ExperimentalAtomicModeData::kBufferLength);
             m_paintMatrixBufferSRV =
                 makeSimpleStructuredBufferSRV(m_paintMatrixBuffer.Get(),
-                                              ExperimentalAtomicModeData::kBufferLength);
+                                              pls::ExperimentalAtomicModeData::kBufferLength);
             m_paintTranslateBufferSRV =
                 makeSimpleStructuredBufferSRV(m_paintTranslateBuffer.Get(),
-                                              ExperimentalAtomicModeData::kBufferLength);
+                                              pls::ExperimentalAtomicModeData::kBufferLength);
             m_clipRectMatrixBufferSRV =
                 makeSimpleStructuredBufferSRV(m_clipRectMatrixBuffer.Get(),
-                                              ExperimentalAtomicModeData::kBufferLength);
+                                              pls::ExperimentalAtomicModeData::kBufferLength);
             m_clipRectTranslateBufferSRV =
                 makeSimpleStructuredBufferSRV(m_clipRectTranslateBuffer.Get(),
-                                              ExperimentalAtomicModeData::kBufferLength);
+                                              pls::ExperimentalAtomicModeData::kBufferLength);
         }
 
         // Fill in the atomic mode buffers.
         assert(desc.experimentalAtomicModeData);
-        ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
+        pls::ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
         size_t bufferCount = desc.pathCount + 1;
         updateStructuredBuffer(m_paintBuffer.Get(),
-                               sizeof(ExperimentalAtomicModeData::Paint) * bufferCount,
+                               sizeof(pls::ExperimentalAtomicModeData::Paint) * bufferCount,
                                atomicModeData.m_paints);
         updateStructuredBuffer(m_paintMatrixBuffer.Get(),
                                sizeof(float) * 2 * 2 * bufferCount,
                                atomicModeData.m_paintMatrices);
         updateStructuredBuffer(m_paintTranslateBuffer.Get(),
-                               sizeof(ExperimentalAtomicModeData::PaintTranslate) * bufferCount,
+                               sizeof(pls::ExperimentalAtomicModeData::PaintTranslate) *
+                                   bufferCount,
                                atomicModeData.m_paintTranslates);
         if (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT)
         {
@@ -1019,7 +965,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                    sizeof(float) * 2 * 2 * bufferCount,
                                    atomicModeData.m_clipRectMatrices);
             updateStructuredBuffer(m_clipRectTranslateBuffer.Get(),
-                                   sizeof(ExperimentalAtomicModeData::ClipRectTranslate) *
+                                   sizeof(pls::ExperimentalAtomicModeData::ClipRectTranslate) *
                                        bufferCount,
                                    atomicModeData.m_clipRectTranslates);
         }
@@ -1123,6 +1069,48 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
         m_gpuContext->DrawInstanced(4, desc.complexGradSpanCount, 0, 0);
     }
 
+    // Copy the path data to the texture.
+    if (desc.pathTexelsHeight > 0)
+    {
+        assert(desc.pathTexelsHeight * desc.pathTexelsWidth <=
+               pathBufferRing()->capacity() * pls::kPathTexelsPerItem);
+        D3D11_BOX box;
+        box.left = 0;
+        box.right = desc.pathTexelsWidth;
+        box.top = 0;
+        box.bottom = desc.pathTexelsHeight;
+        box.front = 0;
+        box.back = 1;
+        m_gpuContext->UpdateSubresource(m_pathTexture.Get(),
+                                        0,
+                                        &box,
+                                        heap_buffer_contents(pathBufferRing()) +
+                                            desc.pathDataOffset,
+                                        pls::kPathTextureWidthInItems * sizeof(pls::PathData),
+                                        0);
+    }
+
+    // Copy the contour data to the texture.
+    if (desc.contourTexelsHeight > 0)
+    {
+        assert(desc.contourTexelsHeight * desc.contourTexelsWidth <=
+               contourBufferRing()->capacity() * pls::kContourTexelsPerItem);
+        D3D11_BOX box;
+        box.left = 0;
+        box.right = desc.contourTexelsWidth;
+        box.top = 0;
+        box.bottom = desc.contourTexelsHeight;
+        box.front = 0;
+        box.back = 1;
+        m_gpuContext->UpdateSubresource(m_contourTexture.Get(),
+                                        0,
+                                        &box,
+                                        heap_buffer_contents(contourBufferRing()) +
+                                            desc.contourDataOffset,
+                                        pls::kContourTextureWidthInItems * sizeof(pls::ContourData),
+                                        0);
+    }
+
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
@@ -1158,8 +1146,8 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
 
         // Unbind the tessellation texture before rendering it.
         ID3D11ShaderResourceView* vsTextureViews[] = {NULL,
-                                                      submitted_srv(pathBufferRing()),
-                                                      submitted_srv(contourBufferRing())};
+                                                      m_pathTextureSRV.Get(),
+                                                      m_contourTextureSRV.Get()};
         static_assert(TESS_VERTEX_TEXTURE_IDX == 0);
         static_assert(PATH_TEXTURE_IDX == 1);
         static_assert(CONTOUR_TEXTURE_IDX == 2);
@@ -1221,8 +1209,8 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
     m_gpuContext->IASetVertexBuffers(0, 3, vertexBuffers, vertexStrides, vertexOffsets);
 
     ID3D11ShaderResourceView* vertexTextureViews[] = {m_tessTextureSRV.Get(),
-                                                      submitted_srv(pathBufferRing()),
-                                                      submitted_srv(contourBufferRing())};
+                                                      m_pathTextureSRV.Get(),
+                                                      m_contourTextureSRV.Get()};
     static_assert(TESS_VERTEX_TEXTURE_IDX == 0);
     static_assert(PATH_TEXTURE_IDX == 1);
     static_assert(CONTOUR_TEXTURE_IDX == 2);
@@ -1241,8 +1229,7 @@ void PLSRenderContextD3DImpl::flush(const PLSRenderContext::FlushDescriptor& des
                                        m_imageDrawUniforms.GetAddressOf());
     m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 1, m_gradTextureSRV.GetAddressOf());
 
-    const uint8_t* const imageDrawUniformData =
-        static_cast<const uint8_t*>(heap_buffer_contents(imageDrawUniformBufferRing()));
+    const char* const imageDrawUniformData = heap_buffer_contents(imageDrawUniformBufferRing());
 
     for (const Draw& draw : *desc.drawList)
     {

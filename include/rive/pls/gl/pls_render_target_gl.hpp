@@ -46,12 +46,18 @@ private:
 
     // Creates a render target that draws to an existing GL framebuffer. The caller must also call
     // allocateCoverageBackingTextures() and attach those textures to the framebuffer if needed.
-    PLSRenderTargetGL(GLuint framebufferID, size_t width, size_t height, const PlatformFeatures&);
+    PLSRenderTargetGL(GLuint framebufferID,
+                      uint32_t width,
+                      uint32_t height,
+                      const PlatformFeatures&);
 
     // Creates a render target that draws to a new, offscreen GL framebuffer. The caller must also
     // call allocateCoverageBackingTextures() and attach those textures to the framebuffer if
     // needed, as well as calling createSideFramebuffer() if needed.
-    PLSRenderTargetGL(size_t width, size_t height, TargetTextureOwnership, const PlatformFeatures&);
+    PLSRenderTargetGL(uint32_t width,
+                      uint32_t height,
+                      TargetTextureOwnership,
+                      const PlatformFeatures&);
 
     // Called when the GL context can't support memoryless pixel local storage. Creates and attaches
     // backing textures for our transient PLS planes that calculate coverage.

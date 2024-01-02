@@ -17,8 +17,8 @@ class PLSRenderContextWebGPUVulkan : public PLSRenderContextWebGPUImpl
 {
 public:
     rcp<PLSRenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat,
-                                                size_t width,
-                                                size_t height) override;
+                                                uint32_t width,
+                                                uint32_t height) override;
 
 protected:
     wgpu::BindGroupLayout initPLSTextureBindGroup() override;

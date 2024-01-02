@@ -33,24 +33,15 @@ rcp<PLSTexture> PLSRenderContextHelperImpl::decodeImageTexture(Span<const uint8_
     return nullptr;
 }
 
-void PLSRenderContextHelperImpl::resizePathTexture(size_t width, size_t height)
+void PLSRenderContextHelperImpl::resizePathBuffer(size_t sizeInBytes)
 {
-    m_pathBuffer = makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
-                                       width / kPathTexelsPerItem,
-                                       height,
-                                       kPathTexelsPerItem,
-                                       PATH_TEXTURE_IDX,
-                                       TexelBufferRing::Filter::nearest);
+    m_pathBuffer = makePixelUnpackBufferRing(sizeInBytes / sizeof(PathData), sizeof(PathData));
 }
 
-void PLSRenderContextHelperImpl::resizeContourTexture(size_t width, size_t height)
+void PLSRenderContextHelperImpl::resizeContourBuffer(size_t sizeInBytes)
 {
-    m_contourBuffer = makeTexelBufferRing(TexelBufferRing::Format::rgba32ui,
-                                          width / kContourTexelsPerItem,
-                                          height,
-                                          kContourTexelsPerItem,
-                                          CONTOUR_TEXTURE_IDX,
-                                          TexelBufferRing::Filter::nearest);
+    m_contourBuffer =
+        makePixelUnpackBufferRing(sizeInBytes / sizeof(ContourData), sizeof(ContourData));
 }
 
 void PLSRenderContextHelperImpl::resizeSimpleColorRampsBuffer(size_t sizeInBytes)
@@ -83,12 +74,12 @@ void PLSRenderContextHelperImpl::resizeImageDrawUniformBuffer(size_t sizeInBytes
                                                      sizeof(pls::ImageDrawUniforms));
 }
 
-void PLSRenderContextHelperImpl::mapPathTexture(WriteOnlyMappedMemory<PathData>* pathData)
+void PLSRenderContextHelperImpl::mapPathBuffer(WriteOnlyMappedMemory<PathData>* pathData)
 {
     pathData->reset(m_pathBuffer->mapBuffer(), m_pathBuffer->capacity());
 }
 
-void PLSRenderContextHelperImpl::mapContourTexture(WriteOnlyMappedMemory<ContourData>* contourData)
+void PLSRenderContextHelperImpl::mapContourBuffer(WriteOnlyMappedMemory<ContourData>* contourData)
 {
     contourData->reset(m_contourBuffer->mapBuffer(), m_contourBuffer->capacity());
 }
@@ -137,14 +128,14 @@ void PLSRenderContextHelperImpl::mapFlushUniformBuffer(
     flushUniformData->reset(m_flushUniformBuffer->mapBuffer(), 1);
 }
 
-void PLSRenderContextHelperImpl::unmapPathTexture(size_t widthWritten, size_t heightWritten)
+void PLSRenderContextHelperImpl::unmapPathBuffer(size_t bytesWritten)
 {
-    m_pathBuffer->unmapAndSubmitBuffer(heightWritten * widthWritten * 4 * 4);
+    m_pathBuffer->unmapAndSubmitBuffer(bytesWritten);
 }
 
-void PLSRenderContextHelperImpl::unmapContourTexture(size_t widthWritten, size_t heightWritten)
+void PLSRenderContextHelperImpl::unmapContourBuffer(size_t bytesWritten)
 {
-    m_contourBuffer->unmapAndSubmitBuffer(heightWritten * widthWritten * 4 * 4);
+    m_contourBuffer->unmapAndSubmitBuffer(bytesWritten);
 }
 
 void PLSRenderContextHelperImpl::unmapSimpleColorRampsBuffer(size_t bytesWritten)

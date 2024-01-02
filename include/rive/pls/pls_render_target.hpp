@@ -14,14 +14,14 @@ class PLSRenderTarget : public RefCnt<PLSRenderTarget>
 public:
     virtual ~PLSRenderTarget() {}
 
-    size_t width() const { return m_width; }
-    size_t height() const { return m_height; }
+    uint32_t width() const { return m_width; }
+    uint32_t height() const { return m_height; }
 
 protected:
-    PLSRenderTarget(size_t width, size_t height) : m_width(width), m_height(height) {}
+    PLSRenderTarget(uint32_t width, uint32_t height) : m_width(width), m_height(height) {}
 
 private:
-    size_t m_width;
-    size_t m_height;
+    uint32_t m_width;
+    uint32_t m_height;
 };
 } // namespace rive::pls

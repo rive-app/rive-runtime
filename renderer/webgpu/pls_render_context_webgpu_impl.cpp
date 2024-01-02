@@ -927,8 +927,8 @@ PLSRenderContextWebGPUImpl::~PLSRenderContextWebGPUImpl() {}
 
 PLSRenderTargetWebGPU::PLSRenderTargetWebGPU(wgpu::Device device,
                                              wgpu::TextureFormat framebufferFormat,
-                                             size_t width,
-                                             size_t height,
+                                             uint32_t width,
+                                             uint32_t height,
                                              wgpu::TextureUsage additionalTextureFlags) :
     PLSRenderTarget(width, height), m_framebufferFormat(framebufferFormat)
 {
@@ -957,8 +957,8 @@ void PLSRenderTargetWebGPU::setTargetTextureView(wgpu::TextureView textureView)
 
 rcp<PLSRenderTargetWebGPU> PLSRenderContextWebGPUImpl::makeRenderTarget(
     wgpu::TextureFormat framebufferFormat,
-    size_t width,
-    size_t height)
+    uint32_t width,
+    uint32_t height)
 {
     return rcp(new PLSRenderTargetWebGPU(m_device,
                                          framebufferFormat,
@@ -1103,84 +1103,6 @@ rcp<PLSTexture> PLSRenderContextWebGPUImpl::makeImageTexture(uint32_t width,
                                           imageDataRGBA);
 }
 
-class TexelBufferWebGPU : public TexelBufferRing
-{
-public:
-    TexelBufferWebGPU(wgpu::Device device,
-                      wgpu::Queue queue,
-                      Format format,
-                      size_t widthInItems,
-                      size_t height,
-                      size_t texelsPerItem,
-                      wgpu::TextureUsage extraUsageFlags = wgpu::TextureUsage::None) :
-        TexelBufferRing(format, widthInItems, height, texelsPerItem), m_queue(queue)
-    {
-        wgpu::TextureDescriptor desc = {
-            .usage =
-                wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst | extraUsageFlags,
-            .dimension = wgpu::TextureDimension::e2D,
-            .size = {static_cast<uint32_t>(widthInItems * texelsPerItem),
-                     static_cast<uint32_t>(height)},
-        };
-        switch (format)
-        {
-            case Format::rgba8:
-                desc.format = wgpu::TextureFormat::RGBA8Unorm;
-                break;
-            case Format::rgba32f:
-                desc.format = wgpu::TextureFormat::RGBA32Float;
-                break;
-            case Format::rgba32ui:
-                desc.format = wgpu::TextureFormat::RGBA32Uint;
-                break;
-        }
-
-        for (int i = 0; i < kBufferRingSize; ++i)
-        {
-            m_textures[i] = device.CreateTexture(&desc);
-            m_textureViews[i] = m_textures[i].CreateView();
-        }
-    }
-
-    wgpu::TextureView submittedTextureView() const { return m_textureViews[submittedBufferIdx()]; }
-
-protected:
-    void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) override
-    {
-        if (updateWidthInTexels > 0 && updateHeight > 0)
-        {
-            write_texture(m_queue,
-                          m_textures[textureIdx],
-                          static_cast<uint32_t>(widthInTexels() * BytesPerPixel(m_format)),
-                          static_cast<uint32_t>(updateWidthInTexels),
-                          static_cast<uint32_t>(updateHeight),
-                          shadowBuffer(),
-                          capacity() * itemSizeInBytes());
-        }
-    }
-
-private:
-    const wgpu::Queue m_queue;
-    wgpu::Texture m_textures[kBufferRingSize];
-    wgpu::TextureView m_textureViews[kBufferRingSize];
-};
-
-std::unique_ptr<TexelBufferRing> PLSRenderContextWebGPUImpl::makeTexelBufferRing(
-    TexelBufferRing::Format format,
-    size_t widthInItems,
-    size_t height,
-    size_t texelsPerItem,
-    int textureIdx,
-    TexelBufferRing::Filter)
-{
-    return std::make_unique<TexelBufferWebGPU>(m_device,
-                                               m_queue,
-                                               format,
-                                               widthInItems,
-                                               height,
-                                               texelsPerItem);
-}
-
 class BufferWebGPU : public BufferRingShadowImpl
 {
 public:
@@ -1246,12 +1168,36 @@ std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeUniformBufferRing(
                                           wgpu::BufferUsage::Uniform);
 }
 
-void PLSRenderContextWebGPUImpl::resizeGradientTexture(size_t height)
+void PLSRenderContextWebGPUImpl::resizePathTexture(uint32_t width, uint32_t height)
+{
+    wgpu::TextureDescriptor desc{
+        .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
+        .format = wgpu::TextureFormat::RGBA32Uint,
+    };
+
+    m_pathTexture = m_device.CreateTexture(&desc);
+    m_pathTextureView = m_pathTexture.CreateView();
+}
+
+void PLSRenderContextWebGPUImpl::resizeContourTexture(uint32_t width, uint32_t height)
+{
+    wgpu::TextureDescriptor desc{
+        .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
+        .format = wgpu::TextureFormat::RGBA32Uint,
+    };
+
+    m_contourTexture = m_device.CreateTexture(&desc);
+    m_contourTextureView = m_contourTexture.CreateView();
+}
+
+void PLSRenderContextWebGPUImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     wgpu::TextureDescriptor desc{
         .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding |
                  wgpu::TextureUsage::CopyDst,
-        .size = {kGradTextureWidth, static_cast<uint32_t>(height)},
+        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
         .format = wgpu::TextureFormat::RGBA8Unorm,
     };
 
@@ -1259,11 +1205,11 @@ void PLSRenderContextWebGPUImpl::resizeGradientTexture(size_t height)
     m_gradientTextureView = m_gradientTexture.CreateView();
 }
 
-void PLSRenderContextWebGPUImpl::resizeTessellationTexture(size_t height)
+void PLSRenderContextWebGPUImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     wgpu::TextureDescriptor desc{
         .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding,
-        .size = {kTessTextureWidth, static_cast<uint32_t>(height)},
+        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
         .format = wgpu::TextureFormat::RGBA32Uint,
     };
 
@@ -1454,12 +1400,7 @@ static wgpu::Buffer webgpu_buffer(const BufferRing* bufferRing)
     return static_cast<const BufferWebGPU*>(bufferRing)->submittedBuffer();
 }
 
-static wgpu::TextureView webgpu_texture_view(const TexelBufferRing* texelBufferRing)
-{
-    return static_cast<const TexelBufferWebGPU*>(texelBufferRing)->submittedTextureView();
-}
-
-void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
+void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 {
     auto* renderTarget = static_cast<const PLSRenderTargetWebGPU*>(desc.renderTarget);
     wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
@@ -1508,6 +1449,50 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
         gradPass.End();
     }
 
+    // Copy the path data to the texture.
+    if (desc.pathTexelsHeight > 0)
+    {
+        wgpu::ImageCopyBuffer srcBuffer = {
+            .layout =
+                {
+                    .offset = desc.pathDataOffset,
+                    .bytesPerRow = pls::kPathTextureWidthInItems * sizeof(pls::PathData),
+                },
+            .buffer = webgpu_buffer(pathBufferRing()),
+        };
+        wgpu::ImageCopyTexture dstTexture = {
+            .texture = m_pathTexture,
+            .origin = {0, 0, 0},
+        };
+        wgpu::Extent3D copySize = {
+            .width = desc.pathTexelsWidth,
+            .height = desc.pathTexelsHeight,
+        };
+        encoder.CopyBufferToTexture(&srcBuffer, &dstTexture, &copySize);
+    }
+
+    // Copy the contour data to the texture.
+    if (desc.contourTexelsHeight > 0)
+    {
+        wgpu::ImageCopyBuffer srcBuffer = {
+            .layout =
+                {
+                    .offset = desc.contourDataOffset,
+                    .bytesPerRow = pls::kContourTextureWidthInItems * sizeof(pls::ContourData),
+                },
+            .buffer = webgpu_buffer(contourBufferRing()),
+        };
+        wgpu::ImageCopyTexture dstTexture = {
+            .texture = m_contourTexture,
+            .origin = {0, 0, 0},
+        };
+        wgpu::Extent3D copySize = {
+            .width = desc.contourTexelsWidth,
+            .height = desc.contourTexelsHeight,
+        };
+        encoder.CopyBufferToTexture(&srcBuffer, &dstTexture, &copySize);
+    }
+
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
@@ -1536,11 +1521,11 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
         wgpu::BindGroupEntry bindingEntries[] = {
             {
                 .binding = PATH_TEXTURE_IDX,
-                .textureView = webgpu_texture_view(pathBufferRing()),
+                .textureView = m_pathTextureView,
             },
             {
                 .binding = CONTOUR_TEXTURE_IDX,
-                .textureView = webgpu_texture_view(contourBufferRing()),
+                .textureView = m_contourTextureView,
             },
             {
                 .binding = FLUSH_UNIFORM_BUFFER_IDX,
@@ -1705,11 +1690,11 @@ void PLSRenderContextWebGPUImpl::flush(const PLSRenderContext::FlushDescriptor& 
                 },
                 {
                     .binding = PATH_TEXTURE_IDX,
-                    .textureView = webgpu_texture_view(pathBufferRing()),
+                    .textureView = m_pathTextureView,
                 },
                 {
                     .binding = CONTOUR_TEXTURE_IDX,
-                    .textureView = webgpu_texture_view(contourBufferRing()),
+                    .textureView = m_contourTextureView,
                 },
                 {
                     .binding = GRAD_TEXTURE_IDX,

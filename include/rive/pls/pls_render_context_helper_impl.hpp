@@ -15,16 +15,16 @@ class PLSRenderContextHelperImpl : public PLSRenderContextImpl
 public:
     rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
 
-    void resizePathTexture(size_t width, size_t height) override;
-    void resizeContourTexture(size_t width, size_t height) override;
+    void resizePathBuffer(size_t sizeInBytes) override;
+    void resizeContourBuffer(size_t sizeInBytes) override;
     void resizeSimpleColorRampsBuffer(size_t sizeInBytes) override;
     void resizeGradSpanBuffer(size_t sizeInBytes) override;
     void resizeTessVertexSpanBuffer(size_t sizeInBytes) override;
     void resizeTriangleVertexBuffer(size_t sizeInBytes) override;
     void resizeImageDrawUniformBuffer(size_t sizeInBytes) override;
 
-    void mapPathTexture(WriteOnlyMappedMemory<pls::PathData>*) override;
-    void mapContourTexture(WriteOnlyMappedMemory<pls::ContourData>*) override;
+    void mapPathBuffer(WriteOnlyMappedMemory<pls::PathData>*) override;
+    void mapContourBuffer(WriteOnlyMappedMemory<pls::ContourData>*) override;
     void mapSimpleColorRampsBuffer(WriteOnlyMappedMemory<pls::TwoTexelRamp>*) override;
     void mapGradSpanBuffer(WriteOnlyMappedMemory<pls::GradientSpan>*) override;
     void mapTessVertexSpanBuffer(WriteOnlyMappedMemory<pls::TessVertexSpan>*) override;
@@ -32,8 +32,8 @@ public:
     void mapImageDrawUniformBuffer(WriteOnlyMappedMemory<pls::ImageDrawUniforms>*) override;
     void mapFlushUniformBuffer(WriteOnlyMappedMemory<pls::FlushUniforms>*) override;
 
-    void unmapPathTexture(size_t widthWritten, size_t heightWritten) override;
-    void unmapContourTexture(size_t widthWritten, size_t heightWritten) override;
+    void unmapPathBuffer(size_t bytesWritten) override;
+    void unmapContourBuffer(size_t bytesWritten) override;
     void unmapSimpleColorRampsBuffer(size_t bytesWritten) override;
     void unmapGradSpanBuffer(size_t bytesWritten) override;
     void unmapTessVertexSpanBuffer(size_t bytesWritten) override;
@@ -42,8 +42,8 @@ public:
     void unmapFlushUniformBuffer() override;
 
 protected:
-    const TexelBufferRing* pathBufferRing() { return m_pathBuffer.get(); }
-    const TexelBufferRing* contourBufferRing() { return m_contourBuffer.get(); }
+    const BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
+    const BufferRing* contourBufferRing() { return m_contourBuffer.get(); }
     const BufferRing* simpleColorRampsBufferRing() const { return m_simpleColorRampsBuffer.get(); }
     const BufferRing* gradSpanBufferRing() const { return m_gradSpanBuffer.get(); }
     const BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
@@ -56,13 +56,6 @@ protected:
                                              uint32_t mipLevelCount,
                                              const uint8_t imageDataRGBA[]) = 0;
 
-    virtual std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                                 size_t widthInItems,
-                                                                 size_t height,
-                                                                 size_t texelsPerItem,
-                                                                 int textureIdx,
-                                                                 TexelBufferRing::Filter) = 0;
-
     virtual std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
                                                              size_t itemSizeInBytes) = 0;
 
@@ -73,8 +66,8 @@ protected:
                                                               size_t sizeInBytes) = 0;
 
 private:
-    std::unique_ptr<TexelBufferRing> m_pathBuffer;
-    std::unique_ptr<TexelBufferRing> m_contourBuffer;
+    std::unique_ptr<BufferRing> m_pathBuffer;
+    std::unique_ptr<BufferRing> m_contourBuffer;
     std::unique_ptr<BufferRing> m_simpleColorRampsBuffer;
     std::unique_ptr<BufferRing> m_gradSpanBuffer;
     std::unique_ptr<BufferRing> m_tessSpanBuffer;

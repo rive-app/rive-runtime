@@ -213,6 +213,8 @@ void PLSRenderContext::allocateGPUResources(
     if (shouldReallocate(targetPathTextureHeight, currentPathTextureHeight))
     {
         assert(!m_pathData);
+        m_impl->resizePathBuffer(targetPathTextureHeight * kPathTextureWidthInTexels *
+                                 sizeof(PathData));
         m_impl->resizePathTexture(kPathTextureWidthInTexels, targetPathTextureHeight);
         LOG_CHANGED_SIZE("path texture height",
                          currentPathTextureHeight,
@@ -238,6 +240,8 @@ void PLSRenderContext::allocateGPUResources(
     if (shouldReallocate(targetContourTextureHeight, currentContourTextureHeight))
     {
         assert(!m_contourData);
+        m_impl->resizeContourBuffer(targetContourTextureHeight * kContourTextureWidthInItems *
+                                    sizeof(ContourData));
         m_impl->resizeContourTexture(kContourTextureWidthInTexels, targetContourTextureHeight);
         LOG_CHANGED_SIZE("contour texture height",
                          currentContourTextureHeight,
@@ -358,7 +362,7 @@ void PLSRenderContext::allocateGPUResources(
         std::clamp(targets.gradientTextureHeight, kMinGradTextureHeight, kMaxGradTextureHeight);
     if (shouldReallocate(targetGradTextureHeight, m_currentResourceLimits.gradientTextureHeight))
     {
-        m_impl->resizeGradientTexture(targetGradTextureHeight);
+        m_impl->resizeGradientTexture(kGradTextureWidth, targetGradTextureHeight);
         LOG_CHANGED_SIZE("gradientTextureHeight",
                          m_currentResourceLimits.gradientTextureHeight,
                          targetGradTextureHeight,
@@ -374,7 +378,7 @@ void PLSRenderContext::allocateGPUResources(
     if (shouldReallocate(targetTessTextureHeight,
                          m_currentResourceLimits.tessellationTextureHeight))
     {
-        m_impl->resizeTessellationTexture(targetTessTextureHeight);
+        m_impl->resizeTessellationTexture(kTessTextureWidth, targetTessTextureHeight);
         LOG_CHANGED_SIZE("tessellationTextureHeight",
                          m_currentResourceLimits.tessellationTextureHeight,
                          targetTessTextureHeight,
@@ -398,7 +402,7 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
     m_impl->prepareToMapBuffers();
     if (m_frameDescriptor.enableExperimentalAtomicMode && m_atomicModeData == nullptr)
     {
-        m_atomicModeData = std::make_unique<ExperimentalAtomicModeData>();
+        m_atomicModeData = std::make_unique<pls::ExperimentalAtomicModeData>();
     }
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
 }
@@ -469,10 +473,10 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
             growExceededGPUResources(newLimits, kGPUResourceIntermediateGrowthFactor);
         }
 
-        m_impl->mapPathTexture(&m_pathData);
+        m_impl->mapPathBuffer(&m_pathData);
         assert(m_pathData.hasRoomFor(m_currentResourceLimits.maxPathID));
 
-        m_impl->mapContourTexture(&m_contourData);
+        m_impl->mapContourBuffer(&m_contourData);
         assert(m_contourData.hasRoomFor(m_currentResourceLimits.maxContourID));
 
         m_impl->mapTessVertexSpanBuffer(&m_tessSpanData);
@@ -713,133 +717,6 @@ void PLSRenderContext::pushPath(PatchType patchType,
                                          m_frameDescriptor.renderTarget.get(),
                                          m_currentResourceLimits.gradientTextureHeight,
                                          m_impl->platformFeatures());
-    }
-}
-
-static uint32_t pack_glsl_unorm4x8(uint4 rgbaInteger)
-{
-    rgbaInteger <<= uint4{0, 8, 16, 24};
-    rgbaInteger.xy |= rgbaInteger.zw;
-    rgbaInteger.x |= rgbaInteger.y;
-    return rgbaInteger.x;
-}
-
-static uint32_t pack_glsl_unorm4x8(float4 rgba)
-{
-    uint4 rgbaInteger = simd::cast<uint32_t>(simd::clamp(rgba, float4(0), float4(1)) * 255.f);
-    return pack_glsl_unorm4x8(rgbaInteger);
-}
-
-static uint32_t pack_glsl_unorm4x8(ColorInt riveColor)
-{
-    // Swizzle the riveColor to the order GLSL expects in unpackUnorm4x8().
-    uint4 rgbaInteger = (uint4(riveColor) >> uint4{16, 8, 0, 24}) & 0xffu;
-    return pack_glsl_unorm4x8(rgbaInteger);
-}
-
-void PLSRenderContext::ExperimentalAtomicModeData::setDataForPath(
-    uint32_t pathID,
-    const Mat2D& matrix,
-    FillRule fillRule,
-    pls::PaintType paintType,
-    const pls::PaintData& paintData,
-    const PLSTexture* imageTexture,
-    uint32_t clipID,
-    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-    BlendMode blendMode,
-    const PLSRenderTarget* renderTarget,
-    float gradientTextureHeight,
-    const PlatformFeatures& platformFeatures)
-{
-    uint32_t shiftedClipID = clipID << 16;
-    uint32_t shiftedBlendMode = pls::ConvertBlendModeToPLSBlendMode(blendMode) << 4;
-    m_imageTextures[pathID] = nullptr;
-    switch (paintType)
-    {
-        case PaintType::solidColor:
-        {
-            m_paints[pathID].params = shiftedClipID | shiftedBlendMode | SOLID_COLOR_PAINT_TYPE;
-            m_paints[pathID].color = pack_glsl_unorm4x8(simd::load4f(&paintData.data));
-            break;
-        }
-        case PaintType::linearGradient:
-        case PaintType::radialGradient:
-        case PaintType::image:
-        {
-            Mat2D paintMatrix;
-            matrix.invert(&paintMatrix);
-            if (platformFeatures.fragCoordBottomUp)
-            {
-                // Flip gl_FragCoord.y.
-                paintMatrix = paintMatrix * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
-            }
-            if (paintType == PaintType::image)
-            {
-                m_paints[pathID].params = shiftedClipID | shiftedBlendMode | IMAGE_PAINT_TYPE;
-                m_paints[pathID].opacity = paintData.opacityIfImage();
-                m_imageTextures[pathID] = imageTexture;
-            }
-            else
-            {
-                float gradCoeffs[3];
-                memcpy(gradCoeffs, paintData.data + 1, 3 * sizeof(float));
-                if (paintType == PaintType::linearGradient)
-                {
-                    m_paints[pathID].params =
-                        shiftedClipID | shiftedBlendMode | LINEAR_GRADIENT_PAINT_TYPE;
-                    paintMatrix =
-                        Mat2D(gradCoeffs[0], 0, gradCoeffs[1], 0, gradCoeffs[2], 0) * paintMatrix;
-                }
-                else
-                {
-                    m_paints[pathID].params =
-                        shiftedClipID | shiftedBlendMode | RADIAL_GRADIENT_PAINT_TYPE;
-                    float w = 1 / gradCoeffs[2];
-                    paintMatrix =
-                        Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) * paintMatrix;
-                }
-                uint32_t span = paintData.data[0];
-                uint32_t row = span >> 20;
-                uint32_t x0 = span & 0x3ff;
-                uint32_t x1 = (span >> 10) & 0x3ff;
-                m_paints[pathID].gradTextureY = static_cast<float>(row) + .5f;
-                // Generate a mapping from gradient T to an x-coord in the gradient texture.
-                m_paintTranslates[pathID].gradTextureHorizontalSpan = {
-                    (x1 - x0) * GRAD_TEXTURE_INVERSE_WIDTH,
-                    (x0 + .5f) * GRAD_TEXTURE_INVERSE_WIDTH};
-            }
-            m_paintMatrices[pathID] = {paintMatrix.xx(),
-                                       paintMatrix.xy(),
-                                       paintMatrix.yx(),
-                                       paintMatrix.yy()};
-            m_paintTranslates[pathID].translate = {paintMatrix.tx(), paintMatrix.ty()};
-            break;
-        }
-        case PaintType::clipUpdate:
-        {
-            uint32_t outerClipID = paintData.outerClipIDIfClipUpdate();
-            m_paints[pathID].params = (outerClipID << 16) | CLIP_UPDATE_PAINT_TYPE;
-            m_paints[pathID].shiftedClipReplacementID = shiftedClipID;
-            break;
-        }
-    }
-    if (fillRule == FillRule::evenOdd)
-    {
-        m_paints[pathID].params |= ATOMIC_MODE_FLAG_EVEN_ODD;
-    }
-    if (clipRectInverseMatrix != nullptr)
-    {
-        m_paints[pathID].params |= ATOMIC_MODE_FLAG_HAS_CLIP_RECT;
-        Mat2D m = clipRectInverseMatrix->inverseMatrix();
-        if (platformFeatures.fragCoordBottomUp)
-        {
-            // Flip gl_FragCoord.y.
-            m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
-        }
-        m_clipRectMatrices[pathID] = {m.xx(), m.xy(), m.yx(), m.yy()};
-        m_clipRectTranslates[pathID].translate = {m.tx(), m.ty()};
-        m_clipRectTranslates[pathID].inverseFwidth = {-1.f / (fabsf(m.xx()) + fabsf(m.xy())),
-                                                      -1.f / (fabsf(m.yx()) + fabsf(m.yy()))};
     }
 }
 
@@ -1349,6 +1226,7 @@ void PLSRenderContext::flush(FlushType flushType)
 
     // Determine how much to draw.
     size_t pathCount = m_pathData.bytesWritten() / sizeof(pls::PathData);
+    size_t contourCount = m_contourData.bytesWritten() / sizeof(pls::ContourData);
     size_t simpleColorRampCount = m_simpleColorRampsData.bytesWritten() / sizeof(TwoTexelRamp);
     size_t gradSpanCount = m_gradSpanData.bytesWritten() / sizeof(GradientSpan);
     size_t tessVertexSpanCount = m_tessSpanData.bytesWritten() / sizeof(TessVertexSpan);
@@ -1359,18 +1237,12 @@ void PLSRenderContext::flush(FlushType flushType)
     // Unmap all non-empty buffers before flushing.
     if (m_pathData)
     {
-        size_t texelsWritten = m_pathData.bytesWritten() / (sizeof(uint32_t) * 4);
-        size_t widthWritten = std::min(texelsWritten, kPathTextureWidthInTexels);
-        size_t heightWritten = resource_texture_height<kPathTextureWidthInTexels>(texelsWritten);
-        m_impl->unmapPathTexture(widthWritten, heightWritten);
+        m_impl->unmapPathBuffer(m_pathData.bytesWritten());
         m_pathData.reset();
     }
     if (m_contourData)
     {
-        size_t texelsWritten = m_contourData.bytesWritten() / (sizeof(uint32_t) * 4);
-        size_t widthWritten = std::min(texelsWritten, kContourTextureWidthInTexels);
-        size_t heightWritten = resource_texture_height<kContourTextureWidthInTexels>(texelsWritten);
-        m_impl->unmapContourTexture(widthWritten, heightWritten);
+        m_impl->unmapContourBuffer(m_contourData.bytesWritten());
         m_contourData.reset();
     }
     if (m_simpleColorRampsData)
@@ -1414,13 +1286,22 @@ void PLSRenderContext::flush(FlushType flushType)
         m_cachedUniformData = uniformData;
     }
 
-    FlushDescriptor flushDesc;
+    PLSRenderContextImpl::FlushDescriptor flushDesc;
     flushDesc.backendSpecificData = m_frameDescriptor.backendSpecificData;
     flushDesc.renderTarget = m_frameDescriptor.renderTarget.get();
     flushDesc.loadAction =
         m_isFirstFlushOfFrame ? m_frameDescriptor.loadAction : LoadAction::preserveRenderTarget;
     flushDesc.clearColor = m_frameDescriptor.clearColor;
     flushDesc.combinedShaderFeatures = combinedShaderFeatures;
+    flushDesc.pathTexelsWidth =
+        std::min(pathCount, pls::kPathTextureWidthInItems) * pls::kPathTexelsPerItem;
+    flushDesc.pathTexelsHeight = resource_texture_height<pls::kPathTextureWidthInItems>(pathCount);
+    flushDesc.pathDataOffset = 0;
+    flushDesc.contourTexelsWidth =
+        std::min(contourCount, pls::kContourTextureWidthInItems) * pls::kContourTexelsPerItem;
+    flushDesc.contourTexelsHeight =
+        resource_texture_height<pls::kContourTextureWidthInItems>(contourCount);
+    flushDesc.contourDataOffset = 0;
     flushDesc.complexGradSpanCount = gradSpanCount;
     flushDesc.tessVertexSpanCount = tessVertexSpanCount;
     flushDesc.simpleGradTexelsWidth =
@@ -1437,22 +1318,9 @@ void PLSRenderContext::flush(FlushType flushType)
     flushDesc.pathCount = pathCount;
     if (m_frameDescriptor.enableExperimentalAtomicMode)
     {
-        // Configure pathID 0 to resolve to the clear color, so we can avoid clearing the
-        // framebuffer in certain cases.
-        m_atomicModeData->m_paints[0].params = SOLID_COLOR_PAINT_TYPE;
-        m_atomicModeData->m_paints[0].color = pack_glsl_unorm4x8(flushDesc.clearColor);
-        m_atomicModeData->m_imageTextures[0] = nullptr;
-
-        // Normalize the gradient Y coordinates now that we know how tall the texture is.
-        for (uint32_t i = 1; i <= pathCount; ++i)
-        {
-            uint32_t paintType = m_atomicModeData->m_paints[i].params & 0xfu;
-            if (paintType == LINEAR_GRADIENT_PAINT_TYPE || paintType == RADIAL_GRADIENT_PAINT_TYPE)
-            {
-                m_atomicModeData->m_paints[i].gradTextureY *= uniformData.gradTextureInverseHeight;
-            }
-        }
-
+        m_atomicModeData->finalize(pathCount,
+                                   flushDesc.clearColor,
+                                   uniformData.gradTextureInverseHeight);
         flushDesc.interlockMode = pls::InterlockMode::experimentalAtomics;
         flushDesc.experimentalAtomicModeData = m_atomicModeData.get();
     }

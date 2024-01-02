@@ -27,7 +27,7 @@ public:
 
     // Creates a PLSRenderTarget that draws directly into the given GL framebuffer.
     // Returns null if the framebuffer doesn't support pixel local storage.
-    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID, size_t width, size_t height)
+    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID, uint32_t width, uint32_t height)
     {
         return m_plsImpl->wrapGLRenderTarget(framebufferID, width, height, m_platformFeatures);
     }
@@ -36,8 +36,8 @@ public:
     // guaranteed to succeed, but the caller must call glBlitFramebuffer() to view the rendering
     // results.
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-        size_t width,
-        size_t height,
+        uint32_t width,
+        uint32_t height,
         PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership =
             PLSRenderTargetGL::TargetTextureOwnership::internal)
     {
@@ -66,17 +66,16 @@ private:
         virtual void init(rcp<GLState>) {}
 
         virtual rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
-                                                          size_t width,
-                                                          size_t height,
+                                                          uint32_t width,
+                                                          uint32_t height,
                                                           const PlatformFeatures&) = 0;
         virtual rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-            size_t width,
-            size_t height,
+            uint32_t width,
+            uint32_t height,
             PLSRenderTargetGL::TargetTextureOwnership,
             const PlatformFeatures&) = 0;
 
-        virtual void activatePixelLocalStorage(PLSRenderContextGLImpl*,
-                                               const PLSRenderContext::FlushDescriptor&) = 0;
+        virtual void activatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor&) = 0;
         virtual void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) = 0;
 
         virtual const char* shaderDefineName() const = 0;
@@ -144,13 +143,6 @@ private:
 
     class DrawShader;
 
-    std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                         size_t widthInItems,
-                                                         size_t height,
-                                                         size_t texelsPerItem,
-                                                         int textureIdx,
-                                                         TexelBufferRing::Filter) override;
-
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
                                                      size_t itemSizeInBytes) override;
 
@@ -159,10 +151,12 @@ private:
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity, size_t sizeInBytes) override;
 
-    void resizeGradientTexture(size_t height) override;
-    void resizeTessellationTexture(size_t height) override;
+    void resizePathTexture(uint32_t width, uint32_t height) override;
+    void resizeContourTexture(uint32_t width, uint32_t height) override;
+    void resizeGradientTexture(uint32_t width, uint32_t height) override;
+    void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
-    void flush(const PLSRenderContext::FlushDescriptor&) override;
+    void flush(const FlushDescriptor&) override;
 
     GLExtensions m_extensions;
 
@@ -170,6 +164,10 @@ private:
     char m_shaderVersionString[kShaderVersionStringBuffSize];
 
     std::unique_ptr<PLSImpl> m_plsImpl;
+
+    // Path/contour data textures.
+    GLuint m_pathTexture = 0;
+    GLuint m_contourTexture = 0;
 
     // Gradient texture rendering.
     GLuint m_colorRampProgram;

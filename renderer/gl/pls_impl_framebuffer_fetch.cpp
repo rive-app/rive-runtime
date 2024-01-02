@@ -22,8 +22,8 @@ public:
     PLSImplFramebufferFetch(const GLExtensions& extensions) : m_extensions(extensions) {}
 
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
-                                              size_t width,
-                                              size_t height,
+                                              uint32_t width,
+                                              uint32_t height,
                                               const PlatformFeatures& platformFeatures) override
     {
         if (framebufferID == 0)
@@ -38,8 +38,8 @@ public:
     }
 
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-        size_t width,
-        size_t height,
+        uint32_t width,
+        uint32_t height,
         PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
         const PlatformFeatures& platformFeatures) override
     {
@@ -51,7 +51,7 @@ public:
     }
 
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
-                                   const PLSRenderContext::FlushDescriptor& desc) override
+                                   const FlushDescriptor& desc) override
     {
         assert(impl->m_extensions.EXT_shader_framebuffer_fetch);
 

@@ -32,8 +32,8 @@ private:
 
     PLSRenderTargetMetal(id<MTLDevice> gpu,
                          MTLPixelFormat pixelFormat,
-                         size_t width,
-                         size_t height,
+                         uint32_t width,
+                         uint32_t height,
                          const PlatformFeatures&);
 
     const MTLPixelFormat m_pixelFormat;
@@ -52,7 +52,7 @@ public:
 
     id<MTLDevice> gpu() const { return m_gpu; }
 
-    rcp<PLSRenderTargetMetal> makeRenderTarget(MTLPixelFormat, size_t width, size_t height);
+    rcp<PLSRenderTargetMetal> makeRenderTarget(MTLPixelFormat, uint32_t width, uint32_t height);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
@@ -72,13 +72,6 @@ public:
 protected:
     PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
 
-    std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                         size_t widthInItems,
-                                                         size_t height,
-                                                         size_t texelsPerItem,
-                                                         int textureIdx,
-                                                         TexelBufferRing::Filter) override;
-
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
                                                      size_t itemSizeInBytes) override;
 
@@ -92,8 +85,10 @@ private:
     // Renders paths to the main render target.
     class DrawPipeline;
 
-    void resizeGradientTexture(size_t height) override;
-    void resizeTessellationTexture(size_t height) override;
+    void resizePathTexture(uint32_t width, uint32_t height) override;
+    void resizeContourTexture(uint32_t width, uint32_t height) override;
+    void resizeGradientTexture(uint32_t width, uint32_t height) override;
+    void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
     // Obtains an exclusive lock on the next buffer ring index, potentially blocking until the GPU
     // has finished rendering with it. This ensures it is safe for the CPU to begin modifying the
@@ -105,7 +100,7 @@ private:
     // superset of the given features.
     const DrawPipeline* findCompatibleDrawPipeline(pls::DrawType, pls::ShaderFeatures);
 
-    void flush(const PLSRenderContext::FlushDescriptor&) override;
+    void flush(const FlushDescriptor&) override;
 
     const id<MTLDevice> m_gpu;
     const id<MTLCommandQueue> m_queue;
@@ -113,6 +108,10 @@ private:
     id<MTLLibrary> m_plsPrecompiledLibrary;
     std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
     bool m_shouldWaitForShaderCompilations = false;
+
+    // Path/contour data textures.
+    id<MTLTexture> m_pathTexture = nullptr;
+    id<MTLTexture> m_contourTexture = nullptr;
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;

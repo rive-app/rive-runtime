@@ -25,7 +25,7 @@ public:
 private:
     friend class PLSRenderContextD3DImpl;
 
-    PLSRenderTargetD3D(PLSRenderContextD3DImpl*, size_t width, size_t height);
+    PLSRenderTargetD3D(PLSRenderContextD3DImpl*, uint32_t width, uint32_t height);
 
     ComPtr<ID3D11Device> m_gpu;
 
@@ -48,7 +48,7 @@ public:
                                                          ComPtr<ID3D11DeviceContext>,
                                                          bool isIntel);
 
-    rcp<PLSRenderTargetD3D> makeRenderTarget(size_t width, size_t height);
+    rcp<PLSRenderTargetD3D> makeRenderTarget(uint32_t width, uint32_t height);
 
     // D3D helpers
     ID3D11Device* gpu() const { return m_gpu.Get(); }
@@ -89,13 +89,6 @@ private:
                                      uint32_t mipLevelCount,
                                      const uint8_t imageDataRGBA[]) override;
 
-    std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                         size_t widthInItems,
-                                                         size_t height,
-                                                         size_t texelsPerItem,
-                                                         int textureIdx,
-                                                         TexelBufferRing::Filter) override;
-
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
                                                      size_t itemSizeInBytes) override;
 
@@ -105,10 +98,12 @@ private:
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity,
                                                       size_t itemSizeInBytes) override;
 
-    void resizeGradientTexture(size_t height) override;
-    void resizeTessellationTexture(size_t height) override;
+    void resizePathTexture(uint32_t width, uint32_t height) override;
+    void resizeContourTexture(uint32_t width, uint32_t height) override;
+    void resizeGradientTexture(uint32_t width, uint32_t height) override;
+    void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
-    void flush(const PLSRenderContext::FlushDescriptor&) override;
+    void flush(const FlushDescriptor&) override;
 
     void setPipelineLayoutAndShaders(DrawType, ShaderFeatures, pls::InterlockMode);
 
@@ -116,6 +111,12 @@ private:
 
     ComPtr<ID3D11Device> m_gpu;
     ComPtr<ID3D11DeviceContext> m_gpuContext;
+
+    ComPtr<ID3D11Texture2D> m_pathTexture;
+    ComPtr<ID3D11ShaderResourceView> m_pathTextureSRV;
+
+    ComPtr<ID3D11Texture2D> m_contourTexture;
+    ComPtr<ID3D11ShaderResourceView> m_contourTextureSRV;
 
     ComPtr<ID3D11Texture2D> m_gradTexture;
     ComPtr<ID3D11ShaderResourceView> m_gradTextureSRV;

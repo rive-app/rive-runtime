@@ -4,7 +4,6 @@
 
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
-#include "buffer_ring_gl.hpp"
 #include "gl_utils.hpp"
 #include "rive/pls/gl/pls_render_buffer_gl_impl.hpp"
 #include "rive/pls/pls_image.hpp"
@@ -37,8 +36,6 @@ constexpr static int kPLSTexIdxOffset = 1;
 
 namespace rive::pls
 {
-using ExperimentalAtomicModeData = PLSRenderContext::ExperimentalAtomicModeData;
-
 PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                                GLExtensions extensions,
                                                std::unique_ptr<PLSImpl> plsImpl) :
@@ -189,6 +186,9 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 
 PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 {
+    glDeleteTextures(1, &m_pathTexture);
+    glDeleteTextures(1, &m_contourTexture);
+
     m_state->deleteProgram(m_colorRampProgram);
     m_state->deleteVAO(m_colorRampVAO);
     glDeleteFramebuffers(1, &m_colorRampFBO);
@@ -225,6 +225,12 @@ void PLSRenderContextGLImpl::resetGLState()
     m_state->reset(m_extensions);
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
+
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_pathTexture);
+
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_contourTexture);
 
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
@@ -308,51 +314,102 @@ rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
     return make_rcp<PLSTextureGLImpl>(width, height, mipLevelCount, imageDataRGBA, m_state);
 }
 
-std::unique_ptr<TexelBufferRing> PLSRenderContextGLImpl::makeTexelBufferRing(
-    TexelBufferRing::Format format,
-    size_t widthInItems,
-    size_t height,
-    size_t texelsPerItem,
-    int textureIdx,
-    TexelBufferRing::Filter filter)
+// BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we don't do hardware
+// mapping.
+class BufferRingGLImpl : public BufferRingShadowImpl
 {
-    return std::make_unique<TexelBufferGL>(format,
-                                           widthInItems,
-                                           height,
-                                           texelsPerItem,
-                                           GL_TEXTURE0 + kPLSTexIdxOffset + textureIdx,
-                                           filter,
-                                           m_state);
-}
+public:
+    BufferRingGLImpl(GLenum target, size_t capacity, size_t itemSizeInBytes, rcp<GLState> state) :
+        BufferRingShadowImpl(capacity, itemSizeInBytes), m_target(target), m_state(std::move(state))
+    {
+        glGenBuffers(kBufferRingSize, m_ids);
+        for (int i = 0; i < kBufferRingSize; ++i)
+        {
+            m_state->bindBuffer(m_target, m_ids[i]);
+            glBufferData(m_target, capacity * itemSizeInBytes, nullptr, GL_DYNAMIC_DRAW);
+        }
+    }
+
+    ~BufferRingGLImpl()
+    {
+        for (int i = 0; i < kBufferRingSize; ++i)
+        {
+            m_state->deleteBuffer(m_ids[i]);
+        }
+    }
+
+    GLuint submittedBufferID() const { return m_ids[submittedBufferIdx()]; }
+
+protected:
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override
+    {
+        m_state->bindBuffer(m_target, m_ids[bufferIdx]);
+        glBufferSubData(m_target, 0, bytesWritten, shadowBuffer());
+    }
+
+private:
+    const GLenum m_target;
+    GLuint m_ids[kBufferRingSize];
+    const rcp<GLState> m_state;
+};
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacity,
                                                                          size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferGL>(GL_ARRAY_BUFFER, capacity, itemSizeInBytes, m_state);
+    return std::make_unique<BufferRingGLImpl>(GL_ARRAY_BUFFER, capacity, itemSizeInBytes, m_state);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makePixelUnpackBufferRing(
     size_t capacity,
     size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferGL>(GL_PIXEL_UNPACK_BUFFER, capacity, itemSizeInBytes, m_state);
+    return std::make_unique<BufferRingGLImpl>(GL_PIXEL_UNPACK_BUFFER,
+                                              capacity,
+                                              itemSizeInBytes,
+                                              m_state);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacity,
                                                                           size_t sizeInBytes)
 {
     // In GL we update uniform data inline with commands, rather than filling a buffer up front.
-    return std::make_unique<BufferGL>(GL_UNIFORM_BUFFER, capacity, sizeInBytes, m_state);
+    return std::make_unique<BufferRingGLImpl>(GL_UNIFORM_BUFFER, capacity, sizeInBytes, m_state);
 }
 
-void PLSRenderContextGLImpl::resizeGradientTexture(size_t height)
+void PLSRenderContextGLImpl::resizePathTexture(uint32_t width, uint32_t height)
+{
+    glDeleteTextures(1, &m_pathTexture);
+    glGenTextures(1, &m_pathTexture);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_pathTexture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
+void PLSRenderContextGLImpl::resizeContourTexture(uint32_t width, uint32_t height)
+{
+    glDeleteTextures(1, &m_contourTexture);
+    glGenTextures(1, &m_contourTexture);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_contourTexture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
+void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_gradientTexture);
 
     glGenTextures(1, &m_gradientTexture);
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kGradTextureWidth, height);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -366,14 +423,14 @@ void PLSRenderContextGLImpl::resizeGradientTexture(size_t height)
                            0);
 }
 
-void PLSRenderContextGLImpl::resizeTessellationTexture(size_t height)
+void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_tessVertexTexture);
 
     glGenTextures(1, &m_tessVertexTexture);
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, kTessTextureWidth, height);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -566,10 +623,10 @@ PLSRenderContextGLImpl::DrawProgram::~DrawProgram() { m_state->deleteProgram(m_i
 
 static GLuint gl_buffer_id(const BufferRing* bufferRing)
 {
-    return static_cast<const BufferGL*>(bufferRing)->submittedBufferID();
+    return static_cast<const BufferRingGLImpl*>(bufferRing)->submittedBufferID();
 }
 
-void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc)
+void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
 
@@ -625,7 +682,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             glGenBuffers(1, &m_paintBuffer);
             m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintBuffer);
             glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(ExperimentalAtomicModeData::m_paints),
+                         sizeof(pls::ExperimentalAtomicModeData::m_paints),
                          nullptr,
                          GL_DYNAMIC_DRAW);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, PAINT_STORAGE_BUFFER_IDX, m_paintBuffer);
@@ -634,7 +691,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             glGenBuffers(1, &m_paintMatrixBuffer);
             m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintMatrixBuffer);
             glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(ExperimentalAtomicModeData::m_paintMatrices),
+                         sizeof(pls::ExperimentalAtomicModeData::m_paintMatrices),
                          nullptr,
                          GL_DYNAMIC_DRAW);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
@@ -645,7 +702,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             glGenBuffers(1, &m_paintTranslateBuffer);
             m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintTranslateBuffer);
             glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(ExperimentalAtomicModeData::m_paintTranslates),
+                         sizeof(pls::ExperimentalAtomicModeData::m_paintTranslates),
                          nullptr,
                          GL_DYNAMIC_DRAW);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
@@ -656,7 +713,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             glGenBuffers(1, &m_clipRectMatrixBuffer);
             m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectMatrixBuffer);
             glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(ExperimentalAtomicModeData::m_clipRectMatrices),
+                         sizeof(pls::ExperimentalAtomicModeData::m_clipRectMatrices),
                          nullptr,
                          GL_DYNAMIC_DRAW);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
@@ -667,7 +724,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
             glGenBuffers(1, &m_clipRectTranslateBuffer);
             m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectTranslateBuffer);
             glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(ExperimentalAtomicModeData::m_clipRectTranslates),
+                         sizeof(pls::ExperimentalAtomicModeData::m_clipRectTranslates),
                          nullptr,
                          GL_DYNAMIC_DRAW);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
@@ -676,7 +733,7 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
         }
 
         assert(desc.experimentalAtomicModeData);
-        ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
+        pls::ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
         if (m_extensions.ARB_bindless_texture)
         {
             // We support bindless textures, so write out image texture handles.
@@ -742,6 +799,38 @@ void PLSRenderContextGLImpl::flush(const PLSRenderContext::FlushDescriptor& desc
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.complexGradSpanCount);
+    }
+
+    // Copy the path data to the texture.
+    if (desc.pathTexelsHeight > 0)
+    {
+        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(pathBufferRing()));
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_TEXTURE_IDX);
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        desc.pathTexelsWidth,
+                        desc.pathTexelsHeight,
+                        GL_RGBA_INTEGER,
+                        GL_UNSIGNED_INT,
+                        reinterpret_cast<void*>(desc.pathDataOffset));
+    }
+
+    // Copy the contour data to the texture.
+    if (desc.contourTexelsHeight > 0)
+    {
+        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(contourBufferRing()));
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        desc.contourTexelsWidth,
+                        desc.contourTexelsHeight,
+                        GL_RGBA_INTEGER,
+                        GL_UNSIGNED_INT,
+                        reinterpret_cast<void*>(desc.contourDataOffset));
     }
 
     // Copy the simple color ramps to the gradient texture.

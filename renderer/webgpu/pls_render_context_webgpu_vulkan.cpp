@@ -60,8 +60,8 @@ EM_JS(int, texture_usage_transient_input_attachment, (), {
 
 rcp<PLSRenderTargetWebGPU> PLSRenderContextWebGPUVulkan::makeRenderTarget(
     wgpu::TextureFormat framebufferFormat,
-    size_t width,
-    size_t height)
+    uint32_t width,
+    uint32_t height)
 {
     return rcp(new PLSRenderTargetWebGPU(
         device(),

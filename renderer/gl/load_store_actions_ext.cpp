@@ -4,15 +4,11 @@
 
 #include "rive/pls/gl/load_store_actions_ext.hpp"
 
-#include "gl/gl_utils.hpp"
-#include <sstream>
-
-#include "../out/obj/generated/glsl.exports.h"
 #include "../out/obj/generated/pls_load_store_ext.glsl.hpp"
 
 namespace rive::pls
 {
-LoadStoreActionsEXT BuildLoadActionsEXT(const PLSRenderContext::FlushDescriptor& desc,
+LoadStoreActionsEXT BuildLoadActionsEXT(const PLSRenderContextImpl::FlushDescriptor& desc,
                                         std::array<float, 4>* clearColor4f)
 {
     LoadStoreActionsEXT actions = LoadStoreActionsEXT::clearCoverage;

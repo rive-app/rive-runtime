@@ -6,8 +6,6 @@
 
 #include "shaders/constants.glsl"
 
-#include <stdio.h>
-
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
@@ -31,8 +29,8 @@ std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLS
 class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSImpl
 {
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
-                                              size_t width,
-                                              size_t height,
+                                              uint32_t width,
+                                              uint32_t height,
                                               const PlatformFeatures&) override
     {
         // WEBGL_shader_pixel_local_storage can't load or store to framebuffers.
@@ -40,8 +38,8 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
     }
 
     rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-        size_t width,
-        size_t height,
+        uint32_t width,
+        uint32_t height,
         PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
         const PlatformFeatures& platformFeatures) override
     {
@@ -64,8 +62,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         return renderTarget;
     }
 
-    void activatePixelLocalStorage(PLSRenderContextGLImpl*,
-                                   const PLSRenderContext::FlushDescriptor& desc) override
+    void activatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
         if (GLuint newTargetTextureID = renderTarget->targetTextureIDIfDifferent())

@@ -164,7 +164,6 @@ do
     filter 'system:windows or macosx or linux or android'
     do
         files {
-            '../renderer/gl/buffer_ring_gl.cpp',
             '../renderer/gl/gl_state.cpp',
             '../renderer/gl/gl_utils.cpp',
             '../renderer/gl/load_store_actions_ext.cpp',

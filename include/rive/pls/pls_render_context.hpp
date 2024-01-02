@@ -419,97 +419,6 @@ public:
         };
     };
 
-    // Extra data for when FrameDescriptor::enableExperimentalAtomicMode is enabled.
-    // TODO: integrate this data more cleanly if/when the atomic mode proves ready to ship.
-    struct ExperimentalAtomicModeData
-    {
-        // +1 so we can index by pathID (pathID is always >0), and use index 0 for the clear color.
-        constexpr static size_t kBufferLength = pls::MaxPathID(1) + 1;
-
-        const PLSTexture* m_imageTextures[kBufferLength];
-
-        struct Paint
-        {
-            uint32_t params; // [clipID, flags, paintType]
-            union
-            {
-                uint32_t color;
-                float gradTextureY;
-                float opacity;
-                uint32_t shiftedClipReplacementID;
-            };
-        } m_paints[kBufferLength];
-        static_assert(sizeof(Paint) == sizeof(uint32_t) * 2);
-
-        std::array<float, 4> m_paintMatrices[kBufferLength];
-
-        struct PaintTranslate
-        {
-            Vec2D translate;
-            union
-            {
-                std::array<float, 2> gradTextureHorizontalSpan;
-                std::array<uint32_t, 2> bindlessTextureHandle;
-            };
-        } m_paintTranslates[kBufferLength];
-        static_assert(sizeof(PaintTranslate) == sizeof(float) * 4);
-
-        std::array<float, 4> m_clipRectMatrices[kBufferLength];
-
-        struct ClipRectTranslate
-        {
-            Vec2D translate;
-            Vec2D inverseFwidth; // -1 / fwidth(clipMatrix * pixelPosition) -- for antialiasing.
-        } m_clipRectTranslates[kBufferLength];
-
-        // Fills in the buffers at index 'pathID' with the info for drawing the given path.
-        void setDataForPath(uint32_t pathID,
-                            const Mat2D&,
-                            FillRule,
-                            pls::PaintType,
-                            const pls::PaintData&,
-                            const PLSTexture*,
-                            uint32_t clipID,
-                            const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-                            BlendMode,
-                            const PLSRenderTarget*,
-                            float gradientTextureHeight,
-                            const PlatformFeatures&);
-    };
-
-    // Describes a flush for PLSRenderContextImpl.
-    struct FlushDescriptor
-    {
-        void* backendSpecificData = nullptr;
-        const PLSRenderTarget* renderTarget = nullptr;
-        LoadAction loadAction = LoadAction::clear;
-        ColorInt clearColor = 0;
-        pls::ShaderFeatures combinedShaderFeatures = pls::ShaderFeatures::NONE;
-        size_t complexGradSpanCount = 0;
-        size_t tessVertexSpanCount = 0;
-        uint16_t simpleGradTexelsWidth = 0;
-        uint16_t simpleGradTexelsHeight = 0;
-        uint32_t complexGradRowsTop = 0;
-        uint32_t complexGradRowsHeight = 0;
-        uint32_t tessDataHeight = 0;
-        bool needsClipBuffer = false;
-        bool hasTriangleVertices = false;
-        bool wireframe = false;
-        const PerFlushLinkedList<Draw>* drawList = nullptr;
-        size_t pathCount = 0;
-        pls::InterlockMode interlockMode = pls::InterlockMode::rasterOrdered;
-        ExperimentalAtomicModeData* experimentalAtomicModeData = nullptr;
-
-        // In atomic mode, we can skip the inital clear of the color buffer in some cases. This is
-        // because we will be resolving the framebuffer anyway, and can work the clear into that
-        // operation.
-        bool canSkipColorClear() const
-        {
-            return interlockMode == pls::InterlockMode::experimentalAtomics &&
-                   loadAction == LoadAction::clear && colorAlpha(clearColor) == 255;
-        }
-    };
-
     // Backend-specific PLSFactory implementation.
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
     rcp<RenderImage> decodeImage(Span<const uint8_t>) override;
@@ -727,7 +636,7 @@ private:
     // whether the buffer needs to be updated at the beginning of a flush.
     FlushUniforms m_cachedUniformData;
 
-    std::unique_ptr<ExperimentalAtomicModeData> m_atomicModeData;
+    std::unique_ptr<pls::ExperimentalAtomicModeData> m_atomicModeData;
 
     // Simple allocator for trivially-destructible data that needs to persist until the current
     // flush has completed. Any object created with this allocator is automatically deleted during

@@ -4,6 +4,7 @@
 
 #include "rive/pls/pls.hpp"
 
+#include "rive/pls/pls_render_target.hpp"
 #include "shaders/constants.glsl"
 
 #include "../out/obj/generated/draw_path.exports.h"
@@ -331,4 +332,152 @@ ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix_,
     clipID(clipID_),
     blendMode(ConvertBlendModeToPLSBlendMode(blendMode_))
 {}
+
+static uint32_t pack_glsl_unorm4x8(uint4 rgbaInteger)
+{
+    rgbaInteger <<= uint4{0, 8, 16, 24};
+    rgbaInteger.xy |= rgbaInteger.zw;
+    rgbaInteger.x |= rgbaInteger.y;
+    return rgbaInteger.x;
+}
+
+static uint32_t pack_glsl_unorm4x8(float4 rgba)
+{
+    uint4 rgbaInteger = simd::cast<uint32_t>(simd::clamp(rgba, float4(0), float4(1)) * 255.f);
+    return pack_glsl_unorm4x8(rgbaInteger);
+}
+
+static uint32_t pack_glsl_unorm4x8(ColorInt riveColor)
+{
+    // Swizzle the riveColor to the order GLSL expects in unpackUnorm4x8().
+    uint4 rgbaInteger = (uint4(riveColor) >> uint4{16, 8, 0, 24}) & 0xffu;
+    return pack_glsl_unorm4x8(rgbaInteger);
+}
+
+void ExperimentalAtomicModeData::setDataForPath(uint32_t pathID,
+                                                const Mat2D& matrix,
+                                                FillRule fillRule,
+                                                PaintType paintType,
+                                                const PaintData& paintData,
+                                                const PLSTexture* imageTexture,
+                                                uint32_t clipID,
+                                                const ClipRectInverseMatrix* clipRectInverseMatrix,
+                                                BlendMode blendMode,
+                                                const PLSRenderTarget* renderTarget,
+                                                float gradientTextureHeight,
+                                                const PlatformFeatures& platformFeatures)
+{
+    uint32_t shiftedClipID = clipID << 16;
+    uint32_t shiftedBlendMode = ConvertBlendModeToPLSBlendMode(blendMode) << 4;
+    m_imageTextures[pathID] = nullptr;
+    switch (paintType)
+    {
+        case PaintType::solidColor:
+        {
+            m_paints[pathID].params = shiftedClipID | shiftedBlendMode | SOLID_COLOR_PAINT_TYPE;
+            m_paints[pathID].color = pack_glsl_unorm4x8(simd::load4f(&paintData.data));
+            break;
+        }
+        case PaintType::linearGradient:
+        case PaintType::radialGradient:
+        case PaintType::image:
+        {
+            Mat2D paintMatrix;
+            matrix.invert(&paintMatrix);
+            if (platformFeatures.fragCoordBottomUp)
+            {
+                // Flip gl_FragCoord.y.
+                paintMatrix = paintMatrix * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+            }
+            if (paintType == PaintType::image)
+            {
+                m_paints[pathID].params = shiftedClipID | shiftedBlendMode | IMAGE_PAINT_TYPE;
+                m_paints[pathID].opacity = paintData.opacityIfImage();
+                m_imageTextures[pathID] = imageTexture;
+            }
+            else
+            {
+                float gradCoeffs[3];
+                memcpy(gradCoeffs, paintData.data + 1, 3 * sizeof(float));
+                if (paintType == PaintType::linearGradient)
+                {
+                    m_paints[pathID].params =
+                        shiftedClipID | shiftedBlendMode | LINEAR_GRADIENT_PAINT_TYPE;
+                    paintMatrix =
+                        Mat2D(gradCoeffs[0], 0, gradCoeffs[1], 0, gradCoeffs[2], 0) * paintMatrix;
+                }
+                else
+                {
+                    m_paints[pathID].params =
+                        shiftedClipID | shiftedBlendMode | RADIAL_GRADIENT_PAINT_TYPE;
+                    float w = 1 / gradCoeffs[2];
+                    paintMatrix =
+                        Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) * paintMatrix;
+                }
+                uint32_t span = paintData.data[0];
+                uint32_t row = span >> 20;
+                uint32_t x0 = span & 0x3ff;
+                uint32_t x1 = (span >> 10) & 0x3ff;
+                m_paints[pathID].gradTextureY = static_cast<float>(row) + .5f;
+                // Generate a mapping from gradient T to an x-coord in the gradient texture.
+                m_paintTranslates[pathID].gradTextureHorizontalSpan = {
+                    (x1 - x0) * GRAD_TEXTURE_INVERSE_WIDTH,
+                    (x0 + .5f) * GRAD_TEXTURE_INVERSE_WIDTH};
+            }
+            m_paintMatrices[pathID] = {paintMatrix.xx(),
+                                       paintMatrix.xy(),
+                                       paintMatrix.yx(),
+                                       paintMatrix.yy()};
+            m_paintTranslates[pathID].translate = {paintMatrix.tx(), paintMatrix.ty()};
+            break;
+        }
+        case PaintType::clipUpdate:
+        {
+            uint32_t outerClipID = paintData.outerClipIDIfClipUpdate();
+            m_paints[pathID].params = (outerClipID << 16) | CLIP_UPDATE_PAINT_TYPE;
+            m_paints[pathID].shiftedClipReplacementID = shiftedClipID;
+            break;
+        }
+    }
+    if (fillRule == FillRule::evenOdd)
+    {
+        m_paints[pathID].params |= ATOMIC_MODE_FLAG_EVEN_ODD;
+    }
+    if (clipRectInverseMatrix != nullptr)
+    {
+        m_paints[pathID].params |= ATOMIC_MODE_FLAG_HAS_CLIP_RECT;
+        Mat2D m = clipRectInverseMatrix->inverseMatrix();
+        if (platformFeatures.fragCoordBottomUp)
+        {
+            // Flip gl_FragCoord.y.
+            m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+        }
+        m_clipRectMatrices[pathID] = {m.xx(), m.xy(), m.yx(), m.yy()};
+        m_clipRectTranslates[pathID].translate = {m.tx(), m.ty()};
+        m_clipRectTranslates[pathID].inverseFwidth = {-1.f / (fabsf(m.xx()) + fabsf(m.xy())),
+                                                      -1.f / (fabsf(m.yx()) + fabsf(m.yy()))};
+    }
+}
+
+void ExperimentalAtomicModeData::finalize(size_t pathCount,
+                                          ColorInt clearColor,
+                                          float gradTextureInverseHeight)
+{
+    // Configure pathID 0 to resolve to the clear color, so we can avoid clearing the
+    // framebuffer in certain cases.
+    m_paints[0].params = SOLID_COLOR_PAINT_TYPE;
+    m_paints[0].color = pack_glsl_unorm4x8(clearColor);
+    m_imageTextures[0] = nullptr;
+
+    // Normalize the gradient Y coordinates now that we know how tall the texture is.
+    for (size_t i = 1; i <= pathCount; ++i)
+    {
+        uint32_t paintType = m_paints[i].params & 0xfu;
+        if (paintType == LINEAR_GRADIENT_PAINT_TYPE || paintType == RADIAL_GRADIENT_PAINT_TYPE)
+        {
+            m_paints[i].gradTextureY *= gradTextureInverseHeight;
+        }
+    }
+}
+
 } // namespace rive::pls

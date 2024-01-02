@@ -10,8 +10,8 @@
 namespace rive::pls
 {
 PLSRenderTargetGL::PLSRenderTargetGL(GLuint framebufferID,
-                                     size_t width,
-                                     size_t height,
+                                     uint32_t width,
+                                     uint32_t height,
                                      const PlatformFeatures& platformFeatures) :
     PLSRenderTarget(width, height),
     m_ownsDrawFramebuffer(false),
@@ -20,8 +20,8 @@ PLSRenderTargetGL::PLSRenderTargetGL(GLuint framebufferID,
     m_sideFramebufferID(framebufferID)
 {}
 
-PLSRenderTargetGL::PLSRenderTargetGL(size_t width,
-                                     size_t height,
+PLSRenderTargetGL::PLSRenderTargetGL(uint32_t width,
+                                     uint32_t height,
                                      TargetTextureOwnership targetTextureOwnership,
                                      const PlatformFeatures& platformFeatures) :
     PLSRenderTarget(width, height),

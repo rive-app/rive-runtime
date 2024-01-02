@@ -89,66 +89,6 @@ private:
     void* m_shadowBuffer = nullptr;
 };
 
-// BufferRingShadowImpl whose backing store is a 2D texture.
-class TexelBufferRing : public BufferRingShadowImpl
-{
-public:
-    enum class Format
-    {
-        rgba8,
-        rgba32f,
-        rgba32ui,
-    };
-
-    constexpr static size_t BytesPerPixel(Format format)
-    {
-        switch (format)
-        {
-            case Format::rgba8:
-                return 4;
-            case Format::rgba32f:
-            case Format::rgba32ui:
-                return 4 * 4;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    enum class Filter
-    {
-        nearest,
-        linear,
-    };
-
-    TexelBufferRing(Format format, size_t widthInItems, size_t height, size_t texelsPerItem) :
-        BufferRingShadowImpl(height * widthInItems, texelsPerItem * BytesPerPixel(format)),
-        m_format(format),
-        m_widthInItems(widthInItems),
-        m_height(height),
-        m_texelsPerItem(texelsPerItem)
-    {}
-
-    size_t widthInItems() const { return m_widthInItems; }
-    size_t widthInTexels() const { return m_widthInItems * m_texelsPerItem; }
-    size_t height() const { return m_height; }
-
-protected:
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) final
-    {
-        size_t texelsWritten = bytesWritten / BytesPerPixel(m_format);
-        assert(texelsWritten * BytesPerPixel(m_format) == bytesWritten);
-        size_t updateWidthInTexels = std::min(texelsWritten, widthInTexels());
-        size_t updateHeight = (texelsWritten + widthInTexels() - 1) / widthInTexels();
-        submitTexels(bufferIdx, updateWidthInTexels, updateHeight);
-    }
-
-    virtual void submitTexels(int textureIdx, size_t updateWidthInTexels, size_t updateHeight) = 0;
-
-    const Format m_format;
-    const size_t m_widthInItems;
-    const size_t m_height;
-    const size_t m_texelsPerItem;
-};
-
 // BufferRingShadowImpl that resides solely in CPU memory, and therefore doesn't require a ring.
 class HeapBufferRing : public BufferRing
 {

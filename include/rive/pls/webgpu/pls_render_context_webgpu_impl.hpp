@@ -27,8 +27,8 @@ private:
 
     PLSRenderTargetWebGPU(wgpu::Device device,
                           wgpu::TextureFormat framebufferFormat,
-                          size_t width,
-                          size_t height,
+                          uint32_t width,
+                          uint32_t height,
                           wgpu::TextureUsage additionalTextureFlags);
 
     const wgpu::TextureFormat m_framebufferFormat;
@@ -69,8 +69,8 @@ public:
     virtual ~PLSRenderContextWebGPUImpl();
 
     virtual rcp<PLSRenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat,
-                                                        size_t width,
-                                                        size_t height);
+                                                        uint32_t width,
+                                                        uint32_t height);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
@@ -121,24 +121,19 @@ private:
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
                                                      size_t itemSizeInBytes) override;
 
-    std::unique_ptr<TexelBufferRing> makeTexelBufferRing(TexelBufferRing::Format,
-                                                         size_t widthInItems,
-                                                         size_t height,
-                                                         size_t texelsPerItem,
-                                                         int textureIdx,
-                                                         TexelBufferRing::Filter) override;
-
     std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
                                                           size_t itemSizeInBytes) override;
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity,
                                                       size_t itemSizeInBytes) override;
 
-    void resizeGradientTexture(size_t height) override;
-    void resizeTessellationTexture(size_t height) override;
+    void resizePathTexture(uint32_t width, uint32_t height) override;
+    void resizeContourTexture(uint32_t width, uint32_t height) override;
+    void resizeGradientTexture(uint32_t width, uint32_t height) override;
+    void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
     void prepareToMapBuffers() override {}
 
-    void flush(const PLSRenderContext::FlushDescriptor&) override;
+    void flush(const FlushDescriptor&) override;
 
     const wgpu::Device m_device;
     const wgpu::Queue m_queue;
@@ -158,6 +153,14 @@ private:
     EmJsHandle m_loadStoreEXTVertexShaderHandle;
     wgpu::ShaderModule m_loadStoreEXTVertexShader;
     std::unique_ptr<BufferRing> m_loadStoreEXTUniforms;
+
+    // Data texture for path info.
+    wgpu::Texture m_pathTexture;
+    wgpu::TextureView m_pathTextureView;
+
+    // Data texture for contour info.
+    wgpu::Texture m_contourTexture;
+    wgpu::TextureView m_contourTextureView;
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
