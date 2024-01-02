@@ -119,6 +119,7 @@ public:
     void blendMode(BlendMode mode) override { m_blendMode = mode; }
     void shader(rcp<RenderShader> shader) override;
     void image(rcp<const PLSTexture>, float opacity);
+    void clipUpdate(uint32_t outerClipID);
     void invalidateStroke() override {}
 
     PaintType getType() const { return m_paintType; }
@@ -128,6 +129,7 @@ public:
     const PLSGradient* getGradient() const { return m_gradient.get(); }
     const PLSTexture* getImageTexture() const { return m_imageTexture.get(); }
     float getImageOpacity() const { return m_imageOpacity; }
+    float getOuterClipID() const { return m_outerClipID; }
     StrokeJoin getJoin() const { return m_join; }
     StrokeCap getCap() const { return m_cap; }
     BlendMode getBlendMode() const { return m_blendMode; }
@@ -139,6 +141,7 @@ private:
     rcp<PLSGradient> m_gradient;
     rcp<const PLSTexture> m_imageTexture;
     float m_imageOpacity;
+    uint32_t m_outerClipID;
     float m_thickness = 1;
     StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;

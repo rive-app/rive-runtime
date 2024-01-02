@@ -30,32 +30,41 @@ public:
         m_currentBlockUsage = 0;
     }
 
-    void* alloc(size_t allocSize)
+    template <size_t AlignmentInBytes = 8> void* alloc(size_t sizeInBytes)
     {
-        // Align all allocations on 8-byte boundaries.
-        allocSize = math::round_up_to_multiple_of<8>(allocSize);
+        uintptr_t start = reinterpret_cast<uintptr_t>(m_blocks.back().get()) + m_currentBlockUsage;
+        size_t alignmentPad = math::round_up_to_multiple_of<AlignmentInBytes>(start) - start;
 
         // Ensure there is room for this allocation in our newest block, pushing a new one if
         // needed.
-        if (m_currentBlockUsage + allocSize > m_currentBlockSize)
+        if (m_currentBlockUsage + alignmentPad + sizeInBytes > m_currentBlockSize)
         {
             // Grow with a fibonacci function.
             size_t fib = m_fibMinus2 + m_fibMinus1;
             m_fibMinus2 = m_fibMinus1;
             m_fibMinus1 = fib;
 
-            size_t blockSize = std::max(fib * m_initialBlockSize, allocSize);
+            size_t blockSize =
+                std::max(fib * m_initialBlockSize, sizeInBytes + AlignmentInBytes - 1);
             m_blocks.push_back(std::unique_ptr<char[]>(new char[blockSize]));
             m_currentBlockSize = blockSize;
             m_currentBlockUsage = 0;
+
+            start = reinterpret_cast<uintptr_t>(m_blocks.back().get());
+            alignmentPad = math::round_up_to_multiple_of<AlignmentInBytes>(start) - start;
         }
 
-        char* ret = &m_blocks.back()[m_currentBlockUsage];
-        m_currentBlockUsage += allocSize;
-        // Since we round up all allocation sizes, allocations should be 8-byte aligned.
-        assert((reinterpret_cast<uintptr_t>(ret) & 7) == 0);
-        assert(ret + allocSize <= m_blocks.back().get() + m_currentBlockSize);
+        char* ret = &m_blocks.back()[m_currentBlockUsage + alignmentPad];
+        m_currentBlockUsage += alignmentPad + sizeInBytes;
+        assert((reinterpret_cast<uintptr_t>(ret) % AlignmentInBytes) == 0);
+        assert(ret + sizeInBytes <= m_blocks.back().get() + m_currentBlockSize);
         return ret;
+    }
+
+    void rewindLastAllocation(size_t rewindSizeInBytes)
+    {
+        assert(rewindSizeInBytes <= m_currentBlockUsage);
+        m_currentBlockUsage -= rewindSizeInBytes;
     }
 
     template <typename T, typename... Args> T* make(Args&&... args)
@@ -63,7 +72,7 @@ public:
         // We don't call destructors on objects that get allocated here. We just free the blocks
         // at the end. So objects must be trivially destructible.
         static_assert(std::is_trivially_destructible<T>::value);
-        return new (alloc(sizeof(T))) T(std::forward<Args>(args)...);
+        return new (alloc<alignof(T)>(sizeof(T))) T(std::forward<Args>(args)...);
     }
 
 private:
@@ -76,5 +85,27 @@ private:
     std::vector<std::unique_ptr<char[]>> m_blocks;
     size_t m_currentBlockSize;
     size_t m_currentBlockUsage;
+};
+
+// Basic array allocator for POD types, based on TrivialBlockAllocator.
+template <typename T, size_t AlignmentInBytes = alignof(T)>
+class TrivialArrayAllocator : private TrivialBlockAllocator
+{
+    static_assert(std::is_pod<T>::value);
+
+public:
+    TrivialArrayAllocator(size_t initialCount) : TrivialBlockAllocator(initialCount * sizeof(T)) {}
+
+    T* alloc(size_t count)
+    {
+        return reinterpret_cast<T*>(TrivialBlockAllocator::alloc(count * sizeof(T)));
+    }
+
+    void rewindLastAllocation(size_t rewindCount)
+    {
+        TrivialBlockAllocator::rewindLastAllocation(rewindCount * sizeof(T));
+    }
+
+    using TrivialBlockAllocator::reset;
 };
 } // namespace rive

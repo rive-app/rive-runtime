@@ -72,7 +72,7 @@ void PLSPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
     m_dirt = kAllDirt;
 }
 
-const AABB& PLSPath::getBounds()
+const AABB& PLSPath::getBounds() const
 {
     if (m_dirt & kPathBoundsDirt)
     {
@@ -82,7 +82,7 @@ const AABB& PLSPath::getBounds()
     return m_bounds;
 }
 
-uint64_t PLSPath::getUniqueID()
+uint64_t PLSPath::getUniqueID() const
 {
     static std::atomic<uint64_t> uniqueIDCounter = 0;
     if (m_dirt & kUniqueIDDirt)

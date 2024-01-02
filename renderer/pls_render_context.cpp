@@ -422,6 +422,7 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
 {
     assert(m_didBeginFrame);
     assert(m_tessVertexCount == m_expectedTessVertexCountAtNextReserve);
+    assert(m_curveCount == m_expectedCurveCountAtNextReserve);
 
     // +1 for the padding vertex at the end of the tessellation data.
     size_t maxTessVertexCountWithInternalPadding =
@@ -490,6 +491,7 @@ bool PLSRenderContext::reservePathData(size_t pathCount,
                             m_tessVertexCount +
                             tessVertexCounter.totalVertexCountIncludingReflectionsAndPadding());
         assert(m_expectedTessVertexCountAtNextReserve <= kMaxTessellationVertexCount);
+        RIVE_DEBUG_CODE(m_expectedCurveCountAtNextReserve = m_curveCount + curveCount;)
         return true;
     }
 
@@ -906,6 +908,8 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
                               joinSegmentCount,
                               m_currentContourID | additionalContourFlags);
     }
+
+    RIVE_DEBUG_CODE(++m_curveCount;)
 }
 
 void PLSRenderContext::pushPaddingVertices(uint32_t count)
@@ -1239,13 +1243,15 @@ void PLSRenderContext::flush(FlushType flushType)
     assert(m_didBeginFrame);
     if (flushType == FlushType::intermediate)
     {
-        // We might not have pushed as many tessellation vertices as expected if we ran out of room
-        // for the paint and had to flush.
+        // We might not have pushed as much data as expected if we ran out of room for the paint and
+        // had to flush.
         assert(m_tessVertexCount <= m_expectedTessVertexCountAtNextReserve);
+        assert(m_curveCount <= m_expectedCurveCountAtNextReserve);
     }
     else
     {
         assert(m_tessVertexCount == m_expectedTessVertexCountAtNextReserve);
+        assert(m_curveCount == m_expectedCurveCountAtNextReserve);
     }
     assert(m_tessVertexCount == m_expectedTessVertexCountAtEndOfPath);
     assert(m_mirroredTessLocation == m_expectedMirroredTessLocationAtEndOfPath);
@@ -1499,6 +1505,8 @@ void PLSRenderContext::flush(FlushType flushType)
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtNextReserve = 0);
     RIVE_DEBUG_CODE(m_expectedTessVertexCountAtEndOfPath = 0);
     RIVE_DEBUG_CODE(m_expectedMirroredTessLocationAtEndOfPath = 0);
+    RIVE_DEBUG_CODE(m_curveCount = 0);
+    RIVE_DEBUG_CODE(m_expectedCurveCountAtNextReserve = 0);
 
     m_maxTriangleVertexCount = 0;
 
@@ -1506,14 +1514,24 @@ void PLSRenderContext::flush(FlushType flushType)
 
     resetDrawList();
 
-    // Delete all objects that were allocted for this flush using the TrivialBlockAllocator.
-    m_trivialPerFlushAllocator.reset();
-
     if (flushType == FlushType::intermediate)
     {
         // The frame isn't complete yet. The caller will begin preparing a new flush immediately
         // after this method returns, so lock buffers for the next flush now.
         m_impl->prepareToMapBuffers();
+    }
+    else
+    {
+        // Delete all objects that were allocted for this frame using TrivialBlockAllocator.
+        // Keep them alive between intermediate flushes since this data is designed to persist for
+        // an entire frame.
+        assert(flushType == FlushType::endOfFrame);
+        m_perFrameAllocator.reset();
+        m_numChopsAllocator.reset();
+        m_chopVerticesAllocator.reset();
+        m_tangentPairsAllocator.reset();
+        m_polarSegmentCountsAllocator.reset();
+        m_parametricSegmentCountsAllocator.reset();
     }
 
     ++m_flushCount;

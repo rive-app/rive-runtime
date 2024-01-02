@@ -4,30 +4,38 @@
 
 #pragma once
 
+#include "rive/pls/trivial_block_allocator.hpp"
+
 namespace rive::pls
 {
-// Fast, simple queue that does not make intermediate memory allocations. The capacity is set during
-// resizeAndRewind(), and push_back() may only be called up to "m_capacity" times before the queue
-// must be rewound again.
+// Fast, simple queue that operates on a block-allocated array. push_back() may only be called up to
+// m_capacity times before the queue must be rewound.
 template <typename T> class FixedQueue
 {
 public:
-    void resizeAndRewind(size_t newCapacity)
+    void reset(TrivialArrayAllocator<T>& allocator, size_t capacity)
     {
-        if (newCapacity != m_capacity)
-        {
-            m_data.reset(new T[newCapacity]);
-            m_capacity = newCapacity;
-        }
+        m_array = allocator.alloc(capacity);
         rewind();
+        RIVE_DEBUG_CODE(m_capacity = capacity;)
     }
-    void rewind() { m_front = m_end = m_data.get(); }
 
-    size_t capacity() const { return m_capacity; }
+    void rewind() { m_front = m_end = m_array; }
+
+    void shrinkToFit(TrivialArrayAllocator<T>& allocator, size_t originalCapacity)
+    {
+        assert(m_capacity == originalCapacity);
+        size_t newCapacity = m_end - m_array;
+        assert(newCapacity <= originalCapacity);
+        allocator.rewindLastAllocation(originalCapacity - newCapacity);
+        RIVE_DEBUG_CODE(m_capacity = newCapacity;)
+    }
+
+    size_t pushCount() const { return m_end - m_array; }
 
     T& push_back()
     {
-        assert(m_end < m_data.get() + m_capacity);
+        assert(m_end < m_array + m_capacity);
         return *m_end++;
     }
 
@@ -35,7 +43,7 @@ public:
 
     T* push_back_n(size_t n)
     {
-        assert(m_end + n <= m_data.get() + m_capacity);
+        assert(m_end + n <= m_array + m_capacity);
         T* ptr = m_end;
         m_end += n;
         return ptr;
@@ -56,9 +64,9 @@ public:
     }
 
 private:
-    size_t m_capacity = 0;
-    std::unique_ptr<T[]> m_data;
+    T* m_array = nullptr;
     T* m_front = nullptr;
     T* m_end = nullptr;
+    RIVE_DEBUG_CODE(size_t m_capacity = 0;)
 };
 } // namespace rive::pls

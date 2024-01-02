@@ -17,7 +17,11 @@ public:
     PLSPath(FillRule fillRule, RawPath& rawPath);
 
     void rewind() override;
-    void fillRule(FillRule rule) override { m_fillRule = rule; }
+    void fillRule(FillRule rule) override
+    {
+        m_fillRule = rule;
+        m_dirt |= kUniqueIDDirt;
+    }
 
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;
@@ -30,14 +34,14 @@ public:
     const RawPath& getRawPath() const { return m_rawPath; }
     FillRule getFillRule() const { return m_fillRule; }
 
-    const AABB& getBounds();
-    uint64_t getUniqueID();
+    const AABB& getBounds() const;
+    uint64_t getUniqueID() const;
 
 private:
     FillRule m_fillRule = FillRule::nonZero;
     RawPath m_rawPath;
-    AABB m_bounds;
-    uint64_t m_uniqueID;
+    mutable AABB m_bounds;
+    mutable uint64_t m_uniqueID;
 
     enum Dirt
     {
@@ -46,6 +50,6 @@ private:
         kAllDirt = ~0,
     };
 
-    uint32_t m_dirt = kAllDirt;
+    mutable uint32_t m_dirt = kAllDirt;
 };
 } // namespace rive::pls

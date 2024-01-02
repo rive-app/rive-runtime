@@ -316,10 +316,10 @@ public:
 
     // Returns the context's TrivialBlockAllocator, which is automatically reset at the end of every
     // flush.
-    TrivialBlockAllocator* trivialPerFlushAllocator()
+    TrivialBlockAllocator* perFrameAllocator()
     {
         assert(m_didBeginFrame);
-        return &m_trivialPerFlushAllocator;
+        return &m_perFrameAllocator;
     }
 
     // Allocates a trivially destructible object that will be automatically deleted at the end of
@@ -327,7 +327,23 @@ public:
     template <typename T, typename... Args> T* make(Args&&... args)
     {
         assert(m_didBeginFrame);
-        return m_trivialPerFlushAllocator.make<T>(std::forward<Args>(args)...);
+        return m_perFrameAllocator.make<T>(std::forward<Args>(args)...);
+    }
+
+    // Allocators for intermediate path processing buffers.
+    TrivialArrayAllocator<uint8_t>& numChopsAllocator() { return m_numChopsAllocator; }
+    TrivialArrayAllocator<Vec2D>& chopVerticesAllocator() { return m_chopVerticesAllocator; }
+    TrivialArrayAllocator<std::array<Vec2D, 2>>& tangentPairsAllocator()
+    {
+        return m_tangentPairsAllocator;
+    }
+    TrivialArrayAllocator<uint32_t, alignof(float4)>& polarSegmentCountsAllocator()
+    {
+        return m_polarSegmentCountsAllocator;
+    }
+    TrivialArrayAllocator<uint32_t, alignof(float4)>& parametricSegmentCountsAllocator()
+    {
+        return m_parametricSegmentCountsAllocator;
     }
 
     // Simple linked list whose nodes are allocated on a context's TrivialBlockAllocator.
@@ -679,6 +695,8 @@ private:
     RIVE_DEBUG_CODE(uint32_t m_expectedTessVertexCountAtNextReserve = 0;)
     RIVE_DEBUG_CODE(uint32_t m_expectedTessVertexCountAtEndOfPath = 0;)
     RIVE_DEBUG_CODE(uint32_t m_expectedMirroredTessLocationAtEndOfPath = 0;)
+    RIVE_DEBUG_CODE(uint32_t m_curveCount = 0;)
+    RIVE_DEBUG_CODE(uint32_t m_expectedCurveCountAtNextReserve = 0;)
 
     // Simple gradients have one stop at t=0 and one stop at t=1. They're implemented with 2 texels.
     std::unordered_map<uint64_t, uint32_t> m_simpleGradients; // [color0, color1] -> rampTexelsIdx
@@ -715,7 +733,21 @@ private:
     // flush has completed. Any object created with this allocator is automatically deleted during
     // the next call to flush().
     constexpr static size_t kPerFlushAllocatorInitialBlockSize = 1024 * 1024; // 1 MiB.
-    TrivialBlockAllocator m_trivialPerFlushAllocator{kPerFlushAllocatorInitialBlockSize};
+    TrivialBlockAllocator m_perFrameAllocator{kPerFlushAllocatorInitialBlockSize};
+
+    // Allocators for intermediate path processing buffers.
+    constexpr static size_t kIntermediateDataInitialStrokes = 8192;     // * 84 == 688 KiB.
+    constexpr static size_t kIntermediateDataInitialFillCurves = 32768; // * 4 == 128 KiB.
+    TrivialArrayAllocator<uint8_t> m_numChopsAllocator{kIntermediateDataInitialStrokes *
+                                                       4}; // 4 byte per stroke curve.
+    TrivialArrayAllocator<Vec2D> m_chopVerticesAllocator{kIntermediateDataInitialStrokes *
+                                                         4}; // 32 bytes per stroke curve.
+    TrivialArrayAllocator<std::array<Vec2D, 2>> m_tangentPairsAllocator{
+        kIntermediateDataInitialStrokes * 2}; // 32 bytes per stroke curve.
+    TrivialArrayAllocator<uint32_t, alignof(float4)> m_polarSegmentCountsAllocator{
+        kIntermediateDataInitialStrokes * 4}; // 16 bytes per stroke curve.
+    TrivialArrayAllocator<uint32_t, alignof(float4)> m_parametricSegmentCountsAllocator{
+        kIntermediateDataInitialFillCurves}; // 4 bytes per fill curve.
 };
 
 template <typename T> size_t PLSRenderContext::PerFlushLinkedList<T>::count() const

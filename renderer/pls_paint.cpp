@@ -122,4 +122,11 @@ void PLSPaint::image(rcp<const PLSTexture> imageTexture, float opacity)
     m_gradient.reset();
     m_paintType = PaintType::image;
 }
+
+void PLSPaint::clipUpdate(uint32_t outerClipID)
+{
+    m_outerClipID = outerClipID;
+    m_gradient.reset();
+    m_paintType = PaintType::clipUpdate;
+}
 } // namespace rive::pls

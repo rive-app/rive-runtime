@@ -321,9 +321,14 @@ public:
 
     ClipRectInverseMatrix() = default;
 
-    const Mat2D& inverseMatrix() const { return m_inverseMatrix; }
+    ClipRectInverseMatrix(const Mat2D& clipMatrix, const AABB& clipRect)
+    {
+        reset(clipMatrix, clipRect);
+    }
 
     void reset(const Mat2D& clipMatrix, const AABB& clipRect);
+
+    const Mat2D& inverseMatrix() const { return m_inverseMatrix; }
 
 private:
     constexpr ClipRectInverseMatrix(const Mat2D& inverseMatrix) : m_inverseMatrix(inverseMatrix) {}
