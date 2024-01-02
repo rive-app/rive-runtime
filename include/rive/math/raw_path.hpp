@@ -30,6 +30,7 @@ public:
 
     bool empty() const { return m_Points.empty(); }
     AABB bounds() const;
+    size_t countMoveTos() const;
 
     void move(Vec2D);
     void line(Vec2D);

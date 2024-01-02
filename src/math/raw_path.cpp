@@ -43,6 +43,16 @@ AABB RawPath::bounds() const
     return bounds;
 }
 
+size_t RawPath::countMoveTos() const
+{
+    size_t moveToCount = 0;
+    for (PathVerb verb : m_Verbs)
+    {
+        moveToCount += verb == PathVerb::move ? 1 : 0;
+    }
+    return moveToCount;
+}
+
 void RawPath::injectImplicitMoveIfNeeded()
 {
     if (!m_contourIsOpen)
