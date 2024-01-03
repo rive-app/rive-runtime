@@ -62,7 +62,40 @@ static int s_horzRepeat = 0;
 static int s_upRepeat = 0;
 static int s_downRepeat = 0;
 
-std::unique_ptr<Scene> s_scene;
+std::unique_ptr<File> s_rivFile;
+std::vector<std::unique_ptr<Artboard>> s_artboards;
+std::vector<std::unique_ptr<Scene>> s_scenes;
+
+static void make_scenes(size_t count)
+{
+    s_artboards.clear();
+    s_scenes.clear();
+    for (size_t i = 0; i < count; ++i)
+    {
+        auto artboard = s_rivFile->artboardDefault();
+        std::unique_ptr<Scene> scene;
+        if (s_stateMachine >= 0)
+        {
+            scene = artboard->stateMachineAt(s_stateMachine);
+        }
+        else if (s_animation >= 0)
+        {
+            scene = artboard->animationAt(s_animation);
+        }
+        else
+        {
+            scene = artboard->animationAt(0);
+        }
+        if (scene == nullptr)
+        {
+            // This is a riv without any animations or state machines. Just draw the artboard.
+            scene = std::make_unique<StaticScene>(artboard.get());
+        }
+        scene->advanceAndApply(scene->durationSeconds() * i / count);
+        s_artboards.push_back(std::move(artboard));
+        s_scenes.push_back(std::move(scene));
+    }
+}
 
 #ifdef RIVE_WEBGL
 EM_JS(int, window_inner_width, (), { return window["innerWidth"]; });
@@ -87,7 +120,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
         s_dragIdx = -1;
-        if (!s_scene)
+        if (!s_rivFile)
         {
             for (int i = 0; i < kNumInteractivePts; ++i)
             {
@@ -192,7 +225,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                     --s_upRepeat;
                 break;
             case GLFW_KEY_J:
-                if (!s_scene)
+                if (!s_rivFile)
                     s_join = static_cast<StrokeJoin>((static_cast<int>(s_join) + 1) % 3);
                 else if (!shift)
                     ++s_downRepeat;
@@ -246,8 +279,6 @@ double fpsLastTime = glfwGetTime();
 int fpsFrames = 0;
 
 std::unique_ptr<Renderer> renderer;
-std::unique_ptr<File> rivFile;
-std::unique_ptr<ArtboardInstance> artboard;
 
 void riveMainLoop();
 
@@ -452,26 +483,7 @@ int main(int argc, const char** argv)
     {
         std::ifstream rivStream(rivName, std::ios::binary);
         std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
-        rivFile = File::import(rivBytes, factory);
-        artboard = rivFile->artboardDefault();
-        if (s_stateMachine >= 0)
-        {
-            s_scene = artboard->stateMachineAt(s_stateMachine);
-        }
-        else if (s_animation >= 0)
-        {
-            s_scene = artboard->animationAt(s_animation);
-        }
-        else
-        {
-            s_scene = artboard->animationAt(0);
-        }
-        if (s_scene == nullptr)
-        {
-            // This is a riv without any animations or state machines. Just draw the artboard.
-            s_scene = std::make_unique<StaticScene>(artboard.get());
-        }
-        s_scene->advanceAndApply(0);
+        s_rivFile = File::import(rivBytes, factory);
     }
 
 #ifdef RIVE_DESKTOP_GL
@@ -487,7 +499,7 @@ int main(int argc, const char** argv)
         {
             glfwSwapBuffers(s_window);
         }
-        if (s_scene)
+        if (s_rivFile)
         {
             glfwPollEvents();
         }
@@ -543,18 +555,29 @@ void riveMainLoop()
     s_fiddleContext->begin(std::move(frameDescriptor));
 
     int instances = 1;
-    if (s_scene)
+    if (s_rivFile)
     {
         instances = (1 + s_horzRepeat * 2) * (1 + s_upRepeat + s_downRepeat);
-        float iinstances = instances > 1 ? s_scene->durationSeconds() / instances : 0;
+        if (s_artboards.size() != instances || s_scenes.size() != instances)
+        {
+            make_scenes(instances);
+        }
+        else if (!s_paused)
+        {
+            for (const auto& scene : s_scenes)
+            {
+                scene->advanceAndApply(1 / 120.f);
+            }
+        }
         Mat2D m = computeAlignment(rive::Fit::contain,
                                    rive::Alignment::center,
                                    rive::AABB(0, 0, width, height),
-                                   artboard->bounds());
+                                   s_artboards.front()->bounds());
         renderer->save();
         m = Mat2D(s_scale, 0, 0, s_scale, s_translate.x, s_translate.y) * m;
         renderer->transform(m);
         float spacing = 200 / m.findMaxScale();
+        auto scene = s_scenes.begin();
         for (int j = 0; j < s_upRepeat + 1 + s_downRepeat; ++j)
         {
             renderer->save();
@@ -562,20 +585,12 @@ void riveMainLoop()
                 Mat2D::fromTranslate(-spacing * s_horzRepeat, (j - s_upRepeat) * spacing));
             for (int i = 0; i < s_horzRepeat * 2 + 1; ++i)
             {
-                s_scene->draw(renderer.get());
+                (*scene++)->draw(renderer.get());
                 renderer->transform(Mat2D::fromTranslate(spacing, 0));
-                if (!s_paused)
-                {
-                    s_scene->advanceAndApply(iinstances);
-                }
             }
             renderer->restore();
         }
         renderer->restore();
-        if (!s_paused)
-        {
-            s_scene->advanceAndApply(1 / 120.f);
-        }
     }
     else
     {
@@ -632,7 +647,7 @@ void riveMainLoop()
 
     s_fiddleContext->end(s_window);
 
-    if (s_scene)
+    if (s_rivFile)
     {
         // Count FPS.
         ++fpsFrames;
