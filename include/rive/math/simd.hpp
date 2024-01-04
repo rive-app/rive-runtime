@@ -46,6 +46,18 @@ namespace simd
 // (The GLSL spec uses "gvec" to denote a vector of unspecified type.)
 template <typename T, int N>
 using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof(T) * N)));
+
+// Vector booleans are masks of integer type, where true is -1 and false is 0. Vector booleans masks
+// are generated using the builtin boolean operators: ==, !=, <=, >=, <, >
+template <typename T> struct extract_element_type;
+template <typename T, int N> struct extract_element_type<gvec<T, N>>
+{
+    using type = T;
+};
+template <typename T> struct boolean_mask_type
+{
+    using type = typename extract_element_type<decltype(gvec<T, 4>() == gvec<T, 4>())>::type;
+};
 } // namespace simd
 } // namespace rive
 
@@ -65,12 +77,12 @@ namespace simd
 {
 ////// Boolean logic //////
 //
-// Vector booleans are of type int32_t, where true is ~0 and false is 0. Vector booleans can be
-// generated using the builtin boolean operators: ==, !=, <=, >=, <, >
+// Vector booleans are masks of integer type, where true is -1 and false is 0. Vector booleans masks
+// can be generated using the builtin boolean operators: ==, !=, <=, >=, <, >
 //
 
 // Returns true if all elements in x are equal to 0.
-template <int N> RIVE_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
+template <typename T, int N> RIVE_ALWAYS_INLINE bool any(gvec<T, N> x)
 {
 #if __has_builtin(__builtin_reduce_or)
     return __builtin_reduce_or(x);
@@ -89,7 +101,7 @@ template <int N> RIVE_ALWAYS_INLINE bool any(gvec<int32_t, N> x)
 }
 
 // Returns true if all elements in x are equal to ~0.
-template <int N> RIVE_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
+template <typename T, int N> RIVE_ALWAYS_INLINE bool all(gvec<T, N> x)
 {
 #if __has_builtin(__builtin_reduce_and)
     return __builtin_reduce_and(x);
@@ -105,13 +117,13 @@ template <int N> RIVE_ALWAYS_INLINE bool all(gvec<int32_t, N> x)
 template <typename T,
           int N,
           typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-RIVE_ALWAYS_INLINE gvec<int32_t, N> isnan(gvec<T, N> x)
+RIVE_ALWAYS_INLINE gvec<typename boolean_mask_type<T>::type, N> isnan(gvec<T, N> x)
 {
     return ~(x == x);
 }
 
 template <typename T, int N, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
-constexpr gvec<int32_t, N> isnan(gvec<T, N>)
+constexpr gvec<typename boolean_mask_type<T>::type, N> isnan(gvec<T, N>)
 {
     return {}; // Integer types are never NaN.
 }
@@ -120,7 +132,9 @@ constexpr gvec<int32_t, N> isnan(gvec<T, N>)
 
 // Elementwise ternary expression: "_if ? _then : _else" for each component.
 template <typename T, int N>
-RIVE_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<int32_t, N> _if, gvec<T, N> _then, gvec<T, N> _else)
+RIVE_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<typename boolean_mask_type<T>::type, N> _if,
+                                           gvec<T, N> _then,
+                                           gvec<T, N> _else)
 {
 #if defined(__clang_major__) && __clang_major__ >= 13
     // The '?:' operator supports a vector condition beginning in clang 13.

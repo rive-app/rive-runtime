@@ -186,24 +186,28 @@ TEST_CASE("swizzles", "[simd]")
 }
 
 // Verify the simd float types are IEEE 754 compliant for infinity and NaN.
-TEST_CASE("ieee-compliance", "[simd]")
+template <typename T> void check_ieee_compliance()
 {
-    float4 test = float4{1, -kInf, 1, 4} / float4{0, 2, kInf, 4};
-    CHECK_ALL((test == float4{kInf, -kInf, 0, 1}));
+    using vec4 = simd::gvec<T, 4>;
+    using vec2 = simd::gvec<T, 2>;
+    constexpr T kTInf = std::numeric_limits<T>::infinity();
+
+    vec4 test = vec4{1, -kTInf, 1, 4} / vec4{0, 2, kTInf, 4};
+    CHECK_ALL((test == vec4{kTInf, -kTInf, 0, 1}));
 
     // Inf * Inf == Inf
-    test = float4{kInf, -kInf, kInf, -kInf} * float4{kInf, kInf, -kInf, -kInf};
-    CHECK_ALL((test == float4{kInf, -kInf, -kInf, kInf}));
+    test = vec4{kTInf, -kTInf, kTInf, -kTInf} * vec4{kTInf, kTInf, -kTInf, -kTInf};
+    CHECK_ALL((test == vec4{kTInf, -kTInf, -kTInf, kTInf}));
 
     // Inf/0 == Inf, 0/Inf == 0
-    test = float4{kInf, -kInf, 0, 0} / float4{0, 0, kInf, -kInf};
-    CHECK_ALL((test == float4{kInf, -kInf, 0, 0}));
+    test = vec4{kTInf, -kTInf, 0, 0} / vec4{0, 0, kTInf, -kTInf};
+    CHECK_ALL((test == vec4{kTInf, -kTInf, 0, 0}));
 
     // Inf/Inf, 0/0, 0 * Inf, Inf - Inf == NaN
-    test = {kInf, 0, 0, kInf};
-    test.xy /= float2{kInf, 0};
-    test.z *= kInf;
-    test.w -= kInf;
+    test = {kTInf, 0, 0, kTInf};
+    test.xy /= vec2{kTInf, 0};
+    test.z *= kTInf;
+    test.w -= kTInf;
     for (int i = 0; i < 4; ++i)
     {
         CHECK(std::isnan(test[i]));
@@ -217,25 +221,51 @@ TEST_CASE("ieee-compliance", "[simd]")
     CHECK(!simd::any(test > test));
 
     // Inf + Inf == Inf, Inf + -Inf == NaN
-    test = float4{kInf, -kInf, kInf, -kInf} + float4{kInf, -kInf, -kInf, kInf};
-    CHECK_ALL((test.xy == float2{kInf, -kInf}));
+    test = vec4{kTInf, -kTInf, kTInf, -kTInf} + vec4{kTInf, -kTInf, -kTInf, kTInf};
+    CHECK_ALL((test.xy == vec2{kTInf, -kTInf}));
     CHECK(!simd::any(test.zw == test.zw)); // NaN
 }
 
-// Check simd::if_then_else.
-TEST_CASE("ternary-operator", "[simd]")
+TEST_CASE("ieee-compliance", "[simd]")
 {
+    check_ieee_compliance<float>();
+    check_ieee_compliance<double>();
+}
+
+// Check simd::if_then_else.
+template <typename T> void check_if_then_else()
+{
+    using vec4 = simd::gvec<T, 4>;
+    using vec2 = simd::gvec<T, 2>;
+
     // Vector condition.
-    float4 f4 = simd::if_then_else(int4{1, 2, 3, 4} < int4{4, 3, 2, 1}, float4(-1), float4(1));
-    CHECK_ALL((f4 == float4{-1, -1, 1, 1}));
+    vec4 f4 = simd::if_then_else(vec4{1, 2, 3, 4} < vec4{4, 3, 2, 1}, vec4(1), vec4(2));
+    CHECK_ALL((f4 == vec4{1, 1, 2, 2}));
 
     // In vector, -1 is true, 0 is false.
-    uint2 u2 = simd::if_then_else(int2{0, -1}, uint2{1, 2}, uint2{3, 4});
-    CHECK_ALL((u2 == uint2{3, 2}));
+    vec2 u2 = simd::if_then_else(simd::gvec<typename simd::boolean_mask_type<T>::type, 2>{0, -1},
+                                 vec2{1, 2},
+                                 vec2{3, 4});
+    CHECK_ALL((u2 == vec2{3, 2}));
 
     // Scalar condition.
-    f4 = u2.x == u2.y ? float4{1, 2, 3, 4} : float4{5, 6, 7, 8};
-    CHECK_ALL((f4 == float4{5, 6, 7, 8}));
+    f4 = u2.x == u2.y ? vec4{1, 2, 3, 4} : vec4{5, 6, 7, 8};
+    CHECK_ALL((f4 == vec4{5, 6, 7, 8}));
+}
+
+TEST_CASE("ternary-operator", "[simd]")
+{
+    check_if_then_else<int8_t>();
+    check_if_then_else<uint8_t>();
+    check_if_then_else<int16_t>();
+    check_if_then_else<uint16_t>();
+    check_if_then_else<float>();
+    check_if_then_else<int32_t>();
+    check_if_then_else<uint32_t>();
+    check_if_then_else<size_t>();
+    check_if_then_else<double>();
+    check_if_then_else<int64_t>();
+    check_if_then_else<uint64_t>();
 }
 
 // Check simd::min/max compliance.
@@ -270,10 +300,28 @@ TEST_CASE("min-max", "[simd]")
     CHECK(std::isnan(std::min<float>(kNaN, 1)));
     CHECK(simd::max<float, 1>(kNaN, 1).x == 1);
     CHECK(std::isnan(std::max<float>(kNaN, 1)));
+    CHECK(simd::min<double, 1>(kNaN, 1).x == 1);
+    CHECK(std::isnan(std::min<double>(kNaN, 1)));
+    CHECK(simd::max<double, 1>(kNaN, 1).x == 1);
+    CHECK(std::isnan(std::max<double>(kNaN, 1)));
 
     // simd::min/max is equivalent std::min/max when the second argument is NaN.
     CHECK(simd::min<float, 1>(1, kNaN).x == std::min<float>(1, kNaN));
     CHECK(simd::max<float, 1>(1, kNaN).x == std::max<float>(1, kNaN));
+    CHECK(simd::min<double, 1>(1, kNaN).x == std::min<double>(1, kNaN));
+    CHECK(simd::max<double, 1>(1, kNaN).x == std::max<double>(1, kNaN));
+
+    // check non-32-bit types.
+    CHECK_ALL((simd::max(simd::gvec<double, 2>{3, 4}, simd::gvec<double, 2>{4, 3}) ==
+               simd::gvec<double, 2>{4, 4}));
+    CHECK_ALL((simd::min(simd::gvec<uint64_t, 2>{3, 4}, simd::gvec<uint64_t, 2>{4, 3}) ==
+               simd::gvec<uint64_t, 2>{3, 3}));
+    CHECK_ALL((simd::max(simd::gvec<size_t, 2>{3, 4}, simd::gvec<size_t, 2>{4, 3}) ==
+               simd::gvec<size_t, 2>{4, 4}));
+    CHECK_ALL(
+        (simd::max(simd::gvec<uint8_t, 16>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                   simd::gvec<uint8_t, 16>{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}) ==
+         simd::gvec<uint8_t, 16>{15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15}));
 }
 
 // Check simd::clamp.

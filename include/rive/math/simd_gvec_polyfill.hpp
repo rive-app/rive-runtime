@@ -152,6 +152,30 @@ static_assert(sizeof(gvec<float, 1>) == 4, "gvec<1> is expected to be tightly pa
 static_assert(sizeof(gvec<float, 2>) == 8, "gvec<2> is expected to be tightly packed");
 static_assert(sizeof(gvec<float, 4>) == 16, "gvec<4> is expected to be tightly packed");
 
+// Vector booleans are masks of integer type, where true is -1 and false is 0. Vector booleans masks
+// are generated using the builtin boolean operators: ==, !=, <=, >=, <, >
+template <size_t> struct boolean_mask_type_by_size;
+template <> struct boolean_mask_type_by_size<1>
+{
+    using type = int8_t;
+};
+template <> struct boolean_mask_type_by_size<2>
+{
+    using type = int16_t;
+};
+template <> struct boolean_mask_type_by_size<4>
+{
+    using type = int32_t;
+};
+template <> struct boolean_mask_type_by_size<8>
+{
+    using type = int64_t;
+};
+template <typename T> struct boolean_mask_type
+{
+    using type = typename boolean_mask_type_by_size<sizeof(T)>::type;
+};
+
 #define DECL_UNARY_OP(_OP_)                                                                        \
     template <typename T, int N, Swizzle Z> gvec<T, N> operator _OP_(gvec<T, N, Z> x)              \
     {                                                                                              \
@@ -218,23 +242,25 @@ DECL_ARITHMETIC_OP(>>);
 
 #define DECL_BOOLEAN_OP(_OP_)                                                                      \
     template <typename T, int N, Swizzle Z0, Swizzle Z1>                                           \
-    gvec<int32_t, N> operator _OP_(gvec<T, N, Z0> a, gvec<T, N, Z1> b)                             \
+    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(gvec<T, N, Z0> a, gvec<T, N, Z1> b) \
     {                                                                                              \
-        gvec<int32_t, N> ret;                                                                      \
+        gvec<typename boolean_mask_type<T>::type, N> ret;                                          \
         for (int i = 0; i < N; ++i)                                                                \
             ret[i] = a[i] _OP_ b[i] ? ~0 : 0;                                                      \
         return ret;                                                                                \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z> gvec<int32_t, N> operator _OP_(gvec<T, N, Z> a, T b)   \
+    template <typename T, int N, Swizzle Z>                                                        \
+    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(gvec<T, N, Z> a, T b)               \
     {                                                                                              \
-        gvec<int32_t, N> ret;                                                                      \
+        gvec<typename boolean_mask_type<T>::type, N> ret;                                          \
         for (int i = 0; i < N; ++i)                                                                \
             ret[i] = a[i] _OP_ b ? ~0 : 0;                                                         \
         return ret;                                                                                \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z> gvec<int32_t, N> operator _OP_(T a, gvec<T, N, Z> b)   \
+    template <typename T, int N, Swizzle Z>                                                        \
+    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(T a, gvec<T, N, Z> b)               \
     {                                                                                              \
-        gvec<int32_t, N> ret;                                                                      \
+        gvec<typename boolean_mask_type<T>::type, N> ret;                                          \
         for (int i = 0; i < N; ++i)                                                                \
             ret[i] = a _OP_ b[i] ? ~0 : 0;                                                         \
         return ret;                                                                                \
@@ -264,7 +290,7 @@ DECL_BOOLEAN_OP(||)
         return F((gvec<float, N>)x);                                                               \
     }
 #define ENABLE_SWIZZLE1B(F)                                                                        \
-    template <int N, Swizzle Z0> bool F(gvec<int32_t, N, Z0> x) { return F((gvec<int32_t, N>)x); }
+    template <typename T, int N, Swizzle Z0> bool F(gvec<T, N, Z0> x) { return F((gvec<T, N>)x); }
 #define ENABLE_SWIZZLEUT(F)                                                                        \
     template <typename T, typename U, int N, Swizzle Z0> gvec<U, N> F(gvec<T, N, Z0> x)            \
     {                                                                                              \
@@ -290,7 +316,9 @@ DECL_BOOLEAN_OP(||)
     }
 #define ENABLE_SWIZZLE3IT(F)                                                                       \
     template <typename T, int N, Swizzle Z0, Swizzle Z1, Swizzle Z2>                               \
-    gvec<T, N> F(gvec<int32_t, N, Z0> a, gvec<T, N, Z1> b, gvec<T, N, Z2> c)                       \
+    gvec<T, N> F(gvec<typename boolean_mask_type<T>::type, N, Z0> a,                               \
+                 gvec<T, N, Z1> b,                                                                 \
+                 gvec<T, N, Z2> c)                                                                 \
     {                                                                                              \
         return F((gvec<int32_t, N>)a, (gvec<T, N>)b, (gvec<T, N>)c);                               \
     }
