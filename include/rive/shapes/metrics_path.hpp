@@ -35,10 +35,11 @@ public:
     /// Add commands to the result RenderPath that will draw the segment
     /// from startLength to endLength of this MetricsPath. Requires
     /// computeLength be called prior to trimming.
-    void trim(float startLength, float endLength, bool moveTo, RenderPath* result);
+    void trim(float startLength, float endLength, bool moveTo, RawPath* result);
 
     /// Add this MetricsPath to a raw path with a transform.
     RawPath::Iter addToRawPath(RawPath& rawPath, const Mat2D& transform) const;
+    ~MetricsPath() override;
 
 private:
     float computeLength(const Mat2D& transform);

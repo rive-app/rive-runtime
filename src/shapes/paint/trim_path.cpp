@@ -27,6 +27,8 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
     // Source is always a containing (shape) path.
     const std::vector<MetricsPath*>& subPaths = source->paths();
 
+    RawPath rawTrimmed;
+
     if (!m_TrimmedPath)
     {
         m_TrimmedPath = factory->makeEmptyRenderPath();
@@ -66,7 +68,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
 
                 if (startLength < pathLength)
                 {
-                    path->trim(startLength, endLength, true, m_TrimmedPath.get());
+                    path->trim(startLength, endLength, true, &rawTrimmed);
                     endLength -= pathLength;
                     startLength = 0;
                 }
@@ -99,12 +101,12 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
                     startLength -= pathLength;
                     endLength -= pathLength;
                 }
-                path->trim(startLength, endLength, true, m_TrimmedPath.get());
+                path->trim(startLength, endLength, true, &rawTrimmed);
                 while (endLength > pathLength)
                 {
                     startLength = 0;
                     endLength -= pathLength;
-                    path->trim(startLength, endLength, true, m_TrimmedPath.get());
+                    path->trim(startLength, endLength, true, &rawTrimmed);
                 }
             }
         }
@@ -112,6 +114,7 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
     }
 
     m_RenderPath = m_TrimmedPath.get();
+    rawTrimmed.addTo(m_RenderPath);
     return m_RenderPath;
 }
 

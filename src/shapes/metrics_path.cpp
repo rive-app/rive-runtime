@@ -2,11 +2,16 @@
 #include "rive/renderer.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/math/contour_measure.hpp"
+#include <iostream>
 
 using namespace rive;
 
 void MetricsPath::rewind()
 {
+    for (auto ptr : m_Paths)
+    {
+        delete ptr;
+    }
     m_Paths.clear();
     m_Contour.reset(nullptr);
     m_RawPath.rewind();
@@ -14,11 +19,19 @@ void MetricsPath::rewind()
     m_ComputedLength = 0;
 }
 
+MetricsPath::~MetricsPath() { rewind(); }
+
 void MetricsPath::addPath(CommandPath* path, const Mat2D& transform)
 {
     MetricsPath* metricsPath = static_cast<MetricsPath*>(path);
     m_ComputedLength += metricsPath->computeLength(transform);
-    m_Paths.emplace_back(metricsPath);
+    // We need to copy the data to avoid contention between multiple uses of the same path
+    // for example when the same path is added as localPath and worldPath
+    auto metricsPathCopy = new OnlyMetricsPath();
+    metricsPathCopy->m_Contour = metricsPath->m_Contour;
+    metricsPathCopy->m_RawPath = metricsPath->m_RawPath;
+    metricsPathCopy->m_ComputedLength = metricsPath->m_ComputedLength;
+    m_Paths.emplace_back(metricsPathCopy);
 }
 
 RawPath::Iter MetricsPath::addToRawPath(RawPath& rawPath, const Mat2D& transform) const
@@ -56,7 +69,7 @@ float MetricsPath::computeLength(const Mat2D& transform)
     return m_ComputedLength;
 }
 
-void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPath* result)
+void MetricsPath::trim(float startLength, float endLength, bool moveTo, RawPath* result)
 {
     assert(endLength >= startLength);
     if (!m_Paths.empty())
@@ -73,8 +86,7 @@ void MetricsPath::trim(float startLength, float endLength, bool moveTo, RenderPa
     //       rawpaths, we wouldn't need this temporary copy (since ContourMeasure speaks
     //       native rawpaths).
     RawPath tmp;
-    m_Contour->getSegment(startLength, endLength, &tmp, moveTo);
-    tmp.addTo(result);
+    m_Contour->getSegment(startLength, endLength, result, moveTo);
 }
 
 RenderMetricsPath::RenderMetricsPath(rcp<RenderPath> path) : m_RenderPath(std::move(path)) {}
