@@ -66,11 +66,8 @@ private:
     // Returns false if the operation failed, at which point the caller should flush and try again.
     [[nodiscard]] bool applyClip(PLSDraw*);
 
-    // Pushes all paths in m_internalDrawBatch to m_context.
-    [[nodiscard]] bool pushInternalDrawBatchToContext();
-
     // Calls releaseRefs() on every draw in m_internalDrawBatch and clears the array.
-    void resetInternalDrawBatch();
+    void releaseInternalDrawBatch();
 
     struct RenderState
     {
@@ -92,7 +89,7 @@ private:
         bool isEquivalent(const Mat2D&, const PLSPath*) const;
 
         Mat2D matrix;
-        uint64_t pathUniqueID;
+        uint64_t rawPathMutationID;
         AABB pathBounds;
         rcp<const PLSPath> path;
         FillRule fillRule; // Bc PLSPath fillRule can mutate during the artboard draw process.

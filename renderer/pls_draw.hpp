@@ -29,27 +29,17 @@ public:
     void setClipID(uint32_t clipID) { m_clipID = clipID; }
     void setClipRect(const pls::ClipRectInverseMatrix* m) { m_clipRectInverseMatrix = m; }
 
-    // Running counter of GPU resource allocation sizes for an entire frame. This gets sent to
-    // countResources() for every draw in a frame.
-    struct ResourceCounters
-    {
-        ResourceCounters(PLSRenderContext* context) : tessVertexCounter(context) {}
-
-        PLSRenderContext::TessVertexCounter tessVertexCounter;
-        size_t pathCount = 0;
-        size_t contourCount = 0;
-        size_t curveCount = 0;
-        size_t imageDrawUniformsCount = 0;
-    };
-
-    virtual void countResources(ResourceCounters*) = 0;
+    // Used to allocate GPU resources for a collection of draws.
+    const PLSRenderContext::ResourceCounters& resourceCounts() const { return m_resourceCounts; }
 
     // Adds the gradient (if any) for this draw to the render context's gradient texture.
     // Returns false if this draw needed a gradient but there wasn't room for it in the texture, at
     // which point the gradient texture will need to be re-rendered mid flight.
-    bool pushGradientIfNeeded(PLSRenderContext* context)
+    bool allocateGradientIfNeeded(PLSRenderContext* context,
+                                  PLSRenderContext::ResourceCounters* counters)
     {
-        return m_gradientRef == nullptr || context->pushGradient(m_gradientRef, &m_paintRenderData);
+        return m_gradientRef == nullptr ||
+               context->allocateGradient(m_gradientRef, counters, &m_paintRenderData);
     }
 
     // Pushes the data for this draw to the render context. Called once the GPU buffers have been
@@ -69,8 +59,11 @@ protected:
     uint32_t m_clipID = 0;
     const pls::ClipRectInverseMatrix* m_clipRectInverseMatrix = nullptr;
 
-    // Gradient data used by some draws. Stored in the base class so pushGradientIfNeeded() doesn't
-    // have to be virtual.
+    // Filled in by the subclass constructor.
+    PLSRenderContext::ResourceCounters m_resourceCounts;
+
+    // Gradient data used by some draws. Stored in the base class so allocateGradientIfNeeded()
+    // doesn't have to be virtual.
     const PLSGradient* m_gradientRef = nullptr;
     pls::PaintData m_paintRenderData;
 };
@@ -91,7 +84,7 @@ public:
 
     void releaseRefs() override;
 
-protected:
+public:
     PLSPathDraw(const Mat2D&,
                 const AABB& bounds,
                 rcp<const PLSPath>,
@@ -106,11 +99,10 @@ protected:
     const pls::PaintType m_paintType;
     const bool m_isStroked;
     const float m_strokeRadius;
-
     const pls::PatchType m_patchType;
-    size_t m_contourCount = 0;
-    uint32_t m_tessVertexCount = 0;
-    size_t m_paddingVertexCount = 0;
+
+    // Used to guarantee m_pathRef doesn't change for the entire time we hold it.
+    RIVE_DEBUG_CODE(size_t m_rawPathMutationID;)
 };
 
 // Draws a path by fanning tessellation patches around the midpoint of each contour.
@@ -123,8 +115,6 @@ public:
                         rcp<const PLSPath>,
                         FillRule,
                         const PLSPaint*);
-
-    void countResources(ResourceCounters*) override;
 
 protected:
     void onPushToRenderContext(PLSRenderContext*) override;
@@ -158,8 +148,6 @@ protected:
     };
 
     ContourInfo* m_contours;
-    size_t m_curveCount = 0;
-
     FixedQueue<uint8_t> m_numChops;
     FixedQueue<Vec2D> m_chopVertices;
     std::array<Vec2D, 2>* m_tangentPairs = nullptr;
@@ -188,8 +176,6 @@ public:
                               FillRule,
                               const PLSPaint*,
                               RawPath* scratchPath);
-
-    void countResources(ResourceCounters*) override;
 
 protected:
     void onPushToRenderContext(PLSRenderContext*) override;
@@ -225,7 +211,6 @@ protected:
     // of the total CPU time. (And large paths are GPU-bound anyway.)
     void processPath(PLSRenderContext* context, PathOp op, RawPath* scratchPath = nullptr);
 
-    size_t m_patchCount = 0;
     GrInnerFanTriangulator* m_triangulator = nullptr;
 };
 
@@ -247,9 +232,8 @@ public:
         // image paint instead of using this draw.
         assert(!context->impl()->platformFeatures().supportsBindlessTextures);
         assert(context->frameDescriptor().enableExperimentalAtomicMode);
+        m_resourceCounts.imageDrawCount = 1;
     }
-
-    void countResources(ResourceCounters* counters) override { ++counters->imageDrawUniformsCount; }
 
     void pushToRenderContext(PLSRenderContext*) override;
 
@@ -280,9 +264,8 @@ public:
         assert(m_vertexBufferRef != nullptr);
         assert(m_uvBufferRef != nullptr);
         assert(m_indexBufferRef != nullptr);
+        m_resourceCounts.imageDrawCount = 1;
     }
-
-    void countResources(ResourceCounters* counters) override { ++counters->imageDrawUniformsCount; }
 
     void pushToRenderContext(PLSRenderContext*) override;
 

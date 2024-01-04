@@ -17,11 +17,7 @@ public:
     PLSPath(FillRule fillRule, RawPath& rawPath);
 
     void rewind() override;
-    void fillRule(FillRule rule) override
-    {
-        m_fillRule = rule;
-        m_dirt |= kUniqueIDDirt;
-    }
+    void fillRule(FillRule rule) override { m_fillRule = rule; }
 
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;
@@ -35,21 +31,32 @@ public:
     FillRule getFillRule() const { return m_fillRule; }
 
     const AABB& getBounds() const;
-    uint64_t getUniqueID() const;
+    uint64_t getRawPathMutationID() const;
+
+#ifdef DEBUG
+    // Allows ref holders to guarantee the rawPath doesn't mutate during a specific time.
+    void lockRawPathMutations() const { ++m_rawPathMutationLockCount; }
+    void unlockRawPathMutations() const
+    {
+        assert(m_rawPathMutationLockCount > 0);
+        --m_rawPathMutationLockCount;
+    }
+#endif
 
 private:
     FillRule m_fillRule = FillRule::nonZero;
     RawPath m_rawPath;
     mutable AABB m_bounds;
-    mutable uint64_t m_uniqueID;
+    mutable uint64_t m_rawPathMutationID;
 
     enum Dirt
     {
         kPathBoundsDirt = 1,
-        kUniqueIDDirt = 4,
+        kRawPathMutationIDDirt = 4,
         kAllDirt = ~0,
     };
 
     mutable uint32_t m_dirt = kAllDirt;
+    RIVE_DEBUG_CODE(mutable int m_rawPathMutationLockCount = 0;)
 };
 } // namespace rive::pls

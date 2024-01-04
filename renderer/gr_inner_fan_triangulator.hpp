@@ -45,19 +45,17 @@ public:
 
     uint64_t maxVertexCount() const { return m_maxVertexCount; }
 
-    void setPathID(uint16_t pathID) { m_pathID = pathID; }
-    uint16_t pathID() const { return m_pathID; }
-
-    size_t polysToTriangles(pls::WriteOnlyMappedMemory<pls::TriangleVertex>* bufferRing) const
+    size_t polysToTriangles(pls::WriteOnlyMappedMemory<pls::TriangleVertex>* bufferRing,
+                            uint16_t pathID) const
 
     {
-        if (m_polys == nullptr)
+        if (m_polys == nullptr || m_maxVertexCount == 0)
         {
             return 0;
         }
         return GrTriangulator::polysToTriangles(m_polys,
                                                 m_maxVertexCount,
-                                                m_pathID,
+                                                pathID,
                                                 m_shouldReverseTriangles,
                                                 bufferRing);
     }
@@ -68,7 +66,6 @@ private:
     // We reverse triangles whe using a left-handed view matrix, in order to ensure we always emit
     // clockwise triangles.
     bool m_shouldReverseTriangles;
-    uint16_t m_pathID = 0;
     Poly* m_polys = nullptr;
     uint64_t m_maxVertexCount = 0;
 };

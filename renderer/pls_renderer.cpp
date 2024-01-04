@@ -62,7 +62,7 @@ PLSRenderer::ClipElement::~ClipElement() {}
 void PLSRenderer::ClipElement::reset(const Mat2D& matrix_, const PLSPath* path_, FillRule fillRule_)
 {
     matrix = matrix_;
-    pathUniqueID = path_->getUniqueID();
+    rawPathMutationID = path_->getRawPathMutationID();
     pathBounds = path_->getBounds();
     path = ref_rcp(path_);
     fillRule = fillRule_;
@@ -71,7 +71,8 @@ void PLSRenderer::ClipElement::reset(const Mat2D& matrix_, const PLSPath* path_,
 
 bool PLSRenderer::ClipElement::isEquivalent(const Mat2D& matrix_, const PLSPath* path_) const
 {
-    return matrix_ == matrix && path_->getUniqueID() == pathUniqueID;
+    return matrix_ == matrix && path_->getRawPathMutationID() == rawPathMutationID &&
+           path_->getFillRule() == fillRule;
 }
 
 PLSRenderer::PLSRenderer(PLSRenderContext* context) : m_context(context) {}
@@ -313,22 +314,23 @@ void PLSRenderer::clipAndPushDraw(PLSDraw* draw)
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
             m_context->flush(PLSRenderContext::FlushType::intermediate);
-            resetInternalDrawBatch();
+            releaseInternalDrawBatch();
             continue;
         }
         m_internalDrawBatch.push_back(draw);
-        if (!pushInternalDrawBatchToContext())
+        if (!m_context->pushDrawBatch(m_internalDrawBatch.data(), m_internalDrawBatch.size()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
             m_context->flush(PLSRenderContext::FlushType::intermediate);
             // Don't call releaseRefs() on "draw" because we will use it again next iteration.
             assert(m_internalDrawBatch.back() == draw);
             m_internalDrawBatch.pop_back();
-            resetInternalDrawBatch();
+            releaseInternalDrawBatch();
             continue;
         }
-        resetInternalDrawBatch();
-        return; // Success!
+        // Success! Don't call releaseRefs() because m_context has adopted the draws.
+        m_internalDrawBatch.clear();
+        return;
     }
     // We failed to process the draw. Release its refs.
     draw->releaseRefs();
@@ -406,56 +408,7 @@ bool PLSRenderer::applyClip(PLSDraw* draw)
     return true;
 }
 
-bool PLSRenderer::pushInternalDrawBatchToContext()
-{
-    PLSDraw::ResourceCounters counters(m_context);
-    for (PLSDraw* draw : m_internalDrawBatch)
-    {
-        draw->countResources(&counters);
-    }
-
-    // Reserve space for a set of image draw uniforms if we need one.
-    if (counters.imageDrawUniformsCount != 0)
-    {
-        // FIXME: This is a temporary hack while refactoring. There can only be one image draw for
-        // now, and we will soon get to a place where it won't matter if there are more either.
-        assert(counters.imageDrawUniformsCount == 1);
-        if (!m_context->reserveImageDrawUniforms())
-        {
-            return false;
-        }
-    }
-
-    // Attempt to reserve space on the GPU for our entire batch of paths.
-    if (!m_context->reservePathData(counters.pathCount,
-                                    counters.contourCount,
-                                    counters.curveCount,
-                                    counters.tessVertexCounter))
-    {
-        // The paths don't fit. Give up and let the caller flush and try again.
-        return false;
-    }
-
-    // Allocate spans in the gradient texture.
-    for (PLSDraw* draw : m_internalDrawBatch)
-    {
-        if (!draw->pushGradientIfNeeded(m_context))
-        {
-            // The gradient doesn't fit. Give up and let the caller flush and try again.
-            return false;
-        }
-    }
-
-    // Now that we have space reserved, push the whole batch of paths to the context.
-    for (PLSDraw* draw : m_internalDrawBatch)
-    {
-        draw->pushToRenderContext(m_context);
-    }
-
-    return true;
-}
-
-void PLSRenderer::resetInternalDrawBatch()
+void PLSRenderer::releaseInternalDrawBatch()
 {
     for (PLSDraw* draw : m_internalDrawBatch)
     {

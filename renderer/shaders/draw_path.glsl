@@ -171,9 +171,16 @@ VERTEX_MAIN(@drawVertexMain,
             //   - 2 if the gradient ramp spans an entire row.
             //   - x0 of the gradient ramp in normalized space, if it's a simple 2-texel ramp.
             if (x1 > x0 + 1.)
-                v_paint.b = 2.; // This ramp spans an entire row. Set it to 2 to convey this.
+            {
+                // Complex gradients rows are offset after the simple gradients.
+                v_paint.a -= uniforms.gradComplexOffsetY;
+                v_paint.b = 2.; // Complex ramps span an entire row. Set it to 2 to convey this.
+            }
             else
+            {
+                // This is a simple ramp.
                 v_paint.b = x0 * (1. / GRAD_TEXTURE_WIDTH) + (.5 / GRAD_TEXTURE_WIDTH);
+            }
             float3 gradCoeffs = uintBitsToFloat(paintData.yzw);
             if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
             {

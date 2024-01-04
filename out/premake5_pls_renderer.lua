@@ -157,7 +157,9 @@ do
     do
         buildoptions {
             '-ffp-contract=on',
-            '-fassociative-math'
+            '-fassociative-math',
+            -- Don't warn about simd vectors larger than 128 bits when AVX is not enabled.
+            '-Wno-psabi',
         }
     end
 

@@ -68,9 +68,9 @@ float tessInverseViewportY;
 float renderTargetInverseViewportX;
 float renderTargetInverseViewportY;
 float gradTextureInverseHeight;
-uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
+float gradComplexOffsetY; // Normalized Y-offset to the first row of complex gradients.
+uint pathIDGranularity;   // Spacing between adjacent path IDs (1 if IEEE compliant).
 float vertexDiscardValue;
-uint padding;
 UNIFORM_BLOCK_END(uniforms)
 
 #define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                                                   \

@@ -84,6 +84,7 @@ public:
         size_t tessVertexSpanCount = 0;
         uint32_t simpleGradTexelsWidth = 0;
         uint32_t simpleGradTexelsHeight = 0;
+        size_t simpleGradDataOffset = 0;
         uint32_t complexGradRowsTop = 0;
         uint32_t complexGradRowsHeight = 0;
         uint32_t tessDataHeight = 0;

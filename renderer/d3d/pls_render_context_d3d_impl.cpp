@@ -588,10 +588,11 @@ protected:
 std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t capacity,
                                                                           size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferRingD3D>(this,
-                                           capacity,
-                                           itemSizeInBytes,
-                                           D3D11_BIND_VERTEX_BUFFER);
+    return capacity != 0 ? std::make_unique<BufferRingD3D>(this,
+                                                           capacity,
+                                                           itemSizeInBytes,
+                                                           D3D11_BIND_VERTEX_BUFFER)
+                         : nullptr;
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makePixelUnpackBufferRing(
@@ -659,54 +660,90 @@ rcp<PLSRenderTargetD3D> PLSRenderContextD3DImpl::makeRenderTarget(uint32_t width
 
 void PLSRenderContextD3DImpl::resizePathTexture(uint32_t width, uint32_t height)
 {
-    m_pathTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
-                                        width,
-                                        height,
-                                        1,
-                                        D3D11_BIND_SHADER_RESOURCE);
-    VERIFY_OK(m_gpu->CreateShaderResourceView(m_pathTexture.Get(),
-                                              NULL,
-                                              m_pathTextureSRV.GetAddressOf()));
+    if (width == 0 || height == 0)
+    {
+        m_pathTexture = nullptr;
+        m_pathTextureSRV = nullptr;
+    }
+    else
+    {
+        m_pathTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
+                                            width,
+                                            height,
+                                            1,
+                                            D3D11_BIND_SHADER_RESOURCE);
+        VERIFY_OK(m_gpu->CreateShaderResourceView(m_pathTexture.Get(),
+                                                  NULL,
+                                                  m_pathTextureSRV.GetAddressOf()));
+    }
 }
 
 void PLSRenderContextD3DImpl::resizeContourTexture(uint32_t width, uint32_t height)
 {
-    m_contourTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
-                                           width,
-                                           height,
-                                           1,
-                                           D3D11_BIND_SHADER_RESOURCE);
-    VERIFY_OK(m_gpu->CreateShaderResourceView(m_contourTexture.Get(),
-                                              NULL,
-                                              m_contourTextureSRV.GetAddressOf()));
+    if (width == 0 || height == 0)
+    {
+        m_contourTexture = nullptr;
+        m_contourTextureSRV = nullptr;
+    }
+    else
+    {
+        m_contourTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
+                                               width,
+                                               height,
+                                               1,
+                                               D3D11_BIND_SHADER_RESOURCE);
+        VERIFY_OK(m_gpu->CreateShaderResourceView(m_contourTexture.Get(),
+                                                  NULL,
+                                                  m_contourTextureSRV.GetAddressOf()));
+    }
 }
 
 void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
-    m_gradTexture = makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
-                                        width,
-                                        height,
-                                        1,
-                                        D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
-    VERIFY_OK(m_gpu->CreateShaderResourceView(m_gradTexture.Get(),
-                                              NULL,
-                                              m_gradTextureSRV.GetAddressOf()));
-    VERIFY_OK(
-        m_gpu->CreateRenderTargetView(m_gradTexture.Get(), NULL, m_gradTextureRTV.GetAddressOf()));
+    if (width == 0 || height == 0)
+    {
+        m_gradTexture = nullptr;
+        m_gradTextureSRV = nullptr;
+        m_gradTextureRTV = nullptr;
+    }
+    else
+    {
+        m_gradTexture = makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
+                                            width,
+                                            height,
+                                            1,
+                                            D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+        VERIFY_OK(m_gpu->CreateShaderResourceView(m_gradTexture.Get(),
+                                                  NULL,
+                                                  m_gradTextureSRV.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateRenderTargetView(m_gradTexture.Get(),
+                                                NULL,
+                                                m_gradTextureRTV.GetAddressOf()));
+    }
 }
 
 void PLSRenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
-    m_tessTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
-                                        width,
-                                        height,
-                                        1,
-                                        D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
-    VERIFY_OK(m_gpu->CreateShaderResourceView(m_tessTexture.Get(),
-                                              NULL,
-                                              m_tessTextureSRV.GetAddressOf()));
-    VERIFY_OK(
-        m_gpu->CreateRenderTargetView(m_tessTexture.Get(), NULL, m_tessTextureRTV.GetAddressOf()));
+    if (width == 0 || height == 0)
+    {
+        m_tessTexture = nullptr;
+        m_tessTextureSRV = nullptr;
+        m_tessTextureRTV = nullptr;
+    }
+    else
+    {
+        m_tessTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
+                                            width,
+                                            height,
+                                            1,
+                                            D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+        VERIFY_OK(m_gpu->CreateShaderResourceView(m_tessTexture.Get(),
+                                                  NULL,
+                                                  m_tessTextureSRV.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateRenderTargetView(m_tessTexture.Get(),
+                                                NULL,
+                                                m_tessTextureRTV.GetAddressOf()));
+    }
 }
 
 void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
@@ -1244,7 +1281,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                   : draw.shaderFeatures;
         setPipelineLayoutAndShaders(drawType, shaderFeatures, desc.interlockMode);
 
-        if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(draw.imageTextureRef))
+        if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(draw.imageTexture))
         {
             m_gpuContext->PSSetShaderResources(IMAGE_TEXTURE_IDX,
                                                1,
@@ -1293,11 +1330,9 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
             {
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         const RenderBufferD3DImpl*,
-                                        draw.vertexBufferRef);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferD3DImpl*, draw.uvBufferRef);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer,
-                                        const RenderBufferD3DImpl*,
-                                        draw.indexBufferRef);
+                                        draw.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferD3DImpl*, draw.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer, const RenderBufferD3DImpl*, draw.indexBuffer);
                 ID3D11Buffer* imageMeshBuffers[] = {vertexBuffer->buffer(), uvBuffer->buffer()};
                 UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
                 UINT imageMeshOffsets[] = {0, 0};

@@ -1139,6 +1139,7 @@ private:
 std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeVertexBufferRing(size_t capacity,
                                                                              size_t itemSizeInBytes)
 {
+    capacity = std::max<size_t>(capacity, 1);
     return std::make_unique<BufferWebGPU>(m_device,
                                           m_queue,
                                           capacity,
@@ -1150,6 +1151,7 @@ std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makePixelUnpackBufferRin
     size_t capacity,
     size_t itemSizeInBytes)
 {
+    capacity = std::max<size_t>(capacity, 1);
     return std::make_unique<BufferWebGPU>(m_device,
                                           m_queue,
                                           capacity,
@@ -1161,6 +1163,7 @@ std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeUniformBufferRing(
     size_t capacity,
     size_t itemSizeInBytes)
 {
+    capacity = std::max<size_t>(capacity, 1);
     return std::make_unique<BufferWebGPU>(m_device,
                                           m_queue,
                                           capacity,
@@ -1170,6 +1173,9 @@ std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeUniformBufferRing(
 
 void PLSRenderContextWebGPUImpl::resizePathTexture(uint32_t width, uint32_t height)
 {
+    width = std::max(width, 1u);
+    height = std::max(height, 1u);
+
     wgpu::TextureDescriptor desc{
         .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
         .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
@@ -1182,6 +1188,9 @@ void PLSRenderContextWebGPUImpl::resizePathTexture(uint32_t width, uint32_t heig
 
 void PLSRenderContextWebGPUImpl::resizeContourTexture(uint32_t width, uint32_t height)
 {
+    width = std::max(width, 1u);
+    height = std::max(height, 1u);
+
     wgpu::TextureDescriptor desc{
         .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
         .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
@@ -1194,6 +1203,9 @@ void PLSRenderContextWebGPUImpl::resizeContourTexture(uint32_t width, uint32_t h
 
 void PLSRenderContextWebGPUImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
+    width = std::max(width, 1u);
+    height = std::max(height, 1u);
+
     wgpu::TextureDescriptor desc{
         .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding |
                  wgpu::TextureUsage::CopyDst,
@@ -1207,6 +1219,9 @@ void PLSRenderContextWebGPUImpl::resizeGradientTexture(uint32_t width, uint32_t 
 
 void PLSRenderContextWebGPUImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
+    width = std::max(width, 1u);
+    height = std::max(height, 1u);
+
     wgpu::TextureDescriptor desc{
         .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding,
         .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
@@ -1675,7 +1690,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         DrawType drawType = draw.drawType;
 
         // Bind the appropriate image texture, if any.
-        if (auto imageTexture = static_cast<const PLSTextureWebGPUImpl*>(draw.imageTextureRef))
+        if (auto imageTexture = static_cast<const PLSTextureWebGPUImpl*>(draw.imageTexture))
         {
             currentImageTextureView = imageTexture->textureView();
             needsNewBindings = true;
@@ -1769,10 +1784,9 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 RIVE_UNREACHABLE();
             case DrawType::imageMesh:
             {
-                auto vertexBuffer =
-                    static_cast<const RenderBufferWebGPUImpl*>(draw.vertexBufferRef);
-                auto uvBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.uvBufferRef);
-                auto indexBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.indexBufferRef);
+                auto vertexBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.vertexBuffer);
+                auto uvBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.uvBuffer);
+                auto indexBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.indexBuffer);
                 drawPass.SetVertexBuffer(0, vertexBuffer->submittedBuffer());
                 drawPass.SetVertexBuffer(1, uvBuffer->submittedBuffer());
                 drawPass.SetIndexBuffer(indexBuffer->submittedBuffer(), wgpu::IndexFormat::Uint16);

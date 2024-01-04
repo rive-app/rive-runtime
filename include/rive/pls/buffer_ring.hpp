@@ -94,7 +94,8 @@ class HeapBufferRing : public BufferRing
 {
 public:
     HeapBufferRing(size_t capacity, size_t itemSizeInBytes) :
-        BufferRing(capacity, itemSizeInBytes), m_contents(new uint8_t[capacity * itemSizeInBytes])
+        BufferRing(capacity, itemSizeInBytes),
+        m_contents(capacity != 0 ? new uint8_t[capacity * itemSizeInBytes] : nullptr)
     {}
 
     const void* contents() const { return m_contents.get(); }

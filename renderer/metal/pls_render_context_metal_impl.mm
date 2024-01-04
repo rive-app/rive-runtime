@@ -454,23 +454,31 @@ rcp<PLSTexture> PLSRenderContextMetalImpl::makeImageTexture(uint32_t width,
 std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size_t capacity,
                                                                             size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes);
+    return capacity != 0 ? std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes)
+                         : nullptr;
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makePixelUnpackBufferRing(
     size_t capacity, size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes);
+    return capacity != 0 ? std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes)
+                         : nullptr;
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeUniformBufferRing(size_t capacity,
                                                                              size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes);
+    return capacity != 0 ? std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes)
+                         : nullptr;
 }
 
 void PLSRenderContextMetalImpl::resizePathTexture(uint32_t width, uint32_t height)
 {
+    if (width == 0 || height == 0)
+    {
+        m_pathTexture = nil;
+        return;
+    }
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatRGBA32Uint;
     desc.width = width;
@@ -484,6 +492,11 @@ void PLSRenderContextMetalImpl::resizePathTexture(uint32_t width, uint32_t heigh
 
 void PLSRenderContextMetalImpl::resizeContourTexture(uint32_t width, uint32_t height)
 {
+    if (width == 0 || height == 0)
+    {
+        m_contourTexture = nil;
+        return;
+    }
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatRGBA32Uint;
     desc.width = width;
@@ -497,6 +510,11 @@ void PLSRenderContextMetalImpl::resizeContourTexture(uint32_t width, uint32_t he
 
 void PLSRenderContextMetalImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
+    if (width == 0 || height == 0)
+    {
+        m_gradientTexture = nil;
+        return;
+    }
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
     desc.width = width;
@@ -510,6 +528,11 @@ void PLSRenderContextMetalImpl::resizeGradientTexture(uint32_t width, uint32_t h
 
 void PLSRenderContextMetalImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
+    if (width == 0 || height == 0)
+    {
+        m_tessVertexTexture = nil;
+        return;
+    }
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatRGBA32Uint;
     desc.width = width;
@@ -710,7 +733,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     for (const Draw& draw : *desc.drawList)
     {
         // Bind the appropriate image texture, if any.
-        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTextureRef))
+        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTexture))
         {
             imageTextureMetal->ensureMipmaps(commandBuffer);
         }
@@ -779,7 +802,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [encoder setRenderPipelineState:drawPipeline->pipelineState(renderTarget->pixelFormat())];
 
         // Bind the appropriate image texture, if any.
-        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTextureRef))
+        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTexture))
         {
             [encoder setFragmentTexture:imageTextureMetal->texture() atIndex:IMAGE_TEXTURE_IDX];
         }
@@ -817,10 +840,10 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
             case DrawType::imageMesh:
             {
                 LITE_RTTI_CAST_OR_BREAK(
-                    vertexBuffer, const RenderBufferMetalImpl*, draw.vertexBufferRef);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferMetalImpl*, draw.uvBufferRef);
+                    vertexBuffer, const RenderBufferMetalImpl*, draw.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferMetalImpl*, draw.uvBuffer);
                 LITE_RTTI_CAST_OR_BREAK(
-                    indexBuffer, const RenderBufferMetalImpl*, draw.indexBufferRef);
+                    indexBuffer, const RenderBufferMetalImpl*, draw.indexBuffer);
                 [encoder setVertexBuffer:mtl_buffer(imageDrawUniformBufferRing())
                                   offset:draw.imageDrawDataOffset
                                  atIndex:IMAGE_DRAW_UNIFORM_BUFFER_IDX];

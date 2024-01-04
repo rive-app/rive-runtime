@@ -410,11 +410,12 @@ struct FlushUniforms
                                    static_cast<float>(renderTargetHeight)};
     }
 
-    FlushUniforms(size_t complexGradientsHeight,
-                  size_t tessDataHeight,
-                  size_t renderTargetWidth,
-                  size_t renderTargetHeight,
-                  size_t gradTextureHeight,
+    FlushUniforms(uint32_t complexGradientsHeight,
+                  uint32_t tessDataHeight,
+                  uint32_t renderTargetWidth,
+                  uint32_t renderTargetHeight,
+                  uint32_t gradTextureHeight,
+                  uint32_t gradComplexOffsetY_,
                   const PlatformFeatures& platformFeatures) :
         inverseViewports(InverseViewports(complexGradientsHeight,
                                           tessDataHeight,
@@ -422,14 +423,15 @@ struct FlushUniforms
                                           renderTargetHeight,
                                           platformFeatures)),
         gradTextureInverseHeight(1.f / static_cast<float>(gradTextureHeight)),
+        gradComplexOffsetY(gradComplexOffsetY_ * gradTextureInverseHeight),
         pathIDGranularity(platformFeatures.pathIDGranularity)
     {}
 
     float4 inverseViewports = 0; // [complexGradientsY, tessDataY, renderTargetX, renderTargetY]
     float gradTextureInverseHeight = 0;
+    float gradComplexOffsetY = 0;   // Normalized Y-offset to the first row of complex gradients.
     uint32_t pathIDGranularity = 0; // Spacing between adjacent path IDs (1 if IEEE compliant).
     float vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
-    uint32_t padding = 0;
 };
 static_assert(sizeof(FlushUniforms) == 8 * sizeof(uint32_t));
 
@@ -482,6 +484,8 @@ public:
                reinterpret_cast<uintptr_t>(m_mappedMemory);
     }
 
+    size_t elementsWritten() const { return bytesWritten() / sizeof(T); }
+
     // Is there room to push() itemCount items to the buffer?
     bool hasRoomFor(size_t itemCount) { return m_nextMappedItem + itemCount <= m_mappingEnd; }
 
@@ -495,12 +499,23 @@ public:
     {
         push().set(std::forward<Args>(args)...);
     }
+    void push_back_n(const T* values, size_t count)
+    {
+        memcpy(push(count), values, count * sizeof(T));
+    }
 
 private:
-    template <typename... Args> RIVE_ALWAYS_INLINE T& push()
+    RIVE_ALWAYS_INLINE T& push()
     {
         assert(hasRoomFor(1));
         return *m_nextMappedItem++;
+    }
+    RIVE_ALWAYS_INLINE T* push(size_t count)
+    {
+        assert(hasRoomFor(count));
+        T* ret = m_nextMappedItem;
+        m_nextMappedItem += count;
+        return ret;
     }
 
     T* m_mappedMemory;
@@ -791,6 +806,10 @@ struct ExperimentalAtomicModeData
         Vec2D inverseFwidth; // -1 / fwidth(clipMatrix * pixelPosition) -- for antialiasing.
     } m_clipRectTranslates[kBufferLength];
 
+    // Configure the base paint (pathID=0) to draw the clear color. This will only actually be used
+    // if PLSRenderContextImpl::FlushDescriptor::canSkipColorClear() is true.
+    void setClearColorPaint(ColorInt clearColor);
+
     // Fills in the buffers at index 'pathID' with the info for drawing the given path.
     void setDataForPath(uint32_t pathID,
                         const Mat2D&,
@@ -802,11 +821,8 @@ struct ExperimentalAtomicModeData
                         const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
                         BlendMode,
                         const PLSRenderTarget*,
-                        float gradientTextureHeight,
+                        const pls::FlushUniforms&,
                         const PlatformFeatures&);
-
-    // Configure the clear color and normalize gradient Y-coordinates.
-    void finalize(size_t pathCount, ColorInt clearColor, float gradTextureInverseHeight);
 };
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.

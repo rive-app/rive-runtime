@@ -351,11 +351,19 @@ PLSPathDraw::PLSPathDraw(const Mat2D& matrix,
             m_paintRenderData = PaintData::MakeClipUpdate(paint->getOuterClipID());
             break;
     }
+    RIVE_DEBUG_CODE(m_pathRef->lockRawPathMutations();)
+    RIVE_DEBUG_CODE(m_rawPathMutationID = m_pathRef->getRawPathMutationID();)
 }
 
 void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
 {
-    if (m_tessVertexCount == 0)
+    // Make sure the rawPath in our path reference hasn't changed since we began holding!
+    assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
+
+    size_t tessVertexCount = m_patchType == PatchType::midpointFan
+                                 ? m_resourceCounts.midpointFanTessVertexCount
+                                 : m_resourceCounts.outerCubicTessVertexCount;
+    if (tessVertexCount == 0)
     {
         return;
     }
@@ -372,8 +380,7 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
                       m_clipID,
                       m_clipRectInverseMatrix,
                       m_blendMode,
-                      m_tessVertexCount + m_paddingVertexCount,
-                      m_paddingVertexCount);
+                      tessVertexCount);
 
     onPushToRenderContext(context);
 }
@@ -381,6 +388,7 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
 void PLSPathDraw::releaseRefs()
 {
     PLSDraw::releaseRefs();
+    RIVE_DEBUG_CODE(m_pathRef->unlockRawPathMutations();)
     m_pathRef->unref();
 }
 
@@ -401,15 +409,15 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
 
     // Count up how much temporary storage this function will need to reserve in CPU buffers.
     const RawPath& rawPath = m_pathRef->getRawPath();
-    m_contourCount = rawPath.countMoveTos();
-    if (m_contourCount == 0)
+    size_t contourCount = rawPath.countMoveTos();
+    if (contourCount == 0)
     {
         // The entire batch is empty.
         return;
     }
 
     m_contours = reinterpret_cast<ContourInfo*>(
-        context->perFrameAllocator()->alloc(sizeof(ContourInfo) * m_contourCount));
+        context->perFrameAllocator()->alloc(sizeof(ContourInfo) * contourCount));
 
     size_t maxStrokedCurvesBeforeChops = 0;
     size_t maxCurves = 0;
@@ -442,8 +450,8 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     // chop each cubic once, or 5 internal points per chop.
     size_t maxChopVertices = maxStrokedCurvesBeforeChops * 5;
     // +3 for each contour because we align each contour's curves and rotations on multiples of 4.
-    size_t maxPaddedRotations = m_isStroked ? maxRotations + m_contourCount * 3 : 0;
-    size_t maxPaddedCurves = maxCurves + m_contourCount * 3;
+    size_t maxPaddedRotations = m_isStroked ? maxRotations + contourCount * 3 : 0;
+    size_t maxPaddedCurves = maxCurves + contourCount * 3;
 
     // Reserve intermediate space for the polar segment counts of each curve and round join.
     if (m_isStroked)
@@ -513,7 +521,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
         {
             strokeJoinCount = std::max<size_t>(strokeJoinCount, 1) - 1;
         }
-        assert(contourIdx < m_contourCount);
+        assert(contourIdx < contourCount);
         m_contours[contourIdx++] = {
             iter,
             lineCount,
@@ -681,8 +689,8 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     {
         finishAndAppendContour(end);
     }
-    assert(contourIdx == m_contourCount);
-    assert(m_contourCount > 0);
+    assert(contourIdx == contourCount);
+    assert(contourCount > 0);
     assert(curveIdx <= maxPaddedCurves);
     assert(rotationIdx <= maxPaddedRotations);
     assert(curveIdx % 4 == 0);    // Because we write parametric segment counts in batches of 4.
@@ -704,8 +712,8 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     // Iteration pass 2: Finish calculating the numbers of tessellation segments in each contour,
     // using SIMD.
     size_t contourFirstLineIdx = 0;
-    assert(m_tessVertexCount == 0);
-    for (size_t i = 0; i < m_contourCount; ++i)
+    size_t tessVertexCount = 0;
+    for (size_t i = 0; i < contourCount; ++i)
     {
         ContourInfo* contour = &m_contours[i];
         size_t contourLineCount = contour->endLineIdx - contourFirstLineIdx;
@@ -859,7 +867,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
         assert(contourVertexCount % kMidpointFanPatchSegmentSpan == 0);
         RIVE_DEBUG_CODE(contour->tessVertexCount = contourVertexCount;)
 
-        m_tessVertexCount += contourVertexCount;
+        tessVertexCount += contourVertexCount;
         contourFirstLineIdx = contour->endLineIdx;
     }
 
@@ -869,21 +877,15 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     RIVE_DEBUG_CODE(m_pendingRotationCount = unpaddedRotationCount);
     RIVE_DEBUG_CODE(m_pendingEmptyStrokeCountForCaps = emptyStrokeCountForCaps);
 
-    m_curveCount = lineCount + unpaddedCurveCount + emptyStrokeCountForCaps;
-}
-
-void MidpointFanPathDraw::countResources(ResourceCounters* counters)
-{
-    // If the path has a nonzero number of tessellation vertices, pad them so they align on
-    // a multiple of the patch size.
-    if (m_tessVertexCount > 0)
+    if (tessVertexCount > 0)
     {
-        m_paddingVertexCount =
-            counters->tessVertexCounter.countPath<kMidpointFanPatchSegmentSpan>(m_tessVertexCount,
-                                                                                m_isStroked);
-        ++counters->pathCount;
-        counters->contourCount += m_contourCount;
-        counters->curveCount += m_curveCount;
+        m_resourceCounts.pathCount = 1;
+        m_resourceCounts.contourCount = contourCount;
+        m_resourceCounts.tessellatedSegmentCount =
+            lineCount + unpaddedCurveCount + emptyStrokeCountForCaps;
+
+        m_resourceCounts.midpointFanTessVertexCount =
+            m_isStroked ? tessVertexCount : tessVertexCount * 2;
     }
 }
 
@@ -891,7 +893,7 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
 {
     const RawPath& rawPath = m_pathRef->getRawPath();
     RawPath::Iter startOfContour = rawPath.begin();
-    for (size_t i = 0; i < m_contourCount; ++i)
+    for (size_t i = 0; i < m_resourceCounts.contourCount; ++i)
     {
         // Push a contour and curve records.
         const ContourInfo& contour = m_contours[i];
@@ -1227,21 +1229,6 @@ InteriorTriangulationDraw::InteriorTriangulationDraw(PLSRenderContext* context,
     processPath(context, PathOp::countDataAndTriangulate, scratchPath);
 }
 
-void InteriorTriangulationDraw::countResources(ResourceCounters* counters)
-{
-    // If the path has a nonzero number of tessellation vertices, pad them so they align on
-    // a multiple of the patch size.
-    if (m_tessVertexCount > 0)
-    {
-        m_paddingVertexCount =
-            counters->tessVertexCounter.countPath<kOuterCurvePatchSegmentSpan>(m_tessVertexCount,
-                                                                               false);
-        ++counters->pathCount;
-        counters->contourCount += m_contourCount;
-        counters->curveCount += m_patchCount;
-    }
-}
-
 void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext* context)
 {
     processPath(context, PathOp::submitOuterCubics);
@@ -1391,9 +1378,13 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                                                                context->perFrameAllocator());
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
-        m_tessVertexCount = patchCount * kOuterCurvePatchSegmentSpan;
-        m_patchCount += patchCount;
-        m_contourCount = contourCount;
+
+        m_resourceCounts.pathCount = 1;
+        m_resourceCounts.contourCount = contourCount;
+        m_resourceCounts.tessellatedSegmentCount = patchCount;
+        // outerCubic patches emit their tessellated geometry twice: once forward and once mirrored.
+        m_resourceCounts.outerCubicTessVertexCount = patchCount * kOuterCurvePatchSegmentSpan * 2;
+        m_resourceCounts.maxTriangleVertexCount = m_triangulator->maxVertexCount();
     }
     else
     {
@@ -1410,9 +1401,10 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                                kJoinSegmentCount);
             ++patchCount;
         }
-        assert(contourCount == m_contourCount);
-        assert(patchCount == m_patchCount);
-        assert(patchCount * kOuterCurvePatchSegmentSpan == m_tessVertexCount);
+        assert(contourCount == m_resourceCounts.contourCount);
+        assert(patchCount == m_resourceCounts.tessellatedSegmentCount);
+        assert(patchCount * kOuterCurvePatchSegmentSpan * 2 ==
+               m_resourceCounts.outerCubicTessVertexCount);
     }
 }
 

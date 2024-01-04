@@ -354,6 +354,13 @@ static uint32_t pack_glsl_unorm4x8(ColorInt riveColor)
     return pack_glsl_unorm4x8(rgbaInteger);
 }
 
+void ExperimentalAtomicModeData::setClearColorPaint(ColorInt clearColor)
+{
+    m_paints[0].params = SOLID_COLOR_PAINT_TYPE;
+    m_paints[0].color = pack_glsl_unorm4x8(clearColor);
+    m_imageTextures[0] = nullptr;
+}
+
 void ExperimentalAtomicModeData::setDataForPath(uint32_t pathID,
                                                 const Mat2D& matrix,
                                                 FillRule fillRule,
@@ -364,7 +371,7 @@ void ExperimentalAtomicModeData::setDataForPath(uint32_t pathID,
                                                 const ClipRectInverseMatrix* clipRectInverseMatrix,
                                                 BlendMode blendMode,
                                                 const PLSRenderTarget* renderTarget,
-                                                float gradientTextureHeight,
+                                                const pls::FlushUniforms& flushUniforms,
                                                 const PlatformFeatures& platformFeatures)
 {
     uint32_t shiftedClipID = clipID << 16;
@@ -418,7 +425,14 @@ void ExperimentalAtomicModeData::setDataForPath(uint32_t pathID,
                 uint32_t row = span >> 20;
                 uint32_t x0 = span & 0x3ff;
                 uint32_t x1 = (span >> 10) & 0x3ff;
-                m_paints[pathID].gradTextureY = static_cast<float>(row) + .5f;
+                float gradTextureNormalizedY =
+                    (static_cast<float>(row) + .5f) * flushUniforms.gradTextureInverseHeight;
+                if (x1 > x0 + 1)
+                {
+                    // Complex gradients rows are offset after the simple gradients.
+                    gradTextureNormalizedY += flushUniforms.gradComplexOffsetY;
+                }
+                m_paints[pathID].gradTextureY = gradTextureNormalizedY;
                 // Generate a mapping from gradient T to an x-coord in the gradient texture.
                 m_paintTranslates[pathID].gradTextureHorizontalSpan = {
                     (x1 - x0) * GRAD_TEXTURE_INVERSE_WIDTH,
@@ -458,26 +472,4 @@ void ExperimentalAtomicModeData::setDataForPath(uint32_t pathID,
                                                       -1.f / (fabsf(m.yx()) + fabsf(m.yy()))};
     }
 }
-
-void ExperimentalAtomicModeData::finalize(size_t pathCount,
-                                          ColorInt clearColor,
-                                          float gradTextureInverseHeight)
-{
-    // Configure pathID 0 to resolve to the clear color, so we can avoid clearing the
-    // framebuffer in certain cases.
-    m_paints[0].params = SOLID_COLOR_PAINT_TYPE;
-    m_paints[0].color = pack_glsl_unorm4x8(clearColor);
-    m_imageTextures[0] = nullptr;
-
-    // Normalize the gradient Y coordinates now that we know how tall the texture is.
-    for (size_t i = 1; i <= pathCount; ++i)
-    {
-        uint32_t paintType = m_paints[i].params & 0xfu;
-        if (paintType == LINEAR_GRADIENT_PAINT_TYPE || paintType == RADIAL_GRADIENT_PAINT_TYPE)
-        {
-            m_paints[i].gradTextureY *= gradTextureInverseHeight;
-        }
-    }
-}
-
 } // namespace rive::pls

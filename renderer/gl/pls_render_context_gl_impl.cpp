@@ -356,29 +356,42 @@ private:
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacity,
                                                                          size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferRingGLImpl>(GL_ARRAY_BUFFER, capacity, itemSizeInBytes, m_state);
+    return capacity != 0 ? std::make_unique<BufferRingGLImpl>(GL_ARRAY_BUFFER,
+                                                              capacity,
+                                                              itemSizeInBytes,
+                                                              m_state)
+                         : nullptr;
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makePixelUnpackBufferRing(
     size_t capacity,
     size_t itemSizeInBytes)
 {
-    return std::make_unique<BufferRingGLImpl>(GL_PIXEL_UNPACK_BUFFER,
-                                              capacity,
-                                              itemSizeInBytes,
-                                              m_state);
+    return capacity != 0 ? std::make_unique<BufferRingGLImpl>(GL_PIXEL_UNPACK_BUFFER,
+                                                              capacity,
+                                                              itemSizeInBytes,
+                                                              m_state)
+                         : nullptr;
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacity,
                                                                           size_t sizeInBytes)
 {
-    // In GL we update uniform data inline with commands, rather than filling a buffer up front.
-    return std::make_unique<BufferRingGLImpl>(GL_UNIFORM_BUFFER, capacity, sizeInBytes, m_state);
+    return capacity != 0 ? std::make_unique<BufferRingGLImpl>(GL_UNIFORM_BUFFER,
+                                                              capacity,
+                                                              sizeInBytes,
+                                                              m_state)
+                         : nullptr;
 }
 
 void PLSRenderContextGLImpl::resizePathTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_pathTexture);
+    if (width == 0 || height == 0)
+    {
+        m_pathTexture = 0;
+        return;
+    }
     glGenTextures(1, &m_pathTexture);
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_pathTexture);
@@ -392,6 +405,11 @@ void PLSRenderContextGLImpl::resizePathTexture(uint32_t width, uint32_t height)
 void PLSRenderContextGLImpl::resizeContourTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_contourTexture);
+    if (width == 0 || height == 0)
+    {
+        m_contourTexture = 0;
+        return;
+    }
     glGenTextures(1, &m_contourTexture);
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_contourTexture);
@@ -405,6 +423,11 @@ void PLSRenderContextGLImpl::resizeContourTexture(uint32_t width, uint32_t heigh
 void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_gradientTexture);
+    if (width == 0 || height == 0)
+    {
+        m_gradientTexture = 0;
+        return;
+    }
 
     glGenTextures(1, &m_gradientTexture);
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
@@ -426,6 +449,11 @@ void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t heig
 void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_tessVertexTexture);
+    if (width == 0 || height == 0)
+    {
+        m_tessVertexTexture = 0;
+        return;
+    }
 
     glGenTextures(1, &m_tessVertexTexture);
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
@@ -939,7 +967,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         m_state->bindProgram(drawProgram.id());
 
-        if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(draw.imageTextureRef))
+        if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(draw.imageTexture))
         {
             glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->id());
@@ -1015,11 +1043,11 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                        pls::InterlockMode::rasterOrdered);
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         const PLSRenderBufferGLImpl*,
-                                        draw.vertexBufferRef);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const PLSRenderBufferGLImpl*, draw.uvBufferRef);
+                                        draw.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const PLSRenderBufferGLImpl*, draw.uvBuffer);
                 LITE_RTTI_CAST_OR_BREAK(indexBuffer,
                                         const PLSRenderBufferGLImpl*,
-                                        draw.indexBufferRef);
+                                        draw.indexBuffer);
                 m_state->bindVAO(m_imageMeshVAO);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
