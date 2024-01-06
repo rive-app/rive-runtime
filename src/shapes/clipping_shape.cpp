@@ -39,7 +39,7 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context)
         // Iterate artboard to find shapes that are parented to the source,
         // their paths will need to be RenderPaths in order to be used for
         // clipping operations.
-        if (core->is<Shape>() && core != clippingHolder)
+        if (core->is<Shape>())
         {
             auto component = core->as<ContainerComponent>();
             while (component != nullptr)
