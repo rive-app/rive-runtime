@@ -4,6 +4,7 @@
 
 #include "rive/math/hit_test.hpp"
 
+#include "rive/math/mat2d.hpp"
 #include <algorithm>
 #include <assert.h>
 #include <cmath>

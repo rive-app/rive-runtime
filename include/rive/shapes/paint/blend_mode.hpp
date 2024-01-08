@@ -2,7 +2,7 @@
 #define _RIVE_BLEND_MODE_HPP_
 namespace rive
 {
-enum class BlendMode : unsigned int
+enum class BlendMode : unsigned char
 {
     srcOver = 3,
     screen = 14,

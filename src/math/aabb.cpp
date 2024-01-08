@@ -1,4 +1,6 @@
+#include "rive/math/math_types.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/math/simd.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -39,6 +41,14 @@ IAABB AABB::round() const
         graphics_round(right()),
         graphics_round(bottom()),
     };
+}
+
+IAABB AABB::roundOut() const
+{
+    float4 bounds = simd::load4f(this);
+    bounds.xy = simd::floor(bounds.xy);
+    bounds.zw = simd::ceil(bounds.zw);
+    return math::bit_cast<IAABB>(simd::cast<int32_t>(bounds));
 }
 
 void AABB::expandTo(AABB& out, const Vec2D& point) { expandTo(out, point.x, point.y); }

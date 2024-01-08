@@ -165,4 +165,73 @@ TEST_CASE("findMaxScale", "[Mat2D]")
         // REQUIRE(minScale / min >= gCloseScaleTol);
     }
 }
+
+TEST_CASE("mapBoundingBox", "[Mat2D]")
+{
+    const std::vector<Vec2D> testPts{{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, -1}};
+    std::vector<Vec2D> mappedPts(testPts.size());
+    auto checkMatrix = [&](Mat2D m) {
+        // Check zero points.
+        AABB mappedBbox = m.mapBoundingBox(nullptr, 0);
+        CHECK(mappedBbox.left() == 0);
+        CHECK(mappedBbox.top() == 0);
+        CHECK(mappedBbox.right() == 0);
+        CHECK(mappedBbox.bottom() == 0);
+
+        // Find a single point boinding box.
+        for (const Vec2D pt : testPts)
+        {
+            mappedBbox = m.mapBoundingBox(&pt, 1);
+            Vec2D mappedPt;
+            m.mapPoints(&mappedPt, &pt, 1);
+            CHECK(mappedBbox.left() == Approx(mappedPt.x));
+            CHECK(mappedBbox.top() == Approx(mappedPt.y));
+            CHECK(mappedBbox.right() == Approx(mappedPt.x));
+            CHECK(mappedBbox.bottom() == Approx(mappedPt.y));
+        }
+
+        // Check n - 1 points (ensures we test one even-length and one odd-length array).
+        m.mapPoints(mappedPts.data(), testPts.data() + 1, testPts.size() - 1);
+        mappedBbox = m.mapBoundingBox(testPts.data() + 1, testPts.size() - 1);
+        AABB testBbox = {1e9f, 1e9f, -1e9f, -1e9f};
+        for (size_t i = 0; i < testPts.size() - 1; ++i)
+        {
+            AABB::expandTo(testBbox, mappedPts[i]);
+        }
+        CHECK(mappedBbox.left() == Approx(testBbox.left()));
+        CHECK(mappedBbox.top() == Approx(testBbox.top()));
+        CHECK(mappedBbox.right() == Approx(testBbox.right()));
+        CHECK(mappedBbox.bottom() == Approx(testBbox.bottom()));
+
+        // Check n points.
+        m.mapPoints(mappedPts.data(), testPts.data(), testPts.size());
+        mappedBbox = m.mapBoundingBox(testPts.data(), testPts.size());
+        testBbox = {1e9f, 1e9f, -1e9f, -1e9f};
+        for (size_t i = 0; i < testPts.size(); ++i)
+        {
+            AABB::expandTo(testBbox, mappedPts[i]);
+        }
+        CHECK(mappedBbox.left() == Approx(testBbox.left()));
+        CHECK(mappedBbox.top() == Approx(testBbox.top()));
+        CHECK(mappedBbox.right() == Approx(testBbox.right()));
+        CHECK(mappedBbox.bottom() == Approx(testBbox.bottom()));
+
+        // Check mapping of a bounding box.
+        Vec2D bboxPts[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+        AABB mappedBboxFromPts = m.mapBoundingBox(bboxPts, 4);
+        AABB mappedBboxFromAABB = m.mapBoundingBox(AABB{0, 0, 1, 1});
+        CHECK(mappedBboxFromPts.left() == Approx(mappedBboxFromAABB.left()));
+        CHECK(mappedBboxFromPts.top() == Approx(mappedBboxFromAABB.top()));
+        CHECK(mappedBboxFromPts.right() == Approx(mappedBboxFromAABB.right()));
+        CHECK(mappedBboxFromPts.bottom() == Approx(mappedBboxFromAABB.bottom()));
+    };
+    checkMatrix(Mat2D());
+    checkMatrix(Mat2D(1, 0, 0, 1, 2, -3));
+    checkMatrix(Mat2D(4, 0, 0, -5, 0, 0));
+    checkMatrix(Mat2D(4, 0, 0, 5, -6, 7));
+    checkMatrix(Mat2D(0, 8, 9, 0, 10, 11));
+    checkMatrix(Mat2D(-12, -13, -14, -15, -16, -17));
+    checkMatrix(Mat2D(18, 19, 20, 21, 22, 23));
+    checkMatrix(Mat2D(-25, 26, 27, -28, 29, -30));
+}
 } // namespace rive

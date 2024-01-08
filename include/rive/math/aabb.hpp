@@ -2,7 +2,6 @@
 #define _RIVE_AABB_HPP_
 
 #include "rive/span.hpp"
-#include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 #include <cstddef>
 #include <limits>
@@ -67,6 +66,7 @@ public:
     AABB offset(float dx, float dy) const { return {minX + dx, minY + dy, maxX + dx, maxY + dy}; }
 
     IAABB round() const;
+    IAABB roundOut() const; // Rounds out to integer bounds that fully contain the rectangle.
 
     ///
     /// Initialize an AABB to values that represent an invalid/collapsed

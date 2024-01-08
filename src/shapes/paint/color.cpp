@@ -1,6 +1,7 @@
 #include "rive/shapes/paint/color.hpp"
 
 #include "rive/math/simd.hpp"
+#include <algorithm>
 #include <stdio.h>
 
 namespace rive

@@ -1,3 +1,4 @@
+#include "rive/math/math_types.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/math/transform_components.hpp"
@@ -85,6 +86,75 @@ void Mat2D::mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const
             simd::store(dst + i, p_);
         }
     }
+}
+
+AABB Mat2D::mapBoundingBox(const Vec2D pts[], size_t n) const
+{
+    if (n == 0)
+    {
+        return {0, 0, 0, 0};
+    }
+
+    size_t i = 0;
+    float4 scale = float2{m_buffer[0], m_buffer[3]}.xyxy;
+    float4 skew = simd::load2f(&m_buffer[1]).yxyx;
+    float4 mins = std::numeric_limits<float>::infinity();
+    float4 maxes = -std::numeric_limits<float>::infinity();
+    if (simd::all(skew.xy == 0.f))
+    {
+        // Scale + translate matrix.
+        if (n & 1)
+        {
+            float2 p = simd::load2f(pts);
+            p = scale.xy * p;
+            mins.xy = maxes.xy = p;
+            ++i;
+        }
+        for (; i < n; i += 2)
+        {
+            float4 p = simd::load4f(pts + i);
+            p = scale * p;
+            mins = simd::min(p, mins);
+            maxes = simd::max(p, maxes);
+        }
+    }
+    else
+    {
+        // Affine matrix.
+        if (n & 1)
+        {
+            float2 p = simd::load2f(pts);
+            float2 p_ = skew.xy * p.yx;
+            p_ = scale.xy * p + p_;
+            mins.xy = maxes.xy = p_;
+            ++i;
+        }
+        for (; i < n; i += 2)
+        {
+            float4 p = simd::load4f(pts + i);
+            float4 p_ = skew * p.yxwz;
+            p_ = scale * p + p_;
+            mins = simd::min(p_, mins);
+            maxes = simd::max(p_, maxes);
+        }
+    }
+
+    float4 bbox = simd::join(simd::min(mins.xy, mins.zw), simd::max(maxes.xy, maxes.zw));
+    assert(simd::all(bbox.xy <= bbox.zw));
+
+    float4 trans = simd::load2f(&m_buffer[4]).xyxy;
+    bbox += trans;
+
+    return math::bit_cast<AABB>(bbox);
+}
+
+AABB Mat2D::mapBoundingBox(const AABB& aabb) const
+{
+    Vec2D pts[4] = {{aabb.left(), aabb.top()},
+                    {aabb.right(), aabb.top()},
+                    {aabb.right(), aabb.bottom()},
+                    {aabb.left(), aabb.bottom()}};
+    return mapBoundingBox(pts, 4);
 }
 
 bool Mat2D::invert(Mat2D* result) const

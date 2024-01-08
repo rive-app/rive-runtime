@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <stdint.h>
+#include <cstring>
 
 namespace rive
 {
@@ -192,35 +193,38 @@ DECL_UNARY_OP(~)
 #undef DECL_UNARY_OP
 
 #define DECL_ARITHMETIC_OP(_OP_)                                                                   \
-    template <typename T, int N, Swizzle Z0, Swizzle Z1>                                           \
-    gvec<T, N, Z0>& operator _OP_##=(gvec<T, N, Z0>& a, gvec<T, N, Z1> b)                          \
+    template <typename T, typename U, int N, Swizzle Z0, Swizzle Z1>                               \
+    gvec<T, N, Z0>& operator _OP_##=(gvec<T, N, Z0>& a, gvec<U, N, Z1> b)                          \
     {                                                                                              \
         for (int i = 0; i < N; ++i)                                                                \
             a[i] _OP_## = b[i];                                                                    \
         return a;                                                                                  \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z> gvec<T, N, Z>& operator _OP_##=(gvec<T, N, Z>& a, T b) \
+    template <typename T, typename U, int N, Swizzle Z>                                            \
+    gvec<T, N, Z>& operator _OP_##=(gvec<T, N, Z>& a, U b)                                         \
     {                                                                                              \
         for (int i = 0; i < N; ++i)                                                                \
             a[i] _OP_## = b;                                                                       \
         return a;                                                                                  \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z0, Swizzle Z1>                                           \
-    gvec<T, N> operator _OP_(gvec<T, N, Z0> a, gvec<T, N, Z1> b)                                   \
+    template <typename T, typename U, int N, Swizzle Z0, Swizzle Z1>                               \
+    gvec<T, N> operator _OP_(gvec<T, N, Z0> a, gvec<U, N, Z1> b)                                   \
     {                                                                                              \
         gvec<T, N> ret;                                                                            \
         for (int i = 0; i < N; ++i)                                                                \
             ret[i] = a[i] _OP_ b[i];                                                               \
         return ret;                                                                                \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z> gvec<T, N> operator _OP_(gvec<T, N, Z> a, T b)         \
+    template <typename T, typename U, int N, Swizzle Z>                                            \
+    gvec<T, N> operator _OP_(gvec<T, N, Z> a, U b)                                                 \
     {                                                                                              \
         gvec<T, N> ret;                                                                            \
         for (int i = 0; i < N; ++i)                                                                \
             ret[i] = a[i] _OP_ b;                                                                  \
         return ret;                                                                                \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z> gvec<T, N> operator _OP_(T a, gvec<T, N, Z> b)         \
+    template <typename T, typename U, int N, Swizzle Z>                                            \
+    gvec<T, N> operator _OP_(T a, gvec<U, N, Z> b)                                                 \
     {                                                                                              \
         gvec<T, N> ret;                                                                            \
         for (int i = 0; i < N; ++i)                                                                \
@@ -232,6 +236,7 @@ DECL_ARITHMETIC_OP(+);
 DECL_ARITHMETIC_OP(-);
 DECL_ARITHMETIC_OP(*);
 DECL_ARITHMETIC_OP(/);
+DECL_ARITHMETIC_OP(%);
 DECL_ARITHMETIC_OP(|);
 DECL_ARITHMETIC_OP(&);
 DECL_ARITHMETIC_OP(^);
@@ -324,7 +329,11 @@ DECL_BOOLEAN_OP(||)
     }
 
 ENABLE_SWIZZLE1(abs)
-ENABLE_SWIZZLE_REDUCE(sum)
+ENABLE_SWIZZLE_REDUCE(reduce_add)
+ENABLE_SWIZZLE_REDUCE(reduce_min)
+ENABLE_SWIZZLE_REDUCE(reduce_max)
+ENABLE_SWIZZLE_REDUCE(reduce_and)
+ENABLE_SWIZZLE_REDUCE(reduce_or)
 ENABLE_SWIZZLE1F(floor)
 ENABLE_SWIZZLE1F(ceil)
 ENABLE_SWIZZLE1F(sqrt)

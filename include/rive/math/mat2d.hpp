@@ -1,6 +1,7 @@
 #ifndef _RIVE_MAT2D_HPP_
 #define _RIVE_MAT2D_HPP_
 
+#include "rive/math/aabb.hpp"
 #include "rive/math/vec2d.hpp"
 #include <array>
 #include <cstddef>
@@ -43,6 +44,11 @@ public:
 
     // Sets dst[i] = M * pts[i] for i in 0..n-1.
     void mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const;
+
+    // Computes a bounding box that would tightly contain the given points if they were to all be
+    // transformed by this matrix.
+    AABB mapBoundingBox(const Vec2D pts[], size_t n) const;
+    AABB mapBoundingBox(const AABB&) const;
 
     // If returns true, result holds the inverse.
     // If returns false, result is unchnaged.

@@ -381,34 +381,84 @@ TEST_CASE("abs", "[simd]")
                   int2{std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::min()}));
 }
 
-// Check simd::sum.
-TEST_CASE("sum", "[simd]")
+// Check simd::reduce* methods.
+TEST_CASE("reduce", "[simd]")
 {
     {
         float4 v = {1, 2, 3, 4};
-        CHECK(simd::sum(v) == 10);
-        CHECK(simd::sum(v.zwxy) == 10);
-        CHECK(simd::sum(v.xyz) == 6);
-        CHECK(simd::sum(v.yz) == 5);
-        CHECK(simd::sum(v.xy.yxyx) == 6);
+        CHECK(simd::reduce_add(v) == 10);
+        CHECK(simd::reduce_add(v.zwxy) == 10);
+        CHECK(simd::reduce_add(v.xyz) == 6);
+        CHECK(simd::reduce_add(v.yz) == 5);
+        CHECK(simd::reduce_add(v.xy.yxyx) == 6);
+        CHECK(simd::reduce_min(v) == 1);
+        CHECK(simd::reduce_min(v.zwxy) == 1);
+        CHECK(simd::reduce_min(v.xyz) == 1);
+        CHECK(simd::reduce_min(v.yz) == 2);
+        CHECK(simd::reduce_min(v.xy.yxyx) == 1);
+        CHECK(simd::reduce_max(v) == 4);
+        CHECK(simd::reduce_max(v.zwxy) == 4);
+        CHECK(simd::reduce_max(v.xyz) == 3);
+        CHECK(simd::reduce_max(v.yz) == 3);
+        CHECK(simd::reduce_max(v.xy.yxyx) == 2);
     }
 
     {
         int4 v = {1, 2, 3, 4};
-        CHECK(simd::sum(v) == 10);
-        CHECK(simd::sum(v.zwxy) == 10);
-        CHECK(simd::sum(v.xyz) == 6);
-        CHECK(simd::sum(v.yz) == 5);
-        CHECK(simd::sum(v.xy.yxyx) == 6);
+        CHECK(simd::reduce_add(v) == 10);
+        CHECK(simd::reduce_add(v.zwxy) == 10);
+        CHECK(simd::reduce_add(v.xyz) == 6);
+        CHECK(simd::reduce_add(v.yz) == 5);
+        CHECK(simd::reduce_add(v.xy.yxyx) == 6);
+        CHECK(simd::reduce_min(v) == 1);
+        CHECK(simd::reduce_min(v.zwxy) == 1);
+        CHECK(simd::reduce_min(v.xyz) == 1);
+        CHECK(simd::reduce_min(v.yz) == 2);
+        CHECK(simd::reduce_min(v.xy.yxyx) == 1);
+        CHECK(simd::reduce_max(v) == 4);
+        CHECK(simd::reduce_max(v.zwxy) == 4);
+        CHECK(simd::reduce_max(v.xyz) == 3);
+        CHECK(simd::reduce_max(v.yz) == 3);
+        CHECK(simd::reduce_max(v.xy.yxyx) == 2);
+        CHECK(simd::reduce_and(v) == 0);
+        CHECK(simd::reduce_and(v.zwxy) == 0);
+        CHECK(simd::reduce_and(v.xyz) == 0);
+        CHECK(simd::reduce_and(v.yz) == 2);
+        CHECK(simd::reduce_and(v.xy.yxyx) == 0);
+        CHECK(simd::reduce_or(v) == 7);
+        CHECK(simd::reduce_or(v.zwxy) == 7);
+        CHECK(simd::reduce_or(v.xyz) == 3);
+        CHECK(simd::reduce_or(v.yz) == 3);
+        CHECK(simd::reduce_or(v.xy.yxyx) == 3);
     }
 
     {
         uint4 v = {1, 2, 3, 4};
-        CHECK(simd::sum(v) == 10);
-        CHECK(simd::sum(v.zwxy) == 10);
-        CHECK(simd::sum(v.xyz) == 6);
-        CHECK(simd::sum(v.yz) == 5);
-        CHECK(simd::sum(v.xy.yxyx) == 6);
+        CHECK(simd::reduce_add(v) == 10);
+        CHECK(simd::reduce_add(v.zwxy) == 10);
+        CHECK(simd::reduce_add(v.xyz) == 6);
+        CHECK(simd::reduce_add(v.yz) == 5);
+        CHECK(simd::reduce_add(v.xy.yxyx) == 6);
+        CHECK(simd::reduce_min(v) == 1);
+        CHECK(simd::reduce_min(v.zwxy) == 1);
+        CHECK(simd::reduce_min(v.xyz) == 1);
+        CHECK(simd::reduce_min(v.yz) == 2);
+        CHECK(simd::reduce_min(v.xy.yxyx) == 1);
+        CHECK(simd::reduce_max(v) == 4);
+        CHECK(simd::reduce_max(v.zwxy) == 4);
+        CHECK(simd::reduce_max(v.xyz) == 3);
+        CHECK(simd::reduce_max(v.yz) == 3);
+        CHECK(simd::reduce_max(v.xy.yxyx) == 2);
+        CHECK(simd::reduce_and(v) == 0);
+        CHECK(simd::reduce_and(v.zwxy) == 0);
+        CHECK(simd::reduce_and(v.xyz) == 0);
+        CHECK(simd::reduce_and(v.yz) == 2);
+        CHECK(simd::reduce_and(v.xy.yxyx) == 0);
+        CHECK(simd::reduce_or(v) == 7);
+        CHECK(simd::reduce_or(v.zwxy) == 7);
+        CHECK(simd::reduce_or(v.xyz) == 3);
+        CHECK(simd::reduce_or(v.yz) == 3);
+        CHECK(simd::reduce_or(v.xy.yxyx) == 3);
     }
 }
 
@@ -595,6 +645,24 @@ TEST_CASE("join", "[simd]")
 {
     CHECK_ALL((simd::join(int2{1, 2}, int4{3, 4, 5, 6}) == ivec<6>{1, 2, 3, 4, 5, 6}));
     CHECK_ALL((simd::join(vec<1>{1}, vec<3>{2, 3, 4}) == float4{1, 2, 3, 4}));
+    CHECK_ALL((simd::join(vec<1>{1}, vec<2>{2, 3}, vec<3>{4, 5, 6}) == vec<6>{1, 2, 3, 4, 5, 6}));
+    CHECK_ALL((simd::join(vec<1>{1}, vec<2>{2, 3}, vec<3>{4, 5, 6}, float4{7, 8, 9, 10}) ==
+               vec<10>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+    uint8x8 a = 3, b = 9, c = 3, d = 100;
+    CHECK_ALL((simd::join(a, b, c, d) == uint8x32{3, 3, 3,   3,   3,   3,   3,   3,   9,   9,  9,
+                                                  9, 9, 9,   9,   9,   3,   3,   3,   3,   3,  3,
+                                                  3, 3, 100, 100, 100, 100, 100, 100, 100, 100}));
+}
+
+// Check simd::zip
+TEST_CASE("zip", "[simd]")
+{
+    CHECK_ALL((simd::zip(int4{1, 2, 3, 4}, int4{5, 6, 7, 8}) == ivec<8>{1, 5, 2, 6, 3, 7, 4, 8}));
+    CHECK_ALL((simd::zip(simd::gvec<uint8_t, 8>{1, 2, 3, 4, 5, 6, 7, 8},
+                         simd::gvec<uint8_t, 8>{9, 10, 11, 12, 13, 14, 15, 16}) ==
+               simd::gvec<uint8_t, 16>{1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15, 8, 16}));
+    CHECK_ALL(
+        (simd::zip(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}) == vec<8>{1, 5, 2, 6, 3, 7, 4, 8}));
 }
 
 template <int N> static vec<N> mix_reference_impl(vec<N> a, vec<N> b, float t)
