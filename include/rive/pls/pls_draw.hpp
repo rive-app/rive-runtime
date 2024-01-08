@@ -7,15 +7,18 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/math/wangs_formula.hpp"
 #include "rive/pls/pls.hpp"
-#include "rive/pls/pls_render_context.hpp"
-#include "rive/pls/pls_render_context_impl.hpp"
-#include "rive/pls/pls_renderer.hpp"
 #include "rive/pls/fixed_queue.hpp"
+#include "rive/shapes/paint/stroke_cap.hpp"
+#include "rive/shapes/paint/stroke_join.hpp"
+#include "rive/refcnt.hpp"
 
 namespace rive::pls
 {
+class PLSDraw;
 class PLSPath;
 class PLSPaint;
+class PLSRenderContext;
+class PLSGradient;
 
 // High level abstraction of a single object to be drawn (path, imageRect, or imageMesh). These get
 // built up for an entire frame in order to count GPU resource allocation sizes, and then sorted,
@@ -23,24 +26,66 @@ class PLSPaint;
 class PLSDraw
 {
 public:
-    PLSDraw(const Mat2D&, const AABB& bounds, BlendMode, rcp<const PLSTexture> imageTexture);
+    // Use a "fullscreen" bounding box that is reasonably larger than any screen, but not so big
+    // that it runs the risk of overflowing.
+    constexpr static IAABB kFullscreenPixelBounds = {0, 0, 1 << 24, 1 << 24};
+
+    enum class Type : uint8_t
+    {
+        midpointFanPath,
+        interiorTriangulationPath,
+        imageRect,
+        imageMesh
+    };
+
+    PLSDraw(IAABB pixelBounds, const Mat2D&, BlendMode, rcp<const PLSTexture> imageTexture, Type);
+
+    const IAABB& pixelBounds() const { return m_pixelBounds; }
+    const PLSTexture* imageTexture() const { return m_imageTextureRef; }
+    Type type() const { return m_type; }
 
     // Clipping setup.
     void setClipID(uint32_t clipID) { m_clipID = clipID; }
     void setClipRect(const pls::ClipRectInverseMatrix* m) { m_clipRectInverseMatrix = m; }
 
+    // Running counts of objects that need to be allocated in the render context's various GPU
+    // buffers.
+    struct ResourceCounters
+    {
+        using VecType = simd::gvec<size_t, 8>;
+
+        VecType toVec() const
+        {
+            static_assert(sizeof(VecType) == sizeof(*this));
+            VecType vec;
+            RIVE_INLINE_MEMCPY(&vec, this, sizeof(VecType));
+            return vec;
+        }
+
+        ResourceCounters() = default;
+        ResourceCounters(const VecType& vec)
+        {
+            static_assert(sizeof(*this) == sizeof(VecType));
+            RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
+        }
+
+        size_t midpointFanTessVertexCount = 0;
+        size_t outerCubicTessVertexCount = 0;
+        size_t pathCount = 0;
+        size_t contourCount = 0;
+        size_t tessellatedSegmentCount = 0; // lines, curves, standalone joins, emulated caps, etc.
+        size_t maxTriangleVertexCount = 0;
+        size_t imageDrawCount = 0; // imageRect or imageMesh.
+        size_t complexGradientSpanCount = 0;
+    };
+
     // Used to allocate GPU resources for a collection of draws.
-    const PLSRenderContext::ResourceCounters& resourceCounts() const { return m_resourceCounts; }
+    const ResourceCounters& resourceCounts() const { return m_resourceCounts; }
 
     // Adds the gradient (if any) for this draw to the render context's gradient texture.
     // Returns false if this draw needed a gradient but there wasn't room for it in the texture, at
     // which point the gradient texture will need to be re-rendered mid flight.
-    bool allocateGradientIfNeeded(PLSRenderContext* context,
-                                  PLSRenderContext::ResourceCounters* counters)
-    {
-        return m_gradientRef == nullptr ||
-               context->allocateGradient(m_gradientRef, counters, &m_paintRenderData);
-    }
+    bool allocateGradientIfNeeded(PLSRenderContext*, ResourceCounters*);
 
     // Pushes the data for this draw to the render context. Called once the GPU buffers have been
     // counted and allocated, and the draws have been sorted.
@@ -51,16 +96,17 @@ public:
     virtual void releaseRefs();
 
 protected:
-    const Mat2D m_matrix;
-    const AABB m_bounds;
-    const BlendMode m_blendMode;
     const PLSTexture* const m_imageTextureRef;
+    const IAABB m_pixelBounds;
+    const Mat2D m_matrix;
+    const BlendMode m_blendMode;
+    const Type m_type;
 
     uint32_t m_clipID = 0;
     const pls::ClipRectInverseMatrix* m_clipRectInverseMatrix = nullptr;
 
     // Filled in by the subclass constructor.
-    PLSRenderContext::ResourceCounters m_resourceCounts;
+    ResourceCounters m_resourceCounts;
 
     // Gradient data used by some draws. Stored in the base class so allocateGradientIfNeeded()
     // doesn't have to be virtual.
@@ -68,29 +114,37 @@ protected:
     pls::PaintData m_paintRenderData;
 };
 
+// Even though PLSDraw is block-allocated, we sill need to call releaseRefs() on each individual
+// indstance before releasing the block. This smart pointer guarantees we always call releaseRefs().
+struct PLSDrawReleaseRefs
+{
+    void operator()(PLSDraw* draw) { draw->releaseRefs(); }
+};
+using PLSDrawUniquePtr = std::unique_ptr<PLSDraw, PLSDrawReleaseRefs>;
+
 // High level abstraction of a single path to be drawn (midpoint fan or interior triangulation).
 class PLSPathDraw : public PLSDraw
 {
 public:
     // Creates either a normal path draw or an interior triangulation if the path is large enough.
-    static PLSPathDraw* Make(PLSRenderContext*,
-                             const Mat2D&,
-                             rcp<const PLSPath>,
-                             FillRule,
-                             const PLSPaint*,
-                             RawPath* scratchPath);
+    static PLSDrawUniquePtr Make(PLSRenderContext*,
+                                 const Mat2D&,
+                                 rcp<const PLSPath>,
+                                 FillRule,
+                                 const PLSPaint*,
+                                 RawPath* scratchPath);
 
     void pushToRenderContext(PLSRenderContext*) final;
 
     void releaseRefs() override;
 
 public:
-    PLSPathDraw(const Mat2D&,
-                const AABB& bounds,
+    PLSPathDraw(IAABB pathBounds,
+                const Mat2D&,
                 rcp<const PLSPath>,
                 FillRule,
                 const PLSPaint*,
-                pls::PatchType);
+                Type);
 
     virtual void onPushToRenderContext(PLSRenderContext*) = 0;
 
@@ -99,7 +153,6 @@ public:
     const pls::PaintType m_paintType;
     const bool m_isStroked;
     const float m_strokeRadius;
-    const pls::PatchType m_patchType;
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold it.
     RIVE_DEBUG_CODE(size_t m_rawPathMutationID;)
@@ -110,8 +163,8 @@ class MidpointFanPathDraw : public PLSPathDraw
 {
 public:
     MidpointFanPathDraw(PLSRenderContext*,
+                        IAABB pixelBounds,
                         const Mat2D&,
-                        const AABB& bounds,
                         rcp<const PLSPath>,
                         FillRule,
                         const PLSPaint*);
@@ -169,13 +222,21 @@ protected:
 class InteriorTriangulationDraw : public PLSPathDraw
 {
 public:
+    enum class TriangulatorAxis
+    {
+        horizontal,
+        vertical,
+        dontCare,
+    };
+
     InteriorTriangulationDraw(PLSRenderContext*,
+                              IAABB pixelBounds,
                               const Mat2D&,
-                              const AABB& bounds,
                               rcp<const PLSPath>,
                               FillRule,
                               const PLSPaint*,
-                              RawPath* scratchPath);
+                              RawPath* scratchPath,
+                              TriangulatorAxis);
 
 protected:
     void onPushToRenderContext(PLSRenderContext*) override;
@@ -209,7 +270,10 @@ protected:
     // Since we only do this for large paths, and since we're triangulating the path interior
     // anyway, adding complexity to only run Wang's formula and chop once would save about ~5%
     // of the total CPU time. (And large paths are GPU-bound anyway.)
-    void processPath(PLSRenderContext* context, PathOp op, RawPath* scratchPath = nullptr);
+    void processPath(PLSRenderContext* context,
+                     PathOp op,
+                     RawPath* scratchPath = nullptr,
+                     TriangulatorAxis = TriangulatorAxis::dontCare);
 
     GrInnerFanTriangulator* m_triangulator = nullptr;
 };
@@ -220,20 +284,12 @@ protected:
 class ImageRectDraw : public PLSDraw
 {
 public:
-    ImageRectDraw(PLSRenderContext* context,
-                  const Mat2D& matrix,
-                  const AABB& bounds,
-                  BlendMode blendMode,
-                  rcp<const PLSTexture> imageTexture,
-                  float opacity) :
-        PLSDraw(matrix, bounds, blendMode, std::move(imageTexture)), m_opacity(opacity)
-    {
-        // If we support image paints for paths, the client should draw a rectangular path with an
-        // image paint instead of using this draw.
-        assert(!context->impl()->platformFeatures().supportsBindlessTextures);
-        assert(context->frameDescriptor().enableExperimentalAtomicMode);
-        m_resourceCounts.imageDrawCount = 1;
-    }
+    ImageRectDraw(PLSRenderContext*,
+                  IAABB pixelBounds,
+                  const Mat2D&,
+                  BlendMode,
+                  rcp<const PLSTexture>,
+                  float opacity);
 
     void pushToRenderContext(PLSRenderContext*) override;
 
@@ -245,27 +301,15 @@ protected:
 class ImageMeshDraw : public PLSDraw
 {
 public:
-    ImageMeshDraw(const Mat2D& matrix,
-                  const AABB& bounds,
-                  BlendMode blendMode,
-                  rcp<const PLSTexture> imageTexture,
+    ImageMeshDraw(IAABB pixelBounds,
+                  const Mat2D&,
+                  BlendMode,
+                  rcp<const PLSTexture>,
                   rcp<const RenderBuffer> vertexBuffer,
                   rcp<const RenderBuffer> uvBuffer,
                   rcp<const RenderBuffer> indexBuffer,
                   uint32_t indexCount,
-                  float opacity) :
-        PLSDraw(matrix, bounds, blendMode, std::move(imageTexture)),
-        m_vertexBufferRef(vertexBuffer.release()),
-        m_uvBufferRef(uvBuffer.release()),
-        m_indexBufferRef(indexBuffer.release()),
-        m_indexCount(indexCount),
-        m_opacity(opacity)
-    {
-        assert(m_vertexBufferRef != nullptr);
-        assert(m_uvBufferRef != nullptr);
-        assert(m_indexBufferRef != nullptr);
-        m_resourceCounts.imageDrawCount = 1;
-    }
+                  float opacity);
 
     void pushToRenderContext(PLSRenderContext*) override;
 

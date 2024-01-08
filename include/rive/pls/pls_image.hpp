@@ -14,15 +14,19 @@ namespace rive::pls
 class PLSTexture : public RefCnt<PLSTexture>
 {
 public:
-    PLSTexture(uint32_t width, uint32_t height) : m_width(width), m_height(height) {}
+    PLSTexture(uint32_t width, uint32_t height);
     virtual ~PLSTexture() {}
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
 
+    // Quazi-unique identifier of the underlying GPU texture resource managed by this class.
+    uint32_t textureResourceHash() const { return m_textureResourceHash; }
+
 private:
     uint32_t m_width;
     uint32_t m_height;
+    uint32_t m_textureResourceHash;
 };
 
 class PLSImage : public lite_rtti_override<RenderImage, PLSImage>

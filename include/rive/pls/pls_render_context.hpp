@@ -7,6 +7,7 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/pls/pls.hpp"
+#include "rive/pls/pls_draw.hpp"
 #include "rive/pls/pls_factory.hpp"
 #include "rive/pls/pls_render_target.hpp"
 #include "rive/pls/trivial_block_allocator.hpp"
@@ -23,7 +24,7 @@ class RawPath;
 namespace rive::pls
 {
 class GradientLibrary;
-class PLSDraw;
+class IntersectionBoard;
 class PLSGradient;
 class PLSPaint;
 class PLSPath;
@@ -84,9 +85,6 @@ public:
     PLSRenderContext(std::unique_ptr<PLSRenderContextImpl>);
     ~PLSRenderContext();
 
-    // Manually releases all references in the draw list and then resets it back to empty.
-    void resetPLSDraws();
-
     PLSRenderContextImpl* impl() { return m_impl.get(); }
     template <typename T> T* static_impl_cast() { return static_cast<T*>(m_impl.get()); }
 
@@ -144,7 +142,7 @@ public:
         return m_clipContentID;
     }
 
-    bool pushDrawBatch(PLSDraw* draws[], size_t drawCount);
+    bool pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount);
 
     enum class FlushType : bool
     {
@@ -257,6 +255,7 @@ public:
         uint32_t baseElement;      // Base vertex, index, or instance.
         uint32_t elementCount = 0; // Vertex, index, or instance count. Calculated during flush().
         ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
+        bool needsBarrier = false;
         const PLSTexture* imageTexture = nullptr;
 
         // DrawType::imageRect and DrawType::imageMesh.
@@ -284,36 +283,6 @@ private:
     // Resets the STL containers so they don't have unbounded growth.
     void resetContainers();
 
-    // Running counts of objects that need to be allocated in our various GPU buffers.
-    struct ResourceCounters
-    {
-        using VecType = simd::gvec<size_t, 8>;
-
-        VecType toVec() const
-        {
-            static_assert(sizeof(VecType) == sizeof(*this));
-            VecType vec;
-            RIVE_INLINE_MEMCPY(&vec, this, sizeof(VecType));
-            return vec;
-        }
-
-        ResourceCounters() = default;
-        ResourceCounters(const VecType& vec)
-        {
-            static_assert(sizeof(*this) == sizeof(VecType));
-            RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
-        }
-
-        size_t midpointFanTessVertexCount = 0;
-        size_t outerCubicTessVertexCount = 0;
-        size_t pathCount = 0;
-        size_t contourCount = 0;
-        size_t tessellatedSegmentCount = 0; // lines, curves, standalone joins, emulated caps, etc.
-        size_t maxTriangleVertexCount = 0;
-        size_t imageDrawCount = 0; // imageRect or imageMesh.
-        size_t complexGradientSpanCount = 0;
-    };
-
     // Allocates a horizontal span of texels in the gradient texture and schedules either a texture
     // upload or a draw that fills it with the given gradient's color ramp.
     //
@@ -321,7 +290,7 @@ private:
     //
     // Returns false if the gradient texture is out of space, at which point the caller must flush
     // before continuing.
-    [[nodiscard]] bool allocateGradient(const PLSGradient*, ResourceCounters*, PaintData*);
+    [[nodiscard]] bool allocateGradient(const PLSGradient*, PLSDraw::ResourceCounters*, PaintData*);
 
     // Defines the exact size of each of our GPU resources. Computed during flush(), based on
     // ResourceCounters.
@@ -441,6 +410,10 @@ private:
                        const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
                        BlendMode);
 
+    // Adds a barrier to the end of the draw list that prevents further combining/batching and
+    // instructs the backend to issue a graphics barrier, if necessary.
+    void pushBarrier();
+
     // Either appends a draw to m_drawList or merges into m_lastDraw.
     // Updates the draw's ShaderFeatures according to the passed parameters.
     void pushPathDraw(DrawType,
@@ -502,7 +475,7 @@ private:
     uint32_t m_clipContentID = 0;
 
     // Running counts of objects in the current flush that need to be allocated in GPU buffers.
-    ResourceCounters m_currentFlushCounters;
+    PLSDraw::ResourceCounters m_currentFlushCounters;
 
     // Simple gradients have one stop at t=0 and one stop at t=1. They're implemented with 2 texels.
     std::unordered_map<uint64_t, uint32_t> m_simpleGradients; // [color0, color1] -> rampTexelsIdx
@@ -517,7 +490,13 @@ private:
 
     FlushUniforms m_currentFlushUniforms;
 
-    std::vector<PLSDraw*> m_plsDraws;
+    // High-level draw list for the current flush. These get converted to a low-level list of "Draw"
+    // objects during flush().
+    std::vector<PLSDrawUniquePtr> m_plsDraws;
+
+    // Used for re-ordering high-level draws.
+    std::vector<uint64_t> m_indirectDrawList;
+    std::unique_ptr<IntersectionBoard> m_intersectionBoard;
 
     // Most recent path and contour state.
     bool m_currentPathIsStroked = false;

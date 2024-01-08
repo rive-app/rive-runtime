@@ -2063,8 +2063,7 @@ void GrTriangulator::SortMesh(VertexList* vertices, const Comparator& c)
 
 std::tuple<Poly*, bool> GrTriangulator::contoursToPolys(VertexList* contours, int contourCnt)
 {
-    Comparator c(fPathBounds.width() > fPathBounds.height() ? Comparator::Direction::kHorizontal
-                                                            : Comparator::Direction::kVertical);
+    Comparator c(fDirection);
     VertexList mesh;
     this->contoursToMesh(contours, contourCnt, &mesh, c);
     TESS_LOG("\ninitial mesh:\n");

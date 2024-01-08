@@ -33,6 +33,18 @@ class GrTriangulator
 public:
     constexpr static int kArenaDefaultChunkSize = 16 * 1024;
 
+    struct Comparator
+    {
+        enum class Direction
+        {
+            kVertical,
+            kHorizontal
+        };
+        Comparator(Direction direction) : fDirection(direction) {}
+        bool sweep_lt(const Vec2D& a, const Vec2D& b) const;
+        Direction fDirection;
+    };
+
     // Enums used by GrTriangulator internals.
     typedef enum
     {
@@ -54,11 +66,12 @@ public:
     struct EdgeList;
     struct MonotonePoly;
     struct Poly;
-    struct Comparator;
 
 protected:
-    GrTriangulator(const AABB& pathBounds, FillRule fillRule, TrivialBlockAllocator* alloc) :
-        fPathBounds(pathBounds), fFillRule(fillRule), fAlloc(alloc)
+    GrTriangulator(Comparator::Direction direction,
+                   FillRule fillRule,
+                   TrivialBlockAllocator* alloc) :
+        fDirection(direction), fFillRule(fillRule), fAlloc(alloc)
     {}
 
     // There are six stages to the basic algorithm:
@@ -248,7 +261,7 @@ protected:
                             bool reverseTriangles,
                             pls::WriteOnlyMappedMemory<pls::TriangleVertex>*) const;
 
-    AABB fPathBounds;
+    Comparator::Direction fDirection;
     FillRule fFillRule;
     TrivialBlockAllocator* fAlloc;
     int fNumMonotonePolys = 0;
@@ -608,18 +621,6 @@ struct GrTriangulator::Poly
 #if TRIANGULATOR_LOGGING
     int fID;
 #endif
-};
-
-struct GrTriangulator::Comparator
-{
-    enum class Direction
-    {
-        kVertical,
-        kHorizontal
-    };
-    Comparator(Direction direction) : fDirection(direction) {}
-    bool sweep_lt(const Vec2D& a, const Vec2D& b) const;
-    Direction fDirection;
 };
 } // namespace rive
 

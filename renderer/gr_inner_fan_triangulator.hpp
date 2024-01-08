@@ -24,10 +24,10 @@ public:
 
     GrInnerFanTriangulator(const RawPath& path,
                            const Mat2D& viewMatrix,
-                           const AABB& pathBounds,
+                           Comparator::Direction direction,
                            FillRule fillRule,
                            TrivialBlockAllocator* alloc) :
-        GrTriangulator(pathBounds, fillRule, alloc),
+        GrTriangulator(direction, fillRule, alloc),
         m_shouldReverseTriangles(viewMatrix[0] * viewMatrix[3] - viewMatrix[2] * viewMatrix[1] < 0)
     {
         fPreserveCollinearVertices = true;

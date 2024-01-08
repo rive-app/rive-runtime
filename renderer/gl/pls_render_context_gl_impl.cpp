@@ -1012,11 +1012,6 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 m_state->bindVAO(m_interiorTrianglesVAO);
                 m_state->enableFaceCulling(true);
                 glDrawArrays(GL_TRIANGLES, draw.baseElement, draw.elementCount);
-                // Atomic mode inserts barriers after every draw.
-                if (desc.interlockMode == pls::InterlockMode::rasterOrdered)
-                {
-                    m_plsImpl->barrier();
-                }
                 break;
             }
             case DrawType::imageRect:
@@ -1072,7 +1067,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
         }
-        if (desc.interlockMode == pls::InterlockMode::experimentalAtomics)
+        if (draw.needsBarrier)
         {
             m_plsImpl->barrier();
         }

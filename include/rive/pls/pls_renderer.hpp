@@ -7,6 +7,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
 #include "rive/pls/pls.hpp"
+#include "rive/pls/pls_draw.hpp"
 #include "rive/pls/pls_render_context.hpp"
 #include <vector>
 
@@ -17,7 +18,6 @@ class GrInnerFanTriangulator;
 
 namespace rive::pls
 {
-class PLSDraw;
 class PLSPath;
 class PLSPaint;
 class PLSRenderContext;
@@ -59,15 +59,12 @@ private:
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too complex to be
     // supported by the GPU buffers, even after a clean flush, then nothing is drawn.
-    void clipAndPushDraw(PLSDraw*);
+    void clipAndPushDraw(PLSDrawUniquePtr);
 
     // Pushes any necessary clip updates to m_internalDrawBatch and sets the PLSDraw's clipID and
     // clipRectInverseMatrix, if any.
     // Returns false if the operation failed, at which point the caller should flush and try again.
     [[nodiscard]] bool applyClip(PLSDraw*);
-
-    // Calls releaseRefs() on every draw in m_internalDrawBatch and clears the array.
-    void releaseInternalDrawBatch();
 
     struct RenderState
     {
@@ -100,7 +97,7 @@ private:
 
     PLSRenderContext* const m_context;
 
-    std::vector<PLSDraw*> m_internalDrawBatch;
+    std::vector<PLSDrawUniquePtr> m_internalDrawBatch;
 
     // Path of the rectangle [0, 0, 1, 1]. Used to draw images.
     rcp<PLSPath> m_unitRectPath;

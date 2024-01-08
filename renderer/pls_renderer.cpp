@@ -6,7 +6,6 @@
 
 #include "pls_paint.hpp"
 #include "pls_path.hpp"
-#include "pls_draw.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/pls/pls_image.hpp"
@@ -249,13 +248,15 @@ void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode,
     {
         // Fall back on ImageRectDraw if the current frame doesn't support drawing paths with image
         // paints.
+        const Mat2D& m = m_stack.back().matrix;
         auto plsImage = static_cast<const PLSImage*>(renderImage);
-        clipAndPushDraw(m_context->make<ImageRectDraw>(m_context,
-                                                       m_stack.back().matrix,
-                                                       AABB(),
-                                                       blendMode,
-                                                       plsImage->refTexture(),
-                                                       opacity));
+        clipAndPushDraw(PLSDrawUniquePtr(
+            m_context->make<ImageRectDraw>(m_context,
+                                           m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
+                                           m,
+                                           blendMode,
+                                           plsImage->refTexture(),
+                                           opacity)));
     }
     else
     {
@@ -293,47 +294,87 @@ void PLSRenderer::drawImageMesh(const RenderImage* renderImage,
     assert(uvCoords_f32);
     assert(indices_u16);
 
-    clipAndPushDraw(m_context->make<ImageMeshDraw>(m_stack.back().matrix,
-                                                   AABB(),
-                                                   blendMode,
-                                                   ref_rcp(plsTexture),
-                                                   std::move(vertices_f32),
-                                                   std::move(uvCoords_f32),
-                                                   std::move(indices_u16),
-                                                   indexCount,
-                                                   opacity));
+    clipAndPushDraw(PLSDrawUniquePtr(m_context->make<ImageMeshDraw>(PLSDraw::kFullscreenPixelBounds,
+                                                                    m_stack.back().matrix,
+                                                                    blendMode,
+                                                                    ref_rcp(plsTexture),
+                                                                    std::move(vertices_f32),
+                                                                    std::move(uvCoords_f32),
+                                                                    std::move(indices_u16),
+                                                                    indexCount,
+                                                                    opacity)));
 }
 
-void PLSRenderer::clipAndPushDraw(PLSDraw* draw)
+static bool offscreen_or_empty(IAABB pixelBounds, uint2 viewportSize)
 {
+    int4 bounds = math::bit_cast<int4>(pixelBounds);
+    return simd::any(bounds.xy >= simd::cast<int32_t>(viewportSize) || bounds.zw <= 0 ||
+                     bounds.xy >= bounds.zw);
+}
+
+void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
+{
+    uint2 viewportSize = m_context->frameDescriptor().renderTarget->size();
+    if (offscreen_or_empty(draw->pixelBounds(), viewportSize))
+    {
+        return;
+    }
+
     // Make two attempts to issue the draw: once on the context as-is and once with a clean flush.
     for (int i = 0; i < 2; ++i)
     {
-        assert(m_internalDrawBatch.empty());
-        if (!applyClip(draw))
+        // Always make sure we begin this loop with the internal draw batch empty, and clear it when
+        // we're done.
+        struct AutoResetInternalDrawBatch
+        {
+        public:
+            AutoResetInternalDrawBatch(PLSRenderer* renderer) : m_renderer(renderer)
+            {
+                assert(m_renderer->m_internalDrawBatch.empty());
+            }
+            ~AutoResetInternalDrawBatch() { m_renderer->m_internalDrawBatch.clear(); }
+
+        private:
+            PLSRenderer* m_renderer;
+        };
+
+        AutoResetInternalDrawBatch aridb(this);
+
+        if (!applyClip(draw.get()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
             m_context->flush(PLSRenderContext::FlushType::intermediate);
-            releaseInternalDrawBatch();
             continue;
         }
-        m_internalDrawBatch.push_back(draw);
+
+        // Abort early if any of the clip draws are empty. PLSRenderContext doesn't like empty
+        // bounding boxes and drawing nothing is equivalent to drawing a clip that eventually ends
+        // up empty.
+        for (const PLSDrawUniquePtr& clipDraw : m_internalDrawBatch)
+        {
+            if (offscreen_or_empty(clipDraw->pixelBounds(), viewportSize))
+            {
+                return;
+            }
+        }
+
+        m_internalDrawBatch.push_back(std::move(draw));
         if (!m_context->pushDrawBatch(m_internalDrawBatch.data(), m_internalDrawBatch.size()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
             m_context->flush(PLSRenderContext::FlushType::intermediate);
-            // Don't call releaseRefs() on "draw" because we will use it again next iteration.
-            assert(m_internalDrawBatch.back() == draw);
+            // Reclaim "draw" because we will use it again on the next iteration.
+            draw = std::move(m_internalDrawBatch.back());
+            assert(draw != nullptr);
             m_internalDrawBatch.pop_back();
-            releaseInternalDrawBatch();
             continue;
         }
-        // Success! Don't call releaseRefs() because m_context has adopted the draws.
-        m_internalDrawBatch.clear();
+
+        // Success!
         return;
     }
+
     // We failed to process the draw. Release its refs.
-    draw->releaseRefs();
     fprintf(stderr,
             "PLSRenderer::clipAndPushDraw failed. The draw and/or clip stack are too complex.\n");
 }
@@ -391,14 +432,13 @@ bool PLSRenderer::applyClip(PLSDraw* draw)
         assert(clip.clipID != 0);
         assert(clip.pathBounds == clip.path->getBounds());
         clipUpdatePaint.clipUpdate(outerClipID);
-        auto clipDraw = PLSPathDraw::Make(m_context,
-                                          clip.matrix,
-                                          clip.path,
-                                          clip.fillRule,
-                                          &clipUpdatePaint,
-                                          &m_scratchPath);
-        clipDraw->setClipID(clip.clipID);
-        m_internalDrawBatch.push_back(clipDraw);
+        m_internalDrawBatch.push_back(PLSPathDraw::Make(m_context,
+                                                        clip.matrix,
+                                                        clip.path,
+                                                        clip.fillRule,
+                                                        &clipUpdatePaint,
+                                                        &m_scratchPath));
+        m_internalDrawBatch.back()->setClipID(clip.clipID);
         outerClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
     }
     uint32_t clipID = m_clipStack[clipStackHeight - 1].clipID;
@@ -406,14 +446,5 @@ bool PLSRenderer::applyClip(PLSDraw* draw)
     m_context->setClipContentID(clipID);
     m_clipStackFlushID = m_context->getFlushCount();
     return true;
-}
-
-void PLSRenderer::releaseInternalDrawBatch()
-{
-    for (PLSDraw* draw : m_internalDrawBatch)
-    {
-        draw->releaseRefs();
-    }
-    m_internalDrawBatch.clear();
 }
 } // namespace rive::pls

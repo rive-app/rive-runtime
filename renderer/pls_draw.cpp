@@ -2,7 +2,7 @@
  * Copyright 2023 Rive
  */
 
-#include "pls_draw.hpp"
+#include "rive/pls/pls_draw.hpp"
 
 #include "gr_inner_fan_triangulator.hpp"
 #include "path_utils.hpp"
@@ -275,15 +275,23 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
 }
 } // namespace
 
-PLSDraw::PLSDraw(const Mat2D& matrix,
-                 const AABB& bounds,
+PLSDraw::PLSDraw(IAABB pixelBounds,
+                 const Mat2D& matrix,
                  BlendMode blendMode,
-                 rcp<const PLSTexture> imageTexture) :
+                 rcp<const PLSTexture> imageTexture,
+                 Type type) :
+    m_imageTextureRef(imageTexture.release()),
+    m_pixelBounds(pixelBounds),
     m_matrix(matrix),
-    m_bounds(bounds),
     m_blendMode(blendMode),
-    m_imageTextureRef(imageTexture.release())
+    m_type(type)
 {}
+
+bool PLSDraw::allocateGradientIfNeeded(PLSRenderContext* context, ResourceCounters* counters)
+{
+    return m_gradientRef == nullptr ||
+           context->allocateGradient(m_gradientRef, counters, &m_paintRenderData);
+}
 
 void PLSDraw::releaseRefs()
 {
@@ -291,46 +299,85 @@ void PLSDraw::releaseRefs()
     safe_unref(m_gradientRef);
 }
 
-PLSPathDraw* PLSPathDraw::Make(PLSRenderContext* context,
-                               const Mat2D& matrix,
-                               rcp<const PLSPath> path,
-                               FillRule fillRule,
-                               const PLSPaint* paint,
-                               RawPath* scratchPath)
+PLSDrawUniquePtr PLSPathDraw::Make(PLSRenderContext* context,
+                                   const Mat2D& matrix,
+                                   rcp<const PLSPath> path,
+                                   FillRule fillRule,
+                                   const PLSPaint* paint,
+                                   RawPath* scratchPath)
 {
     assert(path != nullptr);
     assert(paint != nullptr);
-    AABB bounds = path->getBounds();
-    if (!paint->getIsStroked() && pls::FindTransformedArea(bounds, matrix) > 512 * 512)
+    AABB mappedBounds;
+    if (context->frameDescriptor().enableExperimentalAtomicMode)
     {
-        return context->make<InteriorTriangulationDraw>(context,
-                                                        matrix,
-                                                        bounds,
-                                                        std::move(path),
-                                                        fillRule,
-                                                        paint,
-                                                        scratchPath);
+        // In atomic mode, find a tighter bounding box in order to maximize reordering.
+        mappedBounds = matrix.mapBoundingBox(path->getRawPath().points().data(),
+                                             path->getRawPath().points().count());
     }
     else
     {
-        return context
-            ->make<MidpointFanPathDraw>(context, matrix, bounds, std::move(path), fillRule, paint);
+        // Otherwise we can get away with just mapping the path's bounding box.
+        mappedBounds = matrix.mapBoundingBox(path->getBounds());
     }
+    assert(mappedBounds.width() >= 0);
+    assert(mappedBounds.height() >= 0);
+    if (paint->getIsStroked())
+    {
+        // Outset the path's bounding box to account for stroking.
+        float strokeOutset = paint->getThickness() * .5f;
+        if (paint->getJoin() == StrokeJoin::miter)
+        {
+            strokeOutset *= 4;
+        }
+        else if (paint->getCap() == StrokeCap::square)
+        {
+            strokeOutset *= math::SQRT2;
+        }
+        AABB strokePixelOutset = matrix.mapBoundingBox({0, 0, strokeOutset, strokeOutset});
+        mappedBounds = mappedBounds.inset(-strokePixelOutset.width(), -strokePixelOutset.height());
+    }
+    IAABB pixelBounds = mappedBounds.roundOut();
+    if (!paint->getIsStroked())
+    {
+        // Use interior triangulation to draw filled paths if they're large enough to benefit from
+        // it.
+        const AABB& localBounds = path->getBounds();
+        if (pls::FindTransformedArea(localBounds, matrix) > 512 * 512)
+        {
+            return PLSDrawUniquePtr(context->make<InteriorTriangulationDraw>(
+                context,
+                pixelBounds,
+                matrix,
+                std::move(path),
+                fillRule,
+                paint,
+                scratchPath,
+                localBounds.width() > localBounds.height()
+                    ? InteriorTriangulationDraw::TriangulatorAxis::horizontal
+                    : InteriorTriangulationDraw::TriangulatorAxis::vertical));
+        }
+    }
+    return PLSDrawUniquePtr(context->make<MidpointFanPathDraw>(context,
+                                                               pixelBounds,
+                                                               matrix,
+                                                               std::move(path),
+                                                               fillRule,
+                                                               paint));
 }
 
-PLSPathDraw::PLSPathDraw(const Mat2D& matrix,
-                         const AABB& bounds,
+PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
+                         const Mat2D& matrix,
                          rcp<const PLSPath> path,
                          FillRule fillRule,
                          const PLSPaint* paint,
-                         pls::PatchType patchType) :
-    PLSDraw(matrix, bounds, paint->getBlendMode(), ref_rcp(paint->getImageTexture())),
+                         Type type) :
+    PLSDraw(pixelBounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
     m_pathRef(path.release()),
     m_fillRule(fillRule),
     m_paintType(paint->getType()),
     m_isStroked(paint->getIsStroked()),
-    m_strokeRadius(m_isStroked ? paint->getThickness() * .5f : 0),
-    m_patchType(patchType)
+    m_strokeRadius(m_isStroked ? paint->getThickness() * .5f : 0)
 {
     assert(m_pathRef != nullptr);
     assert(paint != nullptr);
@@ -360,7 +407,7 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
     // Make sure the rawPath in our path reference hasn't changed since we began holding!
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
 
-    size_t tessVertexCount = m_patchType == PatchType::midpointFan
+    size_t tessVertexCount = m_type == Type::midpointFanPath
                                  ? m_resourceCounts.midpointFanTessVertexCount
                                  : m_resourceCounts.outerCubicTessVertexCount;
     if (tessVertexCount == 0)
@@ -370,7 +417,8 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
     assert(!m_pathRef->getRawPath().empty());
 
     // Push a path record.
-    context->pushPath(m_patchType,
+    context->pushPath(m_type == Type::midpointFanPath ? PatchType::midpointFan
+                                                      : PatchType::outerCurves,
                       m_matrix,
                       m_strokeRadius,
                       m_fillRule,
@@ -393,12 +441,12 @@ void PLSPathDraw::releaseRefs()
 }
 
 MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
+                                         IAABB pixelBounds,
                                          const Mat2D& matrix,
-                                         const AABB& bounds,
                                          rcp<const PLSPath> path,
                                          FillRule fillRule,
                                          const PLSPaint* paint) :
-    PLSPathDraw(matrix, bounds, std::move(path), fillRule, paint, pls::PatchType::midpointFan)
+    PLSPathDraw(pixelBounds, matrix, std::move(path), fillRule, paint, Type::midpointFanPath)
 {
     if (m_isStroked)
     {
@@ -856,7 +904,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
             size_t contourCurveCount = contour->endCurveIdx - contour->firstCurveIdx;
             contourVertexCount += contourCurveCount;
         }
-        contourVertexCount += simd::sum(mergedTessVertexSums4);
+        contourVertexCount += simd::reduce_add(mergedTessVertexSums4);
 
         // Add padding vertices until the number of tessellation vertices in the contour is
         // an exact multiple of kMidpointFanPatchSegmentSpan. This ensures that patch
@@ -1216,22 +1264,33 @@ void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(PLSRenderContex
 }
 
 InteriorTriangulationDraw::InteriorTriangulationDraw(PLSRenderContext* context,
+                                                     IAABB pixelBounds,
                                                      const Mat2D& matrix,
-                                                     const AABB& bounds,
                                                      rcp<const PLSPath> path,
                                                      FillRule fillRule,
                                                      const PLSPaint* paint,
-                                                     RawPath* scratchPath) :
-    PLSPathDraw(matrix, bounds, std::move(path), fillRule, paint, pls::PatchType::outerCurves)
+                                                     RawPath* scratchPath,
+                                                     TriangulatorAxis triangulatorAxis) :
+    PLSPathDraw(pixelBounds,
+                matrix,
+                std::move(path),
+                fillRule,
+                paint,
+                Type::interiorTriangulationPath)
 {
     assert(!m_isStroked);
     assert(m_strokeRadius == 0);
-    processPath(context, PathOp::countDataAndTriangulate, scratchPath);
+    processPath(context, PathOp::countDataAndTriangulate, scratchPath, triangulatorAxis);
 }
 
 void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext* context)
 {
     processPath(context, PathOp::submitOuterCubics);
+    if (context->frameDescriptor().enableExperimentalAtomicMode)
+    {
+        // We need a barrier between the outer cubics and interior triangles in atomic mode.
+        context->pushBarrier();
+    }
     context->pushInteriorTriangulation(m_triangulator,
                                        m_paintType,
                                        m_paintRenderData,
@@ -1243,7 +1302,8 @@ void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext* context)
 
 void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                                             PathOp op,
-                                            RawPath* scratchPath)
+                                            RawPath* scratchPath,
+                                            TriangulatorAxis triangulatorAxis)
 {
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
     const RawPath& rawPath = m_pathRef->getRawPath();
@@ -1371,11 +1431,15 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
     if (op == PathOp::countDataAndTriangulate)
     {
         assert(m_triangulator == nullptr);
-        m_triangulator = context->make<GrInnerFanTriangulator>(*scratchPath,
-                                                               m_matrix,
-                                                               m_bounds,
-                                                               m_fillRule,
-                                                               context->perFrameAllocator());
+        assert(triangulatorAxis != TriangulatorAxis::dontCare);
+        m_triangulator = context->make<GrInnerFanTriangulator>(
+            *scratchPath,
+            m_matrix,
+            triangulatorAxis == TriangulatorAxis::horizontal
+                ? GrTriangulator::Comparator::Direction::kHorizontal
+                : GrTriangulator::Comparator::Direction::kVertical,
+            m_fillRule,
+            context->perFrameAllocator());
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
 
@@ -1408,6 +1472,22 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
     }
 }
 
+ImageRectDraw::ImageRectDraw(PLSRenderContext* context,
+                             IAABB pixelBounds,
+                             const Mat2D& matrix,
+                             BlendMode blendMode,
+                             rcp<const PLSTexture> imageTexture,
+                             float opacity) :
+    PLSDraw(pixelBounds, matrix, blendMode, std::move(imageTexture), Type::imageRect),
+    m_opacity(opacity)
+{
+    // If we support image paints for paths, the client should draw a rectangular path with an
+    // image paint instead of using this draw.
+    assert(!context->impl()->platformFeatures().supportsBindlessTextures);
+    assert(context->frameDescriptor().enableExperimentalAtomicMode);
+    m_resourceCounts.imageDrawCount = 1;
+}
+
 void ImageRectDraw::pushToRenderContext(PLSRenderContext* context)
 {
     context->pushImageRect(m_matrix,
@@ -1416,6 +1496,28 @@ void ImageRectDraw::pushToRenderContext(PLSRenderContext* context)
                            m_clipID,
                            m_clipRectInverseMatrix,
                            m_blendMode);
+}
+
+ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
+                             const Mat2D& matrix,
+                             BlendMode blendMode,
+                             rcp<const PLSTexture> imageTexture,
+                             rcp<const RenderBuffer> vertexBuffer,
+                             rcp<const RenderBuffer> uvBuffer,
+                             rcp<const RenderBuffer> indexBuffer,
+                             uint32_t indexCount,
+                             float opacity) :
+    PLSDraw(pixelBounds, matrix, blendMode, std::move(imageTexture), Type::imageMesh),
+    m_vertexBufferRef(vertexBuffer.release()),
+    m_uvBufferRef(uvBuffer.release()),
+    m_indexBufferRef(indexBuffer.release()),
+    m_indexCount(indexCount),
+    m_opacity(opacity)
+{
+    assert(m_vertexBufferRef != nullptr);
+    assert(m_uvBufferRef != nullptr);
+    assert(m_indexBufferRef != nullptr);
+    m_resourceCounts.imageDrawCount = 1;
 }
 
 void ImageMeshDraw::pushToRenderContext(PLSRenderContext* context)

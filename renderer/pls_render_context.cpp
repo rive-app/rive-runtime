@@ -5,7 +5,7 @@
 #include "rive/pls/pls_render_context.hpp"
 
 #include "gr_inner_fan_triangulator.hpp"
-#include "pls_draw.hpp"
+#include "intersection_board.hpp"
 #include "pls_paint.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "rive/pls/pls_render_context_impl.hpp"
@@ -26,6 +26,9 @@ constexpr size_t kMaxTessellationVertexCountBeforePadding =
     pls::kMidpointFanPatchSegmentSpan -       // Padding at the beginning of the tess texture
     (pls::kMidpointFanPatchSegmentSpan - 1) - // Max padding between patch types in the tess texture
     1;                                        // Padding at the end of the tessellation texture
+
+// We can only reorder 64k draws at a time since the sort key addresses them with a 16-bit index.
+constexpr size_t kMaxReorderedDrawCount = 1 << 16;
 
 // How tall to make a resource texture in order to support the given number of items.
 template <size_t WidthInItems> constexpr static size_t resource_texture_height(size_t itemCount)
@@ -87,16 +90,7 @@ PLSRenderContext::~PLSRenderContext()
 {
     // Always call flush() to avoid deadlock.
     assert(!m_didBeginFrame);
-    resetPLSDraws();
-}
-
-void PLSRenderContext::resetPLSDraws()
-{
-    for (PLSDraw* draw : m_plsDraws)
-    {
-        draw->releaseRefs();
-    }
-    m_plsDraws.clear();
+    m_plsDraws.clear(); // Release PLSDraw refs before we delete our allocators.
 }
 
 rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType type,
@@ -157,6 +151,11 @@ void PLSRenderContext::resetContainers()
 
     m_plsDraws.shrink_to_fit();
     m_plsDraws.reserve(kDefaultDrawCapacity);
+
+    m_indirectDrawList.clear();
+    m_indirectDrawList.shrink_to_fit();
+
+    m_intersectionBoard = nullptr;
 }
 
 void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
@@ -188,14 +187,23 @@ uint32_t PLSRenderContext::generateClipID()
     return 0; // There are no available clip IDs. The caller should flush and try again.
 }
 
-bool PLSRenderContext::pushDrawBatch(PLSDraw* draws[], size_t drawCount)
+bool PLSRenderContext::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
 {
+    if (m_frameDescriptor.enableExperimentalAtomicMode &&
+        m_drawList.count() + drawCount > kMaxReorderedDrawCount)
+    {
+        // We can only reorder 64k draws at a time since the sort key addresses them with a 16-bit
+        // index.
+        return false;
+    }
+
     auto countsVector = m_currentFlushCounters.toVec();
     for (size_t i = 0; i < drawCount; ++i)
     {
+        assert(!draws[i]->pixelBounds().empty());
         countsVector += draws[i]->resourceCounts().toVec();
     }
-    ResourceCounters countsWithNewBatch = countsVector;
+    PLSDraw::ResourceCounters countsWithNewBatch = countsVector;
 
     // Textures have hard size limits. If new batch doesn't fit in one of the textures, the caller
     // needs to flush and try again.
@@ -218,13 +226,17 @@ bool PLSRenderContext::pushDrawBatch(PLSDraw* draws[], size_t drawCount)
         }
     }
 
-    m_plsDraws.insert(m_plsDraws.end(), draws, draws + drawCount);
+    for (size_t i = 0; i < drawCount; ++i)
+    {
+        m_plsDraws.push_back(std::move(draws[i]));
+    }
+
     m_currentFlushCounters = countsWithNewBatch;
     return true;
 }
 
 bool PLSRenderContext::allocateGradient(const PLSGradient* gradient,
-                                        ResourceCounters* counters,
+                                        PLSDraw::ResourceCounters* counters,
                                         PaintData* paintData)
 {
     assert(m_didBeginFrame);
@@ -495,10 +507,83 @@ void PLSRenderContext::flush(FlushType flushType)
         pushPaddingVertices(outerCubicTessEndLocation, 1);
     }
 
-    // Write out all the data for our high level draws, and build up a low-level draw list.
-    for (PLSDraw* draw : m_plsDraws)
+    if (m_frameDescriptor.enableExperimentalAtomicMode)
     {
-        draw->pushToRenderContext(this);
+        assert(m_drawList.count() <= kMaxReorderedDrawCount);
+
+        // Sort the draw list to optimize batching, since we can only batch non-overlapping draws.
+        m_indirectDrawList.clear();
+        m_indirectDrawList.reserve(m_plsDraws.size());
+
+        if (m_intersectionBoard == nullptr)
+        {
+            m_intersectionBoard = std::make_unique<IntersectionBoard>();
+        }
+        m_intersectionBoard->resizeAndReset(m_frameDescriptor.renderTarget->width(),
+                                            m_frameDescriptor.renderTarget->height());
+
+        // Build a list of sort keys that determine the final draw order.
+        for (size_t i = 0; i < m_plsDraws.size(); ++i)
+        {
+            PLSDraw* draw = m_plsDraws[i].get();
+
+            // Add one extra pixel of padding to the draw bounds to make absolutely certain we get
+            // no overlapping pixels, which destroy the atomic shader.
+            int4 drawBounds = simd::load4i(&m_plsDraws[i]->pixelBounds());
+            drawBounds += int4{-1, -1, 1, 1};
+
+            // Our top priority in re-ordering is to group non-overlapping draws together, in order
+            // to maximize batching while preserving correctness.
+            uint16_t drawGroupIdx = m_intersectionBoard->addRectangle(drawBounds);
+            assert(drawGroupIdx != 0);
+            uint64_t key = uint64_t(drawGroupIdx) << 48;
+
+            // Within sub-groups of nonoverlapping draws, sort similar draw types together.
+            uint64_t drawType = static_cast<uint64_t>(draw->type());
+            assert(drawType < (1 << 8));
+            key |= drawType << 40;
+
+            // Within sub-groups of matching draw type, sort by texture binding.
+            uint64_t textureResourceHash =
+                draw->imageTexture() != nullptr ? draw->imageTexture()->textureResourceHash() : 0;
+            key |= (textureResourceHash & 0xffffff) << 16;
+
+            // Draw index goes at the bottom of the key so we know which PLSDraw it corresponds to.
+            assert(i < (1 << 16));
+            key |= i;
+
+            m_indirectDrawList.push_back(key);
+        }
+
+        // Re-order the draws!!
+        std::sort(m_indirectDrawList.begin(), m_indirectDrawList.end());
+
+        // Write out the draw data from the sorted draw list, and build up a condensed/batched list
+        // of low-level draws.
+        uint16_t priorDrawGroupIdx = !m_indirectDrawList.empty() ? m_indirectDrawList[0] >> 48 : 1;
+        assert(priorDrawGroupIdx == 1);
+        for (uint64_t key : m_indirectDrawList)
+        {
+            uint16_t drawGroupIdx = key >> 48;
+            if (drawGroupIdx != priorDrawGroupIdx)
+            {
+                // Draws within the same group don't overlap, but once we cross into a new draw
+                // group we need to insert a barrier for the overlaps to be rendered properly.
+                pushBarrier();
+                priorDrawGroupIdx = drawGroupIdx;
+            }
+            size_t drawIndex = key & 0xffff;
+            m_plsDraws[drawIndex]->pushToRenderContext(this);
+        }
+        pushBarrier();
+    }
+    else
+    {
+        // Write out all the data for our high level draws, and build up a low-level draw list.
+        for (const PLSDrawUniquePtr& draw : m_plsDraws)
+        {
+            draw->pushToRenderContext(this);
+        }
     }
 
     assert(m_pathData.elementsWritten() == m_currentFlushCounters.pathCount);
@@ -535,7 +620,7 @@ void PLSRenderContext::flush(FlushType flushType)
     m_lastGeneratedClipID = 0;
     m_clipContentID = 0;
 
-    m_currentFlushCounters = ResourceCounters();
+    m_currentFlushCounters = PLSDraw::ResourceCounters();
     m_simpleGradients.clear();
     m_complexGradients.clear();
 
@@ -546,9 +631,8 @@ void PLSRenderContext::flush(FlushType flushType)
 
     m_drawList.reset();
 
-    // Manually release the references held by the draw list before resetting it to empty, since
-    // TrivialBlockAllocator prevents us from doing this automatically in a destructor.
-    resetPLSDraws();
+    // Release the block-allocated PLSDraw resources before resetting the allocators they used.
+    m_plsDraws.clear();
 
     if (flushType == FlushType::intermediate)
     {
@@ -1086,6 +1170,9 @@ void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangu
         triangulator->polysToTriangles(&m_triangleVertexData, m_currentPathID);
     assert(actualVertexCount <= triangulator->maxVertexCount());
     m_drawList.tail().elementCount = actualVertexCount;
+    // Interior triangulations are allowed to disable raster ordering since they are guaranteed to
+    // not overlap.
+    m_drawList.tail().needsBarrier = true;
 }
 
 void PLSRenderContext::pushImageRect(const Mat2D& matrix,
@@ -1156,6 +1243,14 @@ void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
     assert((draw.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == draw.shaderFeatures);
 }
 
+void PLSRenderContext::pushBarrier()
+{
+    if (!m_drawList.empty())
+    {
+        m_drawList.tail().needsBarrier = true;
+    }
+}
+
 void PLSRenderContext::pushPathDraw(DrawType drawType,
                                     size_t baseVertex,
                                     FillRule fillRule,
@@ -1205,8 +1300,8 @@ void PLSRenderContext::pushDraw(DrawType drawType,
     {
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
-            needsNewDraw = m_frameDescriptor.enableExperimentalAtomicMode || m_drawList.empty() ||
-                           m_drawList.tail().drawType != drawType ||
+            needsNewDraw = m_drawList.empty() || m_drawList.tail().drawType != drawType ||
+                           m_drawList.tail().needsBarrier ||
                            !can_combine_draw_images(m_drawList.tail().imageTexture, imageTexture);
             break;
         case DrawType::interiorTriangulation:
