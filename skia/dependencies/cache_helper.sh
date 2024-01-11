@@ -8,6 +8,7 @@ RIVE_RUNTIME_DIR="${RIVE_RUNTIME_DIR:=../..}"
 SKIA_DIR_NAME="${SKIA_DIR_NAME:=skia}"
 SKIA_REPO=${SKIA_REPO:-https://github.com/rive-app/skia}
 SKIA_BRANCH=${SKIA_BRANCH:-rive}
+SKIA_COMMIT=${SKIA_COMMIT}
 COMPILE_TARGET="${COMPILE_TARGET:-$(uname -s)_$(uname -m)}"
 CACHE_NAME="${CACHE_NAME:=skia}"
 OUTPUT_CACHE="${OUTPUT_CACHE:=out}"
