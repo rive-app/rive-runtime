@@ -15,6 +15,7 @@
 #include <unordered_map>
 
 class PushRetrofittedTrianglesGMDraw;
+class PLSRenderContextTest;
 
 namespace rive
 {
@@ -279,6 +280,7 @@ private:
     friend class ImageRectDraw;
     friend class ImageMeshDraw;
     friend class ::PushRetrofittedTrianglesGMDraw; // For testing.
+    friend class ::PLSRenderContextTest;           // For testing.
 
     // Resets the STL containers so they don't have unbounded growth.
     void resetContainers();
@@ -294,24 +296,25 @@ private:
 
     // Defines the exact size of each of our GPU resources. Computed during flush(), based on
     // ResourceCounters.
-    struct ResourceAllocationSizes
+    struct ResourceAllocationCounts
     {
-        using VecType = simd::gvec<size_t, 16>;
+        using VecType = simd::gvec<size_t, 9>;
 
-        VecType toVec() const
+        RIVE_ALWAYS_INLINE VecType toVec() const
         {
-            static_assert(sizeof(VecType) == sizeof(*this));
+            static_assert(sizeof(VecType) >= sizeof(*this));
             VecType vec;
-            RIVE_INLINE_MEMCPY(&vec, this, sizeof(VecType));
+            RIVE_INLINE_MEMCPY(&vec, this, sizeof(*this));
             return vec;
         }
 
-        ResourceAllocationSizes() = default;
-        ResourceAllocationSizes(const VecType& vec)
+        RIVE_ALWAYS_INLINE ResourceAllocationCounts(const VecType& vec)
         {
-            static_assert(sizeof(*this) == sizeof(VecType));
+            static_assert(sizeof(VecType) >= sizeof(*this));
             RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
         }
+
+        ResourceAllocationCounts() = default;
 
         size_t pathBufferCount = 0;
         size_t contourBufferCount = 0;
@@ -320,18 +323,15 @@ private:
         size_t tessSpanBufferCount = 0;
         size_t triangleVertexBufferCount = 0;
         size_t imageDrawUniformBufferCount = 0;
-        size_t pathTextureHeight = 0;
-        size_t contourTextureHeight = 0;
         size_t gradTextureHeight = 0;
         size_t tessTextureHeight = 0;
-        size_t pad[5];
     };
 
     // Reallocates GPU resources and updates m_currentResourceAllocations.
     // If forceRealloc is true, every GPU resource is allocated, even if the size would not change.
-    void setResourceSizes(ResourceAllocationSizes, bool forceRealloc = false);
+    void setResourceSizes(ResourceAllocationCounts, bool forceRealloc = false);
 
-    void mapResourceBuffers();
+    void mapResourceBuffers(const ResourceAllocationCounts&);
     void unmapResourceBuffers();
 
     // Writes padding vertices to the tessellation texture, with an invalid contour ID that is
@@ -462,8 +462,8 @@ private:
     // intermediate or otherwise.
     size_t m_flushCount = 0;
 
-    ResourceAllocationSizes m_currentResourceAllocations;
-    ResourceAllocationSizes m_maxRecentResourceRequirements;
+    ResourceAllocationCounts m_currentResourceAllocations;
+    ResourceAllocationCounts m_maxRecentResourceRequirements;
 
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;

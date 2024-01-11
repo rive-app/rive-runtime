@@ -88,8 +88,8 @@ $typedef $min16uint ushort;
     NAME;                                                                                          \
     }
 
-#define VARYING_BLOCK_BEGIN(NAME)                                                                  \
-    struct NAME                                                                                    \
+#define VARYING_BLOCK_BEGIN                                                                        \
+    struct Varyings                                                                                \
     {
 
 #define NO_PERSPECTIVE $noperspective
@@ -97,30 +97,28 @@ $typedef $min16uint ushort;
 #define FLAT $nointerpolation
 #define VARYING(IDX, TYPE, NAME) TYPE NAME : $TEXCOORD##IDX
 
-#define VARYING_BLOCK_END(_pos)                                                                    \
+#define VARYING_BLOCK_END                                                                          \
     float4 _pos : $SV_Position;                                                                    \
     }                                                                                              \
     ;
 
-#define VARYING_INIT(varyings, NAME, TYPE) TYPE NAME
-#define VARYING_PACK(varyings, NAME) varyings.NAME = NAME
-#define VARYING_UNPACK(varyings, NAME, TYPE) TYPE NAME = varyings.NAME
+#define VARYING_INIT(NAME, TYPE) TYPE NAME
+#define VARYING_PACK(NAME) _varyings.NAME = NAME
+#define VARYING_UNPACK(NAME, TYPE) TYPE NAME = _varyings.NAME
 
 #ifdef @VERTEX
-#define VERTEX_TEXTURE_BLOCK_BEGIN(NAME)
+#define VERTEX_TEXTURE_BLOCK_BEGIN
 #define VERTEX_TEXTURE_BLOCK_END
 #endif
 
 #ifdef @FRAGMENT
-#define FRAG_TEXTURE_BLOCK_BEGIN(NAME)
+#define FRAG_TEXTURE_BLOCK_BEGIN
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
 #define TEXTURE_RGBA32UI(IDX, NAME) uniform $Texture2D<uint4> NAME : $register($t##IDX)
 #define TEXTURE_RGBA32F(IDX, NAME) uniform $Texture2D<float4> NAME : $register($t##IDX)
 #define TEXTURE_RGBA8(IDX, NAME) uniform $Texture2D<$unorm float4> NAME : $register($t##IDX)
-#define TEX32UIREF $Texture2D<uint4>
-#define TEXTURE_DEREF(TEXTURE_BLOCK, NAME) NAME
 
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler parameters are defined
 // at the API level.
@@ -174,18 +172,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define PLS_PRESERVE_VALUE(P, _plsCoord)
 
-#define VERTEX_MAIN(NAME,                                                                          \
-                    Uniforms,                                                                      \
-                    uniforms,                                                                      \
-                    Attrs,                                                                         \
-                    attrs,                                                                         \
-                    Varyings,                                                                      \
-                    varyings,                                                                      \
-                    VertexTextures,                                                                \
-                    textures,                                                                      \
-                    _vertexID,                                                                     \
-                    _instanceID,                                                                   \
-                    _pos)                                                                          \
+#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
     $cbuffer DrawUniforms : UNIFORM_BUFFER_REGISTER(DRAW_UNIFORM_BUFFER_IDX)                       \
     {                                                                                              \
         uint baseInstance;                                                                         \
@@ -198,8 +185,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
                   : $SV_InstanceID)                                                                \
     {                                                                                              \
         uint _instanceID = _instanceIDWithoutBase + baseInstance;                                  \
-        Varyings varyings;                                                                         \
-        float4 _pos;
+        Varyings _varyings;
 
 #define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
                                Uniforms,                                                           \
@@ -210,43 +196,31 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
                                position,                                                           \
                                UVAttr,                                                             \
                                uv,                                                                 \
-                               Varyings,                                                           \
-                               varyings,                                                           \
-                               _vertexID,                                                          \
-                               _pos)                                                               \
+                               _vertexID)                                                          \
     Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID : $SV_VertexID)                 \
     {                                                                                              \
-        Varyings varyings;                                                                         \
+        Varyings _varyings;                                                                        \
         float4 _pos;
 
-#define EMIT_VERTEX(varyings, _pos)                                                                \
+#define EMIT_VERTEX(POSITION)                                                                      \
+    _varyings._pos = POSITION;                                                                     \
     }                                                                                              \
-    varyings._pos = _pos;                                                                          \
-    return varyings;
+    return _varyings;
 
-#define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
-    DATA_TYPE NAME(Varyings varyings) : $SV_Target                                                 \
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                                            \
+    DATA_TYPE NAME(Varyings _varyings) : $SV_Target                                                \
     {
 
 #define EMIT_FRAG_DATA(VALUE)                                                                      \
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
-    [$earlydepthstencil] void NAME(Varyings varyings) {                                            \
-        float2 _pos = varyings._pos.xy;\
+#define PLS_MAIN(NAME, _pos, _plsCoord) [$earlydepthstencil] void NAME(Varyings _varyings) { \
+        float2 _pos = _varyings._pos.xy;\
         int2 _plsCoord = int2(floor(_pos));
 
-#define IMAGE_DRAW_PLS_MAIN(NAME,                                                                  \
-                            MeshUniforms,                                                          \
-                            meshUniforms,                                                          \
-                            Varyings,                                                              \
-                            varyings,                                                              \
-                            FragmentTextures,                                                      \
-                            textures,                                                              \
-                            _pos,                                                                  \
-                            _plsCoord)                                                             \
-    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)
+#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)                     \
+    PLS_MAIN(NAME, _pos, _plsCoord)
 
 #define EMIT_PLS }
 
@@ -265,10 +239,18 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 // in GLSL and Metal. We can work around this entirely by reversing the arguments to mul().
 #define MUL(A, B) $mul(B, A)
 
-#define STORAGE_BUFFER(IDX, STRUCT_NAME, TYPE, NAME)                                               \
-    $StructuredBuffer<TYPE> NAME : $register($t##IDX)
+#define STORAGE_BUFFER_BLOCK_BEGIN
+#define STORAGE_BUFFER_BLOCK_END
 
-#define STORAGE_BUFFER_AT(NAME, I) NAME[I]
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    $StructuredBuffer<uint2> NAME : $register($t##IDX)
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    $StructuredBuffer<uint4> NAME : $register($t##IDX)
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    $StructuredBuffer<float4> NAME : $register($t##IDX)
+
+#define STORAGE_BUFFER_LOAD4(NAME, I) NAME[I]
+#define STORAGE_BUFFER_LOAD2(NAME, I) NAME[I]
 
 INLINE half2 unpackHalf2x16(uint u)
 {

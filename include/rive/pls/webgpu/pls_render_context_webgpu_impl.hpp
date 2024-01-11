@@ -118,16 +118,12 @@ private:
     // PLS always expects a clockwise front face.
     constexpr static wgpu::FrontFace kFrontFaceForOffscreenDraws = wgpu::FrontFace::CW;
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
-                                                     size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
+                                                      size_t elementSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
-    std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
-                                                          size_t itemSizeInBytes) override;
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity,
-                                                      size_t itemSizeInBytes) override;
-
-    void resizePathTexture(uint32_t width, uint32_t height) override;
-    void resizeContourTexture(uint32_t width, uint32_t height) override;
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
@@ -153,14 +149,6 @@ private:
     EmJsHandle m_loadStoreEXTVertexShaderHandle;
     wgpu::ShaderModule m_loadStoreEXTVertexShader;
     std::unique_ptr<BufferRing> m_loadStoreEXTUniforms;
-
-    // Data texture for path info.
-    wgpu::Texture m_pathTexture;
-    wgpu::TextureView m_pathTextureView;
-
-    // Data texture for contour info.
-    wgpu::Texture m_contourTexture;
-    wgpu::TextureView m_contourTextureView;
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;

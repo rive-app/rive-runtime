@@ -288,6 +288,7 @@ glsl_reserved = {
     "__pixel_local_inEXT", "__pixel_local_outEXT", "set", "texture2D", "utexture2D", "sampler",
     "subpassInput", "usubpassInput", "input_attachment_index", "readonly", "buffer",
     "unpackUnorm4x8", "defined", "elif", "extension", "enable", "require", "endif", "pragma",
+    "__VERSION__",
 }
 
 # rgba and stpq get rewritten to xyzw, so we only need to check xyzw here. This way we can keep

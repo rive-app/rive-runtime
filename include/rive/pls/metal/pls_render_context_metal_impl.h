@@ -72,21 +72,16 @@ public:
 protected:
     PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
-                                                     size_t itemSizeInBytes) override;
-
-    std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
-                                                          size_t itemSizeInBytes) override;
-
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity,
-                                                      size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
+                                                      size_t elementSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
 private:
     // Renders paths to the main render target.
     class DrawPipeline;
 
-    void resizePathTexture(uint32_t width, uint32_t height) override;
-    void resizeContourTexture(uint32_t width, uint32_t height) override;
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
@@ -108,10 +103,6 @@ private:
     id<MTLLibrary> m_plsPrecompiledLibrary;
     std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
     bool m_shouldWaitForShaderCompilations = false;
-
-    // Path/contour data textures.
-    id<MTLTexture> m_pathTexture = nullptr;
-    id<MTLTexture> m_contourTexture = nullptr;
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;

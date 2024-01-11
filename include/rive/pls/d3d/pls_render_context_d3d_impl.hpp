@@ -89,17 +89,12 @@ private:
                                      uint32_t mipLevelCount,
                                      const uint8_t imageDataRGBA[]) override;
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
-                                                     size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
+                                                      size_t elementSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
-    std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
-                                                          size_t itemSizeInBytes) override;
-
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity,
-                                                      size_t itemSizeInBytes) override;
-
-    void resizePathTexture(uint32_t width, uint32_t height) override;
-    void resizeContourTexture(uint32_t width, uint32_t height) override;
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
@@ -111,12 +106,6 @@ private:
 
     ComPtr<ID3D11Device> m_gpu;
     ComPtr<ID3D11DeviceContext> m_gpuContext;
-
-    ComPtr<ID3D11Texture2D> m_pathTexture;
-    ComPtr<ID3D11ShaderResourceView> m_pathTextureSRV;
-
-    ComPtr<ID3D11Texture2D> m_contourTexture;
-    ComPtr<ID3D11ShaderResourceView> m_contourTextureSRV;
 
     ComPtr<ID3D11Texture2D> m_gradTexture;
     ComPtr<ID3D11ShaderResourceView> m_gradTextureSRV;

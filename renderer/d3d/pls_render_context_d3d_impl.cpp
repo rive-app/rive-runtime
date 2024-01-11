@@ -328,7 +328,7 @@ ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleStructuredBuffer(size_t 
     D3D11_BUFFER_DESC desc{};
     desc.ByteWidth = count * structureSize;
     desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     desc.StructureByteStride = structureSize;
     desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
 
@@ -338,7 +338,6 @@ ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleStructuredBuffer(size_t 
 }
 
 ComPtr<ID3D11ShaderResourceView> PLSRenderContextD3DImpl::makeSimpleStructuredBufferSRV(
-
     ID3D11Buffer* buffer,
     size_t count)
 {
@@ -534,20 +533,30 @@ rcp<PLSTexture> PLSRenderContextD3DImpl::makeImageTexture(uint32_t width,
     return make_rcp<PLSTextureD3DImpl>(this, width, height, mipLevelCount, imageDataRGBA);
 }
 
-class BufferRingD3D : public BufferRingShadowImpl
+class BufferRingD3D : public BufferRing
 {
 public:
+    BufferRingD3D(PLSRenderContextD3DImpl* plsImpl, size_t capacityInBytes, UINT bindFlags) :
+        BufferRingD3D(plsImpl, capacityInBytes, bindFlags, 0, 0)
+    {}
+
+    ID3D11Buffer* submittedBuffer() const { return m_buffers[submittedBufferIdx()].Get(); }
+
+protected:
     BufferRingD3D(PLSRenderContextD3DImpl* plsImpl,
-                  size_t capacity,
-                  size_t itemSizeInBytes,
-                  UINT bindFlags) :
-        BufferRingShadowImpl(capacity, itemSizeInBytes), m_gpuContext(plsImpl->gpuContext())
+                  size_t capacityInBytes,
+                  UINT bindFlags,
+                  size_t elementSizeInBytes,
+                  UINT miscFlags) :
+        BufferRing(capacityInBytes), m_gpuContext(plsImpl->gpuContext())
     {
         D3D11_BUFFER_DESC desc{};
-        desc.ByteWidth = itemSizeInBytes * capacity;
+        desc.ByteWidth = capacityInBytes;
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = bindFlags;
         desc.CPUAccessFlags = 0;
+        desc.StructureByteStride = elementSizeInBytes;
+        desc.MiscFlags = miscFlags;
 
         for (size_t i = 0; i < kBufferRingSize; ++i)
         {
@@ -555,12 +564,15 @@ public:
         }
     }
 
-    ID3D11Buffer* submittedBuffer() const { return m_buffers[submittedBufferIdx()].Get(); }
-
-protected:
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten)
+    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
-        if (bytesWritten == capacity() * itemSizeInBytes())
+        // Use a CPU-side shadow buffer since D3D11 doesn't have an API to map a sub-range.
+        return shadowBuffer();
+    }
+
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    {
+        if (mapSizeInBytes == capacityInBytes())
         {
             // Constant buffers don't allow partial updates, so special-case the event where we
             // update the entire buffer.
@@ -571,7 +583,7 @@ protected:
         {
             D3D11_BOX box;
             box.left = 0;
-            box.right = bytesWritten;
+            box.right = mapSizeInBytes;
             box.top = 0;
             box.bottom = 1;
             box.front = 0;
@@ -585,30 +597,65 @@ protected:
     ComPtr<ID3D11Buffer> m_buffers[kBufferRingSize];
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t capacity,
-                                                                          size_t itemSizeInBytes)
+class StructuredBufferRingD3D : public BufferRingD3D
 {
-    return capacity != 0 ? std::make_unique<BufferRingD3D>(this,
-                                                           capacity,
-                                                           itemSizeInBytes,
-                                                           D3D11_BIND_VERTEX_BUFFER)
-                         : nullptr;
+public:
+    StructuredBufferRingD3D(PLSRenderContextD3DImpl* plsImpl,
+                            size_t capacityInBytes,
+                            size_t elementSizeInBytes) :
+        BufferRingD3D(plsImpl,
+                      capacityInBytes,
+                      D3D11_BIND_SHADER_RESOURCE,
+                      elementSizeInBytes,
+                      D3D11_RESOURCE_MISC_BUFFER_STRUCTURED)
+    {
+        assert(capacityInBytes % elementSizeInBytes == 0);
+        size_t elementCount = capacityInBytes / elementSizeInBytes;
+        for (size_t i = 0; i < kBufferRingSize; ++i)
+        {
+            m_structuredBufferSRVs[i] =
+                plsImpl->makeSimpleStructuredBufferSRV(m_buffers[i].Get(), elementCount);
+        }
+    }
+
+    ID3D11ShaderResourceView* submittedStructuredBufferSRV() const
+    {
+        return m_structuredBufferSRVs[submittedBufferIdx()].Get();
+    }
+
+protected:
+    ComPtr<ID3D11ShaderResourceView> m_structuredBufferSRVs[kBufferRingSize];
+};
+
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t capacityInBytes)
+{
+    return capacityInBytes != 0
+               ? std::make_unique<BufferRingD3D>(this, capacityInBytes, D3D11_BIND_VERTEX_BUFFER)
+               : nullptr;
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makePixelUnpackBufferRing(
-    size_t capacity,
-    size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeStorageBufferRing(
+    size_t capacityInBytes,
+    size_t elementSizeInBytes)
+{
+    return capacityInBytes != 0 ? std::make_unique<StructuredBufferRingD3D>(this,
+                                                                            capacityInBytes,
+                                                                            elementSizeInBytes)
+                                : nullptr;
+}
+
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeTextureTransferBufferRing(
+    size_t capacityInBytes)
 {
     // It appears impossible to update a D3D texture from a GPU buffer; store this data on the heap
     // and upload it to the texture at flush time.
-    return std::make_unique<HeapBufferRing>(capacity, itemSizeInBytes);
+    return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t capacity,
-                                                                           size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
     // In D3D we update uniform data inline with commands, rather than filling a buffer up front.
-    return std::make_unique<HeapBufferRing>(capacity, itemSizeInBytes);
+    return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
 PLSRenderTargetD3D::PLSRenderTargetD3D(PLSRenderContextD3DImpl* plsImpl,
@@ -656,46 +703,6 @@ void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
 rcp<PLSRenderTargetD3D> PLSRenderContextD3DImpl::makeRenderTarget(uint32_t width, uint32_t height)
 {
     return rcp(new PLSRenderTargetD3D(this, width, height));
-}
-
-void PLSRenderContextD3DImpl::resizePathTexture(uint32_t width, uint32_t height)
-{
-    if (width == 0 || height == 0)
-    {
-        m_pathTexture = nullptr;
-        m_pathTextureSRV = nullptr;
-    }
-    else
-    {
-        m_pathTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
-                                            width,
-                                            height,
-                                            1,
-                                            D3D11_BIND_SHADER_RESOURCE);
-        VERIFY_OK(m_gpu->CreateShaderResourceView(m_pathTexture.Get(),
-                                                  NULL,
-                                                  m_pathTextureSRV.GetAddressOf()));
-    }
-}
-
-void PLSRenderContextD3DImpl::resizeContourTexture(uint32_t width, uint32_t height)
-{
-    if (width == 0 || height == 0)
-    {
-        m_contourTexture = nullptr;
-        m_contourTextureSRV = nullptr;
-    }
-    else
-    {
-        m_contourTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
-                                               width,
-                                               height,
-                                               1,
-                                               D3D11_BIND_SHADER_RESOURCE);
-        VERIFY_OK(m_gpu->CreateShaderResourceView(m_contourTexture.Get(),
-                                                  NULL,
-                                                  m_contourTextureSRV.GetAddressOf()));
-    }
 }
 
 void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -924,11 +931,19 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
 
 static ID3D11Buffer* submitted_buffer(const BufferRing* bufferRing)
 {
+    assert(bufferRing != nullptr);
     return static_cast<const BufferRingD3D*>(bufferRing)->submittedBuffer();
+}
+
+static ID3D11ShaderResourceView* submitted_structured_buffer_srv(const BufferRing* bufferRing)
+{
+    assert(bufferRing != nullptr);
+    return static_cast<const StructuredBufferRingD3D*>(bufferRing)->submittedStructuredBufferSRV();
 }
 
 static const char* heap_buffer_contents(const BufferRing* bufferRing)
 {
+    assert(bufferRing != nullptr);
     auto heapBuffer = static_cast<const HeapBufferRing*>(bufferRing);
     return reinterpret_cast<const char*>(heapBuffer->contents());
 }
@@ -1075,6 +1090,16 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                     0,
                                     0);
 
+    // Bind the path and contour buffers.
+    ID3D11ShaderResourceView* pathContourBufferSRVs[] = {
+        desc.pathCount > 0 ? submitted_structured_buffer_srv(pathBufferRing()) : 0,
+        desc.contourCount > 0 ? submitted_structured_buffer_srv(contourBufferRing()) : 0,
+    };
+    static_assert(CONTOUR_STORAGE_BUFFER_IDX == PATH_STORAGE_BUFFER_IDX + 1);
+    m_gpuContext->VSSetShaderResources(PATH_STORAGE_BUFFER_IDX,
+                                       std::size(pathContourBufferSRVs),
+                                       pathContourBufferSRVs);
+
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
@@ -1106,53 +1131,11 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->DrawInstanced(4, desc.complexGradSpanCount, 0, 0);
     }
 
-    // Copy the path data to the texture.
-    if (desc.pathTexelsHeight > 0)
-    {
-        assert(desc.pathTexelsHeight * desc.pathTexelsWidth <=
-               pathBufferRing()->capacity() * pls::kPathTexelsPerItem);
-        D3D11_BOX box;
-        box.left = 0;
-        box.right = desc.pathTexelsWidth;
-        box.top = 0;
-        box.bottom = desc.pathTexelsHeight;
-        box.front = 0;
-        box.back = 1;
-        m_gpuContext->UpdateSubresource(m_pathTexture.Get(),
-                                        0,
-                                        &box,
-                                        heap_buffer_contents(pathBufferRing()) +
-                                            desc.pathDataOffset,
-                                        pls::kPathTextureWidthInItems * sizeof(pls::PathData),
-                                        0);
-    }
-
-    // Copy the contour data to the texture.
-    if (desc.contourTexelsHeight > 0)
-    {
-        assert(desc.contourTexelsHeight * desc.contourTexelsWidth <=
-               contourBufferRing()->capacity() * pls::kContourTexelsPerItem);
-        D3D11_BOX box;
-        box.left = 0;
-        box.right = desc.contourTexelsWidth;
-        box.top = 0;
-        box.bottom = desc.contourTexelsHeight;
-        box.front = 0;
-        box.back = 1;
-        m_gpuContext->UpdateSubresource(m_contourTexture.Get(),
-                                        0,
-                                        &box,
-                                        heap_buffer_contents(contourBufferRing()) +
-                                            desc.contourDataOffset,
-                                        pls::kContourTextureWidthInItems * sizeof(pls::ContourData),
-                                        0);
-    }
-
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
-        assert(desc.simpleGradTexelsHeight * desc.simpleGradTexelsWidth <=
-               simpleColorRampsBufferRing()->capacity() * 2);
+        assert(desc.simpleGradTexelsHeight * desc.simpleGradTexelsWidth * 4 <=
+               simpleColorRampsBufferRing()->capacityInBytes());
         D3D11_BOX box;
         box.left = 0;
         box.right = desc.simpleGradTexelsWidth;
@@ -1182,13 +1165,8 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->VSSetShader(m_tessellateVertexShader.Get(), NULL, 0);
 
         // Unbind the tessellation texture before rendering it.
-        ID3D11ShaderResourceView* vsTextureViews[] = {NULL,
-                                                      m_pathTextureSRV.Get(),
-                                                      m_contourTextureSRV.Get()};
-        static_assert(TESS_VERTEX_TEXTURE_IDX == 0);
-        static_assert(PATH_TEXTURE_IDX == 1);
-        static_assert(CONTOUR_TEXTURE_IDX == 2);
-        m_gpuContext->VSSetShaderResources(0, std::size(vsTextureViews), vsTextureViews);
+        ID3D11ShaderResourceView* nullTessTextureView = NULL;
+        m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX, 1, &nullTessTextureView);
 
         D3D11_VIEWPORT viewport = {0,
                                    0,
@@ -1245,13 +1223,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     static_assert(kImageRectVertexDataSlot == 2);
     m_gpuContext->IASetVertexBuffers(0, 3, vertexBuffers, vertexStrides, vertexOffsets);
 
-    ID3D11ShaderResourceView* vertexTextureViews[] = {m_tessTextureSRV.Get(),
-                                                      m_pathTextureSRV.Get(),
-                                                      m_contourTextureSRV.Get()};
-    static_assert(TESS_VERTEX_TEXTURE_IDX == 0);
-    static_assert(PATH_TEXTURE_IDX == 1);
-    static_assert(CONTOUR_TEXTURE_IDX == 2);
-    m_gpuContext->VSSetShaderResources(0, std::size(vertexTextureViews), vertexTextureViews);
+    m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX, 1, m_tessTextureSRV.GetAddressOf());
 
     D3D11_VIEWPORT viewport = {0,
                                0,

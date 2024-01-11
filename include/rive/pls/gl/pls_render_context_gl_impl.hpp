@@ -110,16 +110,16 @@ private:
     class PLSImplWebGL;
     class PLSImplRWTexture;
 
-    static std::unique_ptr<PLSImpl> MakePLSImplEXTNative(const GLExtensions&);
-    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch(const GLExtensions&);
+    static std::unique_ptr<PLSImpl> MakePLSImplEXTNative(const GLCapabilities&);
+    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch(const GLCapabilities&);
     static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
     static std::unique_ptr<PLSImpl> MakePLSImplRWTexture();
 
     static std::unique_ptr<PLSRenderContext> MakeContext(const char* rendererString,
-                                                         GLExtensions,
+                                                         GLCapabilities,
                                                          std::unique_ptr<PLSImpl>);
 
-    PLSRenderContextGLImpl(const char* rendererString, GLExtensions, std::unique_ptr<PLSImpl>);
+    PLSRenderContextGLImpl(const char* rendererString, GLCapabilities, std::unique_ptr<PLSImpl>);
 
     // Wraps a compiled and linked GL program of draw_path.glsl or draw_image_mesh.glsl, with a
     // specific set of features enabled via #define. The set of features to enable is dictated by
@@ -143,22 +143,20 @@ private:
 
     class DrawShader;
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacity,
-                                                     size_t itemSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
+                                                      size_t elementSizeInBytes) override;
+    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
-    std::unique_ptr<BufferRing> makePixelUnpackBufferRing(size_t capacity,
-                                                          size_t itemSizeInBytes) override;
-
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacity, size_t sizeInBytes) override;
-
-    void resizePathTexture(uint32_t width, uint32_t height) override;
-    void resizeContourTexture(uint32_t width, uint32_t height) override;
+    void resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes) override;
+    void resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes) override;
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
     void flush(const FlushDescriptor&) override;
 
-    GLExtensions m_extensions;
+    GLCapabilities m_capabilities;
 
     constexpr static size_t kShaderVersionStringBuffSize = sizeof("#version 300 es\n") + 1;
     char m_shaderVersionString[kShaderVersionStringBuffSize];

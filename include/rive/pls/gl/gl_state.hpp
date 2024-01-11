@@ -13,9 +13,9 @@ namespace rive::pls
 class GLState : public RefCnt<GLState>
 {
 public:
-    GLState(const GLExtensions& extensions) { reset(extensions); }
+    GLState(const GLCapabilities& extensions) { reset(extensions); }
 
-    void reset(const GLExtensions&);
+    void reset(const GLCapabilities&);
 
     void enableFaceCulling(bool);
 

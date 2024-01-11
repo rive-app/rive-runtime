@@ -7,8 +7,18 @@
 #include <string.h>
 #include <stdio.h>
 
-struct GLExtensions
+struct GLCapabilities
 {
+    GLCapabilities() { memset(this, 0, sizeof(*this)); }
+
+    bool isContextVersionAtLeast(int major, int minor) const
+    {
+        return ((contextVersionMajor << 16) | contextVersionMinor) >= ((major << 16) | minor);
+    }
+
+    int contextVersionMajor;
+    int contextVersionMinor;
+    bool isGLES : 1;
     bool ANGLE_base_vertex_base_instance_shader_builtin : 1;
     bool ANGLE_shader_pixel_local_storage : 1;
     bool ANGLE_shader_pixel_local_storage_coherent : 1;
@@ -17,12 +27,13 @@ struct GLExtensions
     bool ARM_shader_framebuffer_fetch : 1;
     bool ARB_bindless_texture : 1;
     bool ARB_fragment_shader_interlock : 1;
+    bool ARB_shader_image_load_store : 1;
+    bool ARB_shader_storage_buffer_object : 1;
     bool EXT_base_instance : 1;
     bool INTEL_fragment_shader_ordering : 1;
     bool EXT_shader_framebuffer_fetch : 1;
     bool EXT_shader_pixel_local_storage : 1;
     bool QCOM_shader_framebuffer_fetch_noncoherent : 1;
-    GLExtensions() { memset(this, 0, sizeof(*this)); }
 };
 
 #ifdef RIVE_DESKTOP_GL
@@ -63,8 +74,12 @@ struct GLExtensions
 #include <GLES3/gl3ext.h>
 #include <GLES2/gl2ext.h>
 
+// GLES 3.1 functionality pulled in as an extension.
+#define GL_SHADER_STORAGE_BUFFER 0x90D2
+#define GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS 0x90D6
+
 // Android doesn't load extension functions for us.
-void loadGLESExtensions(const GLExtensions&);
+void loadGLESExtensions(const GLCapabilities&);
 extern PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC glDrawArraysInstancedBaseInstanceEXT;
 extern PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC glDrawElementsInstancedBaseInstanceEXT;
 extern PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC

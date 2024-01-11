@@ -37,11 +37,11 @@ constexpr static int kPLSTexIdxOffset = 1;
 namespace rive::pls
 {
 PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
-                                               GLExtensions extensions,
+                                               GLCapabilities capabilities,
                                                std::unique_ptr<PLSImpl> plsImpl) :
-    m_extensions(extensions),
+    m_capabilities(capabilities),
     m_plsImpl(std::move(plsImpl)),
-    m_state(make_rcp<GLState>(m_extensions))
+    m_state(make_rcp<GLState>(m_capabilities))
 
 {
     if (strstr(rendererString, "Apple") && strstr(rendererString, "Metal"))
@@ -52,41 +52,38 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         m_platformFeatures.avoidFlatVaryings = true;
     }
     m_platformFeatures.fragCoordBottomUp = true;
-    if (m_extensions.ARB_bindless_texture)
+    if (m_capabilities.ARB_bindless_texture)
     {
         m_platformFeatures.supportsBindlessTextures = true;
     }
 
     m_shaderVersionString[kShaderVersionStringBuffSize - 1] = '\0';
-#ifdef _WIN32
-    strcpy_s(m_shaderVersionString, kShaderVersionStringBuffSize, "#version 300 es\n");
-#else
-    strncpy(m_shaderVersionString, "#version 300 es\n", kShaderVersionStringBuffSize - 1);
-#endif
-#ifdef RIVE_DESKTOP_GL
-    if (!GLAD_GL_version_es && GLAD_IS_GL_VERSION_AT_LEAST(4, 0))
+    snprintf(m_shaderVersionString,
+             kShaderVersionStringBuffSize,
+             "#version %d%d0%s\n",
+             m_capabilities.contextVersionMajor,
+             m_capabilities.contextVersionMinor,
+             m_capabilities.isGLES ? " es" : "");
+
+    std::vector<const char*> generalDefines;
+    if (m_capabilities.ARB_shader_storage_buffer_object)
     {
-        snprintf(m_shaderVersionString,
-                 kShaderVersionStringBuffSize,
-                 "#version %d%d0\n",
-                 GLAD_GL_version_major,
-                 GLAD_GL_version_minor);
+        generalDefines.push_back(GLSL_ENABLE_SHADER_STORAGE_BUFFERS);
     }
-#endif
 
     m_colorRampProgram = glCreateProgram();
     const char* colorRampSources[] = {glsl::constants, glsl::common, glsl::color_ramp};
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_VERTEX_SHADER,
-                                    nullptr,
-                                    0,
+                                    generalDefines.data(),
+                                    generalDefines.size(),
                                     colorRampSources,
                                     std::size(colorRampSources),
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_FRAGMENT_SHADER,
-                                    nullptr,
-                                    0,
+                                    generalDefines.data(),
+                                    generalDefines.size(),
                                     colorRampSources,
                                     std::size(colorRampSources),
                                     m_shaderVersionString);
@@ -106,15 +103,15 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     const char* tessellateSources[] = {glsl::constants, glsl::common, glsl::tessellate};
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_VERTEX_SHADER,
-                                    nullptr,
-                                    0,
+                                    generalDefines.data(),
+                                    generalDefines.size(),
                                     tessellateSources,
                                     std::size(tessellateSources),
                                     m_shaderVersionString);
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_FRAGMENT_SHADER,
-                                    nullptr,
-                                    0,
+                                    generalDefines.data(),
+                                    generalDefines.size(),
                                     tessellateSources,
                                     std::size(tessellateSources),
                                     m_shaderVersionString);
@@ -123,10 +120,14 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     glUniformBlockBinding(m_tessellateProgram,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
                           FLUSH_UNIFORM_BUFFER_IDX);
-    glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathTexture),
-                kPLSTexIdxOffset + PATH_TEXTURE_IDX);
-    glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourTexture),
-                kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
+    if (!m_capabilities.ARB_shader_storage_buffer_object)
+    {
+        // Our GL driver doesn't support storage buffers. We polyfill these buffers as textures.
+        glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathBuffer),
+                    kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
+        glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourBuffer),
+                    kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
+    }
 
     glGenVertexArrays(1, &m_tessellateVAO);
     m_state->bindVAO(m_tessellateVAO);
@@ -222,18 +223,24 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 
 void PLSRenderContextGLImpl::resetGLState()
 {
-    m_state->reset(m_extensions);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
+    if (m_pathTexture != 0)
+    {
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
+        glBindTexture(GL_TEXTURE_2D, m_pathTexture);
+    }
 
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_pathTexture);
-
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_contourTexture);
+    if (m_contourTexture != 0)
+    {
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
+        glBindTexture(GL_TEXTURE_2D, m_contourTexture);
+    }
 
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
+
+    m_state->reset(m_capabilities);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
 }
 
 rcp<RenderBuffer> PLSRenderContextGLImpl::makeRenderBuffer(RenderBufferType type,
@@ -288,10 +295,10 @@ public:
 
     GLuint id() const { return m_id; }
 
-    GLuint64 bindlessHandle(const GLExtensions& extensions) const
+    GLuint64 bindlessHandle(const GLCapabilities& capabilities) const
     {
 #ifdef RIVE_DESKTOP_GL
-        if (extensions.ARB_bindless_texture && m_bindlessHandle == 0)
+        if (capabilities.ARB_bindless_texture && m_bindlessHandle == 0)
         {
             m_bindlessHandle = glGetTextureHandleARB(m_id);
             glMakeTextureHandleResidentARB(m_bindlessHandle);
@@ -316,17 +323,26 @@ rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
 
 // BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we don't do hardware
 // mapping.
-class BufferRingGLImpl : public BufferRingShadowImpl
+class BufferRingGLImpl : public BufferRing
 {
 public:
-    BufferRingGLImpl(GLenum target, size_t capacity, size_t itemSizeInBytes, rcp<GLState> state) :
-        BufferRingShadowImpl(capacity, itemSizeInBytes), m_target(target), m_state(std::move(state))
+    static std::unique_ptr<BufferRingGLImpl> Make(size_t capacityInBytes,
+                                                  GLenum target,
+                                                  rcp<GLState> state)
+    {
+        return capacityInBytes != 0
+                   ? std::make_unique<BufferRingGLImpl>(target, capacityInBytes, std::move(state))
+                   : nullptr;
+    }
+
+    BufferRingGLImpl(GLenum target, size_t capacityInBytes, rcp<GLState> state) :
+        BufferRing(capacityInBytes), m_target(target), m_state(std::move(state))
     {
         glGenBuffers(kBufferRingSize, m_ids);
         for (int i = 0; i < kBufferRingSize; ++i)
         {
             m_state->bindBuffer(m_target, m_ids[i]);
-            glBufferData(m_target, capacity * itemSizeInBytes, nullptr, GL_DYNAMIC_DRAW);
+            glBufferData(m_target, capacityInBytes, nullptr, GL_DYNAMIC_DRAW);
         }
     }
 
@@ -341,10 +357,30 @@ public:
     GLuint submittedBufferID() const { return m_ids[submittedBufferIdx()]; }
 
 protected:
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override
+    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    {
+#ifdef RIVE_WEBGL
+        // WebGL doesn't support buffer mapping.
+        return shadowBuffer();
+#else
+        m_state->bindBuffer(m_target, m_ids[bufferIdx]);
+        return glMapBufferRange(m_target,
+                                0,
+                                mapSizeInBytes,
+                                GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT |
+                                    GL_MAP_UNSYNCHRONIZED_BIT);
+#endif
+    }
+
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
         m_state->bindBuffer(m_target, m_ids[bufferIdx]);
-        glBufferSubData(m_target, 0, bytesWritten, shadowBuffer());
+#ifdef RIVE_WEBGL
+        // WebGL doesn't support buffer mapping.
+        glBufferSubData(m_target, 0, mapSizeInBytes, shadowBuffer());
+#else
+        glUnmapBuffer(m_target);
+#endif
     }
 
 private:
@@ -353,71 +389,107 @@ private:
     const rcp<GLState> m_state;
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacity,
-                                                                         size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
 {
-    return capacity != 0 ? std::make_unique<BufferRingGLImpl>(GL_ARRAY_BUFFER,
-                                                              capacity,
-                                                              itemSizeInBytes,
-                                                              m_state)
-                         : nullptr;
+    return BufferRingGLImpl::Make(capacityInBytes, GL_ARRAY_BUFFER, m_state);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makePixelUnpackBufferRing(
-    size_t capacity,
-    size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(size_t capacityInBytes,
+                                                                          size_t elementSizeInBytes)
 {
-    return capacity != 0 ? std::make_unique<BufferRingGLImpl>(GL_PIXEL_UNPACK_BUFFER,
-                                                              capacity,
-                                                              itemSizeInBytes,
-                                                              m_state)
-                         : nullptr;
+    // If GL driver doesn't support storage buffers, make a transfer buffer instead that we will
+    // copy to a texture during flush.
+    return BufferRingGLImpl::Make(capacityInBytes,
+                                  m_capabilities.ARB_shader_storage_buffer_object
+                                      ? GL_SHADER_STORAGE_BUFFER
+                                      : GL_PIXEL_UNPACK_BUFFER,
+                                  m_state);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacity,
-                                                                          size_t sizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeTextureTransferBufferRing(
+    size_t capacityInBytes)
 {
-    return capacity != 0 ? std::make_unique<BufferRingGLImpl>(GL_UNIFORM_BUFFER,
-                                                              capacity,
-                                                              sizeInBytes,
-                                                              m_state)
-                         : nullptr;
+    return BufferRingGLImpl::Make(capacityInBytes, GL_PIXEL_UNPACK_BUFFER, m_state);
 }
 
-void PLSRenderContextGLImpl::resizePathTexture(uint32_t width, uint32_t height)
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
-    glDeleteTextures(1, &m_pathTexture);
-    if (width == 0 || height == 0)
+    return BufferRingGLImpl::Make(capacityInBytes, GL_UNIFORM_BUFFER, m_state);
+}
+
+// What dimensions should we give a texture that emulates a storage buffer?
+static std::tuple<uint32_t, uint32_t> storage_texture_size(size_t elementCount)
+{
+    uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
+    assert(height <= 2048); // 2048 is the min specified texture size in ES3.
+    uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
+    return {width, height};
+}
+
+void PLSRenderContextGLImpl::resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
+{
+    if (m_pathTexture != 0)
     {
+        glDeleteTextures(1, &m_pathTexture);
         m_pathTexture = 0;
-        return;
     }
-    glGenTextures(1, &m_pathTexture);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_pathTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    if (m_capabilities.ARB_shader_storage_buffer_object || sizeInBytes == 0)
+    {
+        PLSRenderContextHelperImpl::resizePathBuffer(sizeInBytes, elementSizeInBytes);
+    }
+    else
+    {
+        // Our GL driver doesn't support storage buffers. Allocate a polyfill texture.
+        auto [width, height] = storage_texture_size(sizeInBytes / (sizeof(uint32_t) * 4));
+        glGenTextures(1, &m_pathTexture);
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
+        glBindTexture(GL_TEXTURE_2D, m_pathTexture);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        // The path texture needs to be updated in entire rows at a time. Extend the texture
+        // transfer buffer's length to be able to serve a worst-case scenario.
+        PLSRenderContextHelperImpl::resizePathBuffer(sizeInBytes + (STORAGE_TEXTURE_WIDTH - 1) *
+                                                                       sizeof(uint32_t) * 4,
+                                                     elementSizeInBytes);
+    }
 }
 
-void PLSRenderContextGLImpl::resizeContourTexture(uint32_t width, uint32_t height)
+void PLSRenderContextGLImpl::resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
 {
-    glDeleteTextures(1, &m_contourTexture);
-    if (width == 0 || height == 0)
+    if (m_contourTexture != 0)
     {
+        glDeleteTextures(1, &m_contourTexture);
         m_contourTexture = 0;
-        return;
     }
-    glGenTextures(1, &m_contourTexture);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_contourTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    if (m_capabilities.ARB_shader_storage_buffer_object || sizeInBytes == 0)
+    {
+        PLSRenderContextHelperImpl::resizeContourBuffer(sizeInBytes, elementSizeInBytes);
+    }
+    else
+    {
+        // Our GL driver doesn't support storage buffers. Allocate a polyfill texture.
+        auto [width, height] = storage_texture_size(sizeInBytes / (sizeof(uint32_t) * 4));
+        glGenTextures(1, &m_contourTexture);
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
+        glBindTexture(GL_TEXTURE_2D, m_contourTexture);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        // The contour texture needs to be updated in entire rows at a time. Extend the texture
+        // transfer buffer's length to be able to serve a worst-case scenario.
+        PLSRenderContextHelperImpl::resizeContourBuffer(sizeInBytes + (STORAGE_TEXTURE_WIDTH - 1) *
+                                                                          sizeof(uint32_t) * 4,
+                                                        elementSizeInBytes);
+    }
 }
 
 void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -530,7 +602,7 @@ public:
                 if (shaderType == GL_VERTEX_SHADER)
                 {
                     defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
-                    if (!plsContextImpl->m_extensions
+                    if (!plsContextImpl->m_capabilities
                              .ANGLE_base_vertex_base_instance_shader_builtin)
                     {
                         defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
@@ -568,9 +640,13 @@ public:
                 sources.push_back(pls::glsl::atomic_draw);
                 break;
         }
-        if (plsContextImpl->m_extensions.ARB_bindless_texture)
+        if (plsContextImpl->m_capabilities.ARB_bindless_texture)
         {
             defines.push_back(GLSL_ENABLE_BINDLESS_TEXTURES);
+        }
+        if (plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
+        {
+            defines.push_back(GLSL_ENABLE_SHADER_STORAGE_BUFFERS);
         }
 
         m_id = glutils::CompileShader(shaderType,
@@ -633,13 +709,18 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     }
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_pathTexture), kPLSTexIdxOffset + PATH_TEXTURE_IDX);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_contourTexture),
-                kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
+    if (!plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
+    {
+        // Our GL driver doesn't support storage buffers. We polyfill these buffers as textures.
+        glUniform1i(glGetUniformLocation(m_id, GLSL_pathBuffer),
+                    kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
+        glUniform1i(glGetUniformLocation(m_id, GLSL_contourBuffer),
+                    kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
+    }
     glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture),
                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
-    if (!plsContextImpl->m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
+    if (!plsContextImpl->m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
         // SPIRV-Cross sytems.
@@ -670,7 +751,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             // This is the first flush with "atomic mode" enabled. Allocate the additional resources
             // for atomic mode.
-            if (!m_extensions.ARB_bindless_texture)
+            if (!m_capabilities.ARB_bindless_texture)
             {
                 // We only have to draw imageRects when in atomic mode and bindless textures are not
                 // supported.
@@ -762,7 +843,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 
         assert(desc.experimentalAtomicModeData);
         pls::ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
-        if (m_extensions.ARB_bindless_texture)
+        if (m_capabilities.ARB_bindless_texture)
         {
             // We support bindless textures, so write out image texture handles.
             for (uint32_t i = 1; i <= desc.pathCount; ++i)
@@ -770,7 +851,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 if (auto imageTextureGL =
                         static_cast<const PLSTextureGLImpl*>(atomicModeData.m_imageTextures[i]))
                 {
-                    GLuint64 handle = imageTextureGL->bindlessHandle(m_extensions);
+                    GLuint64 handle = imageTextureGL->bindlessHandle(m_capabilities);
                     atomicModeData.m_paintTranslates[i].bindlessTextureHandle[0] = handle;
                     atomicModeData.m_paintTranslates[i].bindlessTextureHandle[1] = handle >> 32;
                 }
@@ -814,6 +895,66 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 #endif // ENABLE_PLS_EXPERIMENTAL_ATOMICS
 
+    // Bind the path data.
+    if (desc.pathCount > 0)
+    {
+        if (m_capabilities.ARB_shader_storage_buffer_object)
+        {
+            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+                              PATH_STORAGE_BUFFER_IDX,
+                              gl_buffer_id(pathBufferRing()),
+                              desc.firstPath * sizeof(pls::PathData),
+                              desc.pathCount * sizeof(pls::PathData));
+        }
+        else
+        {
+            // Our GL driver doesn't support storage buffers. Copy the path data to a texture.
+            auto [updateWidth, updateHeight] =
+                storage_texture_size(desc.pathCount * pls::kPathTexelsPerItem);
+            m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(pathBufferRing()));
+            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
+            glTexSubImage2D(GL_TEXTURE_2D,
+                            0,
+                            0,
+                            0,
+                            updateWidth,
+                            updateHeight,
+                            GL_RGBA_INTEGER,
+                            GL_UNSIGNED_INT,
+                            nullptr);
+        }
+    }
+
+    // Bind the contour data.
+    if (desc.contourCount > 0)
+    {
+        if (m_capabilities.ARB_shader_storage_buffer_object)
+        {
+            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+                              CONTOUR_STORAGE_BUFFER_IDX,
+                              gl_buffer_id(contourBufferRing()),
+                              desc.firstContour * sizeof(pls::ContourData),
+                              desc.contourCount * sizeof(pls::ContourData));
+        }
+        else
+        {
+            // Our GL driver doesn't support storage buffers. Copy the contour data to a texture.
+            auto [updateWidth, updateHeight] =
+                storage_texture_size(desc.contourCount * pls::kContourTexelsPerItem);
+            m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(contourBufferRing()));
+            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
+            glTexSubImage2D(GL_TEXTURE_2D,
+                            0,
+                            0,
+                            0,
+                            updateWidth,
+                            updateHeight,
+                            GL_RGBA_INTEGER,
+                            GL_UNSIGNED_INT,
+                            nullptr);
+        }
+    }
+
     // Render the complex color ramps into the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
@@ -829,43 +970,12 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.complexGradSpanCount);
     }
 
-    // Copy the path data to the texture.
-    if (desc.pathTexelsHeight > 0)
-    {
-        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(pathBufferRing()));
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_TEXTURE_IDX);
-        glTexSubImage2D(GL_TEXTURE_2D,
-                        0,
-                        0,
-                        0,
-                        desc.pathTexelsWidth,
-                        desc.pathTexelsHeight,
-                        GL_RGBA_INTEGER,
-                        GL_UNSIGNED_INT,
-                        reinterpret_cast<void*>(desc.pathDataOffset));
-    }
-
-    // Copy the contour data to the texture.
-    if (desc.contourTexelsHeight > 0)
-    {
-        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(contourBufferRing()));
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_TEXTURE_IDX);
-        glTexSubImage2D(GL_TEXTURE_2D,
-                        0,
-                        0,
-                        0,
-                        desc.contourTexelsWidth,
-                        desc.contourTexelsHeight,
-                        GL_RGBA_INTEGER,
-                        GL_UNSIGNED_INT,
-                        reinterpret_cast<void*>(desc.contourDataOffset));
-    }
-
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
         m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+        assert(desc.simpleGradDataOffset == 0); // TODO: Handle desc.simpleGradDataOffset != 0.
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -938,7 +1048,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     glViewport(0, 0, renderTarget->width(), renderTarget->height());
 
 #ifdef RIVE_DESKTOP_GL
-    if (m_extensions.ANGLE_polygon_mode && desc.wireframe)
+    if (m_capabilities.ANGLE_polygon_mode && desc.wireframe)
     {
         glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_LINE_ANGLE);
         glLineWidth(2);
@@ -986,7 +1096,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 uint32_t indexCount = PatchIndexCount(drawType);
                 uint32_t baseIndex = PatchBaseIndex(drawType);
                 void* indexOffset = reinterpret_cast<void*>(baseIndex * sizeof(uint16_t));
-                if (m_extensions.ANGLE_base_vertex_base_instance_shader_builtin)
+                if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
                 {
                     glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
                                                            indexCount,
@@ -1016,7 +1126,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::imageRect:
             {
-                assert(!m_extensions.ARB_bindless_texture);
+                assert(!m_capabilities.ARB_bindless_texture);
                 assert(m_imageRectVAO != 0); // Should have gotten lazily allocated by now.
                 m_plsImpl->ensureRasterOrderingEnabled(false);
                 m_state->bindVAO(m_imageRectVAO);
@@ -1076,7 +1186,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     m_plsImpl->deactivatePixelLocalStorage(this);
 
 #ifdef RIVE_DESKTOP_GL
-    if (m_extensions.ANGLE_polygon_mode && desc.wireframe)
+    if (m_capabilities.ANGLE_polygon_mode && desc.wireframe)
     {
         glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_FILL_ANGLE);
     }
@@ -1085,7 +1195,65 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
 {
-    GLExtensions extensions{};
+    GLCapabilities capabilities{};
+
+    const char* glVersionStr = (const char*)glGetString(GL_VERSION);
+    capabilities.isGLES = strstr(glVersionStr, "OpenGL ES") != NULL;
+    if (capabilities.isGLES)
+    {
+#ifdef _MSC_VER
+        sscanf_s(glVersionStr,
+                 "OpenGL ES %d.%d",
+                 &capabilities.contextVersionMajor,
+                 &capabilities.contextVersionMinor);
+#else
+        sscanf(glVersionStr,
+               "OpenGL ES %d.%d",
+               &capabilities.contextVersionMajor,
+               &capabilities.contextVersionMinor);
+#endif
+    }
+    else
+    {
+#ifdef _MSC_VER
+        sscanf_s(glVersionStr,
+                 "%d.%d",
+                 &capabilities.contextVersionMajor,
+                 &capabilities.contextVersionMinor);
+#else
+        sscanf(glVersionStr,
+               "%d.%d",
+               &capabilities.contextVersionMajor,
+               &capabilities.contextVersionMinor);
+#endif
+    }
+#ifdef RIVE_DESKTOP_GL
+    assert(capabilities.contextVersionMajor == GLAD_GL_version_major);
+    assert(capabilities.contextVersionMinor == GLAD_GL_version_minor);
+    assert(capabilities.isGLES == static_cast<bool>(GLAD_GL_version_es));
+#endif
+
+    // Our baseline feature set is GLES 3.0. Capabilities from newer context versions are reported
+    // as extensions.
+    if (capabilities.isGLES)
+    {
+        if (capabilities.isContextVersionAtLeast(3, 1))
+        {
+            capabilities.ARB_shader_storage_buffer_object = true;
+        }
+    }
+    else
+    {
+        if (capabilities.isContextVersionAtLeast(4, 2))
+        {
+            capabilities.ARB_shader_image_load_store = true;
+        }
+        if (capabilities.isContextVersionAtLeast(4, 3))
+        {
+            capabilities.ARB_shader_storage_buffer_object = true;
+        }
+    }
+
     GLint extensionCount;
     glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
     for (int i = 0; i < extensionCount; ++i)
@@ -1093,73 +1261,96 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
         auto* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
         if (strcmp(ext, "GL_ANGLE_base_vertex_base_instance_shader_builtin") == 0)
         {
-            extensions.ANGLE_base_vertex_base_instance_shader_builtin = true;
+            capabilities.ANGLE_base_vertex_base_instance_shader_builtin = true;
         }
         if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage") == 0)
         {
-            extensions.ANGLE_shader_pixel_local_storage = true;
+            capabilities.ANGLE_shader_pixel_local_storage = true;
         }
         else if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage_coherent") == 0)
         {
-            extensions.ANGLE_shader_pixel_local_storage_coherent = true;
+            capabilities.ANGLE_shader_pixel_local_storage_coherent = true;
         }
         else if (strcmp(ext, "GL_ANGLE_provoking_vertex") == 0)
         {
-            extensions.ANGLE_provoking_vertex = true;
+            capabilities.ANGLE_provoking_vertex = true;
         }
         else if (strcmp(ext, "GL_ANGLE_polygon_mode") == 0)
         {
-            extensions.ANGLE_polygon_mode = true;
+            capabilities.ANGLE_polygon_mode = true;
         }
         else if (strcmp(ext, "GL_ARM_shader_framebuffer_fetch") == 0)
         {
-            extensions.ARM_shader_framebuffer_fetch = true;
+            capabilities.ARM_shader_framebuffer_fetch = true;
         }
         else if (strcmp(ext, "GL_ARB_fragment_shader_interlock") == 0)
         {
-            extensions.ARB_fragment_shader_interlock = true;
+            capabilities.ARB_fragment_shader_interlock = true;
+        }
+        else if (strcmp(ext, "GL_ARB_shader_image_load_store") == 0)
+        {
+            capabilities.ARB_shader_image_load_store = true;
+        }
+        else if (strcmp(ext, "GL_ARB_shader_storage_buffer_object") == 0)
+        {
+            capabilities.ARB_shader_storage_buffer_object = true;
         }
         else if (strcmp(ext, "GL_EXT_base_instance") == 0)
         {
-            extensions.EXT_base_instance = true;
+            capabilities.EXT_base_instance = true;
         }
         else if (strcmp(ext, "GL_INTEL_fragment_shader_ordering") == 0)
         {
-            extensions.INTEL_fragment_shader_ordering = true;
+            capabilities.INTEL_fragment_shader_ordering = true;
         }
         else if (strcmp(ext, "GL_EXT_shader_framebuffer_fetch") == 0)
         {
-            extensions.EXT_shader_framebuffer_fetch = true;
+            capabilities.EXT_shader_framebuffer_fetch = true;
         }
         else if (strcmp(ext, "GL_EXT_shader_pixel_local_storage") == 0)
         {
-            extensions.EXT_shader_pixel_local_storage = true;
+            capabilities.EXT_shader_pixel_local_storage = true;
         }
         else if (strcmp(ext, "GL_QCOM_shader_framebuffer_fetch_noncoherent") == 0)
         {
-            extensions.QCOM_shader_framebuffer_fetch_noncoherent = true;
+            capabilities.QCOM_shader_framebuffer_fetch_noncoherent = true;
         }
     }
+
 #ifdef RIVE_DESKTOP_GL
-    // We implement some ES extensions with core Desktop GL in glad_custom.c.
+    // We implement some ES capabilities with core Desktop GL in glad_custom.c.
     if (GLAD_GL_ARB_bindless_texture)
     {
-        extensions.ARB_bindless_texture = true;
+        capabilities.ARB_bindless_texture = true;
     }
     if (GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        extensions.ANGLE_base_vertex_base_instance_shader_builtin = true;
+        capabilities.ANGLE_base_vertex_base_instance_shader_builtin = true;
     }
     if (GLAD_GL_ANGLE_polygon_mode)
     {
-        extensions.ANGLE_polygon_mode = true;
+        capabilities.ANGLE_polygon_mode = true;
     }
     if (GLAD_GL_EXT_base_instance)
     {
-        extensions.EXT_base_instance = true;
+        capabilities.EXT_base_instance = true;
     }
 #endif
 
+    // We need two storage buffers in the vertex shader. Disable the extension if this isn't
+    // supported.
+    if (capabilities.ARB_shader_storage_buffer_object)
+    {
+        int maxVertexShaderStorageBlocks;
+        glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, &maxVertexShaderStorageBlocks);
+        if (maxVertexShaderStorageBlocks < 2)
+        {
+            capabilities.ARB_shader_storage_buffer_object = false;
+        }
+    }
+
+    // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
+    // polyfilled on D3D anyway, and we need to test our fallback.
     GLenum rendererToken = GL_RENDERER;
 #ifdef RIVE_WEBGL
     if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
@@ -1171,34 +1362,33 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
     const char* rendererString = reinterpret_cast<const char*>(glGetString(rendererToken));
     if (strstr(rendererString, "Direct3D"))
     {
-        // This extension is polyfilled on D3D anyway. Just don't use it so we can make sure to test
-        // our own fallback.
-        extensions.ANGLE_base_vertex_base_instance_shader_builtin = false;
+        capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
     }
 
 #ifdef RIVE_GLES
-    loadGLESExtensions(extensions); // Android doesn't load extension functions for us.
-    if (extensions.EXT_shader_pixel_local_storage &&
-        (extensions.ARM_shader_framebuffer_fetch || extensions.EXT_shader_framebuffer_fetch))
+    loadGLESExtensions(capabilities); // Android doesn't load extension functions for us.
+    if (capabilities.EXT_shader_pixel_local_storage &&
+        (capabilities.ARM_shader_framebuffer_fetch || capabilities.EXT_shader_framebuffer_fetch))
     {
-        return MakeContext(rendererString, extensions, MakePLSImplEXTNative(extensions));
+        return MakeContext(rendererString, capabilities, MakePLSImplEXTNative(capabilities));
     }
 
-    if (extensions.EXT_shader_framebuffer_fetch)
+    if (capabilities.EXT_shader_framebuffer_fetch)
     {
-        return MakeContext(rendererString, extensions, MakePLSImplFramebufferFetch(extensions));
+        return MakeContext(rendererString, capabilities, MakePLSImplFramebufferFetch(capabilities));
     }
 #endif
 
 #ifdef RIVE_DESKTOP_GL
-    if (extensions.ANGLE_shader_pixel_local_storage_coherent)
+    if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
     {
-        return MakeContext(rendererString, extensions, MakePLSImplWebGL());
+        return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
     }
 
-    if (extensions.ARB_fragment_shader_interlock || extensions.INTEL_fragment_shader_ordering)
+    if (capabilities.ARB_shader_image_load_store &&
+        (capabilities.ARB_fragment_shader_interlock || capabilities.INTEL_fragment_shader_ordering))
     {
-        return MakeContext(rendererString, extensions, MakePLSImplRWTexture());
+        return MakeContext(rendererString, capabilities, MakePLSImplRWTexture());
     }
 #endif
 
@@ -1207,7 +1397,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
             emscripten_webgl_get_current_context()) &&
         emscripten_webgl_shader_pixel_local_storage_is_coherent())
     {
-        return MakeContext(rendererString, extensions, MakePLSImplWebGL());
+        return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
     }
 #endif
 
@@ -1217,11 +1407,11 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     const char* rendererString,
-    GLExtensions extensions,
+    GLCapabilities capabilities,
     std::unique_ptr<PLSImpl> plsImpl)
 {
     auto plsContextImpl = std::unique_ptr<PLSRenderContextGLImpl>(
-        new PLSRenderContextGLImpl(rendererString, extensions, std::move(plsImpl)));
+        new PLSRenderContextGLImpl(rendererString, capabilities, std::move(plsImpl)));
     return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
 }
 } // namespace rive::pls

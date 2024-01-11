@@ -25,10 +25,14 @@ public:
     virtual rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) = 0;
 
     // Resize GPU buffers. These methods cannot fail, and must allocate the exact size requested.
+    //
     // PLSRenderContext takes care to minimize how often these methods are called, while also
     // growing and shrinking the memory footprint to fit current usage.
-    virtual void resizePathBuffer(size_t sizeInBytes) = 0;
-    virtual void resizeContourBuffer(size_t sizeInBytes) = 0;
+    //
+    // 'elementSizeInBytes' represents the size of one array element when the shader accesses this
+    // buffer as a storage buffer.
+    virtual void resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes) = 0;
+    virtual void resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes) = 0;
     virtual void resizeSimpleColorRampsBuffer(size_t sizeInBytes) = 0;
     virtual void resizeGradSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTessVertexSpanBuffer(size_t sizeInBytes) = 0;
@@ -42,28 +46,26 @@ public:
     // Map GPU buffers. (The implementation may wish to allocate the mappable buffers in rings, in
     // order to avoid expensive synchronization with the GPU pipeline. See
     // PLSRenderContextBufferRingImpl.)
-    virtual void mapPathBuffer(WriteOnlyMappedMemory<pls::PathData>*) = 0;
-    virtual void mapContourBuffer(WriteOnlyMappedMemory<pls::ContourData>*) = 0;
-    virtual void mapSimpleColorRampsBuffer(WriteOnlyMappedMemory<pls::TwoTexelRamp>*) = 0;
-    virtual void mapGradSpanBuffer(WriteOnlyMappedMemory<pls::GradientSpan>*) = 0;
-    virtual void mapTessVertexSpanBuffer(WriteOnlyMappedMemory<pls::TessVertexSpan>*) = 0;
-    virtual void mapTriangleVertexBuffer(WriteOnlyMappedMemory<pls::TriangleVertex>*) = 0;
-    virtual void mapImageDrawUniformBuffer(WriteOnlyMappedMemory<pls::ImageDrawUniforms>*) = 0;
-    virtual void mapFlushUniformBuffer(WriteOnlyMappedMemory<pls::FlushUniforms>*) = 0;
+    virtual void* mapPathBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapContourBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapSimpleColorRampsBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapGradSpanBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapImageDrawUniformBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
 
     // Unmap GPU buffers. All buffers will be unmapped before flush().
-    virtual void unmapPathBuffer(size_t bytesWritten) = 0;
-    virtual void unmapContourBuffer(size_t bytesWritten) = 0;
-    virtual void unmapSimpleColorRampsBuffer(size_t bytesWritten) = 0;
-    virtual void unmapGradSpanBuffer(size_t bytesWritten) = 0;
-    virtual void unmapTessVertexSpanBuffer(size_t bytesWritten) = 0;
-    virtual void unmapTriangleVertexBuffer(size_t bytesWritten) = 0;
-    virtual void unmapImageDrawUniformBuffer(size_t bytesWritten) = 0;
+    virtual void unmapPathBuffer() = 0;
+    virtual void unmapContourBuffer() = 0;
+    virtual void unmapSimpleColorRampsBuffer() = 0;
+    virtual void unmapGradSpanBuffer() = 0;
+    virtual void unmapTessVertexSpanBuffer() = 0;
+    virtual void unmapTriangleVertexBuffer() = 0;
+    virtual void unmapImageDrawUniformBuffer() = 0;
     virtual void unmapFlushUniformBuffer() = 0;
 
     // Allocate textures that the implementation is responsible to update during flush().
-    virtual void resizePathTexture(uint32_t width, uint32_t height) = 0;
-    virtual void resizeContourTexture(uint32_t width, uint32_t height) = 0;
     virtual void resizeGradientTexture(uint32_t width, uint32_t height) = 0;
     virtual void resizeTessellationTexture(uint32_t width, uint32_t height) = 0;
 
@@ -74,12 +76,10 @@ public:
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
         pls::ShaderFeatures combinedShaderFeatures = pls::ShaderFeatures::NONE;
-        uint32_t pathTexelsWidth = 0;
-        uint32_t pathTexelsHeight = 0;
-        size_t pathDataOffset = 0;
-        uint32_t contourTexelsWidth = 0;
-        uint32_t contourTexelsHeight = 0;
-        size_t contourDataOffset = 0;
+        size_t pathCount = 0;
+        size_t firstPath = 0;
+        size_t contourCount = 0;
+        size_t firstContour = 0;
         size_t complexGradSpanCount = 0;
         size_t tessVertexSpanCount = 0;
         uint32_t simpleGradTexelsWidth = 0;
@@ -92,7 +92,6 @@ public:
         bool hasTriangleVertices = false;
         bool wireframe = false;
         const PLSRenderContext::PerFlushLinkedList<PLSRenderContext::Draw>* drawList = nullptr;
-        size_t pathCount = 0;
         pls::InterlockMode interlockMode = pls::InterlockMode::rasterOrdered;
         pls::ExperimentalAtomicModeData* experimentalAtomicModeData = nullptr;
 

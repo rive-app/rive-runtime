@@ -19,7 +19,7 @@ constexpr static GLenum kPLSDrawBuffers[4] = {GL_COLOR_ATTACHMENT0,
 class PLSRenderContextGLImpl::PLSImplFramebufferFetch : public PLSRenderContextGLImpl::PLSImpl
 {
 public:
-    PLSImplFramebufferFetch(const GLExtensions& extensions) : m_extensions(extensions) {}
+    PLSImplFramebufferFetch(const GLCapabilities& extensions) : m_capabilities(extensions) {}
 
     rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
                                               uint32_t width,
@@ -53,7 +53,7 @@ public:
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {
-        assert(impl->m_extensions.EXT_shader_framebuffer_fetch);
+        assert(impl->m_capabilities.EXT_shader_framebuffer_fetch);
 
         auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
@@ -100,7 +100,7 @@ public:
 
     void onEnableRasterOrdering(bool rasterOrderingEnabled) override
     {
-        if (!m_extensions.QCOM_shader_framebuffer_fetch_noncoherent)
+        if (!m_capabilities.QCOM_shader_framebuffer_fetch_noncoherent)
         {
             return;
         }
@@ -116,7 +116,7 @@ public:
 
     void onBarrier() override
     {
-        if (!m_extensions.QCOM_shader_framebuffer_fetch_noncoherent)
+        if (!m_capabilities.QCOM_shader_framebuffer_fetch_noncoherent)
         {
             return;
         }
@@ -124,11 +124,11 @@ public:
     }
 
 private:
-    const GLExtensions m_extensions;
+    const GLCapabilities m_capabilities;
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::
-    MakePLSImplFramebufferFetch(const GLExtensions& extensions)
+    MakePLSImplFramebufferFetch(const GLCapabilities& extensions)
 {
     return std::make_unique<PLSImplFramebufferFetch>(extensions);
 }

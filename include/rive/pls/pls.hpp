@@ -33,6 +33,7 @@ class RenderBuffer;
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit
 namespace rive::pls
 {
+class PLSRenderContextImpl;
 class PLSRenderTarget;
 class PLSTexture;
 
@@ -432,8 +433,9 @@ struct FlushUniforms
     float gradComplexOffsetY = 0;   // Normalized Y-offset to the first row of complex gradients.
     uint32_t pathIDGranularity = 0; // Spacing between adjacent path IDs (1 if IEEE compliant).
     float vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
+    uint8_t padTo256Bytes[256 - 32]; // Uniform blocks must be multiples of 256 bytes in size.
 };
-static_assert(sizeof(FlushUniforms) == 8 * sizeof(uint32_t));
+static_assert(sizeof(FlushUniforms) == 256);
 
 // Per-draw uniforms used by image meshes.
 struct ImageDrawUniforms
@@ -452,7 +454,7 @@ struct ImageDrawUniforms
     ClipRectInverseMatrix clipRectInverseMatrix;
     uint32_t clipID;
     uint32_t blendMode;
-    uint8_t padTo256Bytes[192]; // Uniform blocks must be multiples of 256 bytes in size.
+    uint8_t padTo256Bytes[256 - 64]; // Uniform blocks must be multiples of 256 bytes in size.
 };
 static_assert(offsetof(ImageDrawUniforms, matrix) % 16 == 0);
 static_assert(offsetof(ImageDrawUniforms, clipRectInverseMatrix) % 16 == 0);
@@ -464,15 +466,22 @@ template <typename T> class WriteOnlyMappedMemory
 {
 public:
     WriteOnlyMappedMemory() { reset(); }
-    WriteOnlyMappedMemory(void* ptr, size_t count) { reset(ptr, count); }
+    WriteOnlyMappedMemory(T* ptr, size_t elementCount) { reset(ptr, elementCount); }
 
     void reset() { reset(nullptr, 0); }
 
-    void reset(void* ptr, size_t count)
+    void reset(T* ptr, size_t elementCount)
     {
-        m_mappedMemory = reinterpret_cast<T*>(ptr);
-        m_nextMappedItem = m_mappedMemory;
-        m_mappingEnd = m_mappedMemory + count;
+        m_mappedMemory = ptr;
+        m_nextMappedItem = ptr;
+        m_mappingEnd = ptr + elementCount;
+    }
+
+    using MapResourceBufferFn = void* (PLSRenderContextImpl::*)(size_t mapSizeInBytes);
+    void mapElements(PLSRenderContextImpl* impl, MapResourceBufferFn mapFn, size_t elementCount)
+    {
+        void* ptr = (impl->*mapFn)(elementCount * sizeof(T));
+        reset(reinterpret_cast<T*>(ptr), elementCount);
     }
 
     operator bool() const { return m_mappedMemory; }

@@ -82,7 +82,7 @@ size_t DeepHashGradient::operator()(const GradientContentKey& key) const
 PLSRenderContext::PLSRenderContext(std::unique_ptr<PLSRenderContextImpl> impl) :
     m_impl(std::move(impl)), m_maxPathID(MaxPathID(m_impl->platformFeatures().pathIDGranularity))
 {
-    setResourceSizes(ResourceAllocationSizes(), /*forceRealloc =*/true);
+    setResourceSizes(ResourceAllocationCounts(), /*forceRealloc =*/true);
     resetContainers();
 }
 
@@ -109,8 +109,8 @@ rcp<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 void PLSRenderContext::resetGPUResources()
 {
     assert(!m_didBeginFrame);
-    setResourceSizes(ResourceAllocationSizes());
-    m_maxRecentResourceRequirements = ResourceAllocationSizes();
+    setResourceSizes(ResourceAllocationCounts());
+    m_maxRecentResourceRequirements = ResourceAllocationCounts();
     resetContainers();
 }
 
@@ -120,7 +120,7 @@ void PLSRenderContext::shrinkGPUResourcesToFit()
 
     // Shrink GPU resource allocations to 125% of their maximum recent usage, and only if the recent
     // usage is 2/3 or less of the current allocation.
-    ResourceAllocationSizes shrinks =
+    ResourceAllocationCounts shrinks =
         simd::if_then_else(m_maxRecentResourceRequirements.toVec() <=
                                m_currentResourceAllocations.toVec() * size_t(2) / size_t(3),
                            m_maxRecentResourceRequirements.toVec() * size_t(5) / size_t(4),
@@ -128,7 +128,7 @@ void PLSRenderContext::shrinkGPUResourcesToFit()
     setResourceSizes(shrinks);
 
     // Zero out m_maxRecentResourceRequirements for the next interval.
-    m_maxRecentResourceRequirements = ResourceAllocationSizes();
+    m_maxRecentResourceRequirements = ResourceAllocationCounts();
 
     resetContainers();
 }
@@ -322,18 +322,10 @@ void PLSRenderContext::flush(FlushType flushType)
     flushDesc.loadAction =
         m_isFirstFlushOfFrame ? m_frameDescriptor.loadAction : LoadAction::preserveRenderTarget;
     flushDesc.clearColor = m_frameDescriptor.clearColor;
-    flushDesc.pathTexelsWidth =
-        std::min<uint32_t>(m_currentFlushCounters.pathCount, pls::kPathTextureWidthInItems) *
-        pls::kPathTexelsPerItem;
-    flushDesc.pathTexelsHeight =
-        resource_texture_height<pls::kPathTextureWidthInItems>(m_currentFlushCounters.pathCount);
-    flushDesc.pathDataOffset = 0;
-    flushDesc.contourTexelsWidth =
-        std::min<uint32_t>(m_currentFlushCounters.contourCount, pls::kContourTextureWidthInItems) *
-        pls::kContourTexelsPerItem;
-    flushDesc.contourTexelsHeight = resource_texture_height<pls::kContourTextureWidthInItems>(
-        m_currentFlushCounters.contourCount);
-    flushDesc.contourDataOffset = 0;
+    flushDesc.pathCount = m_currentFlushCounters.pathCount;
+    flushDesc.firstPath = 0;
+    flushDesc.contourCount = m_currentFlushCounters.contourCount;
+    flushDesc.firstContour = 0;
     flushDesc.complexGradSpanCount = m_currentFlushCounters.complexGradientSpanCount;
     flushDesc.simpleGradTexelsWidth =
         std::min<uint32_t>(m_simpleGradients.size(), pls::kGradTextureWidthInSimpleRamps) * 2;
@@ -343,7 +335,6 @@ void PLSRenderContext::flush(FlushType flushType)
     flushDesc.complexGradRowsTop = flushDesc.simpleGradTexelsHeight;
     flushDesc.complexGradRowsHeight = m_complexGradients.size();
     flushDesc.wireframe = m_frameDescriptor.wireframe;
-    flushDesc.pathCount = m_currentFlushCounters.pathCount;
     flushDesc.interlockMode = m_frameDescriptor.enableExperimentalAtomicMode
                                   ? pls::InterlockMode::experimentalAtomics
                                   : pls::InterlockMode::rasterOrdered;
@@ -383,7 +374,7 @@ void PLSRenderContext::flush(FlushType flushType)
         resource_texture_height<kTessTextureWidth>(totalTessVertexCountWithPadding);
 
     // Determine the minimum required resource allocation sizes to service this flush.
-    ResourceAllocationSizes allocs;
+    ResourceAllocationCounts allocs;
     allocs.pathBufferCount = m_currentFlushCounters.pathCount;
     allocs.contourBufferCount = m_currentFlushCounters.contourCount;
     allocs.simpleGradientBufferCount = m_simpleGradients.size();
@@ -403,19 +394,8 @@ void PLSRenderContext::flush(FlushType flushType)
     }
     allocs.triangleVertexBufferCount = m_currentFlushCounters.maxTriangleVertexCount;
     allocs.imageDrawUniformBufferCount = m_currentFlushCounters.imageDrawCount;
-    allocs.pathTextureHeight = flushDesc.pathTexelsHeight;
-    allocs.contourTextureHeight = flushDesc.contourTexelsHeight;
     allocs.gradTextureHeight = flushDesc.simpleGradTexelsHeight + flushDesc.complexGradRowsHeight;
     allocs.tessTextureHeight = flushDesc.tessDataHeight;
-
-    // The texture-transfer buffers need to update the texture in entire rows at a time.
-    allocs.pathBufferCount =
-        math::round_up_to_multiple_of<pls::kPathTextureWidthInItems>(allocs.pathBufferCount);
-    allocs.contourBufferCount =
-        math::round_up_to_multiple_of<pls::kContourTextureWidthInItems>(allocs.contourBufferCount);
-    allocs.simpleGradientBufferCount =
-        math::round_up_to_multiple_of<pls::kGradTextureWidthInSimpleRamps>(
-            allocs.simpleGradientBufferCount);
 
     // Update m_maxRecentResourceRequirements before selecting the final resource sizes we will set.
     // This will prevent the next shrinkGPUResourcesToFit() from shrinking smaller than "allocs".
@@ -439,13 +419,13 @@ void PLSRenderContext::flush(FlushType flushType)
     if (!bits_equal(&m_currentFlushUniforms, &uniformData))
     {
         WriteOnlyMappedMemory<pls::FlushUniforms> flushUniformData;
-        m_impl->mapFlushUniformBuffer(&flushUniformData);
+        flushUniformData.mapElements(m_impl.get(), &PLSRenderContextImpl::mapFlushUniformBuffer, 1);
         flushUniformData.emplace_back(uniformData);
         m_impl->unmapFlushUniformBuffer();
         m_currentFlushUniforms = uniformData;
     }
 
-    mapResourceBuffers();
+    mapResourceBuffers(allocs);
 
     // Write out the simple gradient data.
     assert(m_simpleGradients.size() == m_pendingSimpleGradientWrites.size());
@@ -660,7 +640,7 @@ void PLSRenderContext::flush(FlushType flushType)
     ++m_flushCount;
 }
 
-void PLSRenderContext::setResourceSizes(ResourceAllocationSizes allocs, bool forceRealloc)
+void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool forceRealloc)
 {
 #if 0
     class Logger
@@ -716,14 +696,16 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationSizes allocs, bool for
     LOG_BUFFER_RING_SIZE(pathBufferCount, sizeof(pls::PathData));
     if (allocs.pathBufferCount != m_currentResourceAllocations.pathBufferCount || forceRealloc)
     {
-        m_impl->resizePathBuffer(allocs.pathBufferCount * sizeof(pls::PathData));
+        m_impl->resizePathBuffer(allocs.pathBufferCount * sizeof(pls::PathData),
+                                 sizeof(uint32_t) * 4); // pathBuffer is accessed as uint4s.
     }
 
     LOG_BUFFER_RING_SIZE(contourBufferCount, sizeof(pls::ContourData));
     if (allocs.contourBufferCount != m_currentResourceAllocations.contourBufferCount ||
         forceRealloc)
     {
-        m_impl->resizeContourBuffer(allocs.contourBufferCount * sizeof(pls::ContourData));
+        m_impl->resizeContourBuffer(allocs.contourBufferCount * sizeof(pls::ContourData),
+                                    sizeof(uint32_t) * 4); // contourBuffer is accessed as uint4s.
     }
 
     LOG_BUFFER_RING_SIZE(simpleGradientBufferCount, sizeof(pls::TwoTexelRamp));
@@ -769,23 +751,6 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationSizes allocs, bool for
                                            sizeof(pls::TriangleVertex));
     }
 
-    allocs.pathTextureHeight = std::min(allocs.pathTextureHeight, kMaxTextureHeight);
-    LOG_TEXTURE_HEIGHT(pathTextureHeight, pls::kPathTextureWidthInItems * sizeof(pls::PathData));
-    if (allocs.pathTextureHeight != m_currentResourceAllocations.pathTextureHeight || forceRealloc)
-    {
-        m_impl->resizePathTexture(pls::kPathTextureWidthInTexels, allocs.pathTextureHeight);
-    }
-
-    allocs.contourTextureHeight = std::min(allocs.contourTextureHeight, kMaxTextureHeight);
-    LOG_TEXTURE_HEIGHT(contourTextureHeight,
-                       pls::kContourTextureWidthInItems * sizeof(pls::ContourData));
-    if (allocs.contourTextureHeight != m_currentResourceAllocations.contourTextureHeight ||
-        forceRealloc)
-    {
-        m_impl->resizeContourTexture(pls::kContourTextureWidthInTexels,
-                                     allocs.contourTextureHeight);
-    }
-
     allocs.gradTextureHeight = std::min(allocs.gradTextureHeight, kMaxTextureHeight);
     LOG_TEXTURE_HEIGHT(gradTextureHeight, pls::kGradTextureWidth * 4);
     if (allocs.gradTextureHeight != m_currentResourceAllocations.gradTextureHeight || forceRealloc)
@@ -803,74 +768,100 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationSizes allocs, bool for
     m_currentResourceAllocations = allocs;
 }
 
-void PLSRenderContext::mapResourceBuffers()
+void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCounts)
 {
-    if (m_currentResourceAllocations.pathBufferCount > 0)
-        m_impl->mapPathBuffer(&m_pathData);
-    assert(m_pathData.hasRoomFor(m_currentResourceAllocations.pathBufferCount));
+    if (mapCounts.pathBufferCount > 0)
+    {
+        m_pathData.mapElements(m_impl.get(),
+                               &PLSRenderContextImpl::mapPathBuffer,
+                               mapCounts.pathBufferCount);
+    }
+    assert(m_pathData.hasRoomFor(mapCounts.pathBufferCount));
 
-    if (m_currentResourceAllocations.contourBufferCount > 0)
-        m_impl->mapContourBuffer(&m_contourData);
-    assert(m_contourData.hasRoomFor(m_currentResourceAllocations.contourBufferCount));
+    if (mapCounts.contourBufferCount > 0)
+    {
+        m_contourData.mapElements(m_impl.get(),
+                                  &PLSRenderContextImpl::mapContourBuffer,
+                                  mapCounts.contourBufferCount);
+    }
+    assert(m_contourData.hasRoomFor(mapCounts.contourBufferCount));
 
-    if (m_currentResourceAllocations.simpleGradientBufferCount > 0)
-        m_impl->mapSimpleColorRampsBuffer(&m_simpleColorRampsData);
-    assert(
-        m_simpleColorRampsData.hasRoomFor(m_currentResourceAllocations.simpleGradientBufferCount));
+    if (mapCounts.simpleGradientBufferCount > 0)
+    {
+        m_simpleColorRampsData.mapElements(m_impl.get(),
+                                           &PLSRenderContextImpl::mapSimpleColorRampsBuffer,
+                                           mapCounts.simpleGradientBufferCount);
+    }
+    assert(m_simpleColorRampsData.hasRoomFor(mapCounts.simpleGradientBufferCount));
 
-    if (m_currentResourceAllocations.complexGradSpanBufferCount > 0)
-        m_impl->mapGradSpanBuffer(&m_gradSpanData);
-    assert(m_gradSpanData.hasRoomFor(m_currentResourceAllocations.complexGradSpanBufferCount));
+    if (mapCounts.complexGradSpanBufferCount > 0)
+    {
+        m_gradSpanData.mapElements(m_impl.get(),
+                                   &PLSRenderContextImpl::mapGradSpanBuffer,
+                                   mapCounts.complexGradSpanBufferCount);
+    }
+    assert(m_gradSpanData.hasRoomFor(mapCounts.complexGradSpanBufferCount));
 
-    if (m_currentResourceAllocations.tessSpanBufferCount > 0)
-        m_impl->mapTessVertexSpanBuffer(&m_tessSpanData);
-    assert(m_tessSpanData.hasRoomFor(m_currentResourceAllocations.tessSpanBufferCount));
+    if (mapCounts.tessSpanBufferCount > 0)
+    {
+        m_tessSpanData.mapElements(m_impl.get(),
+                                   &PLSRenderContextImpl::mapTessVertexSpanBuffer,
+                                   mapCounts.tessSpanBufferCount);
+    }
+    assert(m_tessSpanData.hasRoomFor(mapCounts.tessSpanBufferCount));
 
-    if (m_currentResourceAllocations.imageDrawUniformBufferCount > 0)
-        m_impl->mapImageDrawUniformBuffer(&m_imageDrawUniformData);
-    assert(m_imageDrawUniformData.hasRoomFor(
-        m_currentResourceAllocations.imageDrawUniformBufferCount > 0));
+    if (mapCounts.imageDrawUniformBufferCount > 0)
+    {
+        m_imageDrawUniformData.mapElements(m_impl.get(),
+                                           &PLSRenderContextImpl::mapImageDrawUniformBuffer,
+                                           mapCounts.imageDrawUniformBufferCount);
+    }
+    assert(m_imageDrawUniformData.hasRoomFor(mapCounts.imageDrawUniformBufferCount > 0));
 
-    if (m_currentResourceAllocations.triangleVertexBufferCount > 0)
-        m_impl->mapTriangleVertexBuffer(&m_triangleVertexData);
-    assert(m_triangleVertexData.hasRoomFor(m_currentResourceAllocations.triangleVertexBufferCount));
+    if (mapCounts.triangleVertexBufferCount > 0)
+    {
+        m_triangleVertexData.mapElements(m_impl.get(),
+                                         &PLSRenderContextImpl::mapTriangleVertexBuffer,
+                                         mapCounts.triangleVertexBufferCount);
+    }
+    assert(m_triangleVertexData.hasRoomFor(mapCounts.triangleVertexBufferCount));
 }
 
 void PLSRenderContext::unmapResourceBuffers()
 {
     if (m_pathData)
     {
-        m_impl->unmapPathBuffer(m_pathData.bytesWritten());
+        m_impl->unmapPathBuffer();
         m_pathData.reset();
     }
     if (m_contourData)
     {
-        m_impl->unmapContourBuffer(m_contourData.bytesWritten());
+        m_impl->unmapContourBuffer();
         m_contourData.reset();
     }
     if (m_simpleColorRampsData)
     {
-        m_impl->unmapSimpleColorRampsBuffer(m_simpleColorRampsData.bytesWritten());
+        m_impl->unmapSimpleColorRampsBuffer();
         m_simpleColorRampsData.reset();
     }
     if (m_gradSpanData)
     {
-        m_impl->unmapGradSpanBuffer(m_gradSpanData.bytesWritten());
+        m_impl->unmapGradSpanBuffer();
         m_gradSpanData.reset();
     }
     if (m_tessSpanData)
     {
-        m_impl->unmapTessVertexSpanBuffer(m_tessSpanData.bytesWritten());
+        m_impl->unmapTessVertexSpanBuffer();
         m_tessSpanData.reset();
     }
     if (m_triangleVertexData)
     {
-        m_impl->unmapTriangleVertexBuffer(m_triangleVertexData.bytesWritten());
+        m_impl->unmapTriangleVertexBuffer();
         m_triangleVertexData.reset();
     }
     if (m_imageDrawUniformData)
     {
-        m_impl->unmapImageDrawUniformBuffer(m_imageDrawUniformData.bytesWritten());
+        m_impl->unmapImageDrawUniformBuffer();
         m_imageDrawUniformData.reset();
     }
 }

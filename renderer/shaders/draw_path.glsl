@@ -13,7 +13,7 @@ ATTR(1, float4, @a_mirroredVertexData);
 ATTR_BLOCK_END
 #endif
 
-VARYING_BLOCK_BEGIN(Varyings)
+VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_paint);
 #ifdef @DRAW_INTERIOR_TRIANGLES
 @OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
@@ -30,27 +30,10 @@ NO_PERSPECTIVE VARYING(2, half2, v_edgeDistance);
 #ifdef @ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(6, float4, v_clipRect);
 #endif
-VARYING_BLOCK_END(_pos)
+VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
-TEXTURE_RGBA32UI(TESS_VERTEX_TEXTURE_IDX, @tessVertexTexture);
-TEXTURE_RGBA32UI(PATH_TEXTURE_IDX, @pathTexture);
-TEXTURE_RGBA32UI(CONTOUR_TEXTURE_IDX, @contourTexture);
-VERTEX_TEXTURE_BLOCK_END
-
-VERTEX_MAIN(@drawVertexMain,
-            @Uniforms,
-            uniforms,
-            Attrs,
-            attrs,
-            Varyings,
-            varyings,
-            VertexTextures,
-            textures,
-            _vertexID,
-            _instanceID,
-            _pos)
+VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
 {
 #ifdef @DRAW_INTERIOR_TRIANGLES
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
@@ -59,26 +42,25 @@ VERTEX_MAIN(@drawVertexMain,
     ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
 #endif
 
-    VARYING_INIT(varyings, v_paint, float4);
+    VARYING_INIT(v_paint, float4);
 #ifdef @DRAW_INTERIOR_TRIANGLES
-    VARYING_INIT(varyings, v_windingWeight, half);
+    VARYING_INIT(v_windingWeight, half);
 #else
-    VARYING_INIT(varyings, v_edgeDistance, half2);
+    VARYING_INIT(v_edgeDistance, half2);
 #endif
-    VARYING_INIT(varyings, v_pathID, half);
+    VARYING_INIT(v_pathID, half);
 #ifdef @ENABLE_CLIPPING
-    VARYING_INIT(varyings, v_clipID, half);
+    VARYING_INIT(v_clipID, half);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_INIT(varyings, v_blendMode, half);
+    VARYING_INIT(v_blendMode, half);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-    VARYING_INIT(varyings, v_clipRect, float4);
+    VARYING_INIT(v_clipRect, float4);
 #endif
 
     bool shouldDiscardVertex = false;
     ushort pathIDBits;
-    int2 pathTexelCoord;
     float2x2 M;
     float2 translate;
     uint pathParams;
@@ -86,28 +68,28 @@ VERTEX_MAIN(@drawVertexMain,
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
-                                                     TEXTURE_DEREF(textures, @pathTexture),
+#ifdef METAL
+                                                     _buffers,
+#endif
                                                      pathIDBits,
-                                                     pathTexelCoord,
                                                      M,
                                                      translate,
                                                      pathParams,
                                                      v_windingWeight);
 #else
-    shouldDiscardVertex =
-        !unpack_tessellated_path_vertex(@a_patchVertexData,
-                                        @a_mirroredVertexData,
-                                        _instanceID,
-                                        TEXTURE_DEREF(textures, @tessVertexTexture),
-                                        TEXTURE_DEREF(textures, @pathTexture),
-                                        TEXTURE_DEREF(textures, @contourTexture),
-                                        pathIDBits,
-                                        pathTexelCoord,
-                                        M,
-                                        translate,
-                                        pathParams,
-                                        v_edgeDistance,
-                                        vertexPosition);
+    shouldDiscardVertex = !unpack_tessellated_path_vertex(@a_patchVertexData,
+                                                          @a_mirroredVertexData,
+                                                          _instanceID,
+#ifdef METAL
+                                                          _textures,
+                                                          _buffers,
+#endif
+                                                          pathIDBits,
+                                                          M,
+                                                          translate,
+                                                          pathParams,
+                                                          v_edgeDistance,
+                                                          vertexPosition);
 #endif
 
     // Encode the integral pathID as a "half" that we know the hardware will see as a unique value
@@ -130,20 +112,21 @@ VERTEX_MAIN(@drawVertexMain,
     v_blendMode = float(pathParams & 0xfu);
 #endif
 
+    uint pathDataIdx = path_data_idx(pathIDBits);
 #ifdef @ENABLE_CLIP_RECT
     // clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
     // normalized rectangle: [-1, -1, 1, 1].
-    float2x2 clipRectInverseMatrix = make_float2x2(
-        uintBitsToFloat(TEXEL_DEREF_FETCH(textures, @pathTexture, pathTexelCoord + int2(3, 0))));
+    float2x2 clipRectInverseMatrix =
+        make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 3u)));
     float2 clipRectInverseTranslate =
-        uintBitsToFloat(TEXEL_DEREF_FETCH(textures, @pathTexture, pathTexelCoord + int2(4, 0)).xy);
+        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 4u)).xy;
     v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
                                                    clipRectInverseTranslate,
                                                    vertexPosition);
 #endif
 
     // Unpack the paint once we have a position.
-    uint4 paintData = TEXEL_DEREF_FETCH(textures, @pathTexture, pathTexelCoord + int2(2, 0));
+    uint4 paintData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 2u);
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
         float4 color = uintBitsToFloat(paintData);
@@ -208,40 +191,41 @@ VERTEX_MAIN(@drawVertexMain,
         }
     }
 
+    float4 pos;
     if (!shouldDiscardVertex)
     {
-        _pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+        pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
     }
     else
     {
-        _pos = float4(uniforms.vertexDiscardValue,
-                      uniforms.vertexDiscardValue,
-                      uniforms.vertexDiscardValue,
-                      uniforms.vertexDiscardValue);
+        pos = float4(uniforms.vertexDiscardValue,
+                     uniforms.vertexDiscardValue,
+                     uniforms.vertexDiscardValue,
+                     uniforms.vertexDiscardValue);
     }
 
-    VARYING_PACK(varyings, v_paint);
+    VARYING_PACK(v_paint);
 #ifdef @DRAW_INTERIOR_TRIANGLES
-    VARYING_PACK(varyings, v_windingWeight);
+    VARYING_PACK(v_windingWeight);
 #else
-    VARYING_PACK(varyings, v_edgeDistance);
+    VARYING_PACK(v_edgeDistance);
 #endif
-    VARYING_PACK(varyings, v_pathID);
+    VARYING_PACK(v_pathID);
 #ifdef @ENABLE_CLIPPING
-    VARYING_PACK(varyings, v_clipID);
+    VARYING_PACK(v_clipID);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_PACK(varyings, v_blendMode);
+    VARYING_PACK(v_blendMode);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-    VARYING_PACK(varyings, v_clipRect);
+    VARYING_PACK(v_clipRect);
 #endif
-    EMIT_VERTEX(varyings, _pos);
+    EMIT_VERTEX(pos);
 }
 #endif
 
 #ifdef @FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN(FragmentTextures)
+FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(GRAD_TEXTURE_IDX, @gradTexture);
 TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
 FRAG_TEXTURE_BLOCK_END
@@ -256,23 +240,23 @@ PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
 
-PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)
+PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
 {
-    VARYING_UNPACK(varyings, v_paint, float4);
+    VARYING_UNPACK(v_paint, float4);
 #ifdef @DRAW_INTERIOR_TRIANGLES
-    VARYING_UNPACK(varyings, v_windingWeight, half);
+    VARYING_UNPACK(v_windingWeight, half);
 #else
-    VARYING_UNPACK(varyings, v_edgeDistance, half2);
+    VARYING_UNPACK(v_edgeDistance, half2);
 #endif
-    VARYING_UNPACK(varyings, v_pathID, half);
+    VARYING_UNPACK(v_pathID, half);
 #ifdef @ENABLE_CLIPPING
-    VARYING_UNPACK(varyings, v_clipID, half);
+    VARYING_UNPACK(v_clipID, half);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_UNPACK(varyings, v_blendMode, half);
+    VARYING_UNPACK(v_blendMode, half);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-    VARYING_UNPACK(varyings, v_clipRect, float4);
+    VARYING_UNPACK(v_clipRect, float4);
 #endif
 
 #ifdef @TARGET_VULKAN
@@ -393,23 +377,20 @@ PLS_MAIN(@drawFragmentMain, Varyings, varyings, FragmentTextures, textures, _pos
             float row = -v_paint.a;
             // Our gradient texture is not mipmapped. Issue a texture-sample that explicitly does
             // not find derivatives for LOD computation (by specifying derivatives directly).
-            color = make_half4(TEXTURE_SAMPLE_LOD(TEXTURE_DEREF(textures, @gradTexture),
-                                                  gradSampler,
-                                                  float2(x, row),
-                                                  .0));
+            color = make_half4(TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, row), .0));
         }
         else // The paint is an image.
         {
 #ifdef @TARGET_VULKAN
             // Vulkan validators require explicit derivatives when sampling a texture in
             // "non-uniform" control flow. See above.
-            color = TEXTURE_SAMPLE_GRAD(TEXTURE_DEREF(textures, @imageTexture),
+            color = TEXTURE_SAMPLE_GRAD(@imageTexture,
                                         imageSampler,
                                         v_paint.rg,
                                         imagePaintDDX,
                                         imagePaintDDY);
 #else
-            color = TEXTURE_DEREF_SAMPLE(textures, @imageTexture, imageSampler, v_paint.rg);
+            color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_paint.rg);
 #endif
             color.a *= v_paint.b; // paint.b holds the opacity of the image.
         }

@@ -81,11 +81,22 @@ int gladLoadCustomLoader(GLADloadproc load) {
 
     const char* version = (const char*)glGetString(GL_VERSION);
     GLAD_GL_version_es = strstr(version, "OpenGL ES") != NULL;
+    if (GLAD_GL_version_es)
+    {
 #ifdef _MSC_VER
-    sscanf_s(version, "%d.%d", &GLAD_GL_version_major, &GLAD_GL_version_minor);
+        sscanf_s(version, "OpenGL ES %d.%d", &GLAD_GL_version_major, &GLAD_GL_version_minor);
 #else
-    sscanf(version, "%d.%d", &GLAD_GL_version_major, &GLAD_GL_version_minor);
+        sscanf(version, "OpenGL ES %d.%d", &GLAD_GL_version_major, &GLAD_GL_version_minor);
 #endif
+    }
+    else
+    {
+#ifdef _MSC_VER
+        sscanf_s(version, "%d.%d", &GLAD_GL_version_major, &GLAD_GL_version_minor);
+#else
+        sscanf(version, "%d.%d", &GLAD_GL_version_major, &GLAD_GL_version_minor);
+#endif
+    }
 
     GLint extensionCount;
     glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);

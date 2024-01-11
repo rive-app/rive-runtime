@@ -353,21 +353,19 @@ public:
     {
         wgpu::BindGroupLayoutEntry bindingLayouts[] = {
             {
-                .binding = PATH_TEXTURE_IDX,
+                .binding = PATH_STORAGE_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
-                .texture =
+                .buffer =
                     {
-                        .sampleType = wgpu::TextureSampleType::Uint,
-                        .viewDimension = wgpu::TextureViewDimension::e2D,
+                        .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     },
             },
             {
-                .binding = CONTOUR_TEXTURE_IDX,
+                .binding = CONTOUR_STORAGE_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
-                .texture =
+                .buffer =
                     {
-                        .sampleType = wgpu::TextureSampleType::Uint,
-                        .viewDimension = wgpu::TextureViewDimension::e2D,
+                        .type = wgpu::BufferBindingType::ReadOnlyStorage,
                     },
             },
             {
@@ -719,21 +717,19 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
                 },
         },
         {
-            .binding = PATH_TEXTURE_IDX,
+            .binding = PATH_STORAGE_BUFFER_IDX,
             .visibility = wgpu::ShaderStage::Vertex,
-            .texture =
+            .buffer =
                 {
-                    .sampleType = wgpu::TextureSampleType::Uint,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
                 },
         },
         {
-            .binding = CONTOUR_TEXTURE_IDX,
+            .binding = CONTOUR_STORAGE_BUFFER_IDX,
             .visibility = wgpu::ShaderStage::Vertex,
-            .texture =
+            .buffer =
                 {
-                    .sampleType = wgpu::TextureSampleType::Uint,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
                 },
         },
         {
@@ -878,7 +874,7 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
             m_loadStoreEXTVertexShaderHandle.compileShaderModule(m_device,
                                                                  glsl.str().c_str(),
                                                                  "glsl-raw");
-        m_loadStoreEXTUniforms = makeUniformBufferRing(1, sizeof(std::array<float, 4>));
+        m_loadStoreEXTUniforms = makeUniformBufferRing(sizeof(float) * 4);
     }
 
     wgpu::BufferDescriptor tessSpanIndexBufferDesc = {
@@ -1103,19 +1099,27 @@ rcp<PLSTexture> PLSRenderContextWebGPUImpl::makeImageTexture(uint32_t width,
                                           imageDataRGBA);
 }
 
-class BufferWebGPU : public BufferRingShadowImpl
+class BufferWebGPU : public BufferRing
 {
 public:
+    static std::unique_ptr<BufferWebGPU> Make(wgpu::Device device,
+                                              wgpu::Queue queue,
+                                              size_t capacityInBytes,
+                                              wgpu::BufferUsage usage)
+    {
+        capacityInBytes = std::max<size_t>(capacityInBytes, 1);
+        return std::make_unique<BufferWebGPU>(device, queue, capacityInBytes, usage);
+    }
+
     BufferWebGPU(wgpu::Device device,
                  wgpu::Queue queue,
-                 size_t capacity,
-                 size_t itemSizeInBytes,
+                 size_t capacityInBytes,
                  wgpu::BufferUsage usage) :
-        BufferRingShadowImpl(capacity, itemSizeInBytes), m_queue(queue)
+        BufferRing(capacityInBytes), m_queue(queue)
     {
         wgpu::BufferDescriptor desc = {
             .usage = wgpu::BufferUsage::CopyDst | usage,
-            .size = capacity * itemSizeInBytes,
+            .size = capacityInBytes,
         };
         for (int i = 0; i < pls::kBufferRingSize; ++i)
         {
@@ -1126,9 +1130,11 @@ public:
     wgpu::Buffer submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
 
 protected:
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override
+    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override { return shadowBuffer(); }
+
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
-        write_buffer(m_queue, m_buffers[bufferIdx], shadowBuffer(), bytesWritten);
+        write_buffer(m_queue, m_buffers[bufferIdx], shadowBuffer(), mapSizeInBytes);
     }
 
 private:
@@ -1136,69 +1142,31 @@ private:
     wgpu::Buffer m_buffers[kBufferRingSize];
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeVertexBufferRing(size_t capacity,
-                                                                             size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeVertexBufferRing(size_t capacityInBytes)
 {
-    capacity = std::max<size_t>(capacity, 1);
-    return std::make_unique<BufferWebGPU>(m_device,
-                                          m_queue,
-                                          capacity,
-                                          itemSizeInBytes,
-                                          wgpu::BufferUsage::Vertex);
+    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Vertex);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makePixelUnpackBufferRing(
-    size_t capacity,
-    size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeStorageBufferRing(
+    size_t capacityInBytes,
+    size_t elementSizeInBytes)
 {
-    capacity = std::max<size_t>(capacity, 1);
-    return std::make_unique<BufferWebGPU>(m_device,
-                                          m_queue,
-                                          capacity,
-                                          itemSizeInBytes,
-                                          wgpu::BufferUsage::CopySrc);
+    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Storage);
+}
+
+std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeTextureTransferBufferRing(
+    size_t capacityInBytes)
+{
+    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::CopySrc);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeUniformBufferRing(
-    size_t capacity,
-    size_t itemSizeInBytes)
+    size_t capacityInBytes)
 {
-    capacity = std::max<size_t>(capacity, 1);
-    return std::make_unique<BufferWebGPU>(m_device,
-                                          m_queue,
-                                          capacity,
-                                          itemSizeInBytes,
-                                          wgpu::BufferUsage::Uniform);
-}
-
-void PLSRenderContextWebGPUImpl::resizePathTexture(uint32_t width, uint32_t height)
-{
-    width = std::max(width, 1u);
-    height = std::max(height, 1u);
-
-    wgpu::TextureDescriptor desc{
-        .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
-        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-        .format = wgpu::TextureFormat::RGBA32Uint,
-    };
-
-    m_pathTexture = m_device.CreateTexture(&desc);
-    m_pathTextureView = m_pathTexture.CreateView();
-}
-
-void PLSRenderContextWebGPUImpl::resizeContourTexture(uint32_t width, uint32_t height)
-{
-    width = std::max(width, 1u);
-    height = std::max(height, 1u);
-
-    wgpu::TextureDescriptor desc{
-        .usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
-        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-        .format = wgpu::TextureFormat::RGBA32Uint,
-    };
-
-    m_contourTexture = m_device.CreateTexture(&desc);
-    m_contourTextureView = m_contourTexture.CreateView();
+    // Uniform blocks must be multiples of 256 bytes in size.
+    capacityInBytes = std::max<size_t>(capacityInBytes, 256);
+    assert(capacityInBytes % 256 == 0);
+    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Uniform);
 }
 
 void PLSRenderContextWebGPUImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -1412,6 +1380,7 @@ wgpu::RenderPassEncoder PLSRenderContextWebGPUImpl::makePLSRenderPass(
 
 static wgpu::Buffer webgpu_buffer(const BufferRing* bufferRing)
 {
+    assert(bufferRing != nullptr);
     return static_cast<const BufferWebGPU*>(bufferRing)->submittedBuffer();
 }
 
@@ -1464,50 +1433,6 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         gradPass.End();
     }
 
-    // Copy the path data to the texture.
-    if (desc.pathTexelsHeight > 0)
-    {
-        wgpu::ImageCopyBuffer srcBuffer = {
-            .layout =
-                {
-                    .offset = desc.pathDataOffset,
-                    .bytesPerRow = pls::kPathTextureWidthInItems * sizeof(pls::PathData),
-                },
-            .buffer = webgpu_buffer(pathBufferRing()),
-        };
-        wgpu::ImageCopyTexture dstTexture = {
-            .texture = m_pathTexture,
-            .origin = {0, 0, 0},
-        };
-        wgpu::Extent3D copySize = {
-            .width = desc.pathTexelsWidth,
-            .height = desc.pathTexelsHeight,
-        };
-        encoder.CopyBufferToTexture(&srcBuffer, &dstTexture, &copySize);
-    }
-
-    // Copy the contour data to the texture.
-    if (desc.contourTexelsHeight > 0)
-    {
-        wgpu::ImageCopyBuffer srcBuffer = {
-            .layout =
-                {
-                    .offset = desc.contourDataOffset,
-                    .bytesPerRow = pls::kContourTextureWidthInItems * sizeof(pls::ContourData),
-                },
-            .buffer = webgpu_buffer(contourBufferRing()),
-        };
-        wgpu::ImageCopyTexture dstTexture = {
-            .texture = m_contourTexture,
-            .origin = {0, 0, 0},
-        };
-        wgpu::Extent3D copySize = {
-            .width = desc.contourTexelsWidth,
-            .height = desc.contourTexelsHeight,
-        };
-        encoder.CopyBufferToTexture(&srcBuffer, &dstTexture, &copySize);
-    }
-
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
@@ -1535,12 +1460,12 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     {
         wgpu::BindGroupEntry bindingEntries[] = {
             {
-                .binding = PATH_TEXTURE_IDX,
-                .textureView = m_pathTextureView,
+                .binding = PATH_STORAGE_BUFFER_IDX,
+                .buffer = webgpu_buffer(pathBufferRing()),
             },
             {
-                .binding = CONTOUR_TEXTURE_IDX,
-                .textureView = m_contourTextureView,
+                .binding = CONTOUR_STORAGE_BUFFER_IDX,
+                .buffer = webgpu_buffer(contourBufferRing()),
             },
             {
                 .binding = FLUSH_UNIFORM_BUFFER_IDX,
@@ -1648,9 +1573,9 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
         if (loadActions & LoadStoreActionsEXT::clearColor)
         {
-            void* uniformData = m_loadStoreEXTUniforms->mapBuffer();
+            void* uniformData = m_loadStoreEXTUniforms->mapBuffer(sizeof(clearColor));
             memcpy(uniformData, clearColor.data(), sizeof(clearColor));
-            m_loadStoreEXTUniforms->unmapAndSubmitBuffer(sizeof(clearColor));
+            m_loadStoreEXTUniforms->unmapAndSubmitBuffer();
 
             wgpu::BindGroupEntry uniformBindingEntries[] = {
                 {
@@ -1704,20 +1629,20 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                     .textureView = m_tessVertexTextureView,
                 },
                 {
-                    .binding = PATH_TEXTURE_IDX,
-                    .textureView = m_pathTextureView,
-                },
-                {
-                    .binding = CONTOUR_TEXTURE_IDX,
-                    .textureView = m_contourTextureView,
-                },
-                {
                     .binding = GRAD_TEXTURE_IDX,
                     .textureView = m_gradientTextureView,
                 },
                 {
                     .binding = IMAGE_TEXTURE_IDX,
                     .textureView = currentImageTextureView,
+                },
+                {
+                    .binding = PATH_STORAGE_BUFFER_IDX,
+                    .buffer = webgpu_buffer(pathBufferRing()),
+                },
+                {
+                    .binding = CONTOUR_STORAGE_BUFFER_IDX,
+                    .buffer = webgpu_buffer(contourBufferRing()),
                 },
                 {
                     .binding = FLUSH_UNIFORM_BUFFER_IDX,

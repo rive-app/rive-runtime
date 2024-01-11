@@ -65,8 +65,8 @@
     }                                                                                              \
     ;
 
-#define ATTR_BLOCK_BEGIN(N)                                                                        \
-    struct N                                                                                       \
+#define ATTR_BLOCK_BEGIN(NAME)                                                                     \
+    struct NAME                                                                                    \
     {
 #define ATTR(IDX, TYPE, NAME) TYPE NAME
 #define ATTR_BLOCK_END                                                                             \
@@ -74,8 +74,8 @@
     ;
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE) TYPE NAME = attrs[ID].NAME
 
-#define VARYING_BLOCK_BEGIN(N)                                                                     \
-    struct N                                                                                       \
+#define VARYING_BLOCK_BEGIN                                                                        \
+    struct Varyings                                                                                \
     {
 #define VARYING(IDX, TYPE, NAME) TYPE NAME
 #define FLAT [[flat]]
@@ -84,24 +84,36 @@
 // barycentric values also == "x". Using default (perspective-correct) interpolation is also faster
 // than flat on M1.
 #define @OPTIONALLY_FLAT
-#define VARYING_BLOCK_END(_pos)                                                                    \
+#define VARYING_BLOCK_END                                                                          \
     float4 _pos [[$position]] [[$invariant]];                                                      \
     }                                                                                              \
     ;
 
-#define VARYING_INIT(varyings, NAME, TYPE) $thread TYPE& NAME = varyings.NAME
-#define VARYING_PACK(varyings, NAME)
-#define VARYING_UNPACK(varyings, NAME, TYPE) TYPE NAME = varyings.NAME
+#define VARYING_INIT(NAME, TYPE) $thread TYPE& NAME = _varyings.NAME
+#define VARYING_PACK(NAME)
+#define VARYING_UNPACK(NAME, TYPE) TYPE NAME = _varyings.NAME
 
-#define VERTEX_TEXTURE_BLOCK_BEGIN(N)                                                              \
-    struct N                                                                                       \
+#define STORAGE_BUFFER_BLOCK_BEGIN                                                                 \
+    struct StorageBuffers                                                                          \
+    {
+#define STORAGE_BUFFER_BLOCK_END                                                                   \
+    }                                                                                              \
+    ;
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) $constant uint2* NAME [[$buffer(IDX)]]
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) $constant uint4* NAME [[$buffer(IDX)]]
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) $constant float4* NAME [[$buffer(IDX)]]
+#define STORAGE_BUFFER_LOAD4(NAME, I) _buffers.NAME[I]
+#define STORAGE_BUFFER_LOAD2(NAME, I) _buffers.NAME[I]
+
+#define VERTEX_TEXTURE_BLOCK_BEGIN                                                                 \
+    struct VertexTextures                                                                          \
     {
 #define VERTEX_TEXTURE_BLOCK_END                                                                   \
     }                                                                                              \
     ;
 
-#define FRAG_TEXTURE_BLOCK_BEGIN(N)                                                                \
-    struct N                                                                                       \
+#define FRAG_TEXTURE_BLOCK_BEGIN                                                                   \
+    struct FragmentTextures                                                                        \
     {
 #define FRAG_TEXTURE_BLOCK_END                                                                     \
     }                                                                                              \
@@ -116,15 +128,12 @@
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$linear);
 
-#define TEXEL_FETCH(TEXTURE, COORD) TEXTURE.$read(uint2(COORD))
-#define TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD) TEXTURE.$sample(SAMPLER_NAME, COORD)
+#define TEXEL_FETCH(TEXTURE, COORD) _textures.TEXTURE.$read(uint2(COORD))
+#define TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD) _textures.TEXTURE.$sample(SAMPLER_NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)                                      \
-    TEXTURE.$sample(SAMPLER_NAME, COORD, $level(LOD))
+    _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $level(LOD))
 #define TEXTURE_SAMPLE_GRAD(TEXTURE, SAMPLER_NAME, COORD, DDX, DDY)                                \
-    TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
-
-#define TEX32UIREF $const $thread $texture2d<uint>&
-#define TEXTURE_DEREF(TEXTURE_BLOCK, NAME) TEXTURE_BLOCK.NAME
+    _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
 
 #define PLS_BLOCK_BEGIN                                                                            \
     struct PLS                                                                                     \
@@ -143,27 +152,16 @@
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
-#define VERTEX_MAIN(NAME,                                                                          \
-                    Uniforms,                                                                      \
-                    uniforms,                                                                      \
-                    Attrs,                                                                         \
-                    attrs,                                                                         \
-                    Varyings,                                                                      \
-                    varyings,                                                                      \
-                    VertexTextures,                                                                \
-                    textures,                                                                      \
-                    _vertexID,                                                                     \
-                    _instanceID,                                                                   \
-                    _pos)                                                                          \
+#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
         uint _instanceID [[$instance_id]],                                                         \
         $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
         $constant Attrs* attrs [[$buffer(0)]],                                                     \
-        VertexTextures textures)                                                                   \
+        StorageBuffers _buffers,                                                                   \
+        VertexTextures _textures)                                                                  \
     {                                                                                              \
-        Varyings varyings;                                                                         \
-        float4 _pos;
+        Varyings _varyings;
 
 #define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
                                Uniforms,                                                           \
@@ -174,10 +172,7 @@
                                position,                                                           \
                                UVAttr,                                                             \
                                uv,                                                                 \
-                               Varyings,                                                           \
-                               varyings,                                                           \
-                               _vertexID,                                                          \
-                               _pos)                                                               \
+                               _vertexID)                                                          \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
         $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
@@ -185,16 +180,15 @@
         $constant PositionAttr* position [[$buffer(0)]],                                           \
         $constant UVAttr* uv [[$buffer(1)]])                                                       \
     {                                                                                              \
-        Varyings varyings;                                                                         \
-        float4 _pos;
+        Varyings _varyings;
 
-#define EMIT_VERTEX(varyings, _pos)                                                                \
+#define EMIT_VERTEX(POSITION)                                                                      \
+    _varyings._pos = POSITION;                                                                     \
     }                                                                                              \
-    varyings._pos = _pos;                                                                          \
-    return varyings;
+    return _varyings;
 
-#define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
-    DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(Varyings varyings            \
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                                            \
+    DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(Varyings _varyings           \
                                                                       [[$stage_in]])               \
     {
 
@@ -202,27 +196,19 @@
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
+#define PLS_MAIN(NAME, _pos, _plsCoord)                                                            \
     $__attribute__(($visibility("default"))) PLS $fragment NAME(PLS _inpls,                        \
-                                                                Varyings varyings [[$stage_in]],   \
-                                                                FragmentTextures textures)         \
+                                                                Varyings _varyings [[$stage_in]],  \
+                                                                FragmentTextures _textures)        \
     {                                                                                              \
         PLS _pls;
 
-#define IMAGE_DRAW_PLS_MAIN(NAME,                                                                  \
-                            MeshUniforms,                                                          \
-                            meshUniforms,                                                          \
-                            Varyings,                                                              \
-                            varyings,                                                              \
-                            FragmentTextures,                                                      \
-                            textures,                                                              \
-                            _pos,                                                                  \
-                            _plsCoord)                                                             \
+#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)                     \
     $__attribute__(($visibility("default"))) PLS $fragment NAME(                                   \
         PLS _inpls,                                                                                \
         $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],           \
-        Varyings varyings [[$stage_in]],                                                           \
-        FragmentTextures textures)                                                                 \
+        Varyings _varyings [[$stage_in]],                                                          \
+        FragmentTextures _textures)                                                                \
     {                                                                                              \
         PLS _pls;
 

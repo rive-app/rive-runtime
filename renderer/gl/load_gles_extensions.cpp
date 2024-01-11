@@ -12,9 +12,9 @@ PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
 glDrawElementsInstancedBaseVertexBaseInstanceEXT = nullptr;
 PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM = nullptr;
 
-void loadGLESExtensions(const GLExtensions& extensions)
+void loadGLESExtensions(const GLCapabilities& extensions)
 {
-    static GLExtensions loadedExtensions{};
+    static GLCapabilities loadedExtensions{};
     if (extensions.EXT_base_instance && !loadedExtensions.EXT_base_instance)
     {
         glDrawArraysInstancedBaseInstanceEXT =

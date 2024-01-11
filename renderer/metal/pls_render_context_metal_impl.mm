@@ -192,12 +192,17 @@ static bool is_apple_ios_silicon(id<MTLDevice> gpu)
 class BufferRingMetalImpl : public BufferRing
 {
 public:
-    BufferRingMetalImpl(id<MTLDevice> gpu, size_t capacity, size_t itemSizeInBytes) :
-        BufferRing(capacity, itemSizeInBytes)
+    static std::unique_ptr<BufferRingMetalImpl> Make(id<MTLDevice> gpu, size_t capacityInBytes)
+    {
+        return capacityInBytes != 0 ? std::make_unique<BufferRingMetalImpl>(gpu, capacityInBytes)
+                                    : nullptr;
+    }
+
+    BufferRingMetalImpl(id<MTLDevice> gpu, size_t capacityInBytes) : BufferRing(capacityInBytes)
     {
         for (int i = 0; i < kBufferRingSize; ++i)
         {
-            m_buffers[i] = [gpu newBufferWithLength:capacity * itemSizeInBytes
+            m_buffers[i] = [gpu newBufferWithLength:capacityInBytes
                                             options:MTLResourceStorageModeShared];
         }
     }
@@ -205,8 +210,12 @@ public:
     id<MTLBuffer> submittedBuffer() const { return m_buffers[submittedBufferIdx()]; }
 
 protected:
-    void* onMapBuffer(int bufferIdx) override { return m_buffers[bufferIdx].contents; }
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) override {}
+    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    {
+        return m_buffers[bufferIdx].contents;
+    }
+
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override {}
 
 private:
     id<MTLBuffer> m_buffers[kBufferRingSize];
@@ -451,61 +460,26 @@ rcp<PLSTexture> PLSRenderContextMetalImpl::makeImageTexture(uint32_t width,
     return make_rcp<PLSTextureMetalImpl>(m_gpu, width, height, mipLevelCount, imageDataRGBA);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size_t capacity,
-                                                                            size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size_t capacityInBytes)
 {
-    return capacity != 0 ? std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes)
-                         : nullptr;
+    return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makePixelUnpackBufferRing(
-    size_t capacity, size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeStorageBufferRing(
+    size_t capacityInBytes, size_t elementSizeInBytes)
 {
-    return capacity != 0 ? std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes)
-                         : nullptr;
+    return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeUniformBufferRing(size_t capacity,
-                                                                             size_t itemSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeTextureTransferBufferRing(
+    size_t capacityInBytes)
 {
-    return capacity != 0 ? std::make_unique<BufferRingMetalImpl>(m_gpu, capacity, itemSizeInBytes)
-                         : nullptr;
+    return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-void PLSRenderContextMetalImpl::resizePathTexture(uint32_t width, uint32_t height)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
-    if (width == 0 || height == 0)
-    {
-        m_pathTexture = nil;
-        return;
-    }
-    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
-    desc.pixelFormat = MTLPixelFormatRGBA32Uint;
-    desc.width = width;
-    desc.height = height;
-    desc.usage = MTLTextureUsageShaderRead;
-    desc.textureType = MTLTextureType2D;
-    desc.mipmapLevelCount = 1;
-    desc.storageMode = MTLStorageModePrivate;
-    m_pathTexture = [m_gpu newTextureWithDescriptor:desc];
-}
-
-void PLSRenderContextMetalImpl::resizeContourTexture(uint32_t width, uint32_t height)
-{
-    if (width == 0 || height == 0)
-    {
-        m_contourTexture = nil;
-        return;
-    }
-    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
-    desc.pixelFormat = MTLPixelFormatRGBA32Uint;
-    desc.width = width;
-    desc.height = height;
-    desc.usage = MTLTextureUsageShaderRead;
-    desc.textureType = MTLTextureType2D;
-    desc.mipmapLevelCount = 1;
-    desc.storageMode = MTLStorageModePrivate;
-    m_contourTexture = [m_gpu newTextureWithDescriptor:desc];
+    return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
 void PLSRenderContextMetalImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -554,6 +528,7 @@ void PLSRenderContextMetalImpl::prepareToMapBuffers()
 
 static id<MTLBuffer> mtl_buffer(const BufferRing* bufferRing)
 {
+    assert(bufferRing != nullptr);
     return static_cast<const BufferRingMetalImpl*>(bufferRing)->submittedBuffer();
 }
 
@@ -642,43 +617,10 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [gradEncoder endEncoding];
     }
 
-    id<MTLBlitCommandEncoder> textureBlitEncoder = [commandBuffer blitCommandEncoder];
-
-    // Copy the path data to the texture.
-    if (desc.pathTexelsHeight > 0)
-    {
-        [textureBlitEncoder
-                 copyFromBuffer:mtl_buffer(pathBufferRing())
-                   sourceOffset:desc.pathDataOffset
-              sourceBytesPerRow:pls::kPathTextureWidthInItems * sizeof(pls::PathData)
-            sourceBytesPerImage:desc.pathTexelsHeight * kPathTextureWidthInItems *
-                                sizeof(pls::PathData)
-                     sourceSize:MTLSizeMake(desc.pathTexelsWidth, desc.pathTexelsHeight, 1)
-                      toTexture:m_pathTexture
-               destinationSlice:0
-               destinationLevel:0
-              destinationOrigin:MTLOriginMake(0, 0, 0)];
-    }
-
-    // Copy the contour data to the texture.
-    if (desc.contourTexelsHeight > 0)
-    {
-        [textureBlitEncoder
-                 copyFromBuffer:mtl_buffer(contourBufferRing())
-                   sourceOffset:desc.contourDataOffset
-              sourceBytesPerRow:pls::kContourTextureWidthInItems * sizeof(pls::ContourData)
-            sourceBytesPerImage:desc.contourTexelsHeight * kContourTextureWidthInItems *
-                                sizeof(pls::ContourData)
-                     sourceSize:MTLSizeMake(desc.contourTexelsWidth, desc.contourTexelsHeight, 1)
-                      toTexture:m_contourTexture
-               destinationSlice:0
-               destinationLevel:0
-              destinationOrigin:MTLOriginMake(0, 0, 0)];
-    }
-
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
+        id<MTLBlitCommandEncoder> textureBlitEncoder = [commandBuffer blitCommandEncoder];
         [textureBlitEncoder
                  copyFromBuffer:mtl_buffer(simpleColorRampsBufferRing())
                    sourceOffset:0
@@ -690,9 +632,8 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                destinationSlice:0
                destinationLevel:0
               destinationOrigin:MTLOriginMake(0, 0, 0)];
+        [textureBlitEncoder endEncoding];
     }
-
-    [textureBlitEncoder endEncoding];
 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
@@ -717,8 +658,14 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                               offset:0
                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:0];
-        [tessEncoder setVertexTexture:m_pathTexture atIndex:PATH_TEXTURE_IDX];
-        [tessEncoder setVertexTexture:m_contourTexture atIndex:CONTOUR_TEXTURE_IDX];
+        assert(desc.pathCount > 0);
+        [tessEncoder setVertexBuffer:mtl_buffer(pathBufferRing())
+                              offset:0
+                             atIndex:PATH_STORAGE_BUFFER_IDX];
+        assert(desc.contourCount > 0);
+        [tessEncoder setVertexBuffer:mtl_buffer(contourBufferRing())
+                              offset:0
+                             atIndex:CONTOUR_STORAGE_BUFFER_IDX];
         [tessEncoder setCullMode:MTLCullModeBack];
         [tessEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:std::size(pls::kTessSpanIndices)
@@ -780,8 +727,18 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                       offset:0
                      atIndex:FLUSH_UNIFORM_BUFFER_IDX];
     [encoder setVertexTexture:m_tessVertexTexture atIndex:TESS_VERTEX_TEXTURE_IDX];
-    [encoder setVertexTexture:m_pathTexture atIndex:PATH_TEXTURE_IDX];
-    [encoder setVertexTexture:m_contourTexture atIndex:CONTOUR_TEXTURE_IDX];
+    if (desc.pathCount > 0)
+    {
+        [encoder setVertexBuffer:mtl_buffer(pathBufferRing())
+                          offset:0
+                         atIndex:PATH_STORAGE_BUFFER_IDX];
+    }
+    if (desc.contourCount > 0)
+    {
+        [encoder setVertexBuffer:mtl_buffer(contourBufferRing())
+                          offset:0
+                         atIndex:CONTOUR_STORAGE_BUFFER_IDX];
+    }
     [encoder setFragmentTexture:m_gradientTexture atIndex:GRAD_TEXTURE_IDX];
     if (desc.wireframe)
     {

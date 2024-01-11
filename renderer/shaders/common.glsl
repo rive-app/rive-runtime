@@ -7,17 +7,12 @@
 #define PI float(3.141592653589793238)
 #define AA_RADIUS float(.5)
 
-#define TEXTURE_DEREF_SAMPLE(TEXTURE_BLOCK, TEXTURE, SAMPLER_NAME, COORD)                          \
-    TEXTURE_SAMPLE(TEXTURE_DEREF(TEXTURE_BLOCK, TEXTURE), SAMPLER_NAME, COORD)
-
-#define TEXEL_DEREF_FETCH(TEXTURE_BLOCK, TEXTURE, COORD)                                           \
-    TEXEL_FETCH(TEXTURE_DEREF(TEXTURE_BLOCK, TEXTURE), COORD)
-
-INLINE int2 contour_texel_coord(uint contourIDWithFlags)
+INLINE uint contour_data_idx(uint contourIDWithFlags)
 {
-    uint contourTexelIdx = (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;
-    return int2(contourTexelIdx & 0xffu, contourTexelIdx >> 8);
+    return (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;
 }
+
+INLINE uint path_data_idx(uint pathIDBits) { return (pathIDBits - 1u) * 5u; }
 
 INLINE int2 path_texel_coord(uint pathIDBits)
 {

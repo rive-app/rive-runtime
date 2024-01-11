@@ -6,6 +6,15 @@
 
 #ifdef @VERTEX
 
+VERTEX_TEXTURE_BLOCK_BEGIN
+TEXTURE_RGBA32UI(TESS_VERTEX_TEXTURE_IDX, @tessVertexTexture);
+VERTEX_TEXTURE_BLOCK_END
+
+STORAGE_BUFFER_BLOCK_BEGIN
+STORAGE_BUFFER_U32x4(PATH_STORAGE_BUFFER_IDX, PathBuffer, @pathBuffer);
+STORAGE_BUFFER_U32x4(CONTOUR_STORAGE_BUFFER_IDX, ContourBuffer, @contourBuffer);
+STORAGE_BUFFER_BLOCK_END
+
 #ifdef @DRAW_PATH
 INLINE int2 tess_texel_coord(int texelIndex)
 {
@@ -23,11 +32,11 @@ INLINE float calc_aa_radius(float2x2 M, float2 normalized)
 INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            float4 mirroredVertexData,
                                            int _instanceID,
-                                           TEX32UIREF tessVertexTexture,
-                                           TEX32UIREF pathTexture,
-                                           TEX32UIREF contourTexture,
+#ifdef METAL
+                                           VertexTextures _textures,
+                                           StorageBuffers _buffers,
+#endif
                                            OUT(ushort) o_pathIDBits,
-                                           OUT(int2) o_pathTexelCoord,
                                            OUT(float2x2) o_M,
                                            OUT(float2) o_translate,
                                            OUT(uint) o_pathParams,
@@ -44,19 +53,19 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     // Fetch a vertex that definitely belongs to the contour we're drawing.
     int vertexIDOnContour = min(localVertexID, patchSegmentSpan - 1);
     int tessVertexIdx = _instanceID * patchSegmentSpan + vertexIDOnContour;
-    uint4 tessVertexData = TEXEL_FETCH(tessVertexTexture, tess_texel_coord(tessVertexIdx));
+    uint4 tessVertexData = TEXEL_FETCH(@tessVertexTexture, tess_texel_coord(tessVertexIdx));
     uint contourIDWithFlags = tessVertexData.w;
 
     // Fetch and unpack the contour referenced by the tessellation vertex.
-    uint4 contourData = TEXEL_FETCH(contourTexture, contour_texel_coord(contourIDWithFlags));
+    uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contour_data_idx(contourIDWithFlags));
     float2 midpoint = uintBitsToFloat(contourData.xy);
-    o_pathIDBits = make_ushort(contourData.z);
+    o_pathIDBits = make_ushort(contourData.z & 0xffffu);
     uint vertexIndex0 = contourData.w;
 
     // Fetch and unpack the path.
-    o_pathTexelCoord = path_texel_coord(o_pathIDBits);
-    o_M = make_float2x2(uintBitsToFloat(TEXEL_FETCH(pathTexture, o_pathTexelCoord)));
-    uint4 pathData = TEXEL_FETCH(pathTexture, o_pathTexelCoord + int2(1, 0));
+    uint pathDataIdx = path_data_idx(o_pathIDBits);
+    o_M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 1u);
     o_translate = uintBitsToFloat(pathData.xy);
     o_pathParams = pathData.w;
 
@@ -78,7 +87,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // there is always at least one padding vertex at the beginning and end of the data.
         tessVertexIdx += localVertexID - vertexIDOnContour;
         uint4 replacementTessVertexData =
-            TEXEL_FETCH(tessVertexTexture, tess_texel_coord(tessVertexIdx));
+            TEXEL_FETCH(@tessVertexTexture, tess_texel_coord(tessVertexIdx));
         if ((replacementTessVertexData.w & 0xffffu) != (contourIDWithFlags & 0xffffu))
         {
             // We crossed over into a new contour. Either wrap to the first vertex in the contour or
@@ -88,7 +97,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             if (isClosed)
             {
                 tessVertexData =
-                    TEXEL_FETCH(tessVertexTexture, tess_texel_coord(int(vertexIndex0)));
+                    TEXEL_FETCH(@tessVertexTexture, tess_texel_coord(int(vertexIndex0)));
             }
         }
         else
@@ -148,7 +157,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
                 peekDir = -peekDir;
             int2 otherJoinTexelCoord = tess_texel_coord(tessVertexIdx + peekDir);
-            uint4 otherJoinData = TEXEL_FETCH(tessVertexTexture, otherJoinTexelCoord);
+            uint4 otherJoinData = TEXEL_FETCH(@tessVertexTexture, otherJoinTexelCoord);
             float otherJoinTheta = uintBitsToFloat(otherJoinData.z);
             float joinAngle = abs(otherJoinTheta - theta);
             if (joinAngle > PI)
@@ -263,18 +272,19 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
 INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
-                                              TEX32UIREF pathTexture,
+#ifdef METAL
+                                              StorageBuffers _buffers,
+#endif
                                               OUT(ushort) o_pathIDBits,
-                                              OUT(int2) o_pathTexelCoord,
                                               OUT(float2x2) o_M,
                                               OUT(float2) o_translate,
                                               OUT(uint) o_pathParams,
                                               OUT(half) o_windingWeight)
 {
     o_pathIDBits = make_ushort(floatBitsToUint(triangleVertex.z) & 0xffffu);
-    o_pathTexelCoord = path_texel_coord(o_pathIDBits);
-    o_M = make_float2x2(uintBitsToFloat(TEXEL_FETCH(pathTexture, o_pathTexelCoord)));
-    uint4 pathData = TEXEL_FETCH(pathTexture, o_pathTexelCoord + int2(1, 0));
+    uint pathDataIdx = path_data_idx(o_pathIDBits);
+    o_M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 1u);
     o_translate = uintBitsToFloat(pathData.xy);
     o_pathParams = pathData.w;
     o_windingWeight = float(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(o_M));

@@ -33,138 +33,115 @@ rcp<PLSTexture> PLSRenderContextHelperImpl::decodeImageTexture(Span<const uint8_
     return nullptr;
 }
 
-void PLSRenderContextHelperImpl::resizePathBuffer(size_t sizeInBytes)
+void PLSRenderContextHelperImpl::resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
 {
-    m_pathBuffer = makePixelUnpackBufferRing(sizeInBytes / sizeof(PathData), sizeof(PathData));
+    m_pathBuffer = makeStorageBufferRing(sizeInBytes, elementSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::resizeContourBuffer(size_t sizeInBytes)
+void PLSRenderContextHelperImpl::resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
 {
-    m_contourBuffer =
-        makePixelUnpackBufferRing(sizeInBytes / sizeof(ContourData), sizeof(ContourData));
+    m_contourBuffer = makeStorageBufferRing(sizeInBytes, elementSizeInBytes);
 }
 
 void PLSRenderContextHelperImpl::resizeSimpleColorRampsBuffer(size_t sizeInBytes)
 {
-    m_simpleColorRampsBuffer =
-        makePixelUnpackBufferRing(sizeInBytes / sizeof(TwoTexelRamp), sizeof(TwoTexelRamp));
+    m_simpleColorRampsBuffer = makeTextureTransferBufferRing(sizeInBytes);
 }
 
 void PLSRenderContextHelperImpl::resizeGradSpanBuffer(size_t sizeInBytes)
 {
-    m_gradSpanBuffer =
-        makeVertexBufferRing(sizeInBytes / sizeof(GradientSpan), sizeof(GradientSpan));
+    m_gradSpanBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void PLSRenderContextHelperImpl::resizeTessVertexSpanBuffer(size_t sizeInBytes)
 {
-    m_tessSpanBuffer =
-        makeVertexBufferRing(sizeInBytes / sizeof(TessVertexSpan), sizeof(TessVertexSpan));
+    m_tessSpanBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void PLSRenderContextHelperImpl::resizeTriangleVertexBuffer(size_t sizeInBytes)
 {
-    m_triangleBuffer =
-        makeVertexBufferRing(sizeInBytes / sizeof(TriangleVertex), sizeof(TriangleVertex));
+    m_triangleBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void PLSRenderContextHelperImpl::resizeImageDrawUniformBuffer(size_t sizeInBytes)
 {
-    m_imageDrawUniformBuffer = makeUniformBufferRing(sizeInBytes / sizeof(pls::ImageDrawUniforms),
-                                                     sizeof(pls::ImageDrawUniforms));
+    m_imageDrawUniformBuffer = makeUniformBufferRing(sizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapPathBuffer(WriteOnlyMappedMemory<PathData>* pathData)
+void* PLSRenderContextHelperImpl::mapPathBuffer(size_t mapSizeInBytes)
 {
-    pathData->reset(m_pathBuffer->mapBuffer(), m_pathBuffer->capacity());
+    return m_pathBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapContourBuffer(WriteOnlyMappedMemory<ContourData>* contourData)
+void* PLSRenderContextHelperImpl::mapContourBuffer(size_t mapSizeInBytes)
 {
-    contourData->reset(m_contourBuffer->mapBuffer(), m_contourBuffer->capacity());
+    return m_contourBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapSimpleColorRampsBuffer(
-    WriteOnlyMappedMemory<TwoTexelRamp>* simpleColorRampsData)
+void* PLSRenderContextHelperImpl::mapSimpleColorRampsBuffer(size_t mapSizeInBytes)
 {
-    simpleColorRampsData->reset(m_simpleColorRampsBuffer->mapBuffer(),
-                                m_simpleColorRampsBuffer->capacity());
+    return m_simpleColorRampsBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapGradSpanBuffer(
-    WriteOnlyMappedMemory<GradientSpan>* gradSpanData)
+void* PLSRenderContextHelperImpl::mapGradSpanBuffer(size_t mapSizeInBytes)
 {
-    gradSpanData->reset(m_gradSpanBuffer->mapBuffer(), m_gradSpanBuffer->capacity());
+    return m_gradSpanBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapTessVertexSpanBuffer(
-    WriteOnlyMappedMemory<TessVertexSpan>* tessVertexSpanData)
+void* PLSRenderContextHelperImpl::mapTessVertexSpanBuffer(size_t mapSizeInBytes)
 {
-    tessVertexSpanData->reset(m_tessSpanBuffer->mapBuffer(), m_tessSpanBuffer->capacity());
+    return m_tessSpanBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapTriangleVertexBuffer(
-    WriteOnlyMappedMemory<TriangleVertex>* triangleVertexData)
+void* PLSRenderContextHelperImpl::mapTriangleVertexBuffer(size_t mapSizeInBytes)
 {
-    triangleVertexData->reset(m_triangleBuffer->mapBuffer(), m_triangleBuffer->capacity());
+    return m_triangleBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapImageDrawUniformBuffer(
-    WriteOnlyMappedMemory<pls::ImageDrawUniforms>* imageDrawUniformData)
+void* PLSRenderContextHelperImpl::mapImageDrawUniformBuffer(size_t mapSizeInBytes)
 {
-    imageDrawUniformData->reset(m_imageDrawUniformBuffer->mapBuffer(),
-                                m_imageDrawUniformBuffer->capacity());
+    return m_imageDrawUniformBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::mapFlushUniformBuffer(
-    WriteOnlyMappedMemory<pls::FlushUniforms>* flushUniformData)
+void* PLSRenderContextHelperImpl::mapFlushUniformBuffer(size_t mapSizeInBytes)
 {
     if (m_flushUniformBuffer == nullptr)
     {
         // Allocate the flushUniformBuffer lazily size it doesn't have a corresponding 'resize()'
         // call where we can allocate it.
-        m_flushUniformBuffer = makeUniformBufferRing(1, sizeof(pls::FlushUniforms));
+        m_flushUniformBuffer = makeUniformBufferRing(sizeof(pls::FlushUniforms));
     }
-    flushUniformData->reset(m_flushUniformBuffer->mapBuffer(), 1);
+    return m_flushUniformBuffer->mapBuffer(sizeof(pls::FlushUniforms));
 }
 
-void PLSRenderContextHelperImpl::unmapPathBuffer(size_t bytesWritten)
+void PLSRenderContextHelperImpl::unmapPathBuffer() { m_pathBuffer->unmapAndSubmitBuffer(); }
+
+void PLSRenderContextHelperImpl::unmapContourBuffer() { m_contourBuffer->unmapAndSubmitBuffer(); }
+
+void PLSRenderContextHelperImpl::unmapSimpleColorRampsBuffer()
 {
-    m_pathBuffer->unmapAndSubmitBuffer(bytesWritten);
+    m_simpleColorRampsBuffer->unmapAndSubmitBuffer();
 }
 
-void PLSRenderContextHelperImpl::unmapContourBuffer(size_t bytesWritten)
+void PLSRenderContextHelperImpl::unmapGradSpanBuffer() { m_gradSpanBuffer->unmapAndSubmitBuffer(); }
+
+void PLSRenderContextHelperImpl::unmapTessVertexSpanBuffer()
 {
-    m_contourBuffer->unmapAndSubmitBuffer(bytesWritten);
+    m_tessSpanBuffer->unmapAndSubmitBuffer();
 }
 
-void PLSRenderContextHelperImpl::unmapSimpleColorRampsBuffer(size_t bytesWritten)
+void PLSRenderContextHelperImpl::unmapTriangleVertexBuffer()
 {
-    m_simpleColorRampsBuffer->unmapAndSubmitBuffer(bytesWritten);
+    m_triangleBuffer->unmapAndSubmitBuffer();
 }
 
-void PLSRenderContextHelperImpl::unmapGradSpanBuffer(size_t bytesWritten)
+void PLSRenderContextHelperImpl::unmapImageDrawUniformBuffer()
 {
-    m_gradSpanBuffer->unmapAndSubmitBuffer(bytesWritten);
-}
-
-void PLSRenderContextHelperImpl::unmapTessVertexSpanBuffer(size_t bytesWritten)
-{
-    m_tessSpanBuffer->unmapAndSubmitBuffer(bytesWritten);
-}
-
-void PLSRenderContextHelperImpl::unmapTriangleVertexBuffer(size_t bytesWritten)
-{
-    m_triangleBuffer->unmapAndSubmitBuffer(bytesWritten);
-}
-
-void PLSRenderContextHelperImpl::unmapImageDrawUniformBuffer(size_t bytesWritten)
-{
-    m_imageDrawUniformBuffer->unmapAndSubmitBuffer(bytesWritten);
+    m_imageDrawUniformBuffer->unmapAndSubmitBuffer();
 }
 
 void PLSRenderContextHelperImpl::unmapFlushUniformBuffer()
 {
-    m_flushUniformBuffer->unmapAndSubmitBuffer(sizeof(pls::FlushUniforms));
+    m_flushUniformBuffer->unmapAndSubmitBuffer();
 }
 } // namespace rive::pls

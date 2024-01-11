@@ -25,7 +25,7 @@ public:
 
     PLSLoadStoreProgram(LoadStoreActionsEXT actions,
                         GLuint vertexShader,
-                        const GLExtensions& extensions,
+                        const GLCapabilities& extensions,
                         rcp<GLState> state) :
         m_state(std::move(state))
     {
@@ -61,7 +61,7 @@ private:
 class PLSRenderContextGLImpl::PLSImplEXTNative : public PLSRenderContextGLImpl::PLSImpl
 {
 public:
-    PLSImplEXTNative(const GLExtensions& extensions) : m_extensions(extensions) {}
+    PLSImplEXTNative(const GLCapabilities& extensions) : m_capabilities(extensions) {}
 
     ~PLSImplEXTNative()
     {
@@ -102,9 +102,9 @@ public:
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {
-        assert(impl->m_extensions.EXT_shader_pixel_local_storage);
-        assert(impl->m_extensions.EXT_shader_framebuffer_fetch ||
-               impl->m_extensions.ARM_shader_framebuffer_fetch);
+        assert(impl->m_capabilities.EXT_shader_pixel_local_storage);
+        assert(impl->m_capabilities.EXT_shader_framebuffer_fetch ||
+               impl->m_capabilities.ARM_shader_framebuffer_fetch);
 
         auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
         glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
@@ -128,7 +128,7 @@ public:
                                                         .try_emplace(actions,
                                                                      actions,
                                                                      m_plsLoadStoreVertexShader,
-                                                                     m_extensions,
+                                                                     m_capabilities,
                                                                      m_state)
                                                         .first->second;
             m_state->bindProgram(plsProgram.id());
@@ -148,7 +148,7 @@ public:
         LoadStoreActionsEXT actions = LoadStoreActionsEXT::storeColor;
         const PLSLoadStoreProgram& plsProgram =
             m_plsLoadStorePrograms
-                .try_emplace(actions, actions, m_plsLoadStoreVertexShader, m_extensions, m_state)
+                .try_emplace(actions, actions, m_plsLoadStoreVertexShader, m_capabilities, m_state)
                 .first->second;
         m_state->bindProgram(plsProgram.id());
         m_state->bindVAO(m_plsLoadStoreVAO);
@@ -160,7 +160,7 @@ public:
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_EXT_NATIVE; }
 
 private:
-    const GLExtensions m_extensions;
+    const GLCapabilities m_capabilities;
     std::map<LoadStoreActionsEXT, PLSLoadStoreProgram> m_plsLoadStorePrograms;
     GLuint m_plsLoadStoreVertexShader = 0;
     GLuint m_plsLoadStoreVAO = 0;
@@ -168,7 +168,7 @@ private:
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplEXTNative(
-    const GLExtensions& extensions)
+    const GLCapabilities& extensions)
 {
     return std::make_unique<PLSImplEXTNative>(extensions);
 }

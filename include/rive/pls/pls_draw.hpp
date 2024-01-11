@@ -62,12 +62,13 @@ public:
             return vec;
         }
 
-        ResourceCounters() = default;
         ResourceCounters(const VecType& vec)
         {
             static_assert(sizeof(*this) == sizeof(VecType));
             RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
         }
+
+        ResourceCounters() = default;
 
         size_t midpointFanTessVertexCount = 0;
         size_t outerCubicTessVertexCount = 0;

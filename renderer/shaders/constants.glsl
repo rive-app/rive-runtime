@@ -8,6 +8,16 @@
 #define GRAD_TEXTURE_WIDTH float(512)
 #define GRAD_TEXTURE_INVERSE_WIDTH float(0.001953125)
 
+// Width to use for a texture that emulates a storage buffer.
+//
+// Minimize width since the texture needs to be updated in entire rows from the resource buffer.
+// Since these only serve paths and contours, both of those are limited to 16-bit indices, 2048
+// is the min specified texture size in ES3, and pls::PathData uses 5 texels, we can safely use a
+// width of 256.
+#define STORAGE_TEXTURE_WIDTH 256
+#define STORAGE_TEXTURE_SHIFT_Y 8
+#define STORAGE_TEXTURE_MASK_X 0xffu
+
 // Tells shaders that a cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
 // This is used to squeeze in more rare triangles, like "grout" triangles from self intersections on
 // interior triangulation, where it wouldn't be worth it to put them in their own dedicated draw
@@ -65,10 +75,10 @@
 
 // Index at which we access each resource.
 #define TESS_VERTEX_TEXTURE_IDX 0
-#define PATH_TEXTURE_IDX 1
-#define CONTOUR_TEXTURE_IDX 2
-#define GRAD_TEXTURE_IDX 3
-#define IMAGE_TEXTURE_IDX 4
+#define GRAD_TEXTURE_IDX 1
+#define IMAGE_TEXTURE_IDX 2
+#define PATH_STORAGE_BUFFER_IDX 3
+#define CONTOUR_STORAGE_BUFFER_IDX 4
 #define FLUSH_UNIFORM_BUFFER_IDX 5
 #define DRAW_UNIFORM_BUFFER_IDX 6
 #define IMAGE_DRAW_UNIFORM_BUFFER_IDX 7

@@ -61,7 +61,7 @@
 #extension GL_ARB_bindless_texture : require
 #endif
 
-#if $__VERSION__ > 300
+#if __VERSION__ >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
     layout(binding = IDX, std140) uniform NAME                                                     \
     {
@@ -82,21 +82,21 @@
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE)
 
 #ifdef @VERTEX
-#if $__VERSION__ > 300
+#if __VERSION__ >= 310
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) out TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) out TYPE NAME
 #endif
 #else
-#if $__VERSION__ > 300
+#if __VERSION__ >= 310
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) in TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) in TYPE NAME
 #endif
 #endif
 #define FLAT flat
-#define VARYING_BLOCK_BEGIN(NAME)
-#define VARYING_BLOCK_END(_pos)
+#define VARYING_BLOCK_BEGIN
+#define VARYING_BLOCK_END
 
 // clang-format off
 #ifdef @TARGET_VULKAN
@@ -113,12 +113,12 @@
 // clang-format on
 
 #ifdef @VERTEX
-#define VERTEX_TEXTURE_BLOCK_BEGIN(NAME)
+#define VERTEX_TEXTURE_BLOCK_BEGIN
 #define VERTEX_TEXTURE_BLOCK_END
 #endif
 
 #ifdef @FRAGMENT
-#define FRAG_TEXTURE_BLOCK_BEGIN(NAME)
+#define FRAG_TEXTURE_BLOCK_BEGIN
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
@@ -126,19 +126,15 @@
 #define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp utexture2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp texture2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump texture2D NAME
-#define TEX32UIREF highp utexture2D
-#elif $__VERSION__ > 300
+#elif __VERSION__ >= 310
 #define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump sampler2D NAME
-#define TEX32UIREF highp usampler2D
 #else
 #define TEXTURE_RGBA32UI(IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
-#define TEX32UIREF highp usampler2D
 #endif
-#define TEXTURE_DEREF(TEXTURE_BLOCK, NAME) NAME
 
 #ifdef @TARGET_VULKAN
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
@@ -238,6 +234,9 @@
 
 #ifdef @PLS_IMPL_RW_TEXTURE
 
+#ifdef GL_ARB_shader_image_load_store
+#extension GL_ARB_shader_image_load_store : require
+#endif
 #if defined(GL_ARB_fragment_shader_interlock)
 #extension GL_ARB_fragment_shader_interlock : require
 #define PLS_INTERLOCK_BEGIN beginInvocationInterlockARB()
@@ -341,69 +340,98 @@
 #endif
 // clang-format on
 
-// The Qualcomm compiler doesn't like how clang-format handles these lines.
-// clang-format off
-#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
+#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
     void main()                                                                                    \
     {                                                                                              \
         int _vertexID = gl_VertexID;                                                               \
-        int _instanceID = INSTANCE_INDEX;                                                          \
-        vec4 _pos;
-// clang-format on
+        int _instanceID = INSTANCE_INDEX;
 
-// The Qualcomm compiler doesn't like how clang-format handles these lines.
-// clang-format off
-#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, Varyings, varyings, VertexTextures, textures, _vertexID, _instanceID, _pos) \
+#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
     void main()                                                                                    \
     {                                                                                              \
         int _vertexID = gl_VertexID;                                                               \
-        int _instanceID = INSTANCE_INDEX;                                                          \
-        vec4 _pos;
+        int _instanceID = INSTANCE_INDEX;
 
-#define IMAGE_MESH_VERTEX_MAIN(NAME, Uniforms, uniforms, MeshUniforms, meshUniforms, PositionAttr, position, UVAttr, uv, Varyings, varyings, _vertexID, _pos) \
-    VERTEX_MAIN(NAME, Uniforms, uniforms, PositionAttr, position, Varyings, varyings, _, _, _vertexID, _instanceID, _pos)
-// clang-format on
+#define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
+                               Uniforms,                                                           \
+                               uniforms,                                                           \
+                               MeshUniforms,                                                       \
+                               meshUniforms,                                                       \
+                               PositionAttr,                                                       \
+                               position,                                                           \
+                               UVAttr,                                                             \
+                               uv,                                                                 \
+                               _vertexID)                                                          \
+    VERTEX_MAIN(NAME, Uniforms, uniforms, PositionAttr, position, _vertexID, _instanceID)
 
-#define VARYING_INIT(varyings, NAME, TYPE)
-#define VARYING_PACK(varyings, NAME)
-#define VARYING_UNPACK(varyings, NAME, TYPE)
+#define VARYING_INIT(NAME, TYPE)
+#define VARYING_PACK(NAME)
+#define VARYING_UNPACK(NAME, TYPE)
 
-#define EMIT_VERTEX(varyings, _pos)                                                                \
-    }                                                                                              \
-    gl_Position = _pos;
+#define EMIT_VERTEX(_pos)                                                                          \
+    gl_Position = _pos;                                                                            \
+    }
 
-#define FRAG_DATA_MAIN(DATA_TYPE, NAME, Varyings, varyings)                                        \
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                                            \
     layout(location = 0) out DATA_TYPE _fd;                                                        \
     void main()
 
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE
 
 #ifdef @PLS_IMPL_RW_TEXTURE
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
+#define PLS_MAIN(NAME, _pos, _plsCoord)                                                            \
     void main()                                                                                    \
     {                                                                                              \
         float2 _pos = gl_FragCoord.xy;                                                             \
         int2 _plsCoord = ivec2(floor(_pos));
 #else
-#define PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)            \
+#define PLS_MAIN(NAME, _pos, _plsCoord)                                                            \
     void main()                                                                                    \
     {
 #endif
 
-// clang-format off
-#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord) \
-    PLS_MAIN(NAME, Varyings, varyings, FragmentTextures, textures, _pos, _plsCoord)
-// clang-format on
+#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)                     \
+    PLS_MAIN(NAME, _pos, _plsCoord)
 
 #define EMIT_PLS }
 
 #define MUL(A, B) ((A) * (B))
 
-#define STORAGE_BUFFER(IDX, STRUCT_NAME, TYPE, NAME)                                               \
-    layout(std430, binding = IDX) readonly buffer STRUCT_NAME { TYPE values[]; }                   \
-    NAME
+#define STORAGE_BUFFER_BLOCK_BEGIN
+#define STORAGE_BUFFER_BLOCK_END
 
-#define STORAGE_BUFFER_AT(NAME, I) NAME.values[I]
+#ifdef @TARGET_VULKAN
+#define @ENABLE_SHADER_STORAGE_BUFFERS
+#endif
+
+#ifdef @ENABLE_SHADER_STORAGE_BUFFERS
+
+#ifdef GL_ARB_shader_storage_buffer_object
+#extension GL_ARB_shader_storage_buffer_object : require
+#endif
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint2 _values[]; }            \
+    NAME
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint4 _values[]; }            \
+    NAME
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { float4 _values[]; }           \
+    NAME
+#define STORAGE_BUFFER_LOAD4(NAME, I) NAME._values[I]
+#define STORAGE_BUFFER_LOAD2(NAME, I) NAME._values[I]
+
+#else
+
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) uniform highp usampler2D NAME
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) uniform highp usampler2D NAME
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) uniform highp sampler2D NAME
+#define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
+    texelFetch(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y), 0)
+#define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
+    texelFetch(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y), 0).xy
+
+#endif
 
 precision highp float;
 precision highp int;

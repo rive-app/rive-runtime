@@ -22,7 +22,7 @@ void main()
 #extension GL_EXT_shader_framebuffer_fetch : enable
 
 #ifdef @CLEAR_COLOR
-#if __VERSION__ > 300
+#if __VERSION__ >= 310
 layout(binding = 0, std140) uniform ClearColor { uniform highp vec4 value; }
 clearColor;
 #else
@@ -57,7 +57,7 @@ layout(location = 0) out mediump vec4 fragColor;
 void main()
 {
 #ifdef @CLEAR_COLOR
-#if __VERSION__ > 300
+#if __VERSION__ >= 310
     framebuffer = clearColor.value;
 #else
     framebuffer = @clearColor;

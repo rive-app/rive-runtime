@@ -25,7 +25,7 @@ ATTR(1, float2, @a_texCoord);
 ATTR_BLOCK_END
 #endif
 
-VARYING_BLOCK_BEGIN(Varyings)
+VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float2, v_texCoord);
 #ifdef @ENABLE_CLIPPING
 @OPTIONALLY_FLAT VARYING(1, half, v_clipID);
@@ -33,10 +33,10 @@ NO_PERSPECTIVE VARYING(0, float2, v_texCoord);
 #ifdef @ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 #endif
-VARYING_BLOCK_END(_pos)
+VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
+VERTEX_TEXTURE_BLOCK_BEGIN
 VERTEX_TEXTURE_BLOCK_END
 
 IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
@@ -48,20 +48,17 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
                        position,
                        UVAttr,
                        uv,
-                       Varyings,
-                       varyings,
-                       _vertexID,
-                       _pos)
+                       _vertexID)
 {
     ATTR_UNPACK(_vertexID, position, @a_position, float2);
     ATTR_UNPACK(_vertexID, uv, @a_texCoord, float2);
 
-    VARYING_INIT(varyings, v_texCoord, float2);
+    VARYING_INIT(v_texCoord, float2);
 #ifdef @ENABLE_CLIPPING
-    VARYING_INIT(varyings, v_clipID, half);
+    VARYING_INIT(v_clipID, half);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-    VARYING_INIT(varyings, v_clipRect, float4);
+    VARYING_INIT(v_clipRect, float4);
 #endif
 
     float2 vertexPosition =
@@ -76,21 +73,21 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
                                           imageDrawUniforms.clipRectInverseTranslate,
                                           vertexPosition);
 #endif
-    _pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+    float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
-    VARYING_PACK(varyings, v_texCoord);
+    VARYING_PACK(v_texCoord);
 #ifdef @ENABLE_CLIPPING
-    VARYING_PACK(varyings, v_clipID);
+    VARYING_PACK(v_clipID);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-    VARYING_PACK(varyings, v_clipRect);
+    VARYING_PACK(v_clipRect);
 #endif
-    EMIT_VERTEX(varyings, _pos);
+    EMIT_VERTEX(pos);
 }
 #endif
 
 #ifdef @FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN(FragmentTextures)
+FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
 FRAG_TEXTURE_BLOCK_END
 
@@ -103,25 +100,17 @@ PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
 
-IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
-                    @ImageDrawUniforms,
-                    imageDrawUniforms,
-                    Varyings,
-                    varyings,
-                    FragmentTextures,
-                    textures,
-                    _pos,
-                    _plsCoord)
+IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _pos, _plsCoord)
 {
-    VARYING_UNPACK(varyings, v_texCoord, float2);
+    VARYING_UNPACK(v_texCoord, float2);
 #ifdef @ENABLE_CLIPPING
-    VARYING_UNPACK(varyings, v_clipID, half);
+    VARYING_UNPACK(v_clipID, half);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-    VARYING_UNPACK(varyings, v_clipRect, float4);
+    VARYING_UNPACK(v_clipRect, float4);
 #endif
 
-    half4 color = TEXTURE_DEREF_SAMPLE(textures, @imageTexture, imageSampler, v_texCoord);
+    half4 color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
     half coverage = 1.;
 
 #ifdef @ENABLE_CLIP_RECT

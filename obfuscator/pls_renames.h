@@ -371,7 +371,7 @@
 #define m_drawPrograms r_172
 #define m_drawVAO r_173
 #define m_end r_174
-#define m_extensions r_175
+#define m_capabilities r_175
 #define m_faceCullingEnabled r_176
 #define m_fallbackMappedMemory r_177
 #define m_fillRule r_178

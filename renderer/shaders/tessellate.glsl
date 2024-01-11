@@ -20,14 +20,14 @@ ATTR(3, uint4, @a_args);            // [x0x1, reflectionX0X1, segmentCounts, con
 ATTR_BLOCK_END
 #endif
 
-VARYING_BLOCK_BEGIN(Varyings)
+VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_p0p1);
 NO_PERSPECTIVE VARYING(1, float4, v_p2p3);
 NO_PERSPECTIVE VARYING(2, float4, v_args);     // [vertexIdx, totalVertexCount, joinSegmentCount,
                                                //  parametricSegmentCount, radsPerPolarSegment]
 NO_PERSPECTIVE VARYING(3, float3, v_joinArgs); // [joinTangent, radsPerJoinSegment]
 FLAT VARYING(4, uint, v_contourIDWithFlags);
-VARYING_BLOCK_END(_pos)
+VARYING_BLOCK_END
 
 // Tangent of the curve at T=0 and T=1.
 INLINE float2x2 find_tangents(float2 p0, float2 p1, float2 p2, float2 p3)
@@ -39,10 +39,13 @@ INLINE float2x2 find_tangents(float2 p0, float2 p1, float2 p2, float2 p3)
 }
 
 #ifdef @VERTEX
-VERTEX_TEXTURE_BLOCK_BEGIN(VertexTextures)
-TEXTURE_RGBA32UI(PATH_TEXTURE_IDX, @pathTexture);
-TEXTURE_RGBA32UI(CONTOUR_TEXTURE_IDX, @contourTexture);
+VERTEX_TEXTURE_BLOCK_BEGIN
 VERTEX_TEXTURE_BLOCK_END
+
+STORAGE_BUFFER_BLOCK_BEGIN
+STORAGE_BUFFER_U32x4(PATH_STORAGE_BUFFER_IDX, PathBuffer, @pathBuffer);
+STORAGE_BUFFER_U32x4(CONTOUR_STORAGE_BUFFER_IDX, ContourBuffer, @contourBuffer);
+STORAGE_BUFFER_BLOCK_END
 
 float cosine_between_vectors(float2 a, float2 b)
 {
@@ -52,18 +55,7 @@ float cosine_between_vectors(float2 a, float2 b)
     return (ab_pow2 == .0) ? 1. : clamp(ab_cosTheta * inversesqrt(ab_pow2), -1., 1.);
 }
 
-VERTEX_MAIN(@tessellateVertexMain,
-            @Uniforms,
-            uniforms,
-            Attrs,
-            attrs,
-            Varyings,
-            varyings,
-            VertexTextures,
-            textures,
-            _vertexID,
-            _instanceID,
-            _pos)
+VERTEX_MAIN(@tessellateVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
 {
     // Each instance repeats twice. Once for normal patch(es) and once for reflection(s).
     ATTR_UNPACK(_instanceID, attrs, @a_p0p1_, float4);
@@ -71,11 +63,11 @@ VERTEX_MAIN(@tessellateVertexMain,
     ATTR_UNPACK(_instanceID, attrs, @a_joinTan_and_ys, float4);
     ATTR_UNPACK(_instanceID, attrs, @a_args, uint4);
 
-    VARYING_INIT(varyings, v_p0p1, float4);
-    VARYING_INIT(varyings, v_p2p3, float4);
-    VARYING_INIT(varyings, v_args, float4);
-    VARYING_INIT(varyings, v_joinArgs, float3);
-    VARYING_INIT(varyings, v_contourIDWithFlags, uint);
+    VARYING_INIT(v_p0p1, float4);
+    VARYING_INIT(v_p2p3, float4);
+    VARYING_INIT(v_args, float4);
+    VARYING_INIT(v_joinArgs, float3);
+    VARYING_INIT(v_contourIDWithFlags, uint);
 
     float2 p0 = @a_p0p1_.xy;
     float2 p1 = @a_p0p1_.zw;
@@ -108,9 +100,9 @@ VERTEX_MAIN(@tessellateVertexMain,
         // actually needs). Re-run Wang's formula to figure out how many segments we actually need,
         // and make any excess segments degenerate by co-locating their vertices at T=0.
         uint pathIDBits =
-            TEXEL_DEREF_FETCH(textures, @contourTexture, contour_texel_coord(contourIDWithFlags)).z;
-        float2x2 mat = make_float2x2(uintBitsToFloat(
-            TEXEL_DEREF_FETCH(textures, @pathTexture, path_texel_coord(pathIDBits))));
+            STORAGE_BUFFER_LOAD4(@contourBuffer, contour_data_idx(contourIDWithFlags)).z;
+        float2x2 mat = make_float2x2(
+            uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, path_data_idx(pathIDBits))));
         float2 d0 = MUL(mat, -2. * p1 + p2 + p0);
 
         float2 d1 = MUL(mat, -2. * p2 + p3 + p1);
@@ -162,27 +154,28 @@ VERTEX_MAIN(@tessellateVertexMain,
     }
     v_contourIDWithFlags = contourIDWithFlags;
 
-    _pos.x = coord.x * (2. / TESS_TEXTURE_WIDTH) - 1.;
-    _pos.y = coord.y * uniforms.tessInverseViewportY - sign(uniforms.tessInverseViewportY);
-    _pos.zw = float2(0, 1);
+    float4 pos;
+    pos.x = coord.x * (2. / TESS_TEXTURE_WIDTH) - 1.;
+    pos.y = coord.y * uniforms.tessInverseViewportY - sign(uniforms.tessInverseViewportY);
+    pos.zw = float2(0, 1);
 
-    VARYING_PACK(varyings, v_p0p1);
-    VARYING_PACK(varyings, v_p2p3);
-    VARYING_PACK(varyings, v_args);
-    VARYING_PACK(varyings, v_joinArgs);
-    VARYING_PACK(varyings, v_contourIDWithFlags);
-    EMIT_VERTEX(varyings, _pos);
+    VARYING_PACK(v_p0p1);
+    VARYING_PACK(v_p2p3);
+    VARYING_PACK(v_args);
+    VARYING_PACK(v_joinArgs);
+    VARYING_PACK(v_contourIDWithFlags);
+    EMIT_VERTEX(pos);
 }
 #endif
 
 #ifdef @FRAGMENT
-FRAG_DATA_MAIN(uint4, @tessellateFragmentMain, Varyings, varyings)
+FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
 {
-    VARYING_UNPACK(varyings, v_p0p1, float4);
-    VARYING_UNPACK(varyings, v_p2p3, float4);
-    VARYING_UNPACK(varyings, v_args, float4);
-    VARYING_UNPACK(varyings, v_joinArgs, float3);
-    VARYING_UNPACK(varyings, v_contourIDWithFlags, uint);
+    VARYING_UNPACK(v_p0p1, float4);
+    VARYING_UNPACK(v_p2p3, float4);
+    VARYING_UNPACK(v_args, float4);
+    VARYING_UNPACK(v_joinArgs, float3);
+    VARYING_UNPACK(v_contourIDWithFlags, uint);
 
     float2 p0 = v_p0p1.xy;
     float2 p1 = v_p0p1.zw;
