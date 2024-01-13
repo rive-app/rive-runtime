@@ -2,11 +2,11 @@
 
 using namespace rive;
 
-ElasticInterpolator::ElasticInterpolator() : m_elastic(1.0f, 1.0f) {}
+ElasticInterpolator::ElasticInterpolator() : m_elastic(1.0f, 0.5f) {}
 
 StatusCode ElasticInterpolator::onAddedDirty(CoreContext* context)
 {
-    m_elastic = ElasticEase(amplitude(), period());
+    m_elastic = ElasticEase(amplitude(), period() == 0.0f ? 0.5f : period());
     return StatusCode::Ok;
 }
 
