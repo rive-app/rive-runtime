@@ -466,7 +466,7 @@ std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeStorageBufferRing(
-    size_t capacityInBytes, size_t elementSizeInBytes)
+    size_t capacityInBytes, pls::StorageBufferStructure)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
@@ -660,12 +660,12 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:0];
         assert(desc.pathCount > 0);
         [tessEncoder setVertexBuffer:mtl_buffer(pathBufferRing())
-                              offset:0
-                             atIndex:PATH_STORAGE_BUFFER_IDX];
+                              offset:desc.firstPath * sizeof(pls::PathData)
+                             atIndex:PATH_BUFFER_IDX];
         assert(desc.contourCount > 0);
         [tessEncoder setVertexBuffer:mtl_buffer(contourBufferRing())
-                              offset:0
-                             atIndex:CONTOUR_STORAGE_BUFFER_IDX];
+                              offset:desc.firstContour * sizeof(pls::ContourData)
+                             atIndex:CONTOUR_BUFFER_IDX];
         [tessEncoder setCullMode:MTLCullModeBack];
         [tessEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:std::size(pls::kTessSpanIndices)
@@ -730,14 +730,20 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     if (desc.pathCount > 0)
     {
         [encoder setVertexBuffer:mtl_buffer(pathBufferRing())
-                          offset:0
-                         atIndex:PATH_STORAGE_BUFFER_IDX];
+                          offset:desc.firstPath * sizeof(pls::PathData)
+                         atIndex:PATH_BUFFER_IDX];
+        [encoder setVertexBuffer:mtl_buffer(paintBufferRing())
+                          offset:desc.firstPath * sizeof(pls::PaintData)
+                         atIndex:PAINT_BUFFER_IDX];
+        [encoder setVertexBuffer:mtl_buffer(paintAuxBufferRing())
+                          offset:desc.firstPath * sizeof(pls::PaintAuxData)
+                         atIndex:PAINT_AUX_BUFFER_IDX];
     }
     if (desc.contourCount > 0)
     {
         [encoder setVertexBuffer:mtl_buffer(contourBufferRing())
-                          offset:0
-                         atIndex:CONTOUR_STORAGE_BUFFER_IDX];
+                          offset:desc.firstContour * sizeof(pls::ContourData)
+                         atIndex:CONTOUR_BUFFER_IDX];
     }
     [encoder setFragmentTexture:m_gradientTexture atIndex:GRAD_TEXTURE_IDX];
     if (desc.wireframe)

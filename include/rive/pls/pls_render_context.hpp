@@ -12,6 +12,7 @@
 #include "rive/pls/pls_render_target.hpp"
 #include "rive/pls/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include <array>
 #include <unordered_map>
 
 class PushRetrofittedTrianglesGMDraw;
@@ -288,11 +289,13 @@ private:
     // Allocates a horizontal span of texels in the gradient texture and schedules either a texture
     // upload or a draw that fills it with the given gradient's color ramp.
     //
-    // Fills out a PaintData record that tells the shader how to access the new gradient.
+    // Fills out a ColorRampLocation record that tells the shader how to access the gradient.
     //
     // Returns false if the gradient texture is out of space, at which point the caller must flush
     // before continuing.
-    [[nodiscard]] bool allocateGradient(const PLSGradient*, PLSDraw::ResourceCounters*, PaintData*);
+    [[nodiscard]] bool allocateGradient(const PLSGradient*,
+                                        PLSDraw::ResourceCounters*,
+                                        pls::ColorRampLocation*);
 
     // Defines the exact size of each of our GPU resources. Computed during flush(), based on
     // ResourceCounters.
@@ -345,7 +348,8 @@ private:
                   float strokeRadius,
                   FillRule,
                   PaintType,
-                  const PaintData&,
+                  pls::SimplePaintValue simplePaintValue,
+                  const PLSGradient*,
                   const PLSTexture* imageTexture,
                   uint32_t clipID,
                   const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
@@ -382,7 +386,7 @@ private:
     // and pushPaint().
     void pushInteriorTriangulation(GrInnerFanTriangulator*,
                                    PaintType,
-                                   const PaintData&,
+                                   pls::SimplePaintValue,
                                    const PLSTexture* imageTexture,
                                    uint32_t clipID,
                                    bool hasClipRect,
@@ -420,7 +424,7 @@ private:
                       size_t baseVertex,
                       FillRule,
                       PaintType,
-                      const PaintData&,
+                      pls::SimplePaintValue,
                       const PLSTexture* imageTexture,
                       uint32_t clipID,
                       bool hasClipRect,
@@ -484,10 +488,11 @@ private:
     // Complex gradients have stop(s) between t=0 and t=1. In theory they should be scaled to a ramp
     // where every stop lands exactly on a pixel center, but for now we just always scale them to
     // the entire gradient texture width.
-    std::unordered_map<GradientContentKey, uint32_t, DeepHashGradient>
+    std::unordered_map<GradientContentKey, uint16_t, DeepHashGradient>
         m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
     std::vector<const PLSGradient*> m_pendingComplexColorRampDraws;
 
+    pls::GradTextureLayout m_currentGradTextureLayout;
     FlushUniforms m_currentFlushUniforms;
 
     // High-level draw list for the current flush. These get converted to a low-level list of "Draw"
@@ -513,6 +518,8 @@ private:
     RIVE_DEBUG_CODE(uint32_t m_pathCurveCount = 0;)
 
     WriteOnlyMappedMemory<pls::PathData> m_pathData;
+    WriteOnlyMappedMemory<pls::PaintData> m_paintData;
+    WriteOnlyMappedMemory<pls::PaintAuxData> m_paintAuxData;
     WriteOnlyMappedMemory<pls::ContourData> m_contourData;
     // Simple gradients get written by the CPU.
     WriteOnlyMappedMemory<pls::TwoTexelRamp> m_simpleColorRampsData;
@@ -523,8 +530,6 @@ private:
     WriteOnlyMappedMemory<pls::ImageDrawUniforms> m_imageDrawUniformData;
 
     PerFlushLinkedList<Draw> m_drawList;
-
-    std::unique_ptr<pls::ExperimentalAtomicModeData> m_atomicModeData;
 
     // Simple allocator for trivially-destructible data that needs to persist until the current
     // flush has completed. Any object created with this allocator is automatically deleted during

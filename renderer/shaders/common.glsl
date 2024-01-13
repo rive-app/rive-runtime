@@ -12,14 +12,6 @@ INLINE uint contour_data_idx(uint contourIDWithFlags)
     return (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;
 }
 
-INLINE uint path_data_idx(uint pathIDBits) { return (pathIDBits - 1u) * 5u; }
-
-INLINE int2 path_texel_coord(uint pathIDBits)
-{
-    uint pathIdx = pathIDBits - 1u;
-    return int2((pathIdx & 0x7fu) * 5u, pathIdx >> 7);
-}
-
 INLINE float2 unchecked_mix(float2 a, float2 b, float t) { return (b - a) * t + a; }
 
 INLINE half id_bits_to_f16(uint idBits, uint pathIDGranularity)
@@ -57,14 +49,13 @@ INLINE half min_value(half4 min4)
 INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
 
 #ifdef @VERTEX
-UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @Uniforms)
+UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @FlushUniforms)
 float gradInverseViewportY;
 float tessInverseViewportY;
 float renderTargetInverseViewportX;
 float renderTargetInverseViewportY;
-float gradTextureInverseHeight;
-float gradComplexOffsetY; // Normalized Y-offset to the first row of complex gradients.
-uint pathIDGranularity;   // Spacing between adjacent path IDs (1 if IEEE compliant).
+float renderTargetHeight;
+uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
 float vertexDiscardValue;
 UNIFORM_BLOCK_END(uniforms)
 

@@ -33,7 +33,7 @@ NO_PERSPECTIVE VARYING(6, float4, v_clipRect);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
 #ifdef @DRAW_INTERIOR_TRIANGLES
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
@@ -60,10 +60,7 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
 #endif
 
     bool shouldDiscardVertex = false;
-    ushort pathIDBits;
-    float2x2 M;
-    float2 translate;
-    uint pathParams;
+    ushort pathID;
     float2 vertexPosition;
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -71,10 +68,7 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
 #ifdef METAL
                                                      _buffers,
 #endif
-                                                     pathIDBits,
-                                                     M,
-                                                     translate,
-                                                     pathParams,
+                                                     pathID,
                                                      v_windingWeight);
 #else
     shouldDiscardVertex = !unpack_tessellated_path_vertex(@a_patchVertexData,
@@ -84,92 +78,90 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
                                                           _textures,
                                                           _buffers,
 #endif
-                                                          pathIDBits,
-                                                          M,
-                                                          translate,
-                                                          pathParams,
+                                                          pathID,
                                                           v_edgeDistance,
                                                           vertexPosition);
 #endif
 
     // Encode the integral pathID as a "half" that we know the hardware will see as a unique value
     // in the fragment shader.
-    v_pathID = id_bits_to_f16(pathIDBits, uniforms.pathIDGranularity);
+    v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
+
+    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
 
     // Indicate even-odd fill rule by making pathID negative.
-    if ((pathParams & EVEN_ODD_PATH_FLAG) != 0u)
+    if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
         v_pathID = -v_pathID;
 
-    uint paintType = (pathParams >> 20) & 7u;
+    uint paintType = paintData.x & 0xfu;
 #ifdef @ENABLE_CLIPPING
-    uint clipIDBits = (pathParams >> 4) & 0xffffu;
+    uint clipIDBits = (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >> 16;
     v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
     // Negative clipID means to update the clip buffer instead of the framebuffer.
     if (paintType == CLIP_UPDATE_PAINT_TYPE)
         v_clipID = -v_clipID;
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    v_blendMode = float(pathParams & 0xfu);
+    v_blendMode = float((paintData.x >> 4) & 0xfu);
 #endif
 
-    uint pathDataIdx = path_data_idx(pathIDBits);
+    // Paint matrices operate on the fragment shader's "_fragCoord", which is bottom-up in GL.
+    float2 fragCoord = vertexPosition;
+#ifdef FRAG_COORD_BOTTOM_UP
+    fragCoord.y = uniforms.renderTargetHeight - fragCoord.y;
+#endif
+
 #ifdef @ENABLE_CLIP_RECT
     // clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
     // normalized rectangle: [-1, -1, 1, 1].
     float2x2 clipRectInverseMatrix =
-        make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 3u)));
-    float2 clipRectInverseTranslate =
-        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 4u)).xy;
+        make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
+    float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
     v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
-                                                   clipRectInverseTranslate,
-                                                   vertexPosition);
+                                                   clipRectInverseTranslate.xy,
+                                                   fragCoord);
 #endif
 
     // Unpack the paint once we have a position.
-    uint4 paintData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 2u);
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
-        float4 color = uintBitsToFloat(paintData);
-        v_paint = color;
+        half4 color = unpackUnorm4x8(paintData.y);
+        v_paint = float4(color);
     }
 #ifdef @ENABLE_CLIPPING
     else if (paintType == CLIP_UPDATE_PAINT_TYPE)
     {
-        half outerClipID = id_bits_to_f16(paintData.r, uniforms.pathIDGranularity);
+        half outerClipID = id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
         v_paint = float4(outerClipID, 0, 0, 0);
     }
 #endif
     else
     {
-        float2 localCoord = MUL(inverse(M), vertexPosition - translate);
+        float2x2 paintMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
+        float4 paintTranslate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
+        float2 paintCoord = MUL(paintMatrix, fragCoord) + paintTranslate.xy;
         if (paintType == LINEAR_GRADIENT_PAINT_TYPE || paintType == RADIAL_GRADIENT_PAINT_TYPE)
         {
-            uint span = paintData.x;
-            float row = float(span >> 20);
-            float x1 = float((span >> 10) & 0x3ffu);
-            float x0 = float(span & 0x3ffu);
             // v_paint.a contains "-row" of the gradient ramp at texel center, in normalized space.
-            v_paint.a = (row + .5) * -uniforms.gradTextureInverseHeight;
+            v_paint.a = -uintBitsToFloat(paintData.y);
             // abs(v_paint.b) contains either:
             //   - 2 if the gradient ramp spans an entire row.
             //   - x0 of the gradient ramp in normalized space, if it's a simple 2-texel ramp.
-            if (x1 > x0 + 1.)
+            if (paintTranslate.z > .9) // paintTranslate.z is either ~1 or ~1/GRAD_TEXTURE_WIDTH.
             {
-                // Complex gradients rows are offset after the simple gradients.
-                v_paint.a -= uniforms.gradComplexOffsetY;
-                v_paint.b = 2.; // Complex ramps span an entire row. Set it to 2 to convey this.
+                // Complex ramps span an entire row. Set it to 2 to convey this.
+                v_paint.b = 2.;
             }
             else
             {
                 // This is a simple ramp.
-                v_paint.b = x0 * (1. / GRAD_TEXTURE_WIDTH) + (.5 / GRAD_TEXTURE_WIDTH);
+                v_paint.b = paintTranslate.w;
             }
-            float3 gradCoeffs = uintBitsToFloat(paintData.yzw);
             if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
             {
                 // The paint is a linear gradient.
                 v_paint.g = .0;
-                v_paint.r = dot(localCoord, gradCoeffs.xy) + gradCoeffs.z;
+                v_paint.r = paintCoord.x;
             }
             else
             {
@@ -177,17 +169,16 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
                 // fragment shader. (v_paint.b can't be zero because the gradient ramp is aligned on
                 // pixel centers, so negating it will always produce a negative number.)
                 v_paint.b = -v_paint.b;
-                v_paint.rg = (localCoord - gradCoeffs.xy) / gradCoeffs.z;
+                v_paint.rg = paintCoord.xy;
             }
         }
         else // IMAGE_PAINT_TYPE
         {
             // v_paint.a <= -1. signals that the paint is an image.
             // v_paint.b is the image opacity.
-            // v_paint.rg is the normalized image texture coordinate. (For now, we just
-            // pre-transform paths before rendering, such that localCoord == textureCoord.)
-            float opacity = uintBitsToFloat(paintData.x);
-            v_paint = float4(localCoord.x, localCoord.y, opacity, -2.);
+            // v_paint.rg is the normalized image texture coordinate (built into the paintMatrix).
+            float opacity = uintBitsToFloat(paintData.y);
+            v_paint = float4(paintCoord.x, paintCoord.y, opacity, -2.);
         }
     }
 
@@ -240,7 +231,7 @@ PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
 
-PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
+PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
 {
     VARYING_UNPACK(v_paint, float4);
 #ifdef @DRAW_INTERIOR_TRIANGLES

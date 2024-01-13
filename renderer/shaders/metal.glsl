@@ -152,11 +152,11 @@
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
-#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
         uint _instanceID [[$instance_id]],                                                         \
-        $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
+        $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
         $constant Attrs* attrs [[$buffer(0)]],                                                     \
         StorageBuffers _buffers,                                                                   \
         VertexTextures _textures)                                                                  \
@@ -164,8 +164,6 @@
         Varyings _varyings;
 
 #define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
-                               Uniforms,                                                           \
-                               uniforms,                                                           \
                                MeshUniforms,                                                       \
                                meshUniforms,                                                       \
                                PositionAttr,                                                       \
@@ -175,7 +173,7 @@
                                _vertexID)                                                          \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
-        $constant Uniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                        \
+        $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
         $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],           \
         $constant PositionAttr* position [[$buffer(0)]],                                           \
         $constant UVAttr* uv [[$buffer(1)]])                                                       \
@@ -196,14 +194,14 @@
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, _pos, _plsCoord)                                                            \
+#define PLS_MAIN(NAME, _fragCoord, _plsCoord)                                                      \
     $__attribute__(($visibility("default"))) PLS $fragment NAME(PLS _inpls,                        \
                                                                 Varyings _varyings [[$stage_in]],  \
                                                                 FragmentTextures _textures)        \
     {                                                                                              \
         PLS _pls;
 
-#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)                     \
+#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _fragCoord, _plsCoord)               \
     $__attribute__(($visibility("default"))) PLS $fragment NAME(                                   \
         PLS _inpls,                                                                                \
         $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],           \
@@ -240,6 +238,8 @@ $template<int N> INLINE $vec<float, N> uintBitsToFloat($vec<uint, N> x)
 INLINE float uintBitsToFloat(uint x) { return $as_type<float>(x); }
 INLINE half2 unpackHalf2x16(uint x) { return $as_type<half2>(x); }
 INLINE uint packHalf2x16(half2 x) { return $as_type<uint>(x); }
+INLINE half4 unpackUnorm4x8(uint x) { return $unpack_unorm4x8_to_half(x); }
+INLINE uint packUnorm4x8(half4 x) { return $pack_half_to_unorm4x8(x); }
 
 INLINE float2x2 inverse(float2x2 m)
 {

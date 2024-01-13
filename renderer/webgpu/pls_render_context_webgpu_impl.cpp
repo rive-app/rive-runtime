@@ -353,7 +353,7 @@ public:
     {
         wgpu::BindGroupLayoutEntry bindingLayouts[] = {
             {
-                .binding = PATH_STORAGE_BUFFER_IDX,
+                .binding = PATH_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
                     {
@@ -361,7 +361,7 @@ public:
                     },
             },
             {
-                .binding = CONTOUR_STORAGE_BUFFER_IDX,
+                .binding = CONTOUR_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
                 .buffer =
                     {
@@ -717,22 +717,6 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
                 },
         },
         {
-            .binding = PATH_STORAGE_BUFFER_IDX,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                },
-        },
-        {
-            .binding = CONTOUR_STORAGE_BUFFER_IDX,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
-                {
-                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                },
-        },
-        {
             .binding = GRAD_TEXTURE_IDX,
             .visibility = wgpu::ShaderStage::Fragment,
             .texture =
@@ -748,6 +732,38 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
                 {
                     .sampleType = wgpu::TextureSampleType::Float,
                     .viewDimension = wgpu::TextureViewDimension::e2D,
+                },
+        },
+        {
+            .binding = PATH_BUFFER_IDX,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                },
+        },
+        {
+            .binding = PAINT_BUFFER_IDX,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                },
+        },
+        {
+            .binding = PAINT_AUX_BUFFER_IDX,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                },
+        },
+        {
+            .binding = CONTOUR_BUFFER_IDX,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .buffer =
+                {
+                    .type = wgpu::BufferBindingType::ReadOnlyStorage,
                 },
         },
         {
@@ -1149,7 +1165,7 @@ std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeVertexBufferRing(siz
 
 std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeStorageBufferRing(
     size_t capacityInBytes,
-    size_t elementSizeInBytes)
+    pls::StorageBufferStructure)
 {
     return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Storage);
 }
@@ -1460,11 +1476,11 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     {
         wgpu::BindGroupEntry bindingEntries[] = {
             {
-                .binding = PATH_STORAGE_BUFFER_IDX,
+                .binding = PATH_BUFFER_IDX,
                 .buffer = webgpu_buffer(pathBufferRing()),
             },
             {
-                .binding = CONTOUR_STORAGE_BUFFER_IDX,
+                .binding = CONTOUR_BUFFER_IDX,
                 .buffer = webgpu_buffer(contourBufferRing()),
             },
             {
@@ -1637,11 +1653,19 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                     .textureView = currentImageTextureView,
                 },
                 {
-                    .binding = PATH_STORAGE_BUFFER_IDX,
+                    .binding = PATH_BUFFER_IDX,
                     .buffer = webgpu_buffer(pathBufferRing()),
                 },
                 {
-                    .binding = CONTOUR_STORAGE_BUFFER_IDX,
+                    .binding = PAINT_BUFFER_IDX,
+                    .buffer = webgpu_buffer(paintBufferRing()),
+                },
+                {
+                    .binding = PAINT_AUX_BUFFER_IDX,
+                    .buffer = webgpu_buffer(paintAuxBufferRing()),
+                },
+                {
+                    .binding = CONTOUR_BUFFER_IDX,
                     .buffer = webgpu_buffer(contourBufferRing()),
                 },
                 {

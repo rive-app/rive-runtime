@@ -43,6 +43,7 @@ public:
     const IAABB& pixelBounds() const { return m_pixelBounds; }
     const PLSTexture* imageTexture() const { return m_imageTextureRef; }
     Type type() const { return m_type; }
+    bool hasClipRect() const { return m_clipRectInverseMatrix != nullptr; }
 
     // Clipping setup.
     void setClipID(uint32_t clipID) { m_clipID = clipID; }
@@ -112,7 +113,7 @@ protected:
     // Gradient data used by some draws. Stored in the base class so allocateGradientIfNeeded()
     // doesn't have to be virtual.
     const PLSGradient* m_gradientRef = nullptr;
-    pls::PaintData m_paintRenderData;
+    pls::SimplePaintValue m_simplePaintValue;
 };
 
 // Even though PLSDraw is block-allocated, we sill need to call releaseRefs() on each individual
@@ -150,9 +151,9 @@ public:
     virtual void onPushToRenderContext(PLSRenderContext*) = 0;
 
     const PLSPath* const m_pathRef;
+    const bool m_isStroked;
     const FillRule m_fillRule; // Bc PLSPath fillRule can mutate during the artboard draw process.
     const pls::PaintType m_paintType;
-    const bool m_isStroked;
     const float m_strokeRadius;
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold it.

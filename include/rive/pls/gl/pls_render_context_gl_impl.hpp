@@ -145,12 +145,10 @@ private:
 
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
-                                                      size_t elementSizeInBytes) override;
+                                                      pls::StorageBufferStructure) override;
     std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
-    void resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes) override;
-    void resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes) override;
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
@@ -158,14 +156,7 @@ private:
 
     GLCapabilities m_capabilities;
 
-    constexpr static size_t kShaderVersionStringBuffSize = sizeof("#version 300 es\n") + 1;
-    char m_shaderVersionString[kShaderVersionStringBuffSize];
-
     std::unique_ptr<PLSImpl> m_plsImpl;
-
-    // Path/contour data textures.
-    GLuint m_pathTexture = 0;
-    GLuint m_contourTexture = 0;
 
     // Gradient texture rendering.
     GLuint m_colorRampProgram;
@@ -198,13 +189,6 @@ private:
 
     GLuint m_imageMeshVAO = 0;
     GLuint m_plsResolveVAO = 0;
-
-    // Extra buffers for the experimental atomic mode.
-    GLuint m_paintBuffer = 0;
-    GLuint m_paintMatrixBuffer = 0;
-    GLuint m_paintTranslateBuffer = 0;
-    GLuint m_clipRectMatrixBuffer = 0;
-    GLuint m_clipRectTranslateBuffer = 0;
 
     const rcp<GLState> m_state;
 };

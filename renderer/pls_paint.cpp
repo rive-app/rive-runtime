@@ -102,31 +102,35 @@ rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
 
 void PLSPaint::color(ColorInt color)
 {
-    m_imageTexture.reset();
-    m_gradient.reset();
-    m_color = color;
     m_paintType = PaintType::solidColor;
+    m_simpleValue.color = color;
+    m_gradient.reset();
+    m_imageTexture.reset();
 }
 
 void PLSPaint::shader(rcp<RenderShader> shader)
 {
-    m_imageTexture.reset();
     m_gradient = static_rcp_cast<PLSGradient>(std::move(shader));
     m_paintType = m_gradient ? m_gradient->paintType() : PaintType::solidColor;
+    // m_simpleValue.colorRampLocation is unused at this level. A new location for a this gradient's
+    // color ramp will decided by the render context every frame.
+    m_simpleValue.color = 0xff000000;
+    m_imageTexture.reset();
 }
 
 void PLSPaint::image(rcp<const PLSTexture> imageTexture, float opacity)
 {
-    m_imageOpacity = opacity;
-    m_imageTexture = std::move(imageTexture);
-    m_gradient.reset();
     m_paintType = PaintType::image;
+    m_simpleValue.imageOpacity = opacity;
+    m_gradient.reset();
+    m_imageTexture = std::move(imageTexture);
 }
 
 void PLSPaint::clipUpdate(uint32_t outerClipID)
 {
-    m_outerClipID = outerClipID;
-    m_gradient.reset();
     m_paintType = PaintType::clipUpdate;
+    m_simpleValue.outerClipID = outerClipID;
+    m_gradient.reset();
+    m_imageTexture.reset();
 }
 } // namespace rive::pls

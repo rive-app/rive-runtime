@@ -91,7 +91,7 @@ private:
 
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
-                                                      size_t elementSizeInBytes) override;
+                                                      pls::StorageBufferStructure) override;
     std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
@@ -159,17 +159,5 @@ private:
 
     ComPtr<ID3D11SamplerState> m_linearSampler;
     ComPtr<ID3D11SamplerState> m_mipmapSampler;
-
-    // Storage buffers for the experimental atomic mode.
-    ComPtr<ID3D11Buffer> m_paintBuffer = 0;
-    ComPtr<ID3D11Buffer> m_paintMatrixBuffer = 0;
-    ComPtr<ID3D11Buffer> m_paintTranslateBuffer = 0;
-    ComPtr<ID3D11Buffer> m_clipRectMatrixBuffer = 0;
-    ComPtr<ID3D11Buffer> m_clipRectTranslateBuffer = 0;
-    ComPtr<ID3D11ShaderResourceView> m_paintBufferSRV = 0;
-    ComPtr<ID3D11ShaderResourceView> m_paintMatrixBufferSRV = 0;
-    ComPtr<ID3D11ShaderResourceView> m_paintTranslateBufferSRV = 0;
-    ComPtr<ID3D11ShaderResourceView> m_clipRectMatrixBufferSRV = 0;
-    ComPtr<ID3D11ShaderResourceView> m_clipRectTranslateBufferSRV = 0;
 };
 } // namespace rive::pls

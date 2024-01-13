@@ -7,7 +7,6 @@
 #include "rive/enum_bitset.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
-#include "rive/math/math_types.hpp"
 #include "rive/math/path_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/math/vec2d.hpp"
@@ -33,6 +32,7 @@ class RenderBuffer;
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit
 namespace rive::pls
 {
+class PLSGradient;
 class PLSRenderContextImpl;
 class PLSRenderTarget;
 class PLSTexture;
@@ -71,22 +71,11 @@ constexpr static int MaxPathID(int granularity)
     return kLargestFP16BeforeExponentAll1s / granularity - kLargestDenormalizedFP16;
 }
 
-// In order to support WebGL2, we implement the path data buffer as a texture.
-constexpr static size_t kPathTextureWidthInItems = 128;
-constexpr static size_t kPathTexelsPerItem = 5;
-constexpr static size_t kPathTextureWidthInTexels = kPathTextureWidthInItems * kPathTexelsPerItem;
-
 // Each contour has its own unique ID, which it uses to index a data record containing per-contour
 // information. This value is currently 16 bit.
 constexpr static size_t kMaxContourID = 65535;
 constexpr static uint32_t kContourIDMask = 0xffff;
 static_assert((kMaxContourID & kContourIDMask) == kMaxContourID);
-
-// In order to support WebGL2, we implement the contour data buffer as a texture.
-constexpr static size_t kContourTextureWidthInItems = 256;
-constexpr static size_t kContourTexelsPerItem = 1;
-constexpr static size_t kContourTextureWidthInTexels =
-    kContourTextureWidthInItems * kContourTexelsPerItem;
 
 // Tessellation is performed by rendering vertices into a data texture. These values define the
 // dimensions of the tessellation data texture.
@@ -262,57 +251,31 @@ enum class PaintType : uint32_t
     clipUpdate, // Update the clip buffer instead of drawing to the framebuffer.
 };
 
-// Packs the data for a gradient or solid color into 4 floats.
-struct PaintData
+// Specifies the location of a simple or complex horizontal color ramp within the gradient texture.
+// A simple color ramp is two texels wide, beginning at the specified row and column.
+// A complex color ramp spans the entire width of the gradient texture, on the row:
+//     "GradTextureLayout::complexOffsetY + ColorRampLocation::row".
+struct ColorRampLocation
 {
-    static PaintData MakeColor(ColorInt color)
-    {
-        PaintData paintData;
-        UnpackColorToRGBA32F(color, reinterpret_cast<float*>(paintData.data));
-        return paintData;
-    }
-    const float* colorIfColor() const { return reinterpret_cast<const float*>(data); }
-
-    static PaintData MakeGradient(uint32_t row,
-                                  uint32_t left,
-                                  uint32_t right,
-                                  const float coeffs[3])
-    {
-        PaintData paintData;
-        static_assert(kGradTextureWidth <= (1 << 10));
-        assert(row < (1 << 12));
-        // Subtract 1 from right so we can support a 1024-wide gradient texture (so the
-        // rightmost pixel would be 0x3ff and still fit in 10 bits).
-        uint32_t span = (row << 20) | ((right - 1) << 10) | left;
-        paintData.data[0] = span;
-        RIVE_INLINE_MEMCPY(paintData.data + 1, coeffs, 3 * sizeof(float));
-        return paintData;
-    }
-
-    static PaintData MakeImage(float opacity)
-    {
-        // Images use the texture binding at IMAGE_TEXTURE_IDX, so the paint data only needs
-        // opacity.
-        PaintData paintData;
-        paintData.data[0] = math::bit_cast<uint32_t>(opacity);
-        return paintData;
-    }
-    float opacityIfImage() const { return math::bit_cast<float>(data[0]); }
-
-    static PaintData MakeClipUpdate(uint32_t outerClipID)
-    {
-        // outerClipID is the enclosing clip, or 0 if the clip being drawn is not nested.
-        PaintData paintData;
-        paintData.data[0] = outerClipID;
-        return paintData;
-    }
-    uint32_t outerClipIDIfClipUpdate() const { return data[0]; }
-
-    uint32_t data[4]; // Packed, type-specific paint data.
+    constexpr static uint16_t kComplexGradientMarker = 0xffff;
+    bool isComplex() const { return col == kComplexGradientMarker; }
+    uint16_t row;
+    uint16_t col;
 };
 
-// This class encapsulates a matrix that maps from pixel coordinates to a space where the clipRect
-// is the normalized rectangle: [-1, -1, +1, +1]
+// Most of a paint's information can be described in a single value. Gradients and images reference
+// an additional PLSGradient* and PLSTexture* respectively.
+union SimplePaintValue
+{
+    ColorInt color = 0xff000000;         // PaintType::solidColor
+    ColorRampLocation colorRampLocation; // Paintype::linearGradient, Paintype::radialGradient
+    float imageOpacity;                  // PaintType::image
+    uint32_t outerClipID;                // Paintype::clipUpdate
+};
+static_assert(sizeof(SimplePaintValue) == 4);
+
+// This class encapsulates a matrix that maps from _fragCoord to a space where the clipRect is the
+// normalized rectangle: [-1, -1, +1, +1]
 class ClipRectInverseMatrix
 {
 public:
@@ -337,109 +300,226 @@ private:
     Mat2D m_inverseMatrix;
 };
 
+// Specifies the height of the gradient texture, and the row at which we transition from simple
+// color ramps to complex.
+//
+// This information is computed at flush time, once we know exactly how many color ramps of each
+// type will be in the gradient texture.
+struct GradTextureLayout
+{
+    uint32_t complexOffsetY; // Row of the first complex gradient.
+    float inverseHeight;     // 1 / textureHeight
+};
+
 // Convert a BlendMode to the tightly-packed range used by PLS shaders.
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode);
 
-// Each path has a unique data record on the GPU that is accessed from the vertex shader.
-struct PathData
-{
-    void set(const Mat2D&,
-             float strokeRadius_, // 0 if the path is filled.
-             FillRule,
-             PaintType,
-             uint32_t clipID,
-             BlendMode,
-             const PaintData&,
-             const ClipRectInverseMatrix*);
-
-    Mat2D matrix;
-    float strokeRadius; // "0" indicates that the path is filled, not stroked.
-    uint32_t params;    // [fillRule, paintType, clipID, blendMode]
-    PaintData paintData;
-    ClipRectInverseMatrix clipRectInverseMatrix;
-    float padding0;
-    float padding1;
-};
-
-// Each contour of every path has a unique data record on the GPU that is accessed from the
-// vertex shader.
-struct ContourData
-{
-    ContourData(Vec2D midpoint_, uint32_t pathID_, uint32_t vertexIndex0_) :
-        midpoint(midpoint_), pathID(pathID_), vertexIndex0(vertexIndex0_)
-    {}
-    Vec2D midpoint;        // Midpoint of the curve endpoints in just this contour.
-    uint32_t pathID;       // ID of the path this contour belongs to.
-    uint32_t vertexIndex0; // Index of the first tessellation vertex of the contour.
-};
-
-// Per-vertex data for shaders that draw triangles.
-struct TriangleVertex
-{
-    TriangleVertex() = default;
-    TriangleVertex(Vec2D point_, int16_t weight, uint16_t pathID) :
-        point(point_), weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
-    {}
-    Vec2D point;
-    int32_t weight_pathID; // [(weight << 16 | pathID]
-};
-static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
+// Used for fields that are used to layout write-only mapped GPU memory.
+// "volatile" to discourage the compiler from generating code that reads these values
+// (e.g., don't let the compiler generate "x ^= x" instead of "x = 0").
+// "RIVE_MAYBE_UNUSED" to suppress -Wunused-private-field.
+#define WRITEONLY RIVE_MAYBE_UNUSED volatile
 
 // Per-flush shared uniforms used by all shaders.
 struct FlushUniforms
 {
-    FlushUniforms() = default;
-
-    inline static float4 InverseViewports(size_t complexGradientsHeight,
-                                          size_t tessDataHeight,
-                                          size_t renderTargetWidth,
-                                          size_t renderTargetHeight,
-                                          const PlatformFeatures& platformFeatures)
-    {
-        float4 numerators = 2;
-        if (platformFeatures.invertOffscreenY)
-        {
-            numerators.xy = -numerators.xy;
-        }
-        if (platformFeatures.uninvertOnScreenY)
-        {
-            numerators.w = -numerators.w;
-        }
-        return numerators / float4{static_cast<float>(complexGradientsHeight),
-                                   static_cast<float>(tessDataHeight),
-                                   static_cast<float>(renderTargetWidth),
-                                   static_cast<float>(renderTargetHeight)};
-    }
-
+public:
     FlushUniforms(uint32_t complexGradientsHeight,
                   uint32_t tessDataHeight,
                   uint32_t renderTargetWidth,
                   uint32_t renderTargetHeight,
-                  uint32_t gradTextureHeight,
-                  uint32_t gradComplexOffsetY_,
                   const PlatformFeatures& platformFeatures) :
-        inverseViewports(InverseViewports(complexGradientsHeight,
-                                          tessDataHeight,
-                                          renderTargetWidth,
-                                          renderTargetHeight,
-                                          platformFeatures)),
-        gradTextureInverseHeight(1.f / static_cast<float>(gradTextureHeight)),
-        gradComplexOffsetY(gradComplexOffsetY_ * gradTextureInverseHeight),
-        pathIDGranularity(platformFeatures.pathIDGranularity)
+        m_inverseViewports(complexGradientsHeight,
+                           tessDataHeight,
+                           renderTargetWidth,
+                           renderTargetHeight,
+                           platformFeatures),
+        m_renderTargetHeight(renderTargetHeight),
+        m_pathIDGranularity(platformFeatures.pathIDGranularity)
     {}
 
-    float4 inverseViewports = 0; // [complexGradientsY, tessDataY, renderTargetX, renderTargetY]
-    float gradTextureInverseHeight = 0;
-    float gradComplexOffsetY = 0;   // Normalized Y-offset to the first row of complex gradients.
-    uint32_t pathIDGranularity = 0; // Spacing between adjacent path IDs (1 if IEEE compliant).
-    float vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
-    uint8_t padTo256Bytes[256 - 32]; // Uniform blocks must be multiples of 256 bytes in size.
+    FlushUniforms(const FlushUniforms& other) { *this = other; }
+
+    void operator=(const FlushUniforms& rhs)
+    {
+        memcpy(this, &rhs, sizeof(*this) - sizeof(m_padTo256Bytes));
+    }
+
+    bool operator!=(const FlushUniforms& rhs) const
+    {
+        return memcmp(this, &rhs, sizeof(*this) - sizeof(m_padTo256Bytes)) != 0;
+    }
+
+private:
+    class InverseViewports
+    {
+    public:
+        InverseViewports() = default;
+
+        InverseViewports(size_t complexGradientsHeight,
+                         size_t tessDataHeight,
+                         size_t renderTargetWidth,
+                         size_t renderTargetHeight,
+                         const PlatformFeatures& platformFeatures);
+
+    private:
+        WRITEONLY float m_vals[4]; // [complexGradientsY, tessDataY, renderTargetX,  renderTargetY]
+    };
+
+    WRITEONLY InverseViewports m_inverseViewports;
+    WRITEONLY float m_renderTargetHeight = 0;
+    WRITEONLY uint32_t m_pathIDGranularity = 0; // Spacing between adjacent path IDs
+                                                // (1 if IEEE compliant).
+    WRITEONLY float m_vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 28]; // Uniform blocks must be multiples of 256 bytes in
+                                                 // size.
 };
 static_assert(sizeof(FlushUniforms) == 256);
+
+// Storage buffers are logically layed out as arrays of structs on the CPU, but the GPU shaders
+// access them as arrays of basic types. We do it this way in order to be able to easily polyfill
+// them with textures.
+//
+// This enum defines the underlying basic type that each storage buffer struct is layed on top of.
+enum StorageBufferStructure
+{
+    uint32x4,
+    uint32x2,
+    float32x4,
+};
+
+constexpr static size_t StorageBufferElementSizeInBytes(StorageBufferStructure bufferStructure)
+{
+    switch (bufferStructure)
+    {
+        case StorageBufferStructure::uint32x4:
+            return sizeof(uint32_t) * 4;
+        case StorageBufferStructure::uint32x2:
+            return sizeof(uint32_t) * 2;
+        case StorageBufferStructure::float32x4:
+            return sizeof(float) * 4;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// High level structure of the "path" storage buffer. Each path has a unique data record on the GPU
+// that is accessed from the vertex shader.
+struct PathData
+{
+public:
+    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::uint32x4;
+
+    void set(const Mat2D&, float strokeRadius);
+
+private:
+    WRITEONLY float m_matrix[6];
+    WRITEONLY float m_strokeRadius; // "0" indicates that the path is filled, not stroked.
+    WRITEONLY uint32_t m_pad;
+};
+static_assert(sizeof(PathData) == StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 2);
+
+// High level structure of the "paint" storage buffer. Each path also has a data small record
+// describing its paint at a high level. Complex paints (gradients, images, or any path with a
+// clipRect) store additional rendering info in the PaintAuxData buffer.
+struct PaintData
+{
+public:
+    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::uint32x2;
+
+    void set(FillRule,
+             PaintType,
+             SimplePaintValue,
+             GradTextureLayout,
+             uint32_t clipID,
+             bool hasClipRect,
+             BlendMode);
+
+private:
+    WRITEONLY uint32_t m_params; // [clipID, flags, paintType]
+    union
+    {
+        WRITEONLY uint32_t m_color;     // PaintType::solidColor
+        WRITEONLY float m_gradTextureY; // Paintype::linearGradient, Paintype::radialGradient
+        WRITEONLY float m_opacity;      // PaintType::image
+        WRITEONLY uint32_t m_shiftedClipReplacementID; // PaintType::clipUpdate
+    };
+};
+static_assert(sizeof(PaintData) == StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
+
+// Structure of the "paintAux" storage buffer. Gradients, images, and clipRects store their details
+// here, indexed by pathID.
+struct PaintAuxData
+{
+public:
+    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::float32x4;
+
+    void set(const Mat2D& viewMatrix,
+             PaintType,
+             SimplePaintValue,
+             const PLSGradient*,
+             const PLSTexture*,
+             const ClipRectInverseMatrix*,
+             const PLSRenderTarget*,
+             const pls::PlatformFeatures&);
+
+private:
+    WRITEONLY float m_matrix[6]; // Maps _fragCoord to paint coordinates.
+    union
+    {
+        WRITEONLY float m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
+                                                        // Paintype::radialGradient
+        WRITEONLY uint32_t m_bindlessTextureHandle[2];  // PaintType::image
+    };
+
+    WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized clipRect coords.
+    WRITEONLY Vec2D m_inverseFwidth; // -1 / fwidth(matrix * _fragCoord) -- for antialiasing.
+};
+static_assert(sizeof(PaintAuxData) ==
+              StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) * 4);
+
+// High level structure of the "contour" storage buffer. Each contour of every path has a data
+// record describing its info.
+struct ContourData
+{
+public:
+    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::uint32x4;
+
+    ContourData(Vec2D midpoint, uint32_t pathID, uint32_t vertexIndex0) :
+        m_midpoint(midpoint), m_pathID(pathID), m_vertexIndex0(vertexIndex0)
+    {}
+
+private:
+    WRITEONLY Vec2D m_midpoint;        // Midpoint of the curve endpoints in just this contour.
+    WRITEONLY uint32_t m_pathID;       // ID of the path this contour belongs to.
+    WRITEONLY uint32_t m_vertexIndex0; // Index of the first tessellation vertex of the contour.
+};
+static_assert(sizeof(ContourData) ==
+              StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
+
+// Per-vertex data for shaders that draw triangles.
+struct TriangleVertex
+{
+public:
+    TriangleVertex() = default;
+    TriangleVertex(Vec2D point, int16_t weight, uint16_t pathID) :
+        m_point(point), m_weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
+    {}
+
+#ifdef TESTING
+    Vec2D testing_point() const { return {m_point.x, m_point.y}; }
+    int32_t testing_weight_pathID() const { return m_weight_pathID; }
+#endif
+
+private:
+    WRITEONLY Vec2D m_point;
+    WRITEONLY int32_t m_weight_pathID; // [(weight << 16 | pathID]
+};
+static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
 // Per-draw uniforms used by image meshes.
 struct ImageDrawUniforms
 {
+public:
     ImageDrawUniforms() = default;
 
     ImageDrawUniforms(const Mat2D&,
@@ -448,17 +528,25 @@ struct ImageDrawUniforms
                       uint32_t clipID,
                       BlendMode);
 
-    Mat2D matrix;
-    float opacity;
-    float padding = 0;
-    ClipRectInverseMatrix clipRectInverseMatrix;
-    uint32_t clipID;
-    uint32_t blendMode;
-    uint8_t padTo256Bytes[256 - 64]; // Uniform blocks must be multiples of 256 bytes in size.
+private:
+    WRITEONLY float m_matrix[6];
+    WRITEONLY float m_opacity;
+    WRITEONLY float m_padding = 0;
+    WRITEONLY float m_clipRectInverseMatrix[6];
+    WRITEONLY uint32_t m_clipID;
+    WRITEONLY uint32_t m_blendMode;
+    // Uniform blocks must be multiples of 256 bytes in size.
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 64];
+
+    constexpr void staticChecks()
+    {
+        static_assert(offsetof(ImageDrawUniforms, m_matrix) % 16 == 0);
+        static_assert(offsetof(ImageDrawUniforms, m_clipRectInverseMatrix) % 16 == 0);
+        static_assert(sizeof(ImageDrawUniforms) == 256);
+    }
 };
-static_assert(offsetof(ImageDrawUniforms, matrix) % 16 == 0);
-static_assert(offsetof(ImageDrawUniforms, clipRectInverseMatrix) % 16 == 0);
-static_assert(sizeof(ImageDrawUniforms) == 256);
+
+#undef WRITEONLY
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive to read mapped
 // memory, we use this class to enforce the write-only nature of this memory.
@@ -512,6 +600,7 @@ public:
     {
         memcpy(push(count), values, count * sizeof(T));
     }
+    void skip_back() { push(); }
 
 private:
     RIVE_ALWAYS_INLINE T& push()
@@ -771,68 +860,6 @@ struct TwoTexelRamp
     uint8_t colorData[8];
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
-
-// Extra data for when FrameDescriptor::enableExperimentalAtomicMode is enabled.
-// TODO: integrate this data more cleanly if/when the atomic mode proves ready to ship.
-struct ExperimentalAtomicModeData
-{
-    // +1 so we can index by pathID (pathID is always >0), and use index 0 for the clear color.
-    constexpr static size_t kBufferLength = pls::MaxPathID(1) + 1;
-
-    const PLSTexture* m_imageTextures[kBufferLength];
-
-    struct Paint
-    {
-        uint32_t params; // [clipID, flags, paintType]
-        union
-        {
-            uint32_t color;
-            float gradTextureY;
-            float opacity;
-            uint32_t shiftedClipReplacementID;
-        };
-    } m_paints[kBufferLength];
-    static_assert(sizeof(Paint) == sizeof(uint32_t) * 2);
-
-    std::array<float, 4> m_paintMatrices[kBufferLength];
-
-    struct PaintTranslate
-    {
-        Vec2D translate;
-        union
-        {
-            std::array<float, 2> gradTextureHorizontalSpan;
-            std::array<uint32_t, 2> bindlessTextureHandle;
-        };
-    } m_paintTranslates[kBufferLength];
-    static_assert(sizeof(PaintTranslate) == sizeof(float) * 4);
-
-    std::array<float, 4> m_clipRectMatrices[kBufferLength];
-
-    struct ClipRectTranslate
-    {
-        Vec2D translate;
-        Vec2D inverseFwidth; // -1 / fwidth(clipMatrix * pixelPosition) -- for antialiasing.
-    } m_clipRectTranslates[kBufferLength];
-
-    // Configure the base paint (pathID=0) to draw the clear color. This will only actually be used
-    // if PLSRenderContextImpl::FlushDescriptor::canSkipColorClear() is true.
-    void setClearColorPaint(ColorInt clearColor);
-
-    // Fills in the buffers at index 'pathID' with the info for drawing the given path.
-    void setDataForPath(uint32_t pathID,
-                        const Mat2D&,
-                        FillRule,
-                        pls::PaintType,
-                        const pls::PaintData&,
-                        const PLSTexture*,
-                        uint32_t clipID,
-                        const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-                        BlendMode,
-                        const PLSRenderTarget*,
-                        const pls::FlushUniforms&,
-                        const PlatformFeatures&);
-};
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
 template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)

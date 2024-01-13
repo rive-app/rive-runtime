@@ -40,8 +40,6 @@ VERTEX_TEXTURE_BLOCK_BEGIN
 VERTEX_TEXTURE_BLOCK_END
 
 IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
-                       @Uniforms,
-                       uniforms,
                        @ImageDrawUniforms,
                        imageDrawUniforms,
                        PositionAttr,
@@ -100,7 +98,7 @@ PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
 
-IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _pos, _plsCoord)
+IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _fragCoord, _plsCoord)
 {
     VARYING_UNPACK(v_texCoord, float2);
 #ifdef @ENABLE_CLIPPING

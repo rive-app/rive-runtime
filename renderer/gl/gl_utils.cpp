@@ -15,9 +15,9 @@ namespace glutils
 void CompileAndAttachShader(GLuint program,
                             GLuint type,
                             const char* source,
-                            const char* versionString)
+                            const GLCapabilities& capabilities)
 {
-    CompileAndAttachShader(program, type, nullptr, 0, &source, 1, versionString);
+    CompileAndAttachShader(program, type, nullptr, 0, &source, 1, capabilities);
 }
 
 void CompileAndAttachShader(GLuint program,
@@ -26,17 +26,17 @@ void CompileAndAttachShader(GLuint program,
                             size_t numDefines,
                             const char* inputSources[],
                             size_t numInputSources,
-                            const char* versionString)
+                            const GLCapabilities& capabilities)
 {
     GLuint shader =
-        CompileShader(type, defines, numDefines, inputSources, numInputSources, versionString);
+        CompileShader(type, defines, numDefines, inputSources, numInputSources, capabilities);
     glAttachShader(program, shader);
     glDeleteShader(shader);
 }
 
-GLuint CompileShader(GLuint type, const char* source, const char* versionString)
+GLuint CompileShader(GLuint type, const char* source, const GLCapabilities& capabilities)
 {
-    return CompileShader(type, nullptr, 0, &source, 1, versionString);
+    return CompileShader(type, nullptr, 0, &source, 1, capabilities);
 }
 
 GLuint CompileShader(GLuint type,
@@ -44,24 +44,27 @@ GLuint CompileShader(GLuint type,
                      size_t numDefines,
                      const char* inputSources[],
                      size_t numInputSources,
-                     const char* versionString)
+                     const GLCapabilities& capabilities)
 {
     std::ostringstream shaderSource;
-    if (versionString != nullptr)
+    shaderSource << "#version " << capabilities.contextVersionMajor
+                 << capabilities.contextVersionMinor << '0';
+    if (capabilities.isGLES)
     {
-        shaderSource << versionString;
+        shaderSource << " es";
     }
-    else
-    {
-        shaderSource << "#version 300 es\n";
-    }
+    shaderSource << '\n';
+    // Create our own "GLSL_VERSION" macro. In "#version 320 es", Qualcomm incorrectly substitutes
+    // __VERSION__ to 300.
+    shaderSource << "#define " << GLSL_GLSL_VERSION << ' ' << capabilities.contextVersionMajor
+                 << capabilities.contextVersionMinor << "0\n";
     if (type == GL_VERTEX_SHADER)
     {
-        shaderSource << "#define " GLSL_VERTEX "\n";
+        shaderSource << "#define " << GLSL_VERTEX "\n";
     }
     else if (GL_FRAGMENT_SHADER)
     {
-        shaderSource << "#define " GLSL_FRAGMENT "\n";
+        shaderSource << "#define " << GLSL_FRAGMENT "\n";
     }
     for (size_t i = 0; i < numDefines; ++i)
     {

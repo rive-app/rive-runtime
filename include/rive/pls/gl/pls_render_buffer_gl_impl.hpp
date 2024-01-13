@@ -7,6 +7,7 @@
 #include "rive/renderer.hpp"
 #include "rive/pls/gl/gles3.hpp"
 #include "rive/pls/pls.hpp"
+#include <array>
 
 namespace rive::pls
 {

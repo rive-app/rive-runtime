@@ -33,14 +33,28 @@ rcp<PLSTexture> PLSRenderContextHelperImpl::decodeImageTexture(Span<const uint8_
     return nullptr;
 }
 
-void PLSRenderContextHelperImpl::resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
+void PLSRenderContextHelperImpl::resizePathBuffer(size_t sizeInBytes,
+                                                  pls::StorageBufferStructure bufferStructure)
 {
-    m_pathBuffer = makeStorageBufferRing(sizeInBytes, elementSizeInBytes);
+    m_pathBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
-void PLSRenderContextHelperImpl::resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
+void PLSRenderContextHelperImpl::resizePaintBuffer(size_t sizeInBytes,
+                                                   pls::StorageBufferStructure bufferStructure)
 {
-    m_contourBuffer = makeStorageBufferRing(sizeInBytes, elementSizeInBytes);
+    m_paintBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
+}
+
+void PLSRenderContextHelperImpl::resizePaintAuxBuffer(size_t sizeInBytes,
+                                                      pls::StorageBufferStructure bufferStructure)
+{
+    m_paintAuxBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
+}
+
+void PLSRenderContextHelperImpl::resizeContourBuffer(size_t sizeInBytes,
+                                                     pls::StorageBufferStructure bufferStructure)
+{
+    m_contourBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
 void PLSRenderContextHelperImpl::resizeSimpleColorRampsBuffer(size_t sizeInBytes)
@@ -71,6 +85,16 @@ void PLSRenderContextHelperImpl::resizeImageDrawUniformBuffer(size_t sizeInBytes
 void* PLSRenderContextHelperImpl::mapPathBuffer(size_t mapSizeInBytes)
 {
     return m_pathBuffer->mapBuffer(mapSizeInBytes);
+}
+
+void* PLSRenderContextHelperImpl::mapPaintBuffer(size_t mapSizeInBytes)
+{
+    return m_paintBuffer->mapBuffer(mapSizeInBytes);
+}
+
+void* PLSRenderContextHelperImpl::mapPaintAuxBuffer(size_t mapSizeInBytes)
+{
+    return m_paintAuxBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* PLSRenderContextHelperImpl::mapContourBuffer(size_t mapSizeInBytes)
@@ -115,6 +139,10 @@ void* PLSRenderContextHelperImpl::mapFlushUniformBuffer(size_t mapSizeInBytes)
 }
 
 void PLSRenderContextHelperImpl::unmapPathBuffer() { m_pathBuffer->unmapAndSubmitBuffer(); }
+
+void PLSRenderContextHelperImpl::unmapPaintBuffer() { m_paintBuffer->unmapAndSubmitBuffer(); }
+
+void PLSRenderContextHelperImpl::unmapPaintAuxBuffer() { m_paintAuxBuffer->unmapAndSubmitBuffer(); }
 
 void PLSRenderContextHelperImpl::unmapContourBuffer() { m_contourBuffer->unmapAndSubmitBuffer(); }
 

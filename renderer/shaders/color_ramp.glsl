@@ -27,7 +27,7 @@ half4 unpackColorInt(uint color)
     return make_half4((uint4(color, color, color, color) >> uint4(16, 8, 0, 24)) & 0xffu) / 255.;
 }
 
-VERTEX_MAIN(@colorRampVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@colorRampVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_instanceID, attrs, @a_span, uint4);
 

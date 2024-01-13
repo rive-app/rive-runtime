@@ -11,8 +11,10 @@ TEXTURE_RGBA32UI(TESS_VERTEX_TEXTURE_IDX, @tessVertexTexture);
 VERTEX_TEXTURE_BLOCK_END
 
 STORAGE_BUFFER_BLOCK_BEGIN
-STORAGE_BUFFER_U32x4(PATH_STORAGE_BUFFER_IDX, PathBuffer, @pathBuffer);
-STORAGE_BUFFER_U32x4(CONTOUR_STORAGE_BUFFER_IDX, ContourBuffer, @contourBuffer);
+STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
+STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
+STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
+STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 STORAGE_BUFFER_BLOCK_END
 
 #ifdef @DRAW_PATH
@@ -36,10 +38,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            VertexTextures _textures,
                                            StorageBuffers _buffers,
 #endif
-                                           OUT(ushort) o_pathIDBits,
-                                           OUT(float2x2) o_M,
-                                           OUT(float2) o_translate,
-                                           OUT(uint) o_pathParams,
+                                           OUT(ushort) o_pathID,
                                            OUT(half2) o_edgeDistance,
                                            OUT(float2) o_vertexPosition)
 {
@@ -59,15 +58,13 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     // Fetch and unpack the contour referenced by the tessellation vertex.
     uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contour_data_idx(contourIDWithFlags));
     float2 midpoint = uintBitsToFloat(contourData.xy);
-    o_pathIDBits = make_ushort(contourData.z & 0xffffu);
+    o_pathID = make_ushort(contourData.z & 0xffffu);
     uint vertexIndex0 = contourData.w;
 
     // Fetch and unpack the path.
-    uint pathDataIdx = path_data_idx(o_pathIDBits);
-    o_M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx)));
-    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 1u);
-    o_translate = uintBitsToFloat(pathData.xy);
-    o_pathParams = pathData.w;
+    float2x2 M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u + 1u);
+    float2 translate = uintBitsToFloat(pathData.xy);
 
     float strokeRadius = uintBitsToFloat(pathData.z);
 
@@ -119,7 +116,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     if (strokeRadius != .0) // Is this a stroke?
     {
         // Ensure strokes always emit clockwise triangles.
-        outset *= sign(determinant(o_M));
+        outset *= sign(determinant(M));
 
         // Joins only emanate from the outer side of the stroke.
         if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
@@ -127,7 +124,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)
             outset = max(outset, .0);
 
-        float aaRadius = calc_aa_radius(o_M, norm);
+        float aaRadius = calc_aa_radius(M, norm);
         half globalCoverage = 1.;
         if (aaRadius > strokeRadius)
         {
@@ -166,7 +163,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             bool isLeftJoin = (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
             float bisectTheta = joinAngle * (isTan0 == isLeftJoin ? -.5 : .5) + theta;
             float2 bisector = float2(sin(bisectTheta), -cos(bisectTheta));
-            float bisectAARadius = calc_aa_radius(o_M, bisector);
+            float bisectAARadius = calc_aa_radius(M, bisector);
 
             // Generalize everything to a "miter-clip", which is proposed in the SVG-2 draft. Bevel
             // joins are converted to miter-clip joins with a miter limit of 1/2 pixel. They
@@ -237,7 +234,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // every pixel. "o_edgeDistance.y < 0" is used to differentiate between strokes and fills.
         o_edgeDistance.y = max(o_edgeDistance.y, make_half(1e-4));
 
-        postTransformVertexOffset = MUL(o_M, outset * vertexOffset);
+        postTransformVertexOffset = MUL(M, outset * vertexOffset);
 
         // Throw away the fan triangles since we're a stroke.
         if (vertexType != STROKE_VERTEX)
@@ -250,7 +247,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             origin = midpoint;
 
         // Offset the vertex for Manhattan AA.
-        postTransformVertexOffset = sign(MUL(outset * norm, inverse(o_M))) * AA_RADIUS;
+        postTransformVertexOffset = sign(MUL(outset * norm, inverse(M))) * AA_RADIUS;
 
         if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
             fillCoverage = -fillCoverage;
@@ -265,7 +262,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             return false;
     }
 
-    o_vertexPosition = MUL(o_M, origin) + postTransformVertexOffset + o_translate;
+    o_vertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
     return true;
 }
 #endif // @DRAW_PATH
@@ -275,20 +272,15 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
 #ifdef METAL
                                               StorageBuffers _buffers,
 #endif
-                                              OUT(ushort) o_pathIDBits,
-                                              OUT(float2x2) o_M,
-                                              OUT(float2) o_translate,
-                                              OUT(uint) o_pathParams,
+                                              OUT(ushort) o_pathID,
                                               OUT(half) o_windingWeight)
 {
-    o_pathIDBits = make_ushort(floatBitsToUint(triangleVertex.z) & 0xffffu);
-    uint pathDataIdx = path_data_idx(o_pathIDBits);
-    o_M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx)));
-    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathDataIdx + 1u);
-    o_translate = uintBitsToFloat(pathData.xy);
-    o_pathParams = pathData.w;
-    o_windingWeight = float(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(o_M));
-    return MUL(o_M, triangleVertex.xy) + o_translate;
+    o_pathID = make_ushort(floatBitsToUint(triangleVertex.z) & 0xffffu);
+    float2x2 M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u + 1u);
+    float2 translate = uintBitsToFloat(pathData.xy);
+    o_windingWeight = float(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(M));
+    return MUL(M, triangleVertex.xy) + translate;
 }
 #endif // @DRAW_INTERIOR_TRIANGLES
 

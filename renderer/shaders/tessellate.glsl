@@ -43,8 +43,8 @@ VERTEX_TEXTURE_BLOCK_BEGIN
 VERTEX_TEXTURE_BLOCK_END
 
 STORAGE_BUFFER_BLOCK_BEGIN
-STORAGE_BUFFER_U32x4(PATH_STORAGE_BUFFER_IDX, PathBuffer, @pathBuffer);
-STORAGE_BUFFER_U32x4(CONTOUR_STORAGE_BUFFER_IDX, ContourBuffer, @contourBuffer);
+STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
+STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 STORAGE_BUFFER_BLOCK_END
 
 float cosine_between_vectors(float2 a, float2 b)
@@ -55,7 +55,7 @@ float cosine_between_vectors(float2 a, float2 b)
     return (ab_pow2 == .0) ? 1. : clamp(ab_cosTheta * inversesqrt(ab_pow2), -1., 1.);
 }
 
-VERTEX_MAIN(@tessellateVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     // Each instance repeats twice. Once for normal patch(es) and once for reflection(s).
     ATTR_UNPACK(_instanceID, attrs, @a_p0p1_, float4);
@@ -101,8 +101,8 @@ VERTEX_MAIN(@tessellateVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID,
         // and make any excess segments degenerate by co-locating their vertices at T=0.
         uint pathIDBits =
             STORAGE_BUFFER_LOAD4(@contourBuffer, contour_data_idx(contourIDWithFlags)).z;
-        float2x2 mat = make_float2x2(
-            uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, path_data_idx(pathIDBits))));
+        float2x2 mat =
+            make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathIDBits * 2u)));
         float2 d0 = MUL(mat, -2. * p1 + p2 + p0);
 
         float2 d1 = MUL(mat, -2. * p2 + p3 + p1);

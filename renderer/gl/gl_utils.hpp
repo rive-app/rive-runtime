@@ -10,11 +10,7 @@
 
 namespace glutils
 {
-// A nullptr for versionString will default to "#version 300 es\n".
-void CompileAndAttachShader(GLuint program,
-                            GLuint type,
-                            const char* source,
-                            const char* versionString = nullptr);
+void CompileAndAttachShader(GLuint program, GLuint type, const char* source, const GLCapabilities&);
 
 void CompileAndAttachShader(GLuint program,
                             GLuint type,
@@ -22,18 +18,16 @@ void CompileAndAttachShader(GLuint program,
                             size_t numDefines,
                             const char* sources[],
                             size_t numSources,
-                            const char* versionString = nullptr);
+                            const GLCapabilities&);
 
-[[nodiscard]] GLuint CompileShader(GLuint type,
-                                   const char* source,
-                                   const char* versionString = nullptr);
+[[nodiscard]] GLuint CompileShader(GLuint type, const char* source, const GLCapabilities&);
 
 [[nodiscard]] GLuint CompileShader(GLuint type,
                                    const char* defines[],
                                    size_t numDefines,
                                    const char* sources[],
                                    size_t numSources,
-                                   const char* versionString = nullptr);
+                                   const GLCapabilities&);
 
 [[nodiscard]] GLuint CompileRawGLSL(GLuint shaderType, const char* rawGLSL);
 

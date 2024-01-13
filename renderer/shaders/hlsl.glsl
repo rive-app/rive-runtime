@@ -172,7 +172,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define PLS_PRESERVE_VALUE(P, _plsCoord)
 
-#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     $cbuffer DrawUniforms : UNIFORM_BUFFER_REGISTER(DRAW_UNIFORM_BUFFER_IDX)                       \
     {                                                                                              \
         uint baseInstance;                                                                         \
@@ -188,8 +188,6 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
         Varyings _varyings;
 
 #define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
-                               Uniforms,                                                           \
-                               uniforms,                                                           \
                                MeshUniforms,                                                       \
                                meshUniforms,                                                       \
                                PositionAttr,                                                       \
@@ -215,12 +213,12 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, _pos, _plsCoord) [$earlydepthstencil] void NAME(Varyings _varyings) { \
-        float2 _pos = _varyings._pos.xy;\
-        int2 _plsCoord = int2(floor(_pos));
+#define PLS_MAIN(NAME, _fragCoord, _plsCoord) [$earlydepthstencil] void NAME(Varyings _varyings) { \
+        float2 _fragCoord = _varyings._pos.xy;\
+        int2 _plsCoord = int2(floor(_fragCoord));
 
-#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)                     \
-    PLS_MAIN(NAME, _pos, _plsCoord)
+#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _fragCoord, _plsCoord)               \
+    PLS_MAIN(NAME, _fragCoord, _plsCoord)
 
 #define EMIT_PLS }
 
@@ -268,7 +266,7 @@ INLINE uint packHalf2x16(float2 v)
 
 INLINE half4 unpackUnorm4x8(uint u)
 {
-    uint4 vals = (u >> uint4(0, 8, 16, 24)) & 0xff;
+    uint4 vals = uint4(u & 0xffu, (u >> 8) & 0xffu, (u >> 16) & 0xffu, u >> 24);
     return float4(vals) * (1. / 255.);
 }
 

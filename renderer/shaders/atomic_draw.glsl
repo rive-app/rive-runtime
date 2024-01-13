@@ -16,7 +16,7 @@ NO_PERSPECTIVE VARYING(0, half2, v_edgeDistance);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
     ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
@@ -24,11 +24,8 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
     VARYING_INIT(v_edgeDistance, half2);
     VARYING_INIT(v_pathID, ushort);
 
-    float2x2 M;
-    float2 translate;
-    uint pathParams;
-    float2 vertexPosition;
     float4 pos;
+    float2 vertexPosition;
     if (unpack_tessellated_path_vertex(@a_patchVertexData,
                                        @a_mirroredVertexData,
                                        _instanceID,
@@ -37,9 +34,6 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
                                        _buffers,
 #endif
                                        v_pathID,
-                                       M,
-                                       translate,
-                                       pathParams,
                                        v_edgeDistance,
                                        vertexPosition))
     {
@@ -73,24 +67,18 @@ VARYING_BLOCK_BEGIN
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
 
     VARYING_INIT(v_windingWeight, half);
     VARYING_INIT(v_pathID, ushort);
 
-    float2x2 M;
-    float2 translate;
-    uint pathParams;
     float2 vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
 #ifdef METAL
                                                             _buffers,
 #endif
                                                             v_pathID,
-                                                            M,
-                                                            translate,
-                                                            pathParams,
                                                             v_windingWeight);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
@@ -113,7 +101,7 @@ float4 clipRectInverseMatrix;
 float2 clipRectInverseTranslate;
 uint clipID;
 uint blendMode;
-UNIFORM_BLOCK_END(imageDrawUniforms)
+UNIFORM_BLOCK_END(imageDrawFlushUniforms)
 
 #ifdef @DRAW_IMAGE_RECT
 #ifdef @VERTEX
@@ -131,7 +119,7 @@ NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_imageRectVertex, float4);
 
@@ -145,7 +133,7 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
     v_edgeCoverage = isOuterVertex ? .0 : 1.;
 
     float2 vertexPosition = @a_imageRectVertex.xy;
-    float2x2 M = make_float2x2(imageDrawUniforms.viewMatrix);
+    float2x2 M = make_float2x2(imageDrawFlushUniforms.viewMatrix);
     float2x2 MIT = transpose(inverse(M));
     if (!isOuterVertex)
     {
@@ -174,7 +162,7 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
     }
 
     v_texCoord = vertexPosition;
-    vertexPosition = MUL(M, vertexPosition) + imageDrawUniforms.translate;
+    vertexPosition = MUL(M, vertexPosition) + imageDrawFlushUniforms.translate;
 
     if (isOuterVertex)
     {
@@ -185,10 +173,10 @@ VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _inst
     }
 
 #ifdef @ENABLE_CLIP_RECT
-    v_clipRect =
-        find_clip_rect_coverage_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
-                                          imageDrawUniforms.clipRectInverseTranslate,
-                                          vertexPosition);
+    v_clipRect = find_clip_rect_coverage_distances(
+        make_float2x2(imageDrawFlushUniforms.clipRectInverseMatrix),
+        imageDrawFlushUniforms.clipRectInverseTranslate,
+        vertexPosition);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -222,10 +210,8 @@ VARYING_BLOCK_END
 
 #ifdef @VERTEX
 IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
-                       @Uniforms,
-                       uniforms,
                        @ImageDrawUniforms,
-                       imageDrawUniforms,
+                       imageDrawFlushUniforms,
                        PositionAttr,
                        position,
                        UVAttr,
@@ -240,15 +226,15 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     VARYING_INIT(v_clipRect, float4);
 #endif
 
-    float2x2 M = make_float2x2(imageDrawUniforms.viewMatrix);
-    float2 vertexPosition = MUL(M, @a_position) + imageDrawUniforms.translate;
+    float2x2 M = make_float2x2(imageDrawFlushUniforms.viewMatrix);
+    float2 vertexPosition = MUL(M, @a_position) + imageDrawFlushUniforms.translate;
     v_texCoord = @a_texCoord;
 
 #ifdef @ENABLE_CLIP_RECT
-    v_clipRect =
-        find_clip_rect_coverage_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
-                                          imageDrawUniforms.clipRectInverseTranslate,
-                                          vertexPosition);
+    v_clipRect = find_clip_rect_coverage_distances(
+        make_float2x2(imageDrawFlushUniforms.clipRectInverseMatrix),
+        imageDrawFlushUniforms.clipRectInverseTranslate,
+        vertexPosition);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -273,7 +259,7 @@ VARYING_BLOCK_BEGIN
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, @Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     float4 pos;
     pos.x = (_vertexID & 1) == 0 ? -1. : 1.;
@@ -301,19 +287,8 @@ PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
 
 STORAGE_BUFFER_BLOCK_BEGIN
-STORAGE_BUFFER_U32x2(PAINT_STORAGE_BUFFER_IDX, PaintDataBuffer, paintDataBuffer);
-STORAGE_BUFFER_F32x4(PAINT_MATRIX_STORAGE_BUFFER_IDX, PaintMatrixBuffer, paintMatrixBuffer);
-STORAGE_BUFFER_F32x4(PAINT_TRANSLATE_STORAGE_BUFFER_IDX,
-                     PaintTranslateBuffer,
-                     paintTranslateBuffer);
-#ifdef @ENABLE_CLIP_RECT
-STORAGE_BUFFER_F32x4(CLIPRECT_MATRIX_STORAGE_BUFFER_IDX,
-                     ClipRectMatrixBuffer,
-                     clipRectMatrixBuffer);
-STORAGE_BUFFER_F32x4(CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX,
-                     ClipRectTranslateBuffer,
-                     clipRectTranslateBuffer);
-#endif // ENABLE_CLIP_RECT
+STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
+STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_BLOCK_END
 
 uint to_fixed(float x) { return uint(x * FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_ZERO); }
@@ -324,17 +299,17 @@ float from_fixed(uint x)
            (-FIXED_COVERAGE_ZERO * FIXED_COVERAGE_INVERSE_FACTOR);
 }
 
-// Return the color at location '_pos' of the path at index 'pathID' in the storage buffers. Also
-// update the PLS clip value if called for.
+// Return the color of the path at index 'pathID' at location '_fragCoord'.
+// Also update the PLS clip value if called for.
 half4 resolve_path_color(half coverageCount,
                          uint2 paintData,
                          ushort pathID,
-                         float2 _pos,
+                         float2 _fragCoord,
                          int2 _plsCoord)
 {
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
-    if ((paintData.x & ATOMIC_MODE_FLAG_EVEN_ODD) != 0u)
+    if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
         coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
 #endif                                      // ENABLE_EVEN_ODD
     coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
@@ -360,9 +335,9 @@ half4 resolve_path_color(half coverageCount,
         case IMAGE_PAINT_TYPE:
 #endif // ENABLE_BINDLESS_TEXTURES
         {
-            float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(paintMatrixBuffer, pathID));
-            float4 translate = STORAGE_BUFFER_LOAD4(paintTranslateBuffer, pathID);
-            float2 paintCoord = MUL(M, _pos) + translate.xy;
+            float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
+            float4 translate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
+            float2 paintCoord = MUL(M, _fragCoord) + translate.xy;
 #ifdef @ENABLE_BINDLESS_TEXTURES
             if (paintType == IMAGE_PAINT_TYPE)
             {
@@ -371,6 +346,8 @@ half4 resolve_path_color(half coverageCount,
                                             paintCoord,
                                             M[0],
                                             M[1]);
+                float opacity = uintBitsToFloat(paintData.y);
+                color.a *= opacity;
             }
             else
 #endif // ENABLE_BINDLESS_TEXTURES
@@ -390,11 +367,11 @@ half4 resolve_path_color(half coverageCount,
 #endif // ENABLE_CLIPPING
     }
 #ifdef @ENABLE_CLIP_RECT
-    if ((paintData.x & ATOMIC_MODE_FLAG_HAS_CLIP_RECT) != 0u)
+    if ((paintData.x & PAINT_FLAG_HAS_CLIP_RECT) != 0u)
     {
-        float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(clipRectMatrixBuffer, pathID));
-        float4 translate = STORAGE_BUFFER_LOAD4(clipRectTranslateBuffer, pathID);
-        half2 clipCoord = MUL(M, _pos) + translate.xy;
+        float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
+        float4 translate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
+        half2 clipCoord = MUL(M, _fragCoord) + translate.xy;
         // translate.zw contains -1 / fwidth(clipCoord), which we use to calculate antialiasing.
         half2 distXY = abs(clipCoord) * translate.zw - translate.zw;
         half clipRectCoverage = clamp(min(distXY.x, distXY.y) + .5, .0, 1.);
@@ -449,7 +426,7 @@ void do_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
 }
 
 #ifdef @DRAW_PATH
-PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
+PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
 {
     VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
@@ -473,8 +450,9 @@ PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
         // We crossed into a new path! Resolve the previous path now that we know its exact
         // coverage.
         half coverageCount = from_fixed(lastCoverageData & 0xffffu);
-        uint2 paintData = STORAGE_BUFFER_LOAD2(paintDataBuffer, lastPathID);
-        half4 color = resolve_path_color(coverageCount, paintData, lastPathID, _pos, _plsCoord);
+        uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+        half4 color =
+            resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
         do_pls_blend(color, paintData, _plsCoord);
     }
     else if (v_edgeDistance.y < .0 /*fill?*/)
@@ -494,7 +472,7 @@ PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
 #endif // DRAW_PATH
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
-PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
+PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
 {
     VARYING_UNPACK(v_windingWeight, half);
     VARYING_UNPACK(v_pathID, ushort);
@@ -508,8 +486,9 @@ PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
     {
         // We crossed into a new path! Resolve the previous path now that we know its exact
         // coverage.
-        uint2 paintData = STORAGE_BUFFER_LOAD2(paintDataBuffer, lastPathID);
-        half4 color = resolve_path_color(lastCoverageCount, paintData, lastPathID, _pos, _plsCoord);
+        uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+        half4 color =
+            resolve_path_color(lastCoverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
         do_pls_blend(color, paintData, _plsCoord);
     }
     else
@@ -524,7 +503,11 @@ PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
 #endif // DRAW_INTERIOR_TRIANGLES
 
 #ifdef @DRAW_IMAGE
-IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _pos, _plsCoord)
+IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
+                    @ImageDrawUniforms,
+                    imageDrawFlushUniforms,
+                    _fragCoord,
+                    _plsCoord)
 {
     VARYING_UNPACK(v_texCoord, float2);
 #ifdef @DRAW_IMAGE_RECT
@@ -559,20 +542,22 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _p
     uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
-    uint2 lastPaintData = STORAGE_BUFFER_LOAD2(paintDataBuffer, lastPathID);
-    half4 lastColor = resolve_path_color(coverageCount, lastPaintData, lastPathID, _pos, _plsCoord);
+    uint2 lastPaintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+    half4 lastColor =
+        resolve_path_color(coverageCount, lastPaintData, lastPathID, _fragCoord, _plsCoord);
 
     // Clip the image after resolving the previous path, since that can affect the clip buffer.
 #ifdef @ENABLE_CLIPPING // TODO! ENABLE_IMAGE_CLIPPING in addition to ENABLE_CLIPPING?
-    if (imageDrawUniforms.clipID != 0u)
+    if (imageDrawFlushUniforms.clipID != 0u)
     {
         uint clipData = PLS_LOADUI(clipBuffer, _plsCoord);
         uint clipID = clipData >> 16;
-        half clipCoverage = clipID == imageDrawUniforms.clipID ? unpackHalf2x16(clipData).r : 0;
+        half clipCoverage =
+            clipID == imageDrawFlushUniforms.clipID ? unpackHalf2x16(clipData).r : 0;
         meshCoverage = min(meshCoverage, clipCoverage);
     }
 #endif // ENABLE_CLIPPING
-    meshColor.a *= meshCoverage * imageDrawUniforms.opacity;
+    meshColor.a *= meshCoverage * imageDrawFlushUniforms.opacity;
 
     if (lastColor.a != .0 || meshColor.a != 0)
     {
@@ -583,7 +568,7 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _p
         half4 dstColorPremul = PLS_LOAD4F(framebuffer, _plsCoord);
 #ifdef @ENABLE_ADVANCED_BLEND
         ushort lastBlendMode = make_ushort((lastPaintData.x >> 4) & 0xfu);
-        ushort imageBlendMode = make_ushort(imageDrawUniforms.blendMode);
+        ushort imageBlendMode = make_ushort(imageDrawFlushUniforms.blendMode);
         dstColorPremul = do_advanced_blend(lastColor, dstColorPremul, lastBlendMode);
         meshColor = do_advanced_blend(meshColor, dstColorPremul, imageBlendMode);
 #else
@@ -608,13 +593,13 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _p
 #endif // DRAW_IMAGE
 
 #ifdef @RESOLVE_PLS
-PLS_MAIN(@drawFragmentMain, _pos, _plsCoord)
+PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
 {
     uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
-    ushort pathID = make_ushort(lastCoverageData >> 16);
-    uint2 paintData = STORAGE_BUFFER_LOAD2(paintDataBuffer, pathID);
-    half4 color = resolve_path_color(coverageCount, paintData, pathID, _pos, _plsCoord);
+    ushort lastPathID = make_ushort(lastCoverageData >> 16);
+    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+    half4 color = resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
     do_pls_blend(color, paintData, _plsCoord);
     EMIT_PLS;
 }

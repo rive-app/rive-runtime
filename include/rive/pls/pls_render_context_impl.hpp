@@ -31,8 +31,10 @@ public:
     //
     // 'elementSizeInBytes' represents the size of one array element when the shader accesses this
     // buffer as a storage buffer.
-    virtual void resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes) = 0;
-    virtual void resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes) = 0;
+    virtual void resizePathBuffer(size_t sizeInBytes, pls::StorageBufferStructure) = 0;
+    virtual void resizePaintBuffer(size_t sizeInBytes, pls::StorageBufferStructure) = 0;
+    virtual void resizePaintAuxBuffer(size_t sizeInBytes, pls::StorageBufferStructure) = 0;
+    virtual void resizeContourBuffer(size_t sizeInBytes, pls::StorageBufferStructure) = 0;
     virtual void resizeSimpleColorRampsBuffer(size_t sizeInBytes) = 0;
     virtual void resizeGradSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTessVertexSpanBuffer(size_t sizeInBytes) = 0;
@@ -47,6 +49,8 @@ public:
     // order to avoid expensive synchronization with the GPU pipeline. See
     // PLSRenderContextBufferRingImpl.)
     virtual void* mapPathBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapPaintBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapContourBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapSimpleColorRampsBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapGradSpanBuffer(size_t mapSizeInBytes) = 0;
@@ -57,6 +61,8 @@ public:
 
     // Unmap GPU buffers. All buffers will be unmapped before flush().
     virtual void unmapPathBuffer() = 0;
+    virtual void unmapPaintBuffer() = 0;
+    virtual void unmapPaintAuxBuffer() = 0;
     virtual void unmapContourBuffer() = 0;
     virtual void unmapSimpleColorRampsBuffer() = 0;
     virtual void unmapGradSpanBuffer() = 0;
@@ -93,7 +99,6 @@ public:
         bool wireframe = false;
         const PLSRenderContext::PerFlushLinkedList<PLSRenderContext::Draw>* drawList = nullptr;
         pls::InterlockMode interlockMode = pls::InterlockMode::rasterOrdered;
-        pls::ExperimentalAtomicModeData* experimentalAtomicModeData = nullptr;
 
         // In atomic mode, we can skip the inital clear of the color buffer in some cases. This is
         // because we will be resolving the framebuffer anyway, and can work the clear into that

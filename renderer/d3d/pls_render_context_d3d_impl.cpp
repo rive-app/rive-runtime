@@ -224,6 +224,14 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     m_patchIndexBuffer =
         makeSimpleImmutableBuffer(sizeof(patchIndices), D3D11_BIND_INDEX_BUFFER, patchIndices);
 
+    // Set up the imageRect rendering buffers. (Atomic mode only.)
+    m_imageRectVertexBuffer = makeSimpleImmutableBuffer(sizeof(pls::kImageRectVertices),
+                                                        D3D11_BIND_VERTEX_BUFFER,
+                                                        pls::kImageRectVertices);
+    m_imageRectIndexBuffer = makeSimpleImmutableBuffer(sizeof(pls::kImageRectIndices),
+                                                       D3D11_BIND_INDEX_BUFFER,
+                                                       pls::kImageRectIndices);
+
     // Create buffers for uniforms.
     {
         D3D11_BUFFER_DESC desc{};
@@ -319,21 +327,6 @@ ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleImmutableBuffer(size_t s
 
     ComPtr<ID3D11Buffer> buffer;
     VERIFY_OK(m_gpu->CreateBuffer(&desc, &dataDesc, buffer.GetAddressOf()));
-    return buffer;
-}
-
-ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleStructuredBuffer(size_t count,
-                                                                         size_t structureSize)
-{
-    D3D11_BUFFER_DESC desc{};
-    desc.ByteWidth = count * structureSize;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    desc.StructureByteStride = structureSize;
-    desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-
-    ComPtr<ID3D11Buffer> buffer;
-    VERIFY_OK(m_gpu->CreateBuffer(&desc, NULL, buffer.GetAddressOf()));
     return buffer;
 }
 
@@ -636,11 +629,12 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t
 
 std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeStorageBufferRing(
     size_t capacityInBytes,
-    size_t elementSizeInBytes)
+    pls::StorageBufferStructure bufferStructure)
 {
-    return capacityInBytes != 0 ? std::make_unique<StructuredBufferRingD3D>(this,
-                                                                            capacityInBytes,
-                                                                            elementSizeInBytes)
+    return capacityInBytes != 0 ? std::make_unique<StructuredBufferRingD3D>(
+                                      this,
+                                      capacityInBytes,
+                                      pls::StorageBufferElementSizeInBytes(bufferStructure))
                                 : nullptr;
 }
 
@@ -952,92 +946,6 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<const PLSRenderTargetD3D*>(desc.renderTarget);
 
-    if (desc.interlockMode == pls::InterlockMode::experimentalAtomics)
-    {
-        if (!m_imageRectVertexBuffer)
-        {
-            // This is the first flush with "atomic mode" enabled. Allocate the additional resources
-            // required for this mode.
-            m_imageRectVertexBuffer = makeSimpleImmutableBuffer(sizeof(pls::kImageRectVertices),
-                                                                D3D11_BIND_VERTEX_BUFFER,
-                                                                pls::kImageRectVertices);
-            m_imageRectIndexBuffer = makeSimpleImmutableBuffer(sizeof(pls::kImageRectIndices),
-                                                               D3D11_BIND_INDEX_BUFFER,
-                                                               pls::kImageRectIndices);
-            m_paintBuffer =
-                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
-                                           sizeof(pls::ExperimentalAtomicModeData::Paint));
-            m_paintMatrixBuffer =
-                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
-                                           sizeof(float) * 2 * 2);
-            m_paintTranslateBuffer =
-                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
-                                           sizeof(pls::ExperimentalAtomicModeData::PaintTranslate));
-            m_clipRectMatrixBuffer =
-                makeSimpleStructuredBuffer(pls::ExperimentalAtomicModeData::kBufferLength,
-                                           sizeof(float) * 2 * 2);
-            m_clipRectTranslateBuffer = makeSimpleStructuredBuffer(
-                pls::ExperimentalAtomicModeData::kBufferLength,
-                sizeof(pls::ExperimentalAtomicModeData::ClipRectTranslate));
-
-            m_paintBufferSRV =
-                makeSimpleStructuredBufferSRV(m_paintBuffer.Get(),
-                                              pls::ExperimentalAtomicModeData::kBufferLength);
-            m_paintMatrixBufferSRV =
-                makeSimpleStructuredBufferSRV(m_paintMatrixBuffer.Get(),
-                                              pls::ExperimentalAtomicModeData::kBufferLength);
-            m_paintTranslateBufferSRV =
-                makeSimpleStructuredBufferSRV(m_paintTranslateBuffer.Get(),
-                                              pls::ExperimentalAtomicModeData::kBufferLength);
-            m_clipRectMatrixBufferSRV =
-                makeSimpleStructuredBufferSRV(m_clipRectMatrixBuffer.Get(),
-                                              pls::ExperimentalAtomicModeData::kBufferLength);
-            m_clipRectTranslateBufferSRV =
-                makeSimpleStructuredBufferSRV(m_clipRectTranslateBuffer.Get(),
-                                              pls::ExperimentalAtomicModeData::kBufferLength);
-        }
-
-        // Fill in the atomic mode buffers.
-        assert(desc.experimentalAtomicModeData);
-        pls::ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
-        size_t bufferCount = desc.pathCount + 1;
-        updateStructuredBuffer(m_paintBuffer.Get(),
-                               sizeof(pls::ExperimentalAtomicModeData::Paint) * bufferCount,
-                               atomicModeData.m_paints);
-        updateStructuredBuffer(m_paintMatrixBuffer.Get(),
-                               sizeof(float) * 2 * 2 * bufferCount,
-                               atomicModeData.m_paintMatrices);
-        updateStructuredBuffer(m_paintTranslateBuffer.Get(),
-                               sizeof(pls::ExperimentalAtomicModeData::PaintTranslate) *
-                                   bufferCount,
-                               atomicModeData.m_paintTranslates);
-        if (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT)
-        {
-            updateStructuredBuffer(m_clipRectMatrixBuffer.Get(),
-                                   sizeof(float) * 2 * 2 * bufferCount,
-                                   atomicModeData.m_clipRectMatrices);
-            updateStructuredBuffer(m_clipRectTranslateBuffer.Get(),
-                                   sizeof(pls::ExperimentalAtomicModeData::ClipRectTranslate) *
-                                       bufferCount,
-                                   atomicModeData.m_clipRectTranslates);
-        }
-
-        // Bind the atomic mode buffers.
-        ID3D11ShaderResourceView* atomicModeSRVs[] = {m_paintBufferSRV.Get(),
-                                                      m_paintMatrixBufferSRV.Get(),
-                                                      m_paintTranslateBufferSRV.Get(),
-                                                      m_clipRectMatrixBufferSRV.Get(),
-                                                      m_clipRectTranslateBufferSRV.Get()};
-        static_assert(PAINT_MATRIX_STORAGE_BUFFER_IDX == PAINT_STORAGE_BUFFER_IDX + 1);
-        static_assert(PAINT_TRANSLATE_STORAGE_BUFFER_IDX == PAINT_STORAGE_BUFFER_IDX + 2);
-        static_assert(CLIPRECT_MATRIX_STORAGE_BUFFER_IDX == PAINT_STORAGE_BUFFER_IDX + 3);
-        static_assert(CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX == PAINT_STORAGE_BUFFER_IDX + 4);
-        m_gpuContext->PSSetShaderResources(
-            PAINT_STORAGE_BUFFER_IDX,
-            (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT) ? 5 : 3,
-            atomicModeSRVs);
-    }
-
     if (desc.canSkipColorClear())
     {
         // We can accomplish a clear of the color buffer while the shader resolves coverage,
@@ -1090,15 +998,24 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                     0,
                                     0);
 
-    // Bind the path and contour buffers.
-    ID3D11ShaderResourceView* pathContourBufferSRVs[] = {
+    // All programs use the same storage buffers.
+    ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {
         desc.pathCount > 0 ? submitted_structured_buffer_srv(pathBufferRing()) : 0,
+        desc.pathCount > 0 ? submitted_structured_buffer_srv(paintBufferRing()) : 0,
+        desc.pathCount > 0 ? submitted_structured_buffer_srv(paintAuxBufferRing()) : 0,
         desc.contourCount > 0 ? submitted_structured_buffer_srv(contourBufferRing()) : 0,
     };
-    static_assert(CONTOUR_STORAGE_BUFFER_IDX == PATH_STORAGE_BUFFER_IDX + 1);
-    m_gpuContext->VSSetShaderResources(PATH_STORAGE_BUFFER_IDX,
-                                       std::size(pathContourBufferSRVs),
-                                       pathContourBufferSRVs);
+    static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
+    static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
+    static_assert(CONTOUR_BUFFER_IDX == PAINT_AUX_BUFFER_IDX + 1);
+    m_gpuContext->VSSetShaderResources(PATH_BUFFER_IDX,
+                                       std::size(storageBufferBufferSRVs),
+                                       storageBufferBufferSRVs);
+    if (desc.interlockMode == pls::InterlockMode::experimentalAtomics)
+    {
+        // Atomic mode accesses the paint buffers from the pixel shader.
+        m_gpuContext->PSSetShaderResources(PAINT_BUFFER_IDX, 2, storageBufferBufferSRVs + 1);
+    }
 
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)

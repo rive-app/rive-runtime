@@ -74,7 +74,7 @@ protected:
 
     std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
-                                                      size_t elementSizeInBytes) override;
+                                                      StorageBufferStructure) override;
     std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 

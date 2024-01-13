@@ -6,6 +6,8 @@
 
 #include "rive/pls/pls_render_target.hpp"
 #include "shaders/constants.glsl"
+#include "rive/pls/pls_image.hpp"
+#include "pls_paint.hpp"
 
 #include "../out/obj/generated/draw_path.exports.h"
 
@@ -296,93 +298,121 @@ uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
     RIVE_UNREACHABLE();
 }
 
-void PathData::set(const Mat2D& m,
-                   float strokeRadius_,
-                   FillRule fillRule,
-                   PaintType paintType,
-                   uint32_t clipID,
-                   BlendMode riveBlendMode,
-                   const PaintData& paintData_,
-                   const ClipRectInverseMatrix* clipRectInverseMatrix_)
+FlushUniforms::InverseViewports::InverseViewports(size_t complexGradientsHeight,
+                                                  size_t tessDataHeight,
+                                                  size_t renderTargetWidth,
+                                                  size_t renderTargetHeight,
+                                                  const PlatformFeatures& platformFeatures)
 {
-    matrix = m;
-    strokeRadius = strokeRadius_;
-    uint32_t localParams = ConvertBlendModeToPLSBlendMode(riveBlendMode);
-    localParams |= clipID << 4;
-    localParams |= paint_type_to_glsl_id(paintType) << 20;
-    if (fillRule == FillRule::evenOdd && strokeRadius_ == 0)
+    float4 numerators = 2;
+    if (platformFeatures.invertOffscreenY)
     {
-        localParams |= EVEN_ODD_PATH_FLAG;
+        numerators.xy = -numerators.xy;
     }
-    params = localParams;
-    paintData = paintData_;
-    clipRectInverseMatrix = clipRectInverseMatrix_ != nullptr ? *clipRectInverseMatrix_
-                                                              : ClipRectInverseMatrix::WideOpen();
+    if (platformFeatures.uninvertOnScreenY)
+    {
+        numerators.w = -numerators.w;
+    }
+    float4 vals = numerators / float4{static_cast<float>(complexGradientsHeight),
+                                      static_cast<float>(tessDataHeight),
+                                      static_cast<float>(renderTargetWidth),
+                                      static_cast<float>(renderTargetHeight)};
+    m_vals[0] = vals[0];
+    m_vals[1] = vals[1];
+    m_vals[2] = vals[2];
+    m_vals[3] = vals[3];
 }
 
-ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix_,
-                                     float opacity_,
-                                     const ClipRectInverseMatrix* clipRectInverseMatrix_,
-                                     uint32_t clipID_,
-                                     BlendMode blendMode_) :
-    matrix(matrix_),
-    opacity(opacity_),
-    clipRectInverseMatrix(clipRectInverseMatrix_ != nullptr ? *clipRectInverseMatrix_
-                                                            : ClipRectInverseMatrix::WideOpen()),
-    clipID(clipID_),
-    blendMode(ConvertBlendModeToPLSBlendMode(blendMode_))
-{}
-
-static uint32_t pack_glsl_unorm4x8(uint4 rgbaInteger)
+static void write_matrix(volatile float* dst, const Mat2D& matrix)
 {
-    rgbaInteger <<= uint4{0, 8, 16, 24};
-    rgbaInteger.xy |= rgbaInteger.zw;
-    rgbaInteger.x |= rgbaInteger.y;
-    return rgbaInteger.x;
+    const float* vals = matrix.values();
+    for (size_t i = 0; i < 6; ++i)
+    {
+        dst[i] = vals[i];
+    }
 }
 
-static uint32_t pack_glsl_unorm4x8(float4 rgba)
+void PathData::set(const Mat2D& m, float strokeRadius)
 {
-    uint4 rgbaInteger = simd::cast<uint32_t>(simd::clamp(rgba, float4(0), float4(1)) * 255.f);
-    return pack_glsl_unorm4x8(rgbaInteger);
+    write_matrix(m_matrix, m);
+    m_strokeRadius = strokeRadius; // 0 if the path is filled.
 }
 
-static uint32_t pack_glsl_unorm4x8(ColorInt riveColor)
+// Changes the byte order of a rive::ColorInt to little-endian RGBA (the order expected by the GPU.)
+constexpr static uint32_t swizzle_color_to_glsl_order(ColorInt riveColor)
 {
-    // Swizzle the riveColor to the order GLSL expects in unpackUnorm4x8().
-    uint4 rgbaInteger = (uint4(riveColor) >> uint4{16, 8, 0, 24}) & 0xffu;
-    return pack_glsl_unorm4x8(rgbaInteger);
+    return (riveColor & 0xff00ff00) | (math::rotl(riveColor, 16) & 0x00ff00ff);
 }
 
-void ExperimentalAtomicModeData::setClearColorPaint(ColorInt clearColor)
-{
-    m_paints[0].params = SOLID_COLOR_PAINT_TYPE;
-    m_paints[0].color = pack_glsl_unorm4x8(clearColor);
-    m_imageTextures[0] = nullptr;
-}
-
-void ExperimentalAtomicModeData::setDataForPath(uint32_t pathID,
-                                                const Mat2D& matrix,
-                                                FillRule fillRule,
-                                                PaintType paintType,
-                                                const PaintData& paintData,
-                                                const PLSTexture* imageTexture,
-                                                uint32_t clipID,
-                                                const ClipRectInverseMatrix* clipRectInverseMatrix,
-                                                BlendMode blendMode,
-                                                const PLSRenderTarget* renderTarget,
-                                                const pls::FlushUniforms& flushUniforms,
-                                                const PlatformFeatures& platformFeatures)
+void PaintData::set(FillRule fillRule,
+                    PaintType paintType,
+                    SimplePaintValue simplePaintValue,
+                    GradTextureLayout gradTextureLayout,
+                    uint32_t clipID,
+                    bool hasClipRect,
+                    BlendMode blendMode)
 {
     uint32_t shiftedClipID = clipID << 16;
     uint32_t shiftedBlendMode = ConvertBlendModeToPLSBlendMode(blendMode) << 4;
-    m_imageTextures[pathID] = nullptr;
+    uint32_t localParams = paint_type_to_glsl_id(paintType);
     switch (paintType)
     {
         case PaintType::solidColor:
         {
-            m_paints[pathID].params = shiftedClipID | shiftedBlendMode | SOLID_COLOR_PAINT_TYPE;
-            m_paints[pathID].color = pack_glsl_unorm4x8(simd::load4f(&paintData.data));
+            m_color = swizzle_color_to_glsl_order(simplePaintValue.color);
+            localParams |= shiftedClipID | shiftedBlendMode;
+            break;
+        }
+        case PaintType::linearGradient:
+        case PaintType::radialGradient:
+        {
+            uint32_t row = simplePaintValue.colorRampLocation.row;
+            if (simplePaintValue.colorRampLocation.isComplex())
+            {
+                // Complex gradients rows are offset after the simple gradients.
+                row += gradTextureLayout.complexOffsetY;
+            }
+            m_gradTextureY = (static_cast<float>(row) + .5f) * gradTextureLayout.inverseHeight;
+            localParams |= shiftedClipID | shiftedBlendMode;
+            break;
+        }
+        case PaintType::image:
+        {
+            m_opacity = simplePaintValue.imageOpacity;
+            localParams |= shiftedClipID | shiftedBlendMode;
+            break;
+        }
+        case PaintType::clipUpdate:
+        {
+            m_shiftedClipReplacementID = shiftedClipID;
+            localParams |= simplePaintValue.outerClipID << 16;
+            break;
+        }
+    }
+    if (fillRule == FillRule::evenOdd)
+    {
+        localParams |= PAINT_FLAG_EVEN_ODD;
+    }
+    if (hasClipRect)
+    {
+        localParams |= PAINT_FLAG_HAS_CLIP_RECT;
+    }
+    m_params = localParams;
+}
+
+void PaintAuxData::set(const Mat2D& viewMatrix,
+                       PaintType paintType,
+                       SimplePaintValue simplePaintValue,
+                       const PLSGradient* gradient,
+                       const PLSTexture* imageTexture,
+                       const ClipRectInverseMatrix* clipRectInverseMatrix,
+                       const PLSRenderTarget* renderTarget,
+                       const pls::PlatformFeatures& platformFeatures)
+{
+    switch (paintType)
+    {
+        case PaintType::solidColor:
+        {
             break;
         }
         case PaintType::linearGradient:
@@ -390,86 +420,90 @@ void ExperimentalAtomicModeData::setDataForPath(uint32_t pathID,
         case PaintType::image:
         {
             Mat2D paintMatrix;
-            matrix.invert(&paintMatrix);
+            viewMatrix.invert(&paintMatrix);
             if (platformFeatures.fragCoordBottomUp)
             {
-                // Flip gl_FragCoord.y.
+                // Flip _fragCoord.y.
                 paintMatrix = paintMatrix * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
             }
             if (paintType == PaintType::image)
             {
-                m_paints[pathID].params = shiftedClipID | shiftedBlendMode | IMAGE_PAINT_TYPE;
-                m_paints[pathID].opacity = paintData.opacityIfImage();
-                m_imageTextures[pathID] = imageTexture;
+                uint64_t bindlessTextureHandle = imageTexture->bindlessTextureHandle();
+                m_bindlessTextureHandle[0] = bindlessTextureHandle;
+                m_bindlessTextureHandle[1] = bindlessTextureHandle >> 32;
             }
             else
             {
-                float gradCoeffs[3];
-                memcpy(gradCoeffs, paintData.data + 1, 3 * sizeof(float));
+                assert(gradient != nullptr);
+                const float* gradCoeffs = gradient->coeffs();
                 if (paintType == PaintType::linearGradient)
                 {
-                    m_paints[pathID].params =
-                        shiftedClipID | shiftedBlendMode | LINEAR_GRADIENT_PAINT_TYPE;
                     paintMatrix =
                         Mat2D(gradCoeffs[0], 0, gradCoeffs[1], 0, gradCoeffs[2], 0) * paintMatrix;
                 }
                 else
                 {
-                    m_paints[pathID].params =
-                        shiftedClipID | shiftedBlendMode | RADIAL_GRADIENT_PAINT_TYPE;
+                    assert(paintType == PaintType::radialGradient);
                     float w = 1 / gradCoeffs[2];
                     paintMatrix =
                         Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) * paintMatrix;
                 }
-                uint32_t span = paintData.data[0];
-                uint32_t row = span >> 20;
-                uint32_t x0 = span & 0x3ff;
-                uint32_t x1 = (span >> 10) & 0x3ff;
-                float gradTextureNormalizedY =
-                    (static_cast<float>(row) + .5f) * flushUniforms.gradTextureInverseHeight;
-                if (x1 > x0 + 1)
+                float left, right;
+                if (simplePaintValue.colorRampLocation.isComplex())
                 {
-                    // Complex gradients rows are offset after the simple gradients.
-                    gradTextureNormalizedY += flushUniforms.gradComplexOffsetY;
+                    left = 0;
+                    right = kGradTextureWidth;
                 }
-                m_paints[pathID].gradTextureY = gradTextureNormalizedY;
-                // Generate a mapping from gradient T to an x-coord in the gradient texture.
-                m_paintTranslates[pathID].gradTextureHorizontalSpan = {
-                    (x1 - x0) * GRAD_TEXTURE_INVERSE_WIDTH,
-                    (x0 + .5f) * GRAD_TEXTURE_INVERSE_WIDTH};
+                else
+                {
+                    left = simplePaintValue.colorRampLocation.col;
+                    right = left + 2;
+                }
+                m_gradTextureHorizontalSpan[0] = (right - left - 1) * GRAD_TEXTURE_INVERSE_WIDTH;
+                m_gradTextureHorizontalSpan[1] = (left + .5f) * GRAD_TEXTURE_INVERSE_WIDTH;
             }
-            m_paintMatrices[pathID] = {paintMatrix.xx(),
-                                       paintMatrix.xy(),
-                                       paintMatrix.yx(),
-                                       paintMatrix.yy()};
-            m_paintTranslates[pathID].translate = {paintMatrix.tx(), paintMatrix.ty()};
+            write_matrix(m_matrix, paintMatrix);
             break;
         }
         case PaintType::clipUpdate:
         {
-            uint32_t outerClipID = paintData.outerClipIDIfClipUpdate();
-            m_paints[pathID].params = (outerClipID << 16) | CLIP_UPDATE_PAINT_TYPE;
-            m_paints[pathID].shiftedClipReplacementID = shiftedClipID;
             break;
         }
     }
-    if (fillRule == FillRule::evenOdd)
-    {
-        m_paints[pathID].params |= ATOMIC_MODE_FLAG_EVEN_ODD;
-    }
+
     if (clipRectInverseMatrix != nullptr)
     {
-        m_paints[pathID].params |= ATOMIC_MODE_FLAG_HAS_CLIP_RECT;
         Mat2D m = clipRectInverseMatrix->inverseMatrix();
         if (platformFeatures.fragCoordBottomUp)
         {
-            // Flip gl_FragCoord.y.
+            // Flip _fragCoord.y.
             m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
         }
-        m_clipRectMatrices[pathID] = {m.xx(), m.xy(), m.yx(), m.yy()};
-        m_clipRectTranslates[pathID].translate = {m.tx(), m.ty()};
-        m_clipRectTranslates[pathID].inverseFwidth = {-1.f / (fabsf(m.xx()) + fabsf(m.xy())),
-                                                      -1.f / (fabsf(m.yx()) + fabsf(m.yy()))};
+        write_matrix(m_clipRectInverseMatrix, m);
+        m_inverseFwidth.x = -1.f / (fabsf(m.xx()) + fabsf(m.xy()));
+        m_inverseFwidth.y = -1.f / (fabsf(m.yx()) + fabsf(m.yy()));
     }
+    else
+    {
+        write_matrix(m_clipRectInverseMatrix, ClipRectInverseMatrix::WideOpen().inverseMatrix());
+        m_inverseFwidth.x = 0;
+        m_inverseFwidth.y = 0;
+    }
+}
+
+ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix,
+                                     float opacity,
+                                     const ClipRectInverseMatrix* clipRectInverseMatrix,
+                                     uint32_t clipID,
+                                     BlendMode blendMode)
+{
+    write_matrix(m_matrix, matrix);
+    m_opacity = opacity;
+    write_matrix(m_clipRectInverseMatrix,
+                 clipRectInverseMatrix != nullptr
+                     ? clipRectInverseMatrix->inverseMatrix()
+                     : ClipRectInverseMatrix::WideOpen().inverseMatrix());
+    m_clipID = clipID;
+    m_blendMode = ConvertBlendModeToPLSBlendMode(blendMode);
 }
 } // namespace rive::pls

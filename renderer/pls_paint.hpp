@@ -124,27 +124,26 @@ public:
 
     PaintType getType() const { return m_paintType; }
     bool getIsStroked() const { return m_stroked; }
-    ColorInt getColor() const { return m_color; }
+    ColorInt getColor() const { return m_simpleValue.color; }
     float getThickness() const { return m_thickness; }
     const PLSGradient* getGradient() const { return m_gradient.get(); }
     const PLSTexture* getImageTexture() const { return m_imageTexture.get(); }
-    float getImageOpacity() const { return m_imageOpacity; }
-    float getOuterClipID() const { return m_outerClipID; }
+    float getImageOpacity() const { return m_simpleValue.imageOpacity; }
+    float getOuterClipID() const { return m_simpleValue.outerClipID; }
     StrokeJoin getJoin() const { return m_join; }
     StrokeCap getCap() const { return m_cap; }
     BlendMode getBlendMode() const { return m_blendMode; }
+    pls::SimplePaintValue getSimpleValue() const { return m_simpleValue; }
 
 private:
     PaintType m_paintType = PaintType::solidColor;
-    bool m_stroked = false;
-    ColorInt m_color = 0xff000000;
-    rcp<PLSGradient> m_gradient;
+    pls::SimplePaintValue m_simpleValue;
+    rcp<const PLSGradient> m_gradient;
     rcp<const PLSTexture> m_imageTexture;
-    float m_imageOpacity;
-    uint32_t m_outerClipID;
     float m_thickness = 1;
     StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;
     BlendMode m_blendMode = BlendMode::srcOver;
+    bool m_stroked = false;
 };
 } // namespace rive::pls

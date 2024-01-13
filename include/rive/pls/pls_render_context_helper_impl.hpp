@@ -15,8 +15,10 @@ class PLSRenderContextHelperImpl : public PLSRenderContextImpl
 public:
     rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
 
-    void resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes) override;
-    void resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes) override;
+    void resizePathBuffer(size_t sizeInBytes, pls::StorageBufferStructure) override;
+    void resizePaintBuffer(size_t sizeInBytes, pls::StorageBufferStructure) override;
+    void resizePaintAuxBuffer(size_t sizeInBytes, pls::StorageBufferStructure) override;
+    void resizeContourBuffer(size_t sizeInBytes, pls::StorageBufferStructure) override;
     void resizeSimpleColorRampsBuffer(size_t sizeInBytes) override;
     void resizeGradSpanBuffer(size_t sizeInBytes) override;
     void resizeTessVertexSpanBuffer(size_t sizeInBytes) override;
@@ -24,6 +26,8 @@ public:
     void resizeImageDrawUniformBuffer(size_t sizeInBytes) override;
 
     void* mapPathBuffer(size_t mapSizeInBytes) override;
+    void* mapPaintBuffer(size_t mapSizeInBytes) override;
+    void* mapPaintAuxBuffer(size_t mapSizeInBytes) override;
     void* mapContourBuffer(size_t mapSizeInBytes) override;
     void* mapSimpleColorRampsBuffer(size_t mapSizeInBytes) override;
     void* mapGradSpanBuffer(size_t mapSizeInBytes) override;
@@ -33,6 +37,8 @@ public:
     void* mapFlushUniformBuffer(size_t mapSizeInBytes) override;
 
     void unmapPathBuffer() override;
+    void unmapPaintBuffer() override;
+    void unmapPaintAuxBuffer() override;
     void unmapContourBuffer() override;
     void unmapSimpleColorRampsBuffer() override;
     void unmapGradSpanBuffer() override;
@@ -43,6 +49,8 @@ public:
 
 protected:
     const BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
+    const BufferRing* paintBufferRing() { return m_paintBuffer.get(); }
+    const BufferRing* paintAuxBufferRing() { return m_paintAuxBuffer.get(); }
     const BufferRing* contourBufferRing() { return m_contourBuffer.get(); }
     const BufferRing* simpleColorRampsBufferRing() const { return m_simpleColorRampsBuffer.get(); }
     const BufferRing* gradSpanBufferRing() const { return m_gradSpanBuffer.get(); }
@@ -58,12 +66,14 @@ protected:
 
     virtual std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) = 0;
     virtual std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
-                                                              size_t elementSizeInBytes) = 0;
+                                                              pls::StorageBufferStructure) = 0;
     virtual std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) = 0;
     virtual std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) = 0;
 
 private:
     std::unique_ptr<BufferRing> m_pathBuffer;
+    std::unique_ptr<BufferRing> m_paintBuffer;
+    std::unique_ptr<BufferRing> m_paintAuxBuffer;
     std::unique_ptr<BufferRing> m_contourBuffer;
     std::unique_ptr<BufferRing> m_simpleColorRampsBuffer;
     std::unique_ptr<BufferRing> m_gradSpanBuffer;

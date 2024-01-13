@@ -19,8 +19,8 @@
 #include "../out/obj/generated/tessellate.glsl.hpp"
 
 #ifdef RIVE_GLES
-// In an effort to save space on Android, and since GLES doesn't have storage buffers, don't include
-// the atomic sources.
+// In an effort to save space on Android, and since GLES doesn't usually need atomic mode, don't
+// include the atomic sources.
 namespace rive::pls::glsl
 {
 const char atomic_draw[] = "";
@@ -57,14 +57,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         m_platformFeatures.supportsBindlessTextures = true;
     }
 
-    m_shaderVersionString[kShaderVersionStringBuffSize - 1] = '\0';
-    snprintf(m_shaderVersionString,
-             kShaderVersionStringBuffSize,
-             "#version %d%d0%s\n",
-             m_capabilities.contextVersionMajor,
-             m_capabilities.contextVersionMinor,
-             m_capabilities.isGLES ? " es" : "");
-
     std::vector<const char*> generalDefines;
     if (m_capabilities.ARB_shader_storage_buffer_object)
     {
@@ -79,17 +71,17 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     generalDefines.size(),
                                     colorRampSources,
                                     std::size(colorRampSources),
-                                    m_shaderVersionString);
+                                    m_capabilities);
     glutils::CompileAndAttachShader(m_colorRampProgram,
                                     GL_FRAGMENT_SHADER,
                                     generalDefines.data(),
                                     generalDefines.size(),
                                     colorRampSources,
                                     std::size(colorRampSources),
-                                    m_shaderVersionString);
+                                    m_capabilities);
     glutils::LinkProgram(m_colorRampProgram);
     glUniformBlockBinding(m_colorRampProgram,
-                          glGetUniformBlockIndex(m_colorRampProgram, GLSL_Uniforms),
+                          glGetUniformBlockIndex(m_colorRampProgram, GLSL_FlushUniforms),
                           FLUSH_UNIFORM_BUFFER_IDX);
 
     glGenVertexArrays(1, &m_colorRampVAO);
@@ -107,26 +99,26 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                                     generalDefines.size(),
                                     tessellateSources,
                                     std::size(tessellateSources),
-                                    m_shaderVersionString);
+                                    m_capabilities);
     glutils::CompileAndAttachShader(m_tessellateProgram,
                                     GL_FRAGMENT_SHADER,
                                     generalDefines.data(),
                                     generalDefines.size(),
                                     tessellateSources,
                                     std::size(tessellateSources),
-                                    m_shaderVersionString);
+                                    m_capabilities);
     glutils::LinkProgram(m_tessellateProgram);
     m_state->bindProgram(m_tessellateProgram);
     glUniformBlockBinding(m_tessellateProgram,
-                          glGetUniformBlockIndex(m_tessellateProgram, GLSL_Uniforms),
+                          glGetUniformBlockIndex(m_tessellateProgram, GLSL_FlushUniforms),
                           FLUSH_UNIFORM_BUFFER_IDX);
     if (!m_capabilities.ARB_shader_storage_buffer_object)
     {
         // Our GL driver doesn't support storage buffers. We polyfill these buffers as textures.
         glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathBuffer),
-                    kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
+                    kPLSTexIdxOffset + PATH_BUFFER_IDX);
         glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourBuffer),
-                    kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
+                    kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
     }
 
     glGenVertexArrays(1, &m_tessellateVAO);
@@ -177,6 +169,33 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     m_state->bindVAO(m_interiorTrianglesVAO);
     glEnableVertexAttribArray(0);
 
+    if (!m_capabilities.ARB_bindless_texture)
+    {
+        // We only have to draw imageRects when in atomic mode and bindless textures are not
+        // supported.
+        glGenVertexArrays(1, &m_imageRectVAO);
+        m_state->bindVAO(m_imageRectVAO);
+
+        glGenBuffers(1, &m_imageRectVertexBuffer);
+        m_state->bindBuffer(GL_ARRAY_BUFFER, m_imageRectVertexBuffer);
+        glBufferData(GL_ARRAY_BUFFER,
+                     sizeof(pls::kImageRectVertices),
+                     pls::kImageRectVertices,
+                     GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(pls::ImageRectVertex), nullptr);
+
+        glGenBuffers(1, &m_imageRectIndexBuffer);
+        m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_imageRectIndexBuffer);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     sizeof(pls::kImageRectIndices),
+                     pls::kImageRectIndices,
+                     GL_STATIC_DRAW);
+    }
+
+    glGenVertexArrays(1, &m_plsResolveVAO);
+
     glGenVertexArrays(1, &m_imageMeshVAO);
     m_state->bindVAO(m_imageMeshVAO);
     glEnableVertexAttribArray(0);
@@ -187,9 +206,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 
 PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 {
-    glDeleteTextures(1, &m_pathTexture);
-    glDeleteTextures(1, &m_contourTexture);
-
     m_state->deleteProgram(m_colorRampProgram);
     m_state->deleteVAO(m_colorRampVAO);
     glDeleteFramebuffers(1, &m_colorRampFBO);
@@ -213,28 +229,10 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 
     m_state->deleteVAO(m_imageMeshVAO);
     m_state->deleteVAO(m_plsResolveVAO);
-
-    m_state->deleteBuffer(m_paintBuffer);
-    m_state->deleteBuffer(m_paintMatrixBuffer);
-    m_state->deleteBuffer(m_paintTranslateBuffer);
-    m_state->deleteBuffer(m_clipRectMatrixBuffer);
-    m_state->deleteBuffer(m_clipRectTranslateBuffer);
 }
 
 void PLSRenderContextGLImpl::resetGLState()
 {
-    if (m_pathTexture != 0)
-    {
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
-        glBindTexture(GL_TEXTURE_2D, m_pathTexture);
-    }
-
-    if (m_contourTexture != 0)
-    {
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
-        glBindTexture(GL_TEXTURE_2D, m_contourTexture);
-    }
-
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
 
@@ -257,6 +255,7 @@ public:
                      uint32_t height,
                      uint32_t mipLevelCount,
                      const uint8_t imageDataRGBA[],
+                     const GLCapabilities& capabilities,
                      rcp<GLState> state) :
         PLSTexture(width, height), m_state(std::move(state))
     {
@@ -279,38 +278,33 @@ public:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glGenerateMipmap(GL_TEXTURE_2D);
+
+#ifdef RIVE_DESKTOP_GL
+        if (capabilities.ARB_bindless_texture)
+        {
+            m_bindlessTextureHandle = glGetTextureHandleARB(m_id);
+            glMakeTextureHandleResidentARB(m_bindlessTextureHandle);
+        }
+#endif
     }
 
     ~PLSTextureGLImpl() override
     {
 #ifdef RIVE_DESKTOP_GL
-        if (m_bindlessHandle != 0)
+        if (m_bindlessTextureHandle != 0)
         {
-            glMakeTextureHandleNonResidentARB(m_bindlessHandle);
-            m_bindlessHandle = 0;
+            glMakeTextureHandleNonResidentARB(m_bindlessTextureHandle);
         }
+#else
+        assert(m_bindlessTextureHandle == 0);
 #endif
-        assert(m_bindlessHandle == 0);
     }
 
     GLuint id() const { return m_id; }
 
-    GLuint64 bindlessHandle(const GLCapabilities& capabilities) const
-    {
-#ifdef RIVE_DESKTOP_GL
-        if (capabilities.ARB_bindless_texture && m_bindlessHandle == 0)
-        {
-            m_bindlessHandle = glGetTextureHandleARB(m_id);
-            glMakeTextureHandleResidentARB(m_bindlessHandle);
-        }
-#endif
-        return m_bindlessHandle;
-    }
-
 private:
     const rcp<GLState> m_state;
     GLuint m_id = 0;
-    mutable GLuint64 m_bindlessHandle = 0;
 };
 
 rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
@@ -318,7 +312,12 @@ rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
                                                          uint32_t mipLevelCount,
                                                          const uint8_t imageDataRGBA[])
 {
-    return make_rcp<PLSTextureGLImpl>(width, height, mipLevelCount, imageDataRGBA, m_state);
+    return make_rcp<PLSTextureGLImpl>(width,
+                                      height,
+                                      mipLevelCount,
+                                      imageDataRGBA,
+                                      m_capabilities,
+                                      m_state);
 }
 
 // BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we don't do hardware
@@ -331,19 +330,9 @@ public:
                                                   rcp<GLState> state)
     {
         return capacityInBytes != 0
-                   ? std::make_unique<BufferRingGLImpl>(target, capacityInBytes, std::move(state))
+                   ? std::unique_ptr<BufferRingGLImpl>(
+                         new BufferRingGLImpl(target, capacityInBytes, std::move(state)))
                    : nullptr;
-    }
-
-    BufferRingGLImpl(GLenum target, size_t capacityInBytes, rcp<GLState> state) :
-        BufferRing(capacityInBytes), m_target(target), m_state(std::move(state))
-    {
-        glGenBuffers(kBufferRingSize, m_ids);
-        for (int i = 0; i < kBufferRingSize; ++i)
-        {
-            m_state->bindBuffer(m_target, m_ids[i]);
-            glBufferData(m_target, capacityInBytes, nullptr, GL_DYNAMIC_DRAW);
-        }
     }
 
     ~BufferRingGLImpl()
@@ -357,6 +346,17 @@ public:
     GLuint submittedBufferID() const { return m_ids[submittedBufferIdx()]; }
 
 protected:
+    BufferRingGLImpl(GLenum target, size_t capacityInBytes, rcp<GLState> state) :
+        BufferRing(capacityInBytes), m_target(target), m_state(std::move(state))
+    {
+        glGenBuffers(kBufferRingSize, m_ids);
+        for (int i = 0; i < kBufferRingSize; ++i)
+        {
+            m_state->bindBuffer(m_target, m_ids[i]);
+            glBufferData(m_target, capacityInBytes, nullptr, GL_DYNAMIC_DRAW);
+        }
+    }
+
     void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
 #ifdef RIVE_WEBGL
@@ -383,10 +383,155 @@ protected:
 #endif
     }
 
-private:
     const GLenum m_target;
     GLuint m_ids[kBufferRingSize];
     const rcp<GLState> m_state;
+};
+
+// GL internalformat to use for a texture that polyfills a storage buffer.
+static GLenum storage_texture_internalformat(pls::StorageBufferStructure bufferStructure)
+{
+    switch (bufferStructure)
+    {
+        case pls::StorageBufferStructure::uint32x4:
+            return GL_RGBA32UI;
+        case pls::StorageBufferStructure::uint32x2:
+            return GL_RG32UI;
+        case pls::StorageBufferStructure::float32x4:
+            return GL_RGBA32F;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// GL format to use for a texture that polyfills a storage buffer.
+static GLenum storage_texture_format(pls::StorageBufferStructure bufferStructure)
+{
+    switch (bufferStructure)
+    {
+        case pls::StorageBufferStructure::uint32x4:
+            return GL_RGBA_INTEGER;
+        case pls::StorageBufferStructure::uint32x2:
+            return GL_RG_INTEGER;
+        case pls::StorageBufferStructure::float32x4:
+            return GL_RGBA;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// GL type to use for a texture that polyfills a storage buffer.
+static GLenum storage_texture_type(pls::StorageBufferStructure bufferStructure)
+{
+    switch (bufferStructure)
+    {
+        case pls::StorageBufferStructure::uint32x4:
+            return GL_UNSIGNED_INT;
+        case pls::StorageBufferStructure::uint32x2:
+            return GL_UNSIGNED_INT;
+        case pls::StorageBufferStructure::float32x4:
+            return GL_FLOAT;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// What dimensions should we give a texture that polyfills a storage buffer?
+static std::tuple<uint32_t, uint32_t> storage_texture_size(size_t bufferSizeInBytes,
+                                                           StorageBufferStructure bufferStructure)
+{
+    assert(bufferSizeInBytes % pls::StorageBufferElementSizeInBytes(bufferStructure) == 0);
+    size_t elementCount = bufferSizeInBytes / pls::StorageBufferElementSizeInBytes(bufferStructure);
+    uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
+    assert(height <= 2048); // 2048 is the min specified texture size in ES3.
+    uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
+    return {width, height};
+}
+
+class StorageBufferRingGLImpl : public BufferRingGLImpl
+{
+public:
+    StorageBufferRingGLImpl(const GLCapabilities& capabilities,
+                            size_t capacityInBytes,
+                            pls::StorageBufferStructure bufferStructure,
+                            rcp<GLState> state) :
+        BufferRingGLImpl(
+            // If we don't support storage buffers, instead make a pixel-unpack buffer that
+            // will be used to copy data into the polyfill texture.
+            capabilities.ARB_shader_storage_buffer_object ? GL_SHADER_STORAGE_BUFFER
+                                                          : GL_PIXEL_UNPACK_BUFFER,
+            capabilities.ARB_shader_storage_buffer_object
+                ? capacityInBytes
+                // The polyfill texture needs to be updated in entire rows at a time. Extend the
+                // buffer's length to be able to serve a worst-case scenario.
+                : capacityInBytes + (STORAGE_TEXTURE_WIDTH - 1) *
+                                        pls::StorageBufferElementSizeInBytes(bufferStructure),
+            std::move(state)),
+        m_bufferStructure(bufferStructure)
+    {
+        if (!capabilities.ARB_shader_storage_buffer_object)
+        {
+            // Our GL driver doesn't support storage buffers. Allocate a polyfill texture.
+            auto [width, height] = storage_texture_size(capacityInBytes, m_bufferStructure);
+            glGenTextures(1, &m_polyfillTexture);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_polyfillTexture);
+            glTexStorage2D(GL_TEXTURE_2D,
+                           1,
+                           storage_texture_internalformat(m_bufferStructure),
+                           width,
+                           height);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+    }
+
+    ~StorageBufferRingGLImpl()
+    {
+        if (m_polyfillTexture != 0)
+        {
+            glDeleteTextures(1, &m_polyfillTexture);
+        }
+    }
+
+    void bindToRenderContext(const GLCapabilities& capabilities,
+                             uint32_t bindingIdx,
+                             size_t bindingSizeInBytes,
+                             size_t offsetSizeInBytes) const
+    {
+        if (capabilities.ARB_shader_storage_buffer_object)
+        {
+            assert(m_target == GL_SHADER_STORAGE_BUFFER);
+            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+                              bindingIdx,
+                              submittedBufferID(),
+                              offsetSizeInBytes,
+                              bindingSizeInBytes);
+        }
+        else
+        {
+            // Our GL driver doesn't support storage buffers. Copy the buffer to a texture.
+            assert(m_target == GL_PIXEL_UNPACK_BUFFER);
+            auto [updateWidth, updateHeight] =
+                storage_texture_size(bindingSizeInBytes, m_bufferStructure);
+            m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, submittedBufferID());
+            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + bindingIdx);
+            glBindTexture(GL_TEXTURE_2D, m_polyfillTexture);
+            glTexSubImage2D(GL_TEXTURE_2D,
+                            0,
+                            0,
+                            0,
+                            updateWidth,
+                            updateHeight,
+                            storage_texture_format(m_bufferStructure),
+                            storage_texture_type(m_bufferStructure),
+                            reinterpret_cast<void*>(offsetSizeInBytes));
+        }
+    }
+
+protected:
+    const pls::StorageBufferStructure m_bufferStructure;
+    GLuint m_polyfillTexture = 0;
 };
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
@@ -394,16 +539,15 @@ std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t 
     return BufferRingGLImpl::Make(capacityInBytes, GL_ARRAY_BUFFER, m_state);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(size_t capacityInBytes,
-                                                                          size_t elementSizeInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(
+    size_t capacityInBytes,
+    pls::StorageBufferStructure bufferStructure)
 {
-    // If GL driver doesn't support storage buffers, make a transfer buffer instead that we will
-    // copy to a texture during flush.
-    return BufferRingGLImpl::Make(capacityInBytes,
-                                  m_capabilities.ARB_shader_storage_buffer_object
-                                      ? GL_SHADER_STORAGE_BUFFER
-                                      : GL_PIXEL_UNPACK_BUFFER,
-                                  m_state);
+    return capacityInBytes != 0 ? std::make_unique<StorageBufferRingGLImpl>(m_capabilities,
+                                                                            capacityInBytes,
+                                                                            bufferStructure,
+                                                                            m_state)
+                                : nullptr;
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeTextureTransferBufferRing(
@@ -415,81 +559,6 @@ std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeTextureTransferBufferRin
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
     return BufferRingGLImpl::Make(capacityInBytes, GL_UNIFORM_BUFFER, m_state);
-}
-
-// What dimensions should we give a texture that emulates a storage buffer?
-static std::tuple<uint32_t, uint32_t> storage_texture_size(size_t elementCount)
-{
-    uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
-    assert(height <= 2048); // 2048 is the min specified texture size in ES3.
-    uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
-    return {width, height};
-}
-
-void PLSRenderContextGLImpl::resizePathBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
-{
-    if (m_pathTexture != 0)
-    {
-        glDeleteTextures(1, &m_pathTexture);
-        m_pathTexture = 0;
-    }
-
-    if (m_capabilities.ARB_shader_storage_buffer_object || sizeInBytes == 0)
-    {
-        PLSRenderContextHelperImpl::resizePathBuffer(sizeInBytes, elementSizeInBytes);
-    }
-    else
-    {
-        // Our GL driver doesn't support storage buffers. Allocate a polyfill texture.
-        auto [width, height] = storage_texture_size(sizeInBytes / (sizeof(uint32_t) * 4));
-        glGenTextures(1, &m_pathTexture);
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
-        glBindTexture(GL_TEXTURE_2D, m_pathTexture);
-        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-        // The path texture needs to be updated in entire rows at a time. Extend the texture
-        // transfer buffer's length to be able to serve a worst-case scenario.
-        PLSRenderContextHelperImpl::resizePathBuffer(sizeInBytes + (STORAGE_TEXTURE_WIDTH - 1) *
-                                                                       sizeof(uint32_t) * 4,
-                                                     elementSizeInBytes);
-    }
-}
-
-void PLSRenderContextGLImpl::resizeContourBuffer(size_t sizeInBytes, size_t elementSizeInBytes)
-{
-    if (m_contourTexture != 0)
-    {
-        glDeleteTextures(1, &m_contourTexture);
-        m_contourTexture = 0;
-    }
-
-    if (m_capabilities.ARB_shader_storage_buffer_object || sizeInBytes == 0)
-    {
-        PLSRenderContextHelperImpl::resizeContourBuffer(sizeInBytes, elementSizeInBytes);
-    }
-    else
-    {
-        // Our GL driver doesn't support storage buffers. Allocate a polyfill texture.
-        auto [width, height] = storage_texture_size(sizeInBytes / (sizeof(uint32_t) * 4));
-        glGenTextures(1, &m_contourTexture);
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
-        glBindTexture(GL_TEXTURE_2D, m_contourTexture);
-        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-        // The contour texture needs to be updated in entire rows at a time. Extend the texture
-        // transfer buffer's length to be able to serve a worst-case scenario.
-        PLSRenderContextHelperImpl::resizeContourBuffer(sizeInBytes + (STORAGE_TEXTURE_WIDTH - 1) *
-                                                                          sizeof(uint32_t) * 4,
-                                                        elementSizeInBytes);
-    }
 }
 
 void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -654,7 +723,7 @@ public:
                                       defines.size(),
                                       sources.data(),
                                       sources.size(),
-                                      plsContextImpl->m_shaderVersionString);
+                                      plsContextImpl->m_capabilities);
     }
 
     ~DrawShader() { glDeleteShader(m_id); }
@@ -699,7 +768,7 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
 
     m_state->bindProgram(m_id);
     glUniformBlockBinding(m_id,
-                          glGetUniformBlockIndex(m_id, GLSL_Uniforms),
+                          glGetUniformBlockIndex(m_id, GLSL_FlushUniforms),
                           FLUSH_UNIFORM_BUFFER_IDX);
     if (drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
     {
@@ -713,9 +782,13 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     {
         // Our GL driver doesn't support storage buffers. We polyfill these buffers as textures.
         glUniform1i(glGetUniformLocation(m_id, GLSL_pathBuffer),
-                    kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
+                    kPLSTexIdxOffset + PATH_BUFFER_IDX);
+        glUniform1i(glGetUniformLocation(m_id, GLSL_paintBuffer),
+                    kPLSTexIdxOffset + PAINT_BUFFER_IDX);
+        glUniform1i(glGetUniformLocation(m_id, GLSL_paintAuxBuffer),
+                    kPLSTexIdxOffset + PAINT_AUX_BUFFER_IDX);
         glUniform1i(glGetUniformLocation(m_id, GLSL_contourBuffer),
-                    kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
+                    kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
     }
     glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture),
@@ -735,6 +808,21 @@ static GLuint gl_buffer_id(const BufferRing* bufferRing)
     return static_cast<const BufferRingGLImpl*>(bufferRing)->submittedBufferID();
 }
 
+static void bind_storage_buffer(const GLCapabilities& capabilities,
+                                const BufferRing* bufferRing,
+                                uint32_t bindingIdx,
+                                size_t bindingSizeInBytes,
+                                size_t offsetSizeInBytes)
+{
+    assert(bufferRing != nullptr);
+    assert(bindingSizeInBytes > 0);
+    auto storageBufferRing = static_cast<const StorageBufferRingGLImpl*>(bufferRing);
+    storageBufferRing->bindToRenderContext(capabilities,
+                                           bindingIdx,
+                                           bindingSizeInBytes,
+                                           offsetSizeInBytes);
+}
+
 void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
@@ -744,215 +832,35 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                      FLUSH_UNIFORM_BUFFER_IDX,
                      gl_buffer_id(flushUniformBufferRing()));
 
-#ifdef ENABLE_PLS_EXPERIMENTAL_ATOMICS
-    if (desc.interlockMode == pls::InterlockMode::experimentalAtomics)
-    {
-        if (m_paintBuffer == 0)
-        {
-            // This is the first flush with "atomic mode" enabled. Allocate the additional resources
-            // for atomic mode.
-            if (!m_capabilities.ARB_bindless_texture)
-            {
-                // We only have to draw imageRects when in atomic mode and bindless textures are not
-                // supported.
-                assert(m_imageRectVAO == 0);
-                glGenVertexArrays(1, &m_imageRectVAO);
-                m_state->bindVAO(m_imageRectVAO);
-
-                assert(m_imageRectVertexBuffer == 0);
-                glGenBuffers(1, &m_imageRectVertexBuffer);
-                m_state->bindBuffer(GL_ARRAY_BUFFER, m_imageRectVertexBuffer);
-                glBufferData(GL_ARRAY_BUFFER,
-                             sizeof(pls::kImageRectVertices),
-                             pls::kImageRectVertices,
-                             GL_STATIC_DRAW);
-
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0,
-                                      4,
-                                      GL_FLOAT,
-                                      GL_FALSE,
-                                      sizeof(pls::ImageRectVertex),
-                                      nullptr);
-
-                assert(m_imageRectIndexBuffer == 0);
-                glGenBuffers(1, &m_imageRectIndexBuffer);
-                m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_imageRectIndexBuffer);
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                             sizeof(pls::kImageRectIndices),
-                             pls::kImageRectIndices,
-                             GL_STATIC_DRAW);
-            }
-
-            assert(m_plsResolveVAO == 0);
-            glGenVertexArrays(1, &m_plsResolveVAO);
-
-            assert(m_paintBuffer == 0);
-            glGenBuffers(1, &m_paintBuffer);
-            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintBuffer);
-            glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(pls::ExperimentalAtomicModeData::m_paints),
-                         nullptr,
-                         GL_DYNAMIC_DRAW);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, PAINT_STORAGE_BUFFER_IDX, m_paintBuffer);
-
-            assert(m_paintMatrixBuffer == 0);
-            glGenBuffers(1, &m_paintMatrixBuffer);
-            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintMatrixBuffer);
-            glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(pls::ExperimentalAtomicModeData::m_paintMatrices),
-                         nullptr,
-                         GL_DYNAMIC_DRAW);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
-                             PAINT_MATRIX_STORAGE_BUFFER_IDX,
-                             m_paintMatrixBuffer);
-
-            assert(m_paintTranslateBuffer == 0);
-            glGenBuffers(1, &m_paintTranslateBuffer);
-            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintTranslateBuffer);
-            glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(pls::ExperimentalAtomicModeData::m_paintTranslates),
-                         nullptr,
-                         GL_DYNAMIC_DRAW);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
-                             PAINT_TRANSLATE_STORAGE_BUFFER_IDX,
-                             m_paintTranslateBuffer);
-
-            assert(m_clipRectMatrixBuffer == 0);
-            glGenBuffers(1, &m_clipRectMatrixBuffer);
-            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectMatrixBuffer);
-            glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(pls::ExperimentalAtomicModeData::m_clipRectMatrices),
-                         nullptr,
-                         GL_DYNAMIC_DRAW);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
-                             CLIPRECT_MATRIX_STORAGE_BUFFER_IDX,
-                             m_clipRectMatrixBuffer);
-
-            assert(m_clipRectTranslateBuffer == 0);
-            glGenBuffers(1, &m_clipRectTranslateBuffer);
-            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectTranslateBuffer);
-            glBufferData(GL_SHADER_STORAGE_BUFFER,
-                         sizeof(pls::ExperimentalAtomicModeData::m_clipRectTranslates),
-                         nullptr,
-                         GL_DYNAMIC_DRAW);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
-                             CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX,
-                             m_clipRectTranslateBuffer);
-        }
-
-        assert(desc.experimentalAtomicModeData);
-        pls::ExperimentalAtomicModeData& atomicModeData = *desc.experimentalAtomicModeData;
-        if (m_capabilities.ARB_bindless_texture)
-        {
-            // We support bindless textures, so write out image texture handles.
-            for (uint32_t i = 1; i <= desc.pathCount; ++i)
-            {
-                if (auto imageTextureGL =
-                        static_cast<const PLSTextureGLImpl*>(atomicModeData.m_imageTextures[i]))
-                {
-                    GLuint64 handle = imageTextureGL->bindlessHandle(m_capabilities);
-                    atomicModeData.m_paintTranslates[i].bindlessTextureHandle[0] = handle;
-                    atomicModeData.m_paintTranslates[i].bindlessTextureHandle[1] = handle >> 32;
-                }
-            }
-        }
-
-        // Fill in the atomic mode buffers.
-        size_t bufferCount = desc.pathCount + 1;
-        m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintBuffer);
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER,
-                        0,
-                        bufferCount * sizeof(*atomicModeData.m_paints),
-                        atomicModeData.m_paints);
-
-        m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintMatrixBuffer);
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER,
-                        0,
-                        bufferCount * sizeof(*atomicModeData.m_paintMatrices),
-                        atomicModeData.m_paintMatrices);
-
-        m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_paintTranslateBuffer);
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER,
-                        0,
-                        bufferCount * sizeof(*atomicModeData.m_paintTranslates),
-                        atomicModeData.m_paintTranslates);
-
-        if (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT)
-        {
-            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectMatrixBuffer);
-            glBufferSubData(GL_SHADER_STORAGE_BUFFER,
-                            0,
-                            bufferCount * sizeof(*atomicModeData.m_clipRectMatrices),
-                            atomicModeData.m_clipRectMatrices);
-
-            m_state->bindBuffer(GL_SHADER_STORAGE_BUFFER, m_clipRectTranslateBuffer);
-            glBufferSubData(GL_SHADER_STORAGE_BUFFER,
-                            0,
-                            bufferCount * sizeof(*atomicModeData.m_clipRectTranslates),
-                            atomicModeData.m_clipRectTranslates);
-        }
-    }
-#endif // ENABLE_PLS_EXPERIMENTAL_ATOMICS
-
-    // Bind the path data.
+    // All programs use the same storage buffers.
     if (desc.pathCount > 0)
     {
-        if (m_capabilities.ARB_shader_storage_buffer_object)
-        {
-            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
-                              PATH_STORAGE_BUFFER_IDX,
-                              gl_buffer_id(pathBufferRing()),
-                              desc.firstPath * sizeof(pls::PathData),
-                              desc.pathCount * sizeof(pls::PathData));
-        }
-        else
-        {
-            // Our GL driver doesn't support storage buffers. Copy the path data to a texture.
-            auto [updateWidth, updateHeight] =
-                storage_texture_size(desc.pathCount * pls::kPathTexelsPerItem);
-            m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(pathBufferRing()));
-            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + PATH_STORAGE_BUFFER_IDX);
-            glTexSubImage2D(GL_TEXTURE_2D,
-                            0,
-                            0,
-                            0,
-                            updateWidth,
-                            updateHeight,
-                            GL_RGBA_INTEGER,
-                            GL_UNSIGNED_INT,
-                            nullptr);
-        }
+        bind_storage_buffer(m_capabilities,
+                            pathBufferRing(),
+                            PATH_BUFFER_IDX,
+                            desc.pathCount * sizeof(pls::PathData),
+                            desc.firstPath * sizeof(pls::PathData));
+
+        bind_storage_buffer(m_capabilities,
+                            paintBufferRing(),
+                            PAINT_BUFFER_IDX,
+                            desc.pathCount * sizeof(pls::PaintData),
+                            desc.firstPath * sizeof(pls::PaintData));
+
+        bind_storage_buffer(m_capabilities,
+                            paintAuxBufferRing(),
+                            PAINT_AUX_BUFFER_IDX,
+                            desc.pathCount * sizeof(pls::PaintAuxData),
+                            desc.firstPath * sizeof(pls::PaintAuxData));
     }
 
-    // Bind the contour data.
     if (desc.contourCount > 0)
     {
-        if (m_capabilities.ARB_shader_storage_buffer_object)
-        {
-            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
-                              CONTOUR_STORAGE_BUFFER_IDX,
-                              gl_buffer_id(contourBufferRing()),
-                              desc.firstContour * sizeof(pls::ContourData),
-                              desc.contourCount * sizeof(pls::ContourData));
-        }
-        else
-        {
-            // Our GL driver doesn't support storage buffers. Copy the contour data to a texture.
-            auto [updateWidth, updateHeight] =
-                storage_texture_size(desc.contourCount * pls::kContourTexelsPerItem);
-            m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(contourBufferRing()));
-            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + CONTOUR_STORAGE_BUFFER_IDX);
-            glTexSubImage2D(GL_TEXTURE_2D,
-                            0,
-                            0,
-                            0,
-                            updateWidth,
-                            updateHeight,
-                            GL_RGBA_INTEGER,
-                            GL_UNSIGNED_INT,
-                            nullptr);
-        }
+        bind_storage_buffer(m_capabilities,
+                            contourBufferRing(),
+                            CONTOUR_BUFFER_IDX,
+                            desc.contourCount * sizeof(pls::ContourData),
+                            desc.firstContour * sizeof(pls::ContourData));
     }
 
     // Render the complex color ramps into the gradient texture.
@@ -1337,13 +1245,13 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
     }
 #endif
 
-    // We need two storage buffers in the vertex shader. Disable the extension if this isn't
+    // We need four storage buffers in the vertex shader. Disable the extension if this isn't
     // supported.
     if (capabilities.ARB_shader_storage_buffer_object)
     {
         int maxVertexShaderStorageBlocks;
         glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, &maxVertexShaderStorageBlocks);
-        if (maxVertexShaderStorageBlocks < 2)
+        if (maxVertexShaderStorageBlocks < 4)
         {
             capabilities.ARB_shader_storage_buffer_object = false;
         }

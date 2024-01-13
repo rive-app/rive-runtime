@@ -290,7 +290,9 @@ PLSDraw::PLSDraw(IAABB pixelBounds,
 bool PLSDraw::allocateGradientIfNeeded(PLSRenderContext* context, ResourceCounters* counters)
 {
     return m_gradientRef == nullptr ||
-           context->allocateGradient(m_gradientRef, counters, &m_paintRenderData);
+           context->allocateGradient(m_gradientRef,
+                                     counters,
+                                     &m_simplePaintValue.colorRampLocation);
 }
 
 void PLSDraw::releaseRefs()
@@ -374,30 +376,15 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
                          Type type) :
     PLSDraw(pixelBounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
     m_pathRef(path.release()),
-    m_fillRule(fillRule),
-    m_paintType(paint->getType()),
     m_isStroked(paint->getIsStroked()),
+    m_fillRule(m_isStroked ? FillRule::nonZero : fillRule),
+    m_paintType(paint->getType()),
     m_strokeRadius(m_isStroked ? paint->getThickness() * .5f : 0)
 {
     assert(m_pathRef != nullptr);
     assert(paint != nullptr);
-    switch (m_paintType)
-    {
-        case pls::PaintType::solidColor:
-            m_paintRenderData = PaintData::MakeColor(paint->getColor());
-            break;
-        case pls::PaintType::linearGradient:
-        case pls::PaintType::radialGradient:
-            // m_paintRenderData will get initialized when the client calls pushGradientIfNeeded().
-            m_gradientRef = safe_ref(paint->getGradient());
-            break;
-        case pls::PaintType::image:
-            m_paintRenderData = PaintData::MakeImage(paint->getImageOpacity());
-            break;
-        case pls::PaintType::clipUpdate:
-            m_paintRenderData = PaintData::MakeClipUpdate(paint->getOuterClipID());
-            break;
-    }
+    m_simplePaintValue = paint->getSimpleValue();
+    m_gradientRef = safe_ref(paint->getGradient());
     RIVE_DEBUG_CODE(m_pathRef->lockRawPathMutations();)
     RIVE_DEBUG_CODE(m_rawPathMutationID = m_pathRef->getRawPathMutationID();)
 }
@@ -423,7 +410,8 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
                       m_strokeRadius,
                       m_fillRule,
                       m_paintType,
-                      m_paintRenderData,
+                      m_simplePaintValue,
+                      m_gradientRef,
                       m_imageTextureRef,
                       m_clipID,
                       m_clipRectInverseMatrix,
@@ -1293,7 +1281,7 @@ void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext* context)
     }
     context->pushInteriorTriangulation(m_triangulator,
                                        m_paintType,
-                                       m_paintRenderData,
+                                       m_simplePaintValue,
                                        m_imageTextureRef,
                                        m_clipID,
                                        m_clipRectInverseMatrix != nullptr,

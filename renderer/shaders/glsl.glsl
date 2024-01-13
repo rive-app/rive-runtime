@@ -7,6 +7,12 @@
 
 #define GLSL
 
+#ifndef @GLSL_VERSION
+// In "#version 320 es", Qualcomm incorrectly substitutes __VERSION__ to 300. @GLSL_VERSION is a
+// workaround for this.
+#define @GLSL_VERSION __VERSION__
+#endif
+
 #define float2 vec2
 #define float3 vec3
 #define packed_float3 vec3
@@ -61,7 +67,7 @@
 #extension GL_ARB_bindless_texture : require
 #endif
 
-#if __VERSION__ >= 310
+#if @GLSL_VERSION >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
     layout(binding = IDX, std140) uniform NAME                                                     \
     {
@@ -82,13 +88,13 @@
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE)
 
 #ifdef @VERTEX
-#if __VERSION__ >= 310
+#if @GLSL_VERSION >= 310
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) out TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) out TYPE NAME
 #endif
 #else
-#if __VERSION__ >= 310
+#if @GLSL_VERSION >= 310
 #define VARYING(IDX, TYPE, NAME) layout(location = IDX) in TYPE NAME
 #else
 #define VARYING(IDX, TYPE, NAME) in TYPE NAME
@@ -126,7 +132,7 @@
 #define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp utexture2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp texture2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump texture2D NAME
-#elif __VERSION__ >= 310
+#elif @GLSL_VERSION >= 310
 #define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump sampler2D NAME
@@ -340,21 +346,19 @@
 #endif
 // clang-format on
 
-#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     void main()                                                                                    \
     {                                                                                              \
         int _vertexID = gl_VertexID;                                                               \
         int _instanceID = INSTANCE_INDEX;
 
-#define VERTEX_MAIN(NAME, Uniforms, uniforms, Attrs, attrs, _vertexID, _instanceID)                \
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     void main()                                                                                    \
     {                                                                                              \
         int _vertexID = gl_VertexID;                                                               \
         int _instanceID = INSTANCE_INDEX;
 
 #define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
-                               Uniforms,                                                           \
-                               uniforms,                                                           \
                                MeshUniforms,                                                       \
                                meshUniforms,                                                       \
                                PositionAttr,                                                       \
@@ -362,7 +366,7 @@
                                UVAttr,                                                             \
                                uv,                                                                 \
                                _vertexID)                                                          \
-    VERTEX_MAIN(NAME, Uniforms, uniforms, PositionAttr, position, _vertexID, _instanceID)
+    VERTEX_MAIN(NAME, PositionAttr, position, _vertexID, _instanceID)
 
 #define VARYING_INIT(NAME, TYPE)
 #define VARYING_PACK(NAME)
@@ -379,15 +383,16 @@
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE
 
 #ifdef @PLS_IMPL_RW_TEXTURE
-#define PLS_MAIN(NAME, _pos, _plsCoord)                                                            \
+#define PLS_MAIN(NAME, _fragCoord, _plsCoord)                                                      \
     void main()                                                                                    \
     {                                                                                              \
-        float2 _pos = gl_FragCoord.xy;                                                             \
-        int2 _plsCoord = ivec2(floor(_pos));
+        float2 _fragCoord = gl_FragCoord.xy;                                                       \
+        int2 _plsCoord = ivec2(floor(_fragCoord));
 #else
-#define PLS_MAIN(NAME, _pos, _plsCoord)                                                            \
+#define PLS_MAIN(NAME, _fragCoord, _plsCoord)                                                      \
     void main()                                                                                    \
-    {
+    {                                                                                              \
+        float2 _fragCoord = gl_FragCoord.xy;
 #endif
 
 #define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)                     \
@@ -431,6 +436,19 @@
 #define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
     texelFetch(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y), 0).xy
 
+#endif
+
+#if @GLSL_VERSION < 310
+// Polyfill ES 3.1+ methods.
+INLINE half4 unpackUnorm4x8(uint u)
+{
+    uint4 vals = uint4(u & 0xffu, (u >> 8) & 0xffu, (u >> 16) & 0xffu, u >> 24);
+    return float4(vals) * (1. / 255.);
+}
+#endif
+
+#ifndef @TARGET_VULKAN
+#define FRAG_COORD_BOTTOM_UP
 #endif
 
 precision highp float;

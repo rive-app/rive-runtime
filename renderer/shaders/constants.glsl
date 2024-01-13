@@ -12,11 +12,11 @@
 //
 // Minimize width since the texture needs to be updated in entire rows from the resource buffer.
 // Since these only serve paths and contours, both of those are limited to 16-bit indices, 2048
-// is the min specified texture size in ES3, and pls::PathData uses 5 texels, we can safely use a
-// width of 256.
-#define STORAGE_TEXTURE_WIDTH 256
-#define STORAGE_TEXTURE_SHIFT_Y 8
-#define STORAGE_TEXTURE_MASK_X 0xffu
+// is the min specified texture size in ES3, and no path buffer uses more than 4 texels, we can
+// safely use a width of 128.
+#define STORAGE_TEXTURE_WIDTH 128
+#define STORAGE_TEXTURE_SHIFT_Y 7
+#define STORAGE_TEXTURE_MASK_X 0x7fu
 
 // Tells shaders that a cubic should actually be drawn as the single, non-AA triangle: [p0, p1, p3].
 // This is used to squeeze in more rare triangles, like "grout" triangles from self intersections on
@@ -47,9 +47,6 @@
 #define RIGHT_JOIN_CONTOUR_FLAG (1u << 22u)
 #define CONTOUR_ID_MASK 0xffffu
 
-// Tells the GPU that a given path has an even-odd fill rule.
-#define EVEN_ODD_PATH_FLAG (1u << 31u)
-
 // Says which part of the patch a vertex belongs to.
 #define STROKE_VERTEX 0
 #define FAN_VERTEX 1
@@ -67,6 +64,10 @@
 #define IMAGE_PAINT_TYPE 3u
 #define CLIP_UPDATE_PAINT_TYPE 4u
 
+// Paint flags, found in the x-component value of @paintBuffer.
+#define PAINT_FLAG_EVEN_ODD 0x100u
+#define PAINT_FLAG_HAS_CLIP_RECT 0x200u
+
 // Index of each pixel local storage plane.
 #define FRAMEBUFFER_PLANE_IDX 0
 #define COVERAGE_PLANE_IDX 1
@@ -77,11 +78,13 @@
 #define TESS_VERTEX_TEXTURE_IDX 0
 #define GRAD_TEXTURE_IDX 1
 #define IMAGE_TEXTURE_IDX 2
-#define PATH_STORAGE_BUFFER_IDX 3
-#define CONTOUR_STORAGE_BUFFER_IDX 4
-#define FLUSH_UNIFORM_BUFFER_IDX 5
-#define DRAW_UNIFORM_BUFFER_IDX 6
-#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 7
+#define PATH_BUFFER_IDX 3
+#define PAINT_BUFFER_IDX 4
+#define PAINT_AUX_BUFFER_IDX 5
+#define CONTOUR_BUFFER_IDX 6
+#define FLUSH_UNIFORM_BUFFER_IDX 7
+#define DRAW_UNIFORM_BUFFER_IDX 8
+#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 9
 
 // Samplers are accessed at the same index as their corresponding texture, so we put them in a
 // separate binding set.
@@ -133,5 +136,3 @@
 #define CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX 12
 
 // Flags for the experimental atomic mode.
-#define ATOMIC_MODE_FLAG_EVEN_ODD 0x100u
-#define ATOMIC_MODE_FLAG_HAS_CLIP_RECT 0x200u
