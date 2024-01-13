@@ -83,6 +83,9 @@ RIVE_ALWAYS_INLINE static uint32_t msb(uint32_t x)
 #endif
 }
 
+// Attempt to generate a "rotate-left" (rotl) assembly instruction.
+constexpr static uint32_t rotl(uint32_t x, int shift) { return (x << shift) | (x >> (32 - shift)); }
+
 // Returns x rounded up to the next multiple of N.
 // If x is already a multiple of N, returns x.
 template <size_t N> RIVE_ALWAYS_INLINE constexpr size_t round_up_to_multiple_of(size_t x)
