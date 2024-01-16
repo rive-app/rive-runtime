@@ -7,6 +7,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/math/wangs_formula.hpp"
 #include "rive/pls/pls.hpp"
+#include "rive/pls/pls_render_context.hpp"
 #include "rive/pls/fixed_queue.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
@@ -49,49 +50,18 @@ public:
     void setClipID(uint32_t clipID) { m_clipID = clipID; }
     void setClipRect(const pls::ClipRectInverseMatrix* m) { m_clipRectInverseMatrix = m; }
 
-    // Running counts of objects that need to be allocated in the render context's various GPU
-    // buffers.
-    struct ResourceCounters
-    {
-        using VecType = simd::gvec<size_t, 8>;
-
-        VecType toVec() const
-        {
-            static_assert(sizeof(VecType) == sizeof(*this));
-            VecType vec;
-            RIVE_INLINE_MEMCPY(&vec, this, sizeof(VecType));
-            return vec;
-        }
-
-        ResourceCounters(const VecType& vec)
-        {
-            static_assert(sizeof(*this) == sizeof(VecType));
-            RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
-        }
-
-        ResourceCounters() = default;
-
-        size_t midpointFanTessVertexCount = 0;
-        size_t outerCubicTessVertexCount = 0;
-        size_t pathCount = 0;
-        size_t contourCount = 0;
-        size_t tessellatedSegmentCount = 0; // lines, curves, standalone joins, emulated caps, etc.
-        size_t maxTriangleVertexCount = 0;
-        size_t imageDrawCount = 0; // imageRect or imageMesh.
-        size_t complexGradientSpanCount = 0;
-    };
-
     // Used to allocate GPU resources for a collection of draws.
+    using ResourceCounters = PLSRenderContext::LogicalFlush::ResourceCounters;
     const ResourceCounters& resourceCounts() const { return m_resourceCounts; }
 
     // Adds the gradient (if any) for this draw to the render context's gradient texture.
     // Returns false if this draw needed a gradient but there wasn't room for it in the texture, at
     // which point the gradient texture will need to be re-rendered mid flight.
-    bool allocateGradientIfNeeded(PLSRenderContext*, ResourceCounters*);
+    bool allocateGradientIfNeeded(PLSRenderContext::LogicalFlush*, ResourceCounters*);
 
     // Pushes the data for this draw to the render context. Called once the GPU buffers have been
     // counted and allocated, and the draws have been sorted.
-    virtual void pushToRenderContext(PLSRenderContext*) = 0;
+    virtual void pushToRenderContext(PLSRenderContext::LogicalFlush*) = 0;
 
     // We can't have a destructor because we're block-allocated. Instead, the client calls this
     // method before clearing the drawList to release all our held references.
@@ -116,13 +86,8 @@ protected:
     pls::SimplePaintValue m_simplePaintValue;
 };
 
-// Even though PLSDraw is block-allocated, we sill need to call releaseRefs() on each individual
-// indstance before releasing the block. This smart pointer guarantees we always call releaseRefs().
-struct PLSDrawReleaseRefs
-{
-    void operator()(PLSDraw* draw) { draw->releaseRefs(); }
-};
-using PLSDrawUniquePtr = std::unique_ptr<PLSDraw, PLSDrawReleaseRefs>;
+// Implement PLSDrawReleaseRefs (defined in pls_render_context.hpp) now that PLSDraw is defined.
+inline void PLSDrawReleaseRefs::operator()(PLSDraw* draw) { draw->releaseRefs(); }
 
 // High level abstraction of a single path to be drawn (midpoint fan or interior triangulation).
 class PLSPathDraw : public PLSDraw
@@ -136,7 +101,7 @@ public:
                                  const PLSPaint*,
                                  RawPath* scratchPath);
 
-    void pushToRenderContext(PLSRenderContext*) final;
+    void pushToRenderContext(PLSRenderContext::LogicalFlush*) final;
 
     void releaseRefs() override;
 
@@ -148,7 +113,7 @@ public:
                 const PLSPaint*,
                 Type);
 
-    virtual void onPushToRenderContext(PLSRenderContext*) = 0;
+    virtual void onPushToRenderContext(PLSRenderContext::LogicalFlush*) = 0;
 
     const PLSPath* const m_pathRef;
     const bool m_isStroked;
@@ -172,12 +137,12 @@ public:
                         const PLSPaint*);
 
 protected:
-    void onPushToRenderContext(PLSRenderContext*) override;
+    void onPushToRenderContext(PLSRenderContext::LogicalFlush*) override;
 
     // Emulates a stroke cap before the given cubic by pushing a copy of the cubic, reversed, with 0
     // tessellation segments leading up to the join section, and a 180-degree join that looks like
     // the desired stroke cap.
-    void pushEmulatedStrokeCapAsJoinBeforeCubic(PLSRenderContext*,
+    void pushEmulatedStrokeCapAsJoinBeforeCubic(PLSRenderContext::LogicalFlush*,
                                                 const Vec2D cubic[],
                                                 uint32_t emulatedCapAsJoinFlags,
                                                 uint32_t strokeCapSegmentCount);
@@ -241,7 +206,7 @@ public:
                               TriangulatorAxis);
 
 protected:
-    void onPushToRenderContext(PLSRenderContext*) override;
+    void onPushToRenderContext(PLSRenderContext::LogicalFlush*) override;
 
     // The final segment in an outerCurve patch is a bowtie join.
     constexpr static size_t kJoinSegmentCount = 1;
@@ -272,10 +237,11 @@ protected:
     // Since we only do this for large paths, and since we're triangulating the path interior
     // anyway, adding complexity to only run Wang's formula and chop once would save about ~5%
     // of the total CPU time. (And large paths are GPU-bound anyway.)
-    void processPath(PLSRenderContext* context,
-                     PathOp op,
-                     RawPath* scratchPath = nullptr,
-                     TriangulatorAxis = TriangulatorAxis::dontCare);
+    void processPath(PathOp op,
+                     TrivialBlockAllocator*,
+                     RawPath* scratchPath,
+                     TriangulatorAxis,
+                     PLSRenderContext::LogicalFlush*);
 
     GrInnerFanTriangulator* m_triangulator = nullptr;
 };
@@ -293,7 +259,7 @@ public:
                   rcp<const PLSTexture>,
                   float opacity);
 
-    void pushToRenderContext(PLSRenderContext*) override;
+    void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
 
 protected:
     const float m_opacity;
@@ -313,7 +279,7 @@ public:
                   uint32_t indexCount,
                   float opacity);
 
-    void pushToRenderContext(PLSRenderContext*) override;
+    void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
 
     void releaseRefs() override;
 

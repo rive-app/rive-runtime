@@ -131,7 +131,10 @@ void IntersectionBoard::resizeAndReset(uint32_t viewportWidth, uint32_t viewport
     int2 dims = (m_viewportSize + 254) / 255;
     m_cols = dims.x;
     m_rows = dims.y;
-    m_tiles.resize(m_rows * m_cols);
+    if (m_tiles.size() < m_cols * m_rows)
+    {
+        m_tiles.resize(m_cols * m_rows);
+    }
     auto tileIter = m_tiles.begin();
     for (int y = 0; y < m_rows; ++y)
     {

@@ -343,7 +343,7 @@ void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
         if (!applyClip(draw.get()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
-            m_context->flush(PLSRenderContext::FlushType::intermediate);
+            m_context->flush(pls::FlushType::logical);
             continue;
         }
 
@@ -362,7 +362,7 @@ void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
         if (!m_context->pushDrawBatch(m_internalDrawBatch.data(), m_internalDrawBatch.size()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
-            m_context->flush(PLSRenderContext::FlushType::intermediate);
+            m_context->flush(pls::FlushType::logical);
             // Reclaim "draw" because we will use it again on the next iteration.
             draw = std::move(m_internalDrawBatch.back());
             assert(draw != nullptr);

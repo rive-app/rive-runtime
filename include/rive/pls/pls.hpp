@@ -8,10 +8,10 @@
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/path_types.hpp"
-#include "rive/math/simd.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include "rive/pls/trivial_block_allocator.hpp"
 
 namespace rive
 {
@@ -417,6 +417,8 @@ private:
     WRITEONLY uint32_t m_pad;
 };
 static_assert(sizeof(PathData) == StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 2);
+static_assert(256 % sizeof(PathData) == 0);
+constexpr static size_t kPathBufferAlignmentInElements = 256 / sizeof(PathData);
 
 // High level structure of the "paint" storage buffer. Each path also has a data small record
 // describing its paint at a high level. Complex paints (gradients, images, or any path with a
@@ -445,6 +447,8 @@ private:
     };
 };
 static_assert(sizeof(PaintData) == StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
+static_assert(256 % sizeof(PaintData) == 0);
+constexpr static size_t kPaintBufferAlignmentInElements = 256 / sizeof(PaintData);
 
 // Structure of the "paintAux" storage buffer. Gradients, images, and clipRects store their details
 // here, indexed by pathID.
@@ -476,6 +480,8 @@ private:
 };
 static_assert(sizeof(PaintAuxData) ==
               StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) * 4);
+static_assert(256 % sizeof(PaintAuxData) == 0);
+constexpr static size_t kPaintAuxBufferAlignmentInElements = 256 / sizeof(PaintAuxData);
 
 // High level structure of the "contour" storage buffer. Each contour of every path has a data
 // record describing its info.
@@ -495,6 +501,8 @@ private:
 };
 static_assert(sizeof(ContourData) ==
               StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
+static_assert(256 % sizeof(ContourData) == 0);
+constexpr static size_t kContourBufferAlignmentInElements = 256 / sizeof(ContourData);
 
 // Per-vertex data for shaders that draw triangles.
 struct TriangleVertex
@@ -598,7 +606,11 @@ public:
     }
     void push_back_n(const T* values, size_t count)
     {
-        memcpy(push(count), values, count * sizeof(T));
+        T* dst = push(count);
+        if (values != nullptr)
+        {
+            memcpy(dst, values, count * sizeof(T));
+        }
     }
     void skip_back() { push(); }
 
@@ -860,6 +872,98 @@ struct TwoTexelRamp
     uint8_t colorData[8];
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
+
+// Low-level batch of geometry to submit to the GPU.
+struct DrawBatch
+{
+    DrawBatch(DrawType drawType_, uint32_t baseElement_) :
+        drawType(drawType_), baseElement(baseElement_)
+    {}
+
+    const DrawType drawType;
+    uint32_t baseElement;      // Base vertex, index, or instance.
+    uint32_t elementCount = 0; // Vertex, index, or instance count.
+    ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
+    bool needsBarrier = false; // Pixel-local-storage barrier required after submitting this batch.
+
+    // DrawType::imageRect and DrawType::imageMesh.
+    uint32_t imageDrawDataOffset = 0;
+    const PLSTexture* imageTexture = nullptr;
+
+    // DrawType::imageMesh.
+    const RenderBuffer* vertexBuffer;
+    const RenderBuffer* uvBuffer;
+    const RenderBuffer* indexBuffer;
+};
+
+enum class FlushType : uint8_t
+{
+    // This is a "logical" flush, in that it will break up the render pass and re-render the
+    // resource textures, but it won't submit any command buffers or rotate/synchronize the buffer
+    // rings.
+    logical,
+
+    // This is the final flush of the frame. It will submit any command buffers and
+    // rotate/synchronize the buffer rings.
+    endOfFrame,
+};
+
+// Detailed description of exactly how a PLSRenderContextImpl should bind its buffers and draw a
+// flush. A typical flush is done in 4 steps:
+//
+//  1. Render the complex gradients from the gradSpanBuffer to the gradient texture
+//     (complexGradSpanCount, firstComplexGradSpan, complexGradRowsTop, complexGradRowsHeight).
+//
+//  2. Transfer the simple gradient texels from the simpleColorRampsBuffer to the top of the
+//     gradient texture (simpleGradTexelsWidth, simpleGradTexelsHeight,
+//     simpleGradDataOffsetInBytes, tessDataHeight).
+//
+//  3. Render the tessellation texture from the tessVertexSpanBuffer (tessVertexSpanCount,
+//     firstTessVertexSpan).
+//
+//  4. Execute the drawList, reading from the newly rendered resource textures.
+//
+struct FlushDescriptor
+{
+    FlushType flushType;
+    const PLSRenderTarget* renderTarget = nullptr;
+    LoadAction loadAction = LoadAction::clear;
+    ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
+    ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
+    InterlockMode interlockMode = InterlockMode::rasterOrdered;
+
+    size_t flushUniformDataOffsetInBytes = 0;
+    size_t pathCount = 0;
+    size_t firstPath = 0;
+    size_t firstPaint = 0;
+    size_t firstPaintAux = 0;
+    size_t contourCount = 0;
+    size_t firstContour = 0;
+    size_t complexGradSpanCount = 0;
+    size_t firstComplexGradSpan = 0;
+    size_t tessVertexSpanCount = 0;
+    size_t firstTessVertexSpan = 0;
+    uint32_t simpleGradTexelsWidth = 0;
+    uint32_t simpleGradTexelsHeight = 0;
+    size_t simpleGradDataOffsetInBytes = 0;
+    uint32_t complexGradRowsTop = 0;
+    uint32_t complexGradRowsHeight = 0;
+    uint32_t tessDataHeight = 0;
+    const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
+
+    bool hasTriangleVertices = false;
+    bool wireframe = false;
+    void* backendSpecificData = nullptr; // (External command buffer on Metal.)
+
+    // In atomic mode, we can skip the inital clear of the color buffer in some cases. This is
+    // because we will be resolving the framebuffer anyway, and can work the clear into that
+    // operation.
+    bool canSkipColorClear() const
+    {
+        return interlockMode == pls::InterlockMode::experimentalAtomics &&
+               loadAction == LoadAction::clear && colorAlpha(clearColor) == 255;
+    }
+};
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
 template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)

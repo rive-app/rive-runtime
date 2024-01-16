@@ -480,7 +480,7 @@ class PLSRenderContextWebGPUImpl::DrawPipeline
 public:
     DrawPipeline(PLSRenderContextWebGPUImpl* context,
                  DrawType drawType,
-                 ShaderFeatures shaderFeatures)
+                 pls::ShaderFeatures shaderFeatures)
     {
         PixelLocalStorageType plsType = context->m_pixelLocalStorageType;
         wgpu::ShaderModule vertexShader, fragmentShader;
@@ -1158,9 +1158,13 @@ private:
     wgpu::Buffer m_buffers[kBufferRingSize];
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeUniformBufferRing(
+    size_t capacityInBytes)
 {
-    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Vertex);
+    // Uniform blocks must be multiples of 256 bytes in size.
+    capacityInBytes = std::max<size_t>(capacityInBytes, 256);
+    assert(capacityInBytes % 256 == 0);
+    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Uniform);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeStorageBufferRing(
@@ -1170,19 +1174,15 @@ std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeStorageBufferRing(
     return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Storage);
 }
 
+std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeVertexBufferRing(size_t capacityInBytes)
+{
+    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Vertex);
+}
+
 std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
     return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::CopySrc);
-}
-
-std::unique_ptr<BufferRing> PLSRenderContextWebGPUImpl::makeUniformBufferRing(
-    size_t capacityInBytes)
-{
-    // Uniform blocks must be multiples of 256 bytes in size.
-    capacityInBytes = std::max<size_t>(capacityInBytes, 256);
-    assert(capacityInBytes % 256 == 0);
-    return BufferWebGPU::Make(m_device, m_queue, capacityInBytes, wgpu::BufferUsage::Uniform);
 }
 
 void PLSRenderContextWebGPUImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -1412,6 +1412,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             {
                 .binding = FLUSH_UNIFORM_BUFFER_IDX,
                 .buffer = webgpu_buffer(flushUniformBufferRing()),
+                .offset = desc.flushUniformDataOffsetInBytes,
             },
         };
 
@@ -1445,7 +1446,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         gradPass.SetPipeline(m_colorRampPipeline->renderPipeline());
         gradPass.SetVertexBuffer(0, webgpu_buffer(gradSpanBufferRing()));
         gradPass.SetBindGroup(0, bindings);
-        gradPass.Draw(4, desc.complexGradSpanCount, 0, 0);
+        gradPass.Draw(4, desc.complexGradSpanCount, 0, desc.firstComplexGradSpan);
         gradPass.End();
     }
 
@@ -1455,7 +1456,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         wgpu::ImageCopyBuffer srcBuffer = {
             .layout =
                 {
-                    .offset = 0,
+                    .offset = desc.simpleGradDataOffsetInBytes,
                     .bytesPerRow = pls::kGradTextureWidth * 4,
                 },
             .buffer = webgpu_buffer(simpleColorRampsBufferRing()),
@@ -1486,6 +1487,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             {
                 .binding = FLUSH_UNIFORM_BUFFER_IDX,
                 .buffer = webgpu_buffer(flushUniformBufferRing()),
+                .offset = desc.flushUniformDataOffsetInBytes,
             },
         };
 
@@ -1520,7 +1522,11 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         tessPass.SetVertexBuffer(0, webgpu_buffer(tessSpanBufferRing()));
         tessPass.SetIndexBuffer(m_tessSpanIndexBuffer, wgpu::IndexFormat::Uint16);
         tessPass.SetBindGroup(0, bindings);
-        tessPass.DrawIndexed(std::size(pls::kTessSpanIndices), desc.tessVertexSpanCount, 0);
+        tessPass.DrawIndexed(std::size(pls::kTessSpanIndices),
+                             desc.tessVertexSpanCount,
+                             0,
+                             0,
+                             desc.firstTessVertexSpan);
         tessPass.End();
     }
 
@@ -1619,19 +1625,18 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     // Execute the DrawList.
     wgpu::TextureView currentImageTextureView = m_nullImagePaintTextureView;
     wgpu::BindGroup bindings;
-    uint32_t meshUniformDataOffset = 0;
     bool needsNewBindings = true;
-    for (const Draw& draw : *desc.drawList)
+    for (const DrawBatch& batch : *desc.drawList)
     {
-        if (draw.elementCount == 0)
+        if (batch.elementCount == 0)
         {
             continue;
         }
 
-        DrawType drawType = draw.drawType;
+        DrawType drawType = batch.drawType;
 
         // Bind the appropriate image texture, if any.
-        if (auto imageTexture = static_cast<const PLSTextureWebGPUImpl*>(draw.imageTexture))
+        if (auto imageTexture = static_cast<const PLSTextureWebGPUImpl*>(batch.imageTexture))
         {
             currentImageTextureView = imageTexture->textureView();
             needsNewBindings = true;
@@ -1655,22 +1660,27 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 {
                     .binding = PATH_BUFFER_IDX,
                     .buffer = webgpu_buffer(pathBufferRing()),
+                    .offset = desc.firstPath * sizeof(pls::PathData),
                 },
                 {
                     .binding = PAINT_BUFFER_IDX,
                     .buffer = webgpu_buffer(paintBufferRing()),
+                    .offset = desc.firstPaint * sizeof(pls::PaintData),
                 },
                 {
                     .binding = PAINT_AUX_BUFFER_IDX,
                     .buffer = webgpu_buffer(paintAuxBufferRing()),
+                    .offset = desc.firstPaintAux * sizeof(pls::PaintAuxData),
                 },
                 {
                     .binding = CONTOUR_BUFFER_IDX,
                     .buffer = webgpu_buffer(contourBufferRing()),
+                    .offset = desc.firstContour * sizeof(pls::ContourData),
                 },
                 {
                     .binding = FLUSH_UNIFORM_BUFFER_IDX,
                     .buffer = webgpu_buffer(flushUniformBufferRing()),
+                    .offset = desc.flushUniformDataOffsetInBytes,
                 },
                 {
                     .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
@@ -1689,10 +1699,10 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         }
 
         if (needsNewBindings ||
-            // Image meshes always re-bind because they update the dynamic offset to their uniforms.
-            drawType == DrawType::imageMesh)
+            // Image draws always re-bind because they update the dynamic offset to their uniforms.
+            drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
         {
-            drawPass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
+            drawPass.SetBindGroup(0, bindings, 1, &batch.imageDrawDataOffset);
             needsNewBindings = false;
         }
 
@@ -1700,11 +1710,11 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         const DrawPipeline& drawPipeline =
             m_drawPipelines
                 .try_emplace(pls::ShaderUniqueKey(drawType,
-                                                  draw.shaderFeatures,
+                                                  batch.shaderFeatures,
                                                   pls::InterlockMode::rasterOrdered),
                              this,
                              drawType,
-                             draw.shaderFeatures)
+                             batch.shaderFeatures)
                 .first->second;
         drawPass.SetPipeline(drawPipeline.renderPipeline(renderTarget->framebufferFormat()));
 
@@ -1717,31 +1727,29 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 drawPass.SetVertexBuffer(0, m_pathPatchVertexBuffer);
                 drawPass.SetIndexBuffer(m_pathPatchIndexBuffer, wgpu::IndexFormat::Uint16);
                 drawPass.DrawIndexed(pls::PatchIndexCount(drawType),
-                                     draw.elementCount,
+                                     batch.elementCount,
                                      pls::PatchBaseIndex(drawType),
                                      0,
-                                     draw.baseElement);
+                                     batch.baseElement);
                 break;
             }
             case DrawType::interiorTriangulation:
             {
                 drawPass.SetVertexBuffer(0, webgpu_buffer(triangleBufferRing()));
-                drawPass.Draw(draw.elementCount, 1, draw.baseElement);
+                drawPass.Draw(batch.elementCount, 1, batch.baseElement);
                 break;
             }
             case DrawType::imageRect:
                 RIVE_UNREACHABLE();
             case DrawType::imageMesh:
             {
-                auto vertexBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.vertexBuffer);
-                auto uvBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.uvBuffer);
-                auto indexBuffer = static_cast<const RenderBufferWebGPUImpl*>(draw.indexBuffer);
+                auto vertexBuffer = static_cast<const RenderBufferWebGPUImpl*>(batch.vertexBuffer);
+                auto uvBuffer = static_cast<const RenderBufferWebGPUImpl*>(batch.uvBuffer);
+                auto indexBuffer = static_cast<const RenderBufferWebGPUImpl*>(batch.indexBuffer);
                 drawPass.SetVertexBuffer(0, vertexBuffer->submittedBuffer());
                 drawPass.SetVertexBuffer(1, uvBuffer->submittedBuffer());
                 drawPass.SetIndexBuffer(indexBuffer->submittedBuffer(), wgpu::IndexFormat::Uint16);
-                drawPass.SetBindGroup(0, bindings, 1, &meshUniformDataOffset);
-                drawPass.DrawIndexed(draw.elementCount, 1, draw.baseElement);
-                meshUniformDataOffset += sizeof(pls::ImageDrawUniforms);
+                drawPass.DrawIndexed(batch.elementCount, 1, batch.baseElement);
                 break;
             }
             case DrawType::plsAtomicResolve:

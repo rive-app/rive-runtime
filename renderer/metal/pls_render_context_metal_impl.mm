@@ -460,7 +460,7 @@ rcp<PLSTexture> PLSRenderContextMetalImpl::makeImageTexture(uint32_t width,
     return make_rcp<PLSTextureMetalImpl>(m_gpu, width, height, mipLevelCount, imageDataRGBA);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
@@ -471,13 +471,13 @@ std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeStorageBufferRing(
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeTextureTransferBufferRing(
-    size_t capacityInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size_t capacityInBytes)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeUniformBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeTextureTransferBufferRing(
+    size_t capacityInBytes)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
@@ -581,10 +581,19 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
     auto* renderTarget = static_cast<const PLSRenderTargetMetal*>(desc.renderTarget);
 
-    id<MTLCommandBuffer> commandBuffer =
-        desc.backendSpecificData != nullptr
-            ? (__bridge id<MTLCommandBuffer>)desc.backendSpecificData
-            : [m_queue commandBuffer];
+    id<MTLCommandBuffer> commandBuffer;
+    if (desc.backendSpecificData != nullptr)
+    {
+        commandBuffer = (__bridge id<MTLCommandBuffer>)desc.backendSpecificData;
+    }
+    else
+    {
+        if (m_currentCommandBuffer == nil)
+        {
+            m_currentCommandBuffer = [m_queue commandBuffer];
+        }
+        commandBuffer = m_currentCommandBuffer;
+    }
 
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
@@ -606,14 +615,15 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                                1.0}];
         [gradEncoder setRenderPipelineState:m_colorRampPipeline->pipelineState()];
         [gradEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
-                              offset:0
+                              offset:desc.flushUniformDataOffsetInBytes
                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
         [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing()) offset:0 atIndex:0];
         [gradEncoder setCullMode:MTLCullModeBack];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
-                      instanceCount:desc.complexGradSpanCount];
+                      instanceCount:desc.complexGradSpanCount
+                       baseInstance:desc.firstComplexGradSpan];
         [gradEncoder endEncoding];
     }
 
@@ -623,7 +633,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         id<MTLBlitCommandEncoder> textureBlitEncoder = [commandBuffer blitCommandEncoder];
         [textureBlitEncoder
                  copyFromBuffer:mtl_buffer(simpleColorRampsBufferRing())
-                   sourceOffset:0
+                   sourceOffset:desc.simpleGradDataOffsetInBytes
               sourceBytesPerRow:kGradTextureWidth * 4
             sourceBytesPerImage:desc.simpleGradTexelsHeight * kGradTextureWidth * 4
                      sourceSize:MTLSizeMake(
@@ -655,7 +665,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                                1.0}];
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
         [tessEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
-                              offset:0
+                              offset:desc.flushUniformDataOffsetInBytes
                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:0];
         assert(desc.pathCount > 0);
@@ -672,15 +682,17 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                  indexType:MTLIndexTypeUInt16
                                indexBuffer:m_tessSpanIndexBuffer
                          indexBufferOffset:0
-                             instanceCount:desc.tessVertexSpanCount];
+                             instanceCount:desc.tessVertexSpanCount
+                                baseVertex:0
+                              baseInstance:desc.firstTessVertexSpan];
         [tessEncoder endEncoding];
     }
 
     // Generate mipmaps if needed.
-    for (const Draw& draw : *desc.drawList)
+    for (const DrawBatch& batch : *desc.drawList)
     {
         // Bind the appropriate image texture, if any.
-        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTexture))
+        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(batch.imageTexture))
         {
             imageTextureMetal->ensureMipmaps(commandBuffer);
         }
@@ -724,7 +736,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                        0.0,
                                        1.0}];
     [encoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
-                      offset:0
+                      offset:desc.flushUniformDataOffsetInBytes
                      atIndex:FLUSH_UNIFORM_BUFFER_IDX];
     [encoder setVertexTexture:m_tessVertexTexture atIndex:TESS_VERTEX_TEXTURE_IDX];
     if (desc.pathCount > 0)
@@ -733,10 +745,10 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                           offset:desc.firstPath * sizeof(pls::PathData)
                          atIndex:PATH_BUFFER_IDX];
         [encoder setVertexBuffer:mtl_buffer(paintBufferRing())
-                          offset:desc.firstPath * sizeof(pls::PaintData)
+                          offset:desc.firstPaint * sizeof(pls::PaintData)
                          atIndex:PAINT_BUFFER_IDX];
         [encoder setVertexBuffer:mtl_buffer(paintAuxBufferRing())
-                          offset:desc.firstPath * sizeof(pls::PaintAuxData)
+                          offset:desc.firstPaintAux * sizeof(pls::PaintAuxData)
                          atIndex:PAINT_AUX_BUFFER_IDX];
     }
     if (desc.contourCount > 0)
@@ -752,25 +764,25 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     }
 
     // Execute the DrawList.
-    for (const Draw& draw : *desc.drawList)
+    for (const DrawBatch& batch : *desc.drawList)
     {
-        if (draw.elementCount == 0)
+        if (batch.elementCount == 0)
         {
             continue;
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
         const DrawPipeline* drawPipeline =
-            findCompatibleDrawPipeline(draw.drawType, draw.shaderFeatures);
+            findCompatibleDrawPipeline(batch.drawType, batch.shaderFeatures);
         [encoder setRenderPipelineState:drawPipeline->pipelineState(renderTarget->pixelFormat())];
 
         // Bind the appropriate image texture, if any.
-        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(draw.imageTexture))
+        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(batch.imageTexture))
         {
             [encoder setFragmentTexture:imageTextureMetal->texture() atIndex:IMAGE_TEXTURE_IDX];
         }
 
-        DrawType drawType = draw.drawType;
+        DrawType drawType = batch.drawType;
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
@@ -784,9 +796,9 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                      indexType:MTLIndexTypeUInt16
                                    indexBuffer:m_pathPatchIndexBuffer
                              indexBufferOffset:PatchBaseIndex(drawType) * sizeof(uint16_t)
-                                 instanceCount:draw.elementCount
+                                 instanceCount:batch.elementCount
                                     baseVertex:0
-                                  baseInstance:draw.baseElement];
+                                  baseInstance:batch.baseElement];
                 break;
             }
             case DrawType::interiorTriangulation:
@@ -794,8 +806,8 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 [encoder setVertexBuffer:mtl_buffer(triangleBufferRing()) offset:0 atIndex:0];
                 [encoder setCullMode:MTLCullModeBack];
                 [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                            vertexStart:draw.baseElement
-                            vertexCount:draw.elementCount];
+                            vertexStart:batch.baseElement
+                            vertexCount:batch.elementCount];
                 break;
             }
             case DrawType::imageRect:
@@ -803,24 +815,24 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
             case DrawType::imageMesh:
             {
                 LITE_RTTI_CAST_OR_BREAK(
-                    vertexBuffer, const RenderBufferMetalImpl*, draw.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferMetalImpl*, draw.uvBuffer);
+                    vertexBuffer, const RenderBufferMetalImpl*, batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferMetalImpl*, batch.uvBuffer);
                 LITE_RTTI_CAST_OR_BREAK(
-                    indexBuffer, const RenderBufferMetalImpl*, draw.indexBuffer);
+                    indexBuffer, const RenderBufferMetalImpl*, batch.indexBuffer);
                 [encoder setVertexBuffer:mtl_buffer(imageDrawUniformBufferRing())
-                                  offset:draw.imageDrawDataOffset
+                                  offset:batch.imageDrawDataOffset
                                  atIndex:IMAGE_DRAW_UNIFORM_BUFFER_IDX];
                 [encoder setFragmentBuffer:mtl_buffer(imageDrawUniformBufferRing())
-                                    offset:draw.imageDrawDataOffset
+                                    offset:batch.imageDrawDataOffset
                                    atIndex:IMAGE_DRAW_UNIFORM_BUFFER_IDX];
                 [encoder setVertexBuffer:vertexBuffer->submittedBuffer() offset:0 atIndex:0];
                 [encoder setVertexBuffer:uvBuffer->submittedBuffer() offset:0 atIndex:1];
                 [encoder setCullMode:MTLCullModeNone];
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                    indexCount:draw.elementCount
+                                    indexCount:batch.elementCount
                                      indexType:MTLIndexTypeUInt16
                                    indexBuffer:indexBuffer->submittedBuffer()
-                             indexBufferOffset:draw.baseElement * sizeof(uint16_t)];
+                             indexBufferOffset:batch.baseElement * sizeof(uint16_t)];
                 break;
             }
             case DrawType::plsAtomicResolve:
@@ -829,19 +841,25 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     }
     [encoder endEncoding];
 
-    // Schedule a callback that will unlock the buffers used by this flush, after the GPU has
-    // finished rendering with them. This unblocks the CPU from reusing them in a future flush.
-    std::mutex& thisFlushLock = m_bufferRingLocks[m_bufferRingIdx];
-    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
-      assert(!thisFlushLock.try_lock()); // The mutex should already be locked.
-      thisFlushLock.unlock();
-    }];
-
-    // Commit our commandBuffer if it's one generated on our own queue. If it's
-    // external, then whoever supplied it is responsible for committing.
-    if (desc.backendSpecificData == nullptr)
+    if (desc.flushType == pls::FlushType::endOfFrame)
     {
-        [commandBuffer commit];
+        // Schedule a callback that will unlock the buffers used by this flush, after the GPU has
+        // finished rendering with them. This unblocks the CPU from reusing them in a future flush.
+        std::mutex& thisFlushLock = m_bufferRingLocks[m_bufferRingIdx];
+        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
+          assert(!thisFlushLock.try_lock()); // The mutex should already be locked.
+          thisFlushLock.unlock();
+        }];
+
+        // Commit our commandBuffer if it's one generated on our own queue. If it's external, then
+        // whoever supplied it is responsible for committing.
+        if (desc.backendSpecificData == nullptr)
+        {
+            assert(commandBuffer == m_currentCommandBuffer);
+            [commandBuffer commit];
+            m_currentCommandBuffer = nil;
+        }
+        assert(m_currentCommandBuffer == nil);
     }
 }
 } // namespace rive::pls

@@ -118,11 +118,11 @@ private:
     // PLS always expects a clockwise front face.
     constexpr static wgpu::FrontFace kFrontFaceForOffscreenDraws = wgpu::FrontFace::CW;
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
                                                       pls::StorageBufferStructure) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;

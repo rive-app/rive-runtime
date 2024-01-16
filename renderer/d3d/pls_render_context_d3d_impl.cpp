@@ -330,29 +330,6 @@ ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleImmutableBuffer(size_t s
     return buffer;
 }
 
-ComPtr<ID3D11ShaderResourceView> PLSRenderContextD3DImpl::makeSimpleStructuredBufferSRV(
-    ID3D11Buffer* buffer,
-    size_t count)
-{
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-    srvDesc.Buffer.FirstElement = 0;
-    srvDesc.Buffer.NumElements = count;
-
-    ComPtr<ID3D11ShaderResourceView> srv;
-    VERIFY_OK(m_gpu->CreateShaderResourceView(buffer, &srvDesc, srv.GetAddressOf()));
-    return srv;
-}
-
-void PLSRenderContextD3DImpl::updateStructuredBuffer(ID3D11Buffer* buffer,
-                                                     size_t sizeInBytes,
-                                                     const void* data)
-{
-    D3D11_BOX subRegion = {0, 0, 0, static_cast<UINT>(sizeInBytes), 1, 1};
-    m_gpuContext->UpdateSubresource(buffer, 0, &subRegion, data, 0, 0);
-}
-
 ComPtr<ID3DBlob> PLSRenderContextD3DImpl::compileSourceToBlob(const char* shaderTypeDefineName,
                                                               const std::string& commonSource,
                                                               const char* entrypoint,
@@ -603,28 +580,33 @@ public:
                       D3D11_RESOURCE_MISC_BUFFER_STRUCTURED)
     {
         assert(capacityInBytes % elementSizeInBytes == 0);
-        size_t elementCount = capacityInBytes / elementSizeInBytes;
-        for (size_t i = 0; i < kBufferRingSize; ++i)
-        {
-            m_structuredBufferSRVs[i] =
-                plsImpl->makeSimpleStructuredBufferSRV(m_buffers[i].Get(), elementCount);
-        }
     }
 
-    ID3D11ShaderResourceView* submittedStructuredBufferSRV() const
+    ID3D11ShaderResourceView* replaceSRV(ID3D11Device* gpu,
+                                         UINT elementCount,
+                                         UINT firstElement) const
     {
-        return m_structuredBufferSRVs[submittedBufferIdx()].Get();
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+        srvDesc.Buffer.FirstElement = firstElement;
+        srvDesc.Buffer.NumElements = elementCount;
+
+        m_currentSRV = nullptr;
+        VERIFY_OK(gpu->CreateShaderResourceView(m_buffers[submittedBufferIdx()].Get(),
+                                                &srvDesc,
+                                                m_currentSRV.GetAddressOf()));
+        return m_currentSRV.Get();
     }
 
 protected:
-    ComPtr<ID3D11ShaderResourceView> m_structuredBufferSRVs[kBufferRingSize];
+    mutable ComPtr<ID3D11ShaderResourceView> m_currentSRV;
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
-    return capacityInBytes != 0
-               ? std::make_unique<BufferRingD3D>(this, capacityInBytes, D3D11_BIND_VERTEX_BUFFER)
-               : nullptr;
+    // In D3D we update uniform data inline with commands, rather than filling a buffer up front.
+    return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeStorageBufferRing(
@@ -638,17 +620,18 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeStorageBufferRing(
                                 : nullptr;
 }
 
+std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t capacityInBytes)
+{
+    return capacityInBytes != 0
+               ? std::make_unique<BufferRingD3D>(this, capacityInBytes, D3D11_BIND_VERTEX_BUFFER)
+               : nullptr;
+}
+
 std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
     // It appears impossible to update a D3D texture from a GPU buffer; store this data on the heap
     // and upload it to the texture at flush time.
-    return std::make_unique<HeapBufferRing>(capacityInBytes);
-}
-
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t capacityInBytes)
-{
-    // In D3D we update uniform data inline with commands, rather than filling a buffer up front.
     return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
@@ -745,6 +728,25 @@ void PLSRenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t
                                                 NULL,
                                                 m_tessTextureRTV.GetAddressOf()));
     }
+}
+
+template <typename HighLevelStruct>
+ID3D11ShaderResourceView* PLSRenderContextD3DImpl::replaceStructuredBufferSRV(
+    const BufferRing* bufferRing,
+    UINT highLevelStructCount,
+    UINT firstHighLevelStruct)
+{
+    // Shaders access our storage buffers as arrays of basic types, as opposed to structures. Our
+    // SRV therefore needs to be indexed by the underlying basic type, not the high level structure.
+    constexpr static UINT kUnderlyingTypeSizeInBytes =
+        pls::StorageBufferElementSizeInBytes(HighLevelStruct::kBufferStructure);
+    static_assert(sizeof(HighLevelStruct) % kUnderlyingTypeSizeInBytes == 0);
+    constexpr static UINT kStructIndexMultiplier =
+        sizeof(HighLevelStruct) / kUnderlyingTypeSizeInBytes;
+    return static_cast<const StructuredBufferRingD3D*>(bufferRing)
+        ->replaceSRV(m_gpu.Get(),
+                     highLevelStructCount * kStructIndexMultiplier,
+                     firstHighLevelStruct * kStructIndexMultiplier);
 }
 
 void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
@@ -929,12 +931,6 @@ static ID3D11Buffer* submitted_buffer(const BufferRing* bufferRing)
     return static_cast<const BufferRingD3D*>(bufferRing)->submittedBuffer();
 }
 
-static ID3D11ShaderResourceView* submitted_structured_buffer_srv(const BufferRing* bufferRing)
-{
-    assert(bufferRing != nullptr);
-    return static_cast<const StructuredBufferRingD3D*>(bufferRing)->submittedStructuredBufferSRV();
-}
-
 static const char* heap_buffer_contents(const BufferRing* bufferRing)
 {
     assert(bufferRing != nullptr);
@@ -974,7 +970,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_coverageUAV.Get(),
                                                    kCoverageZero);
     }
-    if (desc.needsClipBuffer)
+    if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
     {
         constexpr static UINT kZero[4]{};
         m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_clipUAV.Get(), kZero);
@@ -994,16 +990,29 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->UpdateSubresource(m_flushUniforms.Get(),
                                     0,
                                     NULL,
-                                    heap_buffer_contents(flushUniformBufferRing()),
+                                    heap_buffer_contents(flushUniformBufferRing()) +
+                                        desc.flushUniformDataOffsetInBytes,
                                     0,
                                     0);
 
     // All programs use the same storage buffers.
     ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {
-        desc.pathCount > 0 ? submitted_structured_buffer_srv(pathBufferRing()) : 0,
-        desc.pathCount > 0 ? submitted_structured_buffer_srv(paintBufferRing()) : 0,
-        desc.pathCount > 0 ? submitted_structured_buffer_srv(paintAuxBufferRing()) : 0,
-        desc.contourCount > 0 ? submitted_structured_buffer_srv(contourBufferRing()) : 0,
+        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PathData>(pathBufferRing(),
+                                                                       desc.pathCount,
+                                                                       desc.firstPath)
+                           : nullptr,
+        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PaintData>(paintBufferRing(),
+                                                                        desc.pathCount,
+                                                                        desc.firstPaint)
+                           : nullptr,
+        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PaintAuxData>(paintAuxBufferRing(),
+                                                                           desc.pathCount,
+                                                                           desc.firstPaintAux)
+                           : nullptr,
+        desc.contourCount > 0 ? replaceStructuredBufferSRV<pls::ContourData>(contourBufferRing(),
+                                                                             desc.contourCount,
+                                                                             desc.firstContour)
+                              : nullptr,
     };
     static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
     static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
@@ -1045,7 +1054,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         m_gpuContext->OMSetRenderTargets(1, m_gradTextureRTV.GetAddressOf(), NULL);
 
-        m_gpuContext->DrawInstanced(4, desc.complexGradSpanCount, 0, 0);
+        m_gpuContext->DrawInstanced(4, desc.complexGradSpanCount, 0, desc.firstComplexGradSpan);
     }
 
     // Copy the simple color ramps to the gradient texture.
@@ -1063,7 +1072,8 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->UpdateSubresource(m_gradTexture.Get(),
                                         0,
                                         &box,
-                                        heap_buffer_contents(simpleColorRampsBufferRing()),
+                                        heap_buffer_contents(simpleColorRampsBufferRing()) +
+                                            desc.simpleGradDataOffsetInBytes,
                                         kGradTextureWidth * 4,
                                         0);
     }
@@ -1101,7 +1111,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                            desc.tessVertexSpanCount,
                                            0,
                                            0,
-                                           0);
+                                           desc.firstTessVertexSpan);
 
         if (m_features.isIntel)
         {
@@ -1157,20 +1167,20 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     const char* const imageDrawUniformData = heap_buffer_contents(imageDrawUniformBufferRing());
 
-    for (const Draw& draw : *desc.drawList)
+    for (const DrawBatch& batch : *desc.drawList)
     {
-        if (draw.elementCount == 0)
+        if (batch.elementCount == 0)
         {
             continue;
         }
 
-        DrawType drawType = draw.drawType;
+        DrawType drawType = batch.drawType;
         auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
                                   ? desc.combinedShaderFeatures
-                                  : draw.shaderFeatures;
+                                  : batch.shaderFeatures;
         setPipelineLayoutAndShaders(drawType, shaderFeatures, desc.interlockMode);
 
-        if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(draw.imageTexture))
+        if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(batch.imageTexture))
         {
             m_gpuContext->PSSetShaderResources(IMAGE_TEXTURE_IDX,
                                                1,
@@ -1185,20 +1195,20 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
                 m_gpuContext->RSSetState(m_pathRasterState[desc.wireframe].Get());
-                DrawUniforms drawUniforms(draw.baseElement);
+                DrawUniforms drawUniforms(batch.baseElement);
                 m_gpuContext->UpdateSubresource(m_drawUniforms.Get(), 0, NULL, &drawUniforms, 0, 0);
                 m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
-                                                   draw.elementCount,
+                                                   batch.elementCount,
                                                    PatchBaseIndex(drawType),
                                                    0,
-                                                   draw.baseElement);
+                                                   batch.baseElement);
                 break;
             }
             case DrawType::interiorTriangulation:
             {
                 m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->RSSetState(m_pathRasterState[desc.wireframe].Get());
-                m_gpuContext->Draw(draw.elementCount, draw.baseElement);
+                m_gpuContext->Draw(batch.elementCount, batch.baseElement);
                 break;
             }
             case DrawType::imageRect:
@@ -1210,7 +1220,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 m_gpuContext->UpdateSubresource(m_imageDrawUniforms.Get(),
                                                 0,
                                                 NULL,
-                                                imageDrawUniformData + draw.imageDrawDataOffset,
+                                                imageDrawUniformData + batch.imageDrawDataOffset,
                                                 0,
                                                 0);
                 m_gpuContext->DrawIndexed(std::size(pls::kImageRectIndices), 0, 0);
@@ -1219,9 +1229,9 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
             {
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         const RenderBufferD3DImpl*,
-                                        draw.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferD3DImpl*, draw.uvBuffer);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer, const RenderBufferD3DImpl*, draw.indexBuffer);
+                                        batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferD3DImpl*, batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer, const RenderBufferD3DImpl*, batch.indexBuffer);
                 ID3D11Buffer* imageMeshBuffers[] = {vertexBuffer->buffer(), uvBuffer->buffer()};
                 UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
                 UINT imageMeshOffsets[] = {0, 0};
@@ -1237,10 +1247,10 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 m_gpuContext->UpdateSubresource(m_imageDrawUniforms.Get(),
                                                 0,
                                                 NULL,
-                                                imageDrawUniformData + draw.imageDrawDataOffset,
+                                                imageDrawUniformData + batch.imageDrawDataOffset,
                                                 0,
                                                 0);
-                m_gpuContext->DrawIndexed(draw.elementCount, draw.baseElement, 0);
+                m_gpuContext->DrawIndexed(batch.elementCount, batch.baseElement, 0);
                 break;
             }
             case DrawType::plsAtomicResolve:

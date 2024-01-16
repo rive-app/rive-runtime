@@ -287,12 +287,11 @@ PLSDraw::PLSDraw(IAABB pixelBounds,
     m_type(type)
 {}
 
-bool PLSDraw::allocateGradientIfNeeded(PLSRenderContext* context, ResourceCounters* counters)
+bool PLSDraw::allocateGradientIfNeeded(PLSRenderContext::LogicalFlush* flush,
+                                       ResourceCounters* counters)
 {
     return m_gradientRef == nullptr ||
-           context->allocateGradient(m_gradientRef,
-                                     counters,
-                                     &m_simplePaintValue.colorRampLocation);
+           flush->allocateGradient(m_gradientRef, counters, &m_simplePaintValue.colorRampLocation);
 }
 
 void PLSDraw::releaseRefs()
@@ -389,7 +388,7 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
     RIVE_DEBUG_CODE(m_rawPathMutationID = m_pathRef->getRawPathMutationID();)
 }
 
-void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
+void PLSPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
     // Make sure the rawPath in our path reference hasn't changed since we began holding!
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
@@ -404,21 +403,21 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext* context)
     assert(!m_pathRef->getRawPath().empty());
 
     // Push a path record.
-    context->pushPath(m_type == Type::midpointFanPath ? PatchType::midpointFan
-                                                      : PatchType::outerCurves,
-                      m_matrix,
-                      m_strokeRadius,
-                      m_fillRule,
-                      m_paintType,
-                      m_simplePaintValue,
-                      m_gradientRef,
-                      m_imageTextureRef,
-                      m_clipID,
-                      m_clipRectInverseMatrix,
-                      m_blendMode,
-                      tessVertexCount);
+    flush->pushPath(m_type == Type::midpointFanPath ? PatchType::midpointFan
+                                                    : PatchType::outerCurves,
+                    m_matrix,
+                    m_strokeRadius,
+                    m_fillRule,
+                    m_paintType,
+                    m_simplePaintValue,
+                    m_gradientRef,
+                    m_imageTextureRef,
+                    m_clipID,
+                    m_clipRectInverseMatrix,
+                    m_blendMode,
+                    tessVertexCount);
 
-    onPushToRenderContext(context);
+    onPushToRenderContext(flush);
 }
 
 void PLSPathDraw::releaseRefs()
@@ -453,7 +452,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     }
 
     m_contours = reinterpret_cast<ContourInfo*>(
-        context->perFrameAllocator()->alloc(sizeof(ContourInfo) * contourCount));
+        context->perFrameAllocator().alloc(sizeof(ContourInfo) * contourCount));
 
     size_t maxStrokedCurvesBeforeChops = 0;
     size_t maxCurves = 0;
@@ -917,7 +916,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     {
         m_resourceCounts.pathCount = 1;
         m_resourceCounts.contourCount = contourCount;
-        m_resourceCounts.tessellatedSegmentCount =
+        m_resourceCounts.maxTessellatedSegmentCount =
             lineCount + unpaddedCurveCount + emptyStrokeCountForCaps;
 
         m_resourceCounts.midpointFanTessVertexCount =
@@ -925,7 +924,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     }
 }
 
-void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
+void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
     const RawPath& rawPath = m_pathRef->getRawPath();
     RawPath::Iter startOfContour = rawPath.begin();
@@ -968,7 +967,7 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
         }
 
         // Make a data record for this current contour on the GPU.
-        context->pushContour(contour.midpoint, contour.closed, contour.paddingVertexCount);
+        flush->pushContour(contour.midpoint, contour.closed, contour.paddingVertexCount);
 
         // Convert all curves in the contour to cubics and push them to the GPU.
         const int styleFlags = style_flags(m_isStroked, roundJoinStroked);
@@ -1036,18 +1035,18 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
                     if (needsFirstEmulatedCapAsJoin)
                     {
                         // Emulate the start cap as a 180-degree join before the first stroke.
-                        pushEmulatedStrokeCapAsJoinBeforeCubic(context,
+                        pushEmulatedStrokeCapAsJoinBeforeCubic(flush,
                                                                cubic.data(),
                                                                emulatedCapAsJoinFlags,
                                                                contour.strokeCapSegmentCount);
                         needsFirstEmulatedCapAsJoin = false;
                     }
-                    context->pushCubic(cubic.data(),
-                                       joinTangent,
-                                       joinTypeFlags,
-                                       1,
-                                       1,
-                                       joinSegmentCount);
+                    flush->pushCubic(cubic.data(),
+                                     joinTangent,
+                                     joinTypeFlags,
+                                     1,
+                                     1,
+                                     joinSegmentCount);
                     RIVE_DEBUG_CODE(--m_pendingLineCount;)
                     break;
                 }
@@ -1106,7 +1105,7 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
                     if (needsFirstEmulatedCapAsJoin)
                     {
                         // Emulate the start cap as a 180-degree join before the first stroke.
-                        pushEmulatedStrokeCapAsJoinBeforeCubic(context,
+                        pushEmulatedStrokeCapAsJoinBeforeCubic(flush,
                                                                p,
                                                                emulatedCapAsJoinFlags,
                                                                contour.strokeCapSegmentCount);
@@ -1118,12 +1117,12 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
                     {
                         uint32_t parametricSegmentCount = m_parametricSegmentCounts[curveIdx];
                         uint32_t polarSegmentCount = m_polarSegmentCounts[rotationIdx];
-                        context->pushCubic(p,
-                                           joinTangent,
-                                           joinTypeFlags,
-                                           parametricSegmentCount,
-                                           polarSegmentCount,
-                                           1);
+                        flush->pushCubic(p,
+                                         joinTangent,
+                                         joinTypeFlags,
+                                         parametricSegmentCount,
+                                         polarSegmentCount,
+                                         1);
                         RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                         RIVE_DEBUG_CODE(--m_pendingRotationCount;)
                     }
@@ -1158,19 +1157,19 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
                         joinSegmentCount = contour.strokeCapSegmentCount;
                         RIVE_DEBUG_CODE(--m_pendingStrokeCapCount;)
                     }
-                    context->pushCubic(p,
-                                       joinTangent,
-                                       joinTypeFlags,
-                                       parametricSegmentCount,
-                                       polarSegmentCount,
-                                       joinSegmentCount);
+                    flush->pushCubic(p,
+                                     joinTangent,
+                                     joinTypeFlags,
+                                     parametricSegmentCount,
+                                     polarSegmentCount,
+                                     joinSegmentCount);
                     RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                     break;
                 }
                 case StyledVerb::filledCubic:
                 {
                     uint32_t parametricSegmentCount = m_parametricSegmentCounts[curveIdx++];
-                    context->pushCubic(iter.cubicPts(), Vec2D{}, 0, parametricSegmentCount, 1, 1);
+                    flush->pushCubic(iter.cubicPts(), Vec2D{}, 0, parametricSegmentCount, 1, 1);
                     RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                     break;
                 }
@@ -1181,11 +1180,11 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
         {
             // The contour was empty. Emit both caps on p0.
             Vec2D p0 = pts[0], left = {p0.x - 1, p0.y}, right = {p0.x + 1, p0.y};
-            pushEmulatedStrokeCapAsJoinBeforeCubic(context,
+            pushEmulatedStrokeCapAsJoinBeforeCubic(flush,
                                                    std::array{p0, right, right, right}.data(),
                                                    emulatedCapAsJoinFlags,
                                                    contour.strokeCapSegmentCount);
-            pushEmulatedStrokeCapAsJoinBeforeCubic(context,
+            pushEmulatedStrokeCapAsJoinBeforeCubic(flush,
                                                    std::array{p0, left, left, left}.data(),
                                                    emulatedCapAsJoinFlags,
                                                    contour.strokeCapSegmentCount);
@@ -1212,8 +1211,7 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
                     joinSegmentCount = kNumSegmentsInMiterOrBevelJoin;
                     RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                 }
-                context
-                    ->pushCubic(cubic.data(), joinTangent, joinTypeFlags, 1, 1, joinSegmentCount);
+                flush->pushCubic(cubic.data(), joinTangent, joinTypeFlags, 1, 1, joinSegmentCount);
                 RIVE_DEBUG_CODE(--m_pendingLineCount;)
             }
         }
@@ -1233,20 +1231,21 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext* context)
     assert(m_pendingEmptyStrokeCountForCaps == 0);
 }
 
-void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(PLSRenderContext* context,
-                                                                 const Vec2D cubic[],
-                                                                 uint32_t emulatedCapAsJoinFlags,
-                                                                 uint32_t strokeCapSegmentCount)
+void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
+    PLSRenderContext::LogicalFlush* flush,
+    const Vec2D cubic[],
+    uint32_t emulatedCapAsJoinFlags,
+    uint32_t strokeCapSegmentCount)
 {
     // Reverse the cubic and push it with zero parametric and polar segments, and a 180-degree join
     // tangent. This results in a solitary join, positioned immediately before the provided cubic,
     // that looks like the desired stroke cap.
-    context->pushCubic(std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
-                       find_cubic_tan0(cubic),
-                       emulatedCapAsJoinFlags,
-                       0,
-                       0,
-                       strokeCapSegmentCount);
+    flush->pushCubic(std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
+                     find_cubic_tan0(cubic),
+                     emulatedCapAsJoinFlags,
+                     0,
+                     0,
+                     strokeCapSegmentCount);
     RIVE_DEBUG_CODE(--m_pendingStrokeCapCount;)
     RIVE_DEBUG_CODE(--m_pendingEmptyStrokeCountForCaps;)
 }
@@ -1268,30 +1267,35 @@ InteriorTriangulationDraw::InteriorTriangulationDraw(PLSRenderContext* context,
 {
     assert(!m_isStroked);
     assert(m_strokeRadius == 0);
-    processPath(context, PathOp::countDataAndTriangulate, scratchPath, triangulatorAxis);
+    processPath(PathOp::countDataAndTriangulate,
+                &context->perFrameAllocator(),
+                scratchPath,
+                triangulatorAxis,
+                nullptr);
 }
 
-void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext* context)
+void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
-    processPath(context, PathOp::submitOuterCubics);
-    if (context->frameDescriptor().enableExperimentalAtomicMode)
+    processPath(PathOp::submitOuterCubics, nullptr, nullptr, TriangulatorAxis::dontCare, flush);
+    if (flush->desc().interlockMode == pls::InterlockMode::experimentalAtomics)
     {
         // We need a barrier between the outer cubics and interior triangles in atomic mode.
-        context->pushBarrier();
+        flush->pushBarrier();
     }
-    context->pushInteriorTriangulation(m_triangulator,
-                                       m_paintType,
-                                       m_simplePaintValue,
-                                       m_imageTextureRef,
-                                       m_clipID,
-                                       m_clipRectInverseMatrix != nullptr,
-                                       m_blendMode);
+    flush->pushInteriorTriangulation(m_triangulator,
+                                     m_paintType,
+                                     m_simplePaintValue,
+                                     m_imageTextureRef,
+                                     m_clipID,
+                                     m_clipRectInverseMatrix != nullptr,
+                                     m_blendMode);
 }
 
-void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
-                                            PathOp op,
+void InteriorTriangulationDraw::processPath(PathOp op,
+                                            TrivialBlockAllocator* allocator,
                                             RawPath* scratchPath,
-                                            TriangulatorAxis triangulatorAxis)
+                                            TriangulatorAxis triangulatorAxis,
+                                            PLSRenderContext::LogicalFlush* flush)
 {
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
     const RawPath& rawPath = m_pathRef->getRawPath();
@@ -1313,12 +1317,12 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                 {
                     if (op == PathOp::submitOuterCubics)
                     {
-                        context->pushCubic(convert_line_to_cubic(pts[-1], p0).data(),
-                                           {0, 0},
-                                           CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
-                                           kPatchSegmentCountExcludingJoin,
-                                           1,
-                                           kJoinSegmentCount);
+                        flush->pushCubic(convert_line_to_cubic(pts[-1], p0).data(),
+                                         {0, 0},
+                                         CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
+                                         kPatchSegmentCountExcludingJoin,
+                                         1,
+                                         kJoinSegmentCount);
                     }
                     ++patchCount;
                 }
@@ -1328,7 +1332,7 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                 }
                 else
                 {
-                    context->pushContour({0, 0}, true, 0);
+                    flush->pushContour({0, 0}, true, 0);
                 }
                 p0 = pts[0];
                 ++contourCount;
@@ -1340,12 +1344,12 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                 }
                 else
                 {
-                    context->pushCubic(convert_line_to_cubic(pts).data(),
-                                       {0, 0},
-                                       CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
-                                       kPatchSegmentCountExcludingJoin,
-                                       1,
-                                       kJoinSegmentCount);
+                    flush->pushCubic(convert_line_to_cubic(pts).data(),
+                                     {0, 0},
+                                     CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
+                                     kPatchSegmentCountExcludingJoin,
+                                     1,
+                                     kJoinSegmentCount);
                 }
                 ++patchCount;
                 break;
@@ -1362,12 +1366,12 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                     }
                     else
                     {
-                        context->pushCubic(pts,
-                                           {0, 0},
-                                           CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
-                                           kPatchSegmentCountExcludingJoin,
-                                           1,
-                                           kJoinSegmentCount);
+                        flush->pushCubic(pts,
+                                         {0, 0},
+                                         CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
+                                         kPatchSegmentCountExcludingJoin,
+                                         1,
+                                         kJoinSegmentCount);
                     }
                 }
                 else
@@ -1384,12 +1388,12 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
                         }
                         else
                         {
-                            context->pushCubic(chop,
-                                               {0, 0},
-                                               CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
-                                               kPatchSegmentCountExcludingJoin,
-                                               1,
-                                               kJoinSegmentCount);
+                            flush->pushCubic(chop,
+                                             {0, 0},
+                                             CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
+                                             kPatchSegmentCountExcludingJoin,
+                                             1,
+                                             kJoinSegmentCount);
                         }
                         chop += 3;
                     }
@@ -1406,12 +1410,12 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
     {
         if (op == PathOp::submitOuterCubics)
         {
-            context->pushCubic(convert_line_to_cubic(lastPt, p0).data(),
-                               {0, 0},
-                               CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
-                               kPatchSegmentCountExcludingJoin,
-                               1,
-                               kJoinSegmentCount);
+            flush->pushCubic(convert_line_to_cubic(lastPt, p0).data(),
+                             {0, 0},
+                             CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
+                             kPatchSegmentCountExcludingJoin,
+                             1,
+                             kJoinSegmentCount);
         }
         ++patchCount;
     }
@@ -1420,20 +1424,20 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
     {
         assert(m_triangulator == nullptr);
         assert(triangulatorAxis != TriangulatorAxis::dontCare);
-        m_triangulator = context->make<GrInnerFanTriangulator>(
+        m_triangulator = allocator->make<GrInnerFanTriangulator>(
             *scratchPath,
             m_matrix,
             triangulatorAxis == TriangulatorAxis::horizontal
                 ? GrTriangulator::Comparator::Direction::kHorizontal
                 : GrTriangulator::Comparator::Direction::kVertical,
             m_fillRule,
-            context->perFrameAllocator());
+            allocator);
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
 
         m_resourceCounts.pathCount = 1;
         m_resourceCounts.contourCount = contourCount;
-        m_resourceCounts.tessellatedSegmentCount = patchCount;
+        m_resourceCounts.maxTessellatedSegmentCount = patchCount;
         // outerCubic patches emit their tessellated geometry twice: once forward and once mirrored.
         m_resourceCounts.outerCubicTessVertexCount = patchCount * kOuterCurvePatchSegmentSpan * 2;
         m_resourceCounts.maxTriangleVertexCount = m_triangulator->maxVertexCount();
@@ -1445,16 +1449,16 @@ void InteriorTriangulationDraw::processPath(PLSRenderContext* context,
         for (auto* node = m_triangulator->groutList().head(); node; node = node->fNext)
         {
             Vec2D triangleAsCubic[4] = {node->fPts[0], node->fPts[1], {0, 0}, node->fPts[2]};
-            context->pushCubic(triangleAsCubic,
-                               {0, 0},
-                               RETROFITTED_TRIANGLE_CONTOUR_FLAG,
-                               kPatchSegmentCountExcludingJoin,
-                               1,
-                               kJoinSegmentCount);
+            flush->pushCubic(triangleAsCubic,
+                             {0, 0},
+                             RETROFITTED_TRIANGLE_CONTOUR_FLAG,
+                             kPatchSegmentCountExcludingJoin,
+                             1,
+                             kJoinSegmentCount);
             ++patchCount;
         }
         assert(contourCount == m_resourceCounts.contourCount);
-        assert(patchCount == m_resourceCounts.tessellatedSegmentCount);
+        assert(patchCount == m_resourceCounts.maxTessellatedSegmentCount);
         assert(patchCount * kOuterCurvePatchSegmentSpan * 2 ==
                m_resourceCounts.outerCubicTessVertexCount);
     }
@@ -1476,14 +1480,14 @@ ImageRectDraw::ImageRectDraw(PLSRenderContext* context,
     m_resourceCounts.imageDrawCount = 1;
 }
 
-void ImageRectDraw::pushToRenderContext(PLSRenderContext* context)
+void ImageRectDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
-    context->pushImageRect(m_matrix,
-                           m_opacity,
-                           m_imageTextureRef,
-                           m_clipID,
-                           m_clipRectInverseMatrix,
-                           m_blendMode);
+    flush->pushImageRect(m_matrix,
+                         m_opacity,
+                         m_imageTextureRef,
+                         m_clipID,
+                         m_clipRectInverseMatrix,
+                         m_blendMode);
 }
 
 ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
@@ -1508,18 +1512,18 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
     m_resourceCounts.imageDrawCount = 1;
 }
 
-void ImageMeshDraw::pushToRenderContext(PLSRenderContext* context)
+void ImageMeshDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
-    context->pushImageMesh(m_matrix,
-                           m_opacity,
-                           m_imageTextureRef,
-                           m_vertexBufferRef,
-                           m_uvBufferRef,
-                           m_indexBufferRef,
-                           m_indexCount,
-                           m_clipID,
-                           m_clipRectInverseMatrix,
-                           m_blendMode);
+    flush->pushImageMesh(m_matrix,
+                         m_opacity,
+                         m_imageTextureRef,
+                         m_vertexBufferRef,
+                         m_uvBufferRef,
+                         m_indexBufferRef,
+                         m_indexCount,
+                         m_clipID,
+                         m_clipRectInverseMatrix,
+                         m_blendMode);
 }
 
 void ImageMeshDraw::releaseRefs()

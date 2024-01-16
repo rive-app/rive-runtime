@@ -108,4 +108,77 @@ public:
 
     using TrivialBlockAllocator::reset;
 };
+
+// Simple linked list whose nodes are allocated on a TrivialBlockAllocator.
+template <typename T> class BlockAllocatedLinkedList
+{
+public:
+    size_t count() const
+    {
+        assert(static_cast<bool>(m_head) == static_cast<bool>(m_tail));
+        assert(static_cast<bool>(m_head) == static_cast<bool>(m_tail));
+        return m_count;
+    }
+
+    bool empty() const { return count() == 0; }
+
+    T& tail() const
+    {
+        assert(!empty());
+        return m_tail->data;
+    }
+
+    template <typename... Args> T& emplace_back(TrivialBlockAllocator& allocator, Args... args)
+    {
+        Node* node = allocator.make<Node>(std::forward<Args>(args)...);
+        assert(static_cast<bool>(m_head) == static_cast<bool>(m_tail));
+        if (m_head == nullptr)
+        {
+            m_head = node;
+        }
+        else
+        {
+            m_tail->next = node;
+        }
+        m_tail = node;
+        ++m_count;
+        return m_tail->data;
+    }
+
+    void reset()
+    {
+        m_tail = nullptr;
+        m_head = nullptr;
+        m_count = 0;
+    }
+
+    struct Node
+    {
+        template <typename... Args> Node(Args... args) : data(std::forward<Args>(args)...) {}
+        T data;
+        Node* next = nullptr;
+    };
+
+    template <typename U> class Iter
+    {
+    public:
+        Iter(Node* current) : m_current(current) {}
+        bool operator!=(const Iter& other) const { return m_current != other.m_current; }
+        void operator++() { m_current = m_current->next; }
+        U& operator*() { return m_current->data; }
+
+    private:
+        Node* m_current;
+    };
+    Iter<T> begin() { return {m_head}; }
+    Iter<T> end() { return {nullptr}; }
+    Iter<const T> begin() const { return {m_head}; }
+    Iter<const T> end() const { return {nullptr}; }
+
+private:
+    Node* m_head = nullptr;
+    Node* m_tail = nullptr;
+    size_t m_count = 0;
+};
+
 } // namespace rive

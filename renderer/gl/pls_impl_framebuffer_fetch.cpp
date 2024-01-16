@@ -60,7 +60,8 @@ public:
         renderTarget->reattachTargetTextureIfDifferent();
 
         // Enable multiple render targets, with a draw buffer for each PLS plane.
-        glDrawBuffers(4, kPLSDrawBuffers);
+        glDrawBuffers((desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING) ? 4 : 3,
+                      kPLSDrawBuffers);
 
         // Instruct the driver not to load existing PLS plane contents into tiled memory, with the
         // exception of the color buffer after an intermediate flush.
@@ -79,7 +80,7 @@ public:
             glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
         }
         glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kZero);
-        if (desc.needsClipBuffer)
+        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
         {
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
         }

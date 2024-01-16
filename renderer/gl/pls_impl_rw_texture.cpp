@@ -74,7 +74,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             constexpr static GLuint kCoverageZero[4]{static_cast<GLuint>(FIXED_COVERAGE_ZERO)};
             glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kCoverageZero);
         }
-        if (desc.needsClipBuffer)
+        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
         {
             constexpr static GLuint kZero[4]{};
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
@@ -102,7 +102,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                            0,
                            GL_READ_WRITE,
                            GL_RGBA8);
-        if (desc.needsClipBuffer)
+        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
         {
             glBindImageTexture(CLIP_PLANE_IDX,
                                renderTarget->m_clipTextureID,

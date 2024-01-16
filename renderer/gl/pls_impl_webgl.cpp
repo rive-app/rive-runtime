@@ -92,11 +92,14 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
             glFramebufferPixelLocalClearValuefvWEBGL(FRAMEBUFFER_PLANE_IDX, clearColor4f);
         }
 
+        GLenum clipLoadAction = (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
+                                    ? GL_LOAD_OP_ZERO_WEBGL
+                                    : GL_DONT_CARE;
         GLenum loadOps[4] = {(GLenum)(desc.loadAction == LoadAction::clear ? GL_LOAD_OP_CLEAR_WEBGL
                                                                            : GL_LOAD_OP_LOAD_WEBGL),
                              GL_LOAD_OP_ZERO_WEBGL,
                              GL_DONT_CARE,
-                             (GLenum)(desc.needsClipBuffer ? GL_LOAD_OP_ZERO_WEBGL : GL_DONT_CARE)};
+                             clipLoadAction};
 
         glBeginPixelLocalStorageWEBGL(4, loadOps);
     }

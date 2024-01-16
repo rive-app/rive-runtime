@@ -33,6 +33,16 @@ rcp<PLSTexture> PLSRenderContextHelperImpl::decodeImageTexture(Span<const uint8_
     return nullptr;
 }
 
+void PLSRenderContextHelperImpl::resizeFlushUniformBuffer(size_t sizeInBytes)
+{
+    m_flushUniformBuffer = makeUniformBufferRing(sizeInBytes);
+}
+
+void PLSRenderContextHelperImpl::resizeImageDrawUniformBuffer(size_t sizeInBytes)
+{
+    m_imageDrawUniformBuffer = makeUniformBufferRing(sizeInBytes);
+}
+
 void PLSRenderContextHelperImpl::resizePathBuffer(size_t sizeInBytes,
                                                   pls::StorageBufferStructure bufferStructure)
 {
@@ -77,9 +87,14 @@ void PLSRenderContextHelperImpl::resizeTriangleVertexBuffer(size_t sizeInBytes)
     m_triangleBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
-void PLSRenderContextHelperImpl::resizeImageDrawUniformBuffer(size_t sizeInBytes)
+void* PLSRenderContextHelperImpl::mapFlushUniformBuffer(size_t mapSizeInBytes)
 {
-    m_imageDrawUniformBuffer = makeUniformBufferRing(sizeInBytes);
+    return m_flushUniformBuffer->mapBuffer(mapSizeInBytes);
+}
+
+void* PLSRenderContextHelperImpl::mapImageDrawUniformBuffer(size_t mapSizeInBytes)
+{
+    return m_imageDrawUniformBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* PLSRenderContextHelperImpl::mapPathBuffer(size_t mapSizeInBytes)
@@ -122,20 +137,14 @@ void* PLSRenderContextHelperImpl::mapTriangleVertexBuffer(size_t mapSizeInBytes)
     return m_triangleBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void* PLSRenderContextHelperImpl::mapImageDrawUniformBuffer(size_t mapSizeInBytes)
+void PLSRenderContextHelperImpl::unmapFlushUniformBuffer()
 {
-    return m_imageDrawUniformBuffer->mapBuffer(mapSizeInBytes);
+    m_flushUniformBuffer->unmapAndSubmitBuffer();
 }
 
-void* PLSRenderContextHelperImpl::mapFlushUniformBuffer(size_t mapSizeInBytes)
+void PLSRenderContextHelperImpl::unmapImageDrawUniformBuffer()
 {
-    if (m_flushUniformBuffer == nullptr)
-    {
-        // Allocate the flushUniformBuffer lazily size it doesn't have a corresponding 'resize()'
-        // call where we can allocate it.
-        m_flushUniformBuffer = makeUniformBufferRing(sizeof(pls::FlushUniforms));
-    }
-    return m_flushUniformBuffer->mapBuffer(sizeof(pls::FlushUniforms));
+    m_imageDrawUniformBuffer->unmapAndSubmitBuffer();
 }
 
 void PLSRenderContextHelperImpl::unmapPathBuffer() { m_pathBuffer->unmapAndSubmitBuffer(); }
@@ -161,15 +170,5 @@ void PLSRenderContextHelperImpl::unmapTessVertexSpanBuffer()
 void PLSRenderContextHelperImpl::unmapTriangleVertexBuffer()
 {
     m_triangleBuffer->unmapAndSubmitBuffer();
-}
-
-void PLSRenderContextHelperImpl::unmapImageDrawUniformBuffer()
-{
-    m_imageDrawUniformBuffer->unmapAndSubmitBuffer();
-}
-
-void PLSRenderContextHelperImpl::unmapFlushUniformBuffer()
-{
-    m_flushUniformBuffer->unmapAndSubmitBuffer();
 }
 } // namespace rive::pls

@@ -163,7 +163,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                           GL_FLOAT,
                           GL_FALSE,
                           sizeof(PatchVertex),
-                          reinterpret_cast<void*>(sizeof(float) * 4));
+                          reinterpret_cast<const void*>(sizeof(float) * 4));
 
     glGenVertexArrays(1, &m_interiorTrianglesVAO);
     m_state->bindVAO(m_interiorTrianglesVAO);
@@ -440,7 +440,11 @@ static std::tuple<uint32_t, uint32_t> storage_texture_size(size_t bufferSizeInBy
     assert(bufferSizeInBytes % pls::StorageBufferElementSizeInBytes(bufferStructure) == 0);
     size_t elementCount = bufferSizeInBytes / pls::StorageBufferElementSizeInBytes(bufferStructure);
     uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
-    assert(height <= 2048); // 2048 is the min specified texture size in ES3.
+    // PLSRenderContext is responsible for breaking up a flush before any storage buffer grows
+    // larger than can be supported by a GL texture of witdth "STORAGE_TEXTURE_WIDTH".
+    // (2048 is the min required value for GL_MAX_TEXTURE_SIZE.)
+    constexpr int kMaxRequredTextureHeight RIVE_MAYBE_UNUSED = 2048;
+    assert(height <= kMaxRequredTextureHeight);
     uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
     return {width, height};
 }
@@ -525,7 +529,7 @@ public:
                             updateHeight,
                             storage_texture_format(m_bufferStructure),
                             storage_texture_type(m_bufferStructure),
-                            reinterpret_cast<void*>(offsetSizeInBytes));
+                            reinterpret_cast<const void*>(offsetSizeInBytes));
         }
     }
 
@@ -534,9 +538,9 @@ protected:
     GLuint m_polyfillTexture = 0;
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
-    return BufferRingGLImpl::Make(capacityInBytes, GL_ARRAY_BUFFER, m_state);
+    return BufferRingGLImpl::Make(capacityInBytes, GL_UNIFORM_BUFFER, m_state);
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(
@@ -550,15 +554,15 @@ std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(
                                 : nullptr;
 }
 
+std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
+{
+    return BufferRingGLImpl::Make(capacityInBytes, GL_ARRAY_BUFFER, m_state);
+}
+
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
     return BufferRingGLImpl::Make(capacityInBytes, GL_PIXEL_UNPACK_BUFFER, m_state);
-}
-
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
-{
-    return BufferRingGLImpl::Make(capacityInBytes, GL_UNIFORM_BUFFER, m_state);
 }
 
 void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -828,9 +832,11 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
 
     // All programs use the same set of per-flush uniforms.
-    glBindBufferBase(GL_UNIFORM_BUFFER,
-                     FLUSH_UNIFORM_BUFFER_IDX,
-                     gl_buffer_id(flushUniformBufferRing()));
+    glBindBufferRange(GL_UNIFORM_BUFFER,
+                      FLUSH_UNIFORM_BUFFER_IDX,
+                      gl_buffer_id(flushUniformBufferRing()),
+                      desc.flushUniformDataOffsetInBytes,
+                      sizeof(pls::FlushUniforms));
 
     // All programs use the same storage buffers.
     if (desc.pathCount > 0)
@@ -845,13 +851,13 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                             paintBufferRing(),
                             PAINT_BUFFER_IDX,
                             desc.pathCount * sizeof(pls::PaintData),
-                            desc.firstPath * sizeof(pls::PaintData));
+                            desc.firstPaint * sizeof(pls::PaintData));
 
         bind_storage_buffer(m_capabilities,
                             paintAuxBufferRing(),
                             PAINT_AUX_BUFFER_IDX,
                             desc.pathCount * sizeof(pls::PaintAuxData),
-                            desc.firstPath * sizeof(pls::PaintAuxData));
+                            desc.firstPaintAux * sizeof(pls::PaintAuxData));
     }
 
     if (desc.contourCount > 0)
@@ -869,7 +875,12 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
         m_state->bindVAO(m_colorRampVAO);
         m_state->enableFaceCulling(true);
-        glVertexAttribIPointer(0, 4, GL_UNSIGNED_INT, 0, nullptr);
+        glVertexAttribIPointer(
+            0,
+            4,
+            GL_UNSIGNED_INT,
+            0,
+            reinterpret_cast<const void*>(desc.firstComplexGradSpan * sizeof(pls::GradientSpan)));
         glViewport(0, desc.complexGradRowsTop, kGradTextureWidth, desc.complexGradRowsHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
         m_state->bindProgram(m_colorRampProgram);
@@ -883,7 +894,6 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
-        assert(desc.simpleGradDataOffset == 0); // TODO: Handle desc.simpleGradDataOffset != 0.
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -892,7 +902,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                         desc.simpleGradTexelsHeight,
                         GL_RGBA,
                         GL_UNSIGNED_BYTE,
-                        nullptr);
+                        reinterpret_cast<const void*>(desc.simpleGradDataOffsetInBytes));
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
@@ -901,6 +911,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
         m_state->bindVAO(m_tessellateVAO);
         m_state->enableFaceCulling(true);
+        size_t tessSpanOffsetInBytes = desc.firstTessVertexSpan * sizeof(pls::TessVertexSpan);
         for (uintptr_t i = 0; i < 3; ++i)
         {
             glVertexAttribPointer(i,
@@ -908,14 +919,15 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   GL_FLOAT,
                                   GL_FALSE,
                                   sizeof(TessVertexSpan),
-                                  reinterpret_cast<const void*>(i * 4 * 4));
+                                  reinterpret_cast<const void*>(tessSpanOffsetInBytes + i * 4 * 4));
         }
-        glVertexAttribIPointer(3,
-                               4,
-                               GL_UNSIGNED_INT,
-                               sizeof(TessVertexSpan),
-                               reinterpret_cast<const void*>(offsetof(TessVertexSpan, x0x1)));
-        glViewport(0, 0, kTessTextureWidth, desc.tessDataHeight);
+        glVertexAttribIPointer(
+            3,
+            4,
+            GL_UNSIGNED_INT,
+            sizeof(TessVertexSpan),
+            reinterpret_cast<const void*>(tessSpanOffsetInBytes + offsetof(TessVertexSpan, x0x1)));
+        glViewport(0, 0, pls::kTessTextureWidth, desc.tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
         m_state->bindProgram(m_tessellateProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
@@ -928,19 +940,18 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 
     // Compile the draw programs before activating pixel local storage.
+    // Cache specific compilations by DrawType and ShaderFeatures.
     // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while active.)
-    for (const Draw& draw : *desc.drawList)
+    for (const DrawBatch& batch : *desc.drawList)
     {
-        // Compile the draw program before activating pixel local storage.
-        // Cache specific compilations by DrawType and ShaderFeatures.
         auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
                                   ? desc.combinedShaderFeatures
-                                  : draw.shaderFeatures;
+                                  : batch.shaderFeatures;
         uint32_t fragmentShaderKey =
-            pls::ShaderUniqueKey(draw.drawType, shaderFeatures, desc.interlockMode);
+            pls::ShaderUniqueKey(batch.drawType, shaderFeatures, desc.interlockMode);
         m_drawPrograms.try_emplace(fragmentShaderKey,
                                    this,
-                                   draw.drawType,
+                                   batch.drawType,
                                    shaderFeatures,
                                    desc.interlockMode);
     }
@@ -966,18 +977,18 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     m_plsImpl->activatePixelLocalStorage(this, desc);
 
     // Execute the DrawList.
-    for (const Draw& draw : *desc.drawList)
+    for (const DrawBatch& batch : *desc.drawList)
     {
-        if (draw.elementCount == 0)
+        if (batch.elementCount == 0)
         {
             continue;
         }
 
         auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
                                   ? desc.combinedShaderFeatures
-                                  : draw.shaderFeatures;
+                                  : batch.shaderFeatures;
         uint32_t fragmentShaderKey =
-            pls::ShaderUniqueKey(draw.drawType, shaderFeatures, desc.interlockMode);
+            pls::ShaderUniqueKey(batch.drawType, shaderFeatures, desc.interlockMode);
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
         if (drawProgram.id() == 0)
         {
@@ -985,13 +996,13 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         m_state->bindProgram(drawProgram.id());
 
-        if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(draw.imageTexture))
+        if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(batch.imageTexture))
         {
             glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->id());
         }
 
-        switch (DrawType drawType = draw.drawType)
+        switch (DrawType drawType = batch.drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
@@ -1003,24 +1014,25 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 m_state->enableFaceCulling(true);
                 uint32_t indexCount = PatchIndexCount(drawType);
                 uint32_t baseIndex = PatchBaseIndex(drawType);
-                void* indexOffset = reinterpret_cast<void*>(baseIndex * sizeof(uint16_t));
+                const void* indexOffset =
+                    reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
                 if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
                 {
                     glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
                                                            indexCount,
                                                            GL_UNSIGNED_SHORT,
                                                            indexOffset,
-                                                           draw.elementCount,
-                                                           draw.baseElement);
+                                                           batch.elementCount,
+                                                           batch.baseElement);
                 }
                 else
                 {
-                    glUniform1i(drawProgram.spirvCrossBaseInstanceLocation(), draw.baseElement);
+                    glUniform1i(drawProgram.spirvCrossBaseInstanceLocation(), batch.baseElement);
                     glDrawElementsInstanced(GL_TRIANGLES,
                                             indexCount,
                                             GL_UNSIGNED_SHORT,
                                             indexOffset,
-                                            draw.elementCount);
+                                            batch.elementCount);
                 }
                 break;
             }
@@ -1029,7 +1041,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 m_plsImpl->ensureRasterOrderingEnabled(false);
                 m_state->bindVAO(m_interiorTrianglesVAO);
                 m_state->enableFaceCulling(true);
-                glDrawArrays(GL_TRIANGLES, draw.baseElement, draw.elementCount);
+                glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
                 break;
             }
             case DrawType::imageRect:
@@ -1041,7 +1053,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageDrawUniformBufferRing()),
-                                  draw.imageDrawDataOffset,
+                                  batch.imageDrawDataOffset,
                                   sizeof(pls::ImageDrawUniforms));
                 m_state->enableFaceCulling(false);
                 glDrawElements(GL_TRIANGLES,
@@ -1056,11 +1068,11 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                        pls::InterlockMode::rasterOrdered);
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         const PLSRenderBufferGLImpl*,
-                                        draw.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const PLSRenderBufferGLImpl*, draw.uvBuffer);
+                                        batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const PLSRenderBufferGLImpl*, batch.uvBuffer);
                 LITE_RTTI_CAST_OR_BREAK(indexBuffer,
                                         const PLSRenderBufferGLImpl*,
-                                        draw.indexBuffer);
+                                        batch.indexBuffer);
                 m_state->bindVAO(m_imageMeshVAO);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -1070,13 +1082,13 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageDrawUniformBufferRing()),
-                                  draw.imageDrawDataOffset,
+                                  batch.imageDrawDataOffset,
                                   sizeof(pls::ImageDrawUniforms));
                 m_state->enableFaceCulling(false);
                 glDrawElements(GL_TRIANGLES,
-                               draw.elementCount,
+                               batch.elementCount,
                                GL_UNSIGNED_SHORT,
-                               reinterpret_cast<const void*>(draw.baseElement * sizeof(uint16_t)));
+                               reinterpret_cast<const void*>(batch.baseElement * sizeof(uint16_t)));
                 break;
             }
             case DrawType::plsAtomicResolve:
@@ -1085,7 +1097,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
         }
-        if (draw.needsBarrier)
+        if (batch.needsBarrier)
         {
             m_plsImpl->barrier();
         }

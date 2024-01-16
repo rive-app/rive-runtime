@@ -72,11 +72,11 @@ public:
 protected:
     PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>);
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
                                                       StorageBufferStructure) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
 private:
     // Renders paths to the main render target.
@@ -123,5 +123,8 @@ private:
     // overriding data before the GPU is done with it.
     std::mutex m_bufferRingLocks[kBufferRingSize];
     int m_bufferRingIdx = 0;
+
+    // Stashed active command buffer between logical flushes.
+    id<MTLCommandBuffer> m_currentCommandBuffer = nullptr;
 };
 } // namespace rive::pls

@@ -8,7 +8,7 @@
 
 namespace rive::pls
 {
-LoadStoreActionsEXT BuildLoadActionsEXT(const PLSRenderContextImpl::FlushDescriptor& desc,
+LoadStoreActionsEXT BuildLoadActionsEXT(const pls::FlushDescriptor& desc,
                                         std::array<float, 4>* clearColor4f)
 {
     LoadStoreActionsEXT actions = LoadStoreActionsEXT::clearCoverage;
@@ -21,7 +21,7 @@ LoadStoreActionsEXT BuildLoadActionsEXT(const PLSRenderContextImpl::FlushDescrip
     {
         actions |= LoadStoreActionsEXT::loadColor;
     }
-    if (desc.needsClipBuffer)
+    if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
     {
         actions |= LoadStoreActionsEXT::clearClip;
     }

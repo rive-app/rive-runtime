@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/pls/pls_render_context_impl.hpp"
+#include "rive/pls/pls.hpp"
 #include "rive/enum_bitset.hpp"
 #include <iostream>
 
@@ -25,7 +25,7 @@ RIVE_MAKE_ENUM_BITSET(LoadStoreActionsEXT)
 
 // Determines the specific load actions that need to be emulated for the given render pass, and
 // unpacks the clear color, if required.
-LoadStoreActionsEXT BuildLoadActionsEXT(const PLSRenderContextImpl::FlushDescriptor&,
+LoadStoreActionsEXT BuildLoadActionsEXT(const pls::FlushDescriptor&,
                                         std::array<float, 4>* clearColor4f);
 
 // Appends pls_load_store_ext.glsl to the stream, with the appropriate #defines prepended.

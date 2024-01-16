@@ -58,12 +58,13 @@ private:
     void clipPathImpl(const PLSPath*);
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too complex to be
-    // supported by the GPU buffers, even after a clean flush, then nothing is drawn.
+    // supported by the GPU buffers, even after a logical flush, then nothing is drawn.
     void clipAndPushDraw(PLSDrawUniquePtr);
 
     // Pushes any necessary clip updates to m_internalDrawBatch and sets the PLSDraw's clipID and
     // clipRectInverseMatrix, if any.
-    // Returns false if the operation failed, at which point the caller should flush and try again.
+    // Returns false if the operation failed, at which point the caller should issue a logical flush
+    // and try again.
     [[nodiscard]] bool applyClip(PLSDraw*);
 
     struct RenderState
@@ -93,7 +94,7 @@ private:
         uint32_t clipID;
     };
     std::vector<ClipElement> m_clipStack;
-    uint64_t m_clipStackFlushID = -1; // Ensures we invalidate the clip stack after a flush.
+    uint64_t m_clipStackFlushID = -1; // Ensures we invalidate the clip stack after a logical flush.
 
     PLSRenderContext* const m_context;
 

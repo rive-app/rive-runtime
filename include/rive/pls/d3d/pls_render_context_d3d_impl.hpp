@@ -63,10 +63,6 @@ public:
     ComPtr<ID3D11Buffer> makeSimpleImmutableBuffer(size_t sizeInBytes,
                                                    UINT bindFlags,
                                                    const void* data);
-    ComPtr<ID3D11Buffer> makeSimpleStructuredBuffer(size_t count, size_t structureSize);
-    ComPtr<ID3D11ShaderResourceView> makeSimpleStructuredBufferSRV(ID3D11Buffer* buffer,
-                                                                   size_t count);
-    void updateStructuredBuffer(ID3D11Buffer* buffer, size_t sizeInBytes, const void* data);
     ComPtr<ID3DBlob> compileSourceToBlob(const char* shaderTypeDefineName,
                                          const std::string& commonSource,
                                          const char* entrypoint,
@@ -89,16 +85,21 @@ private:
                                      uint32_t mipLevelCount,
                                      const uint8_t imageDataRGBA[]) override;
 
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
                                                       pls::StorageBufferStructure) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
     void flush(const FlushDescriptor&) override;
+
+    template <typename HighLevelStruct>
+    ID3D11ShaderResourceView* replaceStructuredBufferSRV(const BufferRing*,
+                                                         UINT highLevelStructCount,
+                                                         UINT firstHighLevelStruct);
 
     void setPipelineLayoutAndShaders(DrawType, ShaderFeatures, pls::InterlockMode);
 

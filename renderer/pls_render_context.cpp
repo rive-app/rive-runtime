@@ -7,6 +7,7 @@
 #include "gr_inner_fan_triangulator.hpp"
 #include "intersection_board.hpp"
 #include "pls_paint.hpp"
+#include "rive/pls/pls_draw.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "rive/pls/pls_render_context_impl.hpp"
 #include "shaders/constants.glsl"
@@ -83,8 +84,7 @@ PLSRenderContext::PLSRenderContext(std::unique_ptr<PLSRenderContextImpl> impl) :
     m_impl(std::move(impl)),
     // -1 from m_maxPathID so we reserve a path record for the clearColor paint (for atomic mode).
     // This also allows us to index the storage buffers directly by pathID.
-    m_maxPathID(MaxPathID(m_impl->platformFeatures().pathIDGranularity) - 1),
-    m_currentFlushUniforms(0, 0, 0, 0, m_impl->platformFeatures())
+    m_maxPathID(MaxPathID(m_impl->platformFeatures().pathIDGranularity) - 1)
 {
     setResourceSizes(ResourceAllocationCounts(), /*forceRealloc =*/true);
     resetContainers();
@@ -94,7 +94,8 @@ PLSRenderContext::~PLSRenderContext()
 {
     // Always call flush() to avoid deadlock.
     assert(!m_didBeginFrame);
-    m_plsDraws.clear(); // Release PLSDraw refs before we delete our allocators.
+    // Delete the logical flushes before the block allocators let go of their allocations.
+    m_logicalFlushes.clear();
 }
 
 rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType type,
@@ -137,24 +138,18 @@ void PLSRenderContext::shrinkGPUResourcesToFit()
     resetContainers();
 }
 
+PLSRenderContext::LogicalFlush::LogicalFlush(PLSRenderContext* parent) : m_ctx(parent) {}
+
 void PLSRenderContext::resetContainers()
 {
     assert(!m_didBeginFrame);
 
-    m_simpleGradients.rehash(0);
-    m_simpleGradients.reserve(kDefaultSimpleGradientCapacity);
-
-    m_pendingSimpleGradientWrites.shrink_to_fit();
-    m_pendingSimpleGradientWrites.reserve(kDefaultSimpleGradientCapacity);
-
-    m_complexGradients.rehash(0);
-    m_complexGradients.reserve(kDefaultComplexGradientCapacity);
-
-    m_pendingComplexColorRampDraws.shrink_to_fit();
-    m_pendingComplexColorRampDraws.reserve(kDefaultComplexGradientCapacity);
-
-    m_plsDraws.shrink_to_fit();
-    m_plsDraws.reserve(kDefaultDrawCapacity);
+    if (!m_logicalFlushes.empty())
+    {
+        assert(m_logicalFlushes.size() == 1); // Should get reset to 1 after flush().
+        m_logicalFlushes.resize(1);
+        m_logicalFlushes.front()->resetContainers();
+    }
 
     m_indirectDrawList.clear();
     m_indirectDrawList.shrink_to_fit();
@@ -162,12 +157,64 @@ void PLSRenderContext::resetContainers()
     m_intersectionBoard = nullptr;
 }
 
+void PLSRenderContext::LogicalFlush::resetContainers()
+{
+    m_plsDraws.clear();
+    m_plsDraws.shrink_to_fit();
+    m_plsDraws.reserve(kDefaultDrawCapacity);
+
+    m_simpleGradients.rehash(0);
+    m_simpleGradients.reserve(kDefaultSimpleGradientCapacity);
+
+    m_pendingSimpleGradientWrites.clear();
+    m_pendingSimpleGradientWrites.shrink_to_fit();
+    m_pendingSimpleGradientWrites.reserve(kDefaultSimpleGradientCapacity);
+
+    m_complexGradients.rehash(0);
+    m_complexGradients.reserve(kDefaultComplexGradientCapacity);
+
+    m_pendingComplexColorRampDraws.clear();
+    m_pendingComplexColorRampDraws.shrink_to_fit();
+    m_pendingComplexColorRampDraws.reserve(kDefaultComplexGradientCapacity);
+}
+
+void PLSRenderContext::LogicalFlush::rewind()
+{
+    m_currentPathID = 0;
+    m_currentContourID = 0;
+
+    m_pathPaddingCount = 0;
+    m_paintPaddingCount = 0;
+    m_paintAuxPaddingCount = 0;
+    m_contourPaddingCount = 0;
+    m_midpointFanTessEndLocation = 0;
+    m_outerCubicTessEndLocation = 0;
+    m_outerCubicTessVertexIdx = 0;
+    m_midpointFanTessVertexIdx = 0;
+
+    // Release the block-allocated PLSDraw resources before resetting the allocators they used.
+    m_plsDraws.clear();
+    m_resourceCounts = PLSDraw::ResourceCounters();
+    m_simpleGradients.clear();
+    m_pendingSimpleGradientWrites.clear();
+    m_complexGradients.clear();
+    m_pendingComplexColorRampDraws.clear();
+    m_flushDesc = FlushDescriptor();
+    m_drawList.reset();
+    m_combinedShaderFeatures = pls::ShaderFeatures::NONE;
+
+    RIVE_DEBUG_CODE(m_hasDoneLayout = false;)
+}
+
 void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
 {
     assert(!m_didBeginFrame);
     m_frameDescriptor = std::move(frameDescriptor);
-    m_isFirstFlushOfFrame = true;
     m_impl->prepareToMapBuffers();
+    if (m_logicalFlushes.empty())
+    {
+        m_logicalFlushes.emplace_back(new LogicalFlush(this));
+    }
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
 }
 
@@ -185,7 +232,16 @@ uint32_t PLSRenderContext::generateClipID()
 
 bool PLSRenderContext::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
 {
-    if (m_frameDescriptor.enableExperimentalAtomicMode &&
+    assert(m_didBeginFrame);
+    assert(!m_logicalFlushes.empty());
+    return m_logicalFlushes.back()->pushDrawBatch(draws, drawCount);
+}
+
+bool PLSRenderContext::LogicalFlush::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
+{
+    assert(!m_hasDoneLayout);
+
+    if (m_ctx->frameDescriptor().enableExperimentalAtomicMode &&
         m_drawList.count() + drawCount > kMaxReorderedDrawCount)
     {
         // We can only reorder 64k draws at a time since the sort key addresses them with a 16-bit
@@ -193,7 +249,7 @@ bool PLSRenderContext::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
         return false;
     }
 
-    auto countsVector = m_currentFlushCounters.toVec();
+    auto countsVector = m_resourceCounts.toVec();
     for (size_t i = 0; i < drawCount; ++i)
     {
         assert(!draws[i]->pixelBounds().empty());
@@ -203,7 +259,7 @@ bool PLSRenderContext::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
 
     // Textures have hard size limits. If new batch doesn't fit in one of the textures, the caller
     // needs to flush and try again.
-    if (countsWithNewBatch.pathCount > m_maxPathID ||
+    if (countsWithNewBatch.pathCount > m_ctx->m_maxPathID ||
         countsWithNewBatch.contourCount > kMaxContourID ||
         countsWithNewBatch.midpointFanTessVertexCount +
                 countsWithNewBatch.outerCubicTessVertexCount >
@@ -227,15 +283,16 @@ bool PLSRenderContext::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
         m_plsDraws.push_back(std::move(draws[i]));
     }
 
-    m_currentFlushCounters = countsWithNewBatch;
+    m_resourceCounts = countsWithNewBatch;
     return true;
 }
 
-bool PLSRenderContext::allocateGradient(const PLSGradient* gradient,
-                                        PLSDraw::ResourceCounters* counters,
-                                        pls::ColorRampLocation* colorRampLocation)
+bool PLSRenderContext::LogicalFlush::allocateGradient(const PLSGradient* gradient,
+                                                      PLSDraw::ResourceCounters* counters,
+                                                      pls::ColorRampLocation* colorRampLocation)
 {
-    assert(m_didBeginFrame);
+    assert(!m_hasDoneLayout);
+
     const float* stops = gradient->stops();
     size_t stopCount = gradient->count();
 
@@ -299,95 +356,62 @@ bool PLSRenderContext::allocateGradient(const PLSGradient* gradient,
     return true;
 }
 
-void PLSRenderContext::flush(FlushType flushType)
+void PLSRenderContext::flush(pls::FlushType flushType)
 {
     assert(m_didBeginFrame);
-    assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
-    assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessLocationAtEndOfPath);
 
-    // Reserve a path record for the clearColor paint (used by atomic mode).
-    // This also allows us to index the storage buffers directly by pathID.
-    ++m_currentFlushCounters.pathCount;
+    ++m_flushCount;
 
-    PLSRenderContextImpl::FlushDescriptor flushDesc;
-    flushDesc.backendSpecificData = m_frameDescriptor.backendSpecificData;
-    flushDesc.renderTarget = m_frameDescriptor.renderTarget.get();
-    flushDesc.loadAction =
-        m_isFirstFlushOfFrame ? m_frameDescriptor.loadAction : LoadAction::preserveRenderTarget;
-    flushDesc.clearColor = m_frameDescriptor.clearColor;
-    flushDesc.pathCount = m_currentFlushCounters.pathCount;
-    flushDesc.firstPath = 0;
-    flushDesc.contourCount = m_currentFlushCounters.contourCount;
-    flushDesc.firstContour = 0;
-    flushDesc.complexGradSpanCount = m_currentFlushCounters.complexGradientSpanCount;
-    flushDesc.simpleGradTexelsWidth =
-        std::min<uint32_t>(m_simpleGradients.size(), pls::kGradTextureWidthInSimpleRamps) * 2;
-    flushDesc.simpleGradTexelsHeight =
-        resource_texture_height<pls::kGradTextureWidthInSimpleRamps>(m_simpleGradients.size());
-    flushDesc.simpleGradDataOffset = 0;
-    flushDesc.complexGradRowsTop = flushDesc.simpleGradTexelsHeight;
-    flushDesc.complexGradRowsHeight = m_complexGradients.size();
-    flushDesc.wireframe = m_frameDescriptor.wireframe;
-    flushDesc.interlockMode = m_frameDescriptor.enableExperimentalAtomicMode
-                                  ? pls::InterlockMode::experimentalAtomics
-                                  : pls::InterlockMode::rasterOrdered;
+    // Reset clipping state after every logical flush because the clip buffer is not preserved
+    // between render passes.
+    m_lastGeneratedClipID = 0;
+    m_clipContentID = 0;
 
-    // Layout the tessellation texture.
-    size_t totalTessVertexCountWithPadding = 0;
-    size_t midpointFanTessEndLocation = 0;
-    size_t outerCubicTessEndLocation = 0;
-    m_outerCubicTessVertexIdx = 0;
-    m_midpointFanTessVertexIdx = 0;
-    if ((m_currentFlushCounters.midpointFanTessVertexCount |
-         m_currentFlushCounters.outerCubicTessVertexCount) != 0)
+    if (flushType == pls::FlushType::logical)
     {
-        // midpointFan tessellation vertices reside at the beginning of the tessellation texture,
-        // after 1 patch of padding vertices.
-        m_midpointFanTessVertexIdx = pls::kMidpointFanPatchSegmentSpan;
-        midpointFanTessEndLocation =
-            m_midpointFanTessVertexIdx + (m_currentFlushCounters.midpointFanTessVertexCount);
-
-        // outerCubic tessellation vertices reside after the midpointFan vertices, aligned on a
-        // multiple of the outerCubic patch size.
-        m_outerCubicTessVertexIdx =
-            midpointFanTessEndLocation +
-            PaddingToAlignUp<pls::kOuterCurvePatchSegmentSpan>(midpointFanTessEndLocation);
-        outerCubicTessEndLocation =
-            m_outerCubicTessVertexIdx + m_currentFlushCounters.outerCubicTessVertexCount;
-
-        // We need one more padding vertex after all the tessellation vertices.
-        totalTessVertexCountWithPadding = outerCubicTessEndLocation + 1;
-        assert(totalTessVertexCountWithPadding <= kMaxTessellationVertexCount);
+        // Don't issue any GPU commands between logical flushes. Instead, build up a list of flushes
+        // that we will submit all at once at the end of the frame.
+        m_logicalFlushes.emplace_back(new LogicalFlush(this));
+        return;
     }
-    flushDesc.tessDataHeight =
-        resource_texture_height<kTessTextureWidth>(totalTessVertexCountWithPadding);
+
+    // Layout this frame's resource buffers and textures.
+    LogicalFlush::ResourceCounters totalFrameResourceCounts;
+    LogicalFlush::LayoutCounters layoutCounts;
+    for (size_t i = 0; i < m_logicalFlushes.size(); ++i)
+    {
+        m_logicalFlushes[i]->layoutResources(
+            m_frameDescriptor,
+            i,
+            i + 1 == m_logicalFlushes.size() ? pls::FlushType::endOfFrame : pls::FlushType::logical,
+            &totalFrameResourceCounts,
+            &layoutCounts);
+    }
+    assert(layoutCounts.maxGradTextureHeight <= kMaxTextureHeight);
+    assert(layoutCounts.maxTessTextureHeight <= kMaxTextureHeight);
 
     // Determine the minimum required resource allocation sizes to service this flush.
     ResourceAllocationCounts allocs;
-    allocs.pathBufferCount = m_currentFlushCounters.pathCount;
-    allocs.contourBufferCount = m_currentFlushCounters.contourCount;
-    allocs.simpleGradientBufferCount = m_simpleGradients.size();
-    allocs.complexGradSpanBufferCount = m_currentFlushCounters.complexGradientSpanCount;
-    if (m_currentFlushCounters.tessellatedSegmentCount != 0)
-    {
-        // Conservatively account for line breaks and padding in the tessellation span count.
-        // Line breaks potentially introduce a new span. Count the maximum number of line breaks we
-        // might encounter, which is at most one for every line in the tessellation texture,
-        // excluding the bottom line.
-        size_t maxSpanBreakCount = flushDesc.tessDataHeight - 1;
-        // The tessellation texture requires 3 separate spans of padding vertices (see above and
-        // below).
-        constexpr size_t kPaddingSpanCount = 3;
-        allocs.tessSpanBufferCount =
-            m_currentFlushCounters.tessellatedSegmentCount + maxSpanBreakCount + kPaddingSpanCount;
-    }
-    allocs.triangleVertexBufferCount = m_currentFlushCounters.maxTriangleVertexCount;
-    allocs.imageDrawUniformBufferCount = m_currentFlushCounters.imageDrawCount;
-    allocs.gradTextureHeight = flushDesc.simpleGradTexelsHeight + flushDesc.complexGradRowsHeight;
-    allocs.tessTextureHeight = flushDesc.tessDataHeight;
+    allocs.flushUniformBufferCount = m_logicalFlushes.size();
+    allocs.imageDrawUniformBufferCount = totalFrameResourceCounts.imageDrawCount;
+    allocs.pathBufferCount = totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount;
+    allocs.paintBufferCount = totalFrameResourceCounts.pathCount + layoutCounts.paintPaddingCount;
+    allocs.paintAuxBufferCount =
+        totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount;
+    allocs.contourBufferCount =
+        totalFrameResourceCounts.contourCount + layoutCounts.contourPaddingCount;
+    // The gradient texture needs to be updated in entire rows at a time. Extend its
+    // texture-transfer buffer's length in order to be able to serve a worst-case scenario.
+    allocs.simpleGradientBufferCount =
+        layoutCounts.simpleGradCount + pls::kGradTextureWidthInSimpleRamps - 1;
+    allocs.complexGradSpanBufferCount = totalFrameResourceCounts.complexGradientSpanCount;
+    allocs.tessSpanBufferCount = totalFrameResourceCounts.maxTessellatedSegmentCount;
+    allocs.triangleVertexBufferCount = totalFrameResourceCounts.maxTriangleVertexCount;
+    allocs.gradTextureHeight = layoutCounts.maxGradTextureHeight;
+    allocs.tessTextureHeight = layoutCounts.maxTessTextureHeight;
 
-    // Update m_maxRecentResourceRequirements before selecting the final resource sizes we will set.
-    // This will prevent the next shrinkGPUResourcesToFit() from shrinking smaller than "allocs".
+    // Track m_maxRecentResourceRequirements so shrinkGPUResourcesToFit() can select decent sizes
+    // the next time it's called.
     m_maxRecentResourceRequirements =
         simd::max(allocs.toVec(), m_maxRecentResourceRequirements.toVec());
 
@@ -397,36 +421,196 @@ void PLSRenderContext::flush(FlushType flushType)
                                         m_currentResourceAllocations.toVec(),
                                         allocs.toVec() * size_t(5) / size_t(4)));
 
-    // Layout the gradient texture after the final texture height has been decided.
-    m_currentGradTextureLayout.complexOffsetY = flushDesc.complexGradRowsTop;
-    m_currentGradTextureLayout.inverseHeight = 1.f / m_currentResourceAllocations.gradTextureHeight;
+    // Write out the GPU buffers for this frame.
+    mapResourceBuffers(allocs);
 
-    // Update the flush uniform buffer if needed.
-    FlushUniforms uniformData(m_complexGradients.size(),
-                              flushDesc.tessDataHeight,
-                              m_frameDescriptor.renderTarget->width(),
-                              m_frameDescriptor.renderTarget->height(),
-                              m_impl->platformFeatures());
-    if (m_currentFlushUniforms != uniformData)
+    for (const auto& flush : m_logicalFlushes)
     {
-        WriteOnlyMappedMemory<pls::FlushUniforms> flushUniformData;
-        flushUniformData.mapElements(m_impl.get(), &PLSRenderContextImpl::mapFlushUniformBuffer, 1);
-        flushUniformData.emplace_back(uniformData);
-        m_impl->unmapFlushUniformBuffer();
-        m_currentFlushUniforms = uniformData;
+        flush->writeResources();
     }
 
-    mapResourceBuffers(allocs);
+    assert(m_flushUniformData.elementsWritten() == m_logicalFlushes.size());
+    assert(m_imageDrawUniformData.elementsWritten() == totalFrameResourceCounts.imageDrawCount);
+    assert(m_pathData.elementsWritten() ==
+           totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount);
+    assert(m_paintData.elementsWritten() ==
+           totalFrameResourceCounts.pathCount + layoutCounts.paintPaddingCount);
+    assert(m_paintAuxData.elementsWritten() ==
+           totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount);
+    assert(m_contourData.elementsWritten() ==
+           totalFrameResourceCounts.contourCount + layoutCounts.contourPaddingCount);
+    assert(m_simpleColorRampsData.elementsWritten() == layoutCounts.simpleGradCount);
+    assert(m_gradSpanData.elementsWritten() == totalFrameResourceCounts.complexGradientSpanCount);
+    assert(m_tessSpanData.elementsWritten() <= totalFrameResourceCounts.maxTessellatedSegmentCount);
+    assert(m_triangleVertexData.elementsWritten() <=
+           totalFrameResourceCounts.maxTriangleVertexCount);
+
+    unmapResourceBuffers();
+
+    // Issue logical flushes to the backend.
+    for (const auto& flush : m_logicalFlushes)
+    {
+        m_impl->flush(flush->desc());
+    }
+
+    if (!m_logicalFlushes.empty())
+    {
+        m_logicalFlushes.resize(1);
+        m_logicalFlushes.front()->rewind();
+    }
+
+    // Drop all memory that was allocated for this frame using TrivialBlockAllocator.
+    assert(flushType == FlushType::endOfFrame);
+    m_perFrameAllocator.reset();
+    m_numChopsAllocator.reset();
+    m_chopVerticesAllocator.reset();
+    m_tangentPairsAllocator.reset();
+    m_polarSegmentCountsAllocator.reset();
+    m_parametricSegmentCountsAllocator.reset();
+
+    m_frameDescriptor = FrameDescriptor();
+    RIVE_DEBUG_CODE(m_didBeginFrame = false;)
+}
+
+void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& frameDescriptor,
+                                                     size_t flushIdx,
+                                                     pls::FlushType flushType,
+                                                     ResourceCounters* runningFrameResourceCounts,
+                                                     LayoutCounters* runningFrameLayoutCounts)
+{
+    assert(!m_hasDoneLayout);
+
+    // Reserve a path record for the clearColor paint (used by atomic mode).
+    // This also allows us to index the storage buffers directly by pathID.
+    ++m_resourceCounts.pathCount;
+
+    // Storage buffer offsets are required to be aligned on multiples of 256, so add padding
+    // elements to our storage buffers.
+    m_pathPaddingCount =
+        pls::PaddingToAlignUp<pls::kPathBufferAlignmentInElements>(m_resourceCounts.pathCount);
+    m_paintPaddingCount =
+        pls::PaddingToAlignUp<pls::kPaintBufferAlignmentInElements>(m_resourceCounts.pathCount);
+    m_paintAuxPaddingCount =
+        pls::PaddingToAlignUp<pls::kPaintAuxBufferAlignmentInElements>(m_resourceCounts.pathCount);
+    m_contourPaddingCount = pls::PaddingToAlignUp<pls::kContourBufferAlignmentInElements>(
+        m_resourceCounts.contourCount);
+
+    size_t totalTessVertexCountWithPadding = 0;
+    if ((m_resourceCounts.midpointFanTessVertexCount |
+         m_resourceCounts.outerCubicTessVertexCount) != 0)
+    {
+        // midpointFan tessellation vertices reside at the beginning of the tessellation texture,
+        // after 1 patch of padding vertices.
+        constexpr uint32_t padding = pls::kMidpointFanPatchSegmentSpan;
+        m_midpointFanTessVertexIdx = padding;
+        m_midpointFanTessEndLocation =
+            m_midpointFanTessVertexIdx + m_resourceCounts.midpointFanTessVertexCount;
+
+        // outerCubic tessellation vertices reside after the midpointFan vertices, aligned on a
+        // multiple of the outerCubic patch size.
+        m_outerCubicTessVertexIdx =
+            m_midpointFanTessEndLocation +
+            PaddingToAlignUp<pls::kOuterCurvePatchSegmentSpan>(m_midpointFanTessEndLocation);
+        m_outerCubicTessEndLocation =
+            m_outerCubicTessVertexIdx + m_resourceCounts.outerCubicTessVertexCount;
+
+        // We need one more padding vertex after all the tessellation vertices.
+        totalTessVertexCountWithPadding = m_outerCubicTessEndLocation + 1;
+        assert(totalTessVertexCountWithPadding <= kMaxTessellationVertexCount);
+    }
+
+    uint32_t tessDataHeight =
+        resource_texture_height<kTessTextureWidth>(totalTessVertexCountWithPadding);
+    if (m_resourceCounts.maxTessellatedSegmentCount != 0)
+    {
+        // Conservatively account for line breaks and padding in the tessellation span count.
+        // Line breaks potentially introduce a new span. Count the maximum number of line breaks we
+        // might encounter, which is at most one for every line in the tessellation texture,
+        // excluding the bottom line.
+        size_t maxSpanBreakCount = tessDataHeight - 1;
+        // The tessellation texture requires 3 separate spans of padding vertices (see above and
+        // below).
+        constexpr size_t kPaddingSpanCount = 3;
+        m_resourceCounts.maxTessellatedSegmentCount += maxSpanBreakCount + kPaddingSpanCount;
+    }
+
+    m_flushDesc.flushType = flushType;
+    m_flushDesc.renderTarget = frameDescriptor.renderTarget.get();
+    m_flushDesc.loadAction =
+        flushIdx == 0 ? frameDescriptor.loadAction : LoadAction::preserveRenderTarget;
+    m_flushDesc.clearColor = frameDescriptor.clearColor;
+    m_flushDesc.interlockMode = frameDescriptor.enableExperimentalAtomicMode
+                                    ? pls::InterlockMode::experimentalAtomics
+                                    : pls::InterlockMode::rasterOrdered;
+
+    m_flushDesc.flushUniformDataOffsetInBytes = flushIdx * sizeof(pls::FlushUniforms);
+    m_flushDesc.pathCount = m_resourceCounts.pathCount;
+    m_flushDesc.pathCount = m_resourceCounts.pathCount;
+    m_flushDesc.firstPath =
+        runningFrameResourceCounts->pathCount + runningFrameLayoutCounts->pathPaddingCount;
+    m_flushDesc.firstPaint =
+        runningFrameResourceCounts->pathCount + runningFrameLayoutCounts->paintPaddingCount;
+    m_flushDesc.firstPaintAux =
+        runningFrameResourceCounts->pathCount + runningFrameLayoutCounts->paintAuxPaddingCount;
+    m_flushDesc.contourCount = m_resourceCounts.contourCount;
+    m_flushDesc.firstContour =
+        runningFrameResourceCounts->contourCount + runningFrameLayoutCounts->contourPaddingCount;
+    m_flushDesc.complexGradSpanCount = m_resourceCounts.complexGradientSpanCount;
+    m_flushDesc.firstComplexGradSpan = runningFrameResourceCounts->complexGradientSpanCount;
+    m_flushDesc.simpleGradTexelsWidth =
+        std::min<uint32_t>(m_simpleGradients.size(), pls::kGradTextureWidthInSimpleRamps) * 2;
+    m_flushDesc.simpleGradTexelsHeight =
+        resource_texture_height<pls::kGradTextureWidthInSimpleRamps>(m_simpleGradients.size());
+    m_flushDesc.simpleGradDataOffsetInBytes =
+        runningFrameLayoutCounts->simpleGradCount * sizeof(pls::TwoTexelRamp);
+    m_flushDesc.complexGradRowsTop = m_flushDesc.simpleGradTexelsHeight;
+    m_flushDesc.complexGradRowsHeight = m_complexGradients.size();
+    m_flushDesc.tessDataHeight = tessDataHeight;
+
+    m_flushDesc.wireframe = frameDescriptor.wireframe;
+    m_flushDesc.backendSpecificData = frameDescriptor.backendSpecificData;
+
+    *runningFrameResourceCounts = runningFrameResourceCounts->toVec() + m_resourceCounts.toVec();
+    runningFrameLayoutCounts->pathPaddingCount += m_pathPaddingCount;
+    runningFrameLayoutCounts->paintPaddingCount += m_paintPaddingCount;
+    runningFrameLayoutCounts->paintAuxPaddingCount += m_paintAuxPaddingCount;
+    runningFrameLayoutCounts->contourPaddingCount += m_contourPaddingCount;
+    runningFrameLayoutCounts->simpleGradCount += m_simpleGradients.size();
+    runningFrameLayoutCounts->maxGradTextureHeight =
+        std::max(m_flushDesc.simpleGradTexelsHeight + m_flushDesc.complexGradRowsHeight,
+                 runningFrameLayoutCounts->maxGradTextureHeight);
+    runningFrameLayoutCounts->maxTessTextureHeight =
+        std::max(m_flushDesc.tessDataHeight, runningFrameLayoutCounts->maxTessTextureHeight);
+
+    RIVE_DEBUG_CODE(m_hasDoneLayout = true;)
+}
+
+void PLSRenderContext::LogicalFlush::writeResources()
+{
+    assert(m_hasDoneLayout);
+
+    // Wait until here to layout the gradient texture because the final gradient texture height is
+    // not decided until after all LogicalFlushes have run layoutResources().
+    m_gradTextureLayout.inverseHeight = 1.f / m_ctx->m_currentResourceAllocations.gradTextureHeight;
+    m_gradTextureLayout.complexOffsetY = m_flushDesc.complexGradRowsTop;
+
+    // Exact tessSpan/triangleVertex counts aren't known until after their data is written out.
+    m_flushDesc.firstTessVertexSpan = m_ctx->m_tessSpanData.elementsWritten();
+    size_t initialTriangleVertexDataSize = m_ctx->m_triangleVertexData.bytesWritten();
+
+    m_ctx->m_flushUniformData.emplace_back(m_complexGradients.size(),
+                                           m_flushDesc.tessDataHeight,
+                                           m_ctx->frameDescriptor().renderTarget->width(),
+                                           m_ctx->frameDescriptor().renderTarget->height(),
+                                           m_ctx->impl()->platformFeatures());
 
     // Write out the simple gradient data.
     assert(m_simpleGradients.size() == m_pendingSimpleGradientWrites.size());
     if (!m_pendingSimpleGradientWrites.empty())
     {
-        m_simpleColorRampsData.push_back_n(m_pendingSimpleGradientWrites.data(),
-                                           m_pendingSimpleGradientWrites.size());
+        m_ctx->m_simpleColorRampsData.push_back_n(m_pendingSimpleGradientWrites.data(),
+                                                  m_pendingSimpleGradientWrites.size());
     }
-    m_pendingSimpleGradientWrites.clear();
-    assert(m_simpleColorRampsData.elementsWritten() == m_simpleGradients.size());
 
     // Write out the vertex data for rendering complex gradients.
     assert(m_complexGradients.size() == m_pendingComplexColorRampDraws.size());
@@ -453,59 +637,58 @@ void PLSRenderContext::flush(FlushType flushType)
                 float x = stops[i] * w + .5f;
                 uint32_t xFixed = static_cast<uint32_t>(x * (65536.f / kGradTextureWidth));
                 assert(lastXFixed <= xFixed && xFixed < 65536);
-                m_gradSpanData.set_back(lastXFixed, xFixed, y, lastColor, colors[i]);
+                m_ctx->m_gradSpanData.set_back(lastXFixed, xFixed, y, lastColor, colors[i]);
                 lastColor = colors[i];
                 lastXFixed = xFixed;
             }
-            m_gradSpanData.set_back(lastXFixed, 65535u, y, lastColor, lastColor);
+            m_ctx->m_gradSpanData.set_back(lastXFixed, 65535u, y, lastColor, lastColor);
         }
-    }
-    m_pendingComplexColorRampDraws.clear();
-    assert(m_gradSpanData.elementsWritten() == m_currentFlushCounters.complexGradientSpanCount);
-
-    // Write out the vertex data for rendering padding vertices in the tessellation texture.
-    if (flushDesc.tessDataHeight > 0)
-    {
-        // Padding at the beginning of the tessellation texture.
-        pushPaddingVertices(0, pls::kMidpointFanPatchSegmentSpan);
-        // Padding between patch types in the tessellation texture.
-        pushPaddingVertices(midpointFanTessEndLocation,
-                            m_outerCubicTessVertexIdx - midpointFanTessEndLocation);
-        // The final vertex of the final patch of each contour crosses over into the next contour.
-        // (This is how we wrap around back to the beginning.) Therefore, the final contour of the
-        // flush needs an out-of-contour vertex to cross into as well, so we emit a padding vertex
-        // here at the end.
-        pushPaddingVertices(outerCubicTessEndLocation, 1);
     }
 
     // Write a path record for the clearColor paint (used by atomic mode).
     // This also allows us to index the storage buffers directly by pathID.
     pls::SimplePaintValue clearColorValue;
-    clearColorValue.color = m_frameDescriptor.clearColor;
-    m_pathData.skip_back();
-    m_paintData.set_back(FillRule::nonZero,
-                         PaintType::solidColor,
-                         clearColorValue,
-                         m_currentGradTextureLayout,
-                         /*clipID =*/0,
-                         /*hasClipRect =*/false,
-                         BlendMode::srcOver);
-    m_paintAuxData.skip_back();
+    clearColorValue.color = m_ctx->frameDescriptor().clearColor;
+    m_ctx->m_pathData.skip_back();
+    m_ctx->m_paintData.set_back(FillRule::nonZero,
+                                PaintType::solidColor,
+                                clearColorValue,
+                                GradTextureLayout(),
+                                /*clipID =*/0,
+                                /*hasClipRect =*/false,
+                                BlendMode::srcOver);
+    m_ctx->m_paintAuxData.skip_back();
 
-    if (m_frameDescriptor.enableExperimentalAtomicMode)
+    // Render padding vertices in the tessellation texture.
+    if (m_flushDesc.tessDataHeight > 0)
     {
-        assert(m_drawList.count() <= kMaxReorderedDrawCount);
+        // Padding at the beginning of the tessellation texture.
+        pushPaddingVertices(0, pls::kMidpointFanPatchSegmentSpan);
+        // Padding between patch types in the tessellation texture.
+        pushPaddingVertices(m_midpointFanTessEndLocation,
+                            m_outerCubicTessVertexIdx - m_midpointFanTessEndLocation);
+        // The final vertex of the final patch of each contour crosses over into the next contour.
+        // (This is how we wrap around back to the beginning.) Therefore, the final contour of the
+        // flush needs an out-of-contour vertex to cross into as well, so we emit a padding vertex
+        // here at the end.
+        pushPaddingVertices(m_outerCubicTessEndLocation, 1);
+    }
+
+    if (m_ctx->frameDescriptor().enableExperimentalAtomicMode)
+    {
+        assert(m_plsDraws.size() <= kMaxReorderedDrawCount);
 
         // Sort the draw list to optimize batching, since we can only batch non-overlapping draws.
-        m_indirectDrawList.clear();
-        m_indirectDrawList.reserve(m_plsDraws.size());
+        std::vector<uint64_t>& indirectDrawList = m_ctx->m_indirectDrawList;
+        indirectDrawList.resize(m_plsDraws.size());
 
-        if (m_intersectionBoard == nullptr)
+        if (m_ctx->m_intersectionBoard == nullptr)
         {
-            m_intersectionBoard = std::make_unique<IntersectionBoard>();
+            m_ctx->m_intersectionBoard = std::make_unique<IntersectionBoard>();
         }
-        m_intersectionBoard->resizeAndReset(m_frameDescriptor.renderTarget->width(),
-                                            m_frameDescriptor.renderTarget->height());
+        IntersectionBoard* intersectionBoard = m_ctx->m_intersectionBoard.get();
+        intersectionBoard->resizeAndReset(m_ctx->frameDescriptor().renderTarget->width(),
+                                          m_ctx->frameDescriptor().renderTarget->height());
 
         // Build a list of sort keys that determine the final draw order.
         for (size_t i = 0; i < m_plsDraws.size(); ++i)
@@ -519,7 +702,7 @@ void PLSRenderContext::flush(FlushType flushType)
 
             // Our top priority in re-ordering is to group non-overlapping draws together, in order
             // to maximize batching while preserving correctness.
-            uint16_t drawGroupIdx = m_intersectionBoard->addRectangle(drawBounds);
+            uint16_t drawGroupIdx = intersectionBoard->addRectangle(drawBounds);
             assert(drawGroupIdx != 0);
             uint64_t key = uint64_t(drawGroupIdx) << 48;
 
@@ -537,17 +720,17 @@ void PLSRenderContext::flush(FlushType flushType)
             assert(i < (1 << 16));
             key |= i;
 
-            m_indirectDrawList.push_back(key);
+            indirectDrawList[i] = key;
         }
 
         // Re-order the draws!!
-        std::sort(m_indirectDrawList.begin(), m_indirectDrawList.end());
+        std::sort(indirectDrawList.begin(), indirectDrawList.end());
 
         // Write out the draw data from the sorted draw list, and build up a condensed/batched list
         // of low-level draws.
-        uint16_t priorDrawGroupIdx = !m_indirectDrawList.empty() ? m_indirectDrawList[0] >> 48 : 1;
+        uint16_t priorDrawGroupIdx = !indirectDrawList.empty() ? indirectDrawList[0] >> 48 : 1;
         assert(priorDrawGroupIdx == 1);
-        for (uint64_t key : m_indirectDrawList)
+        for (uint64_t key : indirectDrawList)
         {
             uint16_t drawGroupIdx = key >> 48;
             if (drawGroupIdx != priorDrawGroupIdx)
@@ -561,6 +744,11 @@ void PLSRenderContext::flush(FlushType flushType)
             m_plsDraws[drawIndex]->pushToRenderContext(this);
         }
         pushBarrier();
+
+        // Atomic mode needs one more draw to resolve all the pixels.
+        m_drawList.emplace_back(m_ctx->perFrameAllocator(), DrawType::plsAtomicResolve, 0);
+        m_drawList.tail().elementCount = 1;
+        m_drawList.tail().shaderFeatures = m_combinedShaderFeatures;
     }
     else
     {
@@ -571,80 +759,25 @@ void PLSRenderContext::flush(FlushType flushType)
         }
     }
 
-    assert(m_pathData.elementsWritten() == m_currentFlushCounters.pathCount);
-    assert(m_paintData.elementsWritten() == m_currentFlushCounters.pathCount);
-    assert(m_paintAuxData.elementsWritten() == m_currentFlushCounters.pathCount);
-    assert(m_contourData.elementsWritten() == m_currentFlushCounters.contourCount);
-    assert(m_tessSpanData.elementsWritten() <= totalTessVertexCountWithPadding);
-    assert(m_imageDrawUniformData.elementsWritten() == m_currentFlushCounters.imageDrawCount);
-    assert(m_midpointFanTessVertexIdx == midpointFanTessEndLocation);
-    assert(m_outerCubicTessVertexIdx == outerCubicTessEndLocation);
+    // Pad our storage buffers to 256-byte alignment.
+    m_ctx->m_pathData.push_back_n(nullptr, m_pathPaddingCount);
+    m_ctx->m_paintData.push_back_n(nullptr, m_paintPaddingCount);
+    m_ctx->m_paintAuxData.push_back_n(nullptr, m_paintAuxPaddingCount);
+    m_ctx->m_contourData.push_back_n(nullptr, m_contourPaddingCount);
 
-    flushDesc.tessVertexSpanCount = m_tessSpanData.elementsWritten();
-    flushDesc.hasTriangleVertices = m_triangleVertexData.bytesWritten() != 0;
+    assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
+    assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessLocationAtEndOfPath);
+    assert(m_midpointFanTessVertexIdx == m_midpointFanTessEndLocation);
+    assert(m_outerCubicTessVertexIdx == m_outerCubicTessEndLocation);
 
-    for (const Draw& draw : m_drawList)
-    {
-        flushDesc.needsClipBuffer =
-            flushDesc.needsClipBuffer || (draw.shaderFeatures & ShaderFeatures::ENABLE_CLIPPING);
-        flushDesc.combinedShaderFeatures |= draw.shaderFeatures;
-    }
+    // Update the flush descriptor's data counts that aren't known until it's written out.
+    m_flushDesc.tessVertexSpanCount =
+        m_ctx->m_tessSpanData.elementsWritten() - m_flushDesc.firstTessVertexSpan;
+    m_flushDesc.hasTriangleVertices =
+        m_ctx->m_triangleVertexData.bytesWritten() != initialTriangleVertexDataSize;
 
-    if (m_frameDescriptor.enableExperimentalAtomicMode)
-    {
-        // Atomic mode needs one more draw to resolve all the pixels.
-        Draw& draw = m_drawList.emplace_back(this, DrawType::plsAtomicResolve, 0);
-        draw.elementCount = 1;
-        draw.shaderFeatures = flushDesc.combinedShaderFeatures;
-    }
-
-    flushDesc.drawList = &m_drawList;
-
-    unmapResourceBuffers();
-
-    m_impl->flush(flushDesc);
-
-    m_lastGeneratedClipID = 0;
-    m_clipContentID = 0;
-
-    m_currentFlushCounters = PLSDraw::ResourceCounters();
-    m_simpleGradients.clear();
-    m_complexGradients.clear();
-
-    m_currentPathID = 0;
-    m_currentContourID = 0;
-
-    m_isFirstFlushOfFrame = false;
-
-    m_drawList.reset();
-
-    // Release the block-allocated PLSDraw resources before resetting the allocators they used.
-    m_plsDraws.clear();
-
-    if (flushType == FlushType::intermediate)
-    {
-        // The frame isn't complete yet. The caller will begin preparing a new flush immediately
-        // after this method returns, so lock buffers for the next flush now.
-        m_impl->prepareToMapBuffers();
-    }
-    else
-    {
-        // Delete all objects that were allocted for this frame using TrivialBlockAllocator.
-        // Keep them alive between intermediate flushes since this data is designed to persist for
-        // an entire frame.
-        assert(flushType == FlushType::endOfFrame);
-        m_perFrameAllocator.reset();
-        m_numChopsAllocator.reset();
-        m_chopVerticesAllocator.reset();
-        m_tangentPairsAllocator.reset();
-        m_polarSegmentCountsAllocator.reset();
-        m_parametricSegmentCountsAllocator.reset();
-
-        m_frameDescriptor = FrameDescriptor();
-        RIVE_DEBUG_CODE(m_didBeginFrame = false;)
-    }
-
-    ++m_flushCount;
+    m_flushDesc.drawList = &m_drawList;
+    m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
 }
 
 void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool forceRealloc)
@@ -700,16 +833,42 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool fo
 #define LOG_TEXTURE_HEIGHT(NAME, BYTES_PER_ROW)
 #endif
 
-    LOG_BUFFER_RING_SIZE(pathBufferCount,
-                         sizeof(pls::PathData) + sizeof(pls::PaintData) +
-                             sizeof(pls::PaintAuxData));
+    LOG_BUFFER_RING_SIZE(flushUniformBufferCount, sizeof(pls::FlushUniforms));
+    if (allocs.flushUniformBufferCount != m_currentResourceAllocations.flushUniformBufferCount ||
+        forceRealloc)
+    {
+        m_impl->resizeFlushUniformBuffer(allocs.flushUniformBufferCount *
+                                         sizeof(pls::FlushUniforms));
+    }
+
+    LOG_BUFFER_RING_SIZE(imageDrawUniformBufferCount, sizeof(pls::ImageDrawUniforms));
+    if (allocs.imageDrawUniformBufferCount !=
+            m_currentResourceAllocations.imageDrawUniformBufferCount ||
+        forceRealloc)
+    {
+        m_impl->resizeImageDrawUniformBuffer(allocs.imageDrawUniformBufferCount *
+                                             sizeof(pls::ImageDrawUniforms));
+    }
+
+    LOG_BUFFER_RING_SIZE(pathBufferCount, sizeof(pls::PathData));
     if (allocs.pathBufferCount != m_currentResourceAllocations.pathBufferCount || forceRealloc)
     {
         m_impl->resizePathBuffer(allocs.pathBufferCount * sizeof(pls::PathData),
                                  pls::PathData::kBufferStructure);
-        m_impl->resizePaintBuffer(allocs.pathBufferCount * sizeof(pls::PaintData),
+    }
+
+    LOG_BUFFER_RING_SIZE(paintBufferCount, sizeof(pls::PaintData));
+    if (allocs.paintBufferCount != m_currentResourceAllocations.paintBufferCount || forceRealloc)
+    {
+        m_impl->resizePaintBuffer(allocs.paintBufferCount * sizeof(pls::PaintData),
                                   pls::PaintData::kBufferStructure);
-        m_impl->resizePaintAuxBuffer(allocs.pathBufferCount * sizeof(pls::PaintAuxData),
+    }
+
+    LOG_BUFFER_RING_SIZE(paintAuxBufferCount, sizeof(pls::PaintAuxData));
+    if (allocs.paintAuxBufferCount != m_currentResourceAllocations.paintAuxBufferCount ||
+        forceRealloc)
+    {
+        m_impl->resizePaintAuxBuffer(allocs.paintAuxBufferCount * sizeof(pls::PaintAuxData),
                                      pls::PaintAuxData::kBufferStructure);
     }
 
@@ -746,15 +905,6 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool fo
                                            sizeof(pls::TessVertexSpan));
     }
 
-    LOG_BUFFER_RING_SIZE(imageDrawUniformBufferCount, sizeof(pls::ImageDrawUniforms));
-    if (allocs.imageDrawUniformBufferCount !=
-            m_currentResourceAllocations.imageDrawUniformBufferCount ||
-        forceRealloc)
-    {
-        m_impl->resizeImageDrawUniformBuffer(allocs.imageDrawUniformBufferCount *
-                                             sizeof(pls::ImageDrawUniforms));
-    }
-
     LOG_BUFFER_RING_SIZE(triangleVertexBufferCount, sizeof(pls::TriangleVertex));
     if (allocs.triangleVertexBufferCount !=
             m_currentResourceAllocations.triangleVertexBufferCount ||
@@ -783,21 +933,45 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool fo
 
 void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCounts)
 {
+    if (mapCounts.flushUniformBufferCount > 0)
+    {
+        m_flushUniformData.mapElements(m_impl.get(),
+                                       &PLSRenderContextImpl::mapFlushUniformBuffer,
+                                       mapCounts.flushUniformBufferCount);
+    }
+    assert(m_flushUniformData.hasRoomFor(mapCounts.flushUniformBufferCount));
+
+    if (mapCounts.imageDrawUniformBufferCount > 0)
+    {
+        m_imageDrawUniformData.mapElements(m_impl.get(),
+                                           &PLSRenderContextImpl::mapImageDrawUniformBuffer,
+                                           mapCounts.imageDrawUniformBufferCount);
+    }
+    assert(m_imageDrawUniformData.hasRoomFor(mapCounts.imageDrawUniformBufferCount > 0));
+
     if (mapCounts.pathBufferCount > 0)
     {
         m_pathData.mapElements(m_impl.get(),
                                &PLSRenderContextImpl::mapPathBuffer,
                                mapCounts.pathBufferCount);
-        m_paintData.mapElements(m_impl.get(),
-                                &PLSRenderContextImpl::mapPaintBuffer,
-                                mapCounts.pathBufferCount);
-        m_paintAuxData.mapElements(m_impl.get(),
-                                   &PLSRenderContextImpl::mapPaintAuxBuffer,
-                                   mapCounts.pathBufferCount);
     }
     assert(m_pathData.hasRoomFor(mapCounts.pathBufferCount));
-    assert(m_paintData.hasRoomFor(mapCounts.pathBufferCount));
-    assert(m_paintAuxData.hasRoomFor(mapCounts.pathBufferCount));
+
+    if (mapCounts.paintBufferCount > 0)
+    {
+        m_paintData.mapElements(m_impl.get(),
+                                &PLSRenderContextImpl::mapPaintBuffer,
+                                mapCounts.paintBufferCount);
+    }
+    assert(m_paintData.hasRoomFor(mapCounts.paintBufferCount));
+
+    if (mapCounts.paintAuxBufferCount > 0)
+    {
+        m_paintAuxData.mapElements(m_impl.get(),
+                                   &PLSRenderContextImpl::mapPaintAuxBuffer,
+                                   mapCounts.paintAuxBufferCount);
+    }
+    assert(m_paintAuxData.hasRoomFor(mapCounts.paintAuxBufferCount));
 
     if (mapCounts.contourBufferCount > 0)
     {
@@ -831,14 +1005,6 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     }
     assert(m_tessSpanData.hasRoomFor(mapCounts.tessSpanBufferCount));
 
-    if (mapCounts.imageDrawUniformBufferCount > 0)
-    {
-        m_imageDrawUniformData.mapElements(m_impl.get(),
-                                           &PLSRenderContextImpl::mapImageDrawUniformBuffer,
-                                           mapCounts.imageDrawUniformBufferCount);
-    }
-    assert(m_imageDrawUniformData.hasRoomFor(mapCounts.imageDrawUniformBufferCount > 0));
-
     if (mapCounts.triangleVertexBufferCount > 0)
     {
         m_triangleVertexData.mapElements(m_impl.get(),
@@ -850,6 +1016,16 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
 
 void PLSRenderContext::unmapResourceBuffers()
 {
+    if (m_flushUniformData)
+    {
+        m_impl->unmapFlushUniformBuffer();
+        m_flushUniformData.reset();
+    }
+    if (m_imageDrawUniformData)
+    {
+        m_impl->unmapImageDrawUniformBuffer();
+        m_imageDrawUniformData.reset();
+    }
     if (m_pathData)
     {
         m_impl->unmapPathBuffer();
@@ -890,15 +1066,12 @@ void PLSRenderContext::unmapResourceBuffers()
         m_impl->unmapTriangleVertexBuffer();
         m_triangleVertexData.reset();
     }
-    if (m_imageDrawUniformData)
-    {
-        m_impl->unmapImageDrawUniformBuffer();
-        m_imageDrawUniformData.reset();
-    }
 }
 
-void PLSRenderContext::pushPaddingVertices(uint32_t tessLocation, uint32_t count)
+void PLSRenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation, uint32_t count)
 {
+    assert(m_hasDoneLayout);
+
     constexpr static Vec2D kEmptyCubic[4]{};
     // This is guaranteed to not collide with a neighboring contour ID.
     constexpr static uint32_t kInvalidContourID = 0;
@@ -911,83 +1084,70 @@ void PLSRenderContext::pushPaddingVertices(uint32_t tessLocation, uint32_t count
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
 }
 
-void PLSRenderContext::pushPath(PatchType patchType,
-                                const Mat2D& matrix,
-                                float strokeRadius,
-                                FillRule fillRule,
-                                PaintType paintType,
-                                pls::SimplePaintValue simplePaintValue,
-                                const PLSGradient* gradient,
-                                const PLSTexture* imageTexture,
-                                uint32_t clipID,
-                                const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-                                BlendMode blendMode,
-                                uint32_t tessVertexCount)
+void PLSRenderContext::LogicalFlush::pushPath(
+    PatchType patchType,
+    const Mat2D& matrix,
+    float strokeRadius,
+    FillRule fillRule,
+    PaintType paintType,
+    pls::SimplePaintValue simplePaintValue,
+    const PLSGradient* gradient,
+    const PLSTexture* imageTexture,
+    uint32_t clipID,
+    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
+    BlendMode blendMode,
+    uint32_t tessVertexCount)
 {
-    assert(m_didBeginFrame);
+    assert(m_hasDoneLayout);
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
     assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessLocationAtEndOfPath);
 
     m_currentPathIsStroked = strokeRadius != 0;
     m_currentPathNeedsMirroredContours = !m_currentPathIsStroked;
-    m_pathData.set_back(matrix, strokeRadius);
-    m_paintData.set_back(fillRule,
-                         paintType,
-                         simplePaintValue,
-                         m_currentGradTextureLayout,
-                         clipID,
-                         clipRectInverseMatrix != nullptr,
-                         blendMode);
-    m_paintAuxData.set_back(matrix,
-                            paintType,
-                            simplePaintValue,
-                            gradient,
-                            imageTexture,
-                            clipRectInverseMatrix,
-                            m_frameDescriptor.renderTarget.get(),
-                            m_impl->platformFeatures());
+    m_ctx->m_pathData.set_back(matrix, strokeRadius);
+    m_ctx->m_paintData.set_back(fillRule,
+                                paintType,
+                                simplePaintValue,
+                                m_gradTextureLayout,
+                                clipID,
+                                clipRectInverseMatrix != nullptr,
+                                blendMode);
+    m_ctx->m_paintAuxData.set_back(matrix,
+                                   paintType,
+                                   simplePaintValue,
+                                   gradient,
+                                   imageTexture,
+                                   clipRectInverseMatrix,
+                                   m_ctx->frameDescriptor().renderTarget.get(),
+                                   m_ctx->impl()->platformFeatures());
 
     ++m_currentPathID;
-    assert(0 < m_currentPathID && m_currentPathID <= m_maxPathID);
-    assert(m_currentPathID == m_pathData.elementsWritten() - 1);
-    assert(m_currentPathID == m_paintData.elementsWritten() - 1);
-    assert(m_currentPathID == m_paintAuxData.elementsWritten() - 1);
+    assert(0 < m_currentPathID && m_currentPathID <= m_ctx->m_maxPathID);
+    assert(m_flushDesc.firstPath + m_currentPathID == m_ctx->m_pathData.elementsWritten() - 1);
+    assert(m_flushDesc.firstPaint + m_currentPathID == m_ctx->m_paintData.elementsWritten() - 1);
+    assert(m_flushDesc.firstPaintAux + m_currentPathID ==
+           m_ctx->m_paintAuxData.elementsWritten() - 1);
 
-    auto drawType = patchType == PatchType::midpointFan ? DrawType::midpointFanPatches
-                                                        : DrawType::outerCurvePatches;
-    m_pathTessLocation = patchType == PatchType::midpointFan ? m_midpointFanTessVertexIdx
-                                                             : m_outerCubicTessVertexIdx;
-    uint32_t patchSize = PatchSegmentSpan(drawType);
-    uint32_t baseInstance = m_pathTessLocation / patchSize;
-    // flush() pads m_midpointFanTessVertexIdx and m_outerCubicTessVertexIdx to ensure they begin on
-    // multiples of the patch size.
-    assert(baseInstance * patchSize == m_pathTessLocation);
-    pushPathDraw(drawType,
-                 baseInstance,
-                 fillRule,
-                 paintType,
-                 simplePaintValue,
-                 imageTexture,
-                 clipID,
-                 clipRectInverseMatrix != nullptr,
-                 blendMode);
-    assert(m_drawList.tail().baseElement + m_drawList.tail().elementCount == baseInstance);
-    uint32_t instanceCount = tessVertexCount / patchSize;
-    // The caller is responsible to pad each contour so it ends on a multiple of the patch size.
-    assert(instanceCount * patchSize == tessVertexCount);
-    m_drawList.tail().elementCount += instanceCount;
-
+    pls::DrawType drawType;
     if (patchType == PatchType::midpointFan)
     {
-        m_midpointFanTessVertexIdx = m_pathTessLocation + tessVertexCount;
+        drawType = DrawType::midpointFanPatches;
+        m_pathTessLocation = m_midpointFanTessVertexIdx;
+        m_midpointFanTessVertexIdx += tessVertexCount;
         RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = m_midpointFanTessVertexIdx);
     }
     else
     {
-        m_outerCubicTessVertexIdx = m_pathTessLocation + tessVertexCount;
+        drawType = DrawType::outerCurvePatches;
+        m_pathTessLocation = m_outerCubicTessVertexIdx;
+        m_outerCubicTessVertexIdx += tessVertexCount;
         RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = m_outerCubicTessVertexIdx);
     }
     assert(m_expectedPathTessLocationAtEndOfPath <= kMaxTessellationVertexCount);
+
+    uint32_t patchSize = PatchSegmentSpan(drawType);
+    uint32_t baseInstance = m_pathTessLocation / patchSize;
+    assert(baseInstance * patchSize == m_pathTessLocation); // flush() is responsible for alignment.
 
     if (m_currentPathNeedsMirroredContours)
     {
@@ -996,12 +1156,28 @@ void PLSRenderContext::pushPath(PatchType patchType,
         RIVE_DEBUG_CODE(m_expectedPathMirroredTessLocationAtEndOfPath =
                             m_pathMirroredTessLocation - tessVertexCount / 2);
     }
+
+    DrawBatch& batch = pushPathDraw(drawType,
+                                    baseInstance,
+                                    fillRule,
+                                    paintType,
+                                    simplePaintValue,
+                                    imageTexture,
+                                    clipID,
+                                    clipRectInverseMatrix != nullptr,
+                                    blendMode);
+    assert(batch.baseElement + batch.elementCount == baseInstance);
+    uint32_t instanceCount = tessVertexCount / patchSize;
+    assert(instanceCount * patchSize == tessVertexCount); // flush() is responsible for alignment.
+    batch.elementCount += instanceCount;
 }
 
-void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t paddingVertexCount)
+void PLSRenderContext::LogicalFlush::pushContour(Vec2D midpoint,
+                                                 bool closed,
+                                                 uint32_t paddingVertexCount)
 {
-    assert(m_didBeginFrame);
-    assert(m_pathData.bytesWritten() > 0);
+    assert(m_hasDoneLayout);
+    assert(m_ctx->m_pathData.bytesWritten() > 0);
     assert(m_currentPathIsStroked || closed);
     assert(m_currentPathID != 0); // pathID can't be zero.
 
@@ -1009,12 +1185,12 @@ void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t padding
     {
         midpoint.x = closed ? 1 : 0;
     }
-    m_contourData.emplace_back(midpoint,
-                               m_currentPathID,
-                               static_cast<uint32_t>(m_pathTessLocation));
+    m_ctx->m_contourData.emplace_back(midpoint,
+                                      m_currentPathID,
+                                      static_cast<uint32_t>(m_pathTessLocation));
     ++m_currentContourID;
-    assert(0 < m_currentContourID && m_currentContourID <= kMaxContourID);
-    assert(m_currentContourID == m_contourData.bytesWritten() / sizeof(ContourData));
+    assert(0 < m_currentContourID && m_currentContourID <= pls::kMaxContourID);
+    assert(m_flushDesc.firstContour + m_currentContourID == m_ctx->m_contourData.elementsWritten());
 
     // The first curve of the contour will be pre-padded with 'paddingVertexCount' tessellation
     // vertices, colocated at T=0. The caller must use this argument align the end of the contour on
@@ -1022,14 +1198,14 @@ void PLSRenderContext::pushContour(Vec2D midpoint, bool closed, uint32_t padding
     m_currentContourPaddingVertexCount = paddingVertexCount;
 }
 
-void PLSRenderContext::pushCubic(const Vec2D pts[4],
-                                 Vec2D joinTangent,
-                                 uint32_t additionalContourFlags,
-                                 uint32_t parametricSegmentCount,
-                                 uint32_t polarSegmentCount,
-                                 uint32_t joinSegmentCount)
+void PLSRenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
+                                               Vec2D joinTangent,
+                                               uint32_t additionalContourFlags,
+                                               uint32_t parametricSegmentCount,
+                                               uint32_t polarSegmentCount,
+                                               uint32_t joinSegmentCount)
 {
-    assert(m_didBeginFrame);
+    assert(m_hasDoneLayout);
     assert(0 <= parametricSegmentCount && parametricSegmentCount <= kMaxParametricSegments);
     assert(0 <= polarSegmentCount && polarSegmentCount <= kMaxPolarSegments);
     assert(joinSegmentCount > 0);
@@ -1069,28 +1245,31 @@ void PLSRenderContext::pushCubic(const Vec2D pts[4],
     RIVE_DEBUG_CODE(++m_pathCurveCount;)
 }
 
-RIVE_ALWAYS_INLINE void PLSRenderContext::pushTessellationSpans(const Vec2D pts[4],
-                                                                Vec2D joinTangent,
-                                                                uint32_t totalVertexCount,
-                                                                uint32_t parametricSegmentCount,
-                                                                uint32_t polarSegmentCount,
-                                                                uint32_t joinSegmentCount,
-                                                                uint32_t contourIDWithFlags)
+RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushTessellationSpans(
+    const Vec2D pts[4],
+    Vec2D joinTangent,
+    uint32_t totalVertexCount,
+    uint32_t parametricSegmentCount,
+    uint32_t polarSegmentCount,
+    uint32_t joinSegmentCount,
+    uint32_t contourIDWithFlags)
 {
+    assert(m_hasDoneLayout);
+
     uint32_t y = m_pathTessLocation / kTessTextureWidth;
     int32_t x0 = m_pathTessLocation % kTessTextureWidth;
     int32_t x1 = x0 + totalVertexCount;
     for (;;)
     {
-        m_tessSpanData.set_back(pts,
-                                joinTangent,
-                                static_cast<float>(y),
-                                x0,
-                                x1,
-                                parametricSegmentCount,
-                                polarSegmentCount,
-                                joinSegmentCount,
-                                contourIDWithFlags);
+        m_ctx->m_tessSpanData.set_back(pts,
+                                       joinTangent,
+                                       static_cast<float>(y),
+                                       x0,
+                                       x1,
+                                       parametricSegmentCount,
+                                       polarSegmentCount,
+                                       joinSegmentCount,
+                                       contourIDWithFlags);
         if (x1 > static_cast<int32_t>(kTessTextureWidth))
         {
             // The span was too long to fit on the current line. Wrap and draw it again, this
@@ -1109,7 +1288,7 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushTessellationSpans(const Vec2D pts[
     assert(m_pathTessLocation <= m_expectedPathTessLocationAtEndOfPath);
 }
 
-RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
+RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredTessellationSpans(
     const Vec2D pts[4],
     Vec2D joinTangent,
     uint32_t totalVertexCount,
@@ -1118,6 +1297,8 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
     uint32_t joinSegmentCount,
     uint32_t contourIDWithFlags)
 {
+    assert(m_hasDoneLayout);
+
     int32_t y = m_pathTessLocation / kTessTextureWidth;
     int32_t x0 = m_pathTessLocation % kTessTextureWidth;
     int32_t x1 = x0 + totalVertexCount;
@@ -1128,18 +1309,18 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
 
     for (;;)
     {
-        m_tessSpanData.set_back(pts,
-                                joinTangent,
-                                static_cast<float>(y),
-                                x0,
-                                x1,
-                                static_cast<float>(reflectionY),
-                                reflectionX0,
-                                reflectionX1,
-                                parametricSegmentCount,
-                                polarSegmentCount,
-                                joinSegmentCount,
-                                contourIDWithFlags);
+        m_ctx->m_tessSpanData.set_back(pts,
+                                       joinTangent,
+                                       static_cast<float>(y),
+                                       x0,
+                                       x1,
+                                       static_cast<float>(reflectionY),
+                                       reflectionX0,
+                                       reflectionX1,
+                                       parametricSegmentCount,
+                                       polarSegmentCount,
+                                       joinSegmentCount,
+                                       contourIDWithFlags);
         if (x1 > static_cast<int32_t>(kTessTextureWidth) || reflectionX1 < 0)
         {
             // Either the span or its reflection was too long to fit on the current line. Wrap and
@@ -1164,130 +1345,150 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::pushMirroredTessellationSpans(
     assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessLocationAtEndOfPath);
 }
 
-void PLSRenderContext::pushInteriorTriangulation(GrInnerFanTriangulator* triangulator,
-                                                 PaintType paintType,
-                                                 pls::SimplePaintValue simplePaintValue,
-                                                 const PLSTexture* imageTexture,
-                                                 uint32_t clipID,
-                                                 bool hasClipRect,
-                                                 BlendMode blendMode)
+void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(
+    GrInnerFanTriangulator* triangulator,
+    PaintType paintType,
+    pls::SimplePaintValue simplePaintValue,
+    const PLSTexture* imageTexture,
+    uint32_t clipID,
+    bool hasClipRect,
+    BlendMode blendMode)
 {
-    pushPathDraw(DrawType::interiorTriangulation,
-                 m_triangleVertexData.elementsWritten(),
-                 triangulator->fillRule(),
-                 paintType,
-                 simplePaintValue,
-                 imageTexture,
-                 clipID,
-                 hasClipRect,
-                 blendMode);
-    assert(m_triangleVertexData.hasRoomFor(triangulator->maxVertexCount()));
+    assert(m_hasDoneLayout);
+
+    DrawBatch& batch = pushPathDraw(DrawType::interiorTriangulation,
+                                    m_ctx->m_triangleVertexData.elementsWritten(),
+                                    triangulator->fillRule(),
+                                    paintType,
+                                    simplePaintValue,
+                                    imageTexture,
+                                    clipID,
+                                    hasClipRect,
+                                    blendMode);
+    assert(m_ctx->m_triangleVertexData.hasRoomFor(triangulator->maxVertexCount()));
     size_t actualVertexCount =
-        triangulator->polysToTriangles(&m_triangleVertexData, m_currentPathID);
+        triangulator->polysToTriangles(&m_ctx->m_triangleVertexData, m_currentPathID);
     assert(actualVertexCount <= triangulator->maxVertexCount());
-    m_drawList.tail().elementCount = actualVertexCount;
+    batch.elementCount = actualVertexCount;
     // Interior triangulations are allowed to disable raster ordering since they are guaranteed to
     // not overlap.
-    m_drawList.tail().needsBarrier = true;
+    batch.needsBarrier = true;
 }
 
-void PLSRenderContext::pushImageRect(const Mat2D& matrix,
-                                     float opacity,
-                                     const PLSTexture* imageTexture,
-                                     uint32_t clipID,
-                                     const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-                                     BlendMode blendMode)
+void PLSRenderContext::LogicalFlush::pushImageRect(
+    const Mat2D& matrix,
+    float opacity,
+    const PLSTexture* imageTexture,
+    uint32_t clipID,
+    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
+    BlendMode blendMode)
 {
-    if (m_impl->platformFeatures().supportsBindlessTextures)
+    assert(m_hasDoneLayout);
+
+    if (m_ctx->impl()->platformFeatures().supportsBindlessTextures)
     {
         fprintf(stderr,
                 "PLSRenderContext::pushImageRect is only supported when the platform does not "
                 "support bindless textures.\n");
         return;
     }
-    if (!frameDescriptor().enableExperimentalAtomicMode)
+    if (!m_ctx->frameDescriptor().enableExperimentalAtomicMode)
     {
         fprintf(stderr, "PLSRenderContext::pushImageRect is only supported in atomic mode.\n");
         return;
     }
 
-    size_t imageDrawDataOffset = m_imageDrawUniformData.bytesWritten();
-    m_imageDrawUniformData.emplace_back(matrix, opacity, clipRectInverseMatrix, clipID, blendMode);
+    size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
+    m_ctx->m_imageDrawUniformData.emplace_back(matrix,
+                                               opacity,
+                                               clipRectInverseMatrix,
+                                               clipID,
+                                               blendMode);
 
-    pushDraw(DrawType::imageRect,
-             0,
-             PaintType::image,
-             imageTexture,
-             clipID,
-             clipRectInverseMatrix != nullptr,
-             blendMode);
+    DrawBatch& batch = pushDraw(DrawType::imageRect,
+                                0,
+                                PaintType::image,
+                                imageTexture,
+                                clipID,
+                                clipRectInverseMatrix != nullptr,
+                                blendMode);
 
-    Draw& draw = m_drawList.tail();
-    draw.elementCount = 1;
-    draw.imageDrawDataOffset = imageDrawDataOffset;
-    assert((draw.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == draw.shaderFeatures);
+    batch.elementCount = 1;
+    batch.imageDrawDataOffset = imageDrawDataOffset;
+    assert((batch.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == batch.shaderFeatures);
 }
 
-void PLSRenderContext::pushImageMesh(const Mat2D& matrix,
-                                     float opacity,
-                                     const PLSTexture* imageTexture,
-                                     const RenderBuffer* vertexBuffer,
-                                     const RenderBuffer* uvBuffer,
-                                     const RenderBuffer* indexBuffer,
-                                     uint32_t indexCount,
-                                     uint32_t clipID,
-                                     const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-                                     BlendMode blendMode)
+void PLSRenderContext::LogicalFlush::pushImageMesh(
+    const Mat2D& matrix,
+    float opacity,
+    const PLSTexture* imageTexture,
+    const RenderBuffer* vertexBuffer,
+    const RenderBuffer* uvBuffer,
+    const RenderBuffer* indexBuffer,
+    uint32_t indexCount,
+    uint32_t clipID,
+    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
+    BlendMode blendMode)
 {
-    size_t imageDrawDataOffset = m_imageDrawUniformData.bytesWritten();
-    m_imageDrawUniformData.emplace_back(matrix, opacity, clipRectInverseMatrix, clipID, blendMode);
+    assert(m_hasDoneLayout);
 
-    pushDraw(DrawType::imageMesh,
-             0,
-             PaintType::image,
-             imageTexture,
-             clipID,
-             clipRectInverseMatrix != nullptr,
-             blendMode);
+    size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
+    m_ctx->m_imageDrawUniformData.emplace_back(matrix,
+                                               opacity,
+                                               clipRectInverseMatrix,
+                                               clipID,
+                                               blendMode);
 
-    Draw& draw = m_drawList.tail();
-    draw.elementCount = indexCount;
-    draw.vertexBuffer = vertexBuffer;
-    draw.uvBuffer = uvBuffer;
-    draw.indexBuffer = indexBuffer;
-    draw.imageDrawDataOffset = imageDrawDataOffset;
-    assert((draw.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == draw.shaderFeatures);
+    DrawBatch& batch = pushDraw(DrawType::imageMesh,
+                                0,
+                                PaintType::image,
+                                imageTexture,
+                                clipID,
+                                clipRectInverseMatrix != nullptr,
+                                blendMode);
+
+    batch.elementCount = indexCount;
+    batch.vertexBuffer = vertexBuffer;
+    batch.uvBuffer = uvBuffer;
+    batch.indexBuffer = indexBuffer;
+    batch.imageDrawDataOffset = imageDrawDataOffset;
+    assert((batch.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == batch.shaderFeatures);
 }
 
-void PLSRenderContext::pushBarrier()
+void PLSRenderContext::LogicalFlush::pushBarrier()
 {
+    assert(m_hasDoneLayout);
+
     if (!m_drawList.empty())
     {
         m_drawList.tail().needsBarrier = true;
     }
 }
 
-void PLSRenderContext::pushPathDraw(DrawType drawType,
-                                    size_t baseVertex,
-                                    FillRule fillRule,
-                                    PaintType paintType,
-                                    pls::SimplePaintValue simplePaintValue,
-                                    const PLSTexture* imageTexture,
-                                    uint32_t clipID,
-                                    bool hasClipRect,
-                                    BlendMode blendMode)
+pls::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(DrawType drawType,
+                                                             size_t baseVertex,
+                                                             FillRule fillRule,
+                                                             PaintType paintType,
+                                                             pls::SimplePaintValue simplePaintValue,
+                                                             const PLSTexture* imageTexture,
+                                                             uint32_t clipID,
+                                                             bool hasClipRect,
+                                                             BlendMode blendMode)
 {
-    pushDraw(drawType, baseVertex, paintType, imageTexture, clipID, hasClipRect, blendMode);
+    assert(m_hasDoneLayout);
 
-    ShaderFeatures& shaderFeatures = m_drawList.tail().shaderFeatures;
+    DrawBatch& batch =
+        pushDraw(drawType, baseVertex, paintType, imageTexture, clipID, hasClipRect, blendMode);
     if (fillRule == FillRule::evenOdd)
     {
-        shaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
+        batch.shaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
     }
     if (paintType == PaintType::clipUpdate && simplePaintValue.outerClipID != 0)
     {
-        shaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
+        batch.shaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
     }
+    m_combinedShaderFeatures |= batch.shaderFeatures;
+    return batch;
 }
 
 RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* currentDrawTexture,
@@ -1303,53 +1504,54 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* current
     return currentDrawTexture == nextDrawTexture;
 }
 
-void PLSRenderContext::pushDraw(DrawType drawType,
-                                size_t baseVertex,
-                                PaintType paintType,
-                                const PLSTexture* imageTexture,
-                                uint32_t clipID,
-                                bool hasClipRect,
-                                BlendMode blendMode)
+pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
+                                                         size_t baseVertex,
+                                                         PaintType paintType,
+                                                         const PLSTexture* imageTexture,
+                                                         uint32_t clipID,
+                                                         bool hasClipRect,
+                                                         BlendMode blendMode)
 {
-    bool needsNewDraw;
+    assert(m_hasDoneLayout);
+
+    bool needsNewBatch;
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
-            needsNewDraw = m_drawList.empty() || m_drawList.tail().drawType != drawType ||
-                           m_drawList.tail().needsBarrier ||
-                           !can_combine_draw_images(m_drawList.tail().imageTexture, imageTexture);
+            needsNewBatch = m_drawList.empty() || m_drawList.tail().drawType != drawType ||
+                            m_drawList.tail().needsBarrier ||
+                            !can_combine_draw_images(m_drawList.tail().imageTexture, imageTexture);
             break;
         case DrawType::interiorTriangulation:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::plsAtomicResolve:
             // We can't combine interior triangulations or image draws yet.
-            needsNewDraw = true;
+            needsNewBatch = true;
     }
-    if (needsNewDraw)
-    {
-        m_drawList.emplace_back(this, drawType, baseVertex);
-    }
+
+    DrawBatch& batch =
+        needsNewBatch ? m_drawList.emplace_back(m_ctx->perFrameAllocator(), drawType, baseVertex)
+                      : m_drawList.tail();
 
     if (paintType == PaintType::image)
     {
         assert(imageTexture != nullptr);
-        if (m_drawList.tail().imageTexture == nullptr)
+        if (batch.imageTexture == nullptr)
         {
-            m_drawList.tail().imageTexture = imageTexture;
+            batch.imageTexture = imageTexture;
         }
-        assert(m_drawList.tail().imageTexture == imageTexture);
+        assert(batch.imageTexture == imageTexture);
     }
 
-    ShaderFeatures& shaderFeatures = m_drawList.tail().shaderFeatures;
     if (clipID != 0)
     {
-        shaderFeatures |= ShaderFeatures::ENABLE_CLIPPING;
+        batch.shaderFeatures |= ShaderFeatures::ENABLE_CLIPPING;
     }
     if (hasClipRect && paintType != PaintType::clipUpdate)
     {
-        shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
+        batch.shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
     }
     if (paintType != PaintType::clipUpdate)
     {
@@ -1359,7 +1561,7 @@ void PLSRenderContext::pushDraw(DrawType drawType,
             case BlendMode::saturation:
             case BlendMode::color:
             case BlendMode::luminosity:
-                shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+                batch.shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
                 [[fallthrough]];
             case BlendMode::screen:
             case BlendMode::overlay:
@@ -1372,11 +1574,14 @@ void PLSRenderContext::pushDraw(DrawType drawType,
             case BlendMode::difference:
             case BlendMode::exclusion:
             case BlendMode::multiply:
-                shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
+                batch.shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
                 break;
             case BlendMode::srcOver:
                 break;
         }
     }
+
+    m_combinedShaderFeatures |= batch.shaderFeatures;
+    return batch;
 }
 } // namespace rive::pls
