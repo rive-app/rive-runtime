@@ -338,12 +338,6 @@ void PathData::set(const Mat2D& m, float strokeRadius)
     m_strokeRadius = strokeRadius; // 0 if the path is filled.
 }
 
-// Changes the byte order of a rive::ColorInt to little-endian RGBA (the order expected by the GPU.)
-constexpr static uint32_t swizzle_color_to_glsl_order(ColorInt riveColor)
-{
-    return (riveColor & 0xff00ff00) | (math::rotl(riveColor, 16) & 0x00ff00ff);
-}
-
 void PaintData::set(FillRule fillRule,
                     PaintType paintType,
                     SimplePaintValue simplePaintValue,
@@ -359,7 +353,9 @@ void PaintData::set(FillRule fillRule,
     {
         case PaintType::solidColor:
         {
-            m_color = swizzle_color_to_glsl_order(simplePaintValue.color);
+            // Swizzle the riveColor to little-endian RGBA (the order expected by GLSL).
+            ColorInt riveColor = simplePaintValue.color;
+            m_color = (riveColor & 0xff00ff00) | (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }

@@ -21,22 +21,25 @@ void IntersectionTile::reset(int left, int top, uint16_t baselineGroupIndex)
 void IntersectionTile::addRectangle(int4 ltrb, uint16_t groupIndex)
 {
     assert(simd::all(ltrb.xy < ltrb.zw)); // Ensure ltrb isn't zero or negative.
+    // Ensure this rectangle preserves the integrity of our list.
+    assert(groupIndex > simd::reduce_max(findMaxIntersectingGroupIndex(ltrb, 0)));
     assert(groupIndex > m_baselineGroupIndex);
 
-    // Transform and clamp ltrb to our tile.
+    // Translate ltrb to our tile and negate the right and bottom sides.
     ltrb -= m_topLeft;
-    assert(simd::all(ltrb.xy < 255)); // Ensure ltrb isn't completely outside the tile.
-    assert(simd::all(ltrb.zw > 0));   // Ensure ltrb isn't completely outside the tile.
-    ltrb = simd::clamp(ltrb, int4(0), int4(255));
+    ltrb.zw = 255 - ltrb.zw;         // right = 255 - right, bottom = 255 - bottom
+    assert(simd::all(ltrb < 255));   // Ensure ltrb isn't completely outside the tile.
+    ltrb = simd::max(ltrb, int4(0)); // Clamp ltrb to our tile.
 
-    if (simd::all(ltrb == int4{0, 0, 255, 255}))
+    if (simd::all(ltrb == 0))
     {
-        // The entire tile is covered -- reset to a new baseline.
+        // ltrb covers the entire tile -- reset to a new baseline.
         assert(groupIndex > m_maxGroupIndex);
         reset(m_topLeft.x, m_topLeft.y, groupIndex);
         return;
     }
 
+    // Append a chunk if needed, to make room for this new rectangle.
     uint32_t subIdx = m_rectangleCount % kChunkSize;
     if (subIdx == 0)
     {
@@ -53,8 +56,8 @@ void IntersectionTile::addRectangle(int4 ltrb, uint16_t groupIndex)
     // The data is also transposed: [L0..L7, T0..T7, -R0..R7, -B0..B7].
     m_edges.back()[subIdx] = ltrb.x;
     m_edges.back()[subIdx + 8] = ltrb.y;
-    m_edges.back()[subIdx + 16] = 255 - ltrb.z;
-    m_edges.back()[subIdx + 24] = 255 - ltrb.w;
+    m_edges.back()[subIdx + 16] = ltrb.z; // Already converted to "255 - right" above.
+    m_edges.back()[subIdx + 24] = ltrb.w; // Already converted to "255 - bottom" above.
 
     m_groupIndices.back()[subIdx] = groupIndex;
 
@@ -62,21 +65,22 @@ void IntersectionTile::addRectangle(int4 ltrb, uint16_t groupIndex)
     ++m_rectangleCount;
 }
 
-uint16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb, uint16x8 groupIndices) const
+uint16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb,
+                                                         uint16x8 runningMaxGroupIndices) const
 {
     assert(simd::all(ltrb.xy < ltrb.zw)); // Ensure ltrb isn't zero or negative.
 
-    // Transform and clamp ltrb to our tile.
+    // Translate ltrb to our tile and negate the left and top sides.
     ltrb -= m_topLeft;
-    assert(simd::all(ltrb.xy < 255)); // Ensure ltrb isn't completely outside the tile.
-    assert(simd::all(ltrb.zw > 0));   // Ensure ltrb isn't completely outside the tile.
-    ltrb = simd::clamp(ltrb, int4(0), int4(255));
+    ltrb.xy = 255 - ltrb.xy;           // left = 255 - left, top = 255 - top
+    assert(simd::all(ltrb > 0));       // Ensure ltrb isn't completely outside the tile.
+    ltrb = simd::min(ltrb, int4(255)); // Clamp ltrb to our tile.
 
-    if (simd::all(ltrb == int4{0, 0, 255, 255}))
+    if (simd::all(ltrb == 255))
     {
-        // The entire tile is covered -- we know it intersects with every rectangle.
-        groupIndices[0] = std::max(groupIndices[0], m_maxGroupIndex);
-        return groupIndices;
+        // ltrb covers the entire -- we know it intersects with every rectangle.
+        runningMaxGroupIndices[0] = std::max(runningMaxGroupIndices[0], m_maxGroupIndex);
+        return runningMaxGroupIndices;
     }
 
     // Intersection test: l0 < r1 &&
@@ -92,17 +96,20 @@ uint16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb, uint16x8 gro
     // m_edges are already encoded like the left column, so encode "ltrb" like the right.
     uint8x8 r = ltrb.z;
     uint8x8 b = ltrb.w;
-    uint8x8 _l = 255 - ltrb.x;
-    uint8x8 _t = 255 - ltrb.y;
+    uint8x8 _l = ltrb.x; // Already converted to "255 - left" above.
+    uint8x8 _t = ltrb.y; // Already converted to "255 - top" above.
     uint8x32 complement = simd::join(r, b, _l, _t);
 
-    for (size_t i = 0; i < m_edges.size(); ++i)
+    auto edges = m_edges.begin();
+    auto groupIndices = m_groupIndices.begin();
+    assert(m_edges.size() == m_groupIndices.size());
+    for (; edges != m_edges.end(); ++edges, ++groupIndices)
     {
         // Test 32 edges!
-        auto edgeMasks = m_edges[i] < complement;
+        auto edgeMasks = *edges < complement;
         // Each byte of isectMasks8 is 0xff if we intersect with the corresponding rectangle,
         // otherwise 0.
-        int64_t isectMasks8 = simd::reduce_and(math::bit_cast<int64x4>(edgeMasks));
+        uint64_t isectMasks8 = simd::reduce_and(math::bit_cast<uint64x4>(edgeMasks));
         // Sign-extend isectMasks8 to 16 bits per mask, where each element of isectMasks16 is 0xffff
         // if we intersect with the rectangle, otherwise 0. Encode these as signed integers so the
         // arithmetic shift copies the sign bit.
@@ -114,13 +121,13 @@ uint16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb, uint16x8 gro
         int16x8 isectMasks16 = simd::zip(hi, lo) >> 8; // Arithmetic shift right copies sign bit.
 #endif
         // maskedGroupIndices[j] is m_groupIndices[i][j] if we intersect with the rect, otherwise 0.
-        uint16x8 maskedGroupIndices = m_groupIndices[i] & isectMasks16;
-        groupIndices = simd::max(maskedGroupIndices, groupIndices);
+        uint16x8 maskedGroupIndices = *groupIndices & isectMasks16;
+        runningMaxGroupIndices = simd::max(maskedGroupIndices, runningMaxGroupIndices);
     }
 
     // Ensure we never drop below our baseline index.
-    groupIndices[0] = std::max(groupIndices[0], m_baselineGroupIndex);
-    return groupIndices;
+    runningMaxGroupIndices[0] = std::max(runningMaxGroupIndices[0], m_baselineGroupIndex);
+    return runningMaxGroupIndices;
 }
 
 void IntersectionBoard::resizeAndReset(uint32_t viewportWidth, uint32_t viewportHeight)

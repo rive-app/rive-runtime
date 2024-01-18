@@ -19,7 +19,13 @@ public:
 
     void addRectangle(int4 ltrb, uint16_t groupIndex);
 
-    uint16x8 findMaxIntersectingGroupIndex(int4 ltrb, uint16x8 baselineGroupIndices) const;
+    // Accumulate local maximum intersecting group indices for the given rectangle in each channel
+    // of a uint16x8.
+    // "runningMaxGroupIndices" is a running set of local maximums if the IntersectionBoard also ran
+    // this same test on other tile(s) that the rectangle touched.
+    // The absolute maximum group index that this rectangle intersects with will be
+    // simd::reduce_max(returnValue).
+    uint16x8 findMaxIntersectingGroupIndex(int4 ltrb, uint16x8 runningMaxGroupIndices) const;
 
 private:
     int4 m_topLeft;
