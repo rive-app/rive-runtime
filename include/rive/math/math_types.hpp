@@ -61,6 +61,29 @@ template <typename Dst, typename Src> Dst bit_cast(const Src& src)
     return dst;
 }
 
+// Attempt to generate a "clz" assembly instruction.
+RIVE_ALWAYS_INLINE static int clz32(uint32_t x)
+{
+    assert(x != 0);
+#if __has_builtin(__builtin_clz)
+    return __builtin_clz(x);
+#else
+    uint64_t doubleBits = bit_cast<uint64_t>(static_cast<double>(x));
+    return 1054 - (doubleBits >> 52);
+#endif
+}
+
+RIVE_ALWAYS_INLINE static int clz64(uint64_t x)
+{
+    assert(x != 0);
+#if __has_builtin(__builtin_clzll)
+    return __builtin_clzll(x);
+#else
+    uint32_t hi32 = x >> 32;
+    return hi32 != 0 ? clz32(hi32) : 32 + clz32(x & 0xffffffff);
+#endif
+}
+
 // Returns the 1-based index of the most significat bit in x.
 //
 //   0    -> 0
@@ -69,22 +92,17 @@ template <typename Dst, typename Src> Dst bit_cast(const Src& src)
 //   4..7 -> 3
 //   ...
 //
-RIVE_ALWAYS_INLINE static uint32_t msb(uint32_t x)
+RIVE_ALWAYS_INLINE static uint32_t msb(uint32_t x) { return x != 0 ? 32 - clz32(x) : 0; }
+
+// Attempt to generate a "rotl" (rotate-left) assembly instruction.
+RIVE_ALWAYS_INLINE static uint32_t rotateleft32(uint32_t x, int y)
 {
-    if (x == 0)
-    {
-        return 0; // __builtin_clz is undefined for x=0, and the double method doesn't work either.
-    }
-#if defined(__clang__) || defined(__GNUC__)
-    return 32 - __builtin_clz(x);
+#if __has_builtin(__builtin_rotateleft32)
+    return __builtin_rotateleft32(x, y);
 #else
-    uint64_t doubleBits = bit_cast<uint64_t>(static_cast<double>(x));
-    return (doubleBits >> 52) - 1022;
+    return (x << y) | (x >> (32 - y));
 #endif
 }
-
-// Attempt to generate a "rotate-left" (rotl) assembly instruction.
-constexpr static uint32_t rotl(uint32_t x, int shift) { return (x << shift) | (x >> (32 - shift)); }
 
 // Returns x rounded up to the next multiple of N.
 // If x is already a multiple of N, returns x.

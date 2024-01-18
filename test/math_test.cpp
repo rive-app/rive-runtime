@@ -61,6 +61,33 @@ TEST_CASE("bit_cast", "[math]")
     CHECK(std::isnan(math::bit_cast<float>(0x7fc00000)));
 }
 
+// Check math::clz*
+TEST_CASE("clz", "[math]")
+{
+    CHECK(math::clz32(1) == 31);
+    CHECK(math::clz32(-1) == 0);
+    for (int i = 0; i < 32; ++i)
+    {
+        CHECK(math::clz32(1 << i) == 31 - i);
+        CHECK(math::clz32((1 << i) | (rand() & ((1 << i) - 1))) == 31 - i);
+    }
+
+    CHECK(math::clz64(1) == 63);
+    CHECK(math::clz64(-1) == 0);
+    for (int i = 0; i < 64; ++i)
+    {
+        CHECK(math::clz64(1ll << i) == 63 - i);
+        CHECK(math::clz64((1ll << i) | (rand() & ((1ll << i) - 1))) == 63 - i);
+    }
+}
+
+// Check math::rotateleft32
+TEST_CASE("rotateleft32", "[math]")
+{
+    CHECK(math::rotateleft32(0xabcdef01, 24) == 0x01abcdef);
+    CHECK(math::rotateleft32(0xffff0000, 16) == 0x0000ffff);
+}
+
 // Check math::msb.
 TEST_CASE("msb", "[math]")
 {
