@@ -657,6 +657,9 @@ TEST_CASE("join", "[simd]")
 // Check simd::zip
 TEST_CASE("zip", "[simd]")
 {
+    CHECK_ALL((simd::zip(simd::gvec<char, 1>{'a'}, simd::gvec<char, 1>{'b'}) ==
+               simd::gvec<char, 2>{'a', 'b'}));
+    CHECK_ALL((simd::zip(int2{1, 2}, int2{3, 4}) == int4{1, 3, 2, 4}));
     CHECK_ALL((simd::zip(int4{1, 2, 3, 4}, int4{5, 6, 7, 8}) == ivec<8>{1, 5, 2, 6, 3, 7, 4, 8}));
     CHECK_ALL((simd::zip(simd::gvec<uint8_t, 8>{1, 2, 3, 4, 5, 6, 7, 8},
                          simd::gvec<uint8_t, 8>{9, 10, 11, 12, 13, 14, 15, 16}) ==

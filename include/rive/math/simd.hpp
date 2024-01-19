@@ -77,6 +77,8 @@ template <typename T> struct boolean_mask_type
 } // namespace simd
 } // namespace rive
 
+#define SIMD_NATIVE_GVEC 1
+
 #else
 
 // gvec needs to be polyfilled with templates.
@@ -84,6 +86,8 @@ template <typename T> struct boolean_mask_type
 #pragma message("performance: ext_vector_type not supported. Consider using clang.")
 #endif
 #include "simd_gvec_polyfill.hpp"
+
+#define SIMD_NATIVE_GVEC 0
 
 #endif
 
@@ -100,7 +104,7 @@ namespace simd
 // Returns true if all elements in x are equal to 0.
 template <typename T, int N> SIMD_ALWAYS_INLINE bool any(gvec<T, N> x)
 {
-#if __has_builtin(__builtin_reduce_or)
+#if __has_builtin(__builtin_reduce_or) && SIMD_NATIVE_GVEC
     return __builtin_reduce_or(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -119,7 +123,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE bool any(gvec<T, N> x)
 // Returns true if all elements in x are equal to ~0.
 template <typename T, int N> SIMD_ALWAYS_INLINE bool all(gvec<T, N> x)
 {
-#if __has_builtin(__builtin_reduce_and)
+#if __has_builtin(__builtin_reduce_and) && SIMD_NATIVE_GVEC
     return __builtin_reduce_and(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -170,7 +174,7 @@ SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<typename boolean_mask_type<T>::t
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
 {
-#if __has_builtin(__builtin_elementwise_min)
+#if __has_builtin(__builtin_elementwise_min) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_min(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -185,7 +189,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gve
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
 {
-#if __has_builtin(__builtin_elementwise_max)
+#if __has_builtin(__builtin_elementwise_max) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_max(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -212,7 +216,7 @@ SIMD_ALWAYS_INLINE gvec<T, N> clamp(gvec<T, N> x, gvec<T, N> lo, gvec<T, N> hi)
 // If x[i] is an integer type and equal to the minimum representable value, returns x[i].
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
 {
-#if __has_builtin(__builtin_elementwise_abs)
+#if __has_builtin(__builtin_elementwise_abs) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_abs(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -226,7 +230,7 @@ template <typename T, int N>
 SIMD_ALWAYS_INLINE typename std::enable_if<std::is_integral<T>::value, T>::type reduce_add(
     gvec<T, N> x)
 {
-#if __has_builtin(__builtin_reduce_add)
+#if __has_builtin(__builtin_reduce_add) && SIMD_NATIVE_GVEC
     return __builtin_reduce_add(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -254,7 +258,7 @@ SIMD_ALWAYS_INLINE typename std::enable_if<!std::is_integral<T>::value, T>::type
 
 template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_min(gvec<T, N> x)
 {
-#if __has_builtin(__builtin_reduce_and)
+#if __has_builtin(__builtin_reduce_and) && SIMD_NATIVE_GVEC
     return __builtin_reduce_min(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -269,7 +273,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_min(gvec<T, N> x)
 
 template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_max(gvec<T, N> x)
 {
-#if __has_builtin(__builtin_reduce_and)
+#if __has_builtin(__builtin_reduce_and) && SIMD_NATIVE_GVEC
     return __builtin_reduce_max(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -284,7 +288,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_max(gvec<T, N> x)
 
 template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_and(gvec<T, N> x)
 {
-#if __has_builtin(__builtin_reduce_and)
+#if __has_builtin(__builtin_reduce_and) && SIMD_NATIVE_GVEC
     return __builtin_reduce_and(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -299,7 +303,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_and(gvec<T, N> x)
 
 template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_or(gvec<T, N> x)
 {
-#if __has_builtin(__builtin_reduce_and)
+#if __has_builtin(__builtin_reduce_and) && SIMD_NATIVE_GVEC
     return __builtin_reduce_or(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -316,7 +320,7 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_or(gvec<T, N> x)
 
 template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
 {
-#if __has_builtin(__builtin_elementwise_floor)
+#if __has_builtin(__builtin_elementwise_floor) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_floor(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -331,7 +335,7 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
 
 template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
 {
-#if __has_builtin(__builtin_elementwise_ceil)
+#if __has_builtin(__builtin_elementwise_ceil) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_ceil(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -394,7 +398,7 @@ template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 #endif
 
 // This will only be present when building with Emscripten and "-msimd128".
-#if __has_builtin(__builtin_wasm_sqrt_f32x4)
+#if __has_builtin(__builtin_wasm_sqrt_f32x4) && SIMD_NATIVE_GVEC
 template <> SIMD_ALWAYS_INLINE gvec<float, 4> sqrt(gvec<float, 4> x)
 {
     return __builtin_wasm_sqrt_f32x4(x);
@@ -431,10 +435,14 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
 
 template <typename U, typename T, int N> SIMD_ALWAYS_INLINE gvec<U, N> cast(gvec<T, N> x)
 {
+#if __has_builtin(__builtin_convertvector) && SIMD_NATIVE_GVEC
+    return __builtin_convertvector(x, gvec<U, N>);
+#else
     gvec<U, N> y{};
     for (int i = 0; i < N; ++i)
         y[i] = static_cast<U>(x[i]);
     return y;
+#endif
 }
 
 ////// Loading and storing //////
@@ -533,7 +541,52 @@ SIMD_ALWAYS_INLINE gvec<T, M + N + O + P> join(gvec<T, M> a,
     return load<T, M + N + O + P>(data);
 }
 
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N * 2> zip(gvec<T, N> a, gvec<T, N> b)
+template <typename T> SIMD_ALWAYS_INLINE gvec<T, 4> zip(gvec<T, 2> a, gvec<T, 2> b)
+{
+#if __has_builtin(__builtin_shufflevector) && SIMD_NATIVE_GVEC
+    return __builtin_shufflevector(a, b, 0, 2, 1, 3);
+#else
+    return gvec<T, 4>{a.x, b.x, a.y, b.y};
+#endif
+}
+
+template <typename T> SIMD_ALWAYS_INLINE gvec<T, 8> zip(gvec<T, 4> a, gvec<T, 4> b)
+{
+#if __has_builtin(__builtin_shufflevector) && SIMD_NATIVE_GVEC
+    return __builtin_shufflevector(a, b, 0, 4, 1, 5, 2, 6, 3, 7);
+#else
+    return gvec<T, 8>{a.x, b.x, a.y, b.y, a.z, b.z, a.w, b.w};
+#endif
+}
+
+template <typename T> SIMD_ALWAYS_INLINE gvec<T, 16> zip(gvec<T, 8> a, gvec<T, 8> b)
+{
+#if __has_builtin(__builtin_shufflevector) && SIMD_NATIVE_GVEC
+    return __builtin_shufflevector(a, b, 0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15);
+#else
+    return gvec<T, 16>{a[0],
+                       b[0],
+                       a[1],
+                       b[1],
+                       a[2],
+                       b[2],
+                       a[3],
+                       b[3],
+                       a[4],
+                       b[4],
+                       a[5],
+                       b[5],
+                       a[6],
+                       b[6],
+                       a[7],
+                       b[7]};
+#endif
+}
+
+template <typename T, int N>
+SIMD_ALWAYS_INLINE typename std::enable_if<N != 2 && N != 4 && N != 8, gvec<T, N * 2>>::type zip(
+    gvec<T, N> a,
+    gvec<T, N> b)
 {
     gvec<T, N * 2> ret{};
     for (int i = 0; i < N; ++i)

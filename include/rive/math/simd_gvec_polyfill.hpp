@@ -224,7 +224,7 @@ DECL_UNARY_OP(~)
         return ret;                                                                                \
     }                                                                                              \
     template <typename T, typename U, int N, Swizzle Z>                                            \
-    gvec<T, N> operator _OP_(T a, gvec<U, N, Z> b)                                                 \
+    gvec<U, N> operator _OP_(T a, gvec<U, N, Z> b)                                                 \
     {                                                                                              \
         gvec<T, N> ret;                                                                            \
         for (int i = 0; i < N; ++i)                                                                \
@@ -254,16 +254,16 @@ DECL_ARITHMETIC_OP(>>);
             ret[i] = a[i] _OP_ b[i] ? ~0 : 0;                                                      \
         return ret;                                                                                \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z>                                                        \
-    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(gvec<T, N, Z> a, T b)               \
+    template <typename T, typename U, int N, Swizzle Z>                                            \
+    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(gvec<T, N, Z> a, U b)               \
     {                                                                                              \
         gvec<typename boolean_mask_type<T>::type, N> ret;                                          \
         for (int i = 0; i < N; ++i)                                                                \
             ret[i] = a[i] _OP_ b ? ~0 : 0;                                                         \
         return ret;                                                                                \
     }                                                                                              \
-    template <typename T, int N, Swizzle Z>                                                        \
-    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(T a, gvec<T, N, Z> b)               \
+    template <typename T, typename U, int N, Swizzle Z>                                            \
+    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(U a, gvec<T, N, Z> b)               \
     {                                                                                              \
         gvec<typename boolean_mask_type<T>::type, N> ret;                                          \
         for (int i = 0; i < N; ++i)                                                                \
