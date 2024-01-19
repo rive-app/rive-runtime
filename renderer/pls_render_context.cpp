@@ -28,8 +28,9 @@ constexpr size_t kMaxTessellationVertexCountBeforePadding =
     (pls::kMidpointFanPatchSegmentSpan - 1) - // Max padding between patch types in the tess texture
     1;                                        // Padding at the end of the tessellation texture
 
-// We can only reorder 64k draws at a time since the sort key addresses them with a 16-bit index.
-constexpr size_t kMaxReorderedDrawCount = 1 << 16;
+// We can only reorder 32767 draws at a time since the one-based groupIndex returned by
+// IntersectionBoard is a signed 16-bit integer.
+constexpr size_t kMaxReorderedDrawCount = std::numeric_limits<int16_t>::max();
 
 // How tall to make a resource texture in order to support the given number of items.
 template <size_t WidthInItems> constexpr static size_t resource_texture_height(size_t itemCount)

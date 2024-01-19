@@ -8,8 +8,12 @@
 
 namespace rive::pls
 {
-void IntersectionTile::reset(int left, int top, uint16_t baselineGroupIndex)
+void IntersectionTile::reset(int left, int top, int16_t baselineGroupIndex)
 {
+    // Since we mask non-intersecting groupIndices to zero, the "mask and max" algorithm is only
+    // correct for positive values. (baselineGroupIndex is only signed because SSE doesn't have an
+    // unsigned max instruction.)
+    assert(baselineGroupIndex >= 0);
     m_topLeft = {left, top, left, top};
     m_baselineGroupIndex = baselineGroupIndex;
     m_maxGroupIndex = baselineGroupIndex;
@@ -18,12 +22,13 @@ void IntersectionTile::reset(int left, int top, uint16_t baselineGroupIndex)
     m_rectangleCount = 0;
 }
 
-void IntersectionTile::addRectangle(int4 ltrb, uint16_t groupIndex)
+void IntersectionTile::addRectangle(int4 ltrb, int16_t groupIndex)
 {
     assert(simd::all(ltrb.xy < ltrb.zw)); // Ensure ltrb isn't zero or negative.
     // Ensure this rectangle preserves the integrity of our list.
     assert(groupIndex > simd::reduce_max(findMaxIntersectingGroupIndex(ltrb, 0)));
     assert(groupIndex > m_baselineGroupIndex);
+    assert(groupIndex >= 0);
 
     // Translate ltrb to our tile and negate the right and bottom sides.
     ltrb -= m_topLeft;
@@ -45,7 +50,7 @@ void IntersectionTile::addRectangle(int4 ltrb, uint16_t groupIndex)
     {
         // Push back maximally negative rectangles so they always fail intersection tests.
         assert(m_edges.size() * kChunkSize == m_rectangleCount);
-        m_edges.push_back(uint8x32(255));
+        m_edges.push_back(int8x32(std::numeric_limits<int8_t>::max()));
 
         // Uninitialized since the corresponding rectangles never pass an intersection test.
         assert(m_groupIndices.size() * kChunkSize == m_rectangleCount);
@@ -54,10 +59,12 @@ void IntersectionTile::addRectangle(int4 ltrb, uint16_t groupIndex)
 
     // m_edges is a list of 8 rectangles encoded as [L, T, 255 - R, 255 - B], relative to m_topLeft.
     // The data is also transposed: [L0..L7, T0..T7, -R0..R7, -B0..B7].
-    m_edges.back()[subIdx] = ltrb.x;
-    m_edges.back()[subIdx + 8] = ltrb.y;
-    m_edges.back()[subIdx + 16] = ltrb.z; // Already converted to "255 - right" above.
-    m_edges.back()[subIdx + 24] = ltrb.w; // Already converted to "255 - bottom" above.
+    // Bias ltrb by -128 so we can use int8_t. SSE doesn't have an unsigned byte compare.
+    int4 biased = ltrb + std::numeric_limits<int8_t>::min();
+    m_edges.back()[subIdx] = biased.x;
+    m_edges.back()[subIdx + 8] = biased.y;
+    m_edges.back()[subIdx + 16] = biased.z; // Already converted to "255 - right" above.
+    m_edges.back()[subIdx + 24] = biased.w; // Already converted to "255 - bottom" above.
 
     m_groupIndices.back()[subIdx] = groupIndex;
 
@@ -65,10 +72,17 @@ void IntersectionTile::addRectangle(int4 ltrb, uint16_t groupIndex)
     ++m_rectangleCount;
 }
 
-uint16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb,
-                                                         uint16x8 runningMaxGroupIndices) const
+int16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb,
+                                                        int16x8 runningMaxGroupIndices) const
 {
     assert(simd::all(ltrb.xy < ltrb.zw)); // Ensure ltrb isn't zero or negative.
+
+    // Since we mask non-intersecting groupIndices to zero, the "mask and max" algorithm is only
+    // correct for positive values. (runningMaxGroupIndices is only signed because SSE doesn't have
+    // an unsigned max instruction.)
+    assert(simd::all(runningMaxGroupIndices >= 0));
+    assert(m_baselineGroupIndex >= 0);
+    assert(m_maxGroupIndex >= m_baselineGroupIndex);
 
     // Translate ltrb to our tile and negate the left and top sides.
     ltrb -= m_topLeft;
@@ -94,11 +108,14 @@ uint16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb,
     //                                             -b0 < -t1
     //
     // m_edges are already encoded like the left column, so encode "ltrb" like the right.
-    uint8x8 r = ltrb.z;
-    uint8x8 b = ltrb.w;
-    uint8x8 _l = ltrb.x; // Already converted to "255 - left" above.
-    uint8x8 _t = ltrb.y; // Already converted to "255 - top" above.
-    uint8x32 complement = simd::join(r, b, _l, _t);
+    //
+    // Bias ltrb by -128 so we can use int8_t. SSE doesn't have an unsigned byte compare.
+    int4 biased = ltrb + std::numeric_limits<int8_t>::min();
+    int8x8 r = biased.z;
+    int8x8 b = biased.w;
+    int8x8 _l = biased.x; // Already converted to "255 - left" above.
+    int8x8 _t = biased.y; // Already converted to "255 - top" above.
+    int8x32 complement = simd::join(r, b, _l, _t);
 
     auto edges = m_edges.begin();
     auto groupIndices = m_groupIndices.begin();
@@ -107,21 +124,18 @@ uint16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb,
     {
         // Test 32 edges!
         auto edgeMasks = *edges < complement;
-        // Each byte of isectMasks8 is 0xff if we intersect with the corresponding rectangle,
+        // Since the transposed L,T,R,B rows are a each 64-bit vectors, "and-reducing" them returns
+        // the intersection test (l0 < r1 && t0 < b1 && r0 > l1 && b0 > t1) in each byte.
+        int64_t isectMask = simd::reduce_and(math::bit_cast<int64x4>(edgeMasks));
+        // Each element of isectMasks8 is 0xff if we intersect with the corresponding rectangle,
         // otherwise 0.
-        uint64_t isectMasks8 = simd::reduce_and(math::bit_cast<uint64x4>(edgeMasks));
+        int8x8 isectMasks8 = math::bit_cast<int8x8>(isectMask);
         // Sign-extend isectMasks8 to 16 bits per mask, where each element of isectMasks16 is 0xffff
-        // if we intersect with the rectangle, otherwise 0. Encode these as signed integers so the
-        // arithmetic shift copies the sign bit.
-        int16x4 lo = math::bit_cast<int16x4>(isectMasks8) << 8;
-        int16x4 hi = math::bit_cast<int16x4>(isectMasks8);
-#if (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)) || defined(_WIN32)
-        int16x8 isectMasks16 = simd::zip(lo, hi) >> 8; // Arithmetic shift right copies sign bit.
-#elif defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
-        int16x8 isectMasks16 = simd::zip(hi, lo) >> 8; // Arithmetic shift right copies sign bit.
-#endif
-        // maskedGroupIndices[j] is m_groupIndices[i][j] if we intersect with the rect, otherwise 0.
-        uint16x8 maskedGroupIndices = *groupIndices & isectMasks16;
+        // if we intersect with the rectangle, otherwise 0.
+        int16x8 isectMasks16 = math::bit_cast<int16x8>(simd::zip(isectMasks8, isectMasks8));
+        // Mask out any groupIndices we don't intersect with so they don't participate in the test
+        // for maximum groupIndex.
+        int16x8 maskedGroupIndices = isectMasks16 & *groupIndices;
         runningMaxGroupIndices = simd::max(maskedGroupIndices, runningMaxGroupIndices);
     }
 
@@ -153,7 +167,7 @@ void IntersectionBoard::resizeAndReset(uint32_t viewportWidth, uint32_t viewport
     }
 }
 
-uint16_t IntersectionBoard::addRectangle(int4 ltrb)
+int16_t IntersectionBoard::addRectangle(int4 ltrb)
 {
     // Discard empty, negative, or offscreen rectangles.
     if (simd::any(ltrb.xy >= m_viewportSize || ltrb.zw <= 0 || ltrb.xy >= ltrb.zw))
@@ -167,7 +181,7 @@ uint16_t IntersectionBoard::addRectangle(int4 ltrb)
     assert(simd::all(span.xy <= span.zw));
 
     // Accumulate the max groupIndex from each tile the rectangle touches.
-    uint16x8 maxGroupIndices = 0;
+    int16x8 maxGroupIndices = 0;
     for (int y = span.y; y <= span.w; ++y)
     {
         auto tileIter = m_tiles.begin() + y * m_cols + span.x;
@@ -178,18 +192,24 @@ uint16_t IntersectionBoard::addRectangle(int4 ltrb)
         }
     }
 
+    // Find the absolute max group index this rectangle intersects with.
+    int16_t maxGroupIndex = simd::reduce_max(maxGroupIndices);
+    // It is the caller's responsibility to not insert more rectangles than can fit in a signed
+    // 16-bit integer.
+    assert(maxGroupIndex < std::numeric_limits<int16_t>::max());
+
     // Add the rectangle and its newly-found groupIndex to each tile it touches.
-    uint16_t groupIndex = simd::reduce_max(maxGroupIndices) + 1;
+    int16_t nextGroupIndex = maxGroupIndex + 1;
     for (int y = span.y; y <= span.w; ++y)
     {
         auto tileIter = m_tiles.begin() + y * m_cols + span.x;
         for (int x = span.x; x <= span.z; ++x)
         {
-            tileIter->addRectangle(ltrb, groupIndex);
+            tileIter->addRectangle(ltrb, nextGroupIndex);
             ++tileIter;
         }
     }
 
-    return groupIndex;
+    return nextGroupIndex;
 }
 } // namespace rive::pls
