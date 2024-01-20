@@ -4,6 +4,7 @@
 
 #include "rive/pls/webgpu/pls_render_context_webgpu_impl.hpp"
 
+#include "pls_render_context_webgpu_vulkan.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
