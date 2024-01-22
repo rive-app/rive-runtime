@@ -6,6 +6,13 @@
 
 #include "rive/math/math_types.hpp"
 
+#if !SIMD_NATIVE_GVEC && (defined(__SSE2__) || defined(_M_AMD64) || defined(_M_X64))
+// MSVC doesn't get codegen for the inner loop. Provide direct SSE intrinsics.
+#include <emmintrin.h>
+#define FALLBACK_ON_SSE2_INTRINSICS
+#else
+#endif
+
 namespace rive::pls
 {
 void IntersectionTile::reset(int left, int top, int16_t baselineGroupIndex)
@@ -115,11 +122,12 @@ int16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb,
     int8x8 b = biased.w;
     int8x8 _l = biased.x; // Already converted to "255 - left" above.
     int8x8 _t = biased.y; // Already converted to "255 - top" above.
-    int8x32 complement = simd::join(r, b, _l, _t);
 
+#if !defined(FALLBACK_ON_SSE2_INTRINSICS)
     auto edges = m_edges.begin();
     auto groupIndices = m_groupIndices.begin();
     assert(m_edges.size() == m_groupIndices.size());
+    int8x32 complement = simd::join(r, b, _l, _t);
     for (; edges != m_edges.end(); ++edges, ++groupIndices)
     {
         // Test 32 edges!
@@ -130,14 +138,42 @@ int16x8 IntersectionTile::findMaxIntersectingGroupIndex(int4 ltrb,
         // Each element of isectMasks8 is 0xff if we intersect with the corresponding rectangle,
         // otherwise 0.
         int8x8 isectMasks8 = math::bit_cast<int8x8>(isectMask);
-        // Sign-extend isectMasks8 to 16 bits per mask, where each element of isectMasks16 is 0xffff
-        // if we intersect with the rectangle, otherwise 0.
+        // Widen isectMasks8 to 16 bits per mask, where each element of isectMasks16 is 0xffff if we
+        // intersect with the rectangle, otherwise 0.
         int16x8 isectMasks16 = math::bit_cast<int16x8>(simd::zip(isectMasks8, isectMasks8));
         // Mask out any groupIndices we don't intersect with so they don't participate in the test
         // for maximum groupIndex.
         int16x8 maskedGroupIndices = isectMasks16 & *groupIndices;
         runningMaxGroupIndices = simd::max(maskedGroupIndices, runningMaxGroupIndices);
     }
+#else
+    // MSVC doesn't get good codegen for the above loop. Provide direct SSE intrinsics.
+    const __m128i* edgeData = reinterpret_cast<const __m128i*>(m_edges.data());
+    const __m128i* groupIndices = reinterpret_cast<const __m128i*>(m_groupIndices.data());
+    __m128i complementLO = math::bit_cast<__m128i>(simd::join(r, b));
+    __m128i complementHI = math::bit_cast<__m128i>(simd::join(_l, _t));
+    __m128i localMaxGroupIndices = math::bit_cast<__m128i>(runningMaxGroupIndices);
+    for (size_t i = 0; i < m_groupIndices.size(); ++i)
+    {
+        __m128i edgesLO = edgeData[i * 2];
+        __m128i edgesHI = edgeData[i * 2 + 1];
+        // Test 32 edges!
+        __m128i edgeMasksLO = _mm_cmpgt_epi8(complementLO, edgesLO);
+        __m128i edgeMasksHI = _mm_cmpgt_epi8(complementHI, edgesHI);
+        // AND L & R masks (bits 0:63) and T & B masks (bits 63:127).
+        __m128i partialIsectMasks = _mm_and_si128(edgeMasksLO, edgeMasksHI);
+        // Widen partial edge masks from 8 bits to 16.
+        __m128i partialIsectMasksTB16 = _mm_unpackhi_epi8(partialIsectMasks, partialIsectMasks);
+        __m128i partialIsectMasksLR16 = _mm_unpacklo_epi8(partialIsectMasks, partialIsectMasks);
+        // AND LR masks with TB masks for a full LTRB intersection mask.
+        __m128i isectMasks16 = _mm_and_si128(partialIsectMasksLR16, partialIsectMasksTB16);
+        // Mask out the groupIndices that don't intersect.
+        __m128i intersectingGroupIndices = _mm_and_si128(isectMasks16, groupIndices[i]);
+        // Accumulate max intersecting groupIndices.
+        localMaxGroupIndices = _mm_max_epi16(intersectingGroupIndices, localMaxGroupIndices);
+    }
+    runningMaxGroupIndices = math::bit_cast<int16x8>(localMaxGroupIndices);
+#endif // !FALLBACK_ON_SSE2_INTRINSICS
 
     // Ensure we never drop below our baseline index.
     runningMaxGroupIndices[0] = std::max(runningMaxGroupIndices[0], m_baselineGroupIndex);
