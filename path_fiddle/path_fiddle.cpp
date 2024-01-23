@@ -356,10 +356,6 @@ int main(int argc, const char** argv)
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_METAL);
             angle = true;
         }
-        else if (!strcmp(argv[i], "--intel") || !strcmp(argv[i], "-i"))
-        {
-            s_options.preferIntelGPU = true;
-        }
         else if (sscanf(argv[i], "-a%i", &s_animation))
         {}
         else if (sscanf(argv[i], "-s%i", &s_stateMachine))

@@ -4,6 +4,7 @@
 
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
+#include "gl_utils.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "shaders/constants.glsl"
 
@@ -21,47 +22,30 @@ class PLSRenderContextGLImpl::PLSImplFramebufferFetch : public PLSRenderContextG
 public:
     PLSImplFramebufferFetch(const GLCapabilities& extensions) : m_capabilities(extensions) {}
 
-    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
-                                              uint32_t width,
-                                              uint32_t height,
-                                              const PlatformFeatures& platformFeatures) override
-    {
-        if (framebufferID == 0)
-        {
-            return nullptr; // FBO 0 doesn't support additional color attachments.
-        }
-        auto renderTarget =
-            rcp(new PLSRenderTargetGL(framebufferID, width, height, platformFeatures));
-        renderTarget->allocateCoverageBackingTextures();
-        renderTarget->attachCoverageTexturesToCurrentFramebuffer();
-        return renderTarget;
-    }
-
-    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-        uint32_t width,
-        uint32_t height,
-        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
-        const PlatformFeatures& platformFeatures) override
-    {
-        auto renderTarget =
-            rcp(new PLSRenderTargetGL(width, height, targetTextureOwnership, platformFeatures));
-        renderTarget->allocateCoverageBackingTextures();
-        renderTarget->attachCoverageTexturesToCurrentFramebuffer();
-        return renderTarget;
-    }
-
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {
         assert(impl->m_capabilities.EXT_shader_framebuffer_fetch);
 
-        auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
-        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
-        renderTarget->reattachTargetTextureIfDifferent();
+        auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+        renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        // Enable multiple render targets, with a draw buffer for each PLS plane.
-        glDrawBuffers((desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING) ? 4 : 3,
-                      kPLSDrawBuffers);
+        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
+        {
+            // We're targeting an external FBO directly. Allocate and attach an offscreen target
+            // texture since we can't modify their attachments.
+            framebufferRenderTarget->allocateOffscreenTargetTexture();
+            if (desc.loadAction == LoadAction::preserveRenderTarget)
+            {
+                // Copy the framebuffer's contents to our offscreen texture.
+                framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
+                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+                glutils::BlitFramebuffer(framebufferRenderTarget->bounds(),
+                                         framebufferRenderTarget->height());
+            }
+        }
+
+        renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 4);
 
         // Instruct the driver not to load existing PLS plane contents into tiled memory, with the
         // exception of the color buffer after an intermediate flush.
@@ -86,15 +70,22 @@ public:
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) override
+    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         // Instruct the driver not to flush PLS contents from tiled memory, with the exception of
         // the color buffer.
         static_assert(FRAMEBUFFER_PLANE_IDX == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, kPLSDrawBuffers + 1);
 
-        // Don't restore glDrawBuffers. The client can assume we've changed it, if we have a wrapped
-        // render target.
+        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
+                static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+        {
+            // We rendered to an offscreen texture. Copy back to the external framebuffer.
+            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
+            framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
+            glutils::BlitFramebuffer(framebufferRenderTarget->bounds(),
+                                     framebufferRenderTarget->height());
+        }
     }
 
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_FRAMEBUFFER_FETCH; }

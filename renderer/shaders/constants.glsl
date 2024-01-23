@@ -71,8 +71,8 @@
 // Index of each pixel local storage plane.
 #define FRAMEBUFFER_PLANE_IDX 0
 #define COVERAGE_PLANE_IDX 1
-#define ORIGINAL_DST_COLOR_PLANE_IDX 2
-#define CLIP_PLANE_IDX 3
+#define CLIP_PLANE_IDX 2
+#define ORIGINAL_DST_COLOR_PLANE_IDX 3
 
 // Index at which we access each resource.
 #define TESS_VERTEX_TEXTURE_IDX 0

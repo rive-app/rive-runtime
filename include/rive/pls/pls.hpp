@@ -939,7 +939,7 @@ enum class FlushType : uint8_t
 struct FlushDescriptor
 {
     FlushType flushType;
-    const PLSRenderTarget* renderTarget = nullptr;
+    PLSRenderTarget* renderTarget = nullptr;
     LoadAction loadAction = LoadAction::clear;
     ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;

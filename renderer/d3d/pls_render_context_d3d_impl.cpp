@@ -1123,12 +1123,12 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Execute the DrawList.
     ID3D11UnorderedAccessView* plsUAVs[] = {renderTarget->m_targetUAV.Get(),
                                             renderTarget->m_coverageUAV.Get(),
-                                            renderTarget->m_originalDstColorUAV.Get(),
-                                            renderTarget->m_clipUAV.Get()};
+                                            renderTarget->m_clipUAV.Get(),
+                                            renderTarget->m_originalDstColorUAV.Get()};
     static_assert(FRAMEBUFFER_PLANE_IDX == 0);
     static_assert(COVERAGE_PLANE_IDX == 1);
-    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 2);
-    static_assert(CLIP_PLANE_IDX == 3);
+    static_assert(CLIP_PLANE_IDX == 2);
+    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(0,
                                                             NULL,
                                                             NULL,

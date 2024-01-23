@@ -34,13 +34,13 @@ private:
     const wgpu::TextureFormat m_framebufferFormat;
 
     wgpu::Texture m_coverageTexture;
-    wgpu::Texture m_originalDstColorTexture;
     wgpu::Texture m_clipTexture;
+    wgpu::Texture m_originalDstColorTexture;
 
     wgpu::TextureView m_targetTextureView;
     wgpu::TextureView m_coverageTextureView;
-    wgpu::TextureView m_originalDstColorTextureView;
     wgpu::TextureView m_clipTextureView;
+    wgpu::TextureView m_originalDstColorTextureView;
 };
 
 class PLSRenderContextWebGPUImpl : public PLSRenderContextHelperImpl

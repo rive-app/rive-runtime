@@ -5,51 +5,37 @@
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
 #include "shaders/constants.glsl"
+#include "gl_utils.hpp"
 
 #include "../out/obj/generated/glsl.exports.h"
 
 namespace rive::pls
 {
-constexpr static GLenum kPLSDrawBuffers[4] = {GL_COLOR_ATTACHMENT0,
-                                              GL_COLOR_ATTACHMENT1,
-                                              GL_COLOR_ATTACHMENT2,
-                                              GL_COLOR_ATTACHMENT3};
-
 class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::PLSImpl
 {
-    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
-                                              uint32_t width,
-                                              uint32_t height,
-                                              const PlatformFeatures&) override
+    void activatePixelLocalStorage(PLSRenderContextGLImpl* plsContextImpl,
+                                   const FlushDescriptor& desc) override
     {
-        // For now, the main framebuffer also has to be an RW texture.
-        return nullptr;
-    }
+        auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+        renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-        uint32_t width,
-        uint32_t height,
-        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
-        const PlatformFeatures& platformFeatures) override
-    {
-        auto renderTarget =
-            rcp(new PLSRenderTargetGL(width, height, targetTextureOwnership, platformFeatures));
-        glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, width);
-        glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height);
-        renderTarget->allocateCoverageBackingTextures();
-
-        renderTarget->createSideFramebuffer();
-        glDrawBuffers(4, kPLSDrawBuffers);
-        return renderTarget;
-    }
-
-    void activatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
-    {
-        auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
+        auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
+        if (framebufferRenderTarget != nullptr)
+        {
+            // We're targeting an external FBO directly. Make sure to allocate and attach an
+            // offscreen target texture.
+            framebufferRenderTarget->allocateOffscreenTargetTexture();
+            if (desc.loadAction == LoadAction::preserveRenderTarget)
+            {
+                // Copy the framebuffer's contents to our offscreen texture.
+                framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
+                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+                glutils::BlitFramebuffer(renderTarget->bounds(), renderTarget->height());
+            }
+        }
 
         // Clear the necessary textures.
-        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->sideFramebufferID());
-        renderTarget->reattachTargetTextureIfDifferent();
+        renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER, 4);
         if (desc.canSkipColorClear())
         {
             // We can accomplish a clear of the color buffer while the shader resolves coverage,
@@ -80,46 +66,24 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
         }
 
-        // Bind the RW textures.
-        glBindImageTexture(FRAMEBUFFER_PLANE_IDX,
-                           renderTarget->m_targetTextureID,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_RGBA8);
-        glBindImageTexture(COVERAGE_PLANE_IDX,
-                           renderTarget->m_coverageTextureID,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_R32UI);
-        glBindImageTexture(ORIGINAL_DST_COLOR_PLANE_IDX,
-                           renderTarget->m_originalDstColorTextureID,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_RGBA8);
-        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
-        {
-            glBindImageTexture(CLIP_PLANE_IDX,
-                               renderTarget->m_clipTextureID,
-                               0,
-                               GL_FALSE,
-                               0,
-                               GL_READ_WRITE,
-                               GL_R32UI);
-        }
-
-        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
+        renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
+        renderTarget->bindAsImageTextures();
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) override
+    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
+
+        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
+                static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+        {
+            // We rendered to an offscreen texture. Copy back to the external target framebuffer.
+            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
+            framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
+            glutils::BlitFramebuffer(framebufferRenderTarget->bounds(),
+                                     framebufferRenderTarget->height());
+        }
     }
 
     const char* shaderDefineName() const override { return GLSL_PLS_IMPL_RW_TEXTURE; }

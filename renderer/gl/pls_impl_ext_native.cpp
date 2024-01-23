@@ -8,7 +8,6 @@
 #include "gl/gl_utils.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
-#include <vector>
 #include <sstream>
 
 #include "../out/obj/generated/pls_load_store_ext.exports.h"
@@ -82,23 +81,6 @@ public:
         m_state = std::move(state);
     }
 
-    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
-                                              uint32_t width,
-                                              uint32_t height,
-                                              const PlatformFeatures& platformFeatures) override
-    {
-        return rcp(new PLSRenderTargetGL(framebufferID, width, height, platformFeatures));
-    }
-
-    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-        uint32_t width,
-        uint32_t height,
-        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership,
-        const PlatformFeatures& platformFeatures) override
-    {
-        return rcp(new PLSRenderTargetGL(width, height, targetTextureOwnership, platformFeatures));
-    }
-
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {
@@ -106,9 +88,16 @@ public:
         assert(impl->m_capabilities.EXT_shader_framebuffer_fetch ||
                impl->m_capabilities.ARM_shader_framebuffer_fetch);
 
-        auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
-        glBindFramebuffer(GL_FRAMEBUFFER, renderTarget->drawFramebufferID());
-        renderTarget->reattachTargetTextureIfDifferent();
+        auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
+        {
+            // With EXT_shader_pixel_local_storage we can render directly to any framebuffer.
+            framebufferRenderTarget->bindExternalFramebuffer(GL_FRAMEBUFFER);
+        }
+        else
+        {
+            renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER);
+        }
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
         std::array<float, 4> clearColor4f;
@@ -141,7 +130,7 @@ public:
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl* impl) override
+    void deactivatePixelLocalStorage(PLSRenderContextGLImpl* impl, const FlushDescriptor&) override
     {
         // Issue a fullscreen draw that transfers the color information in pixel local storage to
         // the main framebuffer.

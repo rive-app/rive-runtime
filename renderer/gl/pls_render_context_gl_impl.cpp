@@ -1084,7 +1084,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    m_plsImpl->deactivatePixelLocalStorage(this);
+    m_plsImpl->deactivatePixelLocalStorage(this, desc);
 
 #ifdef RIVE_DESKTOP_GL
     if (m_capabilities.ANGLE_polygon_mode && desc.wireframe)
@@ -1298,6 +1298,8 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
             emscripten_webgl_get_current_context()) &&
         emscripten_webgl_shader_pixel_local_storage_is_coherent())
     {
+        capabilities.ANGLE_shader_pixel_local_storage = true;
+        capabilities.ANGLE_shader_pixel_local_storage_coherent = true;
         return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
     }
 #endif

@@ -39,8 +39,8 @@ private:
     const MTLPixelFormat m_pixelFormat;
     id<MTLTexture> m_targetTexture;
     id<MTLTexture> m_coverageMemorylessTexture;
-    id<MTLTexture> m_originalDstColorMemorylessTexture;
     id<MTLTexture> m_clipMemorylessTexture;
+    id<MTLTexture> m_originalDstColorMemorylessTexture;
 };
 
 // Metal backend implementation of PLSRenderContextImpl.

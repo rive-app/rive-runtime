@@ -67,6 +67,8 @@ struct GLCapabilities
 #define glPixelLocalStorageBarrierWEBGL glPixelLocalStorageBarrierANGLE
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL GL_FIRST_VERTEX_CONVENTION_ANGLE
 #define GL_SHADER_PIXEL_LOCAL_STORAGE_EXT 0x8F64
+#define GL_FRAMEBUFFER_FETCH_NONCOHERENT_QCOM 0x96A2
+#define glFramebufferFetchBarrierQCOM(X) // No-op to placate IDEs when editing android files.
 #endif
 
 #ifdef RIVE_GLES
@@ -97,5 +99,4 @@ extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 #include <webgl/webgl2_ext.h>
 #define GL_UNMASKED_RENDERER_WEBGL 0x9246
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL 0x8E4D
-
 #endif

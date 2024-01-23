@@ -36,8 +36,8 @@ private:
 
     ComPtr<ID3D11UnorderedAccessView> m_targetUAV;
     ComPtr<ID3D11UnorderedAccessView> m_coverageUAV;
-    ComPtr<ID3D11UnorderedAccessView> m_originalDstColorUAV;
     ComPtr<ID3D11UnorderedAccessView> m_clipUAV;
+    ComPtr<ID3D11UnorderedAccessView> m_originalDstColorUAV;
 };
 
 // D3D backend implementation of PLSRenderContextImpl.

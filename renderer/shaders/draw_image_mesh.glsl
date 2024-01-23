@@ -94,8 +94,8 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 PLS_BLOCK_BEGIN
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
-PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
+PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_BLOCK_END
 
 IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _fragCoord, _plsCoord)

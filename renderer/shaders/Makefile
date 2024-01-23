@@ -23,6 +23,7 @@ $(MINIFY_OUTPUTS): $(MINIFY_STAMP)
 	@test -f $@ || "$(MAKE)" $(AM_MAKEFLAGS) $(MINIFY_STAMP)
 
 $(MINIFY_STAMP): $(MINIFY_INPUTS) minify.py
+	python3 -m pip install ply
 	python3 minify.py $(FLAGS) -o $(OUT) $(MINIFY_INPUTS)
 	@touch $(MINIFY_STAMP)
 

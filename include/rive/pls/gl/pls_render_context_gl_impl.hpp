@@ -25,28 +25,6 @@ public:
     // Called when the GL context has been modified outside of Rive.
     void resetGLState();
 
-    // Creates a PLSRenderTarget that draws directly into the given GL framebuffer.
-    // Returns null if the framebuffer doesn't support pixel local storage.
-    rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID, uint32_t width, uint32_t height)
-    {
-        return m_plsImpl->wrapGLRenderTarget(framebufferID, width, height, m_platformFeatures);
-    }
-
-    // Creates a PLSRenderTarget that draws to a new, offscreen GL framebuffer. This method is
-    // guaranteed to succeed, but the caller must call glBlitFramebuffer() to view the rendering
-    // results.
-    rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-        uint32_t width,
-        uint32_t height,
-        PLSRenderTargetGL::TargetTextureOwnership targetTextureOwnership =
-            PLSRenderTargetGL::TargetTextureOwnership::internal)
-    {
-        return m_plsImpl->makeOffscreenRenderTarget(width,
-                                                    height,
-                                                    targetTextureOwnership,
-                                                    m_platformFeatures);
-    }
-
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
     rcp<PLSTexture> makeImageTexture(uint32_t width,
@@ -65,18 +43,9 @@ private:
     public:
         virtual void init(rcp<GLState>) {}
 
-        virtual rcp<PLSRenderTargetGL> wrapGLRenderTarget(GLuint framebufferID,
-                                                          uint32_t width,
-                                                          uint32_t height,
-                                                          const PlatformFeatures&) = 0;
-        virtual rcp<PLSRenderTargetGL> makeOffscreenRenderTarget(
-            uint32_t width,
-            uint32_t height,
-            PLSRenderTargetGL::TargetTextureOwnership,
-            const PlatformFeatures&) = 0;
-
         virtual void activatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor&) = 0;
-        virtual void deactivatePixelLocalStorage(PLSRenderContextGLImpl*) = 0;
+        virtual void deactivatePixelLocalStorage(PLSRenderContextGLImpl*,
+                                                 const FlushDescriptor&) = 0;
 
         virtual const char* shaderDefineName() const = 0;
 

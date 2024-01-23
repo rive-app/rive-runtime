@@ -288,8 +288,7 @@ public:
 
     void onSizeChanged(GLFWwindow* window, int width, int height) override
     {
-        auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextGLImpl>();
-        m_renderTarget = plsContextImpl->makeOffscreenRenderTarget(width, height);
+        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0);
     }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
@@ -304,14 +303,7 @@ public:
         m_plsContext->beginFrame(std::move(frameDescriptor));
     }
 
-    void onEnd() override
-    {
-        m_plsContext->flush();
-        auto [w, h] = std::make_tuple(m_renderTarget->width(), m_renderTarget->height());
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_renderTarget->sideFramebufferID());
-        glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    }
+    void onEnd() override { m_plsContext->flush(); }
 
     void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
 

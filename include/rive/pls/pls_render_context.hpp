@@ -106,7 +106,7 @@ public:
     // Options for controlling how and where a frame is rendered.
     struct FrameDescriptor
     {
-        rcp<const PLSRenderTarget> renderTarget;
+        rcp<PLSRenderTarget> renderTarget;
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
 

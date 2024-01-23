@@ -140,10 +140,10 @@ public:
             MTLRenderPipelineDescriptor* desc = [[MTLRenderPipelineDescriptor alloc] init];
             desc.vertexFunction = vertexMain;
             desc.fragmentFunction = fragmentMain;
-            desc.colorAttachments[0].pixelFormat = pixelFormat;
-            desc.colorAttachments[1].pixelFormat = MTLPixelFormatR32Uint;
-            desc.colorAttachments[2].pixelFormat = pixelFormat;
-            desc.colorAttachments[3].pixelFormat = MTLPixelFormatR32Uint;
+            desc.colorAttachments[FRAMEBUFFER_PLANE_IDX].pixelFormat = pixelFormat;
+            desc.colorAttachments[COVERAGE_PLANE_IDX].pixelFormat = MTLPixelFormatR32Uint;
+            desc.colorAttachments[CLIP_PLANE_IDX].pixelFormat = MTLPixelFormatR32Uint;
+            desc.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].pixelFormat = pixelFormat;
             return make_pipeline_state(gpu, desc);
         };
         id<MTLFunction> vertexMain = [library newFunctionWithName:vertexFunctionName];
@@ -340,10 +340,10 @@ PLSRenderTargetMetal::PLSRenderTargetMetal(id<MTLDevice> gpu,
     m_targetTexture = nil; // Will be configured later by setTargetTexture().
     m_coverageMemorylessTexture =
         make_memoryless_pls_texture(gpu, MTLPixelFormatR32Uint, width, height);
-    m_originalDstColorMemorylessTexture =
-        make_memoryless_pls_texture(gpu, m_pixelFormat, width, height);
     m_clipMemorylessTexture =
         make_memoryless_pls_texture(gpu, MTLPixelFormatR32Uint, width, height);
+    m_originalDstColorMemorylessTexture =
+        make_memoryless_pls_texture(gpu, m_pixelFormat, width, height);
 }
 
 void PLSRenderTargetMetal::setTargetTexture(id<MTLTexture> texture)
@@ -700,33 +700,35 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
     // Set up the render pass that draws path patches and triangles.
     MTLRenderPassDescriptor* pass = [MTLRenderPassDescriptor renderPassDescriptor];
-    pass.colorAttachments[0].texture = renderTarget->targetTexture();
+    pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].texture = renderTarget->targetTexture();
     if (desc.loadAction == LoadAction::clear)
     {
         float cc[4];
         UnpackColorToRGBA32F(desc.clearColor, cc);
-        pass.colorAttachments[0].loadAction = MTLLoadActionClear;
-        pass.colorAttachments[0].clearColor = MTLClearColorMake(cc[0], cc[1], cc[2], cc[3]);
+        pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].loadAction = MTLLoadActionClear;
+        pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].clearColor =
+            MTLClearColorMake(cc[0], cc[1], cc[2], cc[3]);
     }
     else
     {
-        pass.colorAttachments[0].loadAction = MTLLoadActionLoad;
+        pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].loadAction = MTLLoadActionLoad;
     }
-    pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+    pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].storeAction = MTLStoreActionStore;
 
-    pass.colorAttachments[1].texture = renderTarget->m_coverageMemorylessTexture;
-    pass.colorAttachments[1].loadAction = MTLLoadActionClear;
-    pass.colorAttachments[1].clearColor = MTLClearColorMake(0, 0, 0, 0);
-    pass.colorAttachments[1].storeAction = MTLStoreActionDontCare;
+    pass.colorAttachments[COVERAGE_PLANE_IDX].texture = renderTarget->m_coverageMemorylessTexture;
+    pass.colorAttachments[COVERAGE_PLANE_IDX].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[COVERAGE_PLANE_IDX].clearColor = MTLClearColorMake(0, 0, 0, 0);
+    pass.colorAttachments[COVERAGE_PLANE_IDX].storeAction = MTLStoreActionDontCare;
 
-    pass.colorAttachments[2].texture = renderTarget->m_originalDstColorMemorylessTexture;
-    pass.colorAttachments[2].loadAction = MTLLoadActionDontCare;
-    pass.colorAttachments[2].storeAction = MTLStoreActionDontCare;
+    pass.colorAttachments[CLIP_PLANE_IDX].texture = renderTarget->m_clipMemorylessTexture;
+    pass.colorAttachments[CLIP_PLANE_IDX].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[CLIP_PLANE_IDX].clearColor = MTLClearColorMake(0, 0, 0, 0);
+    pass.colorAttachments[CLIP_PLANE_IDX].storeAction = MTLStoreActionDontCare;
 
-    pass.colorAttachments[3].texture = renderTarget->m_clipMemorylessTexture;
-    pass.colorAttachments[3].loadAction = MTLLoadActionClear;
-    pass.colorAttachments[3].clearColor = MTLClearColorMake(0, 0, 0, 0);
-    pass.colorAttachments[3].storeAction = MTLStoreActionDontCare;
+    pass.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].texture =
+        renderTarget->m_originalDstColorMemorylessTexture;
+    pass.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].loadAction = MTLLoadActionDontCare;
+    pass.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].storeAction = MTLStoreActionDontCare;
 
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
     [encoder setViewport:(MTLViewport){0.f,

@@ -5,8 +5,8 @@
 #pragma once
 
 #include "rive/pls/gl/gles3.hpp"
+#include "rive/math/aabb.hpp"
 #include <cstddef>
-#include <string>
 
 namespace glutils
 {
@@ -32,4 +32,8 @@ void CompileAndAttachShader(GLuint program,
 [[nodiscard]] GLuint CompileRawGLSL(GLuint shaderType, const char* rawGLSL);
 
 void LinkProgram(GLuint program);
+
+void BlitFramebuffer(rive::IAABB bounds,
+                     uint32_t renderTargetHeight,
+                     GLbitfield mask = GL_COLOR_BUFFER_BIT);
 } // namespace glutils
