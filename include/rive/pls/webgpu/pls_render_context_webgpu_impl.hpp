@@ -60,11 +60,17 @@ public:
         subpassLoad,
     };
 
+    struct ContextOptions
+    {
+        PixelLocalStorageType plsType = PixelLocalStorageType::none;
+        bool disableStorageBuffers = false;
+    };
+
     static std::unique_ptr<PLSRenderContext> MakeContext(
         wgpu::Device,
         wgpu::Queue,
-        const pls::PlatformFeatures& baselinePlatformFeatures = {},
-        PixelLocalStorageType = PixelLocalStorageType::none);
+        const ContextOptions&,
+        const pls::PlatformFeatures& baselinePlatformFeatures = {});
 
     virtual ~PLSRenderContextWebGPUImpl();
 
@@ -82,8 +88,8 @@ public:
 protected:
     PLSRenderContextWebGPUImpl(wgpu::Device device,
                                wgpu::Queue queue,
-                               const pls::PlatformFeatures& baselinePlatformFeatures,
-                               PixelLocalStorageType);
+                               const ContextOptions&,
+                               const pls::PlatformFeatures& baselinePlatformFeatures);
 
     // Create the BindGroupLayout that binds the PLS attachments as textures. This is not necessary
     // on all implementations.
@@ -133,7 +139,7 @@ private:
 
     const wgpu::Device m_device;
     const wgpu::Queue m_queue;
-    const PixelLocalStorageType m_pixelLocalStorageType;
+    const ContextOptions m_contextOptions;
 
     // PLS always expects CW, but when using "glsl-raw" shaders, we may need to use CCW. This is
     // because the WebGPU layer might actually flip our frontFace if it anticipates negating our Y

@@ -216,20 +216,6 @@ void GeneratePatchBufferData(PatchVertex vertices[kPatchVertexBufferCount],
                                         kMidpointFanPatchVertexCount);
 }
 
-float FindTransformedArea(const AABB& bounds, const Mat2D& matrix)
-{
-    Vec2D pts[4] = {{bounds.left(), bounds.top()},
-                    {bounds.right(), bounds.top()},
-                    {bounds.right(), bounds.bottom()},
-                    {bounds.left(), bounds.bottom()}};
-    Vec2D screenSpacePts[4];
-    matrix.mapPoints(screenSpacePts, pts, 4);
-    Vec2D v[3] = {screenSpacePts[1] - screenSpacePts[0],
-                  screenSpacePts[2] - screenSpacePts[0],
-                  screenSpacePts[3] - screenSpacePts[0]};
-    return (fabsf(Vec2D::cross(v[0], v[1])) + fabsf(Vec2D::cross(v[1], v[2]))) * .5f;
-}
-
 void ClipRectInverseMatrix::reset(const Mat2D& clipMatrix, const AABB& clipRect)
 {
     // Find the matrix that transforms from pixel space to "normalized clipRect space", where the
@@ -501,5 +487,42 @@ ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix,
                      : ClipRectInverseMatrix::WideOpen().inverseMatrix());
     m_clipID = clipID;
     m_blendMode = ConvertBlendModeToPLSBlendMode(blendMode);
+}
+
+std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,
+                                                  StorageBufferStructure bufferStructure)
+{
+    assert(bufferSizeInBytes % pls::StorageBufferElementSizeInBytes(bufferStructure) == 0);
+    size_t elementCount = bufferSizeInBytes / pls::StorageBufferElementSizeInBytes(bufferStructure);
+    uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
+    // PLSRenderContext is responsible for breaking up a flush before any storage buffer grows
+    // larger than can be supported by a GL texture of width "STORAGE_TEXTURE_WIDTH".
+    // (2048 is the min required value for GL_MAX_TEXTURE_SIZE.)
+    constexpr int kMaxRequredTextureHeight RIVE_MAYBE_UNUSED = 2048;
+    assert(height <= kMaxRequredTextureHeight);
+    uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
+    return {width, height};
+}
+
+size_t StorageTextureBufferSize(size_t bufferSizeInBytes, StorageBufferStructure bufferStructure)
+{
+    // The polyfill texture needs to be updated in entire rows at a time. Extend the buffer's length
+    // to be able to service a worst-case scenario.
+    return bufferSizeInBytes +
+           (STORAGE_TEXTURE_WIDTH - 1) * pls::StorageBufferElementSizeInBytes(bufferStructure);
+}
+
+float FindTransformedArea(const AABB& bounds, const Mat2D& matrix)
+{
+    Vec2D pts[4] = {{bounds.left(), bounds.top()},
+                    {bounds.right(), bounds.top()},
+                    {bounds.right(), bounds.bottom()},
+                    {bounds.left(), bounds.bottom()}};
+    Vec2D screenSpacePts[4];
+    matrix.mapPoints(screenSpacePts, pts, 4);
+    Vec2D v[3] = {screenSpacePts[1] - screenSpacePts[0],
+                  screenSpacePts[2] - screenSpacePts[0],
+                  screenSpacePts[3] - screenSpacePts[0]};
+    return (fabsf(Vec2D::cross(v[0], v[1])) + fabsf(Vec2D::cross(v[1], v[2]))) * .5f;
 }
 } // namespace rive::pls

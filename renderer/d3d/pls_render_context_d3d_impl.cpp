@@ -516,7 +516,7 @@ protected:
     BufferRingD3D(PLSRenderContextD3DImpl* plsImpl,
                   size_t capacityInBytes,
                   UINT bindFlags,
-                  size_t elementSizeInBytes,
+                  UINT elementSizeInBytes,
                   UINT miscFlags) :
         BufferRing(capacityInBytes), m_gpuContext(plsImpl->gpuContext())
     {
@@ -572,7 +572,7 @@ class StructuredBufferRingD3D : public BufferRingD3D
 public:
     StructuredBufferRingD3D(PLSRenderContextD3DImpl* plsImpl,
                             size_t capacityInBytes,
-                            size_t elementSizeInBytes) :
+                            UINT elementSizeInBytes) :
         BufferRingD3D(plsImpl,
                       capacityInBytes,
                       D3D11_BIND_SHADER_RESOURCE,

@@ -141,6 +141,7 @@
 #define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
 #endif
+#define TEXTURE_RG32UI(IDX, NAME) TEXTURE_RGBA32UI(IDX, NAME)
 
 #ifdef @TARGET_VULKAN
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
@@ -405,11 +406,17 @@
 #define STORAGE_BUFFER_BLOCK_BEGIN
 #define STORAGE_BUFFER_BLOCK_END
 
-#ifdef @TARGET_VULKAN
-#define @ENABLE_SHADER_STORAGE_BUFFERS
-#endif
+#ifdef @DISABLE_SHADER_STORAGE_BUFFERS
 
-#ifdef @ENABLE_SHADER_STORAGE_BUFFERS
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32UI(IDX, NAME)
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RG32UI(IDX, NAME)
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32F(IDX, NAME)
+#define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
+    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
+#define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
+    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y)).xy
+
+#else
 
 #ifdef GL_ARB_shader_storage_buffer_object
 #extension GL_ARB_shader_storage_buffer_object : require
@@ -426,17 +433,7 @@
 #define STORAGE_BUFFER_LOAD4(NAME, I) NAME._values[I]
 #define STORAGE_BUFFER_LOAD2(NAME, I) NAME._values[I]
 
-#else
-
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) uniform highp usampler2D NAME
-#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) uniform highp usampler2D NAME
-#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) uniform highp sampler2D NAME
-#define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
-    texelFetch(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y), 0)
-#define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
-    texelFetch(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y), 0).xy
-
-#endif
+#endif // DISABLE_SHADER_STORAGE_BUFFERS
 
 #if @GLSL_VERSION < 310
 // Polyfill ES 3.1+ methods.

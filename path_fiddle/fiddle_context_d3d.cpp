@@ -147,10 +147,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions op
         adapter->GetDesc(&adapterDesc);
         isIntel = adapterDesc.VendorId == 0x163C || adapterDesc.VendorId == 0x8086 ||
                   adapterDesc.VendorId == 0x8087;
-        if (isIntel == options.preferIntelGPU)
-        {
-            break;
-        }
+        break;
     }
 
     ComPtr<ID3D11Device> gpu;

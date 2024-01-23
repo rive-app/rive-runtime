@@ -58,9 +58,9 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     }
 
     std::vector<const char*> generalDefines;
-    if (m_capabilities.ARB_shader_storage_buffer_object)
+    if (!m_capabilities.ARB_shader_storage_buffer_object)
     {
-        generalDefines.push_back(GLSL_ENABLE_SHADER_STORAGE_BUFFERS);
+        generalDefines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
     }
 
     m_colorRampProgram = glCreateProgram();
@@ -433,22 +433,6 @@ static GLenum storage_texture_type(pls::StorageBufferStructure bufferStructure)
     RIVE_UNREACHABLE();
 }
 
-// What dimensions should we give a texture that polyfills a storage buffer?
-static std::tuple<uint32_t, uint32_t> storage_texture_size(size_t bufferSizeInBytes,
-                                                           StorageBufferStructure bufferStructure)
-{
-    assert(bufferSizeInBytes % pls::StorageBufferElementSizeInBytes(bufferStructure) == 0);
-    size_t elementCount = bufferSizeInBytes / pls::StorageBufferElementSizeInBytes(bufferStructure);
-    uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
-    // PLSRenderContext is responsible for breaking up a flush before any storage buffer grows
-    // larger than can be supported by a GL texture of witdth "STORAGE_TEXTURE_WIDTH".
-    // (2048 is the min required value for GL_MAX_TEXTURE_SIZE.)
-    constexpr int kMaxRequredTextureHeight RIVE_MAYBE_UNUSED = 2048;
-    assert(height <= kMaxRequredTextureHeight);
-    uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
-    return {width, height};
-}
-
 class StorageBufferRingGLImpl : public BufferRingGLImpl
 {
 public:
@@ -463,17 +447,14 @@ public:
                                                           : GL_PIXEL_UNPACK_BUFFER,
             capabilities.ARB_shader_storage_buffer_object
                 ? capacityInBytes
-                // The polyfill texture needs to be updated in entire rows at a time. Extend the
-                // buffer's length to be able to serve a worst-case scenario.
-                : capacityInBytes + (STORAGE_TEXTURE_WIDTH - 1) *
-                                        pls::StorageBufferElementSizeInBytes(bufferStructure),
+                : pls::StorageTextureBufferSize(capacityInBytes, bufferStructure),
             std::move(state)),
         m_bufferStructure(bufferStructure)
     {
         if (!capabilities.ARB_shader_storage_buffer_object)
         {
             // Our GL driver doesn't support storage buffers. Allocate a polyfill texture.
-            auto [width, height] = storage_texture_size(capacityInBytes, m_bufferStructure);
+            auto [width, height] = pls::StorageTextureSize(capacityInBytes, m_bufferStructure);
             glGenTextures(1, &m_polyfillTexture);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, m_polyfillTexture);
@@ -517,7 +498,7 @@ public:
             // Our GL driver doesn't support storage buffers. Copy the buffer to a texture.
             assert(m_target == GL_PIXEL_UNPACK_BUFFER);
             auto [updateWidth, updateHeight] =
-                storage_texture_size(bindingSizeInBytes, m_bufferStructure);
+                pls::StorageTextureSize(bindingSizeInBytes, m_bufferStructure);
             m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, submittedBufferID());
             glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + bindingIdx);
             glBindTexture(GL_TEXTURE_2D, m_polyfillTexture);
@@ -717,9 +698,9 @@ public:
         {
             defines.push_back(GLSL_ENABLE_BINDLESS_TEXTURES);
         }
-        if (plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
+        if (!plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
         {
-            defines.push_back(GLSL_ENABLE_SHADER_STORAGE_BUFFERS);
+            defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
         }
 
         m_id = glutils::CompileShader(shaderType,
@@ -1263,7 +1244,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
     {
         int maxVertexShaderStorageBlocks;
         glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, &maxVertexShaderStorageBlocks);
-        if (maxVertexShaderStorageBlocks < 4)
+        if (maxVertexShaderStorageBlocks < pls::kMaxStorageBuffers)
         {
             capabilities.ARB_shader_storage_buffer_object = false;
         }

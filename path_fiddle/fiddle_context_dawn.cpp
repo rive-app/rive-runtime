@@ -160,7 +160,10 @@ public:
         backendProcs.deviceSetLoggingCallback(m_backendDevice, device_log_callback, nullptr);
         m_device = wgpu::Device::Acquire(m_backendDevice);
         m_queue = m_device.GetQueue();
-        m_plsContext = PLSRenderContextWebGPUImpl::MakeContext(m_device, m_queue);
+        m_plsContext =
+            PLSRenderContextWebGPUImpl::MakeContext(m_device,
+                                                    m_queue,
+                                                    PLSRenderContextWebGPUImpl::ContextOptions());
     }
 
     float dpiScale(GLFWwindow* window) const override

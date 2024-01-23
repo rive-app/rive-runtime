@@ -40,12 +40,12 @@ private:
 
     PLSRenderContextWebGPUVulkan(wgpu::Device device,
                                  wgpu::Queue queue,
+                                 const ContextOptions& contextOptions,
                                  const pls::PlatformFeatures& baselinePlatformFeatures) :
-        PLSRenderContextWebGPUImpl(device,
-                                   queue,
-                                   baselinePlatformFeatures,
-                                   PixelLocalStorageType::subpassLoad)
-    {}
+        PLSRenderContextWebGPUImpl(device, queue, contextOptions, baselinePlatformFeatures)
+    {
+        assert(contextOptions.pixelLocalStorageType == PixelLocalStorageType::subpassLoad);
+    }
 
     EmJsHandle m_plsTextureBindGroupJSHandle;
 };

@@ -85,8 +85,8 @@ static_assert(1 << kTessTextureWidthLog2 == kTessTextureWidth);
 
 // Gradients are implemented by sampling a horizontal ramp of pixels allocated in a global gradient
 // texture.
-constexpr size_t kGradTextureWidth = 512;
-constexpr size_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
+constexpr static size_t kGradTextureWidth = 512;
+constexpr static size_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
 
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
@@ -388,7 +388,7 @@ enum StorageBufferStructure
     float32x4,
 };
 
-constexpr static size_t StorageBufferElementSizeInBytes(StorageBufferStructure bufferStructure)
+constexpr static uint32_t StorageBufferElementSizeInBytes(StorageBufferStructure bufferStructure)
 {
     switch (bufferStructure)
     {
@@ -555,6 +555,19 @@ private:
 };
 
 #undef WRITEONLY
+
+// The maximum number of storage buffers we will ever use in a vertex or fragment shader.
+constexpr static size_t kMaxStorageBuffers = 4;
+
+// If the backend doesn't support "kMaxStorageBuffers" a shader, we polyfill with textures. This
+// function returns the dimensions to use for these textures.
+std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes, StorageBufferStructure);
+
+// If the backend doesn't support "kMaxStorageBuffers" in a shader, we polyfill with textures. The
+// polyfill texture needs to be updated in entire rows at a time, meaning, its transfer buffer might
+// need to be larger than requested. This function returns a size that is large enough to service a
+// worst-case texture update.
+size_t StorageTextureBufferSize(size_t bufferSizeInBytes, StorageBufferStructure);
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive to read mapped
 // memory, we use this class to enforce the write-only nature of this memory.

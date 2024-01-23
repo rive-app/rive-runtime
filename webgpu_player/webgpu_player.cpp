@@ -43,9 +43,15 @@ void riveInitPlayer(int w,
                     wgpu::Device gpu,
                     wgpu::Queue queue,
                     const pls::PlatformFeatures& platformFeatures,
-                    PixelLocalStorageType plsType)
+                    PixelLocalStorageType plsType,
+                    int maxVertexStorageBlocks)
 {
-    s_plsContext = PLSRenderContextWebGPUImpl::MakeContext(gpu, queue, platformFeatures, plsType);
+    PLSRenderContextWebGPUImpl::ContextOptions contextOptions = {
+        .plsType = plsType,
+        .disableStorageBuffers = maxVertexStorageBlocks < pls::kMaxStorageBuffers,
+    };
+    s_plsContext =
+        PLSRenderContextWebGPUImpl::MakeContext(gpu, queue, contextOptions, platformFeatures);
     s_renderTarget = s_plsContext->static_impl_cast<PLSRenderContextWebGPUImpl>()->makeRenderTarget(
         wgpu::TextureFormat::BGRA8Unorm,
         w,
@@ -66,7 +72,8 @@ extern "C"
                                              int canvasWidth,
                                              int canvasHeight,
                                              bool invertedY,
-                                             int pixelLocalStorageType)
+                                             int pixelLocalStorageType,
+                                             int maxVertexStorgeBlocks)
     {
         s_deviceHandle = EmJsHandle(deviceID);
         s_queueHandle = EmJsHandle(queueID);
@@ -80,7 +87,8 @@ extern "C"
                        wgpu::Device::Acquire(emscripten_webgpu_import_device(s_deviceHandle.get())),
                        emscripten_webgpu_import_queue(s_queueHandle.get()),
                        platformFeatures,
-                       static_cast<PixelLocalStorageType>(pixelLocalStorageType));
+                       static_cast<PixelLocalStorageType>(pixelLocalStorageType),
+                       maxVertexStorgeBlocks);
     }
 
     intptr_t EMSCRIPTEN_KEEPALIVE RiveBeginRendering(int textureViewID,
@@ -512,9 +520,10 @@ int main(int argc, const char** argv)
                    device.Get(),
                    device.GetQueue(),
                    PlatformFeatures{},
-                   PixelLocalStorageType::none);
+                   PixelLocalStorageType::none,
+                   8);
 
-    std::ifstream rivStream("../../../gold/rivs/marty.riv", std::ios::binary);
+    std::ifstream rivStream("../../../gold/rivs/Santa_Claus.riv", std::ios::binary);
     std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
     std::unique_ptr<File> rivFile = File::import(rivBytes, s_plsContext.get());
     std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
@@ -542,16 +551,16 @@ int main(int argc, const char** argv)
         scene->draw(s_renderer.get());
         s_renderer->restore();
 
+        s_plsContext->flush();
+        s_swapchain.Present();
+        device.Tick();
+        glfwPollEvents();
+
         if (lastTimestamp != 0)
         {
             scene->advanceAndApply(timestamp - lastTimestamp);
         }
         lastTimestamp = timestamp;
-
-        s_plsContext->flush();
-        s_swapchain.Present();
-        device.Tick();
-        glfwPollEvents();
     }
     glfwTerminate();
 #endif

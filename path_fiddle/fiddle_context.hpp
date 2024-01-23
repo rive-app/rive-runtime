@@ -11,7 +11,6 @@ struct FiddleContextOptions
     bool retinaDisplay = true;
     bool synchronousShaderCompilations = false;
     bool enableReadPixels = false;
-    bool preferIntelGPU = false;
 };
 
 class FiddleContext
