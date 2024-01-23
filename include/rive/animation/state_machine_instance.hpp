@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <vector>
 #include "rive/animation/linear_animation_instance.hpp"
-#include "rive/animation/keyed_callback_reporter.hpp"
+#include "rive/core/field_types/core_callback_type.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/scene.hpp"
 
@@ -37,7 +37,7 @@ private:
     float m_secondsDelay;
 };
 
-class StateMachineInstance : public Scene, public KeyedCallbackReporter
+class StateMachineInstance : public Scene
 {
     friend class SMIInput;
     friend class KeyedProperty;
@@ -110,19 +110,13 @@ public:
     NestedArtboard* parentNestedArtboard() { return m_parentNestedArtboard; }
 
     /// Tracks an event that reported, will be cleared at the end of the next advance.
-    void reportEvent(Event* event, float secondsDelay = 0.0f);
+    void reportEvent(Event* event, float secondsDelay = 0.0f) override;
 
     /// Gets the number of events that reported since the last advance.
     std::size_t reportedEventCount() const;
 
     /// Gets a reported event at an index < reportedEventCount().
     const EventReport reportedEventAt(std::size_t index) const;
-
-    /// Report which time based events have elapsed on a timeline within this
-    /// state machine.
-    void reportKeyedCallback(uint32_t objectId,
-                             uint32_t propertyKey,
-                             float elapsedSeconds) override;
 
 private:
     std::vector<EventReport> m_reportedEvents;

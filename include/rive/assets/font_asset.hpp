@@ -9,7 +9,7 @@ namespace rive
 class FontAsset : public FontAssetBase
 {
 public:
-    bool decode(Span<const uint8_t>, Factory*) override;
+    bool decode(SimpleArray<uint8_t>&, Factory*) override;
     std::string fileExtension() const override;
     const rcp<Font> font() const { return m_font; }
     void font(rcp<Font> font);

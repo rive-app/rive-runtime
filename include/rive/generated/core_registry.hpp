@@ -64,12 +64,14 @@
 #include "rive/animation/transition_value_condition.hpp"
 #include "rive/artboard.hpp"
 #include "rive/assets/asset.hpp"
+#include "rive/assets/audio_asset.hpp"
 #include "rive/assets/drawable_asset.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/assets/folder.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/audio_event.hpp"
 #include "rive/backboard.hpp"
 #include "rive/bones/bone.hpp"
 #include "rive/bones/cubic_weight.hpp"
@@ -366,8 +368,12 @@ public:
                 return new ImageAsset();
             case FontAssetBase::typeKey:
                 return new FontAsset();
+            case AudioAssetBase::typeKey:
+                return new AudioAsset();
             case FileAssetContentsBase::typeKey:
                 return new FileAssetContents();
+            case AudioEventBase::typeKey:
+                return new AudioEvent();
         }
         return nullptr;
     }
@@ -677,6 +683,9 @@ public:
                 break;
             case FileAssetBase::assetIdPropertyKey:
                 object->as<FileAssetBase>()->assetId(value);
+                break;
+            case AudioEventBase::assetIdPropertyKey:
+                object->as<AudioEventBase>()->assetId(value);
                 break;
         }
     }
@@ -1393,6 +1402,8 @@ public:
                 return object->as<TextValueRunBase>()->styleId();
             case FileAssetBase::assetIdPropertyKey:
                 return object->as<FileAssetBase>()->assetId();
+            case AudioEventBase::assetIdPropertyKey:
+                return object->as<AudioEventBase>()->assetId();
         }
         return 0;
     }
@@ -1837,6 +1848,7 @@ public:
             case TextBase::originValuePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
+            case AudioEventBase::assetIdPropertyKey:
                 return CoreUintType::id;
             case CustomPropertyNumberBase::propertyValuePropertyKey:
             case ConstraintBase::strengthPropertyKey:

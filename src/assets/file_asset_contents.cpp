@@ -19,7 +19,7 @@ StatusCode FileAssetContents::import(ImportStack& importStack)
 
 void FileAssetContents::decodeBytes(Span<const uint8_t> value)
 {
-    m_Bytes = std::vector<uint8_t>(value.begin(), value.end());
+    m_bytes = SimpleArray<uint8_t>(value.data(), value.size());
 }
 
 void FileAssetContents::copyBytes(const FileAssetContentsBase& object)
@@ -28,4 +28,4 @@ void FileAssetContents::copyBytes(const FileAssetContentsBase& object)
     assert(false);
 }
 
-Span<const uint8_t> FileAssetContents::bytes() const { return m_Bytes; }
+SimpleArray<uint8_t>& FileAssetContents::bytes() { return m_bytes; }

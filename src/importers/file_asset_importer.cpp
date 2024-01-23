@@ -24,7 +24,6 @@ void FileAssetImporter::onFileAssetContents(std::unique_ptr<FileAssetContents> c
 
 StatusCode FileAssetImporter::resolve()
 {
-
     Span<const uint8_t> bytes;
     if (m_Content != nullptr)
     {
@@ -41,7 +40,7 @@ StatusCode FileAssetImporter::resolve()
     // If we do not, but we have found in band contents, load those
     else if (bytes.size() > 0)
     {
-        m_FileAsset->decode(bytes, m_Factory);
+        m_FileAsset->decode(m_Content->bytes(), m_Factory);
     }
 
     // Note that it's ok for an asset to not resolve (or to resolve async).

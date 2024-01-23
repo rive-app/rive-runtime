@@ -12,9 +12,19 @@ do
     defines {'WITH_RIVE_TEXT'}
 end
 filter {}
+filter {'options:with_rive_audio=system'}
+do
+    defines {'WITH_RIVE_AUDIO'}
+end
+filter {'options:with_rive_audio=external'}
+do
+    defines {'WITH_RIVE_AUDIO', 'EXTERNAL_RIVE_AUDIO_ENGINE', 'MA_NO_DEVICE_IO'}
+end
+filter {}
 
 dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_harfbuzz.lua'))
 dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_sheenbidi.lua'))
+dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_miniaudio.lua'))
 
 project 'rive'
 do
@@ -26,13 +36,14 @@ do
     includedirs {
         '../include',
         harfbuzz .. '/src',
-        sheenbidi .. '/Headers'
+        sheenbidi .. '/Headers',
+        miniaudio
     }
 
     files {'../src/**.cpp'}
 
     flags {
-        'FatalCompileWarnings',
+        'FatalCompileWarnings'
     }
 
     filter {'system:macosx'}
@@ -43,12 +54,27 @@ do
         }
     end
 
-    filter {'toolset:not msc'}
+    -- filter {'toolset:not msc', 'files:../src/audio/audio_engine.cpp'}
+    filter {'system:not windows', 'files:../src/audio/audio_engine.cpp'}
     do
         buildoptions {
-            '-Wimplicit-int-conversion',
+            '-Wno-implicit-int-conversion'
         }
     end
+
+    filter {'system:windows', 'files:../src/audio/audio_engine.cpp'}
+    do
+        -- Too many warnings from miniaudio.h
+        removeflags {'FatalCompileWarnings'}
+    end
+
+    -- filter 'files:../src/audio/audio_engine.cpp'
+    -- do
+    --     buildoptions {
+    --         '-Wno-implicit-int-conversion'
+    --     }
+    -- end
+
     filter {'system:macosx', 'options:variant=runtime'}
     do
         buildoptions {
@@ -64,7 +90,8 @@ do
 
     filter {'system:ios'}
     do
-        buildoptions {'-flto=full'}
+        buildoptions {'-flto=full', '-Wno-implicit-int-conversion'}
+        files {'../src/audio/audio_engine.m'}
     end
 
     filter 'system:windows'
@@ -76,8 +103,7 @@ do
     filter {'system:ios', 'options:variant=system'}
     do
         buildoptions {
-            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot ' ..
-                (os.getenv('IOS_SYSROOT') or '')
+            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot ' .. (os.getenv('IOS_SYSROOT') or '')
         }
     end
 
@@ -121,9 +147,9 @@ do
         objdir '%{cfg.system}/arm64/obj/%{cfg.buildcfg}'
     end
 
-    filter "system:emscripten"
+    filter 'system:emscripten'
     do
-        buildoptions {"-pthread"}
+        buildoptions {'-pthread'}
     end
 
     filter 'configurations:debug'
@@ -160,4 +186,21 @@ newoption {
 newoption {
     trigger = 'with_rive_text',
     description = 'Compiles in text features.'
+}
+
+newoption {
+    trigger = 'with_rive_audio',
+    value = 'disabled',
+    description = 'The audio mode to use.',
+    allowed = {
+        {
+            'disabled'
+        },
+        {
+            'system'
+        },
+        {
+            'external'
+        }
+    }
 }

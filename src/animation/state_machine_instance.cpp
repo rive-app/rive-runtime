@@ -22,8 +22,6 @@
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/shapes/shape.hpp"
-#include "rive/core/field_types/core_callback_type.hpp"
-#include "rive/generated/core_registry.hpp"
 #include "rive/math/math_types.hpp"
 #include <unordered_map>
 
@@ -679,15 +677,6 @@ const EventReport StateMachineInstance::reportedEventAt(std::size_t index) const
         return EventReport(nullptr, 0.0f);
     }
     return m_reportedEvents[index];
-}
-
-void StateMachineInstance::reportKeyedCallback(uint32_t objectId,
-                                               uint32_t propertyKey,
-                                               float elapsedSeconds)
-{
-    auto coreObject = m_artboardInstance->resolve(objectId);
-    CallbackData data(this, elapsedSeconds);
-    CoreRegistry::setCallback(coreObject, propertyKey, data);
 }
 
 void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events,

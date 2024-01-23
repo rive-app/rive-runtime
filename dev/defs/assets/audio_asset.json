@@ -1,0 +1,8 @@
+{
+    "name": "AudioAsset",
+    "key": {
+        "int": 406,
+        "string": "audioasset"
+    },
+    "extends": "assets/file_asset.json"
+}

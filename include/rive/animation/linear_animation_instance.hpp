@@ -2,12 +2,12 @@
 #define _RIVE_LINEAR_ANIMATION_INSTANCE_HPP_
 
 #include "rive/artboard.hpp"
+#include "rive/core/field_types/core_callback_type.hpp"
 #include "rive/scene.hpp"
 
 namespace rive
 {
 class LinearAnimation;
-class KeyedCallbackReporter;
 
 class LinearAnimationInstance : public Scene
 {

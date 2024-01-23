@@ -3,18 +3,25 @@
 
 namespace rive
 {
-class StateMachineInstance;
+class Event;
+class CallbackContext
+{
+public:
+    virtual ~CallbackContext() {}
+    virtual void reportEvent(Event* event, float secondsDelay = 0.0f) {}
+};
+
 class CallbackData
 {
 public:
-    StateMachineInstance* context() const { return m_context; }
+    CallbackContext* context() const { return m_context; }
     float delaySeconds() const { return m_delaySeconds; }
-    CallbackData(StateMachineInstance* context, float delaySeconds) :
+    CallbackData(CallbackContext* context, float delaySeconds) :
         m_context(context), m_delaySeconds(delaySeconds)
     {}
 
 private:
-    StateMachineInstance* m_context;
+    CallbackContext* m_context;
     float m_delaySeconds;
 };
 } // namespace rive

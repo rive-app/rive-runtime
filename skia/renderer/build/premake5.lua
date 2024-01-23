@@ -35,10 +35,10 @@ do
     }
 
     flags {
-        'FatalCompileWarnings',
+        'FatalCompileWarnings'
     }
 
-    filter "system:windows"
+    filter 'system:windows'
     do
         architecture 'x64'
         defines {'_USE_MATH_DEFINES'}
@@ -55,8 +55,7 @@ do
     do
         links {}
         buildoptions {
-            '-fembed-bitcode -arch arm64 -arch x86_64 -isysroot ' ..
-                (os.getenv('MACOS_SYSROOT') or '')
+            '-fembed-bitcode -arch arm64 -arch x86_64 -isysroot ' .. (os.getenv('MACOS_SYSROOT') or '')
         }
     end
 
@@ -76,8 +75,7 @@ do
     filter {'system:ios', 'options:variant=system'}
     do
         buildoptions {
-            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot ' ..
-                (os.getenv('IOS_SYSROOT') or '')
+            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot ' .. (os.getenv('IOS_SYSROOT') or '')
         }
     end
 
@@ -156,11 +154,36 @@ do
     do
         defines {'WITH_RIVE_TEXT'}
     end
+    filter {'options:with_rive_audio=system'}
+    do
+        defines {'WITH_RIVE_AUDIO'}
+    end
+    filter {'options:with_rive_audio=external'}
+    do
+        defines {'WITH_RIVE_AUDIO', 'EXTERNAL_RIVE_AUDIO_ENGINE', 'MA_NO_DEVICE_IO'}
+    end
 end
 
 newoption {
     trigger = 'with_rive_text',
     description = 'Enables text experiments'
+}
+
+newoption {
+    trigger = 'with_rive_audio',
+    value = 'disabled',
+    description = 'The audio mode to use.',
+    allowed = {
+        {
+            'disabled'
+        },
+        {
+            'system'
+        },
+        {
+            'external'
+        }
+    }
 }
 
 newoption {

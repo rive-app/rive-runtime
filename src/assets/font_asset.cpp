@@ -6,7 +6,7 @@
 
 using namespace rive;
 
-bool FontAsset::decode(Span<const uint8_t> data, Factory* factory)
+bool FontAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
 {
     font(factory->decodeFont(data));
     return m_font != nullptr;

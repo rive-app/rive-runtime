@@ -27,6 +27,7 @@
 #include "rive/animation/blend_state_1d.hpp"
 #include "rive/animation/blend_state_direct.hpp"
 #include "rive/assets/file_asset.hpp"
+#include "rive/assets/audio_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 
 // Default namespace for Rive Cpp code
@@ -211,6 +212,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
                 case ImageAsset::typeKey:
                 case FontAsset::typeKey:
+                case AudioAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
                     m_fileAssets.push_back(fa);
@@ -288,6 +290,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             case ImageAsset::typeKey:
             case FontAsset::typeKey:
+            case AudioAsset::typeKey:
                 stackObject =
                     new FileAssetImporter(object->as<FileAsset>(), m_assetLoader, m_factory);
                 stackType = FileAsset::typeKey;

@@ -12,7 +12,6 @@ using namespace rive;
 
 void Image::draw(Renderer* renderer)
 {
-
     rive::ImageAsset* asset = this->imageAsset();
     if (asset == nullptr || renderOpacity() == 0.0f)
     {

@@ -19,7 +19,6 @@ else
     dofile(path.join(path.getabsolute(rive) .. '/build', 'premake5.lua'))
 end
 
-
 dofile(path.join(path.getabsolute(rive) .. '/cg_renderer/build', 'premake5.lua'))
 
 project 'rive_viewer'
@@ -34,7 +33,7 @@ do
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
 
-    defines {'WITH_RIVE_TEXT'}
+    defines {'WITH_RIVE_TEXT', 'WITH_RIVE_AUDIO'}
 
     includedirs {
         '../include',
@@ -42,7 +41,8 @@ do
         rive .. '/skia/renderer/include', -- for font backends
         dependencies,
         dependencies .. '/sokol',
-        dependencies .. '/imgui'
+        dependencies .. '/imgui',
+        miniaudio
     }
 
     links {
@@ -116,7 +116,7 @@ do
     do
         includedirs {
             rive_tess .. '/include',
-            rive .. '/decoders/include',
+            rive .. '/decoders/include'
         }
         defines {
             'RIVE_RENDERER_TESS'
@@ -225,7 +225,7 @@ do
         }
         links {
             'skia',
-            'rive_skia_renderer',
+            'rive_skia_renderer'
         }
     end
 

@@ -40,12 +40,11 @@ public:
         fseek(fp, 0, SEEK_END);
         const size_t length = ftell(fp);
         fseek(fp, 0, SEEK_SET);
-        uint8_t* bytes = new uint8_t[length];
-        if (fread(bytes, 1, length, fp) == length)
+        SimpleArray<uint8_t> bytes(length);
+        if (fread(bytes.data(), 1, length, fp) == length)
         {
-            asset.decode(Span<const uint8_t>(bytes, length), factory);
+            asset.decode(bytes, factory);
         }
-        delete[] bytes;
         return true;
     }
 };

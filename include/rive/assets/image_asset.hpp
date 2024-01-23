@@ -3,6 +3,7 @@
 
 #include "rive/generated/assets/image_asset_base.hpp"
 #include "rive/renderer.hpp"
+#include "rive/simple_array.hpp"
 #include <string>
 
 namespace rive
@@ -19,7 +20,7 @@ public:
 #ifdef TESTING
     std::size_t decodedByteSize = 0;
 #endif
-    bool decode(Span<const uint8_t>, Factory*) override;
+    bool decode(SimpleArray<uint8_t>&, Factory*) override;
     std::string fileExtension() const override;
     RenderImage* renderImage() const { return m_RenderImage.get(); }
     void renderImage(rcp<RenderImage> renderImage);

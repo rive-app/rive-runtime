@@ -4,6 +4,8 @@
 #include "rive/animation/loop.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/animation/keyed_callback_reporter.hpp"
+#include "rive/core/field_types/core_callback_type.hpp"
 #include <string>
 
 namespace rive
@@ -16,13 +18,13 @@ class SMIBool;
 class SMINumber;
 class SMITrigger;
 
-class Scene
+class Scene : public KeyedCallbackReporter, public CallbackContext
 {
 protected:
     Scene(ArtboardInstance*);
 
 public:
-    virtual ~Scene() {}
+    ~Scene() override {}
 
     Scene(Scene const& lhs) : m_artboardInstance(lhs.m_artboardInstance) {}
 
@@ -53,6 +55,12 @@ public:
     virtual SMIBool* getBool(const std::string&) const;
     virtual SMINumber* getNumber(const std::string&) const;
     virtual SMITrigger* getTrigger(const std::string&) const;
+
+    /// Report which time based events have elapsed on a timeline within this
+    /// state machine.
+    void reportKeyedCallback(uint32_t objectId,
+                             uint32_t propertyKey,
+                             float elapsedSeconds) override;
 
 protected:
     ArtboardInstance* m_artboardInstance;

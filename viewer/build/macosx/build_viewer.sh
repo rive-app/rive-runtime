@@ -56,7 +56,7 @@ export PREMAKE=$DEPENDENCIES/bin/premake5
 
 pushd ..
 
-$PREMAKE --scripts=../../build --file=./premake5_viewer.lua gmake2 --graphics=$GRAPHICS --renderer=$RENDERER --with_rive_tools --with_rive_text
+$PREMAKE --scripts=../../build --file=./premake5_viewer.lua gmake2 --graphics=$GRAPHICS --renderer=$RENDERER --with_rive_tools --with_rive_text --with_rive_audio=system
 
 for var in "$@"; do
     if [[ $var = "clean" ]]; then

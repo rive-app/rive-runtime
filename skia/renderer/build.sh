@@ -42,7 +42,7 @@ if [ "$OPTION" = 'help' ]; then
 else
     build() {
         echo "Building Rive Renderer for platform=$platform option=$OPTION"
-        PREMAKE="premake5 --scripts=../../../build gmake2 --with_rive_text $1"
+        PREMAKE="premake5 --scripts=../../../build gmake2 --with_rive_text --with_rive_audio=system $1"
         eval "$PREMAKE"
         if [ "$OPTION" = "clean" ]; then
             make clean

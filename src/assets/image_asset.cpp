@@ -6,7 +6,7 @@ using namespace rive;
 
 ImageAsset::~ImageAsset() {}
 
-bool ImageAsset::decode(Span<const uint8_t> data, Factory* factory)
+bool ImageAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
 {
 #ifdef TESTING
     decodedByteSize = data.size();
