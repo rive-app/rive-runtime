@@ -145,147 +145,151 @@ do
     end
 end
 
-project "webgpu_player"
-do
-    kind "ConsoleApp"
-    language "C++"
-    cppdialect "C++17"
-    targetdir "%{cfg.buildcfg}"
-    objdir "obj/%{cfg.buildcfg}"
-    includedirs {"../include",
-                 RIVE_RUNTIME_DIR .. "/include",
-                 "../glad",
-                 "../include",
-                 RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
-    flags { "FatalWarnings" }
 
-    files {
-        "../webgpu_player/webgpu_player.cpp",
-        "../webgpu_player/index.html",
-        "../webgpu_player/icons.html",
-        "../webgpu_player/rive.js",
-        "../../../gold/rivs/Santa_Claus.riv",
-        "../../../gold/rivs/Coffee_Cup.riv",
-        "../../../gold/rivs/skull_404.riv",
-        "../../../gold/rivs/octopus_loop.riv",
-        "../../../gold/rivs/planets.riv",
-        "../../../gold/rivs/Timer.riv",
-        "../../../gold/rivs/adventuretime_marceline-pb.riv",
-        "../../../gold/rivs/towersDemo.riv",
-        "../../../gold/rivs/skills_demov1.riv",
-        "../../../gold/rivs/car_demo.riv",
-        "../../../gold/rivs/cloud_icon.riv",
-        "../../../gold/rivs/coffee_loader.riv",
-        "../../../gold/rivs/documentation.riv",
-        "../../../gold/rivs/fire_button.riv",
-        "../../../gold/rivs/lumberjackfinal.riv",
-        "../../../gold/rivs/mail_box.riv",
-        "../../../gold/rivs/new_file.riv",
-        "../../../gold/rivs/poison_loader.riv",
-        "../../../gold/rivs/popsicle_loader.riv",
-        "../../../gold/rivs/radio_button_example.riv",
-        "../../../gold/rivs/avatar_demo.riv",
-        "../../../gold/rivs/stopwatch.riv",
-        "../../../gold/rivs/volume_bars.riv",
-        "../../../gold/rivs/travel_icons.riv",
-    }
-
-    links {
-        "rive",
-        "rive_pls_renderer",
-        "rive_decoders",
-        "libpng",
-        "zlib",
-        "rive_harfbuzz",
-        "rive_sheenbidi"
-    }
-
-    filter "system:windows"
+if _OPTIONS["with-webgpu"] or _OPTIONS["with-dawn"]
+then
+    project "webgpu_player"
     do
-        architecture "x64"
-        defines {"RIVE_WINDOWS", "_CRT_SECURE_NO_WARNINGS"}
-        libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
-        links {"glfw3", "opengl32", "d3d11", "dxgi", "d3dcompiler"}
-    end
+        kind "ConsoleApp"
+        language "C++"
+        cppdialect "C++17"
+        targetdir "%{cfg.buildcfg}"
+        objdir "obj/%{cfg.buildcfg}"
+        includedirs {"../include",
+                     RIVE_RUNTIME_DIR .. "/include",
+                     "../glad",
+                     "../include",
+                     RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
+        flags { "FatalWarnings" }
 
-    filter "system:macosx"
-    do
-        files {"../path_fiddle/fiddle_context_dawn_helper.mm"}
-        buildoptions {"-fobjc-arc"}
-        links {"glfw3",
-               "Cocoa.framework",
-               "Metal.framework",
-               "QuartzCore.framework",
-               "IOKit.framework"}
-        libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src"}
-    end
-
-    filter "options:with-dawn"
-    do
-        includedirs {
-            "../dependencies/dawn/include",
-            "../dependencies/dawn/out/release/gen/include",
+        files {
+            "../webgpu_player/webgpu_player.cpp",
+            "../webgpu_player/index.html",
+            "../webgpu_player/icons.html",
+            "../webgpu_player/rive.js",
+            "../../../gold/rivs/Santa_Claus.riv",
+            "../../../gold/rivs/Coffee_Cup.riv",
+            "../../../gold/rivs/skull_404.riv",
+            "../../../gold/rivs/octopus_loop.riv",
+            "../../../gold/rivs/planets.riv",
+            "../../../gold/rivs/Timer.riv",
+            "../../../gold/rivs/adventuretime_marceline-pb.riv",
+            "../../../gold/rivs/towersDemo.riv",
+            "../../../gold/rivs/skills_demov1.riv",
+            "../../../gold/rivs/car_demo.riv",
+            "../../../gold/rivs/cloud_icon.riv",
+            "../../../gold/rivs/coffee_loader.riv",
+            "../../../gold/rivs/documentation.riv",
+            "../../../gold/rivs/fire_button.riv",
+            "../../../gold/rivs/lumberjackfinal.riv",
+            "../../../gold/rivs/mail_box.riv",
+            "../../../gold/rivs/new_file.riv",
+            "../../../gold/rivs/poison_loader.riv",
+            "../../../gold/rivs/popsicle_loader.riv",
+            "../../../gold/rivs/radio_button_example.riv",
+            "../../../gold/rivs/avatar_demo.riv",
+            "../../../gold/rivs/stopwatch.riv",
+            "../../../gold/rivs/volume_bars.riv",
+            "../../../gold/rivs/travel_icons.riv",
         }
-        libdirs {
-            "../dependencies/dawn/out/release/obj/src/dawn",
-            "../dependencies/dawn/out/release/obj/src/dawn/native",
-            "../dependencies/dawn/out/release/obj/src/dawn/platform",
-            "../dependencies/dawn/out/release/obj/src/dawn/platform",
-        }
+
         links {
-            "dawn_native_static",
-            "webgpu_dawn",
-            "dawn_platform_static",
-            "dawn_proc_static",
+            "rive",
+            "rive_pls_renderer",
+            "rive_decoders",
+            "libpng",
+            "zlib",
+            "rive_harfbuzz",
+            "rive_sheenbidi"
         }
-    end
 
-    filter {"options:with-dawn", "system:windows"}
-    do
-        links {
-            "dxguid",
-        }
-    end
+        filter "system:windows"
+        do
+            architecture "x64"
+            defines {"RIVE_WINDOWS", "_CRT_SECURE_NO_WARNINGS"}
+            libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
+            links {"glfw3", "opengl32", "d3d11", "dxgi", "d3dcompiler"}
+        end
 
-    filter {"options:with-dawn", "system:macosx"}
-    do
-        links {
-            "IOSurface.framework",
-        }
-    end
+        filter "system:macosx"
+        do
+            files {"../path_fiddle/fiddle_context_dawn_helper.mm"}
+            buildoptions {"-fobjc-arc"}
+            links {"glfw3",
+                   "Cocoa.framework",
+                   "Metal.framework",
+                   "QuartzCore.framework",
+                   "IOKit.framework"}
+            libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src"}
+        end
 
-    filter "system:emscripten"
-    do
-        targetname "webgpu_player.js"
-        targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
-        objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
-        linkoptions {
-            "-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultStateMachine,_ArtboardInstance_align,_ArtboardInstance_destroy,_StateMachineInstance_setBool,_StateMachineInstance_setNumber,_StateMachineInstance_fireTrigger,_StateMachineInstance_pointerDown,_StateMachineInstance_pointerMove,_StateMachineInstance_pointerUp,_StateMachineInstance_advanceAndApply,_StateMachineInstance_draw,_StateMachineInstance_destroy,_LinearAnimationInstance_advanceAndApply,_LinearAnimationInstance_draw,_LinearAnimationInstance_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free",
-            "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
-            "-sSINGLE_FILE",
-            "-sUSE_WEBGPU",
-            "-sENVIRONMENT=web,shell",
-        }
-    end
+        filter "options:with-dawn"
+        do
+            includedirs {
+                "../dependencies/dawn/include",
+                "../dependencies/dawn/out/release/gen/include",
+            }
+            libdirs {
+                "../dependencies/dawn/out/release/obj/src/dawn",
+                "../dependencies/dawn/out/release/obj/src/dawn/native",
+                "../dependencies/dawn/out/release/obj/src/dawn/platform",
+                "../dependencies/dawn/out/release/obj/src/dawn/platform",
+            }
+            links {
+                "dawn_native_static",
+                "webgpu_dawn",
+                "dawn_platform_static",
+                "dawn_proc_static",
+            }
+        end
 
-    filter 'files:**.html or **.riv or **.js'
-    do
-        buildmessage "Copying %{file.relpath} to %{cfg.targetdir}"
-        buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
-        buildoutputs { "%{cfg.targetdir}/%{file.name}" }
-    end
+        filter {"options:with-dawn", "system:windows"}
+        do
+            links {
+                "dxguid",
+            }
+        end
 
-    filter "configurations:debug"
-    do
-        defines {"DEBUG"}
-        symbols "On"
-    end
+        filter {"options:with-dawn", "system:macosx"}
+        do
+            links {
+                "IOSurface.framework",
+            }
+        end
 
-    filter "configurations:release"
-    do
-        defines {"RELEASE"}
-        defines {"NDEBUG"}
-        optimize "On"
+        filter "system:emscripten"
+        do
+            targetname "webgpu_player.js"
+            targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
+            objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
+            linkoptions {
+                "-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultStateMachine,_ArtboardInstance_align,_ArtboardInstance_destroy,_StateMachineInstance_setBool,_StateMachineInstance_setNumber,_StateMachineInstance_fireTrigger,_StateMachineInstance_pointerDown,_StateMachineInstance_pointerMove,_StateMachineInstance_pointerUp,_StateMachineInstance_advanceAndApply,_StateMachineInstance_draw,_StateMachineInstance_destroy,_LinearAnimationInstance_advanceAndApply,_LinearAnimationInstance_draw,_LinearAnimationInstance_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free",
+                "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
+                "-sSINGLE_FILE",
+                "-sUSE_WEBGPU",
+                "-sENVIRONMENT=web,shell",
+            }
+        end
+
+        filter 'files:**.html or **.riv or **.js'
+        do
+            buildmessage "Copying %{file.relpath} to %{cfg.targetdir}"
+            buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
+            buildoutputs { "%{cfg.targetdir}/%{file.name}" }
+        end
+
+        filter "configurations:debug"
+        do
+            defines {"DEBUG"}
+            symbols "On"
+        end
+
+        filter "configurations:release"
+        do
+            defines {"RELEASE"}
+            defines {"NDEBUG"}
+            optimize "On"
+        end
     end
 end
 
