@@ -155,7 +155,7 @@ filter {"options:not with-exceptions"} exceptionhandling "Off"
 filter {"options:with-exceptions"} exceptionhandling "On"
 filter{}
 
--- Don't use filter() here because we don't want to generate the "ndk-redirect-*" files if not
+-- Don't use filter() here because we don't want to generate the "android_ndk" toolset if not
 -- building for android.
 if _OPTIONS["os"] == "android"
 then
@@ -173,55 +173,23 @@ then
         ndk_toolchain = ndk_toolchain .. "/linux-x86_64"
     end
 
-    -- Using "gcc" allows us to redirect the compiler to the (clang) NDK.
-    toolset "gcc"
-    gccprefix (_WORKING_DIR .. "/ndk-redirect-")
-
-    -- Masquerade the clang NDK as a "gcc" cross-compiler.
-    file = io.open(_WORKING_DIR .. "/ndk-redirect-g++", "w")
-    file:write("#!/bin/bash\n")
-    file:write(ndk_toolchain .. "/bin/clang++ $@")
-    file:close()
-    os.execute("chmod +x " .. _WORKING_DIR .. "/ndk-redirect-g++")
-
-    file = io.open(_WORKING_DIR .. "/ndk-redirect-gcc", "w")
-    file:write("#!/bin/bash\n")
-    file:write(ndk_toolchain .. "/bin/clang $@")
-    file:close()
-    os.execute("chmod +x " .. _WORKING_DIR .. "/ndk-redirect-gcc")
-
-    file = io.open(_WORKING_DIR .. "/ndk-redirect-ar", "w")
-    file:write("#!/bin/bash\n")
-    file:write(ndk_toolchain .. "/bin/llvm-ar $@")
-    file:close()
-    os.execute("chmod +x " .. _WORKING_DIR .. "/ndk-redirect-ar")
-
-    pic "on" -- Position-independent code is required for NDK libraries.
-    filter "options:arch=x86"
-    do
-        architecture "x86"
-        buildoptions {"--target=i686-none-linux-android23"}
-        linkoptions {"--target=i686-none-linux-android23"}
+    -- clone the clang toolset into a custom one called "android_ndk".
+    premake.tools.android_ndk = {}
+    for k,v in pairs(premake.tools.clang) do
+        premake.tools.android_ndk[k] = v
     end
-    filter "options:arch=x64"
-    do
-        architecture "x64"
-        buildoptions {"--target=x86_64-none-linux-android23"}
-        linkoptions {"--target=x86_64-none-linux-android23"}
+
+    -- update the android_ndk toolset to use the appropriate binaries.
+    local android_ndk_tools = {
+        cc = ndk_toolchain .. "/bin/clang",
+        cxx = ndk_toolchain .. "/bin/clang++",
+        ar = ndk_toolchain .. "/bin/llvm-ar"
+    }
+    function premake.tools.android_ndk.gettoolname(cfg, tool)
+        return android_ndk_tools[tool]
     end
-    filter "options:arch=arm"
-    do
-        architecture "arm"
-        buildoptions {"--target=armv7a-none-linux-android23"}
-        linkoptions {"--target=armv7a-none-linux-android23"}
-    end
-    filter "options:arch=arm64"
-    do
-        architecture "arm64"
-        buildoptions {"--target=aarch64-none-linux-android23"}
-        linkoptions {"--target=aarch64-none-linux-android23"}
-    end
-    filter {}
+
+    toolset "android_ndk"
 
     buildoptions {
         "--sysroot=" .. ndk_toolchain .. "/sysroot",
@@ -245,6 +213,33 @@ then
         "-Wl,--no-undefined",
         "-static-libstdc++",
     }
+
+    pic "on" -- Position-independent code is required for NDK libraries.
+    filter "options:arch=x86"
+    do
+        architecture "x86"
+        buildoptions {"--target=i686-none-linux-android21"}
+        linkoptions {"--target=i686-none-linux-android21"}
+    end
+    filter "options:arch=x64"
+    do
+        architecture "x64"
+        buildoptions {"--target=x86_64-none-linux-android21"}
+        linkoptions {"--target=x86_64-none-linux-android21"}
+    end
+    filter "options:arch=arm"
+    do
+        architecture "arm"
+        buildoptions {"--target=armv7a-none-linux-android21"}
+        linkoptions {"--target=armv7a-none-linux-android21"}
+    end
+    filter "options:arch=arm64"
+    do
+        architecture "arm64"
+        buildoptions {"--target=aarch64-none-linux-android21"}
+        linkoptions {"--target=aarch64-none-linux-android21"}
+    end
+    filter {}
 end
 
 newoption {
