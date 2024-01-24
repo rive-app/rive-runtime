@@ -261,10 +261,10 @@ VARYING_BLOCK_END
 #ifdef @VERTEX
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
-    float4 pos;
-    pos.x = (_vertexID & 1) == 0 ? -1. : 1.;
-    pos.y = (_vertexID & 2) == 0 ? 1. : -1.;
-    pos.zw = float2(0, 1);
+    int2 coord;
+    coord.x = (_vertexID & 1) == 0 ? uniforms.updateBounds.x : uniforms.updateBounds.z;
+    coord.y = (_vertexID & 2) == 0 ? uniforms.updateBounds.y : uniforms.updateBounds.w;
+    float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(float2(coord));
     EMIT_VERTEX(pos);
 }
 #endif // VERTEX
@@ -409,18 +409,22 @@ half4 do_advanced_blend(half4 srcColorUnmul, half4 dstColorPremul, ushort blendM
 }
 #endif // ENABLE_ADVANCED_BLEND
 
-void do_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
+half4 do_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
+{
+    half4 dstColorPremul = PLS_LOAD4F(framebuffer, _plsCoord);
+#ifdef @ENABLE_ADVANCED_BLEND
+    ushort blendMode = make_ushort((paintData.x >> 4) & 0xfu);
+    return do_advanced_blend(color, dstColorPremul, blendMode);
+#else
+    return do_src_over_blend(color, dstColorPremul);
+#endif
+}
+
+void write_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
 {
     if (color.a != .0)
     {
-        half4 dstColorPremul = PLS_LOAD4F(framebuffer, _plsCoord);
-#ifdef @ENABLE_ADVANCED_BLEND
-        ushort blendMode = make_ushort((paintData.x >> 4) & 0xfu);
-        color = do_advanced_blend(color, dstColorPremul, blendMode);
-#else
-        color = do_src_over_blend(color, dstColorPremul);
-#endif
-        PLS_STORE4F(framebuffer, color, _plsCoord);
+        PLS_STORE4F(framebuffer, do_pls_blend(color, paintData, _plsCoord), _plsCoord);
     }
 }
 
@@ -452,7 +456,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
         half4 color =
             resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
-        do_pls_blend(color, paintData, _plsCoord);
+        write_pls_blend(color, paintData, _plsCoord);
     }
     else if (v_edgeDistance.y < .0 /*fill?*/)
     {
@@ -488,7 +492,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
         half4 color =
             resolve_path_color(lastCoverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
-        do_pls_blend(color, paintData, _plsCoord);
+        write_pls_blend(color, paintData, _plsCoord);
     }
     else
     {
@@ -592,15 +596,25 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
 #endif // DRAW_IMAGE
 
 #ifdef @RESOLVE_PLS
+
+#ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
+PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
+#else
 PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
+#endif
 {
     uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
     half4 color = resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
-    do_pls_blend(color, paintData, _plsCoord);
+#ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
+    _fragColor = do_pls_blend(color, paintData, _plsCoord);
+    EMIT_PLS_WITH_FRAG_COLOR;
+#else
+    write_pls_blend(color, paintData, _plsCoord);
     EMIT_PLS;
+#endif
 }
 #endif // RESOLVE_PLS
 #endif // FRAGMENT

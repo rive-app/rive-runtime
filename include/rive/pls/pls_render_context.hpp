@@ -332,12 +332,12 @@ private:
     public:
         LogicalFlush(PLSRenderContext* parent);
 
-        // Resets the CPU-side STL containers so they don't have unbounded growth.
-        void resetContainers();
-
         // Rewinds this flush object back to an empty state without shrinking any internal
         // allocations held by CPU-side STL containers.
         void rewind();
+
+        // Resets the CPU-side STL containers so they don't have unbounded growth.
+        void resetContainers();
 
         // Access this flush's pls::FlushDescriptor (which is not valid until layoutResources()).
         // NOTE: Some fields in the FlushDescriptor (tessVertexSpanCount, hasTriangleVertices,
@@ -551,10 +551,6 @@ private:
         // Running counts of GPU data records that need to be allocated for draws.
         ResourceCounters m_resourceCounts;
 
-        // High-level draw list. These get built into a low-level list of pls::DrawBatch objects
-        // during writeResources().
-        std::vector<PLSDrawUniquePtr> m_plsDraws;
-
         // Simple gradients have one stop at t=0 and one stop at t=1. They're implemented with 2
         // texels.
         std::unordered_map<uint64_t, uint32_t> m_simpleGradients; // [color0, color1] -> texelsIdx.
@@ -567,33 +563,38 @@ private:
             m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
         std::vector<const PLSGradient*> m_pendingComplexColorRampDraws;
 
+        // High-level draw list. These get built into a low-level list of pls::DrawBatch objects
+        // during writeResources().
+        std::vector<PLSDrawUniquePtr> m_plsDraws;
+        IAABB m_combinedDrawBounds;
+
         // Layout state.
-        uint32_t m_pathPaddingCount = 0;
-        uint32_t m_paintPaddingCount = 0;
-        uint32_t m_paintAuxPaddingCount = 0;
-        uint32_t m_contourPaddingCount = 0;
-        uint32_t m_midpointFanTessEndLocation = 0;
-        uint32_t m_outerCubicTessEndLocation = 0;
-        uint32_t m_outerCubicTessVertexIdx = 0;
-        uint32_t m_midpointFanTessVertexIdx = 0;
+        uint32_t m_pathPaddingCount;
+        uint32_t m_paintPaddingCount;
+        uint32_t m_paintAuxPaddingCount;
+        uint32_t m_contourPaddingCount;
+        uint32_t m_midpointFanTessEndLocation;
+        uint32_t m_outerCubicTessEndLocation;
+        uint32_t m_outerCubicTessVertexIdx;
+        uint32_t m_midpointFanTessVertexIdx;
 
         pls::FlushDescriptor m_flushDesc;
         pls::GradTextureLayout m_gradTextureLayout; // Not determined until writeResources().
 
         BlockAllocatedLinkedList<DrawBatch> m_drawList;
-        pls::ShaderFeatures m_combinedShaderFeatures = pls::ShaderFeatures::NONE;
+        pls::ShaderFeatures m_combinedShaderFeatures;
 
         // Most recent path and contour state.
-        bool m_currentPathIsStroked = false;
-        bool m_currentPathNeedsMirroredContours = false;
-        uint32_t m_currentPathID = 0;
-        uint32_t m_currentContourID = 0;
-        uint32_t m_currentContourPaddingVertexCount = 0; // Padding to add to the first curve.
-        uint32_t m_pathTessLocation = 0;
-        uint32_t m_pathMirroredTessLocation = 0; // Used for back-face culling and mirrored patches.
-        RIVE_DEBUG_CODE(uint32_t m_expectedPathTessLocationAtEndOfPath = 0;)
-        RIVE_DEBUG_CODE(uint32_t m_expectedPathMirroredTessLocationAtEndOfPath = 0;)
-        RIVE_DEBUG_CODE(uint32_t m_pathCurveCount = 0;)
+        bool m_currentPathIsStroked;
+        bool m_currentPathNeedsMirroredContours;
+        uint32_t m_currentPathID;
+        uint32_t m_currentContourID;
+        uint32_t m_currentContourPaddingVertexCount; // Padding to add to the first curve.
+        uint32_t m_pathTessLocation;
+        uint32_t m_pathMirroredTessLocation; // Used for back-face culling and mirrored patches.
+        RIVE_DEBUG_CODE(uint32_t m_expectedPathTessLocationAtEndOfPath;)
+        RIVE_DEBUG_CODE(uint32_t m_expectedPathMirroredTessLocationAtEndOfPath;)
+        RIVE_DEBUG_CODE(uint32_t m_pathCurveCount;)
 
         RIVE_DEBUG_CODE(bool m_hasDoneLayout = false;)
     };

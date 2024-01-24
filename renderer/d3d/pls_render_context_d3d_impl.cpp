@@ -942,7 +942,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<const PLSRenderTargetD3D*>(desc.renderTarget);
 
-    if (desc.canSkipColorClear())
+    if (desc.skipExplicitColorClear)
     {
         // We can accomplish a clear of the color buffer while the shader resolves coverage,
         // instead of actually clearing it here. The fill for pathID=0 is automatically

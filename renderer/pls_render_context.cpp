@@ -139,7 +139,7 @@ void PLSRenderContext::shrinkGPUResourcesToFit()
     resetContainers();
 }
 
-PLSRenderContext::LogicalFlush::LogicalFlush(PLSRenderContext* parent) : m_ctx(parent) {}
+PLSRenderContext::LogicalFlush::LogicalFlush(PLSRenderContext* parent) : m_ctx(parent) { rewind(); }
 
 void PLSRenderContext::resetContainers()
 {
@@ -156,6 +156,47 @@ void PLSRenderContext::resetContainers()
     m_indirectDrawList.shrink_to_fit();
 
     m_intersectionBoard = nullptr;
+}
+
+void PLSRenderContext::LogicalFlush::rewind()
+{
+    m_resourceCounts = PLSDraw::ResourceCounters();
+    m_simpleGradients.clear();
+    m_pendingSimpleGradientWrites.clear();
+    m_complexGradients.clear();
+    m_pendingComplexColorRampDraws.clear();
+    m_plsDraws.clear();
+    m_combinedDrawBounds = {std::numeric_limits<int32_t>::max(),
+                            std::numeric_limits<int32_t>::max(),
+                            std::numeric_limits<int32_t>::min(),
+                            std::numeric_limits<int32_t>::min()};
+
+    m_pathPaddingCount = 0;
+    m_paintPaddingCount = 0;
+    m_paintAuxPaddingCount = 0;
+    m_contourPaddingCount = 0;
+    m_midpointFanTessEndLocation = 0;
+    m_outerCubicTessEndLocation = 0;
+    m_outerCubicTessVertexIdx = 0;
+    m_midpointFanTessVertexIdx = 0;
+
+    m_flushDesc = FlushDescriptor();
+
+    m_drawList.reset();
+    m_combinedShaderFeatures = pls::ShaderFeatures::NONE;
+
+    m_currentPathIsStroked = 0;
+    m_currentPathNeedsMirroredContours = 0;
+    m_currentPathID = 0;
+    m_currentContourID = 0;
+    m_currentContourPaddingVertexCount = 0;
+    m_pathTessLocation = 0;
+    m_pathMirroredTessLocation = 0;
+    RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = 0;)
+    RIVE_DEBUG_CODE(m_expectedPathMirroredTessLocationAtEndOfPath = 0;)
+    RIVE_DEBUG_CODE(m_pathCurveCount = 0;)
+
+    RIVE_DEBUG_CODE(m_hasDoneLayout = false;)
 }
 
 void PLSRenderContext::LogicalFlush::resetContainers()
@@ -177,34 +218,6 @@ void PLSRenderContext::LogicalFlush::resetContainers()
     m_pendingComplexColorRampDraws.clear();
     m_pendingComplexColorRampDraws.shrink_to_fit();
     m_pendingComplexColorRampDraws.reserve(kDefaultComplexGradientCapacity);
-}
-
-void PLSRenderContext::LogicalFlush::rewind()
-{
-    m_currentPathID = 0;
-    m_currentContourID = 0;
-
-    m_pathPaddingCount = 0;
-    m_paintPaddingCount = 0;
-    m_paintAuxPaddingCount = 0;
-    m_contourPaddingCount = 0;
-    m_midpointFanTessEndLocation = 0;
-    m_outerCubicTessEndLocation = 0;
-    m_outerCubicTessVertexIdx = 0;
-    m_midpointFanTessVertexIdx = 0;
-
-    // Release the block-allocated PLSDraw resources before resetting the allocators they used.
-    m_plsDraws.clear();
-    m_resourceCounts = PLSDraw::ResourceCounters();
-    m_simpleGradients.clear();
-    m_pendingSimpleGradientWrites.clear();
-    m_complexGradients.clear();
-    m_pendingComplexColorRampDraws.clear();
-    m_flushDesc = FlushDescriptor();
-    m_drawList.reset();
-    m_combinedShaderFeatures = pls::ShaderFeatures::NONE;
-
-    RIVE_DEBUG_CODE(m_hasDoneLayout = false;)
 }
 
 void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
@@ -282,6 +295,7 @@ bool PLSRenderContext::LogicalFlush::pushDrawBatch(PLSDrawUniquePtr draws[], siz
     for (size_t i = 0; i < drawCount; ++i)
     {
         m_plsDraws.push_back(std::move(draws[i]));
+        m_combinedDrawBounds = m_combinedDrawBounds.join(m_plsDraws.back()->pixelBounds());
     }
 
     m_resourceCounts = countsWithNewBatch;
@@ -540,9 +554,28 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
     m_flushDesc.loadAction =
         flushIdx == 0 ? frameDescriptor.loadAction : LoadAction::preserveRenderTarget;
     m_flushDesc.clearColor = frameDescriptor.clearColor;
+    if (m_flushDesc.loadAction == LoadAction::clear)
+    {
+        // If we're clearing then we always update the entire render target.
+        m_flushDesc.updateBounds = frameDescriptor.renderTarget->bounds();
+    }
+    else
+    {
+        // When we don't clear, we only update the draw bounds.
+        m_flushDesc.updateBounds =
+            frameDescriptor.renderTarget->bounds().intersect(m_combinedDrawBounds);
+    }
+    if (m_flushDesc.updateBounds.empty())
+    {
+        // If this is empty it means there are no draws and no clear.
+        m_flushDesc.updateBounds = {0, 0, 0, 0};
+    }
     m_flushDesc.interlockMode = frameDescriptor.enableExperimentalAtomicMode
                                     ? pls::InterlockMode::experimentalAtomics
                                     : pls::InterlockMode::rasterOrdered;
+    m_flushDesc.skipExplicitColorClear =
+        m_flushDesc.interlockMode == pls::InterlockMode::experimentalAtomics &&
+        m_flushDesc.loadAction == LoadAction::clear && colorAlpha(m_flushDesc.clearColor) == 255;
 
     m_flushDesc.flushUniformDataOffsetInBytes = flushIdx * sizeof(pls::FlushUniforms);
     m_flushDesc.pathCount = m_resourceCounts.pathCount;
@@ -601,8 +634,9 @@ void PLSRenderContext::LogicalFlush::writeResources()
 
     m_ctx->m_flushUniformData.emplace_back(m_complexGradients.size(),
                                            m_flushDesc.tessDataHeight,
-                                           m_ctx->frameDescriptor().renderTarget->width(),
-                                           m_ctx->frameDescriptor().renderTarget->height(),
+                                           m_flushDesc.renderTarget->width(),
+                                           m_flushDesc.renderTarget->height(),
+                                           m_flushDesc.updateBounds,
                                            m_ctx->impl()->platformFeatures());
 
     // Write out the simple gradient data.

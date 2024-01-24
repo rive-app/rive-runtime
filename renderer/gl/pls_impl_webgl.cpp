@@ -5,6 +5,7 @@
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
 #include "gl_utils.hpp"
+#include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "shaders/constants.glsl"
 
 #ifdef RIVE_WEBGL
@@ -46,7 +47,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
-                glutils::BlitFramebuffer(renderTarget->bounds(), renderTarget->height());
+                glutils::BlitFramebuffer(desc.updateBounds, renderTarget->height());
             }
         }
 
@@ -91,8 +92,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
             // We rendered to an offscreen texture. Copy back to the external target FBO.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
             framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(framebufferRenderTarget->bounds(),
-                                     framebufferRenderTarget->height());
+            glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
         }
     }
 

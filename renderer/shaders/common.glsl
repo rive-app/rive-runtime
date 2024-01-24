@@ -54,6 +54,7 @@ float gradInverseViewportY;
 float tessInverseViewportY;
 float renderTargetInverseViewportX;
 float renderTargetInverseViewportY;
+int4 updateBounds; // drawBounds, or renderTargetBounds if there is a clear.
 float renderTargetHeight;
 uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
 float vertexDiscardValue;

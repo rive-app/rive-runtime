@@ -4,6 +4,7 @@
 
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
+#include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "shaders/constants.glsl"
 #include "gl_utils.hpp"
 
@@ -19,8 +20,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
-        if (framebufferRenderTarget != nullptr)
+        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
         {
             // We're targeting an external FBO directly. Make sure to allocate and attach an
             // offscreen target texture.
@@ -30,13 +30,13 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
-                glutils::BlitFramebuffer(renderTarget->bounds(), renderTarget->height());
+                glutils::BlitFramebuffer(desc.updateBounds, renderTarget->height());
             }
         }
 
         // Clear the necessary textures.
         renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER, 4);
-        if (desc.canSkipColorClear())
+        if (desc.skipExplicitColorClear)
         {
             // We can accomplish a clear of the color buffer while the shader resolves coverage,
             // instead of calling glClear. The fill for pathID=0 is automatically configured to be
@@ -69,20 +69,43 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
         renderTarget->bindAsImageTextures();
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+        assert(m_didCoalescedPLSResolveAndTransfer == false);
+    }
+
+    bool supportsCoalescedPLSResolveAndTransfer(
+        const PLSRenderTargetGL* renderTarget) const override
+    {
+        // If the renderTarget is a FramebufferRenderTargetGL, we have to render to an offscreen
+        // texture, but the final resolve operation can be rendered directly to the external target
+        // framebuffer instead.
+        return lite_rtti_cast<const FramebufferRenderTargetGL*>(renderTarget) != nullptr;
+    }
+
+    void setupCoalescedPLSResolveAndTransfer(PLSRenderTargetGL* renderTarget) override
+    {
+        // Bind the external target framebuffer for rendering the PLS resolve operation.
+        auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
+        assert(framebufferRenderTarget != nullptr);
+        framebufferRenderTarget->bindExternalFramebuffer(GL_FRAMEBUFFER);
+        m_didCoalescedPLSResolveAndTransfer = true;
     }
 
     void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
 
-        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+        if (m_didCoalescedPLSResolveAndTransfer)
+        {
+            m_didCoalescedPLSResolveAndTransfer = false;
+        }
+        else if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
+                     static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
         {
             // We rendered to an offscreen texture. Copy back to the external target framebuffer.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
             framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(framebufferRenderTarget->bounds(),
-                                     framebufferRenderTarget->height());
+            glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
         }
     }
 
@@ -92,6 +115,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     {
         return glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
+
+    bool m_didCoalescedPLSResolveAndTransfer = false;
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplRWTexture()

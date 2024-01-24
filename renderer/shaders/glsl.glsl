@@ -401,6 +401,12 @@
 
 #define EMIT_PLS }
 
+#define PLS_MAIN_WITH_FRAG_COLOR(NAME, _fragCoord, _plsCoord)                                      \
+    layout(location = 0) out half4 _fragColor;                                                     \
+    PLS_MAIN(NAME, _fragCoord, _plsCoord);
+
+#define EMIT_PLS_WITH_FRAG_COLOR EMIT_PLS
+
 #define MUL(A, B) ((A) * (B))
 
 #define STORAGE_BUFFER_BLOCK_BEGIN

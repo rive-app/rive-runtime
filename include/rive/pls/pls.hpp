@@ -328,12 +328,14 @@ public:
                   uint32_t tessDataHeight,
                   uint32_t renderTargetWidth,
                   uint32_t renderTargetHeight,
+                  const IAABB& updateBounds,
                   const PlatformFeatures& platformFeatures) :
         m_inverseViewports(complexGradientsHeight,
                            tessDataHeight,
                            renderTargetWidth,
                            renderTargetHeight,
                            platformFeatures),
+        m_updateBounds(updateBounds),
         m_renderTargetHeight(renderTargetHeight),
         m_pathIDGranularity(platformFeatures.pathIDGranularity)
     {}
@@ -367,11 +369,14 @@ private:
     };
 
     WRITEONLY InverseViewports m_inverseViewports;
+    WRITEONLY IAABB m_updateBounds; // drawBounds, or renderTargetBounds if there is a clear.
+                                    // (Used by the "@RESOLVE_PLS" step in
+                                    // InterlockMode::experimentalAtomics.)
     WRITEONLY float m_renderTargetHeight = 0;
     WRITEONLY uint32_t m_pathIDGranularity = 0; // Spacing between adjacent path IDs
                                                 // (1 if IEEE compliant).
     WRITEONLY float m_vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 28]; // Uniform blocks must be multiples of 256 bytes in
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 44]; // Uniform blocks must be multiples of 256 bytes in
                                                  // size.
 };
 static_assert(sizeof(FlushUniforms) == 256);
@@ -818,6 +823,8 @@ constexpr static ShaderFeatures kVertexShaderFeaturesMask = ShaderFeatures::ENAB
 constexpr static ShaderFeatures kImageDrawShaderFeaturesMask =
     ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
     ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+constexpr static ShaderFeatures kPathDrawShaderFeaturesMask =
+    static_cast<pls::ShaderFeatures>((1 << pls::kShaderFeatureCount) - 1);
 
 constexpr static ShaderFeatures AllShaderFeaturesForDrawType(DrawType drawType)
 {
@@ -827,7 +834,7 @@ constexpr static ShaderFeatures AllShaderFeaturesForDrawType(DrawType drawType)
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::plsAtomicResolve:
-            return static_cast<pls::ShaderFeatures>((1 << pls::kShaderFeatureCount) - 1);
+            return kPathDrawShaderFeaturesMask;
         case DrawType::imageRect:
         case DrawType::imageMesh:
             return kImageDrawShaderFeaturesMask;
@@ -840,6 +847,10 @@ enum class InterlockMode
     rasterOrdered,
     experimentalAtomics,
 };
+
+// Low-order bit mask that that is guaranteed to subsume any ShaderUniqueKey.
+constexpr uint32_t kShaderUniqueKeyMask =
+    (static_cast<uint32_t>(kPathDrawShaderFeaturesMask) << 3 << 1) | 0xf;
 
 inline static uint32_t ShaderUniqueKey(DrawType drawType,
                                        ShaderFeatures shaderFeatures,
@@ -868,6 +879,7 @@ inline static uint32_t ShaderUniqueKey(DrawType drawType,
     uint32_t key = static_cast<uint32_t>(shaderFeatures);
     key = (key << 3) | drawTypeKey;
     key = (key << 1) | static_cast<uint32_t>(interlockMode);
+    assert((key & kShaderUniqueKeyMask) == key);
     return key;
 }
 
@@ -942,8 +954,15 @@ struct FlushDescriptor
     PLSRenderTarget* renderTarget = nullptr;
     LoadAction loadAction = LoadAction::clear;
     ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
+    IAABB updateBounds; // drawBounds, or renderTargetBounds if loadAction == LoadAction::clear.
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdered;
+
+    // In atomic mode, we skip the explicit clear of the color buffer when the operation can be
+    // folded into the atomic "resolve" operation.
+    // (i.e., when interlockMode == InterlockMode::experimentalAtomics,
+    // loadAction == LoadAction::clear, and clearColor is solid.)
+    bool skipExplicitColorClear;
 
     size_t flushUniformDataOffsetInBytes = 0;
     size_t pathCount = 0;
@@ -967,15 +986,6 @@ struct FlushDescriptor
     bool hasTriangleVertices = false;
     bool wireframe = false;
     void* backendSpecificData = nullptr; // (External command buffer on Metal.)
-
-    // In atomic mode, we can skip the inital clear of the color buffer in some cases. This is
-    // because we will be resolving the framebuffer anyway, and can work the clear into that
-    // operation.
-    bool canSkipColorClear() const
-    {
-        return interlockMode == pls::InterlockMode::experimentalAtomics &&
-               loadAction == LoadAction::clear && colorAlpha(clearColor) == 255;
-    }
 };
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.

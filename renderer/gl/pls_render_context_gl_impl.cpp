@@ -6,6 +6,7 @@
 
 #include "gl_utils.hpp"
 #include "rive/pls/gl/pls_render_buffer_gl_impl.hpp"
+#include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
@@ -598,6 +599,31 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t 
                            0);
 }
 
+// Optimization for when rendering to an offscreen framebuffer in atomic mode.
+//
+// It renders the final PLS resolve operation to the destination framebuffer in a single pass,
+// instead of (1) resolving the offscreen framebuffer, and (2) blitting the offscreen framebuffer to
+// the destination framebuffer.
+constexpr uint32_t kCoalescedPLSResolveAndTransferFlag = pls::kShaderUniqueKeyMask + 1;
+
+uint32_t PLSRenderContextGLImpl::getFragmentShaderKey(pls::DrawType drawType,
+                                                      pls::ShaderFeatures shaderFeatures,
+                                                      pls::InterlockMode interlockMode,
+                                                      const PLSRenderTargetGL* renderTarget) const
+{
+    uint32_t fragmentShaderKey = pls::ShaderUniqueKey(drawType, shaderFeatures, interlockMode);
+    if (drawType == pls::DrawType::plsAtomicResolve)
+    {
+        assert(interlockMode == pls::InterlockMode::experimentalAtomics);
+        assert((fragmentShaderKey & kCoalescedPLSResolveAndTransferFlag) == 0);
+        if (m_plsImpl->supportsCoalescedPLSResolveAndTransfer(renderTarget))
+        {
+            fragmentShaderKey |= kCoalescedPLSResolveAndTransferFlag;
+        }
+    }
+    return fragmentShaderKey;
+}
+
 // Wraps a compiled GL shader of draw_path.glsl or draw_image_mesh.glsl, either vertex or fragment,
 // with a specific set of features enabled via #define. The set of features to enable is dictated by
 // ShaderFeatures.
@@ -611,7 +637,8 @@ public:
                GLenum shaderType,
                DrawType drawType,
                ShaderFeatures shaderFeatures,
-               pls::InterlockMode interlockMode)
+               pls::InterlockMode interlockMode,
+               uint32_t shaderKey)
     {
 #ifndef ENABLE_PLS_EXPERIMENTAL_ATOMICS
         if (interlockMode == pls::InterlockMode::experimentalAtomics)
@@ -691,6 +718,11 @@ public:
             case DrawType::plsAtomicResolve:
                 assert(interlockMode == pls::InterlockMode::experimentalAtomics);
                 defines.push_back(GLSL_RESOLVE_PLS);
+                if (shaderKey & kCoalescedPLSResolveAndTransferFlag)
+                {
+                    assert(shaderType != GL_VERTEX_SHADER);
+                    defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
+                }
                 sources.push_back(pls::glsl::atomic_draw);
                 break;
         }
@@ -722,7 +754,8 @@ private:
 PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
                                                  DrawType drawType,
                                                  ShaderFeatures shaderFeatures,
-                                                 pls::InterlockMode interlockMode) :
+                                                 pls::InterlockMode interlockMode,
+                                                 uint32_t fragmentShaderKey) :
     m_state(plsContextImpl->m_state)
 {
     m_id = glCreateProgram();
@@ -737,7 +770,8 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                                                       GL_VERTEX_SHADER,
                                                       drawType,
                                                       vertexShaderFeatures,
-                                                      interlockMode)
+                                                      interlockMode,
+                                                      vertexShaderKey)
                                          .first->second;
     glAttachShader(m_id, vertexShader.id());
 
@@ -746,7 +780,8 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                               GL_FRAGMENT_SHADER,
                               drawType,
                               shaderFeatures,
-                              interlockMode);
+                              interlockMode,
+                              fragmentShaderKey);
     glAttachShader(m_id, fragmentShader.id());
 
     glutils::LinkProgram(m_id);
@@ -810,7 +845,7 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
 
 void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
-    auto renderTarget = static_cast<const PLSRenderTargetGL*>(desc.renderTarget);
+    auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
 
     // All programs use the same set of per-flush uniforms.
     glBindBufferRange(GL_UNIFORM_BUFFER,
@@ -929,12 +964,13 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
         uint32_t fragmentShaderKey =
-            pls::ShaderUniqueKey(batch.drawType, shaderFeatures, desc.interlockMode);
+            getFragmentShaderKey(batch.drawType, shaderFeatures, desc.interlockMode, renderTarget);
         m_drawPrograms.try_emplace(fragmentShaderKey,
                                    this,
                                    batch.drawType,
                                    shaderFeatures,
-                                   desc.interlockMode);
+                                   desc.interlockMode,
+                                   fragmentShaderKey);
     }
 
     // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
@@ -969,7 +1005,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
         uint32_t fragmentShaderKey =
-            pls::ShaderUniqueKey(batch.drawType, shaderFeatures, desc.interlockMode);
+            getFragmentShaderKey(batch.drawType, shaderFeatures, desc.interlockMode, renderTarget);
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
         if (drawProgram.id() == 0)
         {
@@ -1075,6 +1111,13 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::plsAtomicResolve:
                 m_plsImpl->ensureRasterOrderingEnabled(false);
                 m_state->bindVAO(m_plsResolveVAO);
+                if (fragmentShaderKey & kCoalescedPLSResolveAndTransferFlag)
+                {
+                    // Since setupCoalescedPLSResolveAndTransfer() modifies GL state, this better be
+                    // the final draw of the render pass.
+                    assert(&batch == &desc.drawList->tail());
+                    m_plsImpl->setupCoalescedPLSResolveAndTransfer(renderTarget);
+                }
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
         }

@@ -127,10 +127,10 @@ void LinkProgram(GLuint program)
 void BlitFramebuffer(rive::IAABB bounds, uint32_t renderTargetHeight, GLbitfield mask)
 {
     // glBlitFramebuffer is oriented bottom-up.
-    uint32_t x = bounds.left;
-    uint32_t y = renderTargetHeight - bounds.bottom;
-    uint32_t w = bounds.width();
-    uint32_t h = bounds.height();
-    glBlitFramebuffer(x, y, w, h, x, y, w, h, mask, GL_NEAREST);
+    uint32_t l = bounds.left;
+    uint32_t b = renderTargetHeight - bounds.bottom;
+    uint32_t r = bounds.right;
+    uint32_t t = renderTargetHeight - bounds.top;
+    glBlitFramebuffer(l, b, r, t, l, b, r, t, mask, GL_NEAREST);
 }
 } // namespace glutils

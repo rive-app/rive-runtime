@@ -40,8 +40,7 @@ public:
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
-                glutils::BlitFramebuffer(framebufferRenderTarget->bounds(),
-                                         framebufferRenderTarget->height());
+                glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
             }
         }
 
@@ -83,8 +82,7 @@ public:
             // We rendered to an offscreen texture. Copy back to the external framebuffer.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
             framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(framebufferRenderTarget->bounds(),
-                                     framebufferRenderTarget->height());
+            glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
         }
     }
 
