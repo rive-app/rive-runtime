@@ -3,7 +3,6 @@
 
 #include "rive/span.hpp"
 #include "rive/math/vec2d.hpp"
-#include <cstddef>
 #include <limits>
 
 namespace rive
@@ -14,10 +13,30 @@ struct IAABB
 
     constexpr int width() const { return right - left; }
     constexpr int height() const { return bottom - top; }
-    constexpr bool empty() const { return width() <= 0 || height() <= 0; }
+    constexpr bool empty() const { return left >= right || top >= bottom; }
 
     IAABB inset(int dx, int dy) const { return {left + dx, top + dy, right - dx, bottom - dy}; }
     IAABB offset(int dx, int dy) const { return {left + dx, top + dy, right + dx, bottom + dy}; }
+    IAABB join(IAABB b) const
+    {
+        return {std::min(left, b.left),
+                std::min(top, b.top),
+                std::max(right, b.right),
+                std::max(bottom, b.bottom)};
+    }
+    IAABB intersect(IAABB b) const
+    {
+        return {std::max(left, b.left),
+                std::max(top, b.top),
+                std::min(right, b.right),
+                std::min(bottom, b.bottom)};
+    }
+
+    bool operator==(const IAABB& o) const
+    {
+        return left == o.left && top == o.top && right == o.right && bottom == o.bottom;
+    }
+    bool operator!=(const IAABB& o) const { return !(*this == o); }
 };
 
 class AABB
