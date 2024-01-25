@@ -88,8 +88,8 @@ void PLSRenderer::save()
 
 void PLSRenderer::restore()
 {
-    assert(!m_stack.empty());
-    assert(m_stack.back().clipStackHeight >= m_stack.back().clipStackHeight);
+    assert(m_stack.size() > 1);
+    assert(m_stack.back().clipStackHeight >= m_stack[m_stack.size() - 2].clipStackHeight);
     m_stack.pop_back();
 }
 
