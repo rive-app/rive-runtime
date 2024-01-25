@@ -101,7 +101,7 @@ float4 clipRectInverseMatrix;
 float2 clipRectInverseTranslate;
 uint clipID;
 uint blendMode;
-UNIFORM_BLOCK_END(imageDrawFlushUniforms)
+UNIFORM_BLOCK_END(imageDrawUniforms)
 
 #ifdef @DRAW_IMAGE_RECT
 #ifdef @VERTEX
@@ -133,7 +133,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     v_edgeCoverage = isOuterVertex ? .0 : 1.;
 
     float2 vertexPosition = @a_imageRectVertex.xy;
-    float2x2 M = make_float2x2(imageDrawFlushUniforms.viewMatrix);
+    float2x2 M = make_float2x2(imageDrawUniforms.viewMatrix);
     float2x2 MIT = transpose(inverse(M));
     if (!isOuterVertex)
     {
@@ -162,7 +162,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     v_texCoord = vertexPosition;
-    vertexPosition = MUL(M, vertexPosition) + imageDrawFlushUniforms.translate;
+    vertexPosition = MUL(M, vertexPosition) + imageDrawUniforms.translate;
 
     if (isOuterVertex)
     {
@@ -173,10 +173,10 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
 #ifdef @ENABLE_CLIP_RECT
-    v_clipRect = find_clip_rect_coverage_distances(
-        make_float2x2(imageDrawFlushUniforms.clipRectInverseMatrix),
-        imageDrawFlushUniforms.clipRectInverseTranslate,
-        vertexPosition);
+    v_clipRect =
+        find_clip_rect_coverage_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
+                                          imageDrawUniforms.clipRectInverseTranslate,
+                                          vertexPosition);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -211,7 +211,7 @@ VARYING_BLOCK_END
 #ifdef @VERTEX
 IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
                        @ImageDrawUniforms,
-                       imageDrawFlushUniforms,
+                       imageDrawUniforms,
                        PositionAttr,
                        position,
                        UVAttr,
@@ -226,15 +226,15 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     VARYING_INIT(v_clipRect, float4);
 #endif
 
-    float2x2 M = make_float2x2(imageDrawFlushUniforms.viewMatrix);
-    float2 vertexPosition = MUL(M, @a_position) + imageDrawFlushUniforms.translate;
+    float2x2 M = make_float2x2(imageDrawUniforms.viewMatrix);
+    float2 vertexPosition = MUL(M, @a_position) + imageDrawUniforms.translate;
     v_texCoord = @a_texCoord;
 
 #ifdef @ENABLE_CLIP_RECT
-    v_clipRect = find_clip_rect_coverage_distances(
-        make_float2x2(imageDrawFlushUniforms.clipRectInverseMatrix),
-        imageDrawFlushUniforms.clipRectInverseTranslate,
-        vertexPosition);
+    v_clipRect =
+        find_clip_rect_coverage_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
+                                          imageDrawUniforms.clipRectInverseTranslate,
+                                          vertexPosition);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -280,7 +280,10 @@ SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 PLS_BLOCK_BEGIN
+#ifdef @ENABLE_ADVANCED_BLEND
+// We render to the framebuffer as a color attachment when there aren't any advanced blend modes.
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
+#endif
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
@@ -381,11 +384,11 @@ half4 resolve_path_color(half coverageCount,
     return color;
 }
 
-half4 do_src_over_blend(half4 srcColorUnmul, half4 dstColorPremul)
+half4 premultiply(half4 color) { return make_half4(color.rgb * color.a, color.a); }
+
+half4 do_src_over_blend(half4 srcColorPremul, half4 dstColorPremul)
 {
-    half4 dstFactor = dstColorPremul * (1. - srcColorUnmul.a);
-    return make_half4(srcColorUnmul.rgb * srcColorUnmul.a + dstFactor.rgb,
-                      srcColorUnmul.a + dstFactor.a);
+    return srcColorPremul + dstColorPremul * (1. - srcColorPremul.a);
 }
 
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -404,20 +407,15 @@ half4 do_advanced_blend(half4 srcColorUnmul, half4 dstColorPremul, ushort blendM
     }
     else
     {
-        return do_src_over_blend(srcColorUnmul, dstColorPremul);
+        return do_src_over_blend(premultiply(srcColorUnmul), dstColorPremul);
     }
 }
-#endif // ENABLE_ADVANCED_BLEND
 
 half4 do_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
 {
     half4 dstColorPremul = PLS_LOAD4F(framebuffer, _plsCoord);
-#ifdef @ENABLE_ADVANCED_BLEND
     ushort blendMode = make_ushort((paintData.x >> 4) & 0xfu);
     return do_advanced_blend(color, dstColorPremul, blendMode);
-#else
-    return do_src_over_blend(color, dstColorPremul);
-#endif
 }
 
 void write_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
@@ -427,12 +425,21 @@ void write_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
         PLS_STORE4F(framebuffer, do_pls_blend(color, paintData, _plsCoord), _plsCoord);
     }
 }
+#endif // ENABLE_ADVANCED_BLEND
 
 #ifdef @DRAW_PATH
+#ifdef @ENABLE_ADVANCED_BLEND
 PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
+#else
+PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
+#endif
 {
     VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
+
+#ifndef @ENABLE_ADVANCED_BLEND
+    _fragColor = make_half4(0, 0, 0, 0);
+#endif
 
     half coverage = min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), 1.);
 
@@ -456,7 +463,11 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
         half4 color =
             resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
+#ifdef @ENABLE_ADVANCED_BLEND
         write_pls_blend(color, paintData, _plsCoord);
+#else
+        _fragColor = premultiply(color);
+#endif
     }
     else if (v_edgeDistance.y < .0 /*fill?*/)
     {
@@ -470,15 +481,27 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         PLS_ATOMIC_ADD(coverageCountBuffer, fixedCoverage, _plsCoord);
     }
 
+#ifdef @ENABLE_ADVANCED_BLEND
     EMIT_PLS;
+#else
+    EMIT_PLS_WITH_FRAG_COLOR;
+#endif
 }
 #endif // DRAW_PATH
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
+#ifdef @ENABLE_ADVANCED_BLEND
 PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
+#else
+PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
+#endif
 {
     VARYING_UNPACK(v_windingWeight, half);
     VARYING_UNPACK(v_pathID, ushort);
+
+#ifndef @ENABLE_ADVANCED_BLEND
+    _fragColor = make_half4(0, 0, 0, 0);
+#endif
 
     half coverage = v_windingWeight;
 
@@ -492,7 +515,11 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
         half4 color =
             resolve_path_color(lastCoverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
+#ifdef @ENABLE_ADVANCED_BLEND
         write_pls_blend(color, paintData, _plsCoord);
+#else
+        _fragColor = premultiply(color);
+#endif
     }
     else
     {
@@ -501,16 +528,24 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
 
     PLS_STOREUI(coverageCountBuffer, (uint(v_pathID) << 16) | to_fixed(coverage), _plsCoord);
 
+#ifdef @ENABLE_ADVANCED_BLEND
     EMIT_PLS;
+#else
+    EMIT_PLS_WITH_FRAG_COLOR;
+#endif
 }
 #endif // DRAW_INTERIOR_TRIANGLES
 
 #ifdef @DRAW_IMAGE
-IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
-                    @ImageDrawUniforms,
-                    imageDrawFlushUniforms,
-                    _fragCoord,
-                    _plsCoord)
+#ifdef @ENABLE_ADVANCED_BLEND
+IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _fragCoord, _plsCoord)
+#else
+IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain,
+                                    @ImageDrawUniforms,
+                                    imageDrawUniforms,
+                                    _fragCoord,
+                                    _plsCoord)
+#endif
 {
     VARYING_UNPACK(v_texCoord, float2);
 #ifdef @DRAW_IMAGE_RECT
@@ -524,7 +559,7 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
     // get resolved later like other draws because the @imageTexture binding is liable to change,
     // and furthermore in the case of imageMeshes, we can't calculate UV coordinates based on
     // fragment position.
-    half4 meshColor = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
+    half4 imageColor = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
     half meshCoverage = 1.;
 #ifdef @DRAW_IMAGE_RECT
     meshCoverage = min(v_edgeCoverage, meshCoverage);
@@ -541,7 +576,7 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
 #endif
 
     // Find the previous path color. (This might also update the clip buffer.)
-    // TODO: skip this step if no clipping AND srcOver AND meshColor is solid.
+    // TODO: skip this step if no clipping AND srcOver AND imageColor is solid.
     uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
@@ -551,35 +586,35 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
 
     // Clip the image after resolving the previous path, since that can affect the clip buffer.
 #ifdef @ENABLE_CLIPPING // TODO! ENABLE_IMAGE_CLIPPING in addition to ENABLE_CLIPPING?
-    if (imageDrawFlushUniforms.clipID != 0u)
+    if (imageDrawUniforms.clipID != 0u)
     {
         uint clipData = PLS_LOADUI(clipBuffer, _plsCoord);
         uint clipID = clipData >> 16;
-        half clipCoverage =
-            clipID == imageDrawFlushUniforms.clipID ? unpackHalf2x16(clipData).r : 0;
+        half clipCoverage = clipID == imageDrawUniforms.clipID ? unpackHalf2x16(clipData).r : 0;
         meshCoverage = min(meshCoverage, clipCoverage);
     }
 #endif // ENABLE_CLIPPING
-    meshColor.a *= meshCoverage * imageDrawFlushUniforms.opacity;
+    imageColor.a *= meshCoverage * imageDrawUniforms.opacity;
 
-    if (lastColor.a != .0 || meshColor.a != 0)
+#ifdef @ENABLE_ADVANCED_BLEND
+    if (lastColor.a != .0 || imageColor.a != 0)
     {
         // Blend the previous path and image both in a single operation.
         // TODO: Are advanced blend modes associative? srcOver is, so at least there we can blend
-        // lastColor and meshColor first, and potentially avoid a framebuffer load if it ends up
+        // lastColor and imageColor first, and potentially avoid a framebuffer load if it ends up
         // opaque.
         half4 dstColorPremul = PLS_LOAD4F(framebuffer, _plsCoord);
-#ifdef @ENABLE_ADVANCED_BLEND
         ushort lastBlendMode = make_ushort((lastPaintData.x >> 4) & 0xfu);
-        ushort imageBlendMode = make_ushort(imageDrawFlushUniforms.blendMode);
+        ushort imageBlendMode = make_ushort(imageDrawUniforms.blendMode);
         dstColorPremul = do_advanced_blend(lastColor, dstColorPremul, lastBlendMode);
-        meshColor = do_advanced_blend(meshColor, dstColorPremul, imageBlendMode);
-#else
-        dstColorPremul = do_src_over_blend(lastColor, dstColorPremul);
-        meshColor = do_src_over_blend(meshColor, dstColorPremul);
-#endif
-        PLS_STORE4F(framebuffer, meshColor, _plsCoord);
+        imageColor = do_advanced_blend(imageColor, dstColorPremul, imageBlendMode);
+        PLS_STORE4F(framebuffer, imageColor, _plsCoord);
     }
+#else
+    // Leverage the property that premultiplied src-over blending is associative and blend the
+    // imageColor and lastColor before passing them on to the blending pipeline.
+    _fragColor = do_src_over_blend(premultiply(imageColor), premultiply(lastColor));
+#endif
 
     // Write out a coverage value of "zero at pathID=0" so a future resolve attempt doesn't affect
     // this pixel.
@@ -591,23 +626,32 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain,
     PLS_INTERLOCK_END;
 #endif
 
+#ifdef @ENABLE_ADVANCED_BLEND
     EMIT_PLS;
+#else
+    EMIT_PLS_WITH_FRAG_COLOR;
+#endif
 }
 #endif // DRAW_IMAGE
 
 #ifdef @RESOLVE_PLS
 
+#ifdef @ENABLE_ADVANCED_BLEND
 #ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
 PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
 #else
 PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
 #endif
+#else
+PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
+#endif // ENABLE_ADVANCED_BLEND
 {
     uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
     half4 color = resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
+#ifdef @ENABLE_ADVANCED_BLEND
 #ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
     _fragColor = do_pls_blend(color, paintData, _plsCoord);
     EMIT_PLS_WITH_FRAG_COLOR;
@@ -615,6 +659,10 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
     write_pls_blend(color, paintData, _plsCoord);
     EMIT_PLS;
 #endif
+#else
+    _fragColor = premultiply(color);
+    EMIT_PLS_WITH_FRAG_COLOR;
+#endif // ENABLE_ADVANCED_BLEND
 }
 #endif // RESOLVE_PLS
 #endif // FRAGMENT

@@ -29,6 +29,31 @@ constexpr static UINT kImageMeshUVDataSlot = 4;
 
 namespace rive::pls
 {
+ComPtr<ID3D11Texture2D> make_simple_2d_texture(ID3D11Device* gpu,
+                                               DXGI_FORMAT format,
+                                               UINT width,
+                                               UINT height,
+                                               UINT mipLevelCount,
+                                               UINT bindFlags,
+                                               UINT miscFlags = 0)
+{
+    D3D11_TEXTURE2D_DESC desc{};
+    desc.Width = width;
+    desc.Height = height;
+    desc.MipLevels = mipLevelCount;
+    desc.ArraySize = 1;
+    desc.Format = format;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = bindFlags;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = miscFlags;
+
+    ComPtr<ID3D11Texture2D> tex;
+    VERIFY_OK(gpu->CreateTexture2D(&desc, NULL, tex.GetAddressOf()));
+    return tex;
+}
+
 static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(ID3D11Device* gpu,
                                                             ID3D11Texture2D* tex,
                                                             DXGI_FORMAT format)
@@ -280,6 +305,17 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     ID3D11SamplerState* samplers[2] = {m_linearSampler.Get(), m_mipmapSampler.Get()};
     static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
     m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 2, samplers);
+
+    D3D11_BLEND_DESC srcOverDesc{};
+    srcOverDesc.RenderTarget[0].BlendEnable = TRUE;
+    srcOverDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    srcOverDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    srcOverDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    srcOverDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    srcOverDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+    srcOverDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    srcOverDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    VERIFY_OK(m_gpu->CreateBlendState(&srcOverDesc, m_srcOverBlendState.GetAddressOf()));
 }
 
 ComPtr<ID3D11Texture2D> PLSRenderContextD3DImpl::makeSimple2DTexture(DXGI_FORMAT format,
@@ -289,21 +325,13 @@ ComPtr<ID3D11Texture2D> PLSRenderContextD3DImpl::makeSimple2DTexture(DXGI_FORMAT
                                                                      UINT bindFlags,
                                                                      UINT miscFlags)
 {
-    D3D11_TEXTURE2D_DESC desc{};
-    desc.Width = width;
-    desc.Height = height;
-    desc.MipLevels = mipLevelCount;
-    desc.ArraySize = 1;
-    desc.Format = format;
-    desc.SampleDesc.Count = 1;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = bindFlags;
-    desc.CPUAccessFlags = 0;
-    desc.MiscFlags = miscFlags;
-
-    ComPtr<ID3D11Texture2D> tex;
-    VERIFY_OK(m_gpu->CreateTexture2D(&desc, NULL, tex.GetAddressOf()));
-    return tex;
+    return make_simple_2d_texture(m_gpu.Get(),
+                                  format,
+                                  width,
+                                  height,
+                                  mipLevelCount,
+                                  bindFlags,
+                                  miscFlags);
 }
 
 ComPtr<ID3D11UnorderedAccessView> PLSRenderContextD3DImpl::makeSimple2DUAV(ID3D11Texture2D* tex,
@@ -635,33 +663,6 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeTextureTransferBufferRi
     return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
-PLSRenderTargetD3D::PLSRenderTargetD3D(PLSRenderContextD3DImpl* plsImpl,
-                                       uint32_t width,
-                                       uint32_t height) :
-    PLSRenderTarget(width, height), m_gpu(plsImpl->gpu())
-{
-    m_coverageTexture = plsImpl->makeSimple2DTexture(DXGI_FORMAT_R32_UINT,
-                                                     width,
-                                                     height,
-                                                     1,
-                                                     D3D11_BIND_UNORDERED_ACCESS);
-    m_originalDstColorTexture = plsImpl->makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
-                                                             width,
-                                                             height,
-                                                             1,
-                                                             D3D11_BIND_UNORDERED_ACCESS);
-    m_clipTexture = plsImpl->makeSimple2DTexture(DXGI_FORMAT_R32_UINT,
-                                                 width,
-                                                 height,
-                                                 1,
-                                                 D3D11_BIND_UNORDERED_ACCESS);
-
-    m_coverageUAV = plsImpl->makeSimple2DUAV(m_coverageTexture.Get(), DXGI_FORMAT_R32_UINT);
-    m_originalDstColorUAV =
-        plsImpl->makeSimple2DUAV(m_originalDstColorTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
-    m_clipUAV = plsImpl->makeSimple2DUAV(m_clipTexture.Get(), DXGI_FORMAT_R32_UINT);
-}
-
 void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
 {
 #ifdef DEBUG
@@ -673,13 +674,87 @@ void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
            desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
 #endif
     m_targetTexture = std::move(tex);
-    m_targetUAV =
-        make_simple_2d_uav(m_gpu.Get(), m_targetTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
+    m_targetRTV = nullptr;
+    m_targetUAV = nullptr;
 }
 
-rcp<PLSRenderTargetD3D> PLSRenderContextD3DImpl::makeRenderTarget(uint32_t width, uint32_t height)
+ID3D11RenderTargetView* PLSRenderTargetD3D::targetRTV()
 {
-    return rcp(new PLSRenderTargetD3D(this, width, height));
+
+    if (m_targetRTV == nullptr && m_targetTexture != nullptr)
+    {
+        VERIFY_OK(
+            m_gpu->CreateRenderTargetView(m_targetTexture.Get(), NULL, m_targetRTV.GetAddressOf()));
+    }
+    return m_targetRTV.Get();
+}
+
+ID3D11UnorderedAccessView* PLSRenderTargetD3D::targetUAV()
+{
+
+    if (m_targetUAV == nullptr && m_targetTexture != nullptr)
+    {
+        m_targetUAV =
+            make_simple_2d_uav(m_gpu.Get(), m_targetTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
+    }
+    return m_targetUAV.Get();
+}
+
+ID3D11UnorderedAccessView* PLSRenderTargetD3D::coverageUAV()
+{
+    if (m_coverageTexture == nullptr)
+    {
+        m_coverageTexture = make_simple_2d_texture(m_gpu.Get(),
+                                                   DXGI_FORMAT_R32_UINT,
+                                                   width(),
+                                                   height(),
+                                                   1,
+                                                   D3D11_BIND_UNORDERED_ACCESS);
+    }
+    if (m_coverageUAV == nullptr)
+    {
+        m_coverageUAV =
+            make_simple_2d_uav(m_gpu.Get(), m_coverageTexture.Get(), DXGI_FORMAT_R32_UINT);
+    }
+    return m_coverageUAV.Get();
+}
+
+ID3D11UnorderedAccessView* PLSRenderTargetD3D::clipUAV()
+{
+    if (m_clipTexture == nullptr)
+    {
+        m_clipTexture = make_simple_2d_texture(m_gpu.Get(),
+                                               DXGI_FORMAT_R32_UINT,
+                                               width(),
+                                               height(),
+                                               1,
+                                               D3D11_BIND_UNORDERED_ACCESS);
+    }
+    if (m_clipUAV == nullptr)
+    {
+        m_clipUAV = make_simple_2d_uav(m_gpu.Get(), m_clipTexture.Get(), DXGI_FORMAT_R32_UINT);
+    }
+    return m_clipUAV.Get();
+}
+
+ID3D11UnorderedAccessView* PLSRenderTargetD3D::originalDstColorUAV()
+{
+    if (m_originalDstColorTexture == nullptr)
+    {
+        m_originalDstColorTexture = make_simple_2d_texture(m_gpu.Get(),
+                                                           DXGI_FORMAT_R8G8B8A8_UNORM,
+                                                           width(),
+                                                           height(),
+                                                           1,
+                                                           D3D11_BIND_UNORDERED_ACCESS);
+    }
+    if (m_originalDstColorUAV == nullptr)
+    {
+        m_originalDstColorUAV = make_simple_2d_uav(m_gpu.Get(),
+                                                   m_originalDstColorTexture.Get(),
+                                                   DXGI_FORMAT_R8G8B8A8_UNORM);
+    }
+    return m_originalDstColorUAV.Get();
 }
 
 void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -940,7 +1015,7 @@ static const char* heap_buffer_contents(const BufferRing* bufferRing)
 
 void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
-    auto renderTarget = static_cast<const PLSRenderTargetD3D*>(desc.renderTarget);
+    auto renderTarget = static_cast<PLSRenderTargetD3D*>(desc.renderTarget);
 
     if (desc.skipExplicitColorClear)
     {
@@ -950,7 +1025,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         // coverage buffer to solid coverage. This ensures the clear color gets written out
         // fully opaque.
         constexpr static UINT kCoverageOne[4]{static_cast<UINT>(FIXED_COVERAGE_ONE)};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_coverageUAV.Get(), kCoverageOne);
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageOne);
     }
     else
     {
@@ -958,8 +1033,15 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            m_gpuContext->ClearUnorderedAccessViewFloat(renderTarget->m_targetUAV.Get(),
-                                                        clearColor4f);
+            if (desc.renderDirectToRasterPipeline)
+            {
+                m_gpuContext->ClearRenderTargetView(renderTarget->targetRTV(), clearColor4f);
+            }
+            else
+            {
+                m_gpuContext->ClearUnorderedAccessViewFloat(renderTarget->targetUAV(),
+                                                            clearColor4f);
+            }
         }
         // Clear the coverage buffer to pathID=0, and with a value that means "zero coverage" in
         // atomic mode.
@@ -967,13 +1049,12 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         // In atomic mode, the additional "zero coverage" value makes sure nothing gets written out
         // at this pixel when resolving.
         constexpr static UINT kCoverageZero[4]{static_cast<UINT>(FIXED_COVERAGE_ZERO)};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_coverageUAV.Get(),
-                                                   kCoverageZero);
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageZero);
     }
     if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
     {
         constexpr static UINT kZero[4]{};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->m_clipUAV.Get(), kZero);
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->clipUAV(), kZero);
     }
 
     ID3D11Buffer* cbuffers[] = {m_flushUniforms.Get(),
@@ -984,7 +1065,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX, std::size(cbuffers), cbuffers);
 
     m_gpuContext->RSSetState(m_pathRasterState[0].Get());
-    m_gpuContext->OMSetBlendState(NULL, NULL, ~0);
+    m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
 
     // All programs use the same set of per-flush uniforms.
     m_gpuContext->UpdateSubresource(m_flushUniforms.Get(),
@@ -1121,22 +1202,6 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     }
 
     // Execute the DrawList.
-    ID3D11UnorderedAccessView* plsUAVs[] = {renderTarget->m_targetUAV.Get(),
-                                            renderTarget->m_coverageUAV.Get(),
-                                            renderTarget->m_clipUAV.Get(),
-                                            renderTarget->m_originalDstColorUAV.Get()};
-    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
-    static_assert(COVERAGE_PLANE_IDX == 1);
-    static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
-    m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(0,
-                                                            NULL,
-                                                            NULL,
-                                                            0,
-                                                            std::size(plsUAVs),
-                                                            plsUAVs,
-                                                            NULL);
-
     ID3D11Buffer* vertexBuffers[3] = {
         m_patchVertexBuffer.Get(),
         desc.hasTriangleVertices ? submitted_buffer(triangleBufferRing()) : NULL,
@@ -1150,8 +1215,6 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     static_assert(kImageRectVertexDataSlot == 2);
     m_gpuContext->IASetVertexBuffers(0, 3, vertexBuffers, vertexStrides, vertexOffsets);
 
-    m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX, 1, m_tessTextureSRV.GetAddressOf());
-
     D3D11_VIEWPORT viewport = {0,
                                0,
                                static_cast<float>(renderTarget->width()),
@@ -1163,6 +1226,43 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->PSSetConstantBuffers(IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                        1,
                                        m_imageDrawUniforms.GetAddressOf());
+
+    ID3D11RenderTargetView* plsRTV =
+        desc.renderDirectToRasterPipeline ? renderTarget->targetRTV() : NULL;
+    bool needsOriginalDstColor = desc.interlockMode == pls::InterlockMode::rasterOrdered;
+    ID3D11UnorderedAccessView* plsUAVs[] = {
+        desc.renderDirectToRasterPipeline ? NULL : renderTarget->targetUAV(),
+        renderTarget->coverageUAV(),
+        renderTarget->clipUAV(),
+        needsOriginalDstColor ? renderTarget->originalDstColorUAV() : NULL};
+    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+    static_assert(COVERAGE_PLANE_IDX == 1);
+    static_assert(CLIP_PLANE_IDX == 2);
+    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+    UINT numUAVs = std::size(plsUAVs);
+    if (desc.renderDirectToRasterPipeline)
+    {
+        --numUAVs;
+    }
+    if (!needsOriginalDstColor)
+    {
+        --numUAVs;
+    }
+    m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
+        desc.renderDirectToRasterPipeline ? 1 : 0,
+        &plsRTV,
+        NULL,
+        desc.renderDirectToRasterPipeline ? 1 : 0,
+        numUAVs,
+        desc.renderDirectToRasterPipeline ? plsUAVs + 1 : plsUAVs,
+        NULL);
+    if (desc.renderDirectToRasterPipeline)
+    {
+        m_gpuContext->OMSetBlendState(m_srcOverBlendState.Get(), NULL, 0xffffffff);
+    }
+
+    // Set these last, when the tess and grad textures are no longer bound as render targets.
+    m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX, 1, m_tessTextureSRV.GetAddressOf());
     m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 1, m_gradTextureSRV.GetAddressOf());
 
     const char* const imageDrawUniformData = heap_buffer_contents(imageDrawUniformBufferRing());

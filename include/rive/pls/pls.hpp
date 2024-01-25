@@ -964,6 +964,12 @@ struct FlushDescriptor
     // loadAction == LoadAction::clear, and clearColor is solid.)
     bool skipExplicitColorClear;
 
+    // True if the backend should render directly to the raster pipeline, using hardware blend state
+    // for opacity and antialiasing, as opposed to rendering to pixel local storage. This will
+    // happen when combinedShaderFeatures do not include ShaderFeatures::ENABLE_ADVANCED_BLEND and
+    // when interlockMode == InterlockMode::experimentalAtomics.
+    bool renderDirectToRasterPipeline;
+
     size_t flushUniformDataOffsetInBytes = 0;
     size_t pathCount = 0;
     size_t firstPath = 0;

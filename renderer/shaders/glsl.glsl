@@ -405,6 +405,10 @@
     layout(location = 0) out half4 _fragColor;                                                     \
     PLS_MAIN(NAME, _fragCoord, _plsCoord);
 
+#define IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)     \
+    layout(location = 0) out half4 _fragColor;                                                     \
+    PLS_MAIN(NAME, _pos, _plsCoord)
+
 #define EMIT_PLS_WITH_FRAG_COLOR EMIT_PLS
 
 #define MUL(A, B) ((A) * (B))

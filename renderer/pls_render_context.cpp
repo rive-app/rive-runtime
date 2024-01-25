@@ -813,6 +813,9 @@ void PLSRenderContext::LogicalFlush::writeResources()
 
     m_flushDesc.drawList = &m_drawList;
     m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
+    m_flushDesc.renderDirectToRasterPipeline =
+        m_flushDesc.interlockMode == InterlockMode::experimentalAtomics &&
+        !(m_flushDesc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
 }
 
 void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool forceRealloc)

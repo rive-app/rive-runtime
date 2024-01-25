@@ -70,7 +70,6 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, uint32_t draw
     if (m_framebufferID == 0)
     {
         glGenFramebuffers(1, &m_framebufferID);
-        assert(m_framebufferTargetAttachmentDirty);
     }
     glBindFramebuffer(target, m_framebufferID);
 
@@ -131,7 +130,6 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
         }
 #endif
         glDrawBuffers(0, nullptr);
-        assert(m_framebufferTargetPLSBindingDirty);
     }
     else
     {

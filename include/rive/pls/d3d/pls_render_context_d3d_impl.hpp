@@ -17,23 +17,30 @@ class PLSRenderContextD3DImpl;
 class PLSRenderTargetD3D : public PLSRenderTarget
 {
 public:
+    PLSRenderTargetD3D(ComPtr<ID3D11Device> gpu, uint32_t width, uint32_t height) :
+        PLSRenderTarget(width, height), m_gpu(std::move(gpu))
+    {}
+
     ~PLSRenderTargetD3D() override {}
 
     void setTargetTexture(ComPtr<ID3D11Texture2D> tex);
     ID3D11Texture2D* targetTexture() const { return m_targetTexture.Get(); }
 
+    ID3D11RenderTargetView* targetRTV();
+    ID3D11UnorderedAccessView* targetUAV();
+    ID3D11UnorderedAccessView* coverageUAV();
+    ID3D11UnorderedAccessView* clipUAV();
+    ID3D11UnorderedAccessView* originalDstColorUAV();
+
 private:
-    friend class PLSRenderContextD3DImpl;
-
-    PLSRenderTargetD3D(PLSRenderContextD3DImpl*, uint32_t width, uint32_t height);
-
-    ComPtr<ID3D11Device> m_gpu;
+    const ComPtr<ID3D11Device> m_gpu;
 
     ComPtr<ID3D11Texture2D> m_targetTexture;
     ComPtr<ID3D11Texture2D> m_coverageTexture;
     ComPtr<ID3D11Texture2D> m_originalDstColorTexture;
     ComPtr<ID3D11Texture2D> m_clipTexture;
 
+    ComPtr<ID3D11RenderTargetView> m_targetRTV;
     ComPtr<ID3D11UnorderedAccessView> m_targetUAV;
     ComPtr<ID3D11UnorderedAccessView> m_coverageUAV;
     ComPtr<ID3D11UnorderedAccessView> m_clipUAV;
@@ -48,7 +55,10 @@ public:
                                                          ComPtr<ID3D11DeviceContext>,
                                                          bool isIntel);
 
-    rcp<PLSRenderTargetD3D> makeRenderTarget(uint32_t width, uint32_t height);
+    rcp<PLSRenderTargetD3D> makeRenderTarget(uint32_t width, uint32_t height)
+    {
+        return make_rcp<PLSRenderTargetD3D>(m_gpu.Get(), width, height);
+    }
 
     // D3D helpers
     ID3D11Device* gpu() const { return m_gpu.Get(); }
@@ -160,5 +170,7 @@ private:
 
     ComPtr<ID3D11SamplerState> m_linearSampler;
     ComPtr<ID3D11SamplerState> m_mipmapSampler;
+
+    ComPtr<ID3D11BlendState> m_srcOverBlendState;
 };
 } // namespace rive::pls

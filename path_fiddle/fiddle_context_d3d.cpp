@@ -48,7 +48,7 @@ public:
         scd.Height = height;
         scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         scd.SampleDesc.Count = 1;
-        scd.BufferUsage = DXGI_USAGE_UNORDERED_ACCESS;
+        scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS;
         scd.BufferCount = 2;
         scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
         VERIFY_OK(m_d3dFactory->CreateSwapChainForHwnd(m_gpu.Get(),

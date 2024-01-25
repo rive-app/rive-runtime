@@ -222,6 +222,20 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define EMIT_PLS }
 
+#define PLS_MAIN_WITH_FRAG_COLOR(NAME, _fragCoord, _plsCoord)                                      \
+    [$earlydepthstencil] half4 NAME(Varyings _varyings) : $SV_Target                               \
+    {                                                                                              \
+        float2 _fragCoord = _varyings._pos.xy;                                                     \
+        int2 _plsCoord = int2(floor(_fragCoord));                                                  \
+        half4 _fragColor;
+
+#define IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)     \
+    PLS_MAIN_WITH_FRAG_COLOR(NAME, _fragCoord, _plsCoord)
+
+#define EMIT_PLS_WITH_FRAG_COLOR                                                                   \
+    }                                                                                              \
+    return _fragColor;
+
 #define uintBitsToFloat $asfloat
 #define intBitsToFloat $asfloat
 #define floatBitsToInt $asint

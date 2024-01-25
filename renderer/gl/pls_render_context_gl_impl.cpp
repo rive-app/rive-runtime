@@ -612,7 +612,12 @@ uint32_t PLSRenderContextGLImpl::getFragmentShaderKey(pls::DrawType drawType,
                                                       const PLSRenderTargetGL* renderTarget) const
 {
     uint32_t fragmentShaderKey = pls::ShaderUniqueKey(drawType, shaderFeatures, interlockMode);
-    if (drawType == pls::DrawType::plsAtomicResolve)
+
+    // In addition to the standard fragmentShaderKey, add one more flag stating if we're an atomic
+    // resolve that can transfer the image data from offscreen at the same time. (In atomic mode, we
+    // only render offscreen if there are blend modes.)
+    if (drawType == pls::DrawType::plsAtomicResolve &&
+        (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {
         assert(interlockMode == pls::InterlockMode::experimentalAtomics);
         assert((fragmentShaderKey & kCoalescedPLSResolveAndTransferFlag) == 0);
@@ -621,6 +626,7 @@ uint32_t PLSRenderContextGLImpl::getFragmentShaderKey(pls::DrawType drawType,
             fragmentShaderKey |= kCoalescedPLSResolveAndTransferFlag;
         }
     }
+
     return fragmentShaderKey;
 }
 
@@ -1009,6 +1015,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
         if (drawProgram.id() == 0)
         {
+            fprintf(stderr, "WARNING: skipping draw due to missing GL program.\n");
             continue;
         }
         m_state->bindProgram(drawProgram.id());

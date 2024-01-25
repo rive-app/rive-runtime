@@ -20,10 +20,16 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
+        if (desc.renderDirectToRasterPipeline)
         {
-            // We're targeting an external FBO directly. Make sure to allocate and attach an
-            // offscreen target texture.
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        }
+        else if (auto framebufferRenderTarget =
+                     lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
+        {
+            // We're targeting an external FBO but can't render to it directly. Make sure to
+            // allocate and attach an offscreen target texture.
             framebufferRenderTarget->allocateOffscreenTargetTexture();
             if (desc.loadAction == LoadAction::preserveRenderTarget)
             {
@@ -66,8 +72,23 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
         }
 
-        renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
+        // Bind the framebuffer we will render to.
+        if (!desc.renderDirectToRasterPipeline)
+        {
+            renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
+        }
+        else if (auto framebufferRenderTarget =
+                     lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
+        {
+            framebufferRenderTarget->bindExternalFramebuffer(GL_FRAMEBUFFER);
+        }
+        else
+        {
+            renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER, 1);
+        }
+
         renderTarget->bindAsImageTextures();
+
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         assert(m_didCoalescedPLSResolveAndTransfer == false);
@@ -76,9 +97,6 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     bool supportsCoalescedPLSResolveAndTransfer(
         const PLSRenderTargetGL* renderTarget) const override
     {
-        // If the renderTarget is a FramebufferRenderTargetGL, we have to render to an offscreen
-        // texture, but the final resolve operation can be rendered directly to the external target
-        // framebuffer instead.
         return lite_rtti_cast<const FramebufferRenderTargetGL*>(renderTarget) != nullptr;
     }
 
@@ -95,12 +113,21 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
 
+        if (desc.renderDirectToRasterPipeline)
+        {
+            glDisable(GL_BLEND);
+            assert(!m_didCoalescedPLSResolveAndTransfer);
+            return;
+        }
+
         if (m_didCoalescedPLSResolveAndTransfer)
         {
             m_didCoalescedPLSResolveAndTransfer = false;
+            return;
         }
-        else if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                     static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+
+        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
+                static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
         {
             // We rendered to an offscreen texture. Copy back to the external target framebuffer.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
