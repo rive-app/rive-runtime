@@ -1,288 +1,288 @@
-dofile 'rive_build_config.lua'
+dofile('rive_build_config.lua')
 
-dofile("premake5_pls_renderer.lua")
-dofile(RIVE_RUNTIME_DIR .. "/premake5_v2.lua")
+dofile('premake5_pls_renderer.lua')
+dofile(RIVE_RUNTIME_DIR .. '/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
 
-newoption {
-    trigger = "with-skia",
-    description = "use skia",
-}
-if _OPTIONS["with-skia"]
-then
-    dofile(RIVE_RUNTIME_DIR .. "/skia/renderer/build/premake5.lua")
+newoption({ trigger = 'with-skia', description = 'use skia' })
+if _OPTIONS['with-skia'] then
+    dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/build/premake5.lua')
 end
 
-project "path_fiddle"
+project('path_fiddle')
 do
-    dependson 'rive'
-    kind "ConsoleApp"
-    includedirs {"include",
-                 RIVE_RUNTIME_DIR .. "/include",
-                 "glad",
-                 "include",
-                 RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
-    flags { "FatalWarnings" }
+    dependson('rive')
+    kind('ConsoleApp')
+    includedirs({
+        'include',
+        RIVE_RUNTIME_DIR .. '/include',
+        'glad',
+        'include',
+        RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+    })
+    flags({ 'FatalWarnings' })
 
-    files {
-        "path_fiddle/**.cpp",
-    }
+    files({ 'path_fiddle/**.cpp' })
 
-    links {
-        "rive",
-        "rive_pls_renderer",
-        "rive_decoders",
-        "libpng",
-        "zlib",
-        "rive_harfbuzz",
-        "rive_sheenbidi"
-    }
+    links({
+        'rive',
+        'rive_pls_renderer',
+        'rive_decoders',
+        'libpng',
+        'zlib',
+        'rive_harfbuzz',
+        'rive_sheenbidi',
+    })
 
-    filter "options:with-skia"
+    filter('options:with-skia')
     do
-        includedirs {RIVE_RUNTIME_DIR .. "/skia/renderer/include",
-                     RIVE_RUNTIME_DIR .. "/skia/dependencies",
-                     RIVE_RUNTIME_DIR .. "/skia/dependencies/skia"}
-        defines {"RIVE_SKIA", "SK_GL"}
-        libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/skia/out/static"}
-        links {"skia", "rive_skia_renderer"}
+        includedirs({
+            RIVE_RUNTIME_DIR .. '/skia/renderer/include',
+            RIVE_RUNTIME_DIR .. '/skia/dependencies',
+            RIVE_RUNTIME_DIR .. '/skia/dependencies/skia',
+        })
+        defines({ 'RIVE_SKIA', 'SK_GL' })
+        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/skia/out/static' })
+        links({ 'skia', 'rive_skia_renderer' })
     end
 
-    filter "system:windows"
+    filter('system:windows')
     do
-        architecture "x64"
-        defines {"RIVE_WINDOWS", "_CRT_SECURE_NO_WARNINGS"}
-        libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
-        links {"glfw3", "opengl32", "d3d11", "dxgi", "d3dcompiler"}
+        architecture('x64')
+        defines({ 'RIVE_WINDOWS', '_CRT_SECURE_NO_WARNINGS' })
+        libdirs({
+            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
+        })
+        links({ 'glfw3', 'opengl32', 'd3d11', 'dxgi', 'd3dcompiler' })
     end
 
-    filter "system:macosx"
+    filter('system:macosx')
     do
-        files {"path_fiddle/**.mm"}
-        buildoptions {"-fobjc-arc"}
-        links {"glfw3",
-               "Cocoa.framework",
-               "Metal.framework",
-               "QuartzCore.framework",
-               "IOKit.framework"}
-        libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src"}
+        files({ 'path_fiddle/**.mm' })
+        buildoptions({ '-fobjc-arc' })
+        links({
+            'glfw3',
+            'Cocoa.framework',
+            'Metal.framework',
+            'QuartzCore.framework',
+            'IOKit.framework',
+        })
+        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
     end
 
-    filter "options:with-dawn"
+    filter('options:with-dawn')
     do
-        includedirs {
-            "dependencies/dawn/include",
-            "dependencies/dawn/out/release/gen/include",
-        }
-        libdirs {
-            "dependencies/dawn/out/release/obj/src/dawn",
-            "dependencies/dawn/out/release/obj/src/dawn/native",
-            "dependencies/dawn/out/release/obj/src/dawn/platform",
-            "dependencies/dawn/out/release/obj/src/dawn/platform",
-        }
-        links {
-            "dawn_native_static",
-            "webgpu_dawn",
-            "dawn_platform_static",
-            "dawn_proc_static",
-        }
+        includedirs({
+            'dependencies/dawn/include',
+            'dependencies/dawn/out/release/gen/include',
+        })
+        libdirs({
+            'dependencies/dawn/out/release/obj/src/dawn',
+            'dependencies/dawn/out/release/obj/src/dawn/native',
+            'dependencies/dawn/out/release/obj/src/dawn/platform',
+            'dependencies/dawn/out/release/obj/src/dawn/platform',
+        })
+        links({
+            'dawn_native_static',
+            'webgpu_dawn',
+            'dawn_platform_static',
+            'dawn_proc_static',
+        })
     end
 
-    filter {"options:with-dawn", "system:windows"}
+    filter({ 'options:with-dawn', 'system:windows' })
     do
-        links {
-            "dxguid",
-        }
+        links({ 'dxguid' })
     end
 
-    filter {"options:with-dawn", "system:macosx"}
+    filter({ 'options:with-dawn', 'system:macosx' })
     do
-        links {
-            "IOSurface.framework",
-        }
+        links({ 'IOSurface.framework' })
     end
 
-    filter "system:emscripten"
+    filter('system:emscripten')
     do
-        targetname "path_fiddle.js"
-        linkoptions {"-sUSE_GLFW=3",
-                     "--preload-file ../../gold/rivs@/"}
-        files {"path_fiddle/index.html"}
+        targetname('path_fiddle.js')
+        linkoptions({ '-sUSE_GLFW=3', '--preload-file ../../gold/rivs@/' })
+        files({ 'path_fiddle/index.html' })
     end
 
-    filter 'files:**.html'
+    filter('files:**.html')
     do
-        buildmessage "Copying %{file.relpath} to %{cfg.targetdir}"
-        buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
-        buildoutputs { "%{cfg.targetdir}/%{file.name}" }
-    end
-end
-
-if _OPTIONS["with-webgpu"] or _OPTIONS["with-dawn"]
-then
-    project "webgpu_player"
-    do
-        kind "ConsoleApp"
-        includedirs {"include",
-                     RIVE_RUNTIME_DIR .. "/include",
-                     "glad",
-                     "include",
-                     RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
-        flags { "FatalWarnings" }
-
-        files {
-            "webgpu_player/webgpu_player.cpp",
-            "webgpu_player/index.html",
-            "webgpu_player/icons.html",
-            "webgpu_player/rive.js",
-            "../../gold/rivs/Santa_Claus.riv",
-            "../../gold/rivs/Coffee_Cup.riv",
-            "../../gold/rivs/skull_404.riv",
-            "../../gold/rivs/octopus_loop.riv",
-            "../../gold/rivs/planets.riv",
-            "../../gold/rivs/Timer.riv",
-            "../../gold/rivs/adventuretime_marceline-pb.riv",
-            "../../gold/rivs/towersDemo.riv",
-            "../../gold/rivs/skills_demov1.riv",
-            "../../gold/rivs/car_demo.riv",
-            "../../gold/rivs/cloud_icon.riv",
-            "../../gold/rivs/coffee_loader.riv",
-            "../../gold/rivs/documentation.riv",
-            "../../gold/rivs/fire_button.riv",
-            "../../gold/rivs/lumberjackfinal.riv",
-            "../../gold/rivs/mail_box.riv",
-            "../../gold/rivs/new_file.riv",
-            "../../gold/rivs/poison_loader.riv",
-            "../../gold/rivs/popsicle_loader.riv",
-            "../../gold/rivs/radio_button_example.riv",
-            "../../gold/rivs/avatar_demo.riv",
-            "../../gold/rivs/stopwatch.riv",
-            "../../gold/rivs/volume_bars.riv",
-            "../../gold/rivs/travel_icons.riv",
-        }
-
-        links {
-            "rive",
-            "rive_pls_renderer",
-            "rive_decoders",
-            "libpng",
-            "zlib",
-            "rive_harfbuzz",
-            "rive_sheenbidi"
-        }
-
-        filter "system:windows"
-        do
-            architecture "x64"
-            defines {"RIVE_WINDOWS", "_CRT_SECURE_NO_WARNINGS"}
-            libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
-            links {"glfw3", "opengl32", "d3d11", "dxgi", "d3dcompiler"}
-        end
-
-        filter "system:macosx"
-        do
-            files {"path_fiddle/fiddle_context_dawn_helper.mm"}
-            buildoptions {"-fobjc-arc"}
-            links {"glfw3",
-                   "Cocoa.framework",
-                   "Metal.framework",
-                   "QuartzCore.framework",
-                   "IOKit.framework"}
-            libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src"}
-        end
-
-        filter "options:with-dawn"
-        do
-            includedirs {
-                "dependencies/dawn/include",
-                "dependencies/dawn/out/release/gen/include",
-            }
-            libdirs {
-                "dependencies/dawn/out/release/obj/src/dawn",
-                "dependencies/dawn/out/release/obj/src/dawn/native",
-                "dependencies/dawn/out/release/obj/src/dawn/platform",
-                "dependencies/dawn/out/release/obj/src/dawn/platform",
-            }
-            links {
-                "dawn_native_static",
-                "webgpu_dawn",
-                "dawn_platform_static",
-                "dawn_proc_static",
-            }
-        end
-
-        filter {"options:with-dawn", "system:windows"}
-        do
-            links {
-                "dxguid",
-            }
-        end
-
-        filter {"options:with-dawn", "system:macosx"}
-        do
-            links {
-                "IOSurface.framework",
-            }
-        end
-
-        filter "system:emscripten"
-        do
-            targetname "webgpu_player.js"
-            linkoptions {
-                "-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultStateMachine,_ArtboardInstance_align,_ArtboardInstance_destroy,_StateMachineInstance_setBool,_StateMachineInstance_setNumber,_StateMachineInstance_fireTrigger,_StateMachineInstance_pointerDown,_StateMachineInstance_pointerMove,_StateMachineInstance_pointerUp,_StateMachineInstance_advanceAndApply,_StateMachineInstance_draw,_StateMachineInstance_destroy,_LinearAnimationInstance_advanceAndApply,_LinearAnimationInstance_draw,_LinearAnimationInstance_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free",
-                "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
-                "-sSINGLE_FILE",
-                "-sUSE_WEBGPU",
-                "-sENVIRONMENT=web,shell",
-            }
-        end
-
-        filter 'files:**.html or **.riv or **.js'
-        do
-            buildmessage "Copying %{file.relpath} to %{cfg.targetdir}"
-            buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
-            buildoutputs { "%{cfg.targetdir}/%{file.name}" }
-        end
+        buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
+        buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
+        buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
     end
 end
 
-project "bubbles"
+if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
+    project('webgpu_player')
+    do
+        kind('ConsoleApp')
+        includedirs({
+            'include',
+            RIVE_RUNTIME_DIR .. '/include',
+            'glad',
+            'include',
+            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+        })
+        flags({ 'FatalWarnings' })
+
+        files({
+            'webgpu_player/webgpu_player.cpp',
+            'webgpu_player/index.html',
+            'webgpu_player/icons.html',
+            'webgpu_player/rive.js',
+            '../../gold/rivs/Santa_Claus.riv',
+            '../../gold/rivs/Coffee_Cup.riv',
+            '../../gold/rivs/skull_404.riv',
+            '../../gold/rivs/octopus_loop.riv',
+            '../../gold/rivs/planets.riv',
+            '../../gold/rivs/Timer.riv',
+            '../../gold/rivs/adventuretime_marceline-pb.riv',
+            '../../gold/rivs/towersDemo.riv',
+            '../../gold/rivs/skills_demov1.riv',
+            '../../gold/rivs/car_demo.riv',
+            '../../gold/rivs/cloud_icon.riv',
+            '../../gold/rivs/coffee_loader.riv',
+            '../../gold/rivs/documentation.riv',
+            '../../gold/rivs/fire_button.riv',
+            '../../gold/rivs/lumberjackfinal.riv',
+            '../../gold/rivs/mail_box.riv',
+            '../../gold/rivs/new_file.riv',
+            '../../gold/rivs/poison_loader.riv',
+            '../../gold/rivs/popsicle_loader.riv',
+            '../../gold/rivs/radio_button_example.riv',
+            '../../gold/rivs/avatar_demo.riv',
+            '../../gold/rivs/stopwatch.riv',
+            '../../gold/rivs/volume_bars.riv',
+            '../../gold/rivs/travel_icons.riv',
+        })
+
+        links({
+            'rive',
+            'rive_pls_renderer',
+            'rive_decoders',
+            'libpng',
+            'zlib',
+            'rive_harfbuzz',
+            'rive_sheenbidi',
+        })
+
+        filter('system:windows')
+        do
+            architecture('x64')
+            defines({ 'RIVE_WINDOWS', '_CRT_SECURE_NO_WARNINGS' })
+            libdirs({
+                RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
+            })
+            links({ 'glfw3', 'opengl32', 'd3d11', 'dxgi', 'd3dcompiler' })
+        end
+
+        filter('system:macosx')
+        do
+            files({ 'path_fiddle/fiddle_context_dawn_helper.mm' })
+            buildoptions({ '-fobjc-arc' })
+            links({
+                'glfw3',
+                'Cocoa.framework',
+                'Metal.framework',
+                'QuartzCore.framework',
+                'IOKit.framework',
+            })
+            libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
+        end
+
+        filter('options:with-dawn')
+        do
+            includedirs({
+                'dependencies/dawn/include',
+                'dependencies/dawn/out/release/gen/include',
+            })
+            libdirs({
+                'dependencies/dawn/out/release/obj/src/dawn',
+                'dependencies/dawn/out/release/obj/src/dawn/native',
+                'dependencies/dawn/out/release/obj/src/dawn/platform',
+                'dependencies/dawn/out/release/obj/src/dawn/platform',
+            })
+            links({
+                'dawn_native_static',
+                'webgpu_dawn',
+                'dawn_platform_static',
+                'dawn_proc_static',
+            })
+        end
+
+        filter({ 'options:with-dawn', 'system:windows' })
+        do
+            links({ 'dxguid' })
+        end
+
+        filter({ 'options:with-dawn', 'system:macosx' })
+        do
+            links({ 'IOSurface.framework' })
+        end
+
+        filter('system:emscripten')
+        do
+            targetname('webgpu_player.js')
+            linkoptions({
+                '-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultStateMachine,_ArtboardInstance_align,_ArtboardInstance_destroy,_StateMachineInstance_setBool,_StateMachineInstance_setNumber,_StateMachineInstance_fireTrigger,_StateMachineInstance_pointerDown,_StateMachineInstance_pointerMove,_StateMachineInstance_pointerUp,_StateMachineInstance_advanceAndApply,_StateMachineInstance_draw,_StateMachineInstance_destroy,_LinearAnimationInstance_advanceAndApply,_LinearAnimationInstance_draw,_LinearAnimationInstance_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free',
+                '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
+                '-sSINGLE_FILE',
+                '-sUSE_WEBGPU',
+                '-sENVIRONMENT=web,shell',
+            })
+        end
+
+        filter('files:**.html or **.riv or **.js')
+        do
+            buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
+            buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
+            buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
+        end
+    end
+end
+
+project('bubbles')
 do
-    kind "ConsoleApp"
-    includedirs {"",
-                 "glad",
-                 "include",
-                 RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
-    flags { "FatalWarnings" }
-    files {"bubbles/bubbles.cpp",
-           "glad/glad.c",
-           "glad/glad_custom.c"}
+    kind('ConsoleApp')
+    includedirs({
+        '',
+        'glad',
+        'include',
+        RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+    })
+    flags({ 'FatalWarnings' })
+    files({ 'bubbles/bubbles.cpp', 'glad/glad.c', 'glad/glad_custom.c' })
 
-    filter "system:windows"
+    filter('system:windows')
     do
-        architecture "x64"
-        defines {"RIVE_WINDOWS"}
-        links {"glfw3", "opengl32"}
-        libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src/Release"}
+        architecture('x64')
+        defines({ 'RIVE_WINDOWS' })
+        links({ 'glfw3', 'opengl32' })
+        libdirs({
+            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
+        })
     end
 
-    filter "system:macosx"
+    filter('system:macosx')
     do
-        links {'glfw3', 'Cocoa.framework', 'IOKit.framework'}
-        libdirs {RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw_build/src"}
+        links({ 'glfw3', 'Cocoa.framework', 'IOKit.framework' })
+        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
     end
 
-    filter "system:emscripten"
+    filter('system:emscripten')
     do
-        targetname "bubbles.js"
-        linkoptions {"-sUSE_GLFW=3"}
-        files {"bubbles/index.html"}
+        targetname('bubbles.js')
+        linkoptions({ '-sUSE_GLFW=3' })
+        files({ 'bubbles/index.html' })
     end
 
-    filter 'files:**.html'
+    filter('files:**.html')
     do
-        buildmessage "Copying %{file.relpath} to %{cfg.targetdir}"
-        buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
-        buildoutputs { "%{cfg.targetdir}/%{file.name}" }
+        buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
+        buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
+        buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
     end
 end
