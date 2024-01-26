@@ -165,6 +165,38 @@
 
 #define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
 
+#define STORAGE_BUFFER_BLOCK_BEGIN
+#define STORAGE_BUFFER_BLOCK_END
+
+#ifdef @DISABLE_SHADER_STORAGE_BUFFERS
+
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32UI(IDX, NAME)
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RG32UI(IDX, NAME)
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32F(IDX, NAME)
+#define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
+    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
+#define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
+    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y)).xy
+
+#else
+
+#ifdef GL_ARB_shader_storage_buffer_object
+#extension GL_ARB_shader_storage_buffer_object : require
+#endif
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint2 _values[]; }            \
+    NAME
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint4 _values[]; }            \
+    NAME
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { float4 _values[]; }           \
+    NAME
+#define STORAGE_BUFFER_LOAD4(NAME, I) NAME._values[I]
+#define STORAGE_BUFFER_LOAD2(NAME, I) NAME._values[I]
+
+#endif // DISABLE_SHADER_STORAGE_BUFFERS
+
 // Define macros for implementing pixel local storage based on available extensions.
 #ifdef @PLS_IMPL_WEBGL
 
@@ -412,38 +444,6 @@
 #define EMIT_PLS_WITH_FRAG_COLOR EMIT_PLS
 
 #define MUL(A, B) ((A) * (B))
-
-#define STORAGE_BUFFER_BLOCK_BEGIN
-#define STORAGE_BUFFER_BLOCK_END
-
-#ifdef @DISABLE_SHADER_STORAGE_BUFFERS
-
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32UI(IDX, NAME)
-#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RG32UI(IDX, NAME)
-#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32F(IDX, NAME)
-#define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
-    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
-#define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
-    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y)).xy
-
-#else
-
-#ifdef GL_ARB_shader_storage_buffer_object
-#extension GL_ARB_shader_storage_buffer_object : require
-#endif
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
-    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint2 _values[]; }            \
-    NAME
-#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
-    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint4 _values[]; }            \
-    NAME
-#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
-    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { float4 _values[]; }           \
-    NAME
-#define STORAGE_BUFFER_LOAD4(NAME, I) NAME._values[I]
-#define STORAGE_BUFFER_LOAD2(NAME, I) NAME._values[I]
-
-#endif // DISABLE_SHADER_STORAGE_BUFFERS
 
 #if @GLSL_VERSION < 310
 // Polyfill ES 3.1+ methods.
