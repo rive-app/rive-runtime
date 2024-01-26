@@ -10,17 +10,17 @@
 #include "shaders/constants.glsl"
 #include <sstream>
 
-#include "../out/obj/generated/color_ramp.exports.h"
-#include "../out/obj/generated/tessellate.exports.h"
+#include "shaders/out/generated/color_ramp.exports.h"
+#include "shaders/out/generated/tessellate.exports.h"
 
 namespace rive::pls
 {
 #ifdef RIVE_IOS
-#include "../out/obj/generated/rive_pls_ios.metallib.c"
+#include "shaders/out/generated/rive_pls_ios.metallib.c"
 #elif defined(RIVE_IOS_SIMULATOR)
-#include "../out/obj/generated/rive_pls_ios_simulator.metallib.c"
+#include "shaders/out/generated/rive_pls_ios_simulator.metallib.c"
 #else
-#include "../out/obj/generated/rive_pls_macosx.metallib.c"
+#include "shaders/out/generated/rive_pls_macosx.metallib.c"
 #endif
 
 static id<MTLRenderPipelineState> make_pipeline_state(id<MTLDevice> gpu,

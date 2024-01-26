@@ -1,11 +1,8 @@
-workspace "rive"
-configurations {"debug", "release"}
-
-require 'setup_compiler'
+dofile 'rive_build_config.lua'
 
 dofile("premake5_pls_renderer.lua")
-dofile(RIVE_RUNTIME_DIR .. "/build/premake5.lua")
-dofile(RIVE_RUNTIME_DIR .. '/decoders/build/premake5.lua')
+dofile(RIVE_RUNTIME_DIR .. "/premake5_v2.lua")
+dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
 
 newoption {
     trigger = "with-skia",
@@ -16,28 +13,19 @@ then
     dofile(RIVE_RUNTIME_DIR .. "/skia/renderer/build/premake5.lua")
 end
 
-if _OPTIONS["wasm"]
-then
-    dofile("premake5_canvas2d_renderer.lua")
-end
-
 project "path_fiddle"
 do
     dependson 'rive'
     kind "ConsoleApp"
-    language "C++"
-    cppdialect "C++17"
-    targetdir "%{cfg.buildcfg}"
-    objdir "obj/%{cfg.buildcfg}"
-    includedirs {"../include",
+    includedirs {"include",
                  RIVE_RUNTIME_DIR .. "/include",
-                 "../glad",
-                 "../include",
+                 "glad",
+                 "include",
                  RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
     flags { "FatalWarnings" }
 
     files {
-        "../path_fiddle/**.cpp",
+        "path_fiddle/**.cpp",
     }
 
     links {
@@ -70,7 +58,7 @@ do
 
     filter "system:macosx"
     do
-        files {"../path_fiddle/**.mm"}
+        files {"path_fiddle/**.mm"}
         buildoptions {"-fobjc-arc"}
         links {"glfw3",
                "Cocoa.framework",
@@ -83,14 +71,14 @@ do
     filter "options:with-dawn"
     do
         includedirs {
-            "../dependencies/dawn/include",
-            "../dependencies/dawn/out/release/gen/include",
+            "dependencies/dawn/include",
+            "dependencies/dawn/out/release/gen/include",
         }
         libdirs {
-            "../dependencies/dawn/out/release/obj/src/dawn",
-            "../dependencies/dawn/out/release/obj/src/dawn/native",
-            "../dependencies/dawn/out/release/obj/src/dawn/platform",
-            "../dependencies/dawn/out/release/obj/src/dawn/platform",
+            "dependencies/dawn/out/release/obj/src/dawn",
+            "dependencies/dawn/out/release/obj/src/dawn/native",
+            "dependencies/dawn/out/release/obj/src/dawn/platform",
+            "dependencies/dawn/out/release/obj/src/dawn/platform",
         }
         links {
             "dawn_native_static",
@@ -117,11 +105,9 @@ do
     filter "system:emscripten"
     do
         targetname "path_fiddle.js"
-        targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
-        objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
         linkoptions {"-sUSE_GLFW=3",
-                     "--preload-file ../../../gold/rivs@/"}
-        files {"../path_fiddle/index.html"}
+                     "--preload-file ../../gold/rivs@/"}
+        files {"path_fiddle/index.html"}
     end
 
     filter 'files:**.html'
@@ -130,67 +116,49 @@ do
         buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
         buildoutputs { "%{cfg.targetdir}/%{file.name}" }
     end
-
-    filter "configurations:debug"
-    do
-        defines {"DEBUG"}
-        symbols "On"
-    end
-
-    filter "configurations:release"
-    do
-        defines {"RELEASE"}
-        defines {"NDEBUG"}
-        optimize "On"
-    end
 end
-
 
 if _OPTIONS["with-webgpu"] or _OPTIONS["with-dawn"]
 then
     project "webgpu_player"
     do
         kind "ConsoleApp"
-        language "C++"
-        cppdialect "C++17"
-        targetdir "%{cfg.buildcfg}"
-        objdir "obj/%{cfg.buildcfg}"
-        includedirs {"../include",
+        includedirs {"include",
                      RIVE_RUNTIME_DIR .. "/include",
-                     "../glad",
-                     "../include",
+                     "glad",
+                     "include",
                      RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
         flags { "FatalWarnings" }
 
         files {
-            "../webgpu_player/webgpu_player.cpp",
-            "../webgpu_player/index.html",
-            "../webgpu_player/icons.html",
-            "../webgpu_player/rive.js",
-            "../../../gold/rivs/Santa_Claus.riv",
-            "../../../gold/rivs/Coffee_Cup.riv",
-            "../../../gold/rivs/skull_404.riv",
-            "../../../gold/rivs/octopus_loop.riv",
-            "../../../gold/rivs/planets.riv",
-            "../../../gold/rivs/Timer.riv",
-            "../../../gold/rivs/adventuretime_marceline-pb.riv",
-            "../../../gold/rivs/towersDemo.riv",
-            "../../../gold/rivs/skills_demov1.riv",
-            "../../../gold/rivs/car_demo.riv",
-            "../../../gold/rivs/cloud_icon.riv",
-            "../../../gold/rivs/coffee_loader.riv",
-            "../../../gold/rivs/documentation.riv",
-            "../../../gold/rivs/fire_button.riv",
-            "../../../gold/rivs/lumberjackfinal.riv",
-            "../../../gold/rivs/mail_box.riv",
-            "../../../gold/rivs/new_file.riv",
-            "../../../gold/rivs/poison_loader.riv",
-            "../../../gold/rivs/popsicle_loader.riv",
-            "../../../gold/rivs/radio_button_example.riv",
-            "../../../gold/rivs/avatar_demo.riv",
-            "../../../gold/rivs/stopwatch.riv",
-            "../../../gold/rivs/volume_bars.riv",
-            "../../../gold/rivs/travel_icons.riv",
+            "webgpu_player/webgpu_player.cpp",
+            "webgpu_player/index.html",
+            "webgpu_player/icons.html",
+            "webgpu_player/rive.js",
+            "../../gold/rivs/Santa_Claus.riv",
+            "../../gold/rivs/Coffee_Cup.riv",
+            "../../gold/rivs/skull_404.riv",
+            "../../gold/rivs/octopus_loop.riv",
+            "../../gold/rivs/planets.riv",
+            "../../gold/rivs/Timer.riv",
+            "../../gold/rivs/adventuretime_marceline-pb.riv",
+            "../../gold/rivs/towersDemo.riv",
+            "../../gold/rivs/skills_demov1.riv",
+            "../../gold/rivs/car_demo.riv",
+            "../../gold/rivs/cloud_icon.riv",
+            "../../gold/rivs/coffee_loader.riv",
+            "../../gold/rivs/documentation.riv",
+            "../../gold/rivs/fire_button.riv",
+            "../../gold/rivs/lumberjackfinal.riv",
+            "../../gold/rivs/mail_box.riv",
+            "../../gold/rivs/new_file.riv",
+            "../../gold/rivs/poison_loader.riv",
+            "../../gold/rivs/popsicle_loader.riv",
+            "../../gold/rivs/radio_button_example.riv",
+            "../../gold/rivs/avatar_demo.riv",
+            "../../gold/rivs/stopwatch.riv",
+            "../../gold/rivs/volume_bars.riv",
+            "../../gold/rivs/travel_icons.riv",
         }
 
         links {
@@ -213,7 +181,7 @@ then
 
         filter "system:macosx"
         do
-            files {"../path_fiddle/fiddle_context_dawn_helper.mm"}
+            files {"path_fiddle/fiddle_context_dawn_helper.mm"}
             buildoptions {"-fobjc-arc"}
             links {"glfw3",
                    "Cocoa.framework",
@@ -226,14 +194,14 @@ then
         filter "options:with-dawn"
         do
             includedirs {
-                "../dependencies/dawn/include",
-                "../dependencies/dawn/out/release/gen/include",
+                "dependencies/dawn/include",
+                "dependencies/dawn/out/release/gen/include",
             }
             libdirs {
-                "../dependencies/dawn/out/release/obj/src/dawn",
-                "../dependencies/dawn/out/release/obj/src/dawn/native",
-                "../dependencies/dawn/out/release/obj/src/dawn/platform",
-                "../dependencies/dawn/out/release/obj/src/dawn/platform",
+                "dependencies/dawn/out/release/obj/src/dawn",
+                "dependencies/dawn/out/release/obj/src/dawn/native",
+                "dependencies/dawn/out/release/obj/src/dawn/platform",
+                "dependencies/dawn/out/release/obj/src/dawn/platform",
             }
             links {
                 "dawn_native_static",
@@ -260,8 +228,6 @@ then
         filter "system:emscripten"
         do
             targetname "webgpu_player.js"
-            targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
-            objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
             linkoptions {
                 "-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultStateMachine,_ArtboardInstance_align,_ArtboardInstance_destroy,_StateMachineInstance_setBool,_StateMachineInstance_setNumber,_StateMachineInstance_fireTrigger,_StateMachineInstance_pointerDown,_StateMachineInstance_pointerMove,_StateMachineInstance_pointerUp,_StateMachineInstance_advanceAndApply,_StateMachineInstance_draw,_StateMachineInstance_destroy,_LinearAnimationInstance_advanceAndApply,_LinearAnimationInstance_draw,_LinearAnimationInstance_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free",
                 "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
@@ -277,37 +243,20 @@ then
             buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
             buildoutputs { "%{cfg.targetdir}/%{file.name}" }
         end
-
-        filter "configurations:debug"
-        do
-            defines {"DEBUG"}
-            symbols "On"
-        end
-
-        filter "configurations:release"
-        do
-            defines {"RELEASE"}
-            defines {"NDEBUG"}
-            optimize "On"
-        end
     end
 end
 
 project "bubbles"
 do
     kind "ConsoleApp"
-    language "C++"
-    cppdialect "C++17"
-    targetdir "%{cfg.buildcfg}"
-    objdir "obj/%{cfg.buildcfg}"
-    includedirs {"../",
-                 "../glad",
-                 "../include",
+    includedirs {"",
+                 "glad",
+                 "include",
                  RIVE_RUNTIME_DIR .. "/skia/dependencies/glfw/include"}
     flags { "FatalWarnings" }
-    files {"../bubbles/bubbles.cpp",
-           "../glad/glad.c",
-           "../glad/glad_custom.c"}
+    files {"bubbles/bubbles.cpp",
+           "glad/glad.c",
+           "glad/glad_custom.c"}
 
     filter "system:windows"
     do
@@ -326,10 +275,8 @@ do
     filter "system:emscripten"
     do
         targetname "bubbles.js"
-        targetdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
-        objdir(_OPTIONS['emsdk'] .. '_%{cfg.buildcfg}')
         linkoptions {"-sUSE_GLFW=3"}
-        files {"../bubbles/index.html"}
+        files {"bubbles/index.html"}
     end
 
     filter 'files:**.html'
@@ -337,18 +284,5 @@ do
         buildmessage "Copying %{file.relpath} to %{cfg.targetdir}"
         buildcommands {"cp %{file.relpath} %{cfg.targetdir}/%{file.name}"}
         buildoutputs { "%{cfg.targetdir}/%{file.name}" }
-    end
-
-    filter "configurations:debug"
-    do
-        defines {"DEBUG"}
-        symbols "On"
-    end
-
-    filter "configurations:release"
-    do
-        defines {"RELEASE"}
-        defines {"NDEBUG"}
-        optimize "On"
     end
 end

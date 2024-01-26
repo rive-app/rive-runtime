@@ -13,7 +13,7 @@
 #include <emscripten/html5.h>
 #endif
 
-#include "../out/obj/generated/glsl.exports.h"
+#include "shaders/out/generated/glsl.exports.h"
 
 namespace rive::pls
 {

@@ -7,7 +7,7 @@
 #define ENABLE_CLIPPING
 #define ENABLE_CLIP_RECT
 #define ENABLE_ADVANCED_BLEND
-#include "../../../out/obj/generated/glsl.minified.glsl"
-#include "../../../out/obj/generated/constants.minified.glsl"
-#include "../../../out/obj/generated/common.minified.glsl"
-#include "../../../out/obj/generated/draw_image_mesh.minified.glsl"
+#include "../../shaders/out/generated/glsl.minified.glsl"
+#include "../../shaders/out/generated/constants.minified.glsl"
+#include "../../shaders/out/generated/common.minified.glsl"
+#include "../../shaders/out/generated/draw_image_mesh.minified.glsl"

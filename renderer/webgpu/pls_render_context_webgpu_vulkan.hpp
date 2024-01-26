@@ -44,7 +44,7 @@ private:
                                  const pls::PlatformFeatures& baselinePlatformFeatures) :
         PLSRenderContextWebGPUImpl(device, queue, contextOptions, baselinePlatformFeatures)
     {
-        assert(contextOptions.pixelLocalStorageType == PixelLocalStorageType::subpassLoad);
+        assert(contextOptions.plsType == PixelLocalStorageType::subpassLoad);
     }
 
     EmJsHandle m_plsTextureBindGroupJSHandle;

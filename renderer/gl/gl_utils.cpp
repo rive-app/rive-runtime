@@ -8,7 +8,7 @@
 #include <sstream>
 #include <vector>
 
-#include "../out/obj/generated/glsl.glsl.hpp"
+#include "shaders/out/generated/glsl.glsl.hpp"
 
 namespace glutils
 {

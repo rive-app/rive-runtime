@@ -10,14 +10,14 @@
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
-#include "../out/obj/generated/advanced_blend.glsl.hpp"
-#include "../out/obj/generated/color_ramp.glsl.hpp"
-#include "../out/obj/generated/constants.glsl.hpp"
-#include "../out/obj/generated/common.glsl.hpp"
-#include "../out/obj/generated/draw_path_common.glsl.hpp"
-#include "../out/obj/generated/draw_path.glsl.hpp"
-#include "../out/obj/generated/draw_image_mesh.glsl.hpp"
-#include "../out/obj/generated/tessellate.glsl.hpp"
+#include "shaders/out/generated/advanced_blend.glsl.hpp"
+#include "shaders/out/generated/color_ramp.glsl.hpp"
+#include "shaders/out/generated/constants.glsl.hpp"
+#include "shaders/out/generated/common.glsl.hpp"
+#include "shaders/out/generated/draw_path_common.glsl.hpp"
+#include "shaders/out/generated/draw_path.glsl.hpp"
+#include "shaders/out/generated/draw_image_mesh.glsl.hpp"
+#include "shaders/out/generated/tessellate.glsl.hpp"
 
 #ifdef RIVE_GLES
 // In an effort to save space on Android, and since GLES doesn't usually need atomic mode, don't
@@ -27,7 +27,7 @@ namespace rive::pls::glsl
 const char atomic_draw[] = "";
 }
 #else
-#include "../out/obj/generated/atomic_draw.glsl.hpp"
+#include "shaders/out/generated/atomic_draw.glsl.hpp"
 #define ENABLE_PLS_EXPERIMENTAL_ATOMICS
 #endif
 

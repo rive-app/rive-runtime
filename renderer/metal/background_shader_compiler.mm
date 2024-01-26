@@ -4,13 +4,13 @@
 
 #include "background_shader_compiler.h"
 
-#include "../out/obj/generated/metal.glsl.hpp"
-#include "../out/obj/generated/constants.glsl.hpp"
-#include "../out/obj/generated/common.glsl.hpp"
-#include "../out/obj/generated/advanced_blend.glsl.hpp"
-#include "../out/obj/generated/draw_path_common.glsl.hpp"
-#include "../out/obj/generated/draw_path.glsl.hpp"
-#include "../out/obj/generated/draw_image_mesh.glsl.hpp"
+#include "shaders/out/generated/metal.glsl.hpp"
+#include "shaders/out/generated/constants.glsl.hpp"
+#include "shaders/out/generated/common.glsl.hpp"
+#include "shaders/out/generated/advanced_blend.glsl.hpp"
+#include "shaders/out/generated/draw_path_common.glsl.hpp"
+#include "shaders/out/generated/draw_path.glsl.hpp"
+#include "shaders/out/generated/draw_image_mesh.glsl.hpp"
 
 namespace rive::pls
 {

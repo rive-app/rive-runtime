@@ -3,7 +3,7 @@
 ## Premake can't do this build step because it has multiple inputs AND multiple outputs.
 ##
 ## The files have to be processed in batch in to ensure consistent renaming.
-OUT := ../../out/obj/generated
+OUT := out/generated
 FLAGS :=
 
 ## Shader minification.
@@ -100,4 +100,4 @@ spirv: $(SPIRV_OUTPUTS)
 
 ## Cleaning.
 clean:
-	@rm -fr $(OUT)
+	@rm -fr out

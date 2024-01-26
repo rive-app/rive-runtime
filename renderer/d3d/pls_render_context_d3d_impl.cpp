@@ -10,16 +10,16 @@
 #include <D3DCompiler.h>
 #include <sstream>
 
-#include "../out/obj/generated/advanced_blend.glsl.hpp"
-#include "../out/obj/generated/atomic_draw.glsl.hpp"
-#include "../out/obj/generated/color_ramp.glsl.hpp"
-#include "../out/obj/generated/constants.glsl.hpp"
-#include "../out/obj/generated/common.glsl.hpp"
-#include "../out/obj/generated/draw_image_mesh.glsl.hpp"
-#include "../out/obj/generated/draw_path_common.glsl.hpp"
-#include "../out/obj/generated/draw_path.glsl.hpp"
-#include "../out/obj/generated/hlsl.glsl.hpp"
-#include "../out/obj/generated/tessellate.glsl.hpp"
+#include "shaders/out/generated/advanced_blend.glsl.hpp"
+#include "shaders/out/generated/atomic_draw.glsl.hpp"
+#include "shaders/out/generated/color_ramp.glsl.hpp"
+#include "shaders/out/generated/constants.glsl.hpp"
+#include "shaders/out/generated/common.glsl.hpp"
+#include "shaders/out/generated/draw_image_mesh.glsl.hpp"
+#include "shaders/out/generated/draw_path_common.glsl.hpp"
+#include "shaders/out/generated/draw_path.glsl.hpp"
+#include "shaders/out/generated/hlsl.glsl.hpp"
+#include "shaders/out/generated/tessellate.glsl.hpp"
 
 constexpr static UINT kPatchVertexDataSlot = 0;
 constexpr static UINT kTriangleVertexDataSlot = 1;

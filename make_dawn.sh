@@ -2,6 +2,8 @@
 
 set -e
 
+cd dependencies
+
 if [ ! -d dawn ]; then
 	echo "Cloning Dawn..."
     git clone https://dawn.googlesource.com/dawn

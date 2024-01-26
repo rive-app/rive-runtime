@@ -3,7 +3,7 @@
 #define VERTEX
 #define FRAGMENT
 
-#include "../../../out/obj/generated/metal.minified.glsl"
-#include "../../../out/obj/generated/constants.minified.glsl"
-#include "../../../out/obj/generated/common.minified.glsl"
-#include "../../../out/obj/generated/color_ramp.minified.glsl"
+#include "../../shaders/out/generated/metal.minified.glsl"
+#include "../../shaders/out/generated/constants.minified.glsl"
+#include "../../shaders/out/generated/common.minified.glsl"
+#include "../../shaders/out/generated/color_ramp.minified.glsl"
