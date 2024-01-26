@@ -127,6 +127,11 @@ do
     do
         targetdir '%{cfg.system}/x86/bin/%{cfg.buildcfg}'
         objdir '%{cfg.system}/x86/obj/%{cfg.buildcfg}'
+        -- Ignore fatal warning for miniaudio on x86 devices.
+        filter {'files:../src/audio/audio_engine.cpp'}
+        do
+            buildoptions {'-Wno-atomic-alignment'}
+        end
     end
 
     filter {'system:android', 'options:arch=x64'}
