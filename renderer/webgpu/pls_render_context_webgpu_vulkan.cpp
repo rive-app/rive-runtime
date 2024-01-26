@@ -187,8 +187,8 @@ EM_JS(int,
                   inputs : [
                       {format : framebufferFormat, usedAsColor : true},
                       {format : "r32uint", usedAsColor : true},
-                      {format : "r32uint",
-                       usedAsColor : true} {format : framebufferFormat, usedAsColor : true},
+                      {format : "r32uint", usedAsColor : true},
+                      {format : framebufferFormat, usedAsColor : true},
                   ],
                   targets : [
                       {format : framebufferFormat, usedAsInput : true},
