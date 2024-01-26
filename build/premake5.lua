@@ -1,71 +1,67 @@
-workspace 'rive'
-configurations {'debug', 'release'}
+workspace('rive')
+configurations({ 'debug', 'release' })
 
-require 'setup_compiler'
+require('setup_compiler')
 
-filter {'options:with_rive_tools'}
+filter({ 'options:with_rive_tools' })
 do
-    defines {'WITH_RIVE_TOOLS'}
+    defines({ 'WITH_RIVE_TOOLS' })
 end
-filter {'options:with_rive_text'}
+filter({ 'options:with_rive_text' })
 do
-    defines {'WITH_RIVE_TEXT'}
+    defines({ 'WITH_RIVE_TEXT' })
 end
-filter {}
-filter {'options:with_rive_audio=system'}
+filter({})
+filter({ 'options:with_rive_audio=system' })
 do
-    defines {'WITH_RIVE_AUDIO'}
+    defines({ 'WITH_RIVE_AUDIO' })
 end
-filter {'options:with_rive_audio=external'}
+filter({ 'options:with_rive_audio=external' })
 do
-    defines {'WITH_RIVE_AUDIO', 'EXTERNAL_RIVE_AUDIO_ENGINE', 'MA_NO_DEVICE_IO'}
+    defines({ 'WITH_RIVE_AUDIO', 'EXTERNAL_RIVE_AUDIO_ENGINE', 'MA_NO_DEVICE_IO' })
 end
-filter {}
+filter({})
 
 dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_harfbuzz.lua'))
 dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_sheenbidi.lua'))
 dofile(path.join(path.getabsolute('../dependencies/'), 'premake5_miniaudio.lua'))
 
-project 'rive'
+project('rive')
 do
-    kind 'StaticLib'
-    language 'C++'
-    cppdialect 'C++11'
-    targetdir '%{cfg.system}/bin/%{cfg.buildcfg}'
-    objdir '%{cfg.system}/obj/%{cfg.buildcfg}'
-    includedirs {
+    kind('StaticLib')
+    language('C++')
+    cppdialect('C++11')
+    targetdir('%{cfg.system}/bin/%{cfg.buildcfg}')
+    objdir('%{cfg.system}/obj/%{cfg.buildcfg}')
+    includedirs({
         '../include',
         harfbuzz .. '/src',
         sheenbidi .. '/Headers',
-        miniaudio
-    }
+        miniaudio,
+    })
 
-    files {'../src/**.cpp'}
+    files({ '../src/**.cpp' })
 
-    flags {
-        'FatalCompileWarnings'
-    }
+    flags({ 'FatalCompileWarnings' })
 
-    filter {'system:macosx'}
+    filter({ 'system:macosx' })
     do
-        buildoptions {
+        buildoptions({
             -- this triggers too much on linux, so just enable here for now
-            '-Wimplicit-float-conversion'
-        }
+            '-Wimplicit-float-conversion',
+        })
     end
 
     -- filter {'toolset:not msc', 'files:../src/audio/audio_engine.cpp'}
-    filter {'system:not windows', 'files:../src/audio/audio_engine.cpp'}
+    filter({ 'system:not windows', 'files:../src/audio/audio_engine.cpp' })
     do
-        buildoptions {
-            '-Wno-implicit-int-conversion'
-        }
+        buildoptions({ '-Wno-implicit-int-conversion' })
     end
 
-    filter {'system:windows', 'files:../src/audio/audio_engine.cpp'}
+    filter({ 'system:windows', 'files:../src/audio/audio_engine.cpp' })
     do
         -- Too many warnings from miniaudio.h
-        removeflags {'FatalCompileWarnings'}
+        removeflags({ 'FatalCompileWarnings' })
     end
 
     -- filter 'files:../src/audio/audio_engine.cpp'
@@ -75,137 +71,132 @@ do
     --     }
     -- end
 
-    filter {'system:macosx', 'options:variant=runtime'}
+    filter({ 'system:macosx', 'options:variant=runtime' })
     do
-        buildoptions {
-            '-Wimplicit-float-conversion -fembed-bitcode -arch arm64 -arch x86_64 -isysroot ' ..
-                (os.getenv('MACOS_SYSROOT') or '')
-        }
+        buildoptions({
+            '-Wimplicit-float-conversion -fembed-bitcode -arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('MACOS_SYSROOT') or ''),
+        })
     end
 
-    filter {'system:macosx', 'configurations:release'}
+    filter({ 'system:macosx', 'configurations:release' })
     do
-        buildoptions {'-flto=full'}
+        buildoptions({ '-flto=full' })
     end
 
-    filter {'system:ios'}
+    filter({ 'system:ios' })
     do
-        buildoptions {'-flto=full', '-Wno-implicit-int-conversion'}
-        files {'../src/audio/audio_engine.m'}
+        buildoptions({ '-flto=full', '-Wno-implicit-int-conversion' })
+        files({ '../src/audio/audio_engine.m' })
     end
 
-    filter 'system:windows'
+    filter('system:windows')
     do
-        architecture 'x64'
-        defines {'_USE_MATH_DEFINES'}
+        architecture('x64')
+        defines({ '_USE_MATH_DEFINES' })
     end
 
-    filter {'system:ios', 'options:variant=system'}
+    filter({ 'system:ios', 'options:variant=system' })
     do
-        buildoptions {
-            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot ' .. (os.getenv('IOS_SYSROOT') or '')
-        }
+        buildoptions({
+            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot '
+                .. (os.getenv('IOS_SYSROOT') or ''),
+        })
     end
 
-    filter {'system:ios', 'options:variant=emulator'}
+    filter({ 'system:ios', 'options:variant=emulator' })
     do
-        buildoptions {
+        buildoptions({
             '--target=arm64-apple-ios13.0.0-simulator',
-            '-mios-version-min=13.0 -arch arm64 -arch x86_64 -isysroot ' .. (os.getenv('IOS_SYSROOT') or '')
-        }
-        targetdir '%{cfg.system}_sim/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}_sim/obj/%{cfg.buildcfg}'
+            '-mios-version-min=13.0 -arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('IOS_SYSROOT') or ''),
+        })
+        targetdir('%{cfg.system}_sim/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}_sim/obj/%{cfg.buildcfg}')
     end
 
-    filter {'system:android', 'configurations:release'}
+    filter({ 'system:android', 'configurations:release' })
     do
-        buildoptions {'-flto=full'}
+        buildoptions({ '-flto=full' })
     end
 
     -- Is there a way to pass 'arch' as a variable here?
-    filter {'system:android', 'options:arch=x86'}
+    filter({ 'system:android', 'options:arch=x86' })
     do
-        targetdir '%{cfg.system}/x86/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/x86/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/x86/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/x86/obj/%{cfg.buildcfg}')
         -- Ignore fatal warning for miniaudio on x86 devices.
-        filter {'files:../src/audio/audio_engine.cpp'}
+        filter({ 'files:../src/audio/audio_engine.cpp' })
         do
-            buildoptions {'-Wno-atomic-alignment'}
+            buildoptions({ '-Wno-atomic-alignment' })
         end
     end
 
-    filter {'system:android', 'options:arch=x64'}
+    filter({ 'system:android', 'options:arch=x64' })
     do
-        targetdir '%{cfg.system}/x64/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/x64/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/x64/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/x64/obj/%{cfg.buildcfg}')
     end
 
-    filter {'system:android', 'options:arch=arm'}
+    filter({ 'system:android', 'options:arch=arm' })
     do
-        targetdir '%{cfg.system}/arm/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/arm/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/arm/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/arm/obj/%{cfg.buildcfg}')
     end
 
-    filter {'system:android', 'options:arch=arm64'}
+    filter({ 'system:android', 'options:arch=arm64' })
     do
-        targetdir '%{cfg.system}/arm64/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/arm64/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/arm64/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/arm64/obj/%{cfg.buildcfg}')
     end
 
-    filter 'system:emscripten'
+    filter('system:emscripten')
     do
-        buildoptions {'-pthread'}
+        buildoptions({ '-pthread' })
     end
 
-    filter 'configurations:debug'
+    filter('configurations:debug')
     do
-        defines {'DEBUG'}
-        symbols 'On'
+        defines({ 'DEBUG' })
+        symbols('On')
     end
 
-    filter 'configurations:release'
+    filter('configurations:release')
     do
-        defines {'RELEASE'}
-        defines {'NDEBUG'}
-        optimize 'On'
+        defines({ 'RELEASE' })
+        defines({ 'NDEBUG' })
+        optimize('On')
     end
 end
 
-newoption {
+newoption({
     trigger = 'variant',
     value = 'type',
     description = 'Choose a particular variant to build',
     allowed = {
-        {'system', 'Builds the static library for the provided system'},
-        {'emulator', 'Builds for an emulator/simulator for the provided system'},
-        {'runtime', 'Build the static library specifically targeting our runtimes'}
+        { 'system', 'Builds the static library for the provided system' },
+        { 'emulator', 'Builds for an emulator/simulator for the provided system' },
+        {
+            'runtime',
+            'Build the static library specifically targeting our runtimes',
+        },
     },
-    default = 'system'
-}
+    default = 'system',
+})
 
-newoption {
+newoption({
     trigger = 'with_rive_tools',
-    description = 'Enables tools usually not necessary for runtime.'
-}
+    description = 'Enables tools usually not necessary for runtime.',
+})
 
-newoption {
+newoption({
     trigger = 'with_rive_text',
-    description = 'Compiles in text features.'
-}
+    description = 'Compiles in text features.',
+})
 
-newoption {
+newoption({
     trigger = 'with_rive_audio',
     value = 'disabled',
     description = 'The audio mode to use.',
-    allowed = {
-        {
-            'disabled'
-        },
-        {
-            'system'
-        },
-        {
-            'external'
-        }
-    }
-}
+    allowed = { { 'disabled' }, { 'system' }, { 'external' } },
+})

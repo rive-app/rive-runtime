@@ -9,10 +9,7 @@ function iop(str)
     last_str = str
 end
 
-newoption {
-    trigger = 'no-download-progress',
-    description = 'Hide progress?',
-}
+newoption({ trigger = 'no-download-progress', description = 'Hide progress?' })
 
 function m.github(project, tag)
     local dependencies = os.getenv('DEPENDENCIES')
@@ -39,7 +36,11 @@ function m.github(project, tag)
             downloadFilename,
             -- Download progress explodes the github logs with megabytes of text.
             -- github runners have a "CI" environment variable.
-            {progress = not _OPTIONS['no-download-progress'] and os.getenv('CI' ) ~= "true" and progress}
+            {
+                progress = not _OPTIONS['no-download-progress']
+                    and os.getenv('CI') ~= 'true'
+                    and progress,
+            }
         )
         print('Downloaded ' .. project .. '.')
         zip.extract(downloadFilename, dependencies .. '/' .. hash)

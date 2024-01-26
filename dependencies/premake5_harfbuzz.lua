@@ -1,24 +1,21 @@
-require 'setup_compiler'
-local dependency = require 'dependency'
+require('setup_compiler')
+local dependency = require('dependency')
 harfbuzz = dependency.github('harfbuzz/harfbuzz', '6.0.0')
 
-workspace 'rive'
-configurations {'debug', 'release'}
+workspace('rive')
+configurations({ 'debug', 'release' })
 
-project 'rive_harfbuzz'
+project('rive_harfbuzz')
 do
-    kind 'StaticLib'
-    language 'C++'
-    cppdialect 'C++17'
-    targetdir '%{cfg.system}/cache/bin/%{cfg.buildcfg}/'
-    objdir '%{cfg.system}/cache/obj/%{cfg.buildcfg}/'
+    kind('StaticLib')
+    language('C++')
+    cppdialect('C++17')
+    targetdir('%{cfg.system}/cache/bin/%{cfg.buildcfg}/')
+    objdir('%{cfg.system}/cache/obj/%{cfg.buildcfg}/')
 
-    includedirs {
-        '../',
-        harfbuzz .. '/src'
-    }
+    includedirs({ '../', harfbuzz .. '/src' })
 
-    files {
+    files({
         harfbuzz .. '/src/hb-aat-layout-ankr-table.hh',
         harfbuzz .. '/src/hb-aat-layout-bsln-table.hh',
         harfbuzz .. '/src/hb-aat-layout-common.hh',
@@ -220,114 +217,111 @@ do
         harfbuzz .. '/src/hb-utf.hh',
         harfbuzz .. '/src/hb-vector.hh',
         harfbuzz .. '/src/hb.hh',
-        harfbuzz .. '/src/graph/gsubgpos-context.cc'
-    }
+        harfbuzz .. '/src/graph/gsubgpos-context.cc',
+    })
 
-    warnings 'Off'
+    warnings('Off')
 
-    defines {
-        'HAVE_OT',
-        'HB_NO_FALLBACK_SHAPE',
-        'HB_NO_WIN1256'
-    }
+    defines({ 'HAVE_OT', 'HB_NO_FALLBACK_SHAPE', 'HB_NO_WIN1256' })
 
-    filter 'system:emscripten'
+    filter('system:emscripten')
     do
-        buildoptions {'-pthread'}
+        buildoptions({ '-pthread' })
     end
 
-    filter 'toolset:clang'
+    filter('toolset:clang')
     do
-        flags {'FatalWarnings'}
-        buildoptions {
+        flags({ 'FatalWarnings' })
+        buildoptions({
             '-Werror=format',
             '-Wimplicit-int-conversion',
-            '-Werror=vla'
-        }
+            '-Werror=vla',
+        })
     end
 
-    filter 'configurations:debug'
+    filter('configurations:debug')
     do
-        defines {'DEBUG'}
-        symbols 'On'
+        defines({ 'DEBUG' })
+        symbols('On')
     end
 
-    filter 'configurations:release'
+    filter('configurations:release')
     do
-        defines {'RELEASE'}
-        defines {'NDEBUG'}
-        optimize 'On'
+        defines({ 'RELEASE' })
+        defines({ 'NDEBUG' })
+        optimize('On')
     end
 
-    filter {'system:macosx', 'options:variant=runtime'}
+    filter({ 'system:macosx', 'options:variant=runtime' })
     do
-        buildoptions {
-            '-Wimplicit-float-conversion -fembed-bitcode -arch arm64 -arch x86_64 -isysroot ' ..
-                (os.getenv('MACOS_SYSROOT') or '')
-        }
+        buildoptions({
+            '-Wimplicit-float-conversion -fembed-bitcode -arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('MACOS_SYSROOT') or ''),
+        })
     end
 
-    filter {'system:macosx', 'configurations:release'}
+    filter({ 'system:macosx', 'configurations:release' })
     do
-        buildoptions {'-flto=full'}
+        buildoptions({ '-flto=full' })
     end
 
-    filter {'system:ios'}
+    filter({ 'system:ios' })
     do
-        buildoptions {'-flto=full'}
+        buildoptions({ '-flto=full' })
     end
 
-    filter 'system:windows'
+    filter('system:windows')
     do
-        architecture 'x64'
-        defines {'_USE_MATH_DEFINES'}
+        architecture('x64')
+        defines({ '_USE_MATH_DEFINES' })
     end
 
-    filter {'system:ios', 'options:variant=system'}
+    filter({ 'system:ios', 'options:variant=system' })
     do
-        buildoptions {
-            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot ' ..
-                (os.getenv('IOS_SYSROOT') or '')
-        }
+        buildoptions({
+            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot '
+                .. (os.getenv('IOS_SYSROOT') or ''),
+        })
     end
 
-    filter {'system:ios', 'options:variant=emulator'}
+    filter({ 'system:ios', 'options:variant=emulator' })
     do
-        buildoptions {
+        buildoptions({
             '--target=arm64-apple-ios13.0.0-simulator',
-            '-mios-version-min=13.0 -arch arm64 -arch x86_64 -isysroot ' .. (os.getenv('IOS_SYSROOT') or '')
-        }
-        targetdir '%{cfg.system}_sim/cache/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}_sim/cache/obj/%{cfg.buildcfg}'
+            '-mios-version-min=13.0 -arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('IOS_SYSROOT') or ''),
+        })
+        targetdir('%{cfg.system}_sim/cache/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}_sim/cache/obj/%{cfg.buildcfg}')
     end
 
-    filter {'system:android', 'configurations:release'}
+    filter({ 'system:android', 'configurations:release' })
     do
-        buildoptions {'-flto=full'}
+        buildoptions({ '-flto=full' })
     end
 
     -- Is there a way to pass 'arch' as a variable here?
-    filter {'system:android', 'options:arch=x86'}
+    filter({ 'system:android', 'options:arch=x86' })
     do
-        targetdir '%{cfg.system}/cache/x86/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/cache/x86/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/cache/x86/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/cache/x86/obj/%{cfg.buildcfg}')
     end
 
-    filter {'system:android', 'options:arch=x64'}
+    filter({ 'system:android', 'options:arch=x64' })
     do
-        targetdir '%{cfg.system}/cache/x64/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/cache/x64/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/cache/x64/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/cache/x64/obj/%{cfg.buildcfg}')
     end
 
-    filter {'system:android', 'options:arch=arm'}
+    filter({ 'system:android', 'options:arch=arm' })
     do
-        targetdir '%{cfg.system}/cache/arm/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/cache/arm/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/cache/arm/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/cache/arm/obj/%{cfg.buildcfg}')
     end
 
-    filter {'system:android', 'options:arch=arm64'}
+    filter({ 'system:android', 'options:arch=arm64' })
     do
-        targetdir '%{cfg.system}/cache/arm64/bin/%{cfg.buildcfg}'
-        objdir '%{cfg.system}/cache/arm64/obj/%{cfg.buildcfg}'
+        targetdir('%{cfg.system}/cache/arm64/bin/%{cfg.buildcfg}')
+        objdir('%{cfg.system}/cache/arm64/obj/%{cfg.buildcfg}')
     end
 end

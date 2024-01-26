@@ -1,8 +1,5 @@
-workspace 'rive'
-configurations {
-    'debug',
-    'release'
-}
+workspace('rive')
+configurations({ 'debug', 'release' })
 
 dependencies = os.getenv('DEPENDENCIES')
 
@@ -21,268 +18,153 @@ end
 
 dofile(path.join(path.getabsolute(rive) .. '/cg_renderer/build', 'premake5.lua'))
 
-project 'rive_viewer'
+project('rive_viewer')
 do
     if _OPTIONS.renderer == 'tess' then
-        dependson 'rive_decoders'
+        dependson('rive_decoders')
     end
-    kind 'ConsoleApp'
-    language 'C++'
-    cppdialect 'C++17'
-    toolset 'clang'
+    kind('ConsoleApp')
+    language('C++')
+    cppdialect('C++17')
+    toolset('clang')
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
 
-    defines {'WITH_RIVE_TEXT', 'WITH_RIVE_AUDIO'}
+    defines({ 'WITH_RIVE_TEXT', 'WITH_RIVE_AUDIO' })
 
-    includedirs {
+    includedirs({
         '../include',
         rive .. '/include',
         rive .. '/skia/renderer/include', -- for font backends
         dependencies,
         dependencies .. '/sokol',
         dependencies .. '/imgui',
-        miniaudio
-    }
+        miniaudio,
+    })
 
-    links {
-        'rive',
-        'rive_harfbuzz',
-        'rive_sheenbidi'
-    }
+    links({ 'rive', 'rive_harfbuzz', 'rive_sheenbidi' })
 
-    libdirs {
-        rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}'
-    }
+    libdirs({ rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}' })
 
-    files {
+    files({
         '../src/**.cpp',
         rive .. '/utils/**.cpp',
         dependencies .. '/imgui/imgui.cpp',
         dependencies .. '/imgui/imgui_widgets.cpp',
         dependencies .. '/imgui/imgui_tables.cpp',
-        dependencies .. '/imgui/imgui_draw.cpp'
-    }
+        dependencies .. '/imgui/imgui_draw.cpp',
+    })
 
-    buildoptions {
-        '-Wall',
-        '-fno-exceptions',
-        '-fno-rtti'
-    }
+    buildoptions({ '-Wall', '-fno-exceptions', '-fno-rtti' })
 
-    filter {
-        'system:macosx'
-    }
+    filter({ 'system:macosx' })
     do
-        links {
+        links({
             'Cocoa.framework',
             'IOKit.framework',
             'CoreVideo.framework',
             'OpenGL.framework',
-            'rive_cg_renderer'
-        }
-        files {
-            '../src/**.m',
-            '../src/**.mm'
-        }
+            'rive_cg_renderer',
+        })
+        files({ '../src/**.m', '../src/**.mm' })
     end
 
-    filter {
-        'system:macosx',
-        'options:graphics=gl'
-    }
+    filter({ 'system:macosx', 'options:graphics=gl' })
     do
-        links {
-            'OpenGL.framework'
-        }
+        links({ 'OpenGL.framework' })
     end
 
-    filter {
-        'system:macosx',
-        'options:graphics=metal'
-    }
+    filter({ 'system:macosx', 'options:graphics=metal' })
     do
-        links {
-            'Metal.framework',
-            'MetalKit.framework',
-            'QuartzCore.framework'
-        }
+        links({ 'Metal.framework', 'MetalKit.framework', 'QuartzCore.framework' })
     end
 
     -- Tess Renderer Configuration
-    filter {
-        'options:renderer=tess'
-    }
+    filter({ 'options:renderer=tess' })
     do
-        includedirs {
-            rive_tess .. '/include',
-            rive .. '/decoders/include'
-        }
-        defines {
-            'RIVE_RENDERER_TESS'
-        }
-        links {
-            'rive_tess_renderer',
-            'rive_decoders',
-            'libpng',
-            'zlib'
-        }
-        libdirs {
-            rive_tess .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}'
-        }
+        includedirs({ rive_tess .. '/include', rive .. '/decoders/include' })
+        defines({ 'RIVE_RENDERER_TESS' })
+        links({ 'rive_tess_renderer', 'rive_decoders', 'libpng', 'zlib' })
+        libdirs({ rive_tess .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}' })
     end
 
-    filter {
-        'options:renderer=tess',
-        'options:graphics=gl'
-    }
+    filter({ 'options:renderer=tess', 'options:graphics=gl' })
     do
-        defines {
-            'SOKOL_GLCORE33'
-        }
+        defines({ 'SOKOL_GLCORE33' })
     end
 
-    filter {
-        'options:renderer=tess',
-        'options:graphics=metal'
-    }
+    filter({ 'options:renderer=tess', 'options:graphics=metal' })
     do
-        defines {
-            'SOKOL_METAL'
-        }
+        defines({ 'SOKOL_METAL' })
     end
 
-    filter {
-        'options:renderer=tess',
-        'options:graphics=d3d'
-    }
+    filter({ 'options:renderer=tess', 'options:graphics=d3d' })
     do
-        defines {
-            'SOKOL_D3D11'
-        }
+        defines({ 'SOKOL_D3D11' })
     end
 
-    filter {
-        'options:renderer=skia',
-        'options:graphics=gl'
-    }
+    filter({ 'options:renderer=skia', 'options:graphics=gl' })
     do
-        defines {
-            'SK_GL',
-            'SOKOL_GLCORE33'
-        }
-        files {
-            '../src/skia/viewer_skia_gl.cpp'
-        }
-        libdirs {
-            skia .. '/out/gl/%{cfg.buildcfg}'
-        }
+        defines({ 'SK_GL', 'SOKOL_GLCORE33' })
+        files({ '../src/skia/viewer_skia_gl.cpp' })
+        libdirs({ skia .. '/out/gl/%{cfg.buildcfg}' })
     end
 
-    filter {
-        'options:renderer=skia',
-        'options:graphics=metal'
-    }
+    filter({ 'options:renderer=skia', 'options:graphics=metal' })
     do
-        defines {
-            'SK_METAL',
-            'SOKOL_METAL'
-        }
-        libdirs {
-            skia .. '/out/metal/%{cfg.buildcfg}'
-        }
+        defines({ 'SK_METAL', 'SOKOL_METAL' })
+        libdirs({ skia .. '/out/metal/%{cfg.buildcfg}' })
     end
 
-    filter {
-        'options:renderer=skia',
-        'options:graphics=d3d'
-    }
+    filter({ 'options:renderer=skia', 'options:graphics=d3d' })
     do
-        defines {
-            'SK_DIRECT3D'
-        }
-        libdirs {
-            skia .. '/out/d3d/%{cfg.buildcfg}'
-        }
+        defines({ 'SK_DIRECT3D' })
+        libdirs({ skia .. '/out/d3d/%{cfg.buildcfg}' })
     end
 
-    filter {
-        'options:renderer=skia'
-    }
+    filter({ 'options:renderer=skia' })
     do
-        includedirs {
+        includedirs({
             skia,
             skia .. '/include/core',
             skia .. '/include/effects',
             skia .. '/include/gpu',
-            skia .. '/include/config'
-        }
-        defines {
-            'RIVE_RENDERER_SKIA'
-        }
-        libdirs {
-            rive_skia .. '/renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}'
-        }
-        links {
-            'skia',
-            'rive_skia_renderer'
-        }
+            skia .. '/include/config',
+        })
+        defines({ 'RIVE_RENDERER_SKIA' })
+        libdirs({
+            rive_skia .. '/renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}',
+        })
+        links({ 'skia', 'rive_skia_renderer' })
     end
 
-    filter 'configurations:debug'
+    filter('configurations:debug')
     do
-        buildoptions {
-            '-g'
-        }
-        defines {
-            'DEBUG'
-        }
-        symbols 'On'
+        buildoptions({ '-g' })
+        defines({ 'DEBUG' })
+        symbols('On')
     end
 
-    filter 'configurations:release'
+    filter('configurations:release')
     do
-        buildoptions {
-            '-flto=full'
-        }
-        defines {
-            'RELEASE'
-        }
-        defines {
-            'NDEBUG'
-        }
-        optimize 'On'
+        buildoptions({ '-flto=full' })
+        defines({ 'RELEASE' })
+        defines({ 'NDEBUG' })
+        optimize('On')
     end
 
     -- CLI config options
-    newoption {
+    newoption({
         trigger = 'graphics',
         value = 'gl',
         description = 'The graphics api to use.',
-        allowed = {
-            {
-                'gl'
-            },
-            {
-                'metal'
-            },
-            {
-                'd3d'
-            }
-        }
-    }
+        allowed = { { 'gl' }, { 'metal' }, { 'd3d' } },
+    })
 
-    newoption {
+    newoption({
         trigger = 'renderer',
         value = 'skia',
         description = 'The renderer to use.',
-        allowed = {
-            {
-                'skia'
-            },
-            {
-                'tess'
-            }
-        }
-    }
+        allowed = { { 'skia' }, { 'tess' } },
+    })
 end

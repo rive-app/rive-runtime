@@ -1,19 +1,15 @@
-dofile 'rive_build_config.lua'
+dofile('rive_build_config.lua')
 
-local dependency = require 'dependency'
+local dependency = require('dependency')
 libpng = dependency.github('glennrp/libpng', 'libpng16')
 zlib = dependency.github('madler/zlib', '04f42ceca40f73e2978b50e93806c2a18c1281fc')
 
-project 'libpng'
+project('libpng')
 do
-    kind 'StaticLib'
+    kind('StaticLib')
     os.copyfile(libpng .. '/scripts/pnglibconf.h.prebuilt', libpng .. '/pnglibconf.h')
-    includedirs {
-        './',
-        libpng,
-        zlib,
-    }
-    files {
+    includedirs({ './', libpng, zlib })
+    files({
         libpng .. '/png.c',
         libpng .. '/pngerror.c',
         libpng .. '/pngget.c',
@@ -28,26 +24,24 @@ do
         libpng .. '/pngwio.c',
         libpng .. '/pngwrite.c',
         libpng .. '/pngwtran.c',
-        libpng .. '/pngwutil.c'
-    }
+        libpng .. '/pngwutil.c',
+    })
 
     do
-        files {
+        files({
             libpng .. '/arm/arm_init.c',
             libpng .. '/arm/filter_neon_intrinsics.c',
-            libpng .. '/arm/palette_neon_intrinsics.c'
-        }
+            libpng .. '/arm/palette_neon_intrinsics.c',
+        })
     end
 end
 
-project 'zlib'
+project('zlib')
 do
-    kind 'StaticLib'
-    defines {'ZLIB_IMPLEMENTATION'}
-    includedirs {
-        zlib
-    }
-    files {
+    kind('StaticLib')
+    defines({ 'ZLIB_IMPLEMENTATION' })
+    includedirs({ zlib })
+    files({
         zlib .. '/adler32.c',
         zlib .. '/compress.c',
         zlib .. '/crc32.c',
@@ -62,11 +56,11 @@ do
         zlib .. '/trees.c',
         zlib .. '/uncompr.c',
         zlib .. '/zutil.c',
-        zlib .. '/inflate.c'
-    }
+        zlib .. '/inflate.c',
+    })
 
-    filter 'system:not windows'
+    filter('system:not windows')
     do
-        defines {'HAVE_UNISTD_H'}
+        defines({ 'HAVE_UNISTD_H' })
     end
 end

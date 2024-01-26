@@ -1,18 +1,15 @@
-dofile 'rive_build_config.lua'
+dofile('rive_build_config.lua')
 
-local dependency = require 'dependency'
+local dependency = require('dependency')
 harfbuzz = dependency.github('harfbuzz/harfbuzz', '6.0.0')
 
-project 'rive_harfbuzz'
+project('rive_harfbuzz')
 do
-    kind 'StaticLib'
+    kind('StaticLib')
 
-    includedirs {
-        '../',
-        harfbuzz .. '/src'
-    }
+    includedirs({ '../', harfbuzz .. '/src' })
 
-    files {
+    files({
         harfbuzz .. '/src/hb-aat-layout-ankr-table.hh',
         harfbuzz .. '/src/hb-aat-layout-bsln-table.hh',
         harfbuzz .. '/src/hb-aat-layout-common.hh',
@@ -214,34 +211,30 @@ do
         harfbuzz .. '/src/hb-utf.hh',
         harfbuzz .. '/src/hb-vector.hh',
         harfbuzz .. '/src/hb.hh',
-        harfbuzz .. '/src/graph/gsubgpos-context.cc'
-    }
+        harfbuzz .. '/src/graph/gsubgpos-context.cc',
+    })
 
-    warnings 'Off'
+    warnings('Off')
 
-    defines {
-        'HAVE_OT',
-        'HB_NO_FALLBACK_SHAPE',
-        'HB_NO_WIN1256'
-    }
+    defines({ 'HAVE_OT', 'HB_NO_FALLBACK_SHAPE', 'HB_NO_WIN1256' })
 
-    filter 'system:emscripten'
+    filter('system:emscripten')
     do
-        buildoptions {'-pthread'}
+        buildoptions({ '-pthread' })
     end
 
-    filter 'toolset:clang'
+    filter('toolset:clang')
     do
-        flags {'FatalWarnings'}
-        buildoptions {
+        flags({ 'FatalWarnings' })
+        buildoptions({
             '-Werror=format',
             '-Wimplicit-int-conversion',
-            '-Werror=vla'
-        }
+            '-Werror=vla',
+        })
     end
 
-    filter 'options:config=release'
+    filter('options:config=release')
     do
-        optimize 'Size'
+        optimize('Size')
     end
 end

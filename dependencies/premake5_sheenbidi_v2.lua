@@ -1,34 +1,28 @@
-dofile "rive_build_config.lua"
+dofile('rive_build_config.lua')
 
-local dependency = require 'dependency'
+local dependency = require('dependency')
 sheenbidi = dependency.github('Tehreer/SheenBidi', 'v2.6')
 
-project 'rive_sheenbidi'
+project('rive_sheenbidi')
 do
-    kind 'StaticLib'
-    language 'C'
-    warnings 'Off'
+    kind('StaticLib')
+    language('C')
+    warnings('Off')
 
-    includedirs {
-        sheenbidi .. '/Headers'
-    }
+    includedirs({ sheenbidi .. '/Headers' })
 
-    buildoptions {
-        '-Wall',
-        '-ansi',
-        '-pedantic'
-    }
+    buildoptions({ '-Wall', '-ansi', '-pedantic' })
 
-    linkoptions {'-r'}
+    linkoptions({ '-r' })
 
-    filter 'system:emscripten'
+    filter('system:emscripten')
     do
-        buildoptions {'-pthread'}
+        buildoptions({ '-pthread' })
     end
 
-    filter 'options:config=debug'
+    filter('options:config=debug')
     do
-        files {
+        files({
             sheenbidi .. '/Source/BidiChain.c',
             sheenbidi .. '/Source/BidiTypeLookup.c',
             sheenbidi .. '/Source/BracketQueue.c',
@@ -47,19 +41,17 @@ do
             sheenbidi .. '/Source/SBScriptLocator.c',
             sheenbidi .. '/Source/ScriptLookup.c',
             sheenbidi .. '/Source/ScriptStack.c',
-            sheenbidi .. '/Source/StatusStack.c'
-        }
+            sheenbidi .. '/Source/StatusStack.c',
+        })
     end
-    filter 'options:config=release'
+    filter('options:config=release')
     do
-        files {
-            sheenbidi .. '/Source/SheenBidi.c'
-        }
+        files({ sheenbidi .. '/Source/SheenBidi.c' })
     end
 
-    filter 'options:config=release'
+    filter('options:config=release')
     do
-        defines {'SB_CONFIG_UNITY'}
-        optimize 'Size'
+        defines({ 'SB_CONFIG_UNITY' })
+        optimize('Size')
     end
 end
