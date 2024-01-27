@@ -9,7 +9,7 @@ if not exist "%DEPENDENCIES%\bin\premake5.exe" (
 
 set "PREMAKE=%DEPENDENCIES%\bin\premake5.exe"
 pushd test
-%PREMAKE% --scripts=..\..\build vs2022
+%PREMAKE% --scripts=..\..\build --no-download-progress --with_rive_tools --with_rive_text --with_rive_audio=external vs2022
 
 MSBuild.exe /?  2> NUL
 if not %ERRORLEVEL%==9009 (
@@ -17,5 +17,5 @@ if not %ERRORLEVEL%==9009 (
 ) else (
     set "MSBuild=%ProgramFiles%\Microsoft Visual Studio\2022\Community\Msbuild\Current\Bin\MSBuild.exe"
 )
-call "%MSBuild%" rive.sln
-build\bin\debug\tests.exe
+call "%MSBuild%" out\debug\rive.sln
+out\debug\tests.exe

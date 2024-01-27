@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -e
 
 source ../dependencies/config_directories.sh
@@ -16,7 +15,7 @@ if [ "$OPTION" = "help" ]; then
   exit
 elif [ "$OPTION" = "clean" ]; then
   echo Cleaning project ...
-  $PREMAKE --scripts=../../build clean || exit 1
+  rm -fR out
   shift
 elif [ "$OPTION" = "memory" ]; then
   echo Will perform memory checks...
@@ -28,12 +27,17 @@ elif [ "$OPTION" = "debug" ]; then
   shift
 fi
 
-$PREMAKE --scripts=../../build gmake2 || exit 1
-make -j7 || exit 1
+unameOut="$(uname -s)"
+case "${unameOut}" in
+Linux*) NUM_CORES=$(grep -c processor /proc/cpuinfo) ;;
+Darwin*) NUM_CORES=$(($(sysctl -n hw.physicalcpu) + 1)) ;;
+MINGW*) NUM_CORES=$NUMBER_OF_PROCESSORS ;;
+*) NUM_CORES=4 ;;
+esac
 
-for file in ./build/bin/debug/*; do
-  echo testing $file
-  $UTILITY $file "$1"
-done
+$PREMAKE --scripts=../../build gmake2 --with_rive_tools --with_rive_text --with_rive_audio=external --config=debug --out=out/debug
+make -C out/debug -j$NUM_CORES
+
+$UTILITY out/debug/tests "$1"
 
 popd &>/dev/null

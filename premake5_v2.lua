@@ -58,6 +58,26 @@ do
         removeflags({ 'FatalCompileWarnings' })
     end
 
+    filter({ 'system:windows', 'toolset:clang', 'files:src/audio/audio_engine.cpp' })
+    do
+        buildoptions({
+            '-Wno-nonportable-system-include-path',
+            '-Wno-zero-as-null-pointer-constant',
+            '-Wno-missing-prototypes',
+            '-Wno-cast-qual',
+            '-Wno-format-nonliteral',
+            '-Wno-cast-align',
+            '-Wno-covered-switch-default',
+            '-Wno-comma',
+            '-Wno-tautological-type-limit-compare',
+            '-Wno-extra-semi-stmt',
+            '-Wno-tautological-constant-out-of-range-compare',
+            '-Wno-implicit-fallthrough',
+            '-Wno-implicit-int-conversion',
+            '-Wno-undef',
+        })
+    end
+
     -- filter 'files:src/audio/audio_engine.cpp'
     -- do
     --     buildoptions {
