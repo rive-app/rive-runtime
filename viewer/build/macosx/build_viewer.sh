@@ -56,24 +56,24 @@ export PREMAKE=$DEPENDENCIES/bin/premake5
 
 pushd ..
 
-$PREMAKE --scripts=../../build --file=./premake5_viewer.lua gmake2 --graphics=$GRAPHICS --renderer=$RENDERER --with_rive_tools --with_rive_text --with_rive_audio=system
+OUT=out/$RENDERER/$GRAPHICS/$CONFIG
+$PREMAKE --scripts=../../build --file=./premake5_viewer.lua --config=$CONFIG --out=$OUT gmake2 --graphics=$GRAPHICS --renderer=$RENDERER --with_rive_tools --with_rive_text --with_rive_audio=system
 
 for var in "$@"; do
     if [[ $var = "clean" ]]; then
-        make clean
-        make config=release clean
+        make -C $OUT clean
     fi
 done
 
-make config=$CONFIG -j$(($(sysctl -n hw.physicalcpu) + 1))
+make -C $OUT -j$(($(sysctl -n hw.physicalcpu) + 1))
 
 popd
 
 for var in "$@"; do
     if [[ $var = "run" ]]; then
-        bin/$CONFIG/$RENDERER/$GRAPHICS/rive_viewer
+        $OUT/rive_viewer
     fi
     if [[ $var = "lldb" ]]; then
-        lldb bin/$CONFIG/$RENDERER/$GRAPHICS/rive_viewer
+        lldb $OUT/rive_viewer
     fi
 done

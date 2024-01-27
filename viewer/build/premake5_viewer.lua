@@ -1,5 +1,4 @@
-workspace('rive')
-configurations({ 'debug', 'release' })
+dofile 'rive_build_config.lua'
 
 dependencies = os.getenv('DEPENDENCIES')
 
@@ -16,7 +15,7 @@ else
     dofile(path.join(path.getabsolute(rive) .. '/build', 'premake5.lua'))
 end
 
-dofile(path.join(path.getabsolute(rive) .. '/cg_renderer/build', 'premake5.lua'))
+dofile(path.join(path.getabsolute(rive) .. '/cg_renderer', 'premake5.lua'))
 
 project('rive_viewer')
 do
@@ -24,11 +23,6 @@ do
         dependson('rive_decoders')
     end
     kind('ConsoleApp')
-    language('C++')
-    cppdialect('C++17')
-    toolset('clang')
-    targetdir('%{cfg.system}/bin/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
-    objdir('%{cfg.system}/obj/%{cfg.buildcfg}/' .. _OPTIONS.renderer .. '/' .. _OPTIONS.graphics)
 
     defines({ 'WITH_RIVE_TEXT', 'WITH_RIVE_AUDIO' })
 
@@ -136,21 +130,6 @@ do
             rive_skia .. '/renderer/build/%{cfg.system}/bin/%{cfg.buildcfg}',
         })
         links({ 'skia', 'rive_skia_renderer' })
-    end
-
-    filter('configurations:debug')
-    do
-        buildoptions({ '-g' })
-        defines({ 'DEBUG' })
-        symbols('On')
-    end
-
-    filter('configurations:release')
-    do
-        buildoptions({ '-flto=full' })
-        defines({ 'RELEASE' })
-        defines({ 'NDEBUG' })
-        optimize('On')
     end
 
     -- CLI config options

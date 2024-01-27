@@ -314,7 +314,7 @@ if os.host() == 'macosx' then
         })
     end
 
-    filter('system:macosx')
+    filter('system:macosx or system:ios')
     do
         buildoptions({ '-fobjc-arc' })
     end

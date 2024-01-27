@@ -10,7 +10,7 @@
 void bindGraphicsContext()
 {
 #ifdef SOKOL_GLCORE33
-    NSWindow* window = (NSWindow*)sapp_macos_get_window();
+    NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
     NSOpenGLView* sokolView = (NSOpenGLView*)window.contentView;
     NSOpenGLContext* ctx = [sokolView openGLContext];
     [ctx makeCurrentContext];
