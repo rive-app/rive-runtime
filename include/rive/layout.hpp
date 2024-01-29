@@ -15,14 +15,12 @@ enum class Fit : unsigned char
 
 class Alignment
 {
-private:
-    float m_X, m_Y;
-
 public:
-    Alignment(float x, float y) : m_X(x), m_Y(y) {}
+    Alignment(float x, float y) : m_x(x), m_y(y) {}
+    Alignment() : m_x(0.0f), m_y(0.0f) {}
 
-    float x() const { return m_X; }
-    float y() const { return m_Y; }
+    float x() const { return m_x; }
+    float y() const { return m_y; }
 
     static const Alignment topLeft;
     static const Alignment topCenter;
@@ -33,6 +31,9 @@ public:
     static const Alignment bottomLeft;
     static const Alignment bottomCenter;
     static const Alignment bottomRight;
+
+private:
+    float m_x, m_y;
 };
 
 } // namespace rive
