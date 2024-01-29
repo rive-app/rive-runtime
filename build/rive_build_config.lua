@@ -322,11 +322,13 @@ if os.host() == 'macosx' then
     filter({ 'system:macosx', 'options:arch=arm64 or arch=universal' })
     do
         buildoptions({ '-arch arm64' })
+        linkoptions({ '-arch arm64' })
     end
 
     filter({ 'system:macosx', 'options:arch=x64 or arch=universal' })
     do
         buildoptions({ '-arch x86_64' })
+        linkoptions({ '-arch x86_64' })
     end
 
     filter({
