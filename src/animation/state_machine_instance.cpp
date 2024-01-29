@@ -695,6 +695,20 @@ void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events,
                 for (const auto event : events)
                 {
                     auto sourceArtboard = source == nullptr ? artboard() : source->artboard();
+
+                    // listener->eventId() can point to an id from an event in the context of this
+                    // artboard or the context of a nested artboard. Because those ids belong to
+                    // different contexts, they can have the same value. So when the eventId is
+                    // resolved within one context, but actually pointing to the other, it can
+                    // return the wrong event object. If, by chance, that event exists in the other
+                    // context, and is being reported, it will trigger the wrong set of actions.
+                    // This validation makes sure that a listener must be targetting the current
+                    // artboard to disambiguate between external and internal events.
+                    if (source == nullptr &&
+                        sourceArtboard->resolve(listener->targetId()) != artboard())
+                    {
+                        continue;
+                    }
                     auto listenerEvent = sourceArtboard->resolve(listener->eventId());
                     if (listenerEvent == event.event())
                     {
