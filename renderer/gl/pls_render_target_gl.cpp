@@ -57,7 +57,7 @@ void TextureRenderTargetGL::allocateInternalPLSTextures(pls::InterlockMode inter
         m_framebufferInternalAttachmentsDirty = true;
         m_framebufferInternalPLSBindingsDirty = true;
     }
-    if (interlockMode == InterlockMode::rasterOrdered && m_originalDstColorTextureID == 0)
+    if (interlockMode == InterlockMode::rasterOrdering && m_originalDstColorTextureID == 0)
     {
         m_originalDstColorTextureID = make_backing_texture(GL_RGBA8, width(), height());
         m_framebufferInternalAttachmentsDirty = true;

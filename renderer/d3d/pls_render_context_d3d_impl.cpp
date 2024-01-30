@@ -21,6 +21,11 @@
 #include "shaders/out/generated/hlsl.glsl.hpp"
 #include "shaders/out/generated/tessellate.glsl.hpp"
 
+// D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color output. Use the
+// (unused in this case) ORIGINAL_DST_COLOR_PLANE_IDX instead when we are doing a coalesced resolve
+// and transfer.
+#define COALESCED_OFFSCREEN_FRAMEBUFFER_PLANE_IDX ORIGINAL_DST_COLOR_PLANE_IDX
+
 constexpr static UINT kPatchVertexDataSlot = 0;
 constexpr static UINT kTriangleVertexDataSlot = 1;
 constexpr static UINT kImageRectVertexDataSlot = 2;
@@ -50,7 +55,7 @@ ComPtr<ID3D11Texture2D> make_simple_2d_texture(ID3D11Device* gpu,
     desc.MiscFlags = miscFlags;
 
     ComPtr<ID3D11Texture2D> tex;
-    VERIFY_OK(gpu->CreateTexture2D(&desc, NULL, tex.GetAddressOf()));
+    VERIFY_OK(gpu->CreateTexture2D(&desc, NULL, tex.ReleaseAndGetAddressOf()));
     return tex;
 }
 
@@ -63,28 +68,26 @@ static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(ID3D11Device* gpu,
     uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 
     ComPtr<ID3D11UnorderedAccessView> uav;
-    VERIFY_OK(gpu->CreateUnorderedAccessView(tex, &uavDesc, uav.GetAddressOf()));
+    VERIFY_OK(gpu->CreateUnorderedAccessView(tex, &uavDesc, uav.ReleaseAndGetAddressOf()));
     return uav;
 }
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextD3DImpl::MakeContext(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
-    bool isIntel)
+    const ContextOptions& contextOptions)
 {
-    Features features{};
-    features.isIntel = isIntel;
-
+    D3DCapabilities d3dCapabilities;
     D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
     if (SUCCEEDED(gpu->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2,
                                            &d3d11Options2,
                                            sizeof(D3D11_FEATURE_DATA_D3D11_OPTIONS2))))
     {
-        features.rasterizerOrderedViews = d3d11Options2.ROVsSupported;
+        d3dCapabilities.supportsRasterizerOrderedViews = d3d11Options2.ROVsSupported;
         if (d3d11Options2.TypedUAVLoadAdditionalFormats)
         {
             // TypedUAVLoadAdditionalFormats is true. Now check if we can both load and
-            // store RGBA8:
+            // store all formats used by Rive (currently only RGBA8):
             // https://learn.microsoft.com/en-us/windows/win32/direct3d11/typed-unordered-access-view-loads.
             D3D11_FEATURE_DATA_FORMAT_SUPPORT2 d3d11Format2{};
             d3d11Format2.InFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -94,32 +97,33 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextD3DImpl::MakeContext(
             {
                 constexpr UINT loadStoreFlags =
                     D3D11_FORMAT_SUPPORT2_UAV_TYPED_LOAD | D3D11_FORMAT_SUPPORT2_UAV_TYPED_STORE;
-                features.uavRGBA8LoadStore =
+                d3dCapabilities.supportsTypedUAVLoadStore =
                     (d3d11Format2.OutFormatSupport2 & loadStoreFlags) == loadStoreFlags;
             }
         }
     }
-    if (!features.rasterizerOrderedViews)
+    if (contextOptions.disableRasterizerOrderedViews)
     {
-        fprintf(stderr, "Rasterizer order views are not supported.\n");
-        return nullptr;
+        d3dCapabilities.supportsRasterizerOrderedViews = false;
     }
-    if (!features.uavRGBA8LoadStore)
+    if (contextOptions.disableTypedUAVLoadStore)
     {
-        fprintf(stderr, "RGBA8 UAVs are not supported.\n");
-        return nullptr;
+        d3dCapabilities.supportsTypedUAVLoadStore = false;
     }
+    d3dCapabilities.isIntel = contextOptions.isIntel;
+
     auto plsContextImpl = std::unique_ptr<PLSRenderContextD3DImpl>(
-        new PLSRenderContextD3DImpl(std::move(gpu), std::move(gpuContext), features));
+        new PLSRenderContextD3DImpl(std::move(gpu), std::move(gpuContext), d3dCapabilities));
     return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
 }
 
 PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
                                                  ComPtr<ID3D11DeviceContext> gpuContext,
-                                                 const Features& features) :
-    m_features(features), m_gpu(std::move(gpu)), m_gpuContext(std::move(gpuContext))
+                                                 const D3DCapabilities& d3dCapabilities) :
+    m_d3dCapabilities(d3dCapabilities), m_gpu(std::move(gpu)), m_gpuContext(std::move(gpuContext))
 {
     m_platformFeatures.invertOffscreenY = true;
+    m_platformFeatures.supportsRasterOrdering = d3dCapabilities.supportsRasterizerOrderedViews;
 
     // Create a default raster state for path and offscreen draws.
     D3D11_RASTERIZER_DESC rasterDesc;
@@ -134,20 +138,24 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     rasterDesc.ScissorEnable = FALSE;
     rasterDesc.MultisampleEnable = FALSE;
     rasterDesc.AntialiasedLineEnable = FALSE;
-    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_pathRasterState[0].GetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc,
+                                           m_backCulledRasterState[0].ReleaseAndGetAddressOf()));
 
     // ...And with wireframe for debugging.
     rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
-    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_pathRasterState[1].GetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc,
+                                           m_backCulledRasterState[1].ReleaseAndGetAddressOf()));
 
     // Create a raster state without face culling for drawing image meshes.
     rasterDesc.FillMode = D3D11_FILL_SOLID;
     rasterDesc.CullMode = D3D11_CULL_NONE;
-    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_imageRasterState[0].GetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc,
+                                           m_doubleSidedRasterState[0].ReleaseAndGetAddressOf()));
 
     // ...And once more with wireframe for debugging.
     rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
-    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc, m_imageRasterState[1].GetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRasterizerState(&rasterDesc,
+                                           m_doubleSidedRasterState[1].ReleaseAndGetAddressOf()));
 
     // Compile the shaders that render gradient color ramps.
     {
@@ -265,15 +273,16 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
 
         desc.ByteWidth = sizeof(pls::FlushUniforms);
         desc.StructureByteStride = sizeof(pls::FlushUniforms);
-        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_flushUniforms.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_flushUniforms.ReleaseAndGetAddressOf()));
 
         desc.ByteWidth = sizeof(DrawUniforms);
         desc.StructureByteStride = sizeof(DrawUniforms);
-        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_drawUniforms.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_drawUniforms.ReleaseAndGetAddressOf()));
 
         desc.ByteWidth = sizeof(pls::ImageDrawUniforms);
         desc.StructureByteStride = sizeof(pls::ImageDrawUniforms);
-        VERIFY_OK(m_gpu->CreateBuffer(&desc, nullptr, m_imageDrawUniforms.GetAddressOf()));
+        VERIFY_OK(
+            m_gpu->CreateBuffer(&desc, nullptr, m_imageDrawUniforms.ReleaseAndGetAddressOf()));
     }
 
     // Create a linear sampler for the gradient texture.
@@ -287,7 +296,8 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     linearSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
     linearSamplerDesc.MinLOD = 0;
     linearSamplerDesc.MaxLOD = 0;
-    VERIFY_OK(m_gpu->CreateSamplerState(&linearSamplerDesc, m_linearSampler.GetAddressOf()));
+    VERIFY_OK(
+        m_gpu->CreateSamplerState(&linearSamplerDesc, m_linearSampler.ReleaseAndGetAddressOf()));
 
     // Create a mipmap sampler for the image textures.
     D3D11_SAMPLER_DESC mipmapSamplerDesc;
@@ -300,7 +310,8 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     mipmapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
     mipmapSamplerDesc.MinLOD = 0;
     mipmapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-    VERIFY_OK(m_gpu->CreateSamplerState(&mipmapSamplerDesc, m_mipmapSampler.GetAddressOf()));
+    VERIFY_OK(
+        m_gpu->CreateSamplerState(&mipmapSamplerDesc, m_mipmapSampler.ReleaseAndGetAddressOf()));
 
     ID3D11SamplerState* samplers[2] = {m_linearSampler.Get(), m_mipmapSampler.Get()};
     static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
@@ -315,7 +326,7 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     srcOverDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
     srcOverDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
     srcOverDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-    VERIFY_OK(m_gpu->CreateBlendState(&srcOverDesc, m_srcOverBlendState.GetAddressOf()));
+    VERIFY_OK(m_gpu->CreateBlendState(&srcOverDesc, m_srcOverBlendState.ReleaseAndGetAddressOf()));
 }
 
 ComPtr<ID3D11Texture2D> PLSRenderContextD3DImpl::makeSimple2DTexture(DXGI_FORMAT format,
@@ -354,7 +365,7 @@ ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleImmutableBuffer(size_t s
     dataDesc.pSysMem = data;
 
     ComPtr<ID3D11Buffer> buffer;
-    VERIFY_OK(m_gpu->CreateBuffer(&desc, &dataDesc, buffer.GetAddressOf()));
+    VERIFY_OK(m_gpu->CreateBuffer(&desc, &dataDesc, buffer.ReleaseAndGetAddressOf()));
     return buffer;
 }
 
@@ -427,7 +438,7 @@ public:
         {
             m_desc.Usage = D3D11_USAGE_DYNAMIC;
             m_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            VERIFY_OK(m_gpu->CreateBuffer(&m_desc, nullptr, m_buffer.GetAddressOf()));
+            VERIFY_OK(m_gpu->CreateBuffer(&m_desc, nullptr, m_buffer.ReleaseAndGetAddressOf()));
         }
     }
 
@@ -456,7 +467,8 @@ protected:
             assert(!m_buffer);
             D3D11_SUBRESOURCE_DATA bufferDataDesc{};
             bufferDataDesc.pSysMem = m_mappedMemoryForImmutableBuffer.get();
-            VERIFY_OK(m_gpu->CreateBuffer(&m_desc, &bufferDataDesc, m_buffer.GetAddressOf()));
+            VERIFY_OK(
+                m_gpu->CreateBuffer(&m_desc, &bufferDataDesc, m_buffer.ReleaseAndGetAddressOf()));
             m_mappedMemoryForImmutableBuffer.reset(); // This buffer will only be mapped once.
         }
         else
@@ -510,8 +522,9 @@ public:
             ->UpdateSubresource(m_texture.Get(), 0, &box, imageDataRGBA, width * 4, 0);
 
         // Create a view and generate mipmaps.
-        VERIFY_OK(
-            plsImpl->gpu()->CreateShaderResourceView(m_texture.Get(), NULL, m_srv.GetAddressOf()));
+        VERIFY_OK(plsImpl->gpu()->CreateShaderResourceView(m_texture.Get(),
+                                                           NULL,
+                                                           m_srv.ReleaseAndGetAddressOf()));
         plsImpl->gpuContext()->GenerateMips(m_srv.Get());
     }
 
@@ -558,7 +571,9 @@ protected:
 
         for (size_t i = 0; i < kBufferRingSize; ++i)
         {
-            VERIFY_OK(plsImpl->gpu()->CreateBuffer(&desc, nullptr, m_buffers[i].GetAddressOf()));
+            VERIFY_OK(plsImpl->gpu()->CreateBuffer(&desc,
+                                                   nullptr,
+                                                   m_buffers[i].ReleaseAndGetAddressOf()));
         }
     }
 
@@ -620,10 +635,9 @@ public:
         srvDesc.Buffer.FirstElement = firstElement;
         srvDesc.Buffer.NumElements = elementCount;
 
-        m_currentSRV = nullptr;
         VERIFY_OK(gpu->CreateShaderResourceView(m_buffers[submittedBufferIdx()].Get(),
                                                 &srvDesc,
-                                                m_currentSRV.GetAddressOf()));
+                                                m_currentSRV.ReleaseAndGetAddressOf()));
         return m_currentSRV.Get();
     }
 
@@ -663,16 +677,27 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeTextureTransferBufferRi
     return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
+PLSRenderTargetD3D::PLSRenderTargetD3D(PLSRenderContextD3DImpl* plsImpl,
+                                       uint32_t width,
+                                       uint32_t height) :
+    PLSRenderTarget(width, height),
+    m_gpu(plsImpl->gpu()),
+    m_gpuSupportsTypedUAVLoadStore(plsImpl->d3dCapabilities().supportsTypedUAVLoadStore)
+{}
+
 void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
 {
-#ifdef DEBUG
     D3D11_TEXTURE2D_DESC desc;
     tex->GetDesc(&desc);
+#ifdef DEBUG
     assert(desc.Width == width());
     assert(desc.Height == height());
     assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
            desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
 #endif
+    m_targetTextureSupportsUAV =
+        (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) &&
+        (m_gpuSupportsTypedUAVLoadStore || desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
     m_targetTexture = std::move(tex);
     m_targetRTV = nullptr;
     m_targetUAV = nullptr;
@@ -680,22 +705,42 @@ void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
 
 ID3D11RenderTargetView* PLSRenderTargetD3D::targetRTV()
 {
-
     if (m_targetRTV == nullptr && m_targetTexture != nullptr)
     {
-        VERIFY_OK(
-            m_gpu->CreateRenderTargetView(m_targetTexture.Get(), NULL, m_targetRTV.GetAddressOf()));
+        VERIFY_OK(m_gpu->CreateRenderTargetView(m_targetTexture.Get(),
+                                                NULL,
+                                                m_targetRTV.ReleaseAndGetAddressOf()));
     }
     return m_targetRTV.Get();
 }
 
+ID3D11Texture2D* PLSRenderTargetD3D::offscreenTexture()
+{
+    assert(!m_targetTextureSupportsUAV);
+    if (m_offscreenTexture == nullptr)
+    {
+        m_offscreenTexture = make_simple_2d_texture(m_gpu.Get(),
+                                                    DXGI_FORMAT_R8G8B8A8_TYPELESS,
+                                                    width(),
+                                                    height(),
+                                                    1,
+                                                    D3D11_BIND_UNORDERED_ACCESS);
+    }
+    return m_offscreenTexture.Get();
+}
+
 ID3D11UnorderedAccessView* PLSRenderTargetD3D::targetUAV()
 {
-
-    if (m_targetUAV == nullptr && m_targetTexture != nullptr)
+    if (m_targetUAV == nullptr)
     {
-        m_targetUAV =
-            make_simple_2d_uav(m_gpu.Get(), m_targetTexture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
+        if (auto* uavTexture =
+                m_targetTextureSupportsUAV ? m_targetTexture.Get() : offscreenTexture())
+        {
+            m_targetUAV = make_simple_2d_uav(
+                m_gpu.Get(),
+                uavTexture,
+                m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R32_UINT);
+        }
     }
     return m_targetUAV.Get();
 }
@@ -742,7 +787,7 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::originalDstColorUAV()
     if (m_originalDstColorTexture == nullptr)
     {
         m_originalDstColorTexture = make_simple_2d_texture(m_gpu.Get(),
-                                                           DXGI_FORMAT_R8G8B8A8_UNORM,
+                                                           DXGI_FORMAT_R8G8B8A8_TYPELESS,
                                                            width(),
                                                            height(),
                                                            1,
@@ -750,9 +795,10 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::originalDstColorUAV()
     }
     if (m_originalDstColorUAV == nullptr)
     {
-        m_originalDstColorUAV = make_simple_2d_uav(m_gpu.Get(),
-                                                   m_originalDstColorTexture.Get(),
-                                                   DXGI_FORMAT_R8G8B8A8_UNORM);
+        m_originalDstColorUAV = make_simple_2d_uav(
+            m_gpu.Get(),
+            m_originalDstColorTexture.Get(),
+            m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R32_UINT);
     }
     return m_originalDstColorUAV.Get();
 }
@@ -774,10 +820,10 @@ void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t hei
                                             D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
         VERIFY_OK(m_gpu->CreateShaderResourceView(m_gradTexture.Get(),
                                                   NULL,
-                                                  m_gradTextureSRV.GetAddressOf()));
+                                                  m_gradTextureSRV.ReleaseAndGetAddressOf()));
         VERIFY_OK(m_gpu->CreateRenderTargetView(m_gradTexture.Get(),
                                                 NULL,
-                                                m_gradTextureRTV.GetAddressOf()));
+                                                m_gradTextureRTV.ReleaseAndGetAddressOf()));
     }
 }
 
@@ -798,10 +844,10 @@ void PLSRenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t
                                             D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
         VERIFY_OK(m_gpu->CreateShaderResourceView(m_tessTexture.Get(),
                                                   NULL,
-                                                  m_tessTextureSRV.GetAddressOf()));
+                                                  m_tessTextureSRV.ReleaseAndGetAddressOf()));
         VERIFY_OK(m_gpu->CreateRenderTargetView(m_tessTexture.Get(),
                                                 NULL,
-                                                m_tessTextureRTV.GetAddressOf()));
+                                                m_tessTextureRTV.ReleaseAndGetAddressOf()));
     }
 }
 
@@ -825,14 +871,18 @@ ID3D11ShaderResourceView* PLSRenderContextD3DImpl::replaceStructuredBufferSRV(
 }
 
 void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
-                                                          ShaderFeatures shaderFeatures,
-                                                          pls::InterlockMode interlockMode)
+                                                          pls::ShaderFeatures shaderFeatures,
+                                                          pls::InterlockMode interlockMode,
+                                                          pls::ShaderMiscFlags pixelShaderMiscFlags)
 {
-    uint32_t vertexShaderKey =
-        ShaderUniqueKey(drawType, shaderFeatures & kVertexShaderFeaturesMask, interlockMode);
+    uint32_t vertexShaderKey = pls::ShaderUniqueKey(drawType,
+                                                    shaderFeatures & kVertexShaderFeaturesMask,
+                                                    interlockMode,
+                                                    pls::ShaderMiscFlags::kNone);
     auto vertexEntry = m_drawVertexShaders.find(vertexShaderKey);
 
-    uint32_t pixelShaderKey = ShaderUniqueKey(drawType, shaderFeatures, interlockMode);
+    uint32_t pixelShaderKey =
+        ShaderUniqueKey(drawType, shaderFeatures, interlockMode, pixelShaderMiscFlags);
     auto pixelEntry = m_drawPixelShaders.find(pixelShaderKey);
 
     if (vertexEntry == m_drawVertexShaders.end() || pixelEntry == m_drawPixelShaders.end())
@@ -846,14 +896,24 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 s << "#define " << GetShaderFeatureGLSLName(feature) << '\n';
             }
         }
-        if (m_features.rasterizerOrderedViews)
+        if (m_d3dCapabilities.supportsRasterizerOrderedViews)
         {
-            if ((interlockMode == pls::InterlockMode::rasterOrdered &&
+            if ((interlockMode == pls::InterlockMode::rasterOrdering &&
                  drawType != DrawType::interiorTriangulation) ||
                 drawType == DrawType::imageMesh)
             {
                 s << "#define " << GLSL_ENABLE_RASTERIZER_ORDERED_VIEWS << '\n';
             }
+        }
+        if (m_d3dCapabilities.supportsTypedUAVLoadStore)
+        {
+            s << "#define " << GLSL_ENABLE_TYPED_UAV_LOAD_STORE << '\n';
+        }
+        if (pixelShaderMiscFlags & pls::ShaderMiscFlags::kCoalescedResolveAndTransfer)
+        {
+            s << "#define " << GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER << '\n';
+            s << "#define " << GLSL_FRAMEBUFFER_PLANE_IDX_OVERRIDE << ' '
+              << COALESCED_OFFSCREEN_FRAMEBUFFER_PLANE_IDX << '\n';
         }
         s << glsl::constants << '\n';
         s << glsl::hlsl << '\n';
@@ -868,19 +928,19 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
             case DrawType::outerCurvePatches:
                 s << "#define " << GLSL_DRAW_PATH << '\n';
                 s << pls::glsl::draw_path_common << '\n';
-                s << (interlockMode == pls::InterlockMode::rasterOrdered ? pls::glsl::draw_path
-                                                                         : pls::glsl::atomic_draw)
+                s << (interlockMode == pls::InterlockMode::rasterOrdering ? pls::glsl::draw_path
+                                                                          : pls::glsl::atomic_draw)
                   << '\n';
                 break;
             case DrawType::interiorTriangulation:
                 s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
                 s << pls::glsl::draw_path_common << '\n';
-                s << (interlockMode == pls::InterlockMode::rasterOrdered ? pls::glsl::draw_path
-                                                                         : pls::glsl::atomic_draw)
+                s << (interlockMode == pls::InterlockMode::rasterOrdering ? pls::glsl::draw_path
+                                                                          : pls::glsl::atomic_draw)
                   << '\n';
                 break;
             case DrawType::imageRect:
-                assert(interlockMode == pls::InterlockMode::experimentalAtomics);
+                assert(interlockMode == pls::InterlockMode::atomics);
                 s << "#define " << GLSL_DRAW_IMAGE << '\n';
                 s << "#define " << GLSL_DRAW_IMAGE_RECT << '\n';
                 s << pls::glsl::atomic_draw << '\n';
@@ -888,13 +948,13 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
             case DrawType::imageMesh:
                 s << "#define " << GLSL_DRAW_IMAGE << '\n';
                 s << "#define " << GLSL_DRAW_IMAGE_MESH << '\n';
-                s << (interlockMode == pls::InterlockMode::rasterOrdered
+                s << (interlockMode == pls::InterlockMode::rasterOrdering
                           ? pls::glsl::draw_image_mesh
                           : pls::glsl::atomic_draw)
                   << '\n';
                 break;
             case DrawType::plsAtomicResolve:
-                assert(interlockMode == pls::InterlockMode::experimentalAtomics);
+                assert(interlockMode == pls::InterlockMode::atomics);
                 s << "#define " << GLSL_RESOLVE_PLS << '\n';
                 s << pls::glsl::atomic_draw << '\n';
                 break;
@@ -1013,58 +1073,27 @@ static const char* heap_buffer_contents(const BufferRing* bufferRing)
     return reinterpret_cast<const char*>(heapBuffer->contents());
 }
 
+static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
+                          ID3D11Texture2D* dst,
+                          ID3D11Texture2D* src,
+                          const IAABB& rect)
+{
+    D3D11_BOX updateBox = {
+        static_cast<UINT>(rect.left),
+        static_cast<UINT>(rect.top),
+        0,
+        static_cast<UINT>(rect.right),
+        static_cast<UINT>(rect.bottom),
+        1,
+    };
+    gpuContext->CopySubresourceRegion(dst, 0, updateBox.left, updateBox.top, 0, src, 0, &updateBox);
+}
+
 void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<PLSRenderTargetD3D*>(desc.renderTarget);
 
-    if (desc.skipExplicitColorClear)
-    {
-        // We can accomplish a clear of the color buffer while the shader resolves coverage,
-        // instead of actually clearing it here. The fill for pathID=0 is automatically
-        // configured to be a solid fill matching the clear color, so we just have to clear the
-        // coverage buffer to solid coverage. This ensures the clear color gets written out
-        // fully opaque.
-        constexpr static UINT kCoverageOne[4]{static_cast<UINT>(FIXED_COVERAGE_ONE)};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageOne);
-    }
-    else
-    {
-        if (desc.loadAction == LoadAction::clear)
-        {
-            float clearColor4f[4];
-            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            if (desc.renderDirectToRasterPipeline)
-            {
-                m_gpuContext->ClearRenderTargetView(renderTarget->targetRTV(), clearColor4f);
-            }
-            else
-            {
-                m_gpuContext->ClearUnorderedAccessViewFloat(renderTarget->targetUAV(),
-                                                            clearColor4f);
-            }
-        }
-        // Clear the coverage buffer to pathID=0, and with a value that means "zero coverage" in
-        // atomic mode.
-        // In non-atomic mode all we need is for pathID to be zero.
-        // In atomic mode, the additional "zero coverage" value makes sure nothing gets written out
-        // at this pixel when resolving.
-        constexpr static UINT kCoverageZero[4]{static_cast<UINT>(FIXED_COVERAGE_ZERO)};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageZero);
-    }
-    if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
-    {
-        constexpr static UINT kZero[4]{};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->clipUAV(), kZero);
-    }
-
-    ID3D11Buffer* cbuffers[] = {m_flushUniforms.Get(),
-                                m_drawUniforms.Get(),
-                                m_imageDrawUniforms.Get()};
-    static_assert(DRAW_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
-    static_assert(IMAGE_DRAW_UNIFORM_BUFFER_IDX == DRAW_UNIFORM_BUFFER_IDX + 1);
-    m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX, std::size(cbuffers), cbuffers);
-
-    m_gpuContext->RSSetState(m_pathRasterState[0].Get());
+    m_gpuContext->RSSetState(m_backCulledRasterState[0].Get());
     m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
 
     // All programs use the same set of per-flush uniforms.
@@ -1075,6 +1104,15 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                         desc.flushUniformDataOffsetInBytes,
                                     0,
                                     0);
+
+    ID3D11Buffer* uniformBuffers[] = {m_flushUniforms.Get(),
+                                      m_drawUniforms.Get(),
+                                      m_imageDrawUniforms.Get()};
+    static_assert(DRAW_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
+    static_assert(IMAGE_DRAW_UNIFORM_BUFFER_IDX == DRAW_UNIFORM_BUFFER_IDX + 1);
+    m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX,
+                                       std::size(uniformBuffers),
+                                       uniformBuffers);
 
     // All programs use the same storage buffers.
     ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {
@@ -1101,7 +1139,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->VSSetShaderResources(PATH_BUFFER_IDX,
                                        std::size(storageBufferBufferSRVs),
                                        storageBufferBufferSRVs);
-    if (desc.interlockMode == pls::InterlockMode::experimentalAtomics)
+    if (desc.interlockMode == pls::InterlockMode::atomics)
     {
         // Atomic mode accesses the paint buffers from the pixel shader.
         m_gpuContext->PSSetShaderResources(PAINT_BUFFER_IDX, 2, storageBufferBufferSRVs + 1);
@@ -1194,11 +1232,69 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                            0,
                                            desc.firstTessVertexSpan);
 
-        if (m_features.isIntel)
+        if (m_d3dCapabilities.isIntel)
         {
             // FIXME! Intel needs this flush! Driver bug? Find a lighter workaround?
             m_gpuContext->Flush();
         }
+    }
+
+    // Setup and clear the PLS textures.
+    if (desc.skipExplicitColorClear)
+    {
+        // We can accomplish a clear of the color buffer while the shader resolves coverage,
+        // instead of actually clearing it here. The fill for pathID=0 is automatically
+        // configured to be a solid fill matching the clear color, so we just have to clear the
+        // coverage buffer to solid coverage. This ensures the clear color gets written out
+        // fully opaque.
+        constexpr static UINT kCoverageOne[4]{static_cast<UINT>(FIXED_COVERAGE_ONE)};
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageOne);
+    }
+    else
+    {
+        if (desc.loadAction == LoadAction::clear)
+        {
+            if (desc.renderDirectToRasterPipeline)
+            {
+                float clearColor4f[4];
+                UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+                m_gpuContext->ClearRenderTargetView(renderTarget->targetRTV(), clearColor4f);
+            }
+            else if (m_d3dCapabilities.supportsTypedUAVLoadStore)
+            {
+                float clearColor4f[4];
+                UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+                m_gpuContext->ClearUnorderedAccessViewFloat(renderTarget->targetUAV(),
+                                                            clearColor4f);
+            }
+            else
+            {
+                UINT clearColorui[4] = {pls::SwizzleRiveColorToRGBA(desc.clearColor)};
+                m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->targetUAV(), clearColorui);
+            }
+        }
+        else if (!desc.renderDirectToRasterPipeline && !renderTarget->targetTextureSupportsUAV())
+        {
+            // We're rendering to an offscreen UAV and preserving the target. Copy the target
+            // texture over.
+            blit_sub_rect(m_gpuContext.Get(),
+                          renderTarget->offscreenTexture(),
+                          renderTarget->targetTexture(),
+                          desc.updateBounds);
+        }
+        // Clear the coverage buffer to pathID=0, and with a value that means "zero coverage" in
+        // atomic mode.
+        // pathID always needs to be cleared to a value that won't collide with a path being draw.
+        // In atomic mode, pathID=0 also meets the requirement that pathID is always monotonically
+        // increasing, and the additional "zero coverage" value makes sure a clear color doesn't get
+        // written out at this pixel when resolving.
+        constexpr static UINT kCoverageZero[4]{static_cast<UINT>(FIXED_COVERAGE_ZERO)};
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageZero);
+    }
+    if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
+    {
+        constexpr static UINT kZero[4]{};
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->clipUAV(), kZero);
     }
 
     // Execute the DrawList.
@@ -1227,37 +1323,35 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                        1,
                                        m_imageDrawUniforms.GetAddressOf());
 
-    ID3D11RenderTargetView* plsRTV =
+    ID3D11RenderTargetView* targetRTV =
         desc.renderDirectToRasterPipeline ? renderTarget->targetRTV() : NULL;
-    bool needsOriginalDstColor = desc.interlockMode == pls::InterlockMode::rasterOrdered;
     ID3D11UnorderedAccessView* plsUAVs[] = {
         desc.renderDirectToRasterPipeline ? NULL : renderTarget->targetUAV(),
         renderTarget->coverageUAV(),
         renderTarget->clipUAV(),
-        needsOriginalDstColor ? renderTarget->originalDstColorUAV() : NULL};
+        desc.interlockMode == pls::InterlockMode::rasterOrdering
+            ? renderTarget->originalDstColorUAV()
+            : NULL, // Atomic mode doesn't use the originalDstColor.
+    };
     static_assert(FRAMEBUFFER_PLANE_IDX == 0);
     static_assert(COVERAGE_PLANE_IDX == 1);
     static_assert(CLIP_PLANE_IDX == 2);
     static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
-    UINT numUAVs = std::size(plsUAVs);
-    if (desc.renderDirectToRasterPipeline)
-    {
-        --numUAVs;
-    }
-    if (!needsOriginalDstColor)
-    {
-        --numUAVs;
-    }
+    UINT numUsedUAVs = plsUAVs[ORIGINAL_DST_COLOR_PLANE_IDX] != nullptr ? std::size(plsUAVs)
+                                                                        : std::size(plsUAVs) - 1;
     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
         desc.renderDirectToRasterPipeline ? 1 : 0,
-        &plsRTV,
+        &targetRTV,
         NULL,
         desc.renderDirectToRasterPipeline ? 1 : 0,
-        numUAVs,
+        desc.renderDirectToRasterPipeline ? numUsedUAVs - 1 : numUsedUAVs,
         desc.renderDirectToRasterPipeline ? plsUAVs + 1 : plsUAVs,
         NULL);
+
     if (desc.renderDirectToRasterPipeline)
     {
+        // When rendering directly to the target RTV, we use the built-in blend hardware for opacity
+        // and antialiasing.
         m_gpuContext->OMSetBlendState(m_srcOverBlendState.Get(), NULL, 0xffffffff);
     }
 
@@ -1267,6 +1361,10 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     const char* const imageDrawUniformData = heap_buffer_contents(imageDrawUniformBufferRing());
 
+    bool renderPassHasCoalescedResolveAndTransfer =
+        desc.interlockMode == pls::InterlockMode::atomics && !desc.renderDirectToRasterPipeline &&
+        !renderTarget->targetTextureSupportsUAV();
+
     for (const DrawBatch& batch : *desc.drawList)
     {
         if (batch.elementCount == 0)
@@ -1275,10 +1373,17 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         }
 
         DrawType drawType = batch.drawType;
-        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
+        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        setPipelineLayoutAndShaders(drawType, shaderFeatures, desc.interlockMode);
+        auto pixelShaderMiscFlags =
+            drawType == pls::DrawType::plsAtomicResolve && renderPassHasCoalescedResolveAndTransfer
+                ? pls::ShaderMiscFlags::kCoalescedResolveAndTransfer
+                : pls::ShaderMiscFlags::kNone;
+        setPipelineLayoutAndShaders(drawType,
+                                    shaderFeatures,
+                                    desc.interlockMode,
+                                    pixelShaderMiscFlags);
 
         if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(batch.imageTexture))
         {
@@ -1294,7 +1399,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
             {
                 m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
-                m_gpuContext->RSSetState(m_pathRasterState[desc.wireframe].Get());
+                m_gpuContext->RSSetState(m_backCulledRasterState[desc.wireframe].Get());
                 DrawUniforms drawUniforms(batch.baseElement);
                 m_gpuContext->UpdateSubresource(m_drawUniforms.Get(), 0, NULL, &drawUniforms, 0, 0);
                 m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
@@ -1307,7 +1412,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
             case DrawType::interiorTriangulation:
             {
                 m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                m_gpuContext->RSSetState(m_pathRasterState[desc.wireframe].Get());
+                m_gpuContext->RSSetState(m_backCulledRasterState[desc.wireframe].Get());
                 m_gpuContext->Draw(batch.elementCount, batch.baseElement);
                 break;
             }
@@ -1316,7 +1421,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 m_gpuContext->IASetIndexBuffer(m_imageRectIndexBuffer.Get(),
                                                DXGI_FORMAT_R16_UINT,
                                                0);
-                m_gpuContext->RSSetState(m_imageRasterState[desc.wireframe].Get());
+                m_gpuContext->RSSetState(m_doubleSidedRasterState[desc.wireframe].Get());
                 m_gpuContext->UpdateSubresource(m_imageDrawUniforms.Get(),
                                                 0,
                                                 NULL,
@@ -1343,7 +1448,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 static_assert(kImageMeshUVDataSlot == kImageMeshVertexDataSlot + 1);
                 m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->IASetIndexBuffer(indexBuffer->buffer(), DXGI_FORMAT_R16_UINT, 0);
-                m_gpuContext->RSSetState(m_imageRasterState[desc.wireframe].Get());
+                m_gpuContext->RSSetState(m_doubleSidedRasterState[desc.wireframe].Get());
                 m_gpuContext->UpdateSubresource(m_imageDrawUniforms.Get(),
                                                 0,
                                                 NULL,
@@ -1354,11 +1459,54 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::plsAtomicResolve:
+                assert(desc.interlockMode == pls::InterlockMode::atomics);
                 m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-                m_gpuContext->RSSetState(m_pathRasterState[0].Get());
+                m_gpuContext->RSSetState(m_backCulledRasterState[0].Get());
+                if (renderPassHasCoalescedResolveAndTransfer)
+                {
+                    // Bind the actual target texture as the render target for the PLS resolve, so
+                    // we don't have to copy to it after the render pass.
+                    // (And ince we're changing the render target, this also better be the final
+                    // batch of the render pass.)
+                    assert(&batch == &desc.drawList->tail());
+                    assert(!desc.renderDirectToRasterPipeline);
+                    assert(!renderTarget->targetTextureSupportsUAV());
+                    ID3D11RenderTargetView* resolveRTV = renderTarget->targetRTV();
+                    ID3D11UnorderedAccessView* resolveUAVs[] = {
+                        renderTarget->coverageUAV(),
+                        renderTarget->clipUAV(),
+                        renderTarget->targetUAV(), // Bind the target UAV (for reading) to a
+                                                   // different slot for the resolve because D3D
+                                                   // doesn't let us use slot 0 when there's a
+                                                   // render target.
+                    };
+                    static_assert(COVERAGE_PLANE_IDX == 1);
+                    static_assert(CLIP_PLANE_IDX == 2);
+                    static_assert(COALESCED_OFFSCREEN_FRAMEBUFFER_PLANE_IDX == 3);
+                    m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(1,
+                                                                            &resolveRTV,
+                                                                            NULL,
+                                                                            1,
+                                                                            std::size(resolveUAVs),
+                                                                            resolveUAVs,
+                                                                            NULL);
+                }
                 m_gpuContext->Draw(4, 0);
                 break;
         }
+    }
+
+    if (desc.interlockMode == pls::InterlockMode::rasterOrdering &&
+        !renderTarget->targetTextureSupportsUAV())
+    {
+        // We rendered to an offscreen UAV and did not resolve to the renderTarget. Copy back to the
+        // main target.
+        assert(!desc.renderDirectToRasterPipeline);
+        assert(!renderPassHasCoalescedResolveAndTransfer);
+        blit_sub_rect(m_gpuContext.Get(),
+                      renderTarget->targetTexture(),
+                      renderTarget->offscreenTexture(),
+                      desc.updateBounds);
     }
 }
 } // namespace rive::pls

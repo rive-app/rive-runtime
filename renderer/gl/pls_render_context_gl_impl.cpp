@@ -57,6 +57,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     {
         m_platformFeatures.supportsBindlessTextures = true;
     }
+    m_platformFeatures.supportsRasterOrdering = m_plsImpl->supportsRasterOrdering(m_capabilities);
 
     std::vector<const char*> generalDefines;
     if (!m_capabilities.ARB_shader_storage_buffer_object)
@@ -599,37 +600,6 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t 
                            0);
 }
 
-// Optimization for when rendering to an offscreen framebuffer in atomic mode.
-//
-// It renders the final PLS resolve operation to the destination framebuffer in a single pass,
-// instead of (1) resolving the offscreen framebuffer, and (2) blitting the offscreen framebuffer to
-// the destination framebuffer.
-constexpr uint32_t kCoalescedPLSResolveAndTransferFlag = pls::kShaderUniqueKeyMask + 1;
-
-uint32_t PLSRenderContextGLImpl::getFragmentShaderKey(pls::DrawType drawType,
-                                                      pls::ShaderFeatures shaderFeatures,
-                                                      pls::InterlockMode interlockMode,
-                                                      const PLSRenderTargetGL* renderTarget) const
-{
-    uint32_t fragmentShaderKey = pls::ShaderUniqueKey(drawType, shaderFeatures, interlockMode);
-
-    // In addition to the standard fragmentShaderKey, add one more flag stating if we're an atomic
-    // resolve that can transfer the image data from offscreen at the same time. (In atomic mode, we
-    // only render offscreen if there are blend modes.)
-    if (drawType == pls::DrawType::plsAtomicResolve &&
-        (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
-    {
-        assert(interlockMode == pls::InterlockMode::experimentalAtomics);
-        assert((fragmentShaderKey & kCoalescedPLSResolveAndTransferFlag) == 0);
-        if (m_plsImpl->supportsCoalescedPLSResolveAndTransfer(renderTarget))
-        {
-            fragmentShaderKey |= kCoalescedPLSResolveAndTransferFlag;
-        }
-    }
-
-    return fragmentShaderKey;
-}
-
 // Wraps a compiled GL shader of draw_path.glsl or draw_image_mesh.glsl, either vertex or fragment,
 // with a specific set of features enabled via #define. The set of features to enable is dictated by
 // ShaderFeatures.
@@ -644,10 +614,10 @@ public:
                DrawType drawType,
                ShaderFeatures shaderFeatures,
                pls::InterlockMode interlockMode,
-               uint32_t shaderKey)
+               pls::ShaderMiscFlags shaderMiscFlags)
     {
 #ifndef ENABLE_PLS_EXPERIMENTAL_ATOMICS
-        if (interlockMode == pls::InterlockMode::experimentalAtomics)
+        if (interlockMode == pls::InterlockMode::atomics)
         {
             // Don't draw anything in atomic mode if support for it isn't compiled in.
             return;
@@ -697,19 +667,19 @@ public:
                 }
                 defines.push_back(GLSL_DRAW_PATH);
                 sources.push_back(pls::glsl::draw_path_common);
-                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdered
+                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdering
                                       ? pls::glsl::draw_path
                                       : pls::glsl::atomic_draw);
                 break;
             case DrawType::interiorTriangulation:
                 defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
                 sources.push_back(pls::glsl::draw_path_common);
-                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdered
+                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdering
                                       ? pls::glsl::draw_path
                                       : pls::glsl::atomic_draw);
                 break;
             case DrawType::imageRect:
-                assert(interlockMode == pls::InterlockMode::experimentalAtomics);
+                assert(interlockMode == pls::InterlockMode::atomics);
                 defines.push_back(GLSL_DRAW_IMAGE);
                 defines.push_back(GLSL_DRAW_IMAGE_RECT);
                 sources.push_back(pls::glsl::atomic_draw);
@@ -717,16 +687,16 @@ public:
             case DrawType::imageMesh:
                 defines.push_back(GLSL_DRAW_IMAGE);
                 defines.push_back(GLSL_DRAW_IMAGE_MESH);
-                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdered
+                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdering
                                       ? pls::glsl::draw_image_mesh
                                       : pls::glsl::atomic_draw);
                 break;
             case DrawType::plsAtomicResolve:
-                assert(interlockMode == pls::InterlockMode::experimentalAtomics);
+                assert(interlockMode == pls::InterlockMode::atomics);
                 defines.push_back(GLSL_RESOLVE_PLS);
-                if (shaderKey & kCoalescedPLSResolveAndTransferFlag)
+                if (shaderMiscFlags & pls::ShaderMiscFlags::kCoalescedResolveAndTransfer)
                 {
-                    assert(shaderType != GL_VERTEX_SHADER);
+                    assert(shaderType == GL_FRAGMENT_SHADER);
                     defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
                 }
                 sources.push_back(pls::glsl::atomic_draw);
@@ -758,10 +728,10 @@ private:
 };
 
 PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
-                                                 DrawType drawType,
-                                                 ShaderFeatures shaderFeatures,
+                                                 pls::DrawType drawType,
+                                                 pls::ShaderFeatures shaderFeatures,
                                                  pls::InterlockMode interlockMode,
-                                                 uint32_t fragmentShaderKey) :
+                                                 pls::ShaderMiscFlags fragmentShaderMiscFlags) :
     m_state(plsContextImpl->m_state)
 {
     m_id = glCreateProgram();
@@ -777,7 +747,7 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                                                       drawType,
                                                       vertexShaderFeatures,
                                                       interlockMode,
-                                                      vertexShaderKey)
+                                                      pls::ShaderMiscFlags::kNone)
                                          .first->second;
     glAttachShader(m_id, vertexShader.id());
 
@@ -787,7 +757,7 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                               drawType,
                               shaderFeatures,
                               interlockMode,
-                              fragmentShaderKey);
+                              fragmentShaderMiscFlags);
     glAttachShader(m_id, fragmentShader.id());
 
     glutils::LinkProgram(m_id);
@@ -847,6 +817,25 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
                                            bindingIdx,
                                            bindingSizeInBytes,
                                            offsetSizeInBytes);
+}
+
+void PLSRenderContextGLImpl::PLSImpl::ensureRasterOrderingEnabled(
+    PLSRenderContextGLImpl* plsContextImpl,
+    bool enabled)
+{
+    assert(!enabled || supportsRasterOrdering(plsContextImpl->m_capabilities));
+    auto rasterOrderState = enabled ? RasterOrderingState::enabled : RasterOrderingState::disabled;
+    if (m_rasterOrderState != rasterOrderState)
+    {
+        onEnableRasterOrdering(enabled);
+        m_rasterOrderState = rasterOrderState;
+        // We only need a barrier when turning raster ordering OFF, because PLS already inserts the
+        // necessary barriers after draws when it's disabled.
+        if (m_rasterOrderState == RasterOrderingState::disabled)
+        {
+            onBarrier();
+        }
+    }
 }
 
 void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
@@ -961,22 +950,32 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                 desc.tessVertexSpanCount);
     }
 
+    bool renderPassHasCoalescedResolveAndTransfer =
+        desc.interlockMode == pls::InterlockMode::atomics && !desc.renderDirectToRasterPipeline &&
+        m_plsImpl->supportsCoalescedPLSResolveAndTransfer(renderTarget);
+
     // Compile the draw programs before activating pixel local storage.
     // Cache specific compilations by DrawType and ShaderFeatures.
     // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while active.)
     for (const DrawBatch& batch : *desc.drawList)
     {
-        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
+        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        uint32_t fragmentShaderKey =
-            getFragmentShaderKey(batch.drawType, shaderFeatures, desc.interlockMode, renderTarget);
+        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve &&
+                                               renderPassHasCoalescedResolveAndTransfer
+                                           ? pls::ShaderMiscFlags::kCoalescedResolveAndTransfer
+                                           : pls::ShaderMiscFlags::kNone;
+        uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
+                                                          shaderFeatures,
+                                                          desc.interlockMode,
+                                                          fragmentShaderMiscFlags);
         m_drawPrograms.try_emplace(fragmentShaderKey,
                                    this,
                                    batch.drawType,
                                    shaderFeatures,
                                    desc.interlockMode,
-                                   fragmentShaderKey);
+                                   fragmentShaderMiscFlags);
     }
 
     // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
@@ -1007,11 +1006,17 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             continue;
         }
 
-        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::experimentalAtomics
+        auto shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        uint32_t fragmentShaderKey =
-            getFragmentShaderKey(batch.drawType, shaderFeatures, desc.interlockMode, renderTarget);
+        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve &&
+                                               renderPassHasCoalescedResolveAndTransfer
+                                           ? pls::ShaderMiscFlags::kCoalescedResolveAndTransfer
+                                           : pls::ShaderMiscFlags::kNone;
+        uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
+                                                          shaderFeatures,
+                                                          desc.interlockMode,
+                                                          fragmentShaderMiscFlags);
         const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
         if (drawProgram.id() == 0)
         {
@@ -1032,8 +1037,9 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
-                m_plsImpl->ensureRasterOrderingEnabled(desc.interlockMode ==
-                                                       pls::InterlockMode::rasterOrdered);
+                m_plsImpl->ensureRasterOrderingEnabled(this,
+                                                       desc.interlockMode ==
+                                                           pls::InterlockMode::rasterOrdering);
                 m_state->bindVAO(m_drawVAO);
                 m_state->enableFaceCulling(true);
                 uint32_t indexCount = PatchIndexCount(drawType);
@@ -1062,7 +1068,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::interiorTriangulation:
             {
-                m_plsImpl->ensureRasterOrderingEnabled(false);
+                m_plsImpl->ensureRasterOrderingEnabled(this, false);
                 m_state->bindVAO(m_interiorTrianglesVAO);
                 m_state->enableFaceCulling(true);
                 glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
@@ -1072,7 +1078,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 assert(!m_capabilities.ARB_bindless_texture);
                 assert(m_imageRectVAO != 0); // Should have gotten lazily allocated by now.
-                m_plsImpl->ensureRasterOrderingEnabled(false);
+                m_plsImpl->ensureRasterOrderingEnabled(this, false);
                 m_state->bindVAO(m_imageRectVAO);
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
@@ -1088,8 +1094,6 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::imageMesh:
             {
-                m_plsImpl->ensureRasterOrderingEnabled(desc.interlockMode ==
-                                                       pls::InterlockMode::rasterOrdered);
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         const PLSRenderBufferGLImpl*,
                                         batch.vertexBuffer);
@@ -1097,6 +1101,10 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 LITE_RTTI_CAST_OR_BREAK(indexBuffer,
                                         const PLSRenderBufferGLImpl*,
                                         batch.indexBuffer);
+                // Enable raster ordering whenever we can for image meshes, even in atomic mode; we
+                // have no control over whether the internal geometry has self overlaps.
+                m_plsImpl->ensureRasterOrderingEnabled(this,
+                                                       m_platformFeatures.supportsRasterOrdering);
                 m_state->bindVAO(m_imageMeshVAO);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -1116,12 +1124,12 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::plsAtomicResolve:
-                m_plsImpl->ensureRasterOrderingEnabled(false);
+                m_plsImpl->ensureRasterOrderingEnabled(this, false);
                 m_state->bindVAO(m_plsResolveVAO);
-                if (fragmentShaderKey & kCoalescedPLSResolveAndTransferFlag)
+                if (renderPassHasCoalescedResolveAndTransfer)
                 {
-                    // Since setupCoalescedPLSResolveAndTransfer() modifies GL state, this better be
-                    // the final draw of the render pass.
+                    // Since setupCoalescedPLSResolveAndTransfer() binds a different framebuffer,
+                    // this better be the final batch of the render pass.
                     assert(&batch == &desc.drawList->tail());
                     m_plsImpl->setupCoalescedPLSResolveAndTransfer(renderTarget);
                 }
@@ -1144,7 +1152,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 #endif
 }
 
-std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
+std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
+    const ContextOptions& contextOptions)
 {
     GLCapabilities capabilities{};
 
@@ -1300,6 +1309,13 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
         }
     }
 
+    // Now disable the extensions we don't want to use internally.
+    if (contextOptions.disableFragmentShaderInterlock)
+    {
+        capabilities.ARB_fragment_shader_interlock = false;
+        capabilities.INTEL_fragment_shader_ordering = false;
+    }
+
     // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
     // polyfilled on D3D anyway, and we need to test our fallback.
     GLenum rendererToken = GL_RENDERER;
@@ -1336,8 +1352,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext()
         return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
     }
 
-    if (capabilities.ARB_shader_image_load_store &&
-        (capabilities.ARB_fragment_shader_interlock || capabilities.INTEL_fragment_shader_ordering))
+    if (capabilities.ARB_shader_image_load_store)
     {
         return MakeContext(rendererString, capabilities, MakePLSImplRWTexture());
     }

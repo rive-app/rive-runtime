@@ -246,6 +246,9 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCo
         // 3 bits of the path and clip IDs in order for our equality testing to work.
         m_platformFeatures.pathIDGranularity = 8;
     }
+    m_platformFeatures.supportsRasterOrdering = true;
+#else
+    m_platformFeatures.supportsRasterOrdering = [gpu supportsFamily:MTLGPUFamilyApple1];
 #endif
     // It appears, so far, that we don't need to use flat interpolation for path IDs on any Apple
     // device, and it's faster not to.
@@ -287,7 +290,7 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu, id<MTLCo
     {
         pls::ShaderFeatures allShaderFeatures = pls::AllShaderFeaturesForDrawType(drawType);
         uint32_t pipelineKey =
-            ShaderUniqueKey(drawType, allShaderFeatures, pls::InterlockMode::rasterOrdered);
+            ShaderUniqueKey(drawType, allShaderFeatures, pls::InterlockMode::rasterOrdering);
         m_drawPipelines[pipelineKey] = std::make_unique<DrawPipeline>(
             m_gpu,
             m_plsPrecompiledLibrary,
@@ -536,7 +539,7 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
     findCompatibleDrawPipeline(pls::DrawType drawType, pls::ShaderFeatures shaderFeatures)
 {
     uint32_t pipelineKey =
-        pls::ShaderUniqueKey(drawType, shaderFeatures, pls::InterlockMode::rasterOrdered);
+        pls::ShaderUniqueKey(drawType, shaderFeatures, pls::InterlockMode::rasterOrdering);
     auto pipelineIter = m_drawPipelines.find(pipelineKey);
     if (pipelineIter == m_drawPipelines.end())
     {
@@ -554,7 +557,7 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
         while (m_backgroundShaderCompiler->popFinishedJob(&job, m_shouldWaitForShaderCompilations))
         {
             uint32_t jobKey = pls::ShaderUniqueKey(
-                job.drawType, job.shaderFeatures, pls::InterlockMode::rasterOrdered);
+                job.drawType, job.shaderFeatures, pls::InterlockMode::rasterOrdering);
             m_drawPipelines[jobKey] = std::make_unique<DrawPipeline>(
                 m_gpu, job.compiledLibrary, @GLSL_drawVertexMain, @GLSL_drawFragmentMain);
             if (jobKey == pipelineKey)
@@ -569,7 +572,7 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
             // features enabled while we wait for it to finish.
             pipelineKey = ShaderUniqueKey(drawType,
                                           pls::AllShaderFeaturesForDrawType(drawType),
-                                          pls::InterlockMode::rasterOrdered);
+                                          pls::InterlockMode::rasterOrdering);
             pipelineIter = m_drawPipelines.find(pipelineKey);
             assert(pipelineIter->second != nullptr);
         }

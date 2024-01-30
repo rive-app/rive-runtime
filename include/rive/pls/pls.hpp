@@ -101,6 +101,7 @@ struct PlatformFeatures
     bool fragCoordBottomUp = false; // Does the built-in pixel coordinate in the fragment shader go
                                     // bottom-up or top-down?
     bool supportsBindlessTextures = false;
+    bool supportsRasterOrdering = false; // Can pixel local storage accesses be raster ordered?
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient
@@ -370,8 +371,7 @@ private:
 
     WRITEONLY InverseViewports m_inverseViewports;
     WRITEONLY IAABB m_updateBounds; // drawBounds, or renderTargetBounds if there is a clear.
-                                    // (Used by the "@RESOLVE_PLS" step in
-                                    // InterlockMode::experimentalAtomics.)
+                                    // (Used by the "@RESOLVE_PLS" step in InterlockMode::atomics.)
     WRITEONLY float m_renderTargetHeight = 0;
     WRITEONLY uint32_t m_pathIDGranularity = 0; // Spacing between adjacent path IDs
                                                 // (1 if IEEE compliant).
@@ -800,7 +800,10 @@ enum class LoadAction : bool
     preserveRenderTarget
 };
 
-// Indicates which "uber shader" features to #define in the draw shader.
+// "Uber shader" features that can be #defined in a draw shader.
+// This set is strictly limited to switches that don't *change* the behavior of the shader, i.e.,
+// turning them all on will enable all types Rive content, but simple content will still draw
+// identically; we can turn a feature off if we know a batch doesn't need it for better performance.
 enum class ShaderFeatures
 {
     NONE = 0,
@@ -844,44 +847,31 @@ constexpr static ShaderFeatures AllShaderFeaturesForDrawType(DrawType drawType)
 // Synchronization method for pixel local storage with overlapping frragments.
 enum class InterlockMode
 {
-    rasterOrdered,
-    experimentalAtomics,
+    rasterOrdering,
+    atomics,
 };
 
-// Low-order bit mask that that is guaranteed to subsume any ShaderUniqueKey.
-constexpr uint32_t kShaderUniqueKeyMask =
-    (static_cast<uint32_t>(kPathDrawShaderFeaturesMask) << 3 << 1) | 0xf;
-
-inline static uint32_t ShaderUniqueKey(DrawType drawType,
-                                       ShaderFeatures shaderFeatures,
-                                       InterlockMode interlockMode)
+// Miscellaneous switches that *do* affect the behavior of a shader. A backend can add these to a
+// shader key if it wants to implement the behavior.
+enum class ShaderMiscFlags : uint32_t
 {
-    uint32_t drawTypeKey;
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::outerCurvePatches:
-            drawTypeKey = 0;
-            break;
-        case DrawType::interiorTriangulation:
-            drawTypeKey = 1;
-            break;
-        case DrawType::imageRect:
-            drawTypeKey = 2;
-            break;
-        case DrawType::imageMesh:
-            drawTypeKey = 3;
-            break;
-        case DrawType::plsAtomicResolve:
-            drawTypeKey = 4;
-            break;
-    }
-    uint32_t key = static_cast<uint32_t>(shaderFeatures);
-    key = (key << 3) | drawTypeKey;
-    key = (key << 1) | static_cast<uint32_t>(interlockMode);
-    assert((key & kShaderUniqueKeyMask) == key);
-    return key;
-}
+    kNone = 0,
+
+    // Optimization for atomic mode when rendering to an offscreen texture because a renderTarget
+    // doesn't support storage texture binding.
+    //
+    // It renders the final "DrawType::plsAtomicResolve" operation directly to the renderTarget in a
+    // single pass, instead of (1) resolving the offscreen texture, and then (2) copying the
+    // offscreen texture to back the renderTarget.
+    kCoalescedResolveAndTransfer = 1 << 0,
+};
+RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
+
+// Returns a unique value that can be used to key a shader.
+uint32_t ShaderUniqueKey(DrawType,
+                         ShaderFeatures,
+                         InterlockMode,
+                         ShaderMiscFlags = ShaderMiscFlags::kNone);
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
@@ -956,18 +946,18 @@ struct FlushDescriptor
     ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
     IAABB updateBounds; // drawBounds, or renderTargetBounds if loadAction == LoadAction::clear.
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
-    InterlockMode interlockMode = InterlockMode::rasterOrdered;
+    InterlockMode interlockMode = InterlockMode::rasterOrdering;
 
     // In atomic mode, we skip the explicit clear of the color buffer when the operation can be
     // folded into the atomic "resolve" operation.
-    // (i.e., when interlockMode == InterlockMode::experimentalAtomics,
-    // loadAction == LoadAction::clear, and clearColor is solid.)
+    // (i.e., when interlockMode == InterlockMode::atomics, loadAction == LoadAction::clear, and
+    // clearColor is solid.)
     bool skipExplicitColorClear;
 
     // True if the backend should render directly to the raster pipeline, using hardware blend state
     // for opacity and antialiasing, as opposed to rendering to pixel local storage. This will
     // happen when combinedShaderFeatures do not include ShaderFeatures::ENABLE_ADVANCED_BLEND and
-    // when interlockMode == InterlockMode::experimentalAtomics.
+    // when interlockMode == InterlockMode::atomics.
     bool renderDirectToRasterPipeline;
 
     size_t flushUniformDataOffsetInBytes = 0;
@@ -993,6 +983,12 @@ struct FlushDescriptor
     bool wireframe = false;
     void* backendSpecificData = nullptr; // (External command buffer on Metal.)
 };
+
+// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected by GLSL).
+RIVE_ALWAYS_INLINE uint32_t SwizzleRiveColorToRGBA(ColorInt riveColor)
+{
+    return (riveColor & 0xff00ff00) | (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
+}
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
 template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)

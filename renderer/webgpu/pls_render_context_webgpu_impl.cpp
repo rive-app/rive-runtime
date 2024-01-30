@@ -1997,7 +1997,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             m_drawPipelines
                 .try_emplace(pls::ShaderUniqueKey(drawType,
                                                   batch.shaderFeatures,
-                                                  pls::InterlockMode::rasterOrdered),
+                                                  pls::InterlockMode::rasterOrdering),
                              this,
                              drawType,
                              batch.shaderFeatures,

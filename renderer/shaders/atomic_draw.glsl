@@ -280,9 +280,15 @@ SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 PLS_BLOCK_BEGIN
+// We only write the framebuffer as a storage texture when there are blend modes. Otherwise, we
+// render to it as a normal color attachment.
 #ifdef @ENABLE_ADVANCED_BLEND
-// We render to the framebuffer as a color attachment when there aren't any advanced blend modes.
+#ifdef @FRAMEBUFFER_PLANE_IDX_OVERRIDE
+// D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color output.
+PLS_DECL4F(@FRAMEBUFFER_PLANE_IDX_OVERRIDE, framebuffer);
+#else
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
+#endif
 #endif
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);

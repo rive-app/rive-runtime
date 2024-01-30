@@ -24,7 +24,7 @@ using namespace rive;
 
 static FiddleContextOptions s_options;
 static GLFWwindow* s_window = nullptr;
-static bool s_atomicMode = false;
+static bool s_forceAtomicMode = false;
 static bool s_wireframe = false;
 static bool s_disableFill = false;
 static bool s_disableStroke = false;
@@ -165,7 +165,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 glfwSetWindowShouldClose(window, 1);
                 break;
             case GLFW_KEY_A:
-                s_atomicMode = !s_atomicMode;
+                s_forceAtomicMode = !s_forceAtomicMode;
                 break;
             case GLFW_KEY_D:
                 printf("static float s_scale = %f;\n", s_scale);
@@ -372,7 +372,7 @@ int main(int argc, const char** argv)
         }
         else if (!strcmp(argv[i], "--atomic"))
         {
-            s_atomicMode = true;
+            s_forceAtomicMode = true;
         }
         else
         {
@@ -543,7 +543,7 @@ void riveMainLoop()
 
     rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
         .clearColor = 0xff404040,
-        .enableExperimentalAtomicMode = s_atomicMode,
+        .forceAtomicInterlockMode = s_forceAtomicMode,
         .wireframe = s_wireframe,
         .fillsDisabled = s_disableFill,
         .strokesDisabled = s_disableStroke,

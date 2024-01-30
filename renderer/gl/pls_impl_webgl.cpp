@@ -30,6 +30,15 @@ std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLS
 
 class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSImpl
 {
+    bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
+    {
+#ifdef RIVE_WEBGL
+        return emscripten_webgl_shader_pixel_local_storage_is_coherent();
+#else
+        return capabilities.ANGLE_shader_pixel_local_storage_coherent;
+#endif
+    }
+
     void activatePixelLocalStorage(PLSRenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {

@@ -224,12 +224,22 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
 {
     assert(!m_didBeginFrame);
     m_frameDescriptor = std::move(frameDescriptor);
-    m_impl->prepareToMapBuffers();
+    m_frameInterlockMode = m_frameDescriptor.forceAtomicInterlockMode ||
+                                   !m_impl->platformFeatures().supportsRasterOrdering
+                               ? pls::InterlockMode::atomics
+                               : pls::InterlockMode::rasterOrdering;
     if (m_logicalFlushes.empty())
     {
         m_logicalFlushes.emplace_back(new LogicalFlush(this));
     }
+    m_impl->prepareToMapBuffers();
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
+}
+
+bool PLSRenderContext::frameSupportsImagePaintForPaths() const
+{
+    return m_frameInterlockMode == pls::InterlockMode::rasterOrdering ||
+           m_impl->platformFeatures().supportsBindlessTextures;
 }
 
 uint32_t PLSRenderContext::generateClipID()
@@ -255,7 +265,7 @@ bool PLSRenderContext::LogicalFlush::pushDrawBatch(PLSDrawUniquePtr draws[], siz
 {
     assert(!m_hasDoneLayout);
 
-    if (m_ctx->frameDescriptor().enableExperimentalAtomicMode &&
+    if (m_flushDesc.interlockMode == pls::InterlockMode::atomics &&
         m_drawList.count() + drawCount > kMaxReorderedDrawCount)
     {
         // We can only reorder 64k draws at a time since the sort key addresses them with a 16-bit
@@ -570,12 +580,10 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
         // If this is empty it means there are no draws and no clear.
         m_flushDesc.updateBounds = {0, 0, 0, 0};
     }
-    m_flushDesc.interlockMode = frameDescriptor.enableExperimentalAtomicMode
-                                    ? pls::InterlockMode::experimentalAtomics
-                                    : pls::InterlockMode::rasterOrdered;
-    m_flushDesc.skipExplicitColorClear =
-        m_flushDesc.interlockMode == pls::InterlockMode::experimentalAtomics &&
-        m_flushDesc.loadAction == LoadAction::clear && colorAlpha(m_flushDesc.clearColor) == 255;
+    m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
+    m_flushDesc.skipExplicitColorClear = m_flushDesc.interlockMode == pls::InterlockMode::atomics &&
+                                         m_flushDesc.loadAction == LoadAction::clear &&
+                                         colorAlpha(m_flushDesc.clearColor) == 255;
 
     m_flushDesc.flushUniformDataOffsetInBytes = flushIdx * sizeof(pls::FlushUniforms);
     m_flushDesc.pathCount = m_resourceCounts.pathCount;
@@ -709,7 +717,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
         pushPaddingVertices(m_outerCubicTessEndLocation, 1);
     }
 
-    if (m_ctx->frameDescriptor().enableExperimentalAtomicMode)
+    if (m_ctx->frameInterlockMode() == pls::InterlockMode::atomics)
     {
         assert(m_plsDraws.size() <= kMaxReorderedDrawCount);
 
@@ -814,7 +822,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
     m_flushDesc.drawList = &m_drawList;
     m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
     m_flushDesc.renderDirectToRasterPipeline =
-        m_flushDesc.interlockMode == InterlockMode::experimentalAtomics &&
+        m_flushDesc.interlockMode == InterlockMode::atomics &&
         !(m_flushDesc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
 }
 
@@ -1423,18 +1431,9 @@ void PLSRenderContext::LogicalFlush::pushImageRect(
 {
     assert(m_hasDoneLayout);
 
-    if (m_ctx->impl()->platformFeatures().supportsBindlessTextures)
-    {
-        fprintf(stderr,
-                "PLSRenderContext::pushImageRect is only supported when the platform does not "
-                "support bindless textures.\n");
-        return;
-    }
-    if (!m_ctx->frameDescriptor().enableExperimentalAtomicMode)
-    {
-        fprintf(stderr, "PLSRenderContext::pushImageRect is only supported in atomic mode.\n");
-        return;
-    }
+    // If we support image paints for paths, the client should use pushPath() with an image paint
+    // instead of calling this method.
+    assert(!m_ctx->frameSupportsImagePaintForPaths());
 
     size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
     m_ctx->m_imageDrawUniformData.emplace_back(matrix,
@@ -1496,6 +1495,7 @@ void PLSRenderContext::LogicalFlush::pushImageMesh(
 void PLSRenderContext::LogicalFlush::pushBarrier()
 {
     assert(m_hasDoneLayout);
+    assert(m_flushDesc.interlockMode == pls::InterlockMode::atomics);
 
     if (!m_drawList.empty())
     {

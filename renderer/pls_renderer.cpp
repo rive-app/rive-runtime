@@ -243,8 +243,7 @@ void PLSRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode,
     save();
     scale(image->width(), image->height());
 
-    if (m_context->frameDescriptor().enableExperimentalAtomicMode &&
-        !m_context->impl()->platformFeatures().supportsBindlessTextures)
+    if (!m_context->frameSupportsImagePaintForPaths())
     {
         // Fall back on ImageRectDraw if the current frame doesn't support drawing paths with image
         // paints.

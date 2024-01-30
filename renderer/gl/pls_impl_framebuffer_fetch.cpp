@@ -22,6 +22,8 @@ class PLSRenderContextGLImpl::PLSImplFramebufferFetch : public PLSRenderContextG
 public:
     PLSImplFramebufferFetch(const GLCapabilities& extensions) : m_capabilities(extensions) {}
 
+    bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
+
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {

@@ -81,6 +81,8 @@ public:
         m_state = std::move(state);
     }
 
+    bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
+
     void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {

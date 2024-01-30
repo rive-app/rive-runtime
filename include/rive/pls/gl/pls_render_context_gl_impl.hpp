@@ -18,7 +18,14 @@ class PLSRenderTargetGL;
 class PLSRenderContextGLImpl : public PLSRenderContextHelperImpl
 {
 public:
-    static std::unique_ptr<PLSRenderContext> MakeContext();
+    struct ContextOptions
+    {
+        bool disableFragmentShaderInterlock = false;
+    };
+
+    static std::unique_ptr<PLSRenderContext> MakeContext(const ContextOptions&);
+    static std::unique_ptr<PLSRenderContext> MakeContext() { return MakeContext(ContextOptions()); }
+
     ~PLSRenderContextGLImpl() override;
 
     // Called when the GL context has been modified outside of Rive.
@@ -42,6 +49,8 @@ private:
     public:
         virtual void init(rcp<GLState>) {}
 
+        virtual bool supportsRasterOrdering(const GLCapabilities&) const = 0;
+
         virtual void activatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor&) = 0;
         virtual void deactivatePixelLocalStorage(PLSRenderContextGLImpl*,
                                                  const FlushDescriptor&) = 0;
@@ -59,19 +68,11 @@ private:
 
         virtual const char* shaderDefineName() const = 0;
 
-        void ensureRasterOrderingEnabled(bool enabled)
-        {
-            if (m_rasterOrderingEnabled != enabled)
-            {
-                onBarrier();
-                onEnableRasterOrdering(enabled);
-                m_rasterOrderingEnabled = enabled;
-            }
-        }
+        void ensureRasterOrderingEnabled(PLSRenderContextGLImpl* plsContextImpl, bool enabled);
 
-        virtual void barrier()
+        void barrier()
         {
-            assert(!m_rasterOrderingEnabled);
+            assert(m_rasterOrderState == RasterOrderingState::disabled);
             onBarrier();
         }
 
@@ -81,7 +82,14 @@ private:
         virtual void onEnableRasterOrdering(bool enabled) {}
         virtual void onBarrier() {}
 
-        bool m_rasterOrderingEnabled = true;
+        enum RasterOrderingState
+        {
+            disabled,
+            enabled,
+            unknown
+        };
+
+        RasterOrderingState m_rasterOrderState = RasterOrderingState::unknown;
     };
 
     class PLSImplEXTNative;
@@ -100,11 +108,6 @@ private:
 
     PLSRenderContextGLImpl(const char* rendererString, GLCapabilities, std::unique_ptr<PLSImpl>);
 
-    uint32_t getFragmentShaderKey(pls::DrawType,
-                                  pls::ShaderFeatures,
-                                  pls::InterlockMode,
-                                  const PLSRenderTargetGL*) const;
-
     // Wraps a compiled and linked GL program of draw_path.glsl or draw_image_mesh.glsl, with a
     // specific set of features enabled via #define. The set of features to enable is dictated by
     // ShaderFeatures.
@@ -114,10 +117,10 @@ private:
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
         DrawProgram(PLSRenderContextGLImpl*,
-                    DrawType,
-                    ShaderFeatures,
+                    pls::DrawType,
+                    pls::ShaderFeatures,
                     pls::InterlockMode,
-                    uint32_t fragmentShaderKey);
+                    pls::ShaderMiscFlags);
         ~DrawProgram();
 
         GLuint id() const { return m_id; }

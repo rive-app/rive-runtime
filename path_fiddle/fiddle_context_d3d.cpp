@@ -26,11 +26,11 @@ public:
     FiddleContextD3DPLS(ComPtr<IDXGIFactory2> d3dFactory,
                         ComPtr<ID3D11Device> gpu,
                         ComPtr<ID3D11DeviceContext> gpuContext,
-                        bool isIntel) :
+                        const PLSRenderContextD3DImpl::ContextOptions& contextOptions) :
         m_d3dFactory(std::move(d3dFactory)),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext)),
-        m_plsContext(PLSRenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, isIntel))
+        m_plsContext(PLSRenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, contextOptions))
     {}
 
     float dpiScale(GLFWwindow*) const override { return 1; }
@@ -56,7 +56,7 @@ public:
                                                        &scd,
                                                        NULL,
                                                        NULL,
-                                                       m_swapchain.GetAddressOf()));
+                                                       m_swapchain.ReleaseAndGetAddressOf()));
 
         auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextD3DImpl>();
         m_renderTarget = plsContextImpl->makeRenderTarget(width, height);
@@ -73,9 +73,10 @@ public:
     void begin(rive::pls::PLSRenderContext::FrameDescriptor&& frameDescriptor) override
     {
         ComPtr<ID3D11Texture2D> backBuffer;
-        VERIFY_OK(m_swapchain->GetBuffer(0,
-                                         __uuidof(ID3D11Texture2D),
-                                         reinterpret_cast<void**>(backBuffer.GetAddressOf())));
+        VERIFY_OK(
+            m_swapchain->GetBuffer(0,
+                                   __uuidof(ID3D11Texture2D),
+                                   reinterpret_cast<void**>(backBuffer.ReleaseAndGetAddressOf())));
         m_renderTarget->setTargetTexture(std::move(backBuffer));
         frameDescriptor.renderTarget = m_renderTarget;
         m_plsContext->beginFrame(std::move(frameDescriptor));
@@ -103,7 +104,7 @@ public:
                 readbackTexDesc.MiscFlags = 0;
                 VERIFY_OK(m_gpu->CreateTexture2D(&readbackTexDesc,
                                                  nullptr,
-                                                 m_readbackTexture.GetAddressOf()));
+                                                 m_readbackTexture.ReleaseAndGetAddressOf()));
             }
 
             D3D11_MAPPED_SUBRESOURCE map;
@@ -132,21 +133,27 @@ private:
     rcp<PLSRenderTargetD3D> m_renderTarget;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions options)
+std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions fiddleOptions)
 {
     // Create a DXGIFactory object.
     ComPtr<IDXGIFactory2> factory;
     VERIFY_OK(CreateDXGIFactory(__uuidof(IDXGIFactory2),
-                                reinterpret_cast<void**>(factory.GetAddressOf())));
+                                reinterpret_cast<void**>(factory.ReleaseAndGetAddressOf())));
 
     ComPtr<IDXGIAdapter> adapter;
     DXGI_ADAPTER_DESC adapterDesc{};
-    bool isIntel = false;
+    PLSRenderContextD3DImpl::ContextOptions contextOptions;
+    if (fiddleOptions.disableRasterOrdering)
+    {
+        contextOptions.disableRasterizerOrderedViews = true;
+        // Also disable typed UAVs in atomic mode, to get more complete test coverage.
+        contextOptions.disableTypedUAVLoadStore = true;
+    }
     for (UINT i = 0; factory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i)
     {
         adapter->GetDesc(&adapterDesc);
-        isIntel = adapterDesc.VendorId == 0x163C || adapterDesc.VendorId == 0x8086 ||
-                  adapterDesc.VendorId == 0x8087;
+        contextOptions.isIntel = adapterDesc.VendorId == 0x163C || adapterDesc.VendorId == 0x8086 ||
+                                 adapterDesc.VendorId == 0x8087;
         break;
     }
 
@@ -164,9 +171,9 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions op
                                 featureLevels,
                                 std::size(featureLevels),
                                 D3D11_SDK_VERSION,
-                                gpu.GetAddressOf(),
+                                gpu.ReleaseAndGetAddressOf(),
                                 NULL,
-                                gpuContext.GetAddressOf()));
+                                gpuContext.ReleaseAndGetAddressOf()));
     if (!gpu || !gpuContext)
     {
         return nullptr;
@@ -177,7 +184,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions op
     return std::make_unique<FiddleContextD3DPLS>(std::move(factory),
                                                  std::move(gpu),
                                                  std::move(gpuContext),
-                                                 isIntel);
+                                                 contextOptions);
 }
 
 #endif

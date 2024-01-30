@@ -14,6 +14,12 @@ namespace rive::pls
 {
 class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::PLSImpl
 {
+    bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
+    {
+        return capabilities.ARB_fragment_shader_interlock ||
+               capabilities.INTEL_fragment_shader_ordering;
+    }
+
     void activatePixelLocalStorage(PLSRenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {

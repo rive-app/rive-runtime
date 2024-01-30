@@ -308,7 +308,8 @@ public:
     void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
 
 private:
-    std::unique_ptr<PLSRenderContext> m_plsContext = PLSRenderContextGLImpl::MakeContext();
+    std::unique_ptr<PLSRenderContext> m_plsContext =
+        PLSRenderContextGLImpl::MakeContext(PLSRenderContextGLImpl::ContextOptions());
     rcp<PLSRenderTargetGL> m_renderTarget;
 };
 

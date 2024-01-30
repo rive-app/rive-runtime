@@ -310,7 +310,7 @@ PLSDrawUniquePtr PLSPathDraw::Make(PLSRenderContext* context,
     assert(path != nullptr);
     assert(paint != nullptr);
     AABB mappedBounds;
-    if (context->frameDescriptor().enableExperimentalAtomicMode)
+    if (context->frameInterlockMode() == pls::InterlockMode::atomics)
     {
         // In atomic mode, find a tighter bounding box in order to maximize reordering.
         mappedBounds = matrix.mapBoundingBox(path->getRawPath().points().data(),
@@ -1277,7 +1277,7 @@ InteriorTriangulationDraw::InteriorTriangulationDraw(PLSRenderContext* context,
 void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
     processPath(PathOp::submitOuterCubics, nullptr, nullptr, TriangulatorAxis::dontCare, flush);
-    if (flush->desc().interlockMode == pls::InterlockMode::experimentalAtomics)
+    if (flush->desc().interlockMode == pls::InterlockMode::atomics)
     {
         // We need a barrier between the outer cubics and interior triangles in atomic mode.
         flush->pushBarrier();
@@ -1475,8 +1475,7 @@ ImageRectDraw::ImageRectDraw(PLSRenderContext* context,
 {
     // If we support image paints for paths, the client should draw a rectangular path with an
     // image paint instead of using this draw.
-    assert(!context->impl()->platformFeatures().supportsBindlessTextures);
-    assert(context->frameDescriptor().enableExperimentalAtomicMode);
+    assert(!context->frameSupportsImagePaintForPaths());
     m_resourceCounts.imageDrawCount = 1;
 }
 

@@ -17,6 +17,44 @@ static_assert(kGradTextureWidth == GRAD_TEXTURE_WIDTH);
 static_assert(kTessTextureWidth == TESS_TEXTURE_WIDTH);
 static_assert(kTessTextureWidthLog2 == TESS_TEXTURE_WIDTH_LOG2);
 
+uint32_t ShaderUniqueKey(DrawType drawType,
+                         ShaderFeatures shaderFeatures,
+                         InterlockMode interlockMode,
+                         ShaderMiscFlags miscFlags)
+{
+    if (miscFlags & ShaderMiscFlags::kCoalescedResolveAndTransfer)
+    {
+        assert(drawType == DrawType::plsAtomicResolve);
+        assert(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
+        assert(interlockMode == InterlockMode::atomics);
+    }
+    uint32_t drawTypeKey;
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+            drawTypeKey = 0;
+            break;
+        case DrawType::interiorTriangulation:
+            drawTypeKey = 1;
+            break;
+        case DrawType::imageRect:
+            drawTypeKey = 2;
+            break;
+        case DrawType::imageMesh:
+            drawTypeKey = 3;
+            break;
+        case DrawType::plsAtomicResolve:
+            drawTypeKey = 4;
+            break;
+    }
+    uint32_t key = static_cast<uint32_t>(miscFlags);
+    key = (key << 1) | static_cast<uint32_t>(interlockMode);
+    key = (key << kShaderFeatureCount) | static_cast<uint32_t>(shaderFeatures);
+    key = (key << 3) | drawTypeKey;
+    return key;
+}
+
 const char* GetShaderFeatureGLSLName(ShaderFeatures feature)
 {
     switch (feature)
@@ -340,8 +378,7 @@ void PaintData::set(FillRule fillRule,
         case PaintType::solidColor:
         {
             // Swizzle the riveColor to little-endian RGBA (the order expected by GLSL).
-            ColorInt riveColor = simplePaintValue.color;
-            m_color = (riveColor & 0xff00ff00) | (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
+            m_color = SwizzleRiveColorToRGBA(simplePaintValue.color);
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }

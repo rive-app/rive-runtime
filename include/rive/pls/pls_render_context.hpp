@@ -110,9 +110,8 @@ public:
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
 
-        // Enables an experimental pixel local storage mode that makes use of atomics and barriers
-        // instead of raster ordering in order to synchronize overlapping fragments.
-        bool enableExperimentalAtomicMode = false;
+        // Force pls::InterlockMode::experimentalAtomics, even if raster ordering is supported.
+        bool forceAtomicInterlockMode = false;
 
         // Testing flags.
         bool wireframe = false;
@@ -133,6 +132,13 @@ public:
         assert(m_didBeginFrame);
         return m_frameDescriptor;
     }
+
+    const pls::InterlockMode frameInterlockMode() const { return m_frameInterlockMode; }
+
+    // If the frame doesn't support image paints, the client must draw images with pushImageRect().
+    // If it DOES support image paints, the client CANNOT use pushImageRect(); it should draw images
+    // as rectangular paths with an image paint.
+    bool frameSupportsImagePaintForPaths() const;
 
     // Generates a unique clip ID that is guaranteed to not exist in the current clip buffer.
     //
@@ -275,6 +281,7 @@ private:
 
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;
+    pls::InterlockMode m_frameInterlockMode;
     RIVE_DEBUG_CODE(bool m_didBeginFrame = false;)
 
     // The number of flushes that have been executed over the entire lifetime of this class, logical

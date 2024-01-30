@@ -143,13 +143,25 @@ $typedef $min16uint ushort;
 #endif
 
 #define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<$unorm float4> NAME : $register($u##IDX)
+#ifdef @ENABLE_TYPED_UAV_LOAD_STORE
+#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<$unorm half4> NAME : $register($u##IDX)
+#else
+#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
+#endif
 #define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #define PLS_BLOCK_END
 
+#ifdef @ENABLE_TYPED_UAV_LOAD_STORE
 #define PLS_LOAD4F(P, _plsCoord) P[_plsCoord]
+#else
+#define PLS_LOAD4F(P, _plsCoord) unpackUnorm4x8(P[_plsCoord])
+#endif
 #define PLS_LOADUI(P, _plsCoord) P[_plsCoord]
+#ifdef @ENABLE_TYPED_UAV_LOAD_STORE
 #define PLS_STORE4F(P, V, _plsCoord) P[_plsCoord] = (V)
+#else
+#define PLS_STORE4F(P, V, _plsCoord) P[_plsCoord] = packUnorm4x8(V)
+#endif
 #define PLS_STOREUI(P, V, _plsCoord) P[_plsCoord] = (V)
 
 INLINE uint pls_atomic_max(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
@@ -282,6 +294,14 @@ INLINE half4 unpackUnorm4x8(uint u)
 {
     uint4 vals = uint4(u & 0xffu, (u >> 8) & 0xffu, (u >> 16) & 0xffu, u >> 24);
     return float4(vals) * (1. / 255.);
+}
+
+INLINE uint packUnorm4x8(half4 color)
+{
+    uint4 vals = (uint4(color * 255.) & 0xff) << uint4(0, 8, 16, 24);
+    vals.rg |= vals.ba;
+    vals.r |= vals.g;
+    return vals.r;
 }
 
 INLINE float atan(float y, float x) { return $atan2(y, x); }
