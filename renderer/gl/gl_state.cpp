@@ -24,6 +24,8 @@ void GLState::reset(const GLCapabilities& extensions)
     // PLS only ever culls the CCW face when culling is enabled.
     glFrontFace(GL_CW);
     glCullFace(GL_BACK);
+    glDepthMask(GL_FALSE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
