@@ -79,6 +79,7 @@ skia/**/build/android
 /skia/viewer/imgui.ini
 /skia/viewer/build/macosx
 /skia/thumbnail_generator/build/macosx
+/skia/thumbnail_generator/build/dependencies
 /build/macosx
 /build/android
 /skia/dependencies/skia_rive_optimized
