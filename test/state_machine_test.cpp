@@ -10,6 +10,9 @@
 #include <rive/animation/blend_animation_1d.hpp>
 #include <rive/animation/blend_state_direct.hpp>
 #include <rive/animation/blend_state_transition.hpp>
+#include <rive/shapes/paint/solid_color.hpp>
+#include <rive/shapes/paint/stroke.hpp>
+#include <rive/shapes/shape.hpp>
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include <cstdio>
@@ -194,6 +197,48 @@ TEST_CASE("1D blend state keeps keepsGoing true even when animations themselves 
     // we need to keep going.
     stateMachineInstance->advance(1.0f);
     REQUIRE(stateMachineInstance->needsAdvance() == true);
+
+    delete stateMachineInstance;
+}
+
+TEST_CASE("Transitions with duration completes the state correctly before changing states",
+          "[file]")
+{
+    auto file = ReadRiveFile("../../test/assets/state_machine_transition.riv");
+    auto black_color = 0xFF000000;
+    auto white_color = 0xFFFFFFFF;
+
+    auto artboard = file->artboard();
+    auto stateMachine = artboard->stateMachine("State-Machine-Test");
+
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->animationCount() == 3);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    REQUIRE(stateMachine->layerCount() == 1);
+    auto layer = stateMachine->layer(0);
+    REQUIRE(layer->stateCount() == 6);
+
+    auto abi = artboard->instance();
+    REQUIRE(abi->children()[0]->is<rive::Shape>());
+    REQUIRE(abi->children()[0]->name() == "Star-Stroke");
+    auto shape = abi->children()[0]->as<rive::Shape>();
+    REQUIRE(shape->children()[1]->is<rive::Stroke>());
+    auto stroke = shape->children()[1]->as<rive::Stroke>();
+    REQUIRE(stroke->paint()->is<rive::SolidColor>());
+    auto solidColor = stroke->paint()->as<rive::SolidColor>();
+    // Before the transition, the color has to be full black
+    REQUIRE(solidColor->colorValue() == black_color);
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, abi.get());
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    REQUIRE(stateMachineInstance->currentAnimationByIndex(0)->name() == "State-2");
+    // After the transition has passed, the color has to be full white.
+    stateMachineInstance->advanceAndApply(2.0f);
+    abi->advance(2.0f);
+    REQUIRE(stateMachineInstance->currentAnimationByIndex(0)->name() == "State-3");
+    REQUIRE(solidColor->colorValue() == white_color);
 
     delete stateMachineInstance;
 }
