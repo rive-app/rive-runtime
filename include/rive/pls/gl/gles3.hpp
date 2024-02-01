@@ -76,10 +76,6 @@ struct GLCapabilities
 #include <GLES3/gl3ext.h>
 #include <GLES2/gl2ext.h>
 
-// GLES 3.1 functionality pulled in as an extension.
-#define GL_SHADER_STORAGE_BUFFER 0x90D2
-#define GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS 0x90D6
-
 // Android doesn't load extension functions for us.
 void loadGLESExtensions(const GLCapabilities&);
 extern PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC glDrawArraysInstancedBaseInstanceEXT;
@@ -99,4 +95,10 @@ extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 #include <webgl/webgl2_ext.h>
 #define GL_UNMASKED_RENDERER_WEBGL 0x9246
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL 0x8E4D
+#endif
+
+#if defined(RIVE_GLES) || defined(RIVE_WEBGL)
+// GLES 3.1 functionality pulled in as an extension.
+#define GL_SHADER_STORAGE_BUFFER 0x90D2
+#define GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS 0x90D6
 #endif

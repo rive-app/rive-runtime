@@ -5,6 +5,8 @@
 #include "rive/pls/gl/gl_state.hpp"
 
 #ifdef RIVE_WEBGL
+#include <emscripten.h>
+
 EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
     const ext = Module["ctx"].getExtension("WEBGL_provoking_vertex");
     if (ext)

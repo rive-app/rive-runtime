@@ -336,6 +336,7 @@ int main(int argc, const char** argv)
         {
             skia = true;
         }
+#ifdef RIVE_DESKTOP_GL
         else if (!strcmp(argv[i], "--angle_gl"))
         {
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
@@ -356,6 +357,7 @@ int main(int argc, const char** argv)
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_METAL);
             angle = true;
         }
+#endif
         else if (sscanf(argv[i], "-a%i", &s_animation))
         {}
         else if (sscanf(argv[i], "-s%i", &s_stateMachine))

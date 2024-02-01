@@ -19,7 +19,7 @@
 #include "shaders/out/generated/draw_image_mesh.glsl.hpp"
 #include "shaders/out/generated/tessellate.glsl.hpp"
 
-#ifdef RIVE_GLES
+#if defined(RIVE_GLES) || defined(RIVE_WEBGL)
 // In an effort to save space on Android, and since GLES doesn't usually need atomic mode, don't
 // include the atomic sources.
 namespace rive::pls::glsl
@@ -1046,6 +1046,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 uint32_t baseIndex = PatchBaseIndex(drawType);
                 const void* indexOffset =
                     reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
+#ifndef RIVE_WEBGL
                 if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
                 {
                     glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
@@ -1056,6 +1057,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                            batch.baseElement);
                 }
                 else
+#endif
                 {
                     glUniform1i(drawProgram.spirvCrossBaseInstanceLocation(), batch.baseElement);
                     glDrawElementsInstanced(GL_TRIANGLES,
@@ -1319,7 +1321,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
     // polyfilled on D3D anyway, and we need to test our fallback.
     GLenum rendererToken = GL_RENDERER;
-#ifdef RIVE_WEBGL
+#if defined(RIVE_WEBGL) && defined(GL_WEBGL_shader_pixel_local_storage)
     if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
                                           "WEBGL_debug_renderer_info"))
     {
@@ -1358,7 +1360,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     }
 #endif
 
-#ifdef RIVE_WEBGL
+#if defined(RIVE_WEBGL) && defined(GL_WEBGL_shader_pixel_local_storage)
     if (emscripten_webgl_enable_WEBGL_shader_pixel_local_storage(
             emscripten_webgl_get_current_context()) &&
         emscripten_webgl_shader_pixel_local_storage_is_coherent())

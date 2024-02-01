@@ -103,7 +103,12 @@ do
     filter('system:emscripten')
     do
         targetname('path_fiddle.js')
-        linkoptions({ '-sUSE_GLFW=3', '--preload-file ../../gold/rivs@/' })
+        linkoptions({
+            '-sUSE_GLFW=3',
+            '-sMIN_WEBGL_VERSION=2',
+            '-sMAX_WEBGL_VERSION=2',
+            '--preload-file ' .. path.getabsolute('../../gold') .. '/rivs@/',
+        })
         files({ 'path_fiddle/index.html' })
     end
 
@@ -241,48 +246,5 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
             buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
         end
-    end
-end
-
-project('bubbles')
-do
-    kind('ConsoleApp')
-    includedirs({
-        '',
-        'glad',
-        'include',
-        RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
-    })
-    flags({ 'FatalWarnings' })
-    files({ 'bubbles/bubbles.cpp', 'glad/glad.c', 'glad/glad_custom.c' })
-
-    filter('system:windows')
-    do
-        architecture('x64')
-        defines({ 'RIVE_WINDOWS' })
-        links({ 'glfw3', 'opengl32' })
-        libdirs({
-            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
-        })
-    end
-
-    filter('system:macosx')
-    do
-        links({ 'glfw3', 'Cocoa.framework', 'IOKit.framework' })
-        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
-    end
-
-    filter('system:emscripten')
-    do
-        targetname('bubbles.js')
-        linkoptions({ '-sUSE_GLFW=3' })
-        files({ 'bubbles/index.html' })
-    end
-
-    filter('files:**.html')
-    do
-        buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
-        buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
-        buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
     end
 end

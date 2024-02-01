@@ -148,7 +148,7 @@ do
         })
     end
 
-    filter('system:windows or macosx or linux or android')
+    filter('system:not ios')
     do
         files({
             'renderer/gl/gl_state.cpp',
