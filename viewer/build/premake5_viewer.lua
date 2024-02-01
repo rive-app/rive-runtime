@@ -1,4 +1,4 @@
-dofile 'rive_build_config.lua'
+dofile('rive_build_config.lua')
 
 dependencies = os.getenv('DEPENDENCIES')
 

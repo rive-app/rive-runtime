@@ -15,11 +15,6 @@ do
 
     linkoptions({ '-r' })
 
-    filter('system:emscripten')
-    do
-        buildoptions({ '-pthread' })
-    end
-
     filter('options:config=debug')
     do
         files({

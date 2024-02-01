@@ -362,13 +362,28 @@ if os.host() == 'macosx' then
 end
 
 if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
-    -- Target emscripten via https://github.com/TurkeyMan/premake-emscripten.git
-    -- Premake doesn't properly load the _preload.lua for this module, so we load it here manually.
-    -- BUG: https://github.com/premake/premake-core/issues/1235
-    require('premake-emscripten/_preload')
-    require('premake-emscripten/emscripten')
+    -- make a new system called "emscripten" so we don't try including host-os-specific files in the
+    -- web build.
+    premake.api.addAllowed('system', 'emscripten')
+
+    -- clone the clang toolset into a custom one called "emsdk".
+    premake.tools.emsdk = {}
+    for k, v in pairs(premake.tools.clang) do
+        premake.tools.emsdk[k] = v
+    end
+
+    -- update the emsdk toolset to use the appropriate binaries.
+    local emsdk_tools = {
+        cc = 'emcc',
+        cxx = 'em++',
+        ar = 'emar',
+    }
+    function premake.tools.emsdk.gettoolname(cfg, tool)
+        return emsdk_tools[tool]
+    end
+
     system('emscripten')
-    toolset('emcc')
+    toolset('emsdk')
 
     linkoptions({ '-sALLOW_MEMORY_GROWTH' })
 

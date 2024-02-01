@@ -218,12 +218,7 @@ do
 
     defines({ 'HAVE_OT', 'HB_NO_FALLBACK_SHAPE', 'HB_NO_WIN1256' })
 
-    filter('system:emscripten')
-    do
-        buildoptions({ '-pthread' })
-    end
-
-    filter('toolset:clang')
+    filter('toolset:not msc')
     do
         flags({ 'FatalWarnings' })
         buildoptions({

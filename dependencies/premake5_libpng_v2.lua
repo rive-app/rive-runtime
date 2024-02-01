@@ -59,6 +59,15 @@ do
         zlib .. '/inflate.c',
     })
 
+    filter('toolset:not msc')
+    do
+        flags({ 'FatalWarnings' })
+        buildoptions({
+            '-Wno-unknown-warning-option',
+            '-Wno-deprecated-non-prototype',
+        })
+    end
+
     filter('system:not windows')
     do
         defines({ 'HAVE_UNISTD_H' })

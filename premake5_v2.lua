@@ -104,11 +104,6 @@ do
         architecture('x64')
         defines({ '_USE_MATH_DEFINES' })
     end
-
-    filter('system:emscripten')
-    do
-        buildoptions({ '-pthread' })
-    end
 end
 
 newoption({
