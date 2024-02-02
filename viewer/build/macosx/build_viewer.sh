@@ -67,8 +67,6 @@ done
 
 make -C $OUT -j$(($(sysctl -n hw.physicalcpu) + 1))
 
-popd
-
 for var in "$@"; do
     if [[ $var = "run" ]]; then
         $OUT/rive_viewer
@@ -77,3 +75,5 @@ for var in "$@"; do
         lldb $OUT/rive_viewer
     fi
 done
+
+popd
