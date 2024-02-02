@@ -21,8 +21,6 @@ public:
     void addComponent(Core* object);
     void addAnimation(LinearAnimation* animation);
     void addStateMachine(StateMachine* stateMachine);
-    void addTextValueRun(TextValueRun* textValueRun);
-    void addEvent(Event* event);
     StatusCode resolve() override;
     const Artboard* artboard() const { return m_Artboard; }
 

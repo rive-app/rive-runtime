@@ -8,7 +8,6 @@ class Event : public EventBase
 {
 public:
     void trigger(const CallbackData& value) override;
-    StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

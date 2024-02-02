@@ -22,13 +22,6 @@ void ArtboardImporter::addStateMachine(StateMachine* stateMachine)
     m_Artboard->addStateMachine(stateMachine);
 }
 
-void ArtboardImporter::addTextValueRun(TextValueRun* textValueRun)
-{
-    m_Artboard->addTextValueRun(textValueRun);
-}
-
-void ArtboardImporter::addEvent(Event* event) { m_Artboard->addEvent(event); }
-
 StatusCode ArtboardImporter::resolve() { return m_Artboard->initialize(); }
 
 bool ArtboardImporter::readNullObject()

@@ -42,8 +42,6 @@ private:
     std::vector<Core*> m_Objects;
     std::vector<LinearAnimation*> m_Animations;
     std::vector<StateMachine*> m_StateMachines;
-    std::vector<TextValueRun*> m_TextValueRuns;
-    std::vector<Event*> m_Events;
     std::vector<Component*> m_DependencyOrder;
     std::vector<Drawable*> m_Drawables;
     std::vector<DrawTarget*> m_DrawTargets;
@@ -71,8 +69,6 @@ public:
     void addObject(Core* object);
     void addAnimation(LinearAnimation* object);
     void addStateMachine(StateMachine* object);
-    void addTextValueRun(TextValueRun* object);
-    void addEvent(Event* object);
 
 public:
     Artboard() {}
@@ -136,6 +132,35 @@ public:
         return nullptr;
     }
 
+    template <typename T = Component> size_t count()
+    {
+        size_t count = 0;
+        for (auto object : m_Objects)
+        {
+            if (object != nullptr && object->is<T>())
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    template <typename T = Component> T* objectAt(size_t index)
+    {
+        size_t count = 0;
+        for (auto object : m_Objects)
+        {
+            if (object != nullptr && object->is<T>())
+            {
+                if (count++ == index)
+                {
+                    return static_cast<T*>(object);
+                }
+            }
+        }
+        return nullptr;
+    }
+
     template <typename T = Component> std::vector<T*> find()
     {
         std::vector<T*> results;
@@ -154,12 +179,6 @@ public:
 
     size_t stateMachineCount() const { return m_StateMachines.size(); }
     std::string stateMachineNameAt(size_t index) const;
-
-    size_t textValueRunCount() const { return m_TextValueRuns.size(); }
-    TextValueRun* textValueRunAt(size_t index) const;
-
-    size_t eventCount() const { return m_Events.size(); }
-    Event* eventAt(size_t index) const;
 
     LinearAnimation* firstAnimation() const { return animation(0); }
     LinearAnimation* animation(const std::string& name) const;
@@ -205,14 +224,6 @@ public:
         for (auto stateMachine : m_StateMachines)
         {
             artboardClone->m_StateMachines.push_back(stateMachine);
-        }
-        for (auto textRun : m_TextValueRuns)
-        {
-            artboardClone->m_TextValueRuns.push_back(textRun);
-        }
-        for (auto event : m_Events)
-        {
-            artboardClone->m_Events.push_back(event);
         }
 
         if (artboardClone->initialize() != StatusCode::Ok)

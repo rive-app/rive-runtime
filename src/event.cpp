@@ -9,14 +9,3 @@ void Event::trigger(const CallbackData& value)
 {
     value.context()->reportEvent(this, value.delaySeconds());
 }
-
-StatusCode Event::import(ImportStack& importStack)
-{
-    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    artboardImporter->addEvent(this);
-    return Super::import(importStack);
-}

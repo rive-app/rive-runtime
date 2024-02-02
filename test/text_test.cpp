@@ -33,7 +33,7 @@ TEST_CASE("can query for all text runs", "[text]")
     auto file = ReadRiveFile("../../test/assets/new_text.riv");
     auto artboard = file->artboard();
 
-    auto textRunCount = artboard->textValueRunCount();
+    auto textRunCount = artboard->count<rive::TextValueRun>();
     REQUIRE(textRunCount == 22);
 }
 
@@ -42,7 +42,7 @@ TEST_CASE("can query for a text run at a given index", "[text]")
     auto file = ReadRiveFile("../../test/assets/hello_world.riv");
     auto artboard = file->artboard();
 
-    auto textRun = artboard->textValueRunAt(0);
+    auto textRun = artboard->objectAt<rive::TextValueRun>(0);
     REQUIRE(textRun->text() == "Hello World!");
 }
 

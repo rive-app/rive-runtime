@@ -125,7 +125,7 @@ TEST_CASE("can query for all rive events", "[events]")
     auto file = ReadRiveFile("../../test/assets/event_on_listener.riv");
     auto artboard = file->artboard();
 
-    auto eventCount = artboard->eventCount();
+    auto eventCount = artboard->count<rive::Event>();
     REQUIRE(eventCount == 4);
 }
 
@@ -134,7 +134,7 @@ TEST_CASE("can query for a rive event at a given index", "[events]")
     auto file = ReadRiveFile("../../test/assets/event_on_listener.riv");
     auto artboard = file->artboard();
 
-    auto event = artboard->eventAt(0);
+    auto event = artboard->objectAt<rive::Event>(0);
     REQUIRE(event->name() == "Somewhere.com");
 }
 
