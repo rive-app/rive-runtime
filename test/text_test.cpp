@@ -221,7 +221,7 @@ TEST_CASE("run modifier ranges select runs", "[text]")
         }
         // Run from 4-9 got selected.
         REQUIRE(firstRange->run()->offset() == 4);
-        REQUIRE(firstRange->run()->text().size() == 5);
+        REQUIRE(firstRange->run()->length() == 5);
         for (int i = 4; i < 9; i++)
         {
             REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
@@ -260,6 +260,53 @@ TEST_CASE("run modifier ranges select runs", "[text]")
             }
         }
         for (int i = 39; i < 50; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+        }
+    }
+}
+
+TEST_CASE("run modifier ranges select runs with varying text size", "[text]")
+{
+    auto file = ReadRiveFile("../../test/assets/test_modifier_run.riv");
+    auto artboard = file->artboard();
+
+    artboard->advance(0.0f);
+    rive::NoOpRenderer renderer;
+    artboard->draw(&renderer);
+
+    {
+        /*
+        Full text is:
+        text for first run[UN]line separator[UN]text for second run
+        [UN] is the united nations flag
+        the first run is 18 characters long
+        the second run is 16 characters long
+        the second run is 20 characters long
+        */
+        auto characterSelectedText = artboard->find<rive::Text>("MultiRunText");
+        REQUIRE(characterSelectedText != nullptr);
+        REQUIRE(characterSelectedText->haveModifiers());
+        REQUIRE(characterSelectedText->modifierGroups().size() == 1);
+        auto firstModifierGroup = characterSelectedText->modifierGroups()[0];
+        REQUIRE(firstModifierGroup->ranges().size() == 1);
+        auto firstRange = firstModifierGroup->ranges()[0];
+        REQUIRE(firstRange->run() != nullptr);
+        for (int i = 0; i < 18; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+        }
+        // // Run from 18-33 got selected.
+        REQUIRE(firstRange->run()->offset() == 18);
+        REQUIRE(firstRange->run()->length() == 16);
+        // We confirm that the size and the length of the text are different and they're
+        // both correct
+        REQUIRE(firstRange->run()->text().size() == 22);
+        for (int i = 18; i < 34; i++)
+        {
+            REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
+        }
+        for (int i = 34; i < 54; i++)
         {
             REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
         }

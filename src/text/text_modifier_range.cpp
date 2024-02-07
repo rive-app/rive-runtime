@@ -62,7 +62,7 @@ void TextModifierRange::computeRange(Span<const Unichar> text,
     if (m_run != nullptr)
     {
         start = m_run->offset();
-        end = start + (uint32_t)m_run->text().size();
+        end = start + m_run->length();
     }
     switch (units())
     {
