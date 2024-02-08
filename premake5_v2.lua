@@ -38,6 +38,11 @@ do
 
     flags({ 'FatalCompileWarnings' })
 
+    filter({ 'system:linux' })
+    do
+        defines({ 'MA_NO_RUNTIME_LINKING' })
+    end
+
     filter({ 'system:macosx' })
     do
         buildoptions({
