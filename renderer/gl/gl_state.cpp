@@ -18,7 +18,7 @@ EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
 
 namespace rive::pls
 {
-void GLState::reset(const GLCapabilities& extensions)
+void GLState::invalidate(const GLCapabilities& extensions)
 {
     // Invalidate all cached state.
     memset(&m_validState, 0, sizeof(m_validState));

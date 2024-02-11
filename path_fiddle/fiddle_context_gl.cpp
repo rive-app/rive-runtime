@@ -298,12 +298,16 @@ public:
 
     void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
     {
-        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->resetGLState();
+        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->invalidateGLState();
         frameDescriptor.renderTarget = m_renderTarget;
         m_plsContext->beginFrame(std::move(frameDescriptor));
     }
 
-    void onEnd() override { m_plsContext->flush(); }
+    void onEnd() override
+    {
+        m_plsContext->flush();
+        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->unbindGLInternalResources();
+    }
 
     void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
 

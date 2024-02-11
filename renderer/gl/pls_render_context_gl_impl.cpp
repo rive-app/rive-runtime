@@ -233,14 +233,30 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
     m_state->deleteVAO(m_plsResolveVAO);
 }
 
-void PLSRenderContextGLImpl::resetGLState()
+void PLSRenderContextGLImpl::invalidateGLState()
 {
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
+
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
 
-    m_state->reset(m_capabilities);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
+    m_state->invalidate(m_capabilities);
+}
+
+void PLSRenderContextGLImpl::unbindGLInternalResources()
+{
+    m_state->bindVAO(0);
+    m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    m_state->bindBuffer(GL_ARRAY_BUFFER, 0);
+    m_state->bindBuffer(GL_UNIFORM_BUFFER, 0);
+    m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    for (int i = 0; i <= CONTOUR_BUFFER_IDX; ++i)
+    {
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + i);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 }
 
 rcp<RenderBuffer> PLSRenderContextGLImpl::makeRenderBuffer(RenderBufferType type,

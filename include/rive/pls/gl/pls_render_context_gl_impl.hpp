@@ -28,8 +28,13 @@ public:
 
     ~PLSRenderContextGLImpl() override;
 
-    // Called when the GL context has been modified outside of Rive.
-    void resetGLState();
+    // Called *after* the GL context has been modified externally.
+    // Re-binds Rive internal resources and invalidates the internal cache of GL state.
+    void invalidateGLState();
+
+    // Called *before* the GL context will be modified externally.
+    // Unbinds Rive internal resources before yielding control of the GL context.
+    void unbindGLInternalResources();
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
