@@ -33,10 +33,10 @@ sk_sp<GrDirectContext> makeSkiaContext()
     // with Metal and Skia drawing with Metal. I couldn't find a good way to let
     // them share a command queue, so drawing to two separate Metal Layers is
     // the next best thing.
-    id<MTLDevice> device = (id<MTLDevice>)sg_mtl_device();
+    id<MTLDevice> device = (__bridge id<MTLDevice>)sg_mtl_device();
     commandQueue = [device newCommandQueue];
 
-    NSWindow* window = (NSWindow*)sapp_macos_get_window();
+    NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
 
     // Add a new metal view to our window.
     skiaView = [[MTKView alloc] init];
@@ -63,7 +63,7 @@ sk_sp<GrDirectContext> makeSkiaContext()
     // content.
     sokolView.layer.opaque = false;
 
-    return GrDirectContext::MakeMetal(device, commandQueue);
+    return GrDirectContext::MakeMetal((__bridge void*)device, (__bridge void*)commandQueue);
 }
 
 sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height)
@@ -73,7 +73,7 @@ sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height
 
     drawable = [layer nextDrawable];
     GrMtlTextureInfo fbInfo;
-    fbInfo.fTexture.retain((const void*)(drawable.texture));
+    fbInfo.fTexture.retain((__bridge const void*)(drawable.texture));
     GrBackendRenderTarget renderTarget =
         GrBackendRenderTarget(width, height, 1 /* sample count/MSAA */, fbInfo);
 
