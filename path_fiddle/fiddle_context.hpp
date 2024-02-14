@@ -27,7 +27,6 @@ public:
     virtual void begin(rive::pls::PLSRenderContext::FrameDescriptor&&) = 0;
     virtual void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) = 0;
     virtual void tick(){};
-    virtual void shrinkGPUResourcesToFit() = 0;
 
     static std::unique_ptr<FiddleContext> MakeGLSkia();
     static std::unique_ptr<FiddleContext> MakeGLPLS();

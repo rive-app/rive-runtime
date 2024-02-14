@@ -317,8 +317,6 @@ public:
 
     void tick() override { m_device.Tick(); }
 
-    void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
-
 private:
     const FiddleContextOptions m_options;
     WGPUDevice m_backendDevice = {};

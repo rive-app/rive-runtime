@@ -88,7 +88,7 @@ PLSRenderContext::PLSRenderContext(std::unique_ptr<PLSRenderContextImpl> impl) :
     m_maxPathID(MaxPathID(m_impl->platformFeatures().pathIDGranularity) - 1)
 {
     setResourceSizes(ResourceAllocationCounts(), /*forceRealloc =*/true);
-    resetContainers();
+    releaseResources();
 }
 
 PLSRenderContext::~PLSRenderContext()
@@ -112,34 +112,14 @@ rcp<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
     return texture != nullptr ? make_rcp<PLSImage>(std::move(texture)) : nullptr;
 }
 
-void PLSRenderContext::resetGPUResources()
+void PLSRenderContext::releaseResources()
 {
     assert(!m_didBeginFrame);
+    resetContainers();
     setResourceSizes(ResourceAllocationCounts());
     m_maxRecentResourceRequirements = ResourceAllocationCounts();
-    resetContainers();
+    m_lastResourceTrimTimeInSeconds = m_impl->secondsNow();
 }
-
-void PLSRenderContext::shrinkGPUResourcesToFit()
-{
-    assert(!m_didBeginFrame);
-
-    // Shrink GPU resource allocations to 125% of their maximum recent usage, and only if the recent
-    // usage is 2/3 or less of the current allocation.
-    ResourceAllocationCounts shrinks =
-        simd::if_then_else(m_maxRecentResourceRequirements.toVec() <=
-                               m_currentResourceAllocations.toVec() * size_t(2) / size_t(3),
-                           m_maxRecentResourceRequirements.toVec() * size_t(5) / size_t(4),
-                           m_currentResourceAllocations.toVec());
-    setResourceSizes(shrinks);
-
-    // Zero out m_maxRecentResourceRequirements for the next interval.
-    m_maxRecentResourceRequirements = ResourceAllocationCounts();
-
-    resetContainers();
-}
-
-PLSRenderContext::LogicalFlush::LogicalFlush(PLSRenderContext* parent) : m_ctx(parent) { rewind(); }
 
 void PLSRenderContext::resetContainers()
 {
@@ -157,6 +137,8 @@ void PLSRenderContext::resetContainers()
 
     m_intersectionBoard = nullptr;
 }
+
+PLSRenderContext::LogicalFlush::LogicalFlush(PLSRenderContext* parent) : m_ctx(parent) { rewind(); }
 
 void PLSRenderContext::LogicalFlush::rewind()
 {
@@ -435,16 +417,36 @@ void PLSRenderContext::flush(pls::FlushType flushType)
     allocs.gradTextureHeight = layoutCounts.maxGradTextureHeight;
     allocs.tessTextureHeight = layoutCounts.maxTessTextureHeight;
 
-    // Track m_maxRecentResourceRequirements so shrinkGPUResourcesToFit() can select decent sizes
-    // the next time it's called.
+    // Track m_maxRecentResourceRequirements so we can trim GPU allocations when steady-state usage
+    // goes down.
     m_maxRecentResourceRequirements =
         simd::max(allocs.toVec(), m_maxRecentResourceRequirements.toVec());
 
+    // Grow resources enough to handle this flush.
     // If "allocs" already fits in our current allocations, then don't change them.
-    // If they don't fit, overallocate resources by 25% in order to create some slack for growth.
-    setResourceSizes(simd::if_then_else(allocs.toVec() <= m_currentResourceAllocations.toVec(),
-                                        m_currentResourceAllocations.toVec(),
-                                        allocs.toVec() * size_t(5) / size_t(4)));
+    // If they don't fit, overallocate by 25% in order to create some slack for growth.
+    allocs = simd::if_then_else(allocs.toVec() <= m_currentResourceAllocations.toVec(),
+                                m_currentResourceAllocations.toVec(),
+                                allocs.toVec() * size_t(5) / size_t(4));
+
+    // Additionally, every 5 seconds, trim resources down to the most recent steady-state usage.
+    double flushTime = m_impl->secondsNow();
+    bool needsResourceTrim = flushTime - m_lastResourceTrimTimeInSeconds >= 5;
+    if (needsResourceTrim)
+    {
+        // Trim GPU resource allocations to 125% of their maximum recent usage, and only if the
+        // recent usage is 2/3 or less of the current allocation.
+        allocs = simd::if_then_else(m_maxRecentResourceRequirements.toVec() <=
+                                        allocs.toVec() * size_t(2) / size_t(3),
+                                    m_maxRecentResourceRequirements.toVec() * size_t(5) / size_t(4),
+                                    allocs.toVec());
+
+        // Zero out m_maxRecentResourceRequirements for the next interval.
+        m_maxRecentResourceRequirements = ResourceAllocationCounts();
+        m_lastResourceTrimTimeInSeconds = flushTime;
+    }
+
+    setResourceSizes(allocs);
 
     // Write out the GPU buffers for this frame.
     mapResourceBuffers(allocs);
@@ -494,7 +496,14 @@ void PLSRenderContext::flush(pls::FlushType flushType)
     m_parametricSegmentCountsAllocator.reset();
 
     m_frameDescriptor = FrameDescriptor();
+
     RIVE_DEBUG_CODE(m_didBeginFrame = false;)
+
+    // Wait to reset CPU-side containers until after the flush has finished.
+    if (needsResourceTrim)
+    {
+        resetContainers();
+    }
 }
 
 void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& frameDescriptor,

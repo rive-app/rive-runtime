@@ -6,6 +6,7 @@
 
 #include "rive/pls/pls_render_context_impl.hpp"
 #include "rive/pls/buffer_ring.hpp"
+#include <chrono>
 
 namespace rive::pls
 {
@@ -48,6 +49,12 @@ public:
     void unmapTessVertexSpanBuffer() override;
     void unmapTriangleVertexBuffer() override;
 
+    double secondsNow() const override
+    {
+        auto elapsed = std::chrono::steady_clock::now() - m_localEpoch;
+        return std::chrono::duration<double>(elapsed).count();
+    }
+
 protected:
     const BufferRing* flushUniformBufferRing() const { return m_flushUniformBuffer.get(); }
     const BufferRing* imageDrawUniformBufferRing() const { return m_imageDrawUniformBuffer.get(); }
@@ -82,5 +89,6 @@ private:
     std::unique_ptr<BufferRing> m_gradSpanBuffer;
     std::unique_ptr<BufferRing> m_tessSpanBuffer;
     std::unique_ptr<BufferRing> m_triangleBuffer;
+    std::chrono::steady_clock::time_point m_localEpoch = std::chrono::steady_clock::now();
 };
 } // namespace rive::pls

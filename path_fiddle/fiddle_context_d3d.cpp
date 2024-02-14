@@ -121,8 +121,6 @@ public:
         m_swapchain->Present(0, 0);
     }
 
-    void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
-
 private:
     ComPtr<IDXGIFactory2> m_d3dFactory;
     ComPtr<ID3D11Device> m_gpu;

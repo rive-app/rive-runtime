@@ -684,7 +684,6 @@ void riveMainLoop()
             glfwSetWindowTitle(s_window, title);
             fpsFrames = 0;
             fpsLastTime = time;
-            s_fiddleContext->shrinkGPUResourcesToFit();
         }
     }
 }

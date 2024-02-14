@@ -138,8 +138,6 @@ public:
         [commandBuffer commit];
     }
 
-    void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
-
 private:
     const FiddleContextOptions m_options;
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();

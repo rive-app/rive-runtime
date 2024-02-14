@@ -89,6 +89,9 @@ public:
     //
     virtual void flush(const pls::FlushDescriptor&) = 0;
 
+    // Steady clock, used to determine when we should trim our resource allocations.
+    virtual double secondsNow() const = 0;
+
 protected:
     PlatformFeatures m_platformFeatures;
 };

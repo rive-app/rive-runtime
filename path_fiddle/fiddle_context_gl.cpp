@@ -255,8 +255,6 @@ public:
 
     void onEnd() override { m_skSurface->flush(); }
 
-    void shrinkGPUResourcesToFit() final {}
-
 private:
     SkiaFactory m_factory;
     const sk_sp<GrDirectContext> m_grContext;
@@ -308,8 +306,6 @@ public:
         m_plsContext->flush();
         m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->unbindGLInternalResources();
     }
-
-    void shrinkGPUResourcesToFit() final { m_plsContext->shrinkGPUResourcesToFit(); }
 
 private:
     std::unique_ptr<PLSRenderContext> m_plsContext =

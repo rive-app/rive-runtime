@@ -172,14 +172,9 @@ public:
     //
     void flush(pls::FlushType = pls::FlushType::endOfFrame);
 
-    // Reallocates all GPU resources to the basline minimum allocation size.
-    void resetGPUResources();
-
-    // Shrinks GPU resource allocations to the maximum per-flush limits seen since the most recent
-    // previous call to shrinkGPUResourcesToFit(). This method is intended to be called at a fixed
-    // temporal interval. (GPU resource allocations automatically grow based on usage, but can only
-    // shrink if the application calls this method.)
-    void shrinkGPUResourcesToFit();
+    // Called when the client will stop rendering. Releases all CPU and GPU resources associated
+    // with this render context.
+    void releaseResources();
 
     // Returns the context's TrivialBlockAllocator, which is automatically reset at the end of every
     // frame. (Memory in this allocator is preserved between logical flushes.)
@@ -278,6 +273,7 @@ private:
 
     ResourceAllocationCounts m_currentResourceAllocations;
     ResourceAllocationCounts m_maxRecentResourceRequirements;
+    double m_lastResourceTrimTimeInSeconds;
 
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;
