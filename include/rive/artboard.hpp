@@ -11,6 +11,7 @@
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
+#include "rive/audio/audio_engine.hpp"
 
 #include <queue>
 #include <vector>
@@ -56,6 +57,10 @@ private:
     Drawable* m_FirstDrawable = nullptr;
     bool m_IsInstance = false;
     bool m_FrameOrigin = true;
+
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+    rcp<AudioEngine> m_audioEngine;
+#endif
 
     void sortDependencies();
     void sortDrawOrder();
@@ -251,6 +256,11 @@ public:
     void frameOrigin(bool value);
 
     StatusCode import(ImportStack& importStack) override;
+
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+    rcp<AudioEngine> audioEngine() const;
+    void audioEngine(rcp<AudioEngine> audioEngine);
+#endif
 };
 
 class ArtboardInstance : public Artboard

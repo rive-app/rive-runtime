@@ -1,4 +1,5 @@
 #ifdef WITH_RIVE_AUDIO
+#include "rive/math/simd.hpp"
 #ifdef __APPLE__
 #include <TargetConditionals.h>
 #if TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE
@@ -171,6 +172,45 @@ bool AudioEngine::readAudioFrames(float* frames, uint64_t numFrames, uint64_t* f
                                      (void*)frames,
                                      (ma_uint64)numFrames,
                                      (ma_uint64*)framesRead) == MA_SUCCESS;
+}
+bool AudioEngine::sumAudioFrames(float* frames, uint64_t numFrames)
+{
+    size_t numChannels = (size_t)channels();
+    size_t count = (size_t)numFrames * numChannels;
+
+    if (m_readFrames.size() < count)
+    {
+        m_readFrames.resize(count);
+    }
+    ma_uint64 framesRead = 0;
+    if (ma_engine_read_pcm_frames(m_engine,
+                                  (void*)m_readFrames.data(),
+                                  (ma_uint64)numFrames,
+                                  &framesRead) != MA_SUCCESS)
+    {
+        return false;
+    }
+
+    count = framesRead * numChannels;
+
+    const size_t alignedCount = count - count % 4;
+    float* src = m_readFrames.data();
+    float* dst = frames;
+    float* srcEnd = src + alignedCount;
+
+    while (src != srcEnd)
+    {
+        float4 sum = simd::load4f(src) + simd::load4f(dst);
+        simd::store(dst, sum);
+
+        src += 4;
+        dst += 4;
+    }
+    for (size_t i = alignedCount; i < count; i++)
+    {
+        frames[i] += m_readFrames[i];
+    }
+    return true;
 }
 #endif
 

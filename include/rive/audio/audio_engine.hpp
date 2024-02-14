@@ -45,6 +45,7 @@ public:
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     bool readAudioFrames(float* frames, uint64_t numFrames, uint64_t* framesRead = nullptr);
+    bool sumAudioFrames(float* frames, uint64_t numFrames);
 #endif
 
 private:
@@ -57,6 +58,10 @@ private:
     void completeSound(rcp<AudioSound> sound);
     void purgeCompletedSounds();
     static void SoundCompleted(void* pUserData, ma_sound* pSound);
+
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+    std::vector<float> m_readFrames;
+#endif
 };
 } // namespace rive
 

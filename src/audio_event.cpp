@@ -2,6 +2,7 @@
 #include "rive/assets/audio_asset.hpp"
 #include "rive/audio/audio_engine.hpp"
 #include "rive/audio/audio_sound.hpp"
+#include "rive/artboard.hpp"
 
 using namespace rive;
 
@@ -20,7 +21,13 @@ void AudioEvent::trigger(const CallbackData& value)
     {
         return;
     }
-    auto engine = AudioEngine::RuntimeEngine();
+
+    auto engine =
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+        artboard()->audioEngine() != nullptr ? artboard()->audioEngine() :
+#endif
+                                             AudioEngine::RuntimeEngine();
+
     engine->play(audioSource, engine->timeInFrames(), 0, 0);
 #endif
 }

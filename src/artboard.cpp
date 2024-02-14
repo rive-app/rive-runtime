@@ -846,3 +846,19 @@ std::unique_ptr<Scene> ArtboardInstance::defaultScene()
     }
     return scene;
 }
+
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+rcp<AudioEngine> Artboard::audioEngine() const { return m_audioEngine; }
+void Artboard::audioEngine(rcp<AudioEngine> audioEngine)
+{
+    m_audioEngine = audioEngine;
+    for (auto nestedArtboard : m_NestedArtboards)
+    {
+        auto artboard = nestedArtboard->artboard();
+        if (artboard != nullptr)
+        {
+            artboard->audioEngine(audioEngine);
+        }
+    }
+}
+#endif
