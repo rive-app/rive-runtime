@@ -2,7 +2,6 @@
 #ifndef _RIVE_AUDIO_SOURCE_HPP_
 #define _RIVE_AUDIO_SOURCE_HPP_
 
-#include "miniaudio.h"
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
 #include "rive/simple_array.hpp"

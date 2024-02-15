@@ -19,6 +19,7 @@ public:
 #endif
 
     rcp<AudioSource> audioSource() { return m_audioSource; }
+    void audioSource(rcp<AudioSource> source) { m_audioSource = source; }
 
 private:
     rcp<AudioSource> m_audioSource;
