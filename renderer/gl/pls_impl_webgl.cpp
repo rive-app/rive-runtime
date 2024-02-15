@@ -28,6 +28,20 @@ std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLS
 
 #else
 
+static GLenum webgl_load_op(pls::LoadAction loadAction)
+{
+    switch (loadAction)
+    {
+        case pls::LoadAction::clear:
+            return GL_LOAD_OP_CLEAR_WEBGL;
+        case pls::LoadAction::preserveRenderTarget:
+            return GL_LOAD_OP_LOAD_WEBGL;
+        case pls::LoadAction::dontCare:
+            return GL_LOAD_OP_ZERO_WEBGL;
+    }
+    RIVE_UNREACHABLE();
+}
+
 class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSImpl
 {
     bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
@@ -51,18 +65,18 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
             // We're targeting an external FBO directly. Make sure to allocate and attach an
             // offscreen target texture.
             framebufferRenderTarget->allocateOffscreenTargetTexture();
-            if (desc.loadAction == LoadAction::preserveRenderTarget)
+            if (desc.colorLoadAction == LoadAction::preserveRenderTarget)
             {
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
-                glutils::BlitFramebuffer(desc.updateBounds, renderTarget->height());
+                glutils::BlitFramebuffer(desc.renderTargetUpdateBounds, renderTarget->height());
             }
         }
 
         // Begin pixel local storage.
         renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
-        if (desc.loadAction == LoadAction::clear)
+        if (desc.colorLoadAction == LoadAction::clear)
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
@@ -71,8 +85,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         GLenum clipLoadAction = (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
                                     ? GL_LOAD_OP_ZERO_WEBGL
                                     : GL_DONT_CARE;
-        GLenum loadOps[4] = {(GLenum)(desc.loadAction == LoadAction::clear ? GL_LOAD_OP_CLEAR_WEBGL
-                                                                           : GL_LOAD_OP_LOAD_WEBGL),
+        GLenum loadOps[4] = {webgl_load_op(desc.colorLoadAction),
                              GL_LOAD_OP_ZERO_WEBGL,
                              clipLoadAction,
                              GL_DONT_CARE};
@@ -101,7 +114,8 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
             // We rendered to an offscreen texture. Copy back to the external target FBO.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
             framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
+            glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                     framebufferRenderTarget->height());
         }
     }
 

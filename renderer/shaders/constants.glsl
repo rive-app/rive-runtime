@@ -85,6 +85,7 @@
 #define FLUSH_UNIFORM_BUFFER_IDX 7
 #define DRAW_UNIFORM_BUFFER_IDX 8
 #define IMAGE_DRAW_UNIFORM_BUFFER_IDX 9
+#define DEFAULT_BINDINGS_SET_SIZE 10
 
 // Samplers are accessed at the same index as their corresponding texture, so we put them in a
 // separate binding set.
@@ -95,7 +96,7 @@
 #define PLS_TEXTURE_BINDINGS_SET 2
 
 // acos(1/4), because the miter limit is always 4.
-#define MITER_ANGLE_LIMIT 1.318116071652817965746
+#define MITER_ANGLE_LIMIT float(1.318116071652817965746)
 
 // Raw bit representation of the largest denormalized fp16 value. We offset all (1-based) path IDs
 // by this value in order to avoid denorms, which have been empirically unreliable on Android as ID

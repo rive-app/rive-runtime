@@ -18,22 +18,29 @@ using namespace rive::pls;
 class FiddleContextMetalPLS : public FiddleContext
 {
 public:
-    FiddleContextMetalPLS(FiddleContextOptions options) : m_options(options)
+    FiddleContextMetalPLS(FiddleContextOptions fiddleOptions) : m_fiddleOptions(fiddleOptions)
     {
-        if (m_options.synchronousShaderCompilations)
+        PLSRenderContextMetalImpl::ContextOptions metalOptions;
+        if (m_fiddleOptions.synchronousShaderCompilations)
         {
             // Turn on synchronous shader compilations to ensure deterministic rendering and to make
             // sure we test every unique shader.
-            m_plsContext->static_impl_cast<rive::pls::PLSRenderContextMetalImpl>()
-                ->enableSynchronousShaderCompilations(true);
+            metalOptions.synchronousShaderCompilations = true;
         }
+        if (m_fiddleOptions.disableRasterOrdering)
+        {
+            // Turn on synchronous shader compilations to ensure deterministic rendering and to make
+            // sure we test every unique shader.
+            metalOptions.disableFramebufferReads = true;
+        }
+        m_plsContext = PLSRenderContextMetalImpl::MakeContext(m_gpu, m_queue, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
     }
 
     float dpiScale(GLFWwindow* window) const override
     {
         NSWindow* nsWindow = glfwGetCocoaWindow(window);
-        return m_options.retinaDisplay ? nsWindow.backingScaleFactor : 1;
+        return m_fiddleOptions.retinaDisplay ? nsWindow.backingScaleFactor : 1;
     }
 
     Factory* factory() override { return m_plsContext.get(); }
@@ -49,7 +56,7 @@ public:
         m_swapchain = [CAMetalLayer layer];
         m_swapchain.device = m_gpu;
         m_swapchain.opaque = YES;
-        m_swapchain.framebufferOnly = YES;
+        m_swapchain.framebufferOnly = !m_fiddleOptions.readableFramebuffer;
         m_swapchain.pixelFormat = MTLPixelFormatBGRA8Unorm;
         m_swapchain.contentsScale = dpiScale(window);
         m_swapchain.displaySyncEnabled = NO;
@@ -139,18 +146,17 @@ public:
     }
 
 private:
-    const FiddleContextOptions m_options;
+    const FiddleContextOptions m_fiddleOptions;
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
     id<CAMetalDrawable> m_surface = nil;
-    std::unique_ptr<PLSRenderContext> m_plsContext =
-        PLSRenderContextMetalImpl::MakeContext(m_gpu, m_queue);
+    std::unique_ptr<PLSRenderContext> m_plsContext;
     CAMetalLayer* m_swapchain;
     rcp<PLSRenderTargetMetal> m_renderTarget;
     id<MTLBuffer> m_pixelReadBuff;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeMetalPLS(FiddleContextOptions options)
+std::unique_ptr<FiddleContext> FiddleContext::MakeMetalPLS(FiddleContextOptions fiddleOptions)
 {
-    return std::make_unique<FiddleContextMetalPLS>(options);
+    return std::make_unique<FiddleContextMetalPLS>(fiddleOptions);
 }

@@ -99,6 +99,8 @@ public:
     PLSRenderContextImpl* impl() { return m_impl.get(); }
     template <typename T> T* static_impl_cast() { return static_cast<T*>(m_impl.get()); }
 
+    const pls::PlatformFeatures& platformFeatures() const;
+
     // Returns the number of flushes that have been executed over the entire lifetime of this class,
     // logical or otherwise.
     uint64_t getFlushCount() const { return m_flushCount; }

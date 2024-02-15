@@ -54,9 +54,12 @@ float gradInverseViewportY;
 float tessInverseViewportY;
 float renderTargetInverseViewportX;
 float renderTargetInverseViewportY;
-int4 updateBounds; // drawBounds, or renderTargetBounds if there is a clear.
-float renderTargetHeight;
-uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE compliant).
+uint renderTargetWidth;
+uint renderTargetHeight;
+uint colorClearValue;          // Only used if clears are implemented as draws.
+uint coverageClearValue;       // Only used if clears are implemented as draws.
+int4 renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is a clear. (LTRB.)
+uint pathIDGranularity;        // Spacing between adjacent path IDs (1 if IEEE compliant).
 float vertexDiscardValue;
 UNIFORM_BLOCK_END(uniforms)
 

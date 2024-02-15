@@ -12,6 +12,13 @@
 #include "shaders/out/generated/draw_path.glsl.hpp"
 #include "shaders/out/generated/draw_image_mesh.glsl.hpp"
 
+#ifndef RIVE_IOS
+// iOS doesn't need the atomic shaders; every non-simulated iOS device supports framebuffer reads.
+#include "shaders/out/generated/atomic_draw.glsl.hpp"
+#endif
+
+#include <sstream>
+
 namespace rive::pls
 {
 BackgroundShaderCompiler::~BackgroundShaderCompiler()
@@ -76,6 +83,8 @@ void BackgroundShaderCompiler::threadMain()
 
         pls::DrawType drawType = job.drawType;
         pls::ShaderFeatures shaderFeatures = job.shaderFeatures;
+        pls::InterlockMode interlockMode = job.interlockMode;
+        pls::ShaderMiscFlags shaderMiscFlags = job.shaderMiscFlags;
 
         auto defines = [[NSMutableDictionary alloc] init];
         defines[@GLSL_VERTEX] = @"";
@@ -87,6 +96,15 @@ void BackgroundShaderCompiler::threadMain()
             {
                 const char* macro = pls::GetShaderFeatureGLSLName(feature);
                 defines[[NSString stringWithUTF8String:macro]] = @"";
+            }
+        }
+        if (interlockMode == pls::InterlockMode::atomics)
+        {
+            // Atomic mode uses device buffers instead of framebuffer fetches.
+            defines[@GLSL_PLS_IMPL_DEVICE_BUFFER] = @"";
+            if (m_atomicBarrierType == AtomicBarrierType::rasterOrderGroup)
+            {
+                defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
             }
         }
 
@@ -104,20 +122,81 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::outerCurvePatches:
                 defines[@GLSL_DRAW_PATH] = @"";
                 [source appendFormat:@"%s\n", pls::glsl::draw_path_common];
+#ifdef RIVE_IOS
                 [source appendFormat:@"%s\n", pls::glsl::draw_path];
+#else
+                [source appendFormat:@"%s\n",
+                                     interlockMode == pls::InterlockMode::rasterOrdering
+                                         ? pls::glsl::draw_path
+                                         : pls::glsl::atomic_draw];
+#endif
                 break;
             case DrawType::interiorTriangulation:
                 defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
                 [source appendFormat:@"%s\n", pls::glsl::draw_path_common];
+#ifdef RIVE_IOS
                 [source appendFormat:@"%s\n", pls::glsl::draw_path];
+#else
+                [source appendFormat:@"%s\n",
+                                     interlockMode == pls::InterlockMode::rasterOrdering
+                                         ? pls::glsl::draw_path
+                                         : pls::glsl::atomic_draw];
+#endif
                 break;
             case DrawType::imageRect:
+#ifdef RIVE_IOS
                 RIVE_UNREACHABLE();
+#else
+                assert(interlockMode == InterlockMode::atomics);
+                defines[@GLSL_DRAW_IMAGE] = @"";
+                defines[@GLSL_DRAW_IMAGE_RECT] = @"";
+                [source appendFormat:@"%s\n", pls::glsl::atomic_draw];
+#endif
+                break;
             case DrawType::imageMesh:
+#ifdef RIVE_IOS
                 [source appendFormat:@"%s\n", pls::glsl::draw_image_mesh];
+#else
+                defines[@GLSL_DRAW_IMAGE] = @"";
+                defines[@GLSL_DRAW_IMAGE_MESH] = @"";
+                [source appendFormat:@"%s\n",
+                                     interlockMode == pls::InterlockMode::rasterOrdering
+                                         ? pls::glsl::draw_image_mesh
+                                         : pls::glsl::atomic_draw];
+#endif
+                break;
+            case DrawType::plsAtomicInitialize:
+#ifdef RIVE_IOS
+                RIVE_UNREACHABLE();
+#else
+                assert(interlockMode == InterlockMode::atomics);
+                defines[@GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS] = @"";
+                defines[@GLSL_INITIALIZE_PLS] = @"";
+                if (shaderMiscFlags & pls::ShaderMiscFlags::storeColorClear)
+                {
+                    defines[@GLSL_STORE_COLOR_CLEAR] = @"";
+                }
+                if (shaderMiscFlags & pls::ShaderMiscFlags::swizzleColorBGRAToRGBA)
+                {
+                    defines[@GLSL_SWIZZLE_COLOR_BGRA_TO_RGBA] = @"";
+                }
+                [source appendFormat:@"%s\n", pls::glsl::atomic_draw];
+#endif
                 break;
             case DrawType::plsAtomicResolve:
+#ifdef RIVE_IOS
                 RIVE_UNREACHABLE();
+#else
+                assert(interlockMode == InterlockMode::atomics);
+                defines[@GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS] = @"";
+                defines[@GLSL_RESOLVE_PLS] = @"";
+                if (shaderMiscFlags & pls::ShaderMiscFlags::coalescedResolveAndTransfer)
+                {
+                    defines[@GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER] = @"";
+                }
+                [source appendFormat:@"%s\n", pls::glsl::atomic_draw];
+#endif
+                break;
         }
 
         NSError* err = [NSError errorWithDomain:@"pls_compile" code:200 userInfo:nil];
@@ -131,8 +210,15 @@ void BackgroundShaderCompiler::threadMain()
         job.compiledLibrary = [m_gpu newLibraryWithSource:source options:compileOptions error:&err];
         if (job.compiledLibrary == nil)
         {
-            fprintf(stderr, "Failed to compile shader.\n\n");
+            int lineNumber = 1;
+            std::stringstream stream(source.UTF8String);
+            std::string lineStr;
+            while (std::getline(stream, lineStr, '\n'))
+            {
+                fprintf(stderr, "%4i| %s\n", lineNumber++, lineStr.c_str());
+            }
             fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
+            fprintf(stderr, "Failed to compile shader.\n\n");
             exit(-1);
         }
 

@@ -165,8 +165,11 @@
 
 #define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
 
-#define STORAGE_BUFFER_BLOCK_BEGIN
-#define STORAGE_BUFFER_BLOCK_END
+#define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
+#define VERTEX_STORAGE_BUFFER_BLOCK_END
+
+#define FRAG_STORAGE_BUFFER_BLOCK_BEGIN
+#define FRAG_STORAGE_BUFFER_BLOCK_END
 
 #ifdef @DISABLE_SHADER_STORAGE_BUFFERS
 
@@ -207,12 +210,12 @@
 #define PLS_DECLUI(IDX, NAME) layout(binding = IDX, r32ui) uniform highp upixelLocalANGLE NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P, _plsCoord) pixelLocalLoadANGLE(P)
-#define PLS_LOADUI(P, _plsCoord) pixelLocalLoadANGLE(P).r
-#define PLS_STORE4F(P, V, _plsCoord) pixelLocalStoreANGLE(P, V)
-#define PLS_STOREUI(P, V, _plsCoord) pixelLocalStoreANGLE(P, uvec4(V))
+#define PLS_LOAD4F(PLANE) pixelLocalLoadANGLE(PLANE)
+#define PLS_LOADUI(PLANE) pixelLocalLoadANGLE(PLANE).r
+#define PLS_STORE4F(PLANE, VALUE) pixelLocalStoreANGLE(PLANE, VALUE)
+#define PLS_STOREUI(PLANE, VALUE) pixelLocalStoreANGLE(PLANE, uvec4(VALUE))
 
-#define PLS_PRESERVE_VALUE(P, _plsCoord)
+#define PLS_PRESERVE_VALUE(PLANE)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -236,12 +239,12 @@
     }                                                                                              \
     ;
 
-#define PLS_LOAD4F(P, _plsCoord) P
-#define PLS_LOADUI(P, _plsCoord) P
-#define PLS_STORE4F(P, V, _plsCoord) P = (V)
-#define PLS_STOREUI(P, V, _plsCoord) P = (V)
+#define PLS_LOAD4F(PLANE) PLANE
+#define PLS_LOADUI(PLANE) PLANE
+#define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
+#define PLS_STOREUI(PLANE, VALUE) PLANE = (VALUE)
 
-#define PLS_PRESERVE_VALUE(P, _plsCoord)
+#define PLS_PRESERVE_VALUE(PLANE)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -257,14 +260,14 @@
 #define PLS_DECLUI(IDX, NAME) layout(location = IDX) inout highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P, _plsCoord) P
-#define PLS_LOADUI(P, _plsCoord) P.r
-#define PLS_STORE4F(P, V, _plsCoord) P = (V)
-#define PLS_STOREUI(P, V, _plsCoord) P.r = (V)
+#define PLS_LOAD4F(PLANE) PLANE
+#define PLS_LOADUI(PLANE) PLANE.r
+#define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
+#define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
 // When using multiple color attachments, we have to write a value to every color attachment, every
 // shader invocation, or else the contents become undefined.
-#define PLS_PRESERVE_VALUE(P, _plsCoord) P = P
+#define PLS_PRESERVE_VALUE(PLANE) PLANE = PLANE
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -302,15 +305,18 @@
 #endif
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P, _plsCoord) imageLoad(P, _plsCoord)
-#define PLS_LOADUI(P, _plsCoord) imageLoad(P, _plsCoord).r
-#define PLS_STORE4F(P, V, _plsCoord) imageStore(P, _plsCoord, V)
-#define PLS_STOREUI(P, V, _plsCoord) imageStore(P, _plsCoord, uvec4(V))
+#define PLS_LOAD4F(PLANE) imageLoad(PLANE, _plsCoord)
+#define PLS_LOADUI(PLANE) imageLoad(PLANE, _plsCoord).r
+#define PLS_STORE4F(PLANE, VALUE) imageStore(PLANE, _plsCoord, VALUE)
+#define PLS_STOREUI(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
 
-#define PLS_ATOMIC_MAX(PLANE, X, _plsCoord) imageAtomicMax(PLANE, _plsCoord, X)
-#define PLS_ATOMIC_ADD(PLANE, X, _plsCoord) imageAtomicAdd(PLANE, _plsCoord, X)
+#define PLS_DECLUI_ATOMIC PLS_DECLUI
+#define PLS_LOADUI_ATOMIC PLS_LOADUI
+#define PLS_STOREUI_ATOMIC PLS_STOREUI
+#define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)
+#define PLS_ATOMIC_ADD(PLANE, X) imageAtomicAdd(PLANE, _plsCoord, X)
 
-#define PLS_PRESERVE_VALUE(P, _plsCoord)
+#define PLS_PRESERVE_VALUE(PLANE)
 
 #endif
 
@@ -327,12 +333,12 @@
     layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P, _plsCoord) subpassLoad(_in_##P)
-#define PLS_LOADUI(P, _plsCoord) subpassLoad(_in_##P).r
-#define PLS_STORE4F(P, V, _plsCoord) P = (V)
-#define PLS_STOREUI(P, V, _plsCoord) P.r = (V)
+#define PLS_LOAD4F(PLANE) subpassLoad(_in_##PLANE)
+#define PLS_LOADUI(PLANE) subpassLoad(_in_##PLANE).r
+#define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
+#define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-#define PLS_PRESERVE_VALUE(P, _plsCoord) P = subpassLoad(_in_##P)
+#define PLS_PRESERVE_VALUE(PLANE) PLANE = subpassLoad(_in_##PLANE)
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
@@ -345,16 +351,18 @@
 #define PLS_DECLUI(IDX, NAME) layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(P, _plsCoord) vec4(0)
-#define PLS_LOADUI(P, _plsCoord) 0u
-#define PLS_STORE4F(P, V, _plsCoord) P = (V)
-#define PLS_STOREUI(P, V, _plsCoord) P.r = (V)
+#define PLS_LOAD4F(PLANE) vec4(0)
+#define PLS_LOADUI(PLANE) 0u
+#define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
+#define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-#define PLS_PRESERVE_VALUE(P, _plsCoord)
+#define PLS_PRESERVE_VALUE(PLANE)
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
 #endif
+
+#define PLS_MEMORY_BARRIER(PLANE)
 
 #ifdef @TARGET_VULKAN
 #define gl_VertexID gl_VertexIndex
@@ -379,11 +387,8 @@
 #endif
 // clang-format on
 
-#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
-    void main()                                                                                    \
-    {                                                                                              \
-        int _vertexID = gl_VertexID;                                                               \
-        int _instanceID = INSTANCE_INDEX;
+#define VERTEX_CONTEXT_DECL
+#define VERTEX_CONTEXT_UNPACK
 
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     void main()                                                                                    \
@@ -391,14 +396,9 @@
         int _vertexID = gl_VertexID;                                                               \
         int _instanceID = INSTANCE_INDEX;
 
-#define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
-                               MeshUniforms,                                                       \
-                               meshUniforms,                                                       \
-                               PositionAttr,                                                       \
-                               position,                                                           \
-                               UVAttr,                                                             \
-                               uv,                                                                 \
-                               _vertexID)                                                          \
+#define IMAGE_RECT_VERTEX_MAIN VERTEX_MAIN
+
+#define IMAGE_MESH_VERTEX_MAIN(NAME, PositionAttr, position, UVAttr, uv, _vertexID)                \
     VERTEX_MAIN(NAME, PositionAttr, position, _vertexID, _instanceID)
 
 #define VARYING_INIT(NAME, TYPE)
@@ -415,33 +415,44 @@
 
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE
 
-#ifdef @PLS_IMPL_RW_TEXTURE
-#define PLS_MAIN(NAME, _fragCoord, _plsCoord)                                                      \
-    void main()                                                                                    \
-    {                                                                                              \
-        float2 _fragCoord = gl_FragCoord.xy;                                                       \
-        int2 _plsCoord = ivec2(floor(_fragCoord));
-#else
-#define PLS_MAIN(NAME, _fragCoord, _plsCoord)                                                      \
-    void main()                                                                                    \
-    {                                                                                              \
-        float2 _fragCoord = gl_FragCoord.xy;
-#endif
+#define _fragCoord gl_FragCoord.xy
 
-#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)                     \
-    PLS_MAIN(NAME, _pos, _plsCoord)
+#define FRAGMENT_CONTEXT_DECL
+#define FRAGMENT_CONTEXT_UNPACK
+
+#ifdef @PLS_IMPL_RW_TEXTURE
+
+#define PLS_CONTEXT_DECL , int2 _plsCoord
+#define PLS_CONTEXT_UNPACK , _plsCoord
+
+#define PLS_MAIN(NAME)                                                                             \
+    void main()                                                                                    \
+    {                                                                                              \
+        int2 _plsCoord = ivec2(floor(_fragCoord));
 
 #define EMIT_PLS }
 
-#define PLS_MAIN_WITH_FRAG_COLOR(NAME, _fragCoord, _plsCoord)                                      \
-    layout(location = 0) out half4 _fragColor;                                                     \
-    PLS_MAIN(NAME, _fragCoord, _plsCoord);
+#else // !PLS_IMPL_RW_TEXTURE
 
-#define IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)     \
-    layout(location = 0) out half4 _fragColor;                                                     \
-    PLS_MAIN(NAME, _pos, _plsCoord)
+#define PLS_CONTEXT_DECL
+#define PLS_CONTEXT_UNPACK
 
-#define EMIT_PLS_WITH_FRAG_COLOR EMIT_PLS
+#define PLS_MAIN(NAME) void main()
+#define EMIT_PLS
+
+#endif // PLS_IMPL_RW_TEXTURE
+
+#define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_MAIN(NAME)
+
+#define PLS_FRAG_COLOR_MAIN(NAME)                                                                  \
+    layout(location = 0) out half4 _fragColor;                                                     \
+    PLS_MAIN(NAME);
+
+#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                              \
+    layout(location = 0) out half4 _fragColor;                                                     \
+    PLS_MAIN(NAME)
+
+#define EMIT_PLS_AND_FRAG_COLOR EMIT_PLS
 
 #define MUL(A, B) ((A) * (B))
 

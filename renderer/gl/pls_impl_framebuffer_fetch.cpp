@@ -37,12 +37,13 @@ public:
             // We're targeting an external FBO directly. Allocate and attach an offscreen target
             // texture since we can't modify their attachments.
             framebufferRenderTarget->allocateOffscreenTargetTexture();
-            if (desc.loadAction == LoadAction::preserveRenderTarget)
+            if (desc.colorLoadAction == LoadAction::preserveRenderTarget)
             {
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
-                glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
+                glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                         framebufferRenderTarget->height());
             }
         }
 
@@ -52,13 +53,14 @@ public:
         // exception of the color buffer after an intermediate flush.
         static_assert(FRAMEBUFFER_PLANE_IDX == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER,
-                                desc.loadAction == LoadAction::clear ? 4 : 3,
-                                desc.loadAction == LoadAction::clear ? kPLSDrawBuffers
-                                                                     : kPLSDrawBuffers + 1);
+                                desc.colorLoadAction == LoadAction::preserveRenderTarget ? 3 : 4,
+                                desc.colorLoadAction == LoadAction::preserveRenderTarget
+                                    ? kPLSDrawBuffers + 1
+                                    : kPLSDrawBuffers);
 
         // Clear the PLS planes.
         constexpr static uint32_t kZero[4]{};
-        if (desc.loadAction == LoadAction::clear)
+        if (desc.colorLoadAction == LoadAction::clear)
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
@@ -84,7 +86,8 @@ public:
             // We rendered to an offscreen texture. Copy back to the external framebuffer.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
             framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
+            glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                     framebufferRenderTarget->height());
         }
     }
 

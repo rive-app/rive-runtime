@@ -99,6 +99,11 @@ PLSRenderContext::~PLSRenderContext()
     m_logicalFlushes.clear();
 }
 
+const pls::PlatformFeatures& PLSRenderContext::platformFeatures() const
+{
+    return m_impl->platformFeatures();
+}
+
 rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType type,
                                                      RenderBufferFlags flags,
                                                      size_t sizeInBytes)
@@ -206,10 +211,10 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
 {
     assert(!m_didBeginFrame);
     m_frameDescriptor = std::move(frameDescriptor);
-    m_frameInterlockMode = m_frameDescriptor.forceAtomicInterlockMode ||
-                                   !m_impl->platformFeatures().supportsRasterOrdering
-                               ? pls::InterlockMode::atomics
-                               : pls::InterlockMode::rasterOrdering;
+    m_frameInterlockMode =
+        m_frameDescriptor.forceAtomicInterlockMode || !platformFeatures().supportsRasterOrdering
+            ? pls::InterlockMode::atomics
+            : pls::InterlockMode::rasterOrdering;
     if (m_logicalFlushes.empty())
     {
         m_logicalFlushes.emplace_back(new LogicalFlush(this));
@@ -221,7 +226,7 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
 bool PLSRenderContext::frameSupportsImagePaintForPaths() const
 {
     return m_frameInterlockMode == pls::InterlockMode::rasterOrdering ||
-           m_impl->platformFeatures().supportsBindlessTextures;
+           platformFeatures().supportsBindlessTextures;
 }
 
 uint32_t PLSRenderContext::generateClipID()
@@ -570,29 +575,73 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
 
     m_flushDesc.flushType = flushType;
     m_flushDesc.renderTarget = frameDescriptor.renderTarget.get();
-    m_flushDesc.loadAction =
-        flushIdx == 0 ? frameDescriptor.loadAction : LoadAction::preserveRenderTarget;
+    m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
+
+    // In atomic mode, we may be able to skip the explicit clear of the color buffer and fold it
+    // into the atomic "resolve" operation instead.
+    bool doClearDuringAtomicResolve = false;
+
+    if (flushIdx != 0)
+    {
+        // We always have to preserve the renderTarget between logical flushes.
+        m_flushDesc.colorLoadAction = pls::LoadAction::preserveRenderTarget;
+    }
+    else if (frameDescriptor.loadAction == pls::LoadAction::clear)
+    {
+        // In atomic mode, we can clear during the resolve operation if the clearColor is opaque
+        // (because we don't want or have a "source only" blend mode).
+        doClearDuringAtomicResolve = m_ctx->frameInterlockMode() == pls::InterlockMode::atomics &&
+                                     colorAlpha(frameDescriptor.clearColor) == 255;
+        m_flushDesc.colorLoadAction =
+            doClearDuringAtomicResolve ? pls::LoadAction::dontCare : pls::LoadAction::clear;
+    }
+    else
+    {
+        m_flushDesc.colorLoadAction = frameDescriptor.loadAction;
+    }
     m_flushDesc.clearColor = frameDescriptor.clearColor;
-    if (m_flushDesc.loadAction == LoadAction::clear)
+
+    if (doClearDuringAtomicResolve)
+    {
+        // In atomic mode we can accomplish a clear of the color buffer while the shader resolves
+        // coverage, instead of actually clearing. writeResources() will configure the fill for
+        // pathID=0 to be a solid fill matching the clearColor, so if we just initialize coverage
+        // buffer to solid coverage with pathID=0, the resolve step will write out the correct clear
+        // color.
+        assert(m_flushDesc.interlockMode == pls::InterlockMode::atomics);
+        m_flushDesc.coverageClearValue = static_cast<uint32_t>(FIXED_COVERAGE_ONE);
+    }
+    else if (m_flushDesc.interlockMode == pls::InterlockMode::atomics)
+    {
+        // When we don't skip the initial clear in atomic mode, clear the coverage buffer to
+        // pathID=0 and a transparent coverage value.
+        // pathID=0 meets the requirement that pathID is always monotonically increasing.
+        // Transparent coverage makes sure the clearColor doesn't get written out while resolving.
+        m_flushDesc.coverageClearValue = static_cast<uint32_t>(FIXED_COVERAGE_ZERO);
+    }
+    else
+    {
+        // In non-atomic mode, the coverage buffer just needs to be initialized with "pathID=0" to
+        // avoid collisions with any pathIDs being rendered.
+        m_flushDesc.coverageClearValue = 0;
+    }
+
+    if (doClearDuringAtomicResolve || m_flushDesc.colorLoadAction == pls::LoadAction::clear)
     {
         // If we're clearing then we always update the entire render target.
-        m_flushDesc.updateBounds = frameDescriptor.renderTarget->bounds();
+        m_flushDesc.renderTargetUpdateBounds = frameDescriptor.renderTarget->bounds();
     }
     else
     {
         // When we don't clear, we only update the draw bounds.
-        m_flushDesc.updateBounds =
+        m_flushDesc.renderTargetUpdateBounds =
             frameDescriptor.renderTarget->bounds().intersect(m_combinedDrawBounds);
     }
-    if (m_flushDesc.updateBounds.empty())
+    if (m_flushDesc.renderTargetUpdateBounds.empty())
     {
         // If this is empty it means there are no draws and no clear.
-        m_flushDesc.updateBounds = {0, 0, 0, 0};
+        m_flushDesc.renderTargetUpdateBounds = {0, 0, 0, 0};
     }
-    m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
-    m_flushDesc.skipExplicitColorClear = m_flushDesc.interlockMode == pls::InterlockMode::atomics &&
-                                         m_flushDesc.loadAction == LoadAction::clear &&
-                                         colorAlpha(m_flushDesc.clearColor) == 255;
 
     m_flushDesc.flushUniformDataOffsetInBytes = flushIdx * sizeof(pls::FlushUniforms);
     m_flushDesc.pathCount = m_resourceCounts.pathCount;
@@ -649,12 +698,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
     m_flushDesc.firstTessVertexSpan = m_ctx->m_tessSpanData.elementsWritten();
     size_t initialTriangleVertexDataSize = m_ctx->m_triangleVertexData.bytesWritten();
 
-    m_ctx->m_flushUniformData.emplace_back(m_complexGradients.size(),
-                                           m_flushDesc.tessDataHeight,
-                                           m_flushDesc.renderTarget->width(),
-                                           m_flushDesc.renderTarget->height(),
-                                           m_flushDesc.updateBounds,
-                                           m_ctx->impl()->platformFeatures());
+    m_ctx->m_flushUniformData.emplace_back(m_flushDesc, m_ctx->platformFeatures());
 
     // Write out the simple gradient data.
     assert(m_simpleGradients.size() == m_pendingSimpleGradientWrites.size());
@@ -778,6 +822,15 @@ void PLSRenderContext::LogicalFlush::writeResources()
         // Re-order the draws!!
         std::sort(indirectDrawList.begin(), indirectDrawList.end());
 
+        // Atomic mode sometimes needs initialize PLS with a draw when the backend can't do it with
+        // typical clear/load APIs.
+        if (m_ctx->platformFeatures().atomicPLSMustBeInitializedAsDraw)
+        {
+            m_drawList.emplace_back(m_ctx->perFrameAllocator(), DrawType::plsAtomicInitialize, 0);
+            m_drawList.tail().elementCount = 1;
+            pushBarrier();
+        }
+
         // Write out the draw data from the sorted draw list, and build up a condensed/batched list
         // of low-level draws.
         uint16_t priorDrawGroupIdx = !indirectDrawList.empty() ? indirectDrawList[0] >> 48 : 1;
@@ -830,9 +883,6 @@ void PLSRenderContext::LogicalFlush::writeResources()
 
     m_flushDesc.drawList = &m_drawList;
     m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
-    m_flushDesc.renderDirectToRasterPipeline =
-        m_flushDesc.interlockMode == InterlockMode::atomics &&
-        !(m_flushDesc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
 }
 
 void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool forceRealloc)
@@ -1174,7 +1224,7 @@ void PLSRenderContext::LogicalFlush::pushPath(
                                    imageTexture,
                                    clipRectInverseMatrix,
                                    m_ctx->frameDescriptor().renderTarget.get(),
-                                   m_ctx->impl()->platformFeatures());
+                                   m_ctx->platformFeatures());
 
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_ctx->m_maxPathID);
@@ -1461,7 +1511,9 @@ void PLSRenderContext::LogicalFlush::pushImageRect(
 
     batch.elementCount = 1;
     batch.imageDrawDataOffset = imageDrawDataOffset;
-    assert((batch.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == batch.shaderFeatures);
+    assert((batch.shaderFeatures & pls::AllShaderFeaturesForDrawType(
+                                       pls::DrawType::imageRect,
+                                       m_ctx->frameInterlockMode())) == batch.shaderFeatures);
 }
 
 void PLSRenderContext::LogicalFlush::pushImageMesh(
@@ -1498,7 +1550,9 @@ void PLSRenderContext::LogicalFlush::pushImageMesh(
     batch.uvBuffer = uvBuffer;
     batch.indexBuffer = indexBuffer;
     batch.imageDrawDataOffset = imageDrawDataOffset;
-    assert((batch.shaderFeatures & pls::kImageDrawShaderFeaturesMask) == batch.shaderFeatures);
+    assert((batch.shaderFeatures & pls::AllShaderFeaturesForDrawType(
+                                       pls::DrawType::imageMesh,
+                                       m_ctx->frameInterlockMode())) == batch.shaderFeatures);
 }
 
 void PLSRenderContext::LogicalFlush::pushBarrier()
@@ -1573,9 +1627,11 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
         case DrawType::interiorTriangulation:
         case DrawType::imageRect:
         case DrawType::imageMesh:
+        case DrawType::plsAtomicInitialize:
         case DrawType::plsAtomicResolve:
             // We can't combine interior triangulations or image draws yet.
             needsNewBatch = true;
+            break;
     }
 
     DrawBatch& batch =

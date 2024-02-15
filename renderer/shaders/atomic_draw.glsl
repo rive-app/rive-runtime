@@ -29,13 +29,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (unpack_tessellated_path_vertex(@a_patchVertexData,
                                        @a_mirroredVertexData,
                                        _instanceID,
-#ifdef METAL
-                                       _textures,
-                                       _buffers,
-#endif
                                        v_pathID,
                                        v_edgeDistance,
-                                       vertexPosition))
+                                       vertexPosition VERTEX_CONTEXT_UNPACK))
     {
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
     }
@@ -75,11 +71,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_INIT(v_pathID, ushort);
 
     float2 vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
-#ifdef METAL
-                                                            _buffers,
-#endif
                                                             v_pathID,
-                                                            v_windingWeight);
+                                                            v_windingWeight VERTEX_CONTEXT_UNPACK);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
     VARYING_PACK(v_windingWeight);
@@ -119,7 +112,13 @@ NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_TEXTURE_BLOCK_BEGIN
+VERTEX_TEXTURE_BLOCK_END
+
+VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
+VERTEX_STORAGE_BUFFER_BLOCK_END
+
+IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_imageRectVertex, float4);
 
@@ -209,14 +208,7 @@ NO_PERSPECTIVE VARYING(1, float4, v_clipRect);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
-                       @ImageDrawUniforms,
-                       imageDrawUniforms,
-                       PositionAttr,
-                       position,
-                       UVAttr,
-                       uv,
-                       _vertexID)
+IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _vertexID)
 {
     ATTR_UNPACK(_vertexID, position, @a_position, float2);
     ATTR_UNPACK(_vertexID, uv, @a_texCoord, float2);
@@ -249,7 +241,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #endif // DRAW_IMAGE_MESH
 #endif // DRAW_IMAGE
 
-#ifdef @RESOLVE_PLS
+#ifdef @DRAW_RENDER_TARGET_UPDATE_BOUNDS
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 ATTR_BLOCK_END
@@ -259,16 +251,24 @@ VARYING_BLOCK_BEGIN
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
+VERTEX_TEXTURE_BLOCK_BEGIN
+VERTEX_TEXTURE_BLOCK_END
+
+VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
+VERTEX_STORAGE_BUFFER_BLOCK_END
+
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     int2 coord;
-    coord.x = (_vertexID & 1) == 0 ? uniforms.updateBounds.x : uniforms.updateBounds.z;
-    coord.y = (_vertexID & 2) == 0 ? uniforms.updateBounds.y : uniforms.updateBounds.w;
+    coord.x = (_vertexID & 1) == 0 ? uniforms.renderTargetUpdateBounds.x
+                                   : uniforms.renderTargetUpdateBounds.z;
+    coord.y = (_vertexID & 2) == 0 ? uniforms.renderTargetUpdateBounds.y
+                                   : uniforms.renderTargetUpdateBounds.w;
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(float2(coord));
     EMIT_VERTEX(pos);
 }
 #endif // VERTEX
-#endif // RESOLVE_PLS
+#endif // DRAW_RENDER_TARGET_UPDATE_BOUNDS
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
@@ -290,14 +290,14 @@ PLS_DECL4F(@FRAMEBUFFER_PLANE_IDX_OVERRIDE, framebuffer);
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
 #endif
 #endif
-PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
+PLS_DECLUI_ATOMIC(COVERAGE_PLANE_IDX, coverageCountBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_BLOCK_END
 
-STORAGE_BUFFER_BLOCK_BEGIN
+FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
-STORAGE_BUFFER_BLOCK_END
+FRAG_STORAGE_BUFFER_BLOCK_END
 
 uint to_fixed(float x) { return uint(x * FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_ZERO); }
 
@@ -311,9 +311,7 @@ float from_fixed(uint x)
 // Also update the PLS clip value if called for.
 half4 resolve_path_color(half coverageCount,
                          uint2 paintData,
-                         ushort pathID,
-                         float2 _fragCoord,
-                         int2 _plsCoord)
+                         ushort pathID FRAGMENT_CONTEXT_DECL PLS_CONTEXT_DECL)
 {
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
@@ -325,7 +323,7 @@ half4 resolve_path_color(half coverageCount,
     uint clipID = paintData.x >> 16u;
     if (clipID != 0u)
     {
-        uint clipData = PLS_LOADUI(clipBuffer, _plsCoord);
+        uint clipData = PLS_LOADUI(clipBuffer);
         half clipCoverage = clipID == (clipData >> 16u) ? unpackHalf2x16(clipData).r : .0;
         coverage = min(coverage, clipCoverage);
     }
@@ -360,7 +358,8 @@ half4 resolve_path_color(half coverageCount,
             else
 #endif // ENABLE_BINDLESS_TEXTURES
             {
-                float t = paintType == 1 ? /*linear*/ paintCoord.x : /*radial*/ length(paintCoord);
+                float t = paintType == LINEAR_GRADIENT_PAINT_TYPE ? /*linear*/ paintCoord.x
+                                                                  : /*radial*/ length(paintCoord);
                 t = clamp(t, .0, 1.);
                 float x = t * translate.z + translate.w;
                 float y = uintBitsToFloat(paintData.y);
@@ -370,7 +369,7 @@ half4 resolve_path_color(half coverageCount,
         }
 #ifdef @ENABLE_CLIPPING
         case CLIP_UPDATE_PAINT_TYPE:
-            PLS_STOREUI(clipBuffer, paintData.y | packHalf2x16(make_half2(coverage, 0)), _plsCoord);
+            PLS_STOREUI(clipBuffer, paintData.y | packHalf2x16(make_half2(coverage, 0)));
             break;
 #endif // ENABLE_CLIPPING
     }
@@ -379,9 +378,9 @@ half4 resolve_path_color(half coverageCount,
     {
         float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
         float4 translate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
-        half2 clipCoord = MUL(M, _fragCoord) + translate.xy;
+        float2 clipCoord = MUL(M, _fragCoord) + translate.xy;
         // translate.zw contains -1 / fwidth(clipCoord), which we use to calculate antialiasing.
-        half2 distXY = abs(clipCoord) * translate.zw - translate.zw;
+        half2 distXY = make_half2(abs(clipCoord) * translate.zw - translate.zw);
         half clipRectCoverage = clamp(min(distXY.x, distXY.y) + .5, .0, 1.);
         coverage = min(coverage, clipRectCoverage);
     }
@@ -417,37 +416,48 @@ half4 do_advanced_blend(half4 srcColorUnmul, half4 dstColorPremul, ushort blendM
     }
 }
 
-half4 do_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
+half4 do_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
 {
-    half4 dstColorPremul = PLS_LOAD4F(framebuffer, _plsCoord);
+    half4 dstColorPremul = PLS_LOAD4F(framebuffer);
     ushort blendMode = make_ushort((paintData.x >> 4) & 0xfu);
     return do_advanced_blend(color, dstColorPremul, blendMode);
 }
 
-void write_pls_blend(half4 color, uint2 paintData, int2 _plsCoord)
+void write_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
 {
     if (color.a != .0)
     {
-        PLS_STORE4F(framebuffer, do_pls_blend(color, paintData, _plsCoord), _plsCoord);
+        half4 blendedColor = do_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
+        PLS_STORE4F(framebuffer, blendedColor);
     }
 }
 #endif // ENABLE_ADVANCED_BLEND
 
-#ifdef @DRAW_PATH
 #ifdef @ENABLE_ADVANCED_BLEND
-PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
-#else
-PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
+#define ATOMIC_PLS_MAIN PLS_MAIN
+#define ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS PLS_MAIN_WITH_IMAGE_UNIFORMS
+#define EMIT_ATOMIC_PLS EMIT_PLS
+#else // !ENABLE_ADVANCED_BLEND
+#define ATOMIC_PLS_MAIN PLS_FRAG_COLOR_MAIN
+#define ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS
+#define EMIT_ATOMIC_PLS EMIT_PLS_AND_FRAG_COLOR
 #endif
+
+#ifdef @DRAW_PATH
+ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
 
-#ifndef @ENABLE_ADVANCED_BLEND
+    PLS_PRESERVE_VALUE(clipBuffer);
+    PLS_PRESERVE_VALUE(coverageCountBuffer);
+#ifdef @ENABLE_ADVANCED_BLEND
+    PLS_PRESERVE_VALUE(framebuffer);
+#else
     _fragColor = make_half4(0, 0, 0, 0);
 #endif
 
-    half coverage = min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), 1.);
+    half coverage = min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1));
 
     // Since v_pathID increases monotonically with every draw, and since it lives in the most
     // significant bits of the coverage data, an atomic max() function will serve 3 purposes:
@@ -459,7 +469,7 @@ PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
     //
     uint fixedCoverage = to_fixed(coverage);
     uint minCoverageData = (uint(v_pathID) << 16) | fixedCoverage;
-    uint lastCoverageData = PLS_ATOMIC_MAX(coverageCountBuffer, minCoverageData, _plsCoord);
+    uint lastCoverageData = PLS_ATOMIC_MAX(coverageCountBuffer, minCoverageData);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     if (lastPathID != v_pathID)
     {
@@ -467,10 +477,11 @@ PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
         // coverage.
         half coverageCount = from_fixed(lastCoverageData & 0xffffu);
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
-        half4 color =
-            resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
+        half4 color = resolve_path_color(coverageCount,
+                                         paintData,
+                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
 #ifdef @ENABLE_ADVANCED_BLEND
-        write_pls_blend(color, paintData, _plsCoord);
+        write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #else
         _fragColor = premultiply(color);
 #endif
@@ -484,34 +495,30 @@ PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
             fixedCoverage += lastCoverageData - minCoverageData;
         }
         fixedCoverage -= uint(FIXED_COVERAGE_ZERO); // Only apply the zero bias once.
-        PLS_ATOMIC_ADD(coverageCountBuffer, fixedCoverage, _plsCoord);
+        PLS_ATOMIC_ADD(coverageCountBuffer, fixedCoverage);
     }
 
-#ifdef @ENABLE_ADVANCED_BLEND
-    EMIT_PLS;
-#else
-    EMIT_PLS_WITH_FRAG_COLOR;
-#endif
+    EMIT_ATOMIC_PLS
 }
 #endif // DRAW_PATH
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
-#ifdef @ENABLE_ADVANCED_BLEND
-PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
-#else
-PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
-#endif
+ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_windingWeight, half);
     VARYING_UNPACK(v_pathID, ushort);
 
-#ifndef @ENABLE_ADVANCED_BLEND
+    PLS_PRESERVE_VALUE(clipBuffer);
+    PLS_PRESERVE_VALUE(coverageCountBuffer);
+#ifdef @ENABLE_ADVANCED_BLEND
+    PLS_PRESERVE_VALUE(framebuffer);
+#else
     _fragColor = make_half4(0, 0, 0, 0);
 #endif
 
     half coverage = v_windingWeight;
 
-    uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
+    uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageCountBuffer);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     half lastCoverageCount = from_fixed(lastCoverageData & 0xffffu);
     if (lastPathID != v_pathID)
@@ -519,10 +526,11 @@ PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
         // We crossed into a new path! Resolve the previous path now that we know its exact
         // coverage.
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
-        half4 color =
-            resolve_path_color(lastCoverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
+        half4 color = resolve_path_color(lastCoverageCount,
+                                         paintData,
+                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
 #ifdef @ENABLE_ADVANCED_BLEND
-        write_pls_blend(color, paintData, _plsCoord);
+        write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #else
         _fragColor = premultiply(color);
 #endif
@@ -532,26 +540,14 @@ PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
         coverage += lastCoverageCount;
     }
 
-    PLS_STOREUI(coverageCountBuffer, (uint(v_pathID) << 16) | to_fixed(coverage), _plsCoord);
+    PLS_STOREUI_ATOMIC(coverageCountBuffer, (uint(v_pathID) << 16) | to_fixed(coverage));
 
-#ifdef @ENABLE_ADVANCED_BLEND
-    EMIT_PLS;
-#else
-    EMIT_PLS_WITH_FRAG_COLOR;
-#endif
+    EMIT_ATOMIC_PLS
 }
 #endif // DRAW_INTERIOR_TRIANGLES
 
 #ifdef @DRAW_IMAGE
-#ifdef @ENABLE_ADVANCED_BLEND
-IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _fragCoord, _plsCoord)
-#else
-IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain,
-                                    @ImageDrawUniforms,
-                                    imageDrawUniforms,
-                                    _fragCoord,
-                                    _plsCoord)
-#endif
+ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 #ifdef @DRAW_IMAGE_RECT
@@ -559,6 +555,12 @@ IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain,
 #endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
+#endif
+
+    PLS_PRESERVE_VALUE(clipBuffer);
+    PLS_PRESERVE_VALUE(coverageCountBuffer);
+#ifdef @ENABLE_ADVANCED_BLEND
+    PLS_PRESERVE_VALUE(framebuffer);
 #endif
 
     // Start by finding the image color. We have to do this immediately instead of allowing it to
@@ -583,18 +585,20 @@ IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain,
 
     // Find the previous path color. (This might also update the clip buffer.)
     // TODO: skip this step if no clipping AND srcOver AND imageColor is solid.
-    uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
+    uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageCountBuffer);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     uint2 lastPaintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
-    half4 lastColor =
-        resolve_path_color(coverageCount, lastPaintData, lastPathID, _fragCoord, _plsCoord);
+    half4 lastColor = resolve_path_color(coverageCount,
+                                         lastPaintData,
+                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
 
     // Clip the image after resolving the previous path, since that can affect the clip buffer.
 #ifdef @ENABLE_CLIPPING // TODO! ENABLE_IMAGE_CLIPPING in addition to ENABLE_CLIPPING?
     if (imageDrawUniforms.clipID != 0u)
     {
-        uint clipData = PLS_LOADUI(clipBuffer, _plsCoord);
+        PLS_MEMORY_BARRIER(clipBuffer); // (Because resolve_path_color() may have modified it.)
+        uint clipData = PLS_LOADUI(clipBuffer);
         uint clipID = clipData >> 16;
         half clipCoverage = clipID == imageDrawUniforms.clipID ? unpackHalf2x16(clipData).r : 0;
         meshCoverage = min(meshCoverage, clipCoverage);
@@ -609,12 +613,12 @@ IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain,
         // TODO: Are advanced blend modes associative? srcOver is, so at least there we can blend
         // lastColor and imageColor first, and potentially avoid a framebuffer load if it ends up
         // opaque.
-        half4 dstColorPremul = PLS_LOAD4F(framebuffer, _plsCoord);
+        half4 dstColorPremul = PLS_LOAD4F(framebuffer);
         ushort lastBlendMode = make_ushort((lastPaintData.x >> 4) & 0xfu);
         ushort imageBlendMode = make_ushort(imageDrawUniforms.blendMode);
         dstColorPremul = do_advanced_blend(lastColor, dstColorPremul, lastBlendMode);
         imageColor = do_advanced_blend(imageColor, dstColorPremul, imageBlendMode);
-        PLS_STORE4F(framebuffer, imageColor, _plsCoord);
+        PLS_STORE4F(framebuffer, imageColor);
     }
 #else
     // Leverage the property that premultiplied src-over blending is associative and blend the
@@ -624,7 +628,7 @@ IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain,
 
     // Write out a coverage value of "zero at pathID=0" so a future resolve attempt doesn't affect
     // this pixel.
-    PLS_STOREUI(coverageCountBuffer, uint(FIXED_COVERAGE_ZERO), _plsCoord);
+    PLS_STOREUI_ATOMIC(coverageCountBuffer, uint(FIXED_COVERAGE_ZERO));
 
 #ifdef @DRAW_IMAGE_MESH
     // TODO: If we care: Use the interlock if we can, since individual meshes may shimmer if they
@@ -632,43 +636,62 @@ IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain,
     PLS_INTERLOCK_END;
 #endif
 
-#ifdef @ENABLE_ADVANCED_BLEND
-    EMIT_PLS;
-#else
-    EMIT_PLS_WITH_FRAG_COLOR;
-#endif
+    EMIT_ATOMIC_PLS
 }
 #endif // DRAW_IMAGE
 
+#ifdef @INITIALIZE_PLS
+
+ATOMIC_PLS_MAIN(@drawFragmentMain)
+{
+#ifndef @ENABLE_ADVANCED_BLEND
+    _fragColor = make_half4(0, 0, 0, 0);
+#endif
+#ifdef @STORE_COLOR_CLEAR
+    PLS_STORE4F(framebuffer, unpackUnorm4x8(uniforms.colorClearValue));
+#endif
+#ifdef @SWIZZLE_COLOR_BGRA_TO_RGBA
+    half4 color = PLS_LOAD4F(framebuffer);
+    PLS_STORE4F(framebuffer, color.bgra);
+#endif
+    PLS_STOREUI_ATOMIC(coverageCountBuffer, uniforms.coverageClearValue);
+#ifdef @ENABLE_CLIPPING
+    PLS_STOREUI(clipBuffer, 0u);
+#endif
+    EMIT_ATOMIC_PLS
+}
+
+#endif // INITIALIZE_PLS
+
 #ifdef @RESOLVE_PLS
 
-#ifdef @ENABLE_ADVANCED_BLEND
 #ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
-PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
+PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
 #else
-PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
+ATOMIC_PLS_MAIN(@drawFragmentMain)
 #endif
-#else
-PLS_MAIN_WITH_FRAG_COLOR(@drawFragmentMain, _fragCoord, _plsCoord)
-#endif // ENABLE_ADVANCED_BLEND
 {
-    uint lastCoverageData = PLS_LOADUI(coverageCountBuffer, _plsCoord);
+#ifdef @ENABLE_ADVANCED_BLEND
+    PLS_PRESERVE_VALUE(framebuffer);
+#endif
+    uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageCountBuffer);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
-    half4 color = resolve_path_color(coverageCount, paintData, lastPathID, _fragCoord, _plsCoord);
-#ifdef @ENABLE_ADVANCED_BLEND
+    half4 color = resolve_path_color(coverageCount,
+                                     paintData,
+                                     lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
 #ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
-    _fragColor = do_pls_blend(color, paintData, _plsCoord);
-    EMIT_PLS_WITH_FRAG_COLOR;
+    _fragColor = do_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
+    EMIT_PLS_AND_FRAG_COLOR
 #else
-    write_pls_blend(color, paintData, _plsCoord);
-    EMIT_PLS;
-#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #else
     _fragColor = premultiply(color);
-    EMIT_PLS_WITH_FRAG_COLOR;
-#endif // ENABLE_ADVANCED_BLEND
+#endif
+    EMIT_ATOMIC_PLS
+#endif
 }
 #endif // RESOLVE_PLS
 #endif // FRAGMENT

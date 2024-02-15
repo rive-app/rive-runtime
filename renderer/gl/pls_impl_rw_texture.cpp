@@ -26,7 +26,9 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        if (desc.renderDirectToRasterPipeline)
+        bool renderDirectToRasterPipeline =
+            pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures);
+        if (renderDirectToRasterPipeline)
         {
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -37,49 +39,35 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             // We're targeting an external FBO but can't render to it directly. Make sure to
             // allocate and attach an offscreen target texture.
             framebufferRenderTarget->allocateOffscreenTargetTexture();
-            if (desc.loadAction == LoadAction::preserveRenderTarget)
+            if (desc.colorLoadAction == pls::LoadAction::preserveRenderTarget)
             {
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
-                glutils::BlitFramebuffer(desc.updateBounds, renderTarget->height());
+                glutils::BlitFramebuffer(desc.renderTargetUpdateBounds, renderTarget->height());
             }
         }
 
         // Clear the necessary textures.
         renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER, 4);
-        if (desc.skipExplicitColorClear)
+        if (desc.colorLoadAction == pls::LoadAction::clear)
         {
-            // We can accomplish a clear of the color buffer while the shader resolves coverage,
-            // instead of calling glClear. The fill for pathID=0 is automatically configured to be
-            // a solid fill matching the clear color, so we just have to clear the coverage buffer
-            // to solid coverage. This ensures the clear color gets written out fully opaque.
-            constexpr static GLuint kCoverageOne[4]{static_cast<GLuint>(FIXED_COVERAGE_ONE)};
-            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kCoverageOne);
+            float clearColor4f[4];
+            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+            glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
         }
-        else
         {
-            if (desc.loadAction == LoadAction::clear)
-            {
-                float clearColor4f[4];
-                UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-                glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
-            }
-            // Clear the coverage buffer to pathID=0, and with a value that means "zero coverage" in
-            // atomic mode. In non-atomic mode all we need is for pathID to be zero. In atomic mode,
-            // the additional "zero coverage" value makes sure nothing gets written out at this
-            // pixel when resolving.
-            constexpr static GLuint kCoverageZero[4]{static_cast<GLuint>(FIXED_COVERAGE_ZERO)};
-            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, kCoverageZero);
+            GLuint coverageClear[4]{desc.coverageClearValue};
+            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, coverageClear);
         }
         if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
         {
-            constexpr static GLuint kZero[4]{};
-            glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
+            constexpr static GLuint kZeroClear[4]{};
+            glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZeroClear);
         }
 
         // Bind the framebuffer we will render to.
-        if (!desc.renderDirectToRasterPipeline)
+        if (!renderDirectToRasterPipeline)
         {
             renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
         }
@@ -119,7 +107,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
 
-        if (desc.renderDirectToRasterPipeline)
+        if (pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures))
         {
             glDisable(GL_BLEND);
             assert(!m_didCoalescedPLSResolveAndTransfer);
@@ -138,7 +126,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             // We rendered to an offscreen texture. Copy back to the external target framebuffer.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
             framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(desc.updateBounds, framebufferRenderTarget->height());
+            glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                     framebufferRenderTarget->height());
         }
     }
 

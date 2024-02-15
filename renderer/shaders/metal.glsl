@@ -93,12 +93,20 @@
 #define VARYING_PACK(NAME)
 #define VARYING_UNPACK(NAME, TYPE) TYPE NAME = _varyings.NAME
 
-#define STORAGE_BUFFER_BLOCK_BEGIN                                                                 \
-    struct StorageBuffers                                                                          \
+#define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN                                                          \
+    struct VertexStorageBuffers                                                                    \
     {
-#define STORAGE_BUFFER_BLOCK_END                                                                   \
+#define VERTEX_STORAGE_BUFFER_BLOCK_END                                                            \
     }                                                                                              \
     ;
+
+#define FRAG_STORAGE_BUFFER_BLOCK_BEGIN                                                            \
+    struct FragmentStorageBuffers                                                                  \
+    {
+#define FRAG_STORAGE_BUFFER_BLOCK_END                                                              \
+    }                                                                                              \
+    ;
+
 #define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) $constant uint2* NAME [[$buffer(IDX)]]
 #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) $constant uint4* NAME [[$buffer(IDX)]]
 #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) $constant float4* NAME [[$buffer(IDX)]]
@@ -135,46 +143,35 @@
 #define TEXTURE_SAMPLE_GRAD(TEXTURE, SAMPLER_NAME, COORD, DDX, DDY)                                \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
 
-#define PLS_BLOCK_BEGIN                                                                            \
-    struct PLS                                                                                     \
-    {
-#define PLS_DECL4F(IDX, NAME) [[$color(IDX)]] half4 NAME
-#define PLS_DECLUI(IDX, NAME) [[$color(IDX)]] uint NAME
-#define PLS_BLOCK_END                                                                              \
-    }                                                                                              \
-    ;
-
-#define PLS_LOAD4F(P, _plsCoord) _inpls.P
-#define PLS_LOADUI(P, _plsCoord) _inpls.P
-#define PLS_STORE4F(P, V, _plsCoord) _pls.P = (V)
-#define PLS_STOREUI(P, V, _plsCoord) _pls.P = (V)
-#define PLS_PRESERVE_VALUE(P, _plsCoord) _pls.P = _inpls.P
-#define PLS_INTERLOCK_BEGIN
-#define PLS_INTERLOCK_END
+#define VERTEX_CONTEXT_DECL , VertexTextures _textures, VertexStorageBuffers _buffers
+#define VERTEX_CONTEXT_UNPACK , _textures, _buffers
 
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
         uint _instanceID [[$instance_id]],                                                         \
         $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
-        $constant Attrs* attrs [[$buffer(0)]],                                                     \
-        StorageBuffers _buffers,                                                                   \
-        VertexTextures _textures)                                                                  \
+        $constant Attrs* attrs [[$buffer(0)]] VERTEX_CONTEXT_DECL)                                 \
     {                                                                                              \
         Varyings _varyings;
 
-#define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
-                               MeshUniforms,                                                       \
-                               meshUniforms,                                                       \
-                               PositionAttr,                                                       \
-                               position,                                                           \
-                               UVAttr,                                                             \
-                               uv,                                                                 \
-                               _vertexID)                                                          \
+#define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                         \
+    $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
+        uint _vertexID [[$vertex_id]],                                                             \
+        uint _instanceID [[$instance_id]],                                                         \
+        $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
+        $constant @ImageDrawUniforms& imageDrawUniforms                                            \
+        [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                                                \
+        $constant Attrs* attrs [[$buffer(0)]] VERTEX_CONTEXT_DECL)                                 \
+    {                                                                                              \
+        Varyings _varyings;
+
+#define IMAGE_MESH_VERTEX_MAIN(NAME, PositionAttr, position, UVAttr, uv, _vertexID)                \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
         $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
-        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],           \
+        $constant @ImageDrawUniforms& imageDrawUniforms                                            \
+        [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                                                \
         $constant PositionAttr* position [[$buffer(0)]],                                           \
         $constant UVAttr* uv [[$buffer(1)]])                                                       \
     {                                                                                              \
@@ -194,25 +191,208 @@
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, _fragCoord, _plsCoord)                                                      \
-    $__attribute__(($visibility("default"))) PLS $fragment NAME(PLS _inpls,                        \
-                                                                Varyings _varyings [[$stage_in]],  \
-                                                                FragmentTextures _textures)        \
+#define FRAGMENT_CONTEXT_DECL                                                                      \
+    , float2 _fragCoord, FragmentTextures _textures, FragmentStorageBuffers _buffers
+#define FRAGMENT_CONTEXT_UNPACK , _fragCoord, _textures, _buffers
+
+#ifdef @PLS_IMPL_DEVICE_BUFFER
+
+#define PLS_BLOCK_BEGIN                                                                            \
+    struct PLS                                                                                     \
+    {
+#ifdef @PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED
+// Apple Silicon doesn't support fragment-fragment memory barriers, so on this hardware we use
+// raster order groups instead.
+// Since the PLS plane indices collide with other buffer bindings, offset the binding indices of
+// these buffers by DEFAULT_BINDINGS_SET_SIZE.
+#define PLS_DECL4F(IDX, NAME)                                                                      \
+    $device uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE), $raster_order_group(0)]]
+#define PLS_DECLUI(IDX, NAME)                                                                      \
+    $device uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE), $raster_order_group(0)]]
+#define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
+    $device $atomic_uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE), $raster_order_group(0)]]
+#else
+// Since the PLS plane indices collide with other buffer bindings, offset the binding indices of
+// these buffers by DEFAULT_BINDINGS_SET_SIZE.
+#define PLS_DECL4F(IDX, NAME) $device uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE)]]
+#define PLS_DECLUI(IDX, NAME) $device uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE)]]
+#define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
+    $device $atomic_uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE)]]
+#endif // @PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED
+#define PLS_BLOCK_END                                                                              \
+    }                                                                                              \
+    ;
+#define PLS_CONTEXT_DECL , PLS _pls, uint _plsIdx
+#define PLS_CONTEXT_UNPACK , _pls, _plsIdx
+
+#define PLS_LOAD4F(PLANE) unpackUnorm4x8(_pls.PLANE[_plsIdx])
+#define PLS_LOADUI(PLANE) _pls.PLANE[_plsIdx]
+#define PLS_LOADUI_ATOMIC(PLANE)                                                                   \
+    $atomic_load_explicit(&_pls.PLANE[_plsIdx], $memory_order::$memory_order_relaxed)
+#define PLS_STORE4F(PLANE, VALUE) _pls.PLANE[_plsIdx] = packUnorm4x8(VALUE)
+#define PLS_STOREUI(PLANE, VALUE) _pls.PLANE[_plsIdx] = (VALUE)
+#define PLS_STOREUI_ATOMIC(PLANE, VALUE)                                                           \
+    $atomic_store_explicit(&_pls.PLANE[_plsIdx], VALUE, $memory_order::$memory_order_relaxed)
+#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_MEMORY_BARRIER(PLANE)
+
+#define PLS_ATOMIC_MAX(PLANE, X)                                                                   \
+    $atomic_fetch_max_explicit(&_pls.PLANE[_plsIdx], X, $memory_order::$memory_order_relaxed)
+
+#define PLS_ATOMIC_ADD(PLANE, X)                                                                   \
+    $atomic_fetch_add_explicit(&_pls.PLANE[_plsIdx], X, $memory_order::$memory_order_relaxed)
+
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#define PLS_METAL_MAIN(NAME)                                                                       \
+    $__attribute__(($visibility("default"))) $fragment NAME(PLS _pls,                              \
+                                                            $constant @FlushUniforms& uniforms     \
+                                                            [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]], \
+                                                            Varyings _varyings [[$stage_in]],      \
+                                                            FragmentTextures _textures,            \
+                                                            FragmentStorageBuffers _buffers)       \
     {                                                                                              \
+        float2 _fragCoord = _varyings._pos.xy;                                                     \
+        uint2 _plsCoord = uint2($metal::floor(_fragCoord));                                        \
+        uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
+
+#define PLS_METAL_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                                   \
+    $__attribute__(($visibility("default"))) $fragment NAME(                                       \
+        PLS _pls,                                                                                  \
+        $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
+        $constant @ImageDrawUniforms& imageDrawUniforms                                            \
+        [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                                                \
+        Varyings _varyings [[$stage_in]],                                                          \
+        FragmentTextures _textures,                                                                \
+        FragmentStorageBuffers _buffers)                                                           \
+    {                                                                                              \
+        float2 _fragCoord = _varyings._pos.xy;                                                     \
+        uint2 _plsCoord = uint2($metal::floor(_fragCoord));                                        \
+        uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
+
+#define PLS_MAIN(NAME) void PLS_METAL_MAIN(NAME)
+#define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) void PLS_METAL_MAIN_WITH_IMAGE_UNIFORMS(NAME)
+#define EMIT_PLS }
+
+#define PLS_FRAG_COLOR_MAIN(NAME)                                                                  \
+    half4 PLS_METAL_MAIN(NAME)                                                                     \
+    {                                                                                              \
+        half4 _fragColor;
+
+#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                              \
+    half4 PLS_METAL_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                                 \
+    {                                                                                              \
+        half4 _fragColor;
+
+#define EMIT_PLS_AND_FRAG_COLOR                                                                    \
+    }                                                                                              \
+    return _fragColor;                                                                             \
+    EMIT_PLS
+
+#else // Default implementation -- framebuffer reads.
+
+#define PLS_BLOCK_BEGIN                                                                            \
+    struct PLS                                                                                     \
+    {
+#define PLS_DECL4F(IDX, NAME) [[$color(IDX)]] half4 NAME
+#define PLS_DECLUI(IDX, NAME) [[$color(IDX)]] uint NAME
+#define PLS_DECLUI_ATOMIC PLS_DECLUI
+#define PLS_BLOCK_END                                                                              \
+    }                                                                                              \
+    ;
+#define PLS_CONTEXT_DECL , $thread PLS &_inpls, $thread PLS &_pls
+#define PLS_CONTEXT_UNPACK , _inpls, _pls
+
+#define PLS_LOAD4F(PLANE) _inpls.PLANE
+#define PLS_LOADUI(PLANE) _inpls.PLANE
+#define PLS_LOADUI_ATOMIC(PLANE) PLS_LOADUI
+#define PLS_STORE4F(PLANE, VALUE) _pls.PLANE = (VALUE)
+#define PLS_STOREUI(PLANE, VALUE) _pls.PLANE = (VALUE)
+#define PLS_STOREUI_ATOMIC(PLANE) PLS_STOREUI
+#define PLS_PRESERVE_VALUE(PLANE) _pls.PLANE = _inpls.PLANE
+#define PLS_MEMORY_BARRIER(PLANE) _inpls.PLANE = _pls.PLANE
+
+INLINE uint pls_atomic_max($thread uint& dst, uint x)
+{
+    uint originalValue = dst;
+    dst = $metal::max(originalValue, x);
+    return originalValue;
+}
+
+#define PLS_ATOMIC_MAX(PLANE, X) pls_atomic_max(_pls.PLANE, X)
+
+INLINE uint pls_atomic_add($thread uint& dst, uint x)
+{
+    uint originalValue = dst;
+    dst = originalValue + x;
+    return originalValue;
+}
+
+#define PLS_ATOMIC_ADD(PLANE, X) pls_atomic_add(_pls.PLANE, X)
+
+#define PLS_INTERLOCK_BEGIN
+#define PLS_INTERLOCK_END
+
+#define PLS_METAL_MAIN(NAME, ...)                                                                  \
+    PLS $__attribute__(($visibility("default"))) $fragment NAME($__VA_ARGS__)                      \
+    {                                                                                              \
+        float2 _fragCoord [[$maybe_unused]] = _varyings._pos.xy;                                   \
         PLS _pls;
 
-#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _fragCoord, _plsCoord)               \
-    $__attribute__(($visibility("default"))) PLS $fragment NAME(                                   \
-        PLS _inpls,                                                                                \
-        $constant MeshUniforms& meshUniforms [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],           \
-        Varyings _varyings [[$stage_in]],                                                          \
-        FragmentTextures _textures)                                                                \
-    {                                                                                              \
-        PLS _pls;
+#define PLS_MAIN(NAME, ...)                                                                        \
+    PLS_METAL_MAIN(NAME,                                                                           \
+                   PLS _inpls,                                                                     \
+                   Varyings _varyings [[$stage_in]],                                               \
+                   FragmentTextures _textures,                                                     \
+                   FragmentStorageBuffers _buffers)
+
+#define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                                         \
+    PLS_METAL_MAIN(NAME,                                                                           \
+                   PLS _inpls,                                                                     \
+                   Varyings _varyings [[$stage_in]],                                               \
+                   FragmentTextures _textures,                                                     \
+                   FragmentStorageBuffers _buffers,                                                \
+                   $constant @ImageDrawUniforms& imageDrawUniforms                                 \
+                   [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]])
 
 #define EMIT_PLS                                                                                   \
     }                                                                                              \
     return _pls;
+
+#define PLS_FRAG_COLOR_METAL_MAIN(NAME, ...)                                                       \
+    struct FragmentOut                                                                             \
+    {                                                                                              \
+        half4 _color [[color(0)]];                                                                 \
+        PLS _pls;                                                                                  \
+    };                                                                                             \
+    FragmentOut $__attribute__(($visibility("default"))) $fragment NAME($__VA_ARGS__)              \
+    {                                                                                              \
+        float2 _fragCoord [[$maybe_unused]] = _varyings._pos.xy;                                   \
+        half4 _fragColor;                                                                          \
+        PLS _pls;
+
+#define PLS_FRAG_COLOR_MAIN(NAME)                                                                  \
+    PLS_FRAG_COLOR_METAL_MAIN(NAME,                                                                \
+                              PLS _inpls,                                                          \
+                              Varyings _varyings [[$stage_in]],                                    \
+                              FragmentTextures _textures,                                          \
+                              FragmentStorageBuffers _buffers)
+
+#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                              \
+    PLS_FRAG_COLOR_METAL_MAIN(NAME,                                                                \
+                              PLS _inpls,                                                          \
+                              Varyings _varyings [[$stage_in]],                                    \
+                              FragmentTextures _textures,                                          \
+                              FragmentStorageBuffers _buffers,                                     \
+                              $__VA_ARGS__ $constant @ImageDrawUniforms& imageDrawUniforms         \
+                              [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]])
+
+#define EMIT_PLS_AND_FRAG_COLOR                                                                    \
+    }                                                                                              \
+    return {._color = _fragColor, ._pls = _pls};
+
+#endif // PLS_IMPL_DEVICE_BUFFER
 
 $using $namespace $metal;
 

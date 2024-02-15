@@ -22,11 +22,15 @@ uint32_t ShaderUniqueKey(DrawType drawType,
                          InterlockMode interlockMode,
                          ShaderMiscFlags miscFlags)
 {
-    if (miscFlags & ShaderMiscFlags::kCoalescedResolveAndTransfer)
+    if (miscFlags & ShaderMiscFlags::coalescedResolveAndTransfer)
     {
         assert(drawType == DrawType::plsAtomicResolve);
         assert(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
         assert(interlockMode == InterlockMode::atomics);
+    }
+    if (miscFlags & (ShaderMiscFlags::storeColorClear | ShaderMiscFlags::swizzleColorBGRAToRGBA))
+    {
+        assert(drawType == DrawType::plsAtomicInitialize);
     }
     uint32_t drawTypeKey;
     switch (drawType)
@@ -44,13 +48,17 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::imageMesh:
             drawTypeKey = 3;
             break;
-        case DrawType::plsAtomicResolve:
+        case DrawType::plsAtomicInitialize:
             drawTypeKey = 4;
+            break;
+        case DrawType::plsAtomicResolve:
+            drawTypeKey = 5;
             break;
     }
     uint32_t key = static_cast<uint32_t>(miscFlags);
     key = (key << 1) | static_cast<uint32_t>(interlockMode);
-    key = (key << kShaderFeatureCount) | static_cast<uint32_t>(shaderFeatures);
+    key = (key << kShaderFeatureCount) |
+          (shaderFeatures & AllShaderFeaturesForDrawType(drawType, interlockMode)).bits();
     key = (key << 3) | drawTypeKey;
     return key;
 }
@@ -322,10 +330,7 @@ uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
     RIVE_UNREACHABLE();
 }
 
-FlushUniforms::InverseViewports::InverseViewports(size_t complexGradientsHeight,
-                                                  size_t tessDataHeight,
-                                                  size_t renderTargetWidth,
-                                                  size_t renderTargetHeight,
+FlushUniforms::InverseViewports::InverseViewports(const FlushDescriptor& flushDesc,
                                                   const PlatformFeatures& platformFeatures)
 {
     float4 numerators = 2;
@@ -337,15 +342,26 @@ FlushUniforms::InverseViewports::InverseViewports(size_t complexGradientsHeight,
     {
         numerators.w = -numerators.w;
     }
-    float4 vals = numerators / float4{static_cast<float>(complexGradientsHeight),
-                                      static_cast<float>(tessDataHeight),
-                                      static_cast<float>(renderTargetWidth),
-                                      static_cast<float>(renderTargetHeight)};
+    float4 vals = numerators / float4{static_cast<float>(flushDesc.complexGradRowsHeight),
+                                      static_cast<float>(flushDesc.tessDataHeight),
+                                      static_cast<float>(flushDesc.renderTarget->width()),
+                                      static_cast<float>(flushDesc.renderTarget->height())};
     m_vals[0] = vals[0];
     m_vals[1] = vals[1];
     m_vals[2] = vals[2];
     m_vals[3] = vals[3];
 }
+
+FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
+                             const PlatformFeatures& platformFeatures) :
+    m_inverseViewports(flushDesc, platformFeatures),
+    m_renderTargetWidth(flushDesc.renderTarget->width()),
+    m_renderTargetHeight(flushDesc.renderTarget->height()),
+    m_colorClearValue(SwizzleRiveColorToRGBA(flushDesc.clearColor)),
+    m_coverageClearValue(flushDesc.coverageClearValue),
+    m_renderTargetUpdateBounds(flushDesc.renderTargetUpdateBounds),
+    m_pathIDGranularity(platformFeatures.pathIDGranularity)
+{}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)
 {

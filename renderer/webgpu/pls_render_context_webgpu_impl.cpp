@@ -591,6 +591,7 @@ public:
                     RIVE_UNREACHABLE();
                 case DrawType::imageMesh:
                     break;
+                case DrawType::plsAtomicInitialize:
                 case DrawType::plsAtomicResolve:
                     RIVE_UNREACHABLE();
             }
@@ -639,7 +640,12 @@ public:
                     addDefine(GLSL_DRAW_IMAGE_MESH);
                     glsl << pls::glsl::draw_image_mesh << '\n';
                     break;
+                case DrawType::plsAtomicInitialize:
+                    addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
+                    addDefine(GLSL_INITIALIZE_PLS);
+                    RIVE_UNREACHABLE();
                 case DrawType::plsAtomicResolve:
+                    addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                     addDefine(GLSL_RESOLVE_PLS);
                     RIVE_UNREACHABLE();
             }
@@ -699,6 +705,7 @@ public:
                         draw_image_mesh_frag,
                         std::size(draw_image_mesh_frag));
                     break;
+                case DrawType::plsAtomicInitialize:
                 case DrawType::plsAtomicResolve:
                     RIVE_UNREACHABLE();
             }
@@ -1504,6 +1511,7 @@ wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
                 },
             };
             break;
+        case DrawType::plsAtomicInitialize:
         case DrawType::plsAtomicResolve:
             RIVE_UNREACHABLE();
     }
@@ -1798,7 +1806,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
     wgpu::LoadOp loadOp;
     wgpu::Color clearColor;
-    if (desc.loadAction == LoadAction::clear)
+    if (desc.colorLoadAction == LoadAction::clear)
     {
         loadOp = wgpu::LoadOp::Clear;
         float cc[4];
@@ -1997,7 +2005,8 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             m_drawPipelines
                 .try_emplace(pls::ShaderUniqueKey(drawType,
                                                   batch.shaderFeatures,
-                                                  pls::InterlockMode::rasterOrdering),
+                                                  pls::InterlockMode::rasterOrdering,
+                                                  pls::ShaderMiscFlags::none),
                              this,
                              drawType,
                              batch.shaderFeatures,
@@ -2039,6 +2048,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 drawPass.DrawIndexed(batch.elementCount, 1, batch.baseElement);
                 break;
             }
+            case DrawType::plsAtomicInitialize:
             case DrawType::plsAtomicResolve:
                 RIVE_UNREACHABLE();
         }

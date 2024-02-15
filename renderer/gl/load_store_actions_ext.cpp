@@ -12,12 +12,12 @@ LoadStoreActionsEXT BuildLoadActionsEXT(const pls::FlushDescriptor& desc,
                                         std::array<float, 4>* clearColor4f)
 {
     LoadStoreActionsEXT actions = LoadStoreActionsEXT::clearCoverage;
-    if (desc.loadAction == LoadAction::clear)
+    if (desc.colorLoadAction == LoadAction::clear)
     {
         UnpackColorToRGBA32F(desc.clearColor, clearColor4f->data());
         actions |= LoadStoreActionsEXT::clearColor;
     }
-    else
+    else if (desc.colorLoadAction == LoadAction::preserveRenderTarget)
     {
         actions |= LoadStoreActionsEXT::loadColor;
     }

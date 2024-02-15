@@ -65,22 +65,15 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
-#ifdef METAL
-                                                     _buffers,
-#endif
                                                      pathID,
-                                                     v_windingWeight);
+                                                     v_windingWeight VERTEX_CONTEXT_UNPACK);
 #else
     shouldDiscardVertex = !unpack_tessellated_path_vertex(@a_patchVertexData,
                                                           @a_mirroredVertexData,
                                                           _instanceID,
-#ifdef METAL
-                                                          _textures,
-                                                          _buffers,
-#endif
                                                           pathID,
                                                           v_edgeDistance,
-                                                          vertexPosition);
+                                                          vertexPosition VERTEX_CONTEXT_UNPACK);
 #endif
 
     // Encode the integral pathID as a "half" that we know the hardware will see as a unique value
@@ -108,7 +101,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Paint matrices operate on the fragment shader's "_fragCoord", which is bottom-up in GL.
     float2 fragCoord = vertexPosition;
 #ifdef FRAG_COORD_BOTTOM_UP
-    fragCoord.y = uniforms.renderTargetHeight - fragCoord.y;
+    fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
 #endif
 
 #ifdef @ENABLE_CLIP_RECT
@@ -224,6 +217,9 @@ FRAG_TEXTURE_BLOCK_END
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
+FRAG_STORAGE_BUFFER_BLOCK_BEGIN
+FRAG_STORAGE_BUFFER_BLOCK_END
+
 PLS_BLOCK_BEGIN
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
@@ -231,7 +227,7 @@ PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_BLOCK_END
 
-PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
+PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -266,7 +262,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
     PLS_INTERLOCK_BEGIN;
 #endif
 
-    half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer, _plsCoord));
+    half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
     half coverageBufferID = coverageData.g;
     half coverageCount = coverageBufferID == v_pathID ? coverageData.r : make_half(0);
 
@@ -279,7 +275,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         coverageCount += v_edgeDistance.x;
 
     // Save the updated coverage.
-    PLS_STOREUI(coverageCountBuffer, packHalf2x16(make_half2(coverageCount, v_pathID)), _plsCoord);
+    PLS_STOREUI(coverageCountBuffer, packHalf2x16(make_half2(coverageCount, v_pathID)));
 #endif
 
     // Convert coverageCount to coverage.
@@ -299,7 +295,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         if (outerClipID != .0)
         {
             // This is a nested clip. Intersect coverage with the enclosing clip (outerClipID).
-            half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer, _plsCoord));
+            half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
             half clipContentID = clipData.g;
             half outerClipCoverage;
             if (clipContentID != clipID)
@@ -311,25 +307,23 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
                 // Stash outerClipCoverage before overwriting clipBuffer, in case we hit this pixel
                 // again and need it. (Not necessary when drawing interior triangles because they
                 // always go last and don't overlap.)
-                PLS_STORE4F(originalDstColorBuffer,
-                            make_half4(outerClipCoverage, 0, 0, 0),
-                            _plsCoord);
+                PLS_STORE4F(originalDstColorBuffer, make_half4(outerClipCoverage, 0, 0, 0));
 #endif
             }
             else
             {
                 // Subsequent hit: outerClipCoverage is stashed in originalDstColorBuffer.
-                outerClipCoverage = PLS_LOAD4F(originalDstColorBuffer, _plsCoord).r;
+                outerClipCoverage = PLS_LOAD4F(originalDstColorBuffer).r;
 #ifndef @DRAW_INTERIOR_TRIANGLES
                 // Since interior triangles are always last, there's no need to preserve this value.
-                PLS_PRESERVE_VALUE(originalDstColorBuffer, _plsCoord);
+                PLS_PRESERVE_VALUE(originalDstColorBuffer);
 #endif
             }
             coverage = min(coverage, outerClipCoverage);
         }
 #endif // @ENABLE_NESTED_CLIPPING
-        PLS_STOREUI(clipBuffer, packHalf2x16(make_half2(coverage, clipID)), _plsCoord);
-        PLS_PRESERVE_VALUE(framebuffer, _plsCoord);
+        PLS_STOREUI(clipBuffer, packHalf2x16(make_half2(coverage, clipID)));
+        PLS_PRESERVE_VALUE(framebuffer);
     }
     else // Render to the main framebuffer.
 #endif   // @ENABLE_CLIPPING
@@ -340,7 +334,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         {
             // Clip IDs are not necessarily drawn in monotonically increasing order, so always check
             // exact equality of the clipID.
-            half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer, _plsCoord));
+            half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
             half clipContentID = clipData.g;
             half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
             coverage = min(coverage, clipCoverage);
@@ -350,7 +344,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         half clipRectCoverage = min_value(make_half4(v_clipRect));
         coverage = clamp(clipRectCoverage, make_half(0), coverage);
 #endif
-        PLS_PRESERVE_VALUE(clipBuffer, _plsCoord);
+        PLS_PRESERVE_VALUE(clipBuffer);
 
         half4 color;
         if (v_paint.a >= .0) // Is the paint a solid color?
@@ -391,19 +385,19 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
         if (coverageBufferID != v_pathID)
         {
             // This is the first fragment from pathID to touch this pixel.
-            dstColor = PLS_LOAD4F(framebuffer, _plsCoord);
+            dstColor = PLS_LOAD4F(framebuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
             // We don't need to store coverage when drawing interior triangles because they always
             // go last and don't overlap, so every fragment is the final one in the path.
-            PLS_STORE4F(originalDstColorBuffer, dstColor, _plsCoord);
+            PLS_STORE4F(originalDstColorBuffer, dstColor);
 #endif
         }
         else
         {
-            dstColor = PLS_LOAD4F(originalDstColorBuffer, _plsCoord);
+            dstColor = PLS_LOAD4F(originalDstColorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
             // Since interior triangles are always last, there's no need to preserve this value.
-            PLS_PRESERVE_VALUE(originalDstColorBuffer, _plsCoord);
+            PLS_PRESERVE_VALUE(originalDstColorBuffer);
 #endif
         }
 
@@ -429,7 +423,7 @@ PLS_MAIN(@drawFragmentMain, _fragCoord, _plsCoord)
 #endif
         }
 
-        PLS_STORE4F(framebuffer, color, _plsCoord);
+        PLS_STORE4F(framebuffer, color);
     }
 
 #ifndef @DRAW_INTERIOR_TRIANGLES

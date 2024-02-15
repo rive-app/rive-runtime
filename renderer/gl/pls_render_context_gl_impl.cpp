@@ -709,14 +709,17 @@ public:
                 break;
             case DrawType::plsAtomicResolve:
                 assert(interlockMode == pls::InterlockMode::atomics);
+                defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                 defines.push_back(GLSL_RESOLVE_PLS);
-                if (shaderMiscFlags & pls::ShaderMiscFlags::kCoalescedResolveAndTransfer)
+                if (shaderMiscFlags & pls::ShaderMiscFlags::coalescedResolveAndTransfer)
                 {
                     assert(shaderType == GL_FRAGMENT_SHADER);
                     defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
                 }
                 sources.push_back(pls::glsl::atomic_draw);
                 break;
+            case DrawType::plsAtomicInitialize:
+                RIVE_UNREACHABLE();
         }
         if (plsContextImpl->m_capabilities.ARB_bindless_texture)
         {
@@ -755,7 +758,10 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
     ShaderFeatures vertexShaderFeatures = shaderFeatures & kVertexShaderFeaturesMask;
-    uint32_t vertexShaderKey = pls::ShaderUniqueKey(drawType, vertexShaderFeatures, interlockMode);
+    uint32_t vertexShaderKey = pls::ShaderUniqueKey(drawType,
+                                                    vertexShaderFeatures,
+                                                    interlockMode,
+                                                    pls::ShaderMiscFlags::none);
     const DrawShader& vertexShader = plsContextImpl->m_vertexShaders
                                          .try_emplace(vertexShaderKey,
                                                       plsContextImpl,
@@ -763,7 +769,7 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                                                       drawType,
                                                       vertexShaderFeatures,
                                                       interlockMode,
-                                                      pls::ShaderMiscFlags::kNone)
+                                                      pls::ShaderMiscFlags::none)
                                          .first->second;
     glAttachShader(m_id, vertexShader.id());
 
@@ -967,7 +973,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 
     bool renderPassHasCoalescedResolveAndTransfer =
-        desc.interlockMode == pls::InterlockMode::atomics && !desc.renderDirectToRasterPipeline &&
+        desc.interlockMode == pls::InterlockMode::atomics &&
+        !pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures) &&
         m_plsImpl->supportsCoalescedPLSResolveAndTransfer(renderTarget);
 
     // Compile the draw programs before activating pixel local storage.
@@ -980,8 +987,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   : batch.shaderFeatures;
         auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve &&
                                                renderPassHasCoalescedResolveAndTransfer
-                                           ? pls::ShaderMiscFlags::kCoalescedResolveAndTransfer
-                                           : pls::ShaderMiscFlags::kNone;
+                                           ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
+                                           : pls::ShaderMiscFlags::none;
         uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
                                                           shaderFeatures,
                                                           desc.interlockMode,
@@ -1027,8 +1034,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   : batch.shaderFeatures;
         auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve &&
                                                renderPassHasCoalescedResolveAndTransfer
-                                           ? pls::ShaderMiscFlags::kCoalescedResolveAndTransfer
-                                           : pls::ShaderMiscFlags::kNone;
+                                           ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
+                                           : pls::ShaderMiscFlags::none;
         uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
                                                           shaderFeatures,
                                                           desc.interlockMode,
@@ -1153,6 +1160,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 }
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
+            case DrawType::plsAtomicInitialize:
+                RIVE_UNREACHABLE();
         }
         if (batch.needsBarrier)
         {

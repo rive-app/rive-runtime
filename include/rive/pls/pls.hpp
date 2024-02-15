@@ -102,6 +102,9 @@ struct PlatformFeatures
                                     // bottom-up or top-down?
     bool supportsBindlessTextures = false;
     bool supportsRasterOrdering = false; // Can pixel local storage accesses be raster ordered?
+    bool atomicPLSMustBeInitializedAsDraw = false; // Backend cannot initialize PLS with typical
+                                                   // clear/load APIs in atomic mode. Issue a
+                                                   // "DrawType::plsAtomicInitialize" draw instead.
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient
@@ -312,8 +315,384 @@ struct GradTextureLayout
     float inverseHeight;     // 1 / textureHeight
 };
 
+// Once all curves in a contour have been tessellated, we render the tessellated vertices in
+// "patches" (aka specific instanced geometry).
+//
+// See:
+// https://docs.google.com/document/d/19Uk9eyFxav6dNSYsI2ZyiX9zHU1YOaJsMB2sdDFVz6s/edit#heading=h.fa4kubk3vimk
+//
+// With strokes:
+// https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit#heading=h.dcd0c58pxfs5
+//
+// A single patch spans N tessellation segments, connecting N + 1 tessellation vertices. It is
+// composed of a an AA border and fan triangles. The specifics of the fan triangles depend on
+// the PatchType.
+enum class PatchType
+{
+    // Patches fan around the contour midpoint. Outer edges are inset by ~1px, followed by a
+    // ~1px AA ramp.
+    midpointFan,
+
+    // Patches only cover the AA ramps and interiors of bezier curves. The interior path
+    // triangles that connect the outer curves are triangulated on the CPU to eliminate overlap,
+    // and are drawn in a separate call. AA ramps are split down the middle (on the same lines
+    // as the interior triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
+    // AA ramp that overlaps the inner tessellation and has negative coverage. A lone bowtie
+    // join is emitted at the end of the patch to tie the outer curves together.
+    outerCurves,
+};
+
+struct PatchVertex
+{
+    void set(float localVertexID_, float outset_, float fillCoverage_, float params_)
+    {
+        localVertexID = localVertexID_;
+        outset = outset_;
+        fillCoverage = fillCoverage_;
+        params = params_;
+        setMirroredPosition(localVertexID_, outset_, fillCoverage_);
+    }
+
+    // Patch vertices can have an optional, alternate position when mirrored. This is so we can
+    // ensure the diagonals inside the stroke line up on both versions of the patch (mirrored
+    // and not).
+    void setMirroredPosition(float localVertexID_, float outset_, float fillCoverage_)
+    {
+        mirroredVertexID = localVertexID_;
+        mirroredOutset = outset_;
+        mirroredFillCoverage = fillCoverage_;
+    }
+
+    float localVertexID; // 0 or 1 -- which tessellated vertex of the two that we are connecting?
+    float outset;        // Outset from the tessellated position, in the direction of the normal.
+    float fillCoverage;  // 0..1 for the stroke. 1 all around for the triangles.
+                         // (Coverage will be negated later for counterclockwise triangles.)
+    int32_t params;      // "(patchSize << 2) | [flags::kStrokeVertex,
+                         //                      flags::kFanVertex,
+                         //                      flags::kFanMidpointVertex]"
+    float mirroredVertexID;
+    float mirroredOutset;
+    float mirroredFillCoverage;
+    int32_t padding = 0;
+};
+static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
+
+// # of tessellation segments spanned by the midpoint fan patch.
+constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
+
+// # of tessellation segments spanned by the outer curve patch. (In this particular instance,
+// the final segment is a bowtie join with zero length and no fan triangle.)
+constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
+
+// Define vertex and index buffers that contain all the triangles in every PatchType.
+constexpr static uint32_t kMidpointFanPatchVertexCount =
+    kMidpointFanPatchSegmentSpan * 4 /*Stroke and/or AA outer ramp*/ +
+    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ + 1 /*Triangle from path midpoint*/;
+constexpr static uint32_t kMidpointFanPatchIndexCount =
+    kMidpointFanPatchSegmentSpan * 6 /*Stroke and/or AA outer ramp*/ +
+    (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ + 3 /*Triangle from path midpoint*/;
+constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
+static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
+constexpr static uint32_t kOuterCurvePatchVertexCount =
+    kOuterCurvePatchSegmentSpan * 8 /*AA center ramp with bowtie*/ +
+    kOuterCurvePatchSegmentSpan /*Curve fan*/;
+constexpr static uint32_t kOuterCurvePatchIndexCount =
+    kOuterCurvePatchSegmentSpan * 12 /*AA center ramp with bowtie*/ +
+    (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
+constexpr static uint32_t kOuterCurvePatchBaseIndex = kMidpointFanPatchIndexCount;
+static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
+constexpr static uint32_t kPatchVertexBufferCount =
+    kMidpointFanPatchVertexCount + kOuterCurvePatchVertexCount;
+constexpr static uint32_t kPatchIndexBufferCount =
+    kMidpointFanPatchIndexCount + kOuterCurvePatchIndexCount;
+void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
+                             uint16_t indices[kPatchIndexBufferCount]);
+
+enum class DrawType : uint8_t
+{
+    midpointFanPatches, // Standard paths and/or strokes.
+    outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
+    interiorTriangulation,
+    imageRect,
+    imageMesh,
+    plsAtomicInitialize, // Clear/init PLS data when we can't do it with existing clear/load APIs.
+    plsAtomicResolve,    // Resolve PLS data to the final renderTarget color in atomic mode.
+};
+
+constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+            return kMidpointFanPatchSegmentSpan;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchSegmentSpan;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+constexpr static uint32_t PatchIndexCount(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+            return kMidpointFanPatchIndexCount;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchIndexCount;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+constexpr static uintptr_t PatchBaseIndex(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+            return kMidpointFanPatchBaseIndex;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchBaseIndex;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+// Specifies what to do with the render target at the beginning of a flush.
+enum class LoadAction
+{
+    clear,
+    preserveRenderTarget,
+    dontCare,
+};
+
+// "Uber shader" features that can be #defined in a draw shader.
+// This set is strictly limited to switches that don't *change* the behavior of the shader, i.e.,
+// turning them all on will enable all types Rive content, but simple content will still draw
+// identically; we can turn a feature off if we know a batch doesn't need it for better performance.
+enum class ShaderFeatures
+{
+    NONE = 0,
+
+    // Whole program features.
+    ENABLE_CLIPPING = 1 << 0,
+    ENABLE_CLIP_RECT = 1 << 1,
+    ENABLE_ADVANCED_BLEND = 1 << 2,
+
+    // Fragment-only features.
+    ENABLE_EVEN_ODD = 1 << 3,
+    ENABLE_NESTED_CLIPPING = 1 << 4,
+    ENABLE_HSL_BLEND_MODES = 1 << 5,
+};
+RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
+constexpr static size_t kShaderFeatureCount = 6;
+constexpr static ShaderFeatures kVertexShaderFeaturesMask = ShaderFeatures::ENABLE_CLIPPING |
+                                                            ShaderFeatures::ENABLE_CLIP_RECT |
+                                                            ShaderFeatures::ENABLE_ADVANCED_BLEND;
+constexpr static ShaderFeatures kPathDrawShaderFeaturesMask =
+    static_cast<pls::ShaderFeatures>((1 << pls::kShaderFeatureCount) - 1);
+constexpr static ShaderFeatures kRasterOrderedImageDrawShaderFeaturesMask =
+    ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
+    ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+constexpr static ShaderFeatures kPLSInitializeShaderFeaturesMask =
+    ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_ADVANCED_BLEND;
+
+// Synchronization method for pixel local storage with overlapping frragments.
+enum class InterlockMode
+{
+    rasterOrdering,
+    atomics,
+};
+
+constexpr static ShaderFeatures AllShaderFeaturesForDrawType(DrawType drawType,
+                                                             InterlockMode interlockMode)
+{
+    switch (drawType)
+    {
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+            if (interlockMode == pls::InterlockMode::rasterOrdering)
+            {
+                return kRasterOrderedImageDrawShaderFeaturesMask;
+            }
+            // Since atomic mode has to resolve previous draws, images need to consider all shader
+            // features for path draws.
+            [[fallthrough]];
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::plsAtomicResolve:
+            return kPathDrawShaderFeaturesMask;
+        case DrawType::plsAtomicInitialize:
+            assert(interlockMode == InterlockMode::atomics);
+            return kPLSInitializeShaderFeaturesMask;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// Miscellaneous switches that *do* affect the behavior of a shader. A backend can add these to a
+// shader key if it wants to implement the behavior.
+enum class ShaderMiscFlags : uint32_t
+{
+    none = 0,
+
+    // DrawType::plsAtomicInitialize only. Also store the color clear value to PLS when drawing a
+    // clear, in addition to clearing the other PLS planes.
+    storeColorClear = 1 << 0,
+
+    // DrawType::plsAtomicInitialize only. Swizzle the existing framebuffer contents from BGRA to
+    // RGBA. (For when this data had to get copied from a BGRA target.)
+    swizzleColorBGRAToRGBA = 1 << 1,
+
+    // DrawType::plsAtomicResolve only. Optimization for when rendering to an offscreen texture.
+    //
+    // It renders the final "resolve" operation directly to the renderTarget in a single pass,
+    // instead of (1) resolving the offscreen texture, and then (2) copying the offscreen texture to
+    // back the renderTarget.
+    coalescedResolveAndTransfer = 1 << 2,
+};
+RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
+
+// Returns a unique value that can be used to key a shader.
+uint32_t ShaderUniqueKey(DrawType, ShaderFeatures, InterlockMode, ShaderMiscFlags);
+
+extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
+
+// Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
+// instead of rendering them.
+struct TwoTexelRamp
+{
+    void set(const ColorInt colors[2])
+    {
+        UnpackColorToRGBA8(colors[0], colorData);
+        UnpackColorToRGBA8(colors[1], colorData + 4);
+    }
+    uint8_t colorData[8];
+};
+static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
+
+// Low-level batch of geometry to submit to the GPU.
+struct DrawBatch
+{
+    DrawBatch(DrawType drawType_, uint32_t baseElement_) :
+        drawType(drawType_), baseElement(baseElement_)
+    {}
+
+    const DrawType drawType;
+    uint32_t baseElement;      // Base vertex, index, or instance.
+    uint32_t elementCount = 0; // Vertex, index, or instance count.
+    ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
+    bool needsBarrier = false; // Pixel-local-storage barrier required after submitting this batch.
+
+    // DrawType::imageRect and DrawType::imageMesh.
+    uint32_t imageDrawDataOffset = 0;
+    const PLSTexture* imageTexture = nullptr;
+
+    // DrawType::imageMesh.
+    const RenderBuffer* vertexBuffer;
+    const RenderBuffer* uvBuffer;
+    const RenderBuffer* indexBuffer;
+};
+
+enum class FlushType : uint8_t
+{
+    // This is a "logical" flush, in that it will break up the render pass and re-render the
+    // resource textures, but it won't submit any command buffers or rotate/synchronize the buffer
+    // rings.
+    logical,
+
+    // This is the final flush of the frame. It will submit any command buffers and
+    // rotate/synchronize the buffer rings.
+    endOfFrame,
+};
+
+// Detailed description of exactly how a PLSRenderContextImpl should bind its buffers and draw a
+// flush. A typical flush is done in 4 steps:
+//
+//  1. Render the complex gradients from the gradSpanBuffer to the gradient texture
+//     (complexGradSpanCount, firstComplexGradSpan, complexGradRowsTop, complexGradRowsHeight).
+//
+//  2. Transfer the simple gradient texels from the simpleColorRampsBuffer to the top of the
+//     gradient texture (simpleGradTexelsWidth, simpleGradTexelsHeight,
+//     simpleGradDataOffsetInBytes, tessDataHeight).
+//
+//  3. Render the tessellation texture from the tessVertexSpanBuffer (tessVertexSpanCount,
+//     firstTessVertexSpan).
+//
+//  4. Execute the drawList, reading from the newly rendered resource textures.
+//
+struct FlushDescriptor
+{
+    FlushType flushType;
+    PLSRenderTarget* renderTarget = nullptr;
+    ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
+    InterlockMode interlockMode = InterlockMode::rasterOrdering;
+
+    LoadAction colorLoadAction = LoadAction::clear;
+    ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
+    uint32_t coverageClearValue = 0;
+
+    IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if loadAction ==
+                                    // LoadAction::clear.
+
+    size_t flushUniformDataOffsetInBytes = 0;
+    size_t pathCount = 0;
+    size_t firstPath = 0;
+    size_t firstPaint = 0;
+    size_t firstPaintAux = 0;
+    size_t contourCount = 0;
+    size_t firstContour = 0;
+    size_t complexGradSpanCount = 0;
+    size_t firstComplexGradSpan = 0;
+    size_t tessVertexSpanCount = 0;
+    size_t firstTessVertexSpan = 0;
+    uint32_t simpleGradTexelsWidth = 0;
+    uint32_t simpleGradTexelsHeight = 0;
+    size_t simpleGradDataOffsetInBytes = 0;
+    uint32_t complexGradRowsTop = 0;
+    uint32_t complexGradRowsHeight = 0;
+    uint32_t tessDataHeight = 0;
+    const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
+
+    bool hasTriangleVertices = false;
+    bool wireframe = false;
+    void* backendSpecificData = nullptr; // (External command buffer on Metal.)
+};
+
+// Returns true if the PLS shaders emit color directly to the raster pipeline, instead of rendering
+// via pixel local storage. In this case, the shaders will expect hardware blending to be enabled
+// and configured for premultiplied "src-over". It is the backend's responsibility to check this
+// method and configure the hardware blend state as needed.
+constexpr RIVE_ALWAYS_INLINE bool ShadersEmitColorToRasterPipeline(
+    InterlockMode interlockMode,
+    ShaderFeatures combinedShaderFeatures)
+{
+    return interlockMode == InterlockMode::atomics &&
+           !(combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
+}
+
+// Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
+template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)
+{
+    constexpr uint32_t maxMultipleOfAlignment =
+        std::numeric_limits<uint32_t>::max() / Alignment * Alignment;
+    uint32_t padding = (maxMultipleOfAlignment - value) % Alignment;
+    assert((value + padding) % Alignment == 0);
+    return padding;
+}
+
+// Returns the area of the (potentially non-rectangular) quadrilateral that results from
+// transforming the given bounds by the given matrix.
+float FindTransformedArea(const AABB& bounds, const Mat2D&);
+
 // Convert a BlendMode to the tightly-packed range used by PLS shaders.
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode);
+
+// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected by GLSL).
+RIVE_ALWAYS_INLINE uint32_t SwizzleRiveColorToRGBA(ColorInt riveColor)
+{
+    return (riveColor & 0xff00ff00) | (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
+}
 
 // Used for fields that are used to layout write-only mapped GPU memory.
 // "volatile" to discourage the compiler from generating code that reads these values
@@ -325,21 +704,7 @@ uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode);
 struct FlushUniforms
 {
 public:
-    FlushUniforms(uint32_t complexGradientsHeight,
-                  uint32_t tessDataHeight,
-                  uint32_t renderTargetWidth,
-                  uint32_t renderTargetHeight,
-                  const IAABB& updateBounds,
-                  const PlatformFeatures& platformFeatures) :
-        m_inverseViewports(complexGradientsHeight,
-                           tessDataHeight,
-                           renderTargetWidth,
-                           renderTargetHeight,
-                           platformFeatures),
-        m_updateBounds(updateBounds),
-        m_renderTargetHeight(renderTargetHeight),
-        m_pathIDGranularity(platformFeatures.pathIDGranularity)
-    {}
+    FlushUniforms(const FlushDescriptor&, const PlatformFeatures&);
 
     FlushUniforms(const FlushUniforms& other) { *this = other; }
 
@@ -359,24 +724,24 @@ private:
     public:
         InverseViewports() = default;
 
-        InverseViewports(size_t complexGradientsHeight,
-                         size_t tessDataHeight,
-                         size_t renderTargetWidth,
-                         size_t renderTargetHeight,
-                         const PlatformFeatures& platformFeatures);
+        InverseViewports(const FlushDescriptor&, const PlatformFeatures&);
 
     private:
         WRITEONLY float m_vals[4]; // [complexGradientsY, tessDataY, renderTargetX,  renderTargetY]
     };
 
     WRITEONLY InverseViewports m_inverseViewports;
-    WRITEONLY IAABB m_updateBounds; // drawBounds, or renderTargetBounds if there is a clear.
-                                    // (Used by the "@RESOLVE_PLS" step in InterlockMode::atomics.)
-    WRITEONLY float m_renderTargetHeight = 0;
+    WRITEONLY uint32_t m_renderTargetWidth = 0;
+    WRITEONLY uint32_t m_renderTargetHeight = 0;
+    WRITEONLY uint32_t m_colorClearValue;       // Only used if clears are implemented as draws.
+    WRITEONLY uint32_t m_coverageClearValue;    // Only used if clears are implemented as draws.
+    WRITEONLY IAABB m_renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is a
+                                                // clear. (Used by the "@RESOLVE_PLS" step in
+                                                // InterlockMode::atomics.)
     WRITEONLY uint32_t m_pathIDGranularity = 0; // Spacing between adjacent path IDs
                                                 // (1 if IEEE compliant).
     WRITEONLY float m_vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 44]; // Uniform blocks must be multiples of 256 bytes in
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 56]; // Uniform blocks must be multiples of 256 bytes in
                                                  // size.
 };
 static_assert(sizeof(FlushUniforms) == 256);
@@ -650,357 +1015,4 @@ private:
     T* m_nextMappedItem;
     const T* m_mappingEnd;
 };
-
-// Once all curves in a contour have been tessellated, we render the tessellated vertices in
-// "patches" (aka specific instanced geometry).
-//
-// See:
-// https://docs.google.com/document/d/19Uk9eyFxav6dNSYsI2ZyiX9zHU1YOaJsMB2sdDFVz6s/edit#heading=h.fa4kubk3vimk
-//
-// With strokes:
-// https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit#heading=h.dcd0c58pxfs5
-//
-// A single patch spans N tessellation segments, connecting N + 1 tessellation vertices. It is
-// composed of a an AA border and fan triangles. The specifics of the fan triangles depend on
-// the PatchType.
-enum class PatchType
-{
-    // Patches fan around the contour midpoint. Outer edges are inset by ~1px, followed by a
-    // ~1px AA ramp.
-    midpointFan,
-
-    // Patches only cover the AA ramps and interiors of bezier curves. The interior path
-    // triangles that connect the outer curves are triangulated on the CPU to eliminate overlap,
-    // and are drawn in a separate call. AA ramps are split down the middle (on the same lines
-    // as the interior triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
-    // AA ramp that overlaps the inner tessellation and has negative coverage. A lone bowtie
-    // join is emitted at the end of the patch to tie the outer curves together.
-    outerCurves,
-};
-
-struct PatchVertex
-{
-    void set(float localVertexID_, float outset_, float fillCoverage_, float params_)
-    {
-        localVertexID = localVertexID_;
-        outset = outset_;
-        fillCoverage = fillCoverage_;
-        params = params_;
-        setMirroredPosition(localVertexID_, outset_, fillCoverage_);
-    }
-
-    // Patch vertices can have an optional, alternate position when mirrored. This is so we can
-    // ensure the diagonals inside the stroke line up on both versions of the patch (mirrored
-    // and not).
-    void setMirroredPosition(float localVertexID_, float outset_, float fillCoverage_)
-    {
-        mirroredVertexID = localVertexID_;
-        mirroredOutset = outset_;
-        mirroredFillCoverage = fillCoverage_;
-    }
-
-    float localVertexID; // 0 or 1 -- which tessellated vertex of the two that we are connecting?
-    float outset;        // Outset from the tessellated position, in the direction of the normal.
-    float fillCoverage;  // 0..1 for the stroke. 1 all around for the triangles.
-                         // (Coverage will be negated later for counterclockwise triangles.)
-    int32_t params;      // "(patchSize << 2) | [flags::kStrokeVertex,
-                         //                      flags::kFanVertex,
-                         //                      flags::kFanMidpointVertex]"
-    float mirroredVertexID;
-    float mirroredOutset;
-    float mirroredFillCoverage;
-    int32_t padding = 0;
-};
-static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
-
-// # of tessellation segments spanned by the midpoint fan patch.
-constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
-
-// # of tessellation segments spanned by the outer curve patch. (In this particular instance,
-// the final segment is a bowtie join with zero length and no fan triangle.)
-constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
-
-// Define vertex and index buffers that contain all the triangles in every PatchType.
-constexpr static uint32_t kMidpointFanPatchVertexCount =
-    kMidpointFanPatchSegmentSpan * 4 /*Stroke and/or AA outer ramp*/ +
-    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ + 1 /*Triangle from path midpoint*/;
-constexpr static uint32_t kMidpointFanPatchIndexCount =
-    kMidpointFanPatchSegmentSpan * 6 /*Stroke and/or AA outer ramp*/ +
-    (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ + 3 /*Triangle from path midpoint*/;
-constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
-static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
-constexpr static uint32_t kOuterCurvePatchVertexCount =
-    kOuterCurvePatchSegmentSpan * 8 /*AA center ramp with bowtie*/ +
-    kOuterCurvePatchSegmentSpan /*Curve fan*/;
-constexpr static uint32_t kOuterCurvePatchIndexCount =
-    kOuterCurvePatchSegmentSpan * 12 /*AA center ramp with bowtie*/ +
-    (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
-constexpr static uint32_t kOuterCurvePatchBaseIndex = kMidpointFanPatchIndexCount;
-static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
-constexpr static uint32_t kPatchVertexBufferCount =
-    kMidpointFanPatchVertexCount + kOuterCurvePatchVertexCount;
-constexpr static uint32_t kPatchIndexBufferCount =
-    kMidpointFanPatchIndexCount + kOuterCurvePatchIndexCount;
-void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
-                             uint16_t indices[kPatchIndexBufferCount]);
-
-enum class DrawType : uint8_t
-{
-    midpointFanPatches, // Standard paths and/or strokes.
-    outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
-    interiorTriangulation,
-    imageRect,
-    imageMesh,
-    plsAtomicResolve,
-};
-
-constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-            return kMidpointFanPatchSegmentSpan;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchSegmentSpan;
-        default:
-            RIVE_UNREACHABLE();
-    }
-}
-
-constexpr static uint32_t PatchIndexCount(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-            return kMidpointFanPatchIndexCount;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchIndexCount;
-        default:
-            RIVE_UNREACHABLE();
-    }
-}
-
-constexpr static uintptr_t PatchBaseIndex(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-            return kMidpointFanPatchBaseIndex;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchBaseIndex;
-        default:
-            RIVE_UNREACHABLE();
-    }
-}
-
-// Specifies what to do with the render target at the beginning of a flush.
-enum class LoadAction : bool
-{
-    clear,
-    preserveRenderTarget
-};
-
-// "Uber shader" features that can be #defined in a draw shader.
-// This set is strictly limited to switches that don't *change* the behavior of the shader, i.e.,
-// turning them all on will enable all types Rive content, but simple content will still draw
-// identically; we can turn a feature off if we know a batch doesn't need it for better performance.
-enum class ShaderFeatures
-{
-    NONE = 0,
-
-    // Whole program features.
-    ENABLE_CLIPPING = 1 << 0,
-    ENABLE_CLIP_RECT = 1 << 1,
-    ENABLE_ADVANCED_BLEND = 1 << 2,
-
-    // Fragment-only features.
-    ENABLE_EVEN_ODD = 1 << 3,
-    ENABLE_NESTED_CLIPPING = 1 << 4,
-    ENABLE_HSL_BLEND_MODES = 1 << 5,
-};
-RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
-constexpr static size_t kShaderFeatureCount = 6;
-constexpr static ShaderFeatures kVertexShaderFeaturesMask = ShaderFeatures::ENABLE_CLIPPING |
-                                                            ShaderFeatures::ENABLE_CLIP_RECT |
-                                                            ShaderFeatures::ENABLE_ADVANCED_BLEND;
-constexpr static ShaderFeatures kImageDrawShaderFeaturesMask =
-    ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
-    ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_HSL_BLEND_MODES;
-constexpr static ShaderFeatures kPathDrawShaderFeaturesMask =
-    static_cast<pls::ShaderFeatures>((1 << pls::kShaderFeatureCount) - 1);
-
-constexpr static ShaderFeatures AllShaderFeaturesForDrawType(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::plsAtomicResolve:
-            return kPathDrawShaderFeaturesMask;
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-            return kImageDrawShaderFeaturesMask;
-    }
-}
-
-// Synchronization method for pixel local storage with overlapping frragments.
-enum class InterlockMode
-{
-    rasterOrdering,
-    atomics,
-};
-
-// Miscellaneous switches that *do* affect the behavior of a shader. A backend can add these to a
-// shader key if it wants to implement the behavior.
-enum class ShaderMiscFlags : uint32_t
-{
-    kNone = 0,
-
-    // Optimization for atomic mode when rendering to an offscreen texture because a renderTarget
-    // doesn't support storage texture binding.
-    //
-    // It renders the final "DrawType::plsAtomicResolve" operation directly to the renderTarget in a
-    // single pass, instead of (1) resolving the offscreen texture, and then (2) copying the
-    // offscreen texture to back the renderTarget.
-    kCoalescedResolveAndTransfer = 1 << 0,
-};
-RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
-
-// Returns a unique value that can be used to key a shader.
-uint32_t ShaderUniqueKey(DrawType,
-                         ShaderFeatures,
-                         InterlockMode,
-                         ShaderMiscFlags = ShaderMiscFlags::kNone);
-
-extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
-
-// Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
-// instead of rendering them.
-struct TwoTexelRamp
-{
-    void set(const ColorInt colors[2])
-    {
-        UnpackColorToRGBA8(colors[0], colorData);
-        UnpackColorToRGBA8(colors[1], colorData + 4);
-    }
-    uint8_t colorData[8];
-};
-static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
-
-// Low-level batch of geometry to submit to the GPU.
-struct DrawBatch
-{
-    DrawBatch(DrawType drawType_, uint32_t baseElement_) :
-        drawType(drawType_), baseElement(baseElement_)
-    {}
-
-    const DrawType drawType;
-    uint32_t baseElement;      // Base vertex, index, or instance.
-    uint32_t elementCount = 0; // Vertex, index, or instance count.
-    ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
-    bool needsBarrier = false; // Pixel-local-storage barrier required after submitting this batch.
-
-    // DrawType::imageRect and DrawType::imageMesh.
-    uint32_t imageDrawDataOffset = 0;
-    const PLSTexture* imageTexture = nullptr;
-
-    // DrawType::imageMesh.
-    const RenderBuffer* vertexBuffer;
-    const RenderBuffer* uvBuffer;
-    const RenderBuffer* indexBuffer;
-};
-
-enum class FlushType : uint8_t
-{
-    // This is a "logical" flush, in that it will break up the render pass and re-render the
-    // resource textures, but it won't submit any command buffers or rotate/synchronize the buffer
-    // rings.
-    logical,
-
-    // This is the final flush of the frame. It will submit any command buffers and
-    // rotate/synchronize the buffer rings.
-    endOfFrame,
-};
-
-// Detailed description of exactly how a PLSRenderContextImpl should bind its buffers and draw a
-// flush. A typical flush is done in 4 steps:
-//
-//  1. Render the complex gradients from the gradSpanBuffer to the gradient texture
-//     (complexGradSpanCount, firstComplexGradSpan, complexGradRowsTop, complexGradRowsHeight).
-//
-//  2. Transfer the simple gradient texels from the simpleColorRampsBuffer to the top of the
-//     gradient texture (simpleGradTexelsWidth, simpleGradTexelsHeight,
-//     simpleGradDataOffsetInBytes, tessDataHeight).
-//
-//  3. Render the tessellation texture from the tessVertexSpanBuffer (tessVertexSpanCount,
-//     firstTessVertexSpan).
-//
-//  4. Execute the drawList, reading from the newly rendered resource textures.
-//
-struct FlushDescriptor
-{
-    FlushType flushType;
-    PLSRenderTarget* renderTarget = nullptr;
-    LoadAction loadAction = LoadAction::clear;
-    ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
-    IAABB updateBounds; // drawBounds, or renderTargetBounds if loadAction == LoadAction::clear.
-    ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
-    InterlockMode interlockMode = InterlockMode::rasterOrdering;
-
-    // In atomic mode, we skip the explicit clear of the color buffer when the operation can be
-    // folded into the atomic "resolve" operation.
-    // (i.e., when interlockMode == InterlockMode::atomics, loadAction == LoadAction::clear, and
-    // clearColor is solid.)
-    bool skipExplicitColorClear;
-
-    // True if the backend should render directly to the raster pipeline, using hardware blend state
-    // for opacity and antialiasing, as opposed to rendering to pixel local storage. This will
-    // happen when combinedShaderFeatures do not include ShaderFeatures::ENABLE_ADVANCED_BLEND and
-    // when interlockMode == InterlockMode::atomics.
-    bool renderDirectToRasterPipeline;
-
-    size_t flushUniformDataOffsetInBytes = 0;
-    size_t pathCount = 0;
-    size_t firstPath = 0;
-    size_t firstPaint = 0;
-    size_t firstPaintAux = 0;
-    size_t contourCount = 0;
-    size_t firstContour = 0;
-    size_t complexGradSpanCount = 0;
-    size_t firstComplexGradSpan = 0;
-    size_t tessVertexSpanCount = 0;
-    size_t firstTessVertexSpan = 0;
-    uint32_t simpleGradTexelsWidth = 0;
-    uint32_t simpleGradTexelsHeight = 0;
-    size_t simpleGradDataOffsetInBytes = 0;
-    uint32_t complexGradRowsTop = 0;
-    uint32_t complexGradRowsHeight = 0;
-    uint32_t tessDataHeight = 0;
-    const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
-
-    bool hasTriangleVertices = false;
-    bool wireframe = false;
-    void* backendSpecificData = nullptr; // (External command buffer on Metal.)
-};
-
-// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected by GLSL).
-RIVE_ALWAYS_INLINE uint32_t SwizzleRiveColorToRGBA(ColorInt riveColor)
-{
-    return (riveColor & 0xff00ff00) | (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
-}
-
-// Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
-template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)
-{
-    constexpr uint32_t maxMultipleOfAlignment =
-        std::numeric_limits<uint32_t>::max() / Alignment * Alignment;
-    uint32_t padding = (maxMultipleOfAlignment - value) % Alignment;
-    assert((value + padding) % Alignment == 0);
-    return padding;
-}
-
-// Returns the area of the (potentially non-rectangular) quadrilateral that results from
-// transforming the given bounds by the given matrix.
-float FindTransformedArea(const AABB& bounds, const Mat2D&);
 } // namespace rive::pls

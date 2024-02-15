@@ -173,7 +173,7 @@ private:
     ComPtr<ID3D11Buffer> m_patchVertexBuffer;
     ComPtr<ID3D11Buffer> m_patchIndexBuffer;
 
-    // Vertex/index buffers for drawing image rects. (Atomic mode only.)
+    // Vertex/index buffers for drawing image rects. (pls::InterlockMode::atomics only.)
     ComPtr<ID3D11Buffer> m_imageRectVertexBuffer;
     ComPtr<ID3D11Buffer> m_imageRectIndexBuffer;
 

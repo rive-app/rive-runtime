@@ -10,12 +10,12 @@ VERTEX_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA32UI(TESS_VERTEX_TEXTURE_IDX, @tessVertexTexture);
 VERTEX_TEXTURE_BLOCK_END
 
-STORAGE_BUFFER_BLOCK_BEGIN
+VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
 STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
-STORAGE_BUFFER_BLOCK_END
+VERTEX_STORAGE_BUFFER_BLOCK_END
 
 #ifdef @DRAW_PATH
 INLINE int2 tess_texel_coord(int texelIndex)
@@ -34,13 +34,9 @@ INLINE float calc_aa_radius(float2x2 M, float2 normalized)
 INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            float4 mirroredVertexData,
                                            int _instanceID,
-#ifdef METAL
-                                           VertexTextures _textures,
-                                           StorageBuffers _buffers,
-#endif
                                            OUT(ushort) o_pathID,
                                            OUT(half2) o_edgeDistance,
-                                           OUT(float2) o_vertexPosition)
+                                           OUT(float2) o_vertexPosition VERTEX_CONTEXT_DECL)
 {
     // Unpack patchVertexData.
     int localVertexID = int(patchVertexData.x);
@@ -269,11 +265,8 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
 INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
-#ifdef METAL
-                                              StorageBuffers _buffers,
-#endif
                                               OUT(ushort) o_pathID,
-                                              OUT(half) o_windingWeight)
+                                              OUT(half) o_windingWeight VERTEX_CONTEXT_DECL)
 {
     o_pathID = make_ushort(floatBitsToUint(triangleVertex.z) & 0xffffu);
     float2x2 M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u)));

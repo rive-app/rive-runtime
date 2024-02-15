@@ -149,20 +149,23 @@ $typedef $min16uint ushort;
 #define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #endif
 #define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
+#define PLS_DECLUI_ATOMIC PLS_DECLUI
+#define PLS_LOADUI_ATOMIC PLS_LOADUI
+#define PLS_STOREUI_ATOMIC PLS_STOREUI
 #define PLS_BLOCK_END
 
 #ifdef @ENABLE_TYPED_UAV_LOAD_STORE
-#define PLS_LOAD4F(P, _plsCoord) P[_plsCoord]
+#define PLS_LOAD4F(PLANE) PLANE[_plsCoord]
 #else
-#define PLS_LOAD4F(P, _plsCoord) unpackUnorm4x8(P[_plsCoord])
+#define PLS_LOAD4F(PLANE) unpackUnorm4x8(PLANE[_plsCoord])
 #endif
-#define PLS_LOADUI(P, _plsCoord) P[_plsCoord]
+#define PLS_LOADUI(PLANE) PLANE[_plsCoord]
 #ifdef @ENABLE_TYPED_UAV_LOAD_STORE
-#define PLS_STORE4F(P, V, _plsCoord) P[_plsCoord] = (V)
+#define PLS_STORE4F(PLANE, VALUE) PLANE[_plsCoord] = (VALUE)
 #else
-#define PLS_STORE4F(P, V, _plsCoord) P[_plsCoord] = packUnorm4x8(V)
+#define PLS_STORE4F(PLANE, VALUE) PLANE[_plsCoord] = packUnorm4x8(VALUE)
 #endif
-#define PLS_STOREUI(P, V, _plsCoord) P[_plsCoord] = (V)
+#define PLS_STOREUI(PLANE, VALUE) PLANE[_plsCoord] = (VALUE)
 
 INLINE uint pls_atomic_max(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 {
@@ -171,7 +174,7 @@ INLINE uint pls_atomic_max(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     return originalValue;
 }
 
-#define PLS_ATOMIC_MAX(PLANE, X, _plsCoord) pls_atomic_max(PLANE, _plsCoord, X)
+#define PLS_ATOMIC_MAX(PLANE, X) pls_atomic_max(PLANE, _plsCoord, X)
 
 INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 {
@@ -180,9 +183,13 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     return originalValue;
 }
 
-#define PLS_ATOMIC_ADD(PLANE, X, _plsCoord) pls_atomic_add(PLANE, _plsCoord, X)
+#define PLS_ATOMIC_ADD(PLANE, X) pls_atomic_add(PLANE, _plsCoord, X)
 
-#define PLS_PRESERVE_VALUE(P, _plsCoord)
+#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_MEMORY_BARRIER(clipBuffer)
+
+#define VERTEX_CONTEXT_DECL
+#define VERTEX_CONTEXT_UNPACK
 
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     $cbuffer DrawUniforms : UNIFORM_BUFFER_REGISTER(DRAW_UNIFORM_BUFFER_IDX)                       \
@@ -199,14 +206,13 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
         uint _instanceID = _instanceIDWithoutBase + baseInstance;                                  \
         Varyings _varyings;
 
-#define IMAGE_MESH_VERTEX_MAIN(NAME,                                                               \
-                               MeshUniforms,                                                       \
-                               meshUniforms,                                                       \
-                               PositionAttr,                                                       \
-                               position,                                                           \
-                               UVAttr,                                                             \
-                               uv,                                                                 \
-                               _vertexID)                                                          \
+#define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                         \
+    Varyings NAME(Attrs attrs, uint _vertexID : $SV_VertexID)                                      \
+    {                                                                                              \
+        Varyings _varyings;                                                                        \
+        float4 _pos;
+
+#define IMAGE_MESH_VERTEX_MAIN(NAME, PositionAttr, position, UVAttr, uv, _vertexID)                \
     Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID : $SV_VertexID)                 \
     {                                                                                              \
         Varyings _varyings;                                                                        \
@@ -225,26 +231,30 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     return VALUE;                                                                                  \
     }
 
-#define PLS_MAIN(NAME, _fragCoord, _plsCoord) [$earlydepthstencil] void NAME(Varyings _varyings) { \
+#define FRAGMENT_CONTEXT_DECL , float2 _fragCoord
+#define FRAGMENT_CONTEXT_UNPACK , _fragCoord
+
+#define PLS_CONTEXT_DECL , int2 _plsCoord
+#define PLS_CONTEXT_UNPACK , _plsCoord
+
+#define PLS_MAIN(NAME) [$earlydepthstencil] void NAME(Varyings _varyings) { \
         float2 _fragCoord = _varyings._pos.xy;\
         int2 _plsCoord = int2(floor(_fragCoord));
 
-#define IMAGE_DRAW_PLS_MAIN(NAME, MeshUniforms, meshUniforms, _fragCoord, _plsCoord)               \
-    PLS_MAIN(NAME, _fragCoord, _plsCoord)
+#define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_MAIN(NAME)
 
 #define EMIT_PLS }
 
-#define PLS_MAIN_WITH_FRAG_COLOR(NAME, _fragCoord, _plsCoord)                                      \
+#define PLS_FRAG_COLOR_MAIN(NAME)                                                                  \
     [$earlydepthstencil] half4 NAME(Varyings _varyings) : $SV_Target                               \
     {                                                                                              \
         float2 _fragCoord = _varyings._pos.xy;                                                     \
         int2 _plsCoord = int2(floor(_fragCoord));                                                  \
         half4 _fragColor;
 
-#define IMAGE_DRAW_PLS_MAIN_WITH_FRAG_COLOR(NAME, MeshUniforms, meshUniforms, _pos, _plsCoord)     \
-    PLS_MAIN_WITH_FRAG_COLOR(NAME, _fragCoord, _plsCoord)
+#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_FRAG_COLOR_MAIN(NAME)
 
-#define EMIT_PLS_WITH_FRAG_COLOR                                                                   \
+#define EMIT_PLS_AND_FRAG_COLOR                                                                    \
     }                                                                                              \
     return _fragColor;
 
@@ -263,8 +273,11 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 // in GLSL and Metal. We can work around this entirely by reversing the arguments to mul().
 #define MUL(A, B) $mul(B, A)
 
-#define STORAGE_BUFFER_BLOCK_BEGIN
-#define STORAGE_BUFFER_BLOCK_END
+#define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
+#define VERTEX_STORAGE_BUFFER_BLOCK_END
+
+#define FRAG_STORAGE_BUFFER_BLOCK_BEGIN
+#define FRAG_STORAGE_BUFFER_BLOCK_END
 
 #define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
     $StructuredBuffer<uint2> NAME : $register($t##IDX)

@@ -39,14 +39,7 @@ VARYING_BLOCK_END
 VERTEX_TEXTURE_BLOCK_BEGIN
 VERTEX_TEXTURE_BLOCK_END
 
-IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
-                       @ImageDrawUniforms,
-                       imageDrawUniforms,
-                       PositionAttr,
-                       position,
-                       UVAttr,
-                       uv,
-                       _vertexID)
+IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _vertexID)
 {
     ATTR_UNPACK(_vertexID, position, @a_position, float2);
     ATTR_UNPACK(_vertexID, uv, @a_texCoord, float2);
@@ -91,6 +84,9 @@ FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
+FRAG_STORAGE_BUFFER_BLOCK_BEGIN
+FRAG_STORAGE_BUFFER_BLOCK_END
+
 PLS_BLOCK_BEGIN
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
@@ -98,7 +94,7 @@ PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_BLOCK_END
 
-IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _fragCoord, _plsCoord)
+PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 #ifdef @ENABLE_CLIPPING
@@ -121,7 +117,7 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _f
 #ifdef @ENABLE_CLIPPING
     if (v_clipID != .0)
     {
-        half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer, _plsCoord));
+        half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
         half clipContentID = clipData.g;
         half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
         coverage = min(coverage, clipCoverage);
@@ -130,7 +126,7 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _f
 
     // Blend with the framebuffer color.
     color.a *= imageDrawUniforms.opacity * coverage;
-    half4 dstColor = PLS_LOAD4F(framebuffer, _plsCoord);
+    half4 dstColor = PLS_LOAD4F(framebuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
     if (imageDrawUniforms.blendMode != 0u /*!srcOver*/)
     {
@@ -150,9 +146,9 @@ IMAGE_DRAW_PLS_MAIN(@drawFragmentMain, @ImageDrawUniforms, imageDrawUniforms, _f
         color = color + dstColor * (1. - color.a);
     }
 
-    PLS_STORE4F(framebuffer, color, _plsCoord);
-    PLS_PRESERVE_VALUE(coverageCountBuffer, _plsCoord);
-    PLS_PRESERVE_VALUE(clipBuffer, _plsCoord);
+    PLS_STORE4F(framebuffer, color);
+    PLS_PRESERVE_VALUE(coverageCountBuffer);
+    PLS_PRESERVE_VALUE(clipBuffer);
 
     PLS_INTERLOCK_END;
 

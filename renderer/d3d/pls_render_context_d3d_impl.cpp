@@ -257,7 +257,7 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     m_patchIndexBuffer =
         makeSimpleImmutableBuffer(sizeof(patchIndices), D3D11_BIND_INDEX_BUFFER, patchIndices);
 
-    // Set up the imageRect rendering buffers. (Atomic mode only.)
+    // Set up the imageRect rendering buffers. (pls::InterlockMode::atomics only.)
     m_imageRectVertexBuffer = makeSimpleImmutableBuffer(sizeof(pls::kImageRectVertices),
                                                         D3D11_BIND_VERTEX_BUFFER,
                                                         pls::kImageRectVertices);
@@ -878,7 +878,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
     uint32_t vertexShaderKey = pls::ShaderUniqueKey(drawType,
                                                     shaderFeatures & kVertexShaderFeaturesMask,
                                                     interlockMode,
-                                                    pls::ShaderMiscFlags::kNone);
+                                                    pls::ShaderMiscFlags::none);
     auto vertexEntry = m_drawVertexShaders.find(vertexShaderKey);
 
     uint32_t pixelShaderKey =
@@ -909,7 +909,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         {
             s << "#define " << GLSL_ENABLE_TYPED_UAV_LOAD_STORE << '\n';
         }
-        if (pixelShaderMiscFlags & pls::ShaderMiscFlags::kCoalescedResolveAndTransfer)
+        if (pixelShaderMiscFlags & pls::ShaderMiscFlags::coalescedResolveAndTransfer)
         {
             s << "#define " << GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER << '\n';
             s << "#define " << GLSL_FRAMEBUFFER_PLANE_IDX_OVERRIDE << ' '
@@ -955,9 +955,12 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 break;
             case DrawType::plsAtomicResolve:
                 assert(interlockMode == pls::InterlockMode::atomics);
+                s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
                 s << "#define " << GLSL_RESOLVE_PLS << '\n';
                 s << pls::glsl::atomic_draw << '\n';
                 break;
+            case DrawType::plsAtomicInitialize:
+                RIVE_UNREACHABLE();
         }
 
         const std::string shader = s.str();
@@ -1029,6 +1032,8 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 case DrawType::plsAtomicResolve:
                     vertexAttribCount = 0;
                     break;
+                case DrawType::plsAtomicInitialize:
+                    RIVE_UNREACHABLE();
             }
             VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
                                                vertexAttribCount,
@@ -1240,21 +1245,12 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     }
 
     // Setup and clear the PLS textures.
-    if (desc.skipExplicitColorClear)
+    bool renderDirectToRasterPipeline =
+        pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures);
+    switch (desc.colorLoadAction)
     {
-        // We can accomplish a clear of the color buffer while the shader resolves coverage,
-        // instead of actually clearing it here. The fill for pathID=0 is automatically
-        // configured to be a solid fill matching the clear color, so we just have to clear the
-        // coverage buffer to solid coverage. This ensures the clear color gets written out
-        // fully opaque.
-        constexpr static UINT kCoverageOne[4]{static_cast<UINT>(FIXED_COVERAGE_ONE)};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageOne);
-    }
-    else
-    {
-        if (desc.loadAction == LoadAction::clear)
-        {
-            if (desc.renderDirectToRasterPipeline)
+        case pls::LoadAction::clear:
+            if (renderDirectToRasterPipeline)
             {
                 float clearColor4f[4];
                 UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
@@ -1272,24 +1268,24 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 UINT clearColorui[4] = {pls::SwizzleRiveColorToRGBA(desc.clearColor)};
                 m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->targetUAV(), clearColorui);
             }
-        }
-        else if (!desc.renderDirectToRasterPipeline && !renderTarget->targetTextureSupportsUAV())
-        {
-            // We're rendering to an offscreen UAV and preserving the target. Copy the target
-            // texture over.
-            blit_sub_rect(m_gpuContext.Get(),
-                          renderTarget->offscreenTexture(),
-                          renderTarget->targetTexture(),
-                          desc.updateBounds);
-        }
-        // Clear the coverage buffer to pathID=0, and with a value that means "zero coverage" in
-        // atomic mode.
-        // pathID always needs to be cleared to a value that won't collide with a path being draw.
-        // In atomic mode, pathID=0 also meets the requirement that pathID is always monotonically
-        // increasing, and the additional "zero coverage" value makes sure a clear color doesn't get
-        // written out at this pixel when resolving.
-        constexpr static UINT kCoverageZero[4]{static_cast<UINT>(FIXED_COVERAGE_ZERO)};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), kCoverageZero);
+            break;
+        case pls::LoadAction::preserveRenderTarget:
+            if (!renderDirectToRasterPipeline && !renderTarget->targetTextureSupportsUAV())
+            {
+                // We're rendering to an offscreen UAV and preserving the target. Copy the target
+                // texture over.
+                blit_sub_rect(m_gpuContext.Get(),
+                              renderTarget->offscreenTexture(),
+                              renderTarget->targetTexture(),
+                              desc.renderTargetUpdateBounds);
+            }
+            break;
+        case pls::LoadAction::dontCare:
+            break;
+    }
+    {
+        UINT coverageClear[4]{desc.coverageClearValue};
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), coverageClear);
     }
     if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
     {
@@ -1324,9 +1320,9 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                        m_imageDrawUniforms.GetAddressOf());
 
     ID3D11RenderTargetView* targetRTV =
-        desc.renderDirectToRasterPipeline ? renderTarget->targetRTV() : NULL;
+        renderDirectToRasterPipeline ? renderTarget->targetRTV() : NULL;
     ID3D11UnorderedAccessView* plsUAVs[] = {
-        desc.renderDirectToRasterPipeline ? NULL : renderTarget->targetUAV(),
+        renderDirectToRasterPipeline ? NULL : renderTarget->targetUAV(),
         renderTarget->coverageUAV(),
         renderTarget->clipUAV(),
         desc.interlockMode == pls::InterlockMode::rasterOrdering
@@ -1340,15 +1336,15 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     UINT numUsedUAVs = plsUAVs[ORIGINAL_DST_COLOR_PLANE_IDX] != nullptr ? std::size(plsUAVs)
                                                                         : std::size(plsUAVs) - 1;
     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
-        desc.renderDirectToRasterPipeline ? 1 : 0,
+        renderDirectToRasterPipeline ? 1 : 0,
         &targetRTV,
         NULL,
-        desc.renderDirectToRasterPipeline ? 1 : 0,
-        desc.renderDirectToRasterPipeline ? numUsedUAVs - 1 : numUsedUAVs,
-        desc.renderDirectToRasterPipeline ? plsUAVs + 1 : plsUAVs,
+        renderDirectToRasterPipeline ? 1 : 0,
+        renderDirectToRasterPipeline ? numUsedUAVs - 1 : numUsedUAVs,
+        renderDirectToRasterPipeline ? plsUAVs + 1 : plsUAVs,
         NULL);
 
-    if (desc.renderDirectToRasterPipeline)
+    if (renderDirectToRasterPipeline)
     {
         // When rendering directly to the target RTV, we use the built-in blend hardware for opacity
         // and antialiasing.
@@ -1362,7 +1358,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     const char* const imageDrawUniformData = heap_buffer_contents(imageDrawUniformBufferRing());
 
     bool renderPassHasCoalescedResolveAndTransfer =
-        desc.interlockMode == pls::InterlockMode::atomics && !desc.renderDirectToRasterPipeline &&
+        desc.interlockMode == pls::InterlockMode::atomics && !renderDirectToRasterPipeline &&
         !renderTarget->targetTextureSupportsUAV();
 
     for (const DrawBatch& batch : *desc.drawList)
@@ -1378,8 +1374,8 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                   : batch.shaderFeatures;
         auto pixelShaderMiscFlags =
             drawType == pls::DrawType::plsAtomicResolve && renderPassHasCoalescedResolveAndTransfer
-                ? pls::ShaderMiscFlags::kCoalescedResolveAndTransfer
-                : pls::ShaderMiscFlags::kNone;
+                ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
+                : pls::ShaderMiscFlags::none;
         setPipelineLayoutAndShaders(drawType,
                                     shaderFeatures,
                                     desc.interlockMode,
@@ -1469,7 +1465,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                     // (And ince we're changing the render target, this also better be the final
                     // batch of the render pass.)
                     assert(&batch == &desc.drawList->tail());
-                    assert(!desc.renderDirectToRasterPipeline);
+                    assert(!renderDirectToRasterPipeline);
                     assert(!renderTarget->targetTextureSupportsUAV());
                     ID3D11RenderTargetView* resolveRTV = renderTarget->targetRTV();
                     ID3D11UnorderedAccessView* resolveUAVs[] = {
@@ -1493,6 +1489,8 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 }
                 m_gpuContext->Draw(4, 0);
                 break;
+            case DrawType::plsAtomicInitialize:
+                RIVE_UNREACHABLE();
         }
     }
 
@@ -1501,12 +1499,12 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     {
         // We rendered to an offscreen UAV and did not resolve to the renderTarget. Copy back to the
         // main target.
-        assert(!desc.renderDirectToRasterPipeline);
+        assert(!renderDirectToRasterPipeline);
         assert(!renderPassHasCoalescedResolveAndTransfer);
         blit_sub_rect(m_gpuContext.Get(),
                       renderTarget->targetTexture(),
                       renderTarget->offscreenTexture(),
-                      desc.updateBounds);
+                      desc.renderTargetUpdateBounds);
     }
 }
 } // namespace rive::pls

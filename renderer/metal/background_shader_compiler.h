@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/pls/pls.hpp"
+#include "rive/pls/metal/pls_render_context_metal_impl.h"
 
 #include <queue>
 #include <thread>
@@ -19,6 +20,8 @@ struct BackgroundCompileJob
 {
     pls::DrawType drawType;
     pls::ShaderFeatures shaderFeatures;
+    pls::InterlockMode interlockMode;
+    pls::ShaderMiscFlags shaderMiscFlags;
     id<MTLLibrary> compiledLibrary;
 };
 
@@ -27,7 +30,12 @@ struct BackgroundCompileJob
 class BackgroundShaderCompiler
 {
 public:
-    BackgroundShaderCompiler(id<MTLDevice> gpu) : m_gpu(gpu) {}
+    using AtomicBarrierType = PLSRenderContextMetalImpl::AtomicBarrierType;
+
+    BackgroundShaderCompiler(id<MTLDevice> gpu, AtomicBarrierType atomicBarrierType) :
+        m_gpu(gpu), m_atomicBarrierType(atomicBarrierType)
+    {}
+
     ~BackgroundShaderCompiler();
 
     void pushJob(const BackgroundCompileJob&);
@@ -37,6 +45,7 @@ private:
     void threadMain();
 
     const id<MTLDevice> m_gpu;
+    const AtomicBarrierType m_atomicBarrierType;
     std::queue<BackgroundCompileJob> m_pendingJobs;
     std::vector<BackgroundCompileJob> m_finishedJobs;
     std::mutex m_mutex;
