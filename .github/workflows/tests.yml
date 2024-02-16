@@ -32,35 +32,13 @@ jobs:
           ./test.sh
 
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v2
-      - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v1.1
-
-      - name: Download Premake
-        shell: powershell
+      - name: Tests
         run: |
-          echo GITHUB_WORKSPACE is ${{ github.workspace }}
-          wget https://github.com/premake/premake-core/releases/download/v5.0.0-beta1/premake-5.0.0-beta1-windows.zip -OutFile ${{ github.workspace }}\premake-5.0.0-beta1-windows.zip
-          Expand-Archive -LiteralPath ${{ github.workspace }}\premake-5.0.0-beta1-windows.zip -DestinationPath C:\
-
-      - name: Build rive.lib
-        shell: powershell
-        run: |
-          cd build
-          C:\premake5.exe vs2022 --with_rive_text --with_rive_audio=external
-          MSBuild rive.sln /property:Configuration=Debug /property:Platform=x64
-          cd ..
-
-      - name: Run rive tests
-        shell: powershell
-        run: |
-          cd dev/test
-          C:\premake5.exe --scripts=..\..\build vs2022 --with_rive_text --with_rive_audio=external
-          cd out/debug
-          MSBuild rive.sln
-          tests.exe
+          cd dev
+          ./test.sh
 
   build-macos:
     runs-on: macOS-latest
