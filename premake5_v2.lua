@@ -19,9 +19,10 @@ do
 end
 filter({})
 
-dofile(path.join(path.getabsolute('dependencies/'), 'premake5_harfbuzz_v2.lua'))
-dofile(path.join(path.getabsolute('dependencies/'), 'premake5_sheenbidi_v2.lua'))
-dofile(path.join(path.getabsolute('dependencies/'), 'premake5_miniaudio_v2.lua'))
+dependencies = path.getabsolute('dependencies/')
+dofile(path.join(dependencies, 'premake5_harfbuzz_v2.lua'))
+dofile(path.join(dependencies, 'premake5_sheenbidi_v2.lua'))
+dofile(path.join(dependencies, 'premake5_miniaudio_v2.lua'))
 
 project('rive')
 do
@@ -37,6 +38,14 @@ do
     files({ 'src/**.cpp' })
 
     flags({ 'FatalCompileWarnings' })
+
+    filter({ 'options:with_rive_text', 'options:not no-harfbuzz-renames' })
+    do
+        includedirs({
+            dependencies,
+        })
+        forceincludes({ 'rive_harfbuzz_renames.h' })
+    end
 
     filter({ 'system:linux' })
     do

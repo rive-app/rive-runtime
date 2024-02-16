@@ -57,16 +57,19 @@ rive-cpp uses clang-format, you can install it with brew on MacOS: ```brew insta
 
 ## Memory Checks
 Note that if you're on MacOS you'll want to install valgrind, which is somewhat complicated these days. This is the easiest solution (please PR a better one when it becomes available).
+
 ```
 brew tap LouisBrunner/valgrind
 brew install --HEAD LouisBrunner/valgrind/valgrind
 ```
+
 You can now run the all the tests through valgrind by running ```test.sh memory```.
 
 ## Disassembly Explorer
 If you want to examine the generated assembly code per cpp file, install [Disassembly Explorer](https://marketplace.visualstudio.com/items?itemName=dseight.disasexpl) in VSCode.
 
 A ```disassemble``` task is provided to compile and preview the generated assembly. You can reach it via the Tasks: Run Task command palette or you can bind it to a shortcut by editing your VSCode keybindings.json:
+
 ```
 [
     {

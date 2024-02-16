@@ -3,6 +3,11 @@ dofile('rive_build_config.lua')
 local dependency = require('dependency')
 harfbuzz = dependency.github('harfbuzz/harfbuzz', '6.0.0')
 
+newoption({
+    trigger = 'no-harfbuzz-renames',
+    description = 'don\'t rename harfbuzz symbols',
+})
+
 project('rive_harfbuzz')
 do
     kind('StaticLib')
@@ -231,5 +236,11 @@ do
     filter('options:config=release')
     do
         optimize('Size')
+    end
+
+    filter({ 'options:not no-harfbuzz-renames' })
+    do
+        includedirs({ './' })
+        forceincludes({ 'rive_harfbuzz_renames.h' })
     end
 end
