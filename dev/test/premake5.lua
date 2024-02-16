@@ -32,4 +32,11 @@ do
     do
         links({ 'dl', 'pthread' })
     end
+    filter({ 'options:not no-harfbuzz-renames' })
+    do
+        includedirs({
+            dependencies,
+        })
+        forceincludes({ 'rive_harfbuzz_renames.h' })
+    end
 end
