@@ -666,9 +666,14 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
         pls::AllShaderFeaturesForDrawType(drawType, interlockMode);
     if (interlockMode == pls::InterlockMode::atomics)
     {
-        // ENABLE_ADVANCED_BLEND actually affects the behavior of the shader in atomic mode, so
-        // exclude it from the fully-featured set if it isn't already on.
+        // Never add ENABLE_ADVANCED_BLEND to an atomic pipeline that doesn't use advanced blend,
+        // since in atomic mode, the shaders behave differently depending on whether advanced blend
+        // is enabled.
         fullyFeaturedPipelineFeatures &= shaderFeatures | ~ShaderFeatures::ENABLE_ADVANCED_BLEND;
+        // Never add ENABLE_CLIPPING to an atomic pipeline that doesn't use clipping; it will cause
+        // a "missing buffer binding" validation error because the shader will define an (unused)
+        // clipBuffer, but we won't bind anything to it.
+        fullyFeaturedPipelineFeatures &= shaderFeatures | ~ShaderFeatures::ENABLE_CLIPPING;
     }
     shaderFeatures &= fullyFeaturedPipelineFeatures;
 

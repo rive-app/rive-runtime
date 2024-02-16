@@ -270,14 +270,25 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // VERTEX
 #endif // DRAW_RENDER_TARGET_UPDATE_BOUNDS
 
+#ifdef @ENABLE_BINDLESS_TEXTURES
+#define NEEDS_IMAGE_TEXTURE
+#endif
+#ifdef @DRAW_IMAGE
+#define NEEDS_IMAGE_TEXTURE
+#endif
+
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(GRAD_TEXTURE_IDX, @gradTexture);
+#ifdef NEEDS_IMAGE_TEXTURE
 TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
+#endif
 FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
+#ifdef NEEDS_IMAGE_TEXTURE
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
+#endif
 
 PLS_BLOCK_BEGIN
 // We only write the framebuffer as a storage texture when there are blend modes. Otherwise, we
@@ -291,7 +302,9 @@ PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
 #endif
 #endif
 PLS_DECLUI_ATOMIC(COVERAGE_PLANE_IDX, coverageCountBuffer);
+#ifdef @ENABLE_CLIPPING
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
+#endif
 PLS_BLOCK_END
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
