@@ -53,7 +53,7 @@ fi
 
 export PREMAKE=$PWD/dependencies/bin/premake5
 
-pushd test &>/dev/null
+pushd test
 
 for var in "$@"; do
   if [[ $var = "clean" ]]; then
@@ -70,15 +70,11 @@ elif [[ $machine = "windows" ]]; then
   TARGET=vs2022
 fi
 
-pushd ../../../
-PACKAGES=$PWD
+pushd ../../
+RUNTIME=$PWD
 popd
 
-export PREMAKE_PATH="$PACKAGES/runtime/dependencies/export-compile-commands":"$PACKAGES/runtime/build":"$PREMAKE_PATH"
-echo "PREMAKE PATH IS " $PREMAKE_PATH
-echo "GOT EXPECTED?"
-ls $PACKAGES/runtime/build
-
+export PREMAKE_PATH="$RUNTIME/dependencies/export-compile-commands":"$RUNTIME/build":"$PREMAKE_PATH"
 PREMAKE_COMMANDS="--with_rive_text --with_rive_audio=external --config=$CONFIG"
 
 out_dir() {
@@ -107,4 +103,4 @@ elif [[ $machine = "windows" ]]; then
   $OUT_DIR/tests.exe
 fi
 
-popd &>/dev/null
+popd
