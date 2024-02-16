@@ -49,7 +49,7 @@ jobs:
         shell: powershell
         run: |
           cd build
-          C:\premake5.exe vs2022
+          C:\premake5.exe vs2022 --with_rive_text --with_rive_audio=external
           MSBuild rive.sln /property:Configuration=Debug /property:Platform=x64
           cd ..
 
@@ -57,7 +57,7 @@ jobs:
         shell: powershell
         run: |
           cd dev/test
-          C:\premake5.exe --scripts=..\..\build vs2022
+          C:\premake5.exe --scripts=..\..\build vs2022 --with_rive_text --with_rive_audio=external
           cd out/debug
           MSBuild rive.sln
           tests.exe
