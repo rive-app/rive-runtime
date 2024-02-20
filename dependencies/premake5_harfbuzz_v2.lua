@@ -1,7 +1,7 @@
 dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
-harfbuzz = dependency.github('harfbuzz/harfbuzz', '6.0.0')
+harfbuzz = dependency.github('rive-app/harfbuzz', 'rive_8.3.0')
 
 newoption({
     trigger = 'no-harfbuzz-renames',
@@ -217,11 +217,14 @@ do
         harfbuzz .. '/src/hb-vector.hh',
         harfbuzz .. '/src/hb.hh',
         harfbuzz .. '/src/graph/gsubgpos-context.cc',
+        harfbuzz .. '/src/hb-paint.cc',
+        harfbuzz .. '/src/hb-paint-extents.cc',
+        harfbuzz .. '/src/hb-outline.cc',
     })
 
     warnings('Off')
 
-    defines({ 'HAVE_OT', 'HB_NO_FALLBACK_SHAPE', 'HB_NO_WIN1256' })
+    defines({ 'HAVE_OT', 'HB_NO_FALLBACK_SHAPE', 'HB_NO_WIN1256', 'HB_NO_EXTERN_HELPERS' })
 
     filter('toolset:not msc')
     do
@@ -230,6 +233,12 @@ do
             '-Werror=format',
             '-Wimplicit-int-conversion',
             '-Werror=vla',
+        })
+    end
+    filter('toolset:msc')
+    do
+        buildoptions({
+            '/bigobj',
         })
     end
 

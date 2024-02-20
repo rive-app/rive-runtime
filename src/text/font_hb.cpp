@@ -310,7 +310,7 @@ rive::rcp<rive::Font> HBFont::withOptions(rive::Span<const Coord> coords,
 rive::RawPath HBFont::getPath(rive::GlyphID glyph) const
 {
     rive::RawPath rpath;
-    hb_font_get_glyph_shape(m_font, glyph, m_drawFuncs, &rpath);
+    hb_font_draw_glyph(m_font, glyph, m_drawFuncs, &rpath);
     return rpath;
 }
 
