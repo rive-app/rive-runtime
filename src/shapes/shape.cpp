@@ -7,6 +7,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/clip_result.hpp"
+#include "rive/math/raw_path.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -216,3 +217,76 @@ bool Shape::isEmpty()
 
 // Do constraints need to be marked as dirty too? From tests it doesn't seem they do.
 void Shape::pathCollapseChanged() { m_PathComposer.pathCollapseChanged(); }
+
+class ComputeBoundsCommandPath : public CommandPath
+{
+public:
+    ComputeBoundsCommandPath() {}
+
+    AABB bounds(const Mat2D& xform)
+    {
+        m_rawPath.transformInPlace(xform);
+        return m_rawPath.bounds();
+    }
+
+    void rewind() override { m_rawPath.rewind(); }
+    void fillRule(FillRule value) override {}
+    void addPath(CommandPath* path, const Mat2D& transform) override { assert(false); }
+
+    void moveTo(float x, float y) override { m_rawPath.moveTo(x, y); }
+    void lineTo(float x, float y) override { m_rawPath.lineTo(x, y); }
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override
+    {
+        m_rawPath.cubicTo(ox, oy, ix, iy, x, y);
+    }
+    void close() override { m_rawPath.close(); }
+
+    RenderPath* renderPath() override
+    {
+        assert(false);
+        return nullptr;
+    }
+
+private:
+    RawPath m_rawPath;
+};
+
+AABB Shape::computeWorldBounds(const Mat2D* xform) const
+{
+    bool first = true;
+    AABB computedBounds = AABB::forExpansion();
+
+    ComputeBoundsCommandPath boundsCalculator;
+    for (auto path : m_Paths)
+    {
+        if (path->isCollapsed())
+        {
+            continue;
+        }
+
+        path->buildPath(boundsCalculator);
+
+        AABB aabb = boundsCalculator.bounds(xform == nullptr ? path->pathTransform()
+                                                             : path->pathTransform() * *xform);
+
+        if (first)
+        {
+            first = false;
+            computedBounds = aabb;
+        }
+        else
+        {
+            computedBounds.expand(aabb);
+        }
+        boundsCalculator.rewind();
+    }
+
+    return computedBounds;
+}
+
+AABB Shape::computeLocalBounds() const
+{
+    const Mat2D& world = worldTransform();
+    Mat2D inverseWorld = world.invertOrIdentity();
+    return computeWorldBounds(&inverseWorld);
+}
