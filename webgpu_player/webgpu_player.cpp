@@ -239,19 +239,19 @@ extern "C"
     void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerDown(intptr_t nativePtr, float x, float y)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        return stateMachine->pointerDown({x, y});
+        stateMachine->pointerDown({x, y});
     }
 
     void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerMove(intptr_t nativePtr, float x, float y)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        return stateMachine->pointerMove({x, y});
+        stateMachine->pointerMove({x, y});
     }
 
     void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerUp(intptr_t nativePtr, float x, float y)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        return stateMachine->pointerUp({x, y});
+        stateMachine->pointerUp({x, y});
     }
 
     void EMSCRIPTEN_KEEPALIVE StateMachineInstance_advanceAndApply(intptr_t nativePtr,
