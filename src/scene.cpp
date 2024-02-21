@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/hit_result.hpp"
 #include "rive/scene.hpp"
 #include "rive/generated/core_registry.hpp"
 using namespace rive;
@@ -14,9 +15,10 @@ float Scene::height() const { return m_artboardInstance->height(); }
 
 void Scene::draw(Renderer* renderer) { m_artboardInstance->draw(renderer); }
 
-void Scene::pointerDown(Vec2D) {}
-void Scene::pointerMove(Vec2D) {}
-void Scene::pointerUp(Vec2D) {}
+HitResult Scene::pointerDown(Vec2D) { return HitResult::none; }
+HitResult Scene::pointerMove(Vec2D) { return HitResult::none; }
+HitResult Scene::pointerUp(Vec2D) { return HitResult::none; }
+HitResult Scene::pointerExit(Vec2D) { return HitResult::none; }
 
 size_t Scene::inputCount() const { return 0; }
 SMIInput* Scene::input(size_t index) const { return nullptr; }

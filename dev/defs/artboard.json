@@ -123,6 +123,17 @@
       "description": "List of selected animations",
       "runtime": false,
       "coop": false
+    },
+    "viewModelId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 434,
+        "string": "viewmodelid"
+      },
+      "description": "The view model attached to this artboard data context."
     }
   }
 }

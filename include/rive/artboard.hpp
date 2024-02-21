@@ -49,6 +49,7 @@ private:
     std::vector<NestedArtboard*> m_NestedArtboards;
     std::vector<Joystick*> m_Joysticks;
     bool m_JoysticksApplyBeforeUpdate = true;
+    bool m_HasChangedDrawOrderInLastUpdate = false;
 
     unsigned int m_DirtDepth = 0;
     rcp<RenderPath> m_BackgroundPath;
@@ -100,6 +101,8 @@ public:
     void onDirty(ComponentDirt dirt) override;
 
     bool advance(double elapsedSeconds);
+    bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; };
+    Drawable* firstDrawable() { return m_FirstDrawable; };
 
     enum class DrawOption
     {

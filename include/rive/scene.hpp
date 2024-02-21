@@ -6,6 +6,7 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/core/field_types/core_callback_type.hpp"
+#include "rive/hit_result.hpp"
 #include <string>
 
 namespace rive
@@ -46,9 +47,10 @@ public:
 
     void draw(Renderer*);
 
-    virtual void pointerDown(Vec2D);
-    virtual void pointerMove(Vec2D);
-    virtual void pointerUp(Vec2D);
+    virtual HitResult pointerDown(Vec2D);
+    virtual HitResult pointerMove(Vec2D);
+    virtual HitResult pointerUp(Vec2D);
+    virtual HitResult pointerExit(Vec2D);
 
     virtual size_t inputCount() const;
     virtual SMIInput* input(size_t index) const;

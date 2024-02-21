@@ -272,6 +272,7 @@ StatusCode Artboard::initialize()
 
 void Artboard::sortDrawOrder()
 {
+    m_HasChangedDrawOrderInLastUpdate = true;
     for (auto target : m_DrawTargets)
     {
         target->first = target->last = nullptr;
@@ -486,6 +487,7 @@ bool Artboard::updateComponents()
 
 bool Artboard::advance(double elapsedSeconds)
 {
+    m_HasChangedDrawOrderInLastUpdate = false;
     if (m_JoysticksApplyBeforeUpdate)
     {
         for (auto joystick : m_Joysticks)

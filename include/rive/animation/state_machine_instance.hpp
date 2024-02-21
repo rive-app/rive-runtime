@@ -6,6 +6,7 @@
 #include <vector>
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/core/field_types/core_callback_type.hpp"
+#include "rive/hit_result.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/scene.hpp"
 
@@ -20,7 +21,7 @@ class SMINumber;
 class SMITrigger;
 class Shape;
 class StateMachineLayerInstance;
-class HitShape;
+class HitComponent;
 class NestedArtboard;
 class Event;
 class KeyedProperty;
@@ -41,23 +42,24 @@ class StateMachineInstance : public Scene
 {
     friend class SMIInput;
     friend class KeyedProperty;
+    friend class HitComponent;
 
 private:
-    void markNeedsAdvance();
-
     /// Provide a hitListener if you want to process a down or an up for the pointer position
     /// too.
-    void updateListeners(Vec2D position, ListenerType hitListener);
+    HitResult updateListeners(Vec2D position, ListenerType hitListener);
 
     template <typename SMType, typename InstType>
     InstType* getNamedInput(const std::string& name) const;
     void notifyEventListeners(std::vector<EventReport> events, NestedArtboard* source);
+    void sortHitComponents();
 
 public:
     StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
     StateMachineInstance(StateMachineInstance const&) = delete;
     ~StateMachineInstance() override;
 
+    void markNeedsAdvance();
     // Advance the state machine by the specified time. Returns true if the
     // state machine will continue to animate after this advance.
     bool advance(float seconds);
@@ -88,9 +90,10 @@ public:
 
     bool advanceAndApply(float secs) override;
     std::string name() const override;
-    void pointerMove(Vec2D position) override;
-    void pointerDown(Vec2D position) override;
-    void pointerUp(Vec2D position) override;
+    HitResult pointerMove(Vec2D position) override;
+    HitResult pointerDown(Vec2D position) override;
+    HitResult pointerUp(Vec2D position) override;
+    HitResult pointerExit(Vec2D position) override;
 
     float durationSeconds() const override { return -1; }
     Loop loop() const override { return Loop::oneShot; }
@@ -125,8 +128,7 @@ private:
     std::vector<SMIInput*> m_inputInstances; // we own each pointer
     size_t m_layerCount;
     StateMachineLayerInstance* m_layers;
-    std::vector<std::unique_ptr<HitShape>> m_hitShapes;
-    std::vector<NestedArtboard*> m_hitNestedArtboards;
+    std::vector<std::unique_ptr<HitComponent>> m_hitComponents;
     StateMachineInstance* m_parentStateMachineInstance = nullptr;
     NestedArtboard* m_parentNestedArtboard = nullptr;
 };

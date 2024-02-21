@@ -17,6 +17,7 @@
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/state_machine_fire_event.hpp"
+#include "rive/hit_result.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
 #include "rive/nested_animation.hpp"
@@ -318,49 +319,48 @@ private:
     float m_holdTime = 0.0f;
 };
 
+class HitComponent
+{
+public:
+    Component* component() const { return m_component; }
+    HitComponent(Component* component, StateMachineInstance* stateMachineInstance) :
+        m_component(component), m_stateMachineInstance(stateMachineInstance)
+    {}
+    virtual ~HitComponent(){};
+    virtual HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) = 0;
+
+protected:
+    Component* m_component;
+    StateMachineInstance* m_stateMachineInstance;
+};
+
 /// Representation of a Shape from the Artboard Instance and all the listeners it
 /// triggers. Allows tracking hover and performing hit detection only once on
 /// shapes that trigger multiple listeners.
-class HitShape
+class HitShape : public HitComponent
 {
 public:
-    Shape* shape() const { return m_shape; }
-    HitShape(Shape* shape) : m_shape(shape) {}
+    HitShape(Component* shape, StateMachineInstance* stateMachineInstance) :
+        HitComponent(shape, stateMachineInstance)
+    {}
+    ~HitShape() {}
     bool isHovered = false;
+    float hitRadius = 2;
     std::vector<const StateMachineListener*> listeners;
-
-private:
-    Shape* m_shape;
-};
-} // namespace rive
-
-void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
-{
-    if (m_artboardInstance->frameOrigin())
+    HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
     {
-        position -= Vec2D(m_artboardInstance->originX() * m_artboardInstance->width(),
-                          m_artboardInstance->originY() * m_artboardInstance->height());
-    }
+        auto shape = m_component->as<Shape>();
+        auto hitArea = AABB(position.x - hitRadius,
+                            position.y - hitRadius,
+                            position.x + hitRadius,
+                            position.y + hitRadius)
+                           .round();
+        bool isOver = canHit ? shape->hitTest(hitArea) : false;
+        bool hoverChange = isHovered != isOver;
+        isHovered = isOver;
 
-    const float hitRadius = 2;
-    auto hitArea = AABB(position.x - hitRadius,
-                        position.y - hitRadius,
-                        position.x + hitRadius,
-                        position.y + hitRadius)
-                       .round();
-
-    for (const auto& hitShape : m_hitShapes)
-    {
-
-        // TODO: quick reject.
-
-        bool isOver = hitShape->shape()->hitTest(hitArea);
-
-        bool hoverChange = hitShape->isHovered != isOver;
-        hitShape->isHovered = isOver;
-
-        // iterate all listeners associated with this hit shape
-        for (auto listener : hitShape->listeners)
+        // // iterate all listeners associated with this hit shape
+        for (auto listener : listeners)
         {
             // Always update hover states regardless of which specific listener type
             // we're trying to trigger.
@@ -368,38 +368,45 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
             {
                 if (isOver && listener->listenerType() == ListenerType::enter)
                 {
-                    listener->performChanges(this, position);
-                    markNeedsAdvance();
+                    listener->performChanges(m_stateMachineInstance, position);
+                    m_stateMachineInstance->markNeedsAdvance();
                 }
                 else if (!isOver && listener->listenerType() == ListenerType::exit)
                 {
-                    listener->performChanges(this, position);
-                    markNeedsAdvance();
+                    listener->performChanges(m_stateMachineInstance, position);
+                    m_stateMachineInstance->markNeedsAdvance();
                 }
             }
             if (isOver && hitType == listener->listenerType())
             {
-                listener->performChanges(this, position);
-                markNeedsAdvance();
+                listener->performChanges(m_stateMachineInstance, position);
+                m_stateMachineInstance->markNeedsAdvance();
             }
         }
+        return isOver ? shape->isTargetOpaque() ? HitResult::hitOpaque : HitResult::hit
+                      : HitResult::none;
     }
-
-    // TODO: store a hittable abstraction for HitShape and NestedArtboard that
-    // can be sorted by drawOrder so they can be iterated in one loop and early
-    // out if any hit stops propagation (also require the ability to mark a hit
-    // as able to stop propagation)
-    for (auto nestedArtboard : m_hitNestedArtboards)
+};
+class HitNestedArtboard : public HitComponent
+{
+public:
+    HitNestedArtboard(Component* nestedArtboard, StateMachineInstance* stateMachineInstance) :
+        HitComponent(nestedArtboard, stateMachineInstance)
+    {}
+    ~HitNestedArtboard() {}
+    HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
     {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        HitResult hitResult = HitResult::none;
         if (nestedArtboard->isCollapsed())
         {
-            continue;
+            return hitResult;
         }
         Vec2D nestedPosition;
         if (!nestedArtboard->worldToLocal(position, &nestedPosition))
         {
             // Mounted artboard isn't ready or has a 0 scale transform.
-            continue;
+            return hitResult;
         }
 
         for (auto nestedAnimation : nestedArtboard->nestedAnimations())
@@ -407,38 +414,90 @@ void StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
             if (nestedAnimation->is<NestedStateMachine>())
             {
                 auto nestedStateMachine = nestedAnimation->as<NestedStateMachine>();
-                switch (hitType)
+                if (canHit)
                 {
-                    case ListenerType::down:
-                        nestedStateMachine->pointerDown(nestedPosition);
-                        break;
-                    case ListenerType::up:
-                        nestedStateMachine->pointerUp(nestedPosition);
-                        break;
-                    case ListenerType::move:
-                        nestedStateMachine->pointerMove(nestedPosition);
-                        break;
-                    case ListenerType::enter:
-                    case ListenerType::exit:
-                    case ListenerType::event:
-                        break;
+                    switch (hitType)
+                    {
+                        case ListenerType::down:
+                            hitResult = nestedStateMachine->pointerDown(nestedPosition);
+                            break;
+                        case ListenerType::up:
+                            hitResult = nestedStateMachine->pointerUp(nestedPosition);
+                            break;
+                        case ListenerType::move:
+                            hitResult = nestedStateMachine->pointerMove(nestedPosition);
+                            break;
+                        case ListenerType::enter:
+                        case ListenerType::exit:
+                        case ListenerType::event:
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (hitType)
+                    {
+                        case ListenerType::down:
+                        case ListenerType::up:
+                        case ListenerType::move:
+                            nestedStateMachine->pointerExit(nestedPosition);
+                            break;
+                        case ListenerType::enter:
+                        case ListenerType::exit:
+                        case ListenerType::event:
+                            break;
+                    }
                 }
             }
         }
+        return hitResult;
     }
+};
+} // namespace rive
+
+HitResult StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
+{
+    if (m_artboardInstance->frameOrigin())
+    {
+        position -= Vec2D(m_artboardInstance->originX() * m_artboardInstance->width(),
+                          m_artboardInstance->originY() * m_artboardInstance->height());
+    }
+
+    bool hitSomething = false;
+    bool hitOpaque = false;
+    for (const auto& hitShape : m_hitComponents)
+    {
+
+        // TODO: quick reject.
+
+        HitResult hitResult = hitShape->processEvent(position, hitType, !hitOpaque);
+        if (hitResult != HitResult::none)
+        {
+            hitSomething = true;
+            if (hitResult == HitResult::hitOpaque)
+            {
+                hitOpaque = true;
+            }
+        }
+    }
+    return hitSomething ? hitOpaque ? HitResult::hitOpaque : HitResult::hit : HitResult::none;
 }
 
-void StateMachineInstance::pointerMove(Vec2D position)
+HitResult StateMachineInstance::pointerMove(Vec2D position)
 {
-    updateListeners(position, ListenerType::move);
+    return updateListeners(position, ListenerType::move);
 }
-void StateMachineInstance::pointerDown(Vec2D position)
+HitResult StateMachineInstance::pointerDown(Vec2D position)
 {
-    updateListeners(position, ListenerType::down);
+    return updateListeners(position, ListenerType::down);
 }
-void StateMachineInstance::pointerUp(Vec2D position)
+HitResult StateMachineInstance::pointerUp(Vec2D position)
 {
-    updateListeners(position, ListenerType::up);
+    return updateListeners(position, ListenerType::up);
+}
+HitResult StateMachineInstance::pointerExit(Vec2D position)
+{
+    return updateListeners(position, ListenerType::exit);
 }
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
@@ -497,9 +556,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 auto shape = m_artboardInstance->resolve(id);
                 if (shape != nullptr && shape->is<Shape>())
                 {
-                    auto hs = rivestd::make_unique<HitShape>(shape->as<Shape>());
+                    auto hs = rivestd::make_unique<HitShape>(shape->as<Component>(), this);
                     hitShapeLookup[id] = hitShape = hs.get();
-                    m_hitShapes.push_back(std::move(hs));
+                    m_hitComponents.push_back(std::move(hs));
                 }
                 else
                 {
@@ -519,7 +578,11 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     {
         if (nestedArtboard->hasNestedStateMachines())
         {
-            m_hitNestedArtboards.push_back(nestedArtboard);
+
+            auto hn =
+                rivestd::make_unique<HitNestedArtboard>(nestedArtboard->as<Component>(), this);
+            m_hitComponents.push_back(std::move(hn));
+
             for (auto animation : nestedArtboard->nestedAnimations())
             {
                 if (animation->is<NestedStateMachine>())
@@ -534,6 +597,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             }
         }
     }
+    sortHitComponents();
 }
 
 StateMachineInstance::~StateMachineInstance()
@@ -545,8 +609,47 @@ StateMachineInstance::~StateMachineInstance()
     delete[] m_layers;
 }
 
+void StateMachineInstance::sortHitComponents()
+{
+    Drawable* last = m_artboardInstance->firstDrawable();
+    if (last)
+    {
+        // walk to the end, so we can visit in reverse-order
+        while (last->prev)
+        {
+            last = last->prev;
+        }
+    }
+    auto hitShapesCount = m_hitComponents.size();
+    auto currentSortedIndex = 0;
+    for (auto drawable = last; drawable; drawable = drawable->next)
+    {
+        for (size_t i = currentSortedIndex; i < hitShapesCount; i++)
+        {
+            if (m_hitComponents[i]->component() == drawable)
+            {
+                if (currentSortedIndex != i)
+                {
+                    std::iter_swap(m_hitComponents.begin() + currentSortedIndex,
+                                   m_hitComponents.begin() + i);
+                }
+                currentSortedIndex++;
+                break;
+            }
+        }
+        if (currentSortedIndex == hitShapesCount)
+        {
+            break;
+        }
+    }
+}
+
 bool StateMachineInstance::advance(float seconds)
 {
+    if (m_artboardInstance->hasChangedDrawOrderInLastUpdate())
+    {
+        sortHitComponents();
+    }
     this->notifyEventListeners(m_reportedEvents, nullptr);
     m_reportedEvents.clear();
     m_needsAdvance = false;
