@@ -1,5 +1,6 @@
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
+#include "rive/text/text_style_feature.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/backboard.hpp"
@@ -35,6 +36,8 @@ private:
 TextStyle::TextStyle() {}
 
 void TextStyle::addVariation(TextStyleAxis* axis) { m_variations.push_back(axis); }
+
+void TextStyle::addFeature(TextStyleFeature* feature) { m_styleFeatures.push_back(feature); }
 
 void TextStyle::onDirty(ComponentDirt dirt)
 {
@@ -94,14 +97,19 @@ void TextStyle::updateVariableFont()
         // Not ready yet.
         return;
     }
-    if (!m_variations.empty())
+    if (!m_variations.empty() || !m_styleFeatures.empty())
     {
         m_coords.clear();
         for (TextStyleAxis* axis : m_variations)
         {
             m_coords.push_back({axis->tag(), axis->axisValue()});
         }
-        m_variableFont = baseFont->makeAtCoords(m_coords);
+        m_features.clear();
+        for (TextStyleFeature* styleFeature : m_styleFeatures)
+        {
+            m_features.push_back({styleFeature->tag(), styleFeature->featureValue()});
+        }
+        m_variableFont = baseFont->withOptions(m_coords, m_features);
     }
     else
     {

@@ -18,6 +18,7 @@ class RenderPaint;
 
 class TextVariationHelper;
 class TextStyleAxis;
+class TextStyleFeature;
 class TextStyle : public TextStyleBase, public ShapePaintContainer, public FileAssetReferencer
 {
 private:
@@ -38,6 +39,7 @@ public:
     void draw(Renderer* renderer);
     Core* clone() const override;
     void addVariation(TextStyleAxis* axis);
+    void addFeature(TextStyleFeature* feature);
     void updateVariableFont();
     StatusCode onAddedClean(CoreContext* context) override;
     void onDirty(ComponentDirt dirt) override;
@@ -56,6 +58,8 @@ private:
     std::vector<Font::Coord> m_coords;
     std::vector<TextStyleAxis*> m_variations;
     std::vector<rcp<RenderPaint>> m_paintPool;
+    std::vector<TextStyleFeature*> m_styleFeatures;
+    std::vector<Font::Feature> m_features;
 };
 } // namespace rive
 
