@@ -11,6 +11,7 @@ public:
                  std::unordered_map<uint32_t, float>& variations,
                  float fontSize,
                  float strength) const override;
+    void axisValueChanged() override;
 };
 } // namespace rive
 

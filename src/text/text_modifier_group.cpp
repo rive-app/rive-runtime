@@ -43,6 +43,8 @@ void TextModifierGroup::rangeTypeChanged()
     addDirt(ComponentDirt::TextCoverage);
 }
 
+void TextModifierGroup::shapeModifierChanged() { parent()->as<Text>()->markShapeDirty(); }
+
 void TextModifierGroup::rangeChanged()
 {
     /// Marking shape dirty should only be done if this modifer group changes

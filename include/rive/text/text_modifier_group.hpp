@@ -23,6 +23,7 @@ public:
     void addModifier(TextModifier* modifier);
     void rangeChanged();
     void rangeTypeChanged();
+    void shapeModifierChanged();
     void clearRangeMaps();
     void computeRangeMap(Span<const Unichar> text,
                          const rive::SimpleArray<rive::Paragraph>& shape,
