@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iterator>
 #include <vector>
+#include <sstream>
 
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
@@ -24,6 +25,7 @@ using namespace rive;
 
 static FiddleContextOptions s_options;
 static GLFWwindow* s_window = nullptr;
+static int s_msaa = 0;
 static bool s_forceAtomicMode = false;
 static bool s_wireframe = false;
 static bool s_disableFill = false;
@@ -154,6 +156,11 @@ static void mousemove_callback(GLFWwindow* window, double x, double y)
     }
 }
 
+int lastWidth = 0, lastHeight = 0;
+double fpsLastTime = 0;
+int fpsFrames = 0;
+static bool s_needsTitleUpdate = false;
+
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     bool shift = mods & GLFW_MOD_SHIFT;
@@ -166,6 +173,9 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 break;
             case GLFW_KEY_A:
                 s_forceAtomicMode = !s_forceAtomicMode;
+                fpsLastTime = 0;
+                fpsFrames = 0;
+                s_needsTitleUpdate = true;
                 break;
             case GLFW_KEY_D:
                 printf("static float s_scale = %f;\n", s_scale);
@@ -274,10 +284,6 @@ enum class API
 API api = API::gl;
 bool angle = false;
 
-int lastWidth = 0, lastHeight = 0;
-double fpsLastTime = glfwGetTime();
-int fpsFrames = 0;
-
 std::unique_ptr<Renderer> renderer;
 
 void riveMainLoop();
@@ -376,6 +382,10 @@ int main(int argc, const char** argv)
         {
             s_forceAtomicMode = true;
         }
+        else if (!strncmp(argv[i], "--msaa", 6))
+        {
+            s_msaa = argv[i][6] - '0';
+        }
         else
         {
             rivName = argv[i];
@@ -390,7 +400,15 @@ int main(int argc, const char** argv)
         return 1;
     }
 
-    glfwWindowHint(GLFW_SAMPLES, 0);
+    if (s_msaa > 0)
+    {
+        if (s_msaa > 1)
+        {
+            glfwWindowHint(GLFW_SAMPLES, s_msaa);
+        }
+        glfwWindowHint(GLFW_STENCIL_BITS, 8);
+        glfwWindowHint(GLFW_DEPTH_BITS, 16);
+    }
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     switch (api)
     {
@@ -412,6 +430,7 @@ int main(int argc, const char** argv)
             else
             {
                 glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
             }
             break;
     }
@@ -425,7 +444,6 @@ int main(int argc, const char** argv)
         return -1;
     }
 
-    glfwSetWindowTitle(s_window, "Rive Renderer");
     glfwSetMouseButtonCallback(s_window, mouse_button_callback);
     glfwSetCursorPosCallback(s_window, mousemove_callback);
     glfwSetKeyCallback(s_window, key_callback);
@@ -512,6 +530,30 @@ int main(int argc, const char** argv)
     return 0;
 }
 
+static void update_window_title(double fps, int instances, int width, int height)
+{
+    std::ostringstream title;
+    if (fps != 0)
+    {
+        title << '[' << fps << " FPS]";
+    }
+    if (instances > 1)
+    {
+        title << " (x" << instances << " instances)";
+    }
+    title << " | " << (skia ? "Skia" : "Rive") << " Renderer";
+    if (s_msaa)
+    {
+        title << " (msaa" << s_msaa << ')';
+    }
+    else if (s_forceAtomicMode)
+    {
+        title << " (atomic)";
+    }
+    title << " | " << width << " x " << height;
+    glfwSetWindowTitle(s_window, title.str().c_str());
+}
+
 void riveMainLoop()
 {
 #ifdef RIVE_WEBGL
@@ -541,11 +583,18 @@ void riveMainLoop()
         lastHeight = height;
         s_fiddleContext->onSizeChanged(s_window, width, height);
         renderer = s_fiddleContext->makeRenderer(width, height);
+        s_needsTitleUpdate = true;
+    }
+    if (s_needsTitleUpdate)
+    {
+        update_window_title(0, 1, width, height);
+        s_needsTitleUpdate = false;
     }
 
     rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
         .clearColor = 0xff404040,
-        .forceAtomicInterlockMode = s_forceAtomicMode,
+        .msaaSampleCount = s_msaa,
+        .disableRasterOrdering = s_forceAtomicMode,
         .wireframe = s_wireframe,
         .fillsDisabled = s_disableFill,
         .strokesDisabled = s_disableStroke,
@@ -654,34 +703,8 @@ void riveMainLoop()
         if (fpsElapsed > 2)
         {
             int instances = (1 + s_horzRepeat * 2) * (1 + s_upRepeat + s_downRepeat);
-            double fps = fpsFrames / fpsElapsed;
-            // printf("%.1f FPS\n", fps);
-            // fflush(stdout);
-            char title[100];
-            if (instances > 1)
-            {
-                snprintf(title,
-                         sizeof(title),
-                         "[%.1f FPS] (x%i instances) | [%.1f ms] | %s Renderer | %i x %i",
-                         fps,
-                         instances,
-                         1000 / fps,
-                         skia ? "Skia" : "Rive",
-                         width,
-                         height);
-            }
-            else
-            {
-                snprintf(title,
-                         sizeof(title),
-                         "[%.1f FPS] | [%.1f ms] | %s Renderer | %i x %i",
-                         fps,
-                         1000 / fps,
-                         skia ? "Skia" : "Rive",
-                         width,
-                         height);
-            }
-            glfwSetWindowTitle(s_window, title);
+            double fps = fpsLastTime == 0 ? 0 : fpsFrames / fpsElapsed;
+            update_window_title(fps, instances, width, height);
             fpsFrames = 0;
             fpsLastTime = time;
         }

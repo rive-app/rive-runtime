@@ -31,6 +31,10 @@ public:
     FillRule getFillRule() const { return m_fillRule; }
 
     const AABB& getBounds() const;
+    // Approximates the area of the path by linearizing it with a coarse tolerance of 8px in
+    // artboard space.
+    constexpr static float kCoarseAreaTolerance = 8; // Linearize within 8px of the true curve.
+    float getCoarseArea() const;
     uint64_t getRawPathMutationID() const;
 
 #ifdef DEBUG
@@ -47,12 +51,14 @@ private:
     FillRule m_fillRule = FillRule::nonZero;
     RawPath m_rawPath;
     mutable AABB m_bounds;
+    mutable float m_coarseArea;
     mutable uint64_t m_rawPathMutationID;
 
     enum Dirt
     {
-        kPathBoundsDirt = 1,
-        kRawPathMutationIDDirt = 4,
+        kPathBoundsDirt = 1 << 0,
+        kRawPathMutationIDDirt = 1 << 1,
+        kPathCoarseAreaDirt = 1 << 2,
         kAllDirt = ~0,
     };
 

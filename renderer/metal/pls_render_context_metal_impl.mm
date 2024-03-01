@@ -191,6 +191,8 @@ public:
                         framebuffer.writeMask = MTLColorWriteMaskNone;
                     }
                     break;
+                case pls::InterlockMode::depthStencil:
+                    RIVE_UNREACHABLE();
             }
             return make_pipeline_state(gpu, desc);
         };
@@ -381,7 +383,7 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
              {DrawType::midpointFanPatches, DrawType::interiorTriangulation, DrawType::imageMesh})
         {
             pls::ShaderFeatures allShaderFeatures =
-                pls::AllShaderFeaturesForDrawType(drawType, pls::InterlockMode::rasterOrdering);
+                pls::ShaderFeaturesMaskFor(drawType, pls::InterlockMode::rasterOrdering);
             uint32_t pipelineKey = ShaderUniqueKey(drawType,
                                                    allShaderFeatures,
                                                    pls::InterlockMode::rasterOrdering,
@@ -663,7 +665,7 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
     // The shader for this pipeline hasn't finished compiling yet. Start by finding a fully-featured
     // superset of features whose pipeline we can fall back on while waiting for it to compile.
     ShaderFeatures fullyFeaturedPipelineFeatures =
-        pls::AllShaderFeaturesForDrawType(drawType, interlockMode);
+        pls::ShaderFeaturesMaskFor(drawType, interlockMode);
     if (interlockMode == pls::InterlockMode::atomics)
     {
         // Never add ENABLE_ADVANCED_BLEND to an atomic pipeline that doesn't use advanced blend,
@@ -1145,7 +1147,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 break;
             }
         }
-        if (batch.needsBarrier && desc.interlockMode == pls::InterlockMode::atomics)
+        if (desc.interlockMode == pls::InterlockMode::atomics && batch.needsBarrier)
         {
             switch (m_atomicBarrierType)
             {

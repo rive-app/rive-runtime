@@ -2,19 +2,6 @@
  * Copyright 2023 Rive
  */
 
-UNIFORM_BLOCK_BEGIN(IMAGE_DRAW_UNIFORM_BUFFER_IDX, @ImageDrawUniforms)
-float4 viewMatrix;
-float2 translate;
-float opacity;
-float padding;
-// clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
-// normalized rectangle: [-1, -1, 1, 1].
-float4 clipRectInverseMatrix;
-float2 clipRectInverseTranslate;
-uint clipID;
-uint blendMode;
-UNIFORM_BLOCK_END(imageDrawUniforms)
-
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(PositionAttr)
 ATTR(0, float2, @a_position);
@@ -65,6 +52,9 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
                                           vertexPosition);
 #endif
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+#ifdef @USING_DEPTH_STENCIL
+    pos.z = 1. - float(imageDrawUniforms.zIndex) * (2. / 32768.);
+#endif
 
     VARYING_PACK(v_texCoord);
 #ifdef @ENABLE_CLIPPING
@@ -86,6 +76,8 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
+
+#ifndef @USING_DEPTH_STENCIL
 
 PLS_BLOCK_BEGIN
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
@@ -154,4 +146,16 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 
     EMIT_PLS;
 }
-#endif
+
+#else // USING_DEPTH_STENCIL
+
+FRAG_DATA_MAIN(half4, @drawFragmentMain)
+{
+    VARYING_UNPACK(v_texCoord, float2);
+    half4 color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
+    color.a *= imageDrawUniforms.opacity;
+    EMIT_FRAG_DATA(premultiply(color));
+}
+
+#endif // USING_DEPTH_STENCIL
+#endif // FRAGMENT

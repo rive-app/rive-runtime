@@ -5,7 +5,12 @@
 // Common functions shared by multiple shaders.
 
 #define PI float(3.141592653589793238)
+
+#ifndef @USING_DEPTH_STENCIL
 #define AA_RADIUS float(.5)
+#else
+#define AA_RADIUS float(.0)
+#endif
 
 INLINE uint contour_data_idx(uint contourIDWithFlags)
 {
@@ -29,6 +34,8 @@ INLINE float atan2(float2 v)
     }
     return atan(v.y, v.x) + bias;
 }
+
+INLINE half4 premultiply(half4 color) { return make_half4(color.rgb * color.a, color.a); }
 
 INLINE half4 unmultiply(half4 color)
 {
@@ -95,4 +102,20 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
         return clipRectInverseTranslate.xyxy;
     }
 }
+#endif
+
+#ifdef @DRAW_IMAGE
+UNIFORM_BLOCK_BEGIN(IMAGE_DRAW_UNIFORM_BUFFER_IDX, @ImageDrawUniforms)
+float4 viewMatrix;
+float2 translate;
+float opacity;
+float padding;
+// clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
+// normalized rectangle: [-1, -1, 1, 1].
+float4 clipRectInverseMatrix;
+float2 clipRectInverseTranslate;
+uint clipID;
+uint blendMode;
+uint zIndex;
+UNIFORM_BLOCK_END(imageDrawUniforms)
 #endif

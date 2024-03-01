@@ -5,7 +5,9 @@
 #define VERTEX
 #include "../../shaders/out/generated/metal.minified.glsl"
 #include "../../shaders/out/generated/constants.minified.glsl"
+#define DRAW_IMAGE
 #include "../../shaders/out/generated/common.minified.glsl"
+#undef DRAW_IMAGE
 #define DRAW_PATH
 #define DRAW_INTERIOR_TRIANGLES
 #include "../../shaders/out/generated/draw_path_common.minified.glsl"

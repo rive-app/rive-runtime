@@ -28,6 +28,15 @@ public:
 
     ~PLSRenderContextGLImpl() override;
 
+    const GLCapabilities& capabilities() const { return m_capabilities; }
+
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
+
+    rcp<PLSTexture> makeImageTexture(uint32_t width,
+                                     uint32_t height,
+                                     uint32_t mipLevelCount,
+                                     const uint8_t imageDataRGBA[]) override;
+
     // Called *after* the GL context has been modified externally.
     // Re-binds Rive internal resources and invalidates the internal cache of GL state.
     void invalidateGLState();
@@ -36,12 +45,11 @@ public:
     // Unbinds Rive internal resources before yielding control of the GL context.
     void unbindGLInternalResources();
 
-    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
-
-    rcp<PLSTexture> makeImageTexture(uint32_t width,
-                                     uint32_t height,
-                                     uint32_t mipLevelCount,
-                                     const uint8_t imageDataRGBA[]) override;
+    // Utility for rendering a texture to an MSAA framebuffer, since glBlitFramebuffer() doesn't
+    // support copying non-MSAA to MSAA.
+    void blitTextureToFramebufferAsDraw(GLuint textureID,
+                                        const IAABB& bounds,
+                                        uint32_t renderTargetHeight);
 
     GLState* state() const { return m_state.get(); }
 
@@ -77,7 +85,7 @@ private:
 
         void barrier()
         {
-            assert(m_rasterOrderState == RasterOrderingState::disabled);
+            assert(m_rasterOrderingEnabled == pls::TriState::no);
             onBarrier();
         }
 
@@ -87,14 +95,7 @@ private:
         virtual void onEnableRasterOrdering(bool enabled) {}
         virtual void onBarrier() {}
 
-        enum RasterOrderingState
-        {
-            disabled,
-            enabled,
-            unknown
-        };
-
-        RasterOrderingState m_rasterOrderState = RasterOrderingState::unknown;
+        pls::TriState m_rasterOrderingEnabled = pls::TriState::unknown;
     };
 
     class PLSImplEXTNative;
@@ -184,7 +185,10 @@ private:
     GLuint m_imageRectIndexBuffer = 0;
 
     GLuint m_imageMeshVAO = 0;
-    GLuint m_plsResolveVAO = 0;
+    GLuint m_emptyVAO = 0;
+
+    // Used for blitting non-MSAA -> MSAA, which isn't supported by glBlitFramebuffer().
+    GLuint m_blitAsDrawProgram = 0;
 
     const rcp<GLState> m_state;
 };

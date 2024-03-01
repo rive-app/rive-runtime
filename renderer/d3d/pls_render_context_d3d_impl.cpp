@@ -915,6 +915,32 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
             s << "#define " << GLSL_FRAMEBUFFER_PLANE_IDX_OVERRIDE << ' '
               << COALESCED_OFFSCREEN_FRAMEBUFFER_PLANE_IDX << '\n';
         }
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+            case DrawType::outerCurvePatches:
+                s << "#define " << GLSL_DRAW_PATH << '\n';
+                break;
+            case DrawType::interiorTriangulation:
+                s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
+                break;
+            case DrawType::imageRect:
+                assert(interlockMode == pls::InterlockMode::atomics);
+                s << "#define " << GLSL_DRAW_IMAGE << '\n';
+                s << "#define " << GLSL_DRAW_IMAGE_RECT << '\n';
+                break;
+            case DrawType::imageMesh:
+                s << "#define " << GLSL_DRAW_IMAGE << '\n';
+                s << "#define " << GLSL_DRAW_IMAGE_MESH << '\n';
+                break;
+            case DrawType::plsAtomicResolve:
+                assert(interlockMode == pls::InterlockMode::atomics);
+                s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
+                s << "#define " << GLSL_RESOLVE_PLS << '\n';
+                break;
+            case DrawType::plsAtomicInitialize:
+                RIVE_UNREACHABLE();
+        }
         s << glsl::constants << '\n';
         s << glsl::hlsl << '\n';
         s << glsl::common << '\n';
@@ -926,14 +952,12 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
-                s << "#define " << GLSL_DRAW_PATH << '\n';
                 s << pls::glsl::draw_path_common << '\n';
                 s << (interlockMode == pls::InterlockMode::rasterOrdering ? pls::glsl::draw_path
                                                                           : pls::glsl::atomic_draw)
                   << '\n';
                 break;
             case DrawType::interiorTriangulation:
-                s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
                 s << pls::glsl::draw_path_common << '\n';
                 s << (interlockMode == pls::InterlockMode::rasterOrdering ? pls::glsl::draw_path
                                                                           : pls::glsl::atomic_draw)
@@ -941,13 +965,9 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 break;
             case DrawType::imageRect:
                 assert(interlockMode == pls::InterlockMode::atomics);
-                s << "#define " << GLSL_DRAW_IMAGE << '\n';
-                s << "#define " << GLSL_DRAW_IMAGE_RECT << '\n';
                 s << pls::glsl::atomic_draw << '\n';
                 break;
             case DrawType::imageMesh:
-                s << "#define " << GLSL_DRAW_IMAGE << '\n';
-                s << "#define " << GLSL_DRAW_IMAGE_MESH << '\n';
                 s << (interlockMode == pls::InterlockMode::rasterOrdering
                           ? pls::glsl::draw_image_mesh
                           : pls::glsl::atomic_draw)
@@ -955,8 +975,6 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 break;
             case DrawType::plsAtomicResolve:
                 assert(interlockMode == pls::InterlockMode::atomics);
-                s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
-                s << "#define " << GLSL_RESOLVE_PLS << '\n';
                 s << pls::glsl::atomic_draw << '\n';
                 break;
             case DrawType::plsAtomicInitialize:

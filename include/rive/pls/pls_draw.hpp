@@ -36,15 +36,28 @@ public:
         midpointFanPath,
         interiorTriangulationPath,
         imageRect,
-        imageMesh
+        imageMesh,
     };
 
     PLSDraw(IAABB pixelBounds, const Mat2D&, BlendMode, rcp<const PLSTexture> imageTexture, Type);
 
-    const IAABB& pixelBounds() const { return m_pixelBounds; }
     const PLSTexture* imageTexture() const { return m_imageTextureRef; }
+    const IAABB& pixelBounds() const { return m_pixelBounds; }
+    const Mat2D& matrix() const { return m_matrix; }
+    BlendMode blendMode() const { return m_blendMode; }
     Type type() const { return m_type; }
+    pls::DrawContents drawContents() const { return m_drawContents; }
+    bool isStroked() const { return m_drawContents & pls::DrawContents::stroke; }
+    bool isEvenOddFill() const { return m_drawContents & pls::DrawContents::evenOddFill; }
+    bool isOpaque() const { return m_drawContents & pls::DrawContents::opaquePaint; }
+    uint32_t clipID() const { return m_clipID; }
     bool hasClipRect() const { return m_clipRectInverseMatrix != nullptr; }
+    const pls::ClipRectInverseMatrix* clipRectInverseMatrix() const
+    {
+        return m_clipRectInverseMatrix;
+    }
+    pls::SimplePaintValue simplePaintValue() const { return m_simplePaintValue; }
+    const PLSGradient* gradient() const { return m_gradientRef; }
 
     // Clipping setup.
     void setClipID(uint32_t clipID) { m_clipID = clipID; }
@@ -74,6 +87,8 @@ protected:
     const BlendMode m_blendMode;
     const Type m_type;
 
+    pls::DrawContents m_drawContents = pls::DrawContents::none;
+
     uint32_t m_clipID = 0;
     const pls::ClipRectInverseMatrix* m_clipRectInverseMatrix = nullptr;
 
@@ -101,6 +116,11 @@ public:
                                  const PLSPaint*,
                                  RawPath* scratchPath);
 
+    FillRule fillRule() const { return m_fillRule; }
+    pls::PaintType paintType() const { return m_paintType; }
+    float strokeRadius() const { return m_strokeRadius; }
+    pls::ContourDirections contourDirections() const { return m_contourDirections; }
+
     void pushToRenderContext(PLSRenderContext::LogicalFlush*) final;
 
     void releaseRefs() override;
@@ -111,15 +131,16 @@ public:
                 rcp<const PLSPath>,
                 FillRule,
                 const PLSPaint*,
-                Type);
+                Type,
+                pls::InterlockMode);
 
     virtual void onPushToRenderContext(PLSRenderContext::LogicalFlush*) = 0;
 
     const PLSPath* const m_pathRef;
-    const bool m_isStroked;
     const FillRule m_fillRule; // Bc PLSPath fillRule can mutate during the artboard draw process.
     const pls::PaintType m_paintType;
     const float m_strokeRadius;
+    pls::ContourDirections m_contourDirections;
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold it.
     RIVE_DEBUG_CODE(size_t m_rawPathMutationID;)
@@ -205,6 +226,8 @@ public:
                               RawPath* scratchPath,
                               TriangulatorAxis);
 
+    GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
+
 protected:
     void onPushToRenderContext(PLSRenderContext::LogicalFlush*) override;
 
@@ -259,6 +282,8 @@ public:
                   rcp<const PLSTexture>,
                   float opacity);
 
+    float opacity() const { return m_opacity; }
+
     void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
 
 protected:
@@ -278,6 +303,12 @@ public:
                   rcp<const RenderBuffer> indexBuffer,
                   uint32_t indexCount,
                   float opacity);
+
+    const RenderBuffer* vertexBuffer() const { return m_vertexBufferRef; }
+    const RenderBuffer* uvBuffer() const { return m_uvBufferRef; }
+    const RenderBuffer* indexBuffer() const { return m_indexBufferRef; }
+    uint32_t indexCount() const { return m_indexCount; }
+    float opacity() const { return m_opacity; }
 
     void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
 

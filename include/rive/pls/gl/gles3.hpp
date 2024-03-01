@@ -29,6 +29,8 @@ struct GLCapabilities
     bool ARB_fragment_shader_interlock : 1;
     bool ARB_shader_image_load_store : 1;
     bool ARB_shader_storage_buffer_object : 1;
+    bool KHR_blend_equation_advanced : 1;
+    bool KHR_blend_equation_advanced_coherent : 1;
     bool EXT_base_instance : 1;
     bool INTEL_fragment_shader_ordering : 1;
     bool EXT_shader_framebuffer_fetch : 1;
@@ -95,6 +97,22 @@ extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 #include <webgl/webgl2_ext.h>
 #define GL_UNMASKED_RENDERER_WEBGL 0x9246
 #define GL_FIRST_VERTEX_CONVENTION_WEBGL 0x8E4D
+#define GL_MULTIPLY_KHR 0x9294
+#define GL_SCREEN_KHR 0x9295
+#define GL_OVERLAY_KHR 0x9296
+#define GL_DARKEN_KHR 0x9297
+#define GL_LIGHTEN_KHR 0x9298
+#define GL_COLORDODGE_KHR 0x9299
+#define GL_COLORBURN_KHR 0x929A
+#define GL_HARDLIGHT_KHR 0x929B
+#define GL_SOFTLIGHT_KHR 0x929C
+#define GL_DIFFERENCE_KHR 0x929E
+#define GL_EXCLUSION_KHR 0x92A0
+#define GL_HSL_HUE_KHR 0x92AD
+#define GL_HSL_SATURATION_KHR 0x92AE
+#define GL_HSL_COLOR_KHR 0x92AF
+#define GL_HSL_LUMINOSITY_KHR 0x92B0
+#define GL_BLEND_ADVANCED_COHERENT_KHR 0x9285
 #endif
 
 #if defined(RIVE_GLES) || defined(RIVE_WEBGL)

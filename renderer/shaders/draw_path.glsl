@@ -15,6 +15,7 @@ ATTR_BLOCK_END
 
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_paint);
+#ifndef @USING_DEPTH_STENCIL
 #ifdef @DRAW_INTERIOR_TRIANGLES
 @OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
 #else
@@ -24,11 +25,12 @@ NO_PERSPECTIVE VARYING(2, half2, v_edgeDistance);
 #ifdef @ENABLE_CLIPPING
 @OPTIONALLY_FLAT VARYING(4, half, v_clipID);
 #endif
-#ifdef @ENABLE_ADVANCED_BLEND
-@OPTIONALLY_FLAT VARYING(5, half, v_blendMode);
-#endif
 #ifdef @ENABLE_CLIP_RECT
-NO_PERSPECTIVE VARYING(6, float4, v_clipRect);
+NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
+#endif
+#endif // !USING_DEPTH_STENCIL
+#ifdef @ENABLE_ADVANCED_BLEND
+@OPTIONALLY_FLAT VARYING(6, half, v_blendMode);
 #endif
 VARYING_BLOCK_END
 
@@ -43,6 +45,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
     VARYING_INIT(v_paint, float4);
+#ifndef USING_DEPTH_STENCIL
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_INIT(v_windingWeight, half);
 #else
@@ -52,16 +55,20 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIPPING
     VARYING_INIT(v_clipID, half);
 #endif
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_INIT(v_blendMode, half);
-#endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
+#endif
+#endif // !USING_DEPTH_STENCIL
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_INIT(v_blendMode, half);
 #endif
 
     bool shouldDiscardVertex = false;
     ushort pathID;
     float2 vertexPosition;
+#ifdef @USING_DEPTH_STENCIL
+    ushort pathZIndex;
+#endif
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
@@ -72,19 +79,28 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                                           @a_mirroredVertexData,
                                                           _instanceID,
                                                           pathID,
-                                                          v_edgeDistance,
-                                                          vertexPosition VERTEX_CONTEXT_UNPACK);
+                                                          vertexPosition
+#ifndef @USING_DEPTH_STENCIL
+                                                          ,
+                                                          v_edgeDistance
+#else
+                                                          ,
+                                                          pathZIndex
 #endif
+                                                              VERTEX_CONTEXT_UNPACK);
+#endif // !DRAW_INTERIOR_TRIANGLES
 
+    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
+
+#ifndef @USING_DEPTH_STENCIL
     // Encode the integral pathID as a "half" that we know the hardware will see as a unique value
     // in the fragment shader.
     v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
 
-    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
-
     // Indicate even-odd fill rule by making pathID negative.
     if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
         v_pathID = -v_pathID;
+#endif // !USING_DEPTH_STENCIL
 
     uint paintType = paintData.x & 0xfu;
 #ifdef @ENABLE_CLIPPING
@@ -110,10 +126,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     float2x2 clipRectInverseMatrix =
         make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
     float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
+#ifndef @USING_DEPTH_STENCIL
     v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
                                                    clipRectInverseTranslate.xy,
                                                    fragCoord);
-#endif
+#endif // USING_DEPTH_STENCIL
+#endif // ENABLE_CLIP_RECT
 
     // Unpack the paint once we have a position.
     if (paintType == SOLID_COLOR_PAINT_TYPE)
@@ -179,6 +197,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (!shouldDiscardVertex)
     {
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+#ifdef @USING_DEPTH_STENCIL
+        pos.z = 1. - float(pathZIndex) * (2. / 32768.);
+#endif
     }
     else
     {
@@ -189,6 +210,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
+#ifndef USING_DEPTH_STENCIL
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_PACK(v_windingWeight);
 #else
@@ -198,11 +220,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIPPING
     VARYING_PACK(v_clipID);
 #endif
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_PACK(v_blendMode);
-#endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
+#endif
+#endif // !USING_DEPTH_STENCIL
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_PACK(v_blendMode);
 #endif
     EMIT_VERTEX(pos);
 }
@@ -219,6 +242,52 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
+
+INLINE half4 find_paint_color(float4 paint
+#ifdef @TARGET_VULKAN
+                              ,
+                              float2 imagePaintDDX,
+                              float2 imagePaintDDY
+#endif
+                                  FRAGMENT_CONTEXT_DECL)
+{
+    if (paint.a >= .0) // Is the paint a solid color?
+    {
+        return make_half4(paint);
+    }
+    else if (paint.a > -1.) // Is paint is a gradient (linear or radial)?
+    {
+        float t = paint.b > .0 ? /*linear*/ paint.r : /*radial*/ length(paint.rg);
+        t = clamp(t, .0, 1.);
+        float span = abs(paint.b);
+        float x = span > 1. ? /*entire row*/ (1. - 1. / GRAD_TEXTURE_WIDTH) * t +
+                                  (.5 / GRAD_TEXTURE_WIDTH)
+                            : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
+        float row = -paint.a;
+        // Our gradient texture is not mipmapped. Issue a texture-sample that explicitly does not
+        // find derivatives for LOD computation (by specifying derivatives directly).
+        return make_half4(TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, row), .0));
+    }
+    else // The paint is an image.
+    {
+        half4 color;
+#ifdef @TARGET_VULKAN
+        // Vulkan validators require explicit derivatives when sampling a texture in
+        // "non-uniform" control flow. See above.
+        color = TEXTURE_SAMPLE_GRAD(@imageTexture,
+                                    imageSampler,
+                                    paint.rg,
+                                    imagePaintDDX,
+                                    imagePaintDDY);
+#else
+        color = TEXTURE_SAMPLE(@imageTexture, imageSampler, paint.rg);
+#endif
+        color.a *= paint.b; // paint.b holds the opacity of the image.
+        return color;
+    }
+}
+
+#ifndef @USING_DEPTH_STENCIL
 
 PLS_BLOCK_BEGIN
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
@@ -239,11 +308,11 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @ENABLE_CLIPPING
     VARYING_UNPACK(v_clipID, half);
 #endif
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_UNPACK(v_blendMode, half);
-#endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(v_blendMode, half);
 #endif
 
 #ifdef @TARGET_VULKAN
@@ -346,39 +415,13 @@ PLS_MAIN(@drawFragmentMain)
 #endif
         PLS_PRESERVE_VALUE(clipBuffer);
 
-        half4 color;
-        if (v_paint.a >= .0) // Is the paint a solid color?
-        {
-            color = make_half4(v_paint);
-        }
-        else if (v_paint.a > -1.) // Is paint is a gradient (linear or radial)?
-        {
-            float t = v_paint.b > .0 ? /*linear*/ v_paint.r : /*radial*/ length(v_paint.rg);
-            t = clamp(t, .0, 1.);
-            float span = abs(v_paint.b);
-            float x = span > 1. ? /*entire row*/ (1. - 1. / GRAD_TEXTURE_WIDTH) * t +
-                                      (.5 / GRAD_TEXTURE_WIDTH)
-                                : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
-            float row = -v_paint.a;
-            // Our gradient texture is not mipmapped. Issue a texture-sample that explicitly does
-            // not find derivatives for LOD computation (by specifying derivatives directly).
-            color = make_half4(TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, row), .0));
-        }
-        else // The paint is an image.
-        {
+        half4 color = find_paint_color(v_paint
 #ifdef @TARGET_VULKAN
-            // Vulkan validators require explicit derivatives when sampling a texture in
-            // "non-uniform" control flow. See above.
-            color = TEXTURE_SAMPLE_GRAD(@imageTexture,
-                                        imageSampler,
-                                        v_paint.rg,
-                                        imagePaintDDX,
-                                        imagePaintDDY);
-#else
-            color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_paint.rg);
+                                       ,
+                                       imagePaintDDX,
+                                       imagePaintDDY
 #endif
-            color.a *= v_paint.b; // paint.b holds the opacity of the image.
-        }
+                                           FRAGMENT_CONTEXT_UNPACK);
         color.a *= coverage;
 
         half4 dstColor;
@@ -433,4 +476,18 @@ PLS_MAIN(@drawFragmentMain)
 
     EMIT_PLS;
 }
+
+#else // !USING_DEPTH_STENCIL
+
+FRAG_DATA_MAIN(half4, @drawFragmentMain)
+{
+    VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(v_blendMode, half); // TODO: implement advanced blend.
 #endif
+    EMIT_FRAG_DATA(premultiply(find_paint_color(v_paint)));
+}
+
+#endif // !USING_DEPTH_STENCIL
+
+#endif // FRAGMENT

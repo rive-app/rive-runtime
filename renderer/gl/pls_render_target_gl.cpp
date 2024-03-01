@@ -6,6 +6,7 @@
 
 #include "rive/pls/pls.hpp"
 #include "shaders/constants.glsl"
+#include "gl_utils.hpp"
 
 namespace rive::pls
 {
@@ -30,6 +31,10 @@ TextureRenderTargetGL::~TextureRenderTargetGL()
     if (m_headlessFramebufferID != 0)
     {
         glDeleteFramebuffers(1, &m_headlessFramebufferID);
+    }
+    if (m_msaaFramebufferID != 0)
+    {
+        glDeleteFramebuffers(1, &m_msaaFramebufferID);
     }
 }
 
@@ -211,6 +216,50 @@ void TextureRenderTargetGL::bindAsImageTextures()
 #endif
 }
 
+void TextureRenderTargetGL::bindMSAAFramebuffer(GLenum target,
+                                                int sampleCount,
+                                                const GLCapabilities& capabilities)
+{
+    if (m_msaaFramebufferID == 0)
+    {
+        glGenFramebuffers(1, &m_msaaFramebufferID);
+    }
+
+    sampleCount = std::max(sampleCount, 1);
+    if (m_msaaFramebufferSampleCount != sampleCount)
+    {
+        glBindFramebuffer(target, m_msaaFramebufferID);
+
+        GLuint msaaColorBuffer;
+        glGenRenderbuffers(1, &msaaColorBuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, msaaColorBuffer);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampleCount, GL_RGBA8, width(), height());
+        glFramebufferRenderbuffer(target, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColorBuffer);
+
+        GLuint msaaDepthStencilBuffer;
+        glGenRenderbuffers(1, &msaaDepthStencilBuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, msaaDepthStencilBuffer);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER,
+                                         sampleCount,
+                                         GL_DEPTH24_STENCIL8,
+                                         width(),
+                                         height());
+        glFramebufferRenderbuffer(target,
+                                  GL_DEPTH_STENCIL_ATTACHMENT,
+                                  GL_RENDERBUFFER,
+                                  msaaDepthStencilBuffer);
+
+        // Bind FBO 0 so we can orphan the MSAA render buffers to our framebuffer.
+        glBindFramebuffer(target, 0);
+        glDeleteRenderbuffers(1, &msaaColorBuffer);
+        glDeleteRenderbuffers(1, &msaaDepthStencilBuffer);
+
+        m_msaaFramebufferSampleCount = sampleCount;
+    }
+
+    glBindFramebuffer(target, m_msaaFramebufferID);
+}
+
 FramebufferRenderTargetGL::~FramebufferRenderTargetGL()
 {
     if (m_offscreenTargetTextureID != 0)
@@ -219,7 +268,7 @@ FramebufferRenderTargetGL::~FramebufferRenderTargetGL()
     }
 }
 
-void FramebufferRenderTargetGL::bindExternalFramebuffer(GLenum target)
+void FramebufferRenderTargetGL::bindDestinationFramebuffer(GLenum target)
 {
     glBindFramebuffer(target, m_externalFramebufferID);
 }

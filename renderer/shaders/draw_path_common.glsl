@@ -24,19 +24,26 @@ INLINE int2 tess_texel_coord(int texelIndex)
                 texelIndex >> TESS_TEXTURE_WIDTH_LOG2);
 }
 
-INLINE float calc_aa_radius(float2x2 M, float2 normalized)
+INLINE float manhattan_pixel_width(float2x2 M, float2 normalized)
 {
 
     float2 v = MUL(M, normalized);
-    return (abs(v.x) + abs(v.y)) * (1. / dot(v, v)) * AA_RADIUS;
+    return (abs(v.x) + abs(v.y)) * (1. / dot(v, v));
 }
 
 INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            float4 mirroredVertexData,
                                            int _instanceID,
                                            OUT(ushort) o_pathID,
-                                           OUT(half2) o_edgeDistance,
-                                           OUT(float2) o_vertexPosition VERTEX_CONTEXT_DECL)
+                                           OUT(float2) o_vertexPosition
+#ifndef @USING_DEPTH_STENCIL
+                                           ,
+                                           OUT(half2) o_edgeDistance
+#else
+                                           ,
+                                           OUT(ushort) o_pathZIndex
+#endif
+                                               VERTEX_CONTEXT_DECL)
 {
     // Unpack patchVertexData.
     int localVertexID = int(patchVertexData.x);
@@ -63,6 +70,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     float2 translate = uintBitsToFloat(pathData.xy);
 
     float strokeRadius = uintBitsToFloat(pathData.z);
+#ifdef @USING_DEPTH_STENCIL
+    o_pathZIndex = make_ushort(pathData.w);
+#endif
 
     // Fix the tessellation vertex if we fetched the wrong one in order to guarantee we got the
     // correct contour ID and flags, or if we belong to a mirrored contour and this vertex has an
@@ -120,7 +130,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)
             outset = max(outset, .0);
 
-        float aaRadius = calc_aa_radius(M, norm);
+        float aaRadius = manhattan_pixel_width(M, norm) * AA_RADIUS;
         half globalCoverage = 1.;
         if (aaRadius > strokeRadius)
         {
@@ -133,10 +143,12 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Extend the vertex by half the width of the AA ramp.
         float2 vertexOffset = MUL(norm, strokeRadius + aaRadius); // Bloat stroke width for AA.
 
+#ifndef @USING_DEPTH_STENCIL
         // Calculate the AA distance to both the outset and inset edges of the stroke. The fragment
         // shader will use whichever is lesser.
         float x = outset * (strokeRadius + aaRadius);
         o_edgeDistance = make_half2((1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5);
+#endif
 
         uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
         if (joinType != 0u)
@@ -159,7 +171,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             bool isLeftJoin = (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
             float bisectTheta = joinAngle * (isTan0 == isLeftJoin ? -.5 : .5) + theta;
             float2 bisector = float2(sin(bisectTheta), -cos(bisectTheta));
-            float bisectAARadius = calc_aa_radius(M, bisector);
+            float bisectPixelWidth = manhattan_pixel_width(M, bisector);
 
             // Generalize everything to a "miter-clip", which is proposed in the SVG-2 draft. Bevel
             // joins are converted to miter-clip joins with a miter limit of 1/2 pixel. They
@@ -170,7 +182,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             if ((joinType == MITER_CLIP_JOIN_CONTOUR_FLAG) ||
                 (joinType == MITER_REVERT_JOIN_CONTOUR_FLAG && miterRatio >= .25))
             {
-                // Miter!
+                // Miter! (Or square cap.)
                 // We currently use hard coded miter limits:
                 //   * 1 for square caps being emulated as miter-clip joins.
                 //   * 4, which is the SVG default, for all other miter joins.
@@ -180,10 +192,10 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             }
             else
             {
-                // Bevel!
-                clipRadius = strokeRadius * miterRatio + /* 1/2px bleed! */ bisectAARadius;
+                // Bevel! (Or butt cap.)
+                clipRadius = strokeRadius * miterRatio + /* 1/2px bleed! */ bisectPixelWidth * .5;
             }
-            float clipAARadius = clipRadius + bisectAARadius;
+            float clipAARadius = clipRadius + bisectPixelWidth * AA_RADIUS;
             if ((contourIDWithFlags & JOIN_TANGENT_INNER_CONTOUR_FLAG) != 0u)
             {
                 // Reposition the inner join vertices at the miter-clip positions. Leave the outer
@@ -217,18 +229,23 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             // emanate from the outset side of the stroke, we can repurpose the inset distance as
             // the clip distance.
             float2 pt = abs(outset) * vertexOffset;
-            float clipDistance = (clipAARadius - dot(pt, bisector)) / (bisectAARadius * 2.);
+            float clipDistance =
+                (clipAARadius - dot(pt, bisector)) / (bisectPixelWidth * (AA_RADIUS * 2.));
+#ifndef @USING_DEPTH_STENCIL
             if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
                 o_edgeDistance.y = make_half(clipDistance);
             else
                 o_edgeDistance.x = make_half(clipDistance);
+#endif
         }
 
+#ifndef @USING_DEPTH_STENCIL
         o_edgeDistance *= globalCoverage;
 
         // Bias o_edgeDistance.y slightly upwards in order to guarantee o_edgeDistance.y is >= 0 at
         // every pixel. "o_edgeDistance.y < 0" is used to differentiate between strokes and fills.
         o_edgeDistance.y = max(o_edgeDistance.y, make_half(1e-4));
+#endif
 
         postTransformVertexOffset = MUL(M, outset * vertexOffset);
 
@@ -248,8 +265,10 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
             fillCoverage = -fillCoverage;
 
+#ifndef @USING_DEPTH_STENCIL
         // "o_edgeDistance.y < 0" indicates to the fragment shader that this is a fill.
         o_edgeDistance = make_half2(fillCoverage, -1);
+#endif
 
         // If we're actually just drawing a triangle, throw away the entire patch except a single
         // fan triangle.

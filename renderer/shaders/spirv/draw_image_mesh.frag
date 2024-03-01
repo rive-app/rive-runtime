@@ -8,6 +8,8 @@
 #define ENABLE_CLIP_RECT
 #define ENABLE_ADVANCED_BLEND
 #define ENABLE_HSL_BLEND_MODES
+#define DRAW_IMAGE
+#define DRAW_IMAGE_MESH
 #include "../../shaders/out/generated/glsl.minified.glsl"
 #include "../../shaders/out/generated/constants.minified.glsl"
 #include "../../shaders/out/generated/common.minified.glsl"

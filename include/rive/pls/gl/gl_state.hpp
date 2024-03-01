@@ -6,6 +6,7 @@
 
 #include "rive/pls/gl/gles3.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
 
 namespace rive::pls
 {
@@ -17,7 +18,10 @@ public:
 
     void invalidate(const GLCapabilities&);
 
-    void enableFaceCulling(bool);
+    void setCullFace(GLenum);
+
+    void setBlendEquation(BlendMode);
+    void disableBlending();
 
     void bindProgram(GLuint);
     void bindVAO(GLuint);
@@ -28,7 +32,8 @@ public:
     void deleteBuffer(GLuint);
 
 private:
-    bool m_faceCullingEnabled;
+    GLenum m_cullFace;
+    GLenum m_blendEquation;
     GLuint m_boundProgramID;
     GLuint m_boundVAO;
     GLuint m_boundArrayBufferID;
@@ -37,7 +42,8 @@ private:
 
     struct
     {
-        bool faceCullingEnabled : 1;
+        bool cullFace : 1;
+        bool blendEquation : 1;
         bool boundProgramID : 1;
         bool boundVAO : 1;
         bool boundArrayBufferID : 1;

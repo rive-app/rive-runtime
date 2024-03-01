@@ -172,8 +172,8 @@ void PLSRenderContext::LogicalFlush::rewind()
     m_drawList.reset();
     m_combinedShaderFeatures = pls::ShaderFeatures::NONE;
 
-    m_currentPathIsStroked = 0;
-    m_currentPathNeedsMirroredContours = 0;
+    m_currentPathIsStroked = false;
+    m_currentPathContourDirections = pls::ContourDirections::none;
     m_currentPathID = 0;
     m_currentContourID = 0;
     m_currentContourPaddingVertexCount = 0;
@@ -182,6 +182,8 @@ void PLSRenderContext::LogicalFlush::rewind()
     RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = 0;)
     RIVE_DEBUG_CODE(m_expectedPathMirroredTessLocationAtEndOfPath = 0;)
     RIVE_DEBUG_CODE(m_pathCurveCount = 0;)
+
+    m_currentZIndex = 0;
 
     RIVE_DEBUG_CODE(m_hasDoneLayout = false;)
 }
@@ -211,10 +213,19 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
 {
     assert(!m_didBeginFrame);
     m_frameDescriptor = std::move(frameDescriptor);
-    m_frameInterlockMode =
-        m_frameDescriptor.forceAtomicInterlockMode || !platformFeatures().supportsRasterOrdering
-            ? pls::InterlockMode::atomics
-            : pls::InterlockMode::rasterOrdering;
+    if (m_frameDescriptor.msaaSampleCount > 0)
+    {
+        m_frameInterlockMode = pls::InterlockMode::depthStencil;
+    }
+    else if (m_frameDescriptor.disableRasterOrdering || !platformFeatures().supportsRasterOrdering)
+    {
+        m_frameInterlockMode = pls::InterlockMode::atomics;
+    }
+    else
+    {
+        m_frameInterlockMode = pls::InterlockMode::rasterOrdering;
+    }
+    m_frameShaderFeaturesMask = pls::ShaderFeaturesMaskFor(m_frameInterlockMode);
     if (m_logicalFlushes.empty())
     {
         m_logicalFlushes.emplace_back(new LogicalFlush(this));
@@ -225,7 +236,7 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
 
 bool PLSRenderContext::frameSupportsImagePaintForPaths() const
 {
-    return m_frameInterlockMode == pls::InterlockMode::rasterOrdering ||
+    return m_frameInterlockMode != pls::InterlockMode::atomics ||
            platformFeatures().supportsBindlessTextures;
 }
 
@@ -564,9 +575,9 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
     {
         // Conservatively account for line breaks and padding in the tessellation span count.
         // Line breaks potentially introduce a new span. Count the maximum number of line breaks we
-        // might encounter, which is at most one for every line in the tessellation texture,
-        // excluding the bottom line.
-        size_t maxSpanBreakCount = tessDataHeight - 1;
+        // might encounter, which is at most TWO for every line in the tessellation texture (one for
+        // a forward span, and one for its reflection.)
+        size_t maxSpanBreakCount = tessDataHeight * 2;
         // The tessellation texture requires 3 separate spans of padding vertices (see above and
         // below).
         constexpr size_t kPaddingSpanCount = 3;
@@ -576,6 +587,7 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
     m_flushDesc.flushType = flushType;
     m_flushDesc.renderTarget = frameDescriptor.renderTarget.get();
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
+    m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
 
     // In atomic mode, we may be able to skip the explicit clear of the color buffer and fold it
     // into the atomic "resolve" operation instead.
@@ -687,6 +699,7 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
 
 void PLSRenderContext::LogicalFlush::writeResources()
 {
+    const pls::PlatformFeatures& platformFeatures = m_ctx->platformFeatures();
     assert(m_hasDoneLayout);
 
     // Wait until here to layout the gradient texture because the final gradient texture height is
@@ -698,7 +711,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
     m_flushDesc.firstTessVertexSpan = m_ctx->m_tessSpanData.elementsWritten();
     size_t initialTriangleVertexDataSize = m_ctx->m_triangleVertexData.bytesWritten();
 
-    m_ctx->m_flushUniformData.emplace_back(m_flushDesc, m_ctx->platformFeatures());
+    m_ctx->m_flushUniformData.emplace_back(m_flushDesc, platformFeatures);
 
     // Write out the simple gradient data.
     assert(m_simpleGradients.size() == m_pendingSimpleGradientWrites.size());
@@ -770,12 +783,12 @@ void PLSRenderContext::LogicalFlush::writeResources()
         pushPaddingVertices(m_outerCubicTessEndLocation, 1);
     }
 
-    if (m_ctx->frameInterlockMode() == pls::InterlockMode::atomics)
+    if (m_ctx->frameInterlockMode() != pls::InterlockMode::rasterOrdering)
     {
         assert(m_plsDraws.size() <= kMaxReorderedDrawCount);
 
         // Sort the draw list to optimize batching, since we can only batch non-overlapping draws.
-        std::vector<uint64_t>& indirectDrawList = m_ctx->m_indirectDrawList;
+        std::vector<int64_t>& indirectDrawList = m_ctx->m_indirectDrawList;
         indirectDrawList.resize(m_plsDraws.size());
 
         if (m_ctx->m_intersectionBoard == nullptr)
@@ -787,6 +800,13 @@ void PLSRenderContext::LogicalFlush::writeResources()
                                           m_ctx->frameDescriptor().renderTarget->height());
 
         // Build a list of sort keys that determine the final draw order.
+        constexpr static int kDrawGroupShift = 48; // Where in the key does the draw group begin?
+        constexpr static int64_t kDrawGroupMask = 0xffffllu << kDrawGroupShift;
+        constexpr static int kBlendModeShift = 19; // Where in the key do the blendMode begin?
+        constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
+        constexpr static int kDrawContentsShift = 16; // Where in the key do the drawContents begin?
+        constexpr static int64_t kDrawContentsMask = 7llu << kDrawContentsShift;
+        constexpr static int64_t kDrawIndexMask = 0xffff;
         for (size_t i = 0; i < m_plsDraws.size(); ++i)
         {
             PLSDraw* draw = m_plsDraws[i].get();
@@ -798,62 +818,110 @@ void PLSRenderContext::LogicalFlush::writeResources()
 
             // Our top priority in re-ordering is to group non-overlapping draws together, in order
             // to maximize batching while preserving correctness.
-            uint16_t drawGroupIdx = intersectionBoard->addRectangle(drawBounds);
+            int16_t drawGroupIdx = intersectionBoard->addRectangle(drawBounds);
             assert(drawGroupIdx != 0);
-            uint64_t key = uint64_t(drawGroupIdx) << 48;
+            if (m_flushDesc.interlockMode == pls::InterlockMode::depthStencil && draw->isOpaque())
+            {
+                // In depthStencil mode we can reverse-sort opaque paths front to back, draw them
+                // first, and take advantage of early Z culling.
+                drawGroupIdx = -drawGroupIdx;
+            }
+            int64_t key = drawGroupIdx;
 
-            // Within sub-groups of nonoverlapping draws, sort similar draw types together.
-            uint64_t drawType = static_cast<uint64_t>(draw->type());
+            // Within sub-groups of non-overlapping draws, sort similar draw types together.
+            int64_t drawType = static_cast<int64_t>(draw->type());
             assert(drawType < (1 << 8));
-            key |= drawType << 40;
+            key = (key << 8) | drawType;
 
             // Within sub-groups of matching draw type, sort by texture binding.
-            uint64_t textureResourceHash =
+            int64_t textureResourceHash =
                 draw->imageTexture() != nullptr ? draw->imageTexture()->textureResourceHash() : 0;
-            key |= (textureResourceHash & 0xffffff) << 16;
+            key = (key << 17) | (textureResourceHash & 0x1ffff);
+
+            // If using KHR_blend_equation_advanced, we need a batching barrier between draws with
+            // different blend modes.
+            // If not using KHR_blend_equation_advanced, sorting by blend mode may still give us
+            // better branching on the GPU.
+            int64_t blendMode = pls::ConvertBlendModeToPLSBlendMode(draw->blendMode());
+            assert(blendMode < 1 << 4);
+            key = (key << 4) | blendMode;
+
+            // depthStencil mode draws strokes, fills, and even/odd with different stencil settings.
+            int64_t drawContents = static_cast<int64_t>(draw->drawContents());
+            assert(drawContents < 1 << 3);
+            key = (key << 3) | drawContents;
 
             // Draw index goes at the bottom of the key so we know which PLSDraw it corresponds to.
-            assert(i < (1 << 16));
-            key |= i;
+            assert(i < 1 << 16);
+            key = (key << 16) | i;
 
             indirectDrawList[i] = key;
+
+            assert((key & kDrawGroupMask) >> kDrawGroupShift == drawGroupIdx);
+            assert((key & kBlendModeMask) >> kBlendModeShift == blendMode);
+            assert((key & kDrawContentsMask) >> kDrawContentsShift == drawContents);
+            assert((key & kDrawIndexMask) == i);
         }
 
         // Re-order the draws!!
         std::sort(indirectDrawList.begin(), indirectDrawList.end());
 
-        // Atomic mode sometimes needs initialize PLS with a draw when the backend can't do it with
-        // typical clear/load APIs.
-        if (m_ctx->platformFeatures().atomicPLSMustBeInitializedAsDraw)
+        // Atomic mode sometimes needs to initialize PLS with a draw when the backend can't do it
+        // with typical clear/load APIs.
+        if (m_ctx->frameInterlockMode() == pls::InterlockMode::atomics &&
+            platformFeatures.atomicPLSMustBeInitializedAsDraw)
         {
-            m_drawList.emplace_back(m_ctx->perFrameAllocator(), DrawType::plsAtomicInitialize, 0);
+            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                    DrawType::plsAtomicInitialize,
+                                    BlendMode::srcOver,
+                                    0);
             m_drawList.tail().elementCount = 1;
             pushBarrier();
         }
 
+        // Draws with the same drawGroupIdx don't overlap, but once we cross into a new draw group,
+        // we need to insert a barrier between the overlaps.
+        int64_t needsBarrierMask = kDrawGroupMask;
+        if (m_flushDesc.interlockMode == pls::InterlockMode::depthStencil)
+        {
+            // depthStencil mode also draws strokes, fills, and even/odd with different stencil
+            // settings, so these also need a barrier.
+            needsBarrierMask |= kDrawContentsMask;
+            if (platformFeatures.depthStencilSupportsKHRBlendEquations)
+            {
+                // If using KHR_blend_equation_advanced, we also need a barrier between blend modes
+                // in order to change the blend equation.
+                needsBarrierMask |= kBlendModeMask;
+            }
+        }
+
         // Write out the draw data from the sorted draw list, and build up a condensed/batched list
         // of low-level draws.
-        uint16_t priorDrawGroupIdx = !indirectDrawList.empty() ? indirectDrawList[0] >> 48 : 1;
-        assert(priorDrawGroupIdx == 1);
-        for (uint64_t key : indirectDrawList)
+        int64_t priorKey = !indirectDrawList.empty() ? indirectDrawList[0] : 0;
+        for (int64_t key : indirectDrawList)
         {
-            uint16_t drawGroupIdx = key >> 48;
-            if (drawGroupIdx != priorDrawGroupIdx)
+            if ((priorKey & needsBarrierMask) != (key & needsBarrierMask))
             {
-                // Draws within the same group don't overlap, but once we cross into a new draw
-                // group we need to insert a barrier for the overlaps to be rendered properly.
                 pushBarrier();
-                priorDrawGroupIdx = drawGroupIdx;
             }
-            size_t drawIndex = key & 0xffff;
-            m_plsDraws[drawIndex]->pushToRenderContext(this);
+            // We negate drawGroupIdx on opaque paths in order to draw them first and in reverse
+            // order, but their z index should still remain positive.
+            m_currentZIndex = abs(key >> kDrawGroupShift);
+            m_plsDraws[key & kDrawIndexMask]->pushToRenderContext(this);
+            priorKey = key;
         }
-        pushBarrier();
 
         // Atomic mode needs one more draw to resolve all the pixels.
-        m_drawList.emplace_back(m_ctx->perFrameAllocator(), DrawType::plsAtomicResolve, 0);
-        m_drawList.tail().elementCount = 1;
-        m_drawList.tail().shaderFeatures = m_combinedShaderFeatures;
+        if (m_ctx->frameInterlockMode() == pls::InterlockMode::atomics)
+        {
+            pushBarrier();
+            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                    DrawType::plsAtomicResolve,
+                                    BlendMode::srcOver,
+                                    0);
+            m_drawList.tail().elementCount = 1;
+            m_drawList.tail().shaderFeatures = m_combinedShaderFeatures;
+        }
     }
     else
     {
@@ -1189,40 +1257,30 @@ void PLSRenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation, 
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
 }
 
-void PLSRenderContext::LogicalFlush::pushPath(
-    PatchType patchType,
-    const Mat2D& matrix,
-    float strokeRadius,
-    FillRule fillRule,
-    PaintType paintType,
-    pls::SimplePaintValue simplePaintValue,
-    const PLSGradient* gradient,
-    const PLSTexture* imageTexture,
-    uint32_t clipID,
-    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-    BlendMode blendMode,
-    uint32_t tessVertexCount)
+void PLSRenderContext::LogicalFlush::pushPath(const PLSPathDraw* draw,
+                                              pls::PatchType patchType,
+                                              uint32_t tessVertexCount)
 {
     assert(m_hasDoneLayout);
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
     assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessLocationAtEndOfPath);
 
-    m_currentPathIsStroked = strokeRadius != 0;
-    m_currentPathNeedsMirroredContours = !m_currentPathIsStroked;
-    m_ctx->m_pathData.set_back(matrix, strokeRadius);
-    m_ctx->m_paintData.set_back(fillRule,
-                                paintType,
-                                simplePaintValue,
+    m_currentPathIsStroked = draw->strokeRadius() != 0;
+    m_currentPathContourDirections = draw->contourDirections();
+    m_ctx->m_pathData.set_back(draw->matrix(), draw->strokeRadius(), m_currentZIndex);
+    m_ctx->m_paintData.set_back(draw->fillRule(),
+                                draw->paintType(),
+                                draw->simplePaintValue(),
                                 m_gradTextureLayout,
-                                clipID,
-                                clipRectInverseMatrix != nullptr,
-                                blendMode);
-    m_ctx->m_paintAuxData.set_back(matrix,
-                                   paintType,
-                                   simplePaintValue,
-                                   gradient,
-                                   imageTexture,
-                                   clipRectInverseMatrix,
+                                draw->clipID(),
+                                draw->hasClipRect(),
+                                draw->blendMode());
+    m_ctx->m_paintAuxData.set_back(draw->matrix(),
+                                   draw->paintType(),
+                                   draw->simplePaintValue(),
+                                   draw->gradient(),
+                                   draw->imageTexture(),
+                                   draw->clipRectInverseMatrix(),
                                    m_ctx->frameDescriptor().renderTarget.get(),
                                    m_ctx->platformFeatures());
 
@@ -1234,47 +1292,51 @@ void PLSRenderContext::LogicalFlush::pushPath(
            m_ctx->m_paintAuxData.elementsWritten() - 1);
 
     pls::DrawType drawType;
+    size_t tessLocation;
     if (patchType == PatchType::midpointFan)
     {
         drawType = DrawType::midpointFanPatches;
-        m_pathTessLocation = m_midpointFanTessVertexIdx;
+        tessLocation = m_midpointFanTessVertexIdx;
         m_midpointFanTessVertexIdx += tessVertexCount;
-        RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = m_midpointFanTessVertexIdx);
     }
     else
     {
         drawType = DrawType::outerCurvePatches;
-        m_pathTessLocation = m_outerCubicTessVertexIdx;
+        tessLocation = m_outerCubicTessVertexIdx;
         m_outerCubicTessVertexIdx += tessVertexCount;
-        RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = m_outerCubicTessVertexIdx);
     }
+
+    RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = tessLocation + tessVertexCount);
+    RIVE_DEBUG_CODE(m_expectedPathMirroredTessLocationAtEndOfPath = tessLocation);
     assert(m_expectedPathTessLocationAtEndOfPath <= kMaxTessellationVertexCount);
 
     uint32_t patchSize = PatchSegmentSpan(drawType);
-    uint32_t baseInstance = m_pathTessLocation / patchSize;
-    assert(baseInstance * patchSize == m_pathTessLocation); // flush() is responsible for alignment.
+    uint32_t baseInstance = tessLocation / patchSize;
+    assert(baseInstance * patchSize == tessLocation); // flush() is responsible for alignment.
 
-    if (m_currentPathNeedsMirroredContours)
+    if (m_currentPathContourDirections == pls::ContourDirections::reverseAndForward)
     {
         assert(tessVertexCount % 2 == 0);
-        m_pathTessLocation = m_pathMirroredTessLocation = m_pathTessLocation + tessVertexCount / 2;
-        RIVE_DEBUG_CODE(m_expectedPathMirroredTessLocationAtEndOfPath =
-                            m_pathMirroredTessLocation - tessVertexCount / 2);
+        m_pathTessLocation = m_pathMirroredTessLocation = tessLocation + tessVertexCount / 2;
+    }
+    else if (m_currentPathContourDirections == pls::ContourDirections::forward)
+    {
+        m_pathTessLocation = m_pathMirroredTessLocation = tessLocation;
+    }
+    else
+    {
+        assert(m_currentPathContourDirections == pls::ContourDirections::reverse);
+        m_pathTessLocation = m_pathMirroredTessLocation = tessLocation + tessVertexCount;
     }
 
-    DrawBatch& batch = pushPathDraw(drawType,
-                                    baseInstance,
-                                    fillRule,
-                                    paintType,
-                                    simplePaintValue,
-                                    imageTexture,
-                                    clipID,
-                                    clipRectInverseMatrix != nullptr,
-                                    blendMode);
+    DrawBatch& batch = pushPathDraw(drawType, baseInstance, draw);
     assert(batch.baseElement + batch.elementCount == baseInstance);
     uint32_t instanceCount = tessVertexCount / patchSize;
     assert(instanceCount * patchSize == tessVertexCount); // flush() is responsible for alignment.
     batch.elementCount += instanceCount;
+    assert((batch.shaderFeatures &
+            pls::ShaderFeaturesMaskFor(batch.drawType, m_ctx->frameInterlockMode())) ==
+           batch.shaderFeatures);
 }
 
 void PLSRenderContext::LogicalFlush::pushContour(Vec2D midpoint,
@@ -1290,9 +1352,11 @@ void PLSRenderContext::LogicalFlush::pushContour(Vec2D midpoint,
     {
         midpoint.x = closed ? 1 : 0;
     }
-    m_ctx->m_contourData.emplace_back(midpoint,
-                                      m_currentPathID,
-                                      static_cast<uint32_t>(m_pathTessLocation));
+    // If the contour is closed, the shader needs a vertex to wrap back around to at the end of it.
+    uint32_t vertexIndex0 = m_currentPathContourDirections & pls::ContourDirections::forward
+                                ? m_pathTessLocation
+                                : m_pathMirroredTessLocation - 1;
+    m_ctx->m_contourData.emplace_back(midpoint, m_currentPathID, vertexIndex0);
     ++m_currentContourID;
     assert(0 < m_currentContourID && m_currentContourID <= pls::kMaxContourID);
     assert(m_flushDesc.firstContour + m_currentContourID == m_ctx->m_contourData.elementsWritten());
@@ -1326,17 +1390,17 @@ void PLSRenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
     // Only the first curve of a contour gets padding vertices.
     m_currentContourPaddingVertexCount = 0;
 
-    if (m_currentPathNeedsMirroredContours)
+    if (m_currentPathContourDirections == pls::ContourDirections::reverseAndForward)
     {
-        pushMirroredTessellationSpans(pts,
-                                      joinTangent,
-                                      totalVertexCount,
-                                      parametricSegmentCount,
-                                      polarSegmentCount,
-                                      joinSegmentCount,
-                                      m_currentContourID | additionalContourFlags);
+        pushMirroredAndForwardTessellationSpans(pts,
+                                                joinTangent,
+                                                totalVertexCount,
+                                                parametricSegmentCount,
+                                                polarSegmentCount,
+                                                joinSegmentCount,
+                                                m_currentContourID | additionalContourFlags);
     }
-    else
+    else if (m_currentPathContourDirections == pls::ContourDirections::forward)
     {
         pushTessellationSpans(pts,
                               joinTangent,
@@ -1345,6 +1409,17 @@ void PLSRenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
                               polarSegmentCount,
                               joinSegmentCount,
                               m_currentContourID | additionalContourFlags);
+    }
+    else
+    {
+        assert(m_currentPathContourDirections == pls::ContourDirections::reverse);
+        pushMirroredTessellationSpans(pts,
+                                      joinTangent,
+                                      totalVertexCount,
+                                      parametricSegmentCount,
+                                      polarSegmentCount,
+                                      joinSegmentCount,
+                                      m_currentContourID | additionalContourFlags);
     }
 
     RIVE_DEBUG_CODE(++m_pathCurveCount;)
@@ -1404,6 +1479,46 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredTessellation
 {
     assert(m_hasDoneLayout);
 
+    uint32_t reflectionY = (m_pathMirroredTessLocation - 1) / kTessTextureWidth;
+    int32_t reflectionX0 = (m_pathMirroredTessLocation - 1) % kTessTextureWidth + 1;
+    int32_t reflectionX1 = reflectionX0 - totalVertexCount;
+
+    for (;;)
+    {
+        m_ctx->m_tessSpanData.set_back(pts,
+                                       joinTangent,
+                                       static_cast<float>(reflectionY),
+                                       reflectionX0,
+                                       reflectionX1,
+                                       parametricSegmentCount,
+                                       polarSegmentCount,
+                                       joinSegmentCount,
+                                       contourIDWithFlags);
+        if (reflectionX1 < 0)
+        {
+            --reflectionY;
+            reflectionX0 += kTessTextureWidth;
+            reflectionX1 += kTessTextureWidth;
+            continue;
+        }
+        break;
+    }
+
+    m_pathMirroredTessLocation -= totalVertexCount;
+    assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessLocationAtEndOfPath);
+}
+
+RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredAndForwardTessellationSpans(
+    const Vec2D pts[4],
+    Vec2D joinTangent,
+    uint32_t totalVertexCount,
+    uint32_t parametricSegmentCount,
+    uint32_t polarSegmentCount,
+    uint32_t joinSegmentCount,
+    uint32_t contourIDWithFlags)
+{
+    assert(m_hasDoneLayout);
+
     int32_t y = m_pathTessLocation / kTessTextureWidth;
     int32_t x0 = m_pathTessLocation % kTessTextureWidth;
     int32_t x1 = x0 + totalVertexCount;
@@ -1429,8 +1544,8 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredTessellation
         if (x1 > static_cast<int32_t>(kTessTextureWidth) || reflectionX1 < 0)
         {
             // Either the span or its reflection was too long to fit on the current line. Wrap and
-            // draw one both of them both again, this time behind the opposite edge of the texture
-            // so we capture what got clipped off last time.
+            // draw both of them again, this time beyond the opposite edge of the texture so we
+            // capture what got clipped off last time.
             ++y;
             x0 -= kTessTextureWidth;
             x1 -= kTessTextureWidth;
@@ -1450,43 +1565,27 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredTessellation
     assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessLocationAtEndOfPath);
 }
 
-void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(
-    GrInnerFanTriangulator* triangulator,
-    PaintType paintType,
-    pls::SimplePaintValue simplePaintValue,
-    const PLSTexture* imageTexture,
-    uint32_t clipID,
-    bool hasClipRect,
-    BlendMode blendMode)
+void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangulationDraw* draw)
 {
     assert(m_hasDoneLayout);
 
     DrawBatch& batch = pushPathDraw(DrawType::interiorTriangulation,
                                     m_ctx->m_triangleVertexData.elementsWritten(),
-                                    triangulator->fillRule(),
-                                    paintType,
-                                    simplePaintValue,
-                                    imageTexture,
-                                    clipID,
-                                    hasClipRect,
-                                    blendMode);
-    assert(m_ctx->m_triangleVertexData.hasRoomFor(triangulator->maxVertexCount()));
+                                    draw);
+    assert(m_ctx->m_triangleVertexData.hasRoomFor(draw->triangulator()->maxVertexCount()));
     size_t actualVertexCount =
-        triangulator->polysToTriangles(&m_ctx->m_triangleVertexData, m_currentPathID);
-    assert(actualVertexCount <= triangulator->maxVertexCount());
+        draw->triangulator()->polysToTriangles(&m_ctx->m_triangleVertexData, m_currentPathID);
+    assert(actualVertexCount <= draw->triangulator()->maxVertexCount());
     batch.elementCount = actualVertexCount;
     // Interior triangulations are allowed to disable raster ordering since they are guaranteed to
     // not overlap.
     batch.needsBarrier = true;
+    assert((batch.shaderFeatures & pls::ShaderFeaturesMaskFor(pls::DrawType::interiorTriangulation,
+                                                              m_ctx->frameInterlockMode())) ==
+           batch.shaderFeatures);
 }
 
-void PLSRenderContext::LogicalFlush::pushImageRect(
-    const Mat2D& matrix,
-    float opacity,
-    const PLSTexture* imageTexture,
-    uint32_t clipID,
-    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-    BlendMode blendMode)
+void PLSRenderContext::LogicalFlush::pushImageRect(const ImageRectDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1495,70 +1594,49 @@ void PLSRenderContext::LogicalFlush::pushImageRect(
     assert(!m_ctx->frameSupportsImagePaintForPaths());
 
     size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
-    m_ctx->m_imageDrawUniformData.emplace_back(matrix,
-                                               opacity,
-                                               clipRectInverseMatrix,
-                                               clipID,
-                                               blendMode);
+    m_ctx->m_imageDrawUniformData.emplace_back(draw->matrix(),
+                                               draw->opacity(),
+                                               draw->clipRectInverseMatrix(),
+                                               draw->clipID(),
+                                               draw->blendMode(),
+                                               m_currentZIndex);
 
-    DrawBatch& batch = pushDraw(DrawType::imageRect,
-                                0,
-                                PaintType::image,
-                                imageTexture,
-                                clipID,
-                                clipRectInverseMatrix != nullptr,
-                                blendMode);
-
+    DrawBatch& batch = pushDraw(DrawType::imageRect, 0, PaintType::image, draw);
     batch.elementCount = 1;
     batch.imageDrawDataOffset = imageDrawDataOffset;
-    assert((batch.shaderFeatures & pls::AllShaderFeaturesForDrawType(
-                                       pls::DrawType::imageRect,
-                                       m_ctx->frameInterlockMode())) == batch.shaderFeatures);
+    assert((batch.shaderFeatures &
+            pls::ShaderFeaturesMaskFor(pls::DrawType::imageRect, m_ctx->frameInterlockMode())) ==
+           batch.shaderFeatures);
 }
 
-void PLSRenderContext::LogicalFlush::pushImageMesh(
-    const Mat2D& matrix,
-    float opacity,
-    const PLSTexture* imageTexture,
-    const RenderBuffer* vertexBuffer,
-    const RenderBuffer* uvBuffer,
-    const RenderBuffer* indexBuffer,
-    uint32_t indexCount,
-    uint32_t clipID,
-    const pls::ClipRectInverseMatrix* clipRectInverseMatrix,
-    BlendMode blendMode)
+void PLSRenderContext::LogicalFlush::pushImageMesh(const ImageMeshDraw* draw)
 {
+
     assert(m_hasDoneLayout);
 
     size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
-    m_ctx->m_imageDrawUniformData.emplace_back(matrix,
-                                               opacity,
-                                               clipRectInverseMatrix,
-                                               clipID,
-                                               blendMode);
+    m_ctx->m_imageDrawUniformData.emplace_back(draw->matrix(),
+                                               draw->opacity(),
+                                               draw->clipRectInverseMatrix(),
+                                               draw->clipID(),
+                                               draw->blendMode(),
+                                               m_currentZIndex);
 
-    DrawBatch& batch = pushDraw(DrawType::imageMesh,
-                                0,
-                                PaintType::image,
-                                imageTexture,
-                                clipID,
-                                clipRectInverseMatrix != nullptr,
-                                blendMode);
-
-    batch.elementCount = indexCount;
-    batch.vertexBuffer = vertexBuffer;
-    batch.uvBuffer = uvBuffer;
-    batch.indexBuffer = indexBuffer;
+    DrawBatch& batch = pushDraw(DrawType::imageMesh, 0, PaintType::image, draw);
+    batch.elementCount = draw->indexCount();
+    batch.vertexBuffer = draw->vertexBuffer();
+    batch.uvBuffer = draw->uvBuffer();
+    batch.indexBuffer = draw->indexBuffer();
     batch.imageDrawDataOffset = imageDrawDataOffset;
-    assert((batch.shaderFeatures & pls::AllShaderFeaturesForDrawType(
-                                       pls::DrawType::imageMesh,
-                                       m_ctx->frameInterlockMode())) == batch.shaderFeatures);
+    assert((batch.shaderFeatures &
+            pls::ShaderFeaturesMaskFor(pls::DrawType::imageMesh, m_ctx->frameInterlockMode())) ==
+           batch.shaderFeatures);
 }
 
 void PLSRenderContext::LogicalFlush::pushBarrier()
 {
     assert(m_hasDoneLayout);
-    assert(m_flushDesc.interlockMode == pls::InterlockMode::atomics);
+    assert(m_flushDesc.interlockMode != pls::InterlockMode::rasterOrdering);
 
     if (!m_drawList.empty())
     {
@@ -1568,26 +1646,21 @@ void PLSRenderContext::LogicalFlush::pushBarrier()
 
 pls::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(DrawType drawType,
                                                              size_t baseVertex,
-                                                             FillRule fillRule,
-                                                             PaintType paintType,
-                                                             pls::SimplePaintValue simplePaintValue,
-                                                             const PLSTexture* imageTexture,
-                                                             uint32_t clipID,
-                                                             bool hasClipRect,
-                                                             BlendMode blendMode)
+                                                             const PLSPathDraw* draw)
 {
     assert(m_hasDoneLayout);
 
-    DrawBatch& batch =
-        pushDraw(drawType, baseVertex, paintType, imageTexture, clipID, hasClipRect, blendMode);
-    if (fillRule == FillRule::evenOdd)
+    DrawBatch& batch = pushDraw(drawType, baseVertex, draw->paintType(), draw);
+    auto pathShaderFeatures = pls::ShaderFeatures::NONE;
+    if (draw->fillRule() == FillRule::evenOdd)
     {
-        batch.shaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
+        pathShaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
     }
-    if (paintType == PaintType::clipUpdate && simplePaintValue.outerClipID != 0)
+    if (draw->paintType() == PaintType::clipUpdate && draw->simplePaintValue().outerClipID != 0)
     {
-        batch.shaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
+        pathShaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
     }
+    batch.shaderFeatures |= pathShaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch.shaderFeatures;
     return batch;
 }
@@ -1607,11 +1680,8 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* current
 
 pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
                                                          size_t baseVertex,
-                                                         PaintType paintType,
-                                                         const PLSTexture* imageTexture,
-                                                         uint32_t clipID,
-                                                         bool hasClipRect,
-                                                         BlendMode blendMode)
+                                                         pls::PaintType paintType,
+                                                         const PLSDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1620,9 +1690,10 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
     {
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
-            needsNewBatch = m_drawList.empty() || m_drawList.tail().drawType != drawType ||
-                            m_drawList.tail().needsBarrier ||
-                            !can_combine_draw_images(m_drawList.tail().imageTexture, imageTexture);
+            needsNewBatch =
+                m_drawList.empty() || m_drawList.tail().drawType != drawType ||
+                m_drawList.tail().needsBarrier ||
+                !can_combine_draw_images(m_drawList.tail().imageTexture, draw->imageTexture());
             break;
         case DrawType::interiorTriangulation:
         case DrawType::imageRect:
@@ -1634,37 +1705,45 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
             break;
     }
 
-    DrawBatch& batch =
-        needsNewBatch ? m_drawList.emplace_back(m_ctx->perFrameAllocator(), drawType, baseVertex)
-                      : m_drawList.tail();
+    DrawBatch& batch = needsNewBatch ? m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                                               drawType,
+                                                               draw->blendMode(),
+                                                               baseVertex)
+                                     : m_drawList.tail();
+
+    // If using KHR_blend_equation_advanced, we can't mix blend modes in a batch.
+    assert(m_flushDesc.interlockMode != pls::InterlockMode::depthStencil ||
+           !m_ctx->platformFeatures().depthStencilSupportsKHRBlendEquations ||
+           draw->blendMode() == batch.firstBlendMode);
 
     if (paintType == PaintType::image)
     {
-        assert(imageTexture != nullptr);
+        assert(draw->imageTexture() != nullptr);
         if (batch.imageTexture == nullptr)
         {
-            batch.imageTexture = imageTexture;
+            batch.imageTexture = draw->imageTexture();
         }
-        assert(batch.imageTexture == imageTexture);
+        assert(batch.imageTexture == draw->imageTexture());
     }
 
-    if (clipID != 0)
+    auto shaderFeatures = ShaderFeatures::NONE;
+    if (draw->clipID() != 0)
     {
-        batch.shaderFeatures |= ShaderFeatures::ENABLE_CLIPPING;
+        shaderFeatures |= ShaderFeatures::ENABLE_CLIPPING;
     }
-    if (hasClipRect && paintType != PaintType::clipUpdate)
+    if (draw->hasClipRect() && paintType != PaintType::clipUpdate)
     {
-        batch.shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
+        shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
     }
     if (paintType != PaintType::clipUpdate)
     {
-        switch (blendMode)
+        switch (draw->blendMode())
         {
             case BlendMode::hue:
             case BlendMode::saturation:
             case BlendMode::color:
             case BlendMode::luminosity:
-                batch.shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+                shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
                 [[fallthrough]];
             case BlendMode::screen:
             case BlendMode::overlay:
@@ -1677,14 +1756,15 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
             case BlendMode::difference:
             case BlendMode::exclusion:
             case BlendMode::multiply:
-                batch.shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
+                shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
                 break;
             case BlendMode::srcOver:
                 break;
         }
     }
-
+    batch.shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch.shaderFeatures;
+    batch.drawContents |= draw->drawContents();
     return batch;
 }
 } // namespace rive::pls

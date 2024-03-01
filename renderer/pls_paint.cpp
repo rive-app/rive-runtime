@@ -100,6 +100,20 @@ rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
                                radius));
 }
 
+bool PLSGradient::isOpaque() const
+{
+    if (m_isOpaque == pls::TriState::unknown)
+    {
+        ColorInt allColors = ~0;
+        for (int i = 0; i < m_count; ++i)
+        {
+            allColors &= m_colors[i];
+        }
+        m_isOpaque = colorAlpha(allColors) == 0xff ? pls::TriState::yes : pls::TriState::no;
+    }
+    return m_isOpaque == pls::TriState::yes;
+}
+
 void PLSPaint::color(ColorInt color)
 {
     m_paintType = PaintType::solidColor;
@@ -132,5 +146,21 @@ void PLSPaint::clipUpdate(uint32_t outerClipID)
     m_simpleValue.outerClipID = outerClipID;
     m_gradient.reset();
     m_imageTexture.reset();
+}
+
+bool PLSPaint::getIsOpaque() const
+{
+    switch (m_paintType)
+    {
+        case pls::PaintType::solidColor:
+            return colorAlpha(m_simpleValue.color) == 0xff;
+        case pls::PaintType::linearGradient:
+        case pls::PaintType::radialGradient:
+            return m_gradient->isOpaque();
+        case pls::PaintType::image:
+        case pls::PaintType::clipUpdate:
+            return false;
+    }
+    RIVE_UNREACHABLE();
 }
 } // namespace rive::pls

@@ -30,8 +30,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures);
         if (renderDirectToRasterPipeline)
         {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            plsContextImpl->state()->setBlendEquation(BlendMode::srcOver);
         }
         else if (auto framebufferRenderTarget =
                      lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
@@ -42,7 +41,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             if (desc.colorLoadAction == pls::LoadAction::preserveRenderTarget)
             {
                 // Copy the framebuffer's contents to our offscreen texture.
-                framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
+                framebufferRenderTarget->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds, renderTarget->height());
             }
@@ -71,14 +70,9 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         {
             renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
         }
-        else if (auto framebufferRenderTarget =
-                     lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
-        {
-            framebufferRenderTarget->bindExternalFramebuffer(GL_FRAMEBUFFER);
-        }
         else
         {
-            renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER, 1);
+            renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
         }
 
         renderTarget->bindAsImageTextures();
@@ -97,9 +91,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     void setupCoalescedPLSResolveAndTransfer(PLSRenderTargetGL* renderTarget) override
     {
         // Bind the external target framebuffer for rendering the PLS resolve operation.
-        auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
-        assert(framebufferRenderTarget != nullptr);
-        framebufferRenderTarget->bindExternalFramebuffer(GL_FRAMEBUFFER);
+        assert(lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget) != nullptr);
+        renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
         m_didCoalescedPLSResolveAndTransfer = true;
     }
 
@@ -109,7 +102,6 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
 
         if (pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures))
         {
-            glDisable(GL_BLEND);
             assert(!m_didCoalescedPLSResolveAndTransfer);
             return;
         }
@@ -124,8 +116,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                 static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
         {
             // We rendered to an offscreen texture. Copy back to the external target framebuffer.
-            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
-            framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
+            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER, 1);
+            framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                      framebufferRenderTarget->height());
         }

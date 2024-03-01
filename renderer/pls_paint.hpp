@@ -79,6 +79,7 @@ public:
     const ColorInt* colors() const { return m_colors.get(); }
     const float* stops() const { return m_stops.get(); }
     int count() const { return m_count; }
+    bool isOpaque() const;
 
 private:
     PLSGradient(PaintType paintType,
@@ -102,6 +103,7 @@ private:
     PLSGradDataArray<float> m_stops;
     size_t m_count;
     std::array<float, 3> m_coeffs;
+    mutable pls::TriState m_isOpaque = pls::TriState::unknown;
 };
 
 // RenderPaint implementation for Rive's pixel local storage renderer.
@@ -134,6 +136,7 @@ public:
     StrokeCap getCap() const { return m_cap; }
     BlendMode getBlendMode() const { return m_blendMode; }
     pls::SimplePaintValue getSimpleValue() const { return m_simpleValue; }
+    bool getIsOpaque() const;
 
 private:
     PaintType m_paintType = PaintType::solidColor;

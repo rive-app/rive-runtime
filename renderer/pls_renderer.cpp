@@ -131,6 +131,11 @@ void PLSRenderer::clipPath(RenderPath* renderPath)
 {
     LITE_RTTI_CAST_OR_RETURN(path, PLSPath*, renderPath);
 
+    if (m_context->frameInterlockMode() == pls::InterlockMode::depthStencil)
+    {
+        return; // FIXME! Implement clipping in depthStencil mode.
+    }
+
     // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT" shader feature.
     // Multiple axis-aligned rectangles can be intersected into a single rectangle if their matrices
     // are compatible.

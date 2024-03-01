@@ -56,9 +56,11 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             break;
     }
     uint32_t key = static_cast<uint32_t>(miscFlags);
-    key = (key << 1) | static_cast<uint32_t>(interlockMode);
+    assert(static_cast<uint32_t>(interlockMode) < 1 << 2);
+    key = (key << 2) | static_cast<uint32_t>(interlockMode);
     key = (key << kShaderFeatureCount) |
-          (shaderFeatures & AllShaderFeaturesForDrawType(drawType, interlockMode)).bits();
+          (shaderFeatures & ShaderFeaturesMaskFor(drawType, interlockMode)).bits();
+    assert(drawTypeKey < 1 << 3);
     key = (key << 3) | drawTypeKey;
     return key;
 }
@@ -221,6 +223,11 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
             }
             borderEdgeVerticesIdx += kBorderPatternVertexCount;
         }
+        assert(indexCount == kOuterCurvePatchBorderIndexCount);
+    }
+    else
+    {
+        assert(indexCount == kMidpointFanPatchBorderIndexCount);
     }
 
     assert(borderEdgeVerticesIdx == fanVerticesIdx);
@@ -372,10 +379,11 @@ static void write_matrix(volatile float* dst, const Mat2D& matrix)
     }
 }
 
-void PathData::set(const Mat2D& m, float strokeRadius)
+void PathData::set(const Mat2D& m, float strokeRadius, uint32_t zIndex)
 {
     write_matrix(m_matrix, m);
     m_strokeRadius = strokeRadius; // 0 if the path is filled.
+    m_zIndex = zIndex;
 }
 
 void PaintData::set(FillRule fillRule,
@@ -530,7 +538,8 @@ ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix,
                                      float opacity,
                                      const ClipRectInverseMatrix* clipRectInverseMatrix,
                                      uint32_t clipID,
-                                     BlendMode blendMode)
+                                     BlendMode blendMode,
+                                     uint32_t zIndex)
 {
     write_matrix(m_matrix, matrix);
     m_opacity = opacity;
@@ -540,6 +549,7 @@ ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix,
                      : ClipRectInverseMatrix::WideOpen().inverseMatrix());
     m_clipID = clipID;
     m_blendMode = ConvertBlendModeToPLSBlendMode(blendMode);
+    m_zIndex = zIndex;
 }
 
 std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,

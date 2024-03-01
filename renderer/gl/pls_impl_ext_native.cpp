@@ -91,15 +91,7 @@ public:
                impl->m_capabilities.ARM_shader_framebuffer_fetch);
 
         auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
-        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
-        {
-            // With EXT_shader_pixel_local_storage we can render directly to any framebuffer.
-            framebufferRenderTarget->bindExternalFramebuffer(GL_FRAMEBUFFER);
-        }
-        else
-        {
-            renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER);
-        }
+        renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
         std::array<float, 4> clearColor4f;

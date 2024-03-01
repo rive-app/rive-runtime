@@ -344,7 +344,9 @@ PLSDrawUniquePtr PLSPathDraw::Make(PLSRenderContext* context,
         // Use interior triangulation to draw filled paths if they're large enough to benefit from
         // it.
         const AABB& localBounds = path->getBounds();
-        if (pls::FindTransformedArea(localBounds, matrix) > 512 * 512)
+        // FIXME! Implement interior triangulation in depthStencil mode.
+        if (context->frameInterlockMode() != pls::InterlockMode::depthStencil &&
+            pls::FindTransformedArea(localBounds, matrix) > 512 * 512)
         {
             return PLSDrawUniquePtr(context->make<InteriorTriangulationDraw>(
                 context,
@@ -372,16 +374,55 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
                          rcp<const PLSPath> path,
                          FillRule fillRule,
                          const PLSPaint* paint,
-                         Type type) :
+                         Type type,
+                         pls::InterlockMode frameInterlockMode) :
     PLSDraw(pixelBounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
     m_pathRef(path.release()),
-    m_isStroked(paint->getIsStroked()),
-    m_fillRule(m_isStroked ? FillRule::nonZero : fillRule),
+    m_fillRule(paint->getIsStroked() ? FillRule::nonZero : fillRule),
     m_paintType(paint->getType()),
-    m_strokeRadius(m_isStroked ? paint->getThickness() * .5f : 0)
+    m_strokeRadius(paint->getIsStroked() ? paint->getThickness() * .5f : 0)
 {
     assert(m_pathRef != nullptr);
     assert(paint != nullptr);
+    if (paint->getIsStroked())
+    {
+        m_drawContents |= pls::DrawContents::stroke;
+    }
+    else if (m_fillRule == FillRule::evenOdd)
+    {
+        m_drawContents |= pls::DrawContents::evenOddFill;
+    }
+    if (m_blendMode == BlendMode::srcOver && paint->getIsOpaque())
+    {
+        m_drawContents |= pls::DrawContents::opaquePaint;
+    }
+
+    if (isStroked())
+    {
+        // Stroke triangles are always forward.
+        m_contourDirections = pls::ContourDirections::forward;
+    }
+    else if (frameInterlockMode != pls::InterlockMode::depthStencil)
+    {
+        // atomic and rasterOrdering fills need reverse AND forward triangles.
+        m_contourDirections = pls::ContourDirections::reverseAndForward;
+    }
+    else if (m_fillRule != FillRule::evenOdd)
+    {
+        // Emit "nonZero" depthStencil fills in a direction such that the dominant triangle winding
+        // area is always clockwise. This maximizes pixel throughput since we will draw
+        // counterclockwise triangles twice and clockwise only once.
+        float matrixDeterminant = matrix[0] * matrix[3] - matrix[2] * matrix[1];
+        m_contourDirections = m_pathRef->getCoarseArea() * matrixDeterminant >= 0
+                                  ? pls::ContourDirections::forward
+                                  : pls::ContourDirections::reverse;
+    }
+    else
+    {
+        // "evenOdd" depthStencil fils just get drawn twice, so any direction is fine.
+        m_contourDirections = pls::ContourDirections::forward;
+    }
+
     m_simplePaintValue = paint->getSimpleValue();
     m_gradientRef = safe_ref(paint->getGradient());
     RIVE_DEBUG_CODE(m_pathRef->lockRawPathMutations();)
@@ -403,18 +444,10 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
     assert(!m_pathRef->getRawPath().empty());
 
     // Push a path record.
-    flush->pushPath(m_type == Type::midpointFanPath ? PatchType::midpointFan
+    flush->pushPath(this,
+                    m_type == Type::midpointFanPath ? PatchType::midpointFan
                                                     : PatchType::outerCurves,
-                    m_matrix,
-                    m_strokeRadius,
-                    m_fillRule,
-                    m_paintType,
-                    m_simplePaintValue,
-                    m_gradientRef,
-                    m_imageTextureRef,
-                    m_clipID,
-                    m_clipRectInverseMatrix,
-                    m_blendMode,
+
                     tessVertexCount);
 
     onPushToRenderContext(flush);
@@ -433,9 +466,15 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
                                          rcp<const PLSPath> path,
                                          FillRule fillRule,
                                          const PLSPaint* paint) :
-    PLSPathDraw(pixelBounds, matrix, std::move(path), fillRule, paint, Type::midpointFanPath)
+    PLSPathDraw(pixelBounds,
+                matrix,
+                std::move(path),
+                fillRule,
+                paint,
+                Type::midpointFanPath,
+                context->frameInterlockMode())
 {
-    if (m_isStroked)
+    if (isStroked())
     {
         m_strokeMatrixMaxScale = m_matrix.findMaxScale();
         m_strokeJoin = paint->getJoin();
@@ -463,9 +502,9 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     size_t pathMaxLinesOrCurvesBeforeChops = rawPath.verbs().size() - 1;
     // Stroked cubics can be chopped into a maximum of 5 segments.
     size_t pathMaxLinesOrCurvesAfterChops =
-        m_isStroked ? pathMaxLinesOrCurvesBeforeChops * 5 : pathMaxLinesOrCurvesBeforeChops;
+        isStroked() ? pathMaxLinesOrCurvesBeforeChops * 5 : pathMaxLinesOrCurvesBeforeChops;
     maxCurves += pathMaxLinesOrCurvesAfterChops;
-    if (m_isStroked)
+    if (isStroked())
     {
         maxStrokedCurvesBeforeChops += pathMaxLinesOrCurvesBeforeChops;
         maxRotations += pathMaxLinesOrCurvesAfterChops;
@@ -485,11 +524,11 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     // chop each cubic once, or 5 internal points per chop.
     size_t maxChopVertices = maxStrokedCurvesBeforeChops * 5;
     // +3 for each contour because we align each contour's curves and rotations on multiples of 4.
-    size_t maxPaddedRotations = m_isStroked ? maxRotations + contourCount * 3 : 0;
+    size_t maxPaddedRotations = isStroked() ? maxRotations + contourCount * 3 : 0;
     size_t maxPaddedCurves = maxCurves + contourCount * 3;
 
     // Reserve intermediate space for the polar segment counts of each curve and round join.
-    if (m_isStroked)
+    if (isStroked())
     {
         m_numChops.reset(context->numChopsAllocator(), maxChops);
         m_chopVertices.reset(context->chopVerticesAllocator(), maxChopVertices);
@@ -508,13 +547,13 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     size_t contourIdx = 0;
     size_t curveIdx = 0;
     size_t rotationIdx = 0; // We measure rotations on both curves and round joins.
-    bool roundJoinStroked = m_isStroked && m_strokeJoin == StrokeJoin::round;
+    bool roundJoinStroked = isStroked() && m_strokeJoin == StrokeJoin::round;
     wangs_formula::VectorXform vectorXform(m_matrix);
     RawPath::Iter startOfContour = rawPath.begin();
     RawPath::Iter end = rawPath.end();
     int preChopVerbCount = 0; // Original number of lines and curves, before chopping.
     Vec2D endpointsSum{};
-    bool closed = !m_isStroked;
+    bool closed = !isStroked();
     Vec2D lastTangent = {0, 1};
     Vec2D firstTangent = {0, 1};
     size_t roundJoinCount = 0;
@@ -564,7 +603,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
             curveIdx,
             contourFirstRotationIdx,
             rotationIdx,
-            m_isStroked ? Vec2D() : endpointsSum * (1.f / preChopVerbCount),
+            isStroked() ? Vec2D() : endpointsSum * (1.f / preChopVerbCount),
             closed,
             strokeJoinCount,
             0,                 // strokeCapSegmentCount
@@ -576,7 +615,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
         unpaddedRotationCount += rotationIdx - contourFirstRotationIdx;
         contourFirstRotationIdx = rotationIdx = math::round_up_to_multiple_of<4>(rotationIdx);
     };
-    const int styleFlags = style_flags(m_isStroked, roundJoinStroked);
+    const int styleFlags = style_flags(isStroked(), roundJoinStroked);
     for (RawPath::Iter iter = startOfContour; iter != end; ++iter)
     {
         switch (styled_verb(iter.verb(), styleFlags))
@@ -591,7 +630,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
                 }
                 preChopVerbCount = 0;
                 endpointsSum = {0, 0};
-                closed = !m_isStroked;
+                closed = !isStroked();
                 lastTangent = {0, 1};
                 firstTangent = {0, 1};
                 roundJoinCount = 0;
@@ -730,11 +769,11 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     assert(rotationIdx <= maxPaddedRotations);
     assert(curveIdx % 4 == 0);    // Because we write parametric segment counts in batches of 4.
     assert(rotationIdx % 4 == 0); // Because we write polar segment counts in batches of 4.
-    assert(m_isStroked || maxPaddedRotations == 0);
-    assert(m_isStroked || rotationIdx == 0);
+    assert(isStroked() || maxPaddedRotations == 0);
+    assert(isStroked() || rotationIdx == 0);
 
     // Return any data we conservatively allocated but did not use.
-    if (m_isStroked)
+    if (isStroked())
     {
         m_numChops.shrinkToFit(context->numChopsAllocator(), maxChops);
         m_chopVertices.shrinkToFit(context->chopVerticesAllocator(), maxChopVertices);
@@ -777,7 +816,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
             contourVertexCount -= m_parametricSegmentCounts[j];
         }
 
-        if (m_isStroked)
+        if (isStroked())
         {
             // Finish calculating and counting polar segments for each stroked curve and
             // round join.
@@ -916,11 +955,14 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     {
         m_resourceCounts.pathCount = 1;
         m_resourceCounts.contourCount = contourCount;
+        // maxTessellatedSegmentCount does not get doubled when we emit both forward and mirrored
+        // contours because the forward and mirrored pair both get packed into a single
+        // pls::TessVertexSpan.
         m_resourceCounts.maxTessellatedSegmentCount =
             lineCount + unpaddedCurveCount + emptyStrokeCountForCaps;
-
         m_resourceCounts.midpointFanTessVertexCount =
-            m_isStroked ? tessVertexCount : tessVertexCount * 2;
+            m_contourDirections == pls::ContourDirections::reverseAndForward ? tessVertexCount * 2
+                                                                             : tessVertexCount;
     }
 }
 
@@ -933,8 +975,8 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* 
         // Push a contour and curve records.
         const ContourInfo& contour = m_contours[i];
         assert(startOfContour.verb() == PathVerb::move);
-        assert(m_isStroked || contour.closed); // Fills are always closed.
-        RIVE_DEBUG_CODE(m_pendingStrokeJoinCount = m_isStroked ? contour.strokeJoinCount : 0;)
+        assert(isStroked() || contour.closed); // Fills are always closed.
+        RIVE_DEBUG_CODE(m_pendingStrokeJoinCount = isStroked() ? contour.strokeJoinCount : 0;)
         RIVE_DEBUG_CODE(m_pendingStrokeCapCount = contour.strokeCapSegmentCount != 0 ? 2 : 0;)
 
         const Vec2D* pts = startOfContour.rawPtsPtr();
@@ -945,7 +987,7 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* 
         bool roundJoinStroked = false;
         bool needsFirstEmulatedCapAsJoin = false; // Emit a starting cap before the next cubic?
         uint32_t emulatedCapAsJoinFlags = 0;
-        if (m_isStroked)
+        if (isStroked())
         {
             joinTypeFlags = join_type_flags(m_strokeJoin);
             roundJoinStroked = joinTypeFlags == 0;
@@ -970,7 +1012,7 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* 
         flush->pushContour(contour.midpoint, contour.closed, contour.paddingVertexCount);
 
         // Convert all curves in the contour to cubics and push them to the GPU.
-        const int styleFlags = style_flags(m_isStroked, roundJoinStroked);
+        const int styleFlags = style_flags(isStroked(), roundJoinStroked);
         Vec2D joinTangent = {0, 1};
         int joinSegmentCount = 1;
         Vec2D implicitClose[2]; // In case we need an implicit closing line.
@@ -1205,7 +1247,7 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* 
                     RIVE_DEBUG_CODE(--m_pendingRotationCount;)
                     RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                 }
-                else if (m_isStroked)
+                else if (isStroked())
                 {
                     joinTangent = find_starting_tangent(pts, end.rawPtsPtr());
                     joinSegmentCount = kNumSegmentsInMiterOrBevelJoin;
@@ -1263,9 +1305,10 @@ InteriorTriangulationDraw::InteriorTriangulationDraw(PLSRenderContext* context,
                 std::move(path),
                 fillRule,
                 paint,
-                Type::interiorTriangulationPath)
+                Type::interiorTriangulationPath,
+                context->frameInterlockMode())
 {
-    assert(!m_isStroked);
+    assert(!isStroked());
     assert(m_strokeRadius == 0);
     processPath(PathOp::countDataAndTriangulate,
                 &context->perFrameAllocator(),
@@ -1282,13 +1325,7 @@ void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext::LogicalF
         // We need a barrier between the outer cubics and interior triangles in atomic mode.
         flush->pushBarrier();
     }
-    flush->pushInteriorTriangulation(m_triangulator,
-                                     m_paintType,
-                                     m_simplePaintValue,
-                                     m_imageTextureRef,
-                                     m_clipID,
-                                     m_clipRectInverseMatrix != nullptr,
-                                     m_blendMode);
+    flush->pushInteriorTriangulation(this);
 }
 
 void InteriorTriangulationDraw::processPath(PathOp op,
@@ -1437,9 +1474,15 @@ void InteriorTriangulationDraw::processPath(PathOp op,
 
         m_resourceCounts.pathCount = 1;
         m_resourceCounts.contourCount = contourCount;
+        // maxTessellatedSegmentCount does not get doubled when we emit both forward and mirrored
+        // contours because the forward and mirrored pair both get packed into a single
+        // pls::TessVertexSpan.
         m_resourceCounts.maxTessellatedSegmentCount = patchCount;
         // outerCubic patches emit their tessellated geometry twice: once forward and once mirrored.
-        m_resourceCounts.outerCubicTessVertexCount = patchCount * kOuterCurvePatchSegmentSpan * 2;
+        m_resourceCounts.outerCubicTessVertexCount =
+            m_contourDirections == pls::ContourDirections::reverseAndForward
+                ? patchCount * kOuterCurvePatchSegmentSpan * 2
+                : patchCount * kOuterCurvePatchSegmentSpan;
         m_resourceCounts.maxTriangleVertexCount = m_triangulator->maxVertexCount();
     }
     else
@@ -1460,7 +1503,9 @@ void InteriorTriangulationDraw::processPath(PathOp op,
         assert(contourCount == m_resourceCounts.contourCount);
         assert(patchCount == m_resourceCounts.maxTessellatedSegmentCount);
         assert(patchCount * kOuterCurvePatchSegmentSpan * 2 ==
-               m_resourceCounts.outerCubicTessVertexCount);
+                   m_resourceCounts.outerCubicTessVertexCount ||
+               patchCount * kOuterCurvePatchSegmentSpan ==
+                   m_resourceCounts.outerCubicTessVertexCount);
     }
 }
 
@@ -1481,12 +1526,7 @@ ImageRectDraw::ImageRectDraw(PLSRenderContext* context,
 
 void ImageRectDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
-    flush->pushImageRect(m_matrix,
-                         m_opacity,
-                         m_imageTextureRef,
-                         m_clipID,
-                         m_clipRectInverseMatrix,
-                         m_blendMode);
+    flush->pushImageRect(this);
 }
 
 ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
@@ -1513,16 +1553,7 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
 
 void ImageMeshDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
-    flush->pushImageMesh(m_matrix,
-                         m_opacity,
-                         m_imageTextureRef,
-                         m_vertexBufferRef,
-                         m_uvBufferRef,
-                         m_indexBufferRef,
-                         m_indexCount,
-                         m_clipID,
-                         m_clipRectInverseMatrix,
-                         m_blendMode);
+    flush->pushImageMesh(this);
 }
 
 void ImageMeshDraw::releaseRefs()

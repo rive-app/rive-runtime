@@ -30,8 +30,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                        @a_mirroredVertexData,
                                        _instanceID,
                                        v_pathID,
-                                       v_edgeDistance,
-                                       vertexPosition VERTEX_CONTEXT_UNPACK))
+                                       vertexPosition,
+                                       v_edgeDistance VERTEX_CONTEXT_UNPACK))
     {
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
     }
@@ -83,19 +83,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // DRAW_INTERIOR_TRIANGLES
 
 #ifdef @DRAW_IMAGE
-UNIFORM_BLOCK_BEGIN(IMAGE_DRAW_UNIFORM_BUFFER_IDX, @ImageDrawUniforms)
-float4 viewMatrix;
-float2 translate;
-float opacity;
-float padding;
-// clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
-// normalized rectangle: [-1, -1, 1, 1].
-float4 clipRectInverseMatrix;
-float2 clipRectInverseTranslate;
-uint clipID;
-uint blendMode;
-UNIFORM_BLOCK_END(imageDrawUniforms)
-
 #ifdef @DRAW_IMAGE_RECT
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
@@ -401,8 +388,6 @@ half4 resolve_path_color(half coverageCount,
     color.a *= coverage;
     return color;
 }
-
-half4 premultiply(half4 color) { return make_half4(color.rgb * color.a, color.a); }
 
 half4 do_src_over_blend(half4 srcColorPremul, half4 dstColorPremul)
 {

@@ -55,8 +55,27 @@
 //    is no correlation between the source and destination coverage.
 //
 
-#ifdef @ENABLE_ADVANCED_BLEND
+#ifdef @ENABLE_KHR_BLEND
+layout(
+#ifdef @ENABLE_HSL_BLEND_MODES
+    $blend_support_all_equations
+#else
+    $blend_support_multiply,
+    $blend_support_screen,
+    $blend_support_overlay,
+    $blend_support_darken,
+    $blend_support_lighten,
+    $blend_support_colordodge,
+    $blend_support_colorburn,
+    $blend_support_hardlight,
+    $blend_support_softlight,
+    $blend_support_difference,
+    $blend_support_exclusion
+#endif
+    ) out;
+#endif // ENABLE_KHR_BLEND
 
+#ifdef @ENABLE_ADVANCED_BLEND
 #ifdef @ENABLE_HSL_BLEND_MODES
 // When using one of the HSL blend equations in table X.2 as the blend equation, the RGB color
 // components produced by the function f() are effectively obtained by converting both the
@@ -236,4 +255,4 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
     // NOTE: (X,Y,Z) always == (1,1,1), so it is ignored in this implementation.
     return MUL(make_half3x4(f, 1, src.rgb, 1, dst.rgb, 1), p);
 }
-#endif
+#endif // ENABLE_ADVANCED_BLEND

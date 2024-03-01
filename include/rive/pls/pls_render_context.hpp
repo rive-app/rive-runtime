@@ -26,10 +26,15 @@ namespace rive::pls
 {
 class GradientLibrary;
 class IntersectionBoard;
+class ImageMeshDraw;
+class ImageRectDraw;
+class InteriorTriangulationDraw;
+class MidpointFanPathDraw;
 class PLSDraw;
 class PLSGradient;
 class PLSPaint;
 class PLSPath;
+class PLSPathDraw;
 class PLSRenderContextImpl;
 
 // Used as a key for complex gradients.
@@ -111,9 +116,10 @@ public:
         rcp<PLSRenderTarget> renderTarget;
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
-
-        // Force pls::InterlockMode::experimentalAtomics, even if raster ordering is supported.
-        bool forceAtomicInterlockMode = false;
+        int msaaSampleCount = 0; // If nonzero, the number of MSAA samples to use.
+                                 // Setting this to a nonzero value forces depthStencil mode.
+        bool disableRasterOrdering = false; // Use atomic mode in place of rasterOrdering, even if
+                                            // rasterOrdering is supported.
 
         // Testing flags.
         bool wireframe = false;
@@ -135,12 +141,12 @@ public:
         return m_frameDescriptor;
     }
 
-    const pls::InterlockMode frameInterlockMode() const { return m_frameInterlockMode; }
-
     // If the frame doesn't support image paints, the client must draw images with pushImageRect().
     // If it DOES support image paints, the client CANNOT use pushImageRect(); it should draw images
     // as rectangular paths with an image paint.
     bool frameSupportsImagePaintForPaths() const;
+
+    const pls::InterlockMode frameInterlockMode() const { return m_frameInterlockMode; }
 
     // Generates a unique clip ID that is guaranteed to not exist in the current clip buffer.
     //
@@ -280,6 +286,7 @@ private:
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;
     pls::InterlockMode m_frameInterlockMode;
+    pls::ShaderFeatures m_frameShaderFeaturesMask;
     RIVE_DEBUG_CODE(bool m_didBeginFrame = false;)
 
     // The number of flushes that have been executed over the entire lifetime of this class, logical
@@ -291,7 +298,7 @@ private:
     uint32_t m_clipContentID = 0;
 
     // Used by LogicalFlushes for re-ordering high level draws.
-    std::vector<uint64_t> m_indirectDrawList;
+    std::vector<int64_t> m_indirectDrawList;
     std::unique_ptr<IntersectionBoard> m_intersectionBoard;
 
     WriteOnlyMappedMemory<pls::FlushUniforms> m_flushUniformData;
@@ -429,18 +436,7 @@ private:
 
         // Pushes a record to the GPU for the given path, which will be referenced by future calls
         // to pushContour() and pushCubic().
-        void pushPath(PatchType,
-                      const Mat2D&,
-                      float strokeRadius,
-                      FillRule,
-                      PaintType,
-                      pls::SimplePaintValue simplePaintValue,
-                      const PLSGradient*,
-                      const PLSTexture* imageTexture,
-                      uint32_t clipID,
-                      const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
-                      BlendMode,
-                      uint32_t tessVertexCount);
+        void pushPath(const PLSPathDraw*, pls::PatchType, uint32_t tessVertexCount);
 
         // Pushes a contour record to the GPU for the given contour, which references the
         // most-recently pushed path and will be referenced by future calls to pushCubic().
@@ -470,35 +466,14 @@ private:
 
         // Pushes triangles to be drawn using the data records from the most recent calls to
         // pushPath() and pushPaint().
-        void pushInteriorTriangulation(GrInnerFanTriangulator*,
-                                       PaintType,
-                                       pls::SimplePaintValue,
-                                       const PLSTexture* imageTexture,
-                                       uint32_t clipID,
-                                       bool hasClipRect,
-                                       BlendMode);
+        void pushInteriorTriangulation(InteriorTriangulationDraw*);
 
         // Pushes an imageRect to the draw list.
         // This should only be used when we don't have bindless textures in atomic mode. Otherwise,
         // images should be drawn as rectangular paths with an image paint.
-        void pushImageRect(const Mat2D&,
-                           float opacity,
-                           const PLSTexture* imageTexture,
-                           uint32_t clipID,
-                           const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
-                           BlendMode);
+        void pushImageRect(const ImageRectDraw*);
 
-        // Pushes an imageMesh to the draw list.
-        void pushImageMesh(const Mat2D&,
-                           float opacity,
-                           const PLSTexture* imageTexture,
-                           const RenderBuffer* vertexBuffer,
-                           const RenderBuffer* uvBuffer,
-                           const RenderBuffer* indexBuffer,
-                           uint32_t indexCount,
-                           uint32_t clipID,
-                           const pls::ClipRectInverseMatrix*, // Null if there is no clipRect.
-                           BlendMode);
+        void pushImageMesh(const ImageMeshDraw*);
 
         // Adds a barrier to the end of the draw list that prevents further combining/batching and
         // instructs the backend to issue a graphics barrier, if necessary.
@@ -520,9 +495,8 @@ private:
                                                       uint32_t joinSegmentCount,
                                                       uint32_t contourIDWithFlags);
 
-        // Same as pushTessellationSpans(), but also pushes a reflection of the span, rendered right
-        // to left, that emits a mirrored version of the patch with negative coverage. (See
-        // TessVertexSpan.)
+        // Same as pushTessellationSpans(), but pushes a reflection of the span, rendered right to
+        // left, whose triangles have reverse winding directions and negated coverage.
         RIVE_ALWAYS_INLINE void pushMirroredTessellationSpans(const Vec2D pts[4],
                                                               Vec2D joinTangent,
                                                               uint32_t totalVertexCount,
@@ -531,24 +505,21 @@ private:
                                                               uint32_t joinSegmentCount,
                                                               uint32_t contourIDWithFlags);
 
+        // Functionally equivalent to "pushMirroredTessellationSpans(); pushTessellationSpans();",
+        // but packs each forward and mirrored pair into a single pls::TessVertexSpan.
+        RIVE_ALWAYS_INLINE void pushMirroredAndForwardTessellationSpans(
+            const Vec2D pts[4],
+            Vec2D joinTangent,
+            uint32_t totalVertexCount,
+            uint32_t parametricSegmentCount,
+            uint32_t polarSegmentCount,
+            uint32_t joinSegmentCount,
+            uint32_t contourIDWithFlags);
+
         // Either appends a new drawBatch to m_drawList or merges into m_drawList.tail().
         // Updates the batch's ShaderFeatures according to the passed parameters.
-        DrawBatch& pushPathDraw(DrawType,
-                                size_t baseVertex,
-                                FillRule,
-                                PaintType,
-                                pls::SimplePaintValue,
-                                const PLSTexture* imageTexture,
-                                uint32_t clipID,
-                                bool hasClipRect,
-                                BlendMode);
-        DrawBatch& pushDraw(DrawType,
-                            size_t baseVertex,
-                            PaintType,
-                            const PLSTexture* imageTexture,
-                            uint32_t clipID,
-                            bool hasClipRect,
-                            BlendMode);
+        DrawBatch& pushPathDraw(DrawType, size_t baseVertex, const PLSPathDraw*);
+        DrawBatch& pushDraw(DrawType, size_t baseVertex, pls::PaintType, const PLSDraw*);
 
         // Instance pointer to the outer parent class.
         PLSRenderContext* const m_ctx;
@@ -591,7 +562,7 @@ private:
 
         // Most recent path and contour state.
         bool m_currentPathIsStroked;
-        bool m_currentPathNeedsMirroredContours;
+        pls::ContourDirections m_currentPathContourDirections;
         uint32_t m_currentPathID;
         uint32_t m_currentContourID;
         uint32_t m_currentContourPaddingVertexCount; // Padding to add to the first curve.
@@ -600,6 +571,10 @@ private:
         RIVE_DEBUG_CODE(uint32_t m_expectedPathTessLocationAtEndOfPath;)
         RIVE_DEBUG_CODE(uint32_t m_expectedPathMirroredTessLocationAtEndOfPath;)
         RIVE_DEBUG_CODE(uint32_t m_pathCurveCount;)
+
+        // Stateful Z index of the current draw being pushed. Used by depthStencil mode to avoid
+        // double hits and to reverse-sort opaque paths front to back.
+        uint32_t m_currentZIndex;
 
         RIVE_DEBUG_CODE(bool m_hasDoneLayout = false;)
     };

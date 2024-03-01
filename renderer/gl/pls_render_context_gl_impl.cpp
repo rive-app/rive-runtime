@@ -18,6 +18,7 @@
 #include "shaders/out/generated/draw_path.glsl.hpp"
 #include "shaders/out/generated/draw_image_mesh.glsl.hpp"
 #include "shaders/out/generated/tessellate.glsl.hpp"
+#include "shaders/out/generated/blit_texture_as_draw.glsl.hpp"
 
 #if defined(RIVE_GLES) || defined(RIVE_WEBGL)
 // In an effort to save space on Android, and since GLES doesn't usually need atomic mode, don't
@@ -58,6 +59,10 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         m_platformFeatures.supportsBindlessTextures = true;
     }
     m_platformFeatures.supportsRasterOrdering = m_plsImpl->supportsRasterOrdering(m_capabilities);
+    if (m_capabilities.KHR_blend_equation_advanced_coherent)
+    {
+        m_platformFeatures.depthStencilSupportsKHRBlendEquations = true;
+    }
 
     std::vector<const char*> generalDefines;
     if (!m_capabilities.ARB_shader_storage_buffer_object)
@@ -196,12 +201,12 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                      GL_STATIC_DRAW);
     }
 
-    glGenVertexArrays(1, &m_plsResolveVAO);
-
     glGenVertexArrays(1, &m_imageMeshVAO);
     m_state->bindVAO(m_imageMeshVAO);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
+
+    glGenVertexArrays(1, &m_emptyVAO);
 
     m_plsImpl->init(m_state);
 }
@@ -230,7 +235,7 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
     m_state->deleteBuffer(m_imageRectIndexBuffer);
 
     m_state->deleteVAO(m_imageMeshVAO);
-    m_state->deleteVAO(m_plsResolveVAO);
+    m_state->deleteVAO(m_emptyVAO);
 }
 
 void PLSRenderContextGLImpl::invalidateGLState()
@@ -648,8 +653,21 @@ public:
             if (shaderFeatures & feature)
             {
                 assert((kVertexShaderFeaturesMask & feature) || shaderType == GL_FRAGMENT_SHADER);
-                defines.push_back(GetShaderFeatureGLSLName(feature));
+                if (interlockMode == pls::InterlockMode::depthStencil &&
+                    feature == pls::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
+                    plsContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
+                {
+                    defines.push_back(GLSL_ENABLE_KHR_BLEND);
+                }
+                else
+                {
+                    defines.push_back(GetShaderFeatureGLSLName(feature));
+                }
             }
+        }
+        if (interlockMode == pls::InterlockMode::depthStencil)
+        {
+            defines.push_back(GLSL_USING_DEPTH_STENCIL);
         }
 
         std::vector<const char*> sources;
@@ -683,16 +701,16 @@ public:
                 }
                 defines.push_back(GLSL_DRAW_PATH);
                 sources.push_back(pls::glsl::draw_path_common);
-                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdering
-                                      ? pls::glsl::draw_path
-                                      : pls::glsl::atomic_draw);
+                sources.push_back(interlockMode == pls::InterlockMode::atomics
+                                      ? pls::glsl::atomic_draw
+                                      : pls::glsl::draw_path);
                 break;
             case DrawType::interiorTriangulation:
                 defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
                 sources.push_back(pls::glsl::draw_path_common);
-                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdering
-                                      ? pls::glsl::draw_path
-                                      : pls::glsl::atomic_draw);
+                sources.push_back(interlockMode == pls::InterlockMode::atomics
+                                      ? pls::glsl::atomic_draw
+                                      : pls::glsl::draw_path);
                 break;
             case DrawType::imageRect:
                 assert(interlockMode == pls::InterlockMode::atomics);
@@ -703,9 +721,9 @@ public:
             case DrawType::imageMesh:
                 defines.push_back(GLSL_DRAW_IMAGE);
                 defines.push_back(GLSL_DRAW_IMAGE_MESH);
-                sources.push_back(interlockMode == pls::InterlockMode::rasterOrdering
-                                      ? pls::glsl::draw_image_mesh
-                                      : pls::glsl::atomic_draw);
+                sources.push_back(interlockMode == pls::InterlockMode::atomics
+                                      ? pls::glsl::atomic_draw
+                                      : pls::glsl::draw_image_mesh);
                 break;
             case DrawType::plsAtomicResolve:
                 assert(interlockMode == pls::InterlockMode::atomics);
@@ -846,23 +864,91 @@ void PLSRenderContextGLImpl::PLSImpl::ensureRasterOrderingEnabled(
     bool enabled)
 {
     assert(!enabled || supportsRasterOrdering(plsContextImpl->m_capabilities));
-    auto rasterOrderState = enabled ? RasterOrderingState::enabled : RasterOrderingState::disabled;
-    if (m_rasterOrderState != rasterOrderState)
+    auto rasterOrderState = enabled ? pls::TriState::yes : pls::TriState::no;
+    if (m_rasterOrderingEnabled != rasterOrderState)
     {
         onEnableRasterOrdering(enabled);
-        m_rasterOrderState = rasterOrderState;
+        m_rasterOrderingEnabled = rasterOrderState;
         // We only need a barrier when turning raster ordering OFF, because PLS already inserts the
         // necessary barriers after draws when it's disabled.
-        if (m_rasterOrderState == RasterOrderingState::disabled)
+        if (m_rasterOrderingEnabled == pls::TriState::no)
         {
             onBarrier();
         }
     }
 }
 
+// Wraps calls to glDrawElementsInstanced*(), as appropriate for the current platform.
+// Also includes simple helpers for working with stencil.
+class DrawIndexedInstancedHelper
+{
+public:
+    DrawIndexedInstancedHelper(const GLCapabilities& capabilities,
+                               GLint spirvCrossBaseInstanceLocation,
+                               GLenum primitiveTopology,
+                               uint32_t instanceCount,
+                               uint32_t baseInstance) :
+        m_hasBaseInstanceInShader(capabilities.ANGLE_base_vertex_base_instance_shader_builtin),
+        m_spirvCrossBaseInstanceLocation(spirvCrossBaseInstanceLocation),
+        m_primitiveTopology(primitiveTopology),
+        m_instanceCount(instanceCount),
+        m_baseInstance(baseInstance)
+    {
+        assert(m_hasBaseInstanceInShader == (m_spirvCrossBaseInstanceLocation < 0));
+    }
+
+    void setIndexRange(uint32_t indexCount, uint32_t baseIndex)
+    {
+        m_indexCount = indexCount;
+        m_indexOffset = reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
+    }
+
+    void draw() const
+    {
+#ifndef RIVE_WEBGL
+        if (m_hasBaseInstanceInShader)
+        {
+            glDrawElementsInstancedBaseInstanceEXT(m_primitiveTopology,
+                                                   m_indexCount,
+                                                   GL_UNSIGNED_SHORT,
+                                                   m_indexOffset,
+                                                   m_instanceCount,
+                                                   m_baseInstance);
+        }
+        else
+#endif
+        {
+            glUniform1i(m_spirvCrossBaseInstanceLocation, m_baseInstance);
+            glDrawElementsInstanced(m_primitiveTopology,
+                                    m_indexCount,
+                                    GL_UNSIGNED_SHORT,
+                                    m_indexOffset,
+                                    m_instanceCount);
+        }
+    }
+
+    void drawWithStencilSettings(GLenum comparator, GLint ref, GLenum failOp, GLenum passOp) const
+    {
+        glStencilFunc(comparator, 0, ~0);
+        glStencilOp(failOp, passOp, passOp);
+        draw();
+    }
+
+private:
+    const bool m_hasBaseInstanceInShader;
+    const GLint m_spirvCrossBaseInstanceLocation;
+    const GLenum m_primitiveTopology;
+    const uint32_t m_instanceCount;
+    const uint32_t m_baseInstance;
+    uint32_t m_indexCount = 0;
+    const void* m_indexOffset = nullptr;
+};
+
 void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+
+    m_state->disableBlending();
 
     // All programs use the same set of per-flush uniforms.
     glBindBufferRange(GL_UNIFORM_BUFFER,
@@ -907,7 +993,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
         m_state->bindVAO(m_colorRampVAO);
-        m_state->enableFaceCulling(true);
+        m_state->setCullFace(GL_BACK);
         glVertexAttribIPointer(
             0,
             4,
@@ -943,7 +1029,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
         m_state->bindVAO(m_tessellateVAO);
-        m_state->enableFaceCulling(true);
+        m_state->setCullFace(GL_BACK);
         size_t tessSpanOffsetInBytes = desc.firstTessVertexSpan * sizeof(pls::TessVertexSpan);
         for (uintptr_t i = 0; i < 3; ++i)
         {
@@ -1019,7 +1105,45 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 #endif
 
-    m_plsImpl->activatePixelLocalStorage(this, desc);
+    if (desc.interlockMode != pls::InterlockMode::depthStencil)
+    {
+        assert(desc.msaaSampleCount == 0);
+        m_plsImpl->activatePixelLocalStorage(this, desc);
+    }
+    else
+    {
+        // Render with MSAA in depthStencil mode.
+        assert(desc.msaaSampleCount > 0);
+        renderTarget->bindMSAAFramebuffer(GL_FRAMEBUFFER, desc.msaaSampleCount, m_capabilities);
+
+        GLbitfield buffersToClear = GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT;
+        if (desc.colorLoadAction == pls::LoadAction::clear)
+        {
+            float cc[4];
+            UnpackColorToRGBA32F(desc.clearColor, cc);
+            glClearColor(cc[0], cc[1], cc[2], cc[3]);
+            buffersToClear |= GL_COLOR_BUFFER_BIT;
+        }
+        else if (desc.colorLoadAction == pls::LoadAction::preserveRenderTarget)
+        {
+            if (auto textureTarget = lite_rtti_cast<TextureRenderTargetGL*>(renderTarget))
+            {
+                // TextureRenderTargetGLs have an offscreen MSAA render target. In order to
+                // preserve, we need to copy the target texture into the MSAA buffer.
+                blitTextureToFramebufferAsDraw(textureTarget->externalTextureID(),
+                                               desc.renderTargetUpdateBounds,
+                                               textureTarget->height());
+            }
+        }
+        glClear(buffersToClear);
+
+        glEnable(GL_STENCIL_TEST);
+        glEnable(GL_DEPTH_TEST);
+        if (m_capabilities.KHR_blend_equation_advanced_coherent)
+        {
+            glEnable(GL_BLEND_ADVANCED_COHERENT_KHR);
+        }
+    }
 
     // Execute the DrawList.
     for (const DrawBatch& batch : *desc.drawList)
@@ -1054,6 +1178,24 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->id());
         }
 
+        if (desc.interlockMode == pls::InterlockMode::depthStencil)
+        {
+            if (batch.drawContents & pls::DrawContents::opaquePaint)
+            {
+                m_state->disableBlending();
+            }
+            else if (m_capabilities.KHR_blend_equation_advanced_coherent)
+            {
+                // When m_platformFeatures.depthStencilSupportsKHRBlendEquations is true, the
+                // renderContext does not combine draws when they have different blend modes.
+                m_state->setBlendEquation(batch.firstBlendMode);
+            }
+            else
+            {
+                m_state->setBlendEquation(BlendMode::srcOver);
+            }
+        }
+
         switch (DrawType drawType = batch.drawType)
         {
             case DrawType::midpointFanPatches:
@@ -1064,43 +1206,79 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                        desc.interlockMode ==
                                                            pls::InterlockMode::rasterOrdering);
                 m_state->bindVAO(m_drawVAO);
-                m_state->enableFaceCulling(true);
-                uint32_t indexCount = PatchIndexCount(drawType);
-                uint32_t baseIndex = PatchBaseIndex(drawType);
-                const void* indexOffset =
-                    reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
-#ifndef RIVE_WEBGL
-                if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+                DrawIndexedInstancedHelper drawHelper(m_capabilities,
+                                                      drawProgram.spirvCrossBaseInstanceLocation(),
+                                                      GL_TRIANGLES,
+                                                      batch.elementCount,
+                                                      batch.baseElement);
+                if (desc.interlockMode != pls::InterlockMode::depthStencil)
                 {
-                    glDrawElementsInstancedBaseInstanceEXT(GL_TRIANGLES,
-                                                           indexCount,
-                                                           GL_UNSIGNED_SHORT,
-                                                           indexOffset,
-                                                           batch.elementCount,
-                                                           batch.baseElement);
+                    drawHelper.setIndexRange(pls::PatchIndexCount(drawType),
+                                             pls::PatchBaseIndex(drawType));
+                    m_state->setCullFace(GL_BACK);
+                    drawHelper.draw();
+                }
+                else if (batch.drawContents & pls::DrawContents::stroke)
+                {
+                    // MSAA strokes only use the "border" section of the patch.
+                    // (The depth test prevents double hits.)
+                    assert(drawType == pls::DrawType::midpointFanPatches);
+                    drawHelper.setIndexRange(pls::kMidpointFanPatchBorderIndexCount,
+                                             pls::kMidpointFanPatchBaseIndex);
+                    m_state->setCullFace(GL_BACK);
+                    drawHelper.drawWithStencilSettings(GL_ALWAYS, 0, GL_KEEP, GL_KEEP);
                 }
                 else
-#endif
                 {
-                    glUniform1i(drawProgram.spirvCrossBaseInstanceLocation(), batch.baseElement);
-                    glDrawElementsInstanced(GL_TRIANGLES,
-                                            indexCount,
-                                            GL_UNSIGNED_SHORT,
-                                            indexOffset,
-                                            batch.elementCount);
+                    // MSAA fills only use the "fan" section of the patch.
+                    drawHelper.setIndexRange(pls::PatchFanIndexCount(drawType),
+                                             pls::PatchFanBaseIndex(drawType));
+                    if (batch.drawContents & pls::DrawContents::evenOddFill) // evenOdd
+                    {
+                        m_state->setCullFace(GL_NONE);
+                        // Stencil!
+                        drawHelper.drawWithStencilSettings(GL_NEVER, 0, GL_INVERT, GL_KEEP);
+                        // Cover! (TODO: midpoint fans may be faster with a bounding box.)
+                        drawHelper.drawWithStencilSettings(GL_NOTEQUAL, 0, GL_KEEP, GL_ZERO);
+                    }
+                    else // nonZero
+                    {
+                        glStencilFuncSeparate(GL_BACK, GL_NEVER, 0, ~0);
+                        glStencilOpSeparate(GL_BACK, GL_INCR_WRAP, GL_KEEP, GL_KEEP);
+                        glStencilFuncSeparate(GL_FRONT, GL_EQUAL, 0, ~0);
+                        glStencilOpSeparate(GL_FRONT, GL_DECR_WRAP, GL_KEEP, GL_KEEP);
+
+                        // Count backward triangle hits in the stencil buffer.
+                        m_state->setCullFace(GL_FRONT);
+                        drawHelper.draw();
+
+                        // Draw forward triangles, clipped by the backward triangle counts.
+                        // (The depth test prevents double hits.)
+                        m_state->setCullFace(GL_BACK);
+                        drawHelper.draw();
+
+                        // Clean up backward triangles in the stencil buffer, (also filling
+                        // negative winding numbers).
+                        glStencilFuncSeparate(GL_BACK, GL_NOTEQUAL, 0, ~0);
+                        glStencilOpSeparate(GL_BACK, GL_KEEP, GL_ZERO, GL_ZERO);
+                        m_state->setCullFace(GL_FRONT);
+                        drawHelper.draw();
+                    }
                 }
                 break;
             }
             case DrawType::interiorTriangulation:
             {
+                assert(desc.interlockMode != pls::InterlockMode::depthStencil);
                 m_plsImpl->ensureRasterOrderingEnabled(this, false);
                 m_state->bindVAO(m_interiorTrianglesVAO);
-                m_state->enableFaceCulling(true);
+                m_state->setCullFace(GL_BACK);
                 glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
                 break;
             }
             case DrawType::imageRect:
             {
+                assert(desc.interlockMode == pls::InterlockMode::atomics);
                 assert(!m_capabilities.ARB_bindless_texture);
                 assert(m_imageRectVAO != 0); // Should have gotten lazily allocated by now.
                 m_plsImpl->ensureRasterOrderingEnabled(this, false);
@@ -1110,7 +1288,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   gl_buffer_id(imageDrawUniformBufferRing()),
                                   batch.imageDrawDataOffset,
                                   sizeof(pls::ImageDrawUniforms));
-                m_state->enableFaceCulling(false);
+                m_state->setCullFace(GL_NONE);
                 glDrawElements(GL_TRIANGLES,
                                std::size(pls::kImageRectIndices),
                                GL_UNSIGNED_SHORT,
@@ -1141,7 +1319,14 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   gl_buffer_id(imageDrawUniformBufferRing()),
                                   batch.imageDrawDataOffset,
                                   sizeof(pls::ImageDrawUniforms));
-                m_state->enableFaceCulling(false);
+                m_state->setCullFace(GL_NONE);
+                if (desc.interlockMode == pls::InterlockMode::depthStencil)
+                {
+                    // The stencil test is enabled in the depthStencil pipeline. Change the settings
+                    // to a no-op for image meshes.
+                    glStencilFunc(GL_ALWAYS, 0, ~0);
+                    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+                }
                 glDrawElements(GL_TRIANGLES,
                                batch.elementCount,
                                GL_UNSIGNED_SHORT,
@@ -1149,8 +1334,9 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::plsAtomicResolve:
+                assert(desc.interlockMode == pls::InterlockMode::atomics);
                 m_plsImpl->ensureRasterOrderingEnabled(this, false);
-                m_state->bindVAO(m_plsResolveVAO);
+                m_state->bindVAO(m_emptyVAO);
                 if (renderPassHasCoalescedResolveAndTransfer)
                 {
                     // Since setupCoalescedPLSResolveAndTransfer() binds a different framebuffer,
@@ -1163,13 +1349,33 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::plsAtomicInitialize:
                 RIVE_UNREACHABLE();
         }
-        if (batch.needsBarrier)
+        if (desc.interlockMode != pls::InterlockMode::depthStencil && batch.needsBarrier)
         {
             m_plsImpl->barrier();
         }
     }
 
-    m_plsImpl->deactivatePixelLocalStorage(this, desc);
+    if (desc.interlockMode != pls::InterlockMode::depthStencil)
+    {
+        m_plsImpl->deactivatePixelLocalStorage(this, desc);
+    }
+    else
+    {
+        if (m_capabilities.KHR_blend_equation_advanced_coherent)
+        {
+            glDisable(GL_BLEND_ADVANCED_COHERENT_KHR);
+        }
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
+        if (auto textureTarget = lite_rtti_cast<TextureRenderTargetGL*>(renderTarget))
+        {
+            // Resolve the offscreen MSAA framebuffer into the target texture.
+            textureTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+            glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                     textureTarget->height(),
+                                     GL_COLOR_BUFFER_BIT);
+        }
+    }
 
 #ifdef RIVE_DESKTOP_GL
     if (m_capabilities.ANGLE_polygon_mode && desc.wireframe)
@@ -1177,6 +1383,45 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_FILL_ANGLE);
     }
 #endif
+}
+
+void PLSRenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
+                                                            const IAABB& bounds,
+                                                            uint32_t renderTargetHeight)
+{
+    if (m_blitAsDrawProgram == 0)
+    {
+        m_blitAsDrawProgram = glCreateProgram();
+        const char* blitSources[] = {glsl::constants, glsl::common, glsl::blit_texture_as_draw};
+        glutils::CompileAndAttachShader(m_blitAsDrawProgram,
+                                        GL_VERTEX_SHADER,
+                                        nullptr,
+                                        0,
+                                        blitSources,
+                                        std::size(blitSources),
+                                        m_capabilities);
+        glutils::CompileAndAttachShader(m_blitAsDrawProgram,
+                                        GL_FRAGMENT_SHADER,
+                                        nullptr,
+                                        0,
+                                        blitSources,
+                                        std::size(blitSources),
+                                        m_capabilities);
+        glutils::LinkProgram(m_blitAsDrawProgram);
+        m_state->bindProgram(m_blitAsDrawProgram);
+        glUniform1i(glGetUniformLocation(m_blitAsDrawProgram, GLSL_blitTextureSource), 0);
+    }
+
+    m_state->bindProgram(m_blitAsDrawProgram);
+    m_state->bindVAO(m_emptyVAO);
+    m_state->disableBlending();
+    m_state->setCullFace(GL_NONE);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(bounds.left, renderTargetHeight - bounds.bottom, bounds.width(), bounds.height());
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glDisable(GL_SCISSOR_TEST);
 }
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
@@ -1219,6 +1464,29 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     assert(capabilities.contextVersionMinor == GLAD_GL_version_minor);
     assert(capabilities.isGLES == static_cast<bool>(GLAD_GL_version_es));
 #endif
+
+    if (capabilities.isGLES)
+    {
+        if (!capabilities.isContextVersionAtLeast(3, 0))
+        {
+            fprintf(stderr,
+                    "OpenGL ES %i.%i not supported. Minimum supported version is 3.0.\n",
+                    capabilities.contextVersionMajor,
+                    capabilities.contextVersionMinor);
+            return nullptr;
+        }
+    }
+    else
+    {
+        if (!capabilities.isContextVersionAtLeast(4, 2))
+        {
+            fprintf(stderr,
+                    "OpenGL %i.%i not supported. Minimum supported version is 4.2.\n",
+                    capabilities.contextVersionMajor,
+                    capabilities.contextVersionMinor);
+            return nullptr;
+        }
+    }
 
     // Our baseline feature set is GLES 3.0. Capabilities from newer context versions are reported
     // as extensions.
@@ -1281,6 +1549,14 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         else if (strcmp(ext, "GL_ARB_shader_storage_buffer_object") == 0)
         {
             capabilities.ARB_shader_storage_buffer_object = true;
+        }
+        else if (strcmp(ext, "GL_KHR_blend_equation_advanced") == 0)
+        {
+            capabilities.KHR_blend_equation_advanced = true;
+        }
+        else if (strcmp(ext, "GL_KHR_blend_equation_advanced_coherent") == 0)
+        {
+            capabilities.KHR_blend_equation_advanced_coherent = true;
         }
         else if (strcmp(ext, "GL_EXT_base_instance") == 0)
         {

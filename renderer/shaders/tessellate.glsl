@@ -73,9 +73,11 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     float2 p1 = @a_p0p1_.zw;
     float2 p2 = @a_p2p3_.xy;
     float2 p3 = @a_p2p3_.zw;
-    // Odd-numbered instances are reflections.
-    float y = _vertexID < 4 ? @a_joinTan_and_ys.z : @a_joinTan_and_ys.w;
-    int x0x1 = int(_vertexID < 4 ? @a_args.x : @a_args.y);
+    // Each instance has two spans, potentially for both a forward copy and and reflection.
+    // (If the second span isn't needed, the client will have placed it offscreen.)
+    bool isFirstSpan = _vertexID < 4;
+    float y = isFirstSpan ? @a_joinTan_and_ys.z : @a_joinTan_and_ys.w;
+    int x0x1 = int(isFirstSpan ? @a_args.x : @a_args.y);
     float x0 = float(x0x1 << 16 >> 16);
     float x1 = float(x0x1 >> 16);
     float2 coord = float2((_vertexID & 1) == 0 ? x0 : x1, (_vertexID & 2) == 0 ? y + 1. : y);
@@ -84,7 +86,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     uint polarSegmentCount = (@a_args.z >> 10) & 0x3ffu;
     uint joinSegmentCount = @a_args.z >> 20;
     uint contourIDWithFlags = @a_args.w;
-    if (x1 < x0) // Are we a reflection?
+    if (x1 < x0) // Reflections are drawn right to left.
     {
         contourIDWithFlags |= MIRRORED_CONTOUR_CONTOUR_FLAG;
     }

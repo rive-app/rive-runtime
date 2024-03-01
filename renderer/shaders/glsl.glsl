@@ -67,6 +67,10 @@
 #extension GL_ARB_bindless_texture : require
 #endif
 
+#ifdef @ENABLE_KHR_BLEND
+#extension GL_KHR_blend_equation_advanced : require
+#endif
+
 #if @GLSL_VERSION >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
     layout(binding = IDX, std140) uniform NAME                                                     \

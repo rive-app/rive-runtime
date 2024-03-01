@@ -25,9 +25,16 @@ void GLState::invalidate(const GLCapabilities& extensions)
 
     // PLS only ever culls the CCW face when culling is enabled.
     glFrontFace(GL_CW);
-    glCullFace(GL_BACK);
-    glDepthMask(GL_FALSE);
+    glDepthMask(GL_TRUE);
+    glDepthRangef(0, 1);
+    glDepthFunc(GL_LESS);
+    glClearDepthf(1);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glClearStencil(0);
+    glStencilMask(~0);
+
+    // We always blend with premultiplied src-over when glBlendFunc is relevant.
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
@@ -46,7 +53,6 @@ void GLState::invalidate(const GLCapabilities& extensions)
 #endif
 
     // Low-effort attempt to reset core state we don't use to default values.
-    glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
@@ -68,16 +74,89 @@ void GLState::invalidate(const GLCapabilities& extensions)
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
 }
 
-void GLState::enableFaceCulling(bool enabled)
+void GLState::setCullFace(GLenum cullFace)
 {
-    if (!m_validState.faceCullingEnabled || enabled != m_faceCullingEnabled)
+    if (!m_validState.cullFace || cullFace != m_cullFace)
     {
-        if (enabled)
-            glEnable(GL_CULL_FACE);
-        else
+        if (cullFace == GL_NONE)
+        {
             glDisable(GL_CULL_FACE);
-        m_faceCullingEnabled = enabled;
-        m_validState.faceCullingEnabled = true;
+        }
+        else
+        {
+            if (!m_validState.cullFace || m_cullFace == GL_NONE)
+            {
+                glEnable(GL_CULL_FACE);
+            }
+            glCullFace(cullFace);
+        }
+        m_cullFace = cullFace;
+        m_validState.cullFace = true;
+    }
+}
+
+constexpr static GLenum blend_mode_to_gl_equation(BlendMode blendMode)
+{
+    switch (blendMode)
+    {
+        case BlendMode::srcOver:
+            return GL_FUNC_ADD;
+        case BlendMode::screen:
+            return GL_SCREEN_KHR;
+        case BlendMode::overlay:
+            return GL_OVERLAY_KHR;
+        case BlendMode::darken:
+            return GL_DARKEN_KHR;
+        case BlendMode::lighten:
+            return GL_LIGHTEN_KHR;
+        case BlendMode::colorDodge:
+            return GL_COLORDODGE_KHR;
+        case BlendMode::colorBurn:
+            return GL_COLORBURN_KHR;
+        case BlendMode::hardLight:
+            return GL_HARDLIGHT_KHR;
+        case BlendMode::softLight:
+            return GL_SOFTLIGHT_KHR;
+        case BlendMode::difference:
+            return GL_DIFFERENCE_KHR;
+        case BlendMode::exclusion:
+            return GL_EXCLUSION_KHR;
+        case BlendMode::multiply:
+            return GL_MULTIPLY_KHR;
+        case BlendMode::hue:
+            return GL_HSL_HUE_KHR;
+        case BlendMode::saturation:
+            return GL_HSL_SATURATION_KHR;
+        case BlendMode::color:
+            return GL_HSL_COLOR_KHR;
+        case BlendMode::luminosity:
+            return GL_HSL_LUMINOSITY_KHR;
+    }
+    RIVE_UNREACHABLE();
+}
+
+void GLState::setBlendEquation(BlendMode blendMode)
+{
+    GLenum blendEquation = blend_mode_to_gl_equation(blendMode);
+    if (!m_validState.blendEquation || blendEquation != m_blendEquation)
+    {
+        if (!m_validState.blendEquation || m_blendEquation == GL_NONE)
+        {
+            glEnable(GL_BLEND);
+        }
+        glBlendEquation(blendEquation);
+        m_blendEquation = blendEquation;
+        m_validState.blendEquation = true;
+    }
+}
+
+void GLState::disableBlending()
+{
+    if (!m_validState.blendEquation || m_blendEquation != GL_NONE)
+    {
+        glDisable(GL_BLEND);
+        m_blendEquation = GL_NONE;
+        m_validState.blendEquation = true;
     }
 }
 

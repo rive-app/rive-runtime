@@ -4,6 +4,10 @@
 
 #include "pls_path.hpp"
 
+#include "eval_cubic.hpp"
+#include "rive/math/simd.hpp"
+#include "rive/math/wangs_formula.hpp"
+
 namespace rive::pls
 {
 PLSPath::PLSPath(FillRule fillRule, RawPath& rawPath)
@@ -88,6 +92,65 @@ const AABB& PLSPath::getBounds() const
         m_dirt &= ~kPathBoundsDirt;
     }
     return m_bounds;
+}
+
+float PLSPath::getCoarseArea() const
+{
+    if (m_dirt & kPathCoarseAreaDirt)
+    {
+        float a = 0;
+        Vec2D contourP0 = {0, 0}, lastPt = {0, 0};
+        for (auto [verb, pts] : m_rawPath)
+        {
+            switch (verb)
+            {
+                case PathVerb::move:
+                    a += Vec2D::cross(lastPt, contourP0);
+                    contourP0 = lastPt = pts[0];
+                    break;
+                case PathVerb::close:
+                    break;
+                case PathVerb::line:
+                    a += Vec2D::cross(lastPt, pts[1]);
+                    lastPt = pts[1];
+                    break;
+                case PathVerb::quad:
+                    RIVE_UNREACHABLE();
+                case PathVerb::cubic:
+                {
+                    // Linearize the cubic in artboard space, then add up the area for each segment.
+                    float n = ceilf(wangs_formula::cubic(pts, 1.f / kCoarseAreaTolerance));
+                    if (n > 1)
+                    {
+                        n = std::min(n, 64.f);
+                        float4 t = float4{1, 1, 2, 2} * (1 / n);
+                        float4 dt = t.w;
+                        EvalCubic evalCubic(pts);
+                        for (; t.x < 1; t += dt)
+                        {
+                            float4 p = evalCubic.at(t);
+                            Vec2D lo = {p.x, p.y};
+                            a += Vec2D::cross(lastPt, lo);
+                            lastPt = lo;
+                            if (t.y < 1)
+                            {
+                                Vec2D hi = {p.z, p.w};
+                                a += Vec2D::cross(lastPt, hi);
+                                lastPt = hi;
+                            }
+                        }
+                    }
+                    a += Vec2D::cross(lastPt, pts[3]);
+                    lastPt = pts[3];
+                    break;
+                }
+            }
+        }
+        a += Vec2D::cross(lastPt, contourP0);
+        m_coarseArea = a * .5f;
+        m_dirt &= ~kPathCoarseAreaDirt;
+    }
+    return m_coarseArea;
 }
 
 uint64_t PLSPath::getRawPathMutationID() const

@@ -68,7 +68,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
             if (desc.colorLoadAction == LoadAction::preserveRenderTarget)
             {
                 // Copy the framebuffer's contents to our offscreen texture.
-                framebufferRenderTarget->bindExternalFramebuffer(GL_READ_FRAMEBUFFER);
+                framebufferRenderTarget->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
                 framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds, renderTarget->height());
             }
@@ -112,8 +112,8 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                 static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
         {
             // We rendered to an offscreen texture. Copy back to the external target FBO.
-            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER);
-            framebufferRenderTarget->bindExternalFramebuffer(GL_DRAW_FRAMEBUFFER);
+            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER, 1);
+            framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                      framebufferRenderTarget->height());
         }
