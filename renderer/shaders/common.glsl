@@ -77,6 +77,7 @@ UNIFORM_BLOCK_END(uniforms)
            .0,                                                                                     \
            1.)
 
+#ifndef @USING_DEPTH_STENCIL
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to the point at each
 // edge of the clipRect where coverage = 0.
 //
@@ -102,7 +103,33 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
         return clipRectInverseTranslate.xyxy;
     }
 }
-#endif
+
+#else  // USING_DEPTH_STENCIL
+
+INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
+                                          float2 clipRectInverseTranslate,
+                                          float2 pixelPosition)
+{
+    if (clipRectInverseMatrix != float2x2(0))
+    {
+        float2 clipRectCoord =
+            MUL(clipRectInverseMatrix, pixelPosition) + clipRectInverseTranslate.xy;
+        gl_ClipDistance[0] = clipRectCoord.x + 1.;
+        gl_ClipDistance[1] = clipRectCoord.y + 1.;
+        gl_ClipDistance[2] = 1. - clipRectCoord.x;
+        gl_ClipDistance[3] = 1. - clipRectCoord.y;
+    }
+    else
+    {
+        // "clipRectInverseMatrix == 0" is a special case:
+        //     "clipRectInverseTranslate.x == 1" => all in.
+        //     "clipRectInverseTranslate.x == 0" => all out.
+        gl_ClipDistance[0] = gl_ClipDistance[1] = gl_ClipDistance[2] = gl_ClipDistance[3] =
+            clipRectInverseTranslate.x - .5;
+    }
+}
+#endif // USING_DEPTH_STENCIL
+#endif // VERTEX
 
 #ifdef @DRAW_IMAGE
 UNIFORM_BLOCK_BEGIN(IMAGE_DRAW_UNIFORM_BUFFER_IDX, @ImageDrawUniforms)

@@ -1145,6 +1145,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
     }
 
+    bool clipPlanesEnabled = false;
+
     // Execute the DrawList.
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -1193,6 +1195,16 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             else
             {
                 m_state->setBlendEquation(BlendMode::srcOver);
+            }
+            bool needsClipPlanes = (shaderFeatures & pls::ShaderFeatures::ENABLE_CLIP_RECT);
+            if (needsClipPlanes != clipPlanesEnabled)
+            {
+                auto toggleEnableOrDisable = needsClipPlanes ? glEnable : glDisable;
+                toggleEnableOrDisable(GL_CLIP_DISTANCE0_EXT);
+                toggleEnableOrDisable(GL_CLIP_DISTANCE1_EXT);
+                toggleEnableOrDisable(GL_CLIP_DISTANCE2_EXT);
+                toggleEnableOrDisable(GL_CLIP_DISTANCE3_EXT);
+                clipPlanesEnabled = needsClipPlanes;
             }
         }
 
@@ -1375,6 +1387,13 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                      textureTarget->height(),
                                      GL_COLOR_BUFFER_BIT);
         }
+        if (clipPlanesEnabled)
+        {
+            glDisable(GL_CLIP_DISTANCE0_EXT);
+            glDisable(GL_CLIP_DISTANCE1_EXT);
+            glDisable(GL_CLIP_DISTANCE2_EXT);
+            glDisable(GL_CLIP_DISTANCE3_EXT);
+        }
     }
 
 #ifdef RIVE_DESKTOP_GL
@@ -1507,6 +1526,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         {
             capabilities.ARB_shader_storage_buffer_object = true;
         }
+        capabilities.EXT_clip_cull_distance = true;
     }
 
     GLint extensionCount;
@@ -1561,6 +1581,18 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         else if (strcmp(ext, "GL_EXT_base_instance") == 0)
         {
             capabilities.EXT_base_instance = true;
+        }
+        else if (strcmp(ext, "GL_EXT_clip_cull_distance") == 0)
+        {
+            capabilities.EXT_clip_cull_distance = true;
+        }
+        else if (strcmp(ext, "GL_ANGLE_clip_cull_distance") == 0)
+        {
+            capabilities.EXT_clip_cull_distance = true;
+        }
+        else if (strcmp(ext, "GL_WEBGL_clip_cull_distance") == 0)
+        {
+            capabilities.EXT_clip_cull_distance = true;
         }
         else if (strcmp(ext, "GL_INTEL_fragment_shader_ordering") == 0)
         {

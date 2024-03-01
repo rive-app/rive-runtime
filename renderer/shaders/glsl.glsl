@@ -71,6 +71,12 @@
 #extension GL_KHR_blend_equation_advanced : require
 #endif
 
+#ifdef GL_EXT_clip_cull_distance
+#extension GL_EXT_clip_cull_distance : require
+#elif defined(GL_ANGLE_clip_cull_distance)
+#extension GL_ANGLE_clip_cull_distance : require
+#endif
+
 #if @GLSL_VERSION >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
     layout(binding = IDX, std140) uniform NAME                                                     \

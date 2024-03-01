@@ -130,6 +130,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
                                                    clipRectInverseTranslate.xy,
                                                    fragCoord);
+#else  // USING_DEPTH_STENCIL
+    set_clip_rect_plane_distances(clipRectInverseMatrix, clipRectInverseTranslate.xy, fragCoord);
 #endif // USING_DEPTH_STENCIL
 #endif // ENABLE_CLIP_RECT
 

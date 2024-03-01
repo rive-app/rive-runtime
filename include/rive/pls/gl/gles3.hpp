@@ -32,6 +32,7 @@ struct GLCapabilities
     bool KHR_blend_equation_advanced : 1;
     bool KHR_blend_equation_advanced_coherent : 1;
     bool EXT_base_instance : 1;
+    bool EXT_clip_cull_distance : 1;
     bool INTEL_fragment_shader_ordering : 1;
     bool EXT_shader_framebuffer_fetch : 1;
     bool EXT_shader_pixel_local_storage : 1;
@@ -113,6 +114,10 @@ extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 #define GL_HSL_COLOR_KHR 0x92AF
 #define GL_HSL_LUMINOSITY_KHR 0x92B0
 #define GL_BLEND_ADVANCED_COHERENT_KHR 0x9285
+#define GL_CLIP_DISTANCE0_EXT 0x3000
+#define GL_CLIP_DISTANCE1_EXT 0x3001
+#define GL_CLIP_DISTANCE2_EXT 0x3002
+#define GL_CLIP_DISTANCE3_EXT 0x3003
 #endif
 
 #if defined(RIVE_GLES) || defined(RIVE_WEBGL)

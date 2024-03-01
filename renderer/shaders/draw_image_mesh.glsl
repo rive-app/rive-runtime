@@ -46,11 +46,17 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
     v_clipID = id_bits_to_f16(imageDrawUniforms.clipID, uniforms.pathIDGranularity);
 #endif
 #ifdef @ENABLE_CLIP_RECT
+#ifndef @USING_DEPTH_STENCIL
     v_clipRect =
         find_clip_rect_coverage_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
                                           imageDrawUniforms.clipRectInverseTranslate,
                                           vertexPosition);
-#endif
+#else  // USING_DEPTH_STENCIL
+    set_clip_rect_plane_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
+                                  imageDrawUniforms.clipRectInverseTranslate,
+                                  vertexPosition);
+#endif // USING_DEPTH_STENCIL
+#endif // ENABLE_CLIP_RECT
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 #ifdef @USING_DEPTH_STENCIL
     pos.z = 1. - float(imageDrawUniforms.zIndex) * (2. / 32768.);
