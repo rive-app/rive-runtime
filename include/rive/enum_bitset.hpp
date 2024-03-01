@@ -17,7 +17,8 @@ public:
     constexpr EnumBitset() = default;
     constexpr EnumBitset(T value) : m_bits(static_cast<UnderlyingType>(value)) {}
     constexpr UnderlyingType bits() const { return m_bits; }
-    constexpr operator T() const { return static_cast<T>(m_bits); }
+    constexpr T value() const { return static_cast<T>(m_bits); }
+    constexpr operator T() const { return value(); }
     constexpr operator bool() const { return m_bits != 0; }
 
 private:
