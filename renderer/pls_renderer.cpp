@@ -217,11 +217,6 @@ void PLSRenderer::clipRectImpl(AABB rect, const PLSPath* originalPath)
 
 void PLSRenderer::clipPathImpl(const PLSPath* path)
 {
-    if (m_context->frameInterlockMode() == pls::InterlockMode::depthStencil)
-    {
-        return; // FIXME! Implement clipping in depthStencil mode.
-    }
-
     // Only write a new clip element if this path isn't already on the stack from before. e.g.:
     //
     //     clipPath(samePath);
@@ -309,17 +304,14 @@ void PLSRenderer::drawImageMesh(const RenderImage* renderImage,
                                                                     opacity)));
 }
 
-static bool offscreen_or_empty(IAABB pixelBounds, uint2 viewportSize)
+inline bool PLSRenderer::isOffscreenOrEmpty(const IAABB& bounds) const
 {
-    int4 bounds = math::bit_cast<int4>(pixelBounds);
-    return simd::any(bounds.xy >= simd::cast<int32_t>(viewportSize) || bounds.zw <= 0 ||
-                     bounds.xy >= bounds.zw);
+    return m_context->frameDescriptor().renderTarget->isOffscreenOrEmpty(bounds);
 }
 
 void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
 {
-    uint2 viewportSize = m_context->frameDescriptor().renderTarget->size();
-    if (offscreen_or_empty(draw->pixelBounds(), viewportSize))
+    if (isOffscreenOrEmpty(draw->pixelBounds()))
     {
         return;
     }
@@ -351,17 +343,6 @@ void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
             continue;
         }
 
-        // Abort early if any of the clip draws are empty. PLSRenderContext doesn't like empty
-        // bounding boxes and drawing nothing is equivalent to drawing a clip that eventually ends
-        // up empty.
-        for (const PLSDrawUniquePtr& clipDraw : m_internalDrawBatch)
-        {
-            if (offscreen_or_empty(clipDraw->pixelBounds(), viewportSize))
-            {
-                return;
-            }
-        }
-
         m_internalDrawBatch.push_back(std::move(draw));
         if (!m_context->pushDrawBatch(m_internalDrawBatch.data(), m_internalDrawBatch.size()))
         {
@@ -390,65 +371,102 @@ bool PLSRenderer::applyClip(PLSDraw* draw)
     const size_t clipStackHeight = m_stack.back().clipStackHeight;
     if (clipStackHeight == 0)
     {
-        draw->setClipID(0);
+        assert(draw->clipID() == 0);
         return true;
     }
 
-    // Generate new clipIDs (definitely causing us to redraw the clip buffer) for each element that
-    // hasn't been assigned an ID yet, OR if we are on a new flush. (New flushes invalidate the clip
-    // buffer.)
-    bool needsClipInvalidate = m_clipStackFlushID != m_context->getFlushCount();
-    // Also detect which clip element (if any) is already rendered in the clip buffer.
+    // Find which clip element in the stack (if any) is currently rendered to the clip buffer.
     size_t clipIdxCurrentlyInClipBuffer = -1; // i.e., "none".
-    for (size_t i = 0; i < clipStackHeight; ++i)
+    if (m_context->getClipContentID() != 0)
     {
-        ClipElement& clip = m_clipStack[i];
-        if (clip.clipID == 0 || needsClipInvalidate)
+        for (size_t i = clipStackHeight - 1; i != -1; --i)
         {
-            clip.clipID = m_context->generateClipID();
-            assert(m_context->getClipContentID() != clip.clipID);
-            if (clip.clipID == 0)
+            if (m_clipStack[i].clipID == m_context->getClipContentID())
             {
-                return false; // The context is out of clipIDs. We will flush and try again.
+                clipIdxCurrentlyInClipBuffer = i;
+                break;
             }
-            continue;
-        }
-        if (clip.clipID == m_context->getClipContentID())
-        {
-            // This is the clip that's currently drawn in the clip buffer! We should only find a
-            // match once, so clipIdxCurrentlyInClipBuffer better be at the initial "none" value at
-            // this point.
-            assert(clipIdxCurrentlyInClipBuffer == -1);
-            clipIdxCurrentlyInClipBuffer = i;
         }
     }
 
     // Draw the necessary updates to the clip buffer (i.e., draw every clip element after
     // clipIdxCurrentlyInClipBuffer).
-    uint32_t outerClipID = clipIdxCurrentlyInClipBuffer == -1
-                               ? 0 // The next clip to be drawn is not nested.
-                               : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
-    PLSPaint clipUpdatePaint;
-    assert(!clipUpdatePaint.getIsStroked());
+    uint32_t lastClipID = clipIdxCurrentlyInClipBuffer == -1
+                              ? 0 // The next clip to be drawn is not nested.
+                              : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
+    if (m_context->frameInterlockMode() == pls::InterlockMode::depthStencil)
+    {
+        if (lastClipID == 0 && m_context->getClipContentID() != 0)
+        {
+            // Time for a new stencil clip! Erase the clip currently in the stencil buffer before we
+            // draw the new one.
+            auto stencilClipClear = PLSDrawUniquePtr(m_context->make<StencilClipReset>(
+                m_context,
+                m_context->getClipContentID(),
+                StencilClipReset::ResetAction::clearPreviousClip));
+            if (!isOffscreenOrEmpty(stencilClipClear->pixelBounds()))
+            {
+                m_internalDrawBatch.push_back(std::move(stencilClipClear));
+            }
+        }
+    }
+
     for (size_t i = clipIdxCurrentlyInClipBuffer + 1; i < clipStackHeight; ++i)
     {
-        const ClipElement& clip = m_clipStack[i];
-        assert(clip.clipID != 0);
+        ClipElement& clip = m_clipStack[i];
         assert(clip.pathBounds == clip.path->getBounds());
-        clipUpdatePaint.clipUpdate(outerClipID);
-        m_internalDrawBatch.push_back(PLSPathDraw::Make(m_context,
-                                                        clip.matrix,
-                                                        clip.path,
-                                                        clip.fillRule,
-                                                        &clipUpdatePaint,
-                                                        &m_scratchPath));
-        m_internalDrawBatch.back()->setClipID(clip.clipID);
-        outerClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
+
+        IAABB clipDrawBounds;
+        {
+            PLSPaint clipUpdatePaint;
+            clipUpdatePaint.clipUpdate(/*clip THIS clipDraw against:*/ lastClipID);
+            auto clipDraw = PLSPathDraw::Make(m_context,
+                                              clip.matrix,
+                                              clip.path,
+                                              clip.fillRule,
+                                              &clipUpdatePaint,
+                                              &m_scratchPath);
+            clipDrawBounds = clipDraw->pixelBounds();
+            // Generate a new clipID every time we (re-)render an element to the clip buffer.
+            // (Each embodiment of the element needs its own separate readBounds.)
+            clip.clipID = m_context->generateClipID(clipDrawBounds);
+            assert(clip.clipID != m_context->getClipContentID());
+            if (clip.clipID == 0)
+            {
+                return false; // The context is out of clipIDs. We will flush and try again.
+            }
+            clipDraw->setClipID(clip.clipID);
+            if (!isOffscreenOrEmpty(clipDrawBounds))
+            {
+                m_internalDrawBatch.push_back(std::move(clipDraw));
+            }
+        }
+
+        if (lastClipID != 0)
+        {
+            m_context->addClipReadBounds(lastClipID, clipDrawBounds);
+            if (m_context->frameInterlockMode() == pls::InterlockMode::depthStencil)
+            {
+                // When drawing nested stencil clips, we need to intersect them, which involves
+                // erasing the region of the current clip in the stencil buffer that is outside the
+                // the one we just drew.
+                auto stencilClipIntersect = PLSDrawUniquePtr(m_context->make<StencilClipReset>(
+                    m_context,
+                    lastClipID,
+                    StencilClipReset::ResetAction::intersectPreviousClip));
+                if (!isOffscreenOrEmpty(stencilClipIntersect->pixelBounds()))
+                {
+                    m_internalDrawBatch.push_back(std::move(stencilClipIntersect));
+                }
+            }
+        }
+
+        lastClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
     }
-    uint32_t clipID = m_clipStack[clipStackHeight - 1].clipID;
-    draw->setClipID(clipID);
-    m_context->setClipContentID(clipID);
-    m_clipStackFlushID = m_context->getFlushCount();
+    assert(lastClipID == m_clipStack[clipStackHeight - 1].clipID);
+    draw->setClipID(lastClipID);
+    m_context->addClipReadBounds(lastClipID, draw->pixelBounds());
+    m_context->setClipContentID(lastClipID);
     return true;
 }
 } // namespace rive::pls

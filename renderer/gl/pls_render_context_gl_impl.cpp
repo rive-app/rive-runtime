@@ -19,6 +19,7 @@
 #include "shaders/out/generated/draw_image_mesh.glsl.hpp"
 #include "shaders/out/generated/tessellate.glsl.hpp"
 #include "shaders/out/generated/blit_texture_as_draw.glsl.hpp"
+#include "shaders/out/generated/stencil_draw.glsl.hpp"
 
 #if defined(RIVE_GLES) || defined(RIVE_WEBGL)
 // In an effort to save space on Android, and since GLES doesn't usually need atomic mode, don't
@@ -172,8 +173,8 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                           sizeof(PatchVertex),
                           reinterpret_cast<const void*>(sizeof(float) * 4));
 
-    glGenVertexArrays(1, &m_interiorTrianglesVAO);
-    m_state->bindVAO(m_interiorTrianglesVAO);
+    glGenVertexArrays(1, &m_trianglesVAO);
+    m_state->bindVAO(m_trianglesVAO);
     glEnableVertexAttribArray(0);
 
     if (!m_capabilities.ARB_bindless_texture)
@@ -228,7 +229,7 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
     m_state->deleteBuffer(m_patchVerticesBuffer);
     m_state->deleteBuffer(m_patchIndicesBuffer);
 
-    m_state->deleteVAO(m_interiorTrianglesVAO);
+    m_state->deleteVAO(m_trianglesVAO);
 
     m_state->deleteVAO(m_imageRectVAO);
     m_state->deleteBuffer(m_imageRectVertexBuffer);
@@ -632,7 +633,7 @@ public:
 
     DrawShader(PLSRenderContextGLImpl* plsContextImpl,
                GLenum shaderType,
-               DrawType drawType,
+               pls::DrawType drawType,
                ShaderFeatures shaderFeatures,
                pls::InterlockMode interlockMode,
                pls::ShaderMiscFlags shaderMiscFlags)
@@ -688,8 +689,8 @@ public:
         }
         switch (drawType)
         {
-            case DrawType::midpointFanPatches:
-            case DrawType::outerCurvePatches:
+            case pls::DrawType::midpointFanPatches:
+            case pls::DrawType::outerCurvePatches:
                 if (shaderType == GL_VERTEX_SHADER)
                 {
                     defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
@@ -705,27 +706,31 @@ public:
                                       ? pls::glsl::atomic_draw
                                       : pls::glsl::draw_path);
                 break;
-            case DrawType::interiorTriangulation:
+            case pls::DrawType::stencilClipReset:
+                assert(interlockMode == pls::InterlockMode::depthStencil);
+                sources.push_back(pls::glsl::stencil_draw);
+                break;
+            case pls::DrawType::interiorTriangulation:
                 defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
                 sources.push_back(pls::glsl::draw_path_common);
                 sources.push_back(interlockMode == pls::InterlockMode::atomics
                                       ? pls::glsl::atomic_draw
                                       : pls::glsl::draw_path);
                 break;
-            case DrawType::imageRect:
+            case pls::DrawType::imageRect:
                 assert(interlockMode == pls::InterlockMode::atomics);
                 defines.push_back(GLSL_DRAW_IMAGE);
                 defines.push_back(GLSL_DRAW_IMAGE_RECT);
                 sources.push_back(pls::glsl::atomic_draw);
                 break;
-            case DrawType::imageMesh:
+            case pls::DrawType::imageMesh:
                 defines.push_back(GLSL_DRAW_IMAGE);
                 defines.push_back(GLSL_DRAW_IMAGE_MESH);
                 sources.push_back(interlockMode == pls::InterlockMode::atomics
                                       ? pls::glsl::atomic_draw
                                       : pls::glsl::draw_image_mesh);
                 break;
-            case DrawType::plsAtomicResolve:
+            case pls::DrawType::plsAtomicResolve:
                 assert(interlockMode == pls::InterlockMode::atomics);
                 defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                 defines.push_back(GLSL_RESOLVE_PLS);
@@ -736,7 +741,8 @@ public:
                 }
                 sources.push_back(pls::glsl::atomic_draw);
                 break;
-            case DrawType::plsAtomicInitialize:
+            case pls::DrawType::plsAtomicInitialize:
+                assert(interlockMode == pls::InterlockMode::atomics);
                 RIVE_UNREACHABLE();
         }
         if (plsContextImpl->m_capabilities.ARB_bindless_texture)
@@ -927,10 +933,15 @@ public:
         }
     }
 
-    void drawWithStencilSettings(GLenum comparator, GLint ref, GLenum failOp, GLenum passOp) const
+    void drawWithStencilSettings(GLenum comparator,
+                                 GLint ref,
+                                 GLuint mask,
+                                 GLenum stencilFailOp,
+                                 GLenum depthPassStencilFailOp,
+                                 GLenum depthPassStencilPassOp) const
     {
-        glStencilFunc(comparator, 0, ~0);
-        glStencilOp(failOp, passOp, passOp);
+        glStencilFunc(comparator, ref, mask);
+        glStencilOp(stencilFailOp, depthPassStencilFailOp, depthPassStencilPassOp);
         draw();
     }
 
@@ -948,6 +959,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
 
+    m_state->setWriteMasks(true, true, 0xff);
     m_state->disableBlending();
 
     // All programs use the same set of per-flush uniforms.
@@ -1084,7 +1096,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
     if (desc.hasTriangleVertices)
     {
-        m_state->bindVAO(m_interiorTrianglesVAO);
+        m_state->bindVAO(m_trianglesVAO);
         m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(triangleBufferRing()));
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     }
@@ -1201,87 +1213,161 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        switch (DrawType drawType = batch.drawType)
+        switch (pls::DrawType drawType = batch.drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
-                m_plsImpl->ensureRasterOrderingEnabled(this,
-                                                       desc.interlockMode ==
-                                                           pls::InterlockMode::rasterOrdering);
                 m_state->bindVAO(m_drawVAO);
                 DrawIndexedInstancedHelper drawHelper(m_capabilities,
                                                       drawProgram.spirvCrossBaseInstanceLocation(),
                                                       GL_TRIANGLES,
                                                       batch.elementCount,
                                                       batch.baseElement);
+
                 if (desc.interlockMode != pls::InterlockMode::depthStencil)
                 {
+                    m_plsImpl->ensureRasterOrderingEnabled(this,
+                                                           desc.interlockMode ==
+                                                               pls::InterlockMode::rasterOrdering);
                     drawHelper.setIndexRange(pls::PatchIndexCount(drawType),
                                              pls::PatchBaseIndex(drawType));
                     m_state->setCullFace(GL_BACK);
                     drawHelper.draw();
+                    break;
                 }
-                else if (batch.drawContents & pls::DrawContents::stroke)
+
+                // MSAA path draws require different stencil settings, depending on their
+                // drawContents.
+                bool hasActiveClip = ((batch.drawContents & pls::DrawContents::activeClip));
+                bool isClipUpdate = ((batch.drawContents & pls::DrawContents::clipUpdate));
+                bool isNestedClipUpdate =
+                    (batch.drawContents & pls::kNestedClipUpdateMask) == pls::kNestedClipUpdateMask;
+                bool isEvenOddFill = (batch.drawContents & pls::DrawContents::evenOddFill);
+                bool isStroke = (batch.drawContents & pls::DrawContents::stroke);
+                if (isStroke)
                 {
                     // MSAA strokes only use the "border" section of the patch.
                     // (The depth test prevents double hits.)
                     assert(drawType == pls::DrawType::midpointFanPatches);
                     drawHelper.setIndexRange(pls::kMidpointFanPatchBorderIndexCount,
                                              pls::kMidpointFanPatchBaseIndex);
+                    m_state->setWriteMasks(true, true, 0xff);
                     m_state->setCullFace(GL_BACK);
-                    drawHelper.drawWithStencilSettings(GL_ALWAYS, 0, GL_KEEP, GL_KEEP);
+                    drawHelper.drawWithStencilSettings(hasActiveClip ? GL_EQUAL : GL_ALWAYS,
+                                                       0x80,
+                                                       0xff,
+                                                       GL_KEEP,
+                                                       GL_KEEP,
+                                                       GL_KEEP);
+                    break;
                 }
-                else
+
+                // MSAA fills only use the "fan" section of the patch (the don't need AA borders).
+                drawHelper.setIndexRange(pls::PatchFanIndexCount(drawType),
+                                         pls::PatchFanBaseIndex(drawType));
+
+                // "nonZero" fill rules (that aren't nested clip updates) can be optimized to render
+                // directly instead of using a "stencil then cover" approach.
+                if (!isEvenOddFill && !isNestedClipUpdate)
                 {
-                    // MSAA fills only use the "fan" section of the patch.
-                    drawHelper.setIndexRange(pls::PatchFanIndexCount(drawType),
-                                             pls::PatchFanBaseIndex(drawType));
-                    if (batch.drawContents & pls::DrawContents::evenOddFill) // evenOdd
-                    {
-                        m_state->setCullFace(GL_NONE);
-                        // Stencil!
-                        drawHelper.drawWithStencilSettings(GL_NEVER, 0, GL_INVERT, GL_KEEP);
-                        // Cover! (TODO: midpoint fans may be faster with a bounding box.)
-                        drawHelper.drawWithStencilSettings(GL_NOTEQUAL, 0, GL_KEEP, GL_ZERO);
-                    }
-                    else // nonZero
-                    {
-                        glStencilFuncSeparate(GL_BACK, GL_NEVER, 0, ~0);
-                        glStencilOpSeparate(GL_BACK, GL_INCR_WRAP, GL_KEEP, GL_KEEP);
-                        glStencilFuncSeparate(GL_FRONT, GL_EQUAL, 0, ~0);
-                        glStencilOpSeparate(GL_FRONT, GL_DECR_WRAP, GL_KEEP, GL_KEEP);
+                    // Count backward triangle hits (negative coverage) in the stencil buffer.
+                    m_state->setWriteMasks(false, false, 0x7f);
+                    m_state->setCullFace(GL_FRONT);
+                    drawHelper.drawWithStencilSettings(hasActiveClip ? GL_LEQUAL : GL_ALWAYS,
+                                                       0x80,
+                                                       0xff,
+                                                       GL_KEEP,
+                                                       GL_KEEP,
+                                                       GL_INCR_WRAP);
 
-                        // Count backward triangle hits in the stencil buffer.
-                        m_state->setCullFace(GL_FRONT);
-                        drawHelper.draw();
+                    // (Configure both stencil faces before issuing the next draws, so GL can give
+                    // them the same internal pipeline under the hood.)
+                    GLuint stencilReadMask = hasActiveClip ? 0xff : 0x7f;
+                    glStencilFuncSeparate(GL_FRONT, GL_EQUAL, 0x80, stencilReadMask);
+                    glStencilOpSeparate(GL_FRONT,
+                                        GL_DECR, // Don't wrap; 0 must stay 0 outside the clip.
+                                        GL_KEEP,
+                                        isClipUpdate ? GL_REPLACE : GL_KEEP);
+                    glStencilFuncSeparate(GL_BACK, GL_LESS, 0x80, stencilReadMask);
+                    glStencilOpSeparate(GL_BACK,
+                                        GL_KEEP,
+                                        GL_KEEP,
+                                        isClipUpdate ? GL_REPLACE : GL_ZERO);
+                    m_state->setWriteMasks(!isClipUpdate,
+                                           !isClipUpdate,
+                                           isClipUpdate ? 0xff : 0x7f);
 
-                        // Draw forward triangles, clipped by the backward triangle counts.
-                        // (The depth test prevents double hits.)
-                        m_state->setCullFace(GL_BACK);
-                        drawHelper.draw();
+                    // Draw forward triangles, clipped by the backward triangle counts.
+                    // (The depth test prevents double hits.)
+                    m_state->setCullFace(GL_BACK);
+                    drawHelper.draw();
 
-                        // Clean up backward triangles in the stencil buffer, (also filling
-                        // negative winding numbers).
-                        glStencilFuncSeparate(GL_BACK, GL_NOTEQUAL, 0, ~0);
-                        glStencilOpSeparate(GL_BACK, GL_KEEP, GL_ZERO, GL_ZERO);
-                        m_state->setCullFace(GL_FRONT);
-                        drawHelper.draw();
-                    }
+                    // Clean up backward triangles in the stencil buffer, (also filling
+                    // negative winding numbers).
+                    m_state->setCullFace(GL_FRONT);
+                    drawHelper.draw();
+                    break;
+                }
+
+                // Fall back on stencil-then-cover.
+                glStencilFunc(hasActiveClip ? GL_LEQUAL : GL_ALWAYS, 0x80, 0xff);
+                glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+                glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+                m_state->setWriteMasks(false, false, isEvenOddFill ? 0x1 : 0x7f);
+                m_state->setCullFace(GL_NONE);
+                drawHelper.draw(); // Stencil the path!
+
+                // Nested clip updates do the "cover" operation during DrawType::stencilClipReset.
+                if (!isNestedClipUpdate)
+                {
+                    assert(isEvenOddFill);
+                    m_state->setWriteMasks(!isClipUpdate, !isClipUpdate, isClipUpdate ? 0xff : 0x1);
+                    drawHelper.drawWithStencilSettings(GL_NOTEQUAL, // Cover the path!
+                                                       0x80,
+                                                       0x7f,
+                                                       GL_KEEP,
+                                                       GL_KEEP,
+                                                       isClipUpdate ? GL_REPLACE : GL_ZERO);
                 }
                 break;
             }
-            case DrawType::interiorTriangulation:
+            case pls::DrawType::stencilClipReset:
             {
-                assert(desc.interlockMode != pls::InterlockMode::depthStencil);
-                m_plsImpl->ensureRasterOrderingEnabled(this, false);
-                m_state->bindVAO(m_interiorTrianglesVAO);
+                assert(desc.interlockMode == pls::InterlockMode::depthStencil);
+                m_state->bindVAO(m_trianglesVAO);
+                bool isNestedClipUpdate =
+                    (batch.drawContents & pls::kNestedClipUpdateMask) == pls::kNestedClipUpdateMask;
+                if (isNestedClipUpdate)
+                {
+                    // The nested clip just got stencilled and left in the stencil buffer. Intersect
+                    // it with the existing clip. (Erasing regions of the existing clip that are
+                    // outside the nested clip.)
+                    glStencilFunc(GL_LESS, 0x80, 0xff);
+                    glStencilOp(GL_ZERO, GL_KEEP, GL_REPLACE);
+                }
+                else
+                {
+                    // Clear the entire previous clip.
+                    glStencilFunc(GL_NOTEQUAL, 0, 0xff);
+                    glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO);
+                }
+                m_state->setWriteMasks(false, false, 0xff);
                 m_state->setCullFace(GL_BACK);
                 glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
                 break;
             }
-            case DrawType::imageRect:
+            case pls::DrawType::interiorTriangulation:
+            {
+                assert(desc.interlockMode != pls::InterlockMode::depthStencil); // TODO!
+                m_plsImpl->ensureRasterOrderingEnabled(this, false);
+                m_state->bindVAO(m_trianglesVAO);
+                m_state->setCullFace(GL_BACK);
+                glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
+                break;
+            }
+            case pls::DrawType::imageRect:
             {
                 assert(desc.interlockMode == pls::InterlockMode::atomics);
                 assert(!m_capabilities.ARB_bindless_texture);
@@ -1300,7 +1386,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                nullptr);
                 break;
             }
-            case DrawType::imageMesh:
+            case pls::DrawType::imageMesh:
             {
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         const PLSRenderBufferGLImpl*,
@@ -1309,10 +1395,6 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 LITE_RTTI_CAST_OR_BREAK(indexBuffer,
                                         const PLSRenderBufferGLImpl*,
                                         batch.indexBuffer);
-                // Enable raster ordering whenever we can for image meshes, even in atomic mode; we
-                // have no control over whether the internal geometry has self overlaps.
-                m_plsImpl->ensureRasterOrderingEnabled(this,
-                                                       m_platformFeatures.supportsRasterOrdering);
                 m_state->bindVAO(m_imageMeshVAO);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -1324,31 +1406,43 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   gl_buffer_id(imageDrawUniformBufferRing()),
                                   batch.imageDrawDataOffset,
                                   sizeof(pls::ImageDrawUniforms));
-                m_state->setCullFace(GL_NONE);
-                if (desc.interlockMode == pls::InterlockMode::depthStencil)
+                if (desc.interlockMode != pls::InterlockMode::depthStencil)
                 {
-                    // The stencil test is enabled in the depthStencil pipeline. Change the settings
-                    // to a no-op for image meshes.
-                    glStencilFunc(GL_ALWAYS, 0, ~0);
-                    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+                    // Try to enable raster ordering for image meshes in rasterOrdering and atomic
+                    // mode both; we have no control over whether the internal geometry has self
+                    // overlaps.
+                    m_plsImpl->ensureRasterOrderingEnabled(
+                        this,
+                        m_platformFeatures.supportsRasterOrdering);
                 }
+                else
+                {
+                    bool hasActiveClip = ((batch.drawContents & pls::DrawContents::activeClip));
+                    glStencilFunc(hasActiveClip ? GL_EQUAL : GL_ALWAYS, 0x80, 0xff);
+                    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+                    m_state->setWriteMasks(true, true, 0xff);
+                }
+                m_state->setCullFace(GL_NONE);
                 glDrawElements(GL_TRIANGLES,
                                batch.elementCount,
                                GL_UNSIGNED_SHORT,
                                reinterpret_cast<const void*>(batch.baseElement * sizeof(uint16_t)));
                 break;
             }
-            case DrawType::plsAtomicResolve:
+            case pls::DrawType::plsAtomicResolve:
             {
                 assert(desc.interlockMode == pls::InterlockMode::atomics);
                 m_plsImpl->ensureRasterOrderingEnabled(this, false);
                 m_state->bindVAO(m_emptyVAO);
-                m_plsImpl->setupAtomicResolve(desc);
+                m_plsImpl->setupAtomicResolve(this, desc);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
             }
-            case DrawType::plsAtomicInitialize:
+            case pls::DrawType::plsAtomicInitialize:
+            {
+                assert(desc.interlockMode == pls::InterlockMode::atomics);
                 RIVE_UNREACHABLE();
+            }
         }
         if (desc.interlockMode != pls::InterlockMode::depthStencil && batch.needsBarrier)
         {
@@ -1422,6 +1516,7 @@ void PLSRenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
 
     m_state->bindProgram(m_blitAsDrawProgram);
     m_state->bindVAO(m_emptyVAO);
+    m_state->setWriteMasks(true, true, 0xff);
     m_state->disableBlending();
     m_state->setCullFace(GL_NONE);
     glActiveTexture(GL_TEXTURE0);

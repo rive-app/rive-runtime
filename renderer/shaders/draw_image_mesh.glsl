@@ -59,7 +59,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
 #endif // ENABLE_CLIP_RECT
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 #ifdef @USING_DEPTH_STENCIL
-    pos.z = 1. - float(imageDrawUniforms.zIndex) * (2. / 32768.);
+    pos.z = normalize_z_index(imageDrawUniforms.zIndex);
 #endif
 
     VARYING_PACK(v_texCoord);

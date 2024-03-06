@@ -197,6 +197,8 @@ void BackgroundShaderCompiler::threadMain()
                 [source appendFormat:@"%s\n", pls::glsl::atomic_draw];
 #endif
                 break;
+            case DrawType::stencilClipReset:
+                RIVE_UNREACHABLE();
         }
 
         NSError* err = [NSError errorWithDomain:@"pls_compile" code:200 userInfo:nil];

@@ -287,6 +287,25 @@ PLSDraw::PLSDraw(IAABB pixelBounds,
     m_type(type)
 {}
 
+void PLSDraw::setClipID(uint32_t clipID)
+{
+    m_clipID = clipID;
+
+    // For clipUpdates, m_clipID refers to the ID we are writing to the stencil buffer (NOT the ID
+    // we are clipping against). It therefore doesn't affect the activeClip flag in that case.
+    if (!(m_drawContents & pls::DrawContents::clipUpdate))
+    {
+        if (m_clipID != 0)
+        {
+            m_drawContents |= pls::DrawContents::activeClip;
+        }
+        else
+        {
+            m_drawContents &= ~pls::DrawContents::activeClip;
+        }
+    }
+}
+
 bool PLSDraw::allocateGradientIfNeeded(PLSRenderContext::LogicalFlush* flush,
                                        ResourceCounters* counters)
 {
@@ -384,6 +403,10 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
 {
     assert(m_pathRef != nullptr);
     assert(paint != nullptr);
+    if (m_blendMode == BlendMode::srcOver && paint->getIsOpaque())
+    {
+        m_drawContents |= pls::DrawContents::opaquePaint;
+    }
     if (paint->getIsStroked())
     {
         m_drawContents |= pls::DrawContents::stroke;
@@ -392,9 +415,13 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
     {
         m_drawContents |= pls::DrawContents::evenOddFill;
     }
-    if (m_blendMode == BlendMode::srcOver && paint->getIsOpaque())
+    if (paint->getType() == pls::PaintType::clipUpdate)
     {
-        m_drawContents |= pls::DrawContents::opaquePaint;
+        m_drawContents |= pls::DrawContents::clipUpdate;
+        if (paint->getSimpleValue().outerClipID != 0)
+        {
+            m_drawContents |= pls::DrawContents::activeClip;
+        }
     }
 
     if (isStroked())
@@ -1562,5 +1589,32 @@ void ImageMeshDraw::releaseRefs()
     m_vertexBufferRef->unref();
     m_uvBufferRef->unref();
     m_indexBufferRef->unref();
+}
+
+StencilClipReset::StencilClipReset(PLSRenderContext* context,
+                                   uint32_t previousClipID,
+                                   ResetAction resetAction) :
+    PLSDraw(context->getClipContentBounds(previousClipID),
+            Mat2D(),
+            BlendMode::srcOver,
+            nullptr,
+            Type::stencilClipReset),
+    m_previousClipID(previousClipID)
+{
+    switch (resetAction)
+    {
+        case ResetAction::intersectPreviousClip:
+            m_drawContents |= pls::DrawContents::activeClip;
+            [[fallthrough]];
+        case ResetAction::clearPreviousClip:
+            m_drawContents |= pls::DrawContents::clipUpdate;
+            break;
+    }
+    m_resourceCounts.maxTriangleVertexCount = 6;
+}
+
+void StencilClipReset::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
+{
+    flush->pushStencilClipReset(this);
 }
 } // namespace rive::pls

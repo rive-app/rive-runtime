@@ -57,6 +57,8 @@ private:
     void clipRectImpl(AABB, const PLSPath* originalPath);
     void clipPathImpl(const PLSPath*);
 
+    inline bool isOffscreenOrEmpty(const IAABB& bounds) const;
+
     // Clips and pushes the given draw to m_context. If the clipped draw is too complex to be
     // supported by the GPU buffers, even after a logical flush, then nothing is drawn.
     void clipAndPushDraw(PLSDrawUniquePtr);
@@ -94,7 +96,6 @@ private:
         uint32_t clipID;
     };
     std::vector<ClipElement> m_clipStack;
-    uint64_t m_clipStackFlushID = -1; // Ensures we invalidate the clip stack after a logical flush.
 
     PLSRenderContext* const m_context;
 

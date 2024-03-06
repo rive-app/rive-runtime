@@ -436,6 +436,7 @@ enum class DrawType : uint8_t
     imageMesh,
     plsAtomicInitialize, // Clear/init PLS data when we can't do it with existing clear/load APIs.
     plsAtomicResolve,    // Resolve PLS data to the final renderTarget color in atomic mode.
+    stencilClipReset,    // Clear or intersect (based on DrawContents) the stencil clip bit.
 };
 
 constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
@@ -585,8 +586,9 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(DrawType drawType,
             assert(interlockMode == pls::InterlockMode::atomics);
             mask = ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_ADVANCED_BLEND;
             break;
-        default:
-            RIVE_UNREACHABLE();
+        case DrawType::stencilClipReset:
+            mask = ShaderFeatures::NONE;
+            break;
     }
     return mask & ShaderFeaturesMaskFor(interlockMode);
 }
@@ -622,28 +624,44 @@ extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 // Flags indicating the contents of a draw. These don't affect shaders, but in depthStencil mode
 // they are needed to break up batching. (depthStencil needs different stencil/blend state,
 // depending on the DrawContents.)
+//
+// These also affect the draw sort order, so we attempt associate more expensive shader branch
+// misses with higher flags.
 enum class DrawContents
 {
     none = 0,
-    stroke = 1 << 0,
-    evenOddFill = 1 << 1,
-    opaquePaint = 1 << 2,
+    opaquePaint = 1 << 0,
+    stroke = 1 << 1,
+    evenOddFill = 1 << 2,
+    activeClip = 1 << 3,
+    clipUpdate = 1 << 4,
 };
 RIVE_MAKE_ENUM_BITSET(DrawContents)
+
+// A nestedClip draw updates the clip buffer while simultaneously clipping against the outerClip
+// that is currently in the clip buffer.
+constexpr static pls::DrawContents kNestedClipUpdateMask =
+    (pls::DrawContents::activeClip | pls::DrawContents::clipUpdate);
 
 // Low-level batch of geometry to submit to the GPU.
 struct DrawBatch
 {
-    DrawBatch(DrawType drawType_, BlendMode firstBlendMode_, uint32_t baseElement_) :
-        drawType(drawType_), firstBlendMode(firstBlendMode_), baseElement(baseElement_)
+    DrawBatch(DrawType drawType_,
+              BlendMode firstBlendMode_,
+              uint32_t elementCount_,
+              uint32_t baseElement_) :
+        drawType(drawType_),
+        firstBlendMode(firstBlendMode_),
+        elementCount(elementCount_),
+        baseElement(baseElement_)
     {}
 
     const DrawType drawType;
-    BlendMode firstBlendMode;  // Blend mode of the first draw in the batch. (If in depthStencil
-                               // mode and PlatformFeatures::depthStencilSupportsKHRBlendEquations
-                               // is true, this will be the only blend mode in the batch.)
-    uint32_t baseElement;      // Base vertex, index, or instance.
-    uint32_t elementCount = 0; // Vertex, index, or instance count.
+    BlendMode firstBlendMode; // Blend mode of the first draw in the batch. (If in depthStencil
+                              // mode and PlatformFeatures::depthStencilSupportsKHRBlendEquations
+                              // is true, this will be the only blend mode in the batch.)
+    uint32_t elementCount;    // Vertex, index, or instance count.
+    uint32_t baseElement;     // Base vertex, index, or instance.
     DrawContents drawContents = DrawContents::none;
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
     bool needsBarrier = false; // Pixel-local-storage barrier required after submitting this batch.

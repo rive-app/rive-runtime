@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/pls/pls.hpp"
 #include "rive/pls/pls_factory.hpp"
@@ -30,6 +29,7 @@ class ImageMeshDraw;
 class ImageRectDraw;
 class InteriorTriangulationDraw;
 class MidpointFanPathDraw;
+class StencilClipReset;
 class PLSDraw;
 class PLSGradient;
 class PLSPaint;
@@ -148,11 +148,36 @@ public:
 
     const pls::InterlockMode frameInterlockMode() const { return m_frameInterlockMode; }
 
-    // Generates a unique clip ID that is guaranteed to not exist in the current clip buffer.
+    // Generates a unique clip ID that is guaranteed to not exist in the current clip buffer, and
+    // assigns a contentBounds to it.
     //
     // Returns 0 if a unique ID could not be generated, at which point the caller must issue a
     // logical flush and try again.
-    uint32_t generateClipID();
+    uint32_t generateClipID(const IAABB& contentBounds);
+
+    // Screen-space bounding box of the region inside the given clip.
+    const IAABB& getClipContentBounds(uint32_t clipID)
+    {
+        assert(m_didBeginFrame);
+        assert(!m_logicalFlushes.empty());
+        return m_logicalFlushes.back()->getClipInfo(clipID).contentBounds;
+    }
+
+    // Mark the given clip as being read from within a screen-space bounding box.
+    void addClipReadBounds(uint32_t clipID, const IAABB& bounds)
+    {
+        assert(m_didBeginFrame);
+        assert(!m_logicalFlushes.empty());
+        return m_logicalFlushes.back()->addClipReadBounds(clipID, bounds);
+    }
+
+    // Union of screen-space bounding boxes from all draws that read the given clip element.
+    const IAABB& getClipReadBounds(uint32_t clipID)
+    {
+        assert(m_didBeginFrame);
+        assert(!m_logicalFlushes.empty());
+        return m_logicalFlushes.back()->getClipInfo(clipID).readBounds;
+    }
 
     // Get/set a "clip content ID" that uniquely identifies the current contents of the clip buffer.
     // This ID is reset to 0 on every logical flush.
@@ -161,6 +186,7 @@ public:
         assert(m_didBeginFrame);
         m_clipContentID = clipID;
     }
+
     uint32_t getClipContentID()
     {
         assert(m_didBeginFrame);
@@ -227,6 +253,7 @@ private:
     friend class InteriorTriangulationDraw;
     friend class ImageRectDraw;
     friend class ImageMeshDraw;
+    friend class StencilClipReset;
     friend class ::PushRetrofittedTrianglesGMDraw; // For testing.
     friend class ::PLSRenderContextTest;           // For testing.
 
@@ -293,8 +320,7 @@ private:
     // or otherwise.
     size_t m_flushCount = 0;
 
-    // Per-flush clipping state.
-    uint32_t m_lastGeneratedClipID = 0;
+    // Clipping state.
     uint32_t m_clipContentID = 0;
 
     // Used by LogicalFlushes for re-ordering high level draws.
@@ -359,6 +385,34 @@ private:
             assert(m_hasDoneLayout);
             return m_flushDesc;
         }
+
+        // Generates a unique clip ID that is guaranteed to not exist in the current clip buffer.
+        //
+        // Returns 0 if a unique ID could not be generated, at which point the caller must issue a
+        // logical flush and try again.
+        uint32_t generateClipID(const IAABB& contentBounds);
+
+        struct ClipInfo
+        {
+            ClipInfo(const IAABB& contentBounds_) : contentBounds(contentBounds_) {}
+
+            // Screen-space bounding box of the region inside the clip.
+            const IAABB contentBounds;
+
+            // Union of screen-space bounding boxes from all draws that read the clip.
+            //
+            // (Initialized with a maximally negative rectangle whose union with any other rectangle
+            // will be equal to that same rectangle.)
+            IAABB readBounds = {std::numeric_limits<int32_t>::max(),
+                                std::numeric_limits<int32_t>::max(),
+                                std::numeric_limits<int32_t>::min(),
+                                std::numeric_limits<int32_t>::min()};
+        };
+
+        const ClipInfo& getClipInfo(uint32_t clipID) { return getWritableClipInfo(clipID); }
+
+        // Mark the given clip as being read from within a screen-space bounding box.
+        void addClipReadBounds(uint32_t clipID, const IAABB& bounds);
 
         // Appends a list of high-level PLSDraws to the flush.
         // Returns false if the draws don't fit within the current resource constraints, at which
@@ -475,11 +529,15 @@ private:
 
         void pushImageMesh(const ImageMeshDraw*);
 
+        void pushStencilClipReset(const StencilClipReset*);
+
         // Adds a barrier to the end of the draw list that prevents further combining/batching and
         // instructs the backend to issue a graphics barrier, if necessary.
         void pushBarrier();
 
     private:
+        ClipInfo& getWritableClipInfo(uint32_t clipID);
+
         // Writes padding vertices to the tessellation texture, with an invalid contour ID that is
         // guaranteed to not be the same ID as any neighbors.
         void pushPaddingVertices(uint32_t tessLocation, uint32_t count);
@@ -518,8 +576,15 @@ private:
 
         // Either appends a new drawBatch to m_drawList or merges into m_drawList.tail().
         // Updates the batch's ShaderFeatures according to the passed parameters.
-        DrawBatch& pushPathDraw(DrawType, size_t baseVertex, const PLSPathDraw*);
-        DrawBatch& pushDraw(DrawType, size_t baseVertex, pls::PaintType, const PLSDraw*);
+        DrawBatch& pushPathDraw(const PLSPathDraw*,
+                                DrawType,
+                                uint32_t vertexCount,
+                                uint32_t baseVertex);
+        DrawBatch& pushDraw(const PLSDraw*,
+                            DrawType,
+                            pls::PaintType,
+                            uint32_t elementCount,
+                            uint32_t baseElement);
 
         // Instance pointer to the outer parent class.
         PLSRenderContext* const m_ctx;
@@ -538,6 +603,8 @@ private:
         std::unordered_map<GradientContentKey, uint16_t, DeepHashGradient>
             m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
         std::vector<const PLSGradient*> m_pendingComplexColorRampDraws;
+
+        std::vector<ClipInfo> m_clips;
 
         // High-level draw list. These get built into a low-level list of pls::DrawBatch objects
         // during writeResources().

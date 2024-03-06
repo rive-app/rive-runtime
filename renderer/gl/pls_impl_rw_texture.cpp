@@ -85,7 +85,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                 {
                     // When rendering to an offscreen atomic texture, still bind the target
                     // framebuffer, but disable color writes until it's time to resolve.
-                    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+                    plsContextImpl->state()->setWriteMasks(false, true, 0xff);
                 }
                 break;
             default:
@@ -106,13 +106,14 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                    : pls::ShaderMiscFlags::none;
     }
 
-    void setupAtomicResolve(const pls::FlushDescriptor& desc) override
+    void setupAtomicResolve(PLSRenderContextGLImpl* plsContextImpl,
+                            const pls::FlushDescriptor& desc) override
     {
         assert(desc.interlockMode == pls::InterlockMode::atomics);
         if (needs_offscreen_atomic_texture(desc))
         {
             // Turn the color mask back on now that we're about to resolve.
-            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            plsContextImpl->state()->setWriteMasks(true, true, 0xff);
         }
     }
 

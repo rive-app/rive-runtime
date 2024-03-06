@@ -76,7 +76,7 @@ private:
 
         // Called before issuing a plsAtomicResolve draw, so the PLSImpl can make any necessary GL
         // state changes.
-        virtual void setupAtomicResolve(const pls::FlushDescriptor&) {}
+        virtual void setupAtomicResolve(PLSRenderContextGLImpl*, const pls::FlushDescriptor&) {}
 
         virtual const char* shaderDefineName() const = 0;
 
@@ -175,7 +175,7 @@ private:
     GLuint m_drawVAO = 0;
     GLuint m_patchVerticesBuffer = 0;
     GLuint m_patchIndicesBuffer = 0;
-    GLuint m_interiorTrianglesVAO = 0;
+    GLuint m_trianglesVAO = 0;
 
     // Vertex/index buffers for drawing image rects. (Atomic mode only, and only used when bindless
     // textures aren't supported.)

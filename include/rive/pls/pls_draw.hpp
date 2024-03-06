@@ -37,6 +37,7 @@ public:
         interiorTriangulationPath,
         imageRect,
         imageMesh,
+        stencilClipReset,
     };
 
     PLSDraw(IAABB pixelBounds, const Mat2D&, BlendMode, rcp<const PLSTexture> imageTexture, Type);
@@ -60,7 +61,7 @@ public:
     const PLSGradient* gradient() const { return m_gradientRef; }
 
     // Clipping setup.
-    void setClipID(uint32_t clipID) { m_clipID = clipID; }
+    void setClipID(uint32_t clipID);
     void setClipRect(const pls::ClipRectInverseMatrix* m) { m_clipRectInverseMatrix = m; }
 
     // Used to allocate GPU resources for a collection of draws.
@@ -87,10 +88,10 @@ protected:
     const BlendMode m_blendMode;
     const Type m_type;
 
-    pls::DrawContents m_drawContents = pls::DrawContents::none;
-
     uint32_t m_clipID = 0;
     const pls::ClipRectInverseMatrix* m_clipRectInverseMatrix = nullptr;
+
+    pls::DrawContents m_drawContents = pls::DrawContents::none;
 
     // Filled in by the subclass constructor.
     ResourceCounters m_resourceCounts;
@@ -320,5 +321,26 @@ protected:
     const RenderBuffer* const m_indexBufferRef;
     const uint32_t m_indexCount;
     const float m_opacity;
+};
+
+// Resets the stencil clip by either entirely erasing the existing clip, or intersecting it with a
+// nested clip (i.e., erasing the region outside the nested clip).
+class StencilClipReset : public PLSDraw
+{
+public:
+    enum class ResetAction
+    {
+        clearPreviousClip,
+        intersectPreviousClip,
+    };
+
+    StencilClipReset(PLSRenderContext*, uint32_t previousClipID, ResetAction);
+
+    uint32_t previousClipID() const { return m_previousClipID; }
+
+    void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
+
+protected:
+    const uint32_t m_previousClipID;
 };
 } // namespace rive::pls

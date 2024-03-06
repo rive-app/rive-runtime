@@ -939,6 +939,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 s << "#define " << GLSL_RESOLVE_PLS << '\n';
                 break;
             case DrawType::plsAtomicInitialize:
+            case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
         s << glsl::constants << '\n';
@@ -974,6 +975,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                   << '\n';
                 break;
             case DrawType::plsAtomicResolve:
+            case DrawType::stencilClipReset:
                 assert(interlockMode == pls::InterlockMode::atomics);
                 s << pls::glsl::atomic_draw << '\n';
                 break;
@@ -1051,6 +1053,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                     vertexAttribCount = 0;
                     break;
                 case DrawType::plsAtomicInitialize:
+                case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
             VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
@@ -1508,6 +1511,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 m_gpuContext->Draw(4, 0);
                 break;
             case DrawType::plsAtomicInitialize:
+            case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
     }

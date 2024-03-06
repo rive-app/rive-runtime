@@ -127,6 +127,7 @@ public:
                 break;
             case DrawType::plsAtomicInitialize:
             case DrawType::plsAtomicResolve:
+            case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
 
@@ -1145,6 +1146,10 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 [encoder setRenderPipelineState:drawPipelineState];
                 [encoder drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
                 break;
+            }
+            case DrawType::stencilClipReset:
+            {
+                RIVE_UNREACHABLE();
             }
         }
         if (desc.interlockMode == pls::InterlockMode::atomics && batch.needsBarrier)

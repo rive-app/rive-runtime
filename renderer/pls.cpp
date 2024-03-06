@@ -49,10 +49,16 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             drawTypeKey = 3;
             break;
         case DrawType::plsAtomicInitialize:
+            assert(interlockMode == pls::InterlockMode::atomics);
             drawTypeKey = 4;
             break;
         case DrawType::plsAtomicResolve:
+            assert(interlockMode == pls::InterlockMode::atomics);
             drawTypeKey = 5;
+            break;
+        case DrawType::stencilClipReset:
+            assert(interlockMode == pls::InterlockMode::depthStencil);
+            drawTypeKey = 6;
             break;
     }
     uint32_t key = static_cast<uint32_t>(miscFlags);

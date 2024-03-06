@@ -18,10 +18,11 @@ public:
 
     void invalidate(const GLCapabilities&);
 
-    void setCullFace(GLenum);
-
     void setBlendEquation(BlendMode);
     void disableBlending();
+
+    void setWriteMasks(bool colorWriteMask, bool depthWriteMask, GLuint stencilWriteMask);
+    void setCullFace(GLenum);
 
     void bindProgram(GLuint);
     void bindVAO(GLuint);
@@ -32,8 +33,11 @@ public:
     void deleteBuffer(GLuint);
 
 private:
-    GLenum m_cullFace;
     GLenum m_blendEquation;
+    bool m_colorWriteMask;
+    bool m_depthWriteMask;
+    GLuint m_stencilWriteMask;
+    GLenum m_cullFace;
     GLuint m_boundProgramID;
     GLuint m_boundVAO;
     GLuint m_boundArrayBufferID;
@@ -42,8 +46,9 @@ private:
 
     struct
     {
-        bool cullFace : 1;
         bool blendEquation : 1;
+        bool writeMasks : 1;
+        bool cullFace : 1;
         bool boundProgramID : 1;
         bool boundVAO : 1;
         bool boundArrayBufferID : 1;

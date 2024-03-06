@@ -25,13 +25,10 @@ void GLState::invalidate(const GLCapabilities& extensions)
 
     // PLS only ever culls the CCW face when culling is enabled.
     glFrontFace(GL_CW);
-    glDepthMask(GL_TRUE);
     glDepthRangef(0, 1);
     glDepthFunc(GL_LESS);
     glClearDepthf(1);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glClearStencil(0);
-    glStencilMask(~0);
 
     // We always blend with premultiplied src-over when glBlendFunc is relevant.
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -72,27 +69,6 @@ void GLState::invalidate(const GLCapabilities& extensions)
     glPixelStorei(GL_PACK_SKIP_ROWS, 0);
     glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
-}
-
-void GLState::setCullFace(GLenum cullFace)
-{
-    if (!m_validState.cullFace || cullFace != m_cullFace)
-    {
-        if (cullFace == GL_NONE)
-        {
-            glDisable(GL_CULL_FACE);
-        }
-        else
-        {
-            if (!m_validState.cullFace || m_cullFace == GL_NONE)
-            {
-                glEnable(GL_CULL_FACE);
-            }
-            glCullFace(cullFace);
-        }
-        m_cullFace = cullFace;
-        m_validState.cullFace = true;
-    }
 }
 
 constexpr static GLenum blend_mode_to_gl_equation(BlendMode blendMode)
@@ -157,6 +133,59 @@ void GLState::disableBlending()
         glDisable(GL_BLEND);
         m_blendEquation = GL_NONE;
         m_validState.blendEquation = true;
+    }
+}
+
+void GLState::setWriteMasks(bool colorWriteMask, bool depthWriteMask, GLuint stencilWriteMask)
+{
+    if (!m_validState.writeMasks)
+    {
+        glColorMask(colorWriteMask, colorWriteMask, colorWriteMask, colorWriteMask);
+        glDepthMask(depthWriteMask);
+        glStencilMask(stencilWriteMask);
+        m_colorWriteMask = colorWriteMask;
+        m_depthWriteMask = depthWriteMask;
+        m_stencilWriteMask = stencilWriteMask;
+        m_validState.writeMasks = true;
+    }
+    else
+    {
+        if (colorWriteMask != m_colorWriteMask)
+        {
+            glColorMask(colorWriteMask, colorWriteMask, colorWriteMask, colorWriteMask);
+            m_colorWriteMask = colorWriteMask;
+        }
+        if (depthWriteMask != m_depthWriteMask)
+        {
+            glDepthMask(depthWriteMask);
+            m_depthWriteMask = depthWriteMask;
+        }
+        if (stencilWriteMask != m_stencilWriteMask)
+        {
+            glStencilMask(stencilWriteMask);
+            m_stencilWriteMask = stencilWriteMask;
+        }
+    }
+}
+
+void GLState::setCullFace(GLenum cullFace)
+{
+    if (!m_validState.cullFace || cullFace != m_cullFace)
+    {
+        if (cullFace == GL_NONE)
+        {
+            glDisable(GL_CULL_FACE);
+        }
+        else
+        {
+            if (!m_validState.cullFace || m_cullFace == GL_NONE)
+            {
+                glEnable(GL_CULL_FACE);
+            }
+            glCullFace(cullFace);
+        }
+        m_cullFace = cullFace;
+        m_validState.cullFace = true;
     }
 }
 

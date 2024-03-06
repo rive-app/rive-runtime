@@ -152,6 +152,7 @@ void PLSRenderContext::LogicalFlush::rewind()
     m_pendingSimpleGradientWrites.clear();
     m_complexGradients.clear();
     m_pendingComplexColorRampDraws.clear();
+    m_clips.clear();
     m_plsDraws.clear();
     m_combinedDrawBounds = {std::numeric_limits<int32_t>::max(),
                             std::numeric_limits<int32_t>::max(),
@@ -190,6 +191,8 @@ void PLSRenderContext::LogicalFlush::rewind()
 
 void PLSRenderContext::LogicalFlush::resetContainers()
 {
+    m_clips.clear();
+    m_clips.shrink_to_fit();
     m_plsDraws.clear();
     m_plsDraws.shrink_to_fit();
     m_plsDraws.reserve(kDefaultDrawCapacity);
@@ -240,16 +243,38 @@ bool PLSRenderContext::frameSupportsImagePaintForPaths() const
            platformFeatures().supportsBindlessTextures;
 }
 
-uint32_t PLSRenderContext::generateClipID()
+uint32_t PLSRenderContext::generateClipID(const IAABB& contentBounds)
 {
     assert(m_didBeginFrame);
-    if (m_lastGeneratedClipID < m_maxPathID) // maxClipID == maxPathID.
+    assert(!m_logicalFlushes.empty());
+    return m_logicalFlushes.back()->generateClipID(contentBounds);
+}
+
+uint32_t PLSRenderContext::LogicalFlush::generateClipID(const IAABB& contentBounds)
+{
+    if (m_clips.size() < m_ctx->m_maxPathID) // maxClipID == maxPathID.
     {
-        ++m_lastGeneratedClipID;
-        assert(m_clipContentID != m_lastGeneratedClipID); // Totally unexpected, but just in case.
-        return m_lastGeneratedClipID;
+        m_clips.emplace_back(contentBounds);
+        assert(m_ctx->m_clipContentID != m_clips.size());
+        return m_clips.size();
     }
     return 0; // There are no available clip IDs. The caller should flush and try again.
+}
+
+PLSRenderContext::LogicalFlush::ClipInfo& PLSRenderContext::LogicalFlush::getWritableClipInfo(
+    uint32_t clipID)
+{
+    assert(clipID > 0);
+    assert(clipID <= m_clips.size());
+    return m_clips[clipID - 1];
+}
+
+void PLSRenderContext::LogicalFlush::addClipReadBounds(uint32_t clipID, const IAABB& bounds)
+{
+    assert(clipID > 0);
+    assert(clipID <= m_clips.size());
+    ClipInfo& clipInfo = getWritableClipInfo(clipID);
+    clipInfo.readBounds = clipInfo.readBounds.join(bounds);
 }
 
 bool PLSRenderContext::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
@@ -387,7 +412,6 @@ void PLSRenderContext::flush(pls::FlushType flushType)
 
     // Reset clipping state after every logical flush because the clip buffer is not preserved
     // between render passes.
-    m_lastGeneratedClipID = 0;
     m_clipContentID = 0;
 
     if (flushType == pls::FlushType::logical)
@@ -783,7 +807,15 @@ void PLSRenderContext::LogicalFlush::writeResources()
         pushPaddingVertices(m_outerCubicTessEndLocation, 1);
     }
 
-    if (m_ctx->frameInterlockMode() != pls::InterlockMode::rasterOrdering)
+    // Write out all the data for our high level draws, and build up a low-level draw list.
+    if (m_ctx->frameInterlockMode() == pls::InterlockMode::rasterOrdering)
+    {
+        for (const PLSDrawUniquePtr& draw : m_plsDraws)
+        {
+            draw->pushToRenderContext(this);
+        }
+    }
+    else
     {
         assert(m_plsDraws.size() <= kMaxReorderedDrawCount);
 
@@ -802,10 +834,14 @@ void PLSRenderContext::LogicalFlush::writeResources()
         // Build a list of sort keys that determine the final draw order.
         constexpr static int kDrawGroupShift = 48; // Where in the key does the draw group begin?
         constexpr static int64_t kDrawGroupMask = 0xffffllu << kDrawGroupShift;
-        constexpr static int kBlendModeShift = 19; // Where in the key do the blendMode begin?
+        constexpr static int kDrawTypeShift = 45;
+        constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED = 7llu << kDrawTypeShift;
+        constexpr static int kTextureHashShift = 25;
+        constexpr static int64_t kTextureHashMask = 0xfffffllu << kTextureHashShift;
+        constexpr static int kBlendModeShift = 21;
         constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
-        constexpr static int kDrawContentsShift = 16; // Where in the key do the drawContents begin?
-        constexpr static int64_t kDrawContentsMask = 7llu << kDrawContentsShift;
+        constexpr static int kDrawContentsShift = 16;
+        constexpr static int64_t kDrawContentsMask = 0x1fllu << kDrawContentsShift;
         constexpr static int64_t kDrawIndexMask = 0xffff;
         for (size_t i = 0; i < m_plsDraws.size(); ++i)
         {
@@ -818,49 +854,62 @@ void PLSRenderContext::LogicalFlush::writeResources()
 
             // Our top priority in re-ordering is to group non-overlapping draws together, in order
             // to maximize batching while preserving correctness.
-            int16_t drawGroupIdx = intersectionBoard->addRectangle(drawBounds);
-            assert(drawGroupIdx != 0);
+            int64_t drawGroupIdx = intersectionBoard->addRectangle(drawBounds);
+            assert(drawGroupIdx > 0);
             if (m_flushDesc.interlockMode == pls::InterlockMode::depthStencil && draw->isOpaque())
             {
                 // In depthStencil mode we can reverse-sort opaque paths front to back, draw them
                 // first, and take advantage of early Z culling.
-                drawGroupIdx = -drawGroupIdx;
+                //
+                // To keep things simple initially, we don't reverse-sort draws that use clipping.
+                // (Otherwise if a clip affects both opaque and transparent content, we would have
+                // to apply it twice.)
+                bool usesClipping = draw->drawContents() &
+                                    (pls::DrawContents::activeClip | pls::DrawContents::clipUpdate);
+                if (!usesClipping)
+                {
+                    drawGroupIdx = -drawGroupIdx;
+                }
             }
-            int64_t key = drawGroupIdx;
+            int64_t key = drawGroupIdx << kDrawGroupShift;
 
             // Within sub-groups of non-overlapping draws, sort similar draw types together.
             int64_t drawType = static_cast<int64_t>(draw->type());
-            assert(drawType < (1 << 8));
-            key = (key << 8) | drawType;
+            assert(drawType <= kDrawTypeMask >> kDrawTypeShift);
+            key |= drawType << kDrawTypeShift;
 
             // Within sub-groups of matching draw type, sort by texture binding.
-            int64_t textureResourceHash =
-                draw->imageTexture() != nullptr ? draw->imageTexture()->textureResourceHash() : 0;
-            key = (key << 17) | (textureResourceHash & 0x1ffff);
+            int64_t textureHash = draw->imageTexture() != nullptr
+                                      ? draw->imageTexture()->textureResourceHash() &
+                                            (kTextureHashMask >> kTextureHashShift)
+                                      : 0;
+            key |= textureHash << kTextureHashShift;
 
             // If using KHR_blend_equation_advanced, we need a batching barrier between draws with
             // different blend modes.
             // If not using KHR_blend_equation_advanced, sorting by blend mode may still give us
             // better branching on the GPU.
             int64_t blendMode = pls::ConvertBlendModeToPLSBlendMode(draw->blendMode());
-            assert(blendMode < 1 << 4);
-            key = (key << 4) | blendMode;
+            assert(blendMode <= kBlendModeMask >> kBlendModeShift);
+            key |= blendMode << kBlendModeShift;
 
             // depthStencil mode draws strokes, fills, and even/odd with different stencil settings.
             int64_t drawContents = static_cast<int64_t>(draw->drawContents());
-            assert(drawContents < 1 << 3);
-            key = (key << 3) | drawContents;
+            assert(drawContents <= kDrawContentsMask >> kDrawContentsShift);
+            key |= drawContents << kDrawContentsShift;
 
             // Draw index goes at the bottom of the key so we know which PLSDraw it corresponds to.
-            assert(i < 1 << 16);
-            key = (key << 16) | i;
-
-            indirectDrawList[i] = key;
+            assert(i <= kDrawIndexMask);
+            key |= i;
 
             assert((key & kDrawGroupMask) >> kDrawGroupShift == drawGroupIdx);
+            assert((key & kDrawTypeMask) >> kDrawTypeShift == drawType);
+            assert((key & kTextureHashMask) >> kTextureHashShift == textureHash);
             assert((key & kBlendModeMask) >> kBlendModeShift == blendMode);
             assert((key & kDrawContentsMask) >> kDrawContentsShift == drawContents);
             assert((key & kDrawIndexMask) == i);
+
+            indirectDrawList[i] = key;
         }
 
         // Re-order the draws!!
@@ -874,8 +923,8 @@ void PLSRenderContext::LogicalFlush::writeResources()
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     DrawType::plsAtomicInitialize,
                                     BlendMode::srcOver,
+                                    1,
                                     0);
-            m_drawList.tail().elementCount = 1;
             pushBarrier();
         }
 
@@ -884,8 +933,8 @@ void PLSRenderContext::LogicalFlush::writeResources()
         int64_t needsBarrierMask = kDrawGroupMask;
         if (m_flushDesc.interlockMode == pls::InterlockMode::depthStencil)
         {
-            // depthStencil mode also draws strokes, fills, and even/odd with different stencil
-            // settings, so these also need a barrier.
+            // depthStencil mode also draws clips, strokes, fills, and even/odd with different
+            // stencil settings, so these also need a barrier.
             needsBarrierMask |= kDrawContentsMask;
             if (platformFeatures.depthStencilSupportsKHRBlendEquations)
             {
@@ -918,17 +967,9 @@ void PLSRenderContext::LogicalFlush::writeResources()
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     DrawType::plsAtomicResolve,
                                     BlendMode::srcOver,
+                                    1,
                                     0);
-            m_drawList.tail().elementCount = 1;
             m_drawList.tail().shaderFeatures = m_combinedShaderFeatures;
-        }
-    }
-    else
-    {
-        // Write out all the data for our high level draws, and build up a low-level draw list.
-        for (const PLSDrawUniquePtr& draw : m_plsDraws)
-        {
-            draw->pushToRenderContext(this);
         }
     }
 
@@ -1329,14 +1370,9 @@ void PLSRenderContext::LogicalFlush::pushPath(const PLSPathDraw* draw,
         m_pathTessLocation = m_pathMirroredTessLocation = tessLocation + tessVertexCount;
     }
 
-    DrawBatch& batch = pushPathDraw(drawType, baseInstance, draw);
-    assert(batch.baseElement + batch.elementCount == baseInstance);
     uint32_t instanceCount = tessVertexCount / patchSize;
     assert(instanceCount * patchSize == tessVertexCount); // flush() is responsible for alignment.
-    batch.elementCount += instanceCount;
-    assert((batch.shaderFeatures &
-            pls::ShaderFeaturesMaskFor(batch.drawType, m_ctx->frameInterlockMode())) ==
-           batch.shaderFeatures);
+    pushPathDraw(draw, drawType, instanceCount, baseInstance);
 }
 
 void PLSRenderContext::LogicalFlush::pushContour(Vec2D midpoint,
@@ -1569,20 +1605,16 @@ void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangula
 {
     assert(m_hasDoneLayout);
 
-    DrawBatch& batch = pushPathDraw(DrawType::interiorTriangulation,
-                                    m_ctx->m_triangleVertexData.elementsWritten(),
-                                    draw);
     assert(m_ctx->m_triangleVertexData.hasRoomFor(draw->triangulator()->maxVertexCount()));
+    uint32_t baseVertex = m_ctx->m_triangleVertexData.elementsWritten();
     size_t actualVertexCount =
         draw->triangulator()->polysToTriangles(&m_ctx->m_triangleVertexData, m_currentPathID);
     assert(actualVertexCount <= draw->triangulator()->maxVertexCount());
-    batch.elementCount = actualVertexCount;
+    DrawBatch& batch =
+        pushPathDraw(draw, DrawType::interiorTriangulation, actualVertexCount, baseVertex);
     // Interior triangulations are allowed to disable raster ordering since they are guaranteed to
     // not overlap.
     batch.needsBarrier = true;
-    assert((batch.shaderFeatures & pls::ShaderFeaturesMaskFor(pls::DrawType::interiorTriangulation,
-                                                              m_ctx->frameInterlockMode())) ==
-           batch.shaderFeatures);
 }
 
 void PLSRenderContext::LogicalFlush::pushImageRect(const ImageRectDraw* draw)
@@ -1601,12 +1633,8 @@ void PLSRenderContext::LogicalFlush::pushImageRect(const ImageRectDraw* draw)
                                                draw->blendMode(),
                                                m_currentZIndex);
 
-    DrawBatch& batch = pushDraw(DrawType::imageRect, 0, PaintType::image, draw);
-    batch.elementCount = 1;
+    DrawBatch& batch = pushDraw(draw, DrawType::imageRect, PaintType::image, 1, 0);
     batch.imageDrawDataOffset = imageDrawDataOffset;
-    assert((batch.shaderFeatures &
-            pls::ShaderFeaturesMaskFor(pls::DrawType::imageRect, m_ctx->frameInterlockMode())) ==
-           batch.shaderFeatures);
 }
 
 void PLSRenderContext::LogicalFlush::pushImageMesh(const ImageMeshDraw* draw)
@@ -1622,15 +1650,30 @@ void PLSRenderContext::LogicalFlush::pushImageMesh(const ImageMeshDraw* draw)
                                                draw->blendMode(),
                                                m_currentZIndex);
 
-    DrawBatch& batch = pushDraw(DrawType::imageMesh, 0, PaintType::image, draw);
-    batch.elementCount = draw->indexCount();
+    DrawBatch& batch = pushDraw(draw, DrawType::imageMesh, PaintType::image, draw->indexCount(), 0);
     batch.vertexBuffer = draw->vertexBuffer();
     batch.uvBuffer = draw->uvBuffer();
     batch.indexBuffer = draw->indexBuffer();
     batch.imageDrawDataOffset = imageDrawDataOffset;
-    assert((batch.shaderFeatures &
-            pls::ShaderFeaturesMaskFor(pls::DrawType::imageMesh, m_ctx->frameInterlockMode())) ==
-           batch.shaderFeatures);
+}
+
+void PLSRenderContext::LogicalFlush::pushStencilClipReset(const StencilClipReset* draw)
+{
+    assert(m_hasDoneLayout);
+
+    uint32_t baseVertex = m_ctx->m_triangleVertexData.elementsWritten();
+    auto [L, T, R, B] = AABB(getClipInfo(draw->previousClipID()).contentBounds);
+    uint32_t Z = m_currentZIndex;
+    assert(AABB(L, T, R, B).round() == draw->pixelBounds());
+    assert(draw->resourceCounts().maxTriangleVertexCount == 6);
+    assert(m_ctx->m_triangleVertexData.hasRoomFor(6));
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{L, B}, 0, Z);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{L, T}, 0, Z);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{R, B}, 0, Z);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{R, B}, 0, Z);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{L, T}, 0, Z);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{R, T}, 0, Z);
+    pushDraw(draw, DrawType::stencilClipReset, PaintType::clipUpdate, 6, baseVertex);
 }
 
 void PLSRenderContext::LogicalFlush::pushBarrier()
@@ -1644,13 +1687,14 @@ void PLSRenderContext::LogicalFlush::pushBarrier()
     }
 }
 
-pls::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(DrawType drawType,
-                                                             size_t baseVertex,
-                                                             const PLSPathDraw* draw)
+pls::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(const PLSPathDraw* draw,
+                                                             DrawType drawType,
+                                                             uint32_t vertexCount,
+                                                             uint32_t baseVertex)
 {
     assert(m_hasDoneLayout);
 
-    DrawBatch& batch = pushDraw(drawType, baseVertex, draw->paintType(), draw);
+    DrawBatch& batch = pushDraw(draw, drawType, draw->paintType(), vertexCount, baseVertex);
     auto pathShaderFeatures = pls::ShaderFeatures::NONE;
     if (draw->fillRule() == FillRule::evenOdd)
     {
@@ -1662,6 +1706,9 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(DrawType drawType,
     }
     batch.shaderFeatures |= pathShaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch.shaderFeatures;
+    assert((batch.shaderFeatures &
+            pls::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
+           batch.shaderFeatures);
     return batch;
 }
 
@@ -1678,10 +1725,11 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* current
     return currentDrawTexture == nextDrawTexture;
 }
 
-pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
-                                                         size_t baseVertex,
+pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(const PLSDraw* draw,
+                                                         DrawType drawType,
                                                          pls::PaintType paintType,
-                                                         const PLSDraw* draw)
+                                                         uint32_t elementCount,
+                                                         uint32_t baseElement)
 {
     assert(m_hasDoneLayout);
 
@@ -1690,6 +1738,9 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
     {
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
+        case DrawType::plsAtomicInitialize:
+        case DrawType::plsAtomicResolve:
+        case DrawType::stencilClipReset:
             needsNewBatch =
                 m_drawList.empty() || m_drawList.tail().drawType != drawType ||
                 m_drawList.tail().needsBarrier ||
@@ -1698,8 +1749,6 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
         case DrawType::interiorTriangulation:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::plsAtomicInitialize:
-        case DrawType::plsAtomicResolve:
             // We can't combine interior triangulations or image draws yet.
             needsNewBatch = true;
             break;
@@ -1708,13 +1757,25 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
     DrawBatch& batch = needsNewBatch ? m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                                                drawType,
                                                                draw->blendMode(),
-                                                               baseVertex)
+                                                               elementCount,
+                                                               baseElement)
                                      : m_drawList.tail();
-
-    // If using KHR_blend_equation_advanced, we can't mix blend modes in a batch.
-    assert(m_flushDesc.interlockMode != pls::InterlockMode::depthStencil ||
-           !m_ctx->platformFeatures().depthStencilSupportsKHRBlendEquations ||
-           draw->blendMode() == batch.firstBlendMode);
+    if (!needsNewBatch)
+    {
+        assert(batch.drawType == drawType);
+        assert(can_combine_draw_images(batch.imageTexture, draw->imageTexture()));
+        assert(!batch.needsBarrier);
+        if (m_flushDesc.interlockMode == pls::InterlockMode::depthStencil)
+        {
+            // depthStencil can't mix drawContents in a batch.
+            assert(batch.drawContents == draw->drawContents());
+            // If using KHR_blend_equation_advanced, we can't mix blend modes in a batch.
+            assert(!m_ctx->platformFeatures().depthStencilSupportsKHRBlendEquations ||
+                   batch.firstBlendMode == draw->blendMode());
+        }
+        assert(batch.baseElement + batch.elementCount == baseElement);
+        batch.elementCount += elementCount;
+    }
 
     if (paintType == PaintType::image)
     {
@@ -1765,6 +1826,9 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(DrawType drawType,
     batch.shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch.shaderFeatures;
     batch.drawContents |= draw->drawContents();
+    assert((batch.shaderFeatures &
+            pls::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
+           batch.shaderFeatures);
     return batch;
 }
 } // namespace rive::pls

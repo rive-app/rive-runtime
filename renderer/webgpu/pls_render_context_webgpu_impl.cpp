@@ -593,6 +593,7 @@ public:
                     break;
                 case DrawType::plsAtomicInitialize:
                 case DrawType::plsAtomicResolve:
+                case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
             for (size_t i = 0; i < pls::kShaderFeatureCount; ++i)
@@ -647,6 +648,8 @@ public:
                 case DrawType::plsAtomicResolve:
                     addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                     addDefine(GLSL_RESOLVE_PLS);
+                    RIVE_UNREACHABLE();
+                case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
 
@@ -707,6 +710,7 @@ public:
                     break;
                 case DrawType::plsAtomicInitialize:
                 case DrawType::plsAtomicResolve:
+                case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
         }
@@ -1513,6 +1517,7 @@ wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
             break;
         case DrawType::plsAtomicInitialize:
         case DrawType::plsAtomicResolve:
+        case DrawType::stencilClipReset:
             RIVE_UNREACHABLE();
     }
 
@@ -2050,6 +2055,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::plsAtomicInitialize:
             case DrawType::plsAtomicResolve:
+            case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
     }

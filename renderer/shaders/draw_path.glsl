@@ -200,7 +200,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     {
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 #ifdef @USING_DEPTH_STENCIL
-        pos.z = 1. - float(pathZIndex) * (2. / 32768.);
+        pos.z = normalize_z_index(pathZIndex);
 #endif
     }
     else
