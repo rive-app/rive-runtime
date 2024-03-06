@@ -68,16 +68,15 @@ private:
         virtual void deactivatePixelLocalStorage(PLSRenderContextGLImpl*,
                                                  const FlushDescriptor&) = 0;
 
-        // Optimization for when rendering to an offscreen framebuffer in atomic mode.
-        //
-        // It renders the final PLS resolve operation to the destination framebuffer in a single
-        // pass, instead of (1) resolving the offscreen framebuffer, and (2) blitting offscreen
-        // framebuffer to the destination framebuffer.
-        virtual bool supportsCoalescedPLSResolveAndTransfer(const PLSRenderTargetGL*) const
+        // Depending on how we handle PLS atomic resolves, the PLSImpl may require certain flags.
+        virtual pls::ShaderMiscFlags atomicResolveShaderMiscFlags(const pls::FlushDescriptor&) const
         {
-            return false;
+            return pls::ShaderMiscFlags::none;
         }
-        virtual void setupCoalescedPLSResolveAndTransfer(PLSRenderTargetGL*) {}
+
+        // Called before issuing a plsAtomicResolve draw, so the PLSImpl can make any necessary GL
+        // state changes.
+        virtual void setupAtomicResolve(const pls::FlushDescriptor&) {}
 
         virtual const char* shaderDefineName() const = 0;
 

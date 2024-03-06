@@ -12,6 +12,13 @@
 
 namespace rive::pls
 {
+static bool needs_offscreen_atomic_texture(const pls::FlushDescriptor& desc)
+{
+    return (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+           lite_rtti_cast<FramebufferRenderTargetGL*>(
+               static_cast<PLSRenderTargetGL*>(desc.renderTarget)) != nullptr;
+}
+
 class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::PLSImpl
 {
     bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
@@ -65,61 +72,68 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZeroClear);
         }
 
-        // Bind the framebuffer we will render to.
-        if (!renderDirectToRasterPipeline)
+        switch (desc.interlockMode)
         {
-            renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
-        }
-        else
-        {
-            renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
+            case pls::InterlockMode::rasterOrdering:
+                // rasterOrdering mode renders by storing to an image texture. Bind a framebuffer
+                // with no color attachments.
+                renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
+                break;
+            case pls::InterlockMode::atomics:
+                renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
+                if (needs_offscreen_atomic_texture(desc))
+                {
+                    // When rendering to an offscreen atomic texture, still bind the target
+                    // framebuffer, but disable color writes until it's time to resolve.
+                    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+                }
+                break;
+            default:
+                RIVE_UNREACHABLE();
         }
 
         renderTarget->bindAsImageTextures();
 
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
-        assert(m_didCoalescedPLSResolveAndTransfer == false);
     }
 
-    bool supportsCoalescedPLSResolveAndTransfer(
-        const PLSRenderTargetGL* renderTarget) const override
+    pls::ShaderMiscFlags atomicResolveShaderMiscFlags(
+        const pls::FlushDescriptor& desc) const override
     {
-        return lite_rtti_cast<const FramebufferRenderTargetGL*>(renderTarget) != nullptr;
+        assert(desc.interlockMode == pls::InterlockMode::atomics);
+        return needs_offscreen_atomic_texture(desc)
+                   ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
+                   : pls::ShaderMiscFlags::none;
     }
 
-    void setupCoalescedPLSResolveAndTransfer(PLSRenderTargetGL* renderTarget) override
+    void setupAtomicResolve(const pls::FlushDescriptor& desc) override
     {
-        // Bind the external target framebuffer for rendering the PLS resolve operation.
-        assert(lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget) != nullptr);
-        renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
-        m_didCoalescedPLSResolveAndTransfer = true;
+        assert(desc.interlockMode == pls::InterlockMode::atomics);
+        if (needs_offscreen_atomic_texture(desc))
+        {
+            // Turn the color mask back on now that we're about to resolve.
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        }
     }
 
     void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
 
-        if (pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures))
+        // atomic mode never needs to copy anything here because it transfers the offscreen texture
+        // during resolve.
+        if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
         {
-            assert(!m_didCoalescedPLSResolveAndTransfer);
-            return;
-        }
-
-        if (m_didCoalescedPLSResolveAndTransfer)
-        {
-            m_didCoalescedPLSResolveAndTransfer = false;
-            return;
-        }
-
-        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
-        {
-            // We rendered to an offscreen texture. Copy back to the external target framebuffer.
-            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER, 1);
-            framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                     framebufferRenderTarget->height());
+            if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
+                    static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+            {
+                // We rendered to an offscreen texture. Copy back to the external target
+                // framebuffer.
+                framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER, 1);
+                framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
+                glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                         framebufferRenderTarget->height());
+            }
         }
     }
 
@@ -129,8 +143,6 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     {
         return glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
-
-    bool m_didCoalescedPLSResolveAndTransfer = false;
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplRWTexture()

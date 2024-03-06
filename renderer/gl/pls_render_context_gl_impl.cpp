@@ -1058,11 +1058,6 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                 desc.tessVertexSpanCount);
     }
 
-    bool renderPassHasCoalescedResolveAndTransfer =
-        desc.interlockMode == pls::InterlockMode::atomics &&
-        !pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures) &&
-        m_plsImpl->supportsCoalescedPLSResolveAndTransfer(renderTarget);
-
     // Compile the draw programs before activating pixel local storage.
     // Cache specific compilations by DrawType and ShaderFeatures.
     // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while active.)
@@ -1071,9 +1066,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         auto shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve &&
-                                               renderPassHasCoalescedResolveAndTransfer
-                                           ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
+        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve
+                                           ? m_plsImpl->atomicResolveShaderMiscFlags(desc)
                                            : pls::ShaderMiscFlags::none;
         uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
                                                           shaderFeatures,
@@ -1158,9 +1152,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         auto shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve &&
-                                               renderPassHasCoalescedResolveAndTransfer
-                                           ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
+        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve
+                                           ? m_plsImpl->atomicResolveShaderMiscFlags(desc)
                                            : pls::ShaderMiscFlags::none;
         uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
                                                           shaderFeatures,
@@ -1346,18 +1339,14 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::plsAtomicResolve:
+            {
                 assert(desc.interlockMode == pls::InterlockMode::atomics);
                 m_plsImpl->ensureRasterOrderingEnabled(this, false);
                 m_state->bindVAO(m_emptyVAO);
-                if (renderPassHasCoalescedResolveAndTransfer)
-                {
-                    // Since setupCoalescedPLSResolveAndTransfer() binds a different framebuffer,
-                    // this better be the final batch of the render pass.
-                    assert(&batch == &desc.drawList->tail());
-                    m_plsImpl->setupCoalescedPLSResolveAndTransfer(renderTarget);
-                }
+                m_plsImpl->setupAtomicResolve(desc);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
+            }
             case DrawType::plsAtomicInitialize:
                 RIVE_UNREACHABLE();
         }
