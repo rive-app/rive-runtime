@@ -33,6 +33,11 @@ const char atomic_draw[] = "";
 #define ENABLE_PLS_EXPERIMENTAL_ATOMICS
 #endif
 
+#ifdef RIVE_WEBGL
+#include <emscripten/emscripten.h>
+#include <emscripten/html5.h>
+#endif
+
 // Offset all PLS texture indices by 1 so we, and others who share our GL context, can use
 // GL_TEXTURE0 as a scratch texture index.
 constexpr static int kPLSTexIdxOffset = 1;
@@ -59,10 +64,12 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     {
         m_platformFeatures.supportsBindlessTextures = true;
     }
-    m_platformFeatures.supportsRasterOrdering = m_plsImpl->supportsRasterOrdering(m_capabilities);
+    m_platformFeatures.supportsPixelLocalStorage = m_plsImpl != nullptr;
+    m_platformFeatures.supportsRasterOrdering = m_platformFeatures.supportsPixelLocalStorage &&
+                                                m_plsImpl->supportsRasterOrdering(m_capabilities);
     if (m_capabilities.KHR_blend_equation_advanced_coherent)
     {
-        m_platformFeatures.depthStencilSupportsKHRBlendEquations = true;
+        m_platformFeatures.supportsKHRBlendEquations = true;
     }
 
     std::vector<const char*> generalDefines;
@@ -209,7 +216,10 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 
     glGenVertexArrays(1, &m_emptyVAO);
 
-    m_plsImpl->init(m_state);
+    if (m_plsImpl != nullptr)
+    {
+        m_plsImpl->init(m_state);
+    }
 }
 
 PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
@@ -647,7 +657,10 @@ public:
 #endif
 
         std::vector<const char*> defines;
-        defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
+        if (plsContextImpl->m_plsImpl != nullptr)
+        {
+            defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
+        }
         for (size_t i = 0; i < kShaderFeatureCount; ++i)
         {
             ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
@@ -1193,8 +1206,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else if (m_capabilities.KHR_blend_equation_advanced_coherent)
             {
-                // When m_platformFeatures.depthStencilSupportsKHRBlendEquations is true, the
-                // renderContext does not combine draws when they have different blend modes.
+                // When m_platformFeatures.supportsKHRBlendEquations is true in depthStencil mode,
+                // the renderContext does not combine draws when they have different blend modes.
                 m_state->setBlendEquation(batch.firstBlendMode);
             }
             else
@@ -1613,6 +1626,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         capabilities.EXT_clip_cull_distance = true;
     }
 
+#ifndef RIVE_WEBGL
     GLint extensionCount;
     glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
     for (int i = 0; i < extensionCount; ++i)
@@ -1622,7 +1636,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         {
             capabilities.ANGLE_base_vertex_base_instance_shader_builtin = true;
         }
-        if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage") == 0)
+        else if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage") == 0)
         {
             capabilities.ANGLE_shader_pixel_local_storage = true;
         }
@@ -1674,10 +1688,6 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         {
             capabilities.EXT_clip_cull_distance = true;
         }
-        else if (strcmp(ext, "GL_WEBGL_clip_cull_distance") == 0)
-        {
-            capabilities.EXT_clip_cull_distance = true;
-        }
         else if (strcmp(ext, "GL_INTEL_fragment_shader_ordering") == 0)
         {
             capabilities.INTEL_fragment_shader_ordering = true;
@@ -1695,6 +1705,27 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
             capabilities.QCOM_shader_framebuffer_fetch_noncoherent = true;
         }
     }
+#else  // !RIVE_WEBGL -> RIVE_WEBGL
+    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
+                                          "WEBGL_shader_pixel_local_storage"))
+    {
+        capabilities.ANGLE_shader_pixel_local_storage = true;
+        if (webgl_shader_pixel_local_storage_is_coherent())
+        {
+            capabilities.ANGLE_shader_pixel_local_storage_coherent = true;
+        }
+    }
+    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
+                                          "WEBGL_provoking_vertex"))
+    {
+        capabilities.ANGLE_provoking_vertex = true;
+    }
+    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
+                                          "EXT_clip_cull_distance"))
+    {
+        capabilities.EXT_clip_cull_distance = true;
+    }
+#endif // RIVE_WEBGL
 
 #ifdef RIVE_DESKTOP_GL
     // We implement some ES capabilities with core Desktop GL in glad_custom.c.
@@ -1738,7 +1769,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
     // polyfilled on D3D anyway, and we need to test our fallback.
     GLenum rendererToken = GL_RENDERER;
-#if defined(RIVE_WEBGL) && defined(GL_WEBGL_shader_pixel_local_storage)
+#ifdef RIVE_WEBGL
     if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
                                           "WEBGL_debug_renderer_info"))
     {
@@ -1750,46 +1781,42 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     {
         capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
     }
-
 #ifdef RIVE_GLES
-    loadGLESExtensions(capabilities); // Android doesn't load extension functions for us.
-    if (capabilities.EXT_shader_pixel_local_storage &&
-        (capabilities.ARM_shader_framebuffer_fetch || capabilities.EXT_shader_framebuffer_fetch))
-    {
-        return MakeContext(rendererString, capabilities, MakePLSImplEXTNative(capabilities));
-    }
+    LoadGLESExtensions(capabilities); // Android doesn't load extension functions for us.
+#endif
 
-    if (capabilities.EXT_shader_framebuffer_fetch)
+    if (!contextOptions.disablePixelLocalStorage)
     {
-        return MakeContext(rendererString, capabilities, MakePLSImplFramebufferFetch(capabilities));
-    }
+#ifdef RIVE_GLES
+        if (!capabilities.EXT_shader_pixel_local_storage &&
+            (capabilities.ARM_shader_framebuffer_fetch ||
+             capabilities.EXT_shader_framebuffer_fetch))
+        {
+            return MakeContext(rendererString, capabilities, MakePLSImplEXTNative(capabilities));
+        }
+
+        if (capabilities.EXT_shader_framebuffer_fetch)
+        {
+            return MakeContext(rendererString,
+                               capabilities,
+                               MakePLSImplFramebufferFetch(capabilities));
+        }
+#else
+        if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
+        {
+            return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
+        }
 #endif
 
 #ifdef RIVE_DESKTOP_GL
-    if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
-    {
-        return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
-    }
-
-    if (capabilities.ARB_shader_image_load_store)
-    {
-        return MakeContext(rendererString, capabilities, MakePLSImplRWTexture());
-    }
+        if (capabilities.ARB_shader_image_load_store)
+        {
+            return MakeContext(rendererString, capabilities, MakePLSImplRWTexture());
+        }
 #endif
-
-#if defined(RIVE_WEBGL) && defined(GL_WEBGL_shader_pixel_local_storage)
-    if (emscripten_webgl_enable_WEBGL_shader_pixel_local_storage(
-            emscripten_webgl_get_current_context()) &&
-        emscripten_webgl_shader_pixel_local_storage_is_coherent())
-    {
-        capabilities.ANGLE_shader_pixel_local_storage = true;
-        capabilities.ANGLE_shader_pixel_local_storage_coherent = true;
-        return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
     }
-#endif
 
-    fprintf(stderr, "Pixel local storage is not supported.\n");
-    return nullptr;
+    return MakeContext(rendererString, capabilities, nullptr);
 }
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(

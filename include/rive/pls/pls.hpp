@@ -91,8 +91,10 @@ constexpr static size_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {
-    uint8_t pathIDGranularity = 1; // Workaround for precision issues. Determines how far apart we
-                                   // space unique path IDs.
+    bool supportsPixelLocalStorage = true;
+    bool supportsRasterOrdering = true;     // Can pixel local storage accesses be raster ordered?
+    bool supportsKHRBlendEquations = false; // Use KHR_blend_equation_advanced in depthStencil mode?
+    bool supportsBindlessTextures = false;
     bool avoidFlatVaryings = false;
     bool invertOffscreenY = false;  // Invert Y when drawing to offscreen render targets? (Gradient
                                     // and tessellation textures.)
@@ -100,13 +102,11 @@ struct PlatformFeatures
                                     // to on-screen vertex shaders that needs to be undone.
     bool fragCoordBottomUp = false; // Does the built-in pixel coordinate in the fragment shader go
                                     // bottom-up or top-down?
-    bool supportsBindlessTextures = false;
-    bool supportsRasterOrdering = false; // Can pixel local storage accesses be raster ordered?
     bool atomicPLSMustBeInitializedAsDraw = false; // Backend cannot initialize PLS with typical
                                                    // clear/load APIs in atomic mode. Issue a
                                                    // "DrawType::plsAtomicInitialize" draw instead.
-    bool depthStencilSupportsKHRBlendEquations = false; // Use KHR_blend_equation_advanced in
-                                                        // depthStencil mode?
+    uint8_t pathIDGranularity = 1; // Workaround for precision issues. Determines how far apart we
+                                   // space unique path IDs.
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a global gradient
@@ -658,8 +658,8 @@ struct DrawBatch
 
     const DrawType drawType;
     BlendMode firstBlendMode; // Blend mode of the first draw in the batch. (If in depthStencil
-                              // mode and PlatformFeatures::depthStencilSupportsKHRBlendEquations
-                              // is true, this will be the only blend mode in the batch.)
+                              // mode and PlatformFeatures::supportsKHRBlendEquations is true, this
+                              // will be the only blend mode in the batch.)
     uint32_t elementCount;    // Vertex, index, or instance count.
     uint32_t baseElement;     // Base vertex, index, or instance.
     DrawContents drawContents = DrawContents::none;

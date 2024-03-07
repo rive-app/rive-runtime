@@ -8,36 +8,152 @@
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "shaders/constants.glsl"
 
+#include "shaders/out/generated/glsl.exports.h"
+
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
-#endif
 
-#include "shaders/out/generated/glsl.exports.h"
+EM_JS(bool,
+      webgl_shader_pixel_local_storage_is_coherent_js,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle),
+      {
+          const gl = GL.getContext(contextHandle).GLctx;
+          const ext = gl.getExtension("WEBGL_shader_pixel_local_storage");
+          return ext && ext.isCoherent();
+      });
+
+EM_JS(void,
+      framebufferTexturePixelLocalStorageWEBGL,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle,
+       GLint plane,
+       GLuint backingtexture,
+       GLint level,
+       GLint layer),
+      {
+          const gl = GL.getContext(contextHandle).GLctx;
+          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
+          if (ext)
+          {
+              ext.framebufferTexturePixelLocalStorageWEBGL(plane,
+                                                           GL.textures[backingtexture],
+                                                           level,
+                                                           layer);
+          }
+      });
+
+EM_JS(void,
+      framebufferPixelLocalClearValuefvWEBGL,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle,
+       GLint plane,
+       float r,
+       float g,
+       float b,
+       float a),
+      {
+          const gl = GL.getContext(contextHandle).GLctx;
+          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
+          if (ext)
+          {
+              ext.framebufferPixelLocalClearValuefvWEBGL(plane, [ r, g, b, a ]);
+          }
+      });
+
+EM_JS(void,
+      beginPixelLocalStorageWEBGL,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle, uint32_t n, uint32_t loadopsIdx),
+      {
+          const gl = GL.getContext(contextHandle).GLctx;
+          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
+          if (ext)
+          {
+              ext.beginPixelLocalStorageWEBGL(Module.HEAPU32.subarray(loadopsIdx, loadopsIdx + n));
+          }
+      });
+
+EM_JS(void,
+      endPixelLocalStorageWEBGL,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle, uint32_t n, uint32_t storeopsIdx),
+      {
+          const gl = GL.getContext(contextHandle).GLctx;
+          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
+          if (ext)
+          {
+              ext.endPixelLocalStorageWEBGL(Module.HEAPU32.subarray(storeopsIdx, storeopsIdx + n));
+          }
+      });
+
+EM_JS(void,
+      provokingVertexWEBGL,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle, GLenum provokeMode),
+      {
+          const gl = GL.getContext(contextHandle).GLctx;
+          const ext = Module["ctx"].getExtension("WEBGL_provoking_vertex");
+          if (ext)
+          {
+              ext.provokingVertexWEBGL(provokeMode);
+          }
+      });
+
+bool webgl_shader_pixel_local_storage_is_coherent()
+{
+    return webgl_shader_pixel_local_storage_is_coherent_js(emscripten_webgl_get_current_context());
+}
+
+void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
+                                                GLuint backingtexture,
+                                                GLint level,
+                                                GLint layer)
+{
+    framebufferTexturePixelLocalStorageWEBGL(emscripten_webgl_get_current_context(),
+                                             plane,
+                                             backingtexture,
+                                             level,
+                                             layer);
+}
+
+void glFramebufferPixelLocalClearValuefvANGLE(GLint plane, const GLfloat value[4])
+{
+    framebufferPixelLocalClearValuefvWEBGL(emscripten_webgl_get_current_context(),
+                                           plane,
+                                           value[0],
+                                           value[1],
+                                           value[2],
+                                           value[3]);
+}
+
+void glBeginPixelLocalStorageANGLE(GLsizei n, const uint32_t loadops[])
+{
+    beginPixelLocalStorageWEBGL(emscripten_webgl_get_current_context(),
+                                n,
+                                reinterpret_cast<uintptr_t>(loadops) / sizeof(uint32_t));
+}
+
+void glEndPixelLocalStorageANGLE(GLsizei n, const uint32_t storeops[])
+{
+    endPixelLocalStorageWEBGL(emscripten_webgl_get_current_context(),
+                              n,
+                              reinterpret_cast<uintptr_t>(storeops) / sizeof(uint32_t));
+}
+
+void glProvokingVertexANGLE(GLenum provokeMode)
+{
+    provokingVertexWEBGL(emscripten_webgl_get_current_context(), provokeMode);
+}
+#endif // RIVE_WEBGL
 
 namespace rive::pls
 {
-#ifndef GL_WEBGL_shader_pixel_local_storage
-
-// WEBGL_shader_pixel_local_storage bindings aren't in mainline emcsripten yet. Don't implement this
-// interface if we don't have bindings.
-std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplWebGL()
-{
-    return nullptr;
-}
-
-#else
-
 static GLenum webgl_load_op(pls::LoadAction loadAction)
 {
     switch (loadAction)
     {
         case pls::LoadAction::clear:
-            return GL_LOAD_OP_CLEAR_WEBGL;
+            return GL_LOAD_OP_CLEAR_ANGLE;
         case pls::LoadAction::preserveRenderTarget:
-            return GL_LOAD_OP_LOAD_WEBGL;
+            return GL_LOAD_OP_LOAD_ANGLE;
         case pls::LoadAction::dontCare:
-            return GL_LOAD_OP_ZERO_WEBGL;
+            return GL_LOAD_OP_ZERO_ANGLE;
     }
     RIVE_UNREACHABLE();
 }
@@ -46,11 +162,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
 {
     bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
     {
-#ifdef RIVE_WEBGL
-        return emscripten_webgl_shader_pixel_local_storage_is_coherent();
-#else
         return capabilities.ANGLE_shader_pixel_local_storage_coherent;
-#endif
     }
 
     void activatePixelLocalStorage(PLSRenderContextGLImpl* plsContextImpl,
@@ -80,25 +192,25 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glFramebufferPixelLocalClearValuefvWEBGL(FRAMEBUFFER_PLANE_IDX, clearColor4f);
+            glFramebufferPixelLocalClearValuefvANGLE(FRAMEBUFFER_PLANE_IDX, clearColor4f);
         }
         GLenum clipLoadAction = (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
-                                    ? GL_LOAD_OP_ZERO_WEBGL
+                                    ? GL_LOAD_OP_ZERO_ANGLE
                                     : GL_DONT_CARE;
         GLenum loadOps[4] = {webgl_load_op(desc.colorLoadAction),
-                             GL_LOAD_OP_ZERO_WEBGL,
+                             GL_LOAD_OP_ZERO_ANGLE,
                              clipLoadAction,
                              GL_DONT_CARE};
         static_assert(FRAMEBUFFER_PLANE_IDX == 0);
         static_assert(COVERAGE_PLANE_IDX == 1);
         static_assert(CLIP_PLANE_IDX == 2);
         static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
-        glBeginPixelLocalStorageWEBGL(4, loadOps);
+        glBeginPixelLocalStorageANGLE(4, loadOps);
     }
 
     void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
     {
-        constexpr static GLenum kStoreOps[4] = {GL_STORE_OP_STORE_WEBGL,
+        constexpr static GLenum kStoreOps[4] = {GL_STORE_OP_STORE_ANGLE,
                                                 GL_DONT_CARE,
                                                 GL_DONT_CARE,
                                                 GL_DONT_CARE};
@@ -106,7 +218,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         static_assert(COVERAGE_PLANE_IDX == 1);
         static_assert(CLIP_PLANE_IDX == 2);
         static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
-        glEndPixelLocalStorageWEBGL(4, kStoreOps);
+        glEndPixelLocalStorageANGLE(4, kStoreOps);
 
         if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
                 static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
@@ -126,5 +238,4 @@ std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLS
 {
     return std::make_unique<PLSImplWebGL>();
 }
-#endif
 } // namespace rive::pls

@@ -75,6 +75,7 @@ void* PLSRenderBufferGLImpl::onMap()
     }
     else
     {
+#ifndef RIVE_WEBGL
         m_state->bindVAO(0);
         m_state->bindBuffer(m_target, m_bufferIDs[m_submittedBufferIdx]);
         return glMapBufferRange(m_target,
@@ -82,6 +83,10 @@ void* PLSRenderBufferGLImpl::onMap()
                                 sizeInBytes(),
                                 GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT |
                                     GL_MAP_UNSYNCHRONIZED_BIT);
+#else
+        // WebGL doesn't support buffer mapping.
+        RIVE_UNREACHABLE();
+#endif
     }
 }
 
@@ -99,7 +104,12 @@ void PLSRenderBufferGLImpl::onUnmap()
     }
     else
     {
+#ifndef RIVE_WEBGL
         glUnmapBuffer(m_target);
+#else
+        // WebGL doesn't support buffer mapping.
+        RIVE_UNREACHABLE();
+#endif
     }
 }
 

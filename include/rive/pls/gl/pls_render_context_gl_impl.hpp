@@ -20,6 +20,7 @@ class PLSRenderContextGLImpl : public PLSRenderContextHelperImpl
 public:
     struct ContextOptions
     {
+        bool disablePixelLocalStorage = false;
         bool disableFragmentShaderInterlock = false;
     };
 

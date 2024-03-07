@@ -4,21 +4,9 @@
 
 #include "rive/pls/gl/gl_state.hpp"
 
-#ifdef RIVE_WEBGL
-#include <emscripten.h>
-
-EM_JS(void, set_provoking_vertex_webgl, (GLenum convention), {
-    const ext = Module["ctx"].getExtension("WEBGL_provoking_vertex");
-    if (ext)
-    {
-        ext.provokingVertexWEBGL(convention);
-    }
-});
-#endif
-
 namespace rive::pls
 {
-void GLState::invalidate(const GLCapabilities& extensions)
+void GLState::invalidate(const GLCapabilities& capabilities)
 {
     // Invalidate all cached state.
     memset(&m_validState, 0, sizeof(m_validState));
@@ -36,14 +24,12 @@ void GLState::invalidate(const GLCapabilities& extensions)
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
 
+#ifndef RIVE_GLES
     // D3D and Metal both have a provoking vertex convention of "first" for flat varyings, and it's
     // very costly for ANGLE to implement the OpenGL convention of "last" on these backends. To
     // workaround this, ANGLE provides the ANGLE_provoking_vertex extension. When this extension is
     // present, we can just set the provoking vertex to "first" and trust that it will be fast.
-#ifdef RIVE_WEBGL
-    set_provoking_vertex_webgl(GL_FIRST_VERTEX_CONVENTION_WEBGL);
-#elif defined(RIVE_DESKTOP_GL)
-    if (extensions.ANGLE_provoking_vertex)
+    if (capabilities.ANGLE_provoking_vertex)
     {
         glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
     }
@@ -52,7 +38,11 @@ void GLState::invalidate(const GLCapabilities& extensions)
     // Low-effort attempt to reset core state we don't use to default values.
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_POLYGON_OFFSET_FILL);
+#ifndef RIVE_WEBGL
+    // https://www.khronos.org/registry/webgl/specs/latest/2.0/#5.18
+    // WebGL 2.0 behaves as though PRIMITIVE_RESTART_FIXED_INDEX were always enabled.
     glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+#endif
     glDisable(GL_RASTERIZER_DISCARD);
     glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     glDisable(GL_SAMPLE_COVERAGE);

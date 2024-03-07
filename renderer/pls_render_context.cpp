@@ -216,9 +216,10 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
 {
     assert(!m_didBeginFrame);
     m_frameDescriptor = std::move(frameDescriptor);
-    if (m_frameDescriptor.msaaSampleCount > 0)
+    if (m_frameDescriptor.msaaSampleCount > 0 || !platformFeatures().supportsPixelLocalStorage)
     {
         m_frameInterlockMode = pls::InterlockMode::depthStencil;
+        m_frameDescriptor.msaaSampleCount = std::max(m_frameDescriptor.msaaSampleCount, 1);
     }
     else if (m_frameDescriptor.disableRasterOrdering || !platformFeatures().supportsRasterOrdering)
     {
@@ -936,7 +937,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
             // depthStencil mode also draws clips, strokes, fills, and even/odd with different
             // stencil settings, so these also need a barrier.
             needsBarrierMask |= kDrawContentsMask;
-            if (platformFeatures.depthStencilSupportsKHRBlendEquations)
+            if (platformFeatures.supportsKHRBlendEquations)
             {
                 // If using KHR_blend_equation_advanced, we also need a barrier between blend modes
                 // in order to change the blend equation.
@@ -1770,7 +1771,7 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(const PLSDraw* draw,
             // depthStencil can't mix drawContents in a batch.
             assert(batch.drawContents == draw->drawContents());
             // If using KHR_blend_equation_advanced, we can't mix blend modes in a batch.
-            assert(!m_ctx->platformFeatures().depthStencilSupportsKHRBlendEquations ||
+            assert(!m_ctx->platformFeatures().supportsKHRBlendEquations ||
                    batch.firstBlendMode == draw->blendMode());
         }
         assert(batch.baseElement + batch.elementCount == baseElement);

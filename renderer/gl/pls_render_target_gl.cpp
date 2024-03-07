@@ -141,12 +141,12 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_headlessFramebufferID);
     }
 
-#ifdef GL_WEBGL_shader_pixel_local_storage
+#ifdef GL_ANGLE_shader_pixel_local_storage
     if (capabilities.ANGLE_shader_pixel_local_storage)
     {
         if (m_framebufferTargetPLSBindingDirty)
         {
-            glFramebufferTexturePixelLocalStorageWEBGL(FRAMEBUFFER_PLANE_IDX,
+            glFramebufferTexturePixelLocalStorageANGLE(FRAMEBUFFER_PLANE_IDX,
                                                        m_externalTextureID,
                                                        0,
                                                        0);
@@ -155,12 +155,12 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
 
         if (m_framebufferInternalPLSBindingsDirty)
         {
-            glFramebufferTexturePixelLocalStorageWEBGL(COVERAGE_PLANE_IDX,
+            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX,
                                                        m_coverageTextureID,
                                                        0,
                                                        0);
-            glFramebufferTexturePixelLocalStorageWEBGL(CLIP_PLANE_IDX, m_clipTextureID, 0, 0);
-            glFramebufferTexturePixelLocalStorageWEBGL(ORIGINAL_DST_COLOR_PLANE_IDX,
+            glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX, m_clipTextureID, 0, 0);
+            glFramebufferTexturePixelLocalStorageANGLE(ORIGINAL_DST_COLOR_PLANE_IDX,
                                                        m_originalDstColorTextureID,
                                                        0,
                                                        0);
