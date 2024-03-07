@@ -104,10 +104,11 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
     }
 }
 
-#else  // USING_DEPTH_STENCIL
+#else // USING_DEPTH_STENCIL
 
 INLINE float normalize_z_index(uint zIndex) { return 1. - float(zIndex) * (2. / 32768.); }
 
+#ifdef @ENABLE_CLIP_RECT
 INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
                                           float2 clipRectInverseTranslate,
                                           float2 pixelPosition)
@@ -130,6 +131,7 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
             clipRectInverseTranslate.x - .5;
     }
 }
+#endif // ENABLE_CLIP_RECT
 #endif // USING_DEPTH_STENCIL
 #endif // VERTEX
 

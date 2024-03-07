@@ -141,6 +141,10 @@ public:
         return m_frameDescriptor;
     }
 
+    // True if the current frame supports draws with clipRects (clipRectInverseMatrix != null).
+    // If false, all clipping must be done with clipPaths.
+    bool frameSupportsClipRects() const;
+
     // If the frame doesn't support image paints, the client must draw images with pushImageRect().
     // If it DOES support image paints, the client CANNOT use pushImageRect(); it should draw images
     // as rectangular paths with an image paint.

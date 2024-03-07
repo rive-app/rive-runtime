@@ -135,7 +135,7 @@ void PLSRenderer::clipPath(RenderPath* renderPath)
     // Multiple axis-aligned rectangles can be intersected into a single rectangle if their matrices
     // are compatible.
     AABB clipRectCandidate;
-    if (IsAABB(path->getRawPath(), &clipRectCandidate))
+    if (m_context->frameSupportsClipRects() && IsAABB(path->getRawPath(), &clipRectCandidate))
     {
         clipRectImpl(clipRectCandidate, path);
     }

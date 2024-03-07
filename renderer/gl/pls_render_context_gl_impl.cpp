@@ -53,6 +53,21 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     m_state(make_rcp<GLState>(m_capabilities))
 
 {
+    m_platformFeatures.supportsPixelLocalStorage = m_plsImpl != nullptr;
+    m_platformFeatures.supportsRasterOrdering = m_platformFeatures.supportsPixelLocalStorage &&
+                                                m_plsImpl->supportsRasterOrdering(m_capabilities);
+    if (m_capabilities.KHR_blend_equation_advanced_coherent)
+    {
+        m_platformFeatures.supportsKHRBlendEquations = true;
+    }
+    if (m_capabilities.EXT_clip_cull_distance)
+    {
+        m_platformFeatures.supportsClipPlanes = true;
+    }
+    if (m_capabilities.ARB_bindless_texture)
+    {
+        m_platformFeatures.supportsBindlessTextures = true;
+    }
     if (strstr(rendererString, "Apple") && strstr(rendererString, "Metal"))
     {
         // In Metal, non-flat varyings preserve their exact value if all vertices in the triangle
@@ -61,17 +76,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         m_platformFeatures.avoidFlatVaryings = true;
     }
     m_platformFeatures.fragCoordBottomUp = true;
-    if (m_capabilities.ARB_bindless_texture)
-    {
-        m_platformFeatures.supportsBindlessTextures = true;
-    }
-    m_platformFeatures.supportsPixelLocalStorage = m_plsImpl != nullptr;
-    m_platformFeatures.supportsRasterOrdering = m_platformFeatures.supportsPixelLocalStorage &&
-                                                m_plsImpl->supportsRasterOrdering(m_capabilities);
-    if (m_capabilities.KHR_blend_equation_advanced_coherent)
-    {
-        m_platformFeatures.supportsKHRBlendEquations = true;
-    }
 
     std::vector<const char*> generalDefines;
     if (!m_capabilities.ARB_shader_storage_buffer_object)

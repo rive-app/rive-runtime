@@ -95,6 +95,7 @@ struct PlatformFeatures
     bool supportsPixelLocalStorage = true;
     bool supportsRasterOrdering = true;     // Can pixel local storage accesses be raster ordered?
     bool supportsKHRBlendEquations = false; // Use KHR_blend_equation_advanced in depthStencil mode?
+    bool supportsClipPlanes = false;        // Required for @ENABLE_CLIP_RECT in depthStencil mode.
     bool supportsBindlessTextures = false;
     bool avoidFlatVaryings = false;
     bool invertOffscreenY = false;  // Invert Y when drawing to offscreen render targets? (Gradient

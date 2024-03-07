@@ -71,11 +71,15 @@
 #extension GL_KHR_blend_equation_advanced : require
 #endif
 
+#ifdef @USING_DEPTH_STENCIL
+#ifdef @ENABLE_CLIP_RECT
 #ifdef GL_EXT_clip_cull_distance
 #extension GL_EXT_clip_cull_distance : require
 #elif defined(GL_ANGLE_clip_cull_distance)
 #extension GL_ANGLE_clip_cull_distance : require
 #endif
+#endif // ENABLE_CLIP_RECT
+#endif // USING_DEPTH_STENCIL
 
 #if @GLSL_VERSION >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \

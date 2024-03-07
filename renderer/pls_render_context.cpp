@@ -238,6 +238,12 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
 }
 
+bool PLSRenderContext::frameSupportsClipRects() const
+{
+    return m_frameInterlockMode != pls::InterlockMode::depthStencil ||
+           platformFeatures().supportsClipPlanes;
+}
+
 bool PLSRenderContext::frameSupportsImagePaintForPaths() const
 {
     return m_frameInterlockMode != pls::InterlockMode::atomics ||
@@ -301,6 +307,7 @@ bool PLSRenderContext::LogicalFlush::pushDrawBatch(PLSDrawUniquePtr draws[], siz
     for (size_t i = 0; i < drawCount; ++i)
     {
         assert(!draws[i]->pixelBounds().empty());
+        assert(m_ctx->frameSupportsClipRects() || draws[i]->clipRectInverseMatrix() == nullptr);
         countsVector += draws[i]->resourceCounts().toVec();
     }
     PLSDraw::ResourceCounters countsWithNewBatch = countsVector;
