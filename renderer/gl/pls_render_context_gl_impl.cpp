@@ -7,6 +7,7 @@
 #include "gl_utils.hpp"
 #include "rive/pls/gl/pls_render_buffer_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
+#include "rive/pls/pls_draw.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
@@ -848,6 +849,13 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture),
                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
+    if (interlockMode == pls::InterlockMode::depthStencil &&
+        (shaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+        !plsContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
+    {
+        glUniform1i(glGetUniformLocation(m_id, GLSL_dstColorTexture),
+                    kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
+    }
     if (!plsContextImpl->m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
@@ -1158,9 +1166,19 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 
         glEnable(GL_STENCIL_TEST);
         glEnable(GL_DEPTH_TEST);
-        if (m_capabilities.KHR_blend_equation_advanced_coherent)
+
+        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
-            glEnable(GL_BLEND_ADVANCED_COHERENT_KHR);
+            if (m_capabilities.KHR_blend_equation_advanced_coherent)
+            {
+                glEnable(GL_BLEND_ADVANCED_COHERENT_KHR);
+            }
+            else
+            {
+                // Set up an internal texture to copy the framebuffer into, for in-shader blending.
+                renderTarget->bindInternalDstTexture(GL_TEXTURE0 + kPLSTexIdxOffset +
+                                                     DST_COLOR_TEXTURE_IDX);
+            }
         }
     }
 
@@ -1200,20 +1218,39 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 
         if (desc.interlockMode == pls::InterlockMode::depthStencil)
         {
+            // Set up the next blend.
             if (batch.drawContents & pls::DrawContents::opaquePaint)
             {
                 m_state->disableBlending();
+            }
+            else if (!(batch.drawContents & pls::DrawContents::advancedBlend))
+            {
+                assert(batch.internalDrawList->blendMode() == BlendMode::srcOver);
+                m_state->setBlendEquation(BlendMode::srcOver);
             }
             else if (m_capabilities.KHR_blend_equation_advanced_coherent)
             {
                 // When m_platformFeatures.supportsKHRBlendEquations is true in depthStencil mode,
                 // the renderContext does not combine draws when they have different blend modes.
-                m_state->setBlendEquation(batch.firstBlendMode);
+                m_state->setBlendEquation(batch.internalDrawList->blendMode());
             }
             else
             {
-                m_state->setBlendEquation(BlendMode::srcOver);
+                // Read back the framebuffer where we need a dstColor for blending.
+                renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+                for (const PLSDraw* draw = batch.internalDrawList; draw != nullptr;
+                     draw = draw->batchInternalNeighbor())
+                {
+                    assert(draw->blendMode() != BlendMode::srcOver);
+                    glutils::BlitFramebuffer(draw->pixelBounds(), renderTarget->height());
+                }
+                renderTarget->bindMSAAFramebuffer(GL_FRAMEBUFFER,
+                                                  desc.msaaSampleCount,
+                                                  m_capabilities);
+                m_state->disableBlending(); // Blend in the shader instead.
             }
+
+            // Set up the next clipRect.
             bool needsClipPlanes = (shaderFeatures & pls::ShaderFeatures::ENABLE_CLIP_RECT);
             if (needsClipPlanes != clipPlanesEnabled)
             {
@@ -1469,7 +1506,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
     else
     {
-        if (m_capabilities.KHR_blend_equation_advanced_coherent)
+        if ((desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+            m_capabilities.KHR_blend_equation_advanced_coherent)
         {
             glDisable(GL_BLEND_ADVANCED_COHERENT_KHR);
         }

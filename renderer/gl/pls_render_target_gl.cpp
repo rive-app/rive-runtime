@@ -6,7 +6,6 @@
 
 #include "rive/pls/pls.hpp"
 #include "shaders/constants.glsl"
-#include "gl_utils.hpp"
 
 namespace rive::pls
 {
@@ -258,6 +257,12 @@ void TextureRenderTargetGL::bindMSAAFramebuffer(GLenum target,
     }
 
     glBindFramebuffer(target, m_msaaFramebufferID);
+}
+
+void TextureRenderTargetGL::bindInternalDstTexture(GLenum activeTexture)
+{
+    glActiveTexture(activeTexture);
+    glBindTexture(GL_TEXTURE_2D, m_externalTextureID);
 }
 
 FramebufferRenderTargetGL::~FramebufferRenderTargetGL()

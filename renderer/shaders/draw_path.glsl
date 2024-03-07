@@ -212,7 +212,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
-#ifndef USING_DEPTH_STENCIL
+#ifndef @USING_DEPTH_STENCIL
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_PACK(v_windingWeight);
 #else
@@ -237,6 +237,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(GRAD_TEXTURE_IDX, @gradTexture);
 TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
+#ifdef @USING_DEPTH_STENCIL
+#ifdef @ENABLE_ADVANCED_BLEND
+TEXTURE_RGBA8(DST_COLOR_TEXTURE_IDX, @dstColorTexture);
+#endif
+#endif
 FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
@@ -485,9 +490,26 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
 #ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_UNPACK(v_blendMode, half); // TODO: implement advanced blend.
+    VARYING_UNPACK(v_blendMode, half);
 #endif
-    EMIT_FRAG_DATA(premultiply(find_paint_color(v_paint)));
+
+    half4 color = find_paint_color(v_paint);
+
+#ifdef @ENABLE_ADVANCED_BLEND
+    half4 dstColor = TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+#ifdef @ENABLE_HSL_BLEND_MODES
+    color = advanced_hsl_blend(
+#else
+    color = advanced_blend(
+#endif
+        color,
+        unmultiply(dstColor),
+        make_ushort(v_blendMode));
+#else // !ENABLE_ADVANCED_BLEND
+    color = premultiply(color);
+#endif
+
+    EMIT_FRAG_DATA(color);
 }
 
 #endif // !USING_DEPTH_STENCIL

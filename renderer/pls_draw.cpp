@@ -285,7 +285,12 @@ PLSDraw::PLSDraw(IAABB pixelBounds,
     m_matrix(matrix),
     m_blendMode(blendMode),
     m_type(type)
-{}
+{
+    if (m_blendMode != BlendMode::srcOver)
+    {
+        m_drawContents |= pls::DrawContents::advancedBlend;
+    }
+}
 
 void PLSDraw::setClipID(uint32_t clipID)
 {

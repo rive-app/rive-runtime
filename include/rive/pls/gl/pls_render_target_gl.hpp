@@ -50,6 +50,10 @@ public:
     // into the target texture.
     virtual void bindMSAAFramebuffer(GLenum target, int sampleCount, const GLCapabilities&) = 0;
 
+    // Binds the internal framebuffer as a texture that can be used to fetch the destination color
+    // (for blending).
+    virtual void bindInternalDstTexture(GLenum activeTexture) = 0;
+
 protected:
     PLSRenderTargetGL(uint32_t width, uint32_t height) : PLSRenderTarget(width, height) {}
 };
@@ -80,6 +84,7 @@ public:
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
     void bindAsImageTextures() final;
     void bindMSAAFramebuffer(GLenum target, int sampleCount, const GLCapabilities&) final;
+    void bindInternalDstTexture(GLenum activeTexture) final;
 
 private:
     // Not owned or deleted by us.
@@ -133,6 +138,11 @@ public:
     void bindMSAAFramebuffer(GLenum target, int sampleCount, const GLCapabilities&) final
     {
         bindDestinationFramebuffer(target); // Assume the external framebuffer is MSAA.
+    }
+    void bindInternalDstTexture(GLenum activeTexture) final
+    {
+        allocateOffscreenTargetTexture();
+        m_textureRenderTarget.bindInternalDstTexture(activeTexture);
     }
 
 private:

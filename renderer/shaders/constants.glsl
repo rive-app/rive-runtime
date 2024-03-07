@@ -85,7 +85,8 @@
 #define FLUSH_UNIFORM_BUFFER_IDX 7
 #define DRAW_UNIFORM_BUFFER_IDX 8
 #define IMAGE_DRAW_UNIFORM_BUFFER_IDX 9
-#define DEFAULT_BINDINGS_SET_SIZE 10
+#define DST_COLOR_TEXTURE_IDX 10
+#define DEFAULT_BINDINGS_SET_SIZE 11
 
 // Samplers are accessed at the same index as their corresponding texture, so we put them in a
 // separate binding set.

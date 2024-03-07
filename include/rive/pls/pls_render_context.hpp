@@ -490,7 +490,7 @@ private:
 
         // Pushes a record to the GPU for the given path, which will be referenced by future calls
         // to pushContour() and pushCubic().
-        void pushPath(const PLSPathDraw*, pls::PatchType, uint32_t tessVertexCount);
+        void pushPath(PLSPathDraw*, pls::PatchType, uint32_t tessVertexCount);
 
         // Pushes a contour record to the GPU for the given contour, which references the
         // most-recently pushed path and will be referenced by future calls to pushCubic().
@@ -525,11 +525,11 @@ private:
         // Pushes an imageRect to the draw list.
         // This should only be used when we don't have bindless textures in atomic mode. Otherwise,
         // images should be drawn as rectangular paths with an image paint.
-        void pushImageRect(const ImageRectDraw*);
+        void pushImageRect(ImageRectDraw*);
 
-        void pushImageMesh(const ImageMeshDraw*);
+        void pushImageMesh(ImageMeshDraw*);
 
-        void pushStencilClipReset(const StencilClipReset*);
+        void pushStencilClipReset(StencilClipReset*);
 
         // Adds a barrier to the end of the draw list that prevents further combining/batching and
         // instructs the backend to issue a graphics barrier, if necessary.
@@ -576,11 +576,8 @@ private:
 
         // Either appends a new drawBatch to m_drawList or merges into m_drawList.tail().
         // Updates the batch's ShaderFeatures according to the passed parameters.
-        DrawBatch& pushPathDraw(const PLSPathDraw*,
-                                DrawType,
-                                uint32_t vertexCount,
-                                uint32_t baseVertex);
-        DrawBatch& pushDraw(const PLSDraw*,
+        DrawBatch& pushPathDraw(PLSPathDraw*, DrawType, uint32_t vertexCount, uint32_t baseVertex);
+        DrawBatch& pushDraw(PLSDraw*,
                             DrawType,
                             pls::PaintType,
                             uint32_t elementCount,

@@ -68,6 +68,14 @@ public:
     using ResourceCounters = PLSRenderContext::LogicalFlush::ResourceCounters;
     const ResourceCounters& resourceCounts() const { return m_resourceCounts; }
 
+    // Linked list of all PLSDraws within a pls::DrawBatch.
+    void setBatchInternalNeighbor(const PLSDraw* neighbor)
+    {
+        assert(m_batchInternalNeighbor == nullptr);
+        m_batchInternalNeighbor = neighbor;
+    };
+    const PLSDraw* batchInternalNeighbor() const { return m_batchInternalNeighbor; }
+
     // Adds the gradient (if any) for this draw to the render context's gradient texture.
     // Returns false if this draw needed a gradient but there wasn't room for it in the texture, at
     // which point the gradient texture will need to be re-rendered mid flight.
@@ -100,6 +108,9 @@ protected:
     // doesn't have to be virtual.
     const PLSGradient* m_gradientRef = nullptr;
     pls::SimplePaintValue m_simplePaintValue;
+
+    // Linked list of all PLSDraws within a pls::DrawBatch.
+    const PLSDraw* m_batchInternalNeighbor = nullptr;
 };
 
 // Implement PLSDrawReleaseRefs (defined in pls_render_context.hpp) now that PLSDraw is defined.

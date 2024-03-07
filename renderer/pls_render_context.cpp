@@ -837,12 +837,12 @@ void PLSRenderContext::LogicalFlush::writeResources()
         constexpr static int64_t kDrawGroupMask = 0xffffllu << kDrawGroupShift;
         constexpr static int kDrawTypeShift = 45;
         constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED = 7llu << kDrawTypeShift;
-        constexpr static int kTextureHashShift = 25;
-        constexpr static int64_t kTextureHashMask = 0xfffffllu << kTextureHashShift;
-        constexpr static int kBlendModeShift = 21;
+        constexpr static int kTextureHashShift = 26;
+        constexpr static int64_t kTextureHashMask = 0x7ffffllu << kTextureHashShift;
+        constexpr static int kBlendModeShift = 22;
         constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
         constexpr static int kDrawContentsShift = 16;
-        constexpr static int64_t kDrawContentsMask = 0x1fllu << kDrawContentsShift;
+        constexpr static int64_t kDrawContentsMask = 0x3fllu << kDrawContentsShift;
         constexpr static int64_t kDrawIndexMask = 0xffff;
         for (size_t i = 0; i < m_plsDraws.size(); ++i)
         {
@@ -923,7 +923,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
         {
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     DrawType::plsAtomicInitialize,
-                                    BlendMode::srcOver,
+                                    nullptr,
                                     1,
                                     0);
             pushBarrier();
@@ -967,7 +967,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
             pushBarrier();
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     DrawType::plsAtomicResolve,
-                                    BlendMode::srcOver,
+                                    nullptr,
                                     1,
                                     0);
             m_drawList.tail().shaderFeatures = m_combinedShaderFeatures;
@@ -1299,7 +1299,7 @@ void PLSRenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation, 
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
 }
 
-void PLSRenderContext::LogicalFlush::pushPath(const PLSPathDraw* draw,
+void PLSRenderContext::LogicalFlush::pushPath(PLSPathDraw* draw,
                                               pls::PatchType patchType,
                                               uint32_t tessVertexCount)
 {
@@ -1618,7 +1618,7 @@ void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangula
     batch.needsBarrier = true;
 }
 
-void PLSRenderContext::LogicalFlush::pushImageRect(const ImageRectDraw* draw)
+void PLSRenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1638,7 +1638,7 @@ void PLSRenderContext::LogicalFlush::pushImageRect(const ImageRectDraw* draw)
     batch.imageDrawDataOffset = imageDrawDataOffset;
 }
 
-void PLSRenderContext::LogicalFlush::pushImageMesh(const ImageMeshDraw* draw)
+void PLSRenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
 {
 
     assert(m_hasDoneLayout);
@@ -1658,7 +1658,7 @@ void PLSRenderContext::LogicalFlush::pushImageMesh(const ImageMeshDraw* draw)
     batch.imageDrawDataOffset = imageDrawDataOffset;
 }
 
-void PLSRenderContext::LogicalFlush::pushStencilClipReset(const StencilClipReset* draw)
+void PLSRenderContext::LogicalFlush::pushStencilClipReset(StencilClipReset* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1688,7 +1688,7 @@ void PLSRenderContext::LogicalFlush::pushBarrier()
     }
 }
 
-pls::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(const PLSPathDraw* draw,
+pls::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(PLSPathDraw* draw,
                                                              DrawType drawType,
                                                              uint32_t vertexCount,
                                                              uint32_t baseVertex)
@@ -1726,7 +1726,7 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* current
     return currentDrawTexture == nextDrawTexture;
 }
 
-pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(const PLSDraw* draw,
+pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(PLSDraw* draw,
                                                          DrawType drawType,
                                                          pls::PaintType paintType,
                                                          uint32_t elementCount,
@@ -1757,7 +1757,7 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(const PLSDraw* draw,
 
     DrawBatch& batch = needsNewBatch ? m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                                                drawType,
-                                                               draw->blendMode(),
+                                                               draw,
                                                                elementCount,
                                                                baseElement)
                                      : m_drawList.tail();
@@ -1770,11 +1770,15 @@ pls::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(const PLSDraw* draw,
         {
             // depthStencil can't mix drawContents in a batch.
             assert(batch.drawContents == draw->drawContents());
+            assert((batch.shaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
+                   (draw->blendMode() != BlendMode::srcOver));
             // If using KHR_blend_equation_advanced, we can't mix blend modes in a batch.
             assert(!m_ctx->platformFeatures().supportsKHRBlendEquations ||
-                   batch.firstBlendMode == draw->blendMode());
+                   batch.internalDrawList->blendMode() == draw->blendMode());
         }
         assert(batch.baseElement + batch.elementCount == baseElement);
+        draw->setBatchInternalNeighbor(batch.internalDrawList);
+        batch.internalDrawList = draw;
         batch.elementCount += elementCount;
     }
 

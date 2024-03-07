@@ -76,6 +76,11 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
+#ifdef @USING_DEPTH_STENCIL
+#ifdef @ENABLE_ADVANCED_BLEND
+TEXTURE_RGBA8(DST_COLOR_TEXTURE_IDX, @dstColorTexture);
+#endif
+#endif
 FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
@@ -158,9 +163,25 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
+
     half4 color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
     color.a *= imageDrawUniforms.opacity;
-    EMIT_FRAG_DATA(premultiply(color));
+
+#ifdef @ENABLE_ADVANCED_BLEND
+    half4 dstColor = TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+#ifdef @ENABLE_HSL_BLEND_MODES
+    color = advanced_hsl_blend(
+#else
+    color = advanced_blend(
+#endif
+        color,
+        unmultiply(dstColor),
+        make_ushort(imageDrawUniforms.blendMode));
+#else // !ENABLE_ADVANCED_BLEND
+    color = premultiply(color);
+#endif
+
+    EMIT_FRAG_DATA(color);
 }
 
 #endif // USING_DEPTH_STENCIL

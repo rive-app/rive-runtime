@@ -32,6 +32,7 @@ class RenderBuffer;
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit
 namespace rive::pls
 {
+class PLSDraw;
 class PLSGradient;
 class PLSRenderContextImpl;
 class PLSRenderTarget;
@@ -635,6 +636,7 @@ enum class DrawContents
     evenOddFill = 1 << 2,
     activeClip = 1 << 3,
     clipUpdate = 1 << 4,
+    advancedBlend = 1 << 5,
 };
 RIVE_MAKE_ENUM_BITSET(DrawContents)
 
@@ -647,21 +649,19 @@ constexpr static pls::DrawContents kNestedClipUpdateMask =
 struct DrawBatch
 {
     DrawBatch(DrawType drawType_,
-              BlendMode firstBlendMode_,
+              const PLSDraw* internalDrawList_,
               uint32_t elementCount_,
               uint32_t baseElement_) :
         drawType(drawType_),
-        firstBlendMode(firstBlendMode_),
+        internalDrawList(internalDrawList_),
         elementCount(elementCount_),
         baseElement(baseElement_)
     {}
 
     const DrawType drawType;
-    BlendMode firstBlendMode; // Blend mode of the first draw in the batch. (If in depthStencil
-                              // mode and PlatformFeatures::supportsKHRBlendEquations is true, this
-                              // will be the only blend mode in the batch.)
-    uint32_t elementCount;    // Vertex, index, or instance count.
-    uint32_t baseElement;     // Base vertex, index, or instance.
+    const PLSDraw* internalDrawList;
+    uint32_t elementCount; // Vertex, index, or instance count.
+    uint32_t baseElement;  // Base vertex, index, or instance.
     DrawContents drawContents = DrawContents::none;
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
     bool needsBarrier = false; // Pixel-local-storage barrier required after submitting this batch.
