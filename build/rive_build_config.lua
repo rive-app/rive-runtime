@@ -74,6 +74,11 @@ newoption({
     description = 'don\'t disable exceptions (nonstandard for Rive)',
 })
 
+newoption({
+    trigger = 'wasm_single',
+    description = 'Embed wasm directly into the js, instead of side-loading it.',
+})
+
 location(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT)
 targetdir(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT)
 objdir(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT .. '/obj')
@@ -385,7 +390,7 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
     system('emscripten')
     toolset('emsdk')
 
-    linkoptions({ '-sALLOW_MEMORY_GROWTH' })
+    linkoptions({ '-sALLOW_MEMORY_GROWTH=1', '-sDYNAMIC_EXECUTION=0' })
 
     filter('options:arch=wasm')
     do
@@ -396,6 +401,11 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
     filter('options:arch=js')
     do
         linkoptions({ '-sWASM=0' })
+    end
+
+    filter('options:wasm_single')
+    do
+        linkoptions({ '-sSINGLE_FILE=1' })
     end
 
     filter({})
