@@ -15,27 +15,26 @@
 #include <emscripten/html5.h>
 
 EM_JS(bool,
-      webgl_shader_pixel_local_storage_is_coherent_js,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle),
+      enable_WEBGL_shader_pixel_local_storage_coherent,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl),
       {
-          const gl = GL.getContext(contextHandle).GLctx;
-          const ext = gl.getExtension("WEBGL_shader_pixel_local_storage");
-          return ext && ext.isCoherent();
+          gl = GL.getContext(gl).GLctx;
+          gl.pls = gl.getExtension("WEBGL_shader_pixel_local_storage");
+          return gl.pls && gl.pls.isCoherent();
       });
 
 EM_JS(void,
       framebufferTexturePixelLocalStorageWEBGL,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl,
        GLint plane,
        GLuint backingtexture,
        GLint level,
        GLint layer),
       {
-          const gl = GL.getContext(contextHandle).GLctx;
-          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
-          if (ext)
+          const pls = GL.getContext(gl).GLctx.pls;
+          if (pls)
           {
-              ext.framebufferTexturePixelLocalStorageWEBGL(plane,
+              pls.framebufferTexturePixelLocalStorageWEBGL(plane,
                                                            GL.textures[backingtexture],
                                                            level,
                                                            layer);
@@ -44,60 +43,59 @@ EM_JS(void,
 
 EM_JS(void,
       framebufferPixelLocalClearValuefvWEBGL,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle,
-       GLint plane,
-       float r,
-       float g,
-       float b,
-       float a),
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLint plane, float r, float g, float b, float a),
       {
-          const gl = GL.getContext(contextHandle).GLctx;
-          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
-          if (ext)
+          const pls = GL.getContext(gl).GLctx.pls;
+          if (pls)
           {
-              ext.framebufferPixelLocalClearValuefvWEBGL(plane, [ r, g, b, a ]);
+              pls.framebufferPixelLocalClearValuefvWEBGL(plane, [ r, g, b, a ]);
           }
       });
 
 EM_JS(void,
       beginPixelLocalStorageWEBGL,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle, uint32_t n, uint32_t loadopsIdx),
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, uint32_t n, uint32_t loadopsIdx),
       {
-          const gl = GL.getContext(contextHandle).GLctx;
-          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
-          if (ext)
+          const pls = GL.getContext(gl).GLctx.pls;
+          if (pls)
           {
-              ext.beginPixelLocalStorageWEBGL(Module.HEAPU32.subarray(loadopsIdx, loadopsIdx + n));
+              pls.beginPixelLocalStorageWEBGL(Module.HEAPU32.subarray(loadopsIdx, loadopsIdx + n));
           }
       });
 
 EM_JS(void,
       endPixelLocalStorageWEBGL,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle, uint32_t n, uint32_t storeopsIdx),
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, uint32_t n, uint32_t storeopsIdx),
       {
-          const gl = GL.getContext(contextHandle).GLctx;
-          const ext = Module["ctx"].getExtension("WEBGL_shader_pixel_local_storage");
-          if (ext)
+          const pls = GL.getContext(gl).GLctx.pls;
+          if (pls)
           {
-              ext.endPixelLocalStorageWEBGL(Module.HEAPU32.subarray(storeopsIdx, storeopsIdx + n));
+              pls.endPixelLocalStorageWEBGL(Module.HEAPU32.subarray(storeopsIdx, storeopsIdx + n));
           }
       });
 
-EM_JS(void,
-      provokingVertexWEBGL,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE contextHandle, GLenum provokeMode),
-      {
-          const gl = GL.getContext(contextHandle).GLctx;
-          const ext = Module["ctx"].getExtension("WEBGL_provoking_vertex");
-          if (ext)
-          {
-              ext.provokingVertexWEBGL(provokeMode);
-          }
-      });
+EM_JS(bool, enable_WEBGL_provoking_vertex, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl), {
+    gl = GL.getContext(gl).GLctx;
+    gl.pv = gl.getExtension("enable_WEBGL_provoking_vertex");
+    return gl.pv;
+});
 
-bool webgl_shader_pixel_local_storage_is_coherent()
+EM_JS(void, provokingVertexWEBGL, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLenum provokeMode), {
+    const pv = GL.getContext(gl).GLctx;
+    if (pv)
+    {
+        pv.provokingVertexWEBGL(provokeMode);
+    }
+});
+
+bool webgl_enable_WEBGL_shader_pixel_local_storage_coherent()
 {
-    return webgl_shader_pixel_local_storage_is_coherent_js(emscripten_webgl_get_current_context());
+    return enable_WEBGL_shader_pixel_local_storage_coherent(emscripten_webgl_get_current_context());
+}
+
+bool webgl_enable_WEBGL_provoking_vertex()
+{
+    return enable_WEBGL_provoking_vertex(emscripten_webgl_get_current_context());
 }
 
 void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,

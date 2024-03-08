@@ -48,6 +48,8 @@
 #define GL_PIXEL_LOCAL_CLEAR_VALUE_FLOAT_ANGLE 0x96EC
 #define GL_PIXEL_LOCAL_CLEAR_VALUE_INT_ANGLE 0x96ED
 #define GL_PIXEL_LOCAL_CLEAR_VALUE_UNSIGNED_INT_ANGLE 0x96EE
+extern bool webgl_enable_WEBGL_shader_pixel_local_storage_coherent();
+extern bool webgl_enable_WEBGL_provoking_vertex();
 extern bool webgl_shader_pixel_local_storage_is_coherent();
 extern void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
                                                        GLuint backingtexture,

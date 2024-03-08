@@ -1748,17 +1748,12 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         }
     }
 #else  // !RIVE_WEBGL -> RIVE_WEBGL
-    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
-                                          "WEBGL_shader_pixel_local_storage"))
+    if (webgl_enable_WEBGL_shader_pixel_local_storage_coherent())
     {
         capabilities.ANGLE_shader_pixel_local_storage = true;
-        if (webgl_shader_pixel_local_storage_is_coherent())
-        {
-            capabilities.ANGLE_shader_pixel_local_storage_coherent = true;
-        }
+        capabilities.ANGLE_shader_pixel_local_storage_coherent = true;
     }
-    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
-                                          "WEBGL_provoking_vertex"))
+    if (webgl_enable_WEBGL_provoking_vertex())
     {
         capabilities.ANGLE_provoking_vertex = true;
     }
