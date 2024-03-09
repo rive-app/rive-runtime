@@ -11,6 +11,8 @@
 
 namespace rive::pls
 {
+class PLSRenderContextGLImpl;
+
 class PLSRenderTargetGL : public PLSRenderTarget, public enable_lite_rtti<PLSRenderTargetGL>
 {
 public:
@@ -44,11 +46,19 @@ public:
     // Binds the allocated textures to their corresponding GL image binding slots.
     virtual void bindAsImageTextures() = 0;
 
+    enum class MSAAResolveAction
+    {
+        automatic,       // The MSAA framebuffer will be resolved automatically.
+        framebufferBlit, // Caller must call glBlitFramebuffer() to resolve the MSAA framebuffer.
+    };
+
     // Bind the renderTarget as a multisampled framebuffer.
-    // When rendering to an external framebuffer, this is that same framebuffer (assumed MSAA).
-    // When rendering to a texture, it's an offscreen MSAA renderbuffer that the caller must resolve
-    // into the target texture.
-    virtual void bindMSAAFramebuffer(GLenum target, int sampleCount, const GLCapabilities&) = 0;
+    //
+    // If the msaa framebuffer is offscreen, returns MSAAResolveAction::framebufferBlit, indicating
+    // that the caller must resolve it when done.
+    virtual MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
+                                                  int sampleCount,
+                                                  const IAABB* preserveBounds = nullptr) = 0;
 
     // Binds the internal framebuffer as a texture that can be used to fetch the destination color
     // (for blending).
@@ -83,7 +93,9 @@ public:
     void bindInternalFramebuffer(GLenum target, uint32_t drawBufferCount) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
     void bindAsImageTextures() final;
-    void bindMSAAFramebuffer(GLenum target, int sampleCount, const GLCapabilities&) final;
+    MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
+                                          int sampleCount,
+                                          const IAABB* preserveBounds) final;
     void bindInternalDstTexture(GLenum activeTexture) final;
 
 private:
@@ -117,9 +129,13 @@ class FramebufferRenderTargetGL
     : public lite_rtti_override<PLSRenderTargetGL, FramebufferRenderTargetGL>
 {
 public:
-    FramebufferRenderTargetGL(uint32_t width, uint32_t height, GLuint externalFramebufferID) :
+    FramebufferRenderTargetGL(uint32_t width,
+                              uint32_t height,
+                              GLuint externalFramebufferID,
+                              uint32_t sampleCount) :
         lite_rtti_override(width, height),
         m_externalFramebufferID(externalFramebufferID),
+        m_sampleCount(sampleCount),
         m_textureRenderTarget(width, height)
     {}
 
@@ -135,19 +151,15 @@ public:
     void bindInternalFramebuffer(GLenum target, uint32_t drawBufferCount) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
     void bindAsImageTextures() final;
-    void bindMSAAFramebuffer(GLenum target, int sampleCount, const GLCapabilities&) final
-    {
-        bindDestinationFramebuffer(target); // Assume the external framebuffer is MSAA.
-    }
-    void bindInternalDstTexture(GLenum activeTexture) final
-    {
-        allocateOffscreenTargetTexture();
-        m_textureRenderTarget.bindInternalDstTexture(activeTexture);
-    }
+    MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
+                                          int sampleCount,
+                                          const IAABB* preserveBounds) final;
+    void bindInternalDstTexture(GLenum activeTexture) final;
 
 private:
     // Ownership of this object is not assumed; the client must delete it when done.
     const GLuint m_externalFramebufferID;
+    const uint32_t m_sampleCount;
 
     // Holds the PLS textures we might need.
     TextureRenderTargetGL m_textureRenderTarget;

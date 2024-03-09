@@ -582,7 +582,7 @@ void riveMainLoop()
         printf("size changed to %ix%i\n", width, height);
         lastWidth = width;
         lastHeight = height;
-        s_fiddleContext->onSizeChanged(s_window, width, height);
+        s_fiddleContext->onSizeChanged(s_window, width, height, s_msaa);
         renderer = s_fiddleContext->makeRenderer(width, height);
         s_needsTitleUpdate = true;
     }

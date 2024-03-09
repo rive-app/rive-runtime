@@ -284,9 +284,9 @@ public:
 
     rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
-    void onSizeChanged(GLFWwindow* window, int width, int height) override
+    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
-        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0);
+        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
     }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override

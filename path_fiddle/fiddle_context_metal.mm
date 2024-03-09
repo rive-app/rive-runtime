@@ -47,7 +47,7 @@ public:
 
     rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
-    void onSizeChanged(GLFWwindow* window, int width, int height) override
+    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
         NSWindow* nsWindow = glfwGetCocoaWindow(window);
         NSView* view = [nsWindow contentView];

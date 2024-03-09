@@ -5,7 +5,9 @@
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 
 #include "rive/pls/pls.hpp"
+#include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "shaders/constants.glsl"
+#include "gl_utils.hpp"
 
 namespace rive::pls
 {
@@ -215,10 +217,12 @@ void TextureRenderTargetGL::bindAsImageTextures()
 #endif
 }
 
-void TextureRenderTargetGL::bindMSAAFramebuffer(GLenum target,
-                                                int sampleCount,
-                                                const GLCapabilities& capabilities)
+PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
+    PLSRenderContextGLImpl* plsContextGL,
+    int sampleCount,
+    const IAABB* preserveBounds)
 {
+    assert(sampleCount > 0);
     if (m_msaaFramebufferID == 0)
     {
         glGenFramebuffers(1, &m_msaaFramebufferID);
@@ -227,13 +231,16 @@ void TextureRenderTargetGL::bindMSAAFramebuffer(GLenum target,
     sampleCount = std::max(sampleCount, 1);
     if (m_msaaFramebufferSampleCount != sampleCount)
     {
-        glBindFramebuffer(target, m_msaaFramebufferID);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebufferID);
 
         GLuint msaaColorBuffer;
         glGenRenderbuffers(1, &msaaColorBuffer);
         glBindRenderbuffer(GL_RENDERBUFFER, msaaColorBuffer);
         glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampleCount, GL_RGBA8, width(), height());
-        glFramebufferRenderbuffer(target, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msaaColorBuffer);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                  GL_COLOR_ATTACHMENT0,
+                                  GL_RENDERBUFFER,
+                                  msaaColorBuffer);
 
         GLuint msaaDepthStencilBuffer;
         glGenRenderbuffers(1, &msaaDepthStencilBuffer);
@@ -243,20 +250,31 @@ void TextureRenderTargetGL::bindMSAAFramebuffer(GLenum target,
                                          GL_DEPTH24_STENCIL8,
                                          width(),
                                          height());
-        glFramebufferRenderbuffer(target,
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                   GL_DEPTH_STENCIL_ATTACHMENT,
                                   GL_RENDERBUFFER,
                                   msaaDepthStencilBuffer);
 
         // Bind FBO 0 so we can orphan the MSAA render buffers to our framebuffer.
-        glBindFramebuffer(target, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glDeleteRenderbuffers(1, &msaaColorBuffer);
         glDeleteRenderbuffers(1, &msaaDepthStencilBuffer);
 
         m_msaaFramebufferSampleCount = sampleCount;
     }
 
-    glBindFramebuffer(target, m_msaaFramebufferID);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebufferID);
+
+    if (preserveBounds != nullptr)
+    {
+        // The MSAA render target is offscreen. In order to preserve, we need to draw the target
+        // texture into the MSAA buffer. (glBlitFramebuffer() doesn't support texture -> MSAA.)
+        plsContextGL->blitTextureToFramebufferAsDraw(m_externalTextureID,
+                                                     *preserveBounds,
+                                                     height());
+    }
+
+    return MSAAResolveAction::framebufferBlit; // Caller must resolve this framebuffer when done.
 }
 
 void TextureRenderTargetGL::bindInternalDstTexture(GLenum activeTexture)
@@ -306,5 +324,43 @@ void FramebufferRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& ca
 void FramebufferRenderTargetGL::bindAsImageTextures()
 {
     m_textureRenderTarget.bindAsImageTextures();
+}
+
+PLSRenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer(
+    PLSRenderContextGLImpl* plsContextGL,
+    int sampleCount,
+    const IAABB* preserveBounds)
+{
+    assert(sampleCount > 0);
+    if (m_sampleCount > 1)
+    {
+        // Just bind the destination framebuffer it's already msaa, even if its sampleCount doesn't
+        // match the desired count.
+        bindDestinationFramebuffer(GL_FRAMEBUFFER);
+        return MSAAResolveAction::automatic;
+    }
+    else
+    {
+        // The destination framebuffer is not multisampled. Bind the offscreen one.
+        if (preserveBounds != nullptr)
+        {
+            // API support for copying a non-msaa framebuffer into an msaa framebuffer (for
+            // preservation) is awful. It needs to be done in 2 steps:
+            //   1. Blit non-msaa framebuffer -> texture.
+            //   2. Draw texture -> msaa framebuffer.
+            allocateOffscreenTargetTexture();
+            m_textureRenderTarget.bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+            bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
+            glutils::BlitFramebuffer(*preserveBounds, height()); // Step 1.
+                                                                 // Step 2 will happen when we bind.
+        }
+        return m_textureRenderTarget.bindMSAAFramebuffer(plsContextGL, sampleCount, preserveBounds);
+    }
+}
+
+void FramebufferRenderTargetGL::bindInternalDstTexture(GLenum activeTexture)
+{
+    allocateOffscreenTargetTexture();
+    m_textureRenderTarget.bindInternalDstTexture(activeTexture);
 }
 } // namespace rive::pls

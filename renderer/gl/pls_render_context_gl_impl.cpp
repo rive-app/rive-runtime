@@ -1136,6 +1136,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 #endif
 
+    auto msaaResolveAction = PLSRenderTargetGL::MSAAResolveAction::automatic;
     if (desc.interlockMode != pls::InterlockMode::depthStencil)
     {
         assert(desc.msaaSampleCount == 0);
@@ -1145,7 +1146,12 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         // Render with MSAA in depthStencil mode.
         assert(desc.msaaSampleCount > 0);
-        renderTarget->bindMSAAFramebuffer(GL_FRAMEBUFFER, desc.msaaSampleCount, m_capabilities);
+        msaaResolveAction = renderTarget->bindMSAAFramebuffer(
+            this,
+            desc.msaaSampleCount,
+            desc.colorLoadAction == pls::LoadAction::preserveRenderTarget
+                ? &desc.renderTargetUpdateBounds
+                : nullptr);
 
         GLbitfield buffersToClear = GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT;
         if (desc.colorLoadAction == pls::LoadAction::clear)
@@ -1154,17 +1160,6 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             UnpackColorToRGBA32F(desc.clearColor, cc);
             glClearColor(cc[0], cc[1], cc[2], cc[3]);
             buffersToClear |= GL_COLOR_BUFFER_BIT;
-        }
-        else if (desc.colorLoadAction == pls::LoadAction::preserveRenderTarget)
-        {
-            if (auto textureTarget = lite_rtti_cast<TextureRenderTargetGL*>(renderTarget))
-            {
-                // TextureRenderTargetGLs have an offscreen MSAA render target. In order to
-                // preserve, we need to copy the target texture into the MSAA buffer.
-                blitTextureToFramebufferAsDraw(textureTarget->externalTextureID(),
-                                               desc.renderTargetUpdateBounds,
-                                               textureTarget->height());
-            }
         }
         glClear(buffersToClear);
 
@@ -1248,9 +1243,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                     assert(draw->blendMode() != BlendMode::srcOver);
                     glutils::BlitFramebuffer(draw->pixelBounds(), renderTarget->height());
                 }
-                renderTarget->bindMSAAFramebuffer(GL_FRAMEBUFFER,
-                                                  desc.msaaSampleCount,
-                                                  m_capabilities);
+                renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
                 m_state->disableBlending(); // Blend in the shader instead.
             }
 
@@ -1517,12 +1510,11 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_STENCIL_TEST);
-        if (auto textureTarget = lite_rtti_cast<TextureRenderTargetGL*>(renderTarget))
+        if (msaaResolveAction == PLSRenderTargetGL::MSAAResolveAction::framebufferBlit)
         {
-            // Resolve the offscreen MSAA framebuffer into the target texture.
-            textureTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+            renderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                     textureTarget->height(),
+                                     renderTarget->height(),
                                      GL_COLOR_BUFFER_BIT);
         }
         if (clipPlanesEnabled)

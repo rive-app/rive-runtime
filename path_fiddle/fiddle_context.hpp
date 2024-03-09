@@ -22,7 +22,7 @@ public:
     virtual float dpiScale(GLFWwindow*) const = 0;
     virtual rive::Factory* factory() = 0;
     virtual rive::pls::PLSRenderContext* plsContextOrNull() = 0;
-    virtual void onSizeChanged(GLFWwindow*, int width, int height) {}
+    virtual void onSizeChanged(GLFWwindow*, int width, int height, uint32_t sampleCount) {}
     virtual void toggleZoomWindow() = 0;
     virtual std::unique_ptr<rive::Renderer> makeRenderer(int width, int height) = 0;
     virtual void begin(rive::pls::PLSRenderContext::FrameDescriptor&&) = 0;
