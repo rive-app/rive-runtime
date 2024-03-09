@@ -4,11 +4,14 @@ local dependency = require('dependency')
 libpng = dependency.github('glennrp/libpng', 'libpng16')
 zlib = dependency.github('madler/zlib', '04f42ceca40f73e2978b50e93806c2a18c1281fc')
 
+includedirs({ './' })
+forceincludes({ 'rive_png_renames.h' })
+
 project('libpng')
 do
     kind('StaticLib')
     os.copyfile(libpng .. '/scripts/pnglibconf.h.prebuilt', libpng .. '/pnglibconf.h')
-    includedirs({ './', libpng, zlib })
+    includedirs({ libpng, zlib })
     files({
         libpng .. '/png.c',
         libpng .. '/pngerror.c',
