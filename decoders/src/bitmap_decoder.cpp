@@ -23,8 +23,6 @@ size_t Bitmap::bytesPerPixel(PixelFormat format) const
 {
     switch (format)
     {
-        case PixelFormat::R:
-            return 1;
         case PixelFormat::RGB:
             return 3;
         case PixelFormat::RGBA:

@@ -13,7 +13,6 @@ class Bitmap
 public:
     enum class PixelFormat : uint8_t
     {
-        R,
         RGB,
         RGBA
     };
