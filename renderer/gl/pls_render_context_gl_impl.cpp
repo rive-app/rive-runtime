@@ -1791,7 +1791,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         capabilities.ANGLE_provoking_vertex = true;
     }
     if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
-                                          "EXT_clip_cull_distance"))
+                                          "WEBGL_clip_cull_distance"))
     {
         capabilities.EXT_clip_cull_distance = true;
     }

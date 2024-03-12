@@ -20,7 +20,7 @@ EM_JS(bool,
       {
           gl = GL.getContext(gl).GLctx;
           gl.pls = gl.getExtension("WEBGL_shader_pixel_local_storage");
-          return gl.pls && gl.pls.isCoherent();
+          return Boolean(gl.pls && gl.pls.isCoherent());
       });
 
 EM_JS(void,
@@ -76,12 +76,12 @@ EM_JS(void,
 
 EM_JS(bool, enable_WEBGL_provoking_vertex, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl), {
     gl = GL.getContext(gl).GLctx;
-    gl.pv = gl.getExtension("enable_WEBGL_provoking_vertex");
-    return gl.pv;
+    gl.pv = gl.getExtension("WEBGL_provoking_vertex");
+    return Boolean(gl.pv);
 });
 
 EM_JS(void, provokingVertexWEBGL, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLenum provokeMode), {
-    const pv = GL.getContext(gl).GLctx;
+    const pv = GL.getContext(gl).GLctx.pv;
     if (pv)
     {
         pv.provokingVertexWEBGL(provokeMode);
