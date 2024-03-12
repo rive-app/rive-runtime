@@ -37,6 +37,25 @@ const char atomic_draw[] = "";
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
+
+// Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER is bound. Make the call
+// ourselves directly.
+EM_JS(void,
+      webgl_texSubImage2DWithOffset,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl,
+       GLenum target,
+       GLint level,
+       GLint xoffset,
+       GLint yoffset,
+       GLsizei width,
+       GLsizei height,
+       GLenum format,
+       GLenum type,
+       GLintptr offset),
+      {
+          gl = GL.getContext(gl).GLctx;
+          gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, offset);
+      });
 #endif
 
 // Offset all PLS texture indices by 1 so we, and others who share our GL context, can use
@@ -312,10 +331,7 @@ public:
                         GL_RGBA,
                         GL_UNSIGNED_BYTE,
                         imageDataRGBA);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glutils::SetTexture2DSamplingParams(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
         glGenerateMipmap(GL_TEXTURE_2D);
 
 #ifdef RIVE_DESKTOP_GL
@@ -475,87 +491,85 @@ static GLenum storage_texture_type(pls::StorageBufferStructure bufferStructure)
 class StorageBufferRingGLImpl : public BufferRingGLImpl
 {
 public:
-    StorageBufferRingGLImpl(const GLCapabilities& capabilities,
-                            size_t capacityInBytes,
+    StorageBufferRingGLImpl(size_t capacityInBytes,
                             pls::StorageBufferStructure bufferStructure,
                             rcp<GLState> state) :
         BufferRingGLImpl(
             // If we don't support storage buffers, instead make a pixel-unpack buffer that
             // will be used to copy data into the polyfill texture.
-            capabilities.ARB_shader_storage_buffer_object ? GL_SHADER_STORAGE_BUFFER
-                                                          : GL_PIXEL_UNPACK_BUFFER,
-            capabilities.ARB_shader_storage_buffer_object
-                ? capacityInBytes
-                : pls::StorageTextureBufferSize(capacityInBytes, bufferStructure),
+            GL_SHADER_STORAGE_BUFFER,
+            capacityInBytes,
             std::move(state)),
         m_bufferStructure(bufferStructure)
-    {
-        if (!capabilities.ARB_shader_storage_buffer_object)
-        {
-            // Our GL driver doesn't support storage buffers. Allocate a polyfill texture.
-            auto [width, height] = pls::StorageTextureSize(capacityInBytes, m_bufferStructure);
-            glGenTextures(1, &m_polyfillTexture);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, m_polyfillTexture);
-            glTexStorage2D(GL_TEXTURE_2D,
-                           1,
-                           storage_texture_internalformat(m_bufferStructure),
-                           width,
-                           height);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
-    }
+    {}
 
-    ~StorageBufferRingGLImpl()
-    {
-        if (m_polyfillTexture != 0)
-        {
-            glDeleteTextures(1, &m_polyfillTexture);
-        }
-    }
-
-    void bindToRenderContext(const GLCapabilities& capabilities,
-                             uint32_t bindingIdx,
+    void bindToRenderContext(uint32_t bindingIdx,
                              size_t bindingSizeInBytes,
                              size_t offsetSizeInBytes) const
     {
-        if (capabilities.ARB_shader_storage_buffer_object)
-        {
-            assert(m_target == GL_SHADER_STORAGE_BUFFER);
-            glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
-                              bindingIdx,
-                              submittedBufferID(),
-                              offsetSizeInBytes,
-                              bindingSizeInBytes);
-        }
-        else
-        {
-            // Our GL driver doesn't support storage buffers. Copy the buffer to a texture.
-            assert(m_target == GL_PIXEL_UNPACK_BUFFER);
-            auto [updateWidth, updateHeight] =
-                pls::StorageTextureSize(bindingSizeInBytes, m_bufferStructure);
-            m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, submittedBufferID());
-            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + bindingIdx);
-            glBindTexture(GL_TEXTURE_2D, m_polyfillTexture);
-            glTexSubImage2D(GL_TEXTURE_2D,
-                            0,
-                            0,
-                            0,
-                            updateWidth,
-                            updateHeight,
-                            storage_texture_format(m_bufferStructure),
-                            storage_texture_type(m_bufferStructure),
-                            reinterpret_cast<const void*>(offsetSizeInBytes));
-        }
+        glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+                          bindingIdx,
+                          submittedBufferID(),
+                          offsetSizeInBytes,
+                          bindingSizeInBytes);
     }
 
 protected:
     const pls::StorageBufferStructure m_bufferStructure;
-    GLuint m_polyfillTexture = 0;
+};
+
+class TexelBufferRingWebGL : public BufferRing
+{
+public:
+    TexelBufferRingWebGL(size_t capacityInBytes,
+                         pls::StorageBufferStructure bufferStructure,
+                         rcp<GLState> state) :
+        BufferRing(pls::StorageTextureBufferSize(capacityInBytes, bufferStructure)),
+        m_bufferStructure(bufferStructure),
+        m_state(std::move(state))
+    {
+        auto [width, height] = pls::StorageTextureSize(capacityInBytes, m_bufferStructure);
+        GLenum internalformat = storage_texture_internalformat(m_bufferStructure);
+        glGenTextures(pls::kBufferRingSize, m_textures);
+        glActiveTexture(GL_TEXTURE0);
+        for (size_t i = 0; i < pls::kBufferRingSize; ++i)
+        {
+            glBindTexture(GL_TEXTURE_2D, m_textures[i]);
+            glTexStorage2D(GL_TEXTURE_2D, 1, internalformat, width, height);
+            glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    ~TexelBufferRingWebGL() { glDeleteTextures(pls::kBufferRingSize, m_textures); }
+
+    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override { return shadowBuffer(); }
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override {}
+
+    void bindToRenderContext(uint32_t bindingIdx,
+                             size_t bindingSizeInBytes,
+                             size_t offsetSizeInBytes) const
+    {
+        auto [updateWidth, updateHeight] =
+            pls::StorageTextureSize(bindingSizeInBytes, m_bufferStructure);
+        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + bindingIdx);
+        glBindTexture(GL_TEXTURE_2D, m_textures[submittedBufferIdx()]);
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        updateWidth,
+                        updateHeight,
+                        storage_texture_format(m_bufferStructure),
+                        storage_texture_type(m_bufferStructure),
+                        shadowBuffer() + offsetSizeInBytes);
+    }
+
+protected:
+    const pls::StorageBufferStructure m_bufferStructure;
+    const rcp<GLState> m_state;
+    GLuint m_textures[pls::kBufferRingSize];
 };
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
@@ -567,11 +581,18 @@ std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(
     size_t capacityInBytes,
     pls::StorageBufferStructure bufferStructure)
 {
-    return capacityInBytes != 0 ? std::make_unique<StorageBufferRingGLImpl>(m_capabilities,
-                                                                            capacityInBytes,
-                                                                            bufferStructure,
-                                                                            m_state)
-                                : nullptr;
+    if (capacityInBytes == 0)
+    {
+        return nullptr;
+    }
+    else if (m_capabilities.ARB_shader_storage_buffer_object)
+    {
+        return std::make_unique<StorageBufferRingGLImpl>(capacityInBytes, bufferStructure, m_state);
+    }
+    else
+    {
+        return std::make_unique<TexelBufferRingWebGL>(capacityInBytes, bufferStructure, m_state);
+    }
 }
 
 std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
@@ -598,10 +619,7 @@ void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t heig
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
     glFramebufferTexture2D(GL_FRAMEBUFFER,
@@ -624,10 +642,7 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t 
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
     glFramebufferTexture2D(GL_FRAMEBUFFER,
@@ -883,11 +898,16 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
 {
     assert(bufferRing != nullptr);
     assert(bindingSizeInBytes > 0);
-    auto storageBufferRing = static_cast<const StorageBufferRingGLImpl*>(bufferRing);
-    storageBufferRing->bindToRenderContext(capabilities,
-                                           bindingIdx,
-                                           bindingSizeInBytes,
-                                           offsetSizeInBytes);
+    if (capabilities.ARB_shader_storage_buffer_object)
+    {
+        static_cast<const StorageBufferRingGLImpl*>(bufferRing)
+            ->bindToRenderContext(bindingIdx, bindingSizeInBytes, offsetSizeInBytes);
+    }
+    else
+    {
+        static_cast<const TexelBufferRingWebGL*>(bufferRing)
+            ->bindToRenderContext(bindingIdx, bindingSizeInBytes, offsetSizeInBytes);
+    }
 }
 
 void PLSRenderContextGLImpl::PLSImpl::ensureRasterOrderingEnabled(
@@ -1050,6 +1070,20 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+#ifdef RIVE_WEBGL
+        // Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER is bound. Make the
+        // call ourselves directly.
+        webgl_texSubImage2DWithOffset(emscripten_webgl_get_current_context(),
+                                      GL_TEXTURE_2D,
+                                      0,
+                                      0,
+                                      0,
+                                      desc.simpleGradTexelsWidth,
+                                      desc.simpleGradTexelsHeight,
+                                      GL_RGBA,
+                                      GL_UNSIGNED_BYTE,
+                                      desc.simpleGradDataOffsetInBytes);
+#else
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -1059,6 +1093,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                         GL_RGBA,
                         GL_UNSIGNED_BYTE,
                         reinterpret_cast<const void*>(desc.simpleGradDataOffsetInBytes));
+#endif
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
@@ -1580,34 +1615,40 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     GLCapabilities capabilities{};
 
     const char* glVersionStr = (const char*)glGetString(GL_VERSION);
+#ifdef RIVE_WEBGL
+    capabilities.isGLES = true;
+#else
     capabilities.isGLES = strstr(glVersionStr, "OpenGL ES") != NULL;
+#endif
     if (capabilities.isGLES)
     {
-#ifdef _MSC_VER
-        sscanf_s(glVersionStr,
-                 "OpenGL ES %d.%d",
-                 &capabilities.contextVersionMajor,
-                 &capabilities.contextVersionMinor);
+#ifdef RIVE_WEBGL
+        capabilities.isANGLEOrWebGL = true;
 #else
-        sscanf(glVersionStr,
-               "OpenGL ES %d.%d",
-               &capabilities.contextVersionMajor,
-               &capabilities.contextVersionMinor);
+        capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != NULL;
 #endif
+#ifdef _MSC_VER
+        sscanf_s(
+#else
+        sscanf(
+#endif
+            glVersionStr,
+            "OpenGL ES %d.%d",
+            &capabilities.contextVersionMajor,
+            &capabilities.contextVersionMinor);
     }
     else
     {
+        capabilities.isANGLEOrWebGL = false;
 #ifdef _MSC_VER
-        sscanf_s(glVersionStr,
-                 "%d.%d",
-                 &capabilities.contextVersionMajor,
-                 &capabilities.contextVersionMinor);
+        sscanf_s(
 #else
-        sscanf(glVersionStr,
-               "%d.%d",
-               &capabilities.contextVersionMajor,
-               &capabilities.contextVersionMinor);
+        sscanf(
 #endif
+            glVersionStr,
+            "%d.%d",
+            &capabilities.contextVersionMajor,
+            &capabilities.contextVersionMinor);
     }
 #ifdef RIVE_DESKTOP_GL
     assert(capabilities.contextVersionMajor == GLAD_GL_version_major);

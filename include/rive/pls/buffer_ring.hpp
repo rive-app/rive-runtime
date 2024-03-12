@@ -56,7 +56,7 @@ protected:
     virtual void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) = 0;
     virtual void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) = 0;
 
-    void* shadowBuffer() const
+    uint8_t* shadowBuffer() const
     {
         if (m_shadowBuffer == nullptr && m_capacityInBytes > 0)
         {
@@ -80,7 +80,7 @@ class HeapBufferRing : public BufferRing
 public:
     HeapBufferRing(size_t capacityInBytes) : BufferRing(capacityInBytes) {}
 
-    void* contents() const { return shadowBuffer(); }
+    uint8_t* contents() const { return shadowBuffer(); }
 
 protected:
     void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override { return shadowBuffer(); }

@@ -124,6 +124,14 @@ void LinkProgram(GLuint program)
     }
 }
 
+void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)
+{
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
 void BlitFramebuffer(rive::IAABB bounds, uint32_t renderTargetHeight, GLbitfield mask)
 {
     // glBlitFramebuffer is oriented bottom-up.

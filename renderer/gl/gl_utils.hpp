@@ -33,6 +33,8 @@ void CompileAndAttachShader(GLuint program,
 
 void LinkProgram(GLuint program);
 
+void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter);
+
 void BlitFramebuffer(rive::IAABB bounds,
                      uint32_t renderTargetHeight,
                      GLbitfield mask = GL_COLOR_BUFFER_BIT);
