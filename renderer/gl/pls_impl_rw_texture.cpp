@@ -6,7 +6,7 @@
 
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "shaders/constants.glsl"
-#include "gl_utils.hpp"
+#include "rive/pls/gl/gl_utils.hpp"
 
 #include "shaders/out/generated/glsl.exports.h"
 

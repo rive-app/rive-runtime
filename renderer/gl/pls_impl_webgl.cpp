@@ -4,7 +4,7 @@
 
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
-#include "gl_utils.hpp"
+#include "rive/pls/gl/gl_utils.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "shaders/constants.glsl"
 

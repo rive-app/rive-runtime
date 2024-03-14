@@ -4,7 +4,6 @@
 
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 
-#include "gl_utils.hpp"
 #include "rive/pls/gl/pls_render_buffer_gl_impl.hpp"
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include "rive/pls/pls_draw.hpp"
@@ -102,51 +101,42 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         generalDefines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
     }
 
-    m_colorRampProgram = glCreateProgram();
     const char* colorRampSources[] = {glsl::constants, glsl::common, glsl::color_ramp};
-    glutils::CompileAndAttachShader(m_colorRampProgram,
-                                    GL_VERTEX_SHADER,
-                                    generalDefines.data(),
-                                    generalDefines.size(),
-                                    colorRampSources,
-                                    std::size(colorRampSources),
-                                    m_capabilities);
-    glutils::CompileAndAttachShader(m_colorRampProgram,
-                                    GL_FRAGMENT_SHADER,
-                                    generalDefines.data(),
-                                    generalDefines.size(),
-                                    colorRampSources,
-                                    std::size(colorRampSources),
-                                    m_capabilities);
-    glutils::LinkProgram(m_colorRampProgram);
+    m_colorRampProgram.compileAndAttachShader(GL_VERTEX_SHADER,
+                                              generalDefines.data(),
+                                              generalDefines.size(),
+                                              colorRampSources,
+                                              std::size(colorRampSources),
+                                              m_capabilities);
+    m_colorRampProgram.compileAndAttachShader(GL_FRAGMENT_SHADER,
+                                              generalDefines.data(),
+                                              generalDefines.size(),
+                                              colorRampSources,
+                                              std::size(colorRampSources),
+                                              m_capabilities);
+    m_colorRampProgram.link();
     glUniformBlockBinding(m_colorRampProgram,
                           glGetUniformBlockIndex(m_colorRampProgram, GLSL_FlushUniforms),
                           FLUSH_UNIFORM_BUFFER_IDX);
 
-    glGenVertexArrays(1, &m_colorRampVAO);
     m_state->bindVAO(m_colorRampVAO);
     glEnableVertexAttribArray(0);
     glVertexAttribDivisor(0, 1);
 
-    glGenFramebuffers(1, &m_colorRampFBO);
-
-    m_tessellateProgram = glCreateProgram();
     const char* tessellateSources[] = {glsl::constants, glsl::common, glsl::tessellate};
-    glutils::CompileAndAttachShader(m_tessellateProgram,
-                                    GL_VERTEX_SHADER,
-                                    generalDefines.data(),
-                                    generalDefines.size(),
-                                    tessellateSources,
-                                    std::size(tessellateSources),
-                                    m_capabilities);
-    glutils::CompileAndAttachShader(m_tessellateProgram,
-                                    GL_FRAGMENT_SHADER,
-                                    generalDefines.data(),
-                                    generalDefines.size(),
-                                    tessellateSources,
-                                    std::size(tessellateSources),
-                                    m_capabilities);
-    glutils::LinkProgram(m_tessellateProgram);
+    m_tessellateProgram.compileAndAttachShader(GL_VERTEX_SHADER,
+                                               generalDefines.data(),
+                                               generalDefines.size(),
+                                               tessellateSources,
+                                               std::size(tessellateSources),
+                                               m_capabilities);
+    m_tessellateProgram.compileAndAttachShader(GL_FRAGMENT_SHADER,
+                                               generalDefines.data(),
+                                               generalDefines.size(),
+                                               tessellateSources,
+                                               std::size(tessellateSources),
+                                               m_capabilities);
+    m_tessellateProgram.link();
     m_state->bindProgram(m_tessellateProgram);
     glUniformBlockBinding(m_tessellateProgram,
                           glGetUniformBlockIndex(m_tessellateProgram, GLSL_FlushUniforms),
@@ -160,7 +150,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                     kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
     }
 
-    glGenVertexArrays(1, &m_tessellateVAO);
     m_state->bindVAO(m_tessellateVAO);
     for (int i = 0; i < 4; ++i)
     {
@@ -169,27 +158,21 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         glVertexAttribDivisor(i, 1);
     }
 
-    glGenBuffers(1, &m_tessSpanIndexBuffer);
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_tessSpanIndexBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                  sizeof(pls::kTessSpanIndices),
                  pls::kTessSpanIndices,
                  GL_STATIC_DRAW);
 
-    glGenFramebuffers(1, &m_tessellateFBO);
-
-    glGenVertexArrays(1, &m_drawVAO);
     m_state->bindVAO(m_drawVAO);
 
     PatchVertex patchVertices[kPatchVertexBufferCount];
     uint16_t patchIndices[kPatchIndexBufferCount];
     GeneratePatchBufferData(patchVertices, patchIndices);
 
-    glGenBuffers(1, &m_patchVerticesBuffer);
     m_state->bindBuffer(GL_ARRAY_BUFFER, m_patchVerticesBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(patchVertices), patchVertices, GL_STATIC_DRAW);
 
-    glGenBuffers(1, &m_patchIndicesBuffer);
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_patchIndicesBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(patchIndices), patchIndices, GL_STATIC_DRAW);
 
@@ -204,7 +187,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                           sizeof(PatchVertex),
                           reinterpret_cast<const void*>(sizeof(float) * 4));
 
-    glGenVertexArrays(1, &m_trianglesVAO);
     m_state->bindVAO(m_trianglesVAO);
     glEnableVertexAttribArray(0);
 
@@ -212,10 +194,8 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     {
         // We only have to draw imageRects when in atomic mode and bindless textures are not
         // supported.
-        glGenVertexArrays(1, &m_imageRectVAO);
         m_state->bindVAO(m_imageRectVAO);
 
-        glGenBuffers(1, &m_imageRectVertexBuffer);
         m_state->bindBuffer(GL_ARRAY_BUFFER, m_imageRectVertexBuffer);
         glBufferData(GL_ARRAY_BUFFER,
                      sizeof(pls::kImageRectVertices),
@@ -225,7 +205,6 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(pls::ImageRectVertex), nullptr);
 
-        glGenBuffers(1, &m_imageRectIndexBuffer);
         m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_imageRectIndexBuffer);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                      sizeof(pls::kImageRectIndices),
@@ -233,12 +212,9 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
                      GL_STATIC_DRAW);
     }
 
-    glGenVertexArrays(1, &m_imageMeshVAO);
     m_state->bindVAO(m_imageMeshVAO);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-
-    glGenVertexArrays(1, &m_emptyVAO);
 
     if (m_plsImpl != nullptr)
     {
@@ -248,29 +224,11 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
 
 PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
 {
-    m_state->deleteProgram(m_colorRampProgram);
-    m_state->deleteVAO(m_colorRampVAO);
-    glDeleteFramebuffers(1, &m_colorRampFBO);
     glDeleteTextures(1, &m_gradientTexture);
-
-    m_state->deleteProgram(m_tessellateProgram);
-    m_state->deleteVAO(m_tessellateVAO);
-    m_state->deleteBuffer(m_tessSpanIndexBuffer);
-    glDeleteFramebuffers(1, &m_tessellateFBO);
     glDeleteTextures(1, &m_tessVertexTexture);
 
-    m_state->deleteVAO(m_drawVAO);
-    m_state->deleteBuffer(m_patchVerticesBuffer);
-    m_state->deleteBuffer(m_patchIndicesBuffer);
-
-    m_state->deleteVAO(m_trianglesVAO);
-
-    m_state->deleteVAO(m_imageRectVAO);
-    m_state->deleteBuffer(m_imageRectVertexBuffer);
-    m_state->deleteBuffer(m_imageRectIndexBuffer);
-
-    m_state->deleteVAO(m_imageMeshVAO);
-    m_state->deleteVAO(m_emptyVAO);
+    // Because glutils wrappers delete GL objects that might affect bindings.
+    m_state->invalidate(m_capabilities);
 }
 
 void PLSRenderContextGLImpl::invalidateGLState()
@@ -652,166 +610,150 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t 
                            0);
 }
 
-// Wraps a compiled GL shader of draw_path.glsl or draw_image_mesh.glsl, either vertex or fragment,
-// with a specific set of features enabled via #define. The set of features to enable is dictated by
-// ShaderFeatures.
-class PLSRenderContextGLImpl::DrawShader
+PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContextImpl,
+                                               GLenum shaderType,
+                                               pls::DrawType drawType,
+                                               ShaderFeatures shaderFeatures,
+                                               pls::InterlockMode interlockMode,
+                                               pls::ShaderMiscFlags shaderMiscFlags)
 {
-public:
-    DrawShader(const DrawShader&) = delete;
-    DrawShader& operator=(const DrawShader&) = delete;
-
-    DrawShader(PLSRenderContextGLImpl* plsContextImpl,
-               GLenum shaderType,
-               pls::DrawType drawType,
-               ShaderFeatures shaderFeatures,
-               pls::InterlockMode interlockMode,
-               pls::ShaderMiscFlags shaderMiscFlags)
-    {
 #ifndef ENABLE_PLS_EXPERIMENTAL_ATOMICS
-        if (interlockMode == pls::InterlockMode::atomics)
-        {
-            // Don't draw anything in atomic mode if support for it isn't compiled in.
-            return;
-        }
+    if (interlockMode == pls::InterlockMode::atomics)
+    {
+        // Don't draw anything in atomic mode if support for it isn't compiled in.
+        return;
+    }
 #endif
 
-        std::vector<const char*> defines;
-        if (plsContextImpl->m_plsImpl != nullptr)
+    std::vector<const char*> defines;
+    if (plsContextImpl->m_plsImpl != nullptr)
+    {
+        defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
+    }
+    for (size_t i = 0; i < kShaderFeatureCount; ++i)
+    {
+        ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
+        if (shaderFeatures & feature)
         {
-            defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
-        }
-        for (size_t i = 0; i < kShaderFeatureCount; ++i)
-        {
-            ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
-            if (shaderFeatures & feature)
+            assert((kVertexShaderFeaturesMask & feature) || shaderType == GL_FRAGMENT_SHADER);
+            if (interlockMode == pls::InterlockMode::depthStencil &&
+                feature == pls::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
+                plsContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
             {
-                assert((kVertexShaderFeaturesMask & feature) || shaderType == GL_FRAGMENT_SHADER);
-                if (interlockMode == pls::InterlockMode::depthStencil &&
-                    feature == pls::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
-                    plsContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
-                {
-                    defines.push_back(GLSL_ENABLE_KHR_BLEND);
-                }
-                else
-                {
-                    defines.push_back(GetShaderFeatureGLSLName(feature));
-                }
+                defines.push_back(GLSL_ENABLE_KHR_BLEND);
+            }
+            else
+            {
+                defines.push_back(GetShaderFeatureGLSLName(feature));
             }
         }
-        if (interlockMode == pls::InterlockMode::depthStencil)
-        {
-            defines.push_back(GLSL_USING_DEPTH_STENCIL);
-        }
-
-        std::vector<const char*> sources;
-        sources.push_back(glsl::constants);
-        sources.push_back(glsl::common);
-        if (shaderType == GL_FRAGMENT_SHADER &&
-            (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
-        {
-            sources.push_back(glsl::advanced_blend);
-        }
-        if (plsContextImpl->platformFeatures().avoidFlatVaryings)
-        {
-            sources.push_back("#define " GLSL_OPTIONALLY_FLAT "\n");
-        }
-        else
-        {
-            sources.push_back("#define " GLSL_OPTIONALLY_FLAT " flat\n");
-        }
-        switch (drawType)
-        {
-            case pls::DrawType::midpointFanPatches:
-            case pls::DrawType::outerCurvePatches:
-                if (shaderType == GL_VERTEX_SHADER)
-                {
-                    defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
-                    if (!plsContextImpl->m_capabilities
-                             .ANGLE_base_vertex_base_instance_shader_builtin)
-                    {
-                        defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
-                    }
-                }
-                defines.push_back(GLSL_DRAW_PATH);
-                sources.push_back(pls::glsl::draw_path_common);
-                sources.push_back(interlockMode == pls::InterlockMode::atomics
-                                      ? pls::glsl::atomic_draw
-                                      : pls::glsl::draw_path);
-                break;
-            case pls::DrawType::stencilClipReset:
-                assert(interlockMode == pls::InterlockMode::depthStencil);
-                sources.push_back(pls::glsl::stencil_draw);
-                break;
-            case pls::DrawType::interiorTriangulation:
-                defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
-                sources.push_back(pls::glsl::draw_path_common);
-                sources.push_back(interlockMode == pls::InterlockMode::atomics
-                                      ? pls::glsl::atomic_draw
-                                      : pls::glsl::draw_path);
-                break;
-            case pls::DrawType::imageRect:
-                assert(interlockMode == pls::InterlockMode::atomics);
-                defines.push_back(GLSL_DRAW_IMAGE);
-                defines.push_back(GLSL_DRAW_IMAGE_RECT);
-                sources.push_back(pls::glsl::atomic_draw);
-                break;
-            case pls::DrawType::imageMesh:
-                defines.push_back(GLSL_DRAW_IMAGE);
-                defines.push_back(GLSL_DRAW_IMAGE_MESH);
-                sources.push_back(interlockMode == pls::InterlockMode::atomics
-                                      ? pls::glsl::atomic_draw
-                                      : pls::glsl::draw_image_mesh);
-                break;
-            case pls::DrawType::plsAtomicResolve:
-                assert(interlockMode == pls::InterlockMode::atomics);
-                defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
-                defines.push_back(GLSL_RESOLVE_PLS);
-                if (shaderMiscFlags & pls::ShaderMiscFlags::coalescedResolveAndTransfer)
-                {
-                    assert(shaderType == GL_FRAGMENT_SHADER);
-                    defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
-                }
-                sources.push_back(pls::glsl::atomic_draw);
-                break;
-            case pls::DrawType::plsAtomicInitialize:
-                assert(interlockMode == pls::InterlockMode::atomics);
-                RIVE_UNREACHABLE();
-        }
-        if (plsContextImpl->m_capabilities.ARB_bindless_texture)
-        {
-            defines.push_back(GLSL_ENABLE_BINDLESS_TEXTURES);
-        }
-        if (!plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
-        {
-            defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
-        }
-
-        m_id = glutils::CompileShader(shaderType,
-                                      defines.data(),
-                                      defines.size(),
-                                      sources.data(),
-                                      sources.size(),
-                                      plsContextImpl->m_capabilities);
+    }
+    if (interlockMode == pls::InterlockMode::depthStencil)
+    {
+        defines.push_back(GLSL_USING_DEPTH_STENCIL);
     }
 
-    ~DrawShader() { glDeleteShader(m_id); }
+    std::vector<const char*> sources;
+    sources.push_back(glsl::constants);
+    sources.push_back(glsl::common);
+    if (shaderType == GL_FRAGMENT_SHADER &&
+        (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    {
+        sources.push_back(glsl::advanced_blend);
+    }
+    if (plsContextImpl->platformFeatures().avoidFlatVaryings)
+    {
+        sources.push_back("#define " GLSL_OPTIONALLY_FLAT "\n");
+    }
+    else
+    {
+        sources.push_back("#define " GLSL_OPTIONALLY_FLAT " flat\n");
+    }
+    switch (drawType)
+    {
+        case pls::DrawType::midpointFanPatches:
+        case pls::DrawType::outerCurvePatches:
+            if (shaderType == GL_VERTEX_SHADER)
+            {
+                defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
+                if (!plsContextImpl->m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+                {
+                    defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
+                }
+            }
+            defines.push_back(GLSL_DRAW_PATH);
+            sources.push_back(pls::glsl::draw_path_common);
+            sources.push_back(interlockMode == pls::InterlockMode::atomics ? pls::glsl::atomic_draw
+                                                                           : pls::glsl::draw_path);
+            break;
+        case pls::DrawType::stencilClipReset:
+            assert(interlockMode == pls::InterlockMode::depthStencil);
+            sources.push_back(pls::glsl::stencil_draw);
+            break;
+        case pls::DrawType::interiorTriangulation:
+            defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
+            sources.push_back(pls::glsl::draw_path_common);
+            sources.push_back(interlockMode == pls::InterlockMode::atomics ? pls::glsl::atomic_draw
+                                                                           : pls::glsl::draw_path);
+            break;
+        case pls::DrawType::imageRect:
+            assert(interlockMode == pls::InterlockMode::atomics);
+            defines.push_back(GLSL_DRAW_IMAGE);
+            defines.push_back(GLSL_DRAW_IMAGE_RECT);
+            sources.push_back(pls::glsl::atomic_draw);
+            break;
+        case pls::DrawType::imageMesh:
+            defines.push_back(GLSL_DRAW_IMAGE);
+            defines.push_back(GLSL_DRAW_IMAGE_MESH);
+            sources.push_back(interlockMode == pls::InterlockMode::atomics
+                                  ? pls::glsl::atomic_draw
+                                  : pls::glsl::draw_image_mesh);
+            break;
+        case pls::DrawType::plsAtomicResolve:
+            assert(interlockMode == pls::InterlockMode::atomics);
+            defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
+            defines.push_back(GLSL_RESOLVE_PLS);
+            if (shaderMiscFlags & pls::ShaderMiscFlags::coalescedResolveAndTransfer)
+            {
+                assert(shaderType == GL_FRAGMENT_SHADER);
+                defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
+            }
+            sources.push_back(pls::glsl::atomic_draw);
+            break;
+        case pls::DrawType::plsAtomicInitialize:
+            assert(interlockMode == pls::InterlockMode::atomics);
+            RIVE_UNREACHABLE();
+    }
+    if (plsContextImpl->m_capabilities.ARB_bindless_texture)
+    {
+        defines.push_back(GLSL_ENABLE_BINDLESS_TEXTURES);
+    }
+    if (!plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
+    {
+        defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
+    }
 
-    GLuint id() const { return m_id; }
-
-private:
-    GLuint m_id = 0;
-};
+    m_id = glutils::CompileShader(shaderType,
+                                  defines.data(),
+                                  defines.size(),
+                                  sources.data(),
+                                  sources.size(),
+                                  plsContextImpl->m_capabilities);
+}
 
 PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
                                                  pls::DrawType drawType,
                                                  pls::ShaderFeatures shaderFeatures,
                                                  pls::InterlockMode interlockMode,
                                                  pls::ShaderMiscFlags fragmentShaderMiscFlags) :
+    m_fragmentShader(plsContextImpl,
+                     GL_FRAGMENT_SHADER,
+                     drawType,
+                     shaderFeatures,
+                     interlockMode,
+                     fragmentShaderMiscFlags),
     m_state(plsContextImpl->m_state)
 {
-    m_id = glCreateProgram();
-
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
     ShaderFeatures vertexShaderFeatures = shaderFeatures & kVertexShaderFeaturesMask;
@@ -828,17 +770,10 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
                                                       interlockMode,
                                                       pls::ShaderMiscFlags::none)
                                          .first->second;
+
+    m_id = glCreateProgram();
     glAttachShader(m_id, vertexShader.id());
-
-    // Every fragment shader is unique.
-    DrawShader fragmentShader(plsContextImpl,
-                              GL_FRAGMENT_SHADER,
-                              drawType,
-                              shaderFeatures,
-                              interlockMode,
-                              fragmentShaderMiscFlags);
-    glAttachShader(m_id, fragmentShader.id());
-
+    glAttachShader(m_id, m_fragmentShader.id());
     glutils::LinkProgram(m_id);
 
     m_state->bindProgram(m_id);
@@ -1575,23 +1510,21 @@ void PLSRenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
 {
     if (m_blitAsDrawProgram == 0)
     {
-        m_blitAsDrawProgram = glCreateProgram();
         const char* blitSources[] = {glsl::constants, glsl::common, glsl::blit_texture_as_draw};
-        glutils::CompileAndAttachShader(m_blitAsDrawProgram,
-                                        GL_VERTEX_SHADER,
-                                        nullptr,
-                                        0,
-                                        blitSources,
-                                        std::size(blitSources),
-                                        m_capabilities);
-        glutils::CompileAndAttachShader(m_blitAsDrawProgram,
-                                        GL_FRAGMENT_SHADER,
-                                        nullptr,
-                                        0,
-                                        blitSources,
-                                        std::size(blitSources),
-                                        m_capabilities);
-        glutils::LinkProgram(m_blitAsDrawProgram);
+        m_blitAsDrawProgram.reset(glCreateProgram());
+        m_blitAsDrawProgram.compileAndAttachShader(GL_VERTEX_SHADER,
+                                                   nullptr,
+                                                   0,
+                                                   blitSources,
+                                                   std::size(blitSources),
+                                                   m_capabilities);
+        m_blitAsDrawProgram.compileAndAttachShader(GL_FRAGMENT_SHADER,
+                                                   nullptr,
+                                                   0,
+                                                   blitSources,
+                                                   std::size(blitSources),
+                                                   m_capabilities);
+        m_blitAsDrawProgram.link();
         m_state->bindProgram(m_blitAsDrawProgram);
         glUniform1i(glGetUniformLocation(m_blitAsDrawProgram, GLSL_blitTextureSource), 0);
     }

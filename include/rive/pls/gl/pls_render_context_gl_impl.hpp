@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/pls/gl/gl_state.hpp"
+#include "rive/pls/gl/gl_utils.hpp"
 #include "rive/pls/pls_render_context_helper_impl.hpp"
 #include <map>
 
@@ -114,6 +115,30 @@ private:
 
     PLSRenderContextGLImpl(const char* rendererString, GLCapabilities, std::unique_ptr<PLSImpl>);
 
+    // Wraps a compiled GL shader of draw_path.glsl or draw_image_mesh.glsl, either vertex or
+    // fragment, with a specific set of features enabled via #define. The set of features to enable
+    // is dictated by ShaderFeatures.
+    class DrawShader
+    {
+    public:
+        DrawShader(const DrawShader&) = delete;
+        DrawShader& operator=(const DrawShader&) = delete;
+
+        DrawShader(PLSRenderContextGLImpl* plsContextImpl,
+                   GLenum shaderType,
+                   pls::DrawType drawType,
+                   ShaderFeatures shaderFeatures,
+                   pls::InterlockMode interlockMode,
+                   pls::ShaderMiscFlags shaderMiscFlags);
+
+        ~DrawShader() { glDeleteShader(m_id); }
+
+        GLuint id() const { return m_id; }
+
+    private:
+        GLuint m_id;
+    };
+
     // Wraps a compiled and linked GL program of draw_path.glsl or draw_image_mesh.glsl, with a
     // specific set of features enabled via #define. The set of features to enable is dictated by
     // ShaderFeatures.
@@ -133,12 +158,11 @@ private:
         GLint spirvCrossBaseInstanceLocation() const { return m_spirvCrossBaseInstanceLocation; }
 
     private:
+        DrawShader m_fragmentShader;
         GLuint m_id;
         GLint m_spirvCrossBaseInstanceLocation = -1;
         const rcp<GLState> m_state;
     };
-
-    class DrawShader;
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
@@ -156,16 +180,16 @@ private:
     std::unique_ptr<PLSImpl> m_plsImpl;
 
     // Gradient texture rendering.
-    GLuint m_colorRampProgram;
-    GLuint m_colorRampVAO;
-    GLuint m_colorRampFBO;
+    glutils::Program m_colorRampProgram;
+    glutils::VAO m_colorRampVAO;
+    glutils::FBO m_colorRampFBO;
     GLuint m_gradientTexture = 0;
 
     // Tessellation texture rendering.
-    GLuint m_tessellateProgram;
-    GLuint m_tessellateVAO;
-    GLuint m_tessSpanIndexBuffer;
-    GLuint m_tessellateFBO;
+    glutils::Program m_tessellateProgram;
+    glutils::VAO m_tessellateVAO;
+    glutils::Buffer m_tessSpanIndexBuffer;
+    glutils::FBO m_tessellateFBO;
     GLuint m_tessVertexTexture = 0;
 
     // Not all programs have a unique vertex shader, so we cache and reuse them where possible.
@@ -173,22 +197,22 @@ private:
     std::map<uint32_t, DrawProgram> m_drawPrograms;
 
     // Vertex/index buffers for drawing paths.
-    GLuint m_drawVAO = 0;
-    GLuint m_patchVerticesBuffer = 0;
-    GLuint m_patchIndicesBuffer = 0;
-    GLuint m_trianglesVAO = 0;
+    glutils::VAO m_drawVAO;
+    glutils::Buffer m_patchVerticesBuffer;
+    glutils::Buffer m_patchIndicesBuffer;
+    glutils::VAO m_trianglesVAO;
 
     // Vertex/index buffers for drawing image rects. (Atomic mode only, and only used when bindless
     // textures aren't supported.)
-    GLuint m_imageRectVAO = 0;
-    GLuint m_imageRectVertexBuffer = 0;
-    GLuint m_imageRectIndexBuffer = 0;
+    glutils::VAO m_imageRectVAO;
+    glutils::Buffer m_imageRectVertexBuffer;
+    glutils::Buffer m_imageRectIndexBuffer;
 
-    GLuint m_imageMeshVAO = 0;
-    GLuint m_emptyVAO = 0;
+    glutils::VAO m_imageMeshVAO;
+    glutils::VAO m_emptyVAO;
 
     // Used for blitting non-MSAA -> MSAA, which isn't supported by glBlitFramebuffer().
-    GLuint m_blitAsDrawProgram = 0;
+    glutils::Program m_blitAsDrawProgram{0};
 
     const rcp<GLState> m_state;
 };

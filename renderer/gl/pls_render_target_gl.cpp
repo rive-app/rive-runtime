@@ -7,7 +7,7 @@
 #include "rive/pls/pls.hpp"
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "shaders/constants.glsl"
-#include "gl_utils.hpp"
+#include "rive/pls/gl/gl_utils.hpp"
 
 namespace rive::pls
 {

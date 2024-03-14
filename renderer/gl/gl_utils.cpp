@@ -2,7 +2,7 @@
  * Copyright 2022 Rive
  */
 
-#include "gl_utils.hpp"
+#include "rive/pls/gl/gl_utils.hpp"
 
 #include <stdio.h>
 #include <sstream>
@@ -13,7 +13,7 @@
 namespace glutils
 {
 void CompileAndAttachShader(GLuint program,
-                            GLuint type,
+                            GLenum type,
                             const char* source,
                             const GLCapabilities& capabilities)
 {
@@ -21,7 +21,7 @@ void CompileAndAttachShader(GLuint program,
 }
 
 void CompileAndAttachShader(GLuint program,
-                            GLuint type,
+                            GLenum type,
                             const char* defines[],
                             size_t numDefines,
                             const char* inputSources[],
@@ -83,6 +83,7 @@ GLuint CompileShader(GLuint type,
     GLuint shader = glCreateShader(shaderType);
     glShaderSource(shader, 1, &rawGLSL, nullptr);
     glCompileShader(shader);
+#ifdef DEBUG
     GLint isCompiled = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
     if (isCompiled == GL_FALSE)
@@ -104,12 +105,14 @@ GLuint CompileShader(GLuint type,
         glDeleteShader(shader);
         exit(-1);
     }
+#endif
     return shader;
 }
 
 void LinkProgram(GLuint program)
 {
     glLinkProgram(program);
+#ifdef DEBUG
     GLint isLinked = 0;
     glGetProgramiv(program, GL_LINK_STATUS, &isLinked);
     if (isLinked == GL_FALSE)
@@ -122,6 +125,43 @@ void LinkProgram(GLuint program)
         fflush(stderr);
         exit(-1);
     }
+#endif
+}
+
+void Program::reset(GLuint adoptedProgramID)
+{
+    if (m_fragmentShaderID != 0)
+    {
+        glDeleteShader(m_fragmentShaderID);
+        m_fragmentShaderID = 0;
+    }
+    if (m_vertexShaderID != 0)
+    {
+        glDeleteShader(m_vertexShaderID);
+        m_vertexShaderID = 0;
+    }
+    if (m_programID != 0)
+    {
+        glDeleteProgram(m_programID);
+    }
+    m_programID = adoptedProgramID;
+}
+
+void Program::compileAndAttachShader(GLuint type,
+                                     const char* defines[],
+                                     size_t numDefines,
+                                     const char* sources[],
+                                     size_t numSources,
+                                     const GLCapabilities& capabilities)
+{
+    assert(type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER);
+    GLuint& internalShaderID = type == GL_VERTEX_SHADER ? m_vertexShaderID : m_fragmentShaderID;
+    if (internalShaderID != 0)
+    {
+        glDeleteShader(internalShaderID);
+    }
+    internalShaderID = CompileShader(type, defines, numDefines, sources, numSources, capabilities);
+    glAttachShader(m_programID, internalShaderID);
 }
 
 void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)
