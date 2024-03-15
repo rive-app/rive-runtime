@@ -78,6 +78,13 @@ public:
                StateTransitionFlags::EnableExitTime;
     }
 
+    /// Whether the transition can be interrupted.
+    bool enableEarlyExit() const
+    {
+        return (transitionFlags() & StateTransitionFlags::EnableEarlyExit) ==
+               StateTransitionFlags::EnableEarlyExit;
+    }
+
     StatusCode import(ImportStack& importStack) override;
 
     size_t conditionCount() const { return m_Conditions.size(); }

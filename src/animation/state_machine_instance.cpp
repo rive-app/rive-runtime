@@ -122,8 +122,8 @@ public:
     bool updateState(bool ignoreTriggers)
     {
         // Don't allow changing state while a transition is taking place
-        // (we're mixing one state onto another).
-        if (isTransitioning())
+        // (we're mixing one state onto another) if enableEarlyExit is not true.
+        if (isTransitioning() && !m_transition->enableEarlyExit())
         {
             return false;
         }

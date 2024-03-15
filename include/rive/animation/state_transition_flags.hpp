@@ -23,7 +23,10 @@ enum class StateTransitionFlags : unsigned char
 
     /// Whether the animation is held at exit or if it keeps advancing
     /// during mixing.
-    PauseOnExit = 1 << 4
+    PauseOnExit = 1 << 4,
+
+    /// Whether the transition can exit before it is complete.
+    EnableEarlyExit = 1 << 5
 
 };
 
