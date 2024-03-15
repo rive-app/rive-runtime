@@ -24,6 +24,13 @@ public:
 
     MTLPixelFormat pixelFormat() const { return m_pixelFormat; }
 
+    bool compatibleWith(id<MTLTexture> texture) const
+    {
+        assert(texture.usage & MTLTextureUsageRenderTarget);
+        return width() == texture.width && height() == texture.height &&
+               m_pixelFormat == texture.pixelFormat;
+    }
+
     void setTargetTexture(id<MTLTexture> texture);
     id<MTLTexture> targetTexture() const { return m_targetTexture; }
 
@@ -85,14 +92,11 @@ public:
         bool disableFramebufferReads = false;
     };
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice>,
-                                                         id<MTLCommandQueue>,
-                                                         const ContextOptions&);
+    static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice>, const ContextOptions&);
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice> gpu,
-                                                         id<MTLCommandQueue> queue)
+    static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice> gpu)
     {
-        return MakeContext(gpu, queue, ContextOptions());
+        return MakeContext(gpu, ContextOptions());
     }
 
     ~PLSRenderContextMetalImpl() override;
@@ -130,7 +134,7 @@ public:
     AtomicBarrierType atomicBarrierType() const { return m_atomicBarrierType; }
 
 protected:
-    PLSRenderContextMetalImpl(id<MTLDevice>, id<MTLCommandQueue>, const ContextOptions&);
+    PLSRenderContextMetalImpl(id<MTLDevice>, const ContextOptions&);
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
@@ -167,7 +171,6 @@ private:
 
     const ContextOptions m_contextOptions;
     const id<MTLDevice> m_gpu;
-    const id<MTLCommandQueue> m_queue;
 
     AtomicBarrierType m_atomicBarrierType;
     std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
@@ -198,8 +201,5 @@ private:
     // overriding data before the GPU is done with it.
     std::mutex m_bufferRingLocks[kBufferRingSize];
     int m_bufferRingIdx = 0;
-
-    // Stashed active command buffer between logical flushes.
-    id<MTLCommandBuffer> m_currentCommandBuffer = nullptr;
 };
 } // namespace rive::pls

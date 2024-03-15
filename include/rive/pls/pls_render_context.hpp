@@ -70,15 +70,6 @@ using PLSDrawUniquePtr = std::unique_ptr<PLSDraw, PLSDrawReleaseRefs>;
 // buffers, context state, and other resources required for Rive's pixel local storage path
 // rendering algorithm.
 //
-// Main algorithm:
-// https://docs.google.com/document/d/19Uk9eyFxav6dNSYsI2ZyiX9zHU1YOaJsMB2sdDFVz6s/edit
-//
-// Batching multiple unique paths:
-// https://docs.google.com/document/d/1DLrQimS5pbNaJJ2sAW5oSOsH6_glwDPo73-mtG5_zns/edit
-//
-// Batching strokes as well:
-// https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit
-//
 // Intended usage pattern of this class:
 //
 //   context->beginFrame(...);
@@ -106,14 +97,11 @@ public:
 
     const pls::PlatformFeatures& platformFeatures() const;
 
-    // Returns the number of flushes that have been executed over the entire lifetime of this class,
-    // logical or otherwise.
-    uint64_t getFlushCount() const { return m_flushCount; }
-
     // Options for controlling how and where a frame is rendered.
     struct FrameDescriptor
     {
-        rcp<PLSRenderTarget> renderTarget;
+        uint32_t renderTargetWidth = 0;
+        uint32_t renderTargetHeight = 0;
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
         int msaaSampleCount = 0; // If nonzero, the number of MSAA samples to use.
@@ -125,21 +113,21 @@ public:
         bool wireframe = false;
         bool fillsDisabled = false;
         bool strokesDisabled = false;
-
-        // Only used for metal backend.
-        void* backendSpecificData = nullptr;
     };
 
     // Called at the beginning of a frame and establishes where and how it will be rendered.
     //
     // All rendering related calls must be made between beginFrame() and flush().
-    void beginFrame(FrameDescriptor&&);
+    void beginFrame(const FrameDescriptor&);
 
     const FrameDescriptor& frameDescriptor() const
     {
         assert(m_didBeginFrame);
         return m_frameDescriptor;
     }
+
+    // True if bounds is empty or outside [0, 0, renderTargetWidth, renderTargetHeight].
+    bool isOutsideCurrentFrame(const IAABB& pixelBounds);
 
     // True if the current frame supports draws with clipRects (clipRectInverseMatrix != null).
     // If false, all clipping must be done with clipPaths.
@@ -202,13 +190,20 @@ public:
     // the caller must issue a logical flush and try again.
     [[nodiscard]] bool pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount);
 
-    // Renders all paths that have been pushed since the last call to flush(). Rendering is done in
-    // two steps:
-    //
-    //  1. Tessellate all cubics into positions and normals in the "tessellation texture".
-    //  2. Render the tessellated curves using Rive's pixel local storage path rendering algorithm.
-    //
-    void flush(pls::FlushType = pls::FlushType::endOfFrame);
+    // Records a "logical" flush, in that it builds up commands to break up the render pass and
+    // re-render the resource textures, but it won't submit any command buffers or
+    // rotate/synchronize the buffer rings.
+    void logicalFlush();
+
+    // GPU resources required to execute the GPU commands for a frame.
+    struct FlushResources
+    {
+        PLSRenderTarget* renderTarget = nullptr;
+        void* externalCommandBuffer = nullptr; // Required on Metal.
+    };
+
+    // Submits all GPU commands that have been built up since beginFrame().
+    void flush(const FlushResources&);
 
     // Called when the client will stop rendering. Releases all CPU and GPU resources associated
     // with this render context.
@@ -319,10 +314,6 @@ private:
     pls::InterlockMode m_frameInterlockMode;
     pls::ShaderFeatures m_frameShaderFeaturesMask;
     RIVE_DEBUG_CODE(bool m_didBeginFrame = false;)
-
-    // The number of flushes that have been executed over the entire lifetime of this class, logical
-    // or otherwise.
-    size_t m_flushCount = 0;
 
     // Clipping state.
     uint32_t m_clipContentID = 0;
@@ -481,9 +472,9 @@ private:
         // Carves out space for this specific flush within the total frame's resource buffers and
         // lays out the flush-specific resource textures. Updates the total frame running conters
         // based on layout.
-        void layoutResources(const FrameDescriptor&,
-                             size_t flushIdx,
-                             pls::FlushType,
+        void layoutResources(const FlushResources&,
+                             size_t logicalFlushIdx,
+                             bool isFinalFlushOfFrame,
                              ResourceCounters* runningFrameResourceCounts,
                              LayoutCounters* runningFrameLayoutCounts);
 

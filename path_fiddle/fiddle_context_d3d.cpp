@@ -39,6 +39,8 @@ public:
 
     rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
+    rive::pls::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
         m_swapchain.Reset();
@@ -70,21 +72,28 @@ public:
         return std::make_unique<PLSRenderer>(m_plsContext.get());
     }
 
-    void begin(rive::pls::PLSRenderContext::FrameDescriptor&& frameDescriptor) override
+    void begin(const rive::pls::PLSRenderContext::FrameDescriptor& frameDescriptor) override
     {
-        ComPtr<ID3D11Texture2D> backBuffer;
-        VERIFY_OK(
-            m_swapchain->GetBuffer(0,
-                                   __uuidof(ID3D11Texture2D),
-                                   reinterpret_cast<void**>(backBuffer.ReleaseAndGetAddressOf())));
-        m_renderTarget->setTargetTexture(std::move(backBuffer));
-        frameDescriptor.renderTarget = m_renderTarget;
-        m_plsContext->beginFrame(std::move(frameDescriptor));
+        m_plsContext->beginFrame(frameDescriptor);
+    }
+
+    void flushPLSContext() final
+    {
+        if (m_renderTarget->targetTexture() == nullptr)
+        {
+            ComPtr<ID3D11Texture2D> backbuffer;
+            VERIFY_OK(m_swapchain->GetBuffer(
+                0,
+                __uuidof(ID3D11Texture2D),
+                reinterpret_cast<void**>(backbuffer.ReleaseAndGetAddressOf())));
+            m_renderTarget->setTargetTexture(backbuffer);
+        }
+        m_plsContext->flush({.renderTarget = m_renderTarget.get()});
     }
 
     void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
     {
-        m_plsContext->flush();
+        flushPLSContext();
         if (pixelData != nullptr)
         {
             uint32_t w = m_renderTarget->width();
@@ -119,6 +128,8 @@ public:
             m_gpuContext->Unmap(m_readbackTexture.Get(), 0);
         }
         m_swapchain->Present(0, 0);
+
+        m_renderTarget->setTargetTexture(nullptr);
     }
 
 private:

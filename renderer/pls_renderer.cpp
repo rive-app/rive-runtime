@@ -304,14 +304,9 @@ void PLSRenderer::drawImageMesh(const RenderImage* renderImage,
                                                                     opacity)));
 }
 
-inline bool PLSRenderer::isOffscreenOrEmpty(const IAABB& bounds) const
-{
-    return m_context->frameDescriptor().renderTarget->isOffscreenOrEmpty(bounds);
-}
-
 void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
 {
-    if (isOffscreenOrEmpty(draw->pixelBounds()))
+    if (m_context->isOutsideCurrentFrame(draw->pixelBounds()))
     {
         return;
     }
@@ -339,7 +334,7 @@ void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
         if (!applyClip(draw.get()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
-            m_context->flush(pls::FlushType::logical);
+            m_context->logicalFlush();
             continue;
         }
 
@@ -347,7 +342,7 @@ void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
         if (!m_context->pushDrawBatch(m_internalDrawBatch.data(), m_internalDrawBatch.size()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
-            m_context->flush(pls::FlushType::logical);
+            m_context->logicalFlush();
             // Reclaim "draw" because we will use it again on the next iteration.
             draw = std::move(m_internalDrawBatch.back());
             assert(draw != nullptr);
@@ -404,7 +399,7 @@ bool PLSRenderer::applyClip(PLSDraw* draw)
                 m_context,
                 m_context->getClipContentID(),
                 StencilClipReset::ResetAction::clearPreviousClip));
-            if (!isOffscreenOrEmpty(stencilClipClear->pixelBounds()))
+            if (!m_context->isOutsideCurrentFrame(stencilClipClear->pixelBounds()))
             {
                 m_internalDrawBatch.push_back(std::move(stencilClipClear));
             }
@@ -436,7 +431,7 @@ bool PLSRenderer::applyClip(PLSDraw* draw)
                 return false; // The context is out of clipIDs. We will flush and try again.
             }
             clipDraw->setClipID(clip.clipID);
-            if (!isOffscreenOrEmpty(clipDrawBounds))
+            if (!m_context->isOutsideCurrentFrame(clipDrawBounds))
             {
                 m_internalDrawBatch.push_back(std::move(clipDraw));
             }
@@ -454,7 +449,7 @@ bool PLSRenderer::applyClip(PLSDraw* draw)
                     m_context,
                     lastClipID,
                     StencilClipReset::ResetAction::intersectPreviousClip));
-                if (!isOffscreenOrEmpty(stencilClipIntersect->pixelBounds()))
+                if (!m_context->isOutsideCurrentFrame(stencilClipIntersect->pixelBounds()))
                 {
                     m_internalDrawBatch.push_back(std::move(stencilClipIntersect));
                 }

@@ -223,6 +223,8 @@ public:
 
     rive::pls::PLSRenderContext* plsContextOrNull() override { return nullptr; }
 
+    rive::pls::PLSRenderTarget* plsRenderTargetOrNull() override { return nullptr; }
+
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
         GrBackendRenderTarget backendRT(width,
@@ -247,7 +249,7 @@ public:
         return std::make_unique<SkiaRenderer>(m_skSurface->getCanvas());
     }
 
-    void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
+    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
     {
         m_skSurface->getCanvas()->clear(frameDescriptor.clearColor);
         m_grContext->resetContext();
@@ -284,6 +286,8 @@ public:
 
     rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
+    rive::pls::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
         m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
@@ -294,18 +298,19 @@ public:
         return std::make_unique<PLSRenderer>(m_plsContext.get());
     }
 
-    void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
+    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
     {
         m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->invalidateGLState();
-        frameDescriptor.renderTarget = m_renderTarget;
-        m_plsContext->beginFrame(std::move(frameDescriptor));
+        m_plsContext->beginFrame(frameDescriptor);
     }
 
     void onEnd() override
     {
-        m_plsContext->flush();
+        flushPLSContext();
         m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->unbindGLInternalResources();
     }
+
+    void flushPLSContext() override { m_plsContext->flush({.renderTarget = m_renderTarget.get()}); }
 
 private:
     std::unique_ptr<PLSRenderContext> m_plsContext =

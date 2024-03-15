@@ -273,17 +273,16 @@ private:
 };
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextMetalImpl::MakeContext(
-    id<MTLDevice> gpu, id<MTLCommandQueue> queue, const ContextOptions& contextOptions)
+    id<MTLDevice> gpu, const ContextOptions& contextOptions)
 {
     auto plsContextImpl = std::unique_ptr<PLSRenderContextMetalImpl>(
-        new PLSRenderContextMetalImpl(gpu, queue, contextOptions));
+        new PLSRenderContextMetalImpl(gpu, contextOptions));
     return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
 }
 
 PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
-                                                     id<MTLCommandQueue> queue,
                                                      const ContextOptions& contextOptions) :
-    m_contextOptions(contextOptions), m_gpu(gpu), m_queue(queue)
+    m_contextOptions(contextOptions), m_gpu(gpu)
 {
     // It appears, so far, that we don't need to use flat interpolation for path IDs on any Apple
     // device, and it's faster not to.
@@ -464,10 +463,7 @@ PLSRenderTargetMetal::PLSRenderTargetMetal(id<MTLDevice> gpu,
 
 void PLSRenderTargetMetal::setTargetTexture(id<MTLTexture> texture)
 {
-    assert(texture.width == width());
-    assert(texture.height == height());
-    assert(texture.pixelFormat == m_pixelFormat);
-    assert(texture.usage & MTLTextureUsageRenderTarget);
+    assert(!texture || compatibleWith(texture));
     m_targetTexture = texture;
 }
 
@@ -824,20 +820,7 @@ id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
 void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
     auto* renderTarget = static_cast<PLSRenderTargetMetal*>(desc.renderTarget);
-
-    id<MTLCommandBuffer> commandBuffer;
-    if (desc.backendSpecificData != nullptr)
-    {
-        commandBuffer = (__bridge id<MTLCommandBuffer>)desc.backendSpecificData;
-    }
-    else
-    {
-        if (m_currentCommandBuffer == nil)
-        {
-            m_currentCommandBuffer = [m_queue commandBuffer];
-        }
-        commandBuffer = m_currentCommandBuffer;
-    }
+    id<MTLCommandBuffer> commandBuffer = (__bridge id<MTLCommandBuffer>)desc.externalCommandBuffer;
 
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
@@ -1186,7 +1169,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     }
     [encoder endEncoding];
 
-    if (desc.flushType == pls::FlushType::endOfFrame)
+    if (desc.isFinalFlushOfFrame)
     {
         // Schedule a callback that will unlock the buffers used by this flush, after the GPU has
         // finished rendering with them. This unblocks the CPU from reusing them in a future flush.
@@ -1195,16 +1178,6 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
           assert(!thisFlushLock.try_lock()); // The mutex should already be locked.
           thisFlushLock.unlock();
         }];
-
-        // Commit our commandBuffer if it's one generated on our own queue. If it's external, then
-        // whoever supplied it is responsible for committing.
-        if (desc.backendSpecificData == nullptr)
-        {
-            assert(commandBuffer == m_currentCommandBuffer);
-            [commandBuffer commit];
-            m_currentCommandBuffer = nil;
-        }
-        assert(m_currentCommandBuffer == nil);
     }
 }
 } // namespace rive::pls

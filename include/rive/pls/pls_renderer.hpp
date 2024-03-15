@@ -57,8 +57,6 @@ private:
     void clipRectImpl(AABB, const PLSPath* originalPath);
     void clipPathImpl(const PLSPath*);
 
-    inline bool isOffscreenOrEmpty(const IAABB& bounds) const;
-
     // Clips and pushes the given draw to m_context. If the clipped draw is too complex to be
     // supported by the GPU buffers, even after a logical flush, then nothing is drawn.
     void clipAndPushDraw(PLSDrawUniquePtr);

@@ -212,10 +212,12 @@ void PLSRenderContext::LogicalFlush::resetContainers()
     m_pendingComplexColorRampDraws.reserve(kDefaultComplexGradientCapacity);
 }
 
-void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
+void PLSRenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
 {
     assert(!m_didBeginFrame);
-    m_frameDescriptor = std::move(frameDescriptor);
+    assert(frameDescriptor.renderTargetWidth > 0);
+    assert(frameDescriptor.renderTargetHeight > 0);
+    m_frameDescriptor = frameDescriptor;
     if (m_frameDescriptor.msaaSampleCount > 0 || !platformFeatures().supportsPixelLocalStorage)
     {
         m_frameInterlockMode = pls::InterlockMode::depthStencil;
@@ -234,18 +236,28 @@ void PLSRenderContext::beginFrame(FrameDescriptor&& frameDescriptor)
     {
         m_logicalFlushes.emplace_back(new LogicalFlush(this));
     }
-    m_impl->prepareToMapBuffers();
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
+}
+
+bool PLSRenderContext::isOutsideCurrentFrame(const IAABB& pixelBounds)
+{
+    assert(m_didBeginFrame);
+    int4 bounds = simd::load4i(&pixelBounds);
+    auto renderTargetSize = simd::cast<int32_t>(
+        uint2{m_frameDescriptor.renderTargetWidth, m_frameDescriptor.renderTargetHeight});
+    return simd::any(bounds.xy >= renderTargetSize || bounds.zw <= 0 || bounds.xy >= bounds.zw);
 }
 
 bool PLSRenderContext::frameSupportsClipRects() const
 {
+    assert(m_didBeginFrame);
     return m_frameInterlockMode != pls::InterlockMode::depthStencil ||
            platformFeatures().supportsClipPlanes;
 }
 
 bool PLSRenderContext::frameSupportsImagePaintForPaths() const
 {
+    assert(m_didBeginFrame);
     return m_frameInterlockMode != pls::InterlockMode::atomics ||
            platformFeatures().supportsBindlessTextures;
 }
@@ -412,35 +424,37 @@ bool PLSRenderContext::LogicalFlush::allocateGradient(const PLSGradient* gradien
     return true;
 }
 
-void PLSRenderContext::flush(pls::FlushType flushType)
+void PLSRenderContext::logicalFlush()
 {
     assert(m_didBeginFrame);
-
-    ++m_flushCount;
 
     // Reset clipping state after every logical flush because the clip buffer is not preserved
     // between render passes.
     m_clipContentID = 0;
 
-    if (flushType == pls::FlushType::logical)
-    {
-        // Don't issue any GPU commands between logical flushes. Instead, build up a list of flushes
-        // that we will submit all at once at the end of the frame.
-        m_logicalFlushes.emplace_back(new LogicalFlush(this));
-        return;
-    }
+    // Don't issue any GPU commands between logical flushes. Instead, build up a list of flushes
+    // that we will submit all at once at the end of the frame.
+    m_logicalFlushes.emplace_back(new LogicalFlush(this));
+}
+
+void PLSRenderContext::flush(const FlushResources& flushResources)
+{
+    assert(m_didBeginFrame);
+    assert(flushResources.renderTarget->width() == m_frameDescriptor.renderTargetWidth);
+    assert(flushResources.renderTarget->height() == m_frameDescriptor.renderTargetHeight);
+
+    m_clipContentID = 0;
 
     // Layout this frame's resource buffers and textures.
     LogicalFlush::ResourceCounters totalFrameResourceCounts;
     LogicalFlush::LayoutCounters layoutCounts;
     for (size_t i = 0; i < m_logicalFlushes.size(); ++i)
     {
-        m_logicalFlushes[i]->layoutResources(
-            m_frameDescriptor,
-            i,
-            i + 1 == m_logicalFlushes.size() ? pls::FlushType::endOfFrame : pls::FlushType::logical,
-            &totalFrameResourceCounts,
-            &layoutCounts);
+        m_logicalFlushes[i]->layoutResources(flushResources,
+                                             i,
+                                             i == m_logicalFlushes.size() - 1,
+                                             &totalFrameResourceCounts,
+                                             &layoutCounts);
     }
     assert(layoutCounts.maxGradTextureHeight <= kMaxTextureHeight);
     assert(layoutCounts.maxTessTextureHeight <= kMaxTextureHeight);
@@ -535,7 +549,6 @@ void PLSRenderContext::flush(pls::FlushType flushType)
     }
 
     // Drop all memory that was allocated for this frame using TrivialBlockAllocator.
-    assert(flushType == FlushType::endOfFrame);
     m_perFrameAllocator.reset();
     m_numChopsAllocator.reset();
     m_chopVerticesAllocator.reset();
@@ -554,13 +567,15 @@ void PLSRenderContext::flush(pls::FlushType flushType)
     }
 }
 
-void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& frameDescriptor,
-                                                     size_t flushIdx,
-                                                     pls::FlushType flushType,
+void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flushResources,
+                                                     size_t logicalFlushIdx,
+                                                     bool isFinalFlushOfFrame,
                                                      ResourceCounters* runningFrameResourceCounts,
                                                      LayoutCounters* runningFrameLayoutCounts)
 {
     assert(!m_hasDoneLayout);
+
+    const FrameDescriptor& frameDescriptor = m_ctx->frameDescriptor();
 
     // Reserve a path record for the clearColor paint (used by atomic mode).
     // This also allows us to index the storage buffers directly by pathID.
@@ -616,8 +631,7 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
         m_resourceCounts.maxTessellatedSegmentCount += maxSpanBreakCount + kPaddingSpanCount;
     }
 
-    m_flushDesc.flushType = flushType;
-    m_flushDesc.renderTarget = frameDescriptor.renderTarget.get();
+    m_flushDesc.renderTarget = flushResources.renderTarget;
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
     m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
 
@@ -625,7 +639,7 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
     // into the atomic "resolve" operation instead.
     bool doClearDuringAtomicResolve = false;
 
-    if (flushIdx != 0)
+    if (logicalFlushIdx != 0)
     {
         // We always have to preserve the renderTarget between logical flushes.
         m_flushDesc.colorLoadAction = pls::LoadAction::preserveRenderTarget;
@@ -673,13 +687,13 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
     if (doClearDuringAtomicResolve || m_flushDesc.colorLoadAction == pls::LoadAction::clear)
     {
         // If we're clearing then we always update the entire render target.
-        m_flushDesc.renderTargetUpdateBounds = frameDescriptor.renderTarget->bounds();
+        m_flushDesc.renderTargetUpdateBounds = m_flushDesc.renderTarget->bounds();
     }
     else
     {
         // When we don't clear, we only update the draw bounds.
         m_flushDesc.renderTargetUpdateBounds =
-            frameDescriptor.renderTarget->bounds().intersect(m_combinedDrawBounds);
+            m_flushDesc.renderTarget->bounds().intersect(m_combinedDrawBounds);
     }
     if (m_flushDesc.renderTargetUpdateBounds.empty())
     {
@@ -687,7 +701,7 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
         m_flushDesc.renderTargetUpdateBounds = {0, 0, 0, 0};
     }
 
-    m_flushDesc.flushUniformDataOffsetInBytes = flushIdx * sizeof(pls::FlushUniforms);
+    m_flushDesc.flushUniformDataOffsetInBytes = logicalFlushIdx * sizeof(pls::FlushUniforms);
     m_flushDesc.pathCount = m_resourceCounts.pathCount;
     m_flushDesc.pathCount = m_resourceCounts.pathCount;
     m_flushDesc.firstPath =
@@ -712,7 +726,8 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FrameDescriptor& fram
     m_flushDesc.tessDataHeight = tessDataHeight;
 
     m_flushDesc.wireframe = frameDescriptor.wireframe;
-    m_flushDesc.backendSpecificData = frameDescriptor.backendSpecificData;
+    m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;
+    m_flushDesc.isFinalFlushOfFrame = isFinalFlushOfFrame;
 
     *runningFrameResourceCounts = runningFrameResourceCounts->toVec() + m_resourceCounts.toVec();
     runningFrameLayoutCounts->pathPaddingCount += m_pathPaddingCount;
@@ -836,8 +851,8 @@ void PLSRenderContext::LogicalFlush::writeResources()
             m_ctx->m_intersectionBoard = std::make_unique<IntersectionBoard>();
         }
         IntersectionBoard* intersectionBoard = m_ctx->m_intersectionBoard.get();
-        intersectionBoard->resizeAndReset(m_ctx->frameDescriptor().renderTarget->width(),
-                                          m_ctx->frameDescriptor().renderTarget->height());
+        intersectionBoard->resizeAndReset(m_flushDesc.renderTarget->width(),
+                                          m_flushDesc.renderTarget->height());
 
         // Build a list of sort keys that determine the final draw order.
         constexpr static int kDrawGroupShift = 48; // Where in the key does the draw group begin?
@@ -1155,6 +1170,8 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool fo
 
 void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCounts)
 {
+    m_impl->prepareToMapBuffers();
+
     if (mapCounts.flushUniformBufferCount > 0)
     {
         m_flushUniformData.mapElements(m_impl.get(),
@@ -1330,7 +1347,7 @@ void PLSRenderContext::LogicalFlush::pushPath(PLSPathDraw* draw,
                                    draw->gradient(),
                                    draw->imageTexture(),
                                    draw->clipRectInverseMatrix(),
-                                   m_ctx->frameDescriptor().renderTarget.get(),
+                                   m_flushDesc.renderTarget,
                                    m_ctx->platformFeatures());
 
     ++m_currentPathID;

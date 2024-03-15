@@ -100,12 +100,12 @@ extern "C"
             emscripten_webgpu_import_texture_view(s_textureViewHandle.get()));
         s_renderTarget->setTargetTextureView(targetTextureView);
 
-        rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
-            .renderTarget = s_renderTarget,
+        s_plsContext->beginFrame({
+            .renderTargetWidth = s_renderTarget->width(),
+            .renderTargetHeight = s_renderTarget->height(),
             .loadAction = static_cast<pls::LoadAction>(loadAction),
             .clearColor = clearColor,
-        };
-        s_plsContext->beginFrame(std::move(frameDescriptor));
+        });
 
         s_renderer->save();
         return reinterpret_cast<intptr_t>(s_renderer.get());
@@ -114,7 +114,7 @@ extern "C"
     void EMSCRIPTEN_KEEPALIVE RiveFlushRendering()
     {
         s_renderer->restore();
-        s_plsContext->flush();
+        s_plsContext->flush({.renderTarget = s_renderTarget.get()});
         s_textureViewHandle = EmJsHandle();
     }
 
@@ -537,11 +537,11 @@ int main(int argc, const char** argv)
         double timestamp = glfwGetTime();
         s_renderTarget->setTargetTextureView(s_swapchain.GetCurrentTextureView());
 
-        rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
-            .renderTarget = s_renderTarget,
+        s_plsContext->beginFrame({
+            .renderTargetWidth = s_renderTarget->width(),
+            .renderTargetHeight = s_renderTarget->height(),
             .clearColor = 0xff8030ff,
-        };
-        s_plsContext->beginFrame(std::move(frameDescriptor));
+        });
 
         s_renderer->save();
         s_renderer->transform(computeAlignment(rive::Fit::contain,
@@ -551,7 +551,7 @@ int main(int argc, const char** argv)
         scene->draw(s_renderer.get());
         s_renderer->restore();
 
-        s_plsContext->flush();
+        s_plsContext->flush({.renderTarget = s_renderTarget.get()});
         s_swapchain.Present();
         device.Tick();
         glfwPollEvents();

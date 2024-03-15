@@ -592,15 +592,16 @@ void riveMainLoop()
         s_needsTitleUpdate = false;
     }
 
-    rive::pls::PLSRenderContext::FrameDescriptor frameDescriptor = {
+    s_fiddleContext->begin({
+        .renderTargetWidth = static_cast<uint32_t>(width),
+        .renderTargetHeight = static_cast<uint32_t>(height),
         .clearColor = 0xff404040,
         .msaaSampleCount = s_msaa,
         .disableRasterOrdering = s_forceAtomicMode,
         .wireframe = s_wireframe,
         .fillsDisabled = s_disableFill,
         .strokesDisabled = s_disableStroke,
-    };
-    s_fiddleContext->begin(std::move(frameDescriptor));
+    });
 
     int instances = 1;
     if (s_rivFile)

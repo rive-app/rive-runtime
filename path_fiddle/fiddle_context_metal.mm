@@ -33,7 +33,7 @@ public:
             // sure we test every unique shader.
             metalOptions.disableFramebufferReads = true;
         }
-        m_plsContext = PLSRenderContextMetalImpl::MakeContext(m_gpu, m_queue, metalOptions);
+        m_plsContext = PLSRenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
     }
 
@@ -46,6 +46,8 @@ public:
     Factory* factory() override { return m_plsContext.get(); }
 
     rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+
+    rive::pls::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -74,19 +76,30 @@ public:
         return std::make_unique<PLSRenderer>(m_plsContext.get());
     }
 
-    void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
+    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
     {
-        m_surface = [m_swapchain nextDrawable];
-        assert(m_surface.texture.width == m_renderTarget->width());
-        assert(m_surface.texture.height == m_renderTarget->height());
-        m_renderTarget->setTargetTexture(m_surface.texture);
-        frameDescriptor.renderTarget = m_renderTarget;
-        m_plsContext->beginFrame(std::move(frameDescriptor));
+        m_plsContext->beginFrame(frameDescriptor);
+    }
+
+    void flushPLSContext() final
+    {
+        if (m_currentFrameSurface == nil)
+        {
+            m_currentFrameSurface = [m_swapchain nextDrawable];
+            assert(m_currentFrameSurface.texture.width == m_renderTarget->width());
+            assert(m_currentFrameSurface.texture.height == m_renderTarget->height());
+            m_renderTarget->setTargetTexture(m_currentFrameSurface.texture);
+        }
+
+        id<MTLCommandBuffer> flushCommandBuffer = [m_queue commandBuffer];
+        m_plsContext->flush({.renderTarget = m_renderTarget.get(),
+                             .externalCommandBuffer = (__bridge void*)flushCommandBuffer});
+        [flushCommandBuffer commit];
     }
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
-        m_plsContext->flush();
+        flushPLSContext();
 
         if (pixelData != nil)
         {
@@ -140,20 +153,23 @@ public:
             }
         }
 
-        id<MTLCommandBuffer> commandBuffer = [m_queue commandBuffer];
-        [commandBuffer presentDrawable:m_surface];
-        [commandBuffer commit];
+        id<MTLCommandBuffer> presentCommandBuffer = [m_queue commandBuffer];
+        [presentCommandBuffer presentDrawable:m_currentFrameSurface];
+        [presentCommandBuffer commit];
+
+        m_currentFrameSurface = nil;
+        m_renderTarget->setTargetTexture(nil);
     }
 
 private:
     const FiddleContextOptions m_fiddleOptions;
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
-    id<CAMetalDrawable> m_surface = nil;
     std::unique_ptr<PLSRenderContext> m_plsContext;
     CAMetalLayer* m_swapchain;
     rcp<PLSRenderTargetMetal> m_renderTarget;
     id<MTLBuffer> m_pixelReadBuff;
+    id<CAMetalDrawable> m_currentFrameSurface = nil;
 };
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeMetalPLS(FiddleContextOptions fiddleOptions)

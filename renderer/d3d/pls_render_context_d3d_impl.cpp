@@ -687,17 +687,24 @@ PLSRenderTargetD3D::PLSRenderTargetD3D(PLSRenderContextD3DImpl* plsImpl,
 
 void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
 {
-    D3D11_TEXTURE2D_DESC desc;
-    tex->GetDesc(&desc);
+    if (tex != nullptr)
+    {
+        D3D11_TEXTURE2D_DESC desc;
+        tex->GetDesc(&desc);
 #ifdef DEBUG
-    assert(desc.Width == width());
-    assert(desc.Height == height());
-    assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
-           desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
+        assert(desc.Width == width());
+        assert(desc.Height == height());
+        assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
+               desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
 #endif
-    m_targetTextureSupportsUAV =
-        (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) &&
-        (m_gpuSupportsTypedUAVLoadStore || desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
+        m_targetTextureSupportsUAV =
+            (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) &&
+            (m_gpuSupportsTypedUAVLoadStore || desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
+    }
+    else
+    {
+        m_targetTextureSupportsUAV = false;
+    }
     m_targetTexture = std::move(tex);
     m_targetRTV = nullptr;
     m_targetUAV = nullptr;

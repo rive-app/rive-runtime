@@ -690,18 +690,6 @@ struct TwoTexelRamp
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
-enum class FlushType : uint8_t
-{
-    // This is a "logical" flush, in that it will break up the render pass and re-render the
-    // resource textures, but it won't submit any command buffers or rotate/synchronize the buffer
-    // rings.
-    logical,
-
-    // This is the final flush of the frame. It will submit any command buffers and
-    // rotate/synchronize the buffer rings.
-    endOfFrame,
-};
-
 // Detailed description of exactly how a PLSRenderContextImpl should bind its buffers and draw a
 // flush. A typical flush is done in 4 steps:
 //
@@ -719,7 +707,6 @@ enum class FlushType : uint8_t
 //
 struct FlushDescriptor
 {
-    FlushType flushType;
     PLSRenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
@@ -753,7 +740,9 @@ struct FlushDescriptor
 
     bool hasTriangleVertices = false;
     bool wireframe = false;
-    void* backendSpecificData = nullptr; // (External command buffer on Metal.)
+
+    void* externalCommandBuffer = nullptr; // Required on Metal.
+    bool isFinalFlushOfFrame = false;
 };
 
 // Returns true if the PLS shaders emit color directly to the raster pipeline, instead of rendering
