@@ -157,6 +157,8 @@ end
 
 filter({ 'system:windows', 'options:toolset=msc' })
 do
+    defines({ '_CRT_SECURE_NO_WARNINGS' })
+
     -- We currently suppress several warnings for the MSVC build, some serious. Once this build
     -- is fully integrated into GitHub actions, we will definitely want to address these.
     disablewarnings({
