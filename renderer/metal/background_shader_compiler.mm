@@ -203,6 +203,11 @@ void BackgroundShaderCompiler::threadMain()
 
         NSError* err = [NSError errorWithDomain:@"pls_compile" code:200 userInfo:nil];
         MTLCompileOptions* compileOptions = [MTLCompileOptions new];
+#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+        compileOptions.languageVersion = MTLLanguageVersion2_2; // On ios, we need version 2.2+
+#else
+        compileOptions.languageVersion = MTLLanguageVersion2_3; // On mac, we need version 2.3+
+#endif
         compileOptions.fastMathEnabled = YES;
         if (@available(iOS 14, *))
         {
