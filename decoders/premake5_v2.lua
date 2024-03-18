@@ -1,4 +1,4 @@
-dofile('setup_compiler.lua')
+dofile('rive_build_config.lua')
 
 rive = path.getabsolute('../')
 

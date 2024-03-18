@@ -79,6 +79,11 @@ newoption({
     description = 'Embed wasm directly into the js, instead of side-loading it.',
 })
 
+newoption({
+    trigger = 'no-lto',
+    description = 'Don\'t build with link time optimizations.',
+})
+
 location(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT)
 targetdir(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT)
 objdir(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT .. '/obj')
@@ -108,9 +113,16 @@ do
     optimize('On')
 end
 
-filter({ 'system:not windows', 'options:config=release' })
+filter({ 'options:config=release', 'options:not no-lto', 'not system:ios or windows' })
+do
+    flags({ 'LinkTimeOptimization' })
+end
+
+-- The 'LinkTimeOptimization' premake flag generates errors when building for ios.
+filter({ 'options:config=release', 'options:not no-lto', 'system:ios' })
 do
     buildoptions({ '-flto=full' })
+    linkoptions({ '-flto=full' })
 end
 
 filter('system:windows')
@@ -410,5 +422,12 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
         linkoptions({ '-sSINGLE_FILE=1' })
     end
 
+    filter('options:config=release')
+    do
+        optimize('Size')
+    end
+
     filter({})
 end
+
+filter({})
