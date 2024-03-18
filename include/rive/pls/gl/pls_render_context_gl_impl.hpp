@@ -39,6 +39,9 @@ public:
                                      uint32_t mipLevelCount,
                                      const uint8_t imageDataRGBA[]) override;
 
+    // Takes ownership of textureID and responsibility for deleting it.
+    rcp<PLSTexture> adoptImageTexture(uint32_t width, uint32_t height, GLuint textureID);
+
     // Called *after* the GL context has been modified externally.
     // Re-binds Rive internal resources and invalidates the internal cache of GL state.
     void invalidateGLState();

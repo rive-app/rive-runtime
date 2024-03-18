@@ -269,33 +269,14 @@ class PLSTextureGLImpl : public PLSTexture
 public:
     PLSTextureGLImpl(uint32_t width,
                      uint32_t height,
-                     uint32_t mipLevelCount,
-                     const uint8_t imageDataRGBA[],
-                     const GLCapabilities& capabilities,
-                     rcp<GLState> state) :
-        PLSTexture(width, height), m_state(std::move(state))
+                     GLuint textureID,
+                     const GLCapabilities& capabilities) :
+        PLSTexture(width, height), m_textureID(textureID)
     {
-        glGenTextures(1, &m_id);
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
-        glBindTexture(GL_TEXTURE_2D, m_id);
-        glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
-        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        glTexSubImage2D(GL_TEXTURE_2D,
-                        0,
-                        0,
-                        0,
-                        width,
-                        height,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        imageDataRGBA);
-        glutils::SetTexture2DSamplingParams(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
-        glGenerateMipmap(GL_TEXTURE_2D);
-
 #ifdef RIVE_DESKTOP_GL
         if (capabilities.ARB_bindless_texture)
         {
-            m_bindlessTextureHandle = glGetTextureHandleARB(m_id);
+            m_bindlessTextureHandle = glGetTextureHandleARB(m_textureID);
             glMakeTextureHandleResidentARB(m_bindlessTextureHandle);
         }
 #endif
@@ -313,11 +294,10 @@ public:
 #endif
     }
 
-    GLuint id() const { return m_id; }
+    GLuint textureID() const { return m_textureID; }
 
 private:
-    const rcp<GLState> m_state;
-    GLuint m_id = 0;
+    GLuint m_textureID = 0;
 };
 
 rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
@@ -325,12 +305,31 @@ rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
                                                          uint32_t mipLevelCount,
                                                          const uint8_t imageDataRGBA[])
 {
-    return make_rcp<PLSTextureGLImpl>(width,
-                                      height,
-                                      mipLevelCount,
-                                      imageDataRGBA,
-                                      m_capabilities,
-                                      m_state);
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
+    m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    glTexSubImage2D(GL_TEXTURE_2D,
+                    0,
+                    0,
+                    0,
+                    width,
+                    height,
+                    GL_RGBA,
+                    GL_UNSIGNED_BYTE,
+                    imageDataRGBA);
+    glutils::SetTexture2DSamplingParams(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    return adoptImageTexture(width, height, textureID);
+}
+
+rcp<PLSTexture> PLSRenderContextGLImpl::adoptImageTexture(uint32_t width,
+                                                          uint32_t height,
+                                                          GLuint textureID)
+{
+    return make_rcp<PLSTextureGLImpl>(width, height, textureID, m_capabilities);
 }
 
 // BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we don't do hardware
@@ -1182,7 +1181,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(batch.imageTexture))
         {
             glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
-            glBindTexture(GL_TEXTURE_2D, imageTextureGL->id());
+            glBindTexture(GL_TEXTURE_2D, imageTextureGL->textureID());
         }
 
         if (desc.interlockMode == pls::InterlockMode::depthStencil)

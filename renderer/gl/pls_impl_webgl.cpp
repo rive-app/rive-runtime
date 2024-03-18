@@ -19,8 +19,8 @@ EM_JS(bool,
       (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl),
       {
           gl = GL.getContext(gl).GLctx;
-          gl.pls = gl.getExtension("WEBGL_shader_pixel_local_storage");
-          return Boolean(gl.pls && gl.pls.isCoherent());
+          gl.pls = gl["getExtension"]("WEBGL_shader_pixel_local_storage");
+          return Boolean(gl.pls && gl.pls["isCoherent"]());
       });
 
 EM_JS(void,
@@ -34,10 +34,10 @@ EM_JS(void,
           const pls = GL.getContext(gl).GLctx.pls;
           if (pls)
           {
-              pls.framebufferTexturePixelLocalStorageWEBGL(plane,
-                                                           GL.textures[backingtexture],
-                                                           level,
-                                                           layer);
+              pls["framebufferTexturePixelLocalStorageWEBGL"](plane,
+                                                              GL.textures[backingtexture],
+                                                              level,
+                                                              layer);
           }
       });
 
@@ -48,7 +48,7 @@ EM_JS(void,
           const pls = GL.getContext(gl).GLctx.pls;
           if (pls)
           {
-              pls.framebufferPixelLocalClearValuefvWEBGL(plane, [ r, g, b, a ]);
+              pls["framebufferPixelLocalClearValuefvWEBGL"](plane, [ r, g, b, a ]);
           }
       });
 
@@ -59,7 +59,8 @@ EM_JS(void,
           const pls = GL.getContext(gl).GLctx.pls;
           if (pls)
           {
-              pls.beginPixelLocalStorageWEBGL(Module.HEAPU32.subarray(loadopsIdx, loadopsIdx + n));
+              pls["beginPixelLocalStorageWEBGL"](
+                  Module["HEAPU32"].subarray(loadopsIdx, loadopsIdx + n));
           }
       });
 
@@ -70,13 +71,14 @@ EM_JS(void,
           const pls = GL.getContext(gl).GLctx.pls;
           if (pls)
           {
-              pls.endPixelLocalStorageWEBGL(Module.HEAPU32.subarray(storeopsIdx, storeopsIdx + n));
+              pls["endPixelLocalStorageWEBGL"](
+                  Module["HEAPU32"].subarray(storeopsIdx, storeopsIdx + n));
           }
       });
 
 EM_JS(bool, enable_WEBGL_provoking_vertex, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl), {
     gl = GL.getContext(gl).GLctx;
-    gl.pv = gl.getExtension("WEBGL_provoking_vertex");
+    gl.pv = gl["getExtension"]("WEBGL_provoking_vertex");
     return Boolean(gl.pv);
 });
 
@@ -84,7 +86,7 @@ EM_JS(void, provokingVertexWEBGL, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLenum pr
     const pv = GL.getContext(gl).GLctx.pv;
     if (pv)
     {
-        pv.provokingVertexWEBGL(provokeMode);
+        pv["provokingVertexWEBGL"](provokeMode);
     }
 });
 

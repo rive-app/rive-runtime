@@ -141,6 +141,8 @@ public:
 
     ~FramebufferRenderTargetGL();
 
+    uint32_t sampleCount() const { return m_sampleCount; }
+
     // Ensures a texture is allocated that mirrors our external FBO. (We can't modify the external
     // FBO and usually can't read it either, so we often have no choice but to render to an
     // offscreen texture first.)
