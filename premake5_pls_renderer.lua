@@ -1,11 +1,11 @@
 dofile('rive_build_config.lua')
 
--- Are we in the "rive-pls" or "rive" repository?
+-- Are we in the "rive-renderer" or "rive" repository?
 local handle = io.popen('git remote -v')
 local git_remote = handle:read('*a')
 handle:close()
 if string.find(git_remote, 'rive%-pls') then
-    -- In rive-pls. Rive runtime is a submodule.
+    -- In rive-renderer. Rive runtime is a submodule.
     RIVE_RUNTIME_DIR = path.getabsolute('submodules/rive-cpp')
 else
     -- In rive. Rive runtime is further up the tree.
