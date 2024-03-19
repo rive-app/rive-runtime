@@ -1790,7 +1790,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     if (!contextOptions.disablePixelLocalStorage)
     {
 #ifdef RIVE_GLES
-        if (!capabilities.EXT_shader_pixel_local_storage &&
+        if (capabilities.EXT_shader_pixel_local_storage &&
             (capabilities.ARM_shader_framebuffer_fetch ||
              capabilities.EXT_shader_framebuffer_fetch))
         {
