@@ -113,14 +113,14 @@ do
     optimize('On')
 end
 
-filter({ 'options:config=release', 'options:not no-lto', 'not system:ios or windows' })
+filter({ 'options:config=release', 'options:not no-lto', 'system:not macosx', 'system:not ios'})
 do
     flags({ 'LinkTimeOptimization' })
 end
 
--- The 'LinkTimeOptimization' premake flag generates errors when building for ios.
-filter({ 'options:config=release', 'options:not no-lto', 'system:ios' })
+filter({ 'options:config=release', 'options:not no-lto', 'system:macosx or ios' })
 do
+    -- The 'LinkTimeOptimization' flag attempts to use llvm-ar, which doesn't always exist on macos.
     buildoptions({ '-flto=full' })
     linkoptions({ '-flto=full' })
 end
