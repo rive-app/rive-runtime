@@ -281,7 +281,16 @@ enum class API
     dawn,
 };
 
-API api = API::gl;
+API api =
+#if defined(__APPLE__)
+    API::metal
+#elif defined(_WIN32)
+    API::d3d
+#else
+    API::gl
+#endif
+    ;
+
 bool angle = false;
 
 std::unique_ptr<Renderer> renderer;
