@@ -10,6 +10,23 @@
 
 #include "shaders/out/generated/glsl.glsl.hpp"
 
+#ifdef BYPASS_EMSCRIPTEN_SHADER_PARSER
+#include <emscripten/emscripten.h>
+#include <emscripten/html5.h>
+
+// Emscripten's shader preprocessor crashes on PLS shaders. This method allows us to bypass
+// Emscripten and set a WebGL shader source directly.
+EM_JS(void,
+      webgl_shader_source,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLuint shader, const char* source),
+      {
+          gl = GL.getContext(gl).GLctx;
+          shader = GL.shaders[shader];
+          source = UTF8ToString(source);
+          gl.shaderSource(shader, source);
+      });
+#endif
+
 namespace glutils
 {
 void CompileAndAttachShader(GLuint program,
@@ -81,7 +98,17 @@ GLuint CompileShader(GLuint type,
 [[nodiscard]] GLuint CompileRawGLSL(GLuint shaderType, const char* rawGLSL)
 {
     GLuint shader = glCreateShader(shaderType);
+#ifdef BYPASS_EMSCRIPTEN_SHADER_PARSER
+    // Emscripten's shader preprocessor crashes on PLS shaders. Feed Emscripten something very
+    // simple and then hop to WebGL to bypass it and set the real shader source.
+    const char* kMinimalShader = shaderType == GL_VERTEX_SHADER
+                                     ? "#version 300 es\nvoid main() { gl_Position = vec4(0); }"
+                                     : "#version 300 es\nvoid main() {}";
+    glShaderSource(shader, 1, &kMinimalShader, nullptr);
+    webgl_shader_source(emscripten_webgl_get_current_context(), shader, rawGLSL);
+#else
     glShaderSource(shader, 1, &rawGLSL, nullptr);
+#endif
     glCompileShader(shader);
 #ifdef DEBUG
     GLint isCompiled = 0;
