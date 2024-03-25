@@ -131,7 +131,12 @@ public:
         renderPassBreak,
     };
 
-    AtomicBarrierType atomicBarrierType() const { return m_atomicBarrierType; }
+    struct MetalFeatures
+    {
+        AtomicBarrierType atomicBarrierType = AtomicBarrierType::renderPassBreak;
+    };
+
+    const MetalFeatures& metalFeatures() const { return m_metalFeatures; }
 
 protected:
     PLSRenderContextMetalImpl(id<MTLDevice>, const ContextOptions&);
@@ -172,7 +177,8 @@ private:
     const ContextOptions m_contextOptions;
     const id<MTLDevice> m_gpu;
 
-    AtomicBarrierType m_atomicBarrierType;
+    MetalFeatures m_metalFeatures;
+
     std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
     id<MTLLibrary> m_plsPrecompiledLibrary; // Many shaders come precompiled in a static library.
 

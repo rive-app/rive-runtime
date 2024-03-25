@@ -1141,8 +1141,8 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
     ID3D11Buffer* uniformBuffers[] = {m_flushUniforms.Get(),
                                       m_drawUniforms.Get(),
                                       m_imageDrawUniforms.Get()};
-    static_assert(DRAW_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
-    static_assert(IMAGE_DRAW_UNIFORM_BUFFER_IDX == DRAW_UNIFORM_BUFFER_IDX + 1);
+    static_assert(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
+    static_assert(IMAGE_DRAW_UNIFORM_BUFFER_IDX == PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX + 1);
     m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX,
                                        std::size(uniformBuffers),
                                        uniformBuffers);

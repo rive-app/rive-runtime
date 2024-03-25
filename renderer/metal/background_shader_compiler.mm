@@ -102,7 +102,7 @@ void BackgroundShaderCompiler::threadMain()
         {
             // Atomic mode uses device buffers instead of framebuffer fetches.
             defines[@GLSL_PLS_IMPL_DEVICE_BUFFER] = @"";
-            if (m_atomicBarrierType == AtomicBarrierType::rasterOrderGroup)
+            if (m_metalFeatures.atomicBarrierType == AtomicBarrierType::rasterOrderGroup)
             {
                 defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
             }
@@ -120,6 +120,8 @@ void BackgroundShaderCompiler::threadMain()
         {
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
+                // Add baseInstance to the instanceID for path draws.
+                defines[@GLSL_ENABLE_INSTANCE_INDEX] = @"";
                 defines[@GLSL_DRAW_PATH] = @"";
                 [source appendFormat:@"%s\n", pls::glsl::draw_path_common];
 #ifdef RIVE_IOS

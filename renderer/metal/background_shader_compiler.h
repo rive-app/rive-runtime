@@ -31,9 +31,10 @@ class BackgroundShaderCompiler
 {
 public:
     using AtomicBarrierType = PLSRenderContextMetalImpl::AtomicBarrierType;
+    using MetalFeatures = PLSRenderContextMetalImpl::MetalFeatures;
 
-    BackgroundShaderCompiler(id<MTLDevice> gpu, AtomicBarrierType atomicBarrierType) :
-        m_gpu(gpu), m_atomicBarrierType(atomicBarrierType)
+    BackgroundShaderCompiler(id<MTLDevice> gpu, MetalFeatures metalFeatures) :
+        m_gpu(gpu), m_metalFeatures(metalFeatures)
     {}
 
     ~BackgroundShaderCompiler();
@@ -45,7 +46,7 @@ private:
     void threadMain();
 
     const id<MTLDevice> m_gpu;
-    const AtomicBarrierType m_atomicBarrierType;
+    const MetalFeatures m_metalFeatures;
     std::queue<BackgroundCompileJob> m_pendingJobs;
     std::vector<BackgroundCompileJob> m_finishedJobs;
     std::mutex m_mutex;

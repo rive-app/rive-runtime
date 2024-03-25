@@ -1,5 +1,8 @@
 #include <metal_stdlib>
 
+// Add baseInstance to the instanceID for path draws.
+#define ENABLE_INSTANCE_INDEX
+
 #define FRAGMENT
 
 #define VERTEX

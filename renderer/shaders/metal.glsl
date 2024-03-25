@@ -146,6 +146,18 @@
 #define VERTEX_CONTEXT_DECL , VertexTextures _textures, VertexStorageBuffers _buffers
 #define VERTEX_CONTEXT_UNPACK , _textures, _buffers
 
+#ifdef @ENABLE_INSTANCE_INDEX
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
+    $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
+        uint _vertexID [[$vertex_id]],                                                             \
+        uint _instanceID [[$instance_id]],                                                         \
+        $constant uint& _baseInstance [[$buffer(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)]],          \
+        $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
+        $constant Attrs* attrs [[$buffer(0)]] VERTEX_CONTEXT_DECL)                                 \
+    {                                                                                              \
+        _instanceID += _baseInstance;                                                              \
+        Varyings _varyings;
+#else
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
@@ -154,11 +166,11 @@
         $constant Attrs* attrs [[$buffer(0)]] VERTEX_CONTEXT_DECL)                                 \
     {                                                                                              \
         Varyings _varyings;
+#endif
 
 #define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                         \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(                                \
         uint _vertexID [[$vertex_id]],                                                             \
-        uint _instanceID [[$instance_id]],                                                         \
         $constant @FlushUniforms& uniforms [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                  \
         $constant @ImageDrawUniforms& imageDrawUniforms                                            \
         [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                                                \

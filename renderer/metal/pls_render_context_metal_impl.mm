@@ -290,7 +290,7 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
     m_platformFeatures.invertOffscreenY = true;
 #ifdef RIVE_IOS
     m_platformFeatures.supportsRasterOrdering = true;
-    if (!is_apple_ios_silicon(gpu))
+    if (!is_apple_ios_silicon(m_gpu))
     {
         // The PowerVR GPU, at least on A10, has fp16 precision issues. We can't use the the bottom
         // 3 bits of the path and clip IDs in order for our equality testing to work.
@@ -301,14 +301,14 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
     m_platformFeatures.supportsRasterOrdering = false;
 #else
     m_platformFeatures.supportsRasterOrdering =
-        [gpu supportsFamily:MTLGPUFamilyApple1] && !contextOptions.disableFramebufferReads;
+        [m_gpu supportsFamily:MTLGPUFamilyApple1] && !contextOptions.disableFramebufferReads;
 #endif
     m_platformFeatures.atomicPLSMustBeInitializedAsDraw = true;
 
 #ifdef RIVE_IOS
     // Atomic barriers are never used on iOS, but if we ever did need them, we would use
     // rasterOrderGroups.
-    m_atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+    m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
 #elif defined(RIVE_IOS_SIMULATOR)
     const NXArchInfo* hostArchitecture = NXGetLocalArchInfo();
     if (strncmp(hostArchitecture->name, "arm64", 5) == 0)
@@ -317,33 +317,32 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
         // anyway on an Apple-Silicon-hosted simulator. Use rasterOrderGroup in this case because
         // it's much faster than renderPassBreak. (On Intel/AMD this doesn't matter anyway because
         // renderPassBreaks are cheap and actually faster than rasterOrderGroups.)
-        m_atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+        m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
     }
     else
     {
-        m_atomicBarrierType = AtomicBarrierType::renderPassBreak;
+        m_metalFeatures.atomicBarrierType = AtomicBarrierType::renderPassBreak;
     }
 #else
     // Use real memory barriers for atomic mode if they're availabile.
     // "GPU devices in Apple3 through Apple9 families don’t support memory barriers that include the
     // MTLRenderStages.fragment or .tile stages in the after argument..."
-    if (([gpu supportsFamily:MTLGPUFamilyCommon2] || [gpu supportsFamily:MTLGPUFamilyMac2]) &&
-        ![gpu supportsFamily:MTLGPUFamilyApple3])
+    if (([m_gpu supportsFamily:MTLGPUFamilyCommon2] || [m_gpu supportsFamily:MTLGPUFamilyMac2]) &&
+        ![m_gpu supportsFamily:MTLGPUFamilyApple3])
     {
-        m_atomicBarrierType = AtomicBarrierType::memoryBarrier;
+        m_metalFeatures.atomicBarrierType = AtomicBarrierType::memoryBarrier;
     }
-    else if (gpu.rasterOrderGroupsSupported)
+    else if (m_gpu.rasterOrderGroupsSupported)
     {
-        m_atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+        m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
     }
     else
     {
-        m_atomicBarrierType = AtomicBarrierType::renderPassBreak;
+        m_metalFeatures.atomicBarrierType = AtomicBarrierType::renderPassBreak;
     }
 #endif
 
-    m_backgroundShaderCompiler =
-        std::make_unique<BackgroundShaderCompiler>(m_gpu, m_atomicBarrierType);
+    m_backgroundShaderCompiler = std::make_unique<BackgroundShaderCompiler>(m_gpu, m_metalFeatures);
 
     // Load the precompiled shaders.
     dispatch_data_t metallibData = dispatch_data_create(
@@ -368,11 +367,11 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
         exit(-1);
     }
 
-    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(gpu, m_plsPrecompiledLibrary);
-    m_tessPipeline = std::make_unique<TessellatePipeline>(gpu, m_plsPrecompiledLibrary);
-    m_tessSpanIndexBuffer = [gpu newBufferWithBytes:pls::kTessSpanIndices
-                                             length:sizeof(pls::kTessSpanIndices)
-                                            options:MTLResourceStorageModeShared];
+    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(m_gpu, m_plsPrecompiledLibrary);
+    m_tessPipeline = std::make_unique<TessellatePipeline>(m_gpu, m_plsPrecompiledLibrary);
+    m_tessSpanIndexBuffer = [m_gpu newBufferWithBytes:pls::kTessSpanIndices
+                                               length:sizeof(pls::kTessSpanIndices)
+                                              options:MTLResourceStorageModeShared];
 
     // The precompiled static library has a fully-featured shader for each drawType in
     // "rasterOrdering" mode. We load these at initialization and use them while waiting for the
@@ -405,20 +404,21 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
     }
 
     // Create vertex and index buffers for the different PLS patches.
-    m_pathPatchVertexBuffer = [gpu newBufferWithLength:kPatchVertexBufferCount * sizeof(PatchVertex)
-                                               options:MTLResourceStorageModeShared];
-    m_pathPatchIndexBuffer = [gpu newBufferWithLength:kPatchIndexBufferCount * sizeof(uint16_t)
-                                              options:MTLResourceStorageModeShared];
+    m_pathPatchVertexBuffer =
+        [m_gpu newBufferWithLength:kPatchVertexBufferCount * sizeof(PatchVertex)
+                           options:MTLResourceStorageModeShared];
+    m_pathPatchIndexBuffer = [m_gpu newBufferWithLength:kPatchIndexBufferCount * sizeof(uint16_t)
+                                                options:MTLResourceStorageModeShared];
     GeneratePatchBufferData(reinterpret_cast<PatchVertex*>(m_pathPatchVertexBuffer.contents),
                             reinterpret_cast<uint16_t*>(m_pathPatchIndexBuffer.contents));
 
     // Set up the imageRect rendering buffers. (pls::InterlockMode::atomics only.)
-    m_imageRectVertexBuffer = [gpu newBufferWithBytes:pls::kImageRectVertices
-                                               length:sizeof(pls::kImageRectVertices)
-                                              options:MTLResourceStorageModeShared];
-    m_imageRectIndexBuffer = [gpu newBufferWithBytes:pls::kImageRectIndices
-                                              length:sizeof(pls::kImageRectIndices)
-                                             options:MTLResourceStorageModeShared];
+    m_imageRectVertexBuffer = [m_gpu newBufferWithBytes:pls::kImageRectVertices
+                                                 length:sizeof(pls::kImageRectVertices)
+                                                options:MTLResourceStorageModeShared];
+    m_imageRectIndexBuffer = [m_gpu newBufferWithBytes:pls::kImageRectIndices
+                                                length:sizeof(pls::kImageRectIndices)
+                                               options:MTLResourceStorageModeShared];
 }
 
 PLSRenderContextMetalImpl::~PLSRenderContextMetalImpl() {}
@@ -842,13 +842,14 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [gradEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                               offset:desc.flushUniformDataOffsetInBytes
                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
-        [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing()) offset:0 atIndex:0];
+        [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing())
+                              offset:desc.firstComplexGradSpan * sizeof(pls::GradientSpan)
+                             atIndex:0];
         [gradEncoder setCullMode:MTLCullModeBack];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
-                      instanceCount:desc.complexGradSpanCount
-                       baseInstance:desc.firstComplexGradSpan];
+                      instanceCount:desc.complexGradSpanCount];
         [gradEncoder endEncoding];
     }
 
@@ -887,7 +888,9 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [tessEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                               offset:desc.flushUniformDataOffsetInBytes
                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
-        [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing()) offset:0 atIndex:0];
+        [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing())
+                              offset:desc.firstTessVertexSpan * sizeof(pls::TessVertexSpan)
+                             atIndex:0];
         assert(desc.pathCount > 0);
         [tessEncoder setVertexBuffer:mtl_buffer(pathBufferRing())
                               offset:desc.firstPath * sizeof(pls::PathData)
@@ -902,9 +905,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                  indexType:MTLIndexTypeUInt16
                                indexBuffer:m_tessSpanIndexBuffer
                          indexBufferOffset:0
-                             instanceCount:desc.tessVertexSpanCount
-                                baseVertex:0
-                              baseInstance:desc.firstTessVertexSpan];
+                             instanceCount:desc.tessVertexSpanCount];
         [tessEncoder endEncoding];
     }
 
@@ -1061,14 +1062,17 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 [encoder setRenderPipelineState:drawPipelineState];
                 [encoder setVertexBuffer:m_pathPatchVertexBuffer offset:0 atIndex:0];
                 [encoder setCullMode:MTLCullModeBack];
+                // Don't use baseInstance in order to run on Apple GPU Family 2.
+                // TODO: Use baseInstance instead once we deprecate Apple2.
+                [encoder setVertexBytes:&batch.baseElement
+                                 length:sizeof(uint32_t)
+                                atIndex:PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX];
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                     indexCount:PatchIndexCount(drawType)
                                      indexType:MTLIndexTypeUInt16
                                    indexBuffer:m_pathPatchIndexBuffer
                              indexBufferOffset:PatchBaseIndex(drawType) * sizeof(uint16_t)
-                                 instanceCount:batch.elementCount
-                                    baseVertex:0
-                                  baseInstance:batch.baseElement];
+                                 instanceCount:batch.elementCount];
                 break;
             }
             case DrawType::interiorTriangulation:
@@ -1100,10 +1104,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                         indexCount:std::size(pls::kImageRectIndices)
                                          indexType:MTLIndexTypeUInt16
                                        indexBuffer:m_imageRectIndexBuffer
-                                 indexBufferOffset:0
-                                     instanceCount:1
-                                        baseVertex:0
-                                      baseInstance:0];
+                                 indexBufferOffset:0];
                 }
                 else
                 {
@@ -1137,7 +1138,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         }
         if (desc.interlockMode == pls::InterlockMode::atomics && batch.needsBarrier)
         {
-            switch (m_atomicBarrierType)
+            switch (m_metalFeatures.atomicBarrierType)
             {
                 case AtomicBarrierType::memoryBarrier:
                 {
@@ -1151,7 +1152,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                         break;
                     }
 #endif
-                    // m_atomicBarrierType shouldn't be "memoryBarrier" in this case.
+                    // atomicBarrierType shouldn't be "memoryBarrier" in this case.
                     RIVE_UNREACHABLE();
                 }
                 case AtomicBarrierType::rasterOrderGroup:
