@@ -58,21 +58,12 @@ do
     defines({ 'RIVE_WEBGL' })
 end
 
-newoption({
-    trigger = 'obfuscate',
-    description = 'force-include obfuscator/pls_renames.h to obfuscate PLS variable names',
-})
-filter({ 'options:obfuscate' })
-do
-    forceincludes({ 'obfuscator/pls_renames.h' })
-end
-
 filter({})
 
 -- Minify PLS shaders, and precompile them into metal libraries if targeting ios or macosx.
 newoption({
     trigger = 'human-readable-shaders',
-    description = 'don\'t minimize or obfuscate shaders',
+    description = 'don\'t minimize shaders',
 })
 project('rive_pls_shaders')
 do
