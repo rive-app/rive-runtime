@@ -178,7 +178,6 @@ private:
     const id<MTLDevice> m_gpu;
 
     MetalFeatures m_metalFeatures;
-
     std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
     id<MTLLibrary> m_plsPrecompiledLibrary; // Many shaders come precompiled in a static library.
 
