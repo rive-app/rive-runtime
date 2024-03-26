@@ -75,6 +75,11 @@ newoption({
 })
 
 newoption({
+    trigger = 'no-wasm-simd',
+    description = 'disable simd for wasm builds',
+})
+
+newoption({
     trigger = 'wasm_single',
     description = 'Embed wasm directly into the js, instead of side-loading it.',
 })
@@ -113,7 +118,7 @@ do
     optimize('On')
 end
 
-filter({ 'options:config=release', 'options:not no-lto', 'system:not macosx', 'system:not ios'})
+filter({ 'options:config=release', 'options:not no-lto', 'system:not macosx', 'system:not ios' })
 do
     flags({ 'LinkTimeOptimization' })
 end
@@ -408,8 +413,24 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
 
     filter('options:arch=wasm')
     do
-        buildoptions({ '-msimd128' })
         linkoptions({ '-sWASM=1' })
+    end
+
+    filter({ 'options:arch=wasm', 'options:not no-wasm-simd' })
+    do
+        buildoptions({ '-msimd128' })
+    end
+
+    filter({ 'options:arch=wasm', 'options:config=debug' })
+    do
+        buildoptions({
+            '-fsanitize=address',
+            '-g2',
+        })
+        linkoptions({
+            '-fsanitize=address',
+            '-g2',
+        })
     end
 
     filter('options:arch=js')
