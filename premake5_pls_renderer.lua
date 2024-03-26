@@ -4,7 +4,7 @@ dofile('rive_build_config.lua')
 local handle = io.popen('git remote -v')
 local git_remote = handle:read('*a')
 handle:close()
-if string.find(git_remote, 'rive%-renderer') then
+if string.find(git_remote, 'rive%-renderer') or string.find(git_remote, 'rive%-pls') then
     -- In rive-renderer. Rive runtime is a submodule.
     RIVE_RUNTIME_DIR = path.getabsolute('submodules/rive-cpp')
 else
