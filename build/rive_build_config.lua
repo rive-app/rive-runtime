@@ -445,7 +445,7 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
 
     filter('options:config=release')
     do
-        optimize('Size')
+        buildoptions({ '-Oz' })
     end
 
     filter({})
