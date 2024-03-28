@@ -12,7 +12,7 @@ AudioReader::AudioReader(rcp<AudioSource> audioSource, uint32_t channels) :
 AudioReader::~AudioReader() { ma_decoder_uninit(&m_decoder); }
 
 uint32_t AudioReader::channels() const { return m_channels; }
-uint32_t AudioReader::sampleRate() const { return m_source->sampleRate(); }
+uint32_t AudioReader::sampleRate() const { return m_decoder.outputSampleRate; }
 ma_decoder* AudioReader::decoder() { return &m_decoder; }
 
 uint64_t AudioReader::lengthInFrames()
