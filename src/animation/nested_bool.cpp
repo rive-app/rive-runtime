@@ -6,8 +6,8 @@
 using namespace rive;
 class StateMachineInstance;
 
-void NestedBool::nestedValueChanged() { this->applyValue(); }
-
+// Use the NestedBoolBase m_NestedValue on initialization but then it won't
+// be used anymore and interface directly with the nested input value.
 void NestedBool::applyValue()
 {
     auto inputInstance = input();
@@ -16,7 +16,34 @@ void NestedBool::applyValue()
         auto boolInput = static_cast<SMIBool*>(inputInstance);
         if (boolInput != nullptr)
         {
-            boolInput->value(nestedValue());
+            boolInput->value(NestedBoolBase::nestedValue());
         }
     }
+}
+
+void NestedBool::nestedValue(bool value)
+{
+    auto inputInstance = input();
+    if (inputInstance != nullptr)
+    {
+        auto boolInput = static_cast<SMIBool*>(inputInstance);
+        if (boolInput != nullptr && boolInput->value() != value)
+        {
+            boolInput->value(value);
+        }
+    }
+}
+
+bool NestedBool::nestedValue() const
+{
+    auto inputInstance = input();
+    if (inputInstance != nullptr)
+    {
+        auto boolInput = static_cast<SMIBool*>(inputInstance);
+        if (boolInput != nullptr)
+        {
+            return boolInput->value();
+        }
+    }
+    return false;
 }

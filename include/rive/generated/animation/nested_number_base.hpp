@@ -35,16 +35,8 @@ private:
     float m_NestedValue = 0.0f;
 
 public:
-    inline float nestedValue() const { return m_NestedValue; }
-    void nestedValue(float value)
-    {
-        if (m_NestedValue == value)
-        {
-            return;
-        }
-        m_NestedValue = value;
-        nestedValueChanged();
-    }
+    virtual float nestedValue() const { return m_NestedValue; }
+    virtual void nestedValue(float value) = 0;
 
     Core* clone() const override;
     void copy(const NestedNumberBase& object)

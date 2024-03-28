@@ -35,16 +35,8 @@ private:
     bool m_NestedValue = false;
 
 public:
-    inline bool nestedValue() const { return m_NestedValue; }
-    void nestedValue(bool value)
-    {
-        if (m_NestedValue == value)
-        {
-            return;
-        }
-        m_NestedValue = value;
-        nestedValueChanged();
-    }
+    virtual bool nestedValue() const { return m_NestedValue; }
+    virtual void nestedValue(bool value) = 0;
 
     Core* clone() const override;
     void copy(const NestedBoolBase& object)

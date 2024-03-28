@@ -6,8 +6,8 @@
 using namespace rive;
 class StateMachineInstance;
 
-void NestedNumber::nestedValueChanged() { this->applyValue(); }
-
+// Use the NestedNumberBase m_NestedValue on initialization but then it won't
+// be used anymore and interface directly with the nested input value.
 void NestedNumber::applyValue()
 {
     auto inputInstance = input();
@@ -16,7 +16,34 @@ void NestedNumber::applyValue()
         auto numInput = static_cast<SMINumber*>(inputInstance);
         if (numInput != nullptr)
         {
-            numInput->value(nestedValue());
+            numInput->value(NestedNumberBase::nestedValue());
         }
     }
+}
+
+void NestedNumber::nestedValue(float value)
+{
+    auto inputInstance = input();
+    if (inputInstance != nullptr)
+    {
+        auto numInput = static_cast<SMINumber*>(inputInstance);
+        if (numInput != nullptr && numInput->value() != value)
+        {
+            numInput->value(value);
+        }
+    }
+}
+
+float NestedNumber::nestedValue() const
+{
+    auto inputInstance = input();
+    if (inputInstance != nullptr)
+    {
+        auto numInput = static_cast<SMINumber*>(inputInstance);
+        if (numInput != nullptr)
+        {
+            return numInput->value();
+        }
+    }
+    return 0.0;
 }

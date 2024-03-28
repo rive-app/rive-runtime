@@ -22,7 +22,7 @@ public:
     virtual void applyValue() {}
 
 protected:
-    SMIInput* input()
+    SMIInput* input() const
     {
         auto parent = this->parent();
         if (parent != nullptr && parent->is<NestedStateMachine>())

@@ -10,6 +10,7 @@
       "type": "bool",
       "initialValue": "false",
       "animates": true,
+      "pureVirtual": true,
       "key": {
         "int": 238,
         "string": "value"

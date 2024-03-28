@@ -220,20 +220,26 @@ class Definition {
               (property.isSetOverride ? 'override' : '') +
               '= 0;');
         } else {
-          code.writeln((property.isVirtual ? 'virtual' : 'inline') +
+          code.writeln(((property.isVirtual || property.isPureVirtual)
+                  ? 'virtual'
+                  : 'inline') +
               ' ${property.type.cppGetterName} ${property.name}() const ' +
               (property.isGetOverride ? 'override' : '') +
               '{ return m_${property.capitalizedName}; }');
-
-          code.writeln(
-              'void ${property.name}(${property.type.cppName} value) ' +
-                  (property.isSetOverride ? 'override' : '') +
-                  '{'
-                      'if(m_${property.capitalizedName} == value)'
-                      '{return;}'
-                      'm_${property.capitalizedName} = value;'
-                      '${property.name}Changed();'
-                      '}');
+          if (!property.isPureVirtual) {
+            code.writeln(
+                'void ${property.name}(${property.type.cppName} value) ' +
+                    (property.isSetOverride ? 'override' : '') +
+                    '{'
+                        'if(m_${property.capitalizedName} == value)'
+                        '{return;}'
+                        'm_${property.capitalizedName} = value;'
+                        '${property.name}Changed();'
+                        '}');
+          } else {
+            code.writeln(
+                'virtual void ${property.name}(${property.type.cppName} value) = 0;');
+          }
         }
 
         code.writeln();

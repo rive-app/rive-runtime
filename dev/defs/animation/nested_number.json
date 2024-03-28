@@ -10,6 +10,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "pureVirtual": true,
       "key": {
         "int": 239,
         "string": "nestedValue"

@@ -83,10 +83,7 @@ public:
             m_stateFrom->advance(seconds, m_stateMachineInstance);
         }
 
-        if (isTransitionEnded())
-        {
-            apply();
-        }
+        apply();
 
         for (int i = 0; updateState(i != 0); i++)
         {
@@ -99,8 +96,6 @@ public:
             }
         }
 
-        apply();
-
         m_currentState->clearSpilledTime();
 
         return m_mix != 1.0f || m_waitingForExit ||
@@ -111,12 +106,6 @@ public:
     {
         return m_transition != nullptr && m_stateFrom != nullptr && m_transition->duration() != 0 &&
                m_mix < 1.0f;
-    }
-
-    bool isTransitionEnded()
-    {
-        return m_transition != nullptr && m_stateFrom != nullptr && m_transition->duration() != 0 &&
-               m_mix == 1.0f;
     }
 
     bool updateState(bool ignoreTriggers)
