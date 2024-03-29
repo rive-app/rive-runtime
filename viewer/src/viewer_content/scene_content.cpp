@@ -14,6 +14,8 @@
 #include "rive/math/aabb.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "viewer/viewer_content.hpp"
+#include "rive/relative_local_asset_loader.hpp"
+
 #ifdef RIVE_RENDERER_TESS
 #include "viewer/sample_tools/sample_atlas_packer.hpp"
 #endif
@@ -382,7 +384,9 @@ public:
 std::unique_ptr<ViewerContent> ViewerContent::Scene(const char filename[])
 {
     auto bytes = LoadFile(filename);
-    if (auto file = rive::File::import(bytes, RiveFactory()))
+    rive::RelativeLocalAssetLoader loader(filename);
+    rive::ImportResult result;
+    if (auto file = rive::File::import(bytes, RiveFactory(), &result, &loader))
     {
         return rivestd::make_unique<SceneContent>(filename, std::move(file));
     }
