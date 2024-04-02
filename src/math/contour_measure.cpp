@@ -66,6 +66,27 @@ static ContourMeasure::PosTan eval_quad(const Vec2D pts[], float t)
 static ContourMeasure::PosTan eval_cubic(const Vec2D pts[], float t)
 {
     assert(t >= 0 && t <= 1);
+    // When t==0 and t==1, the most accurate way to find tangents is by differencing.
+    if (t == 0 || t == 1)
+    {
+        if (t == 0)
+        {
+            return {pts[0],
+                    (pts[0] != pts[1]   ? pts[1]
+                     : pts[1] != pts[2] ? pts[2]
+                                        : pts[3]) -
+                        pts[0]
+
+            };
+        }
+        else
+        {
+            return {pts[3],
+                    pts[3] - (pts[3] != pts[2]   ? pts[2]
+                              : pts[2] != pts[1] ? pts[1]
+                                                 : pts[0])};
+        }
+    }
 
     const EvalCubic eval(pts);
 
@@ -139,11 +160,9 @@ void ContourMeasure::Segment::extract(RawPath* dst,
 ContourMeasure::PosTan ContourMeasure::getPosTan(float distance) const
 {
     // specal-case end of the contour
-    if (distance >= m_length)
+    if (distance > m_length)
     {
-        size_t N = m_points.size();
-        assert(N > 1);
-        return {m_points[N - 1], (m_points[N - 1] - m_points[N - 2]).normalized()};
+        distance = m_length;
     }
 
     if (distance < 0)
