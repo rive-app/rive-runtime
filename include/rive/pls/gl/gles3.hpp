@@ -5,17 +5,16 @@
 #pragma once
 
 #include <string.h>
-#include <stdio.h>
 
 #ifdef RIVE_DESKTOP_GL
 #include "glad_custom.h"
 #define GL_APIENTRY GLAPIENTRY
 #define GL_SHADER_PIXEL_LOCAL_STORAGE_EXT 0x8F64
 #define GL_FRAMEBUFFER_FETCH_NONCOHERENT_QCOM 0x96A2
-#define glFramebufferFetchBarrierQCOM(X) // No-op to placate IDEs when editing android files.
+#define glFramebufferFetchBarrierQCOM(...) RIVE_UNREACHABLE()
 #endif
 
-#ifdef RIVE_GLES
+#ifdef RIVE_ANDROID
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 #include <GLES2/gl2ext.h>
@@ -95,9 +94,12 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 #define GL_CLIP_DISTANCE2_EXT 0x3002
 #define GL_CLIP_DISTANCE3_EXT 0x3003
 #endif
+
+#define glFramebufferTexture2DMultisampleEXT(...) RIVE_UNREACHABLE()
+
 #endif // RIVE_WEBGL
 
-#if defined(RIVE_GLES) || defined(RIVE_WEBGL)
+#if defined(RIVE_ANDROID) || defined(RIVE_WEBGL)
 // GLES 3.1 functionality is pulled in as an extension. Define these to avoid compile errors, even
 // if we won't use them.
 #define GL_SHADER_STORAGE_BUFFER 0x90D2
@@ -131,18 +133,20 @@ struct GLCapabilities
     bool KHR_blend_equation_advanced_coherent : 1;
     bool EXT_base_instance : 1;
     bool EXT_clip_cull_distance : 1;
-    bool INTEL_fragment_shader_ordering : 1;
+    bool EXT_multisampled_render_to_texture : 1;
     bool EXT_shader_framebuffer_fetch : 1;
     bool EXT_shader_pixel_local_storage : 1;
+    bool INTEL_fragment_shader_ordering : 1;
     bool QCOM_shader_framebuffer_fetch_noncoherent : 1;
 };
 
-#ifdef RIVE_GLES
+#ifdef RIVE_ANDROID
 // Android doesn't load extension functions for us.
 extern PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC glDrawArraysInstancedBaseInstanceEXT;
 extern PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC glDrawElementsInstancedBaseInstanceEXT;
 extern PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
     glDrawElementsInstancedBaseVertexBaseInstanceEXT;
 extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
+extern PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC glFramebufferTexture2DMultisampleEXT;
 void LoadGLESExtensions(const GLCapabilities&);
 #endif

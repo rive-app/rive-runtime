@@ -11,6 +11,7 @@ PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC glDrawElementsInstancedBaseInstanc
 PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
 glDrawElementsInstancedBaseVertexBaseInstanceEXT = nullptr;
 PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC glFramebufferTexture2DMultisampleEXT = nullptr;
 
 void LoadGLESExtensions(const GLCapabilities& extensions)
 {
@@ -34,5 +35,13 @@ void LoadGLESExtensions(const GLCapabilities& extensions)
         glFramebufferFetchBarrierQCOM = (PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC)eglGetProcAddress(
             "glFramebufferFetchBarrierQCOM");
         loadedExtensions.QCOM_shader_framebuffer_fetch_noncoherent = true;
+    }
+    if (extensions.EXT_multisampled_render_to_texture &&
+        !loadedExtensions.EXT_multisampled_render_to_texture)
+    {
+        glFramebufferTexture2DMultisampleEXT =
+            (PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC)eglGetProcAddress(
+                "glFramebufferTexture2DMultisampleEXT");
+        loadedExtensions.EXT_multisampled_render_to_texture = true;
     }
 }

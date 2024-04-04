@@ -21,7 +21,7 @@
 #include "shaders/out/generated/blit_texture_as_draw.glsl.hpp"
 #include "shaders/out/generated/stencil_draw.glsl.hpp"
 
-#if defined(RIVE_GLES) || defined(RIVE_WEBGL)
+#if defined(RIVE_ANDROID) || defined(RIVE_WEBGL)
 // In an effort to save space on Android, and since GLES doesn't usually need atomic mode, don't
 // include the atomic sources.
 namespace rive::pls::glsl
@@ -1106,6 +1106,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 #endif
 
     auto msaaResolveAction = PLSRenderTargetGL::MSAAResolveAction::automatic;
+    std::array<GLenum, 3> msaaDepthStencilColor;
     if (desc.interlockMode != pls::InterlockMode::depthStencil)
     {
         assert(desc.msaaSampleCount == 0);
@@ -1115,12 +1116,28 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         // Render with MSAA in depthStencil mode.
         assert(desc.msaaSampleCount > 0);
+        bool preserveRenderTarget = desc.colorLoadAction == pls::LoadAction::preserveRenderTarget;
+        bool isFBO0;
         msaaResolveAction = renderTarget->bindMSAAFramebuffer(
             this,
             desc.msaaSampleCount,
-            desc.colorLoadAction == pls::LoadAction::preserveRenderTarget
-                ? &desc.renderTargetUpdateBounds
-                : nullptr);
+            preserveRenderTarget ? &desc.renderTargetUpdateBounds : nullptr,
+            &isFBO0);
+
+        // Hint to tilers to not load unnecessary buffers from memory.
+        if (isFBO0)
+        {
+            msaaDepthStencilColor = {GL_DEPTH, GL_STENCIL, GL_COLOR};
+        }
+        else
+        {
+            msaaDepthStencilColor = {GL_DEPTH_ATTACHMENT,
+                                     GL_STENCIL_ATTACHMENT,
+                                     GL_COLOR_ATTACHMENT0};
+        }
+        glInvalidateFramebuffer(GL_FRAMEBUFFER,
+                                preserveRenderTarget ? 2 : 3,
+                                msaaDepthStencilColor.data());
 
         GLbitfield buffersToClear = GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT;
         if (desc.colorLoadAction == pls::LoadAction::clear)
@@ -1472,6 +1489,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
     else
     {
+        // Depth/stencil don't need to be written out.
+        glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 2, msaaDepthStencilColor.data());
         if ((desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
             m_capabilities.KHR_blend_equation_advanced_coherent)
         {
@@ -1691,6 +1710,10 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         {
             capabilities.EXT_clip_cull_distance = true;
         }
+        else if (strcmp(ext, "GL_EXT_multisampled_render_to_texture") == 0)
+        {
+            capabilities.EXT_multisampled_render_to_texture = true;
+        }
         else if (strcmp(ext, "GL_ANGLE_clip_cull_distance") == 0)
         {
             capabilities.EXT_clip_cull_distance = true;
@@ -1768,8 +1791,6 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
         capabilities.INTEL_fragment_shader_ordering = false;
     }
 
-    // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
-    // polyfilled on D3D anyway, and we need to test our fallback.
     GLenum rendererToken = GL_RENDERER;
 #ifdef RIVE_WEBGL
     if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
@@ -1781,15 +1802,20 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     const char* rendererString = reinterpret_cast<const char*>(glGetString(rendererToken));
     if (strstr(rendererString, "Direct3D"))
     {
+        // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
+        // polyfilled on D3D anyway, and we need to test our fallback.
         capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
+        // Our use of EXT_multisampled_render_to_texture causes a segfault in the Microsoft WARP
+        // (software) renderer. Just don't use this extension on D3D since it's polyfilled anyway.
+        capabilities.EXT_multisampled_render_to_texture = false;
     }
-#ifdef RIVE_GLES
+#ifdef RIVE_ANDROID
     LoadGLESExtensions(capabilities); // Android doesn't load extension functions for us.
 #endif
 
     if (!contextOptions.disablePixelLocalStorage)
     {
-#ifdef RIVE_GLES
+#ifdef RIVE_ANDROID
         if (capabilities.EXT_shader_pixel_local_storage &&
             (capabilities.ARM_shader_framebuffer_fetch ||
              capabilities.EXT_shader_framebuffer_fetch))

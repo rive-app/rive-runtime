@@ -58,7 +58,8 @@ public:
     // that the caller must resolve it when done.
     virtual MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
                                                   int sampleCount,
-                                                  const IAABB* preserveBounds = nullptr) = 0;
+                                                  const IAABB* preserveBounds = nullptr,
+                                                  bool* isFBO0 = nullptr) = 0;
 
     // Binds the internal framebuffer as a texture that can be used to fetch the destination color
     // (for blending).
@@ -95,7 +96,8 @@ public:
     void bindAsImageTextures() final;
     MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
                                           int sampleCount,
-                                          const IAABB* preserveBounds) final;
+                                          const IAABB* preserveBounds,
+                                          bool* isFBO0) final;
     void bindInternalDstTexture(GLenum activeTexture) final;
 
 private:
@@ -155,7 +157,8 @@ public:
     void bindAsImageTextures() final;
     MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
                                           int sampleCount,
-                                          const IAABB* preserveBounds) final;
+                                          const IAABB* preserveBounds,
+                                          bool* isFBO0) final;
     void bindInternalDstTexture(GLenum activeTexture) final;
 
 private:

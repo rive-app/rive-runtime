@@ -22,7 +22,7 @@ end
 
 filter('system:android')
 do
-    defines({ 'RIVE_GLES' })
+    defines({ 'RIVE_ANDROID' })
 end
 
 filter({ 'system:ios', 'options:variant=system' })

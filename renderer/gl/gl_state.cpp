@@ -24,7 +24,7 @@ void GLState::invalidate(const GLCapabilities& capabilities)
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
 
-#ifndef RIVE_GLES
+#ifndef RIVE_ANDROID
     // D3D and Metal both have a provoking vertex convention of "first" for flat varyings, and it's
     // very costly for ANGLE to implement the OpenGL convention of "last" on these backends. To
     // workaround this, ANGLE provides the ANGLE_provoking_vertex extension. When this extension is
