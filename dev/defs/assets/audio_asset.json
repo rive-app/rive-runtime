@@ -4,5 +4,57 @@
         "int": 406,
         "string": "audioasset"
     },
-    "extends": "assets/file_asset.json"
+    "extends": "assets/export_audio.json",
+    "properties": {
+        "sampleRate": {
+            "type": "uint",
+            "initialValue": "0",
+            "key": {
+                "int": 473,
+                "string": "samplerate"
+            },
+            "description": "Sample rate of the source audio file.",
+            "runtime": false
+        },
+        "channels": {
+            "type": "uint",
+            "initialValue": "0",
+            "key": {
+                "int": 474,
+                "string": "channels"
+            },
+            "description": "Channel count of the source audio file.",
+            "runtime": false
+        },
+        "durationSeconds": {
+            "type": "double",
+            "initialValue": "0",
+            "key": {
+                "int": 475,
+                "string": "durationseconds"
+            },
+            "description": "Duration in seconds of the source audio file.",
+            "runtime": false
+        },
+        "formatValue": {
+            "type": "uint",
+            "initialValue": "0",
+            "key": {
+                "int": 476,
+                "string": "formatvalue"
+            },
+            "description": "Container format value of the source audio file.",
+            "runtime": false
+        },
+        "isCustom": {
+            "type": "bool",
+            "initialValue": "true",
+            "key": {
+                "int": 426,
+                "string": "iscustom"
+            },
+            "description": "True if a custom asset, i.e the user has uploaded it",
+            "runtime": false
+        }
+    }
 }

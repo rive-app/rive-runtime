@@ -66,6 +66,7 @@
 #include "rive/assets/asset.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/drawable_asset.hpp"
+#include "rive/assets/export_audio.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/assets/folder.hpp"
@@ -1086,6 +1087,9 @@ public:
             case DrawableAssetBase::widthPropertyKey:
                 object->as<DrawableAssetBase>()->width(value);
                 break;
+            case ExportAudioBase::volumePropertyKey:
+                object->as<ExportAudioBase>()->volume(value);
+                break;
         }
     }
     static void setBool(Core* object, int propertyKey, bool value)
@@ -1673,6 +1677,8 @@ public:
                 return object->as<DrawableAssetBase>()->height();
             case DrawableAssetBase::widthPropertyKey:
                 return object->as<DrawableAssetBase>()->width();
+            case ExportAudioBase::volumePropertyKey:
+                return object->as<ExportAudioBase>()->volume();
         }
         return 0.0f;
     }
@@ -1981,6 +1987,7 @@ public:
             case TextBase::paragraphSpacingPropertyKey:
             case DrawableAssetBase::heightPropertyKey:
             case DrawableAssetBase::widthPropertyKey:
+            case ExportAudioBase::volumePropertyKey:
                 return CoreDoubleType::id;
             case TransformComponentConstraintBase::offsetPropertyKey:
             case TransformComponentConstraintBase::doesCopyPropertyKey:

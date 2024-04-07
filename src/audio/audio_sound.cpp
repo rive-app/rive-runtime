@@ -6,19 +6,42 @@
 
 using namespace rive;
 
-AudioSound::AudioSound(rcp<AudioEngine> engine) :
-    m_engine(std::move(engine)), m_decoder({}), m_buffer({}), m_sound({})
+AudioSound::AudioSound(AudioEngine* engine) :
+    m_decoder({}), m_buffer({}), m_sound({}), m_isDisposed(false), m_engine(engine)
 {}
 
-AudioSound::~AudioSound()
+void AudioSound::dispose()
 {
+    if (m_isDisposed)
+    {
+        return;
+    }
+    m_isDisposed = true;
     ma_sound_uninit(&m_sound);
     ma_decoder_uninit(&m_decoder);
     ma_audio_buffer_uninit(&m_buffer);
 }
 
+float AudioSound::volume() { return ma_sound_get_volume(&m_sound); }
+void AudioSound::volume(float value) { ma_sound_set_volume(&m_sound, value); }
+
+bool AudioSound::completed() const
+{
+    if (m_isDisposed)
+    {
+        return true;
+    }
+    return (bool)ma_sound_at_end(&m_sound);
+}
+
+AudioSound::~AudioSound() { dispose(); }
+
 void AudioSound::stop(uint64_t fadeTimeInFrames)
 {
+    if (m_isDisposed)
+    {
+        return;
+    }
     if (fadeTimeInFrames == 0)
     {
         ma_sound_stop(&m_sound);
@@ -29,15 +52,12 @@ void AudioSound::stop(uint64_t fadeTimeInFrames)
     }
 }
 
-void AudioSound::complete()
-{
-    auto sound = rcp<AudioSound>(this);
-    sound->ref();
-    m_engine->completeSound(sound);
-}
-
 bool AudioSound::seek(uint64_t timeInFrames)
 {
+    if (m_isDisposed)
+    {
+        return false;
+    }
     return ma_sound_seek_to_pcm_frame(&m_sound, (ma_uint64)timeInFrames) == MA_SUCCESS;
 }
 

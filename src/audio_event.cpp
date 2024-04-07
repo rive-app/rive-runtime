@@ -28,7 +28,11 @@ void AudioEvent::trigger(const CallbackData& value)
 #endif
                                              AudioEngine::RuntimeEngine();
 
-    engine->play(audioSource, engine->timeInFrames(), 0, 0);
+    auto sound = engine->play(audioSource, engine->timeInFrames(), 0, 0);
+    if (audioAsset->volume() != 1.0f)
+    {
+        sound->volume(audioAsset->volume());
+    }
 #endif
 }
 

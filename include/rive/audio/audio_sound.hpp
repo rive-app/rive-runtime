@@ -16,19 +16,26 @@ public:
     bool seek(uint64_t timeInFrames);
     ~AudioSound();
     void stop(uint64_t fadeTimeInFrames = 0);
+    float volume();
+    void volume(float value);
+    bool completed() const;
 
 private:
-    AudioSound(rcp<AudioEngine> engine);
-    void complete();
+    AudioSound(AudioEngine* engine);
+    ma_decoder* decoder() { return &m_decoder; }
+    ma_audio_buffer* buffer() { return &m_buffer; }
+    ma_sound* sound() { return &m_sound; }
+    void dispose();
 
-    rcp<AudioEngine> m_engine;
     ma_decoder m_decoder;
     ma_audio_buffer m_buffer;
     ma_sound m_sound;
 
-    ma_decoder* decoder() { return &m_decoder; }
-    ma_audio_buffer* buffer() { return &m_buffer; }
-    ma_sound* sound() { return &m_sound; }
+    // This is storage used by the AudioEngine.
+    bool m_isDisposed;
+    rcp<AudioSound> m_nextPlaying;
+    rcp<AudioSound> m_prevPlaying;
+    AudioEngine* m_engine;
 };
 } // namespace rive
 

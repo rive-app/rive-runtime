@@ -1,5 +1,6 @@
 #include "rive/audio/audio_engine.hpp"
 #include "rive/audio/audio_source.hpp"
+#include "rive/audio/audio_sound.hpp"
 #include "rive/audio/audio_reader.hpp"
 #include "rive/audio_event.hpp"
 #include "rive/assets/audio_asset.hpp"
@@ -36,26 +37,43 @@ TEST_CASE("audio source can be opened", "[audio]")
     REQUIRE(engine != nullptr);
     auto file = loadFile("../../test/assets/audio/what.wav");
     auto span = Span<uint8_t>(file);
-    AudioSource audioSource(span);
-    REQUIRE(audioSource.channels() == 2);
-    REQUIRE(audioSource.sampleRate() == 44100);
+    rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+    REQUIRE(audioSource->channels() == 2);
+    REQUIRE(audioSource->sampleRate() == 44100);
 
     // Try some different sample rates.
     {
-        auto reader = audioSource.makeReader(2, 44100);
+        auto reader = audioSource->makeReader(2, 44100);
         REQUIRE(reader != nullptr);
         REQUIRE(reader->lengthInFrames() == 9688);
     }
     {
-        auto reader = audioSource.makeReader(1, 48000);
+        auto reader = audioSource->makeReader(1, 48000);
         REQUIRE(reader != nullptr);
         REQUIRE(reader->lengthInFrames() == 10544);
     }
     {
-        auto reader = audioSource.makeReader(2, 32000);
+        auto reader = audioSource->makeReader(2, 32000);
         REQUIRE(reader != nullptr);
         REQUIRE(reader->lengthInFrames() == 7029);
     }
+
+    float channels[2] = {0, 0};
+    engine->initLevelMonitor();
+    engine->levels(Span<float>(&channels[0], 2));
+    REQUIRE(channels[0] == 0);
+    REQUIRE(channels[1] == 0);
+
+    auto sound = engine->play(audioSource, 0, 0, 0);
+    float frames[512 * 2] = {};
+    engine->readAudioFrames(frames, 512);
+    engine->levels(Span<float>(&channels[0], 2));
+    REQUIRE(channels[0] != 0);
+    REQUIRE(channels[1] != 0);
+
+    engine->readAudioFrames(frames, 512);
+    REQUIRE(engine->level(0) != 0);
+    REQUIRE(engine->level(1) != 0);
 }
 
 TEST_CASE("file with audio loads correctly", "[text]")
@@ -84,3 +102,49 @@ TEST_CASE("file with audio loads correctly", "[text]")
     // rive::NoOpRenderer renderer;
     // artboard->draw(&renderer);
 }
+
+TEST_CASE("audio sound can outlive engine", "[audio]")
+{
+    rcp<AudioSound> sound;
+    {
+        rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+        REQUIRE(engine != nullptr);
+        auto file = loadFile("../../test/assets/audio/what.wav");
+        auto span = Span<uint8_t>(file);
+        rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+        REQUIRE(audioSource->channels() == 2);
+        REQUIRE(audioSource->sampleRate() == 44100);
+
+        sound = engine->play(audioSource, 0, 0, 0);
+        float frames[512 * 2] = {};
+        engine->readAudioFrames(frames, 512);
+    }
+    sound->stop();
+}
+
+TEST_CASE("many audio sounds can outlive engine", "[audio]")
+{
+    std::vector<rcp<AudioSound>> sounds;
+    {
+        rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+        REQUIRE(engine != nullptr);
+        auto file = loadFile("../../test/assets/audio/what.wav");
+        auto span = Span<uint8_t>(file);
+        rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+        REQUIRE(audioSource->channels() == 2);
+        REQUIRE(audioSource->sampleRate() == 44100);
+
+        for (int i = 0; i < 20; i++)
+        {
+            sounds.emplace_back(engine->play(audioSource, 0, 0, 0));
+        }
+        float frames[512 * 2] = {};
+        engine->readAudioFrames(frames, 512);
+    }
+    for (auto sound : sounds)
+    {
+        sound->stop();
+    }
+}
+
+// TODO check if sound->stop calls completed callback!!!

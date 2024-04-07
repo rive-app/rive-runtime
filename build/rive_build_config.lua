@@ -135,7 +135,7 @@ do
     staticruntime('on') -- Match Skia's /MT flag for link compatibility
     runtime('Release') -- Use /MT even in debug (/MTd is incompatible with Skia)
     architecture('x64')
-    defines({ '_USE_MATH_DEFINES' })
+    defines({ '_USE_MATH_DEFINES', 'NOMINMAX' })
 end
 
 filter({ 'system:windows', 'options:toolset=clang' })

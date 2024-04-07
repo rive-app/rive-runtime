@@ -1,0 +1,40 @@
+{
+    "name": "ExportAudio",
+    "key": {
+        "int": 422,
+        "string": "exportaudio"
+    },
+    "abstract": true,
+    "extends": "assets/file_asset.json",
+    "properties": {
+        "exportFormatValue": {
+            "type": "uint",
+            "initialValue": "0",
+            "key": {
+                "int": 527,
+                "string": "formatvalue"
+            },
+            "description": "Start seconds of this clip",
+            "runtime": false
+        },
+        "exportQualityValue": {
+            "type": "uint",
+            "initialValue": "0",
+            "key": {
+                "int": 528,
+                "string": "qualityvalue"
+            },
+            "description": "Start seconds of this clip",
+            "runtime": false
+        },
+        "volume": {
+            "type": "double",
+            "initialValue": "1",
+            "key": {
+                "int": 530,
+                "string": "volume"
+            },
+            "description": "Volume applied to all instances of this audio asset."
+        }
+    }
+}

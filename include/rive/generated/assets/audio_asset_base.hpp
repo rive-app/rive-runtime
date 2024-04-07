@@ -1,12 +1,12 @@
 #ifndef _RIVE_AUDIO_ASSET_BASE_HPP_
 #define _RIVE_AUDIO_ASSET_BASE_HPP_
-#include "rive/assets/file_asset.hpp"
+#include "rive/assets/export_audio.hpp"
 namespace rive
 {
-class AudioAssetBase : public FileAsset
+class AudioAssetBase : public ExportAudio
 {
 protected:
-    typedef FileAsset Super;
+    typedef ExportAudio Super;
 
 public:
     static const uint16_t typeKey = 406;
@@ -18,6 +18,7 @@ public:
         switch (typeKey)
         {
             case AudioAssetBase::typeKey:
+            case ExportAudioBase::typeKey:
             case FileAssetBase::typeKey:
             case AssetBase::typeKey:
                 return true;

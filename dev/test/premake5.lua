@@ -6,6 +6,7 @@ defines({
     'WITH_RIVE_TOOLS',
     'WITH_RIVE_TEXT',
     'WITH_RIVE_AUDIO',
+    'WITH_RIVE_AUDIO_TOOLS',
 })
 
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))

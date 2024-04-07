@@ -30,11 +30,24 @@ class Definition {
       properties.where((property) => property.getExportType().storesData);
 
   Definition? _extensionOf;
+  Definition? _rawExtensionOf;
   Key? _key;
   bool _isAbstract = false;
   bool _editorOnly = false;
   bool _forRuntime = true;
   bool get forRuntime => _forRuntime;
+
+  Definition? getRuntimeExtensionOf(Definition? definition) {
+    var extensionOf = definition;
+    if (extensionOf != null) {
+      if (extensionOf._forRuntime) {
+        return extensionOf;
+      }
+      return getRuntimeExtensionOf(extensionOf._extensionOf);
+    }
+    return extensionOf;
+  }
+
   static Definition? make(String filename) {
     var definition = definitions[filename];
     if (definition != null) {
@@ -61,7 +74,8 @@ class Definition {
   Definition.fromFilename(this._filename, Map<String, dynamic> data) {
     dynamic extendsFilename = data['extends'];
     if (extendsFilename is String) {
-      _extensionOf = Definition.make(extendsFilename);
+      _rawExtensionOf = Definition.make(extendsFilename);
+      _extensionOf = getRuntimeExtensionOf(_rawExtensionOf);
     }
     dynamic nameValue = data['name'];
     if (nameValue is String) {
