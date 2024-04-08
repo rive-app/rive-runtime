@@ -58,7 +58,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
     // NOTE:
     // do not track spilled time, if our one shot loop is already completed.
     // stop gap before we move spilled tracking into state machine logic.
-    bool killSpilledTime = !this->keepGoing();
+    bool killSpilledTime = !this->keepGoing(elapsedSeconds);
 
     float lastTime = m_time;
     m_time += deltaSeconds;
@@ -165,7 +165,7 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
     }
 
     m_didLoop = didLoop;
-    return this->keepGoing();
+    return this->keepGoing(elapsedSeconds);
 }
 
 void LinearAnimationInstance::time(float value)
