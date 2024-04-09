@@ -36,6 +36,11 @@ public:
     {
         std::string filename = m_Path + asset.uniqueFilename();
         FILE* fp = fopen(filename.c_str(), "rb");
+        if (fp == nullptr)
+        {
+            fprintf(stderr, "Failed to find file at %s\n", filename.c_str());
+            return false;
+        }
 
         fseek(fp, 0, SEEK_END);
         const size_t length = ftell(fp);

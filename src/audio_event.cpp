@@ -6,10 +6,8 @@
 
 using namespace rive;
 
-void AudioEvent::trigger(const CallbackData& value)
+void AudioEvent::play()
 {
-    Super::trigger(value);
-
 #ifdef WITH_RIVE_AUDIO
     auto audioAsset = (AudioAsset*)m_fileAsset;
     if (audioAsset == nullptr)
@@ -34,6 +32,16 @@ void AudioEvent::trigger(const CallbackData& value)
         sound->volume(audioAsset->volume());
     }
 #endif
+}
+
+void AudioEvent::trigger(const CallbackData& value)
+{
+    Super::trigger(value);
+    if (!value.context()->playsAudio())
+    {
+        // Context won't play audio, we'll do it ourselves.
+        play();
+    }
 }
 
 StatusCode AudioEvent::import(ImportStack& importStack)

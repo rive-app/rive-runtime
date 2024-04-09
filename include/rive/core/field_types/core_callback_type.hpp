@@ -9,6 +9,7 @@ class CallbackContext
 public:
     virtual ~CallbackContext() {}
     virtual void reportEvent(Event* event, float secondsDelay = 0.0f) {}
+    virtual bool playsAudio() { return false; }
 };
 
 class CallbackData

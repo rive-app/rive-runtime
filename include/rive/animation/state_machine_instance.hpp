@@ -51,7 +51,7 @@ private:
 
     template <typename SMType, typename InstType>
     InstType* getNamedInput(const std::string& name) const;
-    void notifyEventListeners(std::vector<EventReport> events, NestedArtboard* source);
+    void notifyEventListeners(const std::vector<EventReport>& events, NestedArtboard* source);
     void sortHitComponents();
 
 public:
@@ -120,6 +120,7 @@ public:
 
     /// Gets a reported event at an index < reportedEventCount().
     const EventReport reportedEventAt(std::size_t index) const;
+    bool playsAudio() override { return true; }
 
 private:
     std::vector<EventReport> m_reportedEvents;

@@ -24,6 +24,7 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/audio_event.hpp"
 #include <unordered_map>
 
 using namespace rive;
@@ -782,7 +783,7 @@ const EventReport StateMachineInstance::reportedEventAt(std::size_t index) const
     return m_reportedEvents[index];
 }
 
-void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events,
+void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& events,
                                                 NestedArtboard* source)
 {
     if (events.size() > 0)
@@ -825,6 +826,15 @@ void StateMachineInstance::notifyEventListeners(std::vector<EventReport> events,
         if (m_parentStateMachineInstance != nullptr)
         {
             m_parentStateMachineInstance->notifyEventListeners(events, m_parentNestedArtboard);
+        }
+
+        for (auto report : events)
+        {
+            auto event = report.event();
+            if (event->is<AudioEvent>())
+            {
+                event->as<AudioEvent>()->play();
+            }
         }
     }
 }

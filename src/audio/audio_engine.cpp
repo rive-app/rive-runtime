@@ -25,9 +25,17 @@ using namespace rive;
 void AudioEngine::SoundCompleted(void* pUserData, ma_sound* pSound)
 {
     AudioSound* audioSound = (AudioSound*)pUserData;
+    auto engine = audioSound->m_engine;
+    engine->soundCompleted(ref_rcp(audioSound));
+}
 
-    auto next = audioSound->m_nextPlaying;
-    auto prev = audioSound->m_prevPlaying;
+void AudioEngine::soundCompleted(rcp<AudioSound> sound)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_completedSounds.push_back(sound);
+
+    auto next = sound->m_nextPlaying;
+    auto prev = sound->m_prevPlaying;
     if (next != nullptr)
     {
         next->m_prevPlaying = prev;
@@ -37,16 +45,13 @@ void AudioEngine::SoundCompleted(void* pUserData, ma_sound* pSound)
         prev->m_nextPlaying = next;
     }
 
-    auto engine = audioSound->m_engine;
-    if (engine->m_playingSoundsHead.get() == audioSound)
+    if (m_playingSoundsHead == sound)
     {
-        engine->m_playingSoundsHead = next;
+        m_playingSoundsHead = next;
     }
 
-    // Unlink audio sound.
-    engine->m_completedSounds.push_back(ref_rcp(audioSound));
-    audioSound->m_nextPlaying = nullptr;
-    audioSound->m_prevPlaying = nullptr;
+    sound->m_nextPlaying = nullptr;
+    sound->m_prevPlaying = nullptr;
 }
 
 #ifdef WITH_RIVE_AUDIO_TOOLS
@@ -182,6 +187,7 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
                                   uint64_t endTime,
                                   uint64_t soundStartTime)
 {
+    std::unique_lock<std::mutex> lock(m_mutex);
     // We have to dispose completed sounds out of the completed callback. So we
     // do it on next play or at destruct.
     for (auto sound : m_completedSounds)

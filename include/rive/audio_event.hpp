@@ -13,6 +13,7 @@ public:
     void setAsset(FileAsset* asset) override;
     uint32_t assetId() override;
     void trigger(const CallbackData& value) override;
+    void play();
 
 #ifdef TESTING
     AudioAsset* asset() const { return (AudioAsset*)m_fileAsset; }
