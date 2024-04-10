@@ -796,6 +796,9 @@ StatusCode Artboard::import(ImportStack& importStack)
     return result;
 }
 
+float Artboard::volume() const { return m_volume; }
+void Artboard::volume(float value) { m_volume = value; }
+
 ////////// ArtboardInstance
 
 #include "rive/animation/linear_animation_instance.hpp"

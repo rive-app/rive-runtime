@@ -260,10 +260,15 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
 
+    float volume() const;
+    void volume(float value);
+
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     rcp<AudioEngine> audioEngine() const;
     void audioEngine(rcp<AudioEngine> audioEngine);
 #endif
+private:
+    float m_volume = 1.0f;
 };
 
 class ArtboardInstance : public Artboard

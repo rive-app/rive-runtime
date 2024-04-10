@@ -20,6 +20,12 @@ void AudioEvent::play()
         return;
     }
 
+    auto volume = audioAsset->volume() * artboard()->volume();
+    if (volume <= 0.0f)
+    {
+        return;
+    }
+
     auto engine =
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
         artboard()->audioEngine() != nullptr ? artboard()->audioEngine() :
@@ -27,9 +33,10 @@ void AudioEvent::play()
                                              AudioEngine::RuntimeEngine();
 
     auto sound = engine->play(audioSource, engine->timeInFrames(), 0, 0);
-    if (audioAsset->volume() != 1.0f)
+
+    if (volume != 1.0f)
     {
-        sound->volume(audioAsset->volume());
+        sound->volume(volume);
     }
 #endif
 }
