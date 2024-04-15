@@ -629,6 +629,11 @@ PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContex
     {
         defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
     }
+    if (interlockMode == pls::InterlockMode::atomics)
+    {
+        // Atomics are currently always done on storage textures.
+        defines.push_back(GLSL_USING_PLS_STORAGE_TEXTURES);
+    }
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
         ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);

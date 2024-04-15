@@ -288,7 +288,7 @@
 
 #endif
 
-#ifdef @PLS_IMPL_RW_TEXTURE
+#ifdef @PLS_IMPL_STORAGE_TEXTURE
 
 #ifdef GL_ARB_shader_image_load_store
 #extension GL_ARB_shader_image_load_store : require
@@ -324,15 +324,13 @@
 #define PLS_STORE4F(PLANE, VALUE) imageStore(PLANE, _plsCoord, VALUE)
 #define PLS_STOREUI(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
 
-#define PLS_DECLUI_ATOMIC PLS_DECLUI
-#define PLS_LOADUI_ATOMIC PLS_LOADUI
-#define PLS_STOREUI_ATOMIC PLS_STOREUI
-#define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)
-#define PLS_ATOMIC_ADD(PLANE, X) imageAtomicAdd(PLANE, _plsCoord, X)
-
 #define PLS_PRESERVE_VALUE(PLANE)
 
+#ifndef @USING_PLS_STORAGE_TEXTURES
+#define @USING_PLS_STORAGE_TEXTURES
 #endif
+
+#endif // PLS_IMPL_STORAGE_TEXTURE
 
 #ifdef @PLS_IMPL_SUBPASS_LOAD
 
@@ -434,7 +432,14 @@
 #define FRAGMENT_CONTEXT_DECL
 #define FRAGMENT_CONTEXT_UNPACK
 
-#ifdef @PLS_IMPL_RW_TEXTURE
+#ifdef @USING_PLS_STORAGE_TEXTURES
+
+#define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
+    layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+#define PLS_LOADUI_ATOMIC(PLANE) imageLoad(PLANE, _plsCoord).r
+#define PLS_STOREUI_ATOMIC(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
+#define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)
+#define PLS_ATOMIC_ADD(PLANE, X) imageAtomicAdd(PLANE, _plsCoord, X)
 
 #define PLS_CONTEXT_DECL , int2 _plsCoord
 #define PLS_CONTEXT_UNPACK , _plsCoord
@@ -446,7 +451,7 @@
 
 #define EMIT_PLS }
 
-#else // !PLS_IMPL_RW_TEXTURE
+#else // !USING_PLS_STORAGE_TEXTURES
 
 #define PLS_CONTEXT_DECL
 #define PLS_CONTEXT_UNPACK
@@ -454,7 +459,7 @@
 #define PLS_MAIN(NAME) void main()
 #define EMIT_PLS
 
-#endif // PLS_IMPL_RW_TEXTURE
+#endif // !USING_PLS_STORAGE_TEXTURES
 
 #define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_MAIN(NAME)
 

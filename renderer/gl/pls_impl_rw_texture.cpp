@@ -138,7 +138,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         }
     }
 
-    const char* shaderDefineName() const override { return GLSL_PLS_IMPL_RW_TEXTURE; }
+    const char* shaderDefineName() const override { return GLSL_PLS_IMPL_STORAGE_TEXTURE; }
 
     void onBarrier() override
     {
