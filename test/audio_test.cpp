@@ -147,4 +147,42 @@ TEST_CASE("many audio sounds can outlive engine", "[audio]")
     }
 }
 
+TEST_CASE("audio sounds from different artboards stop accordingly", "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+
+    auto file = ReadRiveFile("../../test/assets/sound.riv");
+    auto artboard = file->artboardDefault();
+    artboard->audioEngine(engine);
+    auto artboard2 = file->artboardDefault();
+    artboard2->audioEngine(engine);
+
+    REQUIRE(artboard != nullptr);
+
+    auto audioEvents = artboard->find<AudioEvent>();
+    REQUIRE(audioEvents.size() == 1);
+
+    auto audioEvent = audioEvents[0];
+    REQUIRE(audioEvent->asset() != nullptr);
+    REQUIRE(audioEvent->asset()->hasAudioSource());
+
+    audioEvent->play();
+    audioEvent->play();
+    REQUIRE(engine->playingSoundCount() == 2);
+    auto audioEvent2 = artboard2->find<AudioEvent>()[0];
+    audioEvent2->play();
+    REQUIRE(engine->playingSoundCount() == 3);
+    audioEvent->play();
+    REQUIRE(engine->playingSoundCount() == 4);
+
+    // The three playing sounds owned by the first artboard should now stop.
+    artboard = nullptr;
+
+    REQUIRE(engine->playingSoundCount() == 1);
+
+    // The last one belonging to artboard2 should now stop too.
+    artboard2 = nullptr;
+    REQUIRE(engine->playingSoundCount() == 0);
+}
+
 // TODO check if sound->stop calls completed callback!!!

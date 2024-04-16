@@ -6,8 +6,14 @@
 
 using namespace rive;
 
-AudioSound::AudioSound(AudioEngine* engine) :
-    m_decoder({}), m_buffer({}), m_sound({}), m_isDisposed(false), m_engine(engine)
+AudioSound::AudioSound(AudioEngine* engine, rcp<AudioSource> source, Artboard* artboard) :
+    m_decoder({}),
+    m_buffer({}),
+    m_sound({}),
+    m_source(std::move(source)),
+    m_isDisposed(false),
+    m_engine(engine),
+    m_artboard(artboard)
 {}
 
 void AudioSound::dispose()

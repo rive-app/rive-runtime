@@ -2,6 +2,7 @@
 #define _RIVE_AUDIO_ASSET_HPP_
 #include "rive/generated/assets/audio_asset_base.hpp"
 #include "rive/audio/audio_source.hpp"
+#include "rive/audio/audio_engine.hpp"
 
 namespace rive
 {
@@ -20,6 +21,7 @@ public:
 
     rcp<AudioSource> audioSource() { return m_audioSource; }
     void audioSource(rcp<AudioSource> source) { m_audioSource = source; }
+    void stop(rcp<AudioEngine> engine);
 
 private:
     rcp<AudioSource> m_audioSource;

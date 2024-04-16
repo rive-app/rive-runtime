@@ -18,6 +18,7 @@
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
+#include "rive/assets/audio_asset.hpp"
 
 #include <unordered_map>
 
@@ -25,6 +26,18 @@ using namespace rive;
 
 Artboard::~Artboard()
 {
+#ifdef WITH_RIVE_AUDIO
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+    auto audioEngine = m_audioEngine;
+#else
+    auto audioEngine = AudioEngine::RuntimeEngine(false);
+#endif
+    if (audioEngine)
+    {
+        audioEngine->stop(this);
+    }
+#endif
+
     for (auto object : m_Objects)
     {
         // First object is artboard

@@ -4,10 +4,12 @@
 
 #include "miniaudio.h"
 #include "rive/refcnt.hpp"
+#include "rive/audio/audio_source.hpp"
 
 namespace rive
 {
 class AudioEngine;
+class Artboard;
 class AudioSound : public RefCnt<AudioSound>
 {
     friend class AudioEngine;
@@ -21,7 +23,7 @@ public:
     bool completed() const;
 
 private:
-    AudioSound(AudioEngine* engine);
+    AudioSound(AudioEngine* engine, rcp<AudioSource> source, Artboard* artboard);
     ma_decoder* decoder() { return &m_decoder; }
     ma_audio_buffer* buffer() { return &m_buffer; }
     ma_sound* sound() { return &m_sound; }
@@ -30,12 +32,14 @@ private:
     ma_decoder m_decoder;
     ma_audio_buffer m_buffer;
     ma_sound m_sound;
+    rcp<AudioSource> m_source;
 
     // This is storage used by the AudioEngine.
     bool m_isDisposed;
     rcp<AudioSound> m_nextPlaying;
     rcp<AudioSound> m_prevPlaying;
     AudioEngine* m_engine;
+    Artboard* m_artboard;
 };
 } // namespace rive
 

@@ -19,6 +19,7 @@ namespace rive
 class AudioSound;
 class AudioSource;
 class LevelsNode;
+class Artboard;
 class AudioEngine : public RefCnt<AudioEngine>
 {
     friend class AudioSound;
@@ -42,9 +43,10 @@ public:
     rcp<AudioSound> play(rcp<AudioSource> source,
                          uint64_t startTime,
                          uint64_t endTime,
-                         uint64_t soundStartTime);
+                         uint64_t soundStartTime,
+                         Artboard* artboard = nullptr);
 
-    static rcp<AudioEngine> RuntimeEngine();
+    static rcp<AudioEngine> RuntimeEngine(bool makeWhenNecessary = true);
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     bool readAudioFrames(float* frames, uint64_t numFrames, uint64_t* framesRead = nullptr);
@@ -57,6 +59,13 @@ public:
     float level(uint32_t channel);
 #endif
 
+    void start();
+    void stop();
+    void stop(Artboard* artboard);
+
+#ifdef TESTING
+    size_t playingSoundCount();
+#endif
 private:
     AudioEngine(ma_engine* engine);
     ma_device* m_device;
@@ -64,6 +73,7 @@ private:
     std::mutex m_mutex;
 
     void soundCompleted(rcp<AudioSound> sound);
+    void unlinkSound(rcp<AudioSound> sound);
 
     std::vector<rcp<AudioSound>> m_completedSounds;
     rcp<AudioSound> m_playingSoundsHead;
