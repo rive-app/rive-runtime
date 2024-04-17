@@ -38,6 +38,7 @@ void NestedArtboard::nest(Artboard* artboard)
     }
     m_Artboard->frameOrigin(false);
     m_Artboard->opacity(renderOpacity());
+    m_Artboard->volume(artboard->volume());
     m_Instance = nullptr;
     if (artboard->isInstance())
     {

@@ -810,7 +810,18 @@ StatusCode Artboard::import(ImportStack& importStack)
 }
 
 float Artboard::volume() const { return m_volume; }
-void Artboard::volume(float value) { m_volume = value; }
+void Artboard::volume(float value)
+{
+    m_volume = value;
+    for (auto nestedArtboard : m_NestedArtboards)
+    {
+        auto artboard = nestedArtboard->artboard();
+        if (artboard != nullptr)
+        {
+            artboard->volume(value);
+        }
+    }
+}
 
 ////////// ArtboardInstance
 
