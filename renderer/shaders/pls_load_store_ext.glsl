@@ -41,7 +41,9 @@ __pixel_local_outEXT PLS
     layout(rgba8) mediump vec4 framebuffer;
     layout(r32ui) highp uint coverageCountBuffer;
     layout(rgba8) mediump vec4 originalDstColorBuffer;
+#ifdef @ENABLE_CLIPPING
     layout(r32ui) highp uint clipBuffer;
+#endif
 };
 
 #ifndef GL_ARM_shader_framebuffer_fetch

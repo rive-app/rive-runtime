@@ -21,16 +21,16 @@
 #include "shaders/out/generated/blit_texture_as_draw.glsl.hpp"
 #include "shaders/out/generated/stencil_draw.glsl.hpp"
 
-#if defined(RIVE_ANDROID) || defined(RIVE_WEBGL)
-// In an effort to save space on Android, and since GLES doesn't usually need atomic mode, don't
-// include the atomic sources.
+#ifdef RIVE_WEBGL
+// In an effort to save space on web, and since web doesn't have ES 3.1 level support, don't include
+// the atomic sources.
 namespace rive::pls::glsl
 {
 const char atomic_draw[] = "";
 }
+#define DISABLE_PLS_ATOMICS
 #else
 #include "shaders/out/generated/atomic_draw.glsl.hpp"
-#define ENABLE_PLS_EXPERIMENTAL_ATOMICS
 #endif
 
 #ifdef RIVE_WEBGL
@@ -228,7 +228,7 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
     glDeleteTextures(1, &m_tessVertexTexture);
 
     // Because glutils wrappers delete GL objects that might affect bindings.
-    m_state->invalidate(m_capabilities);
+    m_state->invalidate();
 }
 
 void PLSRenderContextGLImpl::invalidateGLState()
@@ -239,7 +239,7 @@ void PLSRenderContextGLImpl::invalidateGLState()
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
 
-    m_state->invalidate(m_capabilities);
+    m_state->invalidate();
 }
 
 void PLSRenderContextGLImpl::unbindGLInternalResources()
@@ -616,7 +616,7 @@ PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContex
                                                pls::InterlockMode interlockMode,
                                                pls::ShaderMiscFlags shaderMiscFlags)
 {
-#ifndef ENABLE_PLS_EXPERIMENTAL_ATOMICS
+#ifdef DISABLE_PLS_ATOMICS
     if (interlockMode == pls::InterlockMode::atomics)
     {
         // Don't draw anything in atomic mode if support for it isn't compiled in.
@@ -627,7 +627,7 @@ PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContex
     std::vector<const char*> defines;
     if (plsContextImpl->m_plsImpl != nullptr)
     {
-        defines.push_back(plsContextImpl->m_plsImpl->shaderDefineName());
+        plsContextImpl->m_plsImpl->pushShaderDefines(interlockMode, &defines);
     }
     if (interlockMode == pls::InterlockMode::atomics)
     {
@@ -851,6 +851,7 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
 
 void PLSRenderContextGLImpl::PLSImpl::ensureRasterOrderingEnabled(
     PLSRenderContextGLImpl* plsContextImpl,
+    const pls::FlushDescriptor& desc,
     bool enabled)
 {
     assert(!enabled || supportsRasterOrdering(plsContextImpl->m_capabilities));
@@ -863,7 +864,7 @@ void PLSRenderContextGLImpl::PLSImpl::ensureRasterOrderingEnabled(
         // necessary barriers after draws when it's disabled.
         if (m_rasterOrderingEnabled == pls::TriState::no)
         {
-            onBarrier();
+            onBarrier(desc);
         }
     }
 }
@@ -1227,7 +1228,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             else
             {
                 // Read back the framebuffer where we need a dstColor for blending.
-                renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+                renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
+                                                      PLSRenderTargetGL::DrawBufferMask::color);
                 for (const PLSDraw* draw = batch.internalDrawList; draw != nullptr;
                      draw = draw->batchInternalNeighbor())
                 {
@@ -1267,6 +1269,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 if (desc.interlockMode != pls::InterlockMode::depthStencil)
                 {
                     m_plsImpl->ensureRasterOrderingEnabled(this,
+                                                           desc,
                                                            desc.interlockMode ==
                                                                pls::InterlockMode::rasterOrdering);
                     drawHelper.setIndexRange(pls::PatchIndexCount(drawType),
@@ -1399,7 +1402,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             case pls::DrawType::interiorTriangulation:
             {
                 assert(desc.interlockMode != pls::InterlockMode::depthStencil); // TODO!
-                m_plsImpl->ensureRasterOrderingEnabled(this, false);
+                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_trianglesVAO);
                 m_state->setCullFace(GL_BACK);
                 glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
@@ -1410,7 +1413,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 assert(desc.interlockMode == pls::InterlockMode::atomics);
                 assert(!m_capabilities.ARB_bindless_texture);
                 assert(m_imageRectVAO != 0); // Should have gotten lazily allocated by now.
-                m_plsImpl->ensureRasterOrderingEnabled(this, false);
+                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_imageRectVAO);
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
@@ -1451,6 +1454,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                     // overlaps.
                     m_plsImpl->ensureRasterOrderingEnabled(
                         this,
+                        desc,
                         m_platformFeatures.supportsRasterOrdering);
                 }
                 else
@@ -1470,7 +1474,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             case pls::DrawType::plsAtomicResolve:
             {
                 assert(desc.interlockMode == pls::InterlockMode::atomics);
-                m_plsImpl->ensureRasterOrderingEnabled(this, false);
+                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_emptyVAO);
                 m_plsImpl->setupAtomicResolve(this, desc);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -1482,9 +1486,10 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                 RIVE_UNREACHABLE();
             }
         }
-        if (desc.interlockMode != pls::InterlockMode::depthStencil && batch.needsBarrier)
+        if (desc.interlockMode != pls::InterlockMode::depthStencil && batch.needsBarrier &&
+            batch.drawType != pls::DrawType::imageMesh /*EW!*/)
         {
-            m_plsImpl->barrier();
+            m_plsImpl->barrier(desc);
         }
     }
 
@@ -1534,7 +1539,7 @@ void PLSRenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
     if (m_blitAsDrawProgram == 0)
     {
         const char* blitSources[] = {glsl::constants, glsl::common, glsl::blit_texture_as_draw};
-        m_blitAsDrawProgram.reset(glCreateProgram());
+        m_blitAsDrawProgram = glutils::Program();
         m_blitAsDrawProgram.compileAndAttachShader(GL_VERTEX_SHADER,
                                                    nullptr,
                                                    0,

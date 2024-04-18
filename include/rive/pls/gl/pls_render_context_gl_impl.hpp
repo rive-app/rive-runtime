@@ -83,21 +83,24 @@ private:
         // state changes.
         virtual void setupAtomicResolve(PLSRenderContextGLImpl*, const pls::FlushDescriptor&) {}
 
-        virtual const char* shaderDefineName() const = 0;
+        virtual void pushShaderDefines(pls::InterlockMode,
+                                       std::vector<const char*>* defines) const = 0;
 
-        void ensureRasterOrderingEnabled(PLSRenderContextGLImpl* plsContextImpl, bool enabled);
+        void ensureRasterOrderingEnabled(PLSRenderContextGLImpl*,
+                                         const pls::FlushDescriptor&,
+                                         bool enabled);
 
-        void barrier()
+        void barrier(const pls::FlushDescriptor& desc)
         {
             assert(m_rasterOrderingEnabled == pls::TriState::no);
-            onBarrier();
+            onBarrier(desc);
         }
 
         virtual ~PLSImpl() {}
 
     private:
         virtual void onEnableRasterOrdering(bool enabled) {}
-        virtual void onBarrier() {}
+        virtual void onBarrier(const pls::FlushDescriptor& desc) {}
 
         pls::TriState m_rasterOrderingEnabled = pls::TriState::unknown;
     };
@@ -185,14 +188,14 @@ private:
     // Gradient texture rendering.
     glutils::Program m_colorRampProgram;
     glutils::VAO m_colorRampVAO;
-    glutils::FBO m_colorRampFBO;
+    glutils::Framebuffer m_colorRampFBO;
     GLuint m_gradientTexture = 0;
 
     // Tessellation texture rendering.
     glutils::Program m_tessellateProgram;
     glutils::VAO m_tessellateVAO;
     glutils::Buffer m_tessSpanIndexBuffer;
-    glutils::FBO m_tessellateFBO;
+    glutils::Framebuffer m_tessellateFBO;
     GLuint m_tessVertexTexture = 0;
 
     // Not all programs have a unique vertex shader, so we cache and reuse them where possible.
@@ -215,7 +218,7 @@ private:
     glutils::VAO m_emptyVAO;
 
     // Used for blitting non-MSAA -> MSAA, which isn't supported by glBlitFramebuffer().
-    glutils::Program m_blitAsDrawProgram{0};
+    glutils::Program m_blitAsDrawProgram = glutils::Program::Zero();
 
     const rcp<GLState> m_state;
 };

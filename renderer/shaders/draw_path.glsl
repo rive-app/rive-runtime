@@ -299,7 +299,9 @@ INLINE half4 find_paint_color(float4 paint
 PLS_BLOCK_BEGIN
 PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
+#ifdef @ENABLE_CLIPPING
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
+#endif
 PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
 PLS_BLOCK_END
 
@@ -415,12 +417,12 @@ PLS_MAIN(@drawFragmentMain)
             half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
             coverage = min(coverage, clipCoverage);
         }
+        PLS_PRESERVE_VALUE(clipBuffer);
 #endif
 #ifdef @ENABLE_CLIP_RECT
         half clipRectCoverage = min_value(make_half4(v_clipRect));
         coverage = clamp(clipRectCoverage, make_half(0), coverage);
 #endif
-        PLS_PRESERVE_VALUE(clipBuffer);
 
         half4 color = find_paint_color(v_paint
 #ifdef @TARGET_VULKAN

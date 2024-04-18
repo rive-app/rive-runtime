@@ -144,6 +144,8 @@ void glProvokingVertexANGLE(GLenum provokeMode)
 
 namespace rive::pls
 {
+using DrawBufferMask = PLSRenderTargetGL::DrawBufferMask;
+
 static GLenum webgl_load_op(pls::LoadAction loadAction)
 {
     switch (loadAction)
@@ -181,7 +183,8 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
             {
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
-                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
+                                                                 DrawBufferMask::color);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds, renderTarget->height());
             }
         }
@@ -224,14 +227,18 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                 static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
         {
             // We rendered to an offscreen texture. Copy back to the external target FBO.
-            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER, 1);
+            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER,
+                                                             DrawBufferMask::color);
             framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                      framebufferRenderTarget->height());
         }
     }
 
-    const char* shaderDefineName() const override { return GLSL_PLS_IMPL_WEBGL; }
+    void pushShaderDefines(pls::InterlockMode, std::vector<const char*>* defines) const override
+    {
+        defines->push_back(GLSL_PLS_IMPL_ANGLE);
+    }
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplWebGL()

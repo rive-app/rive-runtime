@@ -167,11 +167,11 @@ void Program::reset(GLuint adoptedProgramID)
         glDeleteShader(m_vertexShaderID);
         m_vertexShaderID = 0;
     }
-    if (m_programID != 0)
+    if (m_id != 0)
     {
-        glDeleteProgram(m_programID);
+        glDeleteProgram(m_id);
     }
-    m_programID = adoptedProgramID;
+    m_id = adoptedProgramID;
 }
 
 void Program::compileAndAttachShader(GLuint type,
@@ -188,7 +188,7 @@ void Program::compileAndAttachShader(GLuint type,
         glDeleteShader(internalShaderID);
     }
     internalShaderID = CompileShader(type, defines, numDefines, sources, numSources, capabilities);
-    glAttachShader(m_programID, internalShaderID);
+    glAttachShader(m_id, internalShaderID);
 }
 
 void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)

@@ -406,6 +406,8 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
 
 #endif // PLS_IMPL_DEVICE_BUFFER
 
+#define discard $discard_fragment()
+
 $using $namespace $metal;
 
 $template<int N> INLINE $vec<uint, N> floatBitsToUint($vec<float, N> x)

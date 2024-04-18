@@ -7,6 +7,7 @@
 #include "rive/pls/pls.hpp"
 #include "rive/pls/pls_render_target.hpp"
 #include "rive/pls/gl/gles3.hpp"
+#include "rive/pls/gl/gl_utils.hpp"
 #include "utils/lite_rtti.hpp"
 
 namespace rive::pls
@@ -26,12 +27,24 @@ public:
     // Does not allocate an "originalDstColor" texture if InterlockMode is experimentalAtomics.
     virtual void allocateInternalPLSTextures(pls::InterlockMode) = 0;
 
+    // Specifies which PLS planes to enable when a render target is bound.
+    enum class DrawBufferMask
+    {
+        color = 1 << 0,
+        coverage = 1 << 1,
+        clip = 1 << 2,
+        originalDstColor = 1 << 3,
+
+        rasterOrderingBuffers = color | coverage | clip | originalDstColor,
+        atomicBuffers = color | coverage | clip,
+    };
+
     // Binds a framebuffer with all allocated textures attached as color attachments. Used for
     // clearing, blitting, and for rendering with EXT_shader_framebuffer_fetch.
     //
     // 'drawBufferCount' specifies the number of glDrawBuffers to enable, starting with
     // GL_COLOR_ATTACHMENT0. Ignored for GL_READ_FRAMEBUFFER.
-    virtual void bindInternalFramebuffer(GLenum target, uint32_t drawBufferCount) = 0;
+    virtual void bindInternalFramebuffer(GLenum target, DrawBufferMask) = 0;
 
     // Binds a "headless" framebuffer to GL_DRAW_FRAMEBUFFER with no color attachments and no
     // enabled draw buffers.
@@ -44,7 +57,7 @@ public:
     virtual void bindHeadlessFramebuffer(const GLCapabilities&) = 0;
 
     // Binds the allocated textures to their corresponding GL image binding slots.
-    virtual void bindAsImageTextures() = 0;
+    virtual void bindAsImageTextures(DrawBufferMask) = 0;
 
     enum class MSAAResolveAction
     {
@@ -69,6 +82,8 @@ protected:
     PLSRenderTargetGL(uint32_t width, uint32_t height) : PLSRenderTarget(width, height) {}
 };
 
+RIVE_MAKE_ENUM_BITSET(PLSRenderTargetGL::DrawBufferMask);
+
 // GL render target that draws to an external texture provided by the client.
 //
 // Client must call setTargetTexture() before using this render target.
@@ -89,11 +104,14 @@ public:
         m_framebufferTargetPLSBindingDirty = true;
     }
 
-    void bindDestinationFramebuffer(GLenum target) final { bindInternalFramebuffer(target, 1); }
+    void bindDestinationFramebuffer(GLenum target) final
+    {
+        bindInternalFramebuffer(target, DrawBufferMask::color);
+    }
     void allocateInternalPLSTextures(pls::InterlockMode) final;
-    void bindInternalFramebuffer(GLenum target, uint32_t drawBufferCount) final;
+    void bindInternalFramebuffer(GLenum target, DrawBufferMask) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
-    void bindAsImageTextures() final;
+    void bindAsImageTextures(DrawBufferMask) final;
     MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
                                           int sampleCount,
                                           const IAABB* preserveBounds,
@@ -104,13 +122,14 @@ private:
     // Not owned or deleted by us.
     GLuint m_externalTextureID = 0;
 
-    GLuint m_framebufferID = 0;
-    GLuint m_coverageTextureID = 0;
-    GLuint m_clipTextureID = 0;
-    GLuint m_originalDstColorTextureID = 0;
-    GLuint m_headlessFramebufferID = 0;
+    glutils::Framebuffer m_framebufferID = glutils::Framebuffer::Zero();
+    glutils::Texture m_coverageTexture = glutils::Texture::Zero();
+    glutils::Texture m_clipTexture = glutils::Texture::Zero();
+    glutils::Texture m_originalDstColorTexture = glutils::Texture::Zero();
+    glutils::Framebuffer m_headlessFramebuffer = glutils::Framebuffer::Zero();
 
-    uint32_t m_internalDrawBufferCount = 1; // GL enables 1 draw buffer by default.
+    // GL enables the first drawBuffer by default.
+    DrawBufferMask m_internalDrawBufferMask = DrawBufferMask::color;
 
     // For framebuffer color attachments.
     bool m_framebufferTargetAttachmentDirty = false;
@@ -120,7 +139,7 @@ private:
     bool m_framebufferTargetPLSBindingDirty = false;
     bool m_framebufferInternalPLSBindingsDirty = false;
 
-    GLuint m_msaaFramebufferID = 0;
+    glutils::Framebuffer m_msaaFramebuffer = glutils::Framebuffer::Zero();
     int m_msaaFramebufferSampleCount = 0;
 };
 
@@ -152,9 +171,9 @@ public:
 
     void bindDestinationFramebuffer(GLenum target) final;
     void allocateInternalPLSTextures(pls::InterlockMode) final;
-    void bindInternalFramebuffer(GLenum target, uint32_t drawBufferCount) final;
+    void bindInternalFramebuffer(GLenum target, DrawBufferMask) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
-    void bindAsImageTextures() final;
+    void bindAsImageTextures(DrawBufferMask) final;
     MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
                                           int sampleCount,
                                           const IAABB* preserveBounds,
@@ -170,6 +189,6 @@ private:
     TextureRenderTargetGL m_textureRenderTarget;
 
     // Created for m_textureRenderTarget if/when we can't render directly to the framebuffer.
-    GLuint m_offscreenTargetTextureID = 0;
+    glutils::Texture m_offscreenTargetTexture = glutils::Texture::Zero();
 };
 } // namespace rive::pls

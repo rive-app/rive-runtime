@@ -4,9 +4,11 @@
 
 #include "rive/pls/gl/gl_state.hpp"
 
+#include "shaders/constants.glsl"
+
 namespace rive::pls
 {
-void GLState::invalidate(const GLCapabilities& capabilities)
+void GLState::invalidate()
 {
     // Invalidate all cached state.
     memset(&m_validState, 0, sizeof(m_validState));
@@ -29,7 +31,7 @@ void GLState::invalidate(const GLCapabilities& capabilities)
     // very costly for ANGLE to implement the OpenGL convention of "last" on these backends. To
     // workaround this, ANGLE provides the ANGLE_provoking_vertex extension. When this extension is
     // present, we can just set the provoking vertex to "first" and trust that it will be fast.
-    if (capabilities.ANGLE_provoking_vertex)
+    if (m_capabilities.ANGLE_provoking_vertex)
     {
         glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
     }

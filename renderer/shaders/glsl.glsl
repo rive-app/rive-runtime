@@ -215,7 +215,7 @@
 #endif // DISABLE_SHADER_STORAGE_BUFFERS
 
 // Define macros for implementing pixel local storage based on available extensions.
-#ifdef @PLS_IMPL_WEBGL
+#ifdef @PLS_IMPL_ANGLE
 
 #extension GL_ANGLE_shader_pixel_local_storage : require
 
@@ -234,7 +234,7 @@
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
-#endif
+#endif // PLS_IMPL_ANGLE
 
 #ifdef @PLS_IMPL_EXT_NATIVE
 
@@ -286,7 +286,7 @@
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
-#endif
+#endif // PLS_IMPL_FRAMEBUFFER_FETCH
 
 #ifdef @PLS_IMPL_STORAGE_TEXTURE
 
@@ -325,10 +325,6 @@
 #define PLS_STOREUI(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
 
 #define PLS_PRESERVE_VALUE(PLANE)
-
-#ifndef @USING_PLS_STORAGE_TEXTURES
-#define @USING_PLS_STORAGE_TEXTURES
-#endif
 
 #endif // PLS_IMPL_STORAGE_TEXTURE
 
@@ -465,7 +461,7 @@
 
 #define PLS_FRAG_COLOR_MAIN(NAME)                                                                  \
     layout(location = 0) out half4 _fragColor;                                                     \
-    PLS_MAIN(NAME);
+    PLS_MAIN(NAME)
 
 #define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                              \
     layout(location = 0) out half4 _fragColor;                                                     \

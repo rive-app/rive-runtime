@@ -140,7 +140,10 @@ public:
         glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
     }
 
-    const char* shaderDefineName() const override { return GLSL_PLS_IMPL_EXT_NATIVE; }
+    void pushShaderDefines(pls::InterlockMode, std::vector<const char*>* defines) const override
+    {
+        defines->push_back(GLSL_PLS_IMPL_EXT_NATIVE);
+    }
 
 private:
     const GLCapabilities m_capabilities;

@@ -7,88 +7,66 @@
 #include "rive/pls/pls.hpp"
 #include "rive/pls/gl/pls_render_context_gl_impl.hpp"
 #include "shaders/constants.glsl"
-#include "rive/pls/gl/gl_utils.hpp"
 
 namespace rive::pls
 {
-TextureRenderTargetGL::~TextureRenderTargetGL()
-{
-    if (m_framebufferID != 0)
-    {
-        glDeleteFramebuffers(1, &m_framebufferID);
-    }
-    if (m_coverageTextureID != 0)
-    {
-        glDeleteTextures(1, &m_coverageTextureID);
-    }
-    if (m_clipTextureID != 0)
-    {
-        glDeleteTextures(1, &m_clipTextureID);
-    }
-    if (m_originalDstColorTextureID != 0)
-    {
-        glDeleteTextures(1, &m_originalDstColorTextureID);
-    }
-    if (m_headlessFramebufferID != 0)
-    {
-        glDeleteFramebuffers(1, &m_headlessFramebufferID);
-    }
-    if (m_msaaFramebufferID != 0)
-    {
-        glDeleteFramebuffers(1, &m_msaaFramebufferID);
-    }
-}
+TextureRenderTargetGL::~TextureRenderTargetGL() {}
 
-static GLuint make_backing_texture(GLenum internalformat, uint32_t width, uint32_t height)
+static glutils::Texture make_backing_texture(GLenum internalformat, uint32_t width, uint32_t height)
 {
-    GLuint textureID;
-    glGenTextures(1, &textureID);
+    glutils::Texture texture;
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, textureID);
+    glBindTexture(GL_TEXTURE_2D, texture);
     glTexStorage2D(GL_TEXTURE_2D, 1, internalformat, width, height);
-    return textureID;
+    return texture;
 }
 
 void TextureRenderTargetGL::allocateInternalPLSTextures(pls::InterlockMode interlockMode)
 {
-    if (m_coverageTextureID == 0)
+    if (m_coverageTexture == 0)
     {
-        m_coverageTextureID = make_backing_texture(GL_R32UI, width(), height());
+        m_coverageTexture = make_backing_texture(GL_R32UI, width(), height());
         m_framebufferInternalAttachmentsDirty = true;
         m_framebufferInternalPLSBindingsDirty = true;
     }
-    if (m_clipTextureID == 0)
+    if (m_clipTexture == 0)
     {
-        m_clipTextureID = make_backing_texture(GL_R32UI, width(), height());
+        m_clipTexture = make_backing_texture(GL_R32UI, width(), height());
         m_framebufferInternalAttachmentsDirty = true;
         m_framebufferInternalPLSBindingsDirty = true;
     }
-    if (interlockMode == InterlockMode::rasterOrdering && m_originalDstColorTextureID == 0)
+    if (interlockMode == InterlockMode::rasterOrdering && m_originalDstColorTexture == 0)
     {
-        m_originalDstColorTextureID = make_backing_texture(GL_RGBA8, width(), height());
+        m_originalDstColorTexture = make_backing_texture(GL_RGBA8, width(), height());
         m_framebufferInternalAttachmentsDirty = true;
         m_framebufferInternalPLSBindingsDirty = true;
     }
 }
 
-void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, uint32_t drawBufferCount)
+void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMask drawBufferMask)
 {
     if (m_framebufferID == 0)
     {
-        glGenFramebuffers(1, &m_framebufferID);
+        m_framebufferID = glutils::Framebuffer();
     }
     glBindFramebuffer(target, m_framebufferID);
 
-    if (target != GL_READ_FRAMEBUFFER && m_internalDrawBufferCount != drawBufferCount)
+    if (target != GL_READ_FRAMEBUFFER && m_internalDrawBufferMask != drawBufferMask)
     {
-        assert(drawBufferCount <= 4);
-        drawBufferCount = std::min(drawBufferCount, 4u);
-        constexpr static GLenum kDrawBufferList[4] = {GL_COLOR_ATTACHMENT0,
-                                                      GL_COLOR_ATTACHMENT1,
-                                                      GL_COLOR_ATTACHMENT2,
-                                                      GL_COLOR_ATTACHMENT3};
-        glDrawBuffers(drawBufferCount, kDrawBufferList);
-        m_internalDrawBufferCount = drawBufferCount;
+        GLenum drawBufferList[4];
+        for (size_t i = 0; i < 4; ++i)
+        {
+            drawBufferList[i] = (drawBufferMask & static_cast<DrawBufferMask>(1 << i))
+                                    ? GL_COLOR_ATTACHMENT0 + i
+                                    : GL_NONE;
+            static_assert((int)DrawBufferMask::color == 1 << FRAMEBUFFER_PLANE_IDX);
+            static_assert((int)DrawBufferMask::coverage == 1 << COVERAGE_PLANE_IDX);
+            static_assert((int)DrawBufferMask::clip == 1 << CLIP_PLANE_IDX);
+            static_assert((int)DrawBufferMask::originalDstColor ==
+                          1 << ORIGINAL_DST_COLOR_PLANE_IDX);
+        }
+        glDrawBuffers(4, drawBufferList);
+        m_internalDrawBufferMask = drawBufferMask;
     }
 
     if (m_framebufferTargetAttachmentDirty)
@@ -106,17 +84,17 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, uint32_t draw
         glFramebufferTexture2D(target,
                                GL_COLOR_ATTACHMENT0 + COVERAGE_PLANE_IDX,
                                GL_TEXTURE_2D,
-                               m_coverageTextureID,
+                               m_coverageTexture,
                                0);
         glFramebufferTexture2D(target,
                                GL_COLOR_ATTACHMENT0 + CLIP_PLANE_IDX,
                                GL_TEXTURE_2D,
-                               m_clipTextureID,
+                               m_clipTexture,
                                0);
         glFramebufferTexture2D(target,
                                GL_COLOR_ATTACHMENT0 + ORIGINAL_DST_COLOR_PLANE_IDX,
                                GL_TEXTURE_2D,
-                               m_originalDstColorTextureID,
+                               m_originalDstColorTexture,
                                0);
         m_framebufferInternalAttachmentsDirty = false;
     }
@@ -124,11 +102,11 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, uint32_t draw
 
 void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabilities)
 {
-    if (m_headlessFramebufferID == 0)
+    if (m_headlessFramebuffer == 0)
     {
-        glGenFramebuffers(1, &m_headlessFramebufferID);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_headlessFramebufferID);
-#ifdef RIVE_DESKTOP_GL
+        m_headlessFramebuffer = glutils::Framebuffer();
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_headlessFramebuffer);
+#ifndef RIVE_WEBGL
         if (capabilities.ARB_shader_image_load_store)
         {
             glFramebufferParameteri(GL_DRAW_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, width());
@@ -139,7 +117,7 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
     }
     else
     {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_headlessFramebufferID);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_headlessFramebuffer);
     }
 
 #ifdef GL_ANGLE_shader_pixel_local_storage
@@ -156,13 +134,10 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
 
         if (m_framebufferInternalPLSBindingsDirty)
         {
-            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX,
-                                                       m_coverageTextureID,
-                                                       0,
-                                                       0);
-            glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX, m_clipTextureID, 0, 0);
+            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX, m_coverageTexture, 0, 0);
+            glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX, m_clipTexture, 0, 0);
             glFramebufferTexturePixelLocalStorageANGLE(ORIGINAL_DST_COLOR_PLANE_IDX,
-                                                       m_originalDstColorTextureID,
+                                                       m_originalDstColorTexture,
                                                        0,
                                                        0);
             m_framebufferInternalPLSBindingsDirty = false;
@@ -171,11 +146,12 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
 #endif
 }
 
-void TextureRenderTargetGL::bindAsImageTextures()
+void TextureRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
 {
-#ifdef RIVE_DESKTOP_GL
-    if (m_externalTextureID != 0)
+#ifndef RIVE_WEBGL
+    if (drawBufferMask & DrawBufferMask::color)
     {
+        assert(m_externalTextureID != 0);
         glBindImageTexture(FRAMEBUFFER_PLANE_IDX,
                            m_externalTextureID,
                            0,
@@ -184,30 +160,27 @@ void TextureRenderTargetGL::bindAsImageTextures()
                            GL_READ_WRITE,
                            GL_RGBA8);
     }
-    if (m_coverageTextureID != 0)
+    if (drawBufferMask & DrawBufferMask::coverage)
     {
+        assert(m_coverageTexture != 0);
         glBindImageTexture(COVERAGE_PLANE_IDX,
-                           m_coverageTextureID,
+                           m_coverageTexture,
                            0,
                            GL_FALSE,
                            0,
                            GL_READ_WRITE,
                            GL_R32UI);
     }
-    if (m_clipTextureID != 0)
+    if (drawBufferMask & DrawBufferMask::clip)
     {
-        glBindImageTexture(CLIP_PLANE_IDX,
-                           m_clipTextureID,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_R32UI);
+        assert(m_clipTexture != 0);
+        glBindImageTexture(CLIP_PLANE_IDX, m_clipTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
     }
-    if (m_originalDstColorTextureID != 0)
+    if (drawBufferMask & DrawBufferMask::originalDstColor)
     {
+        assert(m_originalDstColorTexture != 0);
         glBindImageTexture(ORIGINAL_DST_COLOR_PLANE_IDX,
-                           m_originalDstColorTextureID,
+                           m_originalDstColorTexture,
                            0,
                            GL_FALSE,
                            0,
@@ -224,9 +197,9 @@ PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
     bool* isFBO0)
 {
     assert(sampleCount > 0);
-    if (m_msaaFramebufferID == 0)
+    if (m_msaaFramebuffer == 0)
     {
-        glGenFramebuffers(1, &m_msaaFramebufferID);
+        m_msaaFramebuffer = glutils::Framebuffer();
     }
 
     if (isFBO0 != nullptr)
@@ -237,7 +210,7 @@ PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
     sampleCount = std::max(sampleCount, 1);
     if (m_msaaFramebufferSampleCount != sampleCount)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebufferID);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
 
         GLuint msaaColorBuffer = 0;
         if (plsContextGL->capabilities().EXT_multisampled_render_to_texture)
@@ -290,7 +263,7 @@ PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
         m_msaaFramebufferSampleCount = sampleCount;
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebufferID);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
 
     if (plsContextGL->capabilities().EXT_multisampled_render_to_texture)
     {
@@ -317,13 +290,7 @@ void TextureRenderTargetGL::bindInternalDstTexture(GLenum activeTexture)
     glBindTexture(GL_TEXTURE_2D, m_externalTextureID);
 }
 
-FramebufferRenderTargetGL::~FramebufferRenderTargetGL()
-{
-    if (m_offscreenTargetTextureID != 0)
-    {
-        glDeleteTextures(1, &m_offscreenTargetTextureID);
-    }
-}
+FramebufferRenderTargetGL::~FramebufferRenderTargetGL() {}
 
 void FramebufferRenderTargetGL::bindDestinationFramebuffer(GLenum target)
 {
@@ -332,10 +299,10 @@ void FramebufferRenderTargetGL::bindDestinationFramebuffer(GLenum target)
 
 void FramebufferRenderTargetGL::allocateOffscreenTargetTexture()
 {
-    if (m_offscreenTargetTextureID == 0)
+    if (m_offscreenTargetTexture == 0)
     {
-        m_offscreenTargetTextureID = make_backing_texture(GL_RGBA8, width(), height());
-        m_textureRenderTarget.setTargetTexture(m_offscreenTargetTextureID);
+        m_offscreenTargetTexture = make_backing_texture(GL_RGBA8, width(), height());
+        m_textureRenderTarget.setTargetTexture(m_offscreenTargetTexture);
     }
 }
 
@@ -344,10 +311,11 @@ void FramebufferRenderTargetGL::allocateInternalPLSTextures(pls::InterlockMode i
     m_textureRenderTarget.allocateInternalPLSTextures(interlockMode);
 }
 
-void FramebufferRenderTargetGL::bindInternalFramebuffer(GLenum target, uint32_t drawBufferCount)
+void FramebufferRenderTargetGL::bindInternalFramebuffer(GLenum target,
+                                                        DrawBufferMask drawBufferMask)
 {
 
-    m_textureRenderTarget.bindInternalFramebuffer(target, drawBufferCount);
+    m_textureRenderTarget.bindInternalFramebuffer(target, drawBufferMask);
 }
 
 void FramebufferRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabilities)
@@ -355,9 +323,9 @@ void FramebufferRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& ca
     m_textureRenderTarget.bindHeadlessFramebuffer(capabilities);
 }
 
-void FramebufferRenderTargetGL::bindAsImageTextures()
+void FramebufferRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
 {
-    m_textureRenderTarget.bindAsImageTextures();
+    m_textureRenderTarget.bindAsImageTextures(drawBufferMask);
 }
 
 PLSRenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer(
@@ -389,7 +357,8 @@ PLSRenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuf
             //   2. Draw texture -> msaa framebuffer.
             // (NOTE: step 2 gets skipped when we have EXT_multisampled_render_to_texture.)
             allocateOffscreenTargetTexture();
-            m_textureRenderTarget.bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+            m_textureRenderTarget.bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
+                                                          DrawBufferMask::color);
             bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
             glutils::BlitFramebuffer(*preserveBounds, height()); // Step 1.
                                                                  // Step 2 will happen when we bind.

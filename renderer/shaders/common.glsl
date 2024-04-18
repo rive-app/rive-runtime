@@ -44,7 +44,8 @@ INLINE half4 unmultiply(half4 color)
     return color;
 }
 
-INLINE float2x2 make_float2x2(float4 f) { return float2x2(f.xy, f.zw); }
+INLINE float2x2 make_float2x2(float4 x) { return float2x2(x.xy, x.zw); }
+INLINE uint make_uint(ushort x) { return x; }
 
 INLINE half min_value(half4 min4)
 {

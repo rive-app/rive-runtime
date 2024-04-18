@@ -12,7 +12,9 @@
 
 namespace rive::pls
 {
-static bool needs_offscreen_atomic_texture(const pls::FlushDescriptor& desc)
+using DrawBufferMask = PLSRenderTargetGL::DrawBufferMask;
+
+static bool needs_coalesced_atomic_resolve_and_transfer(const pls::FlushDescriptor& desc)
 {
     return (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
            lite_rtti_cast<FramebufferRenderTargetGL*>(
@@ -49,15 +51,32 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             {
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
-                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, 1);
+                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
+                                                                 DrawBufferMask::color);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds, renderTarget->height());
             }
         }
 
         // Clear the necessary textures.
-        renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER, 4);
-        if (desc.colorLoadAction == pls::LoadAction::clear)
+        auto rwTexBuffers = DrawBufferMask::coverage;
+        if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
         {
+            rwTexBuffers |= DrawBufferMask::color | DrawBufferMask::originalDstColor;
+        }
+        else if (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
+        {
+            rwTexBuffers |= DrawBufferMask::color;
+        }
+        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
+        {
+            rwTexBuffers |= DrawBufferMask::clip;
+        }
+        renderTarget->bindInternalFramebuffer(GL_FRAMEBUFFER, rwTexBuffers);
+        if (desc.colorLoadAction == pls::LoadAction::clear &&
+            (rwTexBuffers & DrawBufferMask::color))
+        {
+            // If the color buffer is not a storage texture, we will clear it once the main
+            // framebuffer gets bound.
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
             glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
@@ -81,7 +100,16 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                 break;
             case pls::InterlockMode::atomics:
                 renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
-                if (needs_offscreen_atomic_texture(desc))
+                if (desc.colorLoadAction == pls::LoadAction::clear &&
+                    !(rwTexBuffers & DrawBufferMask::color))
+                {
+                    // We're rendering directly to the main framebuffer. Clear it now.
+                    float cc[4];
+                    UnpackColorToRGBA32F(desc.clearColor, cc);
+                    glClearColor(cc[0], cc[1], cc[2], cc[3]);
+                    glClear(GL_COLOR_BUFFER_BIT);
+                }
+                else if (needs_coalesced_atomic_resolve_and_transfer(desc))
                 {
                     // When rendering to an offscreen atomic texture, still bind the target
                     // framebuffer, but disable color writes until it's time to resolve.
@@ -92,7 +120,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                 RIVE_UNREACHABLE();
         }
 
-        renderTarget->bindAsImageTextures();
+        renderTarget->bindAsImageTextures(rwTexBuffers);
 
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
@@ -101,7 +129,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         const pls::FlushDescriptor& desc) const override
     {
         assert(desc.interlockMode == pls::InterlockMode::atomics);
-        return needs_offscreen_atomic_texture(desc)
+        return needs_coalesced_atomic_resolve_and_transfer(desc)
                    ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
                    : pls::ShaderMiscFlags::none;
     }
@@ -110,7 +138,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                             const pls::FlushDescriptor& desc) override
     {
         assert(desc.interlockMode == pls::InterlockMode::atomics);
-        if (needs_offscreen_atomic_texture(desc))
+        if (needs_coalesced_atomic_resolve_and_transfer(desc))
         {
             // Turn the color mask back on now that we're about to resolve.
             plsContextImpl->state()->setWriteMasks(true, true, 0xff);
@@ -130,7 +158,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             {
                 // We rendered to an offscreen texture. Copy back to the external target
                 // framebuffer.
-                framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER, 1);
+                framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER,
+                                                                 DrawBufferMask::color);
                 framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                          framebufferRenderTarget->height());
@@ -138,9 +167,13 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         }
     }
 
-    const char* shaderDefineName() const override { return GLSL_PLS_IMPL_STORAGE_TEXTURE; }
+    void pushShaderDefines(pls::InterlockMode, std::vector<const char*>* defines) const override
+    {
+        defines->push_back(GLSL_PLS_IMPL_STORAGE_TEXTURE);
+        defines->push_back(GLSL_USING_PLS_STORAGE_TEXTURES);
+    }
 
-    void onBarrier() override
+    void onBarrier(const pls::FlushDescriptor&) override
     {
         return glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }

@@ -14,9 +14,9 @@ namespace rive::pls
 class GLState : public RefCnt<GLState>
 {
 public:
-    GLState(const GLCapabilities& extensions) { invalidate(extensions); }
+    GLState(const GLCapabilities& capabilities) : m_capabilities(capabilities) { invalidate(); }
 
-    void invalidate(const GLCapabilities&);
+    void invalidate();
 
     void setBlendEquation(BlendMode);
     void disableBlending();
@@ -33,6 +33,7 @@ public:
     void deleteBuffer(GLuint);
 
 private:
+    const GLCapabilities m_capabilities;
     GLenum m_blendEquation;
     bool m_colorWriteMask;
     bool m_depthWriteMask;
