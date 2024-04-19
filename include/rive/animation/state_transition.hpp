@@ -35,6 +35,7 @@ private:
         return static_cast<StateTransitionFlags>(flags());
     }
     LayerState* m_StateTo = nullptr;
+    uint32_t m_EvaluatedRandomWeight = 1;
     CubicInterpolator* m_Interpolator = nullptr;
 
     std::vector<TransitionCondition*> m_Conditions;
@@ -44,6 +45,9 @@ public:
     ~StateTransition() override;
     const LayerState* stateTo() const { return m_StateTo; }
     inline CubicInterpolator* interpolator() const { return m_Interpolator; }
+
+    inline uint32_t evaluatedRandomWeight() const { return m_EvaluatedRandomWeight; }
+    void evaluatedRandomWeight(uint32_t value) { m_EvaluatedRandomWeight = value; }
 
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;

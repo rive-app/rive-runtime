@@ -43,6 +43,7 @@ class StateMachineInstance : public Scene
     friend class SMIInput;
     friend class KeyedProperty;
     friend class HitComponent;
+    friend class StateMachineLayerInstance;
 
 private:
     /// Provide a hitListener if you want to process a down or an up for the pointer position
@@ -53,6 +54,7 @@ private:
     InstType* getNamedInput(const std::string& name) const;
     void notifyEventListeners(const std::vector<EventReport>& events, NestedArtboard* source);
     void sortHitComponents();
+    double randomValue();
 
 public:
     StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);

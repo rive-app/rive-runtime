@@ -34,6 +34,7 @@ public:
     static const uint16_t exitTimePropertyKey = 160;
     static const uint16_t interpolationTypePropertyKey = 349;
     static const uint16_t interpolatorIdPropertyKey = 350;
+    static const uint16_t randomWeightPropertyKey = 536;
 
 private:
     uint32_t m_StateToId = -1;
@@ -42,6 +43,7 @@ private:
     uint32_t m_ExitTime = 0;
     uint32_t m_InterpolationType = 1;
     uint32_t m_InterpolatorId = -1;
+    uint32_t m_RandomWeight = 1;
 
 public:
     inline uint32_t stateToId() const { return m_StateToId; }
@@ -110,6 +112,17 @@ public:
         interpolatorIdChanged();
     }
 
+    inline uint32_t randomWeight() const { return m_RandomWeight; }
+    void randomWeight(uint32_t value)
+    {
+        if (m_RandomWeight == value)
+        {
+            return;
+        }
+        m_RandomWeight = value;
+        randomWeightChanged();
+    }
+
     Core* clone() const override;
     void copy(const StateTransitionBase& object)
     {
@@ -119,6 +132,7 @@ public:
         m_ExitTime = object.m_ExitTime;
         m_InterpolationType = object.m_InterpolationType;
         m_InterpolatorId = object.m_InterpolatorId;
+        m_RandomWeight = object.m_RandomWeight;
         StateMachineLayerComponent::copy(object);
     }
 
@@ -144,6 +158,9 @@ public:
             case interpolatorIdPropertyKey:
                 m_InterpolatorId = CoreUintType::deserialize(reader);
                 return true;
+            case randomWeightPropertyKey:
+                m_RandomWeight = CoreUintType::deserialize(reader);
+                return true;
         }
         return StateMachineLayerComponent::deserialize(propertyKey, reader);
     }
@@ -155,6 +172,7 @@ protected:
     virtual void exitTimeChanged() {}
     virtual void interpolationTypeChanged() {}
     virtual void interpolatorIdChanged() {}
+    virtual void randomWeightChanged() {}
 };
 } // namespace rive
 

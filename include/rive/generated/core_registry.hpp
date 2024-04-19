@@ -460,6 +460,9 @@ public:
             case ListenerFireEventBase::eventIdPropertyKey:
                 object->as<ListenerFireEventBase>()->eventId(value);
                 break;
+            case LayerStateBase::flagsPropertyKey:
+                object->as<LayerStateBase>()->flags(value);
+                break;
             case ListenerInputChangeBase::inputIdPropertyKey:
                 object->as<ListenerInputChangeBase>()->inputId(value);
                 break;
@@ -537,6 +540,9 @@ public:
                 break;
             case StateTransitionBase::interpolatorIdPropertyKey:
                 object->as<StateTransitionBase>()->interpolatorId(value);
+                break;
+            case StateTransitionBase::randomWeightPropertyKey:
+                object->as<StateTransitionBase>()->randomWeight(value);
                 break;
             case StateMachineFireEventBase::eventIdPropertyKey:
                 object->as<StateMachineFireEventBase>()->eventId(value);
@@ -1256,6 +1262,8 @@ public:
                 return object->as<SoloBase>()->activeComponentId();
             case ListenerFireEventBase::eventIdPropertyKey:
                 return object->as<ListenerFireEventBase>()->eventId();
+            case LayerStateBase::flagsPropertyKey:
+                return object->as<LayerStateBase>()->flags();
             case ListenerInputChangeBase::inputIdPropertyKey:
                 return object->as<ListenerInputChangeBase>()->inputId();
             case ListenerInputChangeBase::nestedInputIdPropertyKey:
@@ -1308,6 +1316,8 @@ public:
                 return object->as<StateTransitionBase>()->interpolationType();
             case StateTransitionBase::interpolatorIdPropertyKey:
                 return object->as<StateTransitionBase>()->interpolatorId();
+            case StateTransitionBase::randomWeightPropertyKey:
+                return object->as<StateTransitionBase>()->randomWeight();
             case StateMachineFireEventBase::eventIdPropertyKey:
                 return object->as<StateMachineFireEventBase>()->eventId();
             case StateMachineFireEventBase::occursValuePropertyKey:
@@ -1779,6 +1789,7 @@ public:
             case NestedAnimationBase::animationIdPropertyKey:
             case SoloBase::activeComponentIdPropertyKey:
             case ListenerFireEventBase::eventIdPropertyKey:
+            case LayerStateBase::flagsPropertyKey:
             case ListenerInputChangeBase::inputIdPropertyKey:
             case ListenerInputChangeBase::nestedInputIdPropertyKey:
             case AnimationStateBase::animationIdPropertyKey:
@@ -1805,6 +1816,7 @@ public:
             case StateTransitionBase::exitTimePropertyKey:
             case StateTransitionBase::interpolationTypePropertyKey:
             case StateTransitionBase::interpolatorIdPropertyKey:
+            case StateTransitionBase::randomWeightPropertyKey:
             case StateMachineFireEventBase::eventIdPropertyKey:
             case StateMachineFireEventBase::occursValuePropertyKey:
             case LinearAnimationBase::fpsPropertyKey:

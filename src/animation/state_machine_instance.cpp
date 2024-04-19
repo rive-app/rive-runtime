@@ -3,6 +3,7 @@
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/cubic_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
+#include "rive/animation/layer_state_flags.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/state_machine_bool.hpp"
@@ -140,6 +141,13 @@ public:
         }
     }
 
+    bool canChangeState(const LayerState* stateTo)
+    {
+        return !((m_currentState == nullptr ? nullptr : m_currentState->state()) == stateTo);
+    }
+
+    double randomValue() { return ((double)rand() / (RAND_MAX)); }
+
     bool changeState(const LayerState* stateTo)
     {
         if ((m_currentState == nullptr ? nullptr : m_currentState->state()) == stateTo)
@@ -172,72 +180,104 @@ public:
         }
         auto stateFrom = stateFromInstance->state();
         auto outState = m_currentState;
+        uint32_t totalWeight = 0;
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length; i++)
         {
             auto transition = stateFrom->transition(i);
             auto allowed =
                 transition->allowed(stateFromInstance, m_stateMachineInstance, ignoreTriggers);
-            if (allowed == AllowTransition::yes && changeState(transition->stateTo()))
+            if (allowed == AllowTransition::yes && canChangeState(transition->stateTo()))
             {
-                m_stateMachineChangedOnAdvance = true;
-                // state actually has changed
-                m_transition = transition;
-                fireEvents(StateMachineFireOccurance::atStart, transition->events());
-                if (transition->duration() == 0)
+                transition->evaluatedRandomWeight(transition->randomWeight());
+                totalWeight += transition->randomWeight();
+                if ((static_cast<LayerStateFlags>(stateFromInstance->state()->flags()) &
+                     LayerStateFlags::Random) != LayerStateFlags::Random)
                 {
-                    m_transitionCompleted = true;
-                    fireEvents(StateMachineFireOccurance::atEnd, transition->events());
+                    break;
                 }
-                else
-                {
-                    m_transitionCompleted = false;
-                }
-
-                if (m_stateFrom != m_anyStateInstance)
-                {
-                    // Old state from is done.
-                    delete m_stateFrom;
-                }
-                m_stateFrom = outState;
-
-                // If we had an exit time and wanted to pause on exit, make
-                // sure to hold the exit time. Delegate this to the
-                // transition by telling it that it was completed.
-                if (outState != nullptr && transition->applyExitCondition(outState))
-                {
-                    // Make sure we apply this state. This only returns true
-                    // when it's an animation state instance.
-                    auto instance =
-                        static_cast<AnimationStateInstance*>(m_stateFrom)->animationInstance();
-
-                    m_holdAnimation = instance->animation();
-                    m_holdTime = instance->time();
-                }
-                m_mixFrom = m_mix;
-
-                // Keep mixing last animation that was mixed in.
-                if (m_mix != 0.0f)
-                {
-                    m_holdAnimationFrom = transition->pauseOnExit();
-                }
-                if (m_stateFrom != nullptr && m_stateFrom->state()->is<AnimationState>() &&
-                    m_currentState != nullptr)
-                {
-                    auto instance =
-                        static_cast<AnimationStateInstance*>(m_stateFrom)->animationInstance();
-
-                    auto spilledTime = instance->spilledTime();
-                    m_currentState->advance(spilledTime, m_stateMachineInstance);
-                }
-                m_mix = 0.0f;
-                updateMix(0.0f);
-                m_waitingForExit = false;
-                return true;
             }
-            else if (allowed == AllowTransition::waitingForExit)
+            else
             {
-                m_waitingForExit = true;
+                transition->evaluatedRandomWeight(0);
+                if (allowed == AllowTransition::waitingForExit)
+                {
+                    m_waitingForExit = true;
+                }
             }
+        }
+        if (totalWeight > 0)
+        {
+
+            double randomWeight = randomValue() * totalWeight * 1.0;
+            float currentWeight = 0;
+            size_t index = 0;
+            StateTransition* transition;
+            while (index < stateFrom->transitionCount())
+            {
+                transition = stateFrom->transition(index);
+                auto transitionWeight = transition->evaluatedRandomWeight();
+                if (currentWeight + transitionWeight > randomWeight)
+                {
+                    break;
+                }
+                currentWeight += transitionWeight;
+                index++;
+            }
+            changeState(transition->stateTo());
+            m_stateMachineChangedOnAdvance = true;
+            // state actually has changed
+            m_transition = transition;
+            fireEvents(StateMachineFireOccurance::atStart, transition->events());
+            if (transition->duration() == 0)
+            {
+                m_transitionCompleted = true;
+                fireEvents(StateMachineFireOccurance::atEnd, transition->events());
+            }
+            else
+            {
+                m_transitionCompleted = false;
+            }
+
+            if (m_stateFrom != m_anyStateInstance)
+            {
+                // Old state from is done.
+                delete m_stateFrom;
+            }
+            m_stateFrom = outState;
+
+            // If we had an exit time and wanted to pause on exit, make
+            // sure to hold the exit time. Delegate this to the
+            // transition by telling it that it was completed.
+            if (outState != nullptr && transition->applyExitCondition(outState))
+            {
+                // Make sure we apply this state. This only returns true
+                // when it's an animation state instance.
+                auto instance =
+                    static_cast<AnimationStateInstance*>(m_stateFrom)->animationInstance();
+
+                m_holdAnimation = instance->animation();
+                m_holdTime = instance->time();
+            }
+            m_mixFrom = m_mix;
+
+            // Keep mixing last animation that was mixed in.
+            if (m_mix != 0.0f)
+            {
+                m_holdAnimationFrom = transition->pauseOnExit();
+            }
+            if (m_stateFrom != nullptr && m_stateFrom->state()->is<AnimationState>() &&
+                m_currentState != nullptr)
+            {
+                auto instance =
+                    static_cast<AnimationStateInstance*>(m_stateFrom)->animationInstance();
+
+                auto spilledTime = instance->spilledTime();
+                m_currentState->advance(spilledTime, m_stateMachineInstance);
+            }
+            m_mix = 0.0f;
+            updateMix(0.0f);
+            m_waitingForExit = false;
+            return true;
         }
         return false;
     }

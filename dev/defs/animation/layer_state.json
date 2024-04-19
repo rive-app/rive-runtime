@@ -34,6 +34,14 @@
         "string": "y"
       },
       "runtime": false
+    },
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 536,
+        "string": "flags"
+      }
     }
   }
 }

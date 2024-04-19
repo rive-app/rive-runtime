@@ -82,6 +82,15 @@
         "string": "interpolatorid"
       },
       "description": "The id of the custom interpolator used when interpolation is Cubic."
+    },
+    "randomWeight": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 537,
+        "string": "randomweight"
+      },
+      "description": "Weight of the transition in the overall random options"
     }
   }
 }
