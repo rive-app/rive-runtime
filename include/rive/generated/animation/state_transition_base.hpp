@@ -34,7 +34,7 @@ public:
     static const uint16_t exitTimePropertyKey = 160;
     static const uint16_t interpolationTypePropertyKey = 349;
     static const uint16_t interpolatorIdPropertyKey = 350;
-    static const uint16_t randomWeightPropertyKey = 536;
+    static const uint16_t randomWeightPropertyKey = 537;
 
 private:
     uint32_t m_StateToId = -1;

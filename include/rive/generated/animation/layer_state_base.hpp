@@ -28,7 +28,7 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t flagsPropertyKey = 535;
+    static const uint16_t flagsPropertyKey = 536;
 
 private:
     uint32_t m_Flags = 0;
