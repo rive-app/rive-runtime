@@ -172,15 +172,11 @@ public:
         return true;
     }
 
-    bool tryChangeState(StateInstance* stateFromInstance, bool ignoreTriggers)
+    StateTransition* findRandomTransition(StateInstance* stateFromInstance, bool ignoreTriggers)
     {
-        if (stateFromInstance == nullptr)
-        {
-            return false;
-        }
-        auto stateFrom = stateFromInstance->state();
-        auto outState = m_currentState;
         uint32_t totalWeight = 0;
+        auto stateFrom = stateFromInstance->state();
+        // printf("stateFrom->transitionCount(): %zu\n", stateFrom->transitionCount());
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length; i++)
         {
             auto transition = stateFrom->transition(i);
@@ -190,11 +186,6 @@ public:
             {
                 transition->evaluatedRandomWeight(transition->randomWeight());
                 totalWeight += transition->randomWeight();
-                if ((static_cast<LayerStateFlags>(stateFromInstance->state()->flags()) &
-                     LayerStateFlags::Random) != LayerStateFlags::Random)
-                {
-                    break;
-                }
             }
             else
             {
@@ -207,7 +198,6 @@ public:
         }
         if (totalWeight > 0)
         {
-
             double randomWeight = randomValue() * totalWeight * 1.0;
             float currentWeight = 0;
             size_t index = 0;
@@ -218,11 +208,57 @@ public:
                 auto transitionWeight = transition->evaluatedRandomWeight();
                 if (currentWeight + transitionWeight > randomWeight)
                 {
-                    break;
+                    return transition;
                 }
                 currentWeight += transitionWeight;
                 index++;
             }
+        }
+        return nullptr;
+    }
+
+    StateTransition* findAllowedTransition(StateInstance* stateFromInstance, bool ignoreTriggers)
+    {
+        auto stateFrom = stateFromInstance->state();
+        // If it should randomize
+        if ((static_cast<LayerStateFlags>(stateFrom->flags()) & LayerStateFlags::Random) ==
+            LayerStateFlags::Random)
+        {
+            return findRandomTransition(stateFromInstance, ignoreTriggers);
+        }
+        // Else search the first valid transition
+        for (size_t i = 0, length = stateFrom->transitionCount(); i < length; i++)
+        {
+            auto transition = stateFrom->transition(i);
+            auto allowed =
+                transition->allowed(stateFromInstance, m_stateMachineInstance, ignoreTriggers);
+            if (allowed == AllowTransition::yes && canChangeState(transition->stateTo()))
+            {
+                transition->evaluatedRandomWeight(transition->randomWeight());
+                return transition;
+            }
+            else
+            {
+                transition->evaluatedRandomWeight(0);
+                if (allowed == AllowTransition::waitingForExit)
+                {
+                    m_waitingForExit = true;
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    bool tryChangeState(StateInstance* stateFromInstance, bool ignoreTriggers)
+    {
+        if (stateFromInstance == nullptr)
+        {
+            return false;
+        }
+        auto outState = m_currentState;
+        auto transition = findAllowedTransition(stateFromInstance, ignoreTriggers);
+        if (transition != nullptr)
+        {
             changeState(transition->stateTo());
             m_stateMachineChangedOnAdvance = true;
             // state actually has changed

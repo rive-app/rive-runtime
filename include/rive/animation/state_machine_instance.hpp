@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <vector>
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/state_instance.hpp"
+#include "rive/animation/state_transition.hpp"
 #include "rive/core/field_types/core_callback_type.hpp"
 #include "rive/hit_result.hpp"
 #include "rive/listener_type.hpp"
@@ -55,6 +57,8 @@ private:
     void notifyEventListeners(const std::vector<EventReport>& events, NestedArtboard* source);
     void sortHitComponents();
     double randomValue();
+    StateTransition* findRandomTransition(StateInstance* stateFromInstance, bool ignoreTriggers);
+    StateTransition* findAllowedTransition(StateInstance* stateFromInstance, bool ignoreTriggers);
 
 public:
     StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
