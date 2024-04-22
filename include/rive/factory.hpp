@@ -7,6 +7,7 @@
 
 #include "rive/renderer.hpp"
 #include "rive/text_engine.hpp"
+#include "rive/audio/audio_source.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
 #include "rive/math/aabb.hpp"
@@ -57,6 +58,8 @@ public:
     virtual rcp<RenderImage> decodeImage(Span<const uint8_t>) = 0;
 
     virtual rcp<Font> decodeFont(Span<const uint8_t>);
+
+    virtual rcp<AudioSource> decodeAudio(Span<const uint8_t>);
 
     // Non-virtual helpers
 

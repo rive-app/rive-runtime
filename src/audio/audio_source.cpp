@@ -1,12 +1,14 @@
-#ifdef WITH_RIVE_AUDIO
 #include "rive/audio/audio_source.hpp"
+#ifdef WITH_RIVE_AUDIO
 #include "rive/audio/audio_engine.hpp"
 #include "rive/audio/audio_sound.hpp"
 #include "rive/audio/audio_reader.hpp"
 #include "rive/audio/audio_reader.hpp"
+#endif
 
 using namespace rive;
 
+#ifdef WITH_RIVE_AUDIO
 AudioSource::AudioSource(rive::Span<float> samples, uint32_t numChannels, uint32_t sampleRate) :
     m_isBuffered(true),
     m_channels(numChannels),
@@ -146,5 +148,15 @@ rcp<AudioReader> AudioSource::makeReader(uint32_t numChannels, uint32_t sampleRa
 
     return reader;
 }
-
+#else
+AudioSource::AudioSource(rive::Span<uint8_t> fileBytes) {}
+AudioSource::AudioSource(rive::SimpleArray<uint8_t> fileBytes) {}
+AudioSource::AudioSource(rive::Span<float> samples, uint32_t numChannels, uint32_t sampleRate) {}
+uint32_t AudioSource::channels() { return 0; }
+uint32_t AudioSource::sampleRate() { return 0; }
+AudioFormat AudioSource::format() const { return AudioFormat::unknown; }
+const rive::Span<float> AudioSource::bufferedSamples() const
+{
+    return rive::Span<float>(nullptr, 0);
+}
 #endif

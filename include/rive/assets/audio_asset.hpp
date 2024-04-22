@@ -14,7 +14,6 @@ public:
     bool decode(SimpleArray<uint8_t>&, Factory*) override;
     std::string fileExtension() const override;
 
-#ifdef WITH_RIVE_AUDIO
 #ifdef TESTING
     bool hasAudioSource() { return m_audioSource != nullptr; }
 #endif
@@ -25,7 +24,6 @@ public:
 
 private:
     rcp<AudioSource> m_audioSource;
-#endif
 };
 } // namespace rive
 

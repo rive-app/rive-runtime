@@ -50,6 +50,7 @@ public:
         }
     }
 
+    std::string uniqueName() const;
     std::string uniqueFilename() const;
 };
 } // namespace rive

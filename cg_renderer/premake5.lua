@@ -43,11 +43,4 @@ do
             })
         end
     end
-
-    filter({ 'options:with_rive_text' })
-    do
-        defines({ 'WITH_RIVE_TEXT' })
-    end
 end
-
-newoption({ trigger = 'with_rive_text', description = 'Enables text experiments' })

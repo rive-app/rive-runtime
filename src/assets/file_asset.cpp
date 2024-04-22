@@ -20,18 +20,20 @@ StatusCode FileAsset::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-std::string FileAsset::uniqueFilename() const
+std::string FileAsset::uniqueName() const
 {
     // remove final extension
-    std::string uniqueFilename = name();
-    std::size_t finalDot = uniqueFilename.rfind('.');
+    std::string uniqueName = name();
+    std::size_t finalDot = uniqueName.rfind('.');
 
     if (finalDot != std::string::npos)
     {
-        uniqueFilename = uniqueFilename.substr(0, finalDot);
+        uniqueName = uniqueName.substr(0, finalDot);
     }
-    return uniqueFilename + "-" + std::to_string(assetId()) + "." + fileExtension();
+    return uniqueName + "-" + std::to_string(assetId());
 }
+
+std::string FileAsset::uniqueFilename() const { return uniqueName() + "." + fileExtension(); }
 
 void FileAsset::copyCdnUuid(const FileAssetBase& object)
 {
