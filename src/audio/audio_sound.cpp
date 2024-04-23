@@ -24,7 +24,7 @@ void AudioSound::dispose()
     }
     m_isDisposed = true;
     ma_sound_uninit(&m_sound);
-    ma_decoder_uninit(&m_decoder);
+    ma_decoder_uninit(&m_decoder.decoder);
     ma_audio_buffer_uninit(&m_buffer);
 }
 

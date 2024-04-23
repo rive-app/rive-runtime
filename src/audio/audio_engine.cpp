@@ -19,6 +19,7 @@
 #include "rive/audio/audio_source.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 using namespace rive;
 
@@ -195,6 +196,12 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
                                   uint64_t soundStartTime,
                                   Artboard* artboard)
 {
+    if (endTime != 0 && startTime >= endTime)
+    {
+        // Requested to stop sound before start.
+        return nullptr;
+    }
+
     std::unique_lock<std::mutex> lock(m_mutex);
     // We have to dispose completed sounds out of the completed callback. So we
     // do it on next play or at destruct.
@@ -208,12 +215,21 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
     if (source->isBuffered())
     {
         rive::Span<float> samples = source->bufferedSamples();
-        ma_audio_buffer_config config =
-            ma_audio_buffer_config_init(ma_format_f32,
-                                        source->channels(),
-                                        samples.size() / source->channels(),
-                                        (const void*)samples.data(),
-                                        nullptr);
+        ma_uint64 sizeInFrames = samples.size() / source->channels();
+        if (endTime != 0)
+        {
+            float durationSeconds = (soundStartTime + endTime - startTime) / (float)sampleRate();
+            ma_uint64 clippedFrames = (ma_uint64)std::round(durationSeconds * source->sampleRate());
+            if (clippedFrames < sizeInFrames)
+            {
+                sizeInFrames = clippedFrames;
+            }
+        }
+        ma_audio_buffer_config config = ma_audio_buffer_config_init(ma_format_f32,
+                                                                    source->channels(),
+                                                                    sizeInFrames,
+                                                                    (const void*)samples.data(),
+                                                                    nullptr);
         if (ma_audio_buffer_init(&config, audioSound->buffer()) != MA_SUCCESS)
         {
             fprintf(stderr, "AudioSource::play - Failed to initialize audio buffer.\n");
@@ -230,18 +246,34 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
     }
     else
     {
+        // We wrapped the miniaudio decoder with a custom data source "Clipped
+        // Decoder" which lets us ensure that the end callback for the sound is
+        // called when we reach the end of the clip. This won't happen when
+        // using ma_sound_set_stop_time_in_pcm_frames(audioSound->sound(),
+        // endTime); as this keeps the sound playing/ready to fade back in.
+        auto clip = audioSound->clippedDecoder();
         ma_decoder_config config = ma_decoder_config_init(ma_format_f32, channels(), sampleRate());
         auto sourceBytes = source->bytes();
         if (ma_decoder_init_memory(sourceBytes.data(),
                                    sourceBytes.size(),
                                    &config,
-                                   audioSound->decoder()) != MA_SUCCESS)
+                                   &clip->decoder) != MA_SUCCESS)
         {
             fprintf(stderr, "AudioSource::play - Failed to initialize decoder.\n");
             return nullptr;
         }
+        clip->frameCursor = 0;
+        clip->endFrame = endTime == 0 ? std::numeric_limits<uint64_t>::max()
+                                      : soundStartTime + endTime - startTime;
+        ma_data_source_config baseConfig = ma_data_source_config_init();
+        baseConfig.vtable = &g_ma_end_clipped_decoder_vtable;
+        if (ma_data_source_init(&baseConfig, &clip->base) != MA_SUCCESS)
+        {
+            return nullptr;
+        }
+
         if (ma_sound_init_from_data_source(m_engine,
-                                           &audioSound->m_decoder,
+                                           audioSound->clippedDecoder(),
                                            MA_SOUND_FLAG_NO_PITCH | MA_SOUND_FLAG_NO_SPATIALIZATION,
                                            nullptr,
                                            audioSound->sound()) != MA_SUCCESS)
@@ -260,10 +292,6 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
     if (startTime != 0)
     {
         ma_sound_set_start_time_in_pcm_frames(audioSound->sound(), startTime);
-    }
-    if (endTime != 0)
-    {
-        ma_sound_set_stop_time_in_pcm_frames(audioSound->sound(), endTime);
     }
 #ifdef WITH_RIVE_AUDIO_TOOLS
     if (m_levelMonitor != nullptr)
