@@ -1810,7 +1810,7 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     }
 #endif
     const char* rendererString = reinterpret_cast<const char*>(glGetString(rendererToken));
-    if (strstr(rendererString, "Direct3D"))
+    if (strstr(rendererString, "Direct3D") != nullptr)
     {
         // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
         // polyfilled on D3D anyway, and we need to test our fallback.
@@ -1835,14 +1835,24 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
 
         if (capabilities.EXT_shader_framebuffer_fetch)
         {
-            return MakeContext(rendererString,
-                               capabilities,
-                               MakePLSImplFramebufferFetch(capabilities));
+            // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or without the "noncoherent"
+            // extension. Use MSAA on Adreno.
+            if (strstr(rendererString, "Adreno") == nullptr)
+            {
+                return MakeContext(rendererString,
+                                   capabilities,
+                                   MakePLSImplFramebufferFetch(capabilities));
+            }
         }
 #else
         if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
         {
-            return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
+            // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or without the "noncoherent"
+            // extension. Use MSAA on Adreno.
+            if (strstr(rendererString, "Adreno") == nullptr)
+            {
+                return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
+            }
         }
 #endif
 
