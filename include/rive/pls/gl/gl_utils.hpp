@@ -112,6 +112,33 @@ private:
     }
 };
 
+class Renderbuffer : public GLObject
+{
+public:
+    Renderbuffer() { glGenRenderbuffers(1, &m_id); }
+    Renderbuffer(Renderbuffer&& rhs) : GLObject(std::move(rhs)) {}
+    Renderbuffer& operator=(Renderbuffer&& rhs)
+    {
+        reset(std::exchange(rhs.m_id, 0));
+        return *this;
+    }
+    ~Renderbuffer() { reset(0); }
+
+    static Renderbuffer Zero() { return Renderbuffer(0); }
+
+private:
+    explicit Renderbuffer(GLuint adoptedID) : GLObject(adoptedID) {}
+
+    void reset(GLuint adoptedID)
+    {
+        if (m_id != 0)
+        {
+            glDeleteRenderbuffers(1, &m_id);
+        }
+        m_id = adoptedID;
+    }
+};
+
 class VAO : public GLObject
 {
 public:

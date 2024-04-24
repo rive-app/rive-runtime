@@ -24,7 +24,7 @@ public:
 
     PLSLoadStoreProgram(LoadStoreActionsEXT actions,
                         GLuint vertexShader,
-                        const GLCapabilities& extensions,
+                        pls::ShaderFeatures combinedShaderFeatures,
                         rcp<GLState> state) :
         m_state(std::move(state))
     {
@@ -34,6 +34,10 @@ public:
         std::ostringstream glsl;
         glsl << "#version 300 es\n";
         glsl << "#define " GLSL_FRAGMENT "\n";
+        if (combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
+        {
+            glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
+        }
         BuildLoadStoreEXTGLSL(glsl, actions);
         GLuint fragmentShader = glutils::CompileRawGLSL(GL_FRAGMENT_SHADER, glsl.str().c_str());
         glAttachShader(m_id, fragmentShader);
@@ -60,26 +64,21 @@ private:
 class PLSRenderContextGLImpl::PLSImplEXTNative : public PLSRenderContextGLImpl::PLSImpl
 {
 public:
-    PLSImplEXTNative(const GLCapabilities& extensions) : m_capabilities(extensions) {}
+    PLSImplEXTNative(const GLCapabilities& capabilities) : m_capabilities(capabilities) {}
 
     ~PLSImplEXTNative()
     {
-        glDeleteShader(m_plsLoadStoreVertexShader);
+        for (GLuint shader : m_plsLoadStoreVertexShaders)
+        {
+            if (shader != 0)
+            {
+                glDeleteShader(shader);
+            }
+        }
         m_state->deleteVAO(m_plsLoadStoreVAO);
     }
 
-    void init(rcp<GLState> state) override
-    {
-        // The load/store actions are all done in the fragment shader, so there is one single vertex
-        // shader, and we use LoadStoreActionsEXT::none when compiling it.
-        std::ostringstream glsl;
-        glsl << "#version 300 es\n";
-        glsl << "#define " GLSL_VERTEX "\n";
-        BuildLoadStoreEXTGLSL(glsl, LoadStoreActionsEXT::none);
-        m_plsLoadStoreVertexShader = glutils::CompileRawGLSL(GL_VERTEX_SHADER, glsl.str().c_str());
-        glGenVertexArrays(1, &m_plsLoadStoreVAO);
-        m_state = std::move(state);
-    }
+    void init(rcp<GLState> state) override { m_state = std::move(state); }
 
     bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
 
@@ -107,13 +106,8 @@ public:
         else
         {
             // Otherwise we have to initialize pixel local storage with a fullscreen draw.
-            const PLSLoadStoreProgram& plsProgram = m_plsLoadStorePrograms
-                                                        .try_emplace(actions,
-                                                                     actions,
-                                                                     m_plsLoadStoreVertexShader,
-                                                                     m_capabilities,
-                                                                     m_state)
-                                                        .first->second;
+            const PLSLoadStoreProgram& plsProgram =
+                findLoadStoreProgram(actions, desc.combinedShaderFeatures);
             m_state->bindProgram(plsProgram.id());
             if (plsProgram.clearColorUniLocation() >= 0)
             {
@@ -124,16 +118,13 @@ public:
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl* impl, const FlushDescriptor&) override
+    void deactivatePixelLocalStorage(PLSRenderContextGLImpl* impl,
+                                     const FlushDescriptor& desc) override
     {
         // Issue a fullscreen draw that transfers the color information in pixel local storage to
         // the main framebuffer.
         LoadStoreActionsEXT actions = LoadStoreActionsEXT::storeColor;
-        const PLSLoadStoreProgram& plsProgram =
-            m_plsLoadStorePrograms
-                .try_emplace(actions, actions, m_plsLoadStoreVertexShader, m_capabilities, m_state)
-                .first->second;
-        m_state->bindProgram(plsProgram.id());
+        m_state->bindProgram(findLoadStoreProgram(actions, desc.combinedShaderFeatures).id());
         m_state->bindVAO(m_plsLoadStoreVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -146,16 +137,47 @@ public:
     }
 
 private:
+    const PLSLoadStoreProgram& findLoadStoreProgram(LoadStoreActionsEXT actions,
+                                                    pls::ShaderFeatures combinedShaderFeatures)
+    {
+        bool hasClipping = combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING;
+        uint32_t programKey =
+            (static_cast<uint32_t>(actions) << 1) | static_cast<uint32_t>(hasClipping);
+
+        if (m_plsLoadStoreVertexShaders[hasClipping] == 0)
+        {
+            std::ostringstream glsl;
+            glsl << "#version 300 es\n";
+            glsl << "#define " GLSL_VERTEX "\n";
+            if (hasClipping)
+            {
+                glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
+            }
+            BuildLoadStoreEXTGLSL(glsl, LoadStoreActionsEXT::none);
+            m_plsLoadStoreVertexShaders[hasClipping] =
+                glutils::CompileRawGLSL(GL_VERTEX_SHADER, glsl.str().c_str());
+            glGenVertexArrays(1, &m_plsLoadStoreVAO);
+        }
+
+        return m_plsLoadStorePrograms
+            .try_emplace(programKey,
+                         actions,
+                         m_plsLoadStoreVertexShaders[hasClipping],
+                         combinedShaderFeatures,
+                         m_state)
+            .first->second;
+    }
+
     const GLCapabilities m_capabilities;
-    std::map<LoadStoreActionsEXT, PLSLoadStoreProgram> m_plsLoadStorePrograms;
-    GLuint m_plsLoadStoreVertexShader = 0;
+    std::map<uint32_t, PLSLoadStoreProgram> m_plsLoadStorePrograms;
+    GLuint m_plsLoadStoreVertexShaders[2] = {0}; // One with a clip plane and one without.
     GLuint m_plsLoadStoreVAO = 0;
     rcp<GLState> m_state;
 };
 
 std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplEXTNative(
-    const GLCapabilities& extensions)
+    const GLCapabilities& capabilities)
 {
-    return std::make_unique<PLSImplEXTNative>(extensions);
+    return std::make_unique<PLSImplEXTNative>(capabilities);
 }
 } // namespace rive::pls

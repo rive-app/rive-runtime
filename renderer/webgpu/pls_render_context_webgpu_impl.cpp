@@ -194,6 +194,7 @@ public:
         glsl << "#version 310 es\n";
         glsl << "#pragma shader_stage(fragment)\n";
         glsl << "#define " GLSL_FRAGMENT "\n";
+        glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
         BuildLoadStoreEXTGLSL(glsl, actions);
         fragmentShader = m_fragmentShaderHandle.compileShaderModule(context->m_device,
                                                                     glsl.str().c_str(),
@@ -999,6 +1000,7 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
         glsl << "#ifndef GL_EXT_shader_pixel_local_storage\n";
         glsl << "#define gl_VertexID gl_VertexIndex\n";
         glsl << "#endif\n";
+        glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
         BuildLoadStoreEXTGLSL(glsl, LoadStoreActionsEXT::none);
         m_loadStoreEXTVertexShader =
             m_loadStoreEXTVertexShaderHandle.compileShaderModule(m_device,

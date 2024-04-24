@@ -140,6 +140,8 @@ private:
     bool m_framebufferInternalPLSBindingsDirty = false;
 
     glutils::Framebuffer m_msaaFramebuffer = glutils::Framebuffer::Zero();
+    glutils::Renderbuffer m_msaaColorBuffer = glutils::Renderbuffer::Zero();
+    glutils::Renderbuffer m_msaaDepthStencilBuffer = glutils::Renderbuffer::Zero();
     int m_msaaFramebufferSampleCount = 0;
 };
 

@@ -96,8 +96,6 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 #define GL_CLIP_DISTANCE3_EXT 0x3003
 #endif
 
-#define glFramebufferTexture2DMultisampleEXT(...) RIVE_UNREACHABLE()
-
 #endif // RIVE_WEBGL
 
 #if defined(RIVE_ANDROID) || defined(RIVE_WEBGL)
@@ -149,5 +147,6 @@ extern PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
     glDrawElementsInstancedBaseVertexBaseInstanceEXT;
 extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
 extern PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC glFramebufferTexture2DMultisampleEXT;
+extern PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC glRenderbufferStorageMultisampleEXT;
 void LoadGLESExtensions(const GLCapabilities&);
 #endif

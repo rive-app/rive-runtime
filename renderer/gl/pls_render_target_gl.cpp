@@ -210,11 +210,19 @@ PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
     sampleCount = std::max(sampleCount, 1);
     if (m_msaaFramebufferSampleCount != sampleCount)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
+        m_msaaDepthStencilBuffer = glutils::Renderbuffer();
+        glBindRenderbuffer(GL_RENDERBUFFER, m_msaaDepthStencilBuffer);
 
-        GLuint msaaColorBuffer = 0;
+        glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
+#ifndef RIVE_WEBGL
         if (plsContextGL->capabilities().EXT_multisampled_render_to_texture)
         {
+            glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER,
+                                                sampleCount,
+                                                GL_DEPTH24_STENCIL8,
+                                                width(),
+                                                height());
+
             // With EXT_multisampled_render_to_texture we can render directly to the target texture.
             glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER,
                                                  GL_COLOR_ATTACHMENT0,
@@ -224,10 +232,17 @@ PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
                                                  sampleCount);
         }
         else
+#endif
         {
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER,
+                                             sampleCount,
+                                             GL_DEPTH24_STENCIL8,
+                                             width(),
+                                             height());
+
             // Render to an offscreen renderbuffer that gets resolved into the target texture.
-            glGenRenderbuffers(1, &msaaColorBuffer);
-            glBindRenderbuffer(GL_RENDERBUFFER, msaaColorBuffer);
+            m_msaaColorBuffer = glutils::Renderbuffer();
+            glBindRenderbuffer(GL_RENDERBUFFER, m_msaaColorBuffer);
             glRenderbufferStorageMultisample(GL_RENDERBUFFER,
                                              sampleCount,
                                              GL_RGBA8,
@@ -236,29 +251,12 @@ PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
             glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                       GL_COLOR_ATTACHMENT0,
                                       GL_RENDERBUFFER,
-                                      msaaColorBuffer);
+                                      m_msaaColorBuffer);
         }
-
-        GLuint msaaDepthStencilBuffer;
-        glGenRenderbuffers(1, &msaaDepthStencilBuffer);
-        glBindRenderbuffer(GL_RENDERBUFFER, msaaDepthStencilBuffer);
-        glRenderbufferStorageMultisample(GL_RENDERBUFFER,
-                                         sampleCount,
-                                         GL_DEPTH24_STENCIL8,
-                                         width(),
-                                         height());
         glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                   GL_DEPTH_STENCIL_ATTACHMENT,
                                   GL_RENDERBUFFER,
-                                  msaaDepthStencilBuffer);
-
-        // Bind FBO 0 so we can orphan the MSAA render buffers to our framebuffer.
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        if (msaaColorBuffer != 0)
-        {
-            glDeleteRenderbuffers(1, &msaaColorBuffer);
-        }
-        glDeleteRenderbuffers(1, &msaaDepthStencilBuffer);
+                                  m_msaaDepthStencilBuffer);
 
         m_msaaFramebufferSampleCount = sampleCount;
     }

@@ -486,7 +486,7 @@ PLS_MAIN(@drawFragmentMain)
     EMIT_PLS;
 }
 
-#else // !USING_DEPTH_STENCIL
+#else // USING_DEPTH_STENCIL
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
