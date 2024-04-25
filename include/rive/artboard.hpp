@@ -127,6 +127,7 @@ public:
     bool isTranslucent() const;
     bool isTranslucent(const LinearAnimation*) const;
     bool isTranslucent(const LinearAnimationInstance*) const;
+    bool hasAudio() const;
 
     template <typename T = Component> T* find(const std::string& name)
     {

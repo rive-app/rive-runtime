@@ -4,6 +4,7 @@
 #include "rive/dependency_sorter.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
+#include "rive/audio_event.hpp"
 #include "rive/draw_target_placement.hpp"
 #include "rive/drawable.hpp"
 #include "rive/animation/keyed_object.hpp"
@@ -646,6 +647,25 @@ bool Artboard::isTranslucent() const
         }
     }
     return true;
+}
+
+bool Artboard::hasAudio() const
+{
+    for (auto object : m_Objects)
+    {
+        if (object != nullptr && object->coreType() == AudioEventBase::typeKey)
+        {
+            return true;
+        }
+    }
+    for (auto nestedArtboard : m_NestedArtboards)
+    {
+        if (nestedArtboard->artboard()->hasAudio())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool Artboard::isTranslucent(const LinearAnimation* anim) const

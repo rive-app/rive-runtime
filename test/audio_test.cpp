@@ -185,4 +185,49 @@ TEST_CASE("audio sounds from different artboards stop accordingly", "[audio]")
     REQUIRE(engine->playingSoundCount() == 0);
 }
 
+TEST_CASE("Artboard has audio", "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+
+    auto file = ReadRiveFile("../../test/assets/sound2.riv");
+    auto artboard = file->artboardNamed("child");
+    artboard->audioEngine(engine);
+
+    REQUIRE(artboard != nullptr);
+
+    auto audioEvents = artboard->find<AudioEvent>();
+    REQUIRE(audioEvents.size() == 1);
+    REQUIRE(artboard->hasAudio() == true);
+}
+
+TEST_CASE("Artboard has audio in nested artboard", "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+
+    auto file = ReadRiveFile("../../test/assets/sound2.riv");
+    auto artboard = file->artboardNamed("grand-parent");
+    artboard->audioEngine(engine);
+
+    REQUIRE(artboard != nullptr);
+
+    auto audioEvents = artboard->find<AudioEvent>();
+    REQUIRE(audioEvents.size() == 0);
+    REQUIRE(artboard->hasAudio() == true);
+}
+
+TEST_CASE("Artboard does not have audio", "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+
+    auto file = ReadRiveFile("../../test/assets/sound2.riv");
+    auto artboard = file->artboardNamed("no-audio");
+    artboard->audioEngine(engine);
+
+    REQUIRE(artboard != nullptr);
+
+    auto audioEvents = artboard->find<AudioEvent>();
+    REQUIRE(audioEvents.size() == 0);
+    REQUIRE(artboard->hasAudio() == false);
+}
+
 // TODO check if sound->stop calls completed callback!!!
