@@ -60,6 +60,12 @@ void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
 void Path::addDefaultPathSpace(PathSpace space) { m_DefaultPathSpace |= space; }
 
+bool Path::canDeferPathUpdate()
+{
+    return ((m_DefaultPathSpace & PathSpace::Clipping) != PathSpace::Clipping) &&
+           ((m_DefaultPathSpace & PathSpace::FollowPath) != PathSpace::FollowPath);
+}
+
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
 void Path::buildPath(CommandPath& commandPath) const

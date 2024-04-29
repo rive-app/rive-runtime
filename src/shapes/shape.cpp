@@ -23,8 +23,20 @@ void Shape::addPath(Path* path)
 
 bool Shape::canDeferPathUpdate()
 {
-    return renderOpacity() == 0 && (pathSpace() & PathSpace::Clipping) != PathSpace::Clipping &&
-           (pathSpace() & PathSpace::FollowPath) != PathSpace::FollowPath;
+    auto canDefer = renderOpacity() == 0 &&
+                    (pathSpace() & PathSpace::Clipping) != PathSpace::Clipping &&
+                    (pathSpace() & PathSpace::FollowPath) != PathSpace::FollowPath;
+    if (canDefer)
+    {
+        for (auto path : m_Paths)
+        {
+            if (!path->canDeferPathUpdate())
+            {
+                return false;
+            }
+        }
+    }
+    return canDefer;
 }
 
 void Shape::update(ComponentDirt value)

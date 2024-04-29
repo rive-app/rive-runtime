@@ -46,3 +46,23 @@ TEST_CASE("follow path with 0 opacity constraint updates world transform", "[fil
     REQUIRE(targetComponents.x() == rectComponents.x());
     REQUIRE(targetComponents.y() == rectComponents.y());
 }
+
+TEST_CASE("follow path constraint with path at 0 opacity updates world transform", "[file]")
+{
+    auto file = ReadRiveFile("../../test/assets/follow_path_path_0_opacity.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::TransformComponent>("target") != nullptr);
+    auto target = artboard->find<rive::TransformComponent>("target");
+
+    REQUIRE(artboard->find<rive::TransformComponent>("rect") != nullptr);
+    auto rectangle = artboard->find<rive::TransformComponent>("rect");
+
+    artboard->advance(0.0f);
+
+    auto targetComponents = target->worldTransform().decompose();
+    auto rectComponents = rectangle->worldTransform().decompose();
+    REQUIRE(targetComponents.x() == rectComponents.x());
+    REQUIRE(targetComponents.y() == rectComponents.y());
+}

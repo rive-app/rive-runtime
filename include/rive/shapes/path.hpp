@@ -52,6 +52,7 @@ public:
     void update(ComponentDirt value) override;
 
     void addDefaultPathSpace(PathSpace space);
+    bool canDeferPathUpdate();
     void addVertex(PathVertex* vertex);
 
     virtual void markPathDirty();
