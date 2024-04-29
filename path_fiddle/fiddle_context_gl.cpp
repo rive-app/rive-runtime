@@ -31,7 +31,12 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
     {
         printf("GL ERROR: %s\n", message);
         fflush(stdout);
-        assert(0);
+        // Don't abort if it's a shader compile error; let our internal handlers print the source
+        // (for debugging) and exit on their own.
+        if (!strstr(message, "SHADER_ID_COMPILE error has been generated"))
+        {
+            assert(0);
+        }
     }
     else if (type == GL_DEBUG_TYPE_PERFORMANCE)
     {
@@ -199,6 +204,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia() { return nullptr; }
 #include "skia/include/gpu/GrDirectContext.h"
 #include "skia/include/gpu/gl/GrGLAssembleInterface.h"
 #include "skia/include/gpu/gl/GrGLInterface.h"
+#include "include/effects/SkImageFilters.h"
 
 static GrGLFuncPtr get_skia_gl_proc_address(void* ctx, const char name[])
 {
@@ -253,9 +259,16 @@ public:
     {
         m_skSurface->getCanvas()->clear(frameDescriptor.clearColor);
         m_grContext->resetContext();
+        m_skSurface->getCanvas()->save();
     }
 
-    void onEnd() override { m_skSurface->flush(); }
+    void onEnd() override
+    {
+        m_skSurface->getCanvas()->restore();
+        m_skSurface->flush();
+    }
+
+    void flushPLSContext() override {}
 
 private:
     SkiaFactory m_factory;

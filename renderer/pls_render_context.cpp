@@ -821,8 +821,11 @@ void PLSRenderContext::LogicalFlush::writeResources()
         // Padding at the beginning of the tessellation texture.
         pushPaddingVertices(0, pls::kMidpointFanPatchSegmentSpan);
         // Padding between patch types in the tessellation texture.
-        pushPaddingVertices(m_midpointFanTessEndLocation,
-                            m_outerCubicTessVertexIdx - m_midpointFanTessEndLocation);
+        if (m_outerCubicTessVertexIdx > m_midpointFanTessEndLocation)
+        {
+            pushPaddingVertices(m_midpointFanTessEndLocation,
+                                m_outerCubicTessVertexIdx - m_midpointFanTessEndLocation);
+        }
         // The final vertex of the final patch of each contour crosses over into the next contour.
         // (This is how we wrap around back to the beginning.) Therefore, the final contour of the
         // flush needs an out-of-contour vertex to cross into as well, so we emit a padding vertex
@@ -1310,6 +1313,7 @@ void PLSRenderContext::unmapResourceBuffers()
 void PLSRenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation, uint32_t count)
 {
     assert(m_hasDoneLayout);
+    assert(count > 0);
 
     constexpr static Vec2D kEmptyCubic[4]{};
     // This is guaranteed to not collide with a neighboring contour ID.
@@ -1496,6 +1500,7 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushTessellationSpans(
     uint32_t contourIDWithFlags)
 {
     assert(m_hasDoneLayout);
+    assert(totalVertexCount > 0);
 
     uint32_t y = m_pathTessLocation / kTessTextureWidth;
     int32_t x0 = m_pathTessLocation % kTessTextureWidth;
@@ -1539,6 +1544,7 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredTessellation
     uint32_t contourIDWithFlags)
 {
     assert(m_hasDoneLayout);
+    assert(totalVertexCount > 0);
 
     uint32_t reflectionY = (m_pathMirroredTessLocation - 1) / kTessTextureWidth;
     int32_t reflectionX0 = (m_pathMirroredTessLocation - 1) % kTessTextureWidth + 1;
@@ -1579,6 +1585,7 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredAndForwardTe
     uint32_t contourIDWithFlags)
 {
     assert(m_hasDoneLayout);
+    assert(totalVertexCount > 0);
 
     int32_t y = m_pathTessLocation / kTessTextureWidth;
     int32_t x0 = m_pathTessLocation % kTessTextureWidth;
