@@ -695,11 +695,13 @@ void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
         assert(desc.Width == width());
         assert(desc.Height == height());
         assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
+               desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM ||
                desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
 #endif
         m_targetTextureSupportsUAV =
             (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) &&
             (m_gpuSupportsTypedUAVLoadStore || desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
+        m_targetFormat = desc.Format;
     }
     else
     {
@@ -743,10 +745,10 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::targetUAV()
         if (auto* uavTexture =
                 m_targetTextureSupportsUAV ? m_targetTexture.Get() : offscreenTexture())
         {
-            m_targetUAV = make_simple_2d_uav(
-                m_gpu.Get(),
-                uavTexture,
-                m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R32_UINT);
+            m_targetUAV = make_simple_2d_uav(m_gpu.Get(),
+                                             uavTexture,
+                                             m_gpuSupportsTypedUAVLoadStore ? m_targetFormat
+                                                                            : DXGI_FORMAT_R32_UINT);
         }
     }
     return m_targetUAV.Get();
