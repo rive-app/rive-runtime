@@ -101,8 +101,8 @@ public:
     void onDirty(ComponentDirt dirt) override;
 
     bool advance(double elapsedSeconds);
-    bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; };
-    Drawable* firstDrawable() { return m_FirstDrawable; };
+    bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; }
+    Drawable* firstDrawable() { return m_FirstDrawable; }
 
     enum class DrawOption
     {

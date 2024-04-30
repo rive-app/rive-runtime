@@ -392,7 +392,7 @@ public:
     HitComponent(Component* component, StateMachineInstance* stateMachineInstance) :
         m_component(component), m_stateMachineInstance(stateMachineInstance)
     {}
-    virtual ~HitComponent(){};
+    virtual ~HitComponent() {}
     virtual HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) = 0;
 
 protected:
@@ -409,7 +409,6 @@ public:
     HitShape(Component* shape, StateMachineInstance* stateMachineInstance) :
         HitComponent(shape, stateMachineInstance)
     {}
-    ~HitShape() {}
     bool isHovered = false;
     float hitRadius = 2;
     std::vector<const StateMachineListener*> listeners;
@@ -459,7 +458,7 @@ public:
     HitNestedArtboard(Component* nestedArtboard, StateMachineInstance* stateMachineInstance) :
         HitComponent(nestedArtboard, stateMachineInstance)
     {}
-    ~HitNestedArtboard() {}
+    ~HitNestedArtboard() override {}
     HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();

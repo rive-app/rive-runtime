@@ -130,10 +130,36 @@ do
     linkoptions({ '-flto=full' })
 end
 
-filter('system:windows')
+newoption({
+    trigger = 'use_default_runtime',
+    description = 'Don\'t set windows static runtime and runtime values.',
+})
+
+newoption({
+    trigger = 'runtime',
+    description = 'Choose whether to use staticruntime on/off/default',
+    allowed = {
+        { 'default', 'Use default runtime' },
+        { 'static', 'Use static runtime' },
+        { 'dynamic', 'Use dynamic runtime' },
+    },
+    default = 'static',
+})
+
+filter({ 'system:windows', 'options:runtime=static' })
 do
     staticruntime('on') -- Match Skia's /MT flag for link compatibility
     runtime('Release') -- Use /MT even in debug (/MTd is incompatible with Skia)
+end
+
+filter({ 'system:windows', 'options:runtime=dynamic' })
+do
+    staticruntime('off')
+    runtime('Release')
+end
+
+filter('system:windows')
+do
     architecture('x64')
     defines({ '_USE_MATH_DEFINES', 'NOMINMAX' })
 end
