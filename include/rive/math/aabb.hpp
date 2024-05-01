@@ -75,6 +75,12 @@ public:
     Vec2D size() const { return {width(), height()}; }
     Vec2D center() const { return {(minX + maxX) * 0.5f, (minY + maxY) * 0.5f}; }
 
+    bool isEmptyOrNaN() const
+    {
+        // Use "inverse" logic so we return true if either of the comparisons fail due to a NaN.
+        return !(width() > 0 && height() > 0);
+    }
+
     AABB inset(float dx, float dy) const
     {
         AABB r = {minX + dx, minY + dy, maxX - dx, maxY - dy};

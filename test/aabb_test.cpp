@@ -29,4 +29,24 @@ TEST_CASE("IAABB_empty", "[IAABB]")
                 std::numeric_limits<int32_t>::min()}
               .empty());
 }
+
+TEST_CASE("isEmptyOrNaN", "[AABB]")
+{
+    auto inf = std::numeric_limits<float>::infinity();
+    auto nan = std::numeric_limits<float>::quiet_NaN();
+    CHECK(!AABB{0, 0, 1, 1}.isEmptyOrNaN());
+    CHECK(!AABB{-inf, -inf, inf, inf}.isEmptyOrNaN());
+    CHECK(AABB{0, 0, 0, 0}.isEmptyOrNaN());
+    CHECK(AABB{0, 0, -1, -2}.isEmptyOrNaN());
+    CHECK(AABB{inf, inf, -inf, -inf}.isEmptyOrNaN());
+    CHECK(AABB{inf, -inf, -inf, inf}.isEmptyOrNaN());
+    CHECK(AABB{-inf, inf, inf, -inf}.isEmptyOrNaN());
+    CHECK(AABB{nan, 0, 10, 10}.isEmptyOrNaN());
+    CHECK(AABB{0, nan, 10, 10}.isEmptyOrNaN());
+    CHECK(AABB{0, 0, nan, 10}.isEmptyOrNaN());
+    CHECK(AABB{0, 0, 10, nan}.isEmptyOrNaN());
+    CHECK(AABB{nan, nan, 10, 10}.isEmptyOrNaN());
+    CHECK(AABB{nan, nan, nan, 10}.isEmptyOrNaN());
+    CHECK(AABB{nan, nan, nan, nan}.isEmptyOrNaN());
+}
 } // namespace rive

@@ -46,7 +46,8 @@ public:
     void mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const;
 
     // Computes a bounding box that would tightly contain the given points if they were to all be
-    // transformed by this matrix.
+    // transformed by this matrix, ignoring NaN values.
+    // Returns {0, 0, 0, 0} if the given points are empty or all NaN.
     AABB mapBoundingBox(const Vec2D pts[], size_t n) const;
     AABB mapBoundingBox(const AABB&) const;
 

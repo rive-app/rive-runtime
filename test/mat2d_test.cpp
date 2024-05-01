@@ -233,5 +233,17 @@ TEST_CASE("mapBoundingBox", "[Mat2D]")
     checkMatrix(Mat2D(-12, -13, -14, -15, -16, -17));
     checkMatrix(Mat2D(18, 19, 20, 21, 22, 23));
     checkMatrix(Mat2D(-25, 26, 27, -28, 29, -30));
+
+    // Mapping empty or NaN points returns 0.
+    CHECK(Mat2D().mapBoundingBox(nullptr, 0) == AABB());
+    auto nan = std::numeric_limits<float>::quiet_NaN();
+    CHECK(Mat2D().mapBoundingBox(AABB{nan, nan, nan, nan}) == AABB());
+
+    // NaN values are otherwise ignored.
+    CHECK(Mat2D().mapBoundingBox(AABB{-1, -1, 1, 1}) == AABB{-1, -1, 1, 1});
+    CHECK(Mat2D().mapBoundingBox(AABB{nan, -1, 1, 1}) == AABB{1, -1, 1, 1});
+    CHECK(Mat2D().mapBoundingBox(AABB{-1, nan, 1, 1}) == AABB{-1, 1, 1, 1});
+    CHECK(Mat2D().mapBoundingBox(AABB{-1, -1, nan, 1}) == AABB{-1, -1, -1, 1});
+    CHECK(Mat2D().mapBoundingBox(AABB{-1, -1, 1, nan}) == AABB{-1, -1, 1, -1});
 }
 } // namespace rive
