@@ -4,7 +4,9 @@
 
 using namespace rive;
 
-void ListenerFireEvent::perform(StateMachineInstance* stateMachineInstance, Vec2D position) const
+void ListenerFireEvent::perform(StateMachineInstance* stateMachineInstance,
+                                Vec2D position,
+                                Vec2D previousPosition) const
 {
     auto coreEvent = stateMachineInstance->artboard()->resolve(eventId());
     if (coreEvent == nullptr || !coreEvent->is<Event>())

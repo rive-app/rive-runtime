@@ -10,7 +10,9 @@ class ListenerAction : public ListenerActionBase
 {
 public:
     StatusCode import(ImportStack& importStack) override;
-    virtual void perform(StateMachineInstance* stateMachineInstance, Vec2D position) const = 0;
+    virtual void perform(StateMachineInstance* stateMachineInstance,
+                         Vec2D position,
+                         Vec2D previousPosition) const = 0;
 };
 } // namespace rive
 

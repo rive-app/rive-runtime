@@ -5,7 +5,9 @@
 
 using namespace rive;
 
-void ListenerAlignTarget::perform(StateMachineInstance* stateMachineInstance, Vec2D position) const
+void ListenerAlignTarget::perform(StateMachineInstance* stateMachineInstance,
+                                  Vec2D position,
+                                  Vec2D previousPosition) const
 {
     auto coreTarget = stateMachineInstance->artboard()->resolve(targetId());
     if (coreTarget == nullptr || !coreTarget->is<Node>())
@@ -19,8 +21,18 @@ void ListenerAlignTarget::perform(StateMachineInstance* stateMachineInstance, Ve
     {
         return;
     }
+    if (preserveOffset())
+    {
 
-    auto localPosition = inverse * position;
-    target->x(localPosition.x);
-    target->y(localPosition.y);
+        auto localPosition = inverse * position;
+        auto prevLocalPosition = inverse * previousPosition;
+        target->x(target->x() + localPosition.x - prevLocalPosition.x);
+        target->y(target->y() + localPosition.y - prevLocalPosition.y);
+    }
+    else
+    {
+        auto localPosition = inverse * position;
+        target->x(localPosition.x);
+        target->y(localPosition.y);
+    }
 }

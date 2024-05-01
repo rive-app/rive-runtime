@@ -24,7 +24,9 @@ bool ListenerNumberChange::validateNestedInputType(const NestedInput* input) con
     return input == nullptr || input->is<NestedNumber>();
 }
 
-void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance, Vec2D position) const
+void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance,
+                                   Vec2D position,
+                                   Vec2D previousPosition) const
 {
     if (nestedInputId() != Core::emptyId)
     {

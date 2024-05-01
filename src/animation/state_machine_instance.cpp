@@ -411,6 +411,7 @@ public:
     {}
     bool isHovered = false;
     float hitRadius = 2;
+    Vec2D previousPosition;
     std::vector<const StateMachineListener*> listeners;
     HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
     {
@@ -423,6 +424,11 @@ public:
         bool isOver = canHit ? shape->hitTest(hitArea) : false;
         bool hoverChange = isHovered != isOver;
         isHovered = isOver;
+        if (hoverChange && isHovered)
+        {
+            previousPosition.x = position.x;
+            previousPosition.y = position.y;
+        }
 
         // // iterate all listeners associated with this hit shape
         for (auto listener : listeners)
@@ -433,21 +439,23 @@ public:
             {
                 if (isOver && listener->listenerType() == ListenerType::enter)
                 {
-                    listener->performChanges(m_stateMachineInstance, position);
+                    listener->performChanges(m_stateMachineInstance, position, previousPosition);
                     m_stateMachineInstance->markNeedsAdvance();
                 }
                 else if (!isOver && listener->listenerType() == ListenerType::exit)
                 {
-                    listener->performChanges(m_stateMachineInstance, position);
+                    listener->performChanges(m_stateMachineInstance, position, previousPosition);
                     m_stateMachineInstance->markNeedsAdvance();
                 }
             }
             if (isOver && hitType == listener->listenerType())
             {
-                listener->performChanges(m_stateMachineInstance, position);
+                listener->performChanges(m_stateMachineInstance, position, previousPosition);
                 m_stateMachineInstance->markNeedsAdvance();
             }
         }
+        previousPosition.x = position.x;
+        previousPosition.y = position.y;
         return isOver ? shape->isTargetOpaque() ? HitResult::hitOpaque : HitResult::hit
                       : HitResult::none;
     }
@@ -891,7 +899,7 @@ void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& 
                     auto listenerEvent = sourceArtboard->resolve(listener->eventId());
                     if (listenerEvent == event.event())
                     {
-                        listener->performChanges(this, Vec2D());
+                        listener->performChanges(this, Vec2D(), Vec2D());
                         break;
                     }
                 }

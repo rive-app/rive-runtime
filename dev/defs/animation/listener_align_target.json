@@ -16,6 +16,15 @@
         "string": "targetid"
       },
       "description": "Identifier used to track the object use as a target fo this listener action."
+    },
+    "preserveOffset": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 541,
+        "string": "preserveoffset"
+      },
+      "description": "Whether to preserve offset between mouse position and target position."
     }
   }
 }

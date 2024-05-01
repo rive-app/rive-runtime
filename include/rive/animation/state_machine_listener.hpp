@@ -31,7 +31,9 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
 
     const std::vector<uint32_t>& hitShapeIds() const { return m_HitShapesIds; }
-    void performChanges(StateMachineInstance* stateMachineInstance, Vec2D position) const;
+    void performChanges(StateMachineInstance* stateMachineInstance,
+                        Vec2D position,
+                        Vec2D previousPosition) const;
 };
 } // namespace rive
 

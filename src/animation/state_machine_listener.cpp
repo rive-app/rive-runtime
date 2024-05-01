@@ -75,10 +75,11 @@ StatusCode StateMachineListener::onAddedClean(CoreContext* context)
 }
 
 void StateMachineListener::performChanges(StateMachineInstance* stateMachineInstance,
-                                          Vec2D position) const
+                                          Vec2D position,
+                                          Vec2D previousPosition) const
 {
     for (auto& action : m_Actions)
     {
-        action->perform(stateMachineInstance, position);
+        action->perform(stateMachineInstance, position, previousPosition);
     }
 }

@@ -26,7 +26,8 @@ bool ListenerTriggerChange::validateNestedInputType(const NestedInput* input) co
 }
 
 void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
-                                    Vec2D position) const
+                                    Vec2D position,
+                                    Vec2D previousPosition) const
 {
     if (nestedInputId() != Core::emptyId)
     {

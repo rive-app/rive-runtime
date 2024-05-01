@@ -1138,6 +1138,9 @@ public:
             case KeyFrameBoolBase::valuePropertyKey:
                 object->as<KeyFrameBoolBase>()->value(value);
                 break;
+            case ListenerAlignTargetBase::preserveOffsetPropertyKey:
+                object->as<ListenerAlignTargetBase>()->preserveOffset(value);
+                break;
             case NestedBoolBase::nestedValuePropertyKey:
                 object->as<NestedBoolBase>()->nestedValue(value);
                 break;
@@ -1720,6 +1723,8 @@ public:
                 return object->as<NestedSimpleAnimationBase>()->isPlaying();
             case KeyFrameBoolBase::valuePropertyKey:
                 return object->as<KeyFrameBoolBase>()->value();
+            case ListenerAlignTargetBase::preserveOffsetPropertyKey:
+                return object->as<ListenerAlignTargetBase>()->preserveOffset();
             case NestedBoolBase::nestedValuePropertyKey:
                 return object->as<NestedBoolBase>()->nestedValue();
             case LinearAnimationBase::enableWorkAreaPropertyKey:
@@ -2013,6 +2018,7 @@ public:
             case FollowPathConstraintBase::offsetPropertyKey:
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
             case KeyFrameBoolBase::valuePropertyKey:
+            case ListenerAlignTargetBase::preserveOffsetPropertyKey:
             case NestedBoolBase::nestedValuePropertyKey:
             case LinearAnimationBase::enableWorkAreaPropertyKey:
             case LinearAnimationBase::quantizePropertyKey:
