@@ -74,6 +74,7 @@ private:
         AABB clipRect;
         Mat2D clipRectMatrix;
         const pls::ClipRectInverseMatrix* clipRectInverseMatrix = nullptr;
+        bool clipIsEmpty = false;
     };
     std::vector<RenderState> m_stack{1};
 

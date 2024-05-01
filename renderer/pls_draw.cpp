@@ -597,7 +597,11 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
         if (closed)
         {
             Vec2D finalPtInContour = iter.rawPtsPtr()[-1];
-            if (startOfContour.movePt() != finalPtInContour)
+            // Bit-cast to uint64_t because we don't want the special equality rules for NaN inside
+            // of Vec2D::operator==. If we're empty or otherwise return back to p0, we want to
+            // detect this, regardless of whether there are NaN values.
+            if (math::bit_cast<uint64_t>(startOfContour.movePt()) !=
+                math::bit_cast<uint64_t>(finalPtInContour))
             {
                 assert(preChopVerbCount > 0);
                 if (roundJoinStroked)

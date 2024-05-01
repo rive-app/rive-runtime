@@ -184,6 +184,11 @@ static bool transform_rect_to_new_space(AABB* rect,
 void PLSRenderer::clipRectImpl(AABB rect, const PLSPath* originalPath)
 {
     bool hasClipRect = m_stack.back().clipRectInverseMatrix != nullptr;
+    if (rect.isEmptyOrNaN())
+    {
+        m_stack.back().clipIsEmpty = true;
+        return;
+    }
 
     // If there already is a clipRect, we can only accept another one by intersecting it with the
     // existing one. This means the new rect must be axis-aligned with the existing clipRect.
@@ -217,6 +222,11 @@ void PLSRenderer::clipRectImpl(AABB rect, const PLSPath* originalPath)
 
 void PLSRenderer::clipPathImpl(const PLSPath* path)
 {
+    if (path->getBounds().isEmptyOrNaN())
+    {
+        m_stack.back().clipIsEmpty = true;
+        return;
+    }
     // Only write a new clip element if this path isn't already on the stack from before. e.g.:
     //
     //     clipPath(samePath);
@@ -306,6 +316,10 @@ void PLSRenderer::drawImageMesh(const RenderImage* renderImage,
 
 void PLSRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
 {
+    if (m_stack.back().clipIsEmpty)
+    {
+        return;
+    }
     if (m_context->isOutsideCurrentFrame(draw->pixelBounds()))
     {
         return;
