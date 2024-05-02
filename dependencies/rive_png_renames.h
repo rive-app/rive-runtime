@@ -2,6 +2,8 @@
 #define RIVE_PNG_RENAMES_H
 #define PNGPREFIX_H
 #define PNG_PREFIX rive_
+#define png_image_write_to_memory rive_png_image_write_to_memory
+#define png_check_keyword rive_png_check_keyword
 #define png_sRGB_table rive_png_sRGB_table
 #define png_sRGB_base rive_png_sRGB_base
 #define png_sRGB_delta rive_png_sRGB_delta

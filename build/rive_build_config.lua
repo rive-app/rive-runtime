@@ -131,30 +131,41 @@ do
 end
 
 newoption({
-    trigger = 'use_default_runtime',
-    description = 'Don\'t set windows static runtime and runtime values.',
-})
-
-newoption({
-    trigger = 'runtime',
+    trigger = 'windows_runtime',
     description = 'Choose whether to use staticruntime on/off/default',
     allowed = {
         { 'default', 'Use default runtime' },
         { 'static', 'Use static runtime' },
         { 'dynamic', 'Use dynamic runtime' },
     },
-    default = 'static',
+    default = 'default',
 })
 
-filter({ 'system:windows', 'options:runtime=static' })
+-- This is just to match our old windows config. Gamekit specifically sets
+-- static/dynamic and maybe we should do the same elsewhere.
+filter({ 'system:windows', 'options:windows_runtime=default' })
 do
     staticruntime('on') -- Match Skia's /MT flag for link compatibility
-    runtime('Release') -- Use /MT even in debug (/MTd is incompatible with Skia)
+    runtime('Release')
 end
 
-filter({ 'system:windows', 'options:runtime=dynamic' })
+filter({ 'system:windows', 'options:windows_runtime=static' })
+do
+    staticruntime('on') -- Match Skia's /MT flag for link compatibility
+end
+
+filter({ 'system:windows', 'options:windows_runtime=dynamic' })
 do
     staticruntime('off')
+end
+
+filter({ 'system:windows', 'options:not windows_runtime=default', 'options:config=debug' })
+do
+    runtime('Debug')
+end
+
+filter({ 'system:windows', 'options:not windows_runtime=default', 'options:config=release' })
+do
     runtime('Release')
 end
 
