@@ -38,3 +38,29 @@ TEST_CASE("collapsed nested artboards do not advance", "[solo]")
     auto greenRect = greenMovingShapes.at(0);
     REQUIRE(greenRect->x() == 50);
 }
+
+TEST_CASE("nested artboards with looping animations will keep main advanceAndApply advancing",
+          "[nested]")
+{
+    auto file = ReadRiveFile("../../test/assets/ball_test.riv");
+    auto artboard = file->artboard("Artboard")->instance();
+    artboard->advance(0.0f);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine->advanceAndApply(0.0f) == true);
+    REQUIRE(stateMachine->advanceAndApply(1.0f) == true);
+    REQUIRE(stateMachine->advanceAndApply(1.0f) == true);
+}
+TEST_CASE("nested artboards with one shot animations will not main advanceAndApply advancing",
+          "[nested]")
+{
+
+    auto file = ReadRiveFile("../../test/assets/ball_test.riv");
+    auto artboard = file->artboard("Artboard 2")->instance();
+    artboard->advance(0.0f);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine->advanceAndApply(0.0f) == true);
+    REQUIRE(stateMachine->advanceAndApply(0.9f) == true);
+    REQUIRE(stateMachine->advanceAndApply(0.1f) == true);
+    // nested artboards animation is 1s long
+    REQUIRE(stateMachine->advanceAndApply(0.1f) == false);
+}

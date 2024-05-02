@@ -20,7 +20,7 @@ private:
 public:
     NestedStateMachine();
     ~NestedStateMachine() override;
-    void advance(float elapsedSeconds) override;
+    bool advance(float elapsedSeconds) override;
     void initializeAnimation(ArtboardInstance*) override;
     StateMachineInstance* stateMachineInstance();
 

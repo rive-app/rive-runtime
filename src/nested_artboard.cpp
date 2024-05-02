@@ -129,15 +129,16 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
 
 bool NestedArtboard::advance(float elapsedSeconds)
 {
+    bool keepGoing = false;
     if (m_Artboard == nullptr || isCollapsed())
     {
-        return false;
+        return keepGoing;
     }
     for (auto animation : m_NestedAnimations)
     {
-        animation->advance(elapsedSeconds);
+        keepGoing = keepGoing || animation->advance(elapsedSeconds);
     }
-    return m_Artboard->advance(elapsedSeconds);
+    return m_Artboard->advance(elapsedSeconds) || keepGoing;
 }
 
 void NestedArtboard::update(ComponentDirt value)

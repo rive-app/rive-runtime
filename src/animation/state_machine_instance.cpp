@@ -744,9 +744,9 @@ bool StateMachineInstance::advance(float seconds)
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
-    bool more = this->advance(seconds);
-    m_artboardInstance->advance(seconds);
-    return more;
+    bool keepGoing = this->advance(seconds);
+    keepGoing = m_artboardInstance->advance(seconds) || keepGoing;
+    return keepGoing;
 }
 
 void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }

@@ -10,12 +10,14 @@ using namespace rive;
 NestedStateMachine::NestedStateMachine() {}
 NestedStateMachine::~NestedStateMachine() {}
 
-void NestedStateMachine::advance(float elapsedSeconds)
+bool NestedStateMachine::advance(float elapsedSeconds)
 {
+    bool keepGoing = false;
     if (m_StateMachineInstance != nullptr)
     {
-        m_StateMachineInstance->advance(elapsedSeconds);
+        keepGoing = m_StateMachineInstance->advance(elapsedSeconds);
     }
+    return keepGoing;
 }
 
 void NestedStateMachine::initializeAnimation(ArtboardInstance* artboard)
