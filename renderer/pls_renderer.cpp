@@ -113,9 +113,8 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     {
         return;
     }
-    // A stroke width of zero in PLS means a path is filled.
-    if (stroked && paint->getThickness() <= 0)
-    {
+    if (stroked && !(paint->getThickness() > 0)) // Use inverse logic to ensure we abort when stroke
+    {                                            // thickness is NaN.
         return;
     }
 

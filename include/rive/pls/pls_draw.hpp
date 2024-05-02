@@ -151,7 +151,7 @@ public:
     const PLSPath* const m_pathRef;
     const FillRule m_fillRule; // Bc PLSPath fillRule can mutate during the artboard draw process.
     const pls::PaintType m_paintType;
-    const float m_strokeRadius;
+    float m_strokeRadius = 0;
     pls::ContourDirections m_contourDirections;
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold it.

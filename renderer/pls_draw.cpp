@@ -403,8 +403,7 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
     PLSDraw(pixelBounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
     m_pathRef(path.release()),
     m_fillRule(paint->getIsStroked() ? FillRule::nonZero : fillRule),
-    m_paintType(paint->getType()),
-    m_strokeRadius(paint->getIsStroked() ? paint->getThickness() * .5f : 0)
+    m_paintType(paint->getType())
 {
     assert(m_pathRef != nullptr);
     assert(paint != nullptr);
@@ -415,6 +414,11 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
     if (paint->getIsStroked())
     {
         m_drawContents |= pls::DrawContents::stroke;
+        m_strokeRadius = paint->getThickness() * .5f;
+        // Ensure stroke radius is nonzero. (In PLS, zero radius means the path is filled.)
+        m_strokeRadius = std::max(m_strokeRadius, std::numeric_limits<float>::min());
+        assert(!std::isnan(m_strokeRadius)); // These should get culled in PLSRenderer::drawPath().
+        assert(m_strokeRadius > 0);
     }
     else if (m_fillRule == FillRule::evenOdd)
     {
@@ -459,6 +463,7 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
     m_gradientRef = safe_ref(paint->getGradient());
     RIVE_DEBUG_CODE(m_pathRef->lockRawPathMutations();)
     RIVE_DEBUG_CODE(m_rawPathMutationID = m_pathRef->getRawPathMutationID();)
+    assert(isStroked() == (strokeRadius() > 0));
 }
 
 void PLSPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
@@ -479,7 +484,6 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
     flush->pushPath(this,
                     m_type == Type::midpointFanPath ? PatchType::midpointFan
                                                     : PatchType::outerCurves,
-
                     tessVertexCount);
 
     onPushToRenderContext(flush);
