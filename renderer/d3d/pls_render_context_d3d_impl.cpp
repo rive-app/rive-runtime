@@ -716,8 +716,13 @@ ID3D11RenderTargetView* PLSRenderTargetD3D::targetRTV()
 {
     if (m_targetRTV == nullptr && m_targetTexture != nullptr)
     {
+        D3D11_RENDER_TARGET_VIEW_DESC desc;
+        ZeroMemory(&desc, sizeof(desc));
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+
         VERIFY_OK(m_gpu->CreateRenderTargetView(m_targetTexture.Get(),
-                                                NULL,
+                                                &desc,
                                                 m_targetRTV.ReleaseAndGetAddressOf()));
     }
     return m_targetRTV.Get();
