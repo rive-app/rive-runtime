@@ -8,14 +8,19 @@ filter({ 'options:with_rive_text' })
 do
     defines({ 'WITH_RIVE_TEXT' })
 end
-filter({})
 filter({ 'options:with_rive_audio=system' })
 do
-    defines({ 'WITH_RIVE_AUDIO' })
+    defines({ 'WITH_RIVE_AUDIO', 'MA_NO_RESOURCE_MANAGER' })
 end
+
 filter({ 'options:with_rive_audio=external' })
 do
-    defines({ 'WITH_RIVE_AUDIO', 'EXTERNAL_RIVE_AUDIO_ENGINE', 'MA_NO_DEVICE_IO' })
+    defines({
+        'WITH_RIVE_AUDIO',
+        'EXTERNAL_RIVE_AUDIO_ENGINE',
+        'MA_NO_DEVICE_IO',
+        'MA_NO_RESOURCE_MANAGER',
+    })
 end
 filter({})
 
@@ -89,6 +94,7 @@ do
             '-Wno-implicit-fallthrough',
             '-Wno-implicit-int-conversion',
             '-Wno-undef',
+            '-Wno-unused-function',
         })
     end
 

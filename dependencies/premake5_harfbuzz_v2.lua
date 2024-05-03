@@ -227,6 +227,7 @@ do
     defines({
         'HB_ONLY_ONE_SHAPER', -- added this for Geotech Mac multi-module issue: https://github.com/rive-app/rive-cpp/issues/369
         'HAVE_OT',
+        'HB_NO_CFF',
         'HB_NO_FALLBACK_SHAPE',
         'HB_NO_WIN1256',
         'HB_NO_EXTERN_HELPERS',
@@ -234,6 +235,8 @@ do
         'HB_NO_COLOR',
         'HB_NO_BITMAP',
         'HB_NO_BUFFER_SERIALIZE',
+        'HB_NO_BUFFER_VERIFY',
+        'HB_NO_BUFFER_MESSAGE',
         'HB_NO_SETLOCALE',
         'HB_NO_STYLE',
         'HB_NO_VERTICAL',
@@ -241,6 +244,9 @@ do
         'HB_NO_LAYOUT_RARELY_USED',
         'HB_NO_LAYOUT_UNUSED',
         'HB_NO_OT_FONT_GLYPH_NAMES',
+        'HB_NO_PAINT',
+        'HB_NO_MMAP',
+        'HB_NO_META',
     })
 
     filter('toolset:not msc')
