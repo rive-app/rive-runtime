@@ -721,13 +721,16 @@ ID3D11RenderTargetView* PLSRenderTargetD3D::targetRTV()
 
         switch (m_targetFormat)
         {
+        case DXGI_FORMAT_R8G8B8A8_UNORM:
+        case DXGI_FORMAT_B8G8R8A8_UNORM:
+            desc.Format = m_targetFormat;
+
         case DXGI_FORMAT_R8G8B8A8_TYPELESS:
             desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
             break;
 
         default:
-            desc.Format = m_targetFormat;
-            break;
+            RIVE_UNREACHABLE();
         }
 
         VERIFY_OK(m_gpu->CreateRenderTargetView(m_targetTexture.Get(),
