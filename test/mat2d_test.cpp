@@ -245,5 +245,14 @@ TEST_CASE("mapBoundingBox", "[Mat2D]")
     CHECK(Mat2D().mapBoundingBox(AABB{-1, nan, 1, 1}) == AABB{-1, 1, 1, 1});
     CHECK(Mat2D().mapBoundingBox(AABB{-1, -1, nan, 1}) == AABB{-1, -1, -1, 1});
     CHECK(Mat2D().mapBoundingBox(AABB{-1, -1, 1, nan}) == AABB{-1, -1, 1, -1});
+
+    // When AABB::height() inf - inf, the result is nan.
+    auto inf = std::numeric_limits<float>::infinity();
+    CHECK(Mat2D().mapBoundingBox(AABB{0, inf, 0, nan}).height() == 0);
+    CHECK(Mat2D().mapBoundingBox(AABB{0, -inf, 0, nan}).height() == 0);
+    CHECK(Mat2D().mapBoundingBox(AABB{inf, 0, nan, 0}).width() == 0);
+    CHECK(Mat2D().mapBoundingBox(AABB{-inf, 0, nan, 0}).width() == 0);
+    CHECK(Mat2D().mapBoundingBox(AABB{inf, 0, inf, 0}).width() == 0);
+    CHECK(Mat2D().mapBoundingBox(AABB{0, -inf, 0, -inf}).height() == 0);
 }
 } // namespace rive
