@@ -370,6 +370,7 @@ PLSDrawUniquePtr PLSPathDraw::Make(PLSRenderContext* context,
         const AABB& localBounds = path->getBounds();
         // FIXME! Implement interior triangulation in depthStencil mode.
         if (context->frameInterlockMode() != pls::InterlockMode::depthStencil &&
+            path->getRawPath().verbs().count() < 1000 &&
             pls::FindTransformedArea(localBounds, matrix) > 512 * 512)
         {
             return PLSDrawUniquePtr(context->make<InteriorTriangulationDraw>(
@@ -406,6 +407,7 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
     m_paintType(paint->getType())
 {
     assert(m_pathRef != nullptr);
+    assert(!m_pathRef->getRawPath().empty());
     assert(paint != nullptr);
     if (m_blendMode == BlendMode::srcOver && paint->getIsOpaque())
     {
@@ -470,23 +472,21 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 {
     // Make sure the rawPath in our path reference hasn't changed since we began holding!
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
+    assert(!m_pathRef->getRawPath().empty());
 
     size_t tessVertexCount = m_type == Type::midpointFanPath
                                  ? m_resourceCounts.midpointFanTessVertexCount
                                  : m_resourceCounts.outerCubicTessVertexCount;
-    if (tessVertexCount == 0)
+    if (tessVertexCount > 0)
     {
-        return;
+        // Push a path record.
+        flush->pushPath(this,
+                        m_type == Type::midpointFanPath ? PatchType::midpointFan
+                                                        : PatchType::outerCurves,
+                        tessVertexCount);
+
+        onPushToRenderContext(flush);
     }
-    assert(!m_pathRef->getRawPath().empty());
-
-    // Push a path record.
-    flush->pushPath(this,
-                    m_type == Type::midpointFanPath ? PatchType::midpointFan
-                                                    : PatchType::outerCurves,
-                    tessVertexCount);
-
-    onPushToRenderContext(flush);
 }
 
 void PLSPathDraw::releaseRefs()
@@ -520,11 +520,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     // Count up how much temporary storage this function will need to reserve in CPU buffers.
     const RawPath& rawPath = m_pathRef->getRawPath();
     size_t contourCount = rawPath.countMoveTos();
-    if (contourCount == 0)
-    {
-        // The entire batch is empty.
-        return;
-    }
+    assert(contourCount != 0);
 
     m_contours = reinterpret_cast<ContourInfo*>(
         context->perFrameAllocator().alloc(sizeof(ContourInfo) * contourCount));
@@ -601,9 +597,9 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
         if (closed)
         {
             Vec2D finalPtInContour = iter.rawPtsPtr()[-1];
-            // Bit-cast to uint64_t because we don't want the special equality rules for NaN inside
-            // of Vec2D::operator==. If we're empty or otherwise return back to p0, we want to
-            // detect this, regardless of whether there are NaN values.
+            // Bit-cast to uint64_t because we don't want the special equality rules for NaN. If
+            // we're empty or otherwise return back to p0, we want to detect this, regardless of
+            // whether there are NaN values.
             if (math::bit_cast<uint64_t>(startOfContour.movePt()) !=
                 math::bit_cast<uint64_t>(finalPtInContour))
             {
@@ -1274,7 +1270,11 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* 
         else if (contour.closed)
         {
             implicitClose[0] = end.rawPtsPtr()[-1];
-            if (implicitClose[0] != implicitClose[1])
+            // Bit-cast to uint64_t because we don't want the special equality rules for NaN. If
+            // we're empty or otherwise return back to p0, we want to detect this, regardless of
+            // whether there are NaN values.
+            if (math::bit_cast<uint64_t>(implicitClose[0]) !=
+                math::bit_cast<uint64_t>(implicitClose[1]))
             {
                 // Draw a line back to the beginning of the contour.
                 std::array<Vec2D, 4> cubic = convert_line_to_cubic(implicitClose);
@@ -1512,18 +1512,22 @@ void InteriorTriangulationDraw::processPath(PathOp op,
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
 
-        m_resourceCounts.pathCount = 1;
-        m_resourceCounts.contourCount = contourCount;
-        // maxTessellatedSegmentCount does not get doubled when we emit both forward and mirrored
-        // contours because the forward and mirrored pair both get packed into a single
-        // pls::TessVertexSpan.
-        m_resourceCounts.maxTessellatedSegmentCount = patchCount;
-        // outerCubic patches emit their tessellated geometry twice: once forward and once mirrored.
-        m_resourceCounts.outerCubicTessVertexCount =
-            m_contourDirections == pls::ContourDirections::reverseAndForward
-                ? patchCount * kOuterCurvePatchSegmentSpan * 2
-                : patchCount * kOuterCurvePatchSegmentSpan;
-        m_resourceCounts.maxTriangleVertexCount = m_triangulator->maxVertexCount();
+        if (patchCount > 0)
+        {
+            m_resourceCounts.pathCount = 1;
+            m_resourceCounts.contourCount = contourCount;
+            // maxTessellatedSegmentCount does not get doubled when we emit both forward and
+            // mirrored contours because the forward and mirrored pair both get packed into a single
+            // pls::TessVertexSpan.
+            m_resourceCounts.maxTessellatedSegmentCount = patchCount;
+            // outerCubic patches emit their tessellated geometry twice: once forward and once
+            // mirrored.
+            m_resourceCounts.outerCubicTessVertexCount =
+                m_contourDirections == pls::ContourDirections::reverseAndForward
+                    ? patchCount * kOuterCurvePatchSegmentSpan * 2
+                    : patchCount * kOuterCurvePatchSegmentSpan;
+            m_resourceCounts.maxTriangleVertexCount = m_triangulator->maxVertexCount();
+        }
     }
     else
     {

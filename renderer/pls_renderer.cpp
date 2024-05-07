@@ -103,8 +103,12 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     LITE_RTTI_CAST_OR_RETURN(path, PLSPath*, renderPath);
     LITE_RTTI_CAST_OR_RETURN(paint, PLSPaint*, renderPaint);
 
-    bool stroked = paint->getIsStroked();
+    if (path->getRawPath().empty())
+    {
+        return;
+    }
 
+    bool stroked = paint->getIsStroked();
     if (stroked && m_context->frameDescriptor().strokesDisabled)
     {
         return;
@@ -129,6 +133,12 @@ void PLSRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 void PLSRenderer::clipPath(RenderPath* renderPath)
 {
     LITE_RTTI_CAST_OR_RETURN(path, PLSPath*, renderPath);
+
+    if (path->getRawPath().empty())
+    {
+        m_stack.back().clipIsEmpty = true;
+        return;
+    }
 
     // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT" shader feature.
     // Multiple axis-aligned rectangles can be intersected into a single rectangle if their matrices
