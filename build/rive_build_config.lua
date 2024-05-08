@@ -458,6 +458,11 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
         buildoptions({ '-msimd128' })
     end
 
+    filter({ 'options:arch=wasm', 'options:no-wasm-simd' })
+    do
+        linkoptions({ '-s MIN_SAFARI_VERSION=120000' })
+    end    
+
     filter({ 'options:arch=wasm', 'options:config=debug' })
     do
         buildoptions({
