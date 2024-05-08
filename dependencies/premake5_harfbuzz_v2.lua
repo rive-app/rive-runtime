@@ -227,7 +227,6 @@ do
     defines({
         'HB_ONLY_ONE_SHAPER', -- added this for Geotech Mac multi-module issue: https://github.com/rive-app/rive-cpp/issues/369
         'HAVE_OT',
-        'HB_NO_CFF',
         'HB_NO_FALLBACK_SHAPE',
         'HB_NO_WIN1256',
         'HB_NO_EXTERN_HELPERS',
