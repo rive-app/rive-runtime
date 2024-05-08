@@ -799,7 +799,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
             {
                 float x = stops[i] * w + .5f;
                 uint32_t xFixed = static_cast<uint32_t>(x * (65536.f / kGradTextureWidth));
-                assert(lastXFixed <= xFixed && xFixed < 65536);
+                assert(lastXFixed <= xFixed && xFixed < 65536); // stops[] must be ordered.
                 m_ctx->m_gradSpanData.set_back(lastXFixed, xFixed, y, lastColor, colors[i]);
                 lastColor = colors[i];
                 lastXFixed = xFixed;

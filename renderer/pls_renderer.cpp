@@ -173,8 +173,8 @@ static bool transform_rect_to_new_space(AABB* rect,
         return false;
     }
     currentToNew = currentToNew * currentMatrix;
-    float maxSkew = std::max(fabsf(currentToNew.xy()), fabsf(currentToNew.yx()));
-    float maxScale = std::max(fabsf(currentToNew.xx()), fabsf(currentToNew.yy()));
+    float maxSkew = fmaxf(fabsf(currentToNew.xy()), fabsf(currentToNew.yx()));
+    float maxScale = fmaxf(fabsf(currentToNew.xx()), fabsf(currentToNew.yy()));
     if (maxSkew > math::EPSILON && maxScale > math::EPSILON)
     {
         // Transforming this rect to the new view matrix would turn it into something that isn't a

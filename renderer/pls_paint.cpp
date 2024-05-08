@@ -12,6 +12,35 @@ PLSPaint::PLSPaint() {}
 
 PLSPaint::~PLSPaint() {}
 
+// Ensure the given gradient stops are in a format expected by PLS.
+static bool validate_gradient_stops(const ColorInt colors[], // [count]
+                                    const float stops[],     // [count]
+                                    size_t count)
+{
+    // Stops cannot be empty.
+    if (count == 0)
+    {
+        return false;
+    }
+    for (size_t i = 0; i < count; ++i)
+    {
+        // Stops must be finite, real numbers in the range [0, 1].
+        if (!(0 <= stops[i] && stops[i] <= 1))
+        {
+            return false;
+        }
+    }
+    for (size_t i = 1; i < count; ++i)
+    {
+        // Stops must be ordered.
+        if (!(stops[i - 1] <= stops[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 rcp<PLSGradient> PLSGradient::MakeLinear(float sx,
                                          float sy,
                                          float ex,
@@ -20,6 +49,11 @@ rcp<PLSGradient> PLSGradient::MakeLinear(float sx,
                                          const float stops[],     // [count]
                                          size_t count)
 {
+    if (!validate_gradient_stops(colors, stops, count))
+    {
+        return nullptr;
+    }
+
     float2 start = {sx, sy};
     float2 end = {ex, ey};
     PLSGradDataArray<ColorInt> newColors(colors, count);
@@ -69,6 +103,11 @@ rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
                                          const float stops[],     // [count]
                                          size_t count)
 {
+    if (!validate_gradient_stops(colors, stops, count))
+    {
+        return nullptr;
+    }
+
     PLSGradDataArray<ColorInt> newColors(colors, count);
     PLSGradDataArray<float> newStops(stops, count);
 

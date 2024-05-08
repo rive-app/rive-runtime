@@ -123,8 +123,8 @@ static void chop_cubic_around_cusps(const Vec2D p[4],
         // If the cusps are extremely close together, don't allow the straddle points to cross.
         float minT = i == 0 ? 0.f : (cuspT[i - 1] + cuspT[i]) * .5f;
         float maxT = i + 1 == n ? 1.f : (cuspT[i + 1] + cuspT[i]) * .5f;
-        t[i * 2 + 0] = std::max(cuspT[i] - math::EPSILON, minT);
-        t[i * 2 + 1] = std::min(cuspT[i] + math::EPSILON, maxT);
+        t[i * 2 + 0] = fmaxf(cuspT[i] - math::EPSILON, minT);
+        t[i * 2 + 1] = fminf(cuspT[i] + math::EPSILON, maxT);
     }
     pathutils::ChopCubicAt(p, dst, t, n * 2);
     for (int i = 0; i < n; ++i)
@@ -418,7 +418,7 @@ PLSPathDraw::PLSPathDraw(IAABB pixelBounds,
         m_drawContents |= pls::DrawContents::stroke;
         m_strokeRadius = paint->getThickness() * .5f;
         // Ensure stroke radius is nonzero. (In PLS, zero radius means the path is filled.)
-        m_strokeRadius = std::max(m_strokeRadius, std::numeric_limits<float>::min());
+        m_strokeRadius = fmaxf(m_strokeRadius, std::numeric_limits<float>::min());
         assert(!std::isnan(m_strokeRadius)); // These should get culled in PLSRenderer::drawPath().
         assert(m_strokeRadius > 0);
     }
@@ -934,21 +934,23 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
                 if (cap == StrokeCap::round)
                 {
                     // Round caps rotate 180 degrees.
-                    contour->strokeCapSegmentCount = ceilf(polarSegmentsPerRad * math::PI);
+                    float strokeCapSegmentCount = ceilf(polarSegmentsPerRad * math::PI);
                     // +2 because round caps emulated as joins need to emit vertices at T=0
                     // and T=1, unlike normal round joins.
-                    contour->strokeCapSegmentCount += 2;
+                    strokeCapSegmentCount += 2;
                     // Make sure not to exceed kMaxPolarSegments.
-                    contour->strokeCapSegmentCount =
-                        std::min(contour->strokeCapSegmentCount, kMaxPolarSegments);
+                    strokeCapSegmentCount = fminf(strokeCapSegmentCount, kMaxPolarSegments);
+                    contour->strokeCapSegmentCount = static_cast<uint32_t>(strokeCapSegmentCount);
                 }
                 else
                 {
                     contour->strokeCapSegmentCount = kNumSegmentsInMiterOrBevelJoin;
                 }
-                // pushContourToRenderContext() uses "strokeCapSegmentCount != 0" to tell if it
-                // needs stroke caps.
-                assert(contour->strokeCapSegmentCount != 0);
+                // PLS expects all patches to have >0 tessellation vertices, so for the case of an
+                // empty patch with a stroke cap, contour->strokeCapSegmentCount can't be zero.
+                // Also, pushContourToRenderContext() uses "strokeCapSegmentCount != 0" to tell if
+                // it needs stroke caps.
+                assert(contour->strokeCapSegmentCount >= 2);
                 // As long as a contour isn't empty, we can tack the end cap onto the join
                 // section of the final curve in the stroke. Otherwise, we need to introduce
                 // 0-tessellation-segment curves with non-empty joins to carry the caps.
@@ -1322,6 +1324,7 @@ void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     // Reverse the cubic and push it with zero parametric and polar segments, and a 180-degree join
     // tangent. This results in a solitary join, positioned immediately before the provided cubic,
     // that looks like the desired stroke cap.
+    assert(strokeCapSegmentCount >= 2);
     flush->pushCubic(std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
                      find_cubic_tan0(cubic),
                      emulatedCapAsJoinFlags,
