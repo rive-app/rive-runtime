@@ -31,6 +31,8 @@ namespace rive
 {
 constexpr float kInf = std::numeric_limits<float>::infinity();
 constexpr float kNaN = std::numeric_limits<float>::quiet_NaN();
+constexpr double kInf_double = std::numeric_limits<double>::infinity();
+constexpr double kNaN_double = std::numeric_limits<double>::quiet_NaN();
 
 // Check simd::any.
 TEST_CASE("any", "[simd]")
@@ -295,21 +297,47 @@ TEST_CASE("min-max", "[simd]")
     CHECK_ALL((f4.xyz == vec<3>{1, 1, 2}));
     CHECK(std::isnan(f4.w));
 
+    // fminf/fmaxf behaves the same as simd::min/max.
     // simd::min/max differs from std::min/max when the first argument is NaN.
-    CHECK(simd::min<float, 1>(kNaN, 1).x == 1);
-    CHECK(std::isnan(std::min<float>(kNaN, 1)));
-    CHECK(simd::max<float, 1>(kNaN, 1).x == 1);
-    CHECK(std::isnan(std::max<float>(kNaN, 1)));
-    CHECK(simd::min<double, 1>(kNaN, 1).x == 1);
-    CHECK(std::isnan(std::min<double>(kNaN, 1)));
-    CHECK(simd::max<double, 1>(kNaN, 1).x == 1);
-    CHECK(std::isnan(std::max<double>(kNaN, 1)));
+    for (float f : {-2.f, -kInf, kInf})
+    {
+        CHECK(simd::min<float, 1>(kNaN, f).x == f);
+        CHECK(fminf(kNaN, f) == f);
+        CHECK(std::isnan(std::min<float>(kNaN, f)));
+        CHECK(simd::max<float, 1>(kNaN, f).x == f);
+        CHECK(fmaxf(kNaN, f) == f);
+        CHECK(std::isnan(std::max<float>(kNaN, f)));
+    }
+    for (double d : {-1.0, -kInf_double, kInf_double})
+    {
+        CHECK(simd::min<double, 1>(kNaN_double, d).x == d);
+        CHECK(fmin(kNaN_double, d) == d);
+        CHECK(std::isnan(std::min<double>(kNaN_double, d)));
+        CHECK(simd::max<double, 1>(kNaN_double, d).x == d);
+        CHECK(fmax(kNaN_double, d) == d);
+        CHECK(std::isnan(std::max<double>(kNaN_double, d)));
+    }
 
-    // simd::min/max is equivalent std::min/max when the second argument is NaN.
-    CHECK(simd::min<float, 1>(1, kNaN).x == std::min<float>(1, kNaN));
-    CHECK(simd::max<float, 1>(1, kNaN).x == std::max<float>(1, kNaN));
-    CHECK(simd::min<double, 1>(1, kNaN).x == std::min<double>(1, kNaN));
-    CHECK(simd::max<double, 1>(1, kNaN).x == std::max<double>(1, kNaN));
+    // fminf/fmaxf/std::min/std::max/simd::min/stmd::max all behave the same when the second
+    // argument is NaN.
+    for (float f : {1.f, -kInf, kInf})
+    {
+        CHECK(simd::min<float, 1>(f, kNaN).x == f);
+        CHECK(fminf(f, kNaN) == f);
+        CHECK(std::min<float>(f, kNaN) == f);
+        CHECK(simd::max<float, 1>(f, kNaN).x == f);
+        CHECK(fmaxf(f, kNaN) == f);
+        CHECK(std::max<float>(f, kNaN) == f);
+    }
+    for (double d : {2.0, -kInf_double, kInf_double})
+    {
+        CHECK(simd::min<double, 1>(d, kNaN_double).x == d);
+        CHECK(fmin(d, kNaN_double) == d);
+        CHECK(std::min<double>(d, kNaN_double) == d);
+        CHECK(simd::max<double, 1>(d, kNaN_double).x == d);
+        CHECK(fmax(d, kNaN_double) == d);
+        CHECK(std::max<double>(d, kNaN_double) == d);
+    }
 
     // check non-32-bit types.
     CHECK_ALL((simd::max(simd::gvec<double, 2>{3, 4}, simd::gvec<double, 2>{4, 3}) ==
