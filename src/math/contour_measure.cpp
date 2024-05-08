@@ -34,7 +34,7 @@ ContourMeasure::ContourMeasure(std::vector<Segment>&& segs,
 // or the last segment if distance == m_distance
 size_t ContourMeasure::findSegment(float distance) const
 {
-    assert(m_segments.front().m_distance > 0);
+    assert(m_segments.front().m_distance >= 0);
     assert(m_segments.back().m_distance == m_length);
 
     assert(distance >= 0 && distance <= m_length);
