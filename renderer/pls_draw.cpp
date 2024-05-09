@@ -867,7 +867,10 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
             {
                 // Measure the rotations of curves in batches of 4.
                 assert(j + 4 <= rotationIdx);
-                auto [tx0, ty0, tx1, ty1] = simd::load4x4f(&m_tangentPairs[j][0].x);
+
+                rive::simd::gvec<float, 4> tx0, ty0, tx1, ty1;
+                std::tie(tx0, ty0, tx1, ty1) = simd::load4x4f(&m_tangentPairs[j][0].x);
+
                 float4 numer = tx0 * tx1 + ty0 * ty1;
                 float4 denom_pow2 = (tx0 * tx0 + ty0 * ty0) * (tx1 * tx1 + ty1 * ty1);
                 float4 cosTheta = numer / simd::sqrt(denom_pow2);
