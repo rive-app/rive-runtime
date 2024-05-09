@@ -880,10 +880,15 @@ void PLSRenderContext::LogicalFlush::writeResources()
         {
             PLSDraw* draw = m_plsDraws[i].get();
 
+            int4 drawBounds = simd::load4i(&m_plsDraws[i]->pixelBounds());
+
             // Add one extra pixel of padding to the draw bounds to make absolutely certain we get
             // no overlapping pixels, which destroy the atomic shader.
-            int4 drawBounds = simd::load4i(&m_plsDraws[i]->pixelBounds());
-            drawBounds += int4{-1, -1, 1, 1};
+            const int32_t kMax32i = std::numeric_limits<int32_t>::max();
+            const int32_t kMin32i = std::numeric_limits<int32_t>::min();
+            drawBounds = simd::if_then_else(drawBounds != int4{kMin32i, kMin32i, kMax32i, kMax32i},
+                                            drawBounds + int4{-1, -1, 1, 1},
+                                            drawBounds);
 
             // Our top priority in re-ordering is to group non-overlapping draws together, in order
             // to maximize batching while preserving correctness.

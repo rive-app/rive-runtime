@@ -211,6 +211,10 @@ int16_t IntersectionBoard::addRectangle(int4 ltrb)
         return 0;
     }
 
+    // Clamp ltrb to the viewport to avoid integer overflows.
+    ltrb.xy = simd::max(ltrb.xy, int2(0));
+    ltrb.zw = simd::min(ltrb.zw, m_viewportSize);
+
     // Find the tiled row and column that each corner of the rectangle falls on.
     int4 span = (ltrb - int4{0, 0, 1, 1}) / 255;
     span = simd::clamp(span, int4(0), int4{m_cols, m_rows, m_cols, m_rows} - 1);
