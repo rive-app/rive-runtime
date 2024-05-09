@@ -20,7 +20,7 @@ namespace rive
 class GrInnerFanTriangulator : private GrTriangulator
 {
 public:
-    using GrTriangulator::GroutTriangleList;
+    using GroutTriangleList = GrTriangulator::BreadcrumbTriangleList;
 
     GrInnerFanTriangulator(const RawPath& path,
                            const Mat2D& viewMatrix,
@@ -31,7 +31,7 @@ public:
         m_shouldReverseTriangles(viewMatrix[0] * viewMatrix[3] - viewMatrix[2] * viewMatrix[1] < 0)
     {
         fPreserveCollinearVertices = true;
-        fCollectGroutTriangles = true;
+        fCollectBreadcrumbTriangles = true;
         bool isLinear;
         auto [polys, success] = GrTriangulator::pathToPolys(path, 0, AABB{}, &isLinear);
         if (success)
@@ -60,7 +60,7 @@ public:
                                                 bufferRing);
     }
 
-    const GroutTriangleList& groutList() const { return fGroutList; }
+    const GroutTriangleList& groutList() const { return fBreadcrumbList; }
 
 private:
     // We reverse triangles whe using a left-handed view matrix, in order to ensure we always emit

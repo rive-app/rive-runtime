@@ -4,7 +4,8 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  *
- * Initial import from skia:src/gpu/ganesh/geometry/GrTriangulator.h
+ * Initial import from
+ * skia:c2a399a74da523ec445f1202367764d04b5df2ec@src/gpu/ganesh/geometry/GrTriangulator.h
  *
  * Copyright 2023 Rive
  */
@@ -33,18 +34,6 @@ class GrTriangulator
 public:
     constexpr static int kArenaDefaultChunkSize = 16 * 1024;
 
-    struct Comparator
-    {
-        enum class Direction
-        {
-            kVertical,
-            kHorizontal
-        };
-        Comparator(Direction direction) : fDirection(direction) {}
-        bool sweep_lt(const Vec2D& a, const Vec2D& b) const;
-        Direction fDirection;
-    };
-
     // Enums used by GrTriangulator internals.
     typedef enum
     {
@@ -66,6 +55,18 @@ public:
     struct EdgeList;
     struct MonotonePoly;
     struct Poly;
+
+    struct Comparator
+    {
+        enum class Direction
+        {
+            kVertical,
+            kHorizontal
+        };
+        Comparator(Direction direction) : fDirection(direction) {}
+        bool sweep_lt(const Vec2D& a, const Vec2D& b) const;
+        Direction fDirection;
+    };
 
 protected:
     GrTriangulator(Comparator::Direction direction,
@@ -101,13 +102,20 @@ protected:
         kFoundSelfIntersection
     };
 
+    enum class BoolFail
+    {
+        kFalse,
+        kTrue,
+        kFail
+    };
+
     [[nodiscard]] SimplifyResult simplify(VertexList* mesh, const Comparator&);
 
     // 5) Tessellate the simplified mesh into monotone polygons:
     virtual std::tuple<Poly*, bool> tessellate(const VertexList& vertices, const Comparator&);
 
     // 6) Triangulate the monotone polygons directly into a vertex buffer:
-    void polysToTriangles(const Poly* polys,
+    void polysToTriangles(Poly* polys,
                           FillRule overrideFillRule,
                           uint16_t pathID,
                           bool reverseTriangles,
@@ -187,26 +195,26 @@ protected:
     MonotonePoly* allocateMonotonePoly(Edge* edge, Side side, int winding);
     Edge* allocateEdge(Vertex* top, Vertex* bottom, int winding, EdgeType type);
     Edge* makeEdge(Vertex* prev, Vertex* next, EdgeType type, const Comparator&);
-    void setTop(Edge* edge,
-                Vertex* v,
-                EdgeList* activeEdges,
-                Vertex** current,
-                const Comparator&) const;
-    void setBottom(Edge* edge,
-                   Vertex* v,
-                   EdgeList* activeEdges,
-                   Vertex** current,
-                   const Comparator&) const;
-    void mergeEdgesAbove(Edge* edge,
-                         Edge* other,
-                         EdgeList* activeEdges,
-                         Vertex** current,
-                         const Comparator&) const;
-    void mergeEdgesBelow(Edge* edge,
-                         Edge* other,
-                         EdgeList* activeEdges,
-                         Vertex** current,
-                         const Comparator&) const;
+    [[nodiscard]] bool setTop(Edge* edge,
+                              Vertex* v,
+                              EdgeList* activeEdges,
+                              Vertex** current,
+                              const Comparator&) const;
+    [[nodiscard]] bool setBottom(Edge* edge,
+                                 Vertex* v,
+                                 EdgeList* activeEdges,
+                                 Vertex** current,
+                                 const Comparator&) const;
+    [[nodiscard]] bool mergeEdgesAbove(Edge* edge,
+                                       Edge* other,
+                                       EdgeList* activeEdges,
+                                       Vertex** current,
+                                       const Comparator&) const;
+    [[nodiscard]] bool mergeEdgesBelow(Edge* edge,
+                                       Edge* other,
+                                       EdgeList* activeEdges,
+                                       Vertex** current,
+                                       const Comparator&) const;
     Edge* makeConnectingEdge(Vertex* prev,
                              Vertex* next,
                              EdgeType,
@@ -217,34 +225,32 @@ protected:
                                    const EdgeList& edges,
                                    Edge** left,
                                    Edge** right);
-    void mergeCollinearEdges(Edge* edge,
+    bool mergeCollinearEdges(Edge* edge,
                              EdgeList* activeEdges,
                              Vertex** current,
                              const Comparator&) const;
-    bool splitEdge(Edge* edge,
-                   Vertex* v,
-                   EdgeList* activeEdges,
-                   Vertex** current,
-                   const Comparator&);
-    bool intersectEdgePair(Edge* left,
-                           Edge* right,
-                           EdgeList* activeEdges,
-                           Vertex** current,
-                           const Comparator&);
+    BoolFail splitEdge(Edge* edge,
+                       Vertex* v,
+                       EdgeList* activeEdges,
+                       Vertex** current,
+                       const Comparator&);
+    BoolFail intersectEdgePair(Edge* left,
+                               Edge* right,
+                               EdgeList* activeEdges,
+                               Vertex** current,
+                               const Comparator&);
     Vertex* makeSortedVertex(const Vec2D&,
                              uint8_t alpha,
                              VertexList* mesh,
                              Vertex* reference,
                              const Comparator&) const;
-#if 0
     void computeBisector(Edge* edge1, Edge* edge2, Vertex*) const;
-#endif
-    bool checkForIntersection(Edge* left,
-                              Edge* right,
-                              EdgeList* activeEdges,
-                              Vertex** current,
-                              VertexList* mesh,
-                              const Comparator&);
+    BoolFail checkForIntersection(Edge* left,
+                                  Edge* right,
+                                  EdgeList* activeEdges,
+                                  Vertex** current,
+                                  VertexList* mesh,
+                                  const Comparator&);
     void sanitizeContours(VertexList* contours, int contourCnt) const;
     bool mergeCoincidentVertices(VertexList* mesh, const Comparator&) const;
     void buildEdges(VertexList* contours, int contourCnt, VertexList* mesh, const Comparator&);
@@ -253,9 +259,9 @@ protected:
                                         float tolerance,
                                         const AABB& clipBounds,
                                         bool* isLinear);
-    static int64_t CountPoints(const Poly* polys, FillRule overrideFillRule);
-    size_t countMaxTriangleVertices(const Poly*) const;
-    size_t polysToTriangles(const Poly*,
+    static int64_t CountPoints(Poly* polys, FillRule overrideFillRule);
+    size_t countMaxTriangleVertices(Poly*) const;
+    size_t polysToTriangles(Poly*,
                             uint64_t maxVertexCount,
                             uint16_t pathID,
                             bool reverseTriangles,
@@ -263,7 +269,7 @@ protected:
 
     Comparator::Direction fDirection;
     FillRule fFillRule;
-    TrivialBlockAllocator* fAlloc;
+    TrivialBlockAllocator* const fAlloc;
     int fNumMonotonePolys = 0;
     int fNumEdges = 0;
 
@@ -273,30 +279,30 @@ protected:
     bool fEmitCoverage = false;
 #endif
     bool fPreserveCollinearVertices = false;
-    bool fCollectGroutTriangles = false;
+    bool fCollectBreadcrumbTriangles = false;
 
-    // The grout triangles serve as a glue that erases T-junctions between a path's outer
-    // curves and its inner polygon triangulation. Drawing a path's outer curves, grout
+    // The breadcrumb triangles serve as a glue that erases T-junctions between a path's outer
+    // curves and its inner polygon triangulation. Drawing a path's outer curves, breadcrumb
     // triangles, and inner polygon triangulation all together into the stencil buffer has the same
     // identical rasterized effect as stenciling a classic Redbook fan.
     //
-    // The grout triangles track all the edge splits that led from the original inner polygon
-    // edges to the final triangulation. Every time an edge splits, we emit a razor-thin grout
+    // The breadcrumb triangles track all the edge splits that led from the original inner polygon
+    // edges to the final triangulation. Every time an edge splits, we emit a razor-thin breadcrumb
     // triangle consisting of the edge's original endpoints and the split point. (We also add
-    // supplemental grout triangles to areas where abs(winding) > 1.)
+    // supplemental breadcrumb triangles to areas where abs(winding) > 1.)
     //
     //                a
     //               /
     //              /
     //             /
-    //            x  <- Edge splits at x. New grout triangle is: [a, b, x].
+    //            x  <- Edge splits at x. New breadcrumb triangle is: [a, b, x].
     //           /
     //          /
     //         b
     //
-    // The opposite-direction shared edges between the triangulation and grout triangles should
+    // The opposite-direction shared edges between the triangulation and breadcrumb triangles should
     // all cancel out, leaving just the set of edges from the original polygon.
-    class GroutTriangleList
+    class BreadcrumbTriangleList
     {
     public:
         struct Node
@@ -328,7 +334,7 @@ protected:
             fCount += winding;
         }
 
-        void concat(GroutTriangleList&& list)
+        void concat(BreadcrumbTriangleList&& list)
         {
             assert(fTail && !(*fTail));
             if (list.fHead)
@@ -348,7 +354,7 @@ protected:
         int fCount = 0;
     };
 
-    mutable GroutTriangleList fGroutList;
+    mutable BreadcrumbTriangleList fBreadcrumbList;
 };
 
 /**
@@ -473,10 +479,8 @@ struct GrTriangulator::Line
         return fabs(o.fA - fA) < 0.00001 && fabs(o.fB - fB) < 0.00001;
     }
 
-#if 0
     // Compute the intersection of two (infinite) Lines.
     bool intersect(const Line& other, Vec2D* point) const;
-#endif
     double fA, fB, fC;
 };
 
@@ -563,9 +567,9 @@ struct GrTriangulator::EdgeList
     Edge* fHead;
     Edge* fTail;
     void insert(Edge* edge, Edge* prev, Edge* next);
-    void insert(Edge* edge, Edge* prev);
+    bool insert(Edge* edge, Edge* prev);
     void append(Edge* e) { insert(e, fTail, nullptr); }
-    void remove(Edge* edge);
+    bool remove(Edge* edge);
     void removeAll()
     {
         while (fHead)
