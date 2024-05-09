@@ -43,22 +43,22 @@
 #endif
 
 $typedef float3 packed_float3;
-#define make_half float
-#define make_half2 float2
-#define make_half3 float3
-#define make_half4 float4
+#define make_half half
+#define make_half2 half2
+#define make_half3 half3
+#define make_half4 half4
 
-$typedef $min16int short;
-#define make_short $min16int
-#define make_short2 $min16int2
-#define make_short3 $min16int3
-#define make_short4 $min16int4
+$typedef $int short;
+#define make_short $int
+#define make_short2 $int2
+#define make_short3 $int3
+#define make_short4 $int4
 
-$typedef $min16uint ushort;
-#define make_ushort $min16uint
-#define make_ushort2 $min16uint2
-#define make_ushort3 $min16uint3
-#define make_ushort4 $min16uint4
+$typedef $uint ushort;
+#define make_ushort $uint
+#define make_ushort2 $uint2
+#define make_ushort3 $uint3
+#define make_ushort4 $uint4
 
 #define make_half3x4 $half3x4
 
@@ -306,7 +306,7 @@ INLINE uint packHalf2x16(float2 v)
 INLINE half4 unpackUnorm4x8(uint u)
 {
     uint4 vals = uint4(u & 0xffu, (u >> 8) & 0xffu, (u >> 16) & 0xffu, u >> 24);
-    return float4(vals) * (1. / 255.);
+    return half4(vals) * (1. / 255.);
 }
 
 INLINE uint packUnorm4x8(half4 color)

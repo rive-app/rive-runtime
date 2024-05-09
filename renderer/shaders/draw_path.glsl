@@ -360,7 +360,7 @@ PLS_MAIN(@drawFragmentMain)
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
     if (v_pathID < .0 /*even-odd*/)
-        coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
+        coverage = 1. - (half)abs(fract(coverage * .5) * 2. + -1.);
 #endif
     coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
 

@@ -79,7 +79,9 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextD3DImpl::MakeContext(
 {
     D3DCapabilities d3dCapabilities;
     D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
-    if (SUCCEEDED(gpu->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2,
+
+    if (gpu->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_1 &&
+        SUCCEEDED(gpu->CheckFeatureSupport(D3D11_FEATURE_D3D11_OPTIONS2,
                                            &d3d11Options2,
                                            sizeof(D3D11_FEATURE_DATA_D3D11_OPTIONS2))))
     {
