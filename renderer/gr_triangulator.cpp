@@ -742,11 +742,17 @@ void GrTriangulator::pathToContours(const RawPath& path,
                 {
                     contour++;
                 }
-                this->appendPointToContour(pts[0], contour);
+                if (is_finite(pts[0]))
+                {
+                    this->appendPointToContour(pts[0], contour);
+                }
                 break;
             case PathVerb::line:
             {
-                this->appendPointToContour(pts[1], contour);
+                if (is_finite(pts[1]))
+                {
+                    this->appendPointToContour(pts[1], contour);
+                }
                 break;
             }
             case PathVerb::quad:
@@ -1665,7 +1671,11 @@ void GrTriangulator::sanitizeContours(VertexList* contours, int contourCnt) cons
 {
     for (VertexList* contour = contours; contourCnt > 0; --contourCnt, ++contour)
     {
-        assert(contour->fHead);
+        if (contour->fHead == nullptr)
+        {
+            continue; // empty
+        }
+
         Vertex* prev = contour->fTail;
         prev->fPoint.x = double_to_clamped_scalar((double)prev->fPoint.x);
         prev->fPoint.y = double_to_clamped_scalar((double)prev->fPoint.y);
