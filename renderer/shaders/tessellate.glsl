@@ -78,7 +78,21 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     bool isFirstSpan = _vertexID < 4;
     float y = isFirstSpan ? @a_joinTan_and_ys.z : @a_joinTan_and_ys.w;
     int x0x1 = int(isFirstSpan ? @a_args.x : @a_args.y);
+#ifdef GLSL
+    int x1up = x0x1 << 16;
+    if (@a_args.z == 0xffffffffu)
+    {
+        // Pixel 8 with ARM Mali-G715 throws away "x0x1 << 16 >> 16". We need this in order to
+        // sign-extend the bottom 16 bits of x0x1.
+        // Create a branch that we know won't be taken, in order to convince the compiler not to
+        // throw this operation away.
+        // NOTE: we could use bitfieldExtract(), but it isn't available on ES 3.0.
+        --x1up;
+    }
+    float x0 = float(x1up >> 16);
+#else
     float x0 = float(x0x1 << 16 >> 16);
+#endif
     float x1 = float(x0x1 >> 16);
     float2 coord = float2((_vertexID & 1) == 0 ? x0 : x1, (_vertexID & 2) == 0 ? y + 1. : y);
 
