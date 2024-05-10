@@ -136,7 +136,7 @@ bool NestedArtboard::advance(float elapsedSeconds)
     }
     for (auto animation : m_NestedAnimations)
     {
-        keepGoing = keepGoing || animation->advance(elapsedSeconds);
+        keepGoing = animation->advance(elapsedSeconds) || keepGoing;
     }
     return m_Artboard->advance(elapsedSeconds) || keepGoing;
 }
