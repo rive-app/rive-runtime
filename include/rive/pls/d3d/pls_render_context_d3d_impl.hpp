@@ -81,6 +81,7 @@ public:
     {
         bool supportsRasterizerOrderedViews = false;
         bool supportsTypedUAVLoadStore = false; // Can we load/store all UAV formats used by Rive?
+        bool supportsMin16Precision = false; // Can we use minimum 16-bit precision types (e.g. min16int)?
         bool isIntel = false;
     };
 

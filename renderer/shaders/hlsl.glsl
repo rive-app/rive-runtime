@@ -43,10 +43,26 @@
 #endif
 
 $typedef float3 packed_float3;
-#define make_half half
-#define make_half2 half2
-#define make_half3 half3
-#define make_half4 half4
+#define make_half $half
+#define make_half2 $half2
+#define make_half3 $half3
+#define make_half4 $half4
+
+#ifdef @ENABLE_MIN_16_PRECISION
+
+$typedef $min16int short;
+#define make_short $min16int
+#define make_short2 $min16int2
+#define make_short3 $min16int3
+#define make_short4 $min16int4
+
+$typedef $min16uint ushort;
+#define make_ushort $min16uint
+#define make_ushort2 $min16uint2
+#define make_ushort3 $min16uint3
+#define make_ushort4 $min16uint4
+
+#else
 
 $typedef $int short;
 #define make_short $int
@@ -59,6 +75,8 @@ $typedef $uint ushort;
 #define make_ushort2 $uint2
 #define make_ushort3 $uint3
 #define make_ushort4 $uint4
+
+#endif
 
 #define make_half3x4 $half3x4
 
@@ -263,7 +281,6 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define floatBitsToInt $asint
 #define floatBitsToUint $asuint
 #define fract $frac
-#define mix $lerp
 #define inversesqrt $rsqrt
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
@@ -324,3 +341,14 @@ INLINE float2x2 inverse(float2x2 m)
     float2x2 adjoint = float2x2(m[1][1], -m[0][1], -m[1][0], m[0][0]);
     return adjoint * (1. / determinant(m));
 }
+
+INLINE float mix(float x, float y, float s) { return lerp(x, y, s); }
+INLINE float2 mix(float2 x, float2 y, float2 s) { return lerp(x, y, s); }
+INLINE float3 mix(float3 x, float3 y, float3 s) { return lerp(x, y, s); }
+INLINE float4 mix(float4 x, float4 y, float4 s) { return lerp(x, y, s); }
+
+// Use manual implementations here since lerp has no overload for half type
+INLINE half mix(half x, half y, half s) { return x + s * (y - x); }
+INLINE half2 mix(half2 x, half2 y, half2 s) { return x + s * (y - x); }
+INLINE half3 mix(half3 x, half3 y, half3 s) { return x + s * (y - x); }
+INLINE half4 mix(half4 x, half4 y, half4 s) { return x + s * (y - x); }

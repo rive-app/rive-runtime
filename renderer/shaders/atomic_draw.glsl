@@ -129,7 +129,7 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         if (aaRadiusX >= .5)
         {
             vertexPosition.x = .5;
-            v_edgeCoverage *= (half)(.5 / aaRadiusX);
+            v_edgeCoverage *= make_half(.5 / aaRadiusX);
         }
         else
         {
@@ -139,7 +139,7 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         if (aaRadiusY >= .5)
         {
             vertexPosition.y = .5;
-            v_edgeCoverage *= (half)(.5 / aaRadiusY);
+            v_edgeCoverage *= make_half(.5 / aaRadiusY);
         }
         else
         {
@@ -303,7 +303,7 @@ uint to_fixed(float x) { return uint(x * FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_
 
 half from_fixed(uint x)
 {
-    return (half)(float(x) * FIXED_COVERAGE_INVERSE_FACTOR +
+    return make_half(float(x) * FIXED_COVERAGE_INVERSE_FACTOR +
            (-FIXED_COVERAGE_ZERO * FIXED_COVERAGE_INVERSE_FACTOR));
 }
 
@@ -316,7 +316,7 @@ half4 resolve_path_color(half coverageCount,
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
     if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
-        coverage = 1. - (half)abs(fract(coverage * .5) * 2. + -1.);
+        coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
 #endif                                      // ENABLE_EVEN_ODD
     coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
 #ifdef @ENABLE_CLIPPING
@@ -574,7 +574,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     // get resolved later like other draws because the @imageTexture binding is liable to change,
     // and furthermore in the case of imageMeshes, we can't calculate UV coordinates based on
     // fragment position.
-    half4 imageColor = (half4)TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
+    half4 imageColor = make_half4(TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord));
     half meshCoverage = 1.;
 #ifdef @DRAW_IMAGE_RECT
     meshCoverage = min(v_edgeCoverage, meshCoverage);
@@ -611,7 +611,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
         meshCoverage = min(meshCoverage, clipCoverage);
     }
 #endif // ENABLE_CLIPPING
-    imageColor.a *= meshCoverage * (half)imageDrawUniforms.opacity;
+    imageColor.a *= meshCoverage * make_half(imageDrawUniforms.opacity);
 
 #ifdef @ENABLE_ADVANCED_BLEND
     if (lastColor.a != .0 || imageColor.a != .0)

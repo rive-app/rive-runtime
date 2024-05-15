@@ -172,14 +172,14 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
         case BLEND_MODE_COLORDODGE:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
-            f = (half)mix(min(dst.rgb / (1. - src.rgb), make_half3(1, 1, 1)),
+            f = mix(min(dst.rgb / (1. - src.rgb), make_half3(1, 1, 1)),
                     make_half3(0, 0, 0),
                     lessThanEqual(dst.rgb, make_half3(0, 0, 0)));
             break;
         case BLEND_MODE_COLORBURN:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
-            f = (half)mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
+            f = mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
                     make_half3(1, 1, 1),
                     greaterThanEqual(dst.rgb, make_half3(1, 1, 1)));
             break;
@@ -204,7 +204,7 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
                     f[i] =
                         dst[i] + (2. * src[i] - 1.) * dst[i] * ((16. * dst[i] - 12.) * dst[i] + 3.);
                 else
-                    f[i] = dst[i] + (2. * src[i] - 1.) * ((half)sqrt(dst[i]) - dst[i]);
+                    f[i] = dst[i] + (2. * src[i] - 1.) * make_half(sqrt(dst[i]) - dst[i]);
             }
             break;
         }
