@@ -219,10 +219,15 @@ void PLSRenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     assert(frameDescriptor.renderTargetWidth > 0);
     assert(frameDescriptor.renderTargetHeight > 0);
     m_frameDescriptor = frameDescriptor;
-    if (m_frameDescriptor.msaaSampleCount > 0 || !platformFeatures().supportsPixelLocalStorage)
+    if (!platformFeatures().supportsPixelLocalStorage)
+    {
+        // Use 4x MSAA if we don't have pixel local storage and MSAA wasn't specified.
+        m_frameDescriptor.msaaSampleCount =
+            m_frameDescriptor.msaaSampleCount > 0 ? m_frameDescriptor.msaaSampleCount : 4;
+    }
+    if (m_frameDescriptor.msaaSampleCount > 0)
     {
         m_frameInterlockMode = pls::InterlockMode::depthStencil;
-        m_frameDescriptor.msaaSampleCount = std::max(m_frameDescriptor.msaaSampleCount, 1);
     }
     else if (m_frameDescriptor.disableRasterOrdering || !platformFeatures().supportsRasterOrdering)
     {
