@@ -78,7 +78,7 @@ do
     do
         includedirs({ rive_tess .. '/include', rive .. '/decoders/include' })
         defines({ 'RIVE_RENDERER_TESS' })
-        links({ 'rive_tess_renderer', 'rive_decoders', 'libpng', 'zlib' })
+        links({ 'rive_tess_renderer', 'rive_decoders', 'libpng', 'zlib', 'libjpeg' })
         libdirs({ rive_tess .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}' })
     end
 

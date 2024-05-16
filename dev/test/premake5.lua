@@ -10,6 +10,7 @@ defines({
 })
 
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
+dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
 
 project('tests')
 do
@@ -19,10 +20,19 @@ do
     includedirs({
         './include',
         '../../include',
+        '../../decoders/include',
         miniaudio,
     })
 
-    links({ 'rive', 'rive_harfbuzz', 'rive_sheenbidi' })
+    links({
+        'rive',
+        'rive_harfbuzz',
+        'rive_sheenbidi',
+        'rive_decoders',
+        'libpng',
+        'zlib',
+        'libjpeg',
+    })
 
     files({
         '../../test/**.cpp', -- the tests
