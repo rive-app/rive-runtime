@@ -30,6 +30,7 @@ do
         'rive_decoders',
         'libpng',
         'zlib',
+        'libjpeg',
         'rive_harfbuzz',
         'rive_sheenbidi',
     })
@@ -170,6 +171,7 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             'rive_decoders',
             'libpng',
             'zlib',
+            'libjpeg',
             'rive_harfbuzz',
             'rive_sheenbidi',
         })
