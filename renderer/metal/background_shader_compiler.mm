@@ -156,11 +156,11 @@ void BackgroundShaderCompiler::threadMain()
 #endif
                 break;
             case DrawType::imageMesh:
+                defines[@GLSL_DRAW_IMAGE] = @"";
+                defines[@GLSL_DRAW_IMAGE_MESH] = @"";
 #ifdef RIVE_IOS
                 [source appendFormat:@"%s\n", pls::glsl::draw_image_mesh];
 #else
-                defines[@GLSL_DRAW_IMAGE] = @"";
-                defines[@GLSL_DRAW_IMAGE_MESH] = @"";
                 [source appendFormat:@"%s\n",
                                      interlockMode == pls::InterlockMode::rasterOrdering
                                          ? pls::glsl::draw_image_mesh
