@@ -80,3 +80,8 @@ void AABB::join(AABB& out, const AABB& a, const AABB& b)
     out.maxX = std::max(a.maxX, b.maxX);
     out.maxY = std::max(a.maxY, b.maxY);
 }
+
+bool AABB::contains(Vec2D point) const
+{
+    return point.x >= left() && point.x <= right() && point.y >= top() && point.y <= bottom();
+}

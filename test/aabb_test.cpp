@@ -49,4 +49,19 @@ TEST_CASE("isEmptyOrNaN", "[AABB]")
     CHECK(AABB{nan, nan, nan, 10}.isEmptyOrNaN());
     CHECK(AABB{nan, nan, nan, nan}.isEmptyOrNaN());
 }
+
+TEST_CASE("AABB contains", "[AABB]")
+{
+    CHECK(AABB{0, 0, 100, 100}.contains(Vec2D(20, 20)));
+    CHECK(AABB{0, 0, 100, 100}.contains(Vec2D(0, 0)));
+    CHECK(AABB{0, 0, 100, 100}.contains(Vec2D(100, 100)));
+    CHECK(!AABB{0, 0, 100, 100}.contains(Vec2D(200, 200)));
+    CHECK(!AABB{0, 0, 100, 100}.contains(Vec2D(-200, -200)));
+    auto leftBoundary = 0.f;
+    auto rightBoundary = 100.f;
+    CHECK(!AABB{leftBoundary, 0, rightBoundary, 100.0}.contains(
+        Vec2D(leftBoundary - std::numeric_limits<float>::epsilon(), 50)));
+    CHECK(!AABB{leftBoundary, 0, rightBoundary, 100.0}.contains(
+        Vec2D(rightBoundary + rightBoundary * std::numeric_limits<float>::epsilon(), 50)));
+}
 } // namespace rive

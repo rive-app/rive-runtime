@@ -121,6 +121,8 @@ public:
         return Vec2D(width() == 0.0f ? 0.0f : (point.x - left()) * 2.0f / width() - 1.0f,
                      (height() == 0.0f ? 0.0f : point.y - top()) * 2.0f / height() - 1.0f);
     }
+
+    bool contains(Vec2D position) const;
 };
 
 } // namespace rive

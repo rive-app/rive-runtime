@@ -418,15 +418,28 @@ public:
     float hitRadius = 2;
     Vec2D previousPosition;
     std::vector<const StateMachineListener*> listeners;
-    HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
+
+    bool hitTest(Vec2D position) const
     {
+
         auto shape = m_component->as<Shape>();
+        auto worldBounds = shape->worldBounds();
+        if (!worldBounds.contains(position))
+        {
+            return false;
+        }
         auto hitArea = AABB(position.x - hitRadius,
                             position.y - hitRadius,
                             position.x + hitRadius,
                             position.y + hitRadius)
                            .round();
-        bool isOver = canHit ? shape->hitTest(hitArea) : false;
+        return shape->hitTest(hitArea);
+    }
+
+    HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
+    {
+        auto shape = m_component->as<Shape>();
+        bool isOver = canHit ? hitTest(position) : false;
         bool hoverChange = isHovered != isOver;
         isHovered = isOver;
         if (hoverChange && isHovered)

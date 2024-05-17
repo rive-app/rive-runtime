@@ -161,6 +161,11 @@ TEST_CASE("hit test on opaque nested artboard", "[hittest]")
     // toggle changes value because it is not under an opaque nested artboard
     REQUIRE(secondGrayToggle->value() == true);
 
+    stateMachineInstance->pointerDown(rive::Vec2D(301.0f, 50.0f));
+    // toggle does not change because it is beyond the area of the square by 1 pixel
+    // And the 2px padding is unly used after the coarse grained test passes
+    REQUIRE(secondGrayToggle->value() == true);
+
     stateMachineInstance->pointerDown(rive::Vec2D(100.0f, 50.0f));
     // toggle does not change because it is under an opaque nested artboard
     REQUIRE(secondGrayToggle->value() == true);
