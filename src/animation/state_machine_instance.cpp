@@ -27,6 +27,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/audio_event.hpp"
 #include <unordered_map>
+#include <chrono>
 
 using namespace rive;
 namespace rive
@@ -51,6 +52,10 @@ public:
         m_anyStateInstance = layer->anyState()->makeInstance(instance).release();
         m_layer = layer;
         changeState(m_layer->entryState());
+        auto now = std::chrono::high_resolution_clock::now();
+        auto nanos =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+        srand(nanos);
     }
 
     void updateMix(float seconds)
