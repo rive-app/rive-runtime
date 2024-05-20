@@ -370,10 +370,9 @@ bool PLSRenderContext::LogicalFlush::allocateGradient(const PLSGradient* gradien
     const float* stops = gradient->stops();
     size_t stopCount = gradient->count();
 
-    if (stopCount == 2 && stops[0] == 0)
+    if (stopCount == 2 && stops[0] == 0 && stops[1] == 1)
     {
         // This is a simple gradient that can be implemented by a two-texel color ramp.
-        assert(stops[1] == 1); // PLSGradient transforms the stops so that the final stop == 1.
         uint64_t simpleKey;
         static_assert(sizeof(simpleKey) == sizeof(ColorInt) * 2);
         RIVE_INLINE_MEMCPY(&simpleKey, gradient->colors(), sizeof(ColorInt) * 2);

@@ -63,7 +63,7 @@ rcp<PLSGradient> PLSGradient::MakeLinear(float sx,
     // us to take full advantage of the gradient's range of pixels in the texture.
     float firstStop = stops[0];
     float lastStop = stops[count - 1];
-    if (firstStop != 0 || lastStop != 1)
+    if ((firstStop != 0 || lastStop != 1) && lastStop - firstStop > math::EPSILON)
     {
         // Tighten the endpoints to align with the mininum and maximum gradient stops.
         float4 newEndpoints = simd::precise_mix(start.xyxy,
@@ -71,18 +71,30 @@ rcp<PLSGradient> PLSGradient::MakeLinear(float sx,
                                                 float4{firstStop, firstStop, lastStop, lastStop});
         start = newEndpoints.xy;
         end = newEndpoints.zw;
-        // Transform the stops into the range defined by the new endpoints.
         newStops[0] = 0;
+        newStops[count - 1] = 1;
         if (count > 2)
         {
+            // Transform the stops into the range defined by the new endpoints.
             float m = 1.f / (lastStop - firstStop);
             float a = -firstStop * m;
             for (size_t i = 1; i < count - 1; ++i)
             {
-                newStops[i] = std::clamp(stops[i] * m + a, newStops[i - 1], 1.f);
+                newStops[i] = stops[i] * m + a;
+            }
+
+            // Clamp the interior stops so they remain monotonically increasing. newStops[0] and
+            // newStops[count - 1] are already 0 and 1, so this also ensures they stay within 0..1.
+            for (size_t i = 1; i < count - 1; ++i)
+            {
+                newStops[i] = fmaxf(newStops[i - 1], newStops[i]);
+            }
+            for (size_t i = count - 2; i != 0; --i)
+            {
+                newStops[i] = fminf(newStops[i], newStops[i + 1]);
             }
         }
-        newStops[count - 1] = 1;
+        assert(validate_gradient_stops(newColors.get(), newStops.get(), count));
     }
 
     float2 v = end - start;
@@ -117,17 +129,37 @@ rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
     // TODO: If we want to take full advantage of the gradient texture pixels, we could add an inner
     // radius that specifies where t=0 begins (instead of assuming it begins at the center).
     float lastStop = stops[count - 1];
-    if (lastStop != 1)
+    if (lastStop != 1 && lastStop > math::EPSILON)
     {
+        // Update the gradient to finish on 1.
+        newStops[count - 1] = 1;
+
         // Scale the radius to align with the final stop.
         radius *= lastStop;
+
         // Scale the stops into the range defined by the new radius.
         float inverseLastStop = 1.f / lastStop;
         for (size_t i = 0; i < count - 1; ++i)
         {
             newStops[i] = stops[i] * inverseLastStop;
         }
-        newStops[count - 1] = 1;
+
+        if (count > 1)
+        {
+            // Clamp the stops so they remain monotonically increasing. newStops[count - 1] is
+            // already 1, so this also ensures they stay within 0..1.
+            newStops[0] = fmaxf(0, newStops[0]);
+            for (size_t i = 1; i < count - 1; ++i)
+            {
+                newStops[i] = fmaxf(newStops[i - 1], newStops[i]);
+            }
+            for (size_t i = count - 2; i != -1; --i)
+            {
+                newStops[i] = fminf(newStops[i], newStops[i + 1]);
+            }
+        }
+
+        assert(validate_gradient_stops(newColors.get(), newStops.get(), count));
     }
 
     return rcp(new PLSGradient(PaintType::radialGradient,
