@@ -241,7 +241,7 @@ public:
         RawPath warp = make_quad_path(m_pathpts);
         this->draw_warp(renderer, warp);
 
-        auto meas = ContourMeasureIter(warp).next();
+        auto meas = ContourMeasureIter(&warp).next();
 
         const float warpLength = meas->length();
         const float textLength = gruns.back().xpos.back();

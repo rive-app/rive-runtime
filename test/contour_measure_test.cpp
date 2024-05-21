@@ -39,15 +39,15 @@ TEST_CASE("contour-basics", "[contourmeasure]")
     const float tol = 0.000001f;
 
     RawPath path;
-    ContourMeasureIter iter(path, false);
+    ContourMeasureIter iter(&path);
     REQUIRE(iter.next() == nullptr);
 
     path.moveTo(1, 2);
-    iter.rewind(path, false);
+    iter.rewind(&path);
     REQUIRE(iter.next() == nullptr);
 
     path.lineTo(4, 6);
-    iter.rewind(path, false);
+    iter.rewind(&path);
     auto cm = iter.next();
     REQUIRE(cm);
     REQUIRE(nearly_eq(cm->length(), 5, tol));
@@ -58,7 +58,7 @@ TEST_CASE("contour-basics", "[contourmeasure]")
     path = RawPath();
     const float w = 4, h = 6;
     path.addRect({0, 0, w, h}, PathDirection::cw);
-    iter.rewind(path, false);
+    iter.rewind(&path);
     cm = iter.next();
     REQUIRE(cm);
     REQUIRE(nearly_eq(cm->length(), 2 * (w + h), tol));
@@ -118,7 +118,7 @@ TEST_CASE("multi-contours", "[contourmeasure]")
 
     path.addPoly(span, false); // len == 7
 
-    ContourMeasureIter iter(path, false);
+    ContourMeasureIter iter(&path);
     auto cm = iter.next();
     REQUIRE(cm->length() == 7);
     cm = iter.next();
@@ -136,7 +136,7 @@ TEST_CASE("contour-oval", "[contourmeasure]")
     const float r = 10;
     RawPath path;
     path.addOval({-r, -r, r, r}, PathDirection::cw);
-    ContourMeasureIter iter(path, false);
+    ContourMeasureIter iter(&path, tol);
 
     auto cm = iter.next();
     REQUIRE(nearly_eq(cm->length(), 2 * r * math::PI, tol));
@@ -151,4 +151,29 @@ TEST_CASE("bad contour", "[contourmeasure]")
     REQUIRE(artboard != nullptr);
     auto machine = artboard->defaultStateMachine();
     machine->advanceAndApply(0.0f);
+}
+
+// NaN paths don't return contours.
+TEST_CASE("nan-path", "[contourmeasure]")
+{
+    RawPath path;
+    path.lineTo(1, 2);
+    path.cubicTo(3, 4, 5, 6, 7, 8);
+    path.cubicTo(9, 10, 11, 12, 13, 14);
+    path.cubicTo(15, 16, 17, 18, 19, 20);
+
+    {
+        ContourMeasureIter iter(&path);
+        auto cm = iter.next();
+        CHECK(cm != nullptr);
+        CHECK(std::isfinite(cm->length()));
+        CHECK(iter.next() == nullptr);
+    }
+
+    {
+        auto nan = std::numeric_limits<float>::quiet_NaN();
+        RawPath path_ = path.transform(Mat2D(nan, nan, nan, nan, nan, nan));
+        ContourMeasureIter iter(&path_);
+        CHECK(iter.next() == nullptr);
+    }
 }

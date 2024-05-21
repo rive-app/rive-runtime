@@ -369,11 +369,17 @@ TEST_CASE("clamp", "[simd]")
 
     // Returns lo if x == NaN, but std::clamp() returns NaN.
     CHECK(simd::clamp<float, 1>(kNaN, 1, 2).x == 1);
+    // Matches math::clamp().
+    CHECK(simd::clamp<float, 1>(kNaN, 1, 2).x == math::clamp(kNaN, 1, 2));
 
     // Returns hi if hi <= lo.
     CHECK(simd::clamp<float, 1>(3, 2, 1).x == 1);
     CHECK(simd::clamp<float, 1>(kNaN, 2, 1).x == 1);
     CHECK(simd::clamp<float, 1>(kNaN, kNaN, 1).x == 1);
+    // Matches math::clamp().
+    CHECK(simd::clamp<float, 1>(3, 2, 1).x == math::clamp(3, 2, 1));
+    CHECK(simd::clamp<float, 1>(kNaN, 2, 1).x == math::clamp(kNaN, 2, 1));
+    CHECK(simd::clamp<float, 1>(kNaN, kNaN, 1).x == math::clamp(kNaN, kNaN, 1));
 
     // Ignores hi and/or lo if they are NaN.
     CHECK(simd::clamp<float, 1>(3, 4, kNaN).x == 4);
@@ -381,6 +387,12 @@ TEST_CASE("clamp", "[simd]")
     CHECK(simd::clamp<float, 1>(3, kNaN, 2).x == 2);
     CHECK(simd::clamp<float, 1>(3, kNaN, 4).x == 3);
     CHECK(simd::clamp<float, 1>(3, kNaN, kNaN).x == 3);
+    // Matches math::clamp().
+    CHECK(simd::clamp<float, 1>(3, 4, kNaN).x == math::clamp(3, 4, kNaN));
+    CHECK(simd::clamp<float, 1>(3, 2, kNaN).x == math::clamp(3, 2, kNaN));
+    CHECK(simd::clamp<float, 1>(3, kNaN, 2).x == math::clamp(3, kNaN, 2));
+    CHECK(simd::clamp<float, 1>(3, kNaN, 4).x == math::clamp(3, kNaN, 4));
+    CHECK(simd::clamp<float, 1>(3, kNaN, kNaN).x == math::clamp(3, kNaN, kNaN));
 }
 
 // Check simd::abs.

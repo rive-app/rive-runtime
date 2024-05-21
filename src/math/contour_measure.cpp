@@ -247,9 +247,12 @@ static float compute_t(Span<const ContourMeasure::Segment> segs, size_t index, f
         }
     }
 
-    assert(prevDist < seg.m_distance);
+    assert(prevDist <= seg.m_distance);
     const auto ratio = (distance - prevDist) / (seg.m_distance - prevDist);
-    return lerp(prevT, seg.getT(), ratio);
+    float t = lerp(prevT, seg.getT(), ratio);
+    t = math::clamp(t, prevT, seg.getT());
+    assert(prevT <= t && t <= seg.getT());
+    return t;
 }
 
 void ContourMeasure::getSegment(float startDist,
@@ -366,16 +369,16 @@ float ContourMeasureIter::addCubicSegs(ContourMeasure::Segment* segs,
     return distance;
 }
 
-void ContourMeasureIter::rewind(const RawPath& path, float tolerance)
+void ContourMeasureIter::rewind(const RawPath* path, float tolerance)
 {
-    m_iter = path.begin();
-    m_end = path.end();
-    m_srcPoints = path.points().data();
+    m_iter = path->begin();
+    m_end = path->end();
+    m_srcPoints = path->points().data();
 
     constexpr float kMinTolerance = 1.0f / 16;
     m_invTolerance = 1.0f / std::max(tolerance, kMinTolerance);
 
-    m_segmentCounts.resize(path.verbs().count());
+    m_segmentCounts.resize(path->verbs().count());
 }
 
 // Can return null if either it encountered an empty contour (length == 0)
@@ -515,12 +518,15 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext()
 
     m_iter = endOfContour;
 
-    if (distance == 0 || pts.size() < 2)
+    if (distance > 0 && pts.size() >= 2)
     {
-        return nullptr;
+        assert(!std::isnan(distance));
+        return rcp<ContourMeasure>(
+            new ContourMeasure(std::move(segs), std::move(pts), distance, isClosed));
     }
-    return rcp<ContourMeasure>(
-        new ContourMeasure(std::move(segs), std::move(pts), distance, isClosed));
+
+    assert(distance == 0 || std::isnan(distance));
+    return nullptr;
 }
 
 rcp<ContourMeasure> ContourMeasureIter::next()
@@ -537,5 +543,6 @@ rcp<ContourMeasure> ContourMeasureIter::next()
             break;
         }
     }
+    assert(!cm || !std::isnan(cm->length()));
     return cm;
 }

@@ -112,6 +112,17 @@ template <size_t N> RIVE_ALWAYS_INLINE constexpr size_t round_up_to_multiple_of(
                   "math::round_up_to_multiple_of<> only supports powers of 2.");
     return (x + (N - 1)) & ~(N - 1);
 }
+
+// Behaves better with NaN than std::clamp(). (Matching simd::clamp().)
+//
+//   Returns lo if x == NaN (but std::clamp() returns NaN).
+//   Returns hi if hi <= lo.
+//   Ignores hi and/or lo if they are NaN.
+//
+RIVE_ALWAYS_INLINE static float clamp(float x, float lo, float hi)
+{
+    return fminf(fmaxf(lo, x), hi);
+}
 } // namespace math
 
 template <typename T> T lerp(const T& a, const T& b, float t) { return a + (b - a) * t; }

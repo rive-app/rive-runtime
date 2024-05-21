@@ -114,7 +114,7 @@ public:
         {
             renderer->save();
 
-            auto cm = ContourMeasureIter(*p, false).next();
+            auto cm = ContourMeasureIter(p, false).next();
             auto p1 = trim(cm.get(), m_trimFrom, m_trimTo);
             stroke_path(renderer, p1, 20, 0xFFFF0000);
 

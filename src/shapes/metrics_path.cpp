@@ -63,7 +63,8 @@ float MetricsPath::computeLength(const Mat2D& transform)
     if (!m_Contour || transform != m_ComputedLengthTransform)
     {
         m_ComputedLengthTransform = transform;
-        m_Contour = ContourMeasureIter(m_RawPath * transform).next();
+        RawPath transformedPath = m_RawPath.transform(transform);
+        m_Contour = ContourMeasureIter(&transformedPath).next();
         m_ComputedLength = m_Contour ? m_Contour->length() : 0;
     }
     return m_ComputedLength;

@@ -97,12 +97,12 @@ public:
     // approximation for the curves actual length.
     static constexpr float kDefaultTolerance = 0.5f;
 
-    ContourMeasureIter(const RawPath& path, float tol = kDefaultTolerance)
+    ContourMeasureIter(const RawPath* path, float tol = kDefaultTolerance)
     {
         this->rewind(path, tol);
     }
 
-    void rewind(const RawPath&, float = kDefaultTolerance);
+    void rewind(const RawPath*, float = kDefaultTolerance);
 
     // Returns a measure object for each contour in the path
     //   (contours with zero-length are skipped over)

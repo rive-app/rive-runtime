@@ -49,7 +49,6 @@ public:
 
     RawPath transform(const Mat2D&) const;
     void transformInPlace(const Mat2D&);
-    RawPath operator*(const Mat2D& mat) const { return this->transform(mat); }
 
     Span<const Vec2D> points() const { return m_Points; }
     Span<Vec2D> points() { return m_Points; }

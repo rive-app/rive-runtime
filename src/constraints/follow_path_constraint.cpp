@@ -154,7 +154,7 @@ void FollowPathConstraint::update(ComponentDirt value)
             commandPath->addToRawPath(m_rawPath, path->pathTransform());
         }
 
-        auto measure = ContourMeasureIter(m_rawPath);
+        auto measure = ContourMeasureIter(&m_rawPath);
         for (auto contour = measure.next(); contour != nullptr; contour = measure.next())
         {
             m_contours.push_back(contour);
