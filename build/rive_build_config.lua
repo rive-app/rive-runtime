@@ -295,6 +295,8 @@ if _OPTIONS['os'] == 'android' then
         return android_ndk_tools[tool]
     end
 
+    valid_cc_tools = premake.action._list['gmake2'].valid_tools['cc']
+    valid_cc_tools[#valid_cc_tools + 1] = 'android_ndk'
     toolset('android_ndk')
 
     buildoptions({
@@ -444,6 +446,9 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
     end
 
     system('emscripten')
+
+    valid_cc_tools = premake.action._list['gmake2'].valid_tools['cc']
+    valid_cc_tools[#valid_cc_tools + 1] = 'emsdk'
     toolset('emsdk')
 
     linkoptions({ '-sALLOW_MEMORY_GROWTH=1', '-sDYNAMIC_EXECUTION=0' })
@@ -461,7 +466,7 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
     filter({ 'options:arch=wasm', 'options:no-wasm-simd' })
     do
         linkoptions({ '-s MIN_SAFARI_VERSION=120000' })
-    end    
+    end
 
     filter({ 'options:arch=wasm', 'options:config=debug' })
     do
