@@ -204,7 +204,7 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
                     f[i] =
                         dst[i] + (2. * src[i] - 1.) * dst[i] * ((16. * dst[i] - 12.) * dst[i] + 3.);
                 else
-                    f[i] = dst[i] + (2. * src[i] - 1.) * make_half(sqrt(dst[i]) - dst[i]);
+                    f[i] = dst[i] + (2. * src[i] - 1.) * (sqrt(dst[i]) - dst[i]);
             }
             break;
         }
