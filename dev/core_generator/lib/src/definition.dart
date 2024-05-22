@@ -557,6 +557,22 @@ class Definition {
     ctxCode.writeln('default:return false;');
     ctxCode.writeln('}}');
 
+    // static bool objectSupportsProperty(Core* object, uint32_t propertyKey) { return true; }
+    ctxCode.writeln('''
+      static bool objectSupportsProperty(Core* object, uint32_t propertyKey) {
+        switch(propertyKey) {''');
+    for (final fieldType in usedFieldTypes.keys) {
+      var properties = getSetFieldTypes[fieldType];
+      if (properties != null) {
+        for (final property in properties) {
+          ctxCode.writeln('case ${property.definition.name}Base'
+              '::${property.name}PropertyKey:');
+          ctxCode
+              .writeln('return object->is<${property.definition.name}Base>();');
+        }
+      }
+    }
+    ctxCode.writeln('}return false;}');
     ctxCode.writeln('};}');
 
     var output = generatedHppPath;
