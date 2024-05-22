@@ -35,6 +35,7 @@ public:
 
     /// Returns the start time/ end time of the animation in seconds, considering speed
     float startTime() const;
+    float startTime(float multiplier) const;
     float endTime() const;
 
     /// Convert a global clock to local seconds (takes into consideration
@@ -49,7 +50,9 @@ public:
 
     void reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                               float secondsFrom,
-                              float secondsTo) const;
+                              float secondsTo,
+                              float speedDirection,
+                              bool fromPong) const;
 };
 } // namespace rive
 

@@ -101,6 +101,7 @@ public:
 private:
     const LinearAnimation* m_animation = nullptr;
     float m_time;
+    float m_speedDirection;
     float m_totalTime;
     float m_lastTotalTime;
     float m_spilledTime;

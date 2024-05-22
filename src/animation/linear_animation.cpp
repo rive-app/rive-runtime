@@ -86,6 +86,10 @@ float LinearAnimation::endSeconds() const
 }
 
 float LinearAnimation::startTime() const { return (speed() >= 0) ? startSeconds() : endSeconds(); }
+float LinearAnimation::startTime(float multiplier) const
+{
+    return ((speed() * multiplier) >= 0) ? startSeconds() : endSeconds();
+}
 float LinearAnimation::endTime() const { return (speed() >= 0) ? endSeconds() : startSeconds(); }
 float LinearAnimation::durationSeconds() const { return std::abs(endSeconds() - startSeconds()); }
 
@@ -119,16 +123,18 @@ float LinearAnimation::globalToLocalSeconds(float seconds) const
 
 void LinearAnimation::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                            float secondsFrom,
-                                           float secondsTo) const
+                                           float secondsTo,
+                                           float speedDirection,
+                                           bool fromPong) const
 {
-    int secondsFromExactOffset =
-        startTime() == secondsFrom &&
-                (speed() >= 0 ? secondsFrom < secondsTo : secondsFrom < secondsTo)
-            ? 0
-            : 1;
+    float startingTime = startTime(speedDirection);
+    bool isAtStartFrame = startingTime == secondsFrom;
 
-    for (const auto& object : m_KeyedObjects)
+    if (!isAtStartFrame || !fromPong)
     {
-        object->reportKeyedCallbacks(reporter, secondsFrom, secondsTo, secondsFromExactOffset);
+        for (const auto& object : m_KeyedObjects)
+        {
+            object->reportKeyedCallbacks(reporter, secondsFrom, secondsTo, isAtStartFrame);
+        }
     }
 }

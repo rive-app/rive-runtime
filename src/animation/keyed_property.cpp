@@ -18,12 +18,17 @@ void KeyedProperty::addKeyFrame(std::unique_ptr<KeyFrame> keyframe)
 
 int KeyedProperty::closestFrameIndex(float seconds, int exactOffset) const
 {
-    int idx = 0;
     int mid = 0;
     float closestSeconds = 0;
     int start = 0;
     auto numKeyFrames = static_cast<int>(m_keyFrames.size());
     int end = numKeyFrames - 1;
+
+    // If it's the last keyframe, we skip the binary search
+    if (seconds > m_keyFrames[end]->seconds())
+    {
+        return end + 1;
+    }
 
     while (start <= end)
     {
@@ -41,19 +46,39 @@ int KeyedProperty::closestFrameIndex(float seconds, int exactOffset) const
         {
             return mid + exactOffset;
         }
-        idx = start;
     }
-    return idx;
+    return start;
 }
 
 void KeyedProperty::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                          uint32_t objectId,
                                          float secondsFrom,
                                          float secondsTo,
-                                         int secondsFromExactOffset) const
+                                         bool isAtStartFrame) const
 {
-    int idx = closestFrameIndex(secondsFrom, secondsFromExactOffset);
-    int idxTo = closestFrameIndex(secondsTo, 1);
+    if (secondsFrom == secondsTo)
+    {
+        return;
+    }
+    bool isForward = secondsFrom <= secondsTo;
+    int fromExactOffset = 0;
+    int toExactOffset = isForward ? 1 : 0;
+    if (isForward)
+    {
+        if (!isAtStartFrame)
+        {
+            fromExactOffset = 1;
+        }
+    }
+    else
+    {
+        if (isAtStartFrame)
+        {
+            fromExactOffset = 1;
+        }
+    }
+    int idx = closestFrameIndex(secondsFrom, fromExactOffset);
+    int idxTo = closestFrameIndex(secondsTo, toExactOffset);
 
     if (idxTo < idx)
     {

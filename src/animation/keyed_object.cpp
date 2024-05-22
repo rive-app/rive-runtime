@@ -52,7 +52,7 @@ StatusCode KeyedObject::onAddedClean(CoreContext* context)
 void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                        float secondsFrom,
                                        float secondsTo,
-                                       int secondsFromExactOffset) const
+                                       bool isAtStartFrame) const
 {
     for (const std::unique_ptr<KeyedProperty>& property : m_keyedProperties)
     {
@@ -64,7 +64,7 @@ void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                        objectId(),
                                        secondsFrom,
                                        secondsTo,
-                                       secondsFromExactOffset);
+                                       isAtStartFrame);
     }
 }
 

@@ -19,7 +19,7 @@ public:
     void reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                               float secondsFrom,
                               float secondsTo,
-                              int secondsFromExactOffset) const;
+                              bool isAtStartFrame) const;
     void apply(Artboard* coreContext, float time, float mix);
 
     StatusCode import(ImportStack& importStack) override;

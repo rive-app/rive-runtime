@@ -20,7 +20,7 @@ public:
                               uint32_t objectId,
                               float secondsFrom,
                               float secondsTo,
-                              int secondsFromExactOffset) const;
+                              bool isAtStartFrame) const;
 
     /// Apply interpolating key frames.
     void apply(Core* object, float time, float mix);
