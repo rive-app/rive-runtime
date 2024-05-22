@@ -280,7 +280,6 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define intBitsToFloat $asfloat
 #define floatBitsToInt $asint
 #define floatBitsToUint $asuint
-#define fract $frac
 #define inversesqrt $rsqrt
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
@@ -323,7 +322,7 @@ INLINE uint packHalf2x16(float2 v)
 INLINE half4 unpackUnorm4x8(uint u)
 {
     uint4 vals = uint4(u & 0xffu, (u >> 8) & 0xffu, (u >> 16) & 0xffu, u >> 24);
-    return half4(vals) * (1. / 255.);
+    return make_half4(vals) * (1. / 255.);
 }
 
 INLINE uint packUnorm4x8(half4 color)
@@ -342,13 +341,63 @@ INLINE float2x2 inverse(float2x2 m)
     return adjoint * (1. / determinant(m));
 }
 
-INLINE float mix(float x, float y, float s) { return lerp(x, y, s); }
-INLINE float2 mix(float2 x, float2 y, float2 s) { return lerp(x, y, s); }
-INLINE float3 mix(float3 x, float3 y, float3 s) { return lerp(x, y, s); }
-INLINE float4 mix(float4 x, float4 y, float4 s) { return lerp(x, y, s); }
+// Redirects for intrinsics that have different names in HLSL
 
-// Use manual implementations here since lerp has no overload for half type
+INLINE float mix(float x, float y, float s) { return $lerp(x, y, s); }
+INLINE float2 mix(float2 x, float2 y, float2 s) { return $lerp(x, y, s); }
+INLINE float3 mix(float3 x, float3 y, float3 s) { return $lerp(x, y, s); }
+INLINE float4 mix(float4 x, float4 y, float4 s) { return $lerp(x, y, s); }
+
 INLINE half mix(half x, half y, half s) { return x + s * (y - x); }
 INLINE half2 mix(half2 x, half2 y, half2 s) { return x + s * (y - x); }
 INLINE half3 mix(half3 x, half3 y, half3 s) { return x + s * (y - x); }
 INLINE half4 mix(half4 x, half4 y, half4 s) { return x + s * (y - x); }
+
+INLINE float fract(float x) { return $frac(x); }
+INLINE float2 fract(float2 x) { return $frac(x); }
+INLINE float3 fract(float3 x) { return $frac(x); }
+INLINE float4 fract(float4 x) { return $frac(x); }
+
+INLINE half fract(half x) { return make_half(fract(x)); }
+INLINE half2 fract(half2 x) { return make_half2(fract(x)); }
+INLINE half3 fract(half3 x) { return make_half3(fract(x)); }
+INLINE half4 fract(half4 x) { return make_half4(fract(x)); }
+
+// Reimplement intrinsics for half types.
+// This shadows the intrinsic function for floats, so we also have to declare that overload.
+
+INLINE half rive_sign(half x) { return make_half(sign(x)); }
+INLINE half2 rive_sign(half2 x) { return make_half2(sign(x)); }
+INLINE half3 rive_sign(half3 x) { return make_half3(sign(x)); }
+INLINE half4 rive_sign(half4 x) { return make_half4(sign(x)); }
+
+INLINE float rive_sign(float x) { return sign(x); }
+INLINE float2 rive_sign(float2 x) { return sign(x); }
+INLINE float3 rive_sign(float3 x) { return sign(x); }
+INLINE float4 rive_sign(float4 x) { return sign(x); }
+
+#define sign rive_sign
+
+INLINE half rive_abs(half x) { return make_half(abs(x)); }
+INLINE half2 rive_abs(half2 x) { return make_half2(abs(x)); }
+INLINE half3 rive_abs(half3 x) { return make_half3(abs(x)); }
+INLINE half4 rive_abs(half4 x) { return make_half4(abs(x)); }
+
+INLINE float rive_abs(float x) { return abs(x); }
+INLINE float2 rive_abs(float2 x) { return abs(x); }
+INLINE float3 rive_abs(float3 x) { return abs(x); }
+INLINE float4 rive_abs(float4 x) { return abs(x); }
+
+#define abs rive_abs
+
+INLINE half rive_sqrt(half x) { return make_half(sqrt(x)); }
+INLINE half2 rive_sqrt(half2 x) { return make_half2(sqrt(x)); }
+INLINE half3 rive_sqrt(half3 x) { return make_half3(sqrt(x)); }
+INLINE half4 rive_sqrt(half4 x) { return make_half4(sqrt(x)); }
+
+INLINE float rive_sqrt(float x) { return sqrt(x); }
+INLINE float2 rive_sqrt(float2 x) { return sqrt(x); }
+INLINE float3 rive_sqrt(float3 x) { return sqrt(x); }
+INLINE float4 rive_sqrt(float4 x) { return sqrt(x); }
+
+#define sqrt rive_sqrt

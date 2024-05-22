@@ -316,7 +316,7 @@ half4 resolve_path_color(half coverageCount,
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
     if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
-        coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
+        coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
 #endif                                      // ENABLE_EVEN_ODD
     coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
 #ifdef @ENABLE_CLIPPING
