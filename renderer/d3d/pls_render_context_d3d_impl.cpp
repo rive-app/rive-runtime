@@ -8,7 +8,6 @@
 #include "shaders/constants.glsl"
 
 #include <D3DCompiler.h>
-#include <d3d11_3.h>
 #include <sstream>
 
 #include "shaders/out/generated/advanced_blend.glsl.hpp"
