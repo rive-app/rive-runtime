@@ -174,13 +174,13 @@ std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
     auto file = std::unique_ptr<File>(new File(factory, assetLoader));
 
     auto readResult = file->read(reader, header);
+    if (result)
+    {
+        *result = readResult;
+    }
     if (readResult != ImportResult::success)
     {
         file.reset(nullptr);
-    }
-    if (result)
-    {
-        *result = ImportResult::success;
     }
     return file;
 }

@@ -72,18 +72,29 @@ public:
 
     StatusCode resolve()
     {
+        StatusCode returnCode = StatusCode::Ok;
+
+        // Reverse iterate the last added import stack objects and resolve them.
+        // If any don't resolve, capture the return code and stop resolving.
         for (auto itr = m_LastAdded.rbegin(); itr != m_LastAdded.rend(); itr++)
         {
             StatusCode code = (*itr)->resolve();
-            delete *itr;
             if (code != StatusCode::Ok)
             {
-                return code;
+                returnCode = code;
+                break;
             }
+        }
+
+        // Clean the import stack before returning the resolve code.
+        for (ImportStackObject* stackObject : m_LastAdded)
+        {
+            delete stackObject;
         }
         m_Latests.clear();
         m_LastAdded.clear();
-        return StatusCode::Ok;
+
+        return returnCode;
     }
 
     ~ImportStack()

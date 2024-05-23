@@ -7,6 +7,37 @@
 
 using namespace rive;
 
+StatusCode Drawable::onAddedDirty(CoreContext* context)
+{
+    auto code = Super::onAddedDirty(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+    auto blendMode = static_cast<rive::BlendMode>(blendModeValue());
+    switch (blendMode)
+    {
+        case rive::BlendMode::srcOver:
+        case rive::BlendMode::screen:
+        case rive::BlendMode::overlay:
+        case rive::BlendMode::darken:
+        case rive::BlendMode::lighten:
+        case rive::BlendMode::colorDodge:
+        case rive::BlendMode::colorBurn:
+        case rive::BlendMode::hardLight:
+        case rive::BlendMode::softLight:
+        case rive::BlendMode::difference:
+        case rive::BlendMode::exclusion:
+        case rive::BlendMode::multiply:
+        case rive::BlendMode::hue:
+        case rive::BlendMode::saturation:
+        case rive::BlendMode::color:
+        case rive::BlendMode::luminosity:
+            return StatusCode::Ok;
+    }
+    return StatusCode::InvalidObject;
+}
+
 void Drawable::addClippingShape(ClippingShape* shape) { m_ClippingShapes.push_back(shape); }
 
 ClipResult Drawable::clip(Renderer* renderer) const

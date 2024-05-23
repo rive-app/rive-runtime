@@ -46,6 +46,8 @@ public:
         return (static_cast<DrawableFlag>(drawableFlags()) & DrawableFlag::Opaque) ==
                DrawableFlag::Opaque;
     }
+
+    StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive
 

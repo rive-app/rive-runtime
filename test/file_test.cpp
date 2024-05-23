@@ -38,6 +38,15 @@ TEST_CASE("file can be read", "[file]")
     REQUIRE(file->artboard("One") != nullptr);
 }
 
+TEST_CASE("file with bad blend mode fails to load", "[file]")
+{
+    std::vector<uint8_t> bytes = ReadFile("../../test/assets/solar-system.riv");
+
+    rive::ImportResult result;
+    auto file = rive::File::import(bytes, &gNoOpFactory, &result, nullptr);
+    CHECK(result == rive::ImportResult::malformed);
+}
+
 TEST_CASE("file with animation can be read", "[file]")
 {
     auto file = ReadRiveFile("../../test/assets/juice.riv");
