@@ -291,7 +291,7 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
     float2x2 M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
-    o_windingWeight = float(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(M));
+    o_windingWeight = make_half(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(M));
     return MUL(M, triangleVertex.xy) + translate;
 }
 #endif // @DRAW_INTERIOR_TRIANGLES

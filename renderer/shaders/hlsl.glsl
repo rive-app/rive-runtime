@@ -43,10 +43,12 @@
 #endif
 
 $typedef float3 packed_float3;
-#define make_half float
-#define make_half2 float2
-#define make_half3 float3
-#define make_half4 float4
+#define make_half $half
+#define make_half2 $half2
+#define make_half3 $half3
+#define make_half4 $half4
+
+#ifdef @ENABLE_MIN_16_PRECISION
 
 $typedef $min16int short;
 #define make_short $min16int
@@ -59,6 +61,22 @@ $typedef $min16uint ushort;
 #define make_ushort2 $min16uint2
 #define make_ushort3 $min16uint3
 #define make_ushort4 $min16uint4
+
+#else
+
+$typedef $int short;
+#define make_short $int
+#define make_short2 $int2
+#define make_short3 $int3
+#define make_short4 $int4
+
+$typedef $uint ushort;
+#define make_ushort $uint
+#define make_ushort2 $uint2
+#define make_ushort3 $uint3
+#define make_ushort4 $uint4
+
+#endif
 
 #define make_half3x4 $half3x4
 
@@ -262,8 +280,6 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define intBitsToFloat $asfloat
 #define floatBitsToInt $asint
 #define floatBitsToUint $asuint
-#define fract $frac
-#define mix $lerp
 #define inversesqrt $rsqrt
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
@@ -306,7 +322,7 @@ INLINE uint packHalf2x16(float2 v)
 INLINE half4 unpackUnorm4x8(uint u)
 {
     uint4 vals = uint4(u & 0xffu, (u >> 8) & 0xffu, (u >> 16) & 0xffu, u >> 24);
-    return float4(vals) * (1. / 255.);
+    return make_half4(vals) * (1. / 255.);
 }
 
 INLINE uint packUnorm4x8(half4 color)
@@ -324,3 +340,64 @@ INLINE float2x2 inverse(float2x2 m)
     float2x2 adjoint = float2x2(m[1][1], -m[0][1], -m[1][0], m[0][0]);
     return adjoint * (1. / determinant(m));
 }
+
+// Redirects for intrinsics that have different names in HLSL
+
+INLINE float mix(float x, float y, float s) { return $lerp(x, y, s); }
+INLINE float2 mix(float2 x, float2 y, float2 s) { return $lerp(x, y, s); }
+INLINE float3 mix(float3 x, float3 y, float3 s) { return $lerp(x, y, s); }
+INLINE float4 mix(float4 x, float4 y, float4 s) { return $lerp(x, y, s); }
+
+INLINE half mix(half x, half y, half s) { return x + s * (y - x); }
+INLINE half2 mix(half2 x, half2 y, half2 s) { return x + s * (y - x); }
+INLINE half3 mix(half3 x, half3 y, half3 s) { return x + s * (y - x); }
+INLINE half4 mix(half4 x, half4 y, half4 s) { return x + s * (y - x); }
+
+INLINE float fract(float x) { return $frac(x); }
+INLINE float2 fract(float2 x) { return $frac(x); }
+INLINE float3 fract(float3 x) { return $frac(x); }
+INLINE float4 fract(float4 x) { return $frac(x); }
+
+INLINE half fract(half x) { return make_half($frac(x)); }
+INLINE half2 fract(half2 x) { return make_half2($frac(x)); }
+INLINE half3 fract(half3 x) { return make_half3($frac(x)); }
+INLINE half4 fract(half4 x) { return make_half4($frac(x)); }
+
+// Reimplement intrinsics for half types.
+// This shadows the intrinsic function for floats, so we also have to declare that overload.
+
+INLINE half rive_sign(half x) { return make_half(sign(x)); }
+INLINE half2 rive_sign(half2 x) { return make_half2(sign(x)); }
+INLINE half3 rive_sign(half3 x) { return make_half3(sign(x)); }
+INLINE half4 rive_sign(half4 x) { return make_half4(sign(x)); }
+
+INLINE float rive_sign(float x) { return sign(x); }
+INLINE float2 rive_sign(float2 x) { return sign(x); }
+INLINE float3 rive_sign(float3 x) { return sign(x); }
+INLINE float4 rive_sign(float4 x) { return sign(x); }
+
+#define sign rive_sign
+
+INLINE half rive_abs(half x) { return make_half(abs(x)); }
+INLINE half2 rive_abs(half2 x) { return make_half2(abs(x)); }
+INLINE half3 rive_abs(half3 x) { return make_half3(abs(x)); }
+INLINE half4 rive_abs(half4 x) { return make_half4(abs(x)); }
+
+INLINE float rive_abs(float x) { return abs(x); }
+INLINE float2 rive_abs(float2 x) { return abs(x); }
+INLINE float3 rive_abs(float3 x) { return abs(x); }
+INLINE float4 rive_abs(float4 x) { return abs(x); }
+
+#define abs rive_abs
+
+INLINE half rive_sqrt(half x) { return make_half(sqrt(x)); }
+INLINE half2 rive_sqrt(half2 x) { return make_half2(sqrt(x)); }
+INLINE half3 rive_sqrt(half3 x) { return make_half3(sqrt(x)); }
+INLINE half4 rive_sqrt(half4 x) { return make_half4(sqrt(x)); }
+
+INLINE float rive_sqrt(float x) { return sqrt(x); }
+INLINE float2 rive_sqrt(float2 x) { return sqrt(x); }
+INLINE float3 rive_sqrt(float3 x) { return sqrt(x); }
+INLINE float4 rive_sqrt(float4 x) { return sqrt(x); }
+
+#define sqrt rive_sqrt
