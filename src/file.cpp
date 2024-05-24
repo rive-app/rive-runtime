@@ -171,7 +171,7 @@ std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
         }
         return nullptr;
     }
-    auto file = std::unique_ptr<File>(new File(factory, assetLoader));
+    auto file = rivestd::make_unique<File>(factory, assetLoader);
 
     auto readResult = file->read(reader, header);
     if (result)
@@ -226,22 +226,23 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             delete object;
             continue;
         }
-        ImportStackObject* stackObject = nullptr;
+        std::unique_ptr<ImportStackObject> stackObject = nullptr;
         auto stackType = object->coreType();
 
         switch (stackType)
         {
             case Backboard::typeKey:
-                stackObject = new BackboardImporter(object->as<Backboard>());
+                stackObject = rivestd::make_unique<BackboardImporter>(object->as<Backboard>());
                 break;
             case Artboard::typeKey:
-                stackObject = new ArtboardImporter(object->as<Artboard>());
+                stackObject = rivestd::make_unique<ArtboardImporter>(object->as<Artboard>());
                 break;
             case LinearAnimation::typeKey:
-                stackObject = new LinearAnimationImporter(object->as<LinearAnimation>());
+                stackObject =
+                    rivestd::make_unique<LinearAnimationImporter>(object->as<LinearAnimation>());
                 break;
             case KeyedObject::typeKey:
-                stackObject = new KeyedObjectImporter(object->as<KeyedObject>());
+                stackObject = rivestd::make_unique<KeyedObjectImporter>(object->as<KeyedObject>());
                 break;
             case KeyedProperty::typeKey:
             {
@@ -252,11 +253,13 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     return ImportResult::malformed;
                 }
                 stackObject =
-                    new KeyedPropertyImporter(importer->animation(), object->as<KeyedProperty>());
+                    rivestd::make_unique<KeyedPropertyImporter>(importer->animation(),
+                                                                object->as<KeyedProperty>());
                 break;
             }
             case StateMachine::typeKey:
-                stackObject = new StateMachineImporter(object->as<StateMachine>());
+                stackObject =
+                    rivestd::make_unique<StateMachineImporter>(object->as<StateMachine>());
                 break;
             case StateMachineLayer::typeKey:
             {
@@ -266,8 +269,9 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     return ImportResult::malformed;
                 }
 
-                stackObject = new StateMachineLayerImporter(object->as<StateMachineLayer>(),
-                                                            artboardImporter->artboard());
+                stackObject =
+                    rivestd::make_unique<StateMachineLayerImporter>(object->as<StateMachineLayer>(),
+                                                                    artboardImporter->artboard());
 
                 break;
             }
@@ -277,33 +281,36 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case AnimationState::typeKey:
             case BlendState1D::typeKey:
             case BlendStateDirect::typeKey:
-                stackObject = new LayerStateImporter(object->as<LayerState>());
+                stackObject = rivestd::make_unique<LayerStateImporter>(object->as<LayerState>());
                 stackType = LayerState::typeKey;
                 break;
             case StateTransition::typeKey:
             case BlendStateTransition::typeKey:
-                stackObject = new StateTransitionImporter(object->as<StateTransition>());
+                stackObject =
+                    rivestd::make_unique<StateTransitionImporter>(object->as<StateTransition>());
                 stackType = StateTransition::typeKey;
                 break;
             case StateMachineListener::typeKey:
-                stackObject = new StateMachineListenerImporter(object->as<StateMachineListener>());
+                stackObject = rivestd::make_unique<StateMachineListenerImporter>(
+                    object->as<StateMachineListener>());
                 break;
             case ImageAsset::typeKey:
             case FontAsset::typeKey:
             case AudioAsset::typeKey:
-                stackObject =
-                    new FileAssetImporter(object->as<FileAsset>(), m_assetLoader, m_factory);
+                stackObject = rivestd::make_unique<FileAssetImporter>(object->as<FileAsset>(),
+                                                                      m_assetLoader,
+                                                                      m_factory);
                 stackType = FileAsset::typeKey;
                 break;
         }
-        if (importStack.makeLatest(stackType, stackObject) != StatusCode::Ok)
+        if (importStack.makeLatest(stackType, std::move(stackObject)) != StatusCode::Ok)
         {
             // Some previous stack item didn't resolve.
             return ImportResult::malformed;
         }
         if (object->is<StateMachineLayerComponent>() &&
             importStack.makeLatest(StateMachineLayerComponent::typeKey,
-                                   new StateMachineLayerComponentImporter(
+                                   rivestd::make_unique<StateMachineLayerComponentImporter>(
                                        object->as<StateMachineLayerComponent>())) != StatusCode::Ok)
         {
             return ImportResult::malformed;

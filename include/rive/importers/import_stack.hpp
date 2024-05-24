@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include <algorithm>
+#include <memory>
 
 namespace rive
 {
@@ -18,41 +19,36 @@ public:
 
 class ImportStack
 {
-private:
-    std::unordered_map<uint16_t, ImportStackObject*> m_Latests;
-    std::vector<ImportStackObject*> m_LastAdded;
-
 public:
     template <typename T = ImportStackObject> T* latest(uint16_t coreType)
     {
-        auto itr = m_Latests.find(coreType);
-        if (itr == m_Latests.end())
+        auto itr = m_latests.find(coreType);
+        if (itr == m_latests.end())
         {
             return nullptr;
         }
-        return static_cast<T*>(itr->second);
+        return static_cast<T*>(itr->second.get());
     }
 
-    StatusCode makeLatest(uint16_t coreType, ImportStackObject* object)
+    StatusCode makeLatest(uint16_t coreType, std::unique_ptr<ImportStackObject> object)
     {
         // Clean up the old object in the stack.
-        auto itr = m_Latests.find(coreType);
-        if (itr != m_Latests.end())
+        auto itr = m_latests.find(coreType);
+        if (itr != m_latests.end())
         {
-            auto stackObject = itr->second;
+            auto stackObject = itr->second.get();
 
             // Remove it from latests.
-            auto lastAddedItr = std::find(m_LastAdded.begin(), m_LastAdded.end(), stackObject);
-            if (lastAddedItr != m_LastAdded.end())
+            auto lastAddedItr = std::find(m_lastAdded.begin(), m_lastAdded.end(), stackObject);
+            if (lastAddedItr != m_lastAdded.end())
             {
-                m_LastAdded.erase(lastAddedItr);
+                m_lastAdded.erase(lastAddedItr);
             }
 
             StatusCode code = stackObject->resolve();
-            delete stackObject;
             if (code != StatusCode::Ok)
             {
-                m_Latests.erase(coreType);
+                m_latests.erase(coreType);
                 return code;
             }
         }
@@ -60,12 +56,12 @@ public:
         // Set the new one.
         if (object == nullptr)
         {
-            m_Latests.erase(coreType);
+            m_latests.erase(coreType);
         }
         else
         {
-            m_Latests[coreType] = object;
-            m_LastAdded.push_back(object);
+            m_lastAdded.push_back(object.get());
+            m_latests[coreType] = std::move(object);
         }
         return StatusCode::Ok;
     }
@@ -76,7 +72,7 @@ public:
 
         // Reverse iterate the last added import stack objects and resolve them.
         // If any don't resolve, capture the return code and stop resolving.
-        for (auto itr = m_LastAdded.rbegin(); itr != m_LastAdded.rend(); itr++)
+        for (auto itr = m_lastAdded.rbegin(); itr != m_lastAdded.rend(); itr++)
         {
             StatusCode code = (*itr)->resolve();
             if (code != StatusCode::Ok)
@@ -86,28 +82,15 @@ public:
             }
         }
 
-        // Clean the import stack before returning the resolve code.
-        for (ImportStackObject* stackObject : m_LastAdded)
-        {
-            delete stackObject;
-        }
-        m_Latests.clear();
-        m_LastAdded.clear();
+        m_latests.clear();
+        m_lastAdded.clear();
 
         return returnCode;
     }
 
-    ~ImportStack()
-    {
-        for (auto& pair : m_Latests)
-        {
-            delete pair.second;
-        }
-    }
-
     bool readNullObject()
     {
-        for (auto itr = m_LastAdded.rbegin(); itr != m_LastAdded.rend(); itr++)
+        for (auto itr = m_lastAdded.rbegin(); itr != m_lastAdded.rend(); itr++)
         {
             if ((*itr)->readNullObject())
             {
@@ -116,6 +99,10 @@ public:
         }
         return false;
     }
+
+private:
+    std::unordered_map<uint16_t, std::unique_ptr<ImportStackObject>> m_latests;
+    std::vector<ImportStackObject*> m_lastAdded;
 };
 } // namespace rive
 #endif
