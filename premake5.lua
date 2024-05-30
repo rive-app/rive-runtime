@@ -71,6 +71,12 @@ do
         libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
     end
 
+    filter('system:linux')
+    do
+        links({ 'glfw3' })
+        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
+    end
+
     filter('options:with-dawn')
     do
         includedirs({
