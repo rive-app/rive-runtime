@@ -30,6 +30,9 @@ public:
     HitResult pointerExit(Vec2D position);
 
     void addNestedInput(NestedInput* input);
+    size_t inputCount() { return m_nestedInputs.size(); }
+    NestedInput* input(size_t index);
+    NestedInput* input(std::string name);
 };
 } // namespace rive
 

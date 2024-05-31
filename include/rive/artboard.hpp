@@ -32,6 +32,10 @@ class StateMachineInstance;
 class Joystick;
 class TextValueRun;
 class Event;
+class SMIBool;
+class SMIInput;
+class SMINumber;
+class SMITrigger;
 
 class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer
 {
@@ -120,6 +124,8 @@ public:
 
     const std::vector<Core*>& objects() const { return m_Objects; }
     const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }
+    NestedArtboard* nestedArtboard(const std::string& name) const;
+    NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
 
     AABB bounds() const;
 
@@ -295,6 +301,13 @@ public:
     // 3. first animation instance
     // 4. nullptr
     std::unique_ptr<Scene> defaultScene();
+
+    SMIInput* input(const std::string& name, const std::string& path);
+    template <typename InstType>
+    InstType* getNamedInput(const std::string& name, const std::string& path);
+    SMIBool* getBool(const std::string& name, const std::string& path);
+    SMINumber* getNumber(const std::string& name, const std::string& path);
+    SMITrigger* getTrigger(const std::string& name, const std::string& path);
 };
 } // namespace rive
 

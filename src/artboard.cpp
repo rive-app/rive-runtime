@@ -15,6 +15,10 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/joystick.hpp"
+#include "rive/animation/nested_bool.hpp"
+#include "rive/animation/nested_number.hpp"
+#include "rive/animation/nested_trigger.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_value_run.hpp"
@@ -758,6 +762,47 @@ int Artboard::defaultStateMachineIndex() const
     return index;
 }
 
+NestedArtboard* Artboard::nestedArtboard(const std::string& name) const
+{
+    for (auto nested : m_NestedArtboards)
+    {
+        if (nested->name() == name)
+        {
+            return nested;
+        }
+    }
+    return nullptr;
+}
+
+NestedArtboard* Artboard::nestedArtboardAtPath(const std::string& path) const
+{
+    // name parameter can be a name or a path to recursively find a nested artboard
+    std::string delimiter = "/";
+    size_t firstDelim = path.find(delimiter);
+    std::string artboardName = firstDelim == std::string::npos ? path : path.substr(0, firstDelim);
+    std::string restOfPath =
+        firstDelim == std::string::npos ? "" : path.substr(firstDelim + 1, path.size());
+
+    // Find the nested artboard at this level
+    if (!artboardName.empty())
+    {
+        auto nested = nestedArtboard(artboardName);
+        if (nested != nullptr)
+        {
+            if (restOfPath.empty())
+            {
+                return nested;
+            }
+            else
+            {
+                auto artboard = nested->artboard();
+                return artboard->nestedArtboardAtPath(restOfPath);
+            }
+        }
+    }
+    return nullptr;
+}
+
 // std::unique_ptr<ArtboardInstance> Artboard::instance() const
 // {
 //     std::unique_ptr<ArtboardInstance> artboardClone(new ArtboardInstance);
@@ -894,6 +939,43 @@ std::unique_ptr<Scene> ArtboardInstance::defaultScene()
         scene = this->animationAt(0);
     }
     return scene;
+}
+
+SMIInput* ArtboardInstance::input(const std::string& name, const std::string& path)
+{
+    return getNamedInput<SMIInput>(name, path);
+}
+
+template <typename InstType>
+InstType* ArtboardInstance::getNamedInput(const std::string& name, const std::string& path)
+{
+    if (!path.empty())
+    {
+        auto nestedArtboard = nestedArtboardAtPath(path);
+        if (nestedArtboard != nullptr)
+        {
+            auto input = nestedArtboard->input(name);
+            if (input != nullptr && input->input() != nullptr)
+            {
+                return static_cast<InstType*>(input->input());
+            }
+        }
+    }
+    return nullptr;
+}
+
+SMIBool* ArtboardInstance::getBool(const std::string& name, const std::string& path)
+{
+    return getNamedInput<SMIBool>(name, path);
+}
+
+SMINumber* ArtboardInstance::getNumber(const std::string& name, const std::string& path)
+{
+    return getNamedInput<SMINumber>(name, path);
+}
+SMITrigger* ArtboardInstance::getTrigger(const std::string& name, const std::string& path)
+{
+    return getNamedInput<SMITrigger>(name, path);
 }
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE

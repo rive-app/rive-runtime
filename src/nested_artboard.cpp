@@ -164,6 +164,56 @@ bool NestedArtboard::hasNestedStateMachines() const
 
 Span<NestedAnimation*> NestedArtboard::nestedAnimations() { return m_NestedAnimations; }
 
+NestedArtboard* NestedArtboard::nestedArtboard(std::string name) const
+{
+    if (m_Instance != nullptr)
+    {
+        return m_Instance->nestedArtboard(name);
+    }
+    return nullptr;
+}
+
+NestedStateMachine* NestedArtboard::stateMachine(std::string name) const
+{
+    for (auto animation : m_NestedAnimations)
+    {
+        if (animation->is<NestedStateMachine>() && animation->name() == name)
+        {
+            return animation->as<NestedStateMachine>();
+        }
+    }
+    return nullptr;
+}
+
+NestedInput* NestedArtboard::input(std::string name) const { return input(name, ""); }
+
+NestedInput* NestedArtboard::input(std::string name, std::string stateMachineName) const
+{
+    if (!stateMachineName.empty())
+    {
+        auto nestedSM = stateMachine(stateMachineName);
+        if (nestedSM != nullptr)
+        {
+            return nestedSM->input(name);
+        }
+    }
+    else
+    {
+        for (auto animation : m_NestedAnimations)
+        {
+            if (animation->is<NestedStateMachine>())
+            {
+                auto input = animation->as<NestedStateMachine>()->input(name);
+                if (input != nullptr)
+                {
+                    return input;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
 bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local)
 {
     assert(local != nullptr);

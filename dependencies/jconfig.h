@@ -1,3 +1,5 @@
+#include <stdio.h> // Required on Mac -- libjpg expects FILE to be already defined.
+
 #define HAVE_PROTOTYPES
 #define HAVE_UNSIGNED_CHAR
 #define HAVE_UNSIGNED_SHORT

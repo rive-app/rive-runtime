@@ -10,6 +10,9 @@ namespace rive
 {
 class ArtboardInstance;
 class NestedAnimation;
+class NestedInput;
+class NestedStateMachine;
+class StateMachineInstance;
 class NestedArtboard : public NestedArtboardBase
 {
 
@@ -37,6 +40,10 @@ public:
 
     bool hasNestedStateMachines() const;
     Span<NestedAnimation*> nestedAnimations();
+    NestedArtboard* nestedArtboard(std::string name) const;
+    NestedStateMachine* stateMachine(std::string name) const;
+    NestedInput* input(std::string name) const;
+    NestedInput* input(std::string name, std::string stateMachineName) const;
 
     /// Convert a world space (relative to the artboard that this
     /// NestedArtboard is a child of) to the local space of the Artboard

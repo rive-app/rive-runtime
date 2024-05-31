@@ -32,7 +32,6 @@ void NestedStateMachine::initializeAnimation(ArtboardInstance* artboard)
             nestedInput->applyValue();
         }
     }
-    m_nestedInputs.clear();
 }
 
 StateMachineInstance* NestedStateMachine::stateMachineInstance()
@@ -74,6 +73,27 @@ HitResult NestedStateMachine::pointerExit(Vec2D position)
         return m_StateMachineInstance->pointerExit(position);
     }
     return HitResult::none;
+}
+
+NestedInput* NestedStateMachine::input(size_t index)
+{
+    if (index < m_nestedInputs.size())
+    {
+        return m_nestedInputs[index];
+    }
+    return nullptr;
+}
+
+NestedInput* NestedStateMachine::input(std::string name)
+{
+    for (auto input : m_nestedInputs)
+    {
+        if (input->name() == name)
+        {
+            return input;
+        }
+    }
+    return nullptr;
 }
 
 void NestedStateMachine::addNestedInput(NestedInput* input) { m_nestedInputs.push_back(input); }
