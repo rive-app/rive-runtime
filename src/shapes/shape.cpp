@@ -70,7 +70,6 @@ bool Shape::collapse(bool value)
 
 void Shape::pathChanged()
 {
-    drawableFlags(drawableFlags() & ~static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
     m_PathComposer.addDirt(ComponentDirt::Path, true);
     for (auto constraint : constraints())
     {

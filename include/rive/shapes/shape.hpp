@@ -60,6 +60,11 @@ public:
         }
         return m_WorldBounds;
     }
+    void markBoundsDirty()
+    {
+        drawableFlags(drawableFlags() &
+                      ~static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
+    }
 
     AABB computeWorldBounds(const Mat2D* xform = nullptr) const;
     AABB computeLocalBounds() const;

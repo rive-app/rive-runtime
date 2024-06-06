@@ -87,6 +87,7 @@ void PathComposer::update(ComponentDirt value)
                 }
             }
         }
+        m_Shape->markBoundsDirty();
     }
 }
 
