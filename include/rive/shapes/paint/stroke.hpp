@@ -13,7 +13,10 @@ private:
 public:
     RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
     PathSpace pathSpace() const override;
-    void draw(Renderer* renderer, CommandPath* path, RenderPaint* paint) override;
+    void draw(Renderer* renderer,
+              CommandPath* path,
+              const RawPath* rawPath,
+              RenderPaint* paint) override;
     void addStrokeEffect(StrokeEffect* effect);
     bool hasStrokeEffect() { return m_Effect != nullptr; }
     void invalidateEffects();

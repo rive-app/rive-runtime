@@ -2,13 +2,11 @@
 #define _RIVE_FOLLOW_PATH_CONSTRAINT_HPP_
 #include "rive/generated/constraints/follow_path_constraint_base.hpp"
 #include "rive/math/transform_components.hpp"
-#include "rive/shapes/metrics_path.hpp"
-#include <stdio.h>
+#include "rive/math/contour_measure.hpp"
 namespace rive
 {
 class FollowPathConstraint : public FollowPathConstraintBase
 {
-
 public:
     void distanceChanged() override;
     void orientChanged() override;

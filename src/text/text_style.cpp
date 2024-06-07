@@ -191,7 +191,7 @@ void TextStyle::draw(Renderer* renderer)
         {
             RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
             shapePaint->applyTo(renderPaint, itr->first);
-            shapePaint->draw(renderer, itr->second.get(), renderPaint);
+            shapePaint->draw(renderer, itr->second.get(), nullptr, renderPaint);
         }
     }
 }

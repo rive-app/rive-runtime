@@ -454,7 +454,10 @@ void Artboard::update(ComponentDirt value)
             clip = bg;
         }
         m_ClipPath = factory()->makeRenderPath(clip);
-        m_BackgroundPath = factory()->makeRenderPath(bg);
+
+        m_backgroundRawPath.addRect(bg);
+        m_BackgroundPath->rewind();
+        m_backgroundRawPath.addTo(m_BackgroundPath.get());
     }
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
@@ -602,7 +605,7 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
     {
         for (auto shapePaint : m_ShapePaints)
         {
-            shapePaint->draw(renderer, m_BackgroundPath.get());
+            shapePaint->draw(renderer, m_BackgroundPath.get(), &m_backgroundRawPath);
         }
     }
 

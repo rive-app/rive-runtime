@@ -12,6 +12,7 @@
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
 #include "rive/audio/audio_engine.hpp"
+#include "rive/math/raw_path.hpp"
 
 #include <queue>
 #include <vector>
@@ -56,6 +57,7 @@ private:
     bool m_HasChangedDrawOrderInLastUpdate = false;
 
     unsigned int m_DirtDepth = 0;
+    RawPath m_backgroundRawPath;
     rcp<RenderPath> m_BackgroundPath;
     rcp<RenderPath> m_ClipPath;
     Factory* m_Factory = nullptr;

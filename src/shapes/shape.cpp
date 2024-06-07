@@ -24,22 +24,14 @@ void Shape::addPath(Path* path)
 
 bool Shape::canDeferPathUpdate()
 {
-    auto canDefer = renderOpacity() == 0 &&
-                    (pathSpace() & PathSpace::Clipping) != PathSpace::Clipping &&
-                    (pathSpace() & PathSpace::FollowPath) != PathSpace::FollowPath;
+    auto canDefer =
+        renderOpacity() == 0 && (pathSpace() & PathSpace::Clipping) != PathSpace::Clipping;
     if (canDefer)
     {
         // If we have a dependent Skin, don't defer the update
         for (auto d : dependents())
         {
             if (d->is<PointsPath>() && d->as<PointsPath>()->skin() != nullptr)
-            {
-                return false;
-            }
-        }
-        for (auto path : m_Paths)
-        {
-            if (!path->canDeferPathUpdate())
             {
                 return false;
             }
@@ -113,9 +105,10 @@ void Shape::draw(Renderer* renderer)
             {
                 renderer->transform(worldTransform());
             }
-            shapePaint->draw(renderer,
-                             paintsInLocal ? m_PathComposer.localPath()
-                                           : m_PathComposer.worldPath());
+            shapePaint->draw(
+                renderer,
+                paintsInLocal ? m_PathComposer.localPath() : m_PathComposer.worldPath(),
+                paintsInLocal ? &m_PathComposer.localRawPath() : &m_PathComposer.worldRawPath());
             renderer->restore();
         }
     }
@@ -135,7 +128,7 @@ bool Shape::hitTest(const IAABB& area) const
         if (!path->isCollapsed())
         {
             tester.setXform(path->pathTransform());
-            path->buildPath(tester);
+            path->rawPath().addTo(&tester);
         }
     }
     return tester.wasHit();
@@ -184,7 +177,7 @@ Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform)
             {
                 tester.setXform(mx * path->pathTransform());
             }
-            path->buildPath(tester);
+            path->rawPath().addTo(&tester);
         }
         if (tester.wasHit())
         {
@@ -284,8 +277,7 @@ AABB Shape::computeWorldBounds(const Mat2D* xform) const
         {
             continue;
         }
-
-        path->buildPath(boundsCalculator);
+        path->rawPath().addTo(&boundsCalculator);
 
         AABB aabb = boundsCalculator.bounds(xform == nullptr ? path->pathTransform()
                                                              : path->pathTransform() * *xform);

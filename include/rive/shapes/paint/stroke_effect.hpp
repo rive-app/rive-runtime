@@ -7,13 +7,13 @@ namespace rive
 {
 class Factory;
 class RenderPath;
-class MetricsPath;
+class RawPath;
 
 class StrokeEffect
 {
 public:
     virtual ~StrokeEffect() {}
-    virtual RenderPath* effectPath(MetricsPath* source, Factory*) = 0;
+    virtual RenderPath* effectPath(const RawPath& source, Factory*) = 0;
     virtual void invalidateEffect() = 0;
 };
 } // namespace rive

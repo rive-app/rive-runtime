@@ -33,18 +33,17 @@ void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier) const
 
 bool Stroke::isVisible() const { return Super::isVisible() && thickness() > 0.0f; }
 
-void Stroke::draw(Renderer* renderer, CommandPath* path, RenderPaint* paint)
+void Stroke::draw(Renderer* renderer, CommandPath* path, const RawPath* rawPath, RenderPaint* paint)
 {
     if (!isVisible())
     {
         return;
     }
 
-    if (m_Effect != nullptr)
+    if (m_Effect != nullptr && rawPath != nullptr)
     {
-        /// We're guaranteed to get a metrics path here if we have an effect.
         auto factory = artboard()->factory();
-        path = m_Effect->effectPath(reinterpret_cast<MetricsPath*>(path), factory);
+        path = m_Effect->effectPath(*rawPath, factory);
     }
 
     renderer->drawPath(path->renderPath(), paint);

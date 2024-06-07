@@ -177,3 +177,25 @@ TEST_CASE("nan-path", "[contourmeasure]")
         CHECK(iter.next() == nullptr);
     }
 }
+
+// Regression test for a crash found by fuzzing.
+TEST_CASE("fuzz_issue_7295", "[MetricsPath]")
+{
+    NoOpFactory factory;
+
+    RawPath innerPath;
+    innerPath.moveTo(.0f, -20.5f);
+    innerPath.cubicTo(11.3218384f, -20.5f, 20.5f, -11.3218384f, 20.5f, .0f);
+    innerPath.cubicTo(20.5f, 11.3218384f, 11.3218384f, 20.5f, .0f, 20.5f);
+    innerPath.cubicTo(-11.3218384f, 20.5f, -20.5f, 11.3218384f, -20.5f, .0f);
+    innerPath.cubicTo(-20.5f, -11.3218384f, -11.3218384f, -20.5f, .0f, -20.5f);
+
+    RawPath outerPath;
+    Mat2D transform(1.f, .0f, .0f, 1.f, -134217728.f, -134217728.f);
+    outerPath.addPath(innerPath, &transform);
+
+    auto contour = ContourMeasureIter(&outerPath).next();
+    RawPath result;
+    contour->getSegment(.0f, 168.389008f, &result, true);
+    CHECK(math::nearly_equal(contour->length(), 168.389008f));
+}

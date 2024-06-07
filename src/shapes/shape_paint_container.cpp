@@ -2,7 +2,6 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/component.hpp"
-#include "rive/shapes/metrics_path.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_style.hpp"
@@ -43,53 +42,6 @@ void ShapePaintContainer::invalidateStrokeEffects()
         {
             paint->as<Stroke>()->invalidateEffects();
         }
-    }
-}
-
-rcp<CommandPath> ShapePaintContainer::makeCommandPath(PathSpace space)
-{
-    // Force a render path if we specifically request to use it for clipping or
-    // this shape is used for clipping.
-    bool needForRender =
-        ((space | m_DefaultPathSpace) & PathSpace::Clipping) == PathSpace::Clipping;
-    bool needForConstraint =
-        ((space | m_DefaultPathSpace) & PathSpace::FollowPath) == PathSpace::FollowPath;
-
-    bool needForEffects = false;
-
-    for (auto paint : m_ShapePaints)
-    {
-        if (space != PathSpace::Neither && (space & paint->pathSpace()) != space)
-        {
-            continue;
-        }
-
-        if (paint->is<Stroke>() && paint->as<Stroke>()->hasStrokeEffect())
-        {
-            needForEffects = true;
-        }
-        else
-        {
-            needForRender = true;
-        }
-    }
-
-    auto factory = getArtboard()->factory();
-    if (needForEffects && needForRender)
-    {
-        return make_rcp<RenderMetricsPath>(factory->makeEmptyRenderPath());
-    }
-    else if (needForConstraint)
-    {
-        return make_rcp<RenderMetricsPath>(factory->makeEmptyRenderPath());
-    }
-    else if (needForEffects)
-    {
-        return make_rcp<OnlyMetricsPath>();
-    }
-    else
-    {
-        return factory->makeEmptyRenderPath();
     }
 }
 

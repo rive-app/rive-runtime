@@ -3,16 +3,17 @@
 #include "rive/renderer.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/factory.hpp"
 
 using namespace rive;
 
-PathComposer::PathComposer(Shape* shape) : m_Shape(shape), m_deferredPathDirt(false) {}
+PathComposer::PathComposer(Shape* shape) : m_shape(shape), m_deferredPathDirt(false) {}
 
 void PathComposer::buildDependencies()
 {
-    assert(m_Shape != nullptr);
-    m_Shape->addDependent(this);
-    for (auto path : m_Shape->paths())
+    assert(m_shape != nullptr);
+    m_shape->addDependent(this);
+    for (auto path : m_shape->paths())
     {
         path->addDependent(this);
     }
@@ -25,7 +26,7 @@ void PathComposer::onDirty(ComponentDirt dirt)
         // We'd deferred the update, let's make sure the rest of our
         // dependencies update too. Constraints need to update too, stroke
         // effects, etc.
-        m_Shape->pathChanged();
+        m_shape->pathChanged();
     }
 }
 
@@ -33,61 +34,63 @@ void PathComposer::update(ComponentDirt value)
 {
     if (hasDirt(value, ComponentDirt::Path))
     {
-        if (m_Shape->canDeferPathUpdate())
+        if (m_shape->canDeferPathUpdate())
         {
             m_deferredPathDirt = true;
             return;
         }
         m_deferredPathDirt = false;
 
-        auto space = m_Shape->pathSpace();
-        bool hasConstraint = (space & PathSpace::FollowPath) == PathSpace::FollowPath;
+        auto space = m_shape->pathSpace();
         if ((space & PathSpace::Local) == PathSpace::Local)
         {
-            if (m_LocalPath == nullptr)
+            if (m_localPath == nullptr)
             {
-                PathSpace localSpace =
-                    (hasConstraint) ? PathSpace::Local & PathSpace::FollowPath : PathSpace::Local;
-                m_LocalPath = m_Shape->makeCommandPath(localSpace);
+                m_localPath = artboard()->factory()->makeEmptyRenderPath();
             }
             else
             {
-                m_LocalPath->rewind();
+                m_localPath->rewind();
+                m_localRawPath.rewind();
             }
-            auto world = m_Shape->worldTransform();
+            auto world = m_shape->worldTransform();
             Mat2D inverseWorld = world.invertOrIdentity();
             // Get all the paths into local shape space.
-            for (auto path : m_Shape->paths())
+            for (auto path : m_shape->paths())
             {
                 if (!path->isHidden() && !path->isCollapsed())
                 {
                     const auto localTransform = inverseWorld * path->pathTransform();
-                    m_LocalPath->addPath(path->commandPath(), localTransform);
+                    m_localRawPath.addPath(path->rawPath(), &localTransform);
                 }
             }
+
+            // TODO: add a CommandPath::copy(RawPath)
+            m_localRawPath.addTo(m_localPath.get());
         }
         if ((space & PathSpace::World) == PathSpace::World)
         {
-            if (m_WorldPath == nullptr)
+            if (m_worldPath == nullptr)
             {
-                PathSpace worldSpace =
-                    (hasConstraint) ? PathSpace::World & PathSpace::FollowPath : PathSpace::World;
-                m_WorldPath = m_Shape->makeCommandPath(worldSpace);
+                m_worldPath = artboard()->factory()->makeEmptyRenderPath();
             }
             else
             {
-                m_WorldPath->rewind();
+                m_worldPath->rewind();
+                m_worldRawPath.rewind();
             }
-            for (auto path : m_Shape->paths())
+            for (auto path : m_shape->paths())
             {
                 if (!path->isHidden() && !path->isCollapsed())
                 {
                     const Mat2D& transform = path->pathTransform();
-                    m_WorldPath->addPath(path->commandPath(), transform);
+                    m_worldRawPath.addPath(path->rawPath(), &transform);
                 }
             }
+            // TODO: add a CommandPath::copy(RawPath)
+            m_worldRawPath.addTo(m_worldPath.get());
         }
-        m_Shape->markBoundsDirty();
+        m_shape->markBoundsDirty();
     }
 }
 

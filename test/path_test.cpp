@@ -12,6 +12,7 @@
 #include <rive/solo.hpp>
 #include <rive/animation/linear_animation_instance.hpp>
 #include "rive_file_reader.hpp"
+#include "rive/math/path_types.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
@@ -111,18 +112,16 @@ TEST_CASE("rectangle path builds expected commands", "[path]")
 
     artboard.advance(0.0f);
 
-    REQUIRE(rectangle->commandPath() != nullptr);
+    auto rawPath = rectangle->rawPath();
 
-    auto path = static_cast<TestRenderPath*>(rectangle->commandPath());
-
-    REQUIRE(path->commands.size() == 7);
-    REQUIRE(path->commands[0].command == TestPathCommandType::Reset);
-    REQUIRE(path->commands[1].command == TestPathCommandType::MoveTo);
-    REQUIRE(path->commands[2].command == TestPathCommandType::LineTo);
-    REQUIRE(path->commands[3].command == TestPathCommandType::LineTo);
-    REQUIRE(path->commands[4].command == TestPathCommandType::LineTo);
-    REQUIRE(path->commands[5].command == TestPathCommandType::LineTo);
-    REQUIRE(path->commands[6].command == TestPathCommandType::Close);
+    auto verbs = rawPath.verbs();
+    REQUIRE(verbs.size() == 6);
+    REQUIRE(verbs[0] == rive::PathVerb::move);
+    REQUIRE(verbs[1] == rive::PathVerb::line);
+    REQUIRE(verbs[2] == rive::PathVerb::line);
+    REQUIRE(verbs[3] == rive::PathVerb::line);
+    REQUIRE(verbs[4] == rive::PathVerb::line);
+    REQUIRE(verbs[5] == rive::PathVerb::close);
 }
 
 TEST_CASE("rounded rectangle path builds expected commands", "[path]")
@@ -148,9 +147,7 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
 
     artboard.advance(0.0f);
 
-    REQUIRE(rectangle->commandPath() != nullptr);
-
-    auto path = static_cast<TestRenderPath*>(rectangle->commandPath());
+    auto rawPath = rectangle->rawPath();
 
     // rewind
     // moveTo
@@ -161,31 +158,30 @@ TEST_CASE("rounded rectangle path builds expected commands", "[path]")
     // lineTo, cubicTo for 4th corner
 
     // close
-
-    REQUIRE(path->commands.size() == 11);
+    auto verbs = rawPath.verbs();
+    REQUIRE(verbs.size() == 10);
 
     // Init
-    REQUIRE(path->commands[0].command == TestPathCommandType::Reset);
-    REQUIRE(path->commands[1].command == TestPathCommandType::MoveTo);
+    REQUIRE(verbs[0] == rive::PathVerb::move);
 
     // 1st
-    REQUIRE(path->commands[2].command == TestPathCommandType::CubicTo);
+    REQUIRE(verbs[1] == rive::PathVerb::cubic);
 
     // 2nd
-    REQUIRE(path->commands[3].command == TestPathCommandType::LineTo);
-    REQUIRE(path->commands[4].command == TestPathCommandType::CubicTo);
+    REQUIRE(verbs[2] == rive::PathVerb::line);
+    REQUIRE(verbs[3] == rive::PathVerb::cubic);
 
     // 3rd
-    REQUIRE(path->commands[5].command == TestPathCommandType::LineTo);
-    REQUIRE(path->commands[6].command == TestPathCommandType::CubicTo);
+    REQUIRE(verbs[4] == rive::PathVerb::line);
+    REQUIRE(verbs[5] == rive::PathVerb::cubic);
 
     // 4th
-    REQUIRE(path->commands[7].command == TestPathCommandType::LineTo);
-    REQUIRE(path->commands[8].command == TestPathCommandType::CubicTo);
+    REQUIRE(verbs[6] == rive::PathVerb::line);
+    REQUIRE(verbs[7] == rive::PathVerb::cubic);
 
-    REQUIRE(path->commands[9].command == TestPathCommandType::LineTo);
+    REQUIRE(verbs[8] == rive::PathVerb::line);
 
-    REQUIRE(path->commands[10].command == TestPathCommandType::Close);
+    REQUIRE(verbs[9] == rive::PathVerb::close);
 }
 
 TEST_CASE("ellipse path builds expected commands", "[path]")
@@ -209,9 +205,7 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 
     artboard.advance(0.0f);
 
-    REQUIRE(ellipse->commandPath() != nullptr);
-
-    auto path = static_cast<TestRenderPath*>(ellipse->commandPath());
+    auto path = ellipse->rawPath();
 
     // rewind
     // moveTo
@@ -223,51 +217,52 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 
     // close
 
-    REQUIRE(path->commands.size() == 7);
+    auto verbs = path.verbs();
+    auto points = path.points();
+    REQUIRE(verbs.size() == 6);
 
     // Init
-    REQUIRE(path->commands[0].command == TestPathCommandType::Reset);
-    REQUIRE(path->commands[1].command == TestPathCommandType::MoveTo);
-    REQUIRE(path->commands[1].x == 0.0f);
-    REQUIRE(path->commands[1].y == -100.0f);
+    REQUIRE(verbs[0] == rive::PathVerb::move);
+    REQUIRE(points[0].x == 0.0f);
+    REQUIRE(points[0].y == -100.0f);
 
     // 1st
-    REQUIRE(path->commands[2].command == TestPathCommandType::CubicTo);
-    REQUIRE(path->commands[2].outX == 50.0f * rive::circleConstant);
-    REQUIRE(path->commands[2].outY == -100.0f);
-    REQUIRE(path->commands[2].inX == 50.0f);
-    REQUIRE(path->commands[2].inY == -100.0f * rive::circleConstant);
-    REQUIRE(path->commands[2].x == 50.0f);
-    REQUIRE(path->commands[2].y == 0.0f);
+    REQUIRE(verbs[1] == rive::PathVerb::cubic);
+    REQUIRE(points[1].x == 50.0f * rive::circleConstant);
+    REQUIRE(points[1].y == -100.0f);
+    REQUIRE(points[2].x == 50.0f);
+    REQUIRE(points[2].y == -100.0f * rive::circleConstant);
+    REQUIRE(points[3].x == 50.0f);
+    REQUIRE(points[3].y == 0.0f);
 
     // 2nd
-    REQUIRE(path->commands[3].command == TestPathCommandType::CubicTo);
-    REQUIRE(path->commands[3].outX == 50.0f);
-    REQUIRE(path->commands[3].outY == 100.0f * rive::circleConstant);
-    REQUIRE(path->commands[3].inX == 50.0f * rive::circleConstant);
-    REQUIRE(path->commands[3].inY == 100.0f);
-    REQUIRE(path->commands[3].x == 0.0f);
-    REQUIRE(path->commands[3].y == 100.0f);
+    REQUIRE(verbs[2] == rive::PathVerb::cubic);
+    REQUIRE(points[4].x == 50.0f);
+    REQUIRE(points[4].y == 100.0f * rive::circleConstant);
+    REQUIRE(points[5].x == 50.0f * rive::circleConstant);
+    REQUIRE(points[5].y == 100.0f);
+    REQUIRE(points[6].x == 0.0f);
+    REQUIRE(points[6].y == 100.0f);
 
     // 3rd
-    REQUIRE(path->commands[4].command == TestPathCommandType::CubicTo);
-    REQUIRE(path->commands[4].outX == -50.0f * rive::circleConstant);
-    REQUIRE(path->commands[4].outY == 100.0f);
-    REQUIRE(path->commands[4].inX == -50.0f);
-    REQUIRE(path->commands[4].inY == 100.0f * rive::circleConstant);
-    REQUIRE(path->commands[4].x == -50.0f);
-    REQUIRE(path->commands[4].y == 0.0f);
+    REQUIRE(verbs[3] == rive::PathVerb::cubic);
+    REQUIRE(points[7].x == -50.0f * rive::circleConstant);
+    REQUIRE(points[7].y == 100.0f);
+    REQUIRE(points[8].x == -50.0f);
+    REQUIRE(points[8].y == 100.0f * rive::circleConstant);
+    REQUIRE(points[9].x == -50.0f);
+    REQUIRE(points[9].y == 0.0f);
 
     // 4th
-    REQUIRE(path->commands[5].command == TestPathCommandType::CubicTo);
-    REQUIRE(path->commands[5].outX == -50.0f);
-    REQUIRE(path->commands[5].outY == -100.0f * rive::circleConstant);
-    REQUIRE(path->commands[5].inX == -50.0f * rive::circleConstant);
-    REQUIRE(path->commands[5].inY == -100.0f);
-    REQUIRE(path->commands[5].x == 0.0f);
-    REQUIRE(path->commands[5].y == -100.0f);
+    REQUIRE(verbs[4] == rive::PathVerb::cubic);
+    REQUIRE(points[10].x == -50.0f);
+    REQUIRE(points[10].y == -100.0f * rive::circleConstant);
+    REQUIRE(points[11].x == -50.0f * rive::circleConstant);
+    REQUIRE(points[11].y == -100.0f);
+    REQUIRE(points[12].x == 0.0f);
+    REQUIRE(points[12].y == -100.0f);
 
-    REQUIRE(path->commands[6].command == TestPathCommandType::Close);
+    REQUIRE(verbs[5] == rive::PathVerb::close);
 }
 
 TEST_CASE("nested solo with shape expanded and path collapsed", "[path]")
@@ -295,7 +290,7 @@ TEST_CASE("nested solo with shape expanded and path collapsed", "[path]")
     auto path = solo->children()[1]->as<rive::Path>();
     REQUIRE(rectangleShape->isCollapsed() == false);
     REQUIRE(path->isCollapsed() == true);
-    REQUIRE(path->commandPath() != nullptr);
+
     auto pathComposer = rootShape->pathComposer();
     auto pathComposerPath = static_cast<TestRenderPath*>(pathComposer->localPath());
     // Path is skipped and the nested shape forms its own drawable, so size is 0
@@ -327,7 +322,7 @@ TEST_CASE("nested solo clipping with shape collapsed and path expanded", "[path]
     auto path = solo->children()[1]->as<rive::Path>();
     REQUIRE(rectangleShape->isCollapsed() == true);
     REQUIRE(path->isCollapsed() == false);
-    REQUIRE(path->commandPath() != nullptr);
+
     auto clippingShape = rectangleClip->clippingShapes()[0];
     REQUIRE(clippingShape != nullptr);
     auto clippingPath = static_cast<TestRenderPath*>(clippingShape->renderPath());

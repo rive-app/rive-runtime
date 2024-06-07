@@ -35,8 +35,6 @@ public:
 
     void invalidateStrokeEffects();
 
-    rcp<CommandPath> makeCommandPath(PathSpace space);
-
     void propagateOpacity(float opacity);
 
 #ifdef TESTING

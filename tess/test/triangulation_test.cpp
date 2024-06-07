@@ -29,7 +29,7 @@ TEST_CASE("simple triangle path triangulates as expected", "[file]")
     auto path = artboard->find<rive::Path>("triangle_path");
     REQUIRE(path != nullptr);
     TestRenderPath renderPath;
-    path->buildPath(renderPath);
+    path->rawPath().addTo(&renderPath);
 
     rive::Mat2D identity;
     TestRenderPath shapeRenderPath;

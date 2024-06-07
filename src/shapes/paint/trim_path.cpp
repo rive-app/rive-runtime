@@ -1,5 +1,4 @@
 #include "rive/shapes/paint/trim_path.hpp"
-#include "rive/shapes/metrics_path.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/factory.hpp"
 
@@ -17,33 +16,29 @@ StatusCode TrimPath::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
+void TrimPath::trimRawPath(const RawPath& source)
 {
-    if (m_RenderPath != nullptr)
-    {
-        return m_RenderPath;
-    }
-
-    // Source is always a containing (shape) path.
-    const std::vector<MetricsPath*>& subPaths = source->paths();
-
-    RawPath rawTrimmed;
-
-    if (!m_TrimmedPath)
-    {
-        m_TrimmedPath = factory->makeEmptyRenderPath();
-    }
-    else
-    {
-        m_TrimmedPath->rewind();
-    }
-
+    m_rawPath.rewind();
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
-    switch (modeValue())
+
+    // Build up contours if they're empty.
+    if (m_contours.empty())
     {
-        case 1:
+        ContourMeasureIter iter(&source);
+        while (auto meas = iter.next())
         {
-            float totalLength = source->length();
+            m_contours.push_back(meas);
+        }
+    }
+    switch (mode())
+    {
+        case TrimPathMode::sequential:
+        {
+            float totalLength = 0.0f;
+            for (auto contour : m_contours)
+            {
+                totalLength += contour->length();
+            }
             auto startLength = totalLength * (start() + renderOffset);
             auto endLength = totalLength * (end() + renderOffset);
 
@@ -60,35 +55,35 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
                 endLength -= totalLength;
             }
 
-            int i = 0, subPathCount = (int)subPaths.size();
+            int i = 0, subPathCount = (int)m_contours.size();
             while (endLength > 0)
             {
-                auto path = subPaths[i % subPathCount];
-                auto pathLength = path->length();
+                auto contour = m_contours[i % subPathCount];
+                auto contourLength = contour->length();
 
-                if (startLength < pathLength)
+                if (startLength < contourLength)
                 {
-                    path->trim(startLength, endLength, true, &rawTrimmed);
-                    endLength -= pathLength;
+                    contour->getSegment(startLength, endLength, &m_rawPath, true);
+                    endLength -= contourLength;
                     startLength = 0;
                 }
                 else
                 {
-                    startLength -= pathLength;
-                    endLength -= pathLength;
+                    startLength -= contourLength;
+                    endLength -= contourLength;
                 }
                 i++;
             }
         }
         break;
 
-        case 2:
+        case TrimPathMode::synchronized:
         {
-            for (auto path : subPaths)
+            for (auto contour : m_contours)
             {
-                auto pathLength = path->length();
-                auto startLength = pathLength * (start() + renderOffset);
-                auto endLength = pathLength * (end() + renderOffset);
+                auto contourLength = contour->length();
+                auto startLength = contourLength * (start() + renderOffset);
+                auto endLength = contourLength * (end() + renderOffset);
                 if (endLength < startLength)
                 {
                     auto length = startLength;
@@ -96,37 +91,83 @@ RenderPath* TrimPath::effectPath(MetricsPath* source, Factory* factory)
                     endLength = length;
                 }
 
-                if (startLength > pathLength)
+                if (startLength > contourLength)
                 {
-                    startLength -= pathLength;
-                    endLength -= pathLength;
+                    startLength -= contourLength;
+                    endLength -= contourLength;
                 }
-                path->trim(startLength, endLength, true, &rawTrimmed);
-                while (endLength > pathLength)
+                contour->getSegment(startLength, endLength, &m_rawPath, true);
+                while (endLength > contourLength)
                 {
                     startLength = 0;
-                    endLength -= pathLength;
-                    path->trim(startLength, endLength, true, &rawTrimmed);
+                    endLength -= contourLength;
+                    contour->getSegment(startLength, endLength, &m_rawPath, true);
                 }
             }
         }
         break;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+RenderPath* TrimPath::effectPath(const RawPath& source, Factory* factory)
+{
+    if (m_renderPath != nullptr)
+    {
+        // Previous result hasn't been invalidated, it's still good.
+        return m_renderPath;
     }
 
-    m_RenderPath = m_TrimmedPath.get();
-    rawTrimmed.addTo(m_RenderPath);
-    return m_RenderPath;
+    trimRawPath(source);
+
+    if (!m_trimmedPath)
+    {
+        m_trimmedPath = factory->makeEmptyRenderPath();
+    }
+    else
+    {
+        m_trimmedPath->rewind();
+    }
+
+    m_renderPath = m_trimmedPath.get();
+    m_rawPath.addTo(m_renderPath);
+    return m_renderPath;
 }
 
 void TrimPath::invalidateEffect()
 {
-    m_RenderPath = nullptr;
+    invalidateTrim();
+    // This is usually sent when the path is changed so we need to also
+    // invalidate the contours, not just the trim effect.
+    m_contours.clear();
+}
+
+void TrimPath::invalidateTrim()
+{
+    m_renderPath = nullptr;
     auto stroke = parent()->as<Stroke>();
     stroke->parent()->addDirt(ComponentDirt::Paint);
     stroke->invalidateRendering();
 }
 
-void TrimPath::startChanged() { invalidateEffect(); }
-void TrimPath::endChanged() { invalidateEffect(); }
-void TrimPath::offsetChanged() { invalidateEffect(); }
-void TrimPath::modeValueChanged() { invalidateEffect(); }
+void TrimPath::startChanged() { invalidateTrim(); }
+void TrimPath::endChanged() { invalidateTrim(); }
+void TrimPath::offsetChanged() { invalidateTrim(); }
+void TrimPath::modeValueChanged() { invalidateTrim(); }
+
+StatusCode TrimPath::onAddedDirty(CoreContext* context)
+{
+    auto code = Super::onAddedDirty(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+    switch (mode())
+    {
+        case TrimPathMode::sequential:
+        case TrimPathMode::synchronized:
+            return StatusCode::Ok;
+    }
+    return StatusCode::InvalidObject;
+}

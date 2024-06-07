@@ -3,6 +3,7 @@
 #include "rive/command_path.hpp"
 #include "rive/generated/shapes/path_base.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/math/raw_path.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include <vector>
 
@@ -37,10 +38,10 @@ class Path : public PathBase
 {
 protected:
     Shape* m_Shape = nullptr;
-    rcp<CommandPath> m_CommandPath;
     std::vector<PathVertex*> m_Vertices;
     bool m_deferredPathDirt = false;
     PathSpace m_DefaultPathSpace = PathSpace::Neither;
+    RawPath m_rawPath;
 
 public:
     Shape* shape() const { return m_Shape; }
@@ -48,7 +49,7 @@ public:
     void buildDependencies() override;
     virtual const Mat2D& pathTransform() const;
     bool collapse(bool value) override;
-    CommandPath* commandPath() const { return m_CommandPath.get(); }
+    const RawPath& rawPath() const { return m_rawPath; }
     void update(ComponentDirt value) override;
 
     void addDefaultPathSpace(PathSpace space);
@@ -67,8 +68,7 @@ public:
     std::vector<PathVertex*>& vertices() { return m_Vertices; }
 #endif
 
-    // pour ourselves into a command-path
-    void buildPath(CommandPath&) const;
+    void buildPath(RawPath&) const;
 };
 } // namespace rive
 

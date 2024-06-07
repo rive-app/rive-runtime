@@ -5,7 +5,6 @@
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/math_types.hpp"
-#include "rive/shapes/metrics_path.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/transform_component.hpp"
@@ -150,8 +149,7 @@ void FollowPathConstraint::update(ComponentDirt value)
         m_contours.clear();
         for (auto path : paths)
         {
-            auto commandPath = static_cast<MetricsPath*>(path->commandPath());
-            commandPath->addToRawPath(m_rawPath, path->pathTransform());
+            m_rawPath.addPath(path->rawPath(), &path->pathTransform());
         }
 
         auto measure = ContourMeasureIter(&m_rawPath);
