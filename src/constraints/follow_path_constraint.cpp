@@ -167,12 +167,12 @@ StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
         if (m_Target->is<Shape>())
         {
             Shape* shape = static_cast<Shape*>(m_Target);
-            shape->addDefaultPathSpace(PathSpace::FollowPath);
+            shape->addFlags(PathFlags::followPath);
         }
         else if (m_Target->is<Path>())
         {
             Path* path = static_cast<Path*>(m_Target);
-            path->addDefaultPathSpace(PathSpace::FollowPath);
+            path->addFlags(PathFlags::followPath);
         }
     }
     return Super::onAddedClean(context);

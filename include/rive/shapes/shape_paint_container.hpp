@@ -1,7 +1,7 @@
 #ifndef _RIVE_SHAPE_PAINT_CONTAINER_HPP_
 #define _RIVE_SHAPE_PAINT_CONTAINER_HPP_
 #include "rive/refcnt.hpp"
-#include "rive/shapes/path_space.hpp"
+#include "rive/shapes/path_flags.hpp"
 #include <vector>
 
 namespace rive
@@ -21,7 +21,7 @@ protected:
     // as a Shape or Artboard, so both of those will override this.
     virtual Artboard* getArtboard() = 0;
 
-    PathSpace m_DefaultPathSpace = PathSpace::Neither;
+    PathFlags m_pathFlags = PathFlags::none;
     std::vector<ShapePaint*> m_ShapePaints;
     void addPaint(ShapePaint* paint);
 
@@ -31,7 +31,7 @@ public:
 
     virtual ~ShapePaintContainer() {}
 
-    PathSpace pathSpace() const;
+    PathFlags pathFlags() const;
 
     void invalidateStrokeEffects();
 

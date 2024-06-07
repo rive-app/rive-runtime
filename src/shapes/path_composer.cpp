@@ -41,8 +41,7 @@ void PathComposer::update(ComponentDirt value)
         }
         m_deferredPathDirt = false;
 
-        auto space = m_shape->pathSpace();
-        if ((space & PathSpace::Local) == PathSpace::Local)
+        if (m_shape->isFlagged(PathFlags::local))
         {
             if (m_localPath == nullptr)
             {
@@ -68,7 +67,7 @@ void PathComposer::update(ComponentDirt value)
             // TODO: add a CommandPath::copy(RawPath)
             m_localRawPath.addTo(m_localPath.get());
         }
-        if ((space & PathSpace::World) == PathSpace::World)
+        if (m_shape->isFlagged(PathFlags::world))
         {
             if (m_worldPath == nullptr)
             {

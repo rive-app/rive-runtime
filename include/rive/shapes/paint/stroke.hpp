@@ -1,7 +1,7 @@
 #ifndef _RIVE_STROKE_HPP_
 #define _RIVE_STROKE_HPP_
 #include "rive/generated/shapes/paint/stroke_base.hpp"
-#include "rive/shapes/path_space.hpp"
+#include "rive/shapes/path_flags.hpp"
 namespace rive
 {
 class StrokeEffect;
@@ -12,7 +12,7 @@ private:
 
 public:
     RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
-    PathSpace pathSpace() const override;
+    PathFlags pathFlags() const override;
     void draw(Renderer* renderer,
               CommandPath* path,
               const RawPath* rawPath,

@@ -24,12 +24,12 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
 
 void ShapePaintContainer::addPaint(ShapePaint* paint) { m_ShapePaints.push_back(paint); }
 
-PathSpace ShapePaintContainer::pathSpace() const
+PathFlags ShapePaintContainer::pathFlags() const
 {
-    PathSpace space = m_DefaultPathSpace;
+    PathFlags space = m_pathFlags;
     for (auto paint : m_ShapePaints)
     {
-        space |= paint->pathSpace();
+        space |= paint->pathFlags();
     }
     return space;
 }

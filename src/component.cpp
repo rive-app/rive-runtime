@@ -100,3 +100,5 @@ bool Component::collapse(bool value)
     m_Artboard->onComponentDirty(this);
     return true;
 }
+
+bool Component::forAll(std::function<bool(Component*)> predicate) { return predicate(this); }

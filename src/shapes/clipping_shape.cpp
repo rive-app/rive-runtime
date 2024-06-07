@@ -47,7 +47,7 @@ StatusCode ClippingShape::onAddedClean(CoreContext* context)
                 if (component == m_Source)
                 {
                     auto shape = core->as<Shape>();
-                    shape->addDefaultPathSpace(PathSpace::World | PathSpace::Clipping);
+                    shape->addFlags(PathFlags::world | PathFlags::clipping);
                     m_Shapes.push_back(shape);
                     break;
                 }

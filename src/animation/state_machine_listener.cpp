@@ -14,7 +14,7 @@ StateMachineListener::~StateMachineListener() {}
 
 void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
 {
-    m_Actions.push_back(std::move(action));
+    m_actions.push_back(std::move(action));
 }
 
 StatusCode StateMachineListener::import(ImportStack& importStack)
@@ -31,54 +31,18 @@ StatusCode StateMachineListener::import(ImportStack& importStack)
 
 const ListenerAction* StateMachineListener::action(size_t index) const
 {
-    if (index < m_Actions.size())
+    if (index < m_actions.size())
     {
-        return m_Actions[index].get();
+        return m_actions[index].get();
     }
     return nullptr;
-}
-
-StatusCode StateMachineListener::onAddedClean(CoreContext* context)
-{
-    auto artboard = static_cast<Artboard*>(context);
-    auto target = artboard->resolve(targetId());
-
-    for (auto core : artboard->objects())
-    {
-        if (core == nullptr)
-        {
-            continue;
-        }
-
-        // Iterate artboard to find Shapes that are parented to the target
-        if (core->is<Shape>())
-        {
-            auto shape = core->as<Shape>();
-
-            for (ContainerComponent* component = shape; component != nullptr;
-                 component = component->parent())
-            {
-                if (component == target)
-                {
-                    auto index = artboard->idOf(shape);
-                    if (index != 0)
-                    {
-                        m_HitShapesIds.push_back(index);
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
-    return Super::onAddedClean(context);
 }
 
 void StateMachineListener::performChanges(StateMachineInstance* stateMachineInstance,
                                           Vec2D position,
                                           Vec2D previousPosition) const
 {
-    for (auto& action : m_Actions)
+    for (auto& action : m_actions)
     {
         action->perform(stateMachineInstance, position, previousPosition);
     }

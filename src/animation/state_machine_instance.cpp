@@ -631,37 +631,33 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     // Initialize listeners. Store a lookup table of shape id to hit shape
     // representation (an object that stores all the listeners triggered by the
     // shape producing a listener).
-    std::unordered_map<uint32_t, HitShape*> hitShapeLookup;
+    std::unordered_map<Component*, HitShape*> hitShapeLookup;
     for (std::size_t i = 0; i < machine->listenerCount(); i++)
     {
         auto listener = machine->listener(i);
-
-        // Iterate actual leaf hittable shapes tied to this listener and resolve
-        // corresponding ones in the artboard instance.
-        for (auto id : listener->hitShapeIds())
+        auto target = m_artboardInstance->resolve(listener->targetId());
+        if (target != nullptr && target->is<Component>())
         {
-            HitShape* hitShape;
-            auto itr = hitShapeLookup.find(id);
-            if (itr == hitShapeLookup.end())
-            {
-                auto shape = m_artboardInstance->resolve(id);
-                if (shape != nullptr && shape->is<Shape>())
+            target->as<Component>()->forAll([&](Component* component) {
+                if (component->is<Shape>())
                 {
-                    auto hs = rivestd::make_unique<HitShape>(shape->as<Component>(), this);
-                    hitShapeLookup[id] = hitShape = hs.get();
-                    m_hitComponents.push_back(std::move(hs));
+                    HitShape* hitShape;
+                    auto itr = hitShapeLookup.find(component);
+                    if (itr == hitShapeLookup.end())
+                    {
+                        component->as<Shape>()->addFlags(PathFlags::neverDeferUpdate);
+                        auto hs = rivestd::make_unique<HitShape>(component, this);
+                        hitShapeLookup[component] = hitShape = hs.get();
+                        m_hitComponents.push_back(std::move(hs));
+                    }
+                    else
+                    {
+                        hitShape = itr->second;
+                    }
+                    hitShape->listeners.push_back(listener);
                 }
-                else
-                {
-                    // No object or not a shape...
-                    continue;
-                }
-            }
-            else
-            {
-                hitShape = itr->second;
-            }
-            hitShape->listeners.push_back(listener);
+                return true;
+            });
         }
     }
 
@@ -669,7 +665,6 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     {
         if (nestedArtboard->hasNestedStateMachines())
         {
-
             auto hn =
                 rivestd::make_unique<HitNestedArtboard>(nestedArtboard->as<Component>(), this);
             m_hitComponents.push_back(std::move(hn));

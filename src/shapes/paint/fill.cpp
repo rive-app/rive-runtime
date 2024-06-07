@@ -2,7 +2,7 @@
 
 using namespace rive;
 
-PathSpace Fill::pathSpace() const { return PathSpace::Local; }
+PathFlags Fill::pathFlags() const { return PathFlags::local; }
 
 RenderPaint* Fill::initRenderPaint(ShapePaintMutator* mutator)
 {

@@ -44,7 +44,8 @@ public:
     PathComposer* pathComposer() { return &m_PathComposer; }
 
     void pathChanged();
-    void addDefaultPathSpace(PathSpace space);
+    void addFlags(PathFlags flags);
+    bool isFlagged(PathFlags flags) const;
     StatusCode onAddedDirty(CoreContext* context) override;
     bool isEmpty();
     void pathCollapseChanged();

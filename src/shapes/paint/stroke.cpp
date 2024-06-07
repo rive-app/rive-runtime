@@ -6,11 +6,10 @@
 
 using namespace rive;
 
-PathSpace Stroke::pathSpace() const
+PathFlags Stroke::pathFlags() const
 {
-    return transformAffectsStroke() ? PathSpace::Local : PathSpace::World;
+    return transformAffectsStroke() ? PathFlags::local : PathFlags::world;
 }
-
 RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
 {
     auto renderPaint = Super::initRenderPaint(mutator);

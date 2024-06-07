@@ -15,3 +15,23 @@ bool ContainerComponent::collapse(bool value)
     }
     return true;
 }
+
+bool ContainerComponent::forAll(std::function<bool(Component*)> predicate)
+{
+    if (!Super::forAll(predicate))
+    {
+        return false;
+    }
+    for (Component* child : m_children)
+    {
+        if (!predicate(child))
+        {
+            return false;
+        }
+        if (child->is<ContainerComponent>() && !child->as<ContainerComponent>()->forAll(predicate))
+        {
+            return false;
+        }
+    }
+    return true;
+}

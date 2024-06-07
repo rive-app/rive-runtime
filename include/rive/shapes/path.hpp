@@ -40,7 +40,7 @@ protected:
     Shape* m_Shape = nullptr;
     std::vector<PathVertex*> m_Vertices;
     bool m_deferredPathDirt = false;
-    PathSpace m_DefaultPathSpace = PathSpace::Neither;
+    PathFlags m_pathFlags = PathFlags::none;
     RawPath m_rawPath;
 
 public:
@@ -52,7 +52,9 @@ public:
     const RawPath& rawPath() const { return m_rawPath; }
     void update(ComponentDirt value) override;
 
-    void addDefaultPathSpace(PathSpace space);
+    void addFlags(PathFlags flags);
+    bool isFlagged(PathFlags flags) const;
+
     bool canDeferPathUpdate();
     void addVertex(PathVertex* vertex);
 

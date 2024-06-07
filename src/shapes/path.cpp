@@ -51,7 +51,8 @@ void Path::buildDependencies() { Super::buildDependencies(); }
 
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
-void Path::addDefaultPathSpace(PathSpace space) { m_DefaultPathSpace |= space; }
+void Path::addFlags(PathFlags flags) { m_pathFlags |= flags; }
+bool Path::isFlagged(PathFlags flags) const { return (int)(m_pathFlags & flags) != 0x00; }
 
 bool Path::canDeferPathUpdate()
 {
@@ -60,10 +61,9 @@ bool Path::canDeferPathUpdate()
     // (meaning all child paths need to follow path). This doesn't mean the
     // Shape is necessarily forced to update put the paths are, which is why we
     // explicitly also check the shape's path space.
-    return m_Shape->canDeferPathUpdate() &&
-           (m_Shape->pathSpace() & PathSpace::FollowPath) != PathSpace::FollowPath &&
-           ((m_DefaultPathSpace & PathSpace::Clipping) != PathSpace::Clipping) &&
-           ((m_DefaultPathSpace & PathSpace::FollowPath) != PathSpace::FollowPath);
+
+    return m_Shape->canDeferPathUpdate() && !m_Shape->isFlagged(PathFlags::followPath) &&
+           !isFlagged(PathFlags::followPath | PathFlags::clipping);
 }
 
 const Mat2D& Path::pathTransform() const { return worldTransform(); }

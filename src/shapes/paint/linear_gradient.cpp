@@ -84,7 +84,7 @@ void LinearGradient::update(ComponentDirt value)
                 ComponentDirt::Paint | ComponentDirt::RenderOpacity | ComponentDirt::Transform) ||
         (
             // paints in world space
-            parent()->as<ShapePaint>()->pathSpace() == PathSpace::World &&
+            parent()->as<ShapePaint>()->isFlagged(PathFlags::world) &&
             // and had a world transform change
             hasDirt(value, ComponentDirt::WorldTransform));
     if (rebuildGradient)
@@ -95,7 +95,7 @@ void LinearGradient::update(ComponentDirt value)
 
 void LinearGradient::applyTo(RenderPaint* renderPaint, float opacityModifier) const
 {
-    bool paintsInWorldSpace = parent()->as<ShapePaint>()->pathSpace() == PathSpace::World;
+    bool paintsInWorldSpace = parent()->as<ShapePaint>()->isFlagged(PathFlags::world);
     Vec2D start(startX(), startY());
     Vec2D end(endX(), endY());
     // Check if we need to update the world space gradient (if there's no
