@@ -646,6 +646,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     if (itr == hitShapeLookup.end())
                     {
                         component->as<Shape>()->addFlags(PathFlags::neverDeferUpdate);
+                        component->as<Shape>()->addDirt(ComponentDirt::Path, true);
                         auto hs = rivestd::make_unique<HitShape>(component, this);
                         hitShapeLookup[component] = hitShape = hs.get();
                         m_hitComponents.push_back(std::move(hs));
