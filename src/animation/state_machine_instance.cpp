@@ -4,6 +4,7 @@
 #include "rive/animation/cubic_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/layer_state_flags.hpp"
+#include "rive/animation/nested_linear_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/state_machine_bool.hpp"
@@ -18,6 +19,7 @@
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/state_machine_fire_event.hpp"
+#include "rive/event_report.hpp"
 #include "rive/hit_result.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
@@ -669,18 +671,20 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             auto hn =
                 rivestd::make_unique<HitNestedArtboard>(nestedArtboard->as<Component>(), this);
             m_hitComponents.push_back(std::move(hn));
-
-            for (auto animation : nestedArtboard->nestedAnimations())
+        }
+        for (auto animation : nestedArtboard->nestedAnimations())
+        {
+            if (animation->is<NestedStateMachine>())
             {
-                if (animation->is<NestedStateMachine>())
-                {
-                    animation->as<NestedStateMachine>()
-                        ->stateMachineInstance()
-                        ->setParentNestedArtboard(nestedArtboard);
-                    animation->as<NestedStateMachine>()
-                        ->stateMachineInstance()
-                        ->setParentStateMachineInstance(this);
-                }
+                auto notifier = animation->as<NestedStateMachine>()->stateMachineInstance();
+                notifier->setNestedArtboard(nestedArtboard);
+                notifier->addNestedEventListener(this);
+            }
+            else if (animation->is<NestedLinearAnimation>())
+            {
+                auto notifier = animation->as<NestedLinearAnimation>()->animationInstance();
+                notifier->setNestedArtboard(nestedArtboard);
+                notifier->addNestedEventListener(this);
             }
         }
     }
@@ -880,6 +884,11 @@ const EventReport StateMachineInstance::reportedEventAt(std::size_t index) const
     return m_reportedEvents[index];
 }
 
+void StateMachineInstance::notify(const std::vector<EventReport>& events, NestedArtboard* context)
+{
+    notifyEventListeners(events, context);
+}
+
 void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& events,
                                                 NestedArtboard* source)
 {
@@ -920,9 +929,12 @@ void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& 
             }
         }
         // Bubble the event up to parent artboard state machines immediately
-        if (m_parentStateMachineInstance != nullptr)
+        if (nestedArtboard() != nullptr)
         {
-            m_parentStateMachineInstance->notifyEventListeners(events, m_parentNestedArtboard);
+            for (auto listener : nestedEventListeners())
+            {
+                listener->notify(events, nestedArtboard());
+            }
         }
 
         for (auto report : events)

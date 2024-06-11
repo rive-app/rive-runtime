@@ -10,6 +10,7 @@
 #include "rive/core/field_types/core_callback_type.hpp"
 #include "rive/hit_result.hpp"
 #include "rive/listener_type.hpp"
+#include "rive/nested_animation.hpp"
 #include "rive/scene.hpp"
 
 namespace rive
@@ -25,22 +26,13 @@ class Shape;
 class StateMachineLayerInstance;
 class HitComponent;
 class NestedArtboard;
+class NestedEventListener;
+class NestedEventNotifier;
 class Event;
+class EventReport;
 class KeyedProperty;
 
-class EventReport
-{
-public:
-    EventReport(Event* event, float secondsDelay) : m_event(event), m_secondsDelay(secondsDelay) {}
-    Event* event() const { return m_event; }
-    float secondsDelay() const { return m_secondsDelay; }
-
-private:
-    Event* m_event;
-    float m_secondsDelay;
-};
-
-class StateMachineInstance : public Scene
+class StateMachineInstance : public Scene, public NestedEventNotifier, public NestedEventListener
 {
     friend class SMIInput;
     friend class KeyedProperty;
@@ -117,6 +109,7 @@ public:
 
     void setParentNestedArtboard(NestedArtboard* artboard) { m_parentNestedArtboard = artboard; }
     NestedArtboard* parentNestedArtboard() { return m_parentNestedArtboard; }
+    void notify(const std::vector<EventReport>& events, NestedArtboard* context) override;
 
     /// Tracks an event that reported, will be cleared at the end of the next advance.
     void reportEvent(Event* event, float secondsDelay = 0.0f) override;

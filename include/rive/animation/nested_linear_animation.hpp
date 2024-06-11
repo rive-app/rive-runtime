@@ -15,6 +15,7 @@ public:
     ~NestedLinearAnimation() override;
 
     void initializeAnimation(ArtboardInstance*) override;
+    LinearAnimationInstance* animationInstance() { return m_AnimationInstance.get(); }
 };
 } // namespace rive
 

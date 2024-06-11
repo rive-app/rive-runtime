@@ -245,3 +245,9 @@ void LinearAnimationInstance::loopValue(int value)
 }
 
 float LinearAnimationInstance::durationSeconds() const { return m_animation->durationSeconds(); }
+
+void LinearAnimationInstance::reportEvent(Event* event, float secondsDelay)
+{
+    const std::vector<Event*> events{event};
+    notifyListeners(events);
+}
