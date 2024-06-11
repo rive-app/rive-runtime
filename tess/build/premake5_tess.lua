@@ -21,6 +21,7 @@ do
         dependencies .. '/sokol',
         dependencies .. '/earcut.hpp/include/mapbox',
         dependencies .. '/libtess2/Include',
+        yoga,
     })
     files({ '../src/**.cpp', dependencies .. '/libtess2/Source/**.c' })
     buildoptions({ '-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format' })
@@ -79,11 +80,12 @@ do
         rive .. '/include',
         dependencies .. '/sokol',
         dependencies .. '/earcut.hpp/include/mapbox',
+        yoga,
     })
     files({ '../test/**.cpp', rive .. 'utils/no_op_factory.cpp' })
-    links({ 'rive_tess_renderer', 'rive', 'rive_harfbuzz', 'rive_sheenbidi' })
+    links({ 'rive_tess_renderer', 'rive', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga' })
     buildoptions({ '-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format' })
-    defines({ 'TESTING' })
+    defines({ 'TESTING', 'YOGA_EXPORT=' })
 
     filter('configurations:debug')
     do

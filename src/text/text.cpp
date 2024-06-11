@@ -241,6 +241,18 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
     return true;
 }
 
+AABB Text::computeIntrinsicSize(AABB min, AABB max) { return measure(max); }
+
+void Text::controlSize(AABB size)
+{
+    if (m_layoutWidth != size.width() || m_layoutHeight != size.height())
+    {
+        m_layoutWidth = size.width();
+        m_layoutHeight = size.height();
+        markShapeDirty(false);
+    }
+}
+
 void Text::buildRenderStyles()
 {
     for (TextStyle* style : m_renderStyles)
@@ -270,7 +282,8 @@ void Text::buildRenderStyles()
     bool isEllipsisLineLast = false;
     // Find the line to put the ellipsis on (line before the one that
     // overflows).
-    bool wantEllipsis = overflow() == TextOverflow::ellipsis && sizing() == TextSizing::fixed;
+    bool wantEllipsis =
+        overflow() == TextOverflow::ellipsis && effectiveSizing() == TextSizing::fixed;
 
     int lastLineIndex = -1;
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
@@ -287,7 +300,7 @@ void Text::buildRenderStyles()
                 maxWidth = width;
             }
             lastLineIndex++;
-            if (wantEllipsis && y + line.bottom <= height())
+            if (wantEllipsis && y + line.bottom <= effectiveHeight())
             {
                 ellipsisLine++;
             }
@@ -308,16 +321,16 @@ void Text::buildRenderStyles()
 
     int lineIndex = 0;
     paragraphIndex = 0;
-    switch (sizing())
+    switch (effectiveSizing())
     {
         case TextSizing::autoWidth:
             m_bounds = AABB(0.0f, minY, maxWidth, std::max(minY, y - paragraphSpace));
             break;
         case TextSizing::autoHeight:
-            m_bounds = AABB(0.0f, minY, width(), std::max(minY, y - paragraphSpace));
+            m_bounds = AABB(0.0f, minY, effectiveWidth(), std::max(minY, y - paragraphSpace));
             break;
         case TextSizing::fixed:
-            m_bounds = AABB(0.0f, minY, width(), minY + height());
+            m_bounds = AABB(0.0f, minY, effectiveWidth(), minY + effectiveHeight());
             break;
     }
 
@@ -366,13 +379,14 @@ void Text::buildRenderStyles()
             switch (overflow())
             {
                 case TextOverflow::hidden:
-                    if (sizing() == TextSizing::fixed && y + line.bottom > height())
+                    if (effectiveSizing() == TextSizing::fixed &&
+                        y + line.bottom > effectiveHeight())
                     {
                         return;
                     }
                     break;
                 case TextOverflow::clipped:
-                    if (sizing() == TextSizing::fixed && y + line.top > height())
+                    if (effectiveSizing() == TextSizing::fixed && y + line.top > effectiveHeight())
                     {
                         return;
                     }
@@ -386,7 +400,7 @@ void Text::buildRenderStyles()
                 // We need to still compute this line's ordered runs.
                 m_orderedLines.emplace_back(OrderedLine(paragraph,
                                                         line,
-                                                        width(),
+                                                        effectiveWidth(),
                                                         ellipsisLine == lineIndex,
                                                         isEllipsisLineLast,
                                                         &m_ellipsisRun));
@@ -512,7 +526,7 @@ void Text::addRun(TextValueRun* run) { m_runs.push_back(run); }
 
 void Text::addModifierGroup(TextModifierGroup* group) { m_modifierGroups.push_back(group); }
 
-void Text::markShapeDirty()
+void Text::markShapeDirty(bool sendToLayout)
 {
     addDirt(ComponentDirt::Path);
     for (TextModifierGroup* group : m_modifierGroups)
@@ -520,6 +534,18 @@ void Text::markShapeDirty()
         group->clearRangeMaps();
     }
     markWorldTransformDirty();
+#ifdef WITH_RIVE_LAYOUT
+    if (sendToLayout)
+    {
+        for (ContainerComponent* p = parent(); p != nullptr; p = p->parent())
+        {
+            if (p->is<LayoutComponent>())
+            {
+                p->as<LayoutComponent>()->markLayoutNodeDirty();
+            }
+        }
+    }
+#endif
 }
 
 void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
@@ -532,7 +558,7 @@ void Text::sizingValueChanged() { markShapeDirty(); }
 
 void Text::overflowValueChanged()
 {
-    if (sizing() != TextSizing::autoWidth)
+    if (effectiveSizing() != TextSizing::autoWidth)
     {
         markShapeDirty();
     }
@@ -540,7 +566,7 @@ void Text::overflowValueChanged()
 
 void Text::widthChanged()
 {
-    if (sizing() != TextSizing::autoWidth)
+    if (effectiveSizing() != TextSizing::autoWidth)
     {
         markShapeDirty();
     }
@@ -550,7 +576,7 @@ void Text::paragraphSpacingChanged() { markPaintDirty(); }
 
 void Text::heightChanged()
 {
-    if (sizing() == TextSizing::fixed)
+    if (effectiveSizing() == TextSizing::fixed)
     {
         markShapeDirty();
     }
@@ -670,9 +696,10 @@ void Text::update(ComponentDirt value)
             makeStyled(m_modifierStyledText, false);
             auto runs = m_modifierStyledText.runs();
             m_modifierShape = runs[0].font->shapeText(m_modifierStyledText.unichars(), runs);
-            m_modifierLines = breakLines(m_modifierShape,
-                                         sizing() == TextSizing::autoWidth ? -1.0f : width(),
-                                         (TextAlign)alignValue());
+            m_modifierLines =
+                breakLines(m_modifierShape,
+                           effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
+                           (TextAlign)alignValue());
             m_glyphLookup.compute(m_modifierStyledText.unichars(), m_modifierShape);
             uint32_t textSize = (uint32_t)m_modifierStyledText.unichars().size();
             for (TextModifierGroup* group : m_modifierGroups)
@@ -688,9 +715,10 @@ void Text::update(ComponentDirt value)
         {
             auto runs = m_styledText.runs();
             m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-            m_lines = breakLines(m_shape,
-                                 sizing() == TextSizing::autoWidth ? -1.0f : width(),
-                                 (TextAlign)alignValue());
+            m_lines =
+                breakLines(m_shape,
+                           effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
+                           (TextAlign)alignValue());
             if (!precomputeModifierCoverage && haveModifiers())
             {
                 m_glyphLookup.compute(m_styledText.unichars(), m_shape);
@@ -730,6 +758,64 @@ void Text::update(ComponentDirt value)
             style->propagateOpacity(renderOpacity());
         }
     }
+}
+
+AABB Text::measure(AABB maxSize)
+{
+    if (makeStyled(m_styledText))
+    {
+        const float paragraphSpace = paragraphSpacing();
+        auto runs = m_styledText.runs();
+        auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
+        auto lines =
+            breakLines(shape,
+                       effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
+                       (TextAlign)alignValue());
+        float y = 0;
+        float minY = 0;
+        int paragraphIndex = 0;
+        float maxWidth = 0;
+
+        if (textOrigin() == TextOrigin::baseline && !lines.empty() && !lines[0].empty())
+        {
+            y -= m_lines[0][0].baseline;
+            minY = y;
+        }
+        for (const SimpleArray<GlyphLine>& paragraphLines : lines)
+        {
+            const Paragraph& paragraph = shape[paragraphIndex++];
+            for (const GlyphLine& line : paragraphLines)
+            {
+                const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
+                const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
+                float width = endRun.xpos[line.endGlyphIndex] -
+                              startRun.xpos[line.startGlyphIndex] - endRun.letterSpacing;
+                if (width > maxWidth)
+                {
+                    maxWidth = width;
+                }
+            }
+            if (!paragraphLines.empty())
+            {
+                y += paragraphLines.back().bottom;
+            }
+            y += paragraphSpace;
+        }
+
+        switch (sizing())
+        {
+            case TextSizing::autoWidth:
+                return AABB::fromLTWH(0, 0, maxWidth, std::max(minY, y - paragraphSpace));
+                break;
+            case TextSizing::autoHeight:
+                return AABB::fromLTWH(0, 0, width(), std::max(minY, y - paragraphSpace));
+                break;
+            case TextSizing::fixed:
+                return AABB::fromLTWH(0, 0, width(), minY + height());
+                break;
+        }
+    }
+    return AABB();
 }
 
 AABB Text::localBounds() const
@@ -775,7 +861,7 @@ void Text::draw(Renderer* renderer) {}
 Core* Text::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 void Text::addRun(TextValueRun* run) {}
 void Text::addModifierGroup(TextModifierGroup* group) {}
-void Text::markShapeDirty() {}
+void Text::markShapeDirty(bool sendToLayout) {}
 void Text::update(ComponentDirt value) {}
 void Text::alignValueChanged() {}
 void Text::sizingValueChanged() {}
@@ -791,4 +877,6 @@ AABB Text::localBounds() const { return AABB(); }
 void Text::originValueChanged() {}
 void Text::originXChanged() {}
 void Text::originYChanged() {}
+AABB Text::computeIntrinsicSize(AABB min, AABB max) { return AABB(); }
+void Text::controlSize(AABB size) {}
 #endif

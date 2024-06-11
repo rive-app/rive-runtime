@@ -4,35 +4,8 @@
     "int": 1,
     "string": "artboard"
   },
-  "extends": "world_transform_component.json",
+  "extends": "layout_component.json",
   "properties": {
-    "clip": {
-      "type": "bool",
-      "initialValue": "true",
-      "key": {
-        "int": 196,
-        "string": "clip"
-      },
-      "description": "True when the artboard bounds clip its contents."
-    },
-    "width": {
-      "type": "double",
-      "initialValue": "0",
-      "key": {
-        "int": 7,
-        "string": "w"
-      },
-      "description": "Width of the artboard."
-    },
-    "height": {
-      "type": "double",
-      "initialValue": "0",
-      "key": {
-        "int": 8,
-        "string": "h"
-      },
-      "description": "Height of the artboard."
-    },
     "x": {
       "type": "double",
       "initialValue": "0",

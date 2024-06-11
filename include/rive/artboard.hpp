@@ -15,6 +15,7 @@
 #include "rive/math/raw_path.hpp"
 
 #include <queue>
+#include <unordered_set>
 #include <vector>
 
 namespace rive
@@ -64,6 +65,9 @@ private:
     Drawable* m_FirstDrawable = nullptr;
     bool m_IsInstance = false;
     bool m_FrameOrigin = true;
+    std::unordered_set<LayoutComponent*> m_dirtyLayout;
+    float m_originalWidth = 0;
+    float m_originalHeight = 0;
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     rcp<AudioEngine> m_audioEngine;
@@ -106,6 +110,11 @@ public:
     void update(ComponentDirt value) override;
     void onDirty(ComponentDirt dirt) override;
 
+    void markLayoutDirty(LayoutComponent* layoutComponent)
+    {
+        m_dirtyLayout.insert(layoutComponent);
+    }
+
     bool advance(double elapsedSeconds);
     bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; }
     Drawable* firstDrawable() { return m_FirstDrawable; }
@@ -128,6 +137,9 @@ public:
     const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
+
+    float originalWidth() { return m_originalWidth; }
+    float originalHeight() { return m_originalHeight; }
 
     AABB bounds() const;
 
@@ -219,6 +231,8 @@ public:
         artboardClone->m_Factory = m_Factory;
         artboardClone->m_FrameOrigin = m_FrameOrigin;
         artboardClone->m_IsInstance = true;
+        artboardClone->m_originalWidth = m_originalWidth;
+        artboardClone->m_originalHeight = m_originalHeight;
 
         std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
         cloneObjects.push_back(artboardClone.get());
@@ -266,6 +280,23 @@ public:
     /// to move the bounds relative to the origin instead of the origin
     /// relative to the bounds.
     void frameOrigin(bool value);
+
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        bool result = ArtboardBase::deserialize(propertyKey, reader);
+        switch (propertyKey)
+        {
+            case widthPropertyKey:
+                m_originalWidth = width();
+                break;
+            case heightPropertyKey:
+                m_originalHeight = height();
+                break;
+            default:
+                break;
+        }
+        return result;
+    }
 
     StatusCode import(ImportStack& importStack) override;
 

@@ -7,6 +7,8 @@ defines({
     'WITH_RIVE_TEXT',
     'WITH_RIVE_AUDIO',
     'WITH_RIVE_AUDIO_TOOLS',
+    'WITH_RIVE_LAYOUT',
+    'YOGA_EXPORT='
 })
 
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
@@ -22,12 +24,14 @@ do
         '../../include',
         '../../decoders/include',
         miniaudio,
+        yoga,
     })
 
     links({
         'rive',
         'rive_harfbuzz',
         'rive_sheenbidi',
+        'rive_yoga',
         'rive_decoders',
         'libpng',
         'zlib',

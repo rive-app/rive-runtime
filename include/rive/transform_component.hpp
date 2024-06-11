@@ -1,6 +1,7 @@
 #ifndef _RIVE_TRANSFORM_COMPONENT_HPP_
 #define _RIVE_TRANSFORM_COMPONENT_HPP_
 #include "rive/generated/transform_component_base.hpp"
+#include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 
 namespace rive
@@ -47,6 +48,9 @@ public:
     void addConstraint(Constraint* constraint);
     virtual AABB localBounds() const;
     void markDirtyIfConstrained();
+
+    virtual AABB computeIntrinsicSize(AABB min, AABB max) { return AABB(); }
+    virtual void controlSize(AABB size) {}
 };
 } // namespace rive
 

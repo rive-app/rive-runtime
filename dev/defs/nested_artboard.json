@@ -16,6 +16,22 @@
         "string": "artboardid"
       },
       "description": "Identifier used to track the Artboard nested."
+    },
+    "fit": {
+      "type": "uint",
+      "key": {
+        "int": 538,
+        "string": "fit"
+      },
+      "description": "Fit type for the nested artboard's runtime artboard."
+    },
+    "alignment": {
+      "type": "uint",
+      "key": {
+        "int": 539,
+        "string": "alignment"
+      },
+      "description": "Alignment type for the nested artboard's runtime artboard."
     }
   }
 }

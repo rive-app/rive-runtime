@@ -1,0 +1,307 @@
+{
+  "name": "LayoutComponentStyle",
+  "key": {
+    "int": 420,
+    "string": "layoutcomponentstyle"
+  },
+  "extends": "component.json",
+  "properties": {
+    "layoutFlags0": {
+      "type": "uint",
+      "initialValue": "0x5000412",
+      "key": {
+        "int": 495,
+        "string": "layoutflags0"
+      },
+      "description": "First BitFlags for layout styles."
+    },
+    "layoutFlags1": {
+      "type": "uint",
+      "initialValue": "0x00",
+      "key": {
+        "int": 496,
+        "string": "layoutflags1"
+      },
+      "description": "Second BitFlags for layout styles."
+    },
+    "layoutFlags2": {
+      "type": "uint",
+      "initialValue": "0x00",
+      "key": {
+        "int": 497,
+        "string": "layoutflags2"
+      },
+      "description": "Third BitFlags for layout styles."
+    },
+    "gapHorizontal": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 498,
+        "string": "gaphorizontal"
+      },
+      "description": "Horizontal gap between children in layout component"
+    },
+    "gapVertical": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 499,
+        "string": "gapvertical"
+      },
+      "description": "Vertical gap between children in layout component"
+    },
+    "maxWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 500,
+        "string": "maxwidth"
+      },
+      "description": "Max width of the item."
+    },
+    "maxHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 501,
+        "string": "maxheight"
+      },
+      "description": "Max height of the item."
+    },
+    "minWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 502,
+        "string": "minwidth"
+      },
+      "description": "Min width of the item."
+    },
+    "minHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 503,
+        "string": "minheight"
+      },
+      "description": "Min height of the item."
+    },
+    "borderLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 504,
+        "string": "borderleft"
+      },
+      "description": "Left border value."
+    },
+    "borderRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 505,
+        "string": "borderright"
+      },
+      "description": "Right border value."
+    },
+    "borderTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 506,
+        "string": "bordertop"
+      },
+      "description": "Top border value."
+    },
+    "borderBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 507,
+        "string": "borderbottom"
+      },
+      "description": "Bottom border value."
+    },
+    "marginLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 508,
+        "string": "marginleft"
+      },
+      "description": "Left margin value."
+    },
+    "marginRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 509,
+        "string": "marginright"
+      },
+      "description": "Right margin value."
+    },
+    "marginTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 510,
+        "string": "margintop"
+      },
+      "description": "Top margin value."
+    },
+    "marginBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 511,
+        "string": "marginbottom"
+      },
+      "description": "Bottom margin value."
+    },
+    "paddingLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 512,
+        "string": "paddingleft"
+      },
+      "description": "Left padding value."
+    },
+    "paddingRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 513,
+        "string": "paddingright"
+      },
+      "description": "Right padding value."
+    },
+    "paddingTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 514,
+        "string": "paddingtop"
+      },
+      "description": "Top padding value."
+    },
+    "paddingBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 515,
+        "string": "paddingbottom"
+      },
+      "description": "Bottom padding value."
+    },
+    "positionLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 516,
+        "string": "positionleft"
+      },
+      "description": "Left position value."
+    },
+    "positionRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 517,
+        "string": "positionright"
+      },
+      "description": "Right position value."
+    },
+    "positionTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 518,
+        "string": "positiontop"
+      },
+      "description": "Top position value."
+    },
+    "positionBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 519,
+        "string": "positionbottom"
+      },
+      "description": "Bottom position value."
+    },
+    "flex": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 520,
+        "string": "flex"
+      },
+      "description": "Flex value."
+    },
+    "flexGrow": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 521,
+        "string": "flexgrow"
+      },
+      "description": "Flex grow value."
+    },
+    "flexShrink": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 522,
+        "string": "flexshrink"
+      },
+      "description": "Flex shrink value."
+    },
+    "flexBasis": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 523,
+        "string": "flexbasis"
+      },
+      "description": "Flex basis value."
+    },
+    "aspectRatio": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 524,
+        "string": "aspectratio"
+      },
+      "description": "Aspect ratio value."
+    }
+  }
+}

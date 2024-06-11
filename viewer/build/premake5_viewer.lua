@@ -24,7 +24,7 @@ do
     end
     kind('ConsoleApp')
 
-    defines({ 'WITH_RIVE_TEXT', 'WITH_RIVE_AUDIO' })
+    defines({ 'WITH_RIVE_TEXT', 'WITH_RIVE_AUDIO', 'WITH_RIVE_LAYOUT', 'YOGA_EXPORT=' })
 
     includedirs({
         '../include',
@@ -34,9 +34,10 @@ do
         dependencies .. '/sokol',
         dependencies .. '/imgui',
         miniaudio,
+        yoga,
     })
 
-    links({ 'rive', 'rive_harfbuzz', 'rive_sheenbidi' })
+    links({ 'rive', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga' })
 
     libdirs({ rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}' })
 

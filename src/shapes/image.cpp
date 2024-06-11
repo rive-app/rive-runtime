@@ -121,3 +121,18 @@ Core* Image::clone() const
 
 void Image::setMesh(Mesh* mesh) { m_Mesh = mesh; }
 Mesh* Image::mesh() const { return m_Mesh; }
+
+AABB Image::computeIntrinsicSize(AABB min, AABB max) { return max; }
+
+void Image::controlSize(AABB size)
+{
+    auto renderImage = imageAsset()->renderImage();
+    auto newScaleX = size.width() / renderImage->width();
+    auto newScaleY = size.height() / renderImage->height();
+    if (newScaleX != scaleX() || newScaleY != scaleY())
+    {
+        scaleX(newScaleX);
+        scaleY(newScaleY);
+        addDirt(ComponentDirt::WorldTransform, false);
+    }
+}

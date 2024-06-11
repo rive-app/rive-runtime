@@ -22,12 +22,17 @@ do
         'MA_NO_RESOURCE_MANAGER',
     })
 end
+filter({ 'options:with_rive_layout' })
+do
+    defines({ 'WITH_RIVE_LAYOUT' })
+end
 filter({})
 
 dependencies = path.getabsolute('dependencies/')
 dofile(path.join(dependencies, 'premake5_harfbuzz_v2.lua'))
 dofile(path.join(dependencies, 'premake5_sheenbidi_v2.lua'))
 dofile(path.join(dependencies, 'premake5_miniaudio_v2.lua'))
+dofile(path.join(dependencies, 'premake5_yoga_v2.lua'))
 
 project('rive')
 do
@@ -38,7 +43,10 @@ do
         harfbuzz .. '/src',
         sheenbidi .. '/Headers',
         miniaudio,
+        yoga,
     })
+
+    defines({ 'YOGA_EXPORT=' })
 
     files({ 'src/**.cpp' })
 
@@ -156,4 +164,9 @@ newoption({
     value = 'disabled',
     description = 'The audio mode to use.',
     allowed = { { 'disabled' }, { 'system' }, { 'external' } },
+})
+
+newoption({
+    trigger = 'with_rive_layout',
+    description = 'Compiles in layout features.',
 })

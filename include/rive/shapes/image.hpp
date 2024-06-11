@@ -24,6 +24,8 @@ public:
     void setAsset(FileAsset*) override;
     uint32_t assetId() override;
     Core* clone() const override;
+    AABB computeIntrinsicSize(AABB min, AABB max) override;
+    void controlSize(AABB size) override;
 };
 } // namespace rive
 

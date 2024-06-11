@@ -231,3 +231,18 @@ bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local)
 
     return true;
 }
+
+AABB NestedArtboard::computeIntrinsicSize(AABB min, AABB max) { return max; }
+
+void NestedArtboard::controlSize(AABB size)
+{
+    auto newScaleX = size.width() / m_Artboard->originalWidth();
+    auto newScaleY = size.height() / m_Artboard->originalHeight();
+    if (newScaleX != scaleX() || newScaleY != scaleY())
+    {
+        // TODO: Support nested artboard fit & alignment
+        scaleX(newScaleX);
+        scaleY(newScaleY);
+        addDirt(ComponentDirt::WorldTransform, false);
+    }
+}

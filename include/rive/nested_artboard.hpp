@@ -8,6 +8,31 @@
 
 namespace rive
 {
+
+enum class NestedArtboardFitType : uint8_t
+{
+    fill, // Default value - scales to fill available view without maintaining aspect ratio
+    contain,
+    cover,
+    fitWidth,
+    fitHeight,
+    resizeArtboard,
+    none,
+};
+
+enum class NestedArtboardAlignmentType : uint8_t
+{
+    center, // Default value
+    topLeft,
+    topCenter,
+    topRight,
+    centerLeft,
+    centerRight,
+    bottomLeft,
+    bottomCenter,
+    bottomRight,
+};
+
 class ArtboardInstance;
 class NestedAnimation;
 class NestedInput;
@@ -20,6 +45,8 @@ private:
     Artboard* m_Artboard = nullptr;               // might point to m_Instance, and might not
     std::unique_ptr<ArtboardInstance> m_Instance; // may be null
     std::vector<NestedAnimation*> m_NestedAnimations;
+    float m_layoutScaleX = NAN;
+    float m_layoutScaleY = NAN;
 
 public:
     NestedArtboard();
@@ -44,6 +71,17 @@ public:
     NestedStateMachine* stateMachine(std::string name) const;
     NestedInput* input(std::string name) const;
     NestedInput* input(std::string name, std::string stateMachineName) const;
+
+    NestedArtboardAlignmentType alignmentType() const
+    {
+        return (NestedArtboardAlignmentType)alignment();
+    }
+    NestedArtboardFitType fitType() const { return (NestedArtboardFitType)fit(); }
+    float effectiveScaleX() { return std::isnan(m_layoutScaleX) ? scaleX() : m_layoutScaleX; }
+    float effectiveScaleY() { return std::isnan(m_layoutScaleY) ? scaleY() : m_layoutScaleY; }
+
+    AABB computeIntrinsicSize(AABB min, AABB max) override;
+    void controlSize(AABB size) override;
 
     /// Convert a world space (relative to the artboard that this
     /// NestedArtboard is a child of) to the local space of the Artboard

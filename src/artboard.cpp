@@ -509,6 +509,26 @@ bool Artboard::updateComponents()
 bool Artboard::advance(double elapsedSeconds)
 {
     m_HasChangedDrawOrderInLastUpdate = false;
+#ifdef WITH_RIVE_LAYOUT
+    if (!m_dirtyLayout.empty())
+    {
+        syncStyle();
+        for (auto layout : m_dirtyLayout)
+        {
+            layout->syncStyle();
+        }
+        m_dirtyLayout.clear();
+        calculateLayout();
+        for (auto dep : m_DependencyOrder)
+        {
+            if (dep->is<LayoutComponent>())
+            {
+                auto layout = dep->as<LayoutComponent>();
+                layout->updateLayoutBounds();
+            }
+        }
+    }
+#endif
     if (m_JoysticksApplyBeforeUpdate)
     {
         for (auto joystick : m_Joysticks)

@@ -1,15 +1,14 @@
 #ifndef _RIVE_ARTBOARD_BASE_HPP_
 #define _RIVE_ARTBOARD_BASE_HPP_
-#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-#include "rive/world_transform_component.hpp"
+#include "rive/layout_component.hpp"
 namespace rive
 {
-class ArtboardBase : public WorldTransformComponent
+class ArtboardBase : public LayoutComponent
 {
 protected:
-    typedef WorldTransformComponent Super;
+    typedef LayoutComponent Super;
 
 public:
     static const uint16_t typeKey = 1;
@@ -21,6 +20,7 @@ public:
         switch (typeKey)
         {
             case ArtboardBase::typeKey:
+            case LayoutComponentBase::typeKey:
             case WorldTransformComponentBase::typeKey:
             case ContainerComponentBase::typeKey:
             case ComponentBase::typeKey:
@@ -32,9 +32,6 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t clipPropertyKey = 196;
-    static const uint16_t widthPropertyKey = 7;
-    static const uint16_t heightPropertyKey = 8;
     static const uint16_t xPropertyKey = 9;
     static const uint16_t yPropertyKey = 10;
     static const uint16_t originXPropertyKey = 11;
@@ -42,9 +39,6 @@ public:
     static const uint16_t defaultStateMachineIdPropertyKey = 236;
 
 private:
-    bool m_Clip = true;
-    float m_Width = 0.0f;
-    float m_Height = 0.0f;
     float m_X = 0.0f;
     float m_Y = 0.0f;
     float m_OriginX = 0.0f;
@@ -52,39 +46,6 @@ private:
     uint32_t m_DefaultStateMachineId = -1;
 
 public:
-    inline bool clip() const { return m_Clip; }
-    void clip(bool value)
-    {
-        if (m_Clip == value)
-        {
-            return;
-        }
-        m_Clip = value;
-        clipChanged();
-    }
-
-    inline float width() const { return m_Width; }
-    void width(float value)
-    {
-        if (m_Width == value)
-        {
-            return;
-        }
-        m_Width = value;
-        widthChanged();
-    }
-
-    inline float height() const { return m_Height; }
-    void height(float value)
-    {
-        if (m_Height == value)
-        {
-            return;
-        }
-        m_Height = value;
-        heightChanged();
-    }
-
     inline float x() const { return m_X; }
     void x(float value)
     {
@@ -143,30 +104,18 @@ public:
     Core* clone() const override;
     void copy(const ArtboardBase& object)
     {
-        m_Clip = object.m_Clip;
-        m_Width = object.m_Width;
-        m_Height = object.m_Height;
         m_X = object.m_X;
         m_Y = object.m_Y;
         m_OriginX = object.m_OriginX;
         m_OriginY = object.m_OriginY;
         m_DefaultStateMachineId = object.m_DefaultStateMachineId;
-        WorldTransformComponent::copy(object);
+        LayoutComponent::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
     {
         switch (propertyKey)
         {
-            case clipPropertyKey:
-                m_Clip = CoreBoolType::deserialize(reader);
-                return true;
-            case widthPropertyKey:
-                m_Width = CoreDoubleType::deserialize(reader);
-                return true;
-            case heightPropertyKey:
-                m_Height = CoreDoubleType::deserialize(reader);
-                return true;
             case xPropertyKey:
                 m_X = CoreDoubleType::deserialize(reader);
                 return true;
@@ -183,13 +132,10 @@ public:
                 m_DefaultStateMachineId = CoreUintType::deserialize(reader);
                 return true;
         }
-        return WorldTransformComponent::deserialize(propertyKey, reader);
+        return LayoutComponent::deserialize(propertyKey, reader);
     }
 
 protected:
-    virtual void clipChanged() {}
-    virtual void widthChanged() {}
-    virtual void heightChanged() {}
     virtual void xChanged() {}
     virtual void yChanged() {}
     virtual void originXChanged() {}
