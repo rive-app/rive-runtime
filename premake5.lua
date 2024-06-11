@@ -22,6 +22,8 @@ do
     })
     flags({ 'FatalWarnings' })
 
+    defines({ 'YOGA_EXPORT=' })
+
     files({ 'path_fiddle/**.cpp' })
 
     links({
@@ -33,6 +35,7 @@ do
         'libjpeg',
         'rive_harfbuzz',
         'rive_sheenbidi',
+        'rive_yoga',
     })
 
     filter('options:with-skia')
@@ -119,6 +122,15 @@ do
         files({ 'path_fiddle/index.html' })
     end
 
+    filter({ 'options:with_rive_layout' })
+    do
+        defines({ 'YOGA_EXPORT=' })
+        includedirs({ yoga })
+        links({
+            'rive_yoga',
+        })
+    end
+
     filter('files:**.html')
     do
         buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
@@ -139,6 +151,8 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
         })
         flags({ 'FatalWarnings' })
+
+        defines({ 'YOGA_EXPORT=' })
 
         files({
             'webgpu_player/webgpu_player.cpp',
@@ -180,6 +194,7 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             'libjpeg',
             'rive_harfbuzz',
             'rive_sheenbidi',
+            'rive_yoga',
         })
 
         filter('system:windows')
@@ -245,6 +260,15 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
                 '-sSINGLE_FILE',
                 '-sUSE_WEBGPU',
                 '-sENVIRONMENT=web,shell',
+            })
+        end
+
+        filter({ 'options:with_rive_layout' })
+        do
+            defines({ 'YOGA_EXPORT=' })
+            includedirs({ yoga })
+            links({
+                'rive_yoga',
             })
         end
 
