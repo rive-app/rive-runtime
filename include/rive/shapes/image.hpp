@@ -24,8 +24,13 @@ public:
     void setAsset(FileAsset*) override;
     uint32_t assetId() override;
     Core* clone() const override;
-    AABB computeIntrinsicSize(AABB min, AABB max) override;
-    void controlSize(AABB size) override;
+    Vec2D measureLayout(float width,
+                        LayoutMeasureMode widthMode,
+                        float height,
+                        LayoutMeasureMode heightMode) override;
+    void controlSize(Vec2D size) override;
+    float width() const;
+    float height() const;
 };
 } // namespace rive
 

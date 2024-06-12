@@ -1,5 +1,6 @@
-#include <rive/math/transform_components.hpp>
-#include <rive/shapes/rectangle.hpp>
+#include "rive/math/transform_components.hpp"
+#include "rive/shapes/rectangle.hpp"
+#include "rive/text/text.hpp"
 #include "utils/no_op_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
@@ -120,4 +121,23 @@ TEST_CASE("LayoutComponent Center using alignItems and justifyContent", "[layout
 
     REQUIRE(targetComponents.x() == 200);
     REQUIRE(targetComponents.y() == 200);
+}
+
+TEST_CASE("LayoutComponent with intrinsic size gets measured correctly", "[layout]")
+{
+    auto file = ReadRiveFile("../../test/assets/layout/measure_tests.riv");
+
+    auto artboard = file->artboard("hi");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("TextLayout") != nullptr);
+    REQUIRE(artboard->find<rive::Text>("HiText") != nullptr);
+
+    artboard->advance(0.0f);
+
+    auto text = artboard->find<rive::Text>("HiText");
+    auto bounds = text->localBounds();
+    REQUIRE(bounds.left() == 0);
+    REQUIRE(bounds.top() == 0);
+    REQUIRE(bounds.width() == 63.0f);
+    REQUIRE(bounds.height() == 73.0f);
 }

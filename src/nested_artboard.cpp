@@ -6,6 +6,7 @@
 #include "rive/nested_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/clip_result.hpp"
+#include <limits>
 #include <cassert>
 
 using namespace rive;
@@ -232,12 +233,24 @@ bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local)
     return true;
 }
 
-AABB NestedArtboard::computeIntrinsicSize(AABB min, AABB max) { return max; }
-
-void NestedArtboard::controlSize(AABB size)
+Vec2D NestedArtboard::measureLayout(float width,
+                                    LayoutMeasureMode widthMode,
+                                    float height,
+                                    LayoutMeasureMode heightMode)
 {
-    auto newScaleX = size.width() / m_Artboard->originalWidth();
-    auto newScaleY = size.height() / m_Artboard->originalHeight();
+    return Vec2D(
+        std::min(widthMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max()
+                                                           : width,
+                 m_Instance ? m_Instance->width() : 0.0f),
+        std::min(heightMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max()
+                                                            : height,
+                 m_Instance ? m_Instance->height() : 0.0f));
+}
+
+void NestedArtboard::controlSize(Vec2D size)
+{
+    auto newScaleX = size.x / m_Artboard->originalWidth();
+    auto newScaleY = size.y / m_Artboard->originalHeight();
     if (newScaleX != scaleX() || newScaleY != scaleY())
     {
         // TODO: Support nested artboard fit & alignment

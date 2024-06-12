@@ -122,13 +122,76 @@ Core* Image::clone() const
 void Image::setMesh(Mesh* mesh) { m_Mesh = mesh; }
 Mesh* Image::mesh() const { return m_Mesh; }
 
-AABB Image::computeIntrinsicSize(AABB min, AABB max) { return max; }
+float Image::width() const
+{
+    rive::ImageAsset* asset = this->imageAsset();
+    if (asset == nullptr)
+    {
+        return 0.0f;
+    }
 
-void Image::controlSize(AABB size)
+    rive::RenderImage* renderImage = asset->renderImage();
+    if (renderImage == nullptr)
+    {
+        return 0.0f;
+    }
+    return renderImage->width();
+}
+
+float Image::height() const
+{
+    rive::ImageAsset* asset = this->imageAsset();
+    if (asset == nullptr)
+    {
+        return 0.0f;
+    }
+
+    rive::RenderImage* renderImage = asset->renderImage();
+    if (renderImage == nullptr)
+    {
+        return 0.0f;
+    }
+    return renderImage->height();
+}
+
+Vec2D Image::measureLayout(float width,
+                           LayoutMeasureMode widthMode,
+                           float height,
+                           LayoutMeasureMode heightMode)
+{
+    float measuredWidth, measuredHeight;
+    switch (widthMode)
+    {
+        case LayoutMeasureMode::atMost:
+            measuredWidth = std::max(Image::width(), width);
+            break;
+        case LayoutMeasureMode::exactly:
+            measuredWidth = width;
+            break;
+        case LayoutMeasureMode::undefined:
+            measuredWidth = Image::width();
+            break;
+    }
+    switch (heightMode)
+    {
+        case LayoutMeasureMode::atMost:
+            measuredHeight = std::max(Image::height(), height);
+            break;
+        case LayoutMeasureMode::exactly:
+            measuredHeight = height;
+            break;
+        case LayoutMeasureMode::undefined:
+            measuredHeight = Image::height();
+            break;
+    }
+    return Vec2D(measuredWidth, measuredHeight);
+}
+
+void Image::controlSize(Vec2D size)
 {
     auto renderImage = imageAsset()->renderImage();
-    auto newScaleX = size.width() / renderImage->width();
-    auto newScaleY = size.height() / renderImage->height();
+    auto newScaleX = size.x / renderImage->width();
+    auto newScaleY = size.y / renderImage->height();
     if (newScaleX != scaleX() || newScaleY != scaleY())
     {
         scaleX(newScaleX);

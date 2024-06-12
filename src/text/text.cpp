@@ -11,6 +11,7 @@ using namespace rive;
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/clip_result.hpp"
+#include <limits>
 
 void GlyphItr::tryAdvanceRun()
 {
@@ -241,14 +242,22 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
     return true;
 }
 
-AABB Text::computeIntrinsicSize(AABB min, AABB max) { return measure(max); }
-
-void Text::controlSize(AABB size)
+Vec2D Text::measureLayout(float width,
+                          LayoutMeasureMode widthMode,
+                          float height,
+                          LayoutMeasureMode heightMode)
 {
-    if (m_layoutWidth != size.width() || m_layoutHeight != size.height())
+    return measure(Vec2D(
+        widthMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max() : width,
+        heightMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max() : height));
+}
+
+void Text::controlSize(Vec2D size)
+{
+    if (m_layoutWidth != size.x || m_layoutHeight != size.y)
     {
-        m_layoutWidth = size.width();
-        m_layoutHeight = size.height();
+        m_layoutWidth = size.x;
+        m_layoutHeight = size.y;
         markShapeDirty(false);
     }
 }
@@ -760,18 +769,21 @@ void Text::update(ComponentDirt value)
     }
 }
 
-AABB Text::measure(AABB maxSize)
+Vec2D Text::measure(Vec2D maxSize)
 {
     if (makeStyled(m_styledText))
     {
         const float paragraphSpace = paragraphSpacing();
         auto runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-        auto lines =
-            breakLines(shape,
-                       effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
-                       (TextAlign)alignValue());
+        auto lines = breakLines(shape,
+                                std::min(maxSize.x,
+                                         sizing() == TextSizing::autoWidth
+                                             ? std::numeric_limits<float>::max()
+                                             : width()),
+                                (TextAlign)alignValue());
         float y = 0;
+        float computedHeight = 0.0f;
         float minY = 0;
         int paragraphIndex = 0;
         float maxWidth = 0;
@@ -781,6 +793,9 @@ AABB Text::measure(AABB maxSize)
             y -= m_lines[0][0].baseline;
             minY = y;
         }
+        int ellipsisLine = -1;
+        bool wantEllipsis = overflow() == TextOverflow::ellipsis;
+
         for (const SimpleArray<GlyphLine>& paragraphLines : lines)
         {
             const Paragraph& paragraph = shape[paragraphIndex++];
@@ -794,6 +809,17 @@ AABB Text::measure(AABB maxSize)
                 {
                     maxWidth = width;
                 }
+                if (wantEllipsis && y + line.bottom > maxSize.y)
+                {
+                    if (ellipsisLine == -1)
+                    {
+                        // Nothing fits, just show the first line and ellipse it.
+                        computedHeight = y + line.bottom;
+                    }
+                    goto doneMeasuring;
+                }
+                ellipsisLine++;
+                computedHeight = y + line.bottom;
             }
             if (!paragraphLines.empty())
             {
@@ -801,21 +827,22 @@ AABB Text::measure(AABB maxSize)
             }
             y += paragraphSpace;
         }
+    doneMeasuring:
 
         switch (sizing())
         {
             case TextSizing::autoWidth:
-                return AABB::fromLTWH(0, 0, maxWidth, std::max(minY, y - paragraphSpace));
+                return Vec2D(maxWidth, std::max(minY, computedHeight));
                 break;
             case TextSizing::autoHeight:
-                return AABB::fromLTWH(0, 0, width(), std::max(minY, y - paragraphSpace));
+                return Vec2D(width(), std::max(minY, computedHeight));
                 break;
             case TextSizing::fixed:
-                return AABB::fromLTWH(0, 0, width(), minY + height());
+                return Vec2D(width(), minY + height());
                 break;
         }
     }
-    return AABB();
+    return Vec2D();
 }
 
 AABB Text::localBounds() const
@@ -877,6 +904,12 @@ AABB Text::localBounds() const { return AABB(); }
 void Text::originValueChanged() {}
 void Text::originXChanged() {}
 void Text::originYChanged() {}
-AABB Text::computeIntrinsicSize(AABB min, AABB max) { return AABB(); }
-void Text::controlSize(AABB size) {}
+Vec2D Text::measureLayout(float width,
+                          LayoutMeasureMode widthMode,
+                          float height,
+                          LayoutMeasureMode heightMode)
+{
+    return Vec2D();
+}
+void Text::controlSize(Vec2D size) {}
 #endif

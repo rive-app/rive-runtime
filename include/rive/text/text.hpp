@@ -191,8 +191,11 @@ public:
     void originXChanged() override;
     void originYChanged() override;
 
-    AABB computeIntrinsicSize(AABB min, AABB max) override;
-    void controlSize(AABB size) override;
+    Vec2D measureLayout(float width,
+                        LayoutMeasureMode widthMode,
+                        float height,
+                        LayoutMeasureMode heightMode) override;
+    void controlSize(Vec2D size) override;
     float effectiveWidth() { return std::isnan(m_layoutWidth) ? width() : m_layoutWidth; }
     float effectiveHeight() { return std::isnan(m_layoutHeight) ? height() : m_layoutHeight; }
 #ifdef WITH_RIVE_TEXT
@@ -247,7 +250,7 @@ private:
 #endif
     float m_layoutWidth = NAN;
     float m_layoutHeight = NAN;
-    AABB measure(AABB maxSize);
+    Vec2D measure(Vec2D maxSize);
 };
 } // namespace rive
 

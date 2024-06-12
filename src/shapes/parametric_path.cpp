@@ -3,15 +3,43 @@
 
 using namespace rive;
 
-AABB ParametricPath::computeIntrinsicSize(AABB min, AABB max)
+Vec2D ParametricPath::measureLayout(float width,
+                                    LayoutMeasureMode widthMode,
+                                    float height,
+                                    LayoutMeasureMode heightMode)
 {
-    return AABB::fromLTWH(0, 0, width(), height());
+    float measuredWidth, measuredHeight;
+    switch (widthMode)
+    {
+        case LayoutMeasureMode::atMost:
+            measuredWidth = std::max(ParametricPath::width(), width);
+            break;
+        case LayoutMeasureMode::exactly:
+            measuredWidth = width;
+            break;
+        case LayoutMeasureMode::undefined:
+            measuredWidth = ParametricPath::width();
+            break;
+    }
+    switch (heightMode)
+    {
+        case LayoutMeasureMode::atMost:
+            measuredHeight = std::max(ParametricPath::height(), height);
+            break;
+        case LayoutMeasureMode::exactly:
+            measuredHeight = height;
+            break;
+        case LayoutMeasureMode::undefined:
+            measuredHeight = ParametricPath::height();
+            break;
+    }
+    return Vec2D(measuredWidth, measuredHeight);
 }
 
-void ParametricPath::controlSize(AABB size)
+void ParametricPath::controlSize(Vec2D size)
 {
-    width(size.width());
-    height(size.height());
+    width(size.x);
+    height(size.y);
     markWorldTransformDirty();
 }
 

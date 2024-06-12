@@ -29,8 +29,8 @@ class NestedArtboard;
 class NestedEventListener;
 class NestedEventNotifier;
 class Event;
-class EventReport;
 class KeyedProperty;
+class EventReport;
 
 class StateMachineInstance : public Scene, public NestedEventNotifier, public NestedEventListener
 {

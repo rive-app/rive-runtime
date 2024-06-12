@@ -84,6 +84,9 @@ StatusCode Artboard::initialize()
     m_BackgroundPath = factory()->makeEmptyRenderPath();
     m_ClipPath = factory()->makeEmptyRenderPath();
 
+#ifdef WITH_RIVE_LAYOUT
+    markLayoutDirty(this);
+#endif
     // onAddedDirty guarantees that all objects are now available so they can be
     // looked up by index/id. This is where nodes find their parents, but they
     // can't assume that their parent's parent will have resolved yet.

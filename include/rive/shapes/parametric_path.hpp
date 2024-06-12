@@ -7,8 +7,11 @@ namespace rive
 class ParametricPath : public ParametricPathBase
 {
 public:
-    AABB computeIntrinsicSize(AABB min, AABB max) override;
-    void controlSize(AABB size) override;
+    Vec2D measureLayout(float width,
+                        LayoutMeasureMode widthMode,
+                        float height,
+                        LayoutMeasureMode heightMode) override;
+    void controlSize(Vec2D size) override;
 
 protected:
     void widthChanged() override;

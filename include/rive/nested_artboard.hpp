@@ -80,8 +80,11 @@ public:
     float effectiveScaleX() { return std::isnan(m_layoutScaleX) ? scaleX() : m_layoutScaleX; }
     float effectiveScaleY() { return std::isnan(m_layoutScaleY) ? scaleY() : m_layoutScaleY; }
 
-    AABB computeIntrinsicSize(AABB min, AABB max) override;
-    void controlSize(AABB size) override;
+    Vec2D measureLayout(float width,
+                        LayoutMeasureMode widthMode,
+                        float height,
+                        LayoutMeasureMode heightMode) override;
+    void controlSize(Vec2D size) override;
 
     /// Convert a world space (relative to the artboard that this
     /// NestedArtboard is a child of) to the local space of the Artboard

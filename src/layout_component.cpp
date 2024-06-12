@@ -21,6 +21,8 @@ void LayoutComponent::buildDependencies()
 }
 
 #ifdef WITH_RIVE_LAYOUT
+LayoutComponent::LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())) {}
+
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
     auto code = Super::onAddedDirty(context);
@@ -60,10 +62,28 @@ void LayoutComponent::update(ComponentDirt value)
     }
 }
 
-AABB LayoutComponent::findMaxIntrinsicSize(ContainerComponent* component, AABB maxIntrinsicSize)
+static YGSize measureFunc(YGNode* node,
+                          float width,
+                          YGMeasureMode widthMode,
+                          float height,
+                          YGMeasureMode heightMode)
 {
-    auto intrinsicSize = maxIntrinsicSize;
-    for (auto child : component->children())
+    Vec2D size = ((LayoutComponent*)node->getContext())
+                     ->measureLayout(width,
+                                     (LayoutMeasureMode)widthMode,
+                                     height,
+                                     (LayoutMeasureMode)heightMode);
+
+    return YGSize{size.x, size.y};
+}
+
+Vec2D LayoutComponent::measureLayout(float width,
+                                     LayoutMeasureMode widthMode,
+                                     float height,
+                                     LayoutMeasureMode heightMode)
+{
+    Vec2D size = Vec2D();
+    for (auto child : children())
     {
         if (child->is<LayoutComponent>())
         {
@@ -71,141 +91,106 @@ AABB LayoutComponent::findMaxIntrinsicSize(ContainerComponent* component, AABB m
         }
         if (child->is<TransformComponent>())
         {
-            auto sizableChild = child->as<TransformComponent>();
-            auto minSize =
-                AABB::fromLTWH(0,
-                               0,
-                               style()->minWidthUnits() == YGUnitPoint ? style()->minWidth() : 0,
-                               style()->minHeightUnits() == YGUnitPoint ? style()->minHeight() : 0);
-            auto maxSize = AABB::fromLTWH(
-                0,
-                0,
-                style()->maxWidthUnits() == YGUnitPoint ? style()->maxWidth()
-                                                        : std::numeric_limits<float>::infinity(),
-                style()->maxHeightUnits() == YGUnitPoint ? style()->maxHeight()
-                                                         : std::numeric_limits<float>::infinity());
-            auto size = sizableChild->computeIntrinsicSize(minSize, maxSize);
-            intrinsicSize = AABB::fromLTWH(0,
-                                           0,
-                                           std::max(maxIntrinsicSize.width(), size.width()),
-                                           std::max(maxIntrinsicSize.height(), size.height()));
-        }
-        if (child->is<ContainerComponent>())
-        {
-            return findMaxIntrinsicSize(child->as<ContainerComponent>(), intrinsicSize);
+            auto transformComponent = child->as<TransformComponent>();
+            Vec2D measured =
+                transformComponent->measureLayout(width, widthMode, height, heightMode);
+            size = Vec2D(std::max(size.x, measured.x), std::max(size.y, measured.y));
         }
     }
-    return intrinsicSize;
+    return size;
 }
 
 void LayoutComponent::syncStyle()
 {
-    if (style() == nullptr || layoutStyle() == nullptr || layoutNode() == nullptr)
+    if (m_style == nullptr)
     {
         return;
     }
-    bool setIntrinsicWidth = false;
-    bool setIntrinsicHeight = false;
-    if (style()->intrinsicallySized() &&
-        (style()->widthUnits() == YGUnitAuto || style()->heightUnits() == YGUnitAuto))
+    YGNode& ygNode = layoutNode();
+    YGStyle& ygStyle = layoutStyle();
+    if (m_style->intrinsicallySized())
     {
-        AABB intrinsicSize = findMaxIntrinsicSize(this, AABB());
-        bool foundIntrinsicSize = intrinsicSize.width() != 0 || intrinsicSize.height() != 0;
-
-        if (foundIntrinsicSize)
-        {
-            if (style()->widthUnits() == YGUnitAuto)
-            {
-                setIntrinsicWidth = true;
-                layoutStyle()->dimensions()[YGDimensionWidth] =
-                    YGValue{intrinsicSize.width(), YGUnitPoint};
-            }
-            if (style()->heightUnits() == YGUnitAuto)
-            {
-                setIntrinsicHeight = true;
-                layoutStyle()->dimensions()[YGDimensionHeight] =
-                    YGValue{intrinsicSize.height(), YGUnitPoint};
-            }
-        }
+        ygNode.setContext(this);
+        ygNode.setMeasureFunc(measureFunc);
     }
-    if (!setIntrinsicWidth)
+    else
     {
-        layoutStyle()->dimensions()[YGDimensionWidth] = YGValue{width(), style()->widthUnits()};
+        ygNode.setMeasureFunc(nullptr);
     }
-    if (!setIntrinsicHeight)
+    if (m_style->widthUnits() != YGUnitAuto)
     {
-        layoutStyle()->dimensions()[YGDimensionHeight] = YGValue{height(), style()->heightUnits()};
+        ygStyle.dimensions()[YGDimensionWidth] = YGValue{width(), m_style->widthUnits()};
     }
-    layoutStyle()->minDimensions()[YGDimensionWidth] =
-        YGValue{style()->minWidth(), style()->minWidthUnits()};
-    layoutStyle()->minDimensions()[YGDimensionHeight] =
-        YGValue{style()->minHeight(), style()->minHeightUnits()};
-    layoutStyle()->maxDimensions()[YGDimensionWidth] =
-        YGValue{style()->maxWidth(), style()->maxWidthUnits()};
-    layoutStyle()->maxDimensions()[YGDimensionHeight] =
-        YGValue{style()->maxHeight(), style()->maxHeightUnits()};
+    else
+    {
+        ygStyle.dimensions()[YGDimensionWidth] = YGValueAuto;
+    }
+    if (m_style->heightUnits() != YGUnitAuto)
+    {
+        ygStyle.dimensions()[YGDimensionHeight] = YGValue{height(), m_style->heightUnits()};
+    }
+    else
+    {
+        ygStyle.dimensions()[YGDimensionHeight] = YGValueAuto;
+    }
+    ygStyle.minDimensions()[YGDimensionWidth] =
+        YGValue{m_style->minWidth(), m_style->minWidthUnits()};
+    ygStyle.minDimensions()[YGDimensionHeight] =
+        YGValue{m_style->minHeight(), m_style->minHeightUnits()};
+    ygStyle.maxDimensions()[YGDimensionWidth] =
+        YGValue{m_style->maxWidth(), m_style->maxWidthUnits()};
+    ygStyle.maxDimensions()[YGDimensionHeight] =
+        YGValue{m_style->maxHeight(), m_style->maxHeightUnits()};
 
-    layoutStyle()->gap()[YGGutterColumn] =
-        YGValue{style()->gapHorizontal(), style()->gapHorizontalUnits()};
-    layoutStyle()->gap()[YGGutterRow] =
-        YGValue{style()->gapVertical(), style()->gapVerticalUnits()};
-    layoutStyle()->border()[YGEdgeLeft] =
-        YGValue{style()->borderLeft(), style()->borderLeftUnits()};
-    layoutStyle()->border()[YGEdgeRight] =
-        YGValue{style()->borderRight(), style()->borderRightUnits()};
-    layoutStyle()->border()[YGEdgeTop] = YGValue{style()->borderTop(), style()->borderTopUnits()};
-    layoutStyle()->border()[YGEdgeBottom] =
-        YGValue{style()->borderBottom(), style()->borderBottomUnits()};
-    layoutStyle()->margin()[YGEdgeLeft] =
-        YGValue{style()->marginLeft(), style()->marginLeftUnits()};
-    layoutStyle()->margin()[YGEdgeRight] =
-        YGValue{style()->marginRight(), style()->marginRightUnits()};
-    layoutStyle()->margin()[YGEdgeTop] = YGValue{style()->marginTop(), style()->marginTopUnits()};
-    layoutStyle()->margin()[YGEdgeBottom] =
-        YGValue{style()->marginBottom(), style()->marginBottomUnits()};
-    layoutStyle()->padding()[YGEdgeLeft] =
-        YGValue{style()->paddingLeft(), style()->paddingLeftUnits()};
-    layoutStyle()->padding()[YGEdgeRight] =
-        YGValue{style()->paddingRight(), style()->paddingRightUnits()};
-    layoutStyle()->padding()[YGEdgeTop] =
-        YGValue{style()->paddingTop(), style()->paddingTopUnits()};
-    layoutStyle()->padding()[YGEdgeBottom] =
-        YGValue{style()->paddingBottom(), style()->paddingBottomUnits()};
-    layoutStyle()->position()[YGEdgeLeft] =
-        YGValue{style()->positionLeft(), style()->positionLeftUnits()};
-    layoutStyle()->position()[YGEdgeRight] =
-        YGValue{style()->positionRight(), style()->positionRightUnits()};
-    layoutStyle()->position()[YGEdgeTop] =
-        YGValue{style()->positionTop(), style()->positionTopUnits()};
-    layoutStyle()->position()[YGEdgeBottom] =
-        YGValue{style()->positionBottom(), style()->positionBottomUnits()};
+    ygStyle.gap()[YGGutterColumn] =
+        YGValue{m_style->gapHorizontal(), m_style->gapHorizontalUnits()};
+    ygStyle.gap()[YGGutterRow] = YGValue{m_style->gapVertical(), m_style->gapVerticalUnits()};
+    ygStyle.border()[YGEdgeLeft] = YGValue{m_style->borderLeft(), m_style->borderLeftUnits()};
+    ygStyle.border()[YGEdgeRight] = YGValue{m_style->borderRight(), m_style->borderRightUnits()};
+    ygStyle.border()[YGEdgeTop] = YGValue{m_style->borderTop(), m_style->borderTopUnits()};
+    ygStyle.border()[YGEdgeBottom] = YGValue{m_style->borderBottom(), m_style->borderBottomUnits()};
+    ygStyle.margin()[YGEdgeLeft] = YGValue{m_style->marginLeft(), m_style->marginLeftUnits()};
+    ygStyle.margin()[YGEdgeRight] = YGValue{m_style->marginRight(), m_style->marginRightUnits()};
+    ygStyle.margin()[YGEdgeTop] = YGValue{m_style->marginTop(), m_style->marginTopUnits()};
+    ygStyle.margin()[YGEdgeBottom] = YGValue{m_style->marginBottom(), m_style->marginBottomUnits()};
+    ygStyle.padding()[YGEdgeLeft] = YGValue{m_style->paddingLeft(), m_style->paddingLeftUnits()};
+    ygStyle.padding()[YGEdgeRight] = YGValue{m_style->paddingRight(), m_style->paddingRightUnits()};
+    ygStyle.padding()[YGEdgeTop] = YGValue{m_style->paddingTop(), m_style->paddingTopUnits()};
+    ygStyle.padding()[YGEdgeBottom] =
+        YGValue{m_style->paddingBottom(), m_style->paddingBottomUnits()};
+    ygStyle.position()[YGEdgeLeft] = YGValue{m_style->positionLeft(), m_style->positionLeftUnits()};
+    ygStyle.position()[YGEdgeRight] =
+        YGValue{m_style->positionRight(), m_style->positionRightUnits()};
+    ygStyle.position()[YGEdgeTop] = YGValue{m_style->positionTop(), m_style->positionTopUnits()};
+    ygStyle.position()[YGEdgeBottom] =
+        YGValue{m_style->positionBottom(), m_style->positionBottomUnits()};
 
-    layoutStyle()->display() = style()->display();
-    layoutStyle()->positionType() = style()->positionType();
-    layoutStyle()->flex() = YGFloatOptional(style()->flex());
-    layoutStyle()->flexGrow() = YGFloatOptional(style()->flexGrow());
-    layoutStyle()->flexShrink() = YGFloatOptional(style()->flexShrink());
-    // layoutStyle()->flexBasis() = style()->flexBasis();
-    layoutStyle()->flexDirection() = style()->flexDirection();
-    layoutStyle()->flexWrap() = style()->flexWrap();
-    layoutStyle()->alignItems() = style()->alignItems();
-    layoutStyle()->alignContent() = style()->alignContent();
-    layoutStyle()->alignSelf() = style()->alignSelf();
-    layoutStyle()->justifyContent() = style()->justifyContent();
+    ygStyle.display() = m_style->display();
+    ygStyle.positionType() = m_style->positionType();
+    ygStyle.flex() = YGFloatOptional(m_style->flex());
+    ygStyle.flexGrow() = YGFloatOptional(m_style->flexGrow());
+    ygStyle.flexShrink() = YGFloatOptional(m_style->flexShrink());
+    // ygStyle.flexBasis() = m_style->flexBasis();
+    ygStyle.flexDirection() = m_style->flexDirection();
+    ygStyle.flexWrap() = m_style->flexWrap();
+    ygStyle.alignItems() = m_style->alignItems();
+    ygStyle.alignContent() = m_style->alignContent();
+    ygStyle.alignSelf() = m_style->alignSelf();
+    ygStyle.justifyContent() = m_style->justifyContent();
 
-    layoutNode()->setStyle(*layoutStyle());
+    ygNode.setStyle(ygStyle);
 }
 
 void LayoutComponent::syncLayoutChildren()
 {
-    YGNodeRemoveAllChildren(layoutNode());
+    YGNodeRemoveAllChildren(&layoutNode());
     int index = 0;
     for (size_t i = 0; i < children().size(); i++)
     {
         Component* child = children()[i];
         if (child->is<LayoutComponent>())
         {
-            YGNodeInsertChild(layoutNode(), child->as<LayoutComponent>()->layoutNode(), index);
+            YGNodeInsertChild(&layoutNode(), &child->as<LayoutComponent>()->layoutNode(), index);
             index += 1;
         }
     }
@@ -231,7 +216,7 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
         if (child->is<TransformComponent>())
         {
             auto sizableChild = child->as<TransformComponent>();
-            sizableChild->controlSize(AABB::fromLTWH(0, 0, m_layoutSizeWidth, m_layoutSizeHeight));
+            sizableChild->controlSize(Vec2D(m_layoutSizeWidth, m_layoutSizeHeight));
         }
         if (child->is<ContainerComponent>())
         {
@@ -242,15 +227,16 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
 
 void LayoutComponent::calculateLayout()
 {
-    YGNodeCalculateLayout(layoutNode(), width(), height(), YGDirection::YGDirectionInherit);
+    YGNodeCalculateLayout(&layoutNode(), width(), height(), YGDirection::YGDirectionInherit);
 }
 
 void LayoutComponent::updateLayoutBounds()
 {
-    auto left = YGNodeLayoutGetLeft(layoutNode());
-    auto top = YGNodeLayoutGetTop(layoutNode());
-    auto width = YGNodeLayoutGetWidth(layoutNode());
-    auto height = YGNodeLayoutGetHeight(layoutNode());
+    auto node = &layoutNode();
+    auto left = YGNodeLayoutGetLeft(node);
+    auto top = YGNodeLayoutGetTop(node);
+    auto width = YGNodeLayoutGetWidth(node);
+    auto height = YGNodeLayoutGetHeight(node);
     if (left != m_layoutLocationX || top != m_layoutLocationY || width != m_layoutSizeWidth ||
         height != m_layoutSizeHeight)
     {
@@ -265,7 +251,7 @@ void LayoutComponent::updateLayoutBounds()
 
 void LayoutComponent::markLayoutNodeDirty()
 {
-    layoutNode()->markDirtyAndPropagate();
+    layoutNode().markDirtyAndPropagate();
     artboard()->markLayoutDirty(this);
 }
 #else

@@ -8,7 +8,7 @@ defines({
     'WITH_RIVE_AUDIO',
     'WITH_RIVE_AUDIO_TOOLS',
     'WITH_RIVE_LAYOUT',
-    'YOGA_EXPORT='
+    'YOGA_EXPORT=',
 })
 
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
