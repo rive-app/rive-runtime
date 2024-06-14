@@ -12,6 +12,7 @@ do
     kind('StaticLib')
     os.copyfile(libpng .. '/scripts/pnglibconf.h.prebuilt', libpng .. '/pnglibconf.h')
     includedirs({ libpng, zlib })
+    optimize("Speed") -- Always optimize image encoding/decoding, even in debug builds.
     files({
         libpng .. '/png.c',
         libpng .. '/pngerror.c',
@@ -44,6 +45,7 @@ do
     kind('StaticLib')
     defines({ 'ZLIB_IMPLEMENTATION' })
     includedirs({ zlib })
+    optimize("Speed") -- Always optimize image encoding/decoding, even in debug builds.
     files({
         zlib .. '/adler32.c',
         zlib .. '/compress.c',

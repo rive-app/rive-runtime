@@ -10,6 +10,7 @@ libjpeg = dependency.github('rive-app/libjpeg', 'v9f')
 project('libjpeg')
 do
     kind('StaticLib')
+    optimize("Speed") -- Always optimize image encoding/decoding, even in debug builds.
 
     includedirs({ libjpeg })
 
