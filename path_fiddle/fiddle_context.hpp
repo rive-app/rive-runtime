@@ -33,7 +33,7 @@ public:
 
     static std::unique_ptr<FiddleContext> MakeGLSkia();
     static std::unique_ptr<FiddleContext> MakeGLPLS();
-#ifdef __APPLE__
+#ifdef RIVE_MACOSX
     static std::unique_ptr<FiddleContext> MakeMetalPLS(FiddleContextOptions = {});
 #else
     static std::unique_ptr<FiddleContext> MakeMetalPLS(FiddleContextOptions = {})

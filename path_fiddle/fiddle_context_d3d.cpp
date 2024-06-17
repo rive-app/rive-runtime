@@ -120,7 +120,7 @@ public:
             m_gpuContext->CopyResource(m_readbackTexture.Get(), m_renderTarget->targetTexture());
             m_gpuContext->Map(m_readbackTexture.Get(), 0, D3D11_MAP_READ, 0, &map);
             pixelData->resize(h * w * 4);
-            for (int y = 0; y < h; ++y)
+            for (uint32_t y = 0; y < h; ++y)
             {
                 auto row = reinterpret_cast<const char*>(map.pData) + map.RowPitch * y;
                 memcpy(pixelData->data() + (h - y - 1) * w * 4, row, w * 4);

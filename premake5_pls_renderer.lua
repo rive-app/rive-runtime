@@ -20,6 +20,11 @@ do
     defines({ 'RIVE_DESKTOP_GL' })
 end
 
+filter('system:macosx')
+do
+    defines({ 'RIVE_MACOSX' })
+end
+
 filter('system:android')
 do
     defines({ 'RIVE_ANDROID' })
