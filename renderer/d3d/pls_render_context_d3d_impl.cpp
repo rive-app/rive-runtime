@@ -151,10 +151,14 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     rasterDesc.CullMode = D3D11_CULL_BACK;
     rasterDesc.FrontCounterClockwise = FALSE; // FrontCounterClockwise must be FALSE in order to
                                               // match the winding sense of interior triangulations.
+
     rasterDesc.DepthBias = 0;
     rasterDesc.SlopeScaledDepthBias = 0;
     rasterDesc.DepthBiasClamp = 0;
-    rasterDesc.DepthClipEnable = FALSE;
+    rasterDesc.DepthClipEnable = TRUE; // This is the default state which reset to before flushing.
+                                       // Details on default state here:
+    // https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
+
     rasterDesc.ScissorEnable = FALSE;
     rasterDesc.MultisampleEnable = FALSE;
     rasterDesc.AntialiasedLineEnable = FALSE;
@@ -1186,8 +1190,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
     auto renderTarget = static_cast<PLSRenderTargetD3D*>(desc.renderTarget);
 
-    m_gpuContext->RSSetState(m_backCulledRasterState[0].Get());
-    m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
+    m_gpuContext->ClearState();
 
     // All programs use the same set of per-flush uniforms.
     m_gpuContext->UpdateSubresource(m_flushUniforms.Get(),
