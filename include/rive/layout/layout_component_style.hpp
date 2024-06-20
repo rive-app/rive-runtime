@@ -9,45 +9,45 @@
 namespace rive
 {
 // ---- Flags 0
-static BitFieldLoc DisplayBits = BitFieldLoc(0, 0);
-static BitFieldLoc PositionTypeBits = BitFieldLoc(1, 2);
-static BitFieldLoc FlexDirectionBits = BitFieldLoc(3, 4);
-static BitFieldLoc DirectionBits = BitFieldLoc(5, 6);
-static BitFieldLoc AlignContentBits = BitFieldLoc(7, 9);
-static BitFieldLoc AlignItemsBits = BitFieldLoc(10, 12);
-static BitFieldLoc AlignSelfBits = BitFieldLoc(13, 15);
-static BitFieldLoc JustifyContentBits = BitFieldLoc(16, 18);
-static BitFieldLoc FlexWrapBits = BitFieldLoc(19, 20);
-static BitFieldLoc OverflowBits = BitFieldLoc(21, 22);
-static BitFieldLoc IntrinsicallySizedBits = BitFieldLoc(23, 23);
-static BitFieldLoc WidthUnitsBits = BitFieldLoc(24, 25);
-static BitFieldLoc HeightUnitsBits = BitFieldLoc(26, 27);
+extern BitFieldLoc DisplayBits;
+extern BitFieldLoc PositionTypeBits;
+extern BitFieldLoc FlexDirectionBits;
+extern BitFieldLoc DirectionBits;
+extern BitFieldLoc AlignContentBits;
+extern BitFieldLoc AlignItemsBits;
+extern BitFieldLoc AlignSelfBits;
+extern BitFieldLoc JustifyContentBits;
+extern BitFieldLoc FlexWrapBits;
+extern BitFieldLoc OverflowBits;
+extern BitFieldLoc IntrinsicallySizedBits;
+extern BitFieldLoc WidthUnitsBits;
+extern BitFieldLoc HeightUnitsBits;
 
 // ---- Flags 1
-static BitFieldLoc BorderLeftUnitsBits = BitFieldLoc(0, 1);
-static BitFieldLoc BorderRightUnitsBits = BitFieldLoc(2, 3);
-static BitFieldLoc BorderTopUnitsBits = BitFieldLoc(4, 5);
-static BitFieldLoc BorderBottomUnitsBits = BitFieldLoc(6, 7);
-static BitFieldLoc MarginLeftUnitsBits = BitFieldLoc(8, 9);
-static BitFieldLoc MarginRightUnitsBits = BitFieldLoc(10, 11);
-static BitFieldLoc MarginTopUnitsBits = BitFieldLoc(12, 13);
-static BitFieldLoc MarginBottomUnitsBits = BitFieldLoc(14, 15);
-static BitFieldLoc PaddingLeftUnitsBits = BitFieldLoc(16, 17);
-static BitFieldLoc PaddingRightUnitsBits = BitFieldLoc(18, 19);
-static BitFieldLoc PaddingTopUnitsBits = BitFieldLoc(20, 21);
-static BitFieldLoc PaddingBottomUnitsBits = BitFieldLoc(22, 23);
-static BitFieldLoc PositionLeftUnitsBits = BitFieldLoc(24, 25);
-static BitFieldLoc PositionRightUnitsBits = BitFieldLoc(26, 27);
-static BitFieldLoc PositionTopUnitsBits = BitFieldLoc(28, 29);
-static BitFieldLoc PositionBottomUnitsBits = BitFieldLoc(30, 31);
+extern BitFieldLoc BorderLeftUnitsBits;
+extern BitFieldLoc BorderRightUnitsBits;
+extern BitFieldLoc BorderTopUnitsBits;
+extern BitFieldLoc BorderBottomUnitsBits;
+extern BitFieldLoc MarginLeftUnitsBits;
+extern BitFieldLoc MarginRightUnitsBits;
+extern BitFieldLoc MarginTopUnitsBits;
+extern BitFieldLoc MarginBottomUnitsBits;
+extern BitFieldLoc PaddingLeftUnitsBits;
+extern BitFieldLoc PaddingRightUnitsBits;
+extern BitFieldLoc PaddingTopUnitsBits;
+extern BitFieldLoc PaddingBottomUnitsBits;
+extern BitFieldLoc PositionLeftUnitsBits;
+extern BitFieldLoc PositionRightUnitsBits;
+extern BitFieldLoc PositionTopUnitsBits;
+extern BitFieldLoc PositionBottomUnitsBits;
 
 // ---- Flags 2
-static BitFieldLoc GapHorizontalUnitsBits = BitFieldLoc(0, 1);
-static BitFieldLoc GapVerticalUnitsBits = BitFieldLoc(2, 3);
-static BitFieldLoc MinWidthUnitsBits = BitFieldLoc(4, 5);
-static BitFieldLoc MinHeightUnitsBits = BitFieldLoc(6, 7);
-static BitFieldLoc MaxWidthUnitsBits = BitFieldLoc(8, 9);
-static BitFieldLoc MaxHeightUnitsBits = BitFieldLoc(10, 11);
+extern BitFieldLoc GapHorizontalUnitsBits;
+extern BitFieldLoc GapVerticalUnitsBits;
+extern BitFieldLoc MinWidthUnitsBits;
+extern BitFieldLoc MinHeightUnitsBits;
+extern BitFieldLoc MaxWidthUnitsBits;
+extern BitFieldLoc MaxHeightUnitsBits;
 
 class LayoutComponentStyle : public LayoutComponentStyleBase
 {

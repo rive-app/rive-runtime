@@ -4,6 +4,47 @@
 
 using namespace rive;
 
+// ---- Flags 0
+BitFieldLoc rive::DisplayBits = BitFieldLoc(0, 0);
+BitFieldLoc rive::PositionTypeBits = BitFieldLoc(1, 2);
+BitFieldLoc rive::FlexDirectionBits = BitFieldLoc(3, 4);
+BitFieldLoc rive::DirectionBits = BitFieldLoc(5, 6);
+BitFieldLoc rive::AlignContentBits = BitFieldLoc(7, 9);
+BitFieldLoc rive::AlignItemsBits = BitFieldLoc(10, 12);
+BitFieldLoc rive::AlignSelfBits = BitFieldLoc(13, 15);
+BitFieldLoc rive::JustifyContentBits = BitFieldLoc(16, 18);
+BitFieldLoc rive::FlexWrapBits = BitFieldLoc(19, 20);
+BitFieldLoc rive::OverflowBits = BitFieldLoc(21, 22);
+BitFieldLoc rive::IntrinsicallySizedBits = BitFieldLoc(23, 23);
+BitFieldLoc rive::WidthUnitsBits = BitFieldLoc(24, 25);
+BitFieldLoc rive::HeightUnitsBits = BitFieldLoc(26, 27);
+
+// ---- Flags 1
+BitFieldLoc rive::BorderLeftUnitsBits = BitFieldLoc(0, 1);
+BitFieldLoc rive::BorderRightUnitsBits = BitFieldLoc(2, 3);
+BitFieldLoc rive::BorderTopUnitsBits = BitFieldLoc(4, 5);
+BitFieldLoc rive::BorderBottomUnitsBits = BitFieldLoc(6, 7);
+BitFieldLoc rive::MarginLeftUnitsBits = BitFieldLoc(8, 9);
+BitFieldLoc rive::MarginRightUnitsBits = BitFieldLoc(10, 11);
+BitFieldLoc rive::MarginTopUnitsBits = BitFieldLoc(12, 13);
+BitFieldLoc rive::MarginBottomUnitsBits = BitFieldLoc(14, 15);
+BitFieldLoc rive::PaddingLeftUnitsBits = BitFieldLoc(16, 17);
+BitFieldLoc rive::PaddingRightUnitsBits = BitFieldLoc(18, 19);
+BitFieldLoc rive::PaddingTopUnitsBits = BitFieldLoc(20, 21);
+BitFieldLoc rive::PaddingBottomUnitsBits = BitFieldLoc(22, 23);
+BitFieldLoc rive::PositionLeftUnitsBits = BitFieldLoc(24, 25);
+BitFieldLoc rive::PositionRightUnitsBits = BitFieldLoc(26, 27);
+BitFieldLoc rive::PositionTopUnitsBits = BitFieldLoc(28, 29);
+BitFieldLoc rive::PositionBottomUnitsBits = BitFieldLoc(30, 31);
+
+// ---- Flags 2
+BitFieldLoc rive::GapHorizontalUnitsBits = BitFieldLoc(0, 1);
+BitFieldLoc rive::GapVerticalUnitsBits = BitFieldLoc(2, 3);
+BitFieldLoc rive::MinWidthUnitsBits = BitFieldLoc(4, 5);
+BitFieldLoc rive::MinHeightUnitsBits = BitFieldLoc(6, 7);
+BitFieldLoc rive::MaxWidthUnitsBits = BitFieldLoc(8, 9);
+BitFieldLoc rive::MaxHeightUnitsBits = BitFieldLoc(10, 11);
+
 #ifdef WITH_RIVE_LAYOUT
 YGDisplay LayoutComponentStyle::display() { return YGDisplay(DisplayBits.read(layoutFlags0())); }
 
