@@ -11,6 +11,7 @@ using namespace rive;
 StatusCode Component::onAddedDirty(CoreContext* context)
 {
     m_Artboard = static_cast<Artboard*>(context);
+    m_DependencyHelper.dependecyRoot(m_Artboard);
     if (this == m_Artboard)
     {
         // We're the artboard, don't parent to ourselves.
@@ -26,15 +27,7 @@ StatusCode Component::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void Component::addDependent(Component* component)
-{
-    // Make it's not already a dependent.
-    if (std::find(m_Dependents.begin(), m_Dependents.end(), component) != m_Dependents.end())
-    {
-        return;
-    }
-    m_Dependents.push_back(component);
-}
+void Component::addDependent(Component* component) { m_DependencyHelper.addDependent(component); }
 
 bool Component::addDirt(ComponentDirt value, bool recurse)
 {
@@ -49,17 +42,14 @@ bool Component::addDirt(ComponentDirt value, bool recurse)
 
     onDirty(m_Dirt);
 
-    m_Artboard->onComponentDirty(this);
+    m_DependencyHelper.onComponentDirty(this);
 
     if (!recurse)
     {
         return true;
     }
 
-    for (auto d : m_Dependents)
-    {
-        d->addDirt(value, true);
-    }
+    m_DependencyHelper.addDirt(value);
     return true;
 }
 
@@ -97,7 +87,7 @@ bool Component::collapse(bool value)
         m_Dirt &= ~ComponentDirt::Collapsed;
     }
     onDirty(m_Dirt);
-    m_Artboard->onComponentDirty(this);
+    m_DependencyHelper.onComponentDirty(this);
     return true;
 }
 

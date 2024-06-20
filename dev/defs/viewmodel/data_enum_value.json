@@ -1,0 +1,48 @@
+{
+  "name": "DataEnumValue",
+  "key": {
+    "int": 445,
+    "string": "dataenumvalue"
+  },
+  "properties": {
+    "key": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 578,
+        "string": "key"
+      },
+      "description": "The key of this key value enum pair."
+    },
+    "value": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 579,
+        "string": "value"
+      },
+      "description": "The value of this key value enum pair."
+    },
+    "enumId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 580,
+        "string": "enumid"
+      },
+      "description": "The id of the enum property this value belongs to.",
+      "runtime": false
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 581,
+        "string": "order"
+      },
+      "description": "Order value for sorting enum values.",
+      "runtime": false
+    }
+  }
+}

@@ -1,8 +1,12 @@
 
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/artboard.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/backboard.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
 #include "rive/assets/file_asset.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
 #include <unordered_set>
 
 using namespace rive;
@@ -59,7 +63,6 @@ void BackboardImporter::addMissingArtboard() { m_NextArtboardId++; }
 
 StatusCode BackboardImporter::resolve()
 {
-
     for (auto nestedArtboard : m_NestedArtboards)
     {
         auto itr = m_ArtboardLookup.find(nestedArtboard->artboardId());

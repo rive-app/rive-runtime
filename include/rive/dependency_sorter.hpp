@@ -15,6 +15,7 @@ private:
 
 public:
     void sort(Component* root, std::vector<Component*>& order);
+    void sort(std::vector<Component*> roots, std::vector<Component*>& order);
     bool visit(Component* component, std::vector<Component*>& order);
 };
 } // namespace rive

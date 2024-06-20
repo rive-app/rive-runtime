@@ -1,0 +1,33 @@
+{
+  "name": "ViewModelInstanceValue",
+  "key": {
+    "int": 428,
+    "string": "viewmodelinstancevalue"
+  },
+  "abstract": true,
+  "properties": {
+    "viewModelInstanceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 553,
+        "string": "viewmodelinstanceid"
+      },
+      "description": "Identifier of the view model instance this value is for, at runtime this is expected in context (after) a ViewModelInstance object.",
+      "runtime": false
+    },
+    "viewModelPropertyId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 554,
+        "string": "viewmodelpropertyid"
+      },
+      "description": "Identifier of the property this value will provide data for. At runtime these ids are normalized relative to the ViewModel itself."
+    }
+  }
+}

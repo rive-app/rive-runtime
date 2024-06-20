@@ -32,6 +32,17 @@
         "string": "alignment"
       },
       "description": "Alignment type for the nested artboard's runtime artboard."
+    },
+    "dataBindPathIds": {
+      "type": "List<Id>",
+      "typeRuntime": "Bytes",
+      "encoded": true,
+      "initialValue": "[]",
+      "key": {
+        "int": 580,
+        "string": "databindpathids"
+      },
+      "description": "Path to the selected property."
     }
   }
 }

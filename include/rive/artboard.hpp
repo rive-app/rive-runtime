@@ -4,6 +4,11 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/core_context.hpp"
+#include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/data_context.hpp"
+#include "rive/data_bind/data_bind_context.hpp"
+#include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/generated/artboard_base.hpp"
 #include "rive/hit_info.hpp"
 #include "rive/math/aabb.hpp"
@@ -54,6 +59,9 @@ private:
     std::vector<DrawTarget*> m_DrawTargets;
     std::vector<NestedArtboard*> m_NestedArtboards;
     std::vector<Joystick*> m_Joysticks;
+    std::vector<DataBind*> m_DataBinds;
+    std::vector<DataBind*> m_AllDataBinds;
+    DataContext* m_DataContext = nullptr;
     bool m_JoysticksApplyBeforeUpdate = true;
     bool m_HasChangedDrawOrderInLastUpdate = false;
 
@@ -75,6 +83,7 @@ private:
 
     void sortDependencies();
     void sortDrawOrder();
+    void updateDataBinds();
 
     Artboard* getArtboard() override { return this; }
 
@@ -116,8 +125,9 @@ public:
     }
 
     bool advance(double elapsedSeconds);
-    bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; }
-    Drawable* firstDrawable() { return m_FirstDrawable; }
+    bool advanceInternal(double elapsedSeconds, bool isRoot);
+    bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; };
+    Drawable* firstDrawable() { return m_FirstDrawable; };
 
     enum class DrawOption
     {
@@ -135,6 +145,8 @@ public:
 
     const std::vector<Core*>& objects() const { return m_Objects; }
     const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }
+    const std::vector<DataBind*> dataBinds() const { return m_DataBinds; }
+    DataContext* dataContext() { return m_DataContext; }
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
 
@@ -147,6 +159,16 @@ public:
     bool isTranslucent() const;
     bool isTranslucent(const LinearAnimation*) const;
     bool isTranslucent(const LinearAnimationInstance*) const;
+    void dataContext(DataContext* dataContext, DataContext* parent);
+    void internalDataContext(DataContext* dataContext, DataContext* parent, bool isRoot);
+    void dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
+    void dataContextFromInstance(ViewModelInstance* viewModelInstance,
+                                 DataContext* parent,
+                                 bool isRoot);
+    void dataContextFromInstance(ViewModelInstance* viewModelInstance);
+    void populateDataBinds(std::vector<Component*>* dataBinds);
+    void buildDataBindDependencies(std::vector<Component*>* dataBinds);
+    void sortDataBinds(std::vector<Component*> dataBinds);
     bool hasAudio() const;
 
     template <typename T = Component> T* find(const std::string& name)
@@ -230,6 +252,7 @@ public:
 
         artboardClone->m_Factory = m_Factory;
         artboardClone->m_FrameOrigin = m_FrameOrigin;
+        artboardClone->m_DataContext = m_DataContext;
         artboardClone->m_IsInstance = true;
         artboardClone->m_originalWidth = m_originalWidth;
         artboardClone->m_originalHeight = m_originalHeight;

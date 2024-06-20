@@ -37,6 +37,7 @@ public:
     static const uint16_t originXPropertyKey = 11;
     static const uint16_t originYPropertyKey = 12;
     static const uint16_t defaultStateMachineIdPropertyKey = 236;
+    static const uint16_t viewModelIdPropertyKey = 583;
 
 private:
     float m_X = 0.0f;
@@ -44,6 +45,7 @@ private:
     float m_OriginX = 0.0f;
     float m_OriginY = 0.0f;
     uint32_t m_DefaultStateMachineId = -1;
+    uint32_t m_ViewModelId = -1;
 
 public:
     inline float x() const { return m_X; }
@@ -101,6 +103,17 @@ public:
         defaultStateMachineIdChanged();
     }
 
+    inline uint32_t viewModelId() const { return m_ViewModelId; }
+    void viewModelId(uint32_t value)
+    {
+        if (m_ViewModelId == value)
+        {
+            return;
+        }
+        m_ViewModelId = value;
+        viewModelIdChanged();
+    }
+
     Core* clone() const override;
     void copy(const ArtboardBase& object)
     {
@@ -109,6 +122,7 @@ public:
         m_OriginX = object.m_OriginX;
         m_OriginY = object.m_OriginY;
         m_DefaultStateMachineId = object.m_DefaultStateMachineId;
+        m_ViewModelId = object.m_ViewModelId;
         LayoutComponent::copy(object);
     }
 
@@ -131,6 +145,9 @@ public:
             case defaultStateMachineIdPropertyKey:
                 m_DefaultStateMachineId = CoreUintType::deserialize(reader);
                 return true;
+            case viewModelIdPropertyKey:
+                m_ViewModelId = CoreUintType::deserialize(reader);
+                return true;
         }
         return LayoutComponent::deserialize(propertyKey, reader);
     }
@@ -141,6 +158,7 @@ protected:
     virtual void originXChanged() {}
     virtual void originYChanged() {}
     virtual void defaultStateMachineIdChanged() {}
+    virtual void viewModelIdChanged() {}
 };
 } // namespace rive
 

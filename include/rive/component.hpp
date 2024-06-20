@@ -2,6 +2,7 @@
 #define _RIVE_COMPONENT_HPP_
 #include "rive/component_dirt.hpp"
 #include "rive/generated/component_base.hpp"
+#include "rive/dependency_helper.hpp"
 
 #include <vector>
 #include <functional>
@@ -17,7 +18,6 @@ class Component : public ComponentBase
 
 private:
     ContainerComponent* m_Parent = nullptr;
-    std::vector<Component*> m_Dependents;
 
     unsigned int m_GraphOrder;
     Artboard* m_Artboard = nullptr;
@@ -26,11 +26,12 @@ protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
 
 public:
+    DependencyHelper<Artboard, Component> m_DependencyHelper;
     virtual bool collapse(bool value);
     inline Artboard* artboard() const { return m_Artboard; }
     StatusCode onAddedDirty(CoreContext* context) override;
     inline ContainerComponent* parent() const { return m_Parent; }
-    const std::vector<Component*>& dependents() const { return m_Dependents; }
+    const std::vector<Component*>& dependents() const { return m_DependencyHelper.dependents(); }
 
     void addDependent(Component* component);
 

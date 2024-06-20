@@ -5,6 +5,12 @@
 #include "rive/backboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
+#include "rive/viewmodel/data_enum.hpp"
+#include "rive/viewmodel/viewmodel_component.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include <vector>
 #include <set>
 
@@ -82,6 +88,23 @@ public:
     /// index is out of range.
     Artboard* artboard(size_t index) const;
 
+    /// @returns a view model instance of the view model with the specified name.
+    ViewModelInstance* createViewModelInstance(std::string name);
+
+    /// @returns a view model instance attached to the artboard if it exists.
+    ViewModelInstance* createViewModelInstance(Artboard* artboard);
+
+    /// @returns a view model instance of the viewModel.
+    ViewModelInstance* createViewModelInstance(ViewModel* viewModel);
+
+    /// @returns a view model instance of the viewModel by name and instance name.
+    ViewModelInstance* createViewModelInstance(std::string name, std::string instanceName);
+
+    ViewModel* viewModel(std::string name);
+    ViewModelInstanceListItem* viewModelInstanceListItem(ViewModelInstance* viewModelInstance);
+    ViewModelInstanceListItem* viewModelInstanceListItem(ViewModelInstance* viewModelInstance,
+                                                         Artboard* artboard);
+
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
     /// @param data the raw data of the file.
@@ -107,11 +130,17 @@ private:
     /// Rive components and animations.
     std::vector<Artboard*> m_artboards;
 
+    std::vector<ViewModel*> m_ViewModels;
+    std::vector<DataEnum*> m_Enums;
+
     Factory* m_factory;
 
     /// The helper used to load assets when they're not provided in-band
     /// with the file.
     FileAssetLoader* m_assetLoader;
+
+    void completeViewModelInstance(ViewModelInstance* viewModelInstance);
+    ViewModelInstance* copyViewModelInstance(ViewModelInstance* viewModelInstance);
 };
 } // namespace rive
 #endif

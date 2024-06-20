@@ -1,0 +1,21 @@
+{
+  "name": "ViewModelInstanceViewModel",
+  "key": {
+    "int": 444,
+    "string": "viewmodelinstanceviewmodel"
+  },
+  "extends": "viewmodel/viewmodel_instance_value.json",
+  "properties": {
+    "propertyValue": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 577,
+        "string": "propertyvalue"
+      },
+      "description": "The id of the viewmodel instance."
+    }
+  }
+}

@@ -45,7 +45,7 @@ void NestedArtboard::nest(Artboard* artboard)
     {
         m_Instance.reset(static_cast<ArtboardInstance*>(artboard)); // take ownership
     }
-    m_Artboard->advance(0.0f);
+    m_Artboard->advanceInternal(0.0f, false);
 }
 
 static Mat2D makeTranslate(const Artboard* artboard)
@@ -139,7 +139,7 @@ bool NestedArtboard::advance(float elapsedSeconds)
     {
         keepGoing = animation->advance(elapsedSeconds) || keepGoing;
     }
-    return m_Artboard->advance(elapsedSeconds) || keepGoing;
+    return m_Artboard->advanceInternal(elapsedSeconds, false) || keepGoing;
 }
 
 void NestedArtboard::update(ComponentDirt value)
@@ -258,4 +258,19 @@ void NestedArtboard::controlSize(Vec2D size)
         scaleY(newScaleY);
         addDirt(ComponentDirt::WorldTransform, false);
     }
+}
+
+void NestedArtboard::decodeDataBindPathIds(Span<const uint8_t> value)
+{
+    BinaryReader reader(value);
+    while (!reader.reachedEnd())
+    {
+        auto val = reader.readVarUintAs<uint32_t>();
+        m_DataBindPathIdsBuffer.push_back(val);
+    }
+}
+
+void NestedArtboard::copyDataBindPathIds(const NestedArtboardBase& object)
+{
+    m_DataBindPathIdsBuffer = object.as<NestedArtboard>()->m_DataBindPathIdsBuffer;
 }

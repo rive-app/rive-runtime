@@ -48,6 +48,9 @@ private:
     float m_layoutScaleX = NAN;
     float m_layoutScaleY = NAN;
 
+protected:
+    std::vector<uint32_t> m_DataBindPathIdsBuffer;
+
 public:
     NestedArtboard();
     ~NestedArtboard() override;
@@ -91,6 +94,9 @@ public:
     /// nested within. Returns true when the conversion succeeds, and false
     /// when one is not possible.
     bool worldToLocal(Vec2D world, Vec2D* local);
+    void decodeDataBindPathIds(Span<const uint8_t> value) override;
+    void copyDataBindPathIds(const NestedArtboardBase& object) override;
+    std::vector<uint32_t> dataBindPathIds() { return m_DataBindPathIdsBuffer; };
 };
 } // namespace rive
 

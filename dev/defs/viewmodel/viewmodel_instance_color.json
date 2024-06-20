@@ -1,0 +1,29 @@
+{
+  "name": "ViewModelInstanceColor",
+  "key": {
+    "int": 426,
+    "string": "viewmodelinstancecolor"
+  },
+  "extends": "viewmodel/viewmodel_instance_value.json",
+  "properties": {
+    "propertyValue": {
+      "type": "Color",
+      "initialValue": "0xFF1D1D1D",
+      "key": {
+        "int": 555,
+        "string": "propertyvalue"
+      },
+      "description": "The color value"
+    },
+    "playbackValue": {
+      "type": "Color",
+      "initialValue": "0xFF1D1D1D",
+      "key": {
+        "int": 556,
+        "string": "playbackvalue"
+      },
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

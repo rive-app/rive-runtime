@@ -1,0 +1,29 @@
+{
+  "name": "ViewModelInstanceNumber",
+  "key": {
+    "int": 442,
+    "string": "viewmodelinstancenumber"
+  },
+  "extends": "viewmodel/viewmodel_instance_value.json",
+  "properties": {
+    "propertyValue": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 575,
+        "string": "propertyvalue"
+      },
+      "description": "The number value."
+    },
+    "playbackValue": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 576,
+        "string": "playbackvalue"
+      },
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

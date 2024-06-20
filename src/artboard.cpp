@@ -2,6 +2,9 @@
 #include "rive/backboard.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/dependency_sorter.hpp"
+#include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/data_bind_context.hpp"
+#include "rive/data_bind/data_bind_mode.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/audio_event.hpp"
@@ -167,6 +170,9 @@ StatusCode Artboard::initialize()
             }
             case NestedArtboardBase::typeKey:
                 m_NestedArtboards.push_back(object->as<NestedArtboard>());
+                break;
+            case DataBindContext::typeKey:
+                m_DataBinds.push_back(object->as<DataBind>());
                 break;
 
             case JoystickBase::typeKey:
@@ -468,6 +474,21 @@ void Artboard::update(ComponentDirt value)
     }
 }
 
+void Artboard::updateDataBinds()
+{
+    for (auto dataBind : m_AllDataBinds)
+    {
+        dataBind->updateSourceBinding();
+        auto d = dataBind->m_Dirt;
+        if (d == ComponentDirt::None)
+        {
+            continue;
+        }
+        dataBind->m_Dirt = ComponentDirt::None;
+        dataBind->update(d);
+    }
+}
+
 bool Artboard::updateComponents()
 {
     if (hasDirt(ComponentDirt::Components))
@@ -509,7 +530,7 @@ bool Artboard::updateComponents()
     return false;
 }
 
-bool Artboard::advance(double elapsedSeconds)
+bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot)
 {
     m_HasChangedDrawOrderInLastUpdate = false;
 #ifdef WITH_RIVE_LAYOUT
@@ -539,7 +560,10 @@ bool Artboard::advance(double elapsedSeconds)
             joystick->apply(this);
         }
     }
-
+    if (isRoot)
+    {
+        updateDataBinds();
+    }
     bool didUpdate = updateComponents();
     if (!m_JoysticksApplyBeforeUpdate)
     {
@@ -547,12 +571,20 @@ bool Artboard::advance(double elapsedSeconds)
         {
             if (!joystick->canApplyBeforeUpdate())
             {
+                if (isRoot)
+                {
+                    updateDataBinds();
+                }
                 if (updateComponents())
                 {
                     didUpdate = true;
                 }
             }
             joystick->apply(this);
+        }
+        if (isRoot)
+        {
+            updateDataBinds();
         }
         if (updateComponents())
         {
@@ -568,6 +600,8 @@ bool Artboard::advance(double elapsedSeconds)
     }
     return didUpdate;
 }
+
+bool Artboard::advance(double elapsedSeconds) { return advanceInternal(elapsedSeconds, true); }
 
 Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform)
 {
@@ -900,6 +934,112 @@ StatusCode Artboard::import(ImportStack& importStack)
     return result;
 }
 
+void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool isRoot)
+{
+    m_DataContext = value;
+    m_DataContext->parent(parent);
+    for (auto nestedArtboard : m_NestedArtboards)
+    {
+        if (nestedArtboard->artboard() == nullptr)
+        {
+            continue;
+        }
+        auto value = m_DataContext->getViewModelInstance(nestedArtboard->dataBindPathIds());
+        if (value != nullptr && value->is<ViewModelInstance>())
+        {
+            nestedArtboard->artboard()->dataContextFromInstance(value, m_DataContext, false);
+        }
+        else
+        {
+            nestedArtboard->artboard()->internalDataContext(m_DataContext,
+                                                            m_DataContext->parent(),
+                                                            false);
+        }
+    }
+    for (auto dataBind : m_DataBinds)
+    {
+        if (dataBind->is<DataBindContext>())
+        {
+            dataBind->as<DataBindContext>()->bindToContext();
+        }
+    }
+    if (isRoot)
+    {
+        std::vector<Component*> dataBinds;
+        populateDataBinds(&dataBinds);
+        buildDataBindDependencies(&dataBinds);
+        sortDataBinds(dataBinds);
+    }
+}
+
+void Artboard::sortDataBinds(std::vector<Component*> dataBinds)
+{
+    DependencySorter sorter;
+    // TODO: @hernan review this. Should not need to push to a component list to sort.
+
+    std::vector<Component*> dbOrder;
+    sorter.sort(dataBinds, dbOrder);
+    for (auto dataBind : dbOrder)
+    {
+        m_AllDataBinds.push_back(dataBind->as<DataBind>());
+    }
+}
+
+void Artboard::buildDataBindDependencies(std::vector<Component*>* dataBinds)
+{
+    // TODO: @hernan review this dependency building
+    // Do we really need this? If a property is bound to a data bind, it can't be bound
+    // to a second data bind object.
+    for (auto component : *dataBinds)
+    {
+        auto dataBind = component->as<DataBind>();
+        auto mode = static_cast<DataBindMode>(dataBind->modeValue());
+        // If the data bind reads from the target, we want to add it as dependent from any other
+        // data bind that writes into that target.
+        if (mode == DataBindMode::oneWayToSource || mode == DataBindMode::twoWay)
+        {
+            for (auto innerComponent : *dataBinds)
+            {
+                auto dataBindParent = innerComponent->as<DataBind>();
+                auto parentMode = static_cast<DataBindMode>(dataBind->modeValue());
+                if (dataBindParent != dataBind && (parentMode != DataBindMode::oneWayToSource) &&
+                    dataBindParent->target() == dataBind->target() &&
+                    dataBindParent->propertyKey() == dataBind->propertyKey())
+                {
+                    dataBindParent->addDependent(dataBind);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            // If the data bind reads from a source we want to add it as dependent
+            // from any other data bind that writes into that source.
+            if (dataBind->is<DataBindContext>())
+            {
+                for (auto innerComponent : *dataBinds)
+                {
+                    auto dataBindChild = innerComponent->as<DataBind>();
+                    if (dataBindChild != dataBind)
+                    {
+                        auto childMode = static_cast<DataBindMode>(dataBind->modeValue());
+                        if (childMode == DataBindMode::oneWayToSource ||
+                            childMode == DataBindMode::twoWay)
+                        {
+                            if (dataBindChild->is<DataBindContext>() &&
+                                dataBindChild->as<DataBindContext>()->source() ==
+                                    dataBind->as<DataBindContext>()->source())
+                            {
+                                dataBind->addDependent(dataBindChild);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 float Artboard::volume() const { return m_volume; }
 void Artboard::volume(float value)
 {
@@ -912,6 +1052,51 @@ void Artboard::volume(float value)
             artboard->volume(value);
         }
     }
+}
+
+void Artboard::populateDataBinds(std::vector<Component*>* dataBinds)
+{
+    for (auto dataBind : m_DataBinds)
+    {
+        dataBinds->push_back(dataBind);
+    }
+    for (auto nestedArtboard : m_NestedArtboards)
+    {
+        if (nestedArtboard->artboard() != nullptr)
+        {
+            nestedArtboard->artboard()->populateDataBinds(dataBinds);
+        }
+    }
+}
+
+void Artboard::dataContext(DataContext* value, DataContext* parent)
+{
+    internalDataContext(value, parent, true);
+}
+
+void Artboard::dataContextFromInstance(ViewModelInstance* viewModelInstance)
+{
+    dataContextFromInstance(viewModelInstance, nullptr, true);
+}
+
+void Artboard::dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent)
+{
+    dataContextFromInstance(viewModelInstance, parent, true);
+}
+
+void Artboard::dataContextFromInstance(ViewModelInstance* viewModelInstance,
+                                       DataContext* parent,
+                                       bool isRoot)
+{
+    if (viewModelInstance == nullptr)
+    {
+        return;
+    }
+    if (isRoot)
+    {
+        viewModelInstance->setAsRoot();
+    }
+    internalDataContext(new DataContext(viewModelInstance), parent, isRoot);
 }
 
 ////////// ArtboardInstance

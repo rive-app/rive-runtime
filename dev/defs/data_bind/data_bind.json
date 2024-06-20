@@ -1,0 +1,40 @@
+{
+  "name": "DataBind",
+  "key": {
+    "int": 446,
+    "string": "databind"
+  },
+  "extends": "component.json",
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 585,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the object that is targetted."
+    },
+    "propertyKey": {
+      "type": "uint",
+      "initialValue": "CoreContext.invalidPropertyKey",
+      "key": {
+        "int": 586,
+        "string": "propertykey"
+      },
+      "description": "The property that is targeted."
+    },
+    "modeValue": {
+      "type": "uint",
+      "typeRuntime": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 587,
+        "string": "modevalue"
+      },
+      "description": "Backing enum value for the binding mode."
+    }
+  }
+}

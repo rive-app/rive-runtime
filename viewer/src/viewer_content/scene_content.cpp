@@ -13,6 +13,7 @@
 #include "rive/layout.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
 #include "viewer/viewer_content.hpp"
 #include "rive/relative_local_asset_loader.hpp"
 
@@ -68,6 +69,7 @@ class SceneContent : public ViewerContent
 
     std::unique_ptr<rive::ArtboardInstance> m_ArtboardInstance;
     std::unique_ptr<rive::Scene> m_CurrentScene;
+    rive::ViewModelInstance* m_ViewModelInstance;
     int m_ArtboardIndex = 0;
     int m_AnimationIndex = 0;
     int m_StateMachineIndex = -1;
@@ -84,6 +86,9 @@ class SceneContent : public ViewerContent
 
         m_ArtboardIndex = (index == REQUEST_DEFAULT_SCENE) ? 0 : index;
         m_ArtboardInstance = m_File->artboardAt(m_ArtboardIndex);
+        // m_ViewModelInstance = m_File->viewModelInstanceNamed("vm-3");
+        m_ViewModelInstance = m_File->createViewModelInstance(m_ArtboardInstance.get());
+        m_ArtboardInstance->dataContextFromInstance(m_ViewModelInstance);
 
         m_ArtboardInstance->advance(0.0f);
         loadNames(m_ArtboardInstance.get());

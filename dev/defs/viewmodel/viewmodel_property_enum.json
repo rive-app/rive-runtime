@@ -1,0 +1,31 @@
+{
+  "name": "ViewModelPropertyEnum",
+  "key": {
+    "int": 439,
+    "string": "viewmodelpropertyenum"
+  },
+  "extends": "viewmodel/viewmodel_property.json",
+  "properties": {
+    "splitKeyValues": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 573,
+        "string": "splitkeyvalues"
+      },
+      "description": "Whether the user can edit keys and values separately.",
+      "runtime": false
+    },
+    "enumId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 574,
+        "string": "enumid"
+      },
+      "description": "The id of the enum."
+    }
+  }
+}

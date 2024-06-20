@@ -1,0 +1,18 @@
+{
+  "name": "ViewModelComponent",
+  "key": {
+    "int": 429,
+    "string": "viewmodelcomponent"
+  },
+  "properties": {
+    "name": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 557,
+        "string": "name"
+      },
+      "description": "Non-unique identifier, used to give friendly names to any view model component."
+    }
+  }
+}

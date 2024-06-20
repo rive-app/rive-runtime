@@ -1,0 +1,21 @@
+{
+  "name": "DataBindContext",
+  "key": {
+    "int": 447,
+    "string": "databindcontext"
+  },
+  "extends": "data_bind/data_bind.json",
+  "properties": {
+    "sourcePathIds": {
+      "type": "List<Id>",
+      "typeRuntime": "Bytes",
+      "encoded": true,
+      "initialValue": "[]",
+      "key": {
+        "int": 588,
+        "string": "sourcepathids"
+      },
+      "description": "Path to the selected property."
+    }
+  }
+}
