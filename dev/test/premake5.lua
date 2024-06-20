@@ -54,4 +54,12 @@ do
         })
         forceincludes({ 'rive_harfbuzz_renames.h' })
     end
+
+    filter({ 'options:not no-yoga-renames' })
+    do
+        includedirs({
+            dependencies,
+        })
+        forceincludes({ 'rive_yoga_renames.h' })
+    end
 end

@@ -14,4 +14,12 @@ do
     includedirs({ 'include', '../include', libpng, libjpeg })
 
     files({ 'src/**.cpp' })
+
+    filter({ 'options:not no-libjpeg-renames' })
+    do
+        includedirs({
+            rive .. '/dependencies',
+        })
+        forceincludes({ 'rive_libjpeg_renames.h' })
+    end
 end

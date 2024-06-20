@@ -7,6 +7,11 @@ end
 local dependency = require('dependency')
 libjpeg = dependency.github('rive-app/libjpeg', 'v9f')
 
+newoption({
+    trigger = 'no-libjpeg-renames',
+    description = 'don\'t rename libjpeg symbols',
+})
+
 project('libjpeg')
 do
     kind('StaticLib')
@@ -62,4 +67,10 @@ do
         libjpeg .. '/jmemmgr.c',
         libjpeg .. '/jmemansi.c',
     })
+
+    filter({ 'options:not no-libjpeg-renames' })
+    do
+        includedirs({ './' })
+        forceincludes({ 'rive_libjpeg_renames.h' })
+    end
 end

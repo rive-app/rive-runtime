@@ -3,6 +3,11 @@ dofile('rive_build_config.lua')
 local dependency = require('dependency')
 yoga = dependency.github('rive-app/yoga', 'rive_changes_v2_0_1')
 
+newoption({
+    trigger = 'no-yoga-renames',
+    description = 'don\'t rename yoga symbols',
+})
+
 project('rive_yoga')
 do
     kind('StaticLib')
@@ -25,4 +30,10 @@ do
         yoga .. '/yoga/event/event.cpp',
         yoga .. '/yoga/log.cpp',
     })
+
+    filter({ 'options:not no-yoga-renames' })
+    do
+        includedirs({ './' })
+        forceincludes({ 'rive_yoga_renames.h' })
+    end
 end
