@@ -49,12 +49,37 @@ extern BitFieldLoc MinHeightUnitsBits;
 extern BitFieldLoc MaxWidthUnitsBits;
 extern BitFieldLoc MaxHeightUnitsBits;
 
+enum class LayoutAnimationStyle : uint8_t
+{
+    none,
+    custom,
+    inherit
+};
+
+enum class LayoutStyleInterpolation : uint8_t
+{
+    hold,
+    linear,
+    cubic,
+    elastic
+};
+
+class KeyFrameInterpolator;
 class LayoutComponentStyle : public LayoutComponentStyleBase
 {
+private:
+#ifdef WITH_RIVE_LAYOUT
+    KeyFrameInterpolator* m_interpolator;
+#endif
+
 public:
     LayoutComponentStyle() {}
 
 #ifdef WITH_RIVE_LAYOUT
+    StatusCode onAddedDirty(CoreContext* context) override;
+    KeyFrameInterpolator* interpolator();
+    LayoutStyleInterpolation interpolation();
+    LayoutAnimationStyle animationStyle();
     YGDisplay display();
     YGPositionType positionType();
 
@@ -97,6 +122,7 @@ public:
 #endif
 
     void markLayoutNodeDirty();
+    void markLayoutStyleDirty();
 
     void layoutFlags0Changed() override;
     void layoutFlags1Changed() override;

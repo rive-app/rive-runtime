@@ -532,6 +532,7 @@ bool Artboard::updateComponents()
 
 bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot)
 {
+    bool didUpdate = false;
     m_HasChangedDrawOrderInLastUpdate = false;
 #ifdef WITH_RIVE_LAYOUT
     if (!m_dirtyLayout.empty())
@@ -543,12 +544,21 @@ bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot)
         }
         m_dirtyLayout.clear();
         calculateLayout();
+        if (hasDirt(ComponentDirt::LayoutStyle))
+        {
+            cascadeAnimationStyle(interpolation(), interpolator(), interpolationTime());
+        }
         for (auto dep : m_DependencyOrder)
         {
             if (dep->is<LayoutComponent>())
             {
                 auto layout = dep->as<LayoutComponent>();
                 layout->updateLayoutBounds();
+                if ((dep == this && Super::advance(elapsedSeconds)) ||
+                    layout->advance(elapsedSeconds))
+                {
+                    didUpdate = true;
+                }
             }
         }
     }
@@ -564,7 +574,10 @@ bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot)
     {
         updateDataBinds();
     }
-    bool didUpdate = updateComponents();
+    if (updateComponents())
+    {
+        didUpdate = true;
+    }
     if (!m_JoysticksApplyBeforeUpdate)
     {
         for (auto joystick : m_Joysticks)

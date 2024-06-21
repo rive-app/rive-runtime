@@ -138,6 +138,6 @@ TEST_CASE("LayoutComponent with intrinsic size gets measured correctly", "[layou
     auto bounds = text->localBounds();
     REQUIRE(bounds.left() == 0);
     REQUIRE(bounds.top() == 0);
-    REQUIRE(bounds.width() == 63.0f);
-    REQUIRE(bounds.height() == 73.0f);
+    REQUIRE(bounds.width() == 62.48047f);
+    REQUIRE(bounds.height() == 72.62695f);
 }

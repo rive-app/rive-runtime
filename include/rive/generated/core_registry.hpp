@@ -108,7 +108,6 @@
 #include "rive/joystick.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/layout_component.hpp"
-#include "rive/layout_component_absolute.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
@@ -398,8 +397,6 @@ public:
                 return new Joystick();
             case BackboardBase::typeKey:
                 return new Backboard();
-            case AbsoluteLayoutComponentBase::typeKey:
-                return new AbsoluteLayoutComponent();
             case OpenUrlEventBase::typeKey:
                 return new OpenUrlEvent();
             case DataBindBase::typeKey:
@@ -625,6 +622,18 @@ public:
                 break;
             case LayoutComponentStyleBase::layoutFlags2PropertyKey:
                 object->as<LayoutComponentStyleBase>()->layoutFlags2(value);
+                break;
+            case LayoutComponentStyleBase::scaleTypePropertyKey:
+                object->as<LayoutComponentStyleBase>()->scaleType(value);
+                break;
+            case LayoutComponentStyleBase::animationStyleTypePropertyKey:
+                object->as<LayoutComponentStyleBase>()->animationStyleType(value);
+                break;
+            case LayoutComponentStyleBase::interpolationTypePropertyKey:
+                object->as<LayoutComponentStyleBase>()->interpolationType(value);
+                break;
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
+                object->as<LayoutComponentStyleBase>()->interpolatorId(value);
                 break;
             case ListenerFireEventBase::eventIdPropertyKey:
                 object->as<ListenerFireEventBase>()->eventId(value);
@@ -1084,6 +1093,9 @@ public:
                 break;
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
                 object->as<LayoutComponentStyleBase>()->aspectRatio(value);
+                break;
+            case LayoutComponentStyleBase::interpolationTimePropertyKey:
+                object->as<LayoutComponentStyleBase>()->interpolationTime(value);
                 break;
             case NestedLinearAnimationBase::mixPropertyKey:
                 object->as<NestedLinearAnimationBase>()->mix(value);
@@ -1562,6 +1574,14 @@ public:
                 return object->as<LayoutComponentStyleBase>()->layoutFlags1();
             case LayoutComponentStyleBase::layoutFlags2PropertyKey:
                 return object->as<LayoutComponentStyleBase>()->layoutFlags2();
+            case LayoutComponentStyleBase::scaleTypePropertyKey:
+                return object->as<LayoutComponentStyleBase>()->scaleType();
+            case LayoutComponentStyleBase::animationStyleTypePropertyKey:
+                return object->as<LayoutComponentStyleBase>()->animationStyleType();
+            case LayoutComponentStyleBase::interpolationTypePropertyKey:
+                return object->as<LayoutComponentStyleBase>()->interpolationType();
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
+                return object->as<LayoutComponentStyleBase>()->interpolatorId();
             case ListenerFireEventBase::eventIdPropertyKey:
                 return object->as<ListenerFireEventBase>()->eventId();
             case LayerStateBase::flagsPropertyKey:
@@ -1877,6 +1897,8 @@ public:
                 return object->as<LayoutComponentStyleBase>()->flexBasis();
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->aspectRatio();
+            case LayoutComponentStyleBase::interpolationTimePropertyKey:
+                return object->as<LayoutComponentStyleBase>()->interpolationTime();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->as<NestedLinearAnimationBase>()->mix();
             case NestedSimpleAnimationBase::speedPropertyKey:
@@ -2168,6 +2190,10 @@ public:
             case LayoutComponentStyleBase::layoutFlags0PropertyKey:
             case LayoutComponentStyleBase::layoutFlags1PropertyKey:
             case LayoutComponentStyleBase::layoutFlags2PropertyKey:
+            case LayoutComponentStyleBase::scaleTypePropertyKey:
+            case LayoutComponentStyleBase::animationStyleTypePropertyKey:
+            case LayoutComponentStyleBase::interpolationTypePropertyKey:
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
             case ListenerFireEventBase::eventIdPropertyKey:
             case LayerStateBase::flagsPropertyKey:
             case ListenerInputChangeBase::inputIdPropertyKey:
@@ -2318,6 +2344,7 @@ public:
             case LayoutComponentStyleBase::flexShrinkPropertyKey:
             case LayoutComponentStyleBase::flexBasisPropertyKey:
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
+            case LayoutComponentStyleBase::interpolationTimePropertyKey:
             case NestedLinearAnimationBase::mixPropertyKey:
             case NestedSimpleAnimationBase::speedPropertyKey:
             case AdvanceableStateBase::speedPropertyKey:
@@ -2567,6 +2594,14 @@ public:
             case LayoutComponentStyleBase::layoutFlags1PropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutFlags2PropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::scaleTypePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::animationStyleTypePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::interpolationTypePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case ListenerFireEventBase::eventIdPropertyKey:
                 return object->is<ListenerFireEventBase>();
@@ -2861,6 +2896,8 @@ public:
             case LayoutComponentStyleBase::flexBasisPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::interpolationTimePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->is<NestedLinearAnimationBase>();

@@ -11,12 +11,23 @@
 #include <stdio.h>
 namespace rive
 {
+
+class AABB;
+class KeyFrameInterpolator;
+
 struct LayoutData
 {
 #ifdef WITH_RIVE_LAYOUT
     YGNode node;
     YGStyle style;
 #endif
+};
+
+struct LayoutAnimationData
+{
+    float elapsedSeconds = 0;
+    AABB fromBounds = AABB();
+    AABB toBounds = AABB();
 };
 
 class LayoutComponent : public LayoutComponentBase
@@ -30,6 +41,11 @@ private:
     float m_layoutLocationX = 0;
     float m_layoutLocationY = 0;
 
+    LayoutAnimationData m_animationData;
+    KeyFrameInterpolator* m_inheritedInterpolator;
+    LayoutStyleInterpolation m_inheritedInterpolation = LayoutStyleInterpolation::hold;
+    float m_inheritedInterpolationTime = 0;
+
 #ifdef WITH_RIVE_LAYOUT
 private:
     YGNode& layoutNode() { return m_layoutData->node; }
@@ -37,6 +53,7 @@ private:
     void syncLayoutChildren();
     void propagateSizeToChildren(ContainerComponent* component);
     AABB findMaxIntrinsicSize(ContainerComponent* component, AABB maxIntrinsicSize);
+    bool applyInterpolation(double elapsedSeconds);
 
 protected:
     void calculateLayout();
@@ -54,10 +71,33 @@ public:
     void update(ComponentDirt value) override;
     StatusCode onAddedDirty(CoreContext* context) override;
 
+    bool advance(double elapsedSeconds);
+    bool animates();
+    LayoutAnimationStyle animationStyle();
+    KeyFrameInterpolator* interpolator();
+    LayoutStyleInterpolation interpolation();
+    float interpolationTime();
+
+    void cascadeAnimationStyle(LayoutStyleInterpolation inheritedInterpolation,
+                               KeyFrameInterpolator* inheritedInterpolator,
+                               float inheritedInterpolationTime);
+    void setInheritedInterpolation(LayoutStyleInterpolation inheritedInterpolation,
+                                   KeyFrameInterpolator* inheritedInterpolator,
+                                   float inheritedInterpolationTime);
+    void clearInheritedInterpolation();
+    AABB layoutBounds()
+    {
+        return AABB(m_layoutLocationX,
+                    m_layoutLocationY,
+                    m_layoutLocationX + m_layoutSizeWidth,
+                    m_layoutLocationY + m_layoutSizeHeight);
+    }
+
 #endif
     void buildDependencies() override;
 
     void markLayoutNodeDirty();
+    void markLayoutStyleDirty();
     void clipChanged() override;
     void widthChanged() override;
     void heightChanged() override;

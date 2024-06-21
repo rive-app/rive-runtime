@@ -1,3 +1,4 @@
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/node.hpp"
@@ -21,7 +22,10 @@ void LayoutComponent::buildDependencies()
 }
 
 #ifdef WITH_RIVE_LAYOUT
-LayoutComponent::LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())) {}
+LayoutComponent::LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData()))
+{
+    layoutNode().getConfig()->setPointScaleFactor(0);
+}
 
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
@@ -39,6 +43,7 @@ StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
     m_style = static_cast<LayoutComponentStyle*>(coreStyle);
     addChild(m_style);
     artboard()->markLayoutDirty(this);
+    markLayoutStyleDirty();
     if (parent() != nullptr && parent()->is<LayoutComponent>())
     {
         parent()->as<LayoutComponent>()->syncLayoutChildren();
@@ -237,8 +242,24 @@ void LayoutComponent::updateLayoutBounds()
     auto top = YGNodeLayoutGetTop(node);
     auto width = YGNodeLayoutGetWidth(node);
     auto height = YGNodeLayoutGetHeight(node);
-    if (left != m_layoutLocationX || top != m_layoutLocationY || width != m_layoutSizeWidth ||
-        height != m_layoutSizeHeight)
+    if (animates())
+    {
+        auto toBounds = m_animationData.toBounds;
+        if (left != toBounds.left() || top != toBounds.top() || width != toBounds.width() ||
+            height != toBounds.height())
+        {
+            m_animationData.elapsedSeconds = 0;
+            m_animationData.fromBounds = AABB(m_layoutLocationX,
+                                              m_layoutLocationY,
+                                              m_layoutLocationX + this->width(),
+                                              m_layoutLocationY + this->height());
+            m_animationData.toBounds = AABB(left, top, left + width, top + height);
+            propagateSize();
+            markWorldTransformDirty();
+        }
+    }
+    else if (left != m_layoutLocationX || top != m_layoutLocationY || width != m_layoutSizeWidth ||
+             height != m_layoutSizeHeight)
     {
         m_layoutLocationX = left;
         m_layoutLocationY = top;
@@ -249,13 +270,215 @@ void LayoutComponent::updateLayoutBounds()
     }
 }
 
+bool LayoutComponent::advance(double elapsedSeconds) { return applyInterpolation(elapsedSeconds); }
+
+bool LayoutComponent::animates()
+{
+    if (m_style == nullptr)
+    {
+        return false;
+    }
+    return m_style->positionType() == YGPositionType::YGPositionTypeRelative &&
+           m_style->animationStyle() != LayoutAnimationStyle::none &&
+           interpolation() != LayoutStyleInterpolation::hold && interpolationTime() > 0;
+}
+
+LayoutAnimationStyle LayoutComponent::animationStyle()
+{
+    if (m_style == nullptr)
+    {
+        return LayoutAnimationStyle::none;
+    }
+    return m_style->animationStyle();
+}
+
+KeyFrameInterpolator* LayoutComponent::interpolator()
+{
+    if (m_style == nullptr)
+    {
+        return nullptr;
+    }
+    switch (m_style->animationStyle())
+    {
+        case LayoutAnimationStyle::inherit:
+            return m_inheritedInterpolator != nullptr ? m_inheritedInterpolator
+                                                      : m_style->interpolator();
+        case LayoutAnimationStyle::custom:
+            return m_style->interpolator();
+        default:
+            return nullptr;
+    }
+}
+
+LayoutStyleInterpolation LayoutComponent::interpolation()
+{
+    auto defaultInterpolation = LayoutStyleInterpolation::hold;
+    if (m_style == nullptr)
+    {
+        return defaultInterpolation;
+    }
+    switch (m_style->animationStyle())
+    {
+        case LayoutAnimationStyle::inherit:
+            return m_inheritedInterpolation;
+        case LayoutAnimationStyle::custom:
+            return m_style->interpolation();
+        default:
+            return defaultInterpolation;
+    }
+}
+
+float LayoutComponent::interpolationTime()
+{
+    if (m_style == nullptr)
+    {
+        return 0;
+    }
+    switch (m_style->animationStyle())
+    {
+        case LayoutAnimationStyle::inherit:
+            return m_inheritedInterpolationTime;
+        case LayoutAnimationStyle::custom:
+            return m_style->interpolationTime();
+        default:
+            return 0;
+    }
+}
+
+void LayoutComponent::cascadeAnimationStyle(LayoutStyleInterpolation inheritedInterpolation,
+                                            KeyFrameInterpolator* inheritedInterpolator,
+                                            float inheritedInterpolationTime)
+{
+    if (m_style != nullptr && m_style->animationStyle() == LayoutAnimationStyle::inherit)
+    {
+        setInheritedInterpolation(inheritedInterpolation,
+                                  inheritedInterpolator,
+                                  inheritedInterpolationTime);
+    }
+    else
+    {
+        clearInheritedInterpolation();
+    }
+    for (auto child : children())
+    {
+        if (child->is<LayoutComponent>())
+        {
+            child->as<LayoutComponent>()->cascadeAnimationStyle(interpolation(),
+                                                                interpolator(),
+                                                                interpolationTime());
+        }
+    }
+}
+
+void LayoutComponent::setInheritedInterpolation(LayoutStyleInterpolation inheritedInterpolation,
+                                                KeyFrameInterpolator* inheritedInterpolator,
+                                                float inheritedInterpolationTime)
+{
+    m_inheritedInterpolation = inheritedInterpolation;
+    m_inheritedInterpolator = inheritedInterpolator;
+    m_inheritedInterpolationTime = inheritedInterpolationTime;
+}
+
+void LayoutComponent::clearInheritedInterpolation()
+{
+    m_inheritedInterpolation = LayoutStyleInterpolation::hold;
+    m_inheritedInterpolator = nullptr;
+    m_inheritedInterpolationTime = 0;
+}
+
+bool LayoutComponent::applyInterpolation(double elapsedSeconds)
+{
+    if (!animates() || m_style == nullptr || m_animationData.toBounds == layoutBounds())
+    {
+        return false;
+    }
+    if (m_animationData.elapsedSeconds >= interpolationTime())
+    {
+        m_layoutLocationX = m_animationData.toBounds.left();
+        m_layoutLocationY = m_animationData.toBounds.top();
+        m_layoutSizeWidth = m_animationData.toBounds.width();
+        m_layoutSizeHeight = m_animationData.toBounds.height();
+        m_animationData.elapsedSeconds = 0;
+        markWorldTransformDirty();
+        return false;
+    }
+    float f = 1;
+    if (interpolationTime() > 0)
+    {
+        f = m_animationData.elapsedSeconds / interpolationTime();
+    }
+    bool needsAdvance = false;
+    auto fromBounds = m_animationData.fromBounds;
+    auto toBounds = m_animationData.toBounds;
+    auto left = m_layoutLocationX;
+    auto top = m_layoutLocationY;
+    auto width = m_layoutSizeWidth;
+    auto height = m_layoutSizeHeight;
+    if (toBounds.left() != left || toBounds.top() != top)
+    {
+        if (interpolation() == LayoutStyleInterpolation::linear)
+        {
+            left = fromBounds.left() + f * (toBounds.left() - fromBounds.left());
+            top = fromBounds.top() + f * (toBounds.top() - fromBounds.top());
+        }
+        else
+        {
+            if (interpolator() != nullptr)
+            {
+                left = interpolator()->transformValue(fromBounds.left(), toBounds.left(), f);
+                top = interpolator()->transformValue(fromBounds.top(), toBounds.top(), f);
+            }
+        }
+        needsAdvance = true;
+        m_layoutLocationX = left;
+        m_layoutLocationY = top;
+    }
+    if (toBounds.width() != width || toBounds.height() != height)
+    {
+        if (interpolation() == LayoutStyleInterpolation::linear)
+        {
+            width = fromBounds.width() + f * (toBounds.width() - fromBounds.width());
+            height = fromBounds.height() + f * (toBounds.height() - fromBounds.height());
+        }
+        else
+        {
+            if (interpolator() != nullptr)
+            {
+                width = interpolator()->transformValue(fromBounds.width(), toBounds.width(), f);
+                height = interpolator()->transformValue(fromBounds.height(), toBounds.height(), f);
+            }
+        }
+        needsAdvance = true;
+        m_layoutSizeWidth = width;
+        m_layoutSizeHeight = height;
+    }
+    m_animationData.elapsedSeconds = m_animationData.elapsedSeconds + (float)elapsedSeconds;
+    if (needsAdvance)
+    {
+        propagateSize();
+        markWorldTransformDirty();
+        markLayoutNodeDirty();
+    }
+    return needsAdvance;
+}
+
 void LayoutComponent::markLayoutNodeDirty()
 {
     layoutNode().markDirtyAndPropagate();
     artboard()->markLayoutDirty(this);
 }
+
+void LayoutComponent::markLayoutStyleDirty()
+{
+    addDirt(ComponentDirt::LayoutStyle);
+    if (artboard() != this)
+    {
+        artboard()->markLayoutStyleDirty();
+    }
+}
 #else
 void LayoutComponent::markLayoutNodeDirty() {}
+void LayoutComponent::markLayoutStyleDirty() {}
 #endif
 
 void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }

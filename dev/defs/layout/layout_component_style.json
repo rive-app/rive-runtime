@@ -37,6 +37,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutgap",
       "key": {
         "int": 498,
         "string": "gaphorizontal"
@@ -47,6 +48,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutgap",
       "key": {
         "int": 499,
         "string": "gapvertical"
@@ -57,6 +59,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmax",
       "key": {
         "int": 500,
         "string": "maxwidth"
@@ -67,6 +70,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmax",
       "key": {
         "int": 501,
         "string": "maxheight"
@@ -77,6 +81,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmin",
       "key": {
         "int": 502,
         "string": "minwidth"
@@ -87,6 +92,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmin",
       "key": {
         "int": 503,
         "string": "minheight"
@@ -137,6 +143,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmargin",
       "key": {
         "int": 508,
         "string": "marginleft"
@@ -147,6 +154,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmargin",
       "key": {
         "int": 509,
         "string": "marginright"
@@ -157,6 +165,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmargin",
       "key": {
         "int": 510,
         "string": "margintop"
@@ -167,6 +176,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutmargin",
       "key": {
         "int": 511,
         "string": "marginbottom"
@@ -177,6 +187,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutpadding",
       "key": {
         "int": 512,
         "string": "paddingleft"
@@ -187,6 +198,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutpadding",
       "key": {
         "int": 513,
         "string": "paddingright"
@@ -197,6 +209,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutpadding",
       "key": {
         "int": 514,
         "string": "paddingtop"
@@ -207,6 +220,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutpadding",
       "key": {
         "int": 515,
         "string": "paddingbottom"
@@ -217,6 +231,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutposition",
       "key": {
         "int": 516,
         "string": "positionleft"
@@ -227,6 +242,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutposition",
       "key": {
         "int": 517,
         "string": "positionright"
@@ -237,6 +253,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutposition",
       "key": {
         "int": 518,
         "string": "positiontop"
@@ -247,6 +264,7 @@
       "type": "double",
       "initialValue": "0",
       "animates": true,
+      "group": "layoutposition",
       "key": {
         "int": 519,
         "string": "positionbottom"
@@ -302,6 +320,71 @@
         "string": "aspectratio"
       },
       "description": "Aspect ratio value."
+    },
+    "showUnitToggle": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 542,
+        "string": "showunittoggle"
+      },
+      "description": "Show layout unit toggle in inspector position widget. Editor only.",
+      "runtime": false
+    },
+    "edgeConstraints": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 545,
+        "string": "edgeconstraints"
+      },
+      "runtime": false
+    },
+    "scaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 546,
+        "string": "scaletype"
+      }
+    },
+    "animationStyleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 589,
+        "string": "animationstyletype"
+      },
+      "description": "The type of animation none|custom|inherit applied to this layout."
+    },
+    "interpolationType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 590,
+        "string": "interpolationtype"
+      },
+      "description": "The type of interpolation index in KeyframeInterpolation applied to this layout."
+    },
+    "interpolatorId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 591,
+        "string": "interpolatorid"
+      },
+      "description": "The id of the custom interpolator used when interpolation is Cubic."
+    },
+    "interpolationTime": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 592,
+        "string": "interpolationtime"
+      },
+      "description": "The time over which the interpolator applies."
     }
   }
 }

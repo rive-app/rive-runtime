@@ -59,6 +59,11 @@ public:
     static const uint16_t flexShrinkPropertyKey = 522;
     static const uint16_t flexBasisPropertyKey = 523;
     static const uint16_t aspectRatioPropertyKey = 524;
+    static const uint16_t scaleTypePropertyKey = 546;
+    static const uint16_t animationStyleTypePropertyKey = 589;
+    static const uint16_t interpolationTypePropertyKey = 590;
+    static const uint16_t interpolatorIdPropertyKey = 591;
+    static const uint16_t interpolationTimePropertyKey = 592;
 
 private:
     uint32_t m_LayoutFlags0 = 0x5000412;
@@ -91,6 +96,11 @@ private:
     float m_FlexShrink = 1.0f;
     float m_FlexBasis = 1.0f;
     float m_AspectRatio = 0.0f;
+    uint32_t m_ScaleType = 0;
+    uint32_t m_AnimationStyleType = 0;
+    uint32_t m_InterpolationType = 0;
+    uint32_t m_InterpolatorId = -1;
+    float m_InterpolationTime = 0.0f;
 
 public:
     inline uint32_t layoutFlags0() const { return m_LayoutFlags0; }
@@ -423,6 +433,61 @@ public:
         aspectRatioChanged();
     }
 
+    inline uint32_t scaleType() const { return m_ScaleType; }
+    void scaleType(uint32_t value)
+    {
+        if (m_ScaleType == value)
+        {
+            return;
+        }
+        m_ScaleType = value;
+        scaleTypeChanged();
+    }
+
+    inline uint32_t animationStyleType() const { return m_AnimationStyleType; }
+    void animationStyleType(uint32_t value)
+    {
+        if (m_AnimationStyleType == value)
+        {
+            return;
+        }
+        m_AnimationStyleType = value;
+        animationStyleTypeChanged();
+    }
+
+    inline uint32_t interpolationType() const { return m_InterpolationType; }
+    void interpolationType(uint32_t value)
+    {
+        if (m_InterpolationType == value)
+        {
+            return;
+        }
+        m_InterpolationType = value;
+        interpolationTypeChanged();
+    }
+
+    inline uint32_t interpolatorId() const { return m_InterpolatorId; }
+    void interpolatorId(uint32_t value)
+    {
+        if (m_InterpolatorId == value)
+        {
+            return;
+        }
+        m_InterpolatorId = value;
+        interpolatorIdChanged();
+    }
+
+    inline float interpolationTime() const { return m_InterpolationTime; }
+    void interpolationTime(float value)
+    {
+        if (m_InterpolationTime == value)
+        {
+            return;
+        }
+        m_InterpolationTime = value;
+        interpolationTimeChanged();
+    }
+
     Core* clone() const override;
     void copy(const LayoutComponentStyleBase& object)
     {
@@ -456,6 +521,11 @@ public:
         m_FlexShrink = object.m_FlexShrink;
         m_FlexBasis = object.m_FlexBasis;
         m_AspectRatio = object.m_AspectRatio;
+        m_ScaleType = object.m_ScaleType;
+        m_AnimationStyleType = object.m_AnimationStyleType;
+        m_InterpolationType = object.m_InterpolationType;
+        m_InterpolatorId = object.m_InterpolatorId;
+        m_InterpolationTime = object.m_InterpolationTime;
         Component::copy(object);
     }
 
@@ -553,6 +623,21 @@ public:
             case aspectRatioPropertyKey:
                 m_AspectRatio = CoreDoubleType::deserialize(reader);
                 return true;
+            case scaleTypePropertyKey:
+                m_ScaleType = CoreUintType::deserialize(reader);
+                return true;
+            case animationStyleTypePropertyKey:
+                m_AnimationStyleType = CoreUintType::deserialize(reader);
+                return true;
+            case interpolationTypePropertyKey:
+                m_InterpolationType = CoreUintType::deserialize(reader);
+                return true;
+            case interpolatorIdPropertyKey:
+                m_InterpolatorId = CoreUintType::deserialize(reader);
+                return true;
+            case interpolationTimePropertyKey:
+                m_InterpolationTime = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return Component::deserialize(propertyKey, reader);
     }
@@ -588,6 +673,11 @@ protected:
     virtual void flexShrinkChanged() {}
     virtual void flexBasisChanged() {}
     virtual void aspectRatioChanged() {}
+    virtual void scaleTypeChanged() {}
+    virtual void animationStyleTypeChanged() {}
+    virtual void interpolationTypeChanged() {}
+    virtual void interpolatorIdChanged() {}
+    virtual void interpolationTimeChanged() {}
 };
 } // namespace rive
 

@@ -1,3 +1,5 @@
+#include "rive/animation/keyframe_interpolator.hpp"
+#include "rive/core_context.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include <vector>
@@ -46,6 +48,19 @@ BitFieldLoc rive::MaxWidthUnitsBits = BitFieldLoc(8, 9);
 BitFieldLoc rive::MaxHeightUnitsBits = BitFieldLoc(10, 11);
 
 #ifdef WITH_RIVE_LAYOUT
+
+KeyFrameInterpolator* LayoutComponentStyle::interpolator() { return m_interpolator; }
+
+LayoutStyleInterpolation LayoutComponentStyle::interpolation()
+{
+    return LayoutStyleInterpolation(interpolationType());
+}
+
+LayoutAnimationStyle LayoutComponentStyle::animationStyle()
+{
+    return LayoutAnimationStyle(animationStyleType());
+}
+
 YGDisplay LayoutComponentStyle::display() { return YGDisplay(DisplayBits.read(layoutFlags0())); }
 
 YGPositionType LayoutComponentStyle::positionType()
@@ -208,8 +223,33 @@ void LayoutComponentStyle::markLayoutNodeDirty()
         parent()->as<LayoutComponent>()->markLayoutNodeDirty();
     }
 }
+
+void LayoutComponentStyle::markLayoutStyleDirty()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->markLayoutStyleDirty();
+    }
+}
+
+StatusCode LayoutComponentStyle::onAddedDirty(CoreContext* context)
+{
+    auto code = Super::onAddedDirty(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+
+    auto coreObject = context->resolve(interpolatorId());
+    if (coreObject != nullptr && coreObject->is<KeyFrameInterpolator>())
+    {
+        m_interpolator = static_cast<KeyFrameInterpolator*>(coreObject);
+    }
+    return StatusCode::Ok;
+}
 #else
 void LayoutComponentStyle::markLayoutNodeDirty() {}
+void LayoutComponentStyle::markLayoutStyleDirty() {}
 #endif
 
 void LayoutComponentStyle::layoutFlags0Changed() { markLayoutNodeDirty(); }
