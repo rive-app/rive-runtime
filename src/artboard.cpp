@@ -973,7 +973,7 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
     {
         if (dataBind->is<DataBindContext>())
         {
-            dataBind->as<DataBindContext>()->bindToContext();
+            dataBind->as<DataBindContext>()->bind();
         }
     }
     if (isRoot)

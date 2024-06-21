@@ -8,7 +8,7 @@
 #include <stdio.h>
 namespace rive
 {
-class DataBindContext;
+class DataBind;
 class ViewModelInstance;
 class ViewModelInstanceValue : public ViewModelInstanceValueBase
 {
@@ -16,14 +16,14 @@ private:
     ViewModelProperty* m_ViewModelProperty;
 
 protected:
-    DependencyHelper<ViewModelInstance, DataBindContext> m_DependencyHelper;
+    DependencyHelper<ViewModelInstance, DataBind> m_DependencyHelper;
     void addDirt(ComponentDirt value);
 
 public:
     StatusCode import(ImportStack& importStack) override;
     void viewModelProperty(ViewModelProperty* value);
     ViewModelProperty* viewModelProperty();
-    void addDependent(DataBindContext* value);
+    void addDependent(DataBind* value);
     virtual void setRoot(ViewModelInstance* value);
 };
 } // namespace rive

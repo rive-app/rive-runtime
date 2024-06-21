@@ -5,7 +5,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
-#include "rive/data_bind/data_bind_context.hpp"
+#include "rive/data_bind/data_bind.hpp"
 
 using namespace rive;
 
@@ -28,7 +28,7 @@ void ViewModelInstanceValue::viewModelProperty(ViewModelProperty* value)
 }
 ViewModelProperty* ViewModelInstanceValue::viewModelProperty() { return m_ViewModelProperty; }
 
-void ViewModelInstanceValue::addDependent(DataBindContext* value)
+void ViewModelInstanceValue::addDependent(DataBind* value)
 {
     m_DependencyHelper.addDependent(value);
 }

@@ -26,7 +26,7 @@ void DataBindContext::copySourcePathIds(const DataBindContextBase& object)
     m_SourcePathIdsBuffer = object.as<DataBindContext>()->m_SourcePathIdsBuffer;
 }
 
-void DataBindContext::bindToContext()
+void DataBindContext::bind()
 {
     auto dataContext = artboard()->dataContext();
     if (dataContext != nullptr)
@@ -36,28 +36,7 @@ void DataBindContext::bindToContext()
         {
             value->addDependent(this);
             m_Source = value;
-            if (m_Source->is<ViewModelInstanceNumber>())
-            {
-                m_ContextValue = rivestd::make_unique<DataBindContextValueNumber>(m_Source);
-            }
-            else if (m_Source->is<ViewModelInstanceString>())
-            {
-                m_ContextValue = rivestd::make_unique<DataBindContextValueString>(m_Source);
-            }
-            else if (m_Source->is<ViewModelInstanceEnum>())
-            {
-                m_ContextValue = rivestd::make_unique<DataBindContextValueEnum>(m_Source);
-            }
-            else if (m_Source->is<ViewModelInstanceList>())
-            {
-                m_ContextValue = rivestd::make_unique<DataBindContextValueList>(m_Source);
-                // TODO: @hernan decide the best place to initialize this
-                m_ContextValue->update(m_target);
-            }
-            else if (m_Source->is<ViewModelInstanceColor>())
-            {
-                m_ContextValue = rivestd::make_unique<DataBindContextValueColor>(m_Source);
-            }
+            Super::bind();
         }
     }
 }
