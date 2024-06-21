@@ -158,6 +158,7 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
@@ -167,6 +168,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
+#include "rive/viewmodel/viewmodel_property_boolean.hpp"
 #include "rive/viewmodel/viewmodel_property_color.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
@@ -205,12 +207,16 @@ public:
                 return new ViewModelPropertyViewModel();
             case ViewModelInstanceBase::typeKey:
                 return new ViewModelInstance();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
             case DataEnumBase::typeKey:
                 return new DataEnum();
             case ViewModelPropertyEnumBase::typeKey:
                 return new ViewModelPropertyEnum();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
+            case ViewModelInstanceBooleanBase::typeKey:
+                return new ViewModelInstanceBoolean();
             case ViewModelInstanceListBase::typeKey:
                 return new ViewModelInstanceList();
             case ViewModelInstanceNumberBase::typeKey:
@@ -454,6 +460,9 @@ public:
         {
             case ViewModelInstanceListItemBase::useLinkedArtboardPropertyKey:
                 object->as<ViewModelInstanceListItemBase>()->useLinkedArtboard(value);
+                break;
+            case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceBooleanBase>()->propertyValue(value);
                 break;
             case TransformComponentConstraintBase::offsetPropertyKey:
                 object->as<TransformComponentConstraintBase>()->offset(value);
@@ -1459,6 +1468,8 @@ public:
         {
             case ViewModelInstanceListItemBase::useLinkedArtboardPropertyKey:
                 return object->as<ViewModelInstanceListItemBase>()->useLinkedArtboard();
+            case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceBooleanBase>()->propertyValue();
             case TransformComponentConstraintBase::offsetPropertyKey:
                 return object->as<TransformComponentConstraintBase>()->offset();
             case TransformComponentConstraintBase::doesCopyPropertyKey:
@@ -2135,6 +2146,7 @@ public:
         switch (propertyKey)
         {
             case ViewModelInstanceListItemBase::useLinkedArtboardPropertyKey:
+            case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
             case TransformComponentConstraintBase::offsetPropertyKey:
             case TransformComponentConstraintBase::doesCopyPropertyKey:
             case TransformComponentConstraintBase::minPropertyKey:
@@ -2487,6 +2499,8 @@ public:
         {
             case ViewModelInstanceListItemBase::useLinkedArtboardPropertyKey:
                 return object->is<ViewModelInstanceListItemBase>();
+            case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceBooleanBase>();
             case TransformComponentConstraintBase::offsetPropertyKey:
                 return object->is<TransformComponentConstraintBase>();
             case TransformComponentConstraintBase::doesCopyPropertyKey:

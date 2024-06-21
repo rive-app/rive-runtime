@@ -1,0 +1,8 @@
+{
+  "name": "ViewModelPropertyBoolean",
+  "key": {
+    "int": 448,
+    "string": "viewmodelpropertyboolean"
+  },
+  "extends": "viewmodel/viewmodel_property.json"
+}

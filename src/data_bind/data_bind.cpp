@@ -3,6 +3,7 @@
 #include "rive/artboard.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/data_bind/context/context_value.hpp"
+#include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
 #include "rive/data_bind/context/context_value_string.hpp"
 #include "rive/data_bind/context/context_value_enum.hpp"
@@ -65,6 +66,9 @@ void DataBind::bind()
             break;
         case ViewModelInstanceColorBase::typeKey:
             m_ContextValue = rivestd::make_unique<DataBindContextValueColor>(m_Source);
+            break;
+        case ViewModelInstanceBooleanBase::typeKey:
+            m_ContextValue = rivestd::make_unique<DataBindContextValueBoolean>(m_Source);
             break;
     }
 }
