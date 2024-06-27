@@ -470,6 +470,7 @@ void LayoutComponent::markLayoutNodeDirty()
 
 void LayoutComponent::markLayoutStyleDirty()
 {
+    clearInheritedInterpolation();
     addDirt(ComponentDirt::LayoutStyle);
     if (artboard() != this)
     {

@@ -555,7 +555,7 @@ bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot)
                 auto layout = dep->as<LayoutComponent>();
                 layout->updateLayoutBounds();
                 if ((dep == this && Super::advance(elapsedSeconds)) ||
-                    layout->advance(elapsedSeconds))
+                    (dep != this && layout->advance(elapsedSeconds)))
                 {
                     didUpdate = true;
                 }
