@@ -70,6 +70,15 @@ defines({ 'RELEASE' })
 defines({ 'NDEBUG' })
 optimize('On')
 
+filter({ 'options:with_rive_layout' })
+    do
+        defines({ 'YOGA_EXPORT=' })
+        includedirs({ yoga })
+        links({
+            'rive_yoga',
+        })
+    end
+
 -- Clean Function --
 newaction({
     trigger = 'clean',

@@ -26,7 +26,7 @@ elif [ "$OPTION" = "clean" ]; then
     echo Cleaning project ...
     premake5 clean --scripts="$RIVE_RUNTIME_DIR/build"
 elif [ "$OPTION" = "release" ]; then
-    premake5 gmake --scripts="$RIVE_RUNTIME_DIR/build" --with_rive_text && make config=release -j7
+    premake5 gmake --scripts="$RIVE_RUNTIME_DIR/build" --with_rive_text --with_rive_layout && make config=release -j7
 else
-    premake5 gmake --scripts="$RIVE_RUNTIME_DIR/build" --with_rive_text && make -j7
+    premake5 gmake --scripts="$RIVE_RUNTIME_DIR/build" --with_rive_text --with_rive_layout && make -j7
 fi
