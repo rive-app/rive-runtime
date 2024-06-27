@@ -15,22 +15,6 @@ void ViewModelInstance::addValue(ViewModelInstanceValue* value)
     m_PropertyValues.push_back(value);
 }
 
-StatusCode ViewModelInstance::onAddedDirty(CoreContext* context)
-{
-    StatusCode result = Super::onAddedDirty(context);
-    if (result != StatusCode::Ok)
-    {
-        return result;
-    }
-    auto coreObject = context->resolve(viewModelId());
-    if (coreObject != nullptr && coreObject->is<ViewModel>())
-    {
-        m_ViewModel = static_cast<ViewModel*>(coreObject);
-    }
-
-    return StatusCode::Ok;
-}
-
 ViewModelInstanceValue* ViewModelInstance::propertyValue(const uint32_t id)
 {
     for (auto value : m_PropertyValues)
@@ -61,7 +45,7 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(const std::string& name
 
 void ViewModelInstance::viewModel(ViewModel* value) { m_ViewModel = value; }
 
-ViewModel* ViewModelInstance::viewModel() { return m_ViewModel; }
+ViewModel* ViewModelInstance::viewModel() const { return m_ViewModel; }
 
 void ViewModelInstance::onComponentDirty(Component* component) {}
 
@@ -89,6 +73,7 @@ Core* ViewModelInstance::clone() const
         auto clonedValue = propertyValue->clone()->as<ViewModelInstanceValue>();
         cloned->addValue(clonedValue);
     }
+    cloned->viewModel(viewModel());
     return cloned;
 }
 

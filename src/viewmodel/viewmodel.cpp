@@ -32,7 +32,11 @@ ViewModelProperty* ViewModel::property(const std::string& name)
     return nullptr;
 }
 
-void ViewModel::addInstance(ViewModelInstance* value) { m_Instances.push_back(value); }
+void ViewModel::addInstance(ViewModelInstance* value)
+{
+    m_Instances.push_back(value);
+    value->viewModel(this);
+}
 
 ViewModelInstance* ViewModel::defaultInstance() { return m_Instances[defaultInstanceId()]; }
 

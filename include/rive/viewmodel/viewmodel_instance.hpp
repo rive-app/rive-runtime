@@ -19,13 +19,12 @@ public:
     ViewModelInstanceValue* propertyValue(const std::string& name);
     std::vector<ViewModelInstanceValue*> propertyValues();
     void viewModel(ViewModel* value);
-    ViewModel* viewModel();
+    ViewModel* viewModel() const;
     void onComponentDirty(Component* component);
     void setAsRoot();
     void setRoot(ViewModelInstance* value);
     Core* clone() const override;
     StatusCode import(ImportStack& importStack) override;
-    StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive
 
