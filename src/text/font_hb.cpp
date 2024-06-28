@@ -22,6 +22,8 @@ extern "C"
 // Initialized to null. Client can set this to a callback.
 rive::Font::FallbackProc rive::Font::gFallbackProc;
 
+bool rive::Font::gFallbackProcEnabled = true;
+
 rive::rcp<rive::Font> HBFont::Decode(rive::Span<const uint8_t> span)
 {
     auto blob = hb_blob_create_or_fail((const char*)span.data(),
@@ -554,7 +556,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(rive::Span<const rive::Un
 
             auto end = gr.glyphs.end();
             auto iter = std::find(gr.glyphs.begin(), end, 0);
-            if (!gFallbackProc || iter == end)
+            if (!gFallbackProc || iter == end || !gFallbackProcEnabled)
             {
                 if (gr.glyphs.size() > 0)
                 {

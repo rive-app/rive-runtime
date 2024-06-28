@@ -169,6 +169,7 @@ public:
 
     using FallbackProc = rive::rcp<rive::Font> (*)(rive::Span<const rive::Unichar>);
     static FallbackProc gFallbackProc;
+    static bool gFallbackProcEnabled;
 
 protected:
     Font(const LineMetrics& lm) : m_lineMetrics(lm) {}
