@@ -6,47 +6,6 @@
 
 using namespace rive;
 
-// ---- Flags 0
-BitFieldLoc rive::DisplayBits = BitFieldLoc(0, 0);
-BitFieldLoc rive::PositionTypeBits = BitFieldLoc(1, 2);
-BitFieldLoc rive::FlexDirectionBits = BitFieldLoc(3, 4);
-BitFieldLoc rive::DirectionBits = BitFieldLoc(5, 6);
-BitFieldLoc rive::AlignContentBits = BitFieldLoc(7, 9);
-BitFieldLoc rive::AlignItemsBits = BitFieldLoc(10, 12);
-BitFieldLoc rive::AlignSelfBits = BitFieldLoc(13, 15);
-BitFieldLoc rive::JustifyContentBits = BitFieldLoc(16, 18);
-BitFieldLoc rive::FlexWrapBits = BitFieldLoc(19, 20);
-BitFieldLoc rive::OverflowBits = BitFieldLoc(21, 22);
-BitFieldLoc rive::IntrinsicallySizedBits = BitFieldLoc(23, 23);
-BitFieldLoc rive::WidthUnitsBits = BitFieldLoc(24, 25);
-BitFieldLoc rive::HeightUnitsBits = BitFieldLoc(26, 27);
-
-// ---- Flags 1
-BitFieldLoc rive::BorderLeftUnitsBits = BitFieldLoc(0, 1);
-BitFieldLoc rive::BorderRightUnitsBits = BitFieldLoc(2, 3);
-BitFieldLoc rive::BorderTopUnitsBits = BitFieldLoc(4, 5);
-BitFieldLoc rive::BorderBottomUnitsBits = BitFieldLoc(6, 7);
-BitFieldLoc rive::MarginLeftUnitsBits = BitFieldLoc(8, 9);
-BitFieldLoc rive::MarginRightUnitsBits = BitFieldLoc(10, 11);
-BitFieldLoc rive::MarginTopUnitsBits = BitFieldLoc(12, 13);
-BitFieldLoc rive::MarginBottomUnitsBits = BitFieldLoc(14, 15);
-BitFieldLoc rive::PaddingLeftUnitsBits = BitFieldLoc(16, 17);
-BitFieldLoc rive::PaddingRightUnitsBits = BitFieldLoc(18, 19);
-BitFieldLoc rive::PaddingTopUnitsBits = BitFieldLoc(20, 21);
-BitFieldLoc rive::PaddingBottomUnitsBits = BitFieldLoc(22, 23);
-BitFieldLoc rive::PositionLeftUnitsBits = BitFieldLoc(24, 25);
-BitFieldLoc rive::PositionRightUnitsBits = BitFieldLoc(26, 27);
-BitFieldLoc rive::PositionTopUnitsBits = BitFieldLoc(28, 29);
-BitFieldLoc rive::PositionBottomUnitsBits = BitFieldLoc(30, 31);
-
-// ---- Flags 2
-BitFieldLoc rive::GapHorizontalUnitsBits = BitFieldLoc(0, 1);
-BitFieldLoc rive::GapVerticalUnitsBits = BitFieldLoc(2, 3);
-BitFieldLoc rive::MinWidthUnitsBits = BitFieldLoc(4, 5);
-BitFieldLoc rive::MinHeightUnitsBits = BitFieldLoc(6, 7);
-BitFieldLoc rive::MaxWidthUnitsBits = BitFieldLoc(8, 9);
-BitFieldLoc rive::MaxHeightUnitsBits = BitFieldLoc(10, 11);
-
 #ifdef WITH_RIVE_LAYOUT
 
 KeyFrameInterpolator* LayoutComponentStyle::interpolator() { return m_interpolator; }
@@ -61,161 +20,82 @@ LayoutAnimationStyle LayoutComponentStyle::animationStyle()
     return LayoutAnimationStyle(animationStyleType());
 }
 
-YGDisplay LayoutComponentStyle::display() { return YGDisplay(DisplayBits.read(layoutFlags0())); }
-
-YGPositionType LayoutComponentStyle::positionType()
+LayoutAlignmentType LayoutComponentStyle::alignmentType()
 {
-    return YGPositionType(PositionTypeBits.read(layoutFlags0()));
+    return LayoutAlignmentType(layoutAlignmentType());
 }
+
+YGDisplay LayoutComponentStyle::display() { return YGDisplay(displayValue()); }
+
+YGPositionType LayoutComponentStyle::positionType() { return YGPositionType(positionTypeValue()); }
 
 YGFlexDirection LayoutComponentStyle::flexDirection()
 {
-    return YGFlexDirection(FlexDirectionBits.read(layoutFlags0()));
+    return YGFlexDirection(flexDirectionValue());
 }
 
-YGDirection LayoutComponentStyle::direction()
-{
-    return YGDirection(DirectionBits.read(layoutFlags0()));
-}
+YGDirection LayoutComponentStyle::direction() { return YGDirection(directionValue()); }
 
-YGWrap LayoutComponentStyle::flexWrap() { return YGWrap(FlexWrapBits.read(layoutFlags0())); }
+YGWrap LayoutComponentStyle::flexWrap() { return YGWrap(flexWrapValue()); }
 
-YGAlign LayoutComponentStyle::alignItems() { return YGAlign(AlignItemsBits.read(layoutFlags0())); }
+YGAlign LayoutComponentStyle::alignItems() { return YGAlign(alignItemsValue()); }
 
-YGAlign LayoutComponentStyle::alignSelf() { return YGAlign(AlignSelfBits.read(layoutFlags0())); }
+YGAlign LayoutComponentStyle::alignSelf() { return YGAlign(alignSelfValue()); }
 
-YGAlign LayoutComponentStyle::alignContent()
-{
-    return YGAlign(AlignContentBits.read(layoutFlags0()));
-}
+YGAlign LayoutComponentStyle::alignContent() { return YGAlign(alignContentValue()); }
 
-YGJustify LayoutComponentStyle::justifyContent()
-{
-    return YGJustify(JustifyContentBits.read(layoutFlags0()));
-}
+YGJustify LayoutComponentStyle::justifyContent() { return YGJustify(justifyContentValue()); }
 
-YGOverflow LayoutComponentStyle::overflow()
-{
-    return YGOverflow(OverflowBits.read(layoutFlags0()));
-}
+YGOverflow LayoutComponentStyle::overflow() { return YGOverflow(overflowValue()); }
 
-bool LayoutComponentStyle::intrinsicallySized()
-{
-    return IntrinsicallySizedBits.read(layoutFlags0()) == 1;
-}
+bool LayoutComponentStyle::intrinsicallySized() { return intrinsicallySizedValue() == 1; }
 
-YGUnit LayoutComponentStyle::widthUnits() { return YGUnit(WidthUnitsBits.read(layoutFlags0())); }
+YGUnit LayoutComponentStyle::widthUnits() { return YGUnit(widthUnitsValue()); }
 
-YGUnit LayoutComponentStyle::heightUnits() { return YGUnit(HeightUnitsBits.read(layoutFlags0())); }
+YGUnit LayoutComponentStyle::heightUnits() { return YGUnit(heightUnitsValue()); }
 
-YGUnit LayoutComponentStyle::borderLeftUnits()
-{
-    return YGUnit(BorderLeftUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::borderLeftUnits() { return YGUnit(borderLeftUnitsValue()); }
 
-YGUnit LayoutComponentStyle::borderRightUnits()
-{
-    return YGUnit(BorderRightUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::borderRightUnits() { return YGUnit(borderRightUnitsValue()); }
 
-YGUnit LayoutComponentStyle::borderTopUnits()
-{
-    return YGUnit(BorderTopUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::borderTopUnits() { return YGUnit(borderTopUnitsValue()); }
 
-YGUnit LayoutComponentStyle::borderBottomUnits()
-{
-    return YGUnit(BorderBottomUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::borderBottomUnits() { return YGUnit(borderBottomUnitsValue()); }
 
-YGUnit LayoutComponentStyle::marginLeftUnits()
-{
-    return YGUnit(MarginLeftUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::marginLeftUnits() { return YGUnit(marginLeftUnitsValue()); }
 
-YGUnit LayoutComponentStyle::marginRightUnits()
-{
-    return YGUnit(MarginRightUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::marginRightUnits() { return YGUnit(marginRightUnitsValue()); }
 
-YGUnit LayoutComponentStyle::marginTopUnits()
-{
-    return YGUnit(MarginTopUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::marginTopUnits() { return YGUnit(marginTopUnitsValue()); }
 
-YGUnit LayoutComponentStyle::marginBottomUnits()
-{
-    return YGUnit(MarginBottomUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::marginBottomUnits() { return YGUnit(marginBottomUnitsValue()); }
 
-YGUnit LayoutComponentStyle::paddingLeftUnits()
-{
-    return YGUnit(PaddingLeftUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::paddingLeftUnits() { return YGUnit(paddingLeftUnitsValue()); }
 
-YGUnit LayoutComponentStyle::paddingRightUnits()
-{
-    return YGUnit(PaddingRightUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::paddingRightUnits() { return YGUnit(paddingRightUnitsValue()); }
 
-YGUnit LayoutComponentStyle::paddingTopUnits()
-{
-    return YGUnit(PaddingTopUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::paddingTopUnits() { return YGUnit(paddingTopUnitsValue()); }
 
-YGUnit LayoutComponentStyle::paddingBottomUnits()
-{
-    return YGUnit(PaddingBottomUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::paddingBottomUnits() { return YGUnit(paddingBottomUnitsValue()); }
 
-YGUnit LayoutComponentStyle::positionLeftUnits()
-{
-    return YGUnit(PositionLeftUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::positionLeftUnits() { return YGUnit(positionLeftUnitsValue()); }
 
-YGUnit LayoutComponentStyle::positionRightUnits()
-{
-    return YGUnit(PositionRightUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::positionRightUnits() { return YGUnit(positionRightUnitsValue()); }
 
-YGUnit LayoutComponentStyle::positionTopUnits()
-{
-    return YGUnit(PositionTopUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::positionTopUnits() { return YGUnit(positionTopUnitsValue()); }
 
-YGUnit LayoutComponentStyle::positionBottomUnits()
-{
-    return YGUnit(PositionBottomUnitsBits.read(layoutFlags1()));
-}
+YGUnit LayoutComponentStyle::positionBottomUnits() { return YGUnit(positionBottomUnitsValue()); }
 
-YGUnit LayoutComponentStyle::gapHorizontalUnits()
-{
-    return YGUnit(GapHorizontalUnitsBits.read(layoutFlags2()));
-}
+YGUnit LayoutComponentStyle::gapHorizontalUnits() { return YGUnit(gapHorizontalUnitsValue()); }
 
-YGUnit LayoutComponentStyle::gapVerticalUnits()
-{
-    return YGUnit(GapVerticalUnitsBits.read(layoutFlags2()));
-}
+YGUnit LayoutComponentStyle::gapVerticalUnits() { return YGUnit(gapVerticalUnitsValue()); }
 
-YGUnit LayoutComponentStyle::maxWidthUnits()
-{
-    return YGUnit(MaxWidthUnitsBits.read(layoutFlags2()));
-}
+YGUnit LayoutComponentStyle::maxWidthUnits() { return YGUnit(maxWidthUnitsValue()); }
 
-YGUnit LayoutComponentStyle::maxHeightUnits()
-{
-    return YGUnit(MaxHeightUnitsBits.read(layoutFlags2()));
-}
+YGUnit LayoutComponentStyle::maxHeightUnits() { return YGUnit(maxHeightUnitsValue()); }
 
-YGUnit LayoutComponentStyle::minWidthUnits()
-{
-    return YGUnit(MinWidthUnitsBits.read(layoutFlags2()));
-}
-YGUnit LayoutComponentStyle::minHeightUnits()
-{
-    return YGUnit(MinHeightUnitsBits.read(layoutFlags2()));
-}
+YGUnit LayoutComponentStyle::minWidthUnits() { return YGUnit(minWidthUnitsValue()); }
+YGUnit LayoutComponentStyle::minHeightUnits() { return YGUnit(minHeightUnitsValue()); }
 void LayoutComponentStyle::markLayoutNodeDirty()
 {
     if (parent()->is<LayoutComponent>())
@@ -252,9 +132,19 @@ void LayoutComponentStyle::markLayoutNodeDirty() {}
 void LayoutComponentStyle::markLayoutStyleDirty() {}
 #endif
 
-void LayoutComponentStyle::layoutFlags0Changed() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::layoutFlags1Changed() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::layoutFlags2Changed() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::layoutAlignmentTypeChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::displayValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::positionTypeValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::overflowValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::intrinsicallySizedValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::flexDirectionValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::directionValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::alignContentValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::alignItemsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::alignSelfValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::justifyContentValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::flexWrapValueChanged() { markLayoutNodeDirty(); }
+
 void LayoutComponentStyle::flexChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::flexGrowChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::flexShrinkChanged() { markLayoutNodeDirty(); }
@@ -282,3 +172,28 @@ void LayoutComponentStyle::positionLeftChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::positionRightChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::positionTopChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::positionBottomChanged() { markLayoutNodeDirty(); }
+
+void LayoutComponentStyle::widthUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::heightUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::gapHorizontalUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::gapVerticalUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::maxWidthUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::maxHeightUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::minWidthUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::minHeightUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::borderLeftUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::borderRightUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::borderTopUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::borderBottomUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::marginLeftUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::marginRightUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::marginTopUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::marginBottomUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::paddingLeftUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::paddingRightUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::paddingTopUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::paddingBottomUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::positionLeftUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::positionRightUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::positionTopUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::positionBottomUnitsValueChanged() { markLayoutNodeDirty(); }

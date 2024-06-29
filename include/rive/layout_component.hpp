@@ -85,13 +85,18 @@ public:
                                    KeyFrameInterpolator* inheritedInterpolator,
                                    float inheritedInterpolationTime);
     void clearInheritedInterpolation();
-    AABB layoutBounds()
+    virtual AABB layoutBounds()
     {
         return AABB(m_layoutLocationX,
                     m_layoutLocationY,
                     m_layoutLocationX + m_layoutSizeWidth,
                     m_layoutLocationY + m_layoutSizeHeight);
-    }
+    };
+    bool hasLayoutMeasurements()
+    {
+        return m_layoutLocationX != 0 || m_layoutLocationY != 0 || m_layoutSizeWidth != 0 ||
+               m_layoutSizeHeight != 0;
+    };
 
 #endif
     void buildDependencies() override;

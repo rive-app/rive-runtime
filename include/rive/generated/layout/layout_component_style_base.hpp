@@ -1,6 +1,7 @@
 #ifndef _RIVE_LAYOUT_COMPONENT_STYLE_BASE_HPP_
 #define _RIVE_LAYOUT_COMPONENT_STYLE_BASE_HPP_
 #include "rive/component.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
@@ -29,9 +30,6 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t layoutFlags0PropertyKey = 495;
-    static const uint16_t layoutFlags1PropertyKey = 496;
-    static const uint16_t layoutFlags2PropertyKey = 497;
     static const uint16_t gapHorizontalPropertyKey = 498;
     static const uint16_t gapVerticalPropertyKey = 499;
     static const uint16_t maxWidthPropertyKey = 500;
@@ -60,15 +58,48 @@ public:
     static const uint16_t flexBasisPropertyKey = 523;
     static const uint16_t aspectRatioPropertyKey = 524;
     static const uint16_t scaleTypePropertyKey = 546;
+    static const uint16_t layoutAlignmentTypePropertyKey = 632;
     static const uint16_t animationStyleTypePropertyKey = 589;
     static const uint16_t interpolationTypePropertyKey = 590;
     static const uint16_t interpolatorIdPropertyKey = 591;
     static const uint16_t interpolationTimePropertyKey = 592;
+    static const uint16_t displayValuePropertyKey = 596;
+    static const uint16_t positionTypeValuePropertyKey = 597;
+    static const uint16_t flexDirectionValuePropertyKey = 598;
+    static const uint16_t directionValuePropertyKey = 599;
+    static const uint16_t alignContentValuePropertyKey = 600;
+    static const uint16_t alignItemsValuePropertyKey = 601;
+    static const uint16_t alignSelfValuePropertyKey = 602;
+    static const uint16_t justifyContentValuePropertyKey = 603;
+    static const uint16_t flexWrapValuePropertyKey = 604;
+    static const uint16_t overflowValuePropertyKey = 605;
+    static const uint16_t intrinsicallySizedValuePropertyKey = 606;
+    static const uint16_t widthUnitsValuePropertyKey = 607;
+    static const uint16_t heightUnitsValuePropertyKey = 608;
+    static const uint16_t borderLeftUnitsValuePropertyKey = 609;
+    static const uint16_t borderRightUnitsValuePropertyKey = 610;
+    static const uint16_t borderTopUnitsValuePropertyKey = 611;
+    static const uint16_t borderBottomUnitsValuePropertyKey = 612;
+    static const uint16_t marginLeftUnitsValuePropertyKey = 613;
+    static const uint16_t marginRightUnitsValuePropertyKey = 614;
+    static const uint16_t marginTopUnitsValuePropertyKey = 615;
+    static const uint16_t marginBottomUnitsValuePropertyKey = 616;
+    static const uint16_t paddingLeftUnitsValuePropertyKey = 617;
+    static const uint16_t paddingRightUnitsValuePropertyKey = 618;
+    static const uint16_t paddingTopUnitsValuePropertyKey = 619;
+    static const uint16_t paddingBottomUnitsValuePropertyKey = 620;
+    static const uint16_t positionLeftUnitsValuePropertyKey = 621;
+    static const uint16_t positionRightUnitsValuePropertyKey = 622;
+    static const uint16_t positionTopUnitsValuePropertyKey = 623;
+    static const uint16_t positionBottomUnitsValuePropertyKey = 624;
+    static const uint16_t gapHorizontalUnitsValuePropertyKey = 625;
+    static const uint16_t gapVerticalUnitsValuePropertyKey = 626;
+    static const uint16_t minWidthUnitsValuePropertyKey = 627;
+    static const uint16_t minHeightUnitsValuePropertyKey = 628;
+    static const uint16_t maxWidthUnitsValuePropertyKey = 629;
+    static const uint16_t maxHeightUnitsValuePropertyKey = 630;
 
 private:
-    uint32_t m_LayoutFlags0 = 0x5000412;
-    uint32_t m_LayoutFlags1 = 0x00;
-    uint32_t m_LayoutFlags2 = 0x00;
     float m_GapHorizontal = 0.0f;
     float m_GapVertical = 0.0f;
     float m_MaxWidth = 0.0f;
@@ -97,45 +128,48 @@ private:
     float m_FlexBasis = 1.0f;
     float m_AspectRatio = 0.0f;
     uint32_t m_ScaleType = 0;
+    uint32_t m_LayoutAlignmentType = 0;
     uint32_t m_AnimationStyleType = 0;
     uint32_t m_InterpolationType = 0;
     uint32_t m_InterpolatorId = -1;
     float m_InterpolationTime = 0.0f;
+    uint32_t m_DisplayValue = 0;
+    uint32_t m_PositionTypeValue = 1;
+    uint32_t m_FlexDirectionValue = 2;
+    uint32_t m_DirectionValue = 0;
+    uint32_t m_AlignContentValue = 0;
+    uint32_t m_AlignItemsValue = 1;
+    uint32_t m_AlignSelfValue = 0;
+    uint32_t m_JustifyContentValue = 0;
+    uint32_t m_FlexWrapValue = 0;
+    uint32_t m_OverflowValue = 0;
+    bool m_IntrinsicallySizedValue = false;
+    uint32_t m_WidthUnitsValue = 1;
+    uint32_t m_HeightUnitsValue = 1;
+    uint32_t m_BorderLeftUnitsValue = 0;
+    uint32_t m_BorderRightUnitsValue = 0;
+    uint32_t m_BorderTopUnitsValue = 0;
+    uint32_t m_BorderBottomUnitsValue = 0;
+    uint32_t m_MarginLeftUnitsValue = 0;
+    uint32_t m_MarginRightUnitsValue = 0;
+    uint32_t m_MarginTopUnitsValue = 0;
+    uint32_t m_MarginBottomUnitsValue = 0;
+    uint32_t m_PaddingLeftUnitsValue = 0;
+    uint32_t m_PaddingRightUnitsValue = 0;
+    uint32_t m_PaddingTopUnitsValue = 0;
+    uint32_t m_PaddingBottomUnitsValue = 0;
+    uint32_t m_PositionLeftUnitsValue = 0;
+    uint32_t m_PositionRightUnitsValue = 0;
+    uint32_t m_PositionTopUnitsValue = 0;
+    uint32_t m_PositionBottomUnitsValue = 0;
+    uint32_t m_GapHorizontalUnitsValue = 0;
+    uint32_t m_GapVerticalUnitsValue = 0;
+    uint32_t m_MinWidthUnitsValue = 0;
+    uint32_t m_MinHeightUnitsValue = 0;
+    uint32_t m_MaxWidthUnitsValue = 0;
+    uint32_t m_MaxHeightUnitsValue = 0;
 
 public:
-    inline uint32_t layoutFlags0() const { return m_LayoutFlags0; }
-    void layoutFlags0(uint32_t value)
-    {
-        if (m_LayoutFlags0 == value)
-        {
-            return;
-        }
-        m_LayoutFlags0 = value;
-        layoutFlags0Changed();
-    }
-
-    inline uint32_t layoutFlags1() const { return m_LayoutFlags1; }
-    void layoutFlags1(uint32_t value)
-    {
-        if (m_LayoutFlags1 == value)
-        {
-            return;
-        }
-        m_LayoutFlags1 = value;
-        layoutFlags1Changed();
-    }
-
-    inline uint32_t layoutFlags2() const { return m_LayoutFlags2; }
-    void layoutFlags2(uint32_t value)
-    {
-        if (m_LayoutFlags2 == value)
-        {
-            return;
-        }
-        m_LayoutFlags2 = value;
-        layoutFlags2Changed();
-    }
-
     inline float gapHorizontal() const { return m_GapHorizontal; }
     void gapHorizontal(float value)
     {
@@ -444,6 +478,17 @@ public:
         scaleTypeChanged();
     }
 
+    inline uint32_t layoutAlignmentType() const { return m_LayoutAlignmentType; }
+    void layoutAlignmentType(uint32_t value)
+    {
+        if (m_LayoutAlignmentType == value)
+        {
+            return;
+        }
+        m_LayoutAlignmentType = value;
+        layoutAlignmentTypeChanged();
+    }
+
     inline uint32_t animationStyleType() const { return m_AnimationStyleType; }
     void animationStyleType(uint32_t value)
     {
@@ -488,12 +533,394 @@ public:
         interpolationTimeChanged();
     }
 
+    inline uint32_t displayValue() const { return m_DisplayValue; }
+    void displayValue(uint32_t value)
+    {
+        if (m_DisplayValue == value)
+        {
+            return;
+        }
+        m_DisplayValue = value;
+        displayValueChanged();
+    }
+
+    inline uint32_t positionTypeValue() const { return m_PositionTypeValue; }
+    void positionTypeValue(uint32_t value)
+    {
+        if (m_PositionTypeValue == value)
+        {
+            return;
+        }
+        m_PositionTypeValue = value;
+        positionTypeValueChanged();
+    }
+
+    inline uint32_t flexDirectionValue() const { return m_FlexDirectionValue; }
+    void flexDirectionValue(uint32_t value)
+    {
+        if (m_FlexDirectionValue == value)
+        {
+            return;
+        }
+        m_FlexDirectionValue = value;
+        flexDirectionValueChanged();
+    }
+
+    inline uint32_t directionValue() const { return m_DirectionValue; }
+    void directionValue(uint32_t value)
+    {
+        if (m_DirectionValue == value)
+        {
+            return;
+        }
+        m_DirectionValue = value;
+        directionValueChanged();
+    }
+
+    inline uint32_t alignContentValue() const { return m_AlignContentValue; }
+    void alignContentValue(uint32_t value)
+    {
+        if (m_AlignContentValue == value)
+        {
+            return;
+        }
+        m_AlignContentValue = value;
+        alignContentValueChanged();
+    }
+
+    inline uint32_t alignItemsValue() const { return m_AlignItemsValue; }
+    void alignItemsValue(uint32_t value)
+    {
+        if (m_AlignItemsValue == value)
+        {
+            return;
+        }
+        m_AlignItemsValue = value;
+        alignItemsValueChanged();
+    }
+
+    inline uint32_t alignSelfValue() const { return m_AlignSelfValue; }
+    void alignSelfValue(uint32_t value)
+    {
+        if (m_AlignSelfValue == value)
+        {
+            return;
+        }
+        m_AlignSelfValue = value;
+        alignSelfValueChanged();
+    }
+
+    inline uint32_t justifyContentValue() const { return m_JustifyContentValue; }
+    void justifyContentValue(uint32_t value)
+    {
+        if (m_JustifyContentValue == value)
+        {
+            return;
+        }
+        m_JustifyContentValue = value;
+        justifyContentValueChanged();
+    }
+
+    inline uint32_t flexWrapValue() const { return m_FlexWrapValue; }
+    void flexWrapValue(uint32_t value)
+    {
+        if (m_FlexWrapValue == value)
+        {
+            return;
+        }
+        m_FlexWrapValue = value;
+        flexWrapValueChanged();
+    }
+
+    inline uint32_t overflowValue() const { return m_OverflowValue; }
+    void overflowValue(uint32_t value)
+    {
+        if (m_OverflowValue == value)
+        {
+            return;
+        }
+        m_OverflowValue = value;
+        overflowValueChanged();
+    }
+
+    inline bool intrinsicallySizedValue() const { return m_IntrinsicallySizedValue; }
+    void intrinsicallySizedValue(bool value)
+    {
+        if (m_IntrinsicallySizedValue == value)
+        {
+            return;
+        }
+        m_IntrinsicallySizedValue = value;
+        intrinsicallySizedValueChanged();
+    }
+
+    inline uint32_t widthUnitsValue() const { return m_WidthUnitsValue; }
+    void widthUnitsValue(uint32_t value)
+    {
+        if (m_WidthUnitsValue == value)
+        {
+            return;
+        }
+        m_WidthUnitsValue = value;
+        widthUnitsValueChanged();
+    }
+
+    inline uint32_t heightUnitsValue() const { return m_HeightUnitsValue; }
+    void heightUnitsValue(uint32_t value)
+    {
+        if (m_HeightUnitsValue == value)
+        {
+            return;
+        }
+        m_HeightUnitsValue = value;
+        heightUnitsValueChanged();
+    }
+
+    inline uint32_t borderLeftUnitsValue() const { return m_BorderLeftUnitsValue; }
+    void borderLeftUnitsValue(uint32_t value)
+    {
+        if (m_BorderLeftUnitsValue == value)
+        {
+            return;
+        }
+        m_BorderLeftUnitsValue = value;
+        borderLeftUnitsValueChanged();
+    }
+
+    inline uint32_t borderRightUnitsValue() const { return m_BorderRightUnitsValue; }
+    void borderRightUnitsValue(uint32_t value)
+    {
+        if (m_BorderRightUnitsValue == value)
+        {
+            return;
+        }
+        m_BorderRightUnitsValue = value;
+        borderRightUnitsValueChanged();
+    }
+
+    inline uint32_t borderTopUnitsValue() const { return m_BorderTopUnitsValue; }
+    void borderTopUnitsValue(uint32_t value)
+    {
+        if (m_BorderTopUnitsValue == value)
+        {
+            return;
+        }
+        m_BorderTopUnitsValue = value;
+        borderTopUnitsValueChanged();
+    }
+
+    inline uint32_t borderBottomUnitsValue() const { return m_BorderBottomUnitsValue; }
+    void borderBottomUnitsValue(uint32_t value)
+    {
+        if (m_BorderBottomUnitsValue == value)
+        {
+            return;
+        }
+        m_BorderBottomUnitsValue = value;
+        borderBottomUnitsValueChanged();
+    }
+
+    inline uint32_t marginLeftUnitsValue() const { return m_MarginLeftUnitsValue; }
+    void marginLeftUnitsValue(uint32_t value)
+    {
+        if (m_MarginLeftUnitsValue == value)
+        {
+            return;
+        }
+        m_MarginLeftUnitsValue = value;
+        marginLeftUnitsValueChanged();
+    }
+
+    inline uint32_t marginRightUnitsValue() const { return m_MarginRightUnitsValue; }
+    void marginRightUnitsValue(uint32_t value)
+    {
+        if (m_MarginRightUnitsValue == value)
+        {
+            return;
+        }
+        m_MarginRightUnitsValue = value;
+        marginRightUnitsValueChanged();
+    }
+
+    inline uint32_t marginTopUnitsValue() const { return m_MarginTopUnitsValue; }
+    void marginTopUnitsValue(uint32_t value)
+    {
+        if (m_MarginTopUnitsValue == value)
+        {
+            return;
+        }
+        m_MarginTopUnitsValue = value;
+        marginTopUnitsValueChanged();
+    }
+
+    inline uint32_t marginBottomUnitsValue() const { return m_MarginBottomUnitsValue; }
+    void marginBottomUnitsValue(uint32_t value)
+    {
+        if (m_MarginBottomUnitsValue == value)
+        {
+            return;
+        }
+        m_MarginBottomUnitsValue = value;
+        marginBottomUnitsValueChanged();
+    }
+
+    inline uint32_t paddingLeftUnitsValue() const { return m_PaddingLeftUnitsValue; }
+    void paddingLeftUnitsValue(uint32_t value)
+    {
+        if (m_PaddingLeftUnitsValue == value)
+        {
+            return;
+        }
+        m_PaddingLeftUnitsValue = value;
+        paddingLeftUnitsValueChanged();
+    }
+
+    inline uint32_t paddingRightUnitsValue() const { return m_PaddingRightUnitsValue; }
+    void paddingRightUnitsValue(uint32_t value)
+    {
+        if (m_PaddingRightUnitsValue == value)
+        {
+            return;
+        }
+        m_PaddingRightUnitsValue = value;
+        paddingRightUnitsValueChanged();
+    }
+
+    inline uint32_t paddingTopUnitsValue() const { return m_PaddingTopUnitsValue; }
+    void paddingTopUnitsValue(uint32_t value)
+    {
+        if (m_PaddingTopUnitsValue == value)
+        {
+            return;
+        }
+        m_PaddingTopUnitsValue = value;
+        paddingTopUnitsValueChanged();
+    }
+
+    inline uint32_t paddingBottomUnitsValue() const { return m_PaddingBottomUnitsValue; }
+    void paddingBottomUnitsValue(uint32_t value)
+    {
+        if (m_PaddingBottomUnitsValue == value)
+        {
+            return;
+        }
+        m_PaddingBottomUnitsValue = value;
+        paddingBottomUnitsValueChanged();
+    }
+
+    inline uint32_t positionLeftUnitsValue() const { return m_PositionLeftUnitsValue; }
+    void positionLeftUnitsValue(uint32_t value)
+    {
+        if (m_PositionLeftUnitsValue == value)
+        {
+            return;
+        }
+        m_PositionLeftUnitsValue = value;
+        positionLeftUnitsValueChanged();
+    }
+
+    inline uint32_t positionRightUnitsValue() const { return m_PositionRightUnitsValue; }
+    void positionRightUnitsValue(uint32_t value)
+    {
+        if (m_PositionRightUnitsValue == value)
+        {
+            return;
+        }
+        m_PositionRightUnitsValue = value;
+        positionRightUnitsValueChanged();
+    }
+
+    inline uint32_t positionTopUnitsValue() const { return m_PositionTopUnitsValue; }
+    void positionTopUnitsValue(uint32_t value)
+    {
+        if (m_PositionTopUnitsValue == value)
+        {
+            return;
+        }
+        m_PositionTopUnitsValue = value;
+        positionTopUnitsValueChanged();
+    }
+
+    inline uint32_t positionBottomUnitsValue() const { return m_PositionBottomUnitsValue; }
+    void positionBottomUnitsValue(uint32_t value)
+    {
+        if (m_PositionBottomUnitsValue == value)
+        {
+            return;
+        }
+        m_PositionBottomUnitsValue = value;
+        positionBottomUnitsValueChanged();
+    }
+
+    inline uint32_t gapHorizontalUnitsValue() const { return m_GapHorizontalUnitsValue; }
+    void gapHorizontalUnitsValue(uint32_t value)
+    {
+        if (m_GapHorizontalUnitsValue == value)
+        {
+            return;
+        }
+        m_GapHorizontalUnitsValue = value;
+        gapHorizontalUnitsValueChanged();
+    }
+
+    inline uint32_t gapVerticalUnitsValue() const { return m_GapVerticalUnitsValue; }
+    void gapVerticalUnitsValue(uint32_t value)
+    {
+        if (m_GapVerticalUnitsValue == value)
+        {
+            return;
+        }
+        m_GapVerticalUnitsValue = value;
+        gapVerticalUnitsValueChanged();
+    }
+
+    inline uint32_t minWidthUnitsValue() const { return m_MinWidthUnitsValue; }
+    void minWidthUnitsValue(uint32_t value)
+    {
+        if (m_MinWidthUnitsValue == value)
+        {
+            return;
+        }
+        m_MinWidthUnitsValue = value;
+        minWidthUnitsValueChanged();
+    }
+
+    inline uint32_t minHeightUnitsValue() const { return m_MinHeightUnitsValue; }
+    void minHeightUnitsValue(uint32_t value)
+    {
+        if (m_MinHeightUnitsValue == value)
+        {
+            return;
+        }
+        m_MinHeightUnitsValue = value;
+        minHeightUnitsValueChanged();
+    }
+
+    inline uint32_t maxWidthUnitsValue() const { return m_MaxWidthUnitsValue; }
+    void maxWidthUnitsValue(uint32_t value)
+    {
+        if (m_MaxWidthUnitsValue == value)
+        {
+            return;
+        }
+        m_MaxWidthUnitsValue = value;
+        maxWidthUnitsValueChanged();
+    }
+
+    inline uint32_t maxHeightUnitsValue() const { return m_MaxHeightUnitsValue; }
+    void maxHeightUnitsValue(uint32_t value)
+    {
+        if (m_MaxHeightUnitsValue == value)
+        {
+            return;
+        }
+        m_MaxHeightUnitsValue = value;
+        maxHeightUnitsValueChanged();
+    }
+
     Core* clone() const override;
     void copy(const LayoutComponentStyleBase& object)
     {
-        m_LayoutFlags0 = object.m_LayoutFlags0;
-        m_LayoutFlags1 = object.m_LayoutFlags1;
-        m_LayoutFlags2 = object.m_LayoutFlags2;
         m_GapHorizontal = object.m_GapHorizontal;
         m_GapVertical = object.m_GapVertical;
         m_MaxWidth = object.m_MaxWidth;
@@ -522,10 +949,46 @@ public:
         m_FlexBasis = object.m_FlexBasis;
         m_AspectRatio = object.m_AspectRatio;
         m_ScaleType = object.m_ScaleType;
+        m_LayoutAlignmentType = object.m_LayoutAlignmentType;
         m_AnimationStyleType = object.m_AnimationStyleType;
         m_InterpolationType = object.m_InterpolationType;
         m_InterpolatorId = object.m_InterpolatorId;
         m_InterpolationTime = object.m_InterpolationTime;
+        m_DisplayValue = object.m_DisplayValue;
+        m_PositionTypeValue = object.m_PositionTypeValue;
+        m_FlexDirectionValue = object.m_FlexDirectionValue;
+        m_DirectionValue = object.m_DirectionValue;
+        m_AlignContentValue = object.m_AlignContentValue;
+        m_AlignItemsValue = object.m_AlignItemsValue;
+        m_AlignSelfValue = object.m_AlignSelfValue;
+        m_JustifyContentValue = object.m_JustifyContentValue;
+        m_FlexWrapValue = object.m_FlexWrapValue;
+        m_OverflowValue = object.m_OverflowValue;
+        m_IntrinsicallySizedValue = object.m_IntrinsicallySizedValue;
+        m_WidthUnitsValue = object.m_WidthUnitsValue;
+        m_HeightUnitsValue = object.m_HeightUnitsValue;
+        m_BorderLeftUnitsValue = object.m_BorderLeftUnitsValue;
+        m_BorderRightUnitsValue = object.m_BorderRightUnitsValue;
+        m_BorderTopUnitsValue = object.m_BorderTopUnitsValue;
+        m_BorderBottomUnitsValue = object.m_BorderBottomUnitsValue;
+        m_MarginLeftUnitsValue = object.m_MarginLeftUnitsValue;
+        m_MarginRightUnitsValue = object.m_MarginRightUnitsValue;
+        m_MarginTopUnitsValue = object.m_MarginTopUnitsValue;
+        m_MarginBottomUnitsValue = object.m_MarginBottomUnitsValue;
+        m_PaddingLeftUnitsValue = object.m_PaddingLeftUnitsValue;
+        m_PaddingRightUnitsValue = object.m_PaddingRightUnitsValue;
+        m_PaddingTopUnitsValue = object.m_PaddingTopUnitsValue;
+        m_PaddingBottomUnitsValue = object.m_PaddingBottomUnitsValue;
+        m_PositionLeftUnitsValue = object.m_PositionLeftUnitsValue;
+        m_PositionRightUnitsValue = object.m_PositionRightUnitsValue;
+        m_PositionTopUnitsValue = object.m_PositionTopUnitsValue;
+        m_PositionBottomUnitsValue = object.m_PositionBottomUnitsValue;
+        m_GapHorizontalUnitsValue = object.m_GapHorizontalUnitsValue;
+        m_GapVerticalUnitsValue = object.m_GapVerticalUnitsValue;
+        m_MinWidthUnitsValue = object.m_MinWidthUnitsValue;
+        m_MinHeightUnitsValue = object.m_MinHeightUnitsValue;
+        m_MaxWidthUnitsValue = object.m_MaxWidthUnitsValue;
+        m_MaxHeightUnitsValue = object.m_MaxHeightUnitsValue;
         Component::copy(object);
     }
 
@@ -533,15 +996,6 @@ public:
     {
         switch (propertyKey)
         {
-            case layoutFlags0PropertyKey:
-                m_LayoutFlags0 = CoreUintType::deserialize(reader);
-                return true;
-            case layoutFlags1PropertyKey:
-                m_LayoutFlags1 = CoreUintType::deserialize(reader);
-                return true;
-            case layoutFlags2PropertyKey:
-                m_LayoutFlags2 = CoreUintType::deserialize(reader);
-                return true;
             case gapHorizontalPropertyKey:
                 m_GapHorizontal = CoreDoubleType::deserialize(reader);
                 return true;
@@ -626,6 +1080,9 @@ public:
             case scaleTypePropertyKey:
                 m_ScaleType = CoreUintType::deserialize(reader);
                 return true;
+            case layoutAlignmentTypePropertyKey:
+                m_LayoutAlignmentType = CoreUintType::deserialize(reader);
+                return true;
             case animationStyleTypePropertyKey:
                 m_AnimationStyleType = CoreUintType::deserialize(reader);
                 return true;
@@ -638,14 +1095,116 @@ public:
             case interpolationTimePropertyKey:
                 m_InterpolationTime = CoreDoubleType::deserialize(reader);
                 return true;
+            case displayValuePropertyKey:
+                m_DisplayValue = CoreUintType::deserialize(reader);
+                return true;
+            case positionTypeValuePropertyKey:
+                m_PositionTypeValue = CoreUintType::deserialize(reader);
+                return true;
+            case flexDirectionValuePropertyKey:
+                m_FlexDirectionValue = CoreUintType::deserialize(reader);
+                return true;
+            case directionValuePropertyKey:
+                m_DirectionValue = CoreUintType::deserialize(reader);
+                return true;
+            case alignContentValuePropertyKey:
+                m_AlignContentValue = CoreUintType::deserialize(reader);
+                return true;
+            case alignItemsValuePropertyKey:
+                m_AlignItemsValue = CoreUintType::deserialize(reader);
+                return true;
+            case alignSelfValuePropertyKey:
+                m_AlignSelfValue = CoreUintType::deserialize(reader);
+                return true;
+            case justifyContentValuePropertyKey:
+                m_JustifyContentValue = CoreUintType::deserialize(reader);
+                return true;
+            case flexWrapValuePropertyKey:
+                m_FlexWrapValue = CoreUintType::deserialize(reader);
+                return true;
+            case overflowValuePropertyKey:
+                m_OverflowValue = CoreUintType::deserialize(reader);
+                return true;
+            case intrinsicallySizedValuePropertyKey:
+                m_IntrinsicallySizedValue = CoreBoolType::deserialize(reader);
+                return true;
+            case widthUnitsValuePropertyKey:
+                m_WidthUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case heightUnitsValuePropertyKey:
+                m_HeightUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case borderLeftUnitsValuePropertyKey:
+                m_BorderLeftUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case borderRightUnitsValuePropertyKey:
+                m_BorderRightUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case borderTopUnitsValuePropertyKey:
+                m_BorderTopUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case borderBottomUnitsValuePropertyKey:
+                m_BorderBottomUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case marginLeftUnitsValuePropertyKey:
+                m_MarginLeftUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case marginRightUnitsValuePropertyKey:
+                m_MarginRightUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case marginTopUnitsValuePropertyKey:
+                m_MarginTopUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case marginBottomUnitsValuePropertyKey:
+                m_MarginBottomUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case paddingLeftUnitsValuePropertyKey:
+                m_PaddingLeftUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case paddingRightUnitsValuePropertyKey:
+                m_PaddingRightUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case paddingTopUnitsValuePropertyKey:
+                m_PaddingTopUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case paddingBottomUnitsValuePropertyKey:
+                m_PaddingBottomUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case positionLeftUnitsValuePropertyKey:
+                m_PositionLeftUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case positionRightUnitsValuePropertyKey:
+                m_PositionRightUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case positionTopUnitsValuePropertyKey:
+                m_PositionTopUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case positionBottomUnitsValuePropertyKey:
+                m_PositionBottomUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case gapHorizontalUnitsValuePropertyKey:
+                m_GapHorizontalUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case gapVerticalUnitsValuePropertyKey:
+                m_GapVerticalUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case minWidthUnitsValuePropertyKey:
+                m_MinWidthUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case minHeightUnitsValuePropertyKey:
+                m_MinHeightUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case maxWidthUnitsValuePropertyKey:
+                m_MaxWidthUnitsValue = CoreUintType::deserialize(reader);
+                return true;
+            case maxHeightUnitsValuePropertyKey:
+                m_MaxHeightUnitsValue = CoreUintType::deserialize(reader);
+                return true;
         }
         return Component::deserialize(propertyKey, reader);
     }
 
 protected:
-    virtual void layoutFlags0Changed() {}
-    virtual void layoutFlags1Changed() {}
-    virtual void layoutFlags2Changed() {}
     virtual void gapHorizontalChanged() {}
     virtual void gapVerticalChanged() {}
     virtual void maxWidthChanged() {}
@@ -674,10 +1233,46 @@ protected:
     virtual void flexBasisChanged() {}
     virtual void aspectRatioChanged() {}
     virtual void scaleTypeChanged() {}
+    virtual void layoutAlignmentTypeChanged() {}
     virtual void animationStyleTypeChanged() {}
     virtual void interpolationTypeChanged() {}
     virtual void interpolatorIdChanged() {}
     virtual void interpolationTimeChanged() {}
+    virtual void displayValueChanged() {}
+    virtual void positionTypeValueChanged() {}
+    virtual void flexDirectionValueChanged() {}
+    virtual void directionValueChanged() {}
+    virtual void alignContentValueChanged() {}
+    virtual void alignItemsValueChanged() {}
+    virtual void alignSelfValueChanged() {}
+    virtual void justifyContentValueChanged() {}
+    virtual void flexWrapValueChanged() {}
+    virtual void overflowValueChanged() {}
+    virtual void intrinsicallySizedValueChanged() {}
+    virtual void widthUnitsValueChanged() {}
+    virtual void heightUnitsValueChanged() {}
+    virtual void borderLeftUnitsValueChanged() {}
+    virtual void borderRightUnitsValueChanged() {}
+    virtual void borderTopUnitsValueChanged() {}
+    virtual void borderBottomUnitsValueChanged() {}
+    virtual void marginLeftUnitsValueChanged() {}
+    virtual void marginRightUnitsValueChanged() {}
+    virtual void marginTopUnitsValueChanged() {}
+    virtual void marginBottomUnitsValueChanged() {}
+    virtual void paddingLeftUnitsValueChanged() {}
+    virtual void paddingRightUnitsValueChanged() {}
+    virtual void paddingTopUnitsValueChanged() {}
+    virtual void paddingBottomUnitsValueChanged() {}
+    virtual void positionLeftUnitsValueChanged() {}
+    virtual void positionRightUnitsValueChanged() {}
+    virtual void positionTopUnitsValueChanged() {}
+    virtual void positionBottomUnitsValueChanged() {}
+    virtual void gapHorizontalUnitsValueChanged() {}
+    virtual void gapVerticalUnitsValueChanged() {}
+    virtual void minWidthUnitsValueChanged() {}
+    virtual void minHeightUnitsValueChanged() {}
+    virtual void maxWidthUnitsValueChanged() {}
+    virtual void maxHeightUnitsValueChanged() {}
 };
 } // namespace rive
 

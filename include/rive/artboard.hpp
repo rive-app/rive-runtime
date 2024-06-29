@@ -124,6 +124,17 @@ public:
         m_dirtyLayout.insert(layoutComponent);
     }
 
+#ifdef WITH_RIVE_LAYOUT
+    AABB layoutBounds() override
+    {
+        if (!hasLayoutMeasurements())
+        {
+            return AABB(x(), y(), x() + width(), y() + height());
+        }
+        return Super::layoutBounds();
+    }
+#endif
+
     bool advance(double elapsedSeconds);
     bool advanceInternal(double elapsedSeconds, bool isRoot);
     bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; };

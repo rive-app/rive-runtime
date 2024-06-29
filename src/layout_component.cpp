@@ -138,6 +138,96 @@ void LayoutComponent::syncStyle()
     {
         ygStyle.dimensions()[YGDimensionHeight] = YGValueAuto;
     }
+
+    bool isRowForAlignment = m_style->flexDirection() == YGFlexDirectionRow ||
+                             m_style->flexDirection() == YGFlexDirectionRowReverse;
+    switch (m_style->alignmentType())
+    {
+        case LayoutAlignmentType::topLeft:
+        case LayoutAlignmentType::topCenter:
+        case LayoutAlignmentType::topRight:
+        case LayoutAlignmentType::spaceBetweenStart:
+            if (isRowForAlignment)
+            {
+                ygStyle.alignItems() = YGAlignFlexStart;
+            }
+            else
+            {
+                ygStyle.justifyContent() = YGJustifyFlexStart;
+            }
+            break;
+        case LayoutAlignmentType::centerLeft:
+        case LayoutAlignmentType::center:
+        case LayoutAlignmentType::centerRight:
+        case LayoutAlignmentType::spaceBetweenCenter:
+            if (isRowForAlignment)
+            {
+                ygStyle.alignItems() = YGAlignCenter;
+            }
+            else
+            {
+                ygStyle.justifyContent() = YGJustifyCenter;
+            }
+            break;
+        case LayoutAlignmentType::bottomLeft:
+        case LayoutAlignmentType::bottomCenter:
+        case LayoutAlignmentType::bottomRight:
+        case LayoutAlignmentType::spaceBetweenEnd:
+            if (isRowForAlignment)
+            {
+                ygStyle.alignItems() = YGAlignFlexEnd;
+            }
+            else
+            {
+                ygStyle.justifyContent() = YGJustifyFlexEnd;
+            }
+            break;
+    }
+    switch (m_style->alignmentType())
+    {
+        case LayoutAlignmentType::topLeft:
+        case LayoutAlignmentType::centerLeft:
+        case LayoutAlignmentType::bottomLeft:
+            if (isRowForAlignment)
+            {
+                ygStyle.justifyContent() = YGJustifyFlexStart;
+            }
+            else
+            {
+                ygStyle.alignItems() = YGAlignFlexStart;
+            }
+            break;
+        case LayoutAlignmentType::topCenter:
+        case LayoutAlignmentType::center:
+        case LayoutAlignmentType::bottomCenter:
+            if (isRowForAlignment)
+            {
+                ygStyle.justifyContent() = YGJustifyCenter;
+            }
+            else
+            {
+                ygStyle.alignItems() = YGAlignCenter;
+            }
+            break;
+        case LayoutAlignmentType::topRight:
+        case LayoutAlignmentType::centerRight:
+        case LayoutAlignmentType::bottomRight:
+            if (isRowForAlignment)
+            {
+                ygStyle.justifyContent() = YGJustifyFlexEnd;
+            }
+            else
+            {
+                ygStyle.alignItems() = YGAlignFlexEnd;
+            }
+            break;
+        case LayoutAlignmentType::spaceBetweenStart:
+        case LayoutAlignmentType::spaceBetweenCenter:
+        case LayoutAlignmentType::spaceBetweenEnd:
+            ygStyle.justifyContent() = YGJustifySpaceBetween;
+            break;
+    }
+
     ygStyle.minDimensions()[YGDimensionWidth] =
         YGValue{m_style->minWidth(), m_style->minWidthUnits()};
     ygStyle.minDimensions()[YGDimensionHeight] =
@@ -178,10 +268,10 @@ void LayoutComponent::syncStyle()
     // ygStyle.flexBasis() = m_style->flexBasis();
     ygStyle.flexDirection() = m_style->flexDirection();
     ygStyle.flexWrap() = m_style->flexWrap();
-    ygStyle.alignItems() = m_style->alignItems();
-    ygStyle.alignContent() = m_style->alignContent();
+    // ygStyle.alignItems() = m_style->alignItems();
+    // ygStyle.alignContent() = m_style->alignContent();
     ygStyle.alignSelf() = m_style->alignSelf();
-    ygStyle.justifyContent() = m_style->justifyContent();
+    // ygStyle.justifyContent() = m_style->justifyContent();
 
     ygNode.setStyle(ygStyle);
 }
