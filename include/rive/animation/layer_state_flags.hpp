@@ -12,6 +12,8 @@ enum class LayerStateFlags : unsigned char
     /// Whether the transition is disabled.
     Random = 1 << 0,
 
+    /// Whether the blend should include an instance to reset values on apply
+    Reset = 1 << 1,
 };
 
 inline constexpr LayerStateFlags operator&(LayerStateFlags lhs, LayerStateFlags rhs)

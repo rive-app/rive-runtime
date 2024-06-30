@@ -20,7 +20,7 @@ public:
     AnimationStateInstance(const AnimationState* animationState, ArtboardInstance* instance);
 
     void advance(float seconds, StateMachineInstance* stateMachineInstance) override;
-    void apply(float mix) override;
+    void apply(ArtboardInstance* instance, float mix) override;
 
     bool keepGoing() const override;
     void clearSpilledTime() override;

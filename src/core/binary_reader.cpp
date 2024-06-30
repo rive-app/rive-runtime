@@ -113,3 +113,5 @@ uint32_t BinaryReader::readUint32()
     m_Position += readBytes;
     return value;
 }
+
+void BinaryReader::reset() { m_Position = m_Bytes.begin(); }

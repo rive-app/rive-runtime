@@ -42,8 +42,21 @@ public:
     /// work area start/end, speed, looping).
     float globalToLocalSeconds(float seconds) const;
 
+    const KeyedObject* getObject(size_t index) const
+    {
+        if (index < m_KeyedObjects.size())
+        {
+            return m_KeyedObjects[index].get();
+        }
+        else
+        {
+            return nullptr;
+        }
+    }
+
+    size_t numKeyedObjects() const { return m_KeyedObjects.size(); }
+
 #ifdef TESTING
-    size_t numKeyedObjects() { return m_KeyedObjects.size(); }
     // Used in testing to check how many animations gets deleted.
     static int deleteCount;
 #endif

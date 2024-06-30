@@ -30,7 +30,10 @@ void AnimationStateInstance::advance(float seconds, StateMachineInstance* stateM
                                               stateMachineInstance);
 }
 
-void AnimationStateInstance::apply(float mix) { m_AnimationInstance.apply(mix); }
+void AnimationStateInstance::apply(ArtboardInstance* instance, float mix)
+{
+    m_AnimationInstance.apply(mix);
+}
 
 bool AnimationStateInstance::keepGoing() const { return m_KeepGoing; }
 void AnimationStateInstance::clearSpilledTime() { m_AnimationInstance.clearSpilledTime(); }

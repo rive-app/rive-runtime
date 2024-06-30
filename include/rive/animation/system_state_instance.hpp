@@ -17,7 +17,7 @@ public:
     SystemStateInstance(const LayerState* layerState, ArtboardInstance* instance);
 
     void advance(float seconds, StateMachineInstance* stateMachineInstance) override;
-    void apply(float mix) override;
+    void apply(ArtboardInstance* artboard, float mix) override;
 
     bool keepGoing() const override;
 };

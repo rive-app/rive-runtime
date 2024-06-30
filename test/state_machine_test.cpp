@@ -10,6 +10,7 @@
 #include <rive/animation/blend_animation_1d.hpp>
 #include <rive/animation/blend_state_direct.hpp>
 #include <rive/animation/blend_state_transition.hpp>
+#include <rive/animation/animation_reset_factory.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/shapes/paint/stroke.hpp>
 #include <rive/shapes/shape.hpp>
@@ -239,6 +240,177 @@ TEST_CASE("Transitions with duration completes the state correctly before changi
     abi->advance(2.0f);
     REQUIRE(stateMachineInstance->currentAnimationByIndex(0)->name() == "State-3");
     REQUIRE(solidColor->colorValue() == white_color);
+
+    delete stateMachineInstance;
+}
+
+TEST_CASE("Blend state animations with reset applied to them.", "[file]")
+{
+    auto file = ReadRiveFile("../../test/assets/animation_reset_cases.riv");
+
+    auto artboard = file->artboard();
+    auto stateMachine = artboard->stateMachine("blend-states-state-machine");
+
+    // We empty all factory reset resources to start the test clean
+    rive::AnimationResetFactory::releaseResources();
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
+
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->animationCount() == 9);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto abi = artboard->instance();
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, abi.get());
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+
+    auto blendValueNumber = stateMachineInstance->getNumber("blend-value");
+    REQUIRE(blendValueNumber != nullptr);
+    REQUIRE(blendValueNumber->value() == 0);
+    blendValueNumber->value(50);
+    REQUIRE(blendValueNumber->value() == 50);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+
+    auto rect1 = abi->children()[9]->as<rive::Shape>();
+    REQUIRE(rect1->name() == "rect1");
+
+    auto rect2 = abi->children()[7]->as<rive::Shape>();
+    REQUIRE(rect2->name() == "rect2");
+
+    auto triangle = abi->children()[5]->as<rive::Shape>();
+    REQUIRE(triangle->name() == "triangle");
+
+    // This blend rotates 2 * Pi. At 50% it should have rotated 1 * Pi
+    REQUIRE(rect1->rotation() == Approx(3.141592f));
+
+    auto state2Bool = stateMachineInstance->getBool("state-2");
+    REQUIRE(state2Bool != nullptr);
+    REQUIRE(state2Bool->value() == false);
+    state2Bool->value(true);
+    blendValueNumber->value(50);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(0.1f);
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
+    REQUIRE(state2Bool->value() == true);
+    // X and Y interpolation in this state ranges are [75; 425] and [50; 450]
+    // so at 50% they should be at 250, 250
+    REQUIRE(rect1->x() == 250.0f);
+    REQUIRE(rect1->y() == 250.0f);
+    // rect2 rotation range is [0; -360]
+    // so at 50% it should be at -180
+    REQUIRE(rect2->rotation() == Approx(-3.141592f));
+
+    auto state3Bool = stateMachineInstance->getBool("state-3");
+    REQUIRE(state3Bool != nullptr);
+    REQUIRE(state3Bool->value() == false);
+    state3Bool->value(true);
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(0.1f);
+    blendValueNumber->value(100);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(0.1f);
+    REQUIRE(state3Bool->value() == true);
+    REQUIRE(triangle->y() == Approx(43.13281f));
+
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 1);
+
+    auto state4Bool = stateMachineInstance->getBool("state-4");
+    REQUIRE(state4Bool != nullptr);
+    REQUIRE(state4Bool->value() == false);
+    state4Bool->value(true);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    REQUIRE(state4Bool->value() == true);
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 2);
+
+    state4Bool->value(false);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(0.1f);
+    REQUIRE(state4Bool->value() == false);
+    // After switching states mutiple times resources stay at 2 because they are released
+    // and retrieved from the pool
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 2);
+    delete stateMachineInstance;
+}
+
+TEST_CASE("Transitions with reset applied to them.", "[file]")
+{
+    auto file = ReadRiveFile("../../test/assets/animation_reset_cases.riv");
+
+    auto artboard = file->artboard("transitions");
+    auto stateMachine = artboard->stateMachine("transitions-state-machine");
+
+    // We empty all factory reset resources to start the test clean
+    rive::AnimationResetFactory::releaseResources();
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
+
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->animationCount() == 5);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto abi = artboard->instance();
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, abi.get());
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+
+    auto rect = abi->children()[7]->as<rive::Shape>();
+    REQUIRE(rect->name() == "rectangle");
+    REQUIRE(rect->x() == 50);
+
+    auto ellipse = abi->children()[5]->as<rive::Shape>();
+    REQUIRE(ellipse->name() == "ellipse");
+    REQUIRE(ellipse->x() == Approx(440.31241));
+
+    auto stateNumber = stateMachineInstance->getNumber("Number 1");
+    REQUIRE(stateNumber != nullptr);
+    REQUIRE(stateNumber->value() == 0);
+    stateNumber->value(1);
+    REQUIRE(stateNumber->value() == 1);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(1.25f);
+
+    // rect transitions in 2.5 secs from x->50 to x->433
+    // so if the translation is linear, after 1.25s it should have
+    // traversed half the path
+    REQUIRE(rect->x() == 241.5f);
+
+    stateNumber->value(2);
+    REQUIRE(stateNumber->value() == 2);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(1.25f);
+    // range is [440.31241; 42.69]
+    // half if the path is 42.69 + (440.21241 - 42.60) = 241.4962
+    REQUIRE(ellipse->x() == Approx(241.49992f));
+
+    // Transitions release their instance immediately so it's available for the next instance to use
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
+
+    stateNumber->value(3);
+    REQUIRE(stateNumber->value() == 3);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(1.25f);
+
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
+
+    stateNumber->value(4);
+    REQUIRE(stateNumber->value() == 4);
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+    stateMachineInstance->advanceAndApply(1.25f);
+
+    // The last two states don't have a transition with duration set so the instance is released
+    // and available
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 1);
 
     delete stateMachineInstance;
 }

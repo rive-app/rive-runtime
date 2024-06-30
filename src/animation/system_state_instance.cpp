@@ -6,6 +6,6 @@ SystemStateInstance::SystemStateInstance(const LayerState* layerState, ArtboardI
 {}
 
 void SystemStateInstance::advance(float seconds, StateMachineInstance* stateMachineInstance) {}
-void SystemStateInstance::apply(float mix) {}
+void SystemStateInstance::apply(ArtboardInstance* artboard, float mix) {}
 
 bool SystemStateInstance::keepGoing() const { return false; }

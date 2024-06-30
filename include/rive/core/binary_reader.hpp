@@ -49,6 +49,7 @@ public:
         }
         return static_cast<T>(value);
     }
+    void reset();
 };
 } // namespace rive
 

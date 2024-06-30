@@ -5,8 +5,11 @@
 #include <vector>
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/blend_state.hpp"
+#include "rive/animation/layer_state_flags.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/animation_reset.hpp"
+#include "rive/animation/animation_reset_factory.hpp"
 
 namespace rive
 {
@@ -49,6 +52,15 @@ public:
             m_AnimationInstances.emplace_back(
                 BlendStateAnimationInstance<T>(static_cast<T*>(blendAnimation), instance));
         }
+        if ((static_cast<LayerStateFlags>(blendState->flags()) & LayerStateFlags::Reset) ==
+            LayerStateFlags::Reset)
+        {
+            auto animations = std::vector<const LinearAnimation*>();
+            for (auto blendAnimation : blendState->animations())
+            {
+                animations.push_back(blendAnimation->animation());
+            }
+        }
     }
 
     bool keepGoing() const override { return m_KeepGoing; }
@@ -71,7 +83,7 @@ public:
         }
     }
 
-    void apply(float mix) override
+    void apply(ArtboardInstance* instance, float mix) override
     {
         for (auto& animation : m_AnimationInstances)
         {

@@ -1,3 +1,5 @@
+#include "rive/animation/animation_reset.hpp"
+#include "rive/animation/animation_reset_factory.hpp"
 #include "rive/animation/animation_state_instance.hpp"
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/any_state.hpp"
@@ -70,6 +72,7 @@ public:
             if (m_mix == 1.0f && !m_transitionCompleted)
             {
                 m_transitionCompleted = true;
+                clearAnimationReset();
                 fireEvents(StateMachineFireOccurance::atEnd, m_transition->events());
             }
         }
@@ -256,6 +259,21 @@ public:
         return nullptr;
     }
 
+    void buildAnimationResetForTransition()
+    {
+        m_animationReset =
+            AnimationResetFactory::fromStates(m_stateFrom, m_currentState, m_artboardInstance);
+    }
+
+    void clearAnimationReset()
+    {
+        if (m_animationReset != nullptr)
+        {
+            AnimationResetFactory::release(std::move(m_animationReset));
+            m_animationReset = nullptr;
+        }
+    }
+
     bool tryChangeState(StateInstance* stateFromInstance, bool ignoreTriggers)
     {
         if (stateFromInstance == nullptr)
@@ -266,6 +284,7 @@ public:
         auto transition = findAllowedTransition(stateFromInstance, ignoreTriggers);
         if (transition != nullptr)
         {
+            clearAnimationReset();
             changeState(transition->stateTo());
             m_stateMachineChangedOnAdvance = true;
             // state actually has changed
@@ -287,6 +306,11 @@ public:
                 delete m_stateFrom;
             }
             m_stateFrom = outState;
+
+            if (!m_transitionCompleted)
+            {
+                buildAnimationResetForTransition();
+            }
 
             // If we had an exit time and wanted to pause on exit, make
             // sure to hold the exit time. Delegate this to the
@@ -327,6 +351,10 @@ public:
 
     void apply(/*Artboard* artboard*/)
     {
+        if (m_animationReset != nullptr)
+        {
+            m_animationReset->apply(m_artboardInstance);
+        }
         if (m_holdAnimation != nullptr)
         {
             m_holdAnimation->apply(m_artboardInstance, m_holdTime, m_mixFrom);
@@ -342,12 +370,12 @@ public:
         if (m_stateFrom != nullptr && m_mix < 1.0f)
         {
             auto fromMix = cubic != nullptr ? cubic->transform(m_mixFrom) : m_mixFrom;
-            m_stateFrom->apply(fromMix);
+            m_stateFrom->apply(m_artboardInstance, fromMix);
         }
         if (m_currentState != nullptr)
         {
             auto mix = cubic != nullptr ? cubic->transform(m_mix) : m_mix;
-            m_currentState->apply(mix);
+            m_currentState->apply(m_artboardInstance, mix);
         }
     }
 
@@ -378,6 +406,7 @@ private:
     StateInstance* m_stateFrom = nullptr;
 
     const StateTransition* m_transition = nullptr;
+    std::unique_ptr<AnimationReset> m_animationReset = nullptr;
     bool m_transitionCompleted = false;
 
     bool m_holdAnimationFrom = false;

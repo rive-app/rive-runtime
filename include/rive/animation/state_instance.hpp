@@ -22,7 +22,7 @@ public:
     StateInstance(const LayerState* layerState);
     virtual ~StateInstance();
     virtual void advance(float seconds, StateMachineInstance* stateMachineInstance) = 0;
-    virtual void apply(float mix) = 0;
+    virtual void apply(ArtboardInstance* instance, float mix) = 0;
 
     /// Returns true when the State Machine needs to keep advancing this
     /// state.

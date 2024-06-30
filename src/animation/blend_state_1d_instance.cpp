@@ -1,12 +1,33 @@
 #include "rive/animation/blend_state_1d_instance.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/animation/layer_state_flags.hpp"
 
 using namespace rive;
 
 BlendState1DInstance::BlendState1DInstance(const BlendState1D* blendState,
                                            ArtboardInstance* instance) :
     BlendStateInstance<BlendState1D, BlendAnimation1D>(blendState, instance)
-{}
+{
+
+    if ((static_cast<LayerStateFlags>(blendState->flags()) & LayerStateFlags::Reset) ==
+        LayerStateFlags::Reset)
+    {
+        auto animations = std::vector<const LinearAnimation*>();
+        for (auto blendAnimation : blendState->animations())
+        {
+            animations.push_back(blendAnimation->animation());
+        }
+        m_AnimationReset = AnimationResetFactory::fromAnimations(animations, instance, true);
+    }
+}
+
+BlendState1DInstance::~BlendState1DInstance()
+{
+    if (m_AnimationReset != nullptr)
+    {
+        AnimationResetFactory::release(std::move(m_AnimationReset));
+    }
+}
 
 int BlendState1DInstance::animationIndex(float value)
 {
@@ -37,6 +58,15 @@ int BlendState1DInstance::animationIndex(float value)
         idx = start;
     }
     return idx;
+}
+
+void BlendState1DInstance::apply(ArtboardInstance* instance, float mix)
+{
+    if (m_AnimationReset != nullptr)
+    {
+        m_AnimationReset->apply(instance);
+    }
+    BlendStateInstance::apply(instance, mix);
 }
 
 void BlendState1DInstance::advance(float seconds, StateMachineInstance* stateMachineInstance)
