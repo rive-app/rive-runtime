@@ -21,8 +21,8 @@ private:
 public:
     AnimationReset();
     void writeObjectId(uint32_t objectId);
-    void writeTotalProperties(uint8_t value);
-    void writePropertyKey(uint8_t value);
+    void writeTotalProperties(uint32_t value);
+    void writePropertyKey(uint32_t value);
     void writePropertyValue(float value);
     void apply(Artboard* artboard);
     void complete();

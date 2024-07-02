@@ -8,9 +8,9 @@ AnimationReset::AnimationReset() : m_binaryWriter(&m_WriteBuffer), m_binaryReade
 
 void AnimationReset::writeObjectId(uint32_t objectId) { m_binaryWriter.writeVarUint(objectId); }
 
-void AnimationReset::writeTotalProperties(uint8_t value) { m_binaryWriter.write(value); }
+void AnimationReset::writeTotalProperties(uint32_t value) { m_binaryWriter.writeVarUint(value); }
 
-void AnimationReset::writePropertyKey(uint8_t value) { m_binaryWriter.write(value); }
+void AnimationReset::writePropertyKey(uint32_t value) { m_binaryWriter.writeVarUint(value); }
 
 void AnimationReset::writePropertyValue(float value) { m_binaryWriter.writeFloat(value); }
 
@@ -28,11 +28,11 @@ void AnimationReset::apply(Artboard* artboard)
     {
         auto objectId = m_binaryReader.readVarUint32();
         auto object = artboard->resolve(objectId);
-        auto totalProperties = m_binaryReader.readByte();
-        auto currentPropertyIndex = 0;
+        auto totalProperties = m_binaryReader.readVarUint32();
+        uint32_t currentPropertyIndex = 0;
         while (currentPropertyIndex < totalProperties)
         {
-            auto propertyKey = m_binaryReader.readByte();
+            auto propertyKey = m_binaryReader.readVarUint32();
             auto propertyValue = m_binaryReader.readFloat32();
             switch (CoreRegistry::propertyFieldId(propertyKey))
             {
