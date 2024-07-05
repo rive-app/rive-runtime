@@ -35,8 +35,14 @@ public:
             auto pos = keyedPropertiesSet.find(keyedProperty->propertyKey());
             if (pos == keyedPropertiesSet.end())
             {
-                keyedPropertiesSet.insert(keyedProperty->propertyKey());
-                keyedPropertiesData.push_back(KeyedPropertyData(keyedProperty, isBaseline));
+                switch (CoreRegistry::propertyFieldId(keyedProperty->propertyKey()))
+                {
+                    case CoreDoubleType::id:
+                    case CoreColorType::id:
+                        keyedPropertiesSet.insert(keyedProperty->propertyKey());
+                        keyedPropertiesData.push_back(KeyedPropertyData(keyedProperty, isBaseline));
+                        break;
+                }
             }
             index++;
         }
@@ -66,7 +72,6 @@ private:
 
     void findKeyedObjects(const LinearAnimation* animation, bool isFirstAnimation)
     {
-
         size_t index = 0;
         while (index < animation->numKeyedObjects())
         {
@@ -169,7 +174,7 @@ void AnimationResetFactory::fromState(StateInstance* stateInstance,
     if (stateInstance != nullptr)
     {
         auto state = stateInstance->state();
-        if (state->is<AnimationState>())
+        if (state->is<AnimationState>() && state->as<AnimationState>()->animation() != nullptr)
         {
             animations.push_back(state->as<AnimationState>()->animation());
         }
