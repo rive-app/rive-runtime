@@ -57,8 +57,6 @@ public:
     {
         return (m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed;
     }
-
-    virtual bool forAll(std::function<bool(Component*)> predicate);
 };
 } // namespace rive
 

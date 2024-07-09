@@ -667,9 +667,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     {
         auto listener = machine->listener(i);
         auto target = m_artboardInstance->resolve(listener->targetId());
-        if (target != nullptr && target->is<Component>())
+        if (target != nullptr && target->is<ContainerComponent>())
         {
-            target->as<Component>()->forAll([&](Component* component) {
+            target->as<ContainerComponent>()->forAll([&](Component* component) {
                 if (component->is<Shape>())
                 {
                     HitShape* hitShape;

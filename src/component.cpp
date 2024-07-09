@@ -90,5 +90,3 @@ bool Component::collapse(bool value)
     m_DependencyHelper.onComponentDirty(this);
     return true;
 }
-
-bool Component::forAll(std::function<bool(Component*)> predicate) { return predicate(this); }

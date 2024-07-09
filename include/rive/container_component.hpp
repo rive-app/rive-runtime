@@ -15,7 +15,8 @@ public:
 
     // Returns true if it searched through all of its children. predicate can
     // return false to stop searching.
-    bool forAll(std::function<bool(Component*)> predicate) override;
+    bool forAll(std::function<bool(Component*)> predicate);
+    bool forEachChild(std::function<bool(Component*)> predicate);
 
 private:
     std::vector<Component*> m_children;
