@@ -77,10 +77,13 @@ std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount)
     assert(cinfo.data_precision == 8);
     assert(cinfo.output_components == 3);
 
-    pixelBuffer = std::make_unique<uint8_t[]>(cinfo.output_width * cinfo.output_height *
-                                              cinfo.output_components);
+    size_t pixelBufferSize = static_cast<size_t>(cinfo.output_width) *
+                             static_cast<size_t>(cinfo.output_height) *
+                             static_cast<size_t>(cinfo.output_components);
+    pixelBuffer = std::make_unique<uint8_t[]>(pixelBufferSize);
 
     uint8_t* pixelWriteBuffer = (uint8_t*)pixelBuffer.get();
+    const uint8_t* pixelWriteBufferEnd = pixelWriteBuffer + pixelBufferSize;
 
     // Samples per row in output buffer
     row_stride = cinfo.output_width * cinfo.output_components;
@@ -100,6 +103,13 @@ std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount)
         // more than one scanline at a time if that's more convenient.
         jpeg_read_scanlines(&cinfo, buffer, 1);
 
+        if (pixelWriteBuffer + row_stride > pixelWriteBufferEnd)
+        {
+            // memcpy would cause an overflow.
+            jpeg_finish_decompress(&cinfo);
+            jpeg_destroy_decompress(&cinfo);
+            return nullptr;
+        }
         memcpy(pixelWriteBuffer, buffer[0], row_stride);
         pixelWriteBuffer += row_stride;
     }
