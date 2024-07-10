@@ -1,8 +1,10 @@
-#include <rive/file.hpp>
-#include <rive/node.hpp>
-#include <rive/shapes/rectangle.hpp>
-#include <rive/shapes/shape.hpp>
-#include <rive/assets/image_asset.hpp>
+#include "rive/file.hpp"
+#include "rive/node.hpp"
+#include "rive/shapes/rectangle.hpp"
+#include "rive/shapes/shape.hpp"
+#include "rive/assets/image_asset.hpp"
+#include "rive/shapes/points_path.hpp"
+#include "rive/shapes/mesh.hpp"
 #include "utils/no_op_renderer.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -191,6 +193,35 @@ TEST_CASE("file with in-band images can have the stripped", "[file]")
         REQUIRE(stripResult == rive::ImportResult::success);
         REQUIRE(strippedBytes.size() < bytes.size());
     }
+}
+
+TEST_CASE("file a bad skin (no parent skinnable) doesn't crash", "[file]")
+{
+    FILE* fp = fopen("../../test/assets/bad_skin.riv", "rb");
+    REQUIRE(fp != nullptr);
+
+    fseek(fp, 0, SEEK_END);
+    const size_t length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    std::vector<uint8_t> bytes(length);
+    REQUIRE(fread(bytes.data(), 1, length, fp) == length);
+    fclose(fp);
+
+    rive::ImportResult result;
+    auto file = rive::File::import(bytes, &gNoOpFactory, &result);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file.get() != nullptr);
+    REQUIRE(file->artboard() != nullptr);
+
+    REQUIRE(file->artboard()->name() == "Illustration WOman.svg");
+    auto artboard = file->artboardDefault();
+    artboard->updateComponents();
+    auto paths = artboard->find<rive::PointsPath>();
+    for (auto path : paths)
+    {
+        path->markPathDirty();
+    }
+    artboard->updateComponents();
 }
 
 // TODO:

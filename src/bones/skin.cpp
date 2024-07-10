@@ -85,4 +85,10 @@ void Skin::deform(Span<Vertex*> vertices)
 }
 void Skin::addTendon(Tendon* tendon) { m_Tendons.push_back(tendon); }
 
-void Skin::onDirty(ComponentDirt dirt) { m_Skinnable->markSkinDirty(); }
+void Skin::onDirty(ComponentDirt dirt)
+{
+    if (m_Skinnable != nullptr)
+    {
+        m_Skinnable->markSkinDirty();
+    }
+}
