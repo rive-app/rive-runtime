@@ -218,6 +218,5 @@ do
     filter('system:emscripten')
     do
         files({ 'renderer/gl/pls_impl_webgl.cpp' })
-        buildoptions({ '-pthread' })
     end
 end
