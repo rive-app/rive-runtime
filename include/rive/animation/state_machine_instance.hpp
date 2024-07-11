@@ -32,6 +32,11 @@ class Event;
 class KeyedProperty;
 class EventReport;
 
+#ifdef WITH_RIVE_TOOLS
+class StateMachineInstance;
+typedef void (*InputChanged)(StateMachineInstance*, uint64_t);
+#endif
+
 class StateMachineInstance : public Scene, public NestedEventNotifier, public NestedEventListener
 {
     friend class SMIInput;
@@ -92,6 +97,9 @@ public:
     HitResult pointerDown(Vec2D position) override;
     HitResult pointerUp(Vec2D position) override;
     HitResult pointerExit(Vec2D position) override;
+#ifdef WITH_RIVE_TOOLS
+    bool hitTest(Vec2D position) const;
+#endif
 
     float durationSeconds() const override { return -1; }
     Loop loop() const override { return Loop::oneShot; }
@@ -131,6 +139,11 @@ private:
     std::vector<std::unique_ptr<HitComponent>> m_hitComponents;
     StateMachineInstance* m_parentStateMachineInstance = nullptr;
     NestedArtboard* m_parentNestedArtboard = nullptr;
+#ifdef WITH_RIVE_TOOLS
+public:
+    void onInputChanged(InputChanged callback) { m_inputChangedCallback = callback; }
+    InputChanged m_inputChangedCallback = nullptr;
+#endif
 };
 } // namespace rive
 #endif

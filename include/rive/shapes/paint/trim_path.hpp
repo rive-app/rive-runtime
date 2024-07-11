@@ -8,13 +8,12 @@
 
 namespace rive
 {
-enum class TrimPathMode : unsigned char
+enum class TrimPathMode : uint8_t
 {
     sequential = 1,
     synchronized = 2
 
 };
-class ContourMeasure;
 
 class TrimPath : public TrimPathBase, public StrokeEffect
 {

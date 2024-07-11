@@ -48,7 +48,7 @@ do
         harfbuzz .. '/src',
         sheenbidi .. '/Headers',
         miniaudio,
-        yoga
+        yoga,
     })
 
     defines({ 'YOGA_EXPORT=' })
@@ -161,11 +161,6 @@ do
     do
         targetdir('%{cfg.system}/arm64/bin/%{cfg.buildcfg}')
         objdir('%{cfg.system}/arm64/obj/%{cfg.buildcfg}')
-    end
-
-    filter('system:emscripten')
-    do
-        buildoptions({ '-pthread' })
     end
 
     filter('configurations:debug')

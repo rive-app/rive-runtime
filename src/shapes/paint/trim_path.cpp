@@ -146,9 +146,12 @@ void TrimPath::invalidateEffect()
 void TrimPath::invalidateTrim()
 {
     m_renderPath = nullptr;
-    auto stroke = parent()->as<Stroke>();
-    stroke->parent()->addDirt(ComponentDirt::Paint);
-    stroke->invalidateRendering();
+    if (parent() != nullptr)
+    {
+        auto stroke = parent()->as<Stroke>();
+        stroke->parent()->addDirt(ComponentDirt::Paint);
+        stroke->invalidateRendering();
+    }
 }
 
 void TrimPath::startChanged() { invalidateTrim(); }

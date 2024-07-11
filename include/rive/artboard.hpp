@@ -44,6 +44,10 @@ class SMIInput;
 class SMINumber;
 class SMITrigger;
 
+#ifdef WITH_RIVE_TOOLS
+typedef void (*ArtboardCallback)(Artboard*);
+#endif
+
 class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer
 {
     friend class File;
@@ -135,8 +139,8 @@ public:
     }
 #endif
 
-    bool advance(double elapsedSeconds);
-    bool advanceInternal(double elapsedSeconds, bool isRoot);
+    bool advance(double elapsedSeconds, bool nested = true);
+    bool advanceInternal(double elapsedSeconds, bool isRoot, bool nested = true);
     bool hasChangedDrawOrderInLastUpdate() { return m_HasChangedDrawOrderInLastUpdate; };
     Drawable* firstDrawable() { return m_FirstDrawable; };
 
@@ -161,9 +165,10 @@ public:
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
 
-    float originalWidth() { return m_originalWidth; }
-    float originalHeight() { return m_originalHeight; }
-
+    float originalWidth() const { return m_originalWidth; }
+    float originalHeight() const { return m_originalHeight; }
+    float layoutWidth() const;
+    float layoutHeight() const;
     AABB bounds() const;
 
     // Can we hide these from the public? (they use playable)
@@ -341,8 +346,18 @@ public:
     rcp<AudioEngine> audioEngine() const;
     void audioEngine(rcp<AudioEngine> audioEngine);
 #endif
+
+#ifdef WITH_RIVE_LAYOUT
+    void propagateSize() override;
+#endif
 private:
     float m_volume = 1.0f;
+#ifdef WITH_RIVE_TOOLS
+    ArtboardCallback m_layoutChangedCallback = nullptr;
+
+public:
+    void onLayoutChanged(ArtboardCallback callback) { m_layoutChangedCallback = callback; }
+#endif
 };
 
 class ArtboardInstance : public Artboard

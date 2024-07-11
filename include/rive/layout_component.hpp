@@ -32,7 +32,7 @@ struct LayoutAnimationData
 
 class LayoutComponent : public LayoutComponentBase
 {
-private:
+protected:
     LayoutComponentStyle* m_style = nullptr;
     std::unique_ptr<LayoutData> m_layoutData;
 
@@ -66,7 +66,7 @@ public:
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent();
     void syncStyle();
-    void propagateSize();
+    virtual void propagateSize();
     void updateLayoutBounds();
     void update(ComponentDirt value) override;
     StatusCode onAddedDirty(CoreContext* context) override;

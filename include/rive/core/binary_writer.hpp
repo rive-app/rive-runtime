@@ -1,4 +1,3 @@
-
 #ifndef _RIVE_CORE_BINARY_WRITER_HPP_
 #define _RIVE_CORE_BINARY_WRITER_HPP_
 
@@ -24,6 +23,8 @@ public:
     void write(const uint8_t* bytes, std::size_t length);
     void write(uint8_t value);
     void writeDouble(double value);
+    void write(uint16_t value);
+    void write(uint32_t value);
     void clear();
 };
 } // namespace rive

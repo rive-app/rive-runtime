@@ -430,6 +430,9 @@ public:
     {}
     virtual ~HitComponent() {}
     virtual HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) = 0;
+#ifdef WITH_RIVE_TOOLS
+    virtual bool hitTest(Vec2D position) const = 0;
+#endif
 
 protected:
     Component* m_component;
@@ -451,8 +454,10 @@ public:
     std::vector<const StateMachineListener*> listeners;
 
     bool hitTest(Vec2D position) const
+#ifdef WITH_RIVE_TOOLS
+        override
+#endif
     {
-
         auto shape = m_component->as<Shape>();
         auto worldBounds = shape->worldBounds();
         if (!worldBounds.contains(position))
@@ -516,6 +521,36 @@ public:
         HitComponent(nestedArtboard, stateMachineInstance)
     {}
     ~HitNestedArtboard() override {}
+
+#ifdef WITH_RIVE_TOOLS
+    bool hitTest(Vec2D position) const override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed())
+        {
+            return false;
+        }
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            // Mounted artboard isn't ready or has a 0 scale transform.
+            return false;
+        }
+
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>())
+            {
+                auto nestedStateMachine = nestedAnimation->as<NestedStateMachine>();
+                if (nestedStateMachine->hitTest(nestedPosition))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+#endif
     HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
@@ -589,7 +624,6 @@ HitResult StateMachineInstance::updateListeners(Vec2D position, ListenerType hit
     bool hitOpaque = false;
     for (const auto& hitShape : m_hitComponents)
     {
-
         // TODO: quick reject.
 
         HitResult hitResult = hitShape->processEvent(position, hitType, !hitOpaque);
@@ -604,6 +638,28 @@ HitResult StateMachineInstance::updateListeners(Vec2D position, ListenerType hit
     }
     return hitSomething ? hitOpaque ? HitResult::hitOpaque : HitResult::hit : HitResult::none;
 }
+
+#ifdef WITH_RIVE_TOOLS
+bool StateMachineInstance::hitTest(Vec2D position) const
+{
+    if (m_artboardInstance->frameOrigin())
+    {
+        position -= Vec2D(m_artboardInstance->originX() * m_artboardInstance->width(),
+                          m_artboardInstance->originY() * m_artboardInstance->height());
+    }
+
+    for (const auto& hitShape : m_hitComponents)
+    {
+        // TODO: quick reject.
+
+        if (hitShape->hitTest(position))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+#endif
 
 HitResult StateMachineInstance::pointerMove(Vec2D position)
 {
@@ -650,6 +706,13 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 // Sanity check.
                 break;
         }
+#ifdef WITH_RIVE_TOOLS
+        auto instance = m_inputInstances[i];
+        if (instance != nullptr)
+        {
+            instance->m_index = i;
+        }
+#endif
     }
 
     m_layerCount = machine->layerCount();
@@ -958,12 +1021,9 @@ void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& 
             }
         }
         // Bubble the event up to parent artboard state machines immediately
-        if (nestedArtboard() != nullptr)
+        for (auto listener : nestedEventListeners())
         {
-            for (auto listener : nestedEventListeners())
-            {
-                listener->notify(events, nestedArtboard());
-            }
+            listener->notify(events, nestedArtboard());
         }
 
         for (auto report : events)

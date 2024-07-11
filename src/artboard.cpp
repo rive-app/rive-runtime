@@ -86,6 +86,8 @@ StatusCode Artboard::initialize()
     // these will be re-built in update() -- are they needed here?
     m_BackgroundPath = factory()->makeEmptyRenderPath();
     m_ClipPath = factory()->makeEmptyRenderPath();
+    m_layoutSizeWidth = width();
+    m_layoutSizeHeight = height();
 
 #ifdef WITH_RIVE_LAYOUT
     markLayoutDirty(this);
@@ -444,6 +446,37 @@ void Artboard::onComponentDirty(Component* component)
 
 void Artboard::onDirty(ComponentDirt dirt) { m_Dirt |= ComponentDirt::Components; }
 
+#ifdef WITH_RIVE_LAYOUT
+void Artboard::propagateSize()
+{
+    addDirt(ComponentDirt::Path);
+#ifdef WITH_RIVE_TOOLS
+    if (m_layoutChangedCallback != nullptr)
+    {
+        m_layoutChangedCallback(this);
+    }
+#endif
+}
+#endif
+
+float Artboard::layoutWidth() const
+{
+#ifdef WITH_RIVE_LAYOUT
+    return m_layoutSizeWidth;
+#else
+    return width();
+#endif
+}
+
+float Artboard::layoutHeight() const
+{
+#ifdef WITH_RIVE_LAYOUT
+    return m_layoutSizeHeight;
+#else
+    return height();
+#endif
+}
+
 void Artboard::update(ComponentDirt value)
 {
     if (hasDirt(value, ComponentDirt::DrawOrder))
@@ -452,11 +485,14 @@ void Artboard::update(ComponentDirt value)
     }
     if (hasDirt(value, ComponentDirt::Path))
     {
-        AABB bg = AABB::fromLTWH(-width() * originX(), -height() * originY(), width(), height());
+        AABB bg = AABB::fromLTWH(-layoutWidth() * originX(),
+                                 -layoutHeight() * originY(),
+                                 layoutWidth(),
+                                 layoutHeight());
         AABB clip;
         if (m_FrameOrigin)
         {
-            clip = {0.0f, 0.0f, width(), height()};
+            clip = {0.0f, 0.0f, layoutWidth(), layoutHeight()};
         }
         else
         {
@@ -530,7 +566,7 @@ bool Artboard::updateComponents()
     return false;
 }
 
-bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot)
+bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot, bool nested)
 {
     bool didUpdate = false;
     m_HasChangedDrawOrderInLastUpdate = false;
@@ -604,17 +640,23 @@ bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot)
             didUpdate = true;
         }
     }
-    for (auto nestedArtboard : m_NestedArtboards)
+    if (nested)
     {
-        if (nestedArtboard->advance((float)elapsedSeconds))
+        for (auto nestedArtboard : m_NestedArtboards)
         {
-            didUpdate = true;
+            if (nestedArtboard->advance((float)elapsedSeconds))
+            {
+                didUpdate = true;
+            }
         }
     }
     return didUpdate;
 }
 
-bool Artboard::advance(double elapsedSeconds) { return advanceInternal(elapsedSeconds, true); }
+bool Artboard::advance(double elapsedSeconds, bool nested)
+{
+    return advanceInternal(elapsedSeconds, true, nested);
+}
 
 Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform)
 {
@@ -626,7 +668,7 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform)
     auto mx = xform ? *xform : Mat2D();
     if (m_FrameOrigin)
     {
-        mx *= Mat2D::fromTranslate(width() * originX(), height() * originY());
+        mx *= Mat2D::fromTranslate(layoutWidth() * originX(), layoutHeight() * originY());
     }
 
     Drawable* last = m_FirstDrawable;
@@ -666,8 +708,8 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
     if (m_FrameOrigin)
     {
         Mat2D artboardTransform;
-        artboardTransform[4] = width() * originX();
-        artboardTransform[5] = height() * originY();
+        artboardTransform[4] = layoutWidth() * originX();
+        artboardTransform[5] = layoutHeight() * originY();
         renderer->transform(artboardTransform);
     }
 
@@ -709,9 +751,11 @@ void Artboard::addToRenderPath(RenderPath* path, const Mat2D& transform)
 
 AABB Artboard::bounds() const
 {
-    return m_FrameOrigin
-               ? AABB(0.0f, 0.0f, width(), height())
-               : AABB::fromLTWH(-width() * originX(), -height() * originY(), width(), height());
+    return m_FrameOrigin ? AABB(0.0f, 0.0f, layoutWidth(), layoutHeight())
+                         : AABB::fromLTWH(-layoutWidth() * originX(),
+                                          -layoutHeight() * originY(),
+                                          layoutWidth(),
+                                          layoutHeight());
 }
 
 bool Artboard::isTranslucent() const

@@ -7,14 +7,24 @@
 using namespace rive;
 
 SMIInput::SMIInput(const StateMachineInput* input, StateMachineInstance* machineInstance) :
-    m_MachineInstance(machineInstance), m_Input(input)
+    m_machineInstance(machineInstance), m_input(input)
 {}
 
-uint16_t SMIInput::inputCoreType() const { return m_Input->coreType(); }
+uint16_t SMIInput::inputCoreType() const { return m_input->coreType(); }
 
-const std::string& SMIInput::name() const { return m_Input->name(); }
+const std::string& SMIInput::name() const { return m_input->name(); }
 
-void SMIInput::valueChanged() { m_MachineInstance->markNeedsAdvance(); }
+void SMIInput::valueChanged()
+{
+    m_machineInstance->markNeedsAdvance();
+#ifdef WITH_RIVE_TOOLS
+    auto callback = m_machineInstance->m_inputChangedCallback;
+    if (callback != nullptr)
+    {
+        callback(m_machineInstance, m_index);
+    }
+#endif
+}
 
 // bool
 
@@ -54,10 +64,10 @@ SMITrigger::SMITrigger(const StateMachineTrigger* input, StateMachineInstance* m
 
 void SMITrigger::fire()
 {
-    if (m_Fired)
+    if (m_fired)
     {
         return;
     }
-    m_Fired = true;
+    m_fired = true;
     valueChanged();
 }

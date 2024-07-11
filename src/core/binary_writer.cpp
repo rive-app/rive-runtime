@@ -100,8 +100,6 @@ void BinaryWriter::write(const uint8_t* bytes, size_t length)
     m_Stream->write(bytes, length);
 }
 
-void BinaryWriter::write(uint8_t value) { m_Stream->write(&value, 1); }
-
 void BinaryWriter::writeDouble(double value)
 {
     auto bytes = reinterpret_cast<uint8_t*>(&value);
@@ -116,5 +114,11 @@ void BinaryWriter::writeDouble(double value)
         m_Stream->write(bytes, 8);
     }
 }
+
+void BinaryWriter::write(uint8_t value) { m_Stream->write((const uint8_t*)&value, 1); }
+
+void BinaryWriter::write(uint16_t value) { m_Stream->write((const uint8_t*)&value, 2); }
+
+void BinaryWriter::write(uint32_t value) { m_Stream->write((const uint8_t*)&value, 4); }
 
 void BinaryWriter::clear() { m_Stream->clear(); }

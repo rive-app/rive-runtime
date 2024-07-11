@@ -236,7 +236,6 @@ void LayoutComponent::syncStyle()
         YGValue{m_style->maxWidth(), m_style->maxWidthUnits()};
     ygStyle.maxDimensions()[YGDimensionHeight] =
         YGValue{m_style->maxHeight(), m_style->maxHeightUnits()};
-
     ygStyle.gap()[YGGutterColumn] =
         YGValue{m_style->gapHorizontal(), m_style->gapHorizontalUnits()};
     ygStyle.gap()[YGGutterRow] = YGValue{m_style->gapVertical(), m_style->gapVerticalUnits()};

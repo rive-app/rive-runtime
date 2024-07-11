@@ -60,7 +60,7 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
 
     auto artboard = file->artboard("Center");
     REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
+    artboard->advance(0.0f);
     REQUIRE(artboard->originX() == 0.5);
     REQUIRE(artboard->originY() == 0.5);
     {

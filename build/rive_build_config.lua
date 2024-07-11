@@ -141,7 +141,7 @@ newoption({
     default = 'default',
 })
 
--- This is just to match our old windows config. Gamekit specifically sets
+-- This is just to match our old windows config. Rive Native specifically sets
 -- static/dynamic and maybe we should do the same elsewhere.
 filter({ 'system:windows', 'options:windows_runtime=default' })
 do

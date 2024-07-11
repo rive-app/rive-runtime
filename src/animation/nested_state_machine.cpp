@@ -39,6 +39,17 @@ StateMachineInstance* NestedStateMachine::stateMachineInstance()
     return m_StateMachineInstance.get();
 }
 
+#ifdef WITH_RIVE_TOOLS
+bool NestedStateMachine::hitTest(Vec2D position) const
+{
+    if (m_StateMachineInstance != nullptr)
+    {
+        return m_StateMachineInstance->hitTest(position);
+    }
+    return false;
+}
+#endif
+
 HitResult NestedStateMachine::pointerMove(Vec2D position)
 {
     if (m_StateMachineInstance != nullptr)

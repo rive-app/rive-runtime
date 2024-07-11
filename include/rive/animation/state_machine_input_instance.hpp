@@ -20,9 +20,6 @@ class SMIInput
     friend class StateMachineLayerInstance;
 
 private:
-    StateMachineInstance* m_MachineInstance;
-    const StateMachineInput* m_Input;
-
     virtual void advanced() {}
 
 protected:
@@ -32,10 +29,17 @@ protected:
 
 public:
     virtual ~SMIInput() {}
-    const StateMachineInput* input() const { return m_Input; }
+    const StateMachineInput* input() const { return m_input; }
 
     const std::string& name() const;
     uint16_t inputCoreType() const;
+
+private:
+    StateMachineInstance* m_machineInstance;
+    const StateMachineInput* m_input;
+#ifdef WITH_RIVE_TOOLS
+    uint64_t m_index = 0;
+#endif
 };
 
 class SMIBool : public SMIInput
@@ -72,16 +76,16 @@ class SMITrigger : public SMIInput
     friend class TransitionTriggerCondition;
 
 private:
-    bool m_Fired = false;
+    bool m_fired = false;
 
     SMITrigger(const StateMachineTrigger* input, StateMachineInstance* machineInstance);
-    void advanced() override { m_Fired = false; }
+    void advanced() override { m_fired = false; }
 
 public:
     void fire();
 
 #ifdef TESTING
-    bool didFire() { return m_Fired; }
+    bool didFire() { return m_fired; }
 #endif
 };
 } // namespace rive
