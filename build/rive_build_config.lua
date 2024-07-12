@@ -137,6 +137,7 @@ newoption({
         { 'default', 'Use default runtime' },
         { 'static', 'Use static runtime' },
         { 'dynamic', 'Use dynamic runtime' },
+        { 'dynamic_debug', 'Use dynamic runtime force debug' },
     },
     default = 'default',
 })
@@ -167,6 +168,12 @@ end
 filter({ 'system:windows', 'options:not windows_runtime=default', 'options:config=release' })
 do
     runtime('Release')
+end
+
+filter({ 'system:windows', 'options:windows_runtime=dynamic_debug' })
+do
+    staticruntime('off')
+    runtime('Debug')
 end
 
 filter('system:windows')
