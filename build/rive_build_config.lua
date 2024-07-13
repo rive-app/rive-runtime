@@ -70,6 +70,11 @@ newoption({
 })
 
 newoption({
+    trigger = 'with-pic',
+    description = 'enable position independent code',
+})
+
+newoption({
     trigger = 'with-exceptions',
     description = 'don\'t disable exceptions (nonstandard for Rive)',
 })
@@ -104,6 +109,13 @@ filter({ 'options:not with-exceptions' })
 exceptionhandling('Off')
 filter({ 'options:with-exceptions' })
 exceptionhandling('On')
+
+filter({ 'options:with-pic' })
+do
+    pic('on')
+    buildoptions({ '-fPIC' })
+    linkoptions({ '-fPIC' })
+end
 
 filter('options:config=debug')
 do
