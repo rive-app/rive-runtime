@@ -49,4 +49,12 @@ do
         defines({ 'SB_CONFIG_UNITY' })
         optimize('Size')
     end
+
+    filter({ 'system:linux' })
+    do
+        buildoptions({
+            '-Wno-unused-function',
+            '-Wno-unused-variable',
+        })
+    end
 end
