@@ -369,6 +369,21 @@ if _OPTIONS['os'] == 'android' then
     filter({})
 end
 
+filter('system:linux', 'options:arch=x64')
+do
+    architecture('x64')
+end
+
+filter('system:linux', 'options:arch=arm')
+do
+    architecture('arm')
+end
+
+filter('system:linux', 'options:arch=arm64')
+do
+    architecture('arm64')
+end
+
 if os.host() == 'macosx' then
     iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
     iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
