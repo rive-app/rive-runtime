@@ -384,6 +384,8 @@ do
     architecture('arm64')
 end
 
+filter({})
+
 if os.host() == 'macosx' then
     iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
     iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
