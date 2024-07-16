@@ -199,7 +199,15 @@ public:
     struct FlushResources
     {
         PLSRenderTarget* renderTarget = nullptr;
-        void* externalCommandBuffer = nullptr; // Required on Metal.
+
+        // Command buffer that rendering commands will be added to.
+        //  - VkCommandBuffer on Vulkan.
+        //  - id<MTLCommandBuffer> on Metal.
+        //  - Unused otherwise.
+        void* externalCommandBuffer = nullptr;
+
+        // Fence that will be signalled once "externalCommandBuffer" finishes executing.
+        pls::CommandBufferCompletionFence* frameCompletionFence = nullptr;
     };
 
     // Submits all GPU commands that have been built up since beginFrame().

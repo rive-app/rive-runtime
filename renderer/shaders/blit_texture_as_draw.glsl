@@ -22,7 +22,7 @@ VERTEX_MAIN(@blitVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(0, @blitTextureSource);
+TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, 0, @blitTextureSource);
 FRAG_TEXTURE_BLOCK_END
 
 FRAG_DATA_MAIN(half4, @blitFragmentMain)

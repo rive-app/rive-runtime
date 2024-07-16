@@ -143,25 +143,28 @@
 #endif
 
 #ifdef @TARGET_VULKAN
-#define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp utexture2D NAME
-#define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp texture2D NAME
-#define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump texture2D NAME
+#define TEXTURE_RGBA32UI(SET, IDX, NAME)                                                           \
+    layout(set = SET, binding = IDX) uniform highp utexture2D NAME
+#define TEXTURE_RGBA32F(SET, IDX, NAME)                                                            \
+    layout(set = SET, binding = IDX) uniform highp texture2D NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME)                                                              \
+    layout(set = SET, binding = IDX) uniform mediump texture2D NAME
 #elif @GLSL_VERSION >= 310
-#define TEXTURE_RGBA32UI(IDX, NAME) layout(binding = IDX) uniform highp usampler2D NAME
-#define TEXTURE_RGBA32F(IDX, NAME) layout(binding = IDX) uniform highp sampler2D NAME
-#define TEXTURE_RGBA8(IDX, NAME) layout(binding = IDX) uniform mediump sampler2D NAME
+#define TEXTURE_RGBA32UI(SET, IDX, NAME) layout(binding = IDX) uniform highp usampler2D NAME
+#define TEXTURE_RGBA32F(SET, IDX, NAME) layout(binding = IDX) uniform highp sampler2D NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME) layout(binding = IDX) uniform mediump sampler2D NAME
 #else
-#define TEXTURE_RGBA32UI(IDX, NAME) uniform highp usampler2D NAME
-#define TEXTURE_RGBA32F(IDX, NAME) uniform highp sampler2D NAME
-#define TEXTURE_RGBA8(IDX, NAME) uniform mediump sampler2D NAME
+#define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform highp usampler2D NAME
+#define TEXTURE_RGBA32F(SET, IDX, NAME) uniform highp sampler2D NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME) uniform mediump sampler2D NAME
 #endif
-#define TEXTURE_RG32UI(IDX, NAME) TEXTURE_RGBA32UI(IDX, NAME)
+#define TEXTURE_RG32UI(SET, IDX, NAME) TEXTURE_RGBA32UI(SET, IDX, NAME)
 
 #ifdef @TARGET_VULKAN
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
-    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
+    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX) uniform mediump sampler NAME;
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
-    layout(binding = TEXTURE_IDX, set = SAMPLER_BINDINGS_SET) uniform mediump sampler NAME;
+    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX) uniform mediump sampler NAME;
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(sampler2D(NAME, SAMPLER_NAME), COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                                         \
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
@@ -187,9 +190,12 @@
 
 #ifdef @DISABLE_SHADER_STORAGE_BUFFERS
 
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32UI(IDX, NAME)
-#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RG32UI(IDX, NAME)
-#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME) TEXTURE_RGBA32F(IDX, NAME)
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    TEXTURE_RG32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+    TEXTURE_RGBA32F(PER_FLUSH_BINDINGS_SET, IDX, NAME)
 #define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
     TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
 #define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
@@ -229,7 +235,8 @@
 #define PLS_STORE4F(PLANE, VALUE) pixelLocalStoreANGLE(PLANE, VALUE)
 #define PLS_STOREUI(PLANE, VALUE) pixelLocalStoreANGLE(PLANE, uvec4(VALUE))
 
-#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_PRESERVE_4F(PLANE)
+#define PLS_PRESERVE_UI(PLANE)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -258,7 +265,8 @@
 #define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) PLANE = (VALUE)
 
-#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_PRESERVE_4F(PLANE)
+#define PLS_PRESERVE_UI(PLANE)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -281,7 +289,8 @@
 
 // When using multiple color attachments, we have to write a value to every color attachment, every
 // shader invocation, or else the contents become undefined.
-#define PLS_PRESERVE_VALUE(PLANE) PLANE = PLANE
+#define PLS_PRESERVE_4F(PLANE) PLS_STORE4F(PLANE, PLS_LOAD4F(PLANE))
+#define PLS_PRESERVE_UI(PLANE) PLS_STOREUI(PLANE, PLS_LOADUI(PLANE))
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -324,7 +333,13 @@
 #define PLS_STORE4F(PLANE, VALUE) imageStore(PLANE, _plsCoord, VALUE)
 #define PLS_STOREUI(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
 
-#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_PRESERVE_4F(PLANE)
+#define PLS_PRESERVE_UI(PLANE)
+
+#ifndef @USING_PLS_STORAGE_TEXTURES
+#define @USING_PLS_STORAGE_TEXTURES
+
+#endif // PLS_IMPL_STORAGE_TEXTURE
 
 #endif // PLS_IMPL_STORAGE_TEXTURE
 
@@ -346,7 +361,9 @@
 #define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-#define PLS_PRESERVE_VALUE(PLANE) PLANE = subpassLoad(_in_##PLANE)
+#define PLS_PRESERVE_4F(PLANE) PLS_STORE4F(PLANE, PLS_LOAD4F(PLANE))
+#define PLS_PRESERVE_UI(PLANE) PLS_STOREUI(PLANE, PLS_LOADUI(PLANE))
+
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
@@ -364,7 +381,9 @@
 #define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_PRESERVE_4F(PLANE) PLANE = vec4(1, 0, 1, 1)
+#define PLS_PRESERVE_UI(PLANE) PLANE.r = 0u
+
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
@@ -431,7 +450,8 @@
 #ifdef @USING_PLS_STORAGE_TEXTURES
 
 #define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
-    layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)                                   \
+        uniform highp coherent uimage2D NAME
 #define PLS_LOADUI_ATOMIC(PLANE) imageLoad(PLANE, _plsCoord).r
 #define PLS_STOREUI_ATOMIC(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
 #define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)

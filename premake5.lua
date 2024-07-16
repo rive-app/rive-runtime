@@ -80,6 +80,29 @@ do
         libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
     end
 
+    filter('options:with_vulkan')
+    do
+        if vulkan_headers then
+            externalincludedirs({ vulkan_headers .. '/include' })
+        end
+        if vulkan_memory_allocator then
+            externalincludedirs({ vulkan_memory_allocator .. '/include' })
+        end
+    end
+
+    filter({ 'options:with_vulkan', 'system:windows' })
+    do
+        if vulkan_windows_sdk then
+            libdirs({ vulkan_windows_sdk .. '/Lib' })
+        end
+        links({ 'vulkan-1' })
+    end
+
+    filter({ 'options:with_vulkan', 'system:not windows' })
+    do
+        links({ 'vulkan' })
+    end
+
     filter('options:with-dawn')
     do
         includedirs({

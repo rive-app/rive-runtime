@@ -781,7 +781,7 @@ PLSRenderContextWebGPUImpl::PLSRenderContextWebGPUImpl(
 
 void PLSRenderContextWebGPUImpl::initGPUObjects()
 {
-    wgpu::BindGroupLayoutEntry drawBindingLayouts[] = {
+    wgpu::BindGroupLayoutEntry perFlushBindingLayouts[] = {
         {
             .binding = TESS_VERTEX_TEXTURE_IDX,
             .visibility = wgpu::ShaderStage::Vertex,
@@ -793,15 +793,6 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
         },
         {
             .binding = GRAD_TEXTURE_IDX,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                },
-        },
-        {
-            .binding = IMAGE_TEXTURE_IDX,
             .visibility = wgpu::ShaderStage::Fragment,
             .texture =
                 {
@@ -901,12 +892,33 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
         },
     };
 
-    wgpu::BindGroupLayoutDescriptor drawBindingsDesc = {
-        .entryCount = std::size(drawBindingLayouts),
-        .entries = drawBindingLayouts,
+    wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
+        .entryCount = std::size(perFlushBindingLayouts),
+        .entries = perFlushBindingLayouts,
     };
 
-    m_drawBindGroupLayouts[0] = m_device.CreateBindGroupLayout(&drawBindingsDesc);
+    m_drawBindGroupLayouts[PER_FLUSH_BINDINGS_SET] =
+        m_device.CreateBindGroupLayout(&perFlushBindingsDesc);
+
+    wgpu::BindGroupLayoutEntry perDrawBindingLayouts[] = {
+        {
+            .binding = IMAGE_TEXTURE_IDX,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .texture =
+                {
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                },
+        },
+    };
+
+    wgpu::BindGroupLayoutDescriptor perDrawBindingsDesc = {
+        .entryCount = std::size(perDrawBindingLayouts),
+        .entries = perDrawBindingLayouts,
+    };
+
+    m_drawBindGroupLayouts[PER_DRAW_BINDINGS_SET] =
+        m_device.CreateBindGroupLayout(&perDrawBindingsDesc);
 
     wgpu::BindGroupLayoutEntry drawBindingSamplerLayouts[] = {
         {
@@ -981,7 +993,8 @@ void PLSRenderContextWebGPUImpl::initGPUObjects()
     }
 
     wgpu::PipelineLayoutDescriptor drawPipelineLayoutDesc = {
-        .bindGroupLayoutCount = static_cast<size_t>(needsPLSTextureBindings ? 3 : 2),
+        .bindGroupLayoutCount = static_cast<size_t>(
+            needsPLSTextureBindings ? BINDINGS_SET_COUNT : BINDINGS_SET_COUNT - 1),
         .bindGroupLayouts = m_drawBindGroupLayouts,
     };
 
@@ -1903,9 +1916,76 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
     drawPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
 
+    wgpu::BindGroupEntry perFlushBindingEntries[] = {
+        {
+            .binding = TESS_VERTEX_TEXTURE_IDX,
+            .textureView = m_tessVertexTextureView,
+        },
+        {
+            .binding = GRAD_TEXTURE_IDX,
+            .textureView = m_gradientTextureView,
+        },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = PATH_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(pathBufferRing())
+            } :
+            wgpu::BindGroupEntry{
+                .binding = PATH_BUFFER_IDX,
+                .buffer = webgpu_buffer(pathBufferRing()),
+                .offset = desc.firstPath * sizeof(pls::PathData),
+            },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = PAINT_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(paintBufferRing()),
+            } :
+            wgpu::BindGroupEntry{
+                .binding = PAINT_BUFFER_IDX,
+                .buffer = webgpu_buffer(paintBufferRing()),
+                .offset = desc.firstPaint * sizeof(pls::PaintData),
+            },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = PAINT_AUX_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(paintAuxBufferRing()),
+            } :
+            wgpu::BindGroupEntry{
+                .binding = PAINT_AUX_BUFFER_IDX,
+                .buffer = webgpu_buffer(paintAuxBufferRing()),
+                .offset = desc.firstPaintAux * sizeof(pls::PaintAuxData),
+            },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = CONTOUR_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(contourBufferRing()),
+            } :
+            wgpu::BindGroupEntry{
+                .binding = CONTOUR_BUFFER_IDX,
+                .buffer = webgpu_buffer(contourBufferRing()),
+                .offset = desc.firstContour * sizeof(pls::ContourData),
+            },
+        {
+            .binding = FLUSH_UNIFORM_BUFFER_IDX,
+            .buffer = webgpu_buffer(flushUniformBufferRing()),
+            .offset = desc.flushUniformDataOffsetInBytes,
+        },
+        {
+            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+            .buffer = webgpu_buffer(imageDrawUniformBufferRing()),
+            .size = sizeof(pls::ImageDrawUniforms),
+        },
+    };
+
+    wgpu::BindGroupDescriptor perFlushBindGroupDesc = {
+        .layout = m_drawBindGroupLayouts[PER_FLUSH_BINDINGS_SET],
+        .entryCount = std::size(perFlushBindingEntries),
+        .entries = perFlushBindingEntries,
+    };
+
+    wgpu::BindGroup perFlushBindings = m_device.CreateBindGroup(&perFlushBindGroupDesc);
+
     // Execute the DrawList.
-    wgpu::TextureView currentImageTextureView = m_nullImagePaintTextureView;
-    wgpu::BindGroup bindings;
     bool needsNewBindings = true;
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -1917,94 +1997,37 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         DrawType drawType = batch.drawType;
 
         // Bind the appropriate image texture, if any.
+        wgpu::TextureView imageTextureView = m_nullImagePaintTextureView;
         if (auto imageTexture = static_cast<const PLSTextureWebGPUImpl*>(batch.imageTexture))
         {
-            currentImageTextureView = imageTexture->textureView();
+            imageTextureView = imageTexture->textureView();
             needsNewBindings = true;
-        }
-
-        if (needsNewBindings)
-        {
-            wgpu::BindGroupEntry bindingEntries[] = {
-                {
-                    .binding = TESS_VERTEX_TEXTURE_IDX,
-                    .textureView = m_tessVertexTextureView,
-                },
-                {
-                    .binding = GRAD_TEXTURE_IDX,
-                    .textureView = m_gradientTextureView,
-                },
-                {
-                    .binding = IMAGE_TEXTURE_IDX,
-                    .textureView = currentImageTextureView,
-                },
-                m_contextOptions.disableStorageBuffers ?
-                    wgpu::BindGroupEntry{
-                        .binding = PATH_BUFFER_IDX,
-                        .textureView = webgpu_storage_texture_view(pathBufferRing())
-                    } :
-                    wgpu::BindGroupEntry{
-                        .binding = PATH_BUFFER_IDX,
-                        .buffer = webgpu_buffer(pathBufferRing()),
-                        .offset = desc.firstPath * sizeof(pls::PathData),
-                    },
-                m_contextOptions.disableStorageBuffers ?
-                    wgpu::BindGroupEntry{
-                        .binding = PAINT_BUFFER_IDX,
-                        .textureView = webgpu_storage_texture_view(paintBufferRing()),
-                    } :
-                    wgpu::BindGroupEntry{
-                        .binding = PAINT_BUFFER_IDX,
-                        .buffer = webgpu_buffer(paintBufferRing()),
-                        .offset = desc.firstPaint * sizeof(pls::PaintData),
-                    },
-                m_contextOptions.disableStorageBuffers ?
-                    wgpu::BindGroupEntry{
-                        .binding = PAINT_AUX_BUFFER_IDX,
-                        .textureView = webgpu_storage_texture_view(paintAuxBufferRing()),
-                    } :
-                    wgpu::BindGroupEntry{
-                        .binding = PAINT_AUX_BUFFER_IDX,
-                        .buffer = webgpu_buffer(paintAuxBufferRing()),
-                        .offset = desc.firstPaintAux * sizeof(pls::PaintAuxData),
-                    },
-                m_contextOptions.disableStorageBuffers ?
-                    wgpu::BindGroupEntry{
-                        .binding = CONTOUR_BUFFER_IDX,
-                        .textureView = webgpu_storage_texture_view(contourBufferRing()),
-                    } :
-                    wgpu::BindGroupEntry{
-                        .binding = CONTOUR_BUFFER_IDX,
-                        .buffer = webgpu_buffer(contourBufferRing()),
-                        .offset = desc.firstContour * sizeof(pls::ContourData),
-                    },
-                {
-                    .binding = FLUSH_UNIFORM_BUFFER_IDX,
-                    .buffer = webgpu_buffer(flushUniformBufferRing()),
-                    .offset = desc.flushUniformDataOffsetInBytes,
-                },
-                {
-                    .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                    .buffer = webgpu_buffer(imageDrawUniformBufferRing()),
-                    .size = sizeof(pls::ImageDrawUniforms),
-                },
-    };
-
-            wgpu::BindGroupDescriptor bindGroupDesc = {
-                .layout = m_drawBindGroupLayouts[0],
-                .entryCount = std::size(bindingEntries),
-                .entries = bindingEntries,
-            };
-
-            bindings = m_device.CreateBindGroup(&bindGroupDesc);
         }
 
         if (needsNewBindings ||
             // Image draws always re-bind because they update the dynamic offset to their uniforms.
             drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
         {
-            drawPass.SetBindGroup(0, bindings, 1, &batch.imageDrawDataOffset);
-            needsNewBindings = false;
+            drawPass.SetBindGroup(PER_FLUSH_BINDINGS_SET,
+                                  perFlushBindings,
+                                  1,
+                                  &batch.imageDrawDataOffset);
+
+            wgpu::BindGroupEntry perDrawBindingEntries[] = {
+                {
+                    .binding = IMAGE_TEXTURE_IDX,
+                    .textureView = imageTextureView,
+                },
+            };
+
+            wgpu::BindGroupDescriptor perDrawBindGroupDesc = {
+                .layout = m_drawBindGroupLayouts[PER_DRAW_BINDINGS_SET],
+                .entryCount = std::size(perDrawBindingEntries),
+                .entries = perDrawBindingEntries,
+            };
+
+            wgpu::BindGroup perDrawBindings = m_device.CreateBindGroup(&perDrawBindGroupDesc);
+            drawPass.SetBindGroup(PER_DRAW_BINDINGS_SET, perDrawBindings, 0, nullptr);
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.

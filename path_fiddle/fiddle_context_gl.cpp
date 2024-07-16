@@ -1,5 +1,11 @@
 #include "fiddle_context.hpp"
 
+#ifndef RIVE_DESKTOP_GL
+
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS() { return nullptr; }
+
+#else
+
 #include "path_fiddle.hpp"
 #include "rive/pls/gl/gles3.hpp"
 #include "rive/pls/pls_renderer.hpp"
@@ -191,6 +197,61 @@ private:
     GLuint m_zoomWindowFBO = 0;
 };
 
+class FiddleContextGLPLS : public FiddleContextGL
+{
+public:
+    FiddleContextGLPLS()
+    {
+        if (!m_plsContext)
+        {
+            fprintf(stderr, "Failed to create a PLS renderer.\n");
+            exit(-1);
+        }
+    }
+
+    rive::Factory* factory() override { return m_plsContext.get(); }
+
+    rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+
+    rive::pls::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+
+    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
+    {
+        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
+    }
+
+    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
+    {
+        return std::make_unique<PLSRenderer>(m_plsContext.get());
+    }
+
+    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
+    {
+        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->invalidateGLState();
+        m_plsContext->beginFrame(frameDescriptor);
+    }
+
+    void onEnd() override
+    {
+        flushPLSContext();
+        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->unbindGLInternalResources();
+    }
+
+    void flushPLSContext() override { m_plsContext->flush({.renderTarget = m_renderTarget.get()}); }
+
+private:
+    std::unique_ptr<PLSRenderContext> m_plsContext =
+        PLSRenderContextGLImpl::MakeContext(PLSRenderContextGLImpl::ContextOptions());
+    rcp<PLSRenderTargetGL> m_renderTarget;
+};
+
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS()
+{
+    return std::make_unique<FiddleContextGLPLS>();
+}
+
+#endif
+
 #ifndef RIVE_SKIA
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia() { return nullptr; }
@@ -282,56 +343,3 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia()
 }
 
 #endif
-
-class FiddleContextGLPLS : public FiddleContextGL
-{
-public:
-    FiddleContextGLPLS()
-    {
-        if (!m_plsContext)
-        {
-            fprintf(stderr, "Failed to create a PLS renderer.\n");
-            exit(-1);
-        }
-    }
-
-    rive::Factory* factory() override { return m_plsContext.get(); }
-
-    rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
-
-    rive::pls::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
-
-    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
-    {
-        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
-    }
-
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
-    {
-        return std::make_unique<PLSRenderer>(m_plsContext.get());
-    }
-
-    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
-    {
-        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->invalidateGLState();
-        m_plsContext->beginFrame(frameDescriptor);
-    }
-
-    void onEnd() override
-    {
-        flushPLSContext();
-        m_plsContext->static_impl_cast<PLSRenderContextGLImpl>()->unbindGLInternalResources();
-    }
-
-    void flushPLSContext() override { m_plsContext->flush({.renderTarget = m_renderTarget.get()}); }
-
-private:
-    std::unique_ptr<PLSRenderContext> m_plsContext =
-        PLSRenderContextGLImpl::MakeContext(PLSRenderContextGLImpl::ContextOptions());
-    rcp<PLSRenderTargetGL> m_renderTarget;
-};
-
-std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS()
-{
-    return std::make_unique<FiddleContextGLPLS>();
-}

@@ -912,7 +912,6 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     // Generate mipmaps if needed.
     for (const DrawBatch& batch : *desc.drawList)
     {
-        // Bind the appropriate image texture, if any.
         if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(batch.imageTexture))
         {
             imageTextureMetal->ensureMipmaps(commandBuffer);

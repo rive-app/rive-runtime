@@ -175,6 +175,8 @@ public:
 
     rive::pls::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
+    rive::pls::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
         DawnProcTable backendProcs = dawn::native::GetProcs();
@@ -215,18 +217,19 @@ public:
         return std::make_unique<PLSRenderer>(m_plsContext.get());
     }
 
-    void begin(PLSRenderContext::FrameDescriptor&& frameDescriptor) override
+    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
     {
         assert(m_swapchain.GetCurrentTexture().GetWidth() == m_renderTarget->width());
         assert(m_swapchain.GetCurrentTexture().GetHeight() == m_renderTarget->height());
         m_renderTarget->setTargetTextureView(m_swapchain.GetCurrentTextureView());
-        frameDescriptor.renderTarget = m_renderTarget;
         m_plsContext->beginFrame(std::move(frameDescriptor));
     }
 
+    void flushPLSContext() final { m_plsContext->flush({.renderTarget = m_renderTarget.get()}); }
+
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
-        m_plsContext->flush();
+        flushPLSContext();
 
         if (pixelData != nullptr)
         {

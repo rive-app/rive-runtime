@@ -733,8 +733,13 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
     m_flushDesc.complexGradRowsHeight = m_complexGradients.size();
     m_flushDesc.tessDataHeight = tessDataHeight;
 
-    m_flushDesc.wireframe = frameDescriptor.wireframe;
     m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;
+    if (isFinalFlushOfFrame)
+    {
+        m_flushDesc.frameCompletionFence = flushResources.frameCompletionFence;
+    }
+
+    m_flushDesc.wireframe = frameDescriptor.wireframe;
     m_flushDesc.isFinalFlushOfFrame = isFinalFlushOfFrame;
 
     *runningFrameResourceCounts = runningFrameResourceCounts->toVec() + m_resourceCounts.toVec();

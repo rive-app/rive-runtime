@@ -127,9 +127,9 @@
     }                                                                                              \
     ;
 
-#define TEXTURE_RGBA32UI(IDX, NAME) [[$texture(IDX)]] $texture2d<uint> NAME
-#define TEXTURE_RGBA32F(IDX, NAME) [[$texture(IDX)]] $texture2d<float> NAME
-#define TEXTURE_RGBA8(IDX, NAME) [[$texture(IDX)]] $texture2d<half> NAME
+#define TEXTURE_RGBA32UI(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<uint> NAME
+#define TEXTURE_RGBA32F(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<float> NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<half> NAME
 
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$none);
@@ -245,7 +245,8 @@
 #define PLS_STOREUI(PLANE, VALUE) _pls.PLANE[_plsIdx] = (VALUE)
 #define PLS_STOREUI_ATOMIC(PLANE, VALUE)                                                           \
     $atomic_store_explicit(&_pls.PLANE[_plsIdx], VALUE, $memory_order::$memory_order_relaxed)
-#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_PRESERVE_4F(PLANE)
+#define PLS_PRESERVE_UI(PLANE)
 #define PLS_MEMORY_BARRIER(PLANE)
 
 #define PLS_ATOMIC_MAX(PLANE, X)                                                                   \
@@ -322,7 +323,8 @@
 #define PLS_STORE4F(PLANE, VALUE) _pls.PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) _pls.PLANE = (VALUE)
 #define PLS_STOREUI_ATOMIC(PLANE) PLS_STOREUI
-#define PLS_PRESERVE_VALUE(PLANE) _pls.PLANE = _inpls.PLANE
+#define PLS_PRESERVE_4F(PLANE) _pls.PLANE = _inpls.PLANE
+#define PLS_PRESERVE_UI(PLANE) _pls.PLANE = _inpls.PLANE
 #define PLS_MEMORY_BARRIER(PLANE) _inpls.PLANE = _pls.PLANE
 
 INLINE uint pls_atomic_max($thread uint& dst, uint x)

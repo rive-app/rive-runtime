@@ -134,9 +134,9 @@ $typedef $uint ushort;
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
-#define TEXTURE_RGBA32UI(IDX, NAME) uniform $Texture2D<uint4> NAME : $register($t##IDX)
-#define TEXTURE_RGBA32F(IDX, NAME) uniform $Texture2D<float4> NAME : $register($t##IDX)
-#define TEXTURE_RGBA8(IDX, NAME) uniform $Texture2D<$unorm float4> NAME : $register($t##IDX)
+#define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME : $register($t##IDX)
+#define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME : $register($t##IDX)
+#define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<$unorm float4> NAME : $register($t##IDX)
 
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler parameters are defined
 // at the API level.
@@ -203,7 +203,8 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define PLS_ATOMIC_ADD(PLANE, X) pls_atomic_add(PLANE, _plsCoord, X)
 
-#define PLS_PRESERVE_VALUE(PLANE)
+#define PLS_PRESERVE_4F(PLANE)
+#define PLS_PRESERVE_UI(PLANE)
 #define PLS_MEMORY_BARRIER(clipBuffer)
 
 #define VERTEX_CONTEXT_DECL

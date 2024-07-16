@@ -92,7 +92,7 @@ SPIRV_OUTPUTS := $(addprefix $(OUT)/, \
 
 $(OUT)/spirv/%.h: spirv/% $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslang -V --vn $(subst .,_,$(notdir $<)) -o $@ $<
+	@glslangValidator -V --vn $(subst .,_,$(notdir $<)) -o $@ $<
 
 spirv: $(SPIRV_OUTPUTS)
 

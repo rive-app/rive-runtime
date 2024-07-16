@@ -15,7 +15,7 @@
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
 
-#ifdef RIVE_WEBGL
+#ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 #include <sstream>
@@ -99,7 +99,7 @@ static void make_scenes(size_t count)
     }
 }
 
-#ifdef RIVE_WEBGL
+#ifdef __EMSCRIPTEN__
 EM_JS(int, window_inner_width, (), { return window["innerWidth"]; });
 EM_JS(int, window_inner_height, (), { return window["innerHeight"]; });
 EM_JS(char*, get_location_hash_str, (), {
@@ -279,6 +279,7 @@ enum class API
     metal,
     d3d,
     dawn,
+    vulkan,
 };
 
 API api =
@@ -303,7 +304,7 @@ int main(int argc, const char** argv)
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-#ifdef RIVE_WEBGL
+#ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(riveMainLoop, 0, false);
 
     // Override argc/argv with the window location hash string.
@@ -346,6 +347,10 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--d3d"))
         {
             api = API::d3d;
+        }
+        else if (!strcmp(argv[i], "--vulkan") || !strcmp(argv[i], "--vk"))
+        {
+            api = API::vulkan;
         }
         else if (!strcmp(argv[i], "--skia"))
         {
@@ -395,6 +400,14 @@ int main(int argc, const char** argv)
         {
             s_msaa = argv[i][6] - '0';
         }
+        else if (!strcmp(argv[i], "--validation"))
+        {
+            s_options.enableVulkanValidationLayers = true;
+        }
+        else if (!strcmp(argv[i], "--gpu") || !strcmp(argv[i], "-G"))
+        {
+            s_options.gpuNameFilter = argv[++i];
+        }
         else
         {
             rivName = argv[i];
@@ -426,6 +439,9 @@ int main(int argc, const char** argv)
         case API::dawn:
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+            break;
+        case API::vulkan:
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             break;
         case API::gl:
             if (angle)
@@ -489,6 +505,14 @@ int main(int argc, const char** argv)
             }
             s_fiddleContext = FiddleContext::MakeDawnPLS(s_options);
             break;
+        case API::vulkan:
+            if (skia)
+            {
+                fprintf(stderr, "Skia not supported on Vulkan yet.\n");
+                break;
+            }
+            s_fiddleContext = FiddleContext::MakeVulkanPLS(s_options);
+            break;
         case API::gl:
             if (skia)
             {
@@ -512,7 +536,7 @@ int main(int argc, const char** argv)
         s_rivFile = File::import(rivBytes, factory);
     }
 
-#ifdef RIVE_DESKTOP_GL
+#ifndef __EMSCRIPTEN__
     if (api == API::gl)
     {
         glfwSwapInterval(0);
@@ -566,7 +590,7 @@ static void update_window_title(double fps, int instances, int width, int height
 
 void riveMainLoop()
 {
-#ifdef RIVE_WEBGL
+#ifdef __EMSCRIPTEN__
     {
         // Fit the canvas to the browser window size.
         int windowWidth = window_inner_width();

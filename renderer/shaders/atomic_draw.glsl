@@ -266,9 +266,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(GRAD_TEXTURE_IDX, @gradTexture);
+TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
 #ifdef NEEDS_IMAGE_TEXTURE
-TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
+TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
 
@@ -335,7 +335,7 @@ half4 resolve_path_color(half coverageCount,
         case SOLID_COLOR_PAINT_TYPE:
             color = unpackUnorm4x8(paintData.y);
 #ifdef @ENABLE_CLIPPING
-            PLS_PRESERVE_VALUE(clipBuffer);
+            PLS_PRESERVE_UI(clipBuffer);
 #endif
             break;
         case LINEAR_GRADIENT_PAINT_TYPE:
@@ -369,7 +369,7 @@ half4 resolve_path_color(half coverageCount,
                 color = make_half4(TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0));
             }
 #ifdef @ENABLE_CLIPPING
-            PLS_PRESERVE_VALUE(clipBuffer);
+            PLS_PRESERVE_UI(clipBuffer);
 #endif
             break;
         }
@@ -436,7 +436,7 @@ void write_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
     }
     else
     {
-        PLS_PRESERVE_VALUE(framebuffer);
+        PLS_PRESERVE_4F(framebuffer);
     }
 }
 #endif // ENABLE_ADVANCED_BLEND
@@ -629,7 +629,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     }
     else
     {
-        PLS_PRESERVE_VALUE(framebuffer);
+        PLS_PRESERVE_4F(framebuffer);
     }
 #else
     // Leverage the property that premultiplied src-over blending is associative and blend the

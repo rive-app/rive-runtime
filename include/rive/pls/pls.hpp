@@ -9,6 +9,7 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/math/path_types.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/pls/trivial_block_allocator.hpp"
@@ -185,24 +186,37 @@ struct TessVertexSpan
                                 uint32_t joinSegmentCount,
                                 uint32_t contourIDWithFlags_)
     {
-        RIVE_INLINE_MEMCPY(pts, pts_, sizeof(pts));
-        joinTangent = joinTangent_;
-        y = y_;
-        reflectionY = reflectionY_;
-        x0x1 = (x1 << 16) | (x0 & 0xffff);
-        reflectionX0X1 = (reflectionX1 << 16) | (reflectionX0 & 0xffff);
-        segmentCounts =
+#ifdef DEBUG
+        // Write to an intermediate local object in debug mode, so we can check its values.
+        // (Otherwise we can't read it because mapped memory is write-only.)
+        TessVertexSpan localCopy;
+#define LOCAL(VAR) localCopy.VAR
+#else
+#define LOCAL(VAR) VAR
+#endif
+        RIVE_INLINE_MEMCPY(LOCAL(pts), pts_, sizeof(LOCAL(pts)));
+        LOCAL(joinTangent) = joinTangent_;
+        LOCAL(y) = y_;
+        LOCAL(reflectionY) = reflectionY_;
+        LOCAL(x0x1) = (x1 << 16 | (x0 & 0xffff));
+        LOCAL(reflectionX0X1) = (reflectionX1 << 16 | (reflectionX0 & 0xffff));
+        LOCAL(segmentCounts) =
             (joinSegmentCount << 20) | (polarSegmentCount << 10) | parametricSegmentCount;
-        contourIDWithFlags = contourIDWithFlags_;
+        LOCAL(contourIDWithFlags) = contourIDWithFlags_;
+#undef LOCAL
 
         // Ensure we didn't lose any data from packing.
-        assert(x0 == x0x1 << 16 >> 16);
-        assert(x1 == x0x1 >> 16);
-        assert(reflectionX0 == reflectionX0X1 << 16 >> 16);
-        assert(reflectionX1 == reflectionX0X1 >> 16);
-        assert((segmentCounts & 0x3ff) == parametricSegmentCount);
-        assert(((segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
-        assert(segmentCounts >> 20 == joinSegmentCount);
+        assert(localCopy.x0x1 << 16 >> 16 == x0);
+        assert(localCopy.x0x1 >> 16 == x1);
+        assert(localCopy.reflectionX0X1 << 16 >> 16 == reflectionX0);
+        assert(localCopy.reflectionX0X1 >> 16 == reflectionX1);
+        assert((localCopy.segmentCounts & 0x3ff) == parametricSegmentCount);
+        assert(((localCopy.segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
+        assert(localCopy.segmentCounts >> 20 == joinSegmentCount);
+
+#ifdef DEBUG
+        memcpy(this, &localCopy, sizeof(*this));
+#endif
     }
 
     Vec2D pts[4];      // Cubic bezier curve.
@@ -690,6 +704,19 @@ struct TwoTexelRamp
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
+// Blocks the CPU until the GPU has finished executing a command buffer.
+class CommandBufferCompletionFence : public RefCnt<CommandBufferCompletionFence>
+{
+public:
+    virtual void wait() = 0; // Wait until the fence signals.
+
+    // Virtualize the onRefCntReachedZero() hook in case the the subclass wants to recycle itself in
+    // a pool.
+    virtual void onRefCntReachedZero() const { RefCnt::onRefCntReachedZero(); }
+
+    virtual ~CommandBufferCompletionFence() {}
+};
+
 // Detailed description of exactly how a PLSRenderContextImpl should bind its buffers and draw a
 // flush. A typical flush is done in 4 steps:
 //
@@ -738,10 +765,18 @@ struct FlushDescriptor
     uint32_t tessDataHeight = 0;
     const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
 
+    // Command buffer that rendering commands will be added to.
+    //  - VkCommandBuffer on Vulkan.
+    //  - id<MTLCommandBuffer> on Metal.
+    //  - Unused otherwise.
+    void* externalCommandBuffer = nullptr;
+
+    // Fence that will be signalled once "externalCommandBuffer" finishes executing the entire
+    // frame. (Null if isFinalFlushOfFrame is false.)
+    pls::CommandBufferCompletionFence* frameCompletionFence = nullptr;
+
     bool hasTriangleVertices = false;
     bool wireframe = false;
-
-    void* externalCommandBuffer = nullptr; // Required on Metal.
     bool isFinalFlushOfFrame = false;
 };
 

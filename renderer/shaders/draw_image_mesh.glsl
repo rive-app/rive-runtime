@@ -75,10 +75,10 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(IMAGE_TEXTURE_IDX, @imageTexture);
+TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 #ifdef @USING_DEPTH_STENCIL
 #ifdef @ENABLE_ADVANCED_BLEND
-TEXTURE_RGBA8(DST_COLOR_TEXTURE_IDX, @dstColorTexture);
+TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
 #endif
 #endif
 FRAG_TEXTURE_BLOCK_END
@@ -150,8 +150,7 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     }
 
     PLS_STORE4F(framebuffer, color);
-    PLS_PRESERVE_VALUE(coverageCountBuffer);
-    PLS_PRESERVE_VALUE(clipBuffer);
+    PLS_PRESERVE_UI(clipBuffer);
 
     PLS_INTERLOCK_END;
 

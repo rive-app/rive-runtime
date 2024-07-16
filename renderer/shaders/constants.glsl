@@ -68,11 +68,10 @@
 #define PAINT_FLAG_EVEN_ODD 0x100u
 #define PAINT_FLAG_HAS_CLIP_RECT 0x200u
 
-// Index of each pixel local storage plane.
-#define FRAMEBUFFER_PLANE_IDX 0
-#define COVERAGE_PLANE_IDX 1
-#define CLIP_PLANE_IDX 2
-#define ORIGINAL_DST_COLOR_PLANE_IDX 3
+// PLS draw resources are either updated per flush or per draw. They go into set 0
+// or set 1, depending on how often they are updated.
+#define PER_FLUSH_BINDINGS_SET 0
+#define PER_DRAW_BINDINGS_SET 1
 
 // Index at which we access each resource.
 #define TESS_VERTEX_TEXTURE_IDX 0
@@ -90,11 +89,19 @@
 
 // Samplers are accessed at the same index as their corresponding texture, so we put them in a
 // separate binding set.
-#define SAMPLER_BINDINGS_SET 1
+#define SAMPLER_BINDINGS_SET 2
 
 // PLS textures are accessed at the same index as their PLS planes, so we put them in a separate
 // binding set.
-#define PLS_TEXTURE_BINDINGS_SET 2
+#define PLS_TEXTURE_BINDINGS_SET 3
+
+#define BINDINGS_SET_COUNT 4
+
+// Index of each pixel local storage plane.
+#define FRAMEBUFFER_PLANE_IDX 0
+#define COVERAGE_PLANE_IDX 1
+#define CLIP_PLANE_IDX 2
+#define ORIGINAL_DST_COLOR_PLANE_IDX 3
 
 // acos(1/4), because the miter limit is always 4.
 #define MITER_ANGLE_LIMIT float(1.318116071652817965746)

@@ -13,6 +13,11 @@ struct FiddleContextOptions
     bool synchronousShaderCompilations = false;
     bool enableReadPixels = false;
     bool disableRasterOrdering = false;
+    // Allow rendering to a texture instead of an OS window. (Speeds up the execution of goldens &
+    // gms significantly on Vulkan/Windows.)
+    bool allowHeadlessRendering = false;
+    bool enableVulkanValidationLayers = false;
+    const char* gpuNameFilter = nullptr; // Substring of GPU name to use.
 };
 
 class FiddleContext
@@ -42,5 +47,6 @@ public:
     }
 #endif
     static std::unique_ptr<FiddleContext> MakeD3DPLS(FiddleContextOptions = {});
+    static std::unique_ptr<FiddleContext> MakeVulkanPLS(FiddleContextOptions = {});
     static std::unique_ptr<FiddleContext> MakeDawnPLS(FiddleContextOptions = {});
 };
