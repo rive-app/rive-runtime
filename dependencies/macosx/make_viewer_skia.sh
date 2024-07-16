@@ -17,7 +17,7 @@ else
     cd skia
 fi
 
-python tools/git-sync-deps
+python3 tools/git-sync-deps
 
 CONFIG=debug
 RENDERER=
