@@ -163,9 +163,39 @@ void AudioEngine::stop() { ma_engine_stop(m_engine); }
 
 rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 {
+// I _think_ MA_NO_DEVICE_IO is defined when building for Unity; otherwise, it seems to pass
+// "standard" building When defined, pContext is unavailable, which causes build errors when
+// building Unity for iOS. - David
+#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+    // Used for configuration only, and isn't referenced past the usage of ma_context_init; thus,
+    // can be locally scoped. Uses the "logical" defaults from miniaudio, and updates only what we
+    // need. This should automatically set available backends in priority order based on the target
+    // it's built for, which in the case of Apple is Core Audio first.
+    ma_context_config contextConfig = ma_context_config_init();
+    contextConfig.coreaudio.sessionCategoryOptions = ma_ios_session_category_option_mix_with_others;
+
+    // We only need to initialize space for the context if we're targeting Apple platforms
+    ma_context* context = (ma_context*)malloc(sizeof(ma_context));
+
+    if (ma_context_init(NULL, 0, &contextConfig, context) != MA_SUCCESS)
+    {
+        free(context);
+        context = nullptr;
+    }
+#else
+    ma_context* context = nullptr;
+#endif
+
     ma_engine_config engineConfig = ma_engine_config_init();
     engineConfig.channels = numChannels;
     engineConfig.sampleRate = sampleRate;
+
+#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+    if (context != nullptr)
+    {
+        engineConfig.pContext = context;
+    }
+#endif
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     engineConfig.noDevice = MA_TRUE;
@@ -175,19 +205,27 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 
     if (ma_engine_init(&engineConfig, engine) != MA_SUCCESS)
     {
+#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+        if (context != nullptr)
+        {
+            ma_context_uninit(context);
+            free(context);
+            context = nullptr;
+        }
+#endif
         fprintf(stderr, "AudioEngine::Make - failed to init engine\n");
         delete engine;
         return nullptr;
     }
 
-    return rcp<AudioEngine>(new AudioEngine(engine));
+    return rcp<AudioEngine>(new AudioEngine(engine, context));
 }
 
 uint32_t AudioEngine::channels() const { return ma_engine_get_channels(m_engine); }
 uint32_t AudioEngine::sampleRate() const { return ma_engine_get_sample_rate(m_engine); }
 
-AudioEngine::AudioEngine(ma_engine* engine) :
-    m_device(ma_engine_get_device(engine)), m_engine(engine)
+AudioEngine::AudioEngine(ma_engine* engine, ma_context* context) :
+    m_device(ma_engine_get_device(engine)), m_engine(engine), m_context(context)
 {}
 
 rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
@@ -366,6 +404,16 @@ AudioEngine::~AudioEngine()
         sound->dispose();
     }
     m_completedSounds.clear();
+
+#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+    // m_context is only set when Core Audio is available
+    if (m_context != nullptr)
+    {
+        ma_context_uninit(m_context);
+        free(m_context);
+        m_context = nullptr;
+    }
+#endif
 
     ma_engine_uninit(m_engine);
     delete m_engine;

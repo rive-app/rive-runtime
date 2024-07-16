@@ -13,6 +13,7 @@ typedef struct ma_engine ma_engine;
 typedef struct ma_sound ma_sound;
 typedef struct ma_device ma_device;
 typedef struct ma_node_base ma_node_base;
+typedef struct ma_context ma_context;
 
 namespace rive
 {
@@ -67,9 +68,10 @@ public:
     size_t playingSoundCount();
 #endif
 private:
-    AudioEngine(ma_engine* engine);
+    AudioEngine(ma_engine* engine, ma_context* context);
     ma_device* m_device;
     ma_engine* m_engine;
+    ma_context* m_context;
     std::mutex m_mutex;
 
     void soundCompleted(rcp<AudioSound> sound);
