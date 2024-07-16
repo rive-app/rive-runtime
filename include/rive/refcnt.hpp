@@ -35,24 +35,22 @@ template <typename T> class RefCnt
 public:
     RefCnt() : m_refcnt(1) {}
 
-    ~RefCnt() { assert(this->debugging_refcnt() == 1); }
-
     void ref() const { (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed); }
 
     void unref() const
     {
         if (1 == m_refcnt.fetch_add(-1, std::memory_order_acq_rel))
         {
-#ifndef NDEBUG
-            // we restore the "1" in debug builds just to make our destructor happy
-            (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed);
-#endif
-            delete static_cast<const T*>(this);
+            static_cast<const T*>(this)->onRefCntReachedZero();
         }
     }
 
     // not reliable in actual threaded scenarios, but useful (perhaps) for debugging
     int32_t debugging_refcnt() const { return m_refcnt.load(std::memory_order_relaxed); }
+
+protected:
+    // Can be overloaded in the subclass if specialized delete behavior is required.
+    void onRefCntReachedZero() const { delete static_cast<const T*>(this); }
 
 private:
     // mutable, so can be changed even on a const object
