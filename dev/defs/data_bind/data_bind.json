@@ -26,15 +26,13 @@
       },
       "description": "The property that is targeted."
     },
-    "modeValue": {
+    "flags": {
       "type": "uint",
-      "typeRuntime": "uint",
       "initialValue": "0",
       "key": {
         "int": 587,
-        "string": "modevalue"
-      },
-      "description": "Backing enum value for the binding mode."
+        "string": "flags"
+      }
     }
   }
 }

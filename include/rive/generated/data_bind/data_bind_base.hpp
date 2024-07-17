@@ -30,12 +30,12 @@ public:
 
     static const uint16_t targetIdPropertyKey = 585;
     static const uint16_t propertyKeyPropertyKey = 586;
-    static const uint16_t modeValuePropertyKey = 587;
+    static const uint16_t flagsPropertyKey = 587;
 
 private:
     uint32_t m_TargetId = -1;
     uint32_t m_PropertyKey = Core::invalidPropertyKey;
-    uint32_t m_ModeValue = 0;
+    uint32_t m_Flags = 0;
 
 public:
     inline uint32_t targetId() const { return m_TargetId; }
@@ -60,15 +60,15 @@ public:
         propertyKeyChanged();
     }
 
-    inline uint32_t modeValue() const { return m_ModeValue; }
-    void modeValue(uint32_t value)
+    inline uint32_t flags() const { return m_Flags; }
+    void flags(uint32_t value)
     {
-        if (m_ModeValue == value)
+        if (m_Flags == value)
         {
             return;
         }
-        m_ModeValue = value;
-        modeValueChanged();
+        m_Flags = value;
+        flagsChanged();
     }
 
     Core* clone() const override;
@@ -76,7 +76,7 @@ public:
     {
         m_TargetId = object.m_TargetId;
         m_PropertyKey = object.m_PropertyKey;
-        m_ModeValue = object.m_ModeValue;
+        m_Flags = object.m_Flags;
         Component::copy(object);
     }
 
@@ -90,8 +90,8 @@ public:
             case propertyKeyPropertyKey:
                 m_PropertyKey = CoreUintType::deserialize(reader);
                 return true;
-            case modeValuePropertyKey:
-                m_ModeValue = CoreUintType::deserialize(reader);
+            case flagsPropertyKey:
+                m_Flags = CoreUintType::deserialize(reader);
                 return true;
         }
         return Component::deserialize(propertyKey, reader);
@@ -100,7 +100,7 @@ public:
 protected:
     virtual void targetIdChanged() {}
     virtual void propertyKeyChanged() {}
-    virtual void modeValueChanged() {}
+    virtual void flagsChanged() {}
 };
 } // namespace rive
 

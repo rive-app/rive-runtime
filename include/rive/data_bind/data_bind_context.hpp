@@ -13,11 +13,9 @@ protected:
     std::vector<uint32_t> m_SourcePathIdsBuffer;
 
 public:
-    void update(ComponentDirt value) override;
     void decodeSourcePathIds(Span<const uint8_t> value) override;
     void copySourcePathIds(const DataBindContextBase& object) override;
     void bind() override;
-    void updateSourceBinding() override;
     ViewModelInstanceValue* source() { return m_Source; };
 };
 } // namespace rive

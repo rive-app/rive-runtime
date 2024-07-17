@@ -1,6 +1,6 @@
 #include "rive/data_bind/data_bind.hpp"
-#include "rive/data_bind/data_bind_mode.hpp"
 #include "rive/artboard.hpp"
+#include "rive/data_bind_flags.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
@@ -40,8 +40,9 @@ StatusCode DataBind::import(ImportStack& importStack) { return Super::import(imp
 void DataBind::buildDependencies()
 {
     Super::buildDependencies();
-    auto mode = static_cast<DataBindMode>(modeValue());
-    if (mode == DataBindMode::oneWayToSource || mode == DataBindMode::twoWay)
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
+        ((flagsValue & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
     {
         m_target->addDependent(this);
     }
@@ -88,8 +89,9 @@ void DataBind::update(ComponentDirt value)
         {
             // TODO: @hernan review how dirt and mode work together. If dirt is not set for
             // certain modes, we might be able to skip the mode validation.
-            auto mode = static_cast<DataBindMode>(modeValue());
-            if (mode == DataBindMode::oneWay || mode == DataBindMode::twoWay)
+            auto flagsValue = static_cast<DataBindFlags>(flags());
+            if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToTarget) ||
+                ((flagsValue & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
             {
                 m_ContextValue->apply(m_target, propertyKey());
             }
@@ -100,8 +102,9 @@ void DataBind::update(ComponentDirt value)
 
 void DataBind::updateSourceBinding()
 {
-    auto mode = static_cast<DataBindMode>(modeValue());
-    if (mode == DataBindMode::oneWayToSource || mode == DataBindMode::twoWay)
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
+        ((flagsValue & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
     {
         if (m_ContextValue != nullptr)
         {

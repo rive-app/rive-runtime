@@ -926,8 +926,8 @@ public:
             case DataBindBase::propertyKeyPropertyKey:
                 object->as<DataBindBase>()->propertyKey(value);
                 break;
-            case DataBindBase::modeValuePropertyKey:
-                object->as<DataBindBase>()->modeValue(value);
+            case DataBindBase::flagsPropertyKey:
+                object->as<DataBindBase>()->flags(value);
                 break;
             case WeightBase::valuesPropertyKey:
                 object->as<WeightBase>()->values(value);
@@ -1884,8 +1884,8 @@ public:
                 return object->as<DataBindBase>()->targetId();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->as<DataBindBase>()->propertyKey();
-            case DataBindBase::modeValuePropertyKey:
-                return object->as<DataBindBase>()->modeValue();
+            case DataBindBase::flagsPropertyKey:
+                return object->as<DataBindBase>()->flags();
             case WeightBase::valuesPropertyKey:
                 return object->as<WeightBase>()->values();
             case WeightBase::indicesPropertyKey:
@@ -2472,7 +2472,7 @@ public:
             case OpenUrlEventBase::targetValuePropertyKey:
             case DataBindBase::targetIdPropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
-            case DataBindBase::modeValuePropertyKey:
+            case DataBindBase::flagsPropertyKey:
             case WeightBase::valuesPropertyKey:
             case WeightBase::indicesPropertyKey:
             case TendonBase::boneIdPropertyKey:
@@ -3010,7 +3010,7 @@ public:
                 return object->is<DataBindBase>();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->is<DataBindBase>();
-            case DataBindBase::modeValuePropertyKey:
+            case DataBindBase::flagsPropertyKey:
                 return object->is<DataBindBase>();
             case WeightBase::valuesPropertyKey:
                 return object->is<WeightBase>();

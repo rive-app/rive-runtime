@@ -4,7 +4,6 @@
 #include "rive/dependency_sorter.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
-#include "rive/data_bind/data_bind_mode.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/audio_event.hpp"
@@ -18,6 +17,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/joystick.hpp"
+#include "rive/data_bind_flags.hpp"
 #include "rive/animation/nested_bool.hpp"
 #include "rive/animation/nested_number.hpp"
 #include "rive/animation/nested_trigger.hpp"
@@ -1050,16 +1050,19 @@ void Artboard::buildDataBindDependencies(std::vector<Component*>* dataBinds)
     for (auto component : *dataBinds)
     {
         auto dataBind = component->as<DataBind>();
-        auto mode = static_cast<DataBindMode>(dataBind->modeValue());
+        auto flags = static_cast<DataBindFlags>(dataBind->flags());
         // If the data bind reads from the target, we want to add it as dependent from any other
-        // data bind that writes into that target.
-        if (mode == DataBindMode::oneWayToSource || mode == DataBindMode::twoWay)
+        // parent data bind that writes into that target.
+        if (((flags & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
+            ((flags & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
         {
             for (auto innerComponent : *dataBinds)
             {
                 auto dataBindParent = innerComponent->as<DataBind>();
-                auto parentMode = static_cast<DataBindMode>(dataBind->modeValue());
-                if (dataBindParent != dataBind && (parentMode != DataBindMode::oneWayToSource) &&
+                auto parentFlags = static_cast<DataBindFlags>(dataBindParent->flags());
+                if (dataBindParent != dataBind &&
+                    (((parentFlags & DataBindFlags::Direction) == DataBindFlags::ToTarget) ||
+                     ((parentFlags & DataBindFlags::TwoWay) == DataBindFlags::TwoWay)) &&
                     dataBindParent->target() == dataBind->target() &&
                     dataBindParent->propertyKey() == dataBind->propertyKey())
                 {
@@ -1071,23 +1074,23 @@ void Artboard::buildDataBindDependencies(std::vector<Component*>* dataBinds)
         else
         {
             // If the data bind reads from a source we want to add it as dependent
-            // from any other data bind that writes into that source.
+            // from any other parent data bind that writes into that source.
             if (dataBind->is<DataBindContext>())
             {
                 for (auto innerComponent : *dataBinds)
                 {
-                    auto dataBindChild = innerComponent->as<DataBind>();
-                    if (dataBindChild != dataBind)
+                    auto dataBindParent = innerComponent->as<DataBind>();
+                    if (dataBindParent != dataBind)
                     {
-                        auto childMode = static_cast<DataBindMode>(dataBind->modeValue());
-                        if (childMode == DataBindMode::oneWayToSource ||
-                            childMode == DataBindMode::twoWay)
+                        auto parentFlags = static_cast<DataBindFlags>(dataBindParent->flags());
+                        if (((parentFlags & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
+                            ((parentFlags & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
                         {
-                            if (dataBindChild->is<DataBindContext>() &&
-                                dataBindChild->as<DataBindContext>()->source() ==
+                            if (dataBindParent->is<DataBindContext>() &&
+                                dataBindParent->as<DataBindContext>()->source() ==
                                     dataBind->as<DataBindContext>()->source())
                             {
-                                dataBind->addDependent(dataBindChild);
+                                dataBindParent->addDependent(dataBind);
                                 break;
                             }
                         }
