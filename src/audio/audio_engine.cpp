@@ -166,7 +166,8 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 // I _think_ MA_NO_DEVICE_IO is defined when building for Unity; otherwise, it seems to pass
 // "standard" building When defined, pContext is unavailable, which causes build errors when
 // building Unity for iOS. - David
-#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+    !defined(MA_NO_DEVICE_IO)
     // Used for configuration only, and isn't referenced past the usage of ma_context_init; thus,
     // can be locally scoped. Uses the "logical" defaults from miniaudio, and updates only what we
     // need. This should automatically set available backends in priority order based on the target
@@ -190,7 +191,8 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
     engineConfig.channels = numChannels;
     engineConfig.sampleRate = sampleRate;
 
-#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+    !defined(MA_NO_DEVICE_IO)
     if (context != nullptr)
     {
         engineConfig.pContext = context;
@@ -205,7 +207,8 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 
     if (ma_engine_init(&engineConfig, engine) != MA_SUCCESS)
     {
-#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+    !defined(MA_NO_DEVICE_IO)
         if (context != nullptr)
         {
             ma_context_uninit(context);
@@ -405,7 +408,8 @@ AudioEngine::~AudioEngine()
     }
     m_completedSounds.clear();
 
-#if defined(MA_HAS_COREAUDIO) && !defined(MA_NO_DEVICE_IO)
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+    !defined(MA_NO_DEVICE_IO)
     // m_context is only set when Core Audio is available
     if (m_context != nullptr)
     {
