@@ -86,14 +86,23 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
         case Loop::oneShot:
             if (direction == 1 && frames > end)
             {
-                m_spilledTime = (frames - end) / fps;
+                // Account for the time dilation or contraction applied in the
+                // animation local time by its speed to calculate spilled time.
+                // Calculate the ratio of the time excess by the total elapsed
+                // time in local time (deltaFrames) and multiply the elapsed time
+                // by it.
+                auto deltaFrames = deltaSeconds * fps;
+                auto spilledFramesRatio = (frames - end) / deltaFrames;
+                m_spilledTime = spilledFramesRatio * elapsedSeconds;
                 frames = (float)end;
                 m_time = frames / fps;
                 didLoop = true;
             }
             else if (direction == -1 && frames < start)
             {
-                m_spilledTime = (start - frames) / fps;
+                auto deltaFrames = std::abs(deltaSeconds * fps);
+                auto spilledFramesRatio = (start - frames) / deltaFrames;
+                m_spilledTime = spilledFramesRatio * elapsedSeconds;
                 frames = (float)start;
                 m_time = frames / fps;
                 didLoop = true;
@@ -102,9 +111,18 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
         case Loop::loop:
             if (direction == 1 && frames >= end)
             {
-                m_spilledTime = (frames - end) / fps;
-                frames = m_time * fps;
-                frames = start + std::fmod(frames - start, (float)range);
+                // How spilled time has to be calculated, given that local time can be scaled
+                // to a factor of the regular time:
+                // - for convenience, calculate the local elapsed time in frames (deltaFrames)
+                // - get the remainder of current frame position (frames) by duration (range)
+                // - use that remainder as the ratio of the original time that was not consumed
+                // by the loop (spilledFramesRatio)
+                // - multiply the original elapsedTime by the ratio to set the spilled time
+                auto deltaFrames = deltaSeconds * fps;
+                auto remainder = std::fmod(frames - start, (float)range);
+                auto spilledFramesRatio = remainder / deltaFrames;
+                m_spilledTime = spilledFramesRatio * elapsedSeconds;
+                frames = start + remainder;
                 m_time = frames / fps;
                 didLoop = true;
                 if (reporter != nullptr)
@@ -114,9 +132,11 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
             }
             else if (direction == -1 && frames <= start)
             {
-                m_spilledTime = (start - frames) / fps;
-                frames = m_time * fps;
-                frames = end - std::abs(std::fmod(start - frames, (float)range));
+                auto deltaFrames = deltaSeconds * fps;
+                auto remainder = std::abs(std::fmod(start - frames, (float)range));
+                auto spilledFramesRatio = std::abs(remainder / deltaFrames);
+                m_spilledTime = spilledFramesRatio * elapsedSeconds;
+                frames = end - remainder;
                 m_time = frames / fps;
                 didLoop = true;
                 if (reporter != nullptr)

@@ -260,3 +260,240 @@ TEST_CASE("AnimationStateInstance with negative speed starts a negative animatio
     delete animationState;
     delete linearAnimation;
 }
+
+TEST_CASE("AnimationStateInstance spilledTime accounts for Nx speed with oneShot", "[animation]")
+{
+
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 2
+    linearAnimation->duration(4);
+    linearAnimation->fps(2);
+    linearAnimation->speed(2);
+    linearAnimation->loopValue(static_cast<int>(rive::Loop::oneShot));
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // play from beginning.
+    animationStateInstance->advance(3.0, &stateMachineInstance);
+
+    REQUIRE(animationStateInstance->animationInstance()->time() == 2.0);
+    REQUIRE(animationStateInstance->animationInstance()->totalTime() == 6.0);
+    // Duration is 2s but at a 2x speed it takes 1s to end
+    // When advancing 3s, there are still 2s remaining (spilled)
+    REQUIRE(animationStateInstance->animationInstance()->spilledTime() == 2.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance spilledTime accounts for 1/Nx speed with oneShot", "[animation]")
+{
+
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 2
+    linearAnimation->duration(4);
+    linearAnimation->fps(2);
+    linearAnimation->speed(0.5);
+    linearAnimation->loopValue(static_cast<int>(rive::Loop::oneShot));
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // play from beginning.
+    animationStateInstance->advance(5.0, &stateMachineInstance);
+
+    REQUIRE(animationStateInstance->animationInstance()->time() == 2.0);
+    REQUIRE(animationStateInstance->animationInstance()->totalTime() == 2.5);
+    // Duration is 2s but at a 0.5x speed it takes 4s to end
+    // When advancing 5.0s, there are still 1s remaining (spilled)
+    REQUIRE(animationStateInstance->animationInstance()->spilledTime() == 1.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance spilledTime accounts for Nx speed with loop", "[animation]")
+{
+
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 2
+    linearAnimation->duration(4);
+    linearAnimation->fps(2);
+    linearAnimation->speed(2);
+    linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // play from beginning.
+    animationStateInstance->advance(5.5, &stateMachineInstance);
+
+    REQUIRE(animationStateInstance->animationInstance()->time() == 1.0);
+    REQUIRE(animationStateInstance->animationInstance()->totalTime() == 11.0);
+    // Duration is 2s but at a 2x speed it takes 1s to loop
+    // When advancing 5.5s, there is still 0.5s remaining (spilled)
+    REQUIRE(animationStateInstance->animationInstance()->spilledTime() == 0.5);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance spilledTime accounts for 1/Nx speed with loop", "[animation]")
+{
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 2
+    linearAnimation->duration(4);
+    linearAnimation->fps(2);
+    linearAnimation->speed(0.5);
+    linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // play from beginning.
+    animationStateInstance->advance(10.0, &stateMachineInstance);
+
+    REQUIRE(animationStateInstance->animationInstance()->time() == 1.0);
+    REQUIRE(animationStateInstance->animationInstance()->totalTime() == 5.0);
+    // Duration is 2s but at a 2x speed it takes 1s to loop
+    // When advancing 5.5s, there is still 0.5s remaining (spilled)
+    REQUIRE(animationStateInstance->animationInstance()->spilledTime() == 2.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance spilledTime accounts for -Nx speed with oneShot", "[animation]")
+{
+
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 2
+    linearAnimation->duration(4);
+    linearAnimation->fps(2);
+    linearAnimation->speed(-2);
+    linearAnimation->loopValue(static_cast<int>(rive::Loop::oneShot));
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // play from beginning.
+    animationStateInstance->advance(3.0, &stateMachineInstance);
+
+    REQUIRE(animationStateInstance->animationInstance()->time() == 0.0);
+    REQUIRE(animationStateInstance->animationInstance()->totalTime() == 6.0);
+    // Duration is 2s but at a -2x speed it takes 1s to end
+    // When advancing at negative speed, time starts at duration
+    // so starting at end and taking 1s to complete
+    // there are still 2s remaining (spilled)
+    REQUIRE(animationStateInstance->animationInstance()->spilledTime() == 2.0);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
+
+TEST_CASE("AnimationStateInstance spilledTime accounts for -Nx speed with loop", "[animation]")
+{
+
+    rive::NoOpFactory emptyFactory;
+    // For each of these tests, we cons up a dummy artboard/instance
+    // just to make the animations happy.
+    rive::Artboard ab(&emptyFactory);
+    auto abi = ab.instance();
+
+    rive::StateMachine machine;
+    rive::StateMachineInstance stateMachineInstance(&machine, abi.get());
+
+    rive::LinearAnimation* linearAnimation = new rive::LinearAnimation();
+    // duration in seconds is 2
+    linearAnimation->duration(4);
+    linearAnimation->fps(2);
+    linearAnimation->speed(-2);
+    linearAnimation->loopValue(static_cast<int>(rive::Loop::loop));
+
+    rive::AnimationState* animationState = new rive::AnimationState();
+    animationState->animation(linearAnimation);
+
+    rive::AnimationStateInstance* animationStateInstance =
+        new rive::AnimationStateInstance(animationState, abi.get());
+
+    // play from beginning.
+    animationStateInstance->advance(5.5, &stateMachineInstance);
+
+    REQUIRE(animationStateInstance->animationInstance()->time() == 1.0);
+    REQUIRE(animationStateInstance->animationInstance()->totalTime() == 11.0);
+    // Duration is 2s but at a -2x speed it takes 1s to end
+    // When advancing at negative speed, time starts at duration
+    // so starting at end and taking 1s to complete, it loops 5 times
+    // there is still 0.5s remaining (spilled)
+    REQUIRE(animationStateInstance->animationInstance()->spilledTime() == 0.5);
+
+    delete animationStateInstance;
+    delete animationState;
+    delete linearAnimation;
+}
