@@ -91,6 +91,11 @@ void StateMachine::addListener(std::unique_ptr<StateMachineListener> listener)
     m_Listeners.push_back(std::move(listener));
 }
 
+void StateMachine::addDataBind(std::unique_ptr<DataBind> dataBind)
+{
+    m_dataBinds.push_back(std::move(dataBind));
+}
+
 const StateMachineInput* StateMachine::input(std::string name) const
 {
     for (auto& input : m_Inputs)
@@ -138,6 +143,15 @@ const StateMachineListener* StateMachine::listener(size_t index) const
     if (index < m_Listeners.size())
     {
         return m_Listeners[index].get();
+    }
+    return nullptr;
+}
+
+const DataBind* StateMachine::dataBind(size_t index) const
+{
+    if (index < m_dataBinds.size())
+    {
+        return m_dataBinds[index].get();
     }
     return nullptr;
 }

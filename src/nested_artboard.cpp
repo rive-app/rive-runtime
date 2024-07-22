@@ -274,3 +274,28 @@ void NestedArtboard::copyDataBindPathIds(const NestedArtboardBase& object)
 {
     m_DataBindPathIdsBuffer = object.as<NestedArtboard>()->m_DataBindPathIdsBuffer;
 }
+
+void NestedArtboard::internalDataContext(DataContext* value, DataContext* parent)
+{
+    artboard()->internalDataContext(value, parent, false);
+    for (auto animation : m_NestedAnimations)
+    {
+        if (animation->is<NestedStateMachine>())
+        {
+            animation->as<NestedStateMachine>()->dataContext(value);
+        }
+    }
+}
+
+void NestedArtboard::dataContextFromInstance(ViewModelInstance* viewModelInstance,
+                                             DataContext* parent)
+{
+    artboard()->dataContextFromInstance(viewModelInstance, parent, false);
+    for (auto animation : m_NestedAnimations)
+    {
+        if (animation->is<NestedStateMachine>())
+        {
+            animation->as<NestedStateMachine>()->dataContextFromInstance(viewModelInstance);
+        }
+    }
+}

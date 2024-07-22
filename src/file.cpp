@@ -8,6 +8,7 @@
 #include "rive/generated/core_registry.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/importers/bindable_property_importer.hpp"
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
@@ -30,6 +31,12 @@
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/blend_state_1d.hpp"
 #include "rive/animation/blend_state_direct.hpp"
+#include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
+#include "rive/data_bind/bindable_property_string.hpp"
+#include "rive/data_bind/bindable_property_color.hpp"
+#include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
@@ -204,6 +211,10 @@ std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 {
     ImportStack importStack;
+    // TODO: @hernan consider moving this to a special importer. It's not that
+    // simple because Core doesn't have a typeKey, so it should be treated as
+    // a special case. In any case, it's not that bad having it here for now.
+    Core* lastBindableObject;
     while (!reader.reachedEnd())
     {
         auto object = readRuntimeObject(reader, header);
@@ -211,6 +222,14 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         {
             importStack.readNullObject();
             continue;
+        }
+        if (!object->is<DataBind>())
+        {
+            lastBindableObject = object;
+        }
+        else if (lastBindableObject != nullptr)
+        {
+            object->as<DataBind>()->target(lastBindableObject);
         }
         if (object->import(importStack) == StatusCode::Ok)
         {
@@ -352,6 +371,15 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject = rivestd::make_unique<ViewModelInstanceListImporter>(
                     object->as<ViewModelInstanceList>());
                 stackType = ViewModelInstanceList::typeKey;
+                break;
+            case BindablePropertyNumber::typeKey:
+            case BindablePropertyString::typeKey:
+            case BindablePropertyColor::typeKey:
+            case BindablePropertyEnum::typeKey:
+            case BindablePropertyBoolean::typeKey:
+                stackObject =
+                    rivestd::make_unique<BindablePropertyImporter>(object->as<BindableProperty>());
+                stackType = BindablePropertyBase::typeKey;
                 break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) != StatusCode::Ok)

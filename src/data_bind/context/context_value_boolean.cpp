@@ -6,16 +6,17 @@ using namespace rive;
 DataBindContextValueBoolean::DataBindContextValueBoolean(ViewModelInstanceValue* value)
 {
     m_Source = value;
+    m_Value = m_Source->as<ViewModelInstanceBoolean>()->propertyValue();
 }
 
-void DataBindContextValueBoolean::apply(Component* target, uint32_t propertyKey)
+void DataBindContextValueBoolean::apply(Core* target, uint32_t propertyKey)
 {
     CoreRegistry::setBool(target,
                           propertyKey,
                           m_Source->as<ViewModelInstanceBoolean>()->propertyValue());
 }
 
-void DataBindContextValueBoolean::applyToSource(Component* target, uint32_t propertyKey)
+void DataBindContextValueBoolean::applyToSource(Core* target, uint32_t propertyKey)
 {
     auto value = CoreRegistry::getBool(target, propertyKey);
     if (m_Value != value)

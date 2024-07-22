@@ -13,6 +13,7 @@ namespace rive
 {
 class ArtboardInstance;
 class Renderer;
+class ViewModelInstance;
 
 class SMIInput;
 class SMIBool;
@@ -46,6 +47,8 @@ public:
     virtual bool advanceAndApply(float elapsedSeconds) = 0;
 
     void draw(Renderer*);
+
+    virtual void dataContextFromInstance(ViewModelInstance* viewModelInstance);
 
     virtual HitResult pointerDown(Vec2D);
     virtual HitResult pointerMove(Vec2D);

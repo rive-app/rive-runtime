@@ -9,6 +9,7 @@ class StateMachineInput;
 class StateMachineLayer;
 class StateMachineListener;
 class StateMachine;
+class DataBind;
 class StateMachineImporter : public ImportStackObject
 {
 private:
@@ -21,6 +22,7 @@ public:
     void addLayer(std::unique_ptr<StateMachineLayer>);
     void addInput(std::unique_ptr<StateMachineInput>);
     void addListener(std::unique_ptr<StateMachineListener>);
+    void addDataBind(std::unique_ptr<DataBind>);
 
     StatusCode resolve() override;
     bool readNullObject() override;

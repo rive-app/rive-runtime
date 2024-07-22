@@ -21,7 +21,6 @@ public:
         {
             case DataBindContextBase::typeKey:
             case DataBindBase::typeKey:
-            case ComponentBase::typeKey:
                 return true;
             default:
                 return false;

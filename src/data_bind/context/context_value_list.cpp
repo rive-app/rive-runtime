@@ -40,12 +40,12 @@ std::unique_ptr<StateMachineInstance> DataBindContextValueList::createStateMachi
     return nullptr;
 }
 
-void DataBindContextValueList::insertItem(Component* target,
+void DataBindContextValueList::insertItem(Core* target,
                                           ViewModelInstanceListItem* listItem,
                                           int index)
 {
     auto artboard = listItem->artboard();
-    auto artboardCopy = createArtboard(target, artboard, listItem);
+    auto artboardCopy = createArtboard(target->as<Component>(), artboard, listItem);
     auto stateMachineInstance = createStateMachineInstance(artboardCopy.get());
     std::unique_ptr<DataBindContextValueListItem> cacheListItem =
         rivestd::make_unique<DataBindContextValueListItem>(std::move(artboardCopy),
@@ -61,14 +61,14 @@ void DataBindContextValueList::insertItem(Component* target,
     }
 }
 
-void DataBindContextValueList::swapItems(Component* target, int index1, int index2)
+void DataBindContextValueList::swapItems(Core* target, int index1, int index2)
 {
     std::iter_swap(m_ListItemsCache.begin() + index1, m_ListItemsCache.begin() + index2);
 }
 
-void DataBindContextValueList::popItem(Component* target) { m_ListItemsCache.pop_back(); }
+void DataBindContextValueList::popItem(Core* target) { m_ListItemsCache.pop_back(); }
 
-void DataBindContextValueList::update(Component* target)
+void DataBindContextValueList::update(Core* target)
 {
     if (target != nullptr)
     {
@@ -125,9 +125,9 @@ void DataBindContextValueList::update(Component* target)
     }
 }
 
-void DataBindContextValueList::apply(Component* target, uint32_t propertyKey) {}
+void DataBindContextValueList::apply(Core* target, uint32_t propertyKey) {}
 
-void DataBindContextValueList::applyToSource(Component* target, uint32_t propertyKey)
+void DataBindContextValueList::applyToSource(Core* target, uint32_t propertyKey)
 {
     // TODO: @hernan does applyToSource make sense? Should we block it somehow?
 }

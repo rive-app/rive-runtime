@@ -26,9 +26,8 @@ void DataBindContext::copySourcePathIds(const DataBindContextBase& object)
     m_SourcePathIdsBuffer = object.as<DataBindContext>()->m_SourcePathIdsBuffer;
 }
 
-void DataBindContext::bind()
+void DataBindContext::bindFromContext(DataContext* dataContext)
 {
-    auto dataContext = artboard()->dataContext();
     if (dataContext != nullptr)
     {
         auto value = dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
@@ -36,7 +35,7 @@ void DataBindContext::bind()
         {
             value->addDependent(this);
             m_Source = value;
-            Super::bind();
+            bind();
         }
     }
 }

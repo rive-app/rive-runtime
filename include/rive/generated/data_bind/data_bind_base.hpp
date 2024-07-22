@@ -1,13 +1,13 @@
 #ifndef _RIVE_DATA_BIND_BASE_HPP_
 #define _RIVE_DATA_BIND_BASE_HPP_
-#include "rive/component.hpp"
+#include "rive/core.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
-class DataBindBase : public Component
+class DataBindBase : public Core
 {
 protected:
-    typedef Component Super;
+    typedef Core Super;
 
 public:
     static const uint16_t typeKey = 446;
@@ -19,7 +19,6 @@ public:
         switch (typeKey)
         {
             case DataBindBase::typeKey:
-            case ComponentBase::typeKey:
                 return true;
             default:
                 return false;
@@ -28,27 +27,14 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t targetIdPropertyKey = 585;
     static const uint16_t propertyKeyPropertyKey = 586;
     static const uint16_t flagsPropertyKey = 587;
 
 private:
-    uint32_t m_TargetId = -1;
     uint32_t m_PropertyKey = Core::invalidPropertyKey;
     uint32_t m_Flags = 0;
 
 public:
-    inline uint32_t targetId() const { return m_TargetId; }
-    void targetId(uint32_t value)
-    {
-        if (m_TargetId == value)
-        {
-            return;
-        }
-        m_TargetId = value;
-        targetIdChanged();
-    }
-
     inline uint32_t propertyKey() const { return m_PropertyKey; }
     void propertyKey(uint32_t value)
     {
@@ -74,19 +60,14 @@ public:
     Core* clone() const override;
     void copy(const DataBindBase& object)
     {
-        m_TargetId = object.m_TargetId;
         m_PropertyKey = object.m_PropertyKey;
         m_Flags = object.m_Flags;
-        Component::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
     {
         switch (propertyKey)
         {
-            case targetIdPropertyKey:
-                m_TargetId = CoreUintType::deserialize(reader);
-                return true;
             case propertyKeyPropertyKey:
                 m_PropertyKey = CoreUintType::deserialize(reader);
                 return true;
@@ -94,11 +75,10 @@ public:
                 m_Flags = CoreUintType::deserialize(reader);
                 return true;
         }
-        return Component::deserialize(propertyKey, reader);
+        return false;
     }
 
 protected:
-    virtual void targetIdChanged() {}
     virtual void propertyKeyChanged() {}
     virtual void flagsChanged() {}
 };

@@ -182,9 +182,9 @@ public:
                                  DataContext* parent,
                                  bool isRoot);
     void dataContextFromInstance(ViewModelInstance* viewModelInstance);
-    void populateDataBinds(std::vector<Component*>* dataBinds);
-    void buildDataBindDependencies(std::vector<Component*>* dataBinds);
-    void sortDataBinds(std::vector<Component*> dataBinds);
+    void addDataBind(DataBind* dataBind);
+    void populateDataBinds(std::vector<DataBind*>* dataBinds);
+    void sortDataBinds(std::vector<DataBind*> dataBinds);
     bool hasAudio() const;
 
     template <typename T = Component> T* find(const std::string& name)
@@ -284,6 +284,16 @@ public:
             {
                 auto object = *itr;
                 cloneObjects.push_back(object == nullptr ? nullptr : object->clone());
+                // For each object, clone its data bind objects and target their clones
+                for (auto dataBind : m_DataBinds)
+                {
+                    if (dataBind->target() == object)
+                    {
+                        auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
+                        dataBindClone->target(cloneObjects.back());
+                        artboardClone->m_DataBinds.push_back(dataBindClone);
+                    }
+                }
             }
         }
 

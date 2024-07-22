@@ -2,6 +2,11 @@
 #include "rive/artboard.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
+#include "rive/data_bind/bindable_property_string.hpp"
+#include "rive/data_bind/bindable_property_color.hpp"
+#include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
@@ -9,13 +14,11 @@
 #include "rive/data_bind/context/context_value_enum.hpp"
 #include "rive/data_bind/context/context_value_list.hpp"
 #include "rive/data_bind/context/context_value_color.hpp"
+#include "rive/animation/state_machine.hpp"
+#include "rive/importers/artboard_importer.hpp"
+#include "rive/importers/state_machine_importer.hpp"
 
 using namespace rive;
-
-// StatusCode DataBind::onAddedClean(CoreContext* context)
-// {
-//     return Super::onAddedClean(context);
-// }
 
 StatusCode DataBind::onAddedDirty(CoreContext* context)
 {
@@ -24,28 +27,44 @@ StatusCode DataBind::onAddedDirty(CoreContext* context)
     {
         return code;
     }
-    auto coreObject = context->resolve(targetId());
-    if (coreObject == nullptr || !coreObject->is<Component>())
-    {
-        return StatusCode::MissingObject;
-    }
-
-    m_target = static_cast<Component*>(coreObject);
 
     return StatusCode::Ok;
 }
 
-StatusCode DataBind::import(ImportStack& importStack) { return Super::import(importStack); }
-
-void DataBind::buildDependencies()
+StatusCode DataBind::import(ImportStack& importStack)
 {
-    Super::buildDependencies();
-    auto flagsValue = static_cast<DataBindFlags>(flags());
-    if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
-        ((flagsValue & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
+    if (target())
     {
-        m_target->addDependent(this);
+        switch (target()->coreType())
+        {
+            case BindablePropertyNumberBase::typeKey:
+            case BindablePropertyStringBase::typeKey:
+            case BindablePropertyBooleanBase::typeKey:
+            case BindablePropertyEnumBase::typeKey:
+            case BindablePropertyColorBase::typeKey:
+            {
+                auto stateMachineImporter =
+                    importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
+                if (stateMachineImporter != nullptr)
+                {
+                    stateMachineImporter->addDataBind(std::unique_ptr<DataBind>(this));
+                    return Super::import(importStack);
+                }
+                break;
+            }
+            default:
+            {
+                auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+                if (artboardImporter != nullptr)
+                {
+                    artboardImporter->addDataBind(this);
+                    return Super::import(importStack);
+                }
+                break;
+            }
+        }
     }
+    return Super::import(importStack);
 }
 
 void DataBind::bind()
@@ -97,7 +116,6 @@ void DataBind::update(ComponentDirt value)
             }
         }
     }
-    Super::update(value);
 }
 
 void DataBind::updateSourceBinding()
@@ -111,4 +129,16 @@ void DataBind::updateSourceBinding()
             m_ContextValue->applyToSource(m_target, propertyKey());
         }
     }
+}
+
+bool DataBind::addDirt(ComponentDirt value, bool recurse)
+{
+    if ((m_Dirt & value) == value)
+    {
+        // Already marked.
+        return false;
+    }
+
+    m_Dirt |= value;
+    return true;
 }

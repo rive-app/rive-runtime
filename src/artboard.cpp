@@ -173,9 +173,6 @@ StatusCode Artboard::initialize()
             case NestedArtboardBase::typeKey:
                 m_NestedArtboards.push_back(object->as<NestedArtboard>());
                 break;
-            case DataBindContext::typeKey:
-                m_DataBinds.push_back(object->as<DataBind>());
-                break;
 
             case JoystickBase::typeKey:
             {
@@ -515,12 +512,12 @@ void Artboard::updateDataBinds()
     for (auto dataBind : m_AllDataBinds)
     {
         dataBind->updateSourceBinding();
-        auto d = dataBind->m_Dirt;
+        auto d = dataBind->dirt();
         if (d == ComponentDirt::None)
         {
             continue;
         }
-        dataBind->m_Dirt = ComponentDirt::None;
+        dataBind->dirt(ComponentDirt::None);
         dataBind->update(d);
     }
 }
@@ -1004,102 +1001,38 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
         auto value = m_DataContext->getViewModelInstance(nestedArtboard->dataBindPathIds());
         if (value != nullptr && value->is<ViewModelInstance>())
         {
-            nestedArtboard->artboard()->dataContextFromInstance(value, m_DataContext, false);
+            nestedArtboard->dataContextFromInstance(value, m_DataContext);
         }
         else
         {
-            nestedArtboard->artboard()->internalDataContext(m_DataContext,
-                                                            m_DataContext->parent(),
-                                                            false);
+            nestedArtboard->internalDataContext(m_DataContext, m_DataContext->parent());
         }
     }
     for (auto dataBind : m_DataBinds)
     {
         if (dataBind->is<DataBindContext>())
         {
-            dataBind->as<DataBindContext>()->bind();
+            dataBind->as<DataBindContext>()->bindFromContext(m_DataContext);
         }
     }
     if (isRoot)
     {
-        std::vector<Component*> dataBinds;
+        std::vector<DataBind*> dataBinds;
         populateDataBinds(&dataBinds);
-        buildDataBindDependencies(&dataBinds);
         sortDataBinds(dataBinds);
     }
 }
 
-void Artboard::sortDataBinds(std::vector<Component*> dataBinds)
+void Artboard::sortDataBinds(std::vector<DataBind*> dataBinds)
 {
-    DependencySorter sorter;
     // TODO: @hernan review this. Should not need to push to a component list to sort.
 
-    std::vector<Component*> dbOrder;
-    sorter.sort(dataBinds, dbOrder);
-    for (auto dataBind : dbOrder)
+    for (auto dataBind : dataBinds)
     {
         m_AllDataBinds.push_back(dataBind->as<DataBind>());
     }
 }
 
-void Artboard::buildDataBindDependencies(std::vector<Component*>* dataBinds)
-{
-    // TODO: @hernan review this dependency building
-    // Do we really need this? If a property is bound to a data bind, it can't be bound
-    // to a second data bind object.
-    for (auto component : *dataBinds)
-    {
-        auto dataBind = component->as<DataBind>();
-        auto flags = static_cast<DataBindFlags>(dataBind->flags());
-        // If the data bind reads from the target, we want to add it as dependent from any other
-        // parent data bind that writes into that target.
-        if (((flags & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
-            ((flags & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
-        {
-            for (auto innerComponent : *dataBinds)
-            {
-                auto dataBindParent = innerComponent->as<DataBind>();
-                auto parentFlags = static_cast<DataBindFlags>(dataBindParent->flags());
-                if (dataBindParent != dataBind &&
-                    (((parentFlags & DataBindFlags::Direction) == DataBindFlags::ToTarget) ||
-                     ((parentFlags & DataBindFlags::TwoWay) == DataBindFlags::TwoWay)) &&
-                    dataBindParent->target() == dataBind->target() &&
-                    dataBindParent->propertyKey() == dataBind->propertyKey())
-                {
-                    dataBindParent->addDependent(dataBind);
-                    break;
-                }
-            }
-        }
-        else
-        {
-            // If the data bind reads from a source we want to add it as dependent
-            // from any other parent data bind that writes into that source.
-            if (dataBind->is<DataBindContext>())
-            {
-                for (auto innerComponent : *dataBinds)
-                {
-                    auto dataBindParent = innerComponent->as<DataBind>();
-                    if (dataBindParent != dataBind)
-                    {
-                        auto parentFlags = static_cast<DataBindFlags>(dataBindParent->flags());
-                        if (((parentFlags & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
-                            ((parentFlags & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
-                        {
-                            if (dataBindParent->is<DataBindContext>() &&
-                                dataBindParent->as<DataBindContext>()->source() ==
-                                    dataBind->as<DataBindContext>()->source())
-                            {
-                                dataBindParent->addDependent(dataBind);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 float Artboard::volume() const { return m_volume; }
 void Artboard::volume(float value)
 {
@@ -1114,7 +1047,7 @@ void Artboard::volume(float value)
     }
 }
 
-void Artboard::populateDataBinds(std::vector<Component*>* dataBinds)
+void Artboard::populateDataBinds(std::vector<DataBind*>* dataBinds)
 {
     for (auto dataBind : m_DataBinds)
     {
@@ -1128,6 +1061,8 @@ void Artboard::populateDataBinds(std::vector<Component*>* dataBinds)
         }
     }
 }
+
+void Artboard::addDataBind(DataBind* dataBind) { m_DataBinds.push_back(dataBind); }
 
 void Artboard::dataContext(DataContext* value, DataContext* parent)
 {

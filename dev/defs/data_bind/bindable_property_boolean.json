@@ -1,0 +1,19 @@
+{
+  "name": "BindablePropertyBoolean",
+  "key": {
+    "int": 472,
+    "string": "bindablepropertyboolean"
+  },
+  "extends": "data_bind/bindable_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 634,
+        "string": "propertyvalue"
+      },
+      "description": "A property of type bool that can be used for data binding."
+    }
+  }
+}

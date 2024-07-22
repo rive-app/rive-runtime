@@ -100,6 +100,12 @@
 #include "rive/custom_property_boolean.hpp"
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
+#include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_boolean.hpp"
+#include "rive/data_bind/bindable_property_color.hpp"
+#include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
+#include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/draw_rules.hpp"
@@ -408,10 +414,20 @@ public:
                 return new Backboard();
             case OpenUrlEventBase::typeKey:
                 return new OpenUrlEvent();
+            case BindablePropertyBooleanBase::typeKey:
+                return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
                 return new DataBind();
             case DataBindContextBase::typeKey:
                 return new DataBindContext();
+            case BindablePropertyStringBase::typeKey:
+                return new BindablePropertyString();
+            case BindablePropertyNumberBase::typeKey:
+                return new BindablePropertyNumber();
+            case BindablePropertyEnumBase::typeKey:
+                return new BindablePropertyEnum();
+            case BindablePropertyColorBase::typeKey:
+                return new BindablePropertyColor();
             case WeightBase::typeKey:
                 return new Weight();
             case BoneBase::typeKey:
@@ -541,6 +557,9 @@ public:
                 break;
             case LayoutComponentBase::clipPropertyKey:
                 object->as<LayoutComponentBase>()->clip(value);
+                break;
+            case BindablePropertyBooleanBase::propertyValuePropertyKey:
+                object->as<BindablePropertyBooleanBase>()->propertyValue(value);
                 break;
             case TextModifierRangeBase::clampPropertyKey:
                 object->as<TextModifierRangeBase>()->clamp(value);
@@ -920,14 +939,14 @@ public:
             case OpenUrlEventBase::targetValuePropertyKey:
                 object->as<OpenUrlEventBase>()->targetValue(value);
                 break;
-            case DataBindBase::targetIdPropertyKey:
-                object->as<DataBindBase>()->targetId(value);
-                break;
             case DataBindBase::propertyKeyPropertyKey:
                 object->as<DataBindBase>()->propertyKey(value);
                 break;
             case DataBindBase::flagsPropertyKey:
                 object->as<DataBindBase>()->flags(value);
+                break;
+            case BindablePropertyEnumBase::propertyValuePropertyKey:
+                object->as<BindablePropertyEnumBase>()->propertyValue(value);
                 break;
             case WeightBase::valuesPropertyKey:
                 object->as<WeightBase>()->values(value);
@@ -1019,6 +1038,9 @@ public:
             case GradientStopBase::colorValuePropertyKey:
                 object->as<GradientStopBase>()->colorValue(value);
                 break;
+            case BindablePropertyColorBase::propertyValuePropertyKey:
+                object->as<BindablePropertyColorBase>()->propertyValue(value);
+                break;
         }
     }
     static void setString(Core* object, int propertyKey, std::string value)
@@ -1051,6 +1073,9 @@ public:
                 break;
             case OpenUrlEventBase::urlPropertyKey:
                 object->as<OpenUrlEventBase>()->url(value);
+                break;
+            case BindablePropertyStringBase::propertyValuePropertyKey:
+                object->as<BindablePropertyStringBase>()->propertyValue(value);
                 break;
             case TextValueRunBase::textPropertyKey:
                 object->as<TextValueRunBase>()->text(value);
@@ -1427,6 +1452,9 @@ public:
             case JoystickBase::heightPropertyKey:
                 object->as<JoystickBase>()->height(value);
                 break;
+            case BindablePropertyNumberBase::propertyValuePropertyKey:
+                object->as<BindablePropertyNumberBase>()->propertyValue(value);
+                break;
             case BoneBase::lengthPropertyKey:
                 object->as<BoneBase>()->length(value);
                 break;
@@ -1625,6 +1653,8 @@ public:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
                 return object->as<LayoutComponentBase>()->clip();
+            case BindablePropertyBooleanBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyBooleanBase>()->propertyValue();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->as<TextModifierRangeBase>()->clamp();
         }
@@ -1880,12 +1910,12 @@ public:
                 return object->as<JoystickBase>()->handleSourceId();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->as<OpenUrlEventBase>()->targetValue();
-            case DataBindBase::targetIdPropertyKey:
-                return object->as<DataBindBase>()->targetId();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->as<DataBindBase>()->propertyKey();
             case DataBindBase::flagsPropertyKey:
                 return object->as<DataBindBase>()->flags();
+            case BindablePropertyEnumBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyEnumBase>()->propertyValue();
             case WeightBase::valuesPropertyKey:
                 return object->as<WeightBase>()->values();
             case WeightBase::indicesPropertyKey:
@@ -1949,6 +1979,8 @@ public:
                 return object->as<SolidColorBase>()->colorValue();
             case GradientStopBase::colorValuePropertyKey:
                 return object->as<GradientStopBase>()->colorValue();
+            case BindablePropertyColorBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyColorBase>()->propertyValue();
         }
         return 0;
     }
@@ -1974,6 +2006,8 @@ public:
                 return object->as<KeyFrameStringBase>()->value();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->as<OpenUrlEventBase>()->url();
+            case BindablePropertyStringBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyStringBase>()->propertyValue();
             case TextValueRunBase::textPropertyKey:
                 return object->as<TextValueRunBase>()->text();
             case CustomPropertyStringBase::propertyValuePropertyKey:
@@ -2227,6 +2261,8 @@ public:
                 return object->as<JoystickBase>()->width();
             case JoystickBase::heightPropertyKey:
                 return object->as<JoystickBase>()->height();
+            case BindablePropertyNumberBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyNumberBase>()->propertyValue();
             case BoneBase::lengthPropertyKey:
                 return object->as<BoneBase>()->length();
             case RootBoneBase::xPropertyKey:
@@ -2345,6 +2381,7 @@ public:
             case ClippingShapeBase::isVisiblePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
+            case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
@@ -2470,9 +2507,9 @@ public:
             case JoystickBase::joystickFlagsPropertyKey:
             case JoystickBase::handleSourceIdPropertyKey:
             case OpenUrlEventBase::targetValuePropertyKey:
-            case DataBindBase::targetIdPropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
+            case BindablePropertyEnumBase::propertyValuePropertyKey:
             case WeightBase::valuesPropertyKey:
             case WeightBase::indicesPropertyKey:
             case TendonBase::boneIdPropertyKey:
@@ -2502,6 +2539,7 @@ public:
             case KeyFrameColorBase::valuePropertyKey:
             case SolidColorBase::colorValuePropertyKey:
             case GradientStopBase::colorValuePropertyKey:
+            case BindablePropertyColorBase::propertyValuePropertyKey:
                 return CoreColorType::id;
             case ViewModelComponentBase::namePropertyKey:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
@@ -2512,6 +2550,7 @@ public:
             case StateMachineComponentBase::namePropertyKey:
             case KeyFrameStringBase::valuePropertyKey:
             case OpenUrlEventBase::urlPropertyKey:
+            case BindablePropertyStringBase::propertyValuePropertyKey:
             case TextValueRunBase::textPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
             case AssetBase::namePropertyKey:
@@ -2636,6 +2675,7 @@ public:
             case JoystickBase::originYPropertyKey:
             case JoystickBase::widthPropertyKey:
             case JoystickBase::heightPropertyKey:
+            case BindablePropertyNumberBase::propertyValuePropertyKey:
             case BoneBase::lengthPropertyKey:
             case RootBoneBase::xPropertyKey:
             case RootBoneBase::yPropertyKey:
@@ -2758,6 +2798,8 @@ public:
                 return object->is<CustomPropertyBooleanBase>();
             case LayoutComponentBase::clipPropertyKey:
                 return object->is<LayoutComponentBase>();
+            case BindablePropertyBooleanBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyBooleanBase>();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->is<TextModifierRangeBase>();
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
@@ -3006,12 +3048,12 @@ public:
                 return object->is<JoystickBase>();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->is<OpenUrlEventBase>();
-            case DataBindBase::targetIdPropertyKey:
-                return object->is<DataBindBase>();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->is<DataBindBase>();
             case DataBindBase::flagsPropertyKey:
                 return object->is<DataBindBase>();
+            case BindablePropertyEnumBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyEnumBase>();
             case WeightBase::valuesPropertyKey:
                 return object->is<WeightBase>();
             case WeightBase::indicesPropertyKey:
@@ -3068,6 +3110,8 @@ public:
                 return object->is<SolidColorBase>();
             case GradientStopBase::colorValuePropertyKey:
                 return object->is<GradientStopBase>();
+            case BindablePropertyColorBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyColorBase>();
             case ViewModelComponentBase::namePropertyKey:
                 return object->is<ViewModelComponentBase>();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
@@ -3086,6 +3130,8 @@ public:
                 return object->is<KeyFrameStringBase>();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->is<OpenUrlEventBase>();
+            case BindablePropertyStringBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyStringBase>();
             case TextValueRunBase::textPropertyKey:
                 return object->is<TextValueRunBase>();
             case CustomPropertyStringBase::propertyValuePropertyKey:
@@ -3332,6 +3378,8 @@ public:
                 return object->is<JoystickBase>();
             case JoystickBase::heightPropertyKey:
                 return object->is<JoystickBase>();
+            case BindablePropertyNumberBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyNumberBase>();
             case BoneBase::lengthPropertyKey:
                 return object->is<BoneBase>();
             case RootBoneBase::xPropertyKey:

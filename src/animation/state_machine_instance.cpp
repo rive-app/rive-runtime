@@ -904,6 +904,23 @@ SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const
     return getNamedInput<StateMachineTrigger, SMITrigger>(name);
 }
 
+void StateMachineInstance::dataContextFromInstance(ViewModelInstance* viewModelInstance)
+{
+    dataContext(new DataContext(viewModelInstance));
+}
+
+void StateMachineInstance::dataContext(DataContext* dataContext)
+{
+    m_DataContext = dataContext;
+    for (auto dataBind : m_dataBinds)
+    {
+        if (dataBind->is<DataBindContext>())
+        {
+            dataBind->as<DataBindContext>()->bindFromContext(dataContext);
+        }
+    }
+}
+
 size_t StateMachineInstance::stateChangedCount() const
 {
     size_t count = 0;
@@ -1039,4 +1056,14 @@ void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& 
             }
         }
     }
+}
+
+BindableProperty* StateMachineInstance::bindablePropertyInstance(BindableProperty* bindableProperty)
+{
+    auto bindablePropertyInstance = m_bindablePropertyInstances.find(bindableProperty);
+    if (bindablePropertyInstance == m_bindablePropertyInstances.end())
+    {
+        return nullptr;
+    }
+    return bindablePropertyInstance->second;
 }

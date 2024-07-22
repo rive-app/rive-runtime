@@ -1,0 +1,20 @@
+{
+  "name": "BindableProperty",
+  "key": {
+    "int": 9,
+    "string": "bindableproperty"
+  },
+  "abstract": true,
+  "properties": {
+    "dataBindId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 633,
+        "string": "databindid"
+      },
+      "description": "Id of the data bind binded to this property",
+      "runtime": false
+    }
+  }
+}

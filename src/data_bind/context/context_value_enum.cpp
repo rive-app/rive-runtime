@@ -6,17 +6,23 @@ using namespace rive;
 DataBindContextValueEnum::DataBindContextValueEnum(ViewModelInstanceValue* value)
 {
     m_Source = value;
+    m_Value = m_Source->as<ViewModelInstanceEnum>()->propertyValue();
 }
 
-void DataBindContextValueEnum::apply(Component* target, uint32_t propertyKey)
+void DataBindContextValueEnum::apply(Core* target, uint32_t propertyKey)
 {
     auto enumSource = m_Source->as<ViewModelInstanceEnum>();
     auto enumProperty = enumSource->viewModelProperty()->as<ViewModelPropertyEnum>();
     auto enumValue = enumProperty->value(m_Source->as<ViewModelInstanceEnum>()->propertyValue());
+    // TODO: @hernan decide which one makes more sense. Probably setUint, but setString was used to
+    // update text input with enum values.
     CoreRegistry::setString(target, propertyKey, enumValue);
+    CoreRegistry::setUint(target,
+                          propertyKey,
+                          m_Source->as<ViewModelInstanceEnum>()->propertyValue());
 }
 
-void DataBindContextValueEnum::applyToSource(Component* target, uint32_t propertyKey)
+void DataBindContextValueEnum::applyToSource(Core* target, uint32_t propertyKey)
 {
     auto value = CoreRegistry::getString(target, propertyKey);
     auto enumSource = m_Source->as<ViewModelInstanceEnum>();

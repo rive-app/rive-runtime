@@ -2,6 +2,7 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
 #include "rive/artboard.hpp"
@@ -21,6 +22,8 @@ void ArtboardImporter::addStateMachine(StateMachine* stateMachine)
 {
     m_Artboard->addStateMachine(stateMachine);
 }
+
+void ArtboardImporter::addDataBind(DataBind* dataBind) { m_Artboard->addDataBind(dataBind); }
 
 StatusCode ArtboardImporter::resolve() { return m_Artboard->initialize(); }
 

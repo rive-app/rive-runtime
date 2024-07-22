@@ -13,9 +13,9 @@ protected:
 public:
     DataBindContextValue(){};
     virtual ~DataBindContextValue(){};
-    virtual void applyToSource(Component* component, uint32_t propertyKey){};
-    virtual void apply(Component* component, uint32_t propertyKey){};
-    virtual void update(Component* component){};
+    virtual void applyToSource(Core* component, uint32_t propertyKey){};
+    virtual void apply(Core* component, uint32_t propertyKey){};
+    virtual void update(Core* component){};
 };
 } // namespace rive
 

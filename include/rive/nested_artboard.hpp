@@ -2,6 +2,8 @@
 #define _RIVE_NESTED_ARTBOARD_HPP_
 
 #include "rive/generated/nested_artboard_base.hpp"
+#include "rive/data_bind/data_context.hpp"
+#include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/hit_info.hpp"
 #include "rive/span.hpp"
 #include <stdio.h>
@@ -97,6 +99,8 @@ public:
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(const NestedArtboardBase& object) override;
     std::vector<uint32_t> dataBindPathIds() { return m_DataBindPathIdsBuffer; };
+    void dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
+    void internalDataContext(DataContext* dataContext, DataContext* parent);
 };
 } // namespace rive
 

@@ -4,18 +4,16 @@
     "int": 446,
     "string": "databind"
   },
-  "extends": "component.json",
   "properties": {
     "targetId": {
       "type": "Id",
-      "typeRuntime": "uint",
       "initialValue": "Core.missingId",
-      "initialValueRuntime": "-1",
       "key": {
         "int": 585,
         "string": "targetid"
       },
-      "description": "Identifier used to track the object that is targetted."
+      "description": "Identifier used to track the object that is targetted.",
+      "runtime": false
     },
     "propertyKey": {
       "type": "uint",

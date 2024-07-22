@@ -1,0 +1,19 @@
+{
+  "name": "BindablePropertyNumber",
+  "key": {
+    "int": 473,
+    "string": "bindablepropertynumber"
+  },
+  "extends": "data_bind/bindable_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 636,
+        "string": "propertyvalue"
+      },
+      "description": "A property of type double that can be used for data binding."
+    }
+  }
+}

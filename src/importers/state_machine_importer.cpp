@@ -3,6 +3,7 @@
 #include "rive/animation/state_machine_listener.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_layer.hpp"
+#include "rive/data_bind/data_bind.hpp"
 
 using namespace rive;
 
@@ -21,6 +22,11 @@ void StateMachineImporter::addInput(std::unique_ptr<StateMachineInput> input)
 void StateMachineImporter::addListener(std::unique_ptr<StateMachineListener> listener)
 {
     m_StateMachine->addListener(std::move(listener));
+}
+
+void StateMachineImporter::addDataBind(std::unique_ptr<DataBind> dataBind)
+{
+    m_StateMachine->addDataBind(std::move(dataBind));
 }
 
 bool StateMachineImporter::readNullObject()

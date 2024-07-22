@@ -8,8 +8,8 @@ class DataBindContextValueBoolean : public DataBindContextValue
 
 public:
     DataBindContextValueBoolean(ViewModelInstanceValue* value);
-    void apply(Component* component, uint32_t propertyKey) override;
-    virtual void applyToSource(Component* component, uint32_t propertyKey) override;
+    void apply(Core* component, uint32_t propertyKey) override;
+    virtual void applyToSource(Core* component, uint32_t propertyKey) override;
 
 private:
     bool m_Value;

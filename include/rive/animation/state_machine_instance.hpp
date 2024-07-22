@@ -4,6 +4,7 @@
 #include <string>
 #include <stddef.h>
 #include <vector>
+#include <unordered_map>
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/state_transition.hpp"
@@ -31,6 +32,8 @@ class NestedEventNotifier;
 class Event;
 class KeyedProperty;
 class EventReport;
+class DataBind;
+class BindableProperty;
 
 #ifdef WITH_RIVE_TOOLS
 class StateMachineInstance;
@@ -56,6 +59,7 @@ private:
     double randomValue();
     StateTransition* findRandomTransition(StateInstance* stateFromInstance, bool ignoreTriggers);
     StateTransition* findAllowedTransition(StateInstance* stateFromInstance, bool ignoreTriggers);
+    DataContext* m_DataContext;
 
 public:
     StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
@@ -78,6 +82,8 @@ public:
     SMIBool* getBool(const std::string& name) const override;
     SMINumber* getNumber(const std::string& name) const override;
     SMITrigger* getTrigger(const std::string& name) const override;
+    void dataContextFromInstance(ViewModelInstance* viewModelInstance) override;
+    void dataContext(DataContext* dataContext);
 
     size_t currentAnimationCount() const;
     const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
@@ -128,6 +134,7 @@ public:
     /// Gets a reported event at an index < reportedEventCount().
     const EventReport reportedEventAt(std::size_t index) const;
     bool playsAudio() override { return true; }
+    BindableProperty* bindablePropertyInstance(BindableProperty* bindableProperty);
 
 private:
     std::vector<EventReport> m_reportedEvents;
@@ -139,6 +146,8 @@ private:
     std::vector<std::unique_ptr<HitComponent>> m_hitComponents;
     StateMachineInstance* m_parentStateMachineInstance = nullptr;
     NestedArtboard* m_parentNestedArtboard = nullptr;
+    std::vector<DataBind*> m_dataBinds;
+    std::unordered_map<BindableProperty*, BindableProperty*> m_bindablePropertyInstances;
 #ifdef WITH_RIVE_TOOLS
 public:
     void onInputChanged(InputChanged callback) { m_inputChangedCallback = callback; }

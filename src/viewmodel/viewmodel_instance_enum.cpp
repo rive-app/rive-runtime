@@ -8,7 +8,7 @@
 
 using namespace rive;
 
-void ViewModelInstanceEnum::propertyValueChanged() { addDirt(ComponentDirt::Components); }
+void ViewModelInstanceEnum::propertyValueChanged() { addDirt(ComponentDirt::Bindings); }
 
 bool ViewModelInstanceEnum::value(std::string name)
 {
