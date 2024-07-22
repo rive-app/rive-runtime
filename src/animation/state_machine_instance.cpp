@@ -729,6 +729,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     for (std::size_t i = 0; i < machine->listenerCount(); i++)
     {
         auto listener = machine->listener(i);
+        if (listener->listenerType() == ListenerType::event)
+        {
+            continue;
+        }
         auto target = m_artboardInstance->resolve(listener->targetId());
         if (target != nullptr && target->is<ContainerComponent>())
         {
