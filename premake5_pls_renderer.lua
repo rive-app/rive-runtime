@@ -90,52 +90,54 @@ end
 
 filter({})
 
--- Minify PLS shaders, and precompile them into metal libraries if targeting ios or macosx.
+-- Minify and compile PLS shaders offline.
+local pls_generated_headers = RIVE_BUILD_OUT .. '/include'
+local pls_shaders_absolute_dir = path.getabsolute(pls_generated_headers .. '/generated/shaders')
+local makecommand = 'make -C '
+    .. path.getabsolute('renderer/shaders')
+    .. ' OUT='
+    .. pls_shaders_absolute_dir
+
 newoption({
-    trigger = 'human-readable-shaders',
-    description = 'don\'t minimize shaders',
+    trigger = 'raw_shaders',
+    description = 'don\'t rename shader variables, or remove whitespace or comments',
 })
-project('rive_pls_shaders')
-do
-    kind('Makefile')
-    local makecommand = '@make -C ' .. path.getabsolute('renderer/shaders')
-    if _OPTIONS['human-readable-shaders'] then
-        makecommand = makecommand .. ' FLAGS=--human-readable'
-    end
+if _OPTIONS['raw_shaders'] then
+    makecommand = makecommand .. ' FLAGS=--human-readable'
+end
 
-    cleancommands({ makecommand .. ' clean' })
-    buildcommands({ makecommand .. ' minify' })
-    rebuildcommands({ makecommand .. ' minify' })
-
-    filter('system:macosx')
-    do
-        buildcommands({ makecommand .. ' rive_pls_macosx_metallib' })
-        rebuildcommands({ makecommand .. ' rive_pls_macosx_metallib' })
-    end
-
-    filter({ 'system:ios', 'options:variant=system' })
-    do
-        buildcommands({ makecommand .. ' rive_pls_ios_metallib' })
-        rebuildcommands({ makecommand .. ' rive_pls_ios_metallib' })
-    end
-
-    filter({ 'system:ios', 'options:variant=emulator' })
-    do
-        buildcommands({ makecommand .. ' rive_pls_ios_simulator_metallib' })
-        rebuildcommands({ makecommand .. ' rive_pls_ios_simulator_metallib' })
-    end
-
-    filter({ 'options:with-dawn or with-webgpu or with_vulkan' })
-    do
-        buildcommands({ makecommand .. ' spirv' })
-        rebuildcommands({ makecommand .. ' spirv' })
-    end
-
-    filter('system:windows')
-    do
-        architecture('x64')
+if os.host() == 'macosx' then
+    if _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'system' then
+        makecommand = makecommand .. ' rive_pls_ios_metallib'
+    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'emulator' then
+        makecommand = makecommand .. ' rive_pls_ios_simulator_metallib'
+    else
+        makecommand = makecommand .. ' rive_pls_macosx_metallib'
     end
 end
+
+if _OPTIONS['with_vulkan'] or _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] then
+    makecommand = makecommand .. ' spirv'
+end
+
+-- Wipe out the shader directory if this make command differs from the one that built it.
+local makecommand_file = pls_shaders_absolute_dir .. '/.makecommand'
+os.execute(
+    'if [[ $(< '
+        .. makecommand_file
+        .. ') != \''
+        .. makecommand
+        .. '\' ]]; then '
+        .. 'rm -fr '
+        .. pls_shaders_absolute_dir
+        .. '; fi'
+)
+
+-- Generate shaders.
+os.execute(makecommand)
+
+-- Save the make command for incremental shader builds.
+os.execute('echo \'' .. makecommand .. '\' > ' .. makecommand_file)
 
 newoption({
     trigger = 'nop-obj-c',
@@ -151,9 +153,14 @@ newoption({
 })
 project('rive_pls_renderer')
 do
-    dependson('rive_pls_shaders')
     kind('StaticLib')
-    includedirs({ 'include', 'glad', 'renderer', RIVE_RUNTIME_DIR .. '/include' })
+    includedirs({
+        'include',
+        'glad',
+        'renderer',
+        RIVE_RUNTIME_DIR .. '/include',
+        pls_generated_headers,
+    })
     flags({ 'FatalWarnings' })
 
     files({ 'renderer/*.cpp', 'renderer/decoding/*.cpp' })

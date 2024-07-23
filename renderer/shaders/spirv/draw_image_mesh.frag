@@ -10,8 +10,8 @@
 #define ENABLE_HSL_BLEND_MODES
 #define DRAW_IMAGE
 #define DRAW_IMAGE_MESH
-#include "../../shaders/out/generated/glsl.minified.glsl"
-#include "../../shaders/out/generated/constants.minified.glsl"
-#include "../../shaders/out/generated/common.minified.glsl"
-#include "../../shaders/out/generated/advanced_blend.minified.glsl"
-#include "../../shaders/out/generated/draw_image_mesh.minified.glsl"
+#include "glsl.minified.glsl"
+#include "constants.minified.glsl"
+#include "common.minified.glsl"
+#include "advanced_blend.minified.glsl"
+#include "draw_image_mesh.minified.glsl"

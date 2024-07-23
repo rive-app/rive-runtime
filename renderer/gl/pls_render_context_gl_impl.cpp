@@ -10,16 +10,16 @@
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
-#include "shaders/out/generated/advanced_blend.glsl.hpp"
-#include "shaders/out/generated/color_ramp.glsl.hpp"
-#include "shaders/out/generated/constants.glsl.hpp"
-#include "shaders/out/generated/common.glsl.hpp"
-#include "shaders/out/generated/draw_path_common.glsl.hpp"
-#include "shaders/out/generated/draw_path.glsl.hpp"
-#include "shaders/out/generated/draw_image_mesh.glsl.hpp"
-#include "shaders/out/generated/tessellate.glsl.hpp"
-#include "shaders/out/generated/blit_texture_as_draw.glsl.hpp"
-#include "shaders/out/generated/stencil_draw.glsl.hpp"
+#include "generated/shaders/advanced_blend.glsl.hpp"
+#include "generated/shaders/color_ramp.glsl.hpp"
+#include "generated/shaders/constants.glsl.hpp"
+#include "generated/shaders/common.glsl.hpp"
+#include "generated/shaders/draw_path_common.glsl.hpp"
+#include "generated/shaders/draw_path.glsl.hpp"
+#include "generated/shaders/draw_image_mesh.glsl.hpp"
+#include "generated/shaders/tessellate.glsl.hpp"
+#include "generated/shaders/blit_texture_as_draw.glsl.hpp"
+#include "generated/shaders/stencil_draw.glsl.hpp"
 
 #ifdef RIVE_WEBGL
 // In an effort to save space on web, and since web doesn't have ES 3.1 level support, don't include
@@ -30,7 +30,7 @@ const char atomic_draw[] = "";
 }
 #define DISABLE_PLS_ATOMICS
 #else
-#include "shaders/out/generated/atomic_draw.glsl.hpp"
+#include "generated/shaders/atomic_draw.glsl.hpp"
 #endif
 
 #ifdef RIVE_WEBGL

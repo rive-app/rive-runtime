@@ -48,7 +48,7 @@ $(OUT)/macosx/rive_pls_macosx.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $
 	@mkdir -p $(OUT)/macosx
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk macosx metal -std=macos-metal2.3 \
-		-ffast-math -ffp-contract=fast -fpreserve-invariance -fvisibility=hidden \
+		-I$(OUT) -ffast-math -ffp-contract=fast -fpreserve-invariance -fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/macosx/%.air, $(FILE));)
 	xcrun -sdk macosx metallib $(METAL_MACOSX_AIR_OUTPUTS) -o $(OUT)/macosx/rive_pls_macosx.metallib
@@ -62,7 +62,7 @@ $(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_
 	@mkdir -p $(OUT)/ios
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk iphoneos metal -std=ios-metal2.2 \
-		-mios-version-min=13 -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-I$(OUT) -mios-version-min=13 -ffast-math -ffp-contract=fast -fpreserve-invariance \
 		-fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
@@ -75,7 +75,7 @@ $(OUT)/ios/rive_pls_ios_simulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUT
 	@mkdir -p $(OUT)/ios
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk iphonesimulator metal -std=ios-metal2.2 \
-		-miphonesimulator-version-min=13 -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-I$(OUT) -miphonesimulator-version-min=13 -ffast-math -ffp-contract=fast -fpreserve-invariance \
 		-fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
@@ -92,7 +92,7 @@ SPIRV_OUTPUTS := $(addprefix $(OUT)/, \
 
 $(OUT)/spirv/%.h: spirv/% $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -V --vn $(subst .,_,$(notdir $<)) -o $@ $<
+	@glslangValidator -I$(OUT) -V --vn $(subst .,_,$(notdir $<)) -o $@ $<
 
 spirv: $(SPIRV_OUTPUTS)
 

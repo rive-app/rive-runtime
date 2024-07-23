@@ -4,17 +4,17 @@
 
 #include "background_shader_compiler.h"
 
-#include "shaders/out/generated/metal.glsl.hpp"
-#include "shaders/out/generated/constants.glsl.hpp"
-#include "shaders/out/generated/common.glsl.hpp"
-#include "shaders/out/generated/advanced_blend.glsl.hpp"
-#include "shaders/out/generated/draw_path_common.glsl.hpp"
-#include "shaders/out/generated/draw_path.glsl.hpp"
-#include "shaders/out/generated/draw_image_mesh.glsl.hpp"
+#include "generated/shaders/metal.glsl.hpp"
+#include "generated/shaders/constants.glsl.hpp"
+#include "generated/shaders/common.glsl.hpp"
+#include "generated/shaders/advanced_blend.glsl.hpp"
+#include "generated/shaders/draw_path_common.glsl.hpp"
+#include "generated/shaders/draw_path.glsl.hpp"
+#include "generated/shaders/draw_image_mesh.glsl.hpp"
 
 #ifndef RIVE_IOS
 // iOS doesn't need the atomic shaders; every non-simulated iOS device supports framebuffer reads.
-#include "shaders/out/generated/atomic_draw.glsl.hpp"
+#include "generated/shaders/atomic_draw.glsl.hpp"
 #endif
 
 #include <sstream>

@@ -8,7 +8,7 @@
 #include <sstream>
 #include <vector>
 
-#include "shaders/out/generated/glsl.glsl.hpp"
+#include "generated/shaders/glsl.glsl.hpp"
 
 #ifdef BYPASS_EMSCRIPTEN_SHADER_PARSER
 #include <emscripten/emscripten.h>

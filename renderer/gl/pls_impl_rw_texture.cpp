@@ -8,7 +8,7 @@
 #include "shaders/constants.glsl"
 #include "rive/pls/gl/gl_utils.hpp"
 
-#include "shaders/out/generated/glsl.exports.h"
+#include "generated/shaders/glsl.exports.h"
 
 namespace rive::pls
 {

@@ -9,7 +9,7 @@
 #include "rive/pls/pls_image.hpp"
 #include "pls_paint.hpp"
 
-#include "shaders/out/generated/draw_path.exports.h"
+#include "generated/shaders/draw_path.exports.h"
 
 namespace rive::pls
 {

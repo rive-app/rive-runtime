@@ -4,7 +4,7 @@
 
 #include "rive/pls/gl/load_store_actions_ext.hpp"
 
-#include "shaders/out/generated/pls_load_store_ext.glsl.hpp"
+#include "generated/shaders/pls_load_store_ext.glsl.hpp"
 
 namespace rive::pls
 {

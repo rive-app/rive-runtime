@@ -8,9 +8,9 @@
 #define ENABLE_EVEN_ODD
 #define ENABLE_NESTED_CLIPPING
 #define ENABLE_HSL_BLEND_MODES
-#include "../../shaders/out/generated/glsl.minified.glsl"
-#include "../../shaders/out/generated/constants.minified.glsl"
-#include "../../shaders/out/generated/common.minified.glsl"
-#include "../../shaders/out/generated/advanced_blend.minified.glsl"
-#include "../../shaders/out/generated/draw_path_common.minified.glsl"
-#include "../../shaders/out/generated/atomic_draw.minified.glsl"
+#include "glsl.minified.glsl"
+#include "constants.minified.glsl"
+#include "common.minified.glsl"
+#include "advanced_blend.minified.glsl"
+#include "draw_path_common.minified.glsl"
+#include "atomic_draw.minified.glsl"

@@ -3,7 +3,7 @@
 #extension GL_EXT_samplerless_texture_functions : require
 #define VERTEX
 #define TARGET_VULKAN
-#include "../../shaders/out/generated/glsl.minified.glsl"
-#include "../../shaders/out/generated/constants.minified.glsl"
-#include "../../shaders/out/generated/common.minified.glsl"
-#include "../../shaders/out/generated/tessellate.minified.glsl"
+#include "glsl.minified.glsl"
+#include "constants.minified.glsl"
+#include "common.minified.glsl"
+#include "tessellate.minified.glsl"

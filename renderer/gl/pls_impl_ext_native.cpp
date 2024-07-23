@@ -10,7 +10,7 @@
 #include "rive/pls/gl/pls_render_target_gl.hpp"
 #include <sstream>
 
-#include "shaders/out/generated/pls_load_store_ext.exports.h"
+#include "generated/shaders/pls_load_store_ext.exports.h"
 
 namespace rive::pls
 {

@@ -9,8 +9,8 @@
 #define ENABLE_CLIP_RECT
 #define ENABLE_ADVANCED_BLEND
 #define DRAW_PATH
-#include "../../shaders/out/generated/glsl.minified.glsl"
-#include "../../shaders/out/generated/constants.minified.glsl"
-#include "../../shaders/out/generated/common.minified.glsl"
-#include "../../shaders/out/generated/draw_path_common.minified.glsl"
-#include "../../shaders/out/generated/draw_path.minified.glsl"
+#include "glsl.minified.glsl"
+#include "constants.minified.glsl"
+#include "common.minified.glsl"
+#include "draw_path_common.minified.glsl"
+#include "draw_path.minified.glsl"
