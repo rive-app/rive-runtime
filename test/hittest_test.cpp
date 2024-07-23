@@ -185,3 +185,65 @@ TEST_CASE("hit test on opaque nested artboard", "[hittest]")
     REQUIRE(secondNestedBoolTarget->value() == true);
     delete stateMachineInstance;
 }
+
+TEST_CASE("early out on listeners", "[hittest]")
+{
+    auto file = ReadRiveFile("../../test/assets/pointer_events.riv");
+
+    auto artboard = file->artboard("art-1");
+    auto artboardInstance = artboard->instance();
+    auto stateMachine = artboard->stateMachine("sm-1");
+
+    REQUIRE(artboardInstance != nullptr);
+    REQUIRE(artboardInstance->stateMachineCount() == 1);
+
+    REQUIRE(stateMachine != nullptr);
+
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
+
+    stateMachineInstance->advance(0.0f);
+    artboardInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->needsAdvance() == true);
+    stateMachineInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->hitComponentsCount() == 4);
+    // Hit component with only pointer down and pointer up listeners
+    auto hitComponentWithEarlyOut = stateMachineInstance->hitComponent(0);
+    // Hit component that can't early out because it has a pointer enter event
+    auto hitComponentWithNoEarlyOut = stateMachineInstance->hitComponent(1);
+    // Hit component that can't early out because it is an opaque target
+    auto hitComponentOpaque = stateMachineInstance->hitComponent(2);
+    // Hit component that can early out on all and pointer up
+    auto hitComponentOnlyPointerDown = stateMachineInstance->hitComponent(3);
+    REQUIRE(hitComponentWithEarlyOut->earlyOutCount == 0);
+    REQUIRE(hitComponentWithNoEarlyOut->earlyOutCount == 0);
+    REQUIRE(hitComponentOpaque->earlyOutCount == 0);
+    REQUIRE(hitComponentOnlyPointerDown->earlyOutCount == 0);
+    stateMachineInstance->pointerMove(rive::Vec2D(100.0f, 250.0f));
+    REQUIRE(hitComponentWithEarlyOut->earlyOutCount == 1);
+    REQUIRE(hitComponentWithNoEarlyOut->earlyOutCount == 0);
+    REQUIRE(hitComponentOpaque->earlyOutCount == 0);
+    REQUIRE(hitComponentOnlyPointerDown->earlyOutCount == 1);
+    stateMachineInstance->pointerExit(rive::Vec2D(100.0f, 250.0f));
+    REQUIRE(hitComponentWithEarlyOut->earlyOutCount == 2);
+    REQUIRE(hitComponentWithNoEarlyOut->earlyOutCount == 0);
+    REQUIRE(hitComponentOnlyPointerDown->earlyOutCount == 2);
+    REQUIRE(hitComponentOpaque->earlyOutCount == 0);
+    stateMachineInstance->pointerDown(rive::Vec2D(100.0f, 250.0f));
+    REQUIRE(hitComponentWithEarlyOut->earlyOutCount == 2);
+    REQUIRE(hitComponentWithNoEarlyOut->earlyOutCount == 0);
+    REQUIRE(hitComponentOpaque->earlyOutCount == 0);
+    REQUIRE(hitComponentOnlyPointerDown->earlyOutCount == 2);
+    stateMachineInstance->pointerUp(rive::Vec2D(100.0f, 250.0f));
+    REQUIRE(hitComponentWithEarlyOut->earlyOutCount == 2);
+    REQUIRE(hitComponentWithNoEarlyOut->earlyOutCount == 0);
+    REQUIRE(hitComponentOpaque->earlyOutCount == 0);
+    REQUIRE(hitComponentOnlyPointerDown->earlyOutCount == 3);
+    stateMachineInstance->pointerMove(rive::Vec2D(105.0f, 205.0f));
+    REQUIRE(hitComponentWithEarlyOut->earlyOutCount == 3);
+    REQUIRE(hitComponentWithNoEarlyOut->earlyOutCount == 0);
+    REQUIRE(hitComponentOpaque->earlyOutCount == 0);
+    REQUIRE(hitComponentOnlyPointerDown->earlyOutCount == 4);
+
+    delete stateMachineInstance;
+}

@@ -421,24 +421,6 @@ private:
     float m_holdTime = 0.0f;
 };
 
-class HitComponent
-{
-public:
-    Component* component() const { return m_component; }
-    HitComponent(Component* component, StateMachineInstance* stateMachineInstance) :
-        m_component(component), m_stateMachineInstance(stateMachineInstance)
-    {}
-    virtual ~HitComponent() {}
-    virtual HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) = 0;
-#ifdef WITH_RIVE_TOOLS
-    virtual bool hitTest(Vec2D position) const = 0;
-#endif
-
-protected:
-    Component* m_component;
-    StateMachineInstance* m_stateMachineInstance;
-};
-
 /// Representation of a Shape from the Artboard Instance and all the listeners it
 /// triggers. Allows tracking hover and performing hit detection only once on
 /// shapes that trigger multiple listeners.
@@ -447,8 +429,16 @@ class HitShape : public HitComponent
 public:
     HitShape(Component* shape, StateMachineInstance* stateMachineInstance) :
         HitComponent(shape, stateMachineInstance)
-    {}
+    {
+        if (shape->as<Shape>()->isTargetOpaque())
+        {
+            canEarlyOut = false;
+        }
+    }
     bool isHovered = false;
+    bool canEarlyOut = true;
+    bool hasDownListener = false;
+    bool hasUpListener = false;
     float hitRadius = 2;
     Vec2D previousPosition;
     std::vector<const StateMachineListener*> listeners;
@@ -474,6 +464,18 @@ public:
 
     HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
     {
+        // If the shape doesn't have any ListenerType::move / enter / exit and the event
+        // being processed is not of the type it needs to handle. There is no need to perform
+        // a hitTest (which is relatively expensive and would be happening on every
+        // pointer move) so we early out.
+        if (canEarlyOut && (hitType != ListenerType::down || !hasDownListener) &&
+            (hitType != ListenerType::up || !hasUpListener))
+        {
+#ifdef TESTING
+            earlyOutCount++;
+#endif
+            return HitResult::none;
+        }
         auto shape = m_component->as<Shape>();
         bool isOver = canHit ? hitTest(position) : false;
         bool hoverChange = isHovered != isOver;
@@ -512,6 +514,28 @@ public:
         previousPosition.y = position.y;
         return isOver ? shape->isTargetOpaque() ? HitResult::hitOpaque : HitResult::hit
                       : HitResult::none;
+    }
+
+    void addListener(const StateMachineListener* stateMachineListener)
+    {
+        auto listenerType = stateMachineListener->listenerType();
+        if (listenerType == ListenerType::enter || listenerType == ListenerType::exit ||
+            listenerType == ListenerType::move)
+        {
+            canEarlyOut = false;
+        }
+        else
+        {
+            if (listenerType == ListenerType::down)
+            {
+                hasDownListener = true;
+            }
+            else if (listenerType == ListenerType::up)
+            {
+                hasUpListener = true;
+            }
+        }
+        listeners.push_back(stateMachineListener);
     }
 };
 class HitNestedArtboard : public HitComponent
@@ -753,7 +777,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     {
                         hitShape = itr->second;
                     }
-                    hitShape->listeners.push_back(listener);
+                    hitShape->addListener(listener);
                 }
                 return true;
             });

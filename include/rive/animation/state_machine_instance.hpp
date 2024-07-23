@@ -26,6 +26,7 @@ class SMITrigger;
 class Shape;
 class StateMachineLayerInstance;
 class HitComponent;
+class HitShape;
 class NestedArtboard;
 class NestedEventListener;
 class NestedEventNotifier;
@@ -135,6 +136,17 @@ public:
     const EventReport reportedEventAt(std::size_t index) const;
     bool playsAudio() override { return true; }
     BindableProperty* bindablePropertyInstance(BindableProperty* bindableProperty);
+#ifdef TESTING
+    size_t hitComponentsCount() { return m_hitComponents.size(); };
+    HitComponent* hitComponent(size_t index)
+    {
+        if (index < m_hitComponents.size())
+        {
+            return m_hitComponents[index].get();
+        }
+        return nullptr;
+    }
+#endif
 
 private:
     std::vector<EventReport> m_reportedEvents;
@@ -154,5 +166,27 @@ public:
     InputChanged m_inputChangedCallback = nullptr;
 #endif
 };
+
+class HitComponent
+{
+public:
+    Component* component() const { return m_component; }
+    HitComponent(Component* component, StateMachineInstance* stateMachineInstance) :
+        m_component(component), m_stateMachineInstance(stateMachineInstance)
+    {}
+    virtual ~HitComponent() {}
+    virtual HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) = 0;
+#ifdef WITH_RIVE_TOOLS
+    virtual bool hitTest(Vec2D position) const = 0;
+#endif
+#ifdef TESTING
+    int earlyOutCount = 0;
+#endif
+
+protected:
+    Component* m_component;
+    StateMachineInstance* m_stateMachineInstance;
+};
+
 } // namespace rive
 #endif
