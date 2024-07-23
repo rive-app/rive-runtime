@@ -10,8 +10,8 @@ namespace rive
 enum class LayoutAnimationStyle : uint8_t
 {
     none,
-    custom,
-    inherit
+    inherit,
+    custom
 };
 
 enum class LayoutStyleInterpolation : uint8_t
@@ -163,6 +163,11 @@ public:
     void positionRightUnitsValueChanged() override;
     void positionTopUnitsValueChanged() override;
     void positionBottomUnitsValueChanged() override;
+
+    void cornerRadiusTLChanged() override;
+    void cornerRadiusTRChanged() override;
+    void cornerRadiusBLChanged() override;
+    void cornerRadiusBRChanged() override;
 };
 } // namespace rive
 

@@ -14,7 +14,13 @@
       "group": "position",
       "key": {
         "int": 13,
-        "string": "x"
+        "string": "x",
+        "alternates": [
+          {
+            "int": 9,
+            "string": "xArtboard"
+          }
+        ]
       }
     },
     "y": {
@@ -25,7 +31,13 @@
       "group": "position",
       "key": {
         "int": 14,
-        "string": "y"
+        "string": "y",
+        "alternates": [
+          {
+            "int": 10,
+            "string": "yArtboard"
+          }
+        ]
       }
     },
     "styleValue": {

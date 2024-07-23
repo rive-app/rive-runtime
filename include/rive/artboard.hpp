@@ -13,7 +13,6 @@
 #include "rive/hit_info.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/renderer.hpp"
-#include "rive/shapes/shape_paint_container.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
 #include "rive/audio/audio_engine.hpp"
@@ -48,7 +47,7 @@ class SMITrigger;
 typedef void (*ArtboardCallback)(Artboard*);
 #endif
 
-class Artboard : public ArtboardBase, public CoreContext, public ShapePaintContainer
+class Artboard : public ArtboardBase, public CoreContext
 {
     friend class File;
     friend class ArtboardImporter;
@@ -71,8 +70,6 @@ private:
 
     unsigned int m_DirtDepth = 0;
     RawPath m_backgroundRawPath;
-    rcp<RenderPath> m_BackgroundPath;
-    rcp<RenderPath> m_ClipPath;
     Factory* m_Factory = nullptr;
     Drawable* m_FirstDrawable = nullptr;
     bool m_IsInstance = false;
@@ -88,8 +85,7 @@ private:
     void sortDependencies();
     void sortDrawOrder();
     void updateDataBinds();
-
-    Artboard* getArtboard() override { return this; }
+    void performUpdate(ComponentDirt value) override;
 
 #ifdef TESTING
 public:
@@ -114,14 +110,19 @@ public:
 
     // EXPERIMENTAL -- for internal testing only for now.
     // DO NOT RELY ON THIS as it may change/disappear in the future.
-    Core* hitTest(HitInfo*, const Mat2D* = nullptr);
+    Core* hitTest(HitInfo*, const Mat2D&) override;
 
     void onComponentDirty(Component* component);
 
     /// Update components that depend on each other in DAG order.
     bool updateComponents();
-    void update(ComponentDirt value) override;
     void onDirty(ComponentDirt dirt) override;
+
+    // Artboards don't update their world transforms in the same way
+    // as other TransformComponents so we override this.
+    // This is because LayoutComponent extends Drawable, but
+    // Artboard is a special type of LayoutComponent
+    void updateWorldTransform() override {}
 
     void markLayoutDirty(LayoutComponent* layoutComponent)
     {
@@ -150,12 +151,13 @@ public:
         kHideBG,
         kHideFG,
     };
-    void draw(Renderer* renderer, DrawOption = DrawOption::kNormal);
+    void draw(Renderer* renderer, DrawOption option);
+    void draw(Renderer* renderer) override;
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
 
 #ifdef TESTING
-    RenderPath* clipPath() const { return m_ClipPath.get(); }
-    RenderPath* backgroundPath() const { return m_BackgroundPath.get(); }
+    RenderPath* clipPath() const { return m_clipPath.get(); }
+    RenderPath* backgroundPath() const { return m_backgroundPath.get(); }
 #endif
 
     const std::vector<Core*>& objects() const { return m_Objects; }

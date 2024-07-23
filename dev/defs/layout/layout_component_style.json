@@ -717,6 +717,55 @@
         "string": "maxheightunitsvalue"
       },
       "description": ""
+    },
+    "linkCornerRadius": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 639,
+        "string": "linkcornerradius"
+      },
+      "description": "Whether the TL corner radius defines all the radiuses"
+    },
+    "cornerRadiusTL": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 640,
+        "string": "cornerradiustl"
+      },
+      "description": "Top left radius of the corners of this layout"
+    },
+    "cornerRadiusTR": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 641,
+        "string": "cornerradiustr"
+      },
+      "description": "Top right radius of the corners of this layout"
+    },
+    "cornerRadiusBL": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 642,
+        "string": "cornerradiusbl"
+      },
+      "description": "Bottom left radius of the corners of this layout"
+    },
+    "cornerRadiusBR": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 643,
+        "string": "cornerradiusbr"
+      },
+      "description": "Bottom right radius of the corners of this layout"
     }
   }
 }

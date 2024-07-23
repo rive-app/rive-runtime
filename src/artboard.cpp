@@ -15,6 +15,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/joystick.hpp"
 #include "rive/data_bind_flags.hpp"
@@ -84,8 +85,8 @@ StatusCode Artboard::initialize()
     StatusCode code;
 
     // these will be re-built in update() -- are they needed here?
-    m_BackgroundPath = factory()->makeEmptyRenderPath();
-    m_ClipPath = factory()->makeEmptyRenderPath();
+    m_backgroundPath = factory()->makeEmptyRenderPath();
+    m_clipPath = factory()->makeEmptyRenderPath();
     m_layoutSizeWidth = width();
     m_layoutSizeHeight = height();
 
@@ -218,7 +219,7 @@ StatusCode Artboard::initialize()
         {
             object->as<Component>()->buildDependencies();
         }
-        if (object->is<Drawable>())
+        if (object->is<Drawable>() && object != this)
         {
             Drawable* drawable = object->as<Drawable>();
             m_Drawables.push_back(drawable);
@@ -234,6 +235,48 @@ StatusCode Artboard::initialize()
                 }
             }
         }
+    }
+    // Iterate over the drawables in order to inject proxies for layouts
+    std::vector<LayoutComponent*> layouts;
+    for (int i = 0; i < m_Drawables.size(); i++)
+    {
+        auto drawable = m_Drawables[i];
+        LayoutComponent* currentLayout;
+        bool isInCurrentLayout = true;
+        if (!layouts.empty())
+        {
+            currentLayout = layouts.back();
+            isInCurrentLayout = false;
+        }
+        for (ContainerComponent* parent = drawable; parent != nullptr; parent = parent->parent())
+        {
+            if (parent == currentLayout)
+            {
+                isInCurrentLayout = true;
+                break;
+            }
+        }
+        // We inject a DrawableProxy after all of the children of a LayoutComponent
+        // so that we can draw a stroke above and background below the children
+        // This also allows us to clip the children
+        if (currentLayout != nullptr && !isInCurrentLayout)
+        {
+            // This is the first item in the list of drawables that isn't a child
+            // of the layout, so we insert a proxy before it
+            m_Drawables.insert(m_Drawables.begin() + i, currentLayout->proxy());
+            layouts.pop_back();
+            i += 1;
+        }
+        if (drawable->is<LayoutComponent>())
+        {
+            layouts.push_back(drawable->as<LayoutComponent>());
+        }
+    }
+    while (!layouts.empty())
+    {
+        auto layout = layouts.back();
+        m_Drawables.push_back(layout->proxy());
+        layouts.pop_back();
     }
 
     sortDependencies();
@@ -474,7 +517,7 @@ float Artboard::layoutHeight() const
 #endif
 }
 
-void Artboard::update(ComponentDirt value)
+void Artboard::performUpdate(ComponentDirt value)
 {
     if (hasDirt(value, ComponentDirt::DrawOrder))
     {
@@ -495,11 +538,11 @@ void Artboard::update(ComponentDirt value)
         {
             clip = bg;
         }
-        m_ClipPath = factory()->makeRenderPath(clip);
+        m_clipPath = factory()->makeRenderPath(clip);
 
         m_backgroundRawPath.addRect(bg);
-        m_BackgroundPath->rewind();
-        m_backgroundRawPath.addTo(m_BackgroundPath.get());
+        m_backgroundPath->rewind();
+        m_backgroundRawPath.addTo(m_backgroundPath.get());
     }
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
@@ -655,14 +698,14 @@ bool Artboard::advance(double elapsedSeconds, bool nested)
     return advanceInternal(elapsedSeconds, true, nested);
 }
 
-Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform)
+Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
 {
     if (clip())
     {
         // TODO: can we get the rawpath for the clip?
     }
 
-    auto mx = xform ? *xform : Mat2D();
+    auto mx = xform;
     if (m_FrameOrigin)
     {
         mx *= Mat2D::fromTranslate(layoutWidth() * originX(), layoutHeight() * originY());
@@ -694,12 +737,14 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D* xform)
     return nullptr;
 }
 
+void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }
+
 void Artboard::draw(Renderer* renderer, DrawOption option)
 {
     renderer->save();
     if (clip())
     {
-        renderer->clipPath(m_ClipPath.get());
+        renderer->clipPath(m_clipPath.get());
     }
 
     if (m_FrameOrigin)
@@ -714,7 +759,7 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
     {
         for (auto shapePaint : m_ShapePaints)
         {
-            shapePaint->draw(renderer, m_BackgroundPath.get(), &m_backgroundRawPath);
+            shapePaint->draw(renderer, m_backgroundPath.get(), &m_backgroundRawPath);
         }
     }
 

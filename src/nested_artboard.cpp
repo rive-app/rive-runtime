@@ -60,7 +60,7 @@ void NestedArtboard::draw(Renderer* renderer)
     {
         return;
     }
-    ClipResult clipResult = clip(renderer);
+    ClipResult clipResult = applyClip(renderer);
     if (clipResult == ClipResult::noClip)
     {
         // We didn't clip, so make sure to save as we'll be doing some
@@ -83,7 +83,7 @@ Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
     }
     hinfo->mounts.push_back(this);
     auto mx = xform * worldTransform() * makeTranslate(m_Artboard);
-    if (auto c = m_Artboard->hitTest(hinfo, &mx))
+    if (auto c = m_Artboard->hitTest(hinfo, mx))
     {
         return c;
     }

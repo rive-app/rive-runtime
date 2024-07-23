@@ -183,6 +183,11 @@ class Definition {
       for (final property in properties) {
         code.writeln('static const uint16_t ${property.name}PropertyKey = '
             '${property.key!.intValue};');
+        for (final altKey in property.key!.alternates) {
+          code.writeln(
+              'static const uint16_t ${altKey.stringValue}PropertyKey = '
+              '${altKey.intValue};');
+        }
       }
       if (storedProperties.any((prop) => !prop.isEncoded)) {
         code.writeln('private:');
@@ -486,6 +491,12 @@ class Definition {
         for (final property in properties) {
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
+          if (property.key != null) {
+            for (final altKey in property.key!.alternates) {
+              ctxCode.writeln('case ${property.definition.name}Base'
+                  '::${altKey.stringValue}PropertyKey:');
+            }
+          }
           ctxCode.writeln('object->as<${property.definition.name}Base>()->'
               '${property.name}(value);');
           ctxCode.writeln('break;');
@@ -506,6 +517,10 @@ class Definition {
         for (final property in properties) {
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
+          for (final altKey in property.key!.alternates) {
+            ctxCode.writeln('case ${property.definition.name}Base'
+                '::${altKey.stringValue}PropertyKey:');
+          }
           ctxCode
               .writeln('return object->as<${property.definition.name}Base>()->'
                   '${property.name}();');
@@ -528,6 +543,10 @@ class Definition {
         for (final property in properties) {
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
+          for (final altKey in property.key!.alternates) {
+            ctxCode.writeln('case ${property.definition.name}Base'
+                '::${altKey.stringValue}PropertyKey:');
+          }
         }
       }
       ctxCode.writeln('return Core${fieldType.capitalizedName}Type::id;');
@@ -567,6 +586,10 @@ class Definition {
         for (final property in properties) {
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
+          for (final altKey in property.key!.alternates) {
+            ctxCode.writeln('case ${property.definition.name}Base'
+                '::${altKey.stringValue}PropertyKey:');
+          }
           ctxCode
               .writeln('return object->is<${property.definition.name}Base>();');
         }

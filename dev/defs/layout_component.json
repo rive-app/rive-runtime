@@ -4,7 +4,7 @@
     "int": 409,
     "string": "layoutcomponent"
   },
-  "extends": "world_transform_component.json",
+  "extends": "drawable.json",
   "properties": {
     "clip": {
       "type": "bool",

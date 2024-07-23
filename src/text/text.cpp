@@ -509,7 +509,7 @@ const TextStyle* Text::styleFromShaperId(uint16_t id) const
 void Text::draw(Renderer* renderer)
 {
 
-    ClipResult clipResult = clip(renderer);
+    ClipResult clipResult = applyClip(renderer);
     if (clipResult == ClipResult::noClip)
     {
         // We didn't clip, so make sure to save as we'll be doing some

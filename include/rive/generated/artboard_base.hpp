@@ -21,6 +21,9 @@ public:
         {
             case ArtboardBase::typeKey:
             case LayoutComponentBase::typeKey:
+            case DrawableBase::typeKey:
+            case NodeBase::typeKey:
+            case TransformComponentBase::typeKey:
             case WorldTransformComponentBase::typeKey:
             case ContainerComponentBase::typeKey:
             case ComponentBase::typeKey:
@@ -32,44 +35,18 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t xPropertyKey = 9;
-    static const uint16_t yPropertyKey = 10;
     static const uint16_t originXPropertyKey = 11;
     static const uint16_t originYPropertyKey = 12;
     static const uint16_t defaultStateMachineIdPropertyKey = 236;
     static const uint16_t viewModelIdPropertyKey = 583;
 
 private:
-    float m_X = 0.0f;
-    float m_Y = 0.0f;
     float m_OriginX = 0.0f;
     float m_OriginY = 0.0f;
     uint32_t m_DefaultStateMachineId = -1;
     uint32_t m_ViewModelId = -1;
 
 public:
-    inline float x() const { return m_X; }
-    void x(float value)
-    {
-        if (m_X == value)
-        {
-            return;
-        }
-        m_X = value;
-        xChanged();
-    }
-
-    inline float y() const { return m_Y; }
-    void y(float value)
-    {
-        if (m_Y == value)
-        {
-            return;
-        }
-        m_Y = value;
-        yChanged();
-    }
-
     inline float originX() const { return m_OriginX; }
     void originX(float value)
     {
@@ -117,8 +94,6 @@ public:
     Core* clone() const override;
     void copy(const ArtboardBase& object)
     {
-        m_X = object.m_X;
-        m_Y = object.m_Y;
         m_OriginX = object.m_OriginX;
         m_OriginY = object.m_OriginY;
         m_DefaultStateMachineId = object.m_DefaultStateMachineId;
@@ -130,12 +105,6 @@ public:
     {
         switch (propertyKey)
         {
-            case xPropertyKey:
-                m_X = CoreDoubleType::deserialize(reader);
-                return true;
-            case yPropertyKey:
-                m_Y = CoreDoubleType::deserialize(reader);
-                return true;
             case originXPropertyKey:
                 m_OriginX = CoreDoubleType::deserialize(reader);
                 return true;
@@ -153,8 +122,6 @@ public:
     }
 
 protected:
-    virtual void xChanged() {}
-    virtual void yChanged() {}
     virtual void originXChanged() {}
     virtual void originYChanged() {}
     virtual void defaultStateMachineIdChanged() {}

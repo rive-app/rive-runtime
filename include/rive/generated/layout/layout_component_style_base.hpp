@@ -98,6 +98,11 @@ public:
     static const uint16_t minHeightUnitsValuePropertyKey = 628;
     static const uint16_t maxWidthUnitsValuePropertyKey = 629;
     static const uint16_t maxHeightUnitsValuePropertyKey = 630;
+    static const uint16_t linkCornerRadiusPropertyKey = 639;
+    static const uint16_t cornerRadiusTLPropertyKey = 640;
+    static const uint16_t cornerRadiusTRPropertyKey = 641;
+    static const uint16_t cornerRadiusBLPropertyKey = 642;
+    static const uint16_t cornerRadiusBRPropertyKey = 643;
 
 private:
     float m_GapHorizontal = 0.0f;
@@ -168,6 +173,11 @@ private:
     uint32_t m_MinHeightUnitsValue = 0;
     uint32_t m_MaxWidthUnitsValue = 0;
     uint32_t m_MaxHeightUnitsValue = 0;
+    bool m_LinkCornerRadius = true;
+    float m_CornerRadiusTL = 0.0f;
+    float m_CornerRadiusTR = 0.0f;
+    float m_CornerRadiusBL = 0.0f;
+    float m_CornerRadiusBR = 0.0f;
 
 public:
     inline float gapHorizontal() const { return m_GapHorizontal; }
@@ -918,6 +928,61 @@ public:
         maxHeightUnitsValueChanged();
     }
 
+    inline bool linkCornerRadius() const { return m_LinkCornerRadius; }
+    void linkCornerRadius(bool value)
+    {
+        if (m_LinkCornerRadius == value)
+        {
+            return;
+        }
+        m_LinkCornerRadius = value;
+        linkCornerRadiusChanged();
+    }
+
+    inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
+    void cornerRadiusTL(float value)
+    {
+        if (m_CornerRadiusTL == value)
+        {
+            return;
+        }
+        m_CornerRadiusTL = value;
+        cornerRadiusTLChanged();
+    }
+
+    inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
+    void cornerRadiusTR(float value)
+    {
+        if (m_CornerRadiusTR == value)
+        {
+            return;
+        }
+        m_CornerRadiusTR = value;
+        cornerRadiusTRChanged();
+    }
+
+    inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
+    void cornerRadiusBL(float value)
+    {
+        if (m_CornerRadiusBL == value)
+        {
+            return;
+        }
+        m_CornerRadiusBL = value;
+        cornerRadiusBLChanged();
+    }
+
+    inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
+    void cornerRadiusBR(float value)
+    {
+        if (m_CornerRadiusBR == value)
+        {
+            return;
+        }
+        m_CornerRadiusBR = value;
+        cornerRadiusBRChanged();
+    }
+
     Core* clone() const override;
     void copy(const LayoutComponentStyleBase& object)
     {
@@ -989,6 +1054,11 @@ public:
         m_MinHeightUnitsValue = object.m_MinHeightUnitsValue;
         m_MaxWidthUnitsValue = object.m_MaxWidthUnitsValue;
         m_MaxHeightUnitsValue = object.m_MaxHeightUnitsValue;
+        m_LinkCornerRadius = object.m_LinkCornerRadius;
+        m_CornerRadiusTL = object.m_CornerRadiusTL;
+        m_CornerRadiusTR = object.m_CornerRadiusTR;
+        m_CornerRadiusBL = object.m_CornerRadiusBL;
+        m_CornerRadiusBR = object.m_CornerRadiusBR;
         Component::copy(object);
     }
 
@@ -1200,6 +1270,21 @@ public:
             case maxHeightUnitsValuePropertyKey:
                 m_MaxHeightUnitsValue = CoreUintType::deserialize(reader);
                 return true;
+            case linkCornerRadiusPropertyKey:
+                m_LinkCornerRadius = CoreBoolType::deserialize(reader);
+                return true;
+            case cornerRadiusTLPropertyKey:
+                m_CornerRadiusTL = CoreDoubleType::deserialize(reader);
+                return true;
+            case cornerRadiusTRPropertyKey:
+                m_CornerRadiusTR = CoreDoubleType::deserialize(reader);
+                return true;
+            case cornerRadiusBLPropertyKey:
+                m_CornerRadiusBL = CoreDoubleType::deserialize(reader);
+                return true;
+            case cornerRadiusBRPropertyKey:
+                m_CornerRadiusBR = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return Component::deserialize(propertyKey, reader);
     }
@@ -1273,6 +1358,11 @@ protected:
     virtual void minHeightUnitsValueChanged() {}
     virtual void maxWidthUnitsValueChanged() {}
     virtual void maxHeightUnitsValueChanged() {}
+    virtual void linkCornerRadiusChanged() {}
+    virtual void cornerRadiusTLChanged() {}
+    virtual void cornerRadiusTRChanged() {}
+    virtual void cornerRadiusBLChanged() {}
+    virtual void cornerRadiusBRChanged() {}
 };
 } // namespace rive
 

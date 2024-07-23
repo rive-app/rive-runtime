@@ -106,7 +106,7 @@ TEST_CASE("Shape does not have any clipping paths visible", "[clipping]")
     REQUIRE(clippedNode->is<rive::Shape>());
     rive::Shape* clippedShape = static_cast<rive::Shape*>(clippedNode);
     rive::NoOpRenderer renderer;
-    auto clipResult = clippedShape->clip(&renderer);
+    auto clipResult = clippedShape->applyClip(&renderer);
     REQUIRE(clipResult == rive::ClipResult::emptyClip);
 }
 
@@ -128,7 +128,7 @@ TEST_CASE("Shape has at least a clipping path visible", "[clipping]")
     REQUIRE(clippedNode->is<rive::Shape>());
     rive::Shape* clippedShape = static_cast<rive::Shape*>(clippedNode);
     rive::NoOpRenderer renderer;
-    auto clipResult = clippedShape->clip(&renderer);
+    auto clipResult = clippedShape->applyClip(&renderer);
     REQUIRE(clipResult == rive::ClipResult::clip);
 }
 
@@ -146,6 +146,6 @@ TEST_CASE("Shape returns an empty clip when one clipping shape is empty", "[clip
     rive::Shape* shape = static_cast<rive::Shape*>(node);
 
     rive::NoOpRenderer renderer;
-    auto clipResult = shape->clip(&renderer);
+    auto clipResult = shape->applyClip(&renderer);
     REQUIRE(clipResult == rive::ClipResult::emptyClip);
 }

@@ -32,7 +32,9 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t xPropertyKey = 13;
+    static const uint16_t xArtboardPropertyKey = 9;
     static const uint16_t yPropertyKey = 14;
+    static const uint16_t yArtboardPropertyKey = 10;
 
 private:
     float m_X = 0.0f;

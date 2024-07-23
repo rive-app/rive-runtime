@@ -1,8 +1,12 @@
 #ifndef _RIVE_LAYOUT_COMPONENT_HPP_
 #define _RIVE_LAYOUT_COMPONENT_HPP_
+#include "rive/drawable.hpp"
 #include "rive/generated/layout_component_base.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/layout/layout_measure_mode.hpp"
+#include "rive/math/raw_path.hpp"
+#include "rive/shapes/rectangle.hpp"
+#include "rive/shapes/shape_paint_container.hpp"
 #ifdef WITH_RIVE_LAYOUT
 #include "yoga/YGNode.h"
 #include "yoga/YGStyle.h"
@@ -30,7 +34,7 @@ struct LayoutAnimationData
     AABB toBounds = AABB();
 };
 
-class LayoutComponent : public LayoutComponentBase
+class LayoutComponent : public LayoutComponentBase, public ProxyDrawing, public ShapePaintContainer
 {
 protected:
     LayoutComponentStyle* m_style = nullptr;
@@ -45,6 +49,15 @@ protected:
     KeyFrameInterpolator* m_inheritedInterpolator;
     LayoutStyleInterpolation m_inheritedInterpolation = LayoutStyleInterpolation::hold;
     float m_inheritedInterpolationTime = 0;
+    Rectangle* m_backgroundRect = new Rectangle();
+    rcp<RenderPath> m_backgroundPath;
+    rcp<RenderPath> m_clipPath;
+    DrawableProxy m_proxy;
+
+    Artboard* getArtboard() override { return artboard(); }
+
+private:
+    virtual void performUpdate(ComponentDirt value);
 
 #ifdef WITH_RIVE_LAYOUT
 private:
@@ -62,13 +75,21 @@ protected:
 public:
     LayoutComponentStyle* style() { return m_style; }
     void style(LayoutComponentStyle* style) { m_style = style; }
+    void draw(Renderer* renderer) override;
+    void drawProxy(Renderer* renderer) override;
+    Core* hitTest(HitInfo*, const Mat2D&) override;
+    DrawableProxy* proxy() { return &m_proxy; };
+    void update(ComponentDirt value) override;
 
 #ifdef WITH_RIVE_LAYOUT
-    LayoutComponent();
+    LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
+    {
+        layoutNode().getConfig()->setPointScaleFactor(0);
+    }
+    ~LayoutComponent() { delete m_backgroundRect; }
     void syncStyle();
     virtual void propagateSize();
     void updateLayoutBounds();
-    void update(ComponentDirt value) override;
     StatusCode onAddedDirty(CoreContext* context) override;
 
     bool advance(double elapsedSeconds);
@@ -97,6 +118,9 @@ public:
         return m_layoutLocationX != 0 || m_layoutLocationY != 0 || m_layoutSizeWidth != 0 ||
                m_layoutSizeHeight != 0;
     };
+#else
+    LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
+    {}
 
 #endif
     void buildDependencies() override;
@@ -111,7 +135,7 @@ public:
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,
                         float height,
-                        LayoutMeasureMode heightMode);
+                        LayoutMeasureMode heightMode) override;
 };
 } // namespace rive
 

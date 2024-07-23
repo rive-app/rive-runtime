@@ -24,7 +24,7 @@ void Image::draw(Renderer* renderer)
         return;
     }
 
-    ClipResult clipResult = clip(renderer);
+    ClipResult clipResult = applyClip(renderer);
 
     if (clipResult == ClipResult::noClip)
     {

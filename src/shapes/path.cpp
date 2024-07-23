@@ -56,6 +56,10 @@ bool Path::isFlagged(PathFlags flags) const { return (int)(m_pathFlags & flags) 
 
 bool Path::canDeferPathUpdate()
 {
+    if (m_Shape == nullptr)
+    {
+        return false;
+    }
     // A path cannot defer its update if the shapes requires an update. Note the
     // nuance here where we track that the shape may be marked for follow path
     // (meaning all child paths need to follow path). This doesn't mean the

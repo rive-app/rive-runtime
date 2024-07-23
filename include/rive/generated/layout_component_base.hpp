@@ -3,13 +3,13 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
-#include "rive/world_transform_component.hpp"
+#include "rive/drawable.hpp"
 namespace rive
 {
-class LayoutComponentBase : public WorldTransformComponent
+class LayoutComponentBase : public Drawable
 {
 protected:
-    typedef WorldTransformComponent Super;
+    typedef Drawable Super;
 
 public:
     static const uint16_t typeKey = 409;
@@ -21,6 +21,9 @@ public:
         switch (typeKey)
         {
             case LayoutComponentBase::typeKey:
+            case DrawableBase::typeKey:
+            case NodeBase::typeKey:
+            case TransformComponentBase::typeKey:
             case WorldTransformComponentBase::typeKey:
             case ContainerComponentBase::typeKey:
             case ComponentBase::typeKey:
@@ -95,7 +98,7 @@ public:
         m_Width = object.m_Width;
         m_Height = object.m_Height;
         m_StyleId = object.m_StyleId;
-        WorldTransformComponent::copy(object);
+        Drawable::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -115,7 +118,7 @@ public:
                 m_StyleId = CoreUintType::deserialize(reader);
                 return true;
         }
-        return WorldTransformComponent::deserialize(propertyKey, reader);
+        return Drawable::deserialize(propertyKey, reader);
     }
 
 protected:

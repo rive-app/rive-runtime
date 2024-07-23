@@ -79,7 +79,11 @@ void TransformComponent::updateWorldTransform()
     {
         m_WorldTransform = m_Transform;
     }
+    updateConstraints();
+}
 
+void TransformComponent::updateConstraints()
+{
     for (auto constraint : m_Constraints)
     {
         constraint->constrain(this);

@@ -1,8 +1,14 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard.hpp"
+#include "rive/drawable.hpp"
+#include "rive/factory.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/node.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/shapes/paint/fill.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/rectangle.hpp"
 #ifdef WITH_RIVE_LAYOUT
 #include "rive/transform_component.hpp"
 #include "yoga/YGEnums.h"
@@ -19,14 +25,111 @@ void LayoutComponent::buildDependencies()
     {
         parent()->addDependent(this);
     }
+    // Set the blend mode on all the shape paints. If we ever animate this
+    // property, we'll need to update it in the update cycle/mark dirty when the
+    // blend mode changes.
+    for (auto paint : m_ShapePaints)
+    {
+        paint->blendMode(blendMode());
+    }
+}
+
+void LayoutComponent::drawProxy(Renderer* renderer)
+{
+    if (clip())
+    {
+        renderer->save();
+        renderer->clipPath(m_clipPath.get());
+    }
+    renderer->save();
+    renderer->transform(worldTransform());
+    for (auto shapePaint : m_ShapePaints)
+    {
+        if (!shapePaint->isVisible())
+        {
+            continue;
+        }
+        if (shapePaint->is<Fill>())
+        {
+            shapePaint->draw(renderer, m_backgroundPath.get(), &m_backgroundRect->rawPath());
+        }
+    }
+    renderer->restore();
+}
+
+void LayoutComponent::draw(Renderer* renderer)
+{
+    // Restore clip before drawing stroke so we don't clip the stroke
+    if (clip())
+    {
+        renderer->restore();
+    }
+    renderer->save();
+    renderer->transform(worldTransform());
+    for (auto shapePaint : m_ShapePaints)
+    {
+        if (!shapePaint->isVisible())
+        {
+            continue;
+        }
+        if (shapePaint->is<Stroke>())
+        {
+            shapePaint->draw(renderer, m_backgroundPath.get(), &m_backgroundRect->rawPath());
+        }
+    }
+    renderer->restore();
+}
+
+Core* LayoutComponent::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
+
+void LayoutComponent::update(ComponentDirt value)
+{
+    Super::update(value);
+    performUpdate(value);
+}
+
+void LayoutComponent::performUpdate(ComponentDirt value)
+{
+    if (hasDirt(value, ComponentDirt::RenderOpacity))
+    {
+        propagateOpacity(renderOpacity());
+    }
+    if (hasDirt(value, ComponentDirt::Path))
+    {
+        m_backgroundRect->width(m_layoutSizeWidth);
+        m_backgroundRect->height(m_layoutSizeHeight);
+        m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
+        m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
+        m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
+        m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
+        m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
+        m_backgroundRect->update(value);
+
+        m_backgroundPath->rewind();
+        m_backgroundRect->rawPath().addTo(m_backgroundPath.get());
+        AABB clipBounds = AABB::fromLTWH(worldTranslation().x,
+                                         worldTranslation().y,
+                                         worldTranslation().x + m_layoutSizeWidth,
+                                         worldTranslation().y + m_layoutSizeHeight);
+        m_clipPath = artboard()->factory()->makeRenderPath(clipBounds);
+    }
+    if (hasDirt(value, ComponentDirt::WorldTransform))
+    {
+        Mat2D parentWorld = parent()->is<WorldTransformComponent>()
+                                ? (parent()->as<WorldTransformComponent>())->worldTransform()
+                                : Mat2D();
+        auto transform = Mat2D();
+        transform[4] = m_layoutLocationX;
+        transform[5] = m_layoutLocationY;
+
+        auto multipliedTransform = Mat2D::multiply(parentWorld, transform);
+        m_WorldTransform = multipliedTransform;
+
+        updateConstraints();
+    }
 }
 
 #ifdef WITH_RIVE_LAYOUT
-LayoutComponent::LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData()))
-{
-    layoutNode().getConfig()->setPointScaleFactor(0);
-}
-
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
     auto code = Super::onAddedDirty(context);
@@ -48,23 +151,11 @@ StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
     {
         parent()->as<LayoutComponent>()->syncLayoutChildren();
     }
+    m_backgroundPath = artboard()->factory()->makeEmptyRenderPath();
+    m_clipPath = artboard()->factory()->makeEmptyRenderPath();
+    m_backgroundRect->originX(0);
+    m_backgroundRect->originY(0);
     return StatusCode::Ok;
-}
-
-void LayoutComponent::update(ComponentDirt value)
-{
-    if (hasDirt(value, ComponentDirt::WorldTransform))
-    {
-        Mat2D parentWorld = parent()->is<WorldTransformComponent>()
-                                ? (parent()->as<WorldTransformComponent>())->worldTransform()
-                                : Mat2D();
-        auto transform = Mat2D();
-        transform[4] = m_layoutLocationX;
-        transform[5] = m_layoutLocationY;
-
-        auto multipliedTransform = Mat2D::multiply(parentWorld, transform);
-        m_WorldTransform = multipliedTransform;
-    }
 }
 
 static YGSize measureFunc(YGNode* node,
@@ -567,6 +658,14 @@ void LayoutComponent::markLayoutStyleDirty()
     }
 }
 #else
+Vec2D LayoutComponent::measureLayout(float width,
+                                     LayoutMeasureMode widthMode,
+                                     float height,
+                                     LayoutMeasureMode heightMode)
+{
+    return Vec2D();
+}
+
 void LayoutComponent::markLayoutNodeDirty() {}
 void LayoutComponent::markLayoutStyleDirty() {}
 #endif

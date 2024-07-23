@@ -18,6 +18,9 @@ private:
     WorldTransformComponent* m_ParentTransformComponent = nullptr;
     std::vector<Constraint*> m_Constraints;
 
+protected:
+    void updateConstraints();
+
 public:
     bool collapse(bool value) override;
     const std::vector<Constraint*>& constraints() const { return m_Constraints; }
@@ -25,7 +28,7 @@ public:
     void buildDependencies() override;
     void update(ComponentDirt value) override;
     void updateTransform();
-    void updateWorldTransform();
+    virtual void updateWorldTransform();
     void markTransformDirty();
 
     /// Opacity inherited by any child of this transform component. This'll

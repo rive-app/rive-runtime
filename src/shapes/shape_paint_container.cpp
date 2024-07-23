@@ -2,6 +2,7 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/component.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_style.hpp"
@@ -14,6 +15,8 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
     {
         case Artboard::typeKey:
             return component->as<Artboard>();
+        case LayoutComponent::typeKey:
+            return component->as<LayoutComponent>();
         case Shape::typeKey:
             return component->as<Shape>();
         case TextStyle::typeKey:

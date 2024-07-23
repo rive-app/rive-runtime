@@ -6,24 +6,6 @@
   },
   "extends": "layout_component.json",
   "properties": {
-    "x": {
-      "type": "double",
-      "initialValue": "0",
-      "key": {
-        "int": 9,
-        "string": "x"
-      },
-      "description": "X coordinate in editor world space."
-    },
-    "y": {
-      "type": "double",
-      "initialValue": "0",
-      "key": {
-        "int": 10,
-        "string": "y"
-      },
-      "description": "Y coordinate in editor world space."
-    },
     "originX": {
       "type": "double",
       "initialValue": "0",

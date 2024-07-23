@@ -40,7 +40,7 @@ StatusCode Drawable::onAddedDirty(CoreContext* context)
 
 void Drawable::addClippingShape(ClippingShape* shape) { m_ClippingShapes.push_back(shape); }
 
-ClipResult Drawable::clip(Renderer* renderer) const
+ClipResult Drawable::applyClip(Renderer* renderer) const
 {
     if (m_ClippingShapes.size() == 0)
     {

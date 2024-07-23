@@ -28,7 +28,7 @@ private:
 
 public:
     BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
-    ClipResult clip(Renderer* renderer) const;
+    ClipResult applyClip(Renderer* renderer) const;
     virtual void draw(Renderer* renderer) = 0;
     virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;
     void addClippingShape(ClippingShape* shape);
@@ -48,6 +48,25 @@ public:
     }
 
     StatusCode onAddedDirty(CoreContext* context) override;
+};
+
+class ProxyDrawing
+{
+public:
+    virtual void drawProxy(Renderer* renderer) = 0;
+};
+
+class DrawableProxy : public Drawable
+{
+private:
+    ProxyDrawing* m_proxyDrawing;
+
+public:
+    DrawableProxy(ProxyDrawing* proxy) : m_proxyDrawing(proxy) {}
+
+    void draw(Renderer* renderer) override { m_proxyDrawing->drawProxy(renderer); }
+
+    Core* hitTest(HitInfo*, const Mat2D&) override { return nullptr; }
 };
 } // namespace rive
 

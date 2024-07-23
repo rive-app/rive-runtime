@@ -516,6 +516,9 @@ public:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->intrinsicallySizedValue(value);
                 break;
+            case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
+                object->as<LayoutComponentStyleBase>()->linkCornerRadius(value);
+                break;
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 object->as<NestedSimpleAnimationBase>()->isPlaying(value);
                 break;
@@ -1147,9 +1150,11 @@ public:
                 object->as<TransformComponentBase>()->scaleY(value);
                 break;
             case NodeBase::xPropertyKey:
+            case NodeBase::xArtboardPropertyKey:
                 object->as<NodeBase>()->x(value);
                 break;
             case NodeBase::yPropertyKey:
+            case NodeBase::yArtboardPropertyKey:
                 object->as<NodeBase>()->y(value);
                 break;
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
@@ -1235,6 +1240,18 @@ public:
                 break;
             case LayoutComponentStyleBase::interpolationTimePropertyKey:
                 object->as<LayoutComponentStyleBase>()->interpolationTime(value);
+                break;
+            case LayoutComponentStyleBase::cornerRadiusTLPropertyKey:
+                object->as<LayoutComponentStyleBase>()->cornerRadiusTL(value);
+                break;
+            case LayoutComponentStyleBase::cornerRadiusTRPropertyKey:
+                object->as<LayoutComponentStyleBase>()->cornerRadiusTR(value);
+                break;
+            case LayoutComponentStyleBase::cornerRadiusBLPropertyKey:
+                object->as<LayoutComponentStyleBase>()->cornerRadiusBL(value);
+                break;
+            case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
+                object->as<LayoutComponentStyleBase>()->cornerRadiusBR(value);
                 break;
             case NestedLinearAnimationBase::mixPropertyKey:
                 object->as<NestedLinearAnimationBase>()->mix(value);
@@ -1415,12 +1432,6 @@ public:
                 break;
             case LayoutComponentBase::heightPropertyKey:
                 object->as<LayoutComponentBase>()->height(value);
-                break;
-            case ArtboardBase::xPropertyKey:
-                object->as<ArtboardBase>()->x(value);
-                break;
-            case ArtboardBase::yPropertyKey:
-                object->as<ArtboardBase>()->y(value);
                 break;
             case ArtboardBase::originXPropertyKey:
                 object->as<ArtboardBase>()->originX(value);
@@ -1625,6 +1636,8 @@ public:
                 return object->as<FollowPathConstraintBase>()->offset();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->intrinsicallySizedValue();
+            case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
+                return object->as<LayoutComponentStyleBase>()->linkCornerRadius();
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 return object->as<NestedSimpleAnimationBase>()->isPlaying();
             case KeyFrameBoolBase::valuePropertyKey:
@@ -2058,8 +2071,10 @@ public:
             case TransformComponentBase::scaleYPropertyKey:
                 return object->as<TransformComponentBase>()->scaleY();
             case NodeBase::xPropertyKey:
+            case NodeBase::xArtboardPropertyKey:
                 return object->as<NodeBase>()->x();
             case NodeBase::yPropertyKey:
+            case NodeBase::yArtboardPropertyKey:
                 return object->as<NodeBase>()->y();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->gapHorizontal();
@@ -2117,6 +2132,14 @@ public:
                 return object->as<LayoutComponentStyleBase>()->aspectRatio();
             case LayoutComponentStyleBase::interpolationTimePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->interpolationTime();
+            case LayoutComponentStyleBase::cornerRadiusTLPropertyKey:
+                return object->as<LayoutComponentStyleBase>()->cornerRadiusTL();
+            case LayoutComponentStyleBase::cornerRadiusTRPropertyKey:
+                return object->as<LayoutComponentStyleBase>()->cornerRadiusTR();
+            case LayoutComponentStyleBase::cornerRadiusBLPropertyKey:
+                return object->as<LayoutComponentStyleBase>()->cornerRadiusBL();
+            case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
+                return object->as<LayoutComponentStyleBase>()->cornerRadiusBR();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->as<NestedLinearAnimationBase>()->mix();
             case NestedSimpleAnimationBase::speedPropertyKey:
@@ -2237,10 +2260,6 @@ public:
                 return object->as<LayoutComponentBase>()->width();
             case LayoutComponentBase::heightPropertyKey:
                 return object->as<LayoutComponentBase>()->height();
-            case ArtboardBase::xPropertyKey:
-                return object->as<ArtboardBase>()->x();
-            case ArtboardBase::yPropertyKey:
-                return object->as<ArtboardBase>()->y();
             case ArtboardBase::originXPropertyKey:
                 return object->as<ArtboardBase>()->originX();
             case ArtboardBase::originYPropertyKey:
@@ -2367,6 +2386,7 @@ public:
             case FollowPathConstraintBase::orientPropertyKey:
             case FollowPathConstraintBase::offsetPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
+            case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
             case KeyFrameBoolBase::valuePropertyKey:
             case ListenerAlignTargetBase::preserveOffsetPropertyKey:
@@ -2574,7 +2594,9 @@ public:
             case TransformComponentBase::scaleXPropertyKey:
             case TransformComponentBase::scaleYPropertyKey:
             case NodeBase::xPropertyKey:
+            case NodeBase::xArtboardPropertyKey:
             case NodeBase::yPropertyKey:
+            case NodeBase::yArtboardPropertyKey:
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
             case LayoutComponentStyleBase::maxWidthPropertyKey:
@@ -2603,6 +2625,10 @@ public:
             case LayoutComponentStyleBase::flexBasisPropertyKey:
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
             case LayoutComponentStyleBase::interpolationTimePropertyKey:
+            case LayoutComponentStyleBase::cornerRadiusTLPropertyKey:
+            case LayoutComponentStyleBase::cornerRadiusTRPropertyKey:
+            case LayoutComponentStyleBase::cornerRadiusBLPropertyKey:
+            case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
             case NestedLinearAnimationBase::mixPropertyKey:
             case NestedSimpleAnimationBase::speedPropertyKey:
             case AdvanceableStateBase::speedPropertyKey:
@@ -2663,8 +2689,6 @@ public:
             case CubicDetachedVertexBase::outDistancePropertyKey:
             case LayoutComponentBase::widthPropertyKey:
             case LayoutComponentBase::heightPropertyKey:
-            case ArtboardBase::xPropertyKey:
-            case ArtboardBase::yPropertyKey:
             case ArtboardBase::originXPropertyKey:
             case ArtboardBase::originYPropertyKey:
             case JoystickBase::xPropertyKey:
@@ -2769,6 +2793,8 @@ public:
             case FollowPathConstraintBase::offsetPropertyKey:
                 return object->is<FollowPathConstraintBase>();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
                 return object->is<NestedSimpleAnimationBase>();
@@ -3175,8 +3201,10 @@ public:
             case TransformComponentBase::scaleYPropertyKey:
                 return object->is<TransformComponentBase>();
             case NodeBase::xPropertyKey:
+            case NodeBase::xArtboardPropertyKey:
                 return object->is<NodeBase>();
             case NodeBase::yPropertyKey:
+            case NodeBase::yArtboardPropertyKey:
                 return object->is<NodeBase>();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
@@ -3233,6 +3261,14 @@ public:
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::interpolationTimePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::cornerRadiusTLPropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::cornerRadiusTRPropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::cornerRadiusBLPropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->is<NestedLinearAnimationBase>();
@@ -3354,10 +3390,6 @@ public:
                 return object->is<LayoutComponentBase>();
             case LayoutComponentBase::heightPropertyKey:
                 return object->is<LayoutComponentBase>();
-            case ArtboardBase::xPropertyKey:
-                return object->is<ArtboardBase>();
-            case ArtboardBase::yPropertyKey:
-                return object->is<ArtboardBase>();
             case ArtboardBase::originXPropertyKey:
                 return object->is<ArtboardBase>();
             case ArtboardBase::originYPropertyKey:
