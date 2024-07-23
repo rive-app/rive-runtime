@@ -23,7 +23,7 @@ newoption({
     description = 'Directory to generate build files',
     default = nil,
 })
-RIVE_BUILD_OUT = _OPTIONS['out'] or ('out/' .. RIVE_BUILD_CONFIG)
+RIVE_BUILD_OUT = _WORKING_DIR .. '/' .. (_OPTIONS['out'] or ('out/' .. RIVE_BUILD_CONFIG))
 
 newoption({
     trigger = 'toolset',
@@ -94,9 +94,9 @@ newoption({
     description = 'Don\'t build with link time optimizations.',
 })
 
-location(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT)
-targetdir(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT)
-objdir(_WORKING_DIR .. '/' .. RIVE_BUILD_OUT .. '/obj')
+location(RIVE_BUILD_OUT)
+targetdir(RIVE_BUILD_OUT)
+objdir(RIVE_BUILD_OUT .. '/obj')
 toolset(_OPTIONS['toolset'] or 'clang')
 language('C++')
 cppdialect('C++17')
