@@ -45,7 +45,9 @@ void NestedArtboard::nest(Artboard* artboard)
     {
         m_Instance.reset(static_cast<ArtboardInstance*>(artboard)); // take ownership
     }
-    m_Artboard->advanceInternal(0.0f, false);
+    // This allows for swapping after initial load (after onAddedClean has
+    // already been called).
+    m_Artboard->host(this);
 }
 
 static Mat2D makeTranslate(const Artboard* artboard)
@@ -124,6 +126,7 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
         {
             animation->initializeAnimation(m_Instance.get());
         }
+        m_Artboard->host(this);
     }
     return Super::onAddedClean(context);
 }
@@ -247,18 +250,16 @@ Vec2D NestedArtboard::measureLayout(float width,
                  m_Instance ? m_Instance->height() : 0.0f));
 }
 
-void NestedArtboard::controlSize(Vec2D size)
+void NestedArtboard::syncStyleChanges()
 {
-    auto newScaleX = size.x / m_Artboard->originalWidth();
-    auto newScaleY = size.y / m_Artboard->originalHeight();
-    if (newScaleX != scaleX() || newScaleY != scaleY())
+    if (m_Artboard == nullptr)
     {
-        // TODO: Support nested artboard fit & alignment
-        scaleX(newScaleX);
-        scaleY(newScaleY);
-        addDirt(ComponentDirt::WorldTransform, false);
+        return;
     }
+    m_Artboard->syncStyleChanges();
 }
+
+void NestedArtboard::controlSize(Vec2D size) {}
 
 void NestedArtboard::decodeDataBindPathIds(Span<const uint8_t> value)
 {
@@ -277,7 +278,7 @@ void NestedArtboard::copyDataBindPathIds(const NestedArtboardBase& object)
 
 void NestedArtboard::internalDataContext(DataContext* value, DataContext* parent)
 {
-    artboard()->internalDataContext(value, parent, false);
+    artboardInstance()->internalDataContext(value, parent, false);
     for (auto animation : m_NestedAnimations)
     {
         if (animation->is<NestedStateMachine>())
@@ -290,7 +291,7 @@ void NestedArtboard::internalDataContext(DataContext* value, DataContext* parent
 void NestedArtboard::dataContextFromInstance(ViewModelInstance* viewModelInstance,
                                              DataContext* parent)
 {
-    artboard()->dataContextFromInstance(viewModelInstance, parent, false);
+    artboardInstance()->dataContextFromInstance(viewModelInstance, parent, false);
     for (auto animation : m_NestedAnimations)
     {
         if (animation->is<NestedStateMachine>())

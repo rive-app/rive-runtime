@@ -12,7 +12,7 @@
 #include "yoga/YGStyle.h"
 #include "yoga/Yoga.h"
 #endif
-#include <stdio.h>
+
 namespace rive
 {
 
@@ -57,15 +57,12 @@ protected:
     Artboard* getArtboard() override { return artboard(); }
 
 private:
-    virtual void performUpdate(ComponentDirt value);
-
 #ifdef WITH_RIVE_LAYOUT
-private:
+protected:
     YGNode& layoutNode() { return m_layoutData->node; }
     YGStyle& layoutStyle() { return m_layoutData->style; }
     void syncLayoutChildren();
     void propagateSizeToChildren(ContainerComponent* component);
-    AABB findMaxIntrinsicSize(ContainerComponent* component, AABB maxIntrinsicSize);
     bool applyInterpolation(double elapsedSeconds);
 
 protected:
@@ -75,11 +72,25 @@ protected:
 public:
     LayoutComponentStyle* style() { return m_style; }
     void style(LayoutComponentStyle* style) { m_style = style; }
+
     void draw(Renderer* renderer) override;
     void drawProxy(Renderer* renderer) override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     DrawableProxy* proxy() { return &m_proxy; };
+    virtual void updateRenderPath();
     void update(ComponentDirt value) override;
+    void onDirty(ComponentDirt value) override;
+    AABB layoutBounds()
+    {
+        return AABB::fromLTWH(m_layoutLocationX,
+                              m_layoutLocationY,
+                              m_layoutSizeWidth,
+                              m_layoutSizeHeight);
+    }
+    AABB localBounds() const override
+    {
+        return AABB::fromLTWH(0.0f, 0.0f, m_layoutSizeWidth, m_layoutSizeHeight);
+    }
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
@@ -91,6 +102,7 @@ public:
     virtual void propagateSize();
     void updateLayoutBounds();
     StatusCode onAddedDirty(CoreContext* context) override;
+    StatusCode onAddedClean(CoreContext* context) override;
 
     bool advance(double elapsedSeconds);
     bool animates();
@@ -106,22 +118,9 @@ public:
                                    KeyFrameInterpolator* inheritedInterpolator,
                                    float inheritedInterpolationTime);
     void clearInheritedInterpolation();
-    virtual AABB layoutBounds()
-    {
-        return AABB(m_layoutLocationX,
-                    m_layoutLocationY,
-                    m_layoutLocationX + m_layoutSizeWidth,
-                    m_layoutLocationY + m_layoutSizeHeight);
-    };
-    bool hasLayoutMeasurements()
-    {
-        return m_layoutLocationX != 0 || m_layoutLocationY != 0 || m_layoutSizeWidth != 0 ||
-               m_layoutSizeHeight != 0;
-    };
 #else
     LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
     {}
-
 #endif
     void buildDependencies() override;
 

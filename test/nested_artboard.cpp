@@ -27,13 +27,13 @@ TEST_CASE("collapsed nested artboards do not advance", "[solo]")
     // if checking whether the time of each artboard has advanced
     // Unfortunately there is no way of accessing the time of the animations directly
     auto redNestedArtboard = stateMachine->artboard()->find<rive::NestedArtboard>("red-artboard");
-    auto redNestedArtboardArtboard = redNestedArtboard->artboard();
+    auto redNestedArtboardArtboard = redNestedArtboard->artboardInstance();
     auto movingShapes = redNestedArtboardArtboard->find<rive::Shape>();
     auto redRect = movingShapes.at(0);
     REQUIRE(redRect->x() > 50);
     auto greenNestedArtboard =
         stateMachine->artboard()->find<rive::NestedArtboard>("green-artboard");
-    auto greenNestedArtboardArtboard = greenNestedArtboard->artboard();
+    auto greenNestedArtboardArtboard = greenNestedArtboard->artboardInstance();
     auto greenMovingShapes = greenNestedArtboardArtboard->find<rive::Shape>();
     auto greenRect = greenMovingShapes.at(0);
     REQUIRE(greenRect->x() == 50);

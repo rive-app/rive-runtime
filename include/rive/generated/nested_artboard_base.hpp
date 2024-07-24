@@ -36,14 +36,10 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t artboardIdPropertyKey = 197;
-    static const uint16_t fitPropertyKey = 538;
-    static const uint16_t alignmentPropertyKey = 539;
-    static const uint16_t dataBindPathIdsPropertyKey = 580;
+    static const uint16_t dataBindPathIdsPropertyKey = 582;
 
 private:
     uint32_t m_ArtboardId = -1;
-    uint32_t m_Fit = 0;
-    uint32_t m_Alignment = 0;
 
 public:
     inline uint32_t artboardId() const { return m_ArtboardId; }
@@ -57,28 +53,6 @@ public:
         artboardIdChanged();
     }
 
-    inline uint32_t fit() const { return m_Fit; }
-    void fit(uint32_t value)
-    {
-        if (m_Fit == value)
-        {
-            return;
-        }
-        m_Fit = value;
-        fitChanged();
-    }
-
-    inline uint32_t alignment() const { return m_Alignment; }
-    void alignment(uint32_t value)
-    {
-        if (m_Alignment == value)
-        {
-            return;
-        }
-        m_Alignment = value;
-        alignmentChanged();
-    }
-
     virtual void decodeDataBindPathIds(Span<const uint8_t> value) = 0;
     virtual void copyDataBindPathIds(const NestedArtboardBase& object) = 0;
 
@@ -86,8 +60,6 @@ public:
     void copy(const NestedArtboardBase& object)
     {
         m_ArtboardId = object.m_ArtboardId;
-        m_Fit = object.m_Fit;
-        m_Alignment = object.m_Alignment;
         copyDataBindPathIds(object);
         Drawable::copy(object);
     }
@@ -99,12 +71,6 @@ public:
             case artboardIdPropertyKey:
                 m_ArtboardId = CoreUintType::deserialize(reader);
                 return true;
-            case fitPropertyKey:
-                m_Fit = CoreUintType::deserialize(reader);
-                return true;
-            case alignmentPropertyKey:
-                m_Alignment = CoreUintType::deserialize(reader);
-                return true;
             case dataBindPathIdsPropertyKey:
                 decodeDataBindPathIds(CoreBytesType::deserialize(reader));
                 return true;
@@ -114,8 +80,6 @@ public:
 
 protected:
     virtual void artboardIdChanged() {}
-    virtual void fitChanged() {}
-    virtual void alignmentChanged() {}
     virtual void dataBindPathIdsChanged() {}
 };
 } // namespace rive

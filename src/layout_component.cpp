@@ -9,6 +9,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/rectangle.hpp"
+#include "rive/nested_artboard_layout.hpp"
 #ifdef WITH_RIVE_LAYOUT
 #include "rive/transform_component.hpp"
 #include "yoga/YGEnums.h"
@@ -82,50 +83,51 @@ void LayoutComponent::draw(Renderer* renderer)
 
 Core* LayoutComponent::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
+void LayoutComponent::updateRenderPath()
+{
+    m_backgroundRect->width(m_layoutSizeWidth);
+    m_backgroundRect->height(m_layoutSizeHeight);
+    m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
+    m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
+    m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
+    m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
+    m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
+    m_backgroundRect->update(ComponentDirt::Path);
+
+    m_backgroundPath->rewind();
+    m_backgroundRect->rawPath().addTo(m_backgroundPath.get());
+
+    RawPath clipPath;
+    clipPath.addPath(m_backgroundRect->rawPath(), &m_WorldTransform);
+    m_clipPath = artboard()->factory()->makeRenderPath(clipPath, FillRule::nonZero);
+}
+
 void LayoutComponent::update(ComponentDirt value)
 {
     Super::update(value);
-    performUpdate(value);
-}
-
-void LayoutComponent::performUpdate(ComponentDirt value)
-{
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
-        propagateOpacity(renderOpacity());
+        propagateOpacity(childOpacity());
     }
-    if (hasDirt(value, ComponentDirt::Path))
-    {
-        m_backgroundRect->width(m_layoutSizeWidth);
-        m_backgroundRect->height(m_layoutSizeHeight);
-        m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
-        m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
-        m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
-        m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
-        m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
-        m_backgroundRect->update(value);
-
-        m_backgroundPath->rewind();
-        m_backgroundRect->rawPath().addTo(m_backgroundPath.get());
-        AABB clipBounds = AABB::fromLTWH(worldTranslation().x,
-                                         worldTranslation().y,
-                                         worldTranslation().x + m_layoutSizeWidth,
-                                         worldTranslation().y + m_layoutSizeHeight);
-        m_clipPath = artboard()->factory()->makeRenderPath(clipBounds);
-    }
-    if (hasDirt(value, ComponentDirt::WorldTransform))
+    if (parent() != nullptr && hasDirt(value, ComponentDirt::WorldTransform))
     {
         Mat2D parentWorld = parent()->is<WorldTransformComponent>()
                                 ? (parent()->as<WorldTransformComponent>())->worldTransform()
                                 : Mat2D();
-        auto transform = Mat2D();
-        transform[4] = m_layoutLocationX;
-        transform[5] = m_layoutLocationY;
-
-        auto multipliedTransform = Mat2D::multiply(parentWorld, transform);
-        m_WorldTransform = multipliedTransform;
-
+        auto location = Vec2D(m_layoutLocationX, m_layoutLocationY);
+        if (parent()->is<Artboard>())
+        {
+            auto art = parent()->as<Artboard>();
+            location -=
+                Vec2D(art->layoutWidth() * art->originX(), art->layoutHeight() * art->originY());
+        }
+        auto transform = Mat2D::fromTranslation(location);
+        m_WorldTransform = Mat2D::multiply(parentWorld, transform);
         updateConstraints();
+    }
+    if (hasDirt(value, ComponentDirt::Path))
+    {
+        updateRenderPath();
     }
 }
 
@@ -145,16 +147,24 @@ StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
     }
     m_style = static_cast<LayoutComponentStyle*>(coreStyle);
     addChild(m_style);
+
+    return StatusCode::Ok;
+}
+
+StatusCode LayoutComponent::onAddedClean(CoreContext* context)
+{
+    auto code = Super::onAddedClean(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
     artboard()->markLayoutDirty(this);
     markLayoutStyleDirty();
-    if (parent() != nullptr && parent()->is<LayoutComponent>())
-    {
-        parent()->as<LayoutComponent>()->syncLayoutChildren();
-    }
     m_backgroundPath = artboard()->factory()->makeEmptyRenderPath();
     m_clipPath = artboard()->factory()->makeEmptyRenderPath();
     m_backgroundRect->originX(0);
     m_backgroundRect->originY(0);
+    syncLayoutChildren();
     return StatusCode::Ok;
 }
 
@@ -185,6 +195,7 @@ Vec2D LayoutComponent::measureLayout(float width,
         {
             continue;
         }
+        //  && child->is<TransformComponent>()->canMeasure() for nested artboard layout
         if (child->is<TransformComponent>())
         {
             auto transformComponent = child->as<TransformComponent>();
@@ -368,27 +379,33 @@ void LayoutComponent::syncStyle()
 
 void LayoutComponent::syncLayoutChildren()
 {
-    YGNodeRemoveAllChildren(&layoutNode());
+    auto ourNode = &layoutNode();
+    YGNodeRemoveAllChildren(ourNode);
     int index = 0;
-    for (size_t i = 0; i < children().size(); i++)
+    for (auto child : children())
     {
-        Component* child = children()[i];
-        if (child->is<LayoutComponent>())
+        YGNode* node = nullptr;
+        switch (child->coreType())
         {
-            YGNodeInsertChild(&layoutNode(), &child->as<LayoutComponent>()->layoutNode(), index);
-            index += 1;
+            case LayoutComponentBase::typeKey:
+                node = &child->as<LayoutComponent>()->layoutNode();
+                break;
+            case NestedArtboardLayoutBase::typeKey:
+                node = static_cast<YGNode*>(child->as<NestedArtboardLayout>()->layoutNode());
+                break;
+        }
+        if (node != nullptr)
+        {
+            // YGNodeInsertChild(ourNode, node, index++);
+            ourNode->insertChild(node, index++);
+            node->setOwner(ourNode);
+            ourNode->markDirtyAndPropagate();
         }
     }
+    markLayoutNodeDirty();
 }
 
-void LayoutComponent::propagateSize()
-{
-    if (artboard() == this)
-    {
-        return;
-    }
-    propagateSizeToChildren(this);
-}
+void LayoutComponent::propagateSize() { propagateSizeToChildren(this); }
 
 void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
 {
@@ -415,6 +432,15 @@ void LayoutComponent::calculateLayout()
     YGNodeCalculateLayout(&layoutNode(), width(), height(), YGDirection::YGDirectionInherit);
 }
 
+void LayoutComponent::onDirty(ComponentDirt value)
+{
+    Super::onDirty(value);
+    if ((value & ComponentDirt::WorldTransform) == ComponentDirt::WorldTransform && clip())
+    {
+        addDirt(ComponentDirt::Path);
+    }
+}
+
 void LayoutComponent::updateLayoutBounds()
 {
     auto node = &layoutNode();
@@ -422,6 +448,22 @@ void LayoutComponent::updateLayoutBounds()
     auto top = YGNodeLayoutGetTop(node);
     auto width = YGNodeLayoutGetWidth(node);
     auto height = YGNodeLayoutGetHeight(node);
+
+#ifdef DEBUG
+    // Temporarily here to keep track of an issue.
+    if (left != left || top != top || width != width || height != height)
+    {
+        fprintf(stderr,
+                "Layout returned nan: %f %f %f %f | %p %s\n",
+                left,
+                top,
+                width,
+                height,
+                YGNodeGetParent(node),
+                name().c_str());
+        return;
+    }
+#endif
     if (animates())
     {
         auto toBounds = m_animationData.toBounds;
@@ -438,13 +480,21 @@ void LayoutComponent::updateLayoutBounds()
             markWorldTransformDirty();
         }
     }
-    else if (left != m_layoutLocationX || top != m_layoutLocationY || width != m_layoutSizeWidth ||
-             height != m_layoutSizeHeight)
+    else
+
+        if (left != m_layoutLocationX || top != m_layoutLocationY || width != m_layoutSizeWidth ||
+            height != m_layoutSizeHeight)
     {
+        if (m_layoutSizeWidth != width || m_layoutSizeHeight != height)
+        {
+            // Width changed, we need to rebuild the path.
+            addDirt(ComponentDirt::Path);
+        }
         m_layoutLocationX = left;
         m_layoutLocationY = top;
         m_layoutSizeWidth = width;
         m_layoutSizeHeight = height;
+
         propagateSize();
         markWorldTransformDirty();
     }
@@ -572,14 +622,25 @@ bool LayoutComponent::applyInterpolation(double elapsedSeconds)
     {
         return false;
     }
+
     if (m_animationData.elapsedSeconds >= interpolationTime())
     {
         m_layoutLocationX = m_animationData.toBounds.left();
         m_layoutLocationY = m_animationData.toBounds.top();
-        m_layoutSizeWidth = m_animationData.toBounds.width();
-        m_layoutSizeHeight = m_animationData.toBounds.height();
+
+        float width = m_animationData.toBounds.width();
+        float height = m_animationData.toBounds.height();
+        if (width != m_layoutSizeWidth || height != m_layoutSizeHeight)
+        {
+            addDirt(ComponentDirt::Path);
+        }
+        m_layoutSizeWidth = width;
+        m_layoutSizeHeight = height;
+
         m_animationData.elapsedSeconds = 0;
+        propagateSize();
         markWorldTransformDirty();
+
         return false;
     }
     float f = 1;
@@ -631,13 +692,13 @@ bool LayoutComponent::applyInterpolation(double elapsedSeconds)
         needsAdvance = true;
         m_layoutSizeWidth = width;
         m_layoutSizeHeight = height;
+        addDirt(ComponentDirt::Path);
     }
     m_animationData.elapsedSeconds = m_animationData.elapsedSeconds + (float)elapsedSeconds;
     if (needsAdvance)
     {
         propagateSize();
         markWorldTransformDirty();
-        markLayoutNodeDirty();
     }
     return needsAdvance;
 }
@@ -668,6 +729,7 @@ Vec2D LayoutComponent::measureLayout(float width,
 
 void LayoutComponent::markLayoutNodeDirty() {}
 void LayoutComponent::markLayoutStyleDirty() {}
+void LayoutComponent::onDirty(ComponentDirt value) {}
 #endif
 
 void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }

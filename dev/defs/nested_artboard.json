@@ -17,29 +17,13 @@
       },
       "description": "Identifier used to track the Artboard nested."
     },
-    "fit": {
-      "type": "uint",
-      "key": {
-        "int": 538,
-        "string": "fit"
-      },
-      "description": "Fit type for the nested artboard's runtime artboard."
-    },
-    "alignment": {
-      "type": "uint",
-      "key": {
-        "int": 539,
-        "string": "alignment"
-      },
-      "description": "Alignment type for the nested artboard's runtime artboard."
-    },
     "dataBindPathIds": {
       "type": "List<Id>",
       "typeRuntime": "Bytes",
       "encoded": true,
       "initialValue": "[]",
       "key": {
-        "int": 580,
+        "int": 582,
         "string": "databindpathids"
       },
       "description": "Path to the selected property."

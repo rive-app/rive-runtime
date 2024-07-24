@@ -16,8 +16,8 @@ TEST_CASE("Nested artboard background renders with opacity", "[file]")
     REQUIRE(artboard->find("Nested artboard container") != nullptr);
     auto nestedArtboardContainer =
         artboard->find<rive::NestedArtboard>("Nested artboard container");
-    REQUIRE(nestedArtboardContainer->artboard() != nullptr);
-    auto nestedArtboard = nestedArtboardContainer->artboard();
+    REQUIRE(nestedArtboardContainer->artboardInstance() != nullptr);
+    auto nestedArtboard = nestedArtboardContainer->artboardInstance();
     nestedArtboard->updateComponents();
     auto paints = nestedArtboard->shapePaints();
     REQUIRE(paints.size() == 1);

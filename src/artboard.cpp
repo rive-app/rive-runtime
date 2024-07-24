@@ -17,6 +17,8 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/nested_artboard_leaf.hpp"
+#include "rive/nested_artboard_layout.hpp"
 #include "rive/joystick.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/animation/nested_bool.hpp"
@@ -32,6 +34,8 @@
 #include <unordered_map>
 
 using namespace rive;
+
+Artboard::Artboard() {}
 
 Artboard::~Artboard()
 {
@@ -172,6 +176,8 @@ StatusCode Artboard::initialize()
                 break;
             }
             case NestedArtboardBase::typeKey:
+            case NestedArtboardLeafBase::typeKey:
+            case NestedArtboardLayoutBase::typeKey:
                 m_NestedArtboards.push_back(object->as<NestedArtboard>());
                 break;
 
@@ -336,6 +342,10 @@ StatusCode Artboard::initialize()
         m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
     }
 
+    // Some default layout dimensions.
+    m_layoutSizeWidth = width();
+    m_layoutSizeHeight = height();
+
     return StatusCode::Ok;
 }
 
@@ -490,6 +500,10 @@ void Artboard::onDirty(ComponentDirt dirt) { m_Dirt |= ComponentDirt::Components
 void Artboard::propagateSize()
 {
     addDirt(ComponentDirt::Path);
+    if (sharesLayoutWithHost())
+    {
+        m_host->markTransformDirty();
+    }
 #ifdef WITH_RIVE_TOOLS
     if (m_layoutChangedCallback != nullptr)
     {
@@ -498,6 +512,38 @@ void Artboard::propagateSize()
 #endif
 }
 #endif
+
+bool Artboard::sharesLayoutWithHost() const
+{
+    return m_host != nullptr && m_host->is<NestedArtboardLayout>();
+}
+void Artboard::host(NestedArtboard* nestedArtboard)
+{
+    m_host = nestedArtboard;
+#ifdef WITH_RIVE_LAYOUT
+    if (!sharesLayoutWithHost())
+    {
+        return;
+    }
+    Artboard* parent = parentArtboard();
+    if (parent != nullptr)
+    {
+        parent->markLayoutDirty(this);
+        parent->syncLayoutChildren();
+    }
+#endif
+}
+
+NestedArtboard* Artboard::host() const { return m_host; }
+
+Artboard* Artboard::parentArtboard() const
+{
+    if (m_host == nullptr)
+    {
+        return nullptr;
+    }
+    return m_host->artboard();
+}
 
 float Artboard::layoutWidth() const
 {
@@ -517,36 +563,52 @@ float Artboard::layoutHeight() const
 #endif
 }
 
-void Artboard::performUpdate(ComponentDirt value)
+float Artboard::layoutX() const
 {
+#ifdef WITH_RIVE_LAYOUT
+    return m_layoutLocationX;
+#else
+    return 0.0f;
+#endif
+}
+
+float Artboard::layoutY() const
+{
+#ifdef WITH_RIVE_LAYOUT
+    return m_layoutLocationY;
+#else
+    return 0.0f;
+#endif
+}
+
+void Artboard::updateRenderPath()
+{
+    AABB bg = AABB::fromLTWH(-layoutWidth() * originX(),
+                             -layoutHeight() * originY(),
+                             layoutWidth(),
+                             layoutHeight());
+    AABB clip;
+    if (m_FrameOrigin)
+    {
+        clip = {0.0f, 0.0f, layoutWidth(), layoutHeight()};
+    }
+    else
+    {
+        clip = bg;
+    }
+    m_clipPath = factory()->makeRenderPath(clip);
+    m_backgroundRawPath.rewind();
+    m_backgroundRawPath.addRect(bg);
+    m_backgroundPath->rewind();
+    m_backgroundRawPath.addTo(m_backgroundPath.get());
+}
+
+void Artboard::update(ComponentDirt value)
+{
+    Super::update(value);
     if (hasDirt(value, ComponentDirt::DrawOrder))
     {
         sortDrawOrder();
-    }
-    if (hasDirt(value, ComponentDirt::Path))
-    {
-        AABB bg = AABB::fromLTWH(-layoutWidth() * originX(),
-                                 -layoutHeight() * originY(),
-                                 layoutWidth(),
-                                 layoutHeight());
-        AABB clip;
-        if (m_FrameOrigin)
-        {
-            clip = {0.0f, 0.0f, layoutWidth(), layoutHeight()};
-        }
-        else
-        {
-            clip = bg;
-        }
-        m_clipPath = factory()->makeRenderPath(clip);
-
-        m_backgroundRawPath.addRect(bg);
-        m_backgroundPath->rewind();
-        m_backgroundRawPath.addTo(m_backgroundPath.get());
-    }
-    if (hasDirt(value, ComponentDirt::RenderOpacity))
-    {
-        propagateOpacity(childOpacity());
     }
 }
 
@@ -606,38 +668,97 @@ bool Artboard::updateComponents()
     return false;
 }
 
+void* Artboard::takeLayoutNode()
+{
+#ifdef WITH_RIVE_LAYOUT
+    m_updatesOwnLayout = false;
+    return static_cast<void*>(&layoutNode());
+#else
+    return nullptr;
+#endif
+}
+
+void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
+{
+#ifdef WITH_RIVE_TOOLS
+    if (m_dirtyLayout.empty() && m_layoutDirtyCallback != nullptr)
+    {
+        m_layoutDirtyCallback(this);
+    }
+#endif
+    m_dirtyLayout.insert(layoutComponent);
+    if (sharesLayoutWithHost())
+    {
+        m_host->as<NestedArtboardLayout>()->markNestedLayoutDirty();
+    }
+}
+
+bool Artboard::syncStyleChanges()
+{
+    bool updated = false;
+#ifdef WITH_RIVE_LAYOUT
+    if (!m_dirtyLayout.empty())
+    {
+        for (auto layout : m_dirtyLayout)
+        {
+            switch (layout->coreType())
+            {
+                case ArtboardBase::typeKey:
+                {
+                    auto artboard = layout->as<Artboard>();
+                    if (artboard == this)
+                    {
+                        artboard->syncStyle();
+                    }
+                    else
+                    {
+                        // This is a nested artboard, sync its changes too.
+                        artboard->syncStyleChanges();
+                    }
+                    break;
+                }
+
+                default:
+                    layout->syncStyle();
+                    break;
+            }
+        }
+        m_dirtyLayout.clear();
+        updated = true;
+    }
+#endif
+    return updated;
+}
+
 bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot, bool nested)
 {
     bool didUpdate = false;
     m_HasChangedDrawOrderInLastUpdate = false;
 #ifdef WITH_RIVE_LAYOUT
-    if (!m_dirtyLayout.empty())
+    if (hasDirt(ComponentDirt::LayoutStyle))
     {
-        syncStyle();
-        for (auto layout : m_dirtyLayout)
-        {
-            layout->syncStyle();
-        }
-        m_dirtyLayout.clear();
+        cascadeAnimationStyle(interpolation(), interpolator(), interpolationTime());
+    }
+
+    if (syncStyleChanges() && m_updatesOwnLayout)
+    {
         calculateLayout();
-        if (hasDirt(ComponentDirt::LayoutStyle))
+    }
+
+    for (auto dep : m_DependencyOrder)
+    {
+        if (dep->is<LayoutComponent>())
         {
-            cascadeAnimationStyle(interpolation(), interpolator(), interpolationTime());
-        }
-        for (auto dep : m_DependencyOrder)
-        {
-            if (dep->is<LayoutComponent>())
+            auto layout = dep->as<LayoutComponent>();
+            layout->updateLayoutBounds();
+            if ((dep == this && Super::advance(elapsedSeconds)) ||
+                (dep != this && layout->advance(elapsedSeconds)))
             {
-                auto layout = dep->as<LayoutComponent>();
-                layout->updateLayoutBounds();
-                if ((dep == this && Super::advance(elapsedSeconds)) ||
-                    (dep != this && layout->advance(elapsedSeconds)))
-                {
-                    didUpdate = true;
-                }
+                didUpdate = true;
             }
         }
     }
+
 #endif
     if (m_JoysticksApplyBeforeUpdate)
     {
@@ -791,6 +912,12 @@ void Artboard::addToRenderPath(RenderPath* path, const Mat2D& transform)
     }
 }
 
+Vec2D Artboard::origin() const
+{
+    return m_FrameOrigin ? Vec2D(0.0f, 0.0f)
+                         : Vec2D(-layoutWidth() * originX(), -layoutHeight() * originY());
+}
+
 AABB Artboard::bounds() const
 {
     return m_FrameOrigin ? AABB(0.0f, 0.0f, layoutWidth(), layoutHeight())
@@ -823,7 +950,7 @@ bool Artboard::hasAudio() const
     }
     for (auto nestedArtboard : m_NestedArtboards)
     {
-        if (nestedArtboard->artboard()->hasAudio())
+        if (nestedArtboard->artboardInstance()->hasAudio())
         {
             return true;
         }
@@ -954,7 +1081,7 @@ NestedArtboard* Artboard::nestedArtboardAtPath(const std::string& path) const
             }
             else
             {
-                auto artboard = nested->artboard();
+                auto artboard = nested->artboardInstance();
                 return artboard->nestedArtboardAtPath(restOfPath);
             }
         }
@@ -1039,7 +1166,7 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
     m_DataContext->parent(parent);
     for (auto nestedArtboard : m_NestedArtboards)
     {
-        if (nestedArtboard->artboard() == nullptr)
+        if (nestedArtboard->artboardInstance() == nullptr)
         {
             continue;
         }
@@ -1084,7 +1211,7 @@ void Artboard::volume(float value)
     m_volume = value;
     for (auto nestedArtboard : m_NestedArtboards)
     {
-        auto artboard = nestedArtboard->artboard();
+        auto artboard = nestedArtboard->artboardInstance();
         if (artboard != nullptr)
         {
             artboard->volume(value);
@@ -1100,9 +1227,9 @@ void Artboard::populateDataBinds(std::vector<DataBind*>* dataBinds)
     }
     for (auto nestedArtboard : m_NestedArtboards)
     {
-        if (nestedArtboard->artboard() != nullptr)
+        if (nestedArtboard->artboardInstance() != nullptr)
         {
-            nestedArtboard->artboard()->populateDataBinds(dataBinds);
+            nestedArtboard->artboardInstance()->populateDataBinds(dataBinds);
         }
     }
 }
@@ -1236,7 +1363,7 @@ void Artboard::audioEngine(rcp<AudioEngine> audioEngine)
     m_audioEngine = audioEngine;
     for (auto nestedArtboard : m_NestedArtboards)
     {
-        auto artboard = nestedArtboard->artboard();
+        auto artboard = nestedArtboard->artboardInstance();
         if (artboard != nullptr)
         {
             artboard->audioEngine(audioEngine);

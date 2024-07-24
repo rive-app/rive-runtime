@@ -117,6 +117,8 @@
 #include "rive/layout_component.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/nested_artboard_layout.hpp"
+#include "rive/nested_artboard_leaf.hpp"
 #include "rive/node.hpp"
 #include "rive/open_url_event.hpp"
 #include "rive/shapes/clipping_shape.hpp"
@@ -258,6 +260,8 @@ public:
                 return new NestedArtboard();
             case SoloBase::typeKey:
                 return new Solo();
+            case NestedArtboardLayoutBase::typeKey:
+                return new NestedArtboardLayout();
             case LayoutComponentStyleBase::typeKey:
                 return new LayoutComponentStyle();
             case ListenerFireEventBase::typeKey:
@@ -428,6 +432,8 @@ public:
                 return new BindablePropertyEnum();
             case BindablePropertyColorBase::typeKey:
                 return new BindablePropertyColor();
+            case NestedArtboardLeafBase::typeKey:
+                return new NestedArtboardLeaf();
             case WeightBase::typeKey:
                 return new Weight();
             case BoneBase::typeKey:
@@ -638,12 +644,6 @@ public:
                 break;
             case NestedArtboardBase::artboardIdPropertyKey:
                 object->as<NestedArtboardBase>()->artboardId(value);
-                break;
-            case NestedArtboardBase::fitPropertyKey:
-                object->as<NestedArtboardBase>()->fit(value);
-                break;
-            case NestedArtboardBase::alignmentPropertyKey:
-                object->as<NestedArtboardBase>()->alignment(value);
                 break;
             case NestedAnimationBase::animationIdPropertyKey:
                 object->as<NestedAnimationBase>()->animationId(value);
@@ -950,6 +950,9 @@ public:
                 break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
+                break;
+            case NestedArtboardLeafBase::fitPropertyKey:
+                object->as<NestedArtboardLeafBase>()->fit(value);
                 break;
             case WeightBase::valuesPropertyKey:
                 object->as<WeightBase>()->values(value);
@@ -1466,6 +1469,12 @@ public:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 object->as<BindablePropertyNumberBase>()->propertyValue(value);
                 break;
+            case NestedArtboardLeafBase::alignmentXPropertyKey:
+                object->as<NestedArtboardLeafBase>()->alignmentX(value);
+                break;
+            case NestedArtboardLeafBase::alignmentYPropertyKey:
+                object->as<NestedArtboardLeafBase>()->alignmentY(value);
+                break;
             case BoneBase::lengthPropertyKey:
                 object->as<BoneBase>()->length(value);
                 break;
@@ -1721,10 +1730,6 @@ public:
                 return object->as<DrawableBase>()->drawableFlags();
             case NestedArtboardBase::artboardIdPropertyKey:
                 return object->as<NestedArtboardBase>()->artboardId();
-            case NestedArtboardBase::fitPropertyKey:
-                return object->as<NestedArtboardBase>()->fit();
-            case NestedArtboardBase::alignmentPropertyKey:
-                return object->as<NestedArtboardBase>()->alignment();
             case NestedAnimationBase::animationIdPropertyKey:
                 return object->as<NestedAnimationBase>()->animationId();
             case SoloBase::activeComponentIdPropertyKey:
@@ -1929,6 +1934,8 @@ public:
                 return object->as<DataBindBase>()->flags();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
+            case NestedArtboardLeafBase::fitPropertyKey:
+                return object->as<NestedArtboardLeafBase>()->fit();
             case WeightBase::valuesPropertyKey:
                 return object->as<WeightBase>()->values();
             case WeightBase::indicesPropertyKey:
@@ -2282,6 +2289,10 @@ public:
                 return object->as<JoystickBase>()->height();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyNumberBase>()->propertyValue();
+            case NestedArtboardLeafBase::alignmentXPropertyKey:
+                return object->as<NestedArtboardLeafBase>()->alignmentX();
+            case NestedArtboardLeafBase::alignmentYPropertyKey:
+                return object->as<NestedArtboardLeafBase>()->alignmentY();
             case BoneBase::lengthPropertyKey:
                 return object->as<BoneBase>()->length();
             case RootBoneBase::xPropertyKey:
@@ -2426,8 +2437,6 @@ public:
             case DrawableBase::blendModeValuePropertyKey:
             case DrawableBase::drawableFlagsPropertyKey:
             case NestedArtboardBase::artboardIdPropertyKey:
-            case NestedArtboardBase::fitPropertyKey:
-            case NestedArtboardBase::alignmentPropertyKey:
             case NestedAnimationBase::animationIdPropertyKey:
             case SoloBase::activeComponentIdPropertyKey:
             case LayoutComponentStyleBase::scaleTypePropertyKey:
@@ -2530,6 +2539,7 @@ public:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
+            case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
             case WeightBase::indicesPropertyKey:
             case TendonBase::boneIdPropertyKey:
@@ -2700,6 +2710,8 @@ public:
             case JoystickBase::widthPropertyKey:
             case JoystickBase::heightPropertyKey:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
+            case NestedArtboardLeafBase::alignmentXPropertyKey:
+            case NestedArtboardLeafBase::alignmentYPropertyKey:
             case BoneBase::lengthPropertyKey:
             case RootBoneBase::xPropertyKey:
             case RootBoneBase::yPropertyKey:
@@ -2871,10 +2883,6 @@ public:
             case DrawableBase::drawableFlagsPropertyKey:
                 return object->is<DrawableBase>();
             case NestedArtboardBase::artboardIdPropertyKey:
-                return object->is<NestedArtboardBase>();
-            case NestedArtboardBase::fitPropertyKey:
-                return object->is<NestedArtboardBase>();
-            case NestedArtboardBase::alignmentPropertyKey:
                 return object->is<NestedArtboardBase>();
             case NestedAnimationBase::animationIdPropertyKey:
                 return object->is<NestedAnimationBase>();
@@ -3080,6 +3088,8 @@ public:
                 return object->is<DataBindBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
+            case NestedArtboardLeafBase::fitPropertyKey:
+                return object->is<NestedArtboardLeafBase>();
             case WeightBase::valuesPropertyKey:
                 return object->is<WeightBase>();
             case WeightBase::indicesPropertyKey:
@@ -3412,6 +3422,10 @@ public:
                 return object->is<JoystickBase>();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyNumberBase>();
+            case NestedArtboardLeafBase::alignmentXPropertyKey:
+                return object->is<NestedArtboardLeafBase>();
+            case NestedArtboardLeafBase::alignmentYPropertyKey:
+                return object->is<NestedArtboardLeafBase>();
             case BoneBase::lengthPropertyKey:
                 return object->is<BoneBase>();
             case RootBoneBase::xPropertyKey:

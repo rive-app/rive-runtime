@@ -237,9 +237,9 @@ TEST_CASE("hit test on nested artboards in solos", "[solo]")
     REQUIRE(artboard->is<rive::Artboard>());
     REQUIRE(artboard->find("Nested-Artboard-Active") != nullptr);
     auto nestedArtboardActive = artboard->find<rive::NestedArtboard>("Nested-Artboard-Active");
-    REQUIRE(nestedArtboardActive->artboard() != nullptr);
+    REQUIRE(nestedArtboardActive->artboardInstance() != nullptr);
 
-    auto nestedArtboardActiveArtboardInstance = nestedArtboardActive->artboard();
+    auto nestedArtboardActiveArtboardInstance = nestedArtboardActive->artboardInstance();
     auto activeRect =
         nestedArtboardActiveArtboardInstance->find<rive::Shape>("Clickable-Rectangle");
     REQUIRE(activeRect != nullptr);
@@ -250,8 +250,8 @@ TEST_CASE("hit test on nested artboards in solos", "[solo]")
 
     REQUIRE(artboard->find("Nested-Artboard-Inactive") != nullptr);
     auto nestedArtboardInactive = artboard->find<rive::NestedArtboard>("Nested-Artboard-Inactive");
-    REQUIRE(nestedArtboardInactive->artboard() != nullptr);
-    auto nestedArtboardInactiveArtboardInstance = nestedArtboardInactive->artboard();
+    REQUIRE(nestedArtboardInactive->artboardInstance() != nullptr);
+    auto nestedArtboardInactiveArtboardInstance = nestedArtboardInactive->artboardInstance();
     auto inactiveRect =
         nestedArtboardInactiveArtboardInstance->find<rive::Shape>("Clickable-Rectangle");
     REQUIRE(inactiveRect != nullptr);

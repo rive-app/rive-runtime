@@ -1,0 +1,8 @@
+{
+    "name": "NestedArtboardLayout",
+    "key": {
+        "int": 452,
+        "string": "nestedartboardlayout"
+    },
+    "extends": "nested_artboard.json"
+}

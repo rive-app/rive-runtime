@@ -77,6 +77,10 @@ private:
     std::unordered_set<LayoutComponent*> m_dirtyLayout;
     float m_originalWidth = 0;
     float m_originalHeight = 0;
+    bool m_updatesOwnLayout = true;
+    Artboard* parentArtboard() const;
+    NestedArtboard* m_host = nullptr;
+    bool sharesLayoutWithHost() const;
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     rcp<AudioEngine> m_audioEngine;
@@ -85,8 +89,14 @@ private:
     void sortDependencies();
     void sortDrawOrder();
     void updateDataBinds();
-    void performUpdate(ComponentDirt value) override;
+    void updateRenderPath() override;
+    void update(ComponentDirt value) override;
 
+public:
+    void host(NestedArtboard* nestedArtboard);
+    NestedArtboard* host() const;
+
+private:
 #ifdef TESTING
 public:
     Artboard(Factory* factory) : m_Factory(factory) {}
@@ -96,7 +106,7 @@ public:
     void addStateMachine(StateMachine* object);
 
 public:
-    Artboard() {}
+    Artboard();
     ~Artboard() override;
     StatusCode initialize();
 
@@ -124,21 +134,10 @@ public:
     // Artboard is a special type of LayoutComponent
     void updateWorldTransform() override {}
 
-    void markLayoutDirty(LayoutComponent* layoutComponent)
-    {
-        m_dirtyLayout.insert(layoutComponent);
-    }
+    void markLayoutDirty(LayoutComponent* layoutComponent);
 
-#ifdef WITH_RIVE_LAYOUT
-    AABB layoutBounds() override
-    {
-        if (!hasLayoutMeasurements())
-        {
-            return AABB(x(), y(), x() + width(), y() + height());
-        }
-        return Super::layoutBounds();
-    }
-#endif
+    void* takeLayoutNode();
+    bool syncStyleChanges();
 
     bool advance(double elapsedSeconds, bool nested = true);
     bool advanceInternal(double elapsedSeconds, bool isRoot, bool nested = true);
@@ -171,7 +170,10 @@ public:
     float originalHeight() const { return m_originalHeight; }
     float layoutWidth() const;
     float layoutHeight() const;
+    float layoutX() const;
+    float layoutY() const;
     AABB bounds() const;
+    Vec2D origin() const;
 
     // Can we hide these from the public? (they use playable)
     bool isTranslucent() const;
@@ -366,9 +368,11 @@ private:
     float m_volume = 1.0f;
 #ifdef WITH_RIVE_TOOLS
     ArtboardCallback m_layoutChangedCallback = nullptr;
+    ArtboardCallback m_layoutDirtyCallback = nullptr;
 
 public:
     void onLayoutChanged(ArtboardCallback callback) { m_layoutChangedCallback = callback; }
+    void onLayoutDirty(ArtboardCallback callback) { m_layoutDirtyCallback = callback; }
 #endif
 };
 

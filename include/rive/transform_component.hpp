@@ -12,7 +12,7 @@ class WorldTransformComponent;
 class AABB;
 class TransformComponent : public TransformComponentBase
 {
-private:
+protected:
     Mat2D m_Transform;
     float m_RenderOpacity = 0.0f;
     WorldTransformComponent* m_ParentTransformComponent = nullptr;
@@ -27,7 +27,7 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     void buildDependencies() override;
     void update(ComponentDirt value) override;
-    void updateTransform();
+    virtual void updateTransform();
     virtual void updateWorldTransform();
     void markTransformDirty();
 
