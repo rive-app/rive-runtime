@@ -137,6 +137,9 @@ struct GradientSpan
     uint32_t color1;
 };
 static_assert(sizeof(GradientSpan) == sizeof(uint32_t) * 4);
+static_assert(256 % sizeof(GradientSpan) == 0);
+// Metal requires vertex buffers to be 256-byte aligned.
+constexpr static size_t kGradSpanBufferAlignmentInElements = 256 / sizeof(GradientSpan);
 
 // Each curve gets tessellated into vertices. This is performed by rendering a horizontal span
 // of positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan
@@ -229,6 +232,9 @@ struct TessVertexSpan
     uint32_t contourIDWithFlags; // flags | contourID
 };
 static_assert(sizeof(TessVertexSpan) == sizeof(float) * 16);
+static_assert(256 % sizeof(TessVertexSpan) == 0);
+// Metal requires vertex buffers to be 256-byte aligned.
+constexpr static size_t kTessVertexBufferAlignmentInElements = 256 / sizeof(TessVertexSpan);
 
 // Tessellation spans are drawn as two distinct, 1px-tall rectangles: the span and its reflection.
 constexpr uint16_t kTessSpanIndices[4 * 3] = {0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7};

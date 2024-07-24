@@ -29,6 +29,9 @@ constexpr size_t kMaxTessellationPaddingVertexCount =
 constexpr size_t kMaxTessellationVertexCountBeforePadding =
     kMaxTessellationVertexCount - kMaxTessellationPaddingVertexCount;
 
+// Metal requires vertex buffers to be 256-byte aligned.
+constexpr size_t kMaxTessellationAlignmentVertices = pls::kTessVertexBufferAlignmentInElements - 1;
+
 // We can only reorder 32767 draws at a time since the one-based groupIndex returned by
 // IntersectionBoard is a signed 16-bit integer.
 constexpr size_t kMaxReorderedDrawCount = std::numeric_limits<int16_t>::max();
@@ -164,6 +167,7 @@ void PLSRenderContext::LogicalFlush::rewind()
     m_paintPaddingCount = 0;
     m_paintAuxPaddingCount = 0;
     m_contourPaddingCount = 0;
+    m_gradSpanPaddingCount = 0;
     m_midpointFanTessEndLocation = 0;
     m_outerCubicTessEndLocation = 0;
     m_outerCubicTessVertexIdx = 0;
@@ -478,7 +482,8 @@ void PLSRenderContext::flush(const FlushResources& flushResources)
     // texture-transfer buffer's length in order to be able to serve a worst-case scenario.
     allocs.simpleGradientBufferCount =
         layoutCounts.simpleGradCount + pls::kGradTextureWidthInSimpleRamps - 1;
-    allocs.complexGradSpanBufferCount = totalFrameResourceCounts.complexGradientSpanCount;
+    allocs.complexGradSpanBufferCount =
+        totalFrameResourceCounts.complexGradientSpanCount + layoutCounts.gradSpanPaddingCount;
     allocs.tessSpanBufferCount = totalFrameResourceCounts.maxTessellatedSegmentCount;
     allocs.triangleVertexBufferCount = totalFrameResourceCounts.maxTriangleVertexCount;
     allocs.gradTextureHeight = layoutCounts.maxGradTextureHeight;
@@ -534,7 +539,8 @@ void PLSRenderContext::flush(const FlushResources& flushResources)
     assert(m_contourData.elementsWritten() ==
            totalFrameResourceCounts.contourCount + layoutCounts.contourPaddingCount);
     assert(m_simpleColorRampsData.elementsWritten() == layoutCounts.simpleGradCount);
-    assert(m_gradSpanData.elementsWritten() == totalFrameResourceCounts.complexGradientSpanCount);
+    assert(m_gradSpanData.elementsWritten() ==
+           totalFrameResourceCounts.complexGradientSpanCount + layoutCounts.gradSpanPaddingCount);
     assert(m_tessSpanData.elementsWritten() <= totalFrameResourceCounts.maxTessellatedSegmentCount);
     assert(m_triangleVertexData.elementsWritten() <=
            totalFrameResourceCounts.maxTriangleVertexCount);
@@ -586,8 +592,7 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
     // This also allows us to index the storage buffers directly by pathID.
     ++m_resourceCounts.pathCount;
 
-    // Storage buffer offsets are required to be aligned on multiples of 256, so add padding
-    // elements to our storage buffers.
+    // Storage buffer offsets are required to be aligned on multiples of 256.
     m_pathPaddingCount =
         pls::PaddingToAlignUp<pls::kPathBufferAlignmentInElements>(m_resourceCounts.pathCount);
     m_paintPaddingCount =
@@ -596,6 +601,10 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
         pls::PaddingToAlignUp<pls::kPaintAuxBufferAlignmentInElements>(m_resourceCounts.pathCount);
     m_contourPaddingCount = pls::PaddingToAlignUp<pls::kContourBufferAlignmentInElements>(
         m_resourceCounts.contourCount);
+
+    // Metal requires vertex buffers to be 256-byte aligned.
+    m_gradSpanPaddingCount = pls::PaddingToAlignUp<pls::kGradSpanBufferAlignmentInElements>(
+        m_resourceCounts.complexGradientSpanCount);
 
     size_t totalTessVertexCountWithPadding = 0;
     if ((m_resourceCounts.midpointFanTessVertexCount |
@@ -636,7 +645,8 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
         // The tessellation texture requires 3 separate spans of padding vertices (see above and
         // below).
         constexpr size_t kPaddingSpanCount = 3;
-        m_resourceCounts.maxTessellatedSegmentCount += maxSpanBreakCount + kPaddingSpanCount;
+        m_resourceCounts.maxTessellatedSegmentCount +=
+            maxSpanBreakCount + kPaddingSpanCount + kMaxTessellationAlignmentVertices;
     }
 
     m_flushDesc.renderTarget = flushResources.renderTarget;
@@ -722,7 +732,8 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
     m_flushDesc.firstContour =
         runningFrameResourceCounts->contourCount + runningFrameLayoutCounts->contourPaddingCount;
     m_flushDesc.complexGradSpanCount = m_resourceCounts.complexGradientSpanCount;
-    m_flushDesc.firstComplexGradSpan = runningFrameResourceCounts->complexGradientSpanCount;
+    m_flushDesc.firstComplexGradSpan = runningFrameResourceCounts->complexGradientSpanCount +
+                                       runningFrameLayoutCounts->gradSpanPaddingCount;
     m_flushDesc.simpleGradTexelsWidth =
         std::min<uint32_t>(m_simpleGradients.size(), pls::kGradTextureWidthInSimpleRamps) * 2;
     m_flushDesc.simpleGradTexelsHeight =
@@ -748,12 +759,18 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
     runningFrameLayoutCounts->paintAuxPaddingCount += m_paintAuxPaddingCount;
     runningFrameLayoutCounts->contourPaddingCount += m_contourPaddingCount;
     runningFrameLayoutCounts->simpleGradCount += m_simpleGradients.size();
+    runningFrameLayoutCounts->gradSpanPaddingCount += m_gradSpanPaddingCount;
     runningFrameLayoutCounts->maxGradTextureHeight =
         std::max(m_flushDesc.simpleGradTexelsHeight + m_flushDesc.complexGradRowsHeight,
                  runningFrameLayoutCounts->maxGradTextureHeight);
     runningFrameLayoutCounts->maxTessTextureHeight =
         std::max(m_flushDesc.tessDataHeight, runningFrameLayoutCounts->maxTessTextureHeight);
 
+    assert(m_flushDesc.firstPath % pls::kPathBufferAlignmentInElements == 0);
+    assert(m_flushDesc.firstPaint % pls::kPaintBufferAlignmentInElements == 0);
+    assert(m_flushDesc.firstPaintAux % pls::kPaintAuxBufferAlignmentInElements == 0);
+    assert(m_flushDesc.firstContour % pls::kContourBufferAlignmentInElements == 0);
+    assert(m_flushDesc.firstComplexGradSpan % pls::kGradSpanBufferAlignmentInElements == 0);
     RIVE_DEBUG_CODE(m_hasDoneLayout = true;)
 }
 
@@ -771,9 +788,18 @@ void PLSRenderContext::LogicalFlush::writeResources()
     m_gradTextureLayout.complexOffsetY = m_flushDesc.complexGradRowsTop;
 
     // Exact tessSpan/triangleVertex counts aren't known until after their data is written out.
-    m_flushDesc.firstTessVertexSpan = m_ctx->m_tessSpanData.elementsWritten();
+    size_t firstTessVertexSpan = m_ctx->m_tessSpanData.elementsWritten();
     size_t initialTriangleVertexDataSize = m_ctx->m_triangleVertexData.bytesWritten();
 
+    // Metal requires vertex buffers to be 256-byte aligned.
+    size_t tessAlignmentPadding =
+        pls::PaddingToAlignUp<pls::kTessVertexBufferAlignmentInElements>(firstTessVertexSpan);
+    assert(tessAlignmentPadding <= kMaxTessellationAlignmentVertices);
+    m_ctx->m_tessSpanData.push_back_n(nullptr, tessAlignmentPadding);
+    m_flushDesc.firstTessVertexSpan = firstTessVertexSpan + tessAlignmentPadding;
+    assert(m_flushDesc.firstTessVertexSpan == m_ctx->m_tessSpanData.elementsWritten());
+
+    // Write out the uniforms for this flush.
     m_ctx->m_flushUniformData.emplace_back(m_flushDesc, platformFeatures);
 
     // Write out the simple gradient data.
@@ -1020,11 +1046,12 @@ void PLSRenderContext::LogicalFlush::writeResources()
         }
     }
 
-    // Pad our storage buffers to 256-byte alignment.
+    // Pad our buffers to 256-byte alignment.
     m_ctx->m_pathData.push_back_n(nullptr, m_pathPaddingCount);
     m_ctx->m_paintData.push_back_n(nullptr, m_paintPaddingCount);
     m_ctx->m_paintAuxData.push_back_n(nullptr, m_paintAuxPaddingCount);
     m_ctx->m_contourData.push_back_n(nullptr, m_contourPaddingCount);
+    m_ctx->m_gradSpanData.push_back_n(nullptr, m_gradSpanPaddingCount);
 
     assert(m_ctx->m_pathData.elementsWritten() ==
            m_flushDesc.firstPath + m_resourceCounts.pathCount + m_pathPaddingCount);
@@ -1034,6 +1061,9 @@ void PLSRenderContext::LogicalFlush::writeResources()
            m_flushDesc.firstPaintAux + m_resourceCounts.pathCount + m_paintAuxPaddingCount);
     assert(m_ctx->m_contourData.elementsWritten() ==
            m_flushDesc.firstContour + m_resourceCounts.contourCount + m_contourPaddingCount);
+    assert(m_ctx->m_gradSpanData.elementsWritten() ==
+           m_flushDesc.firstComplexGradSpan + m_resourceCounts.complexGradientSpanCount +
+               m_gradSpanPaddingCount);
 
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
     assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessLocationAtEndOfPath);

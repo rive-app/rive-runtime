@@ -462,6 +462,7 @@ private:
             uint32_t paintAuxPaddingCount = 0;
             uint32_t contourPaddingCount = 0;
             uint32_t simpleGradCount = 0;
+            uint32_t gradSpanPaddingCount = 0;
             uint32_t maxGradTextureHeight = 0;
             uint32_t maxTessTextureHeight = 0;
         };
@@ -616,6 +617,7 @@ private:
         uint32_t m_paintPaddingCount;
         uint32_t m_paintAuxPaddingCount;
         uint32_t m_contourPaddingCount;
+        uint32_t m_gradSpanPaddingCount;
         uint32_t m_midpointFanTessEndLocation;
         uint32_t m_outerCubicTessEndLocation;
         uint32_t m_outerCubicTessVertexIdx;
