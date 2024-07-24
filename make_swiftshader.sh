@@ -2,6 +2,7 @@
 
 set -e
 
+mkdir -p dependencies
 cd dependencies
 
 if [ ! -d swiftshader ]; then

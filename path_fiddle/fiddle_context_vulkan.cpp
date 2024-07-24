@@ -79,8 +79,8 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                 strcmp(pCallbackData->pMessageIdName, "Loader Message") == 0 &&
                 strcmp(pCallbackData->pMessage, "Copying old device 0 into new device 0") == 0)
             {
-                // Swiftshader generates this error during vkEnumeratePhysicalDevices. It seems
-                // fine to ignore.
+                // Swiftshader generates this error during
+                // vkEnumeratePhysicalDevices. It seems fine to ignore.
                 break;
             }
             fprintf(stderr,
@@ -164,6 +164,7 @@ public:
             }
             if (strcmp(ext.extensionName, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == 0)
             {
+                // MoltenVK needs KHR_portability_enumeration.
                 instanceEnabledExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
                 instanceExtensions.KHR_portability_enumeration = true;
                 continue;
@@ -197,7 +198,8 @@ public:
             if (!instanceExtensions.EXT_debug_utils)
             {
                 fprintf(stderr,
-                        "Validation layers requested but EXT_debug_utils is not supported.");
+                        "Validation layers requested but EXT_debug_utils is not "
+                        "supported.");
                 exit(-1);
             }
 
@@ -294,11 +296,6 @@ public:
             .pQueuePriorities = &queuePriority,
         };
 
-        VkPhysicalDeviceFeatures physicalDeviceFeatures = {
-            .independentBlend = VK_TRUE,
-            .fragmentStoresAndAtomics = VK_TRUE,
-        };
-
         uint32_t deviceAvailableExtensionCount;
         vkEnumerateDeviceExtensionProperties(m_physicalDevice,
                                              nullptr,
@@ -311,6 +308,15 @@ public:
                                              &deviceAvailableExtensionCount,
                                              deviceAvailableExtensions.data());
 
+        VkPhysicalDeviceFeatures2 availablePhysicalDeviceFeatures2 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
+        };
+
+        VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT availableRasterOrderFeatures{
+            .sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT,
+        };
+
 #if 0
         printf("Device extensions:\n");
         for (const VkExtensionProperties& ext : deviceAvailableExtensions)
@@ -321,36 +327,70 @@ public:
 
         std::vector<const char*> deviceEnabledExtensions;
 
-        struct
-        {
-            bool KHR_swapchain = false;
-            bool KHR_portability_subset = false;
-        } extensions;
-
+        VulkanDeviceExtensions extensions;
+        bool KHR_swapchain = false;
         for (const VkExtensionProperties& ext : deviceAvailableExtensions)
         {
             if (!options.allowHeadlessRendering &&
                 strcmp(ext.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0)
             {
                 deviceEnabledExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-                extensions.KHR_swapchain = true;
+                KHR_swapchain = true;
                 continue;
             }
             if (instanceExtensions.KHR_portability_enumeration &&
                 strcmp(ext.extensionName, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME) == 0)
             {
+                // Enable KHR_portability_subset for KHR_portability_enumeration, which is needed by
+                // MoltenVK.
                 deviceEnabledExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-                extensions.KHR_portability_subset = true;
+                continue;
+            }
+            if (!m_options.disableRasterOrdering &&
+                (strcmp(ext.extensionName,
+                        VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME) == 0 ||
+                 strcmp(ext.extensionName, "VK_AMD_rasterization_order_attachment_access") == 0))
+            {
+                extensions.EXT_rasterization_order_attachment_access = true;
+                availableRasterOrderFeatures.pNext = availablePhysicalDeviceFeatures2.pNext;
+                availablePhysicalDeviceFeatures2.pNext = &availableRasterOrderFeatures;
                 continue;
             }
         }
 
-        if (!options.allowHeadlessRendering && !extensions.KHR_swapchain)
+        if (!options.allowHeadlessRendering && !KHR_swapchain)
         {
             fprintf(stderr,
-                    "extension %s, required for GLFW windowed rendering, is not supported.\n",
+                    "extension %s, required for GLFW windowed rendering, is not "
+                    "supported.\n",
                     VK_KHR_SWAPCHAIN_EXTENSION_NAME);
             exit(-1);
+        }
+
+        if (instanceExtensions.KHR_get_physical_device_properties2)
+        {
+            vkGetPhysicalDeviceFeatures2(m_physicalDevice, &availablePhysicalDeviceFeatures2);
+        }
+
+        // Only enable EXT_rasterization_order_attachment_access if we have
+        // rasterOrdered access to color attachments.
+        if (extensions.EXT_rasterization_order_attachment_access)
+        {
+            // availableRasterOrderFeatures gets filled out by
+            // vkGetPhysicalDeviceFeatures2().
+            if (availableRasterOrderFeatures.rasterizationOrderColorAttachmentAccess)
+            {
+                // We have rasterOrdered color attachment access. Turn on the
+                // extension!
+                deviceEnabledExtensions.push_back(
+                    VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME);
+            }
+            else
+            {
+                // Un-flag EXT_rasterization_order_attachment_access since it
+                // doesn't support rasterOrdered color attachment access.
+                extensions.EXT_rasterization_order_attachment_access = false;
+            }
         }
 
         VkDeviceCreateInfo deviceCreateInfo = {
@@ -359,8 +399,32 @@ public:
             .pQueueCreateInfos = &deviceQueueCreateInfo,
             .enabledExtensionCount = static_cast<uint32_t>(deviceEnabledExtensions.size()),
             .ppEnabledExtensionNames = deviceEnabledExtensions.data(),
-            .pEnabledFeatures = &physicalDeviceFeatures,
         };
+
+        VkPhysicalDeviceFeatures2 physicalDeviceFeatures2 = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
+        };
+
+        VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT rasterOrderFeatures{
+            .sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT,
+            .rasterizationOrderColorAttachmentAccess = VK_TRUE,
+        };
+
+        if (extensions.EXT_rasterization_order_attachment_access)
+        {
+            rasterOrderFeatures.pNext = physicalDeviceFeatures2.pNext;
+            physicalDeviceFeatures2.pNext = &rasterOrderFeatures;
+        }
+
+        if (instanceExtensions.KHR_get_physical_device_properties2)
+        {
+            deviceCreateInfo.pNext = &physicalDeviceFeatures2;
+        }
+        else
+        {
+            deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures2.features;
+        }
 
         VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
@@ -389,7 +453,7 @@ public:
 
         m_allocator =
             make_rcp<vkutil::Allocator>(m_instance, m_physicalDevice, m_device, VK_API_VERSION_1_0);
-        m_plsContext = PLSRenderContextVulkanImpl::MakeContext(m_allocator);
+        m_plsContext = PLSRenderContextVulkanImpl::MakeContext(m_allocator, extensions);
 
         VkSemaphoreCreateInfo semaphoreCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -409,6 +473,7 @@ public:
         m_renderTarget.reset();
         m_pixelReadBuffer.reset();
         m_headlessRenderTexture.reset();
+        m_headlessRenderTextureView.reset();
         m_swapchainImageViews.clear();
         m_fencePool.reset();
         m_frameFence.reset();
@@ -488,14 +553,16 @@ public:
             if (matches.size() > 1)
             {
                 fprintf(stderr,
-                        "Cannot select GPU\nToo many matches for filter '%s'.\nMatches:\n",
+                        "Cannot select GPU\nToo many matches for filter "
+                        "'%s'.\nMatches:\n",
                         filterName);
                 devicePrintList = &matches;
             }
             else
             {
                 fprintf(stderr,
-                        "Cannot select GPU.\nNo matches for filter '%s'.\nAvailable GPUs:\n",
+                        "Cannot select GPU.\nNo matches for filter "
+                        "'%s'.\nAvailable GPUs:\n",
                         filterName);
                 devicePrintList = &physicalDevices;
             }
@@ -514,7 +581,14 @@ public:
         return matches[0];
     }
 
-    float dpiScale(GLFWwindow* window) const override { return 1.0; }
+    float dpiScale(GLFWwindow* window) const override
+    {
+#ifdef __APPLE__
+        return 2;
+#else
+        return 1;
+#endif
+    }
 
     Factory* factory() override { return m_plsContext.get(); }
 
@@ -526,6 +600,7 @@ public:
     {
         if (m_options.allowHeadlessRendering)
         {
+            m_swapchainSupportsShaderFetch = true;
             m_swapchainFormat = VK_FORMAT_R8G8B8A8_UNORM;
             m_swapchainImages.resize(1);
             m_headlessRenderTexture = m_allocator->makeTexture({
@@ -554,10 +629,10 @@ public:
 
             VK_CHECK(glfwCreateWindowSurface(m_instance, window, nullptr, &m_windowSurface));
 
-            VkSurfaceCapabilitiesKHR surfaceCapabilities;
+            VkSurfaceCapabilitiesKHR surfaceCapabilitiesKHR;
             vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice,
                                                       m_windowSurface,
-                                                      &surfaceCapabilities);
+                                                      &surfaceCapabilitiesKHR);
 
             uint32_t formatCount;
             vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice,
@@ -621,14 +696,14 @@ public:
             VkSwapchainCreateInfoKHR swapchainCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
                 .surface = m_windowSurface,
-                .minImageCount = surfaceCapabilities.minImageCount + 1,
+                .minImageCount = surfaceCapabilitiesKHR.minImageCount + 1,
                 .imageFormat = formats[formatIndex].format,
                 .imageColorSpace = formats[formatIndex].colorSpace,
-                .imageExtent = surfaceCapabilities.currentExtent,
+                .imageExtent = surfaceCapabilitiesKHR.currentExtent,
                 .imageArrayLayers = 1,
                 .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                 .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                .preTransform = surfaceCapabilities.currentTransform,
+                .preTransform = surfaceCapabilitiesKHR.currentTransform,
                 .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
                 .presentMode = presentationMode,
                 .clipped = VK_TRUE,
@@ -637,11 +712,34 @@ public:
             {
                 // Needed for readbacks and for framebuffer preservation with blend
                 // modes enabled.
-                if (!(surfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT))
+                if (!(surfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT))
                 {
                     fprintf(stderr, "Readbacks not supported on GLFW window.");
+                    exit(-1);
                 }
                 swapchainCreateInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+            }
+
+            m_swapchainSupportsShaderFetch =
+                surfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            if (m_swapchainSupportsShaderFetch)
+            {
+                swapchainCreateInfo.imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            }
+            else
+            {
+                if (!(surfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+                {
+                    // Fail since we can neither read the swapchain nor blit an
+                    // offscreen texture into it.
+                    // TODO: render to this texture instead.
+                    fprintf(stderr,
+                            "Neither VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT nor "
+                            "VK_IMAGE_USAGE_TRANSFER_DST_BIT supported on GLFW "
+                            "window.");
+                    exit(-1);
+                }
+                swapchainCreateInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             }
 
             VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
@@ -702,7 +800,6 @@ public:
                                   &m_swapchainImageIndex);
         }
 
-        m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex]);
         m_plsContext->beginFrame(std::move(frameDescriptor));
 
         VkCommandBuffer commandBuffer = m_commandBuffers[m_resourcePoolIdx];
@@ -713,6 +810,31 @@ public:
         };
 
         vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+
+        if (m_swapchainSupportsShaderFetch)
+        {
+            m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex]);
+        }
+        else
+        {
+            if (!m_headlessRenderTexture)
+            {
+                m_headlessRenderTexture = m_allocator->makeTexture({
+                    .format = m_swapchainFormat,
+                    .extent = {static_cast<uint32_t>(m_renderTarget->width()),
+                               static_cast<uint32_t>(m_renderTarget->height()),
+                               1},
+                    .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                });
+                vkutil::insert_image_memory_barrier(commandBuffer,
+                                                    *m_headlessRenderTexture,
+                                                    VK_IMAGE_LAYOUT_UNDEFINED,
+                                                    VK_IMAGE_LAYOUT_GENERAL);
+                m_headlessRenderTextureView = m_allocator->makeTextureView(m_headlessRenderTexture);
+            }
+            m_renderTarget->setTargetTextureView(m_headlessRenderTextureView);
+        }
 
         // TODO: consider using GENERAL only in atomic case.
         vkutil::insert_image_memory_barrier(commandBuffer,
@@ -737,6 +859,62 @@ public:
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
         flushPLSContext();
+
+        if (!m_swapchainSupportsShaderFetch)
+        {
+            // Blit the offscreen texture onto the swapchain texture.
+            vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
+                                                *m_headlessRenderTexture,
+                                                VK_IMAGE_LAYOUT_GENERAL,
+                                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+            VkImageBlit imageBlit = {
+                .srcSubresource =
+                    {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .layerCount = 1,
+                    },
+                .dstSubresource =
+                    {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .layerCount = 1,
+                    },
+            };
+
+            imageBlit.srcOffsets[0] = {0, 0, 0};
+            imageBlit.srcOffsets[1] = {
+                static_cast<int32_t>(m_renderTarget->width()),
+                static_cast<int32_t>(m_renderTarget->height()),
+                1,
+            };
+
+            imageBlit.dstOffsets[0] = {0, 0, 0};
+            imageBlit.dstOffsets[1] = {
+                static_cast<int32_t>(m_renderTarget->width()),
+                static_cast<int32_t>(m_renderTarget->height()),
+                1,
+            };
+
+            vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
+                                                m_swapchainImages[m_swapchainImageIndex],
+                                                m_swapchainImageLayouts[m_swapchainImageIndex],
+                                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            m_swapchainImageLayouts[m_swapchainImageIndex] = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+
+            vkCmdBlitImage(m_commandBuffers[m_resourcePoolIdx],
+                           *m_headlessRenderTexture,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           m_swapchainImages[m_swapchainImageIndex],
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1,
+                           &imageBlit,
+                           VK_FILTER_NEAREST);
+
+            vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
+                                                *m_headlessRenderTexture,
+                                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                                VK_IMAGE_LAYOUT_GENERAL);
+        }
 
         VkCommandBuffer commandBuffer = m_commandBuffers[m_resourcePoolIdx];
         uint32_t w = m_renderTarget->width();
@@ -861,6 +1039,7 @@ private:
     VkDevice m_device;
     VkQueue m_queue;
 
+    bool m_swapchainSupportsShaderFetch = false;
     VkFormat m_swapchainFormat = VK_FORMAT_UNDEFINED;
     VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
     VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
@@ -871,6 +1050,7 @@ private:
 
     // Headless rendering.
     rcp<vkutil::Texture> m_headlessRenderTexture;
+    rcp<vkutil::TextureView> m_headlessRenderTextureView;
 
     VkCommandPool m_commandPool;
     VkCommandBuffer m_commandBuffers[kResourcePoolSize];

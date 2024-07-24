@@ -357,8 +357,7 @@ public:
         };
 
         VkPipelineColorBlendAttachmentState blendColorAttachment = {
-            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .colorWriteMask = vkutil::ColorWriteMaskRGBA,
         };
         VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -597,8 +596,7 @@ public:
         };
 
         VkPipelineColorBlendAttachmentState blendColorAttachment = {
-            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            .colorWriteMask = vkutil::ColorWriteMaskRGBA,
         };
         VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -815,7 +813,9 @@ public:
 
     // Creates a render pass that can be used with the DrawPipeline at matching
     // renderPassVariantIdx.
-    static VkRenderPass CreateVkRenderPass(VkDevice device, int renderPassVariantIdx)
+    static VkRenderPass CreateVkRenderPass(VkDevice device,
+                                           const VulkanDeviceExtensions& extensions,
+                                           int renderPassVariantIdx)
     {
         VkAttachmentDescription attachmentDescriptions[] = {
             {
@@ -849,8 +849,8 @@ public:
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                 .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
             },
         };
         VkAttachmentReference attachmentReferences[] = {
@@ -859,36 +859,36 @@ public:
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
             },
             {
-                .attachment = CLIP_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
                 .attachment = COVERAGE_PLANE_IDX,
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
             },
             {
-                .attachment = ORIGINAL_DST_COLOR_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-        };
-
-        VkAttachmentReference inputAttachmentReferences[] = {
-            {
-                .attachment = FRAMEBUFFER_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
                 .attachment = CLIP_PLANE_IDX,
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
             },
+            {
+                .attachment = ORIGINAL_DST_COLOR_PLANE_IDX,
+                .layout = VK_IMAGE_LAYOUT_GENERAL,
+            },
         };
+        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+        static_assert(COVERAGE_PLANE_IDX == 1);
+        static_assert(CLIP_PLANE_IDX == 2);
+        static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+
         VkSubpassDescription subpassDescription = {
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = 0,
-            .pInputAttachments = inputAttachmentReferences,
-            .colorAttachmentCount = 4,
+            .inputAttachmentCount = std::size(attachmentReferences),
+            .pInputAttachments = attachmentReferences,
+            .colorAttachmentCount = std::size(attachmentReferences),
             .pColorAttachments = attachmentReferences,
         };
+        if (extensions.EXT_rasterization_order_attachment_access)
+        {
+            // TODO: never set this flag on atomic render passes.
+            subpassDescription.flags |=
+                VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT;
+        }
         VkSubpassDependency subpassDependency = {
             .srcSubpass = 0,
             .dstSubpass = 0,
@@ -930,6 +930,29 @@ public:
                 .try_emplace(shaderKey, m_device, drawType, interlockMode, shaderFeatures)
                 .first->second;
 
+        // TODO: This is where we will configure permutations based on ShaderFeatures.
+        // For now, we just set the temporary "kHasRasterOrdering" value.
+        VkBool32 shaderPermutationFlags[1] = {
+            plsImplVulkan->m_extensions.EXT_rasterization_order_attachment_access,
+        };
+
+        VkSpecializationMapEntry permutationMapEntries[std::size(shaderPermutationFlags)];
+        for (uint32_t i = 0; i < std::size(permutationMapEntries); ++i)
+        {
+            permutationMapEntries[i] = {
+                .constantID = i,
+                .offset = i * static_cast<uint32_t>(sizeof(VkBool32)),
+                .size = sizeof(VkBool32),
+            };
+        }
+
+        VkSpecializationInfo specializationInfo = {
+            .mapEntryCount = std::size(permutationMapEntries),
+            .pMapEntries = permutationMapEntries,
+            .dataSize = sizeof(shaderPermutationFlags),
+            .pData = &shaderPermutationFlags,
+        };
+
         VkPipelineShaderStageCreateInfo stages[] = {
             {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -942,6 +965,7 @@ public:
                 .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
                 .module = drawShader.fragmentModule(),
                 .pName = "main",
+                .pSpecializationInfo = &specializationInfo,
             },
         };
 
@@ -1079,23 +1103,23 @@ public:
             .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
         };
 
-        VkPipelineColorBlendAttachmentState blendColorAttachments[4] = {};
+        VkPipelineColorBlendAttachmentState blendColorAttachments[4] = {
+            {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
+            {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
+            {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
+            {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
+        };
         VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
             .attachmentCount = 4,
             .pAttachments = blendColorAttachments,
         };
-
-        // In rasterOrdering mode, the PLS planes are accessed as color
-        // attachments.
-        blendColorAttachments[FRAMEBUFFER_PLANE_IDX].colorWriteMask =
-            VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-            VK_COLOR_COMPONENT_A_BIT;
-        blendColorAttachments[COVERAGE_PLANE_IDX].colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
-        blendColorAttachments[CLIP_PLANE_IDX].colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
-        blendColorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].colorWriteMask =
-            VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-            VK_COLOR_COMPONENT_A_BIT;
+        if (plsImplVulkan->m_extensions.EXT_rasterization_order_attachment_access &&
+            interlockMode == pls::InterlockMode::rasterOrdering)
+        {
+            pipelineColorBlendStateCreateInfo.flags |=
+                VK_PIPELINE_COLOR_BLEND_STATE_CREATE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_BIT_EXT;
+        }
 
         VkDynamicState dynamicStates[] = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -1152,9 +1176,11 @@ private:
     VkPipeline m_vkPipelines[kRenderPassVariantCount];
 };
 
-PLSRenderContextVulkanImpl::PLSRenderContextVulkanImpl(rcp<vkutil::Allocator> allocator) :
+PLSRenderContextVulkanImpl::PLSRenderContextVulkanImpl(rcp<vkutil::Allocator> allocator,
+                                                       VulkanDeviceExtensions extensions) :
     m_allocator(std::move(allocator)),
     m_device(m_allocator->device()),
+    m_extensions(extensions),
     m_flushUniformBufferRing(m_allocator,
                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                              vkutil::Mappability::writeOnly),
@@ -1220,13 +1246,13 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
             .binding = PAINT_BUFFER_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         },
         {
             .binding = PAINT_AUX_BUFFER_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         },
         {
             .binding = CONTOUR_BUFFER_IDX,
@@ -1299,23 +1325,50 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
                                          nullptr,
                                          &m_drawDescriptorSetLayouts[SAMPLER_BINDINGS_SET]));
 
-    VkDescriptorSetLayoutBinding plsTextureDescriptorSetLayoutBindings[] = {
+    VkDescriptorSetLayoutBinding plsInputAttachmentBindings[] = {
+        {
+            .binding = FRAMEBUFFER_PLANE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
         {
             .binding = COVERAGE_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = CLIP_PLANE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = ORIGINAL_DST_COLOR_PLANE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
-    VkDescriptorSetLayoutCreateInfo plsTextureDescriptorSetLayoutCreateInfo = {
+    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+    static_assert(COVERAGE_PLANE_IDX == 1);
+    static_assert(CLIP_PLANE_IDX == 2);
+    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+
+    VkDescriptorSetLayoutCreateInfo plsInputAttachmentLayout = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = plsTextureDescriptorSetLayoutBindings,
+        .bindingCount = std::size(plsInputAttachmentBindings),
+        .pBindings = plsInputAttachmentBindings,
     };
+
     VK_CHECK(vkCreateDescriptorSetLayout(m_device,
-                                         &plsTextureDescriptorSetLayoutCreateInfo,
+                                         &plsInputAttachmentLayout,
                                          nullptr,
                                          &m_drawDescriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]));
+
+    constexpr static uint8_t black[] = {0, 0, 0, 1};
+    m_nullImageTexture = make_rcp<PLSTextureVulkanImpl>(m_allocator, 1, 1, 1, black);
 
     VkSamplerCreateInfo linearSamplerCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -1343,61 +1396,74 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
 
     VK_CHECK(vkCreateSampler(m_device, &mipmapSamplerCreateInfo, nullptr, &m_mipmapSampler));
 
-    VkDescriptorPoolSize samplerDescriptorPoolSizes[] = {
+    VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
+        {
+            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1, // m_nullImageTexture
+        },
         {
             .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 2,
+            .descriptorCount = 2, // m_linearSampler, m_mipmapSampler
         },
     };
-    VkDescriptorPoolCreateInfo samplerDescriptorPoolCreateInfo = {
+    VkDescriptorPoolCreateInfo staticDescriptorPoolCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = 1,
-        .poolSizeCount = std::size(samplerDescriptorPoolSizes),
-        .pPoolSizes = samplerDescriptorPoolSizes,
+        .maxSets = 2,
+        .poolSizeCount = std::size(staticDescriptorPoolSizes),
+        .pPoolSizes = staticDescriptorPoolSizes,
     };
 
     VK_CHECK(vkCreateDescriptorPool(m_device,
-                                    &samplerDescriptorPoolCreateInfo,
+                                    &staticDescriptorPoolCreateInfo,
                                     nullptr,
-                                    &m_samplerDescriptorPool));
+                                    &m_staticDescriptorPool));
 
-    VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+    VkDescriptorSetAllocateInfo nullImageDescriptorSetInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = m_samplerDescriptorPool,
+        .descriptorPool = m_staticDescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &m_drawDescriptorSetLayouts[PER_DRAW_BINDINGS_SET],
+    };
+
+    VK_CHECK(
+        vkAllocateDescriptorSets(m_device, &nullImageDescriptorSetInfo, &m_nullImageDescriptorSet));
+
+    vkutil::update_image_descriptor_sets(
+        m_device,
+        m_nullImageDescriptorSet,
+        {
+            .dstBinding = IMAGE_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_nullImageTexture->m_textureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    m_nullImageTexture->m_descriptorSetFrameIdx = m_currentFrameIdx;
+
+    VkDescriptorSetAllocateInfo samplerDescriptorSetInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = m_staticDescriptorPool,
         .descriptorSetCount = 1,
         .pSetLayouts = &m_drawDescriptorSetLayouts[SAMPLER_BINDINGS_SET],
     };
 
     VK_CHECK(
-        vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_samplerDescriptorSet));
+        vkAllocateDescriptorSets(m_device, &samplerDescriptorSetInfo, &m_samplerDescriptorSet));
 
-    VkDescriptorImageInfo linearDescriptorImageInfo = {
-        .sampler = m_linearSampler,
-    };
-    VkDescriptorImageInfo mipmapDescriptorImageInfo = {
-        .sampler = m_mipmapSampler,
-    };
-
-    VkWriteDescriptorSet writeDescriptorSet[] = {
-        {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = m_samplerDescriptorSet,
-            .dstBinding = GRAD_TEXTURE_IDX,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .pImageInfo = &linearDescriptorImageInfo,
-        },
-        {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = m_samplerDescriptorSet,
-            .dstBinding = IMAGE_TEXTURE_IDX,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .pImageInfo = &mipmapDescriptorImageInfo,
-        }};
-
-    vkUpdateDescriptorSets(m_device, 2, writeDescriptorSet, 0, nullptr);
+    vkutil::update_image_descriptor_sets(m_device,
+                                         m_samplerDescriptorSet,
+                                         {
+                                             .dstBinding = GRAD_TEXTURE_IDX,
+                                             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                                         },
+                                         {
+                                             {.sampler = m_linearSampler},
+                                             {.sampler = m_mipmapSampler},
+                                         });
+    static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1455,14 +1521,11 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
            pls::kImageRectIndices,
            sizeof(pls::kImageRectIndices));
 
-    constexpr static uint8_t black[] = {0, 0, 0, 1};
-    m_nullImagePaintTexture = make_rcp<PLSTextureVulkanImpl>(m_allocator, 1, 1, 1, black);
-
     static_assert(sizeof(m_drawRenderPasses) ==
                   DrawPipeline::kRenderPassVariantCount * sizeof(VkRenderPass));
     for (int i = 0; i < DrawPipeline::kRenderPassVariantCount; ++i)
     {
-        m_drawRenderPasses[i] = DrawPipeline::CreateVkRenderPass(m_device, i);
+        m_drawRenderPasses[i] = DrawPipeline::CreateVkRenderPass(m_device, m_extensions, i);
     }
 }
 
@@ -1483,8 +1546,7 @@ PLSRenderContextVulkanImpl::~PLSRenderContextVulkanImpl()
 
     vkDestroySampler(m_device, m_linearSampler, nullptr);
     vkDestroySampler(m_device, m_mipmapSampler, nullptr);
-    vkFreeDescriptorSets(m_device, m_samplerDescriptorPool, 1, &m_samplerDescriptorSet);
-    vkDestroyDescriptorPool(m_device, m_samplerDescriptorPool, nullptr);
+    vkDestroyDescriptorPool(m_device, m_staticDescriptorPool, nullptr);
 
     for (auto& layout : m_drawDescriptorSetLayouts)
     {
@@ -1615,16 +1677,15 @@ PLSRenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(PLSRenderContex
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .descriptorCount = descriptor_pool_limits::kMaxStorageBufferUpdates,
         },
+        {
+            .type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorCount = 4,
+        },
 #if 0
           // For atomic mode
           {
               .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
               .descriptorCount = 1,
-          },
-          // For rasterOrdering mode
-          {
-              .type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-              .descriptorCount = 4,
           },
 #endif
     };
@@ -1666,13 +1727,7 @@ VkDescriptorSet PLSRenderContextVulkanImpl::DescriptorSetPool::allocateDescripto
 
 void PLSRenderContextVulkanImpl::DescriptorSetPool::freeDescriptorSets()
 {
-    if (!m_descriptorSets.empty())
-    {
-        vkFreeDescriptorSets(device(),
-                             m_vkDescriptorPool,
-                             m_descriptorSets.size(),
-                             m_descriptorSets.data());
-    }
+    vkResetDescriptorPool(device(), m_vkDescriptorPool, 0);
 }
 
 void PLSRenderContextVulkanImpl::DescriptorSetPool::onRefCntReachedZero() const
@@ -1760,7 +1815,7 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator, VkCommandB
         vkutil::insert_image_memory_barrier(commandBuffer,
                                             *m_originalDstColorTexture,
                                             VK_IMAGE_LAYOUT_UNDEFINED,
-                                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                                            VK_IMAGE_LAYOUT_GENERAL);
 
         m_originalDstColorTextureView = allocator->makeTextureView(m_originalDstColorTexture);
     }
@@ -1782,26 +1837,6 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
-        VkDescriptorSet descriptorSet =
-            descriptorSetPool->allocateDescriptorSet(m_colorRampPipeline->descriptorSetLayout());
-
-        VkDescriptorBufferInfo descriptorBufferInfo = {
-            .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
-            .offset = desc.flushUniformDataOffsetInBytes,
-            .range = VK_WHOLE_SIZE,
-        };
-
-        VkWriteDescriptorSet writeDescriptorSet = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptorSet,
-            .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pBufferInfo = &descriptorBufferInfo,
-        };
-
-        vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
         VkRect2D renderArea = {
             .offset = {0, static_cast<int32_t>(desc.complexGradRowsTop)},
             .extent = {pls::kGradTextureWidth, desc.complexGradRowsHeight},
@@ -1826,6 +1861,22 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         VkBuffer buffer = m_gradSpanBufferRing.vkBufferAt(m_bufferRingIdx);
         vkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, &buffer, zeroOffset);
+
+        VkDescriptorSet descriptorSet =
+            descriptorSetPool->allocateDescriptorSet(m_colorRampPipeline->descriptorSetLayout());
+
+        vkutil::update_buffer_descriptor_sets(
+            m_device,
+            descriptorSet,
+            {
+                .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            },
+            {{
+                .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.flushUniformDataOffsetInBytes,
+                .range = sizeof(pls::FlushUniforms),
+            }});
 
         vkCmdBindDescriptorSets(vkCommandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1886,39 +1937,6 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        VkDescriptorSet descriptorSet =
-            descriptorSetPool->allocateDescriptorSet(m_tessellatePipeline->descriptorSetLayout());
-
-        VkDescriptorBufferInfo descriptorBufferInfo = {
-            .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
-            .offset = desc.firstPath * sizeof(pls::PathData),
-            .range = VK_WHOLE_SIZE,
-        };
-
-        VkWriteDescriptorSet writeDescriptorSet = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = descriptorSet,
-            .dstBinding = PATH_BUFFER_IDX,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &descriptorBufferInfo,
-        };
-
-        vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-        descriptorBufferInfo.buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx);
-        descriptorBufferInfo.offset = desc.firstContour * sizeof(pls::ContourData);
-        writeDescriptorSet.dstBinding = CONTOUR_BUFFER_IDX;
-
-        vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-        descriptorBufferInfo.buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx);
-        descriptorBufferInfo.offset = desc.flushUniformDataOffsetInBytes;
-        writeDescriptorSet.dstBinding = FLUSH_UNIFORM_BUFFER_IDX;
-        writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-        vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
         VkRect2D renderArea = {
             .extent = {pls::kTessTextureWidth, desc.tessDataHeight},
         };
@@ -1945,10 +1963,52 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         vkCmdBindIndexBuffer(vkCommandBuffer, *m_tessSpanIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+        VkDescriptorSet descriptorSet =
+            descriptorSetPool->allocateDescriptorSet(m_tessellatePipeline->descriptorSetLayout());
+
+        vkutil::update_buffer_descriptor_sets(
+            m_device,
+            descriptorSet,
+            {
+                .dstBinding = PATH_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            },
+            {{
+                .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstPath * sizeof(pls::PathData),
+                .range = VK_WHOLE_SIZE,
+            }});
+
+        vkutil::update_buffer_descriptor_sets(
+            m_device,
+            descriptorSet,
+            {
+                .dstBinding = CONTOUR_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            },
+            {{
+                .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstContour * sizeof(pls::ContourData),
+                .range = VK_WHOLE_SIZE,
+            }});
+
+        vkutil::update_buffer_descriptor_sets(
+            m_device,
+            descriptorSet,
+            {
+                .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            },
+            {{
+                .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.flushUniformDataOffsetInBytes,
+                .range = VK_WHOLE_SIZE,
+            }});
+
         vkCmdBindDescriptorSets(vkCommandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 m_tessellatePipeline->pipelineLayout(),
-                                0,
+                                PER_FLUSH_BINDINGS_SET,
                                 1,
                                 &descriptorSet,
                                 0,
@@ -1970,9 +2030,9 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     // Apply pending texture updates.
-    if (m_nullImagePaintTexture->hasUpdates())
+    if (m_nullImageTexture->hasUpdates())
     {
-        m_nullImagePaintTexture->synchronize(vkCommandBuffer, this);
+        m_nullImageTexture->synchronize(vkCommandBuffer, this);
     }
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -2040,89 +2100,150 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     vkCmdSetScissor(vkCommandBuffer, 0, 1, &renderArea);
 
-    vkCmdBindDescriptorSets(vkCommandBuffer,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            m_drawPipelineLayout,
-                            SAMPLER_BINDINGS_SET,
-                            1,
-                            &m_samplerDescriptorSet,
-                            0,
-                            nullptr);
-
-    // Bind per-flush resources.
+    // Update the per-flush descriptor sets.
     VkDescriptorSet perFlushDescriptorSet = descriptorSetPool->allocateDescriptorSet(
         m_drawDescriptorSetLayouts[PER_FLUSH_BINDINGS_SET]);
 
-    VkDescriptorImageInfo descriptorImageInfo = {
-        .imageView = *m_tessVertexTextureView,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    vkutil::update_image_descriptor_sets(
+        m_device,
+        perFlushDescriptorSet,
+        {
+            .dstBinding = TESS_VERTEX_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_tessVertexTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    vkutil::update_image_descriptor_sets(
+        m_device,
+        perFlushDescriptorSet,
+        {
+            .dstBinding = GRAD_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_gradTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    vkutil::update_buffer_descriptor_sets(
+        m_device,
+        perFlushDescriptorSet,
+        {
+            .dstBinding = PATH_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {
+            {
+                .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstPath * sizeof(pls::PathData),
+                .range = VK_WHOLE_SIZE,
+            },
+            {
+                .buffer = m_paintBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstPaint * sizeof(pls::PaintData),
+                .range = VK_WHOLE_SIZE,
+            },
+            {
+                .buffer = m_paintAuxBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstPaintAux * sizeof(pls::PaintAuxData),
+                .range = VK_WHOLE_SIZE,
+            },
+            {
+                .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstContour * sizeof(pls::ContourData),
+                .range = VK_WHOLE_SIZE,
+            },
+        });
+    static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
+    static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
+    static_assert(CONTOUR_BUFFER_IDX == PAINT_AUX_BUFFER_IDX + 1);
+
+    vkutil::update_buffer_descriptor_sets(
+        m_device,
+        perFlushDescriptorSet,
+        {
+            .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        },
+        {{
+            .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.flushUniformDataOffsetInBytes,
+            .range = sizeof(pls::FlushUniforms),
+        }});
+
+    vkutil::update_buffer_descriptor_sets(
+        m_device,
+        perFlushDescriptorSet,
+        {
+            .dstBinding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        },
+        {{
+            .buffer = m_imageDrawUniformBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = 0,
+            .range = sizeof(pls::ImageDrawUniforms),
+        }});
+
+    // Update the PLS input attachment descriptor sets.
+    VkDescriptorSet inputAttachmentDescriptorSet = descriptorSetPool->allocateDescriptorSet(
+        m_drawDescriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]);
+
+    vkutil::update_image_descriptor_sets(
+        m_device,
+        inputAttachmentDescriptorSet,
+        {
+            .dstBinding = FRAMEBUFFER_PLANE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+        },
+        {
+            {
+                .imageView = *renderTarget->m_targetTextureView,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            },
+            {
+                .imageView = *renderTarget->m_coverageTextureView,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            },
+            {
+                .imageView = *renderTarget->m_clipTextureView,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            },
+            {
+                .imageView = *renderTarget->m_originalDstColorTextureView,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            },
+        });
+    static_assert(COVERAGE_PLANE_IDX == FRAMEBUFFER_PLANE_IDX + 1);
+    static_assert(CLIP_PLANE_IDX == COVERAGE_PLANE_IDX + 1);
+    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == CLIP_PLANE_IDX + 1);
+
+    // Bind the descriptor sets for this draw pass.
+    // (The imageTexture and imageDraw dynamic uniform offsets might have to update
+    // between draws, but this is otherwise all we need to bind!)
+    VkDescriptorSet drawDescriptorSets[] = {
+        perFlushDescriptorSet,
+        m_nullImageDescriptorSet,
+        m_samplerDescriptorSet,
+        inputAttachmentDescriptorSet,
     };
-
-    VkWriteDescriptorSet writeDescriptorSet = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = perFlushDescriptorSet,
-        .dstBinding = TESS_VERTEX_TEXTURE_IDX,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        .pImageInfo = &descriptorImageInfo,
-    };
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-    writeDescriptorSet.dstBinding = GRAD_TEXTURE_IDX;
-    descriptorImageInfo.imageView = *m_gradTextureView;
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-    VkDescriptorBufferInfo descriptorBufferInfo = {
-        .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
-        .offset = desc.firstPath * sizeof(pls::PathData),
-        .range = VK_WHOLE_SIZE,
-    };
-
-    writeDescriptorSet.dstBinding = PATH_BUFFER_IDX;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    writeDescriptorSet.pImageInfo = nullptr;
-    writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-    descriptorBufferInfo.buffer = m_paintBufferRing.vkBufferAt(m_bufferRingIdx);
-    descriptorBufferInfo.offset = desc.firstPaint * sizeof(pls::PaintData);
-    writeDescriptorSet.dstBinding = PAINT_BUFFER_IDX;
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-    descriptorBufferInfo.buffer = m_paintAuxBufferRing.vkBufferAt(m_bufferRingIdx);
-    descriptorBufferInfo.offset = desc.firstPaintAux * sizeof(pls::PaintAuxData);
-    writeDescriptorSet.dstBinding = PAINT_AUX_BUFFER_IDX;
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-    descriptorBufferInfo.buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx);
-    descriptorBufferInfo.offset = desc.firstContour * sizeof(pls::ContourData);
-    writeDescriptorSet.dstBinding = CONTOUR_BUFFER_IDX;
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-    descriptorBufferInfo.buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
-    descriptorBufferInfo.offset = desc.flushUniformDataOffsetInBytes;
-    writeDescriptorSet.dstBinding = FLUSH_UNIFORM_BUFFER_IDX;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
-
-    writeDescriptorSet.dstBinding = IMAGE_DRAW_UNIFORM_BUFFER_IDX;
-    writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    descriptorBufferInfo.buffer = m_imageDrawUniformBufferRing.vkBufferAt(m_bufferRingIdx);
-    descriptorBufferInfo.offset = 0;
-    descriptorBufferInfo.range = sizeof(pls::ImageDrawUniforms);
-    vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
+    static_assert(PER_FLUSH_BINDINGS_SET == 0);
+    static_assert(PER_DRAW_BINDINGS_SET == 1);
+    static_assert(SAMPLER_BINDINGS_SET == 2);
+    static_assert(PLS_TEXTURE_BINDINGS_SET == 3);
 
     vkCmdBindDescriptorSets(vkCommandBuffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_drawPipelineLayout,
                             PER_FLUSH_BINDINGS_SET,
-                            1,
-                            &perFlushDescriptorSet,
+                            std::size(drawDescriptorSets),
+                            drawDescriptorSets,
                             1,
                             zeroOffset32);
 
     // Execute the DrawList.
-    const PLSTextureVulkanImpl* boundImageTexture = nullptr;
     uint32_t imageTextureUpdateCount = 0;
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -2133,28 +2254,15 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         DrawType drawType = batch.drawType;
 
-        if (batch.imageDrawDataOffset != 0)
+        if (batch.imageTexture != nullptr)
         {
-            // Re-bind the per-flush descriptor set with its unique offset for
-            // image-draw uniforms.
-            vkCmdBindDescriptorSets(vkCommandBuffer,
-                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_drawPipelineLayout,
-                                    PER_FLUSH_BINDINGS_SET,
-                                    1,
-                                    &perFlushDescriptorSet,
-                                    1,
-                                    &batch.imageDrawDataOffset);
-        }
-
-        // Bind the appropriate image texture, if any.
-        auto imageTexture = batch.imageTexture != nullptr
-                                ? static_cast<const PLSTextureVulkanImpl*>(batch.imageTexture)
-                                : m_nullImagePaintTexture.get();
-        if (imageTexture != boundImageTexture)
-        {
+            // Update the imageTexture binding and the dynamic offset into the
+            // imageDraw uniform buffer.
+            auto imageTexture = static_cast<const PLSTextureVulkanImpl*>(batch.imageTexture);
             if (imageTexture->m_descriptorSetFrameIdx != m_currentFrameIdx)
             {
+                // Update the image's "texture binding" descriptor set. (These
+                // expire every frame, so we need to make a new one each frame.)
                 if (imageTextureUpdateCount >= descriptor_pool_limits::kMaxImageTextureUpdates)
                 {
                     // We ran out of room for image texture updates. Allocate a new
@@ -2162,40 +2270,41 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     descriptorSetPool = makeDescriptorSetPool();
                     imageTextureUpdateCount = 0;
                 }
+
                 imageTexture->m_imageTextureDescriptorSet =
                     descriptorSetPool->allocateDescriptorSet(
                         m_drawDescriptorSetLayouts[PER_DRAW_BINDINGS_SET]);
 
-                VkDescriptorImageInfo descriptorImageInfo = {
-                    .imageView = *imageTexture->m_textureView,
-                    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                };
-
-                VkWriteDescriptorSet writeDescriptorSet = {
-                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                    .dstSet = imageTexture->m_imageTextureDescriptorSet,
-                    .dstBinding = IMAGE_TEXTURE_IDX,
-                    .descriptorCount = 1,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                    .pImageInfo = &descriptorImageInfo,
-                };
-
-                vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
+                vkutil::update_image_descriptor_sets(
+                    m_device,
+                    imageTexture->m_imageTextureDescriptorSet,
+                    {
+                        .dstBinding = IMAGE_TEXTURE_IDX,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                    },
+                    {{
+                        .imageView = *imageTexture->m_textureView,
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    }});
 
                 ++imageTextureUpdateCount;
                 imageTexture->m_descriptorSetFrameIdx = m_currentFrameIdx;
             }
 
+            VkDescriptorSet imageDescriptorSets[] = {
+                perFlushDescriptorSet,                     // Dynamic offset to imageDraw uniforms.
+                imageTexture->m_imageTextureDescriptorSet, // imageTexture.
+            };
+            static_assert(PER_DRAW_BINDINGS_SET == PER_FLUSH_BINDINGS_SET + 1);
+
             vkCmdBindDescriptorSets(vkCommandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     m_drawPipelineLayout,
-                                    PER_DRAW_BINDINGS_SET,
+                                    PER_FLUSH_BINDINGS_SET,
+                                    std::size(imageDescriptorSets),
+                                    imageDescriptorSets,
                                     1,
-                                    &imageTexture->m_imageTextureDescriptorSet,
-                                    0,
-                                    nullptr);
-
-            boundImageTexture = imageTexture;
+                                    &batch.imageDrawDataOffset);
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
@@ -2325,10 +2434,11 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 }
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextVulkanImpl::MakeContext(
-    rcp<vkutil::Allocator> allocator)
+    rcp<vkutil::Allocator> allocator,
+    VulkanDeviceExtensions extensions)
 {
     std::unique_ptr<PLSRenderContextVulkanImpl> impl(
-        new PLSRenderContextVulkanImpl(std::move(allocator)));
+        new PLSRenderContextVulkanImpl(std::move(allocator), extensions));
     impl->initGPUObjects();
     return std::make_unique<PLSRenderContext>(std::move(impl));
 }

@@ -469,10 +469,8 @@ PLS_MAIN(@drawFragmentMain)
         else
 #endif
         {
-#ifndef @PLS_IMPL_NONE // Only attempt to blend if we can read the framebuffer.
             color.rgb *= color.a;
             color = color + dstColor * (1. - color.a);
-#endif
         }
 
         PLS_STORE4F(framebuffer, color);

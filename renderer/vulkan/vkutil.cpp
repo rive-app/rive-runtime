@@ -323,6 +323,30 @@ static VkAccessFlags pipeline_stage_for_layout(VkImageLayout layout)
     RIVE_UNREACHABLE();
 }
 
+void update_image_descriptor_sets(VkDevice vkDevice,
+                                  VkDescriptorSet vkDescriptorSet,
+                                  VkWriteDescriptorSet writeSet,
+                                  std::initializer_list<VkDescriptorImageInfo> imageInfos)
+{
+    writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeSet.dstSet = vkDescriptorSet;
+    writeSet.descriptorCount = std::size(imageInfos);
+    writeSet.pImageInfo = imageInfos.begin();
+    vkUpdateDescriptorSets(vkDevice, 1, &writeSet, 0, nullptr);
+}
+
+void update_buffer_descriptor_sets(VkDevice vkDevice,
+                                   VkDescriptorSet vkDescriptorSet,
+                                   VkWriteDescriptorSet writeSet,
+                                   std::initializer_list<VkDescriptorBufferInfo> bufferInfos)
+{
+    writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeSet.dstSet = vkDescriptorSet;
+    writeSet.descriptorCount = std::size(bufferInfos);
+    writeSet.pBufferInfo = bufferInfos.begin();
+    vkUpdateDescriptorSets(vkDevice, 1, &writeSet, 0, nullptr);
+}
+
 void insert_image_memory_barrier(VkCommandBuffer commandBuffer,
                                  VkImage image,
                                  VkImageLayout oldLayout,

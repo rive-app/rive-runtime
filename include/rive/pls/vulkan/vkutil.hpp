@@ -40,6 +40,10 @@ class Texture;
 class TextureView;
 class Framebuffer;
 
+constexpr static VkColorComponentFlags ColorWriteMaskRGBA =
+    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+    VK_COLOR_COMPONENT_A_BIT;
+
 enum class Mappability
 {
     none,
@@ -315,6 +319,16 @@ public:
 private:
     VkViewport m_viewport;
 };
+
+void update_image_descriptor_sets(VkDevice,
+                                  VkDescriptorSet,
+                                  VkWriteDescriptorSet,
+                                  std::initializer_list<VkDescriptorImageInfo>);
+
+void update_buffer_descriptor_sets(VkDevice,
+                                   VkDescriptorSet,
+                                   VkWriteDescriptorSet,
+                                   std::initializer_list<VkDescriptorBufferInfo>);
 
 void insert_image_memory_barrier(VkCommandBuffer,
                                  VkImage,

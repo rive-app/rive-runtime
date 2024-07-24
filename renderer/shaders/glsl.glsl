@@ -345,6 +345,9 @@
 
 #ifdef @PLS_IMPL_SUBPASS_LOAD
 
+// TODO: This is temporary hack to draw something deterministic until we implement atomic mode.
+layout($constant_id = 0) const bool kHasRasterOrdering = false;
+
 #define PLS_BLOCK_BEGIN
 #define PLS_DECL4F(IDX, NAME)                                                                      \
     layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
@@ -356,13 +359,15 @@
     layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(PLANE) subpassLoad(_in_##PLANE)
-#define PLS_LOADUI(PLANE) subpassLoad(_in_##PLANE).r
+#define PLS_LOAD4F(PLANE) (kHasRasterOrdering ? subpassLoad(_in_##PLANE) : vec4(0))
+#define PLS_LOADUI(PLANE) (kHasRasterOrdering ? subpassLoad(_in_##PLANE).r : 0u)
 #define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-#define PLS_PRESERVE_4F(PLANE) PLS_STORE4F(PLANE, PLS_LOAD4F(PLANE))
-#define PLS_PRESERVE_UI(PLANE) PLS_STOREUI(PLANE, PLS_LOADUI(PLANE))
+#define PLS_PRESERVE_4F(PLANE)                                                                     \
+    PLS_STORE4F(PLANE, kHasRasterOrdering ? subpassLoad(_in_##PLANE) : vec4(1, 0, 1, 1))
+#define PLS_PRESERVE_UI(PLANE)                                                                     \
+    PLS_STOREUI(PLANE, kHasRasterOrdering ? subpassLoad(_in_##PLANE).r : 0u)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END

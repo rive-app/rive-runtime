@@ -15,6 +15,14 @@ namespace rive::pls
 {
 class PLSTextureVulkanImpl;
 
+// Tells the PLS context which device extensions are enabled and available to use.
+struct VulkanDeviceExtensions
+{
+    // Flagging this extension implies that the GPU *also* supports rasterOrdered
+    // access to color attachments. (Otherwise it must be turned off.)
+    bool EXT_rasterization_order_attachment_access = false;
+};
+
 class PLSRenderTargetVulkan : public PLSRenderTarget
 {
 public:
@@ -48,9 +56,12 @@ private:
 class PLSRenderContextVulkanImpl : public PLSRenderContextImpl
 {
 public:
-    static std::unique_ptr<PLSRenderContext> MakeContext(rcp<vkutil::Allocator>);
+    static std::unique_ptr<PLSRenderContext> MakeContext(rcp<vkutil::Allocator>,
+                                                         VulkanDeviceExtensions);
 
     ~PLSRenderContextVulkanImpl();
+
+    vkutil::Allocator* allocator() const { return m_allocator.get(); }
 
     rcp<PLSRenderTargetVulkan> makeRenderTarget(uint32_t width,
                                                 uint32_t height,
@@ -72,7 +83,7 @@ public:
     }
 
 private:
-    PLSRenderContextVulkanImpl(rcp<vkutil::Allocator>);
+    PLSRenderContextVulkanImpl(rcp<vkutil::Allocator>, VulkanDeviceExtensions);
 
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
@@ -150,6 +161,7 @@ private:
 
     const rcp<vkutil::Allocator> m_allocator;
     const VkDevice m_device;
+    const VulkanDeviceExtensions m_extensions;
 
     // PLS buffers.
     vkutil::BufferRing m_flushUniformBufferRing;
@@ -186,16 +198,17 @@ private:
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
     VkRenderPass m_drawRenderPasses[4 /*DrawPipeline::kRenderPassVariantCount*/];
     VkDescriptorSetLayout m_drawDescriptorSetLayouts[4 /*BINDINGS_SET_COUNT*/];
+    rcp<PLSTextureVulkanImpl> m_nullImageTexture; // Bound when there is not an image paint.
     VkSampler m_linearSampler;
     VkSampler m_mipmapSampler;
-    VkDescriptorPool m_samplerDescriptorPool;
+    VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never change between frames.
+    VkDescriptorSet m_nullImageDescriptorSet;
     VkDescriptorSet m_samplerDescriptorSet;
     VkPipelineLayout m_drawPipelineLayout;
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;
     rcp<vkutil::Buffer> m_pathPatchIndexBuffer;
     rcp<vkutil::Buffer> m_imageRectVertexBuffer;
     rcp<vkutil::Buffer> m_imageRectIndexBuffer;
-    rcp<PLSTextureVulkanImpl> m_nullImagePaintTexture; // Bound when there is not an image paint.
 
     rcp<pls::CommandBufferCompletionFence> m_frameCompletionFences[pls::kBufferRingSize];
     uint64_t m_currentFrameIdx = 0;
