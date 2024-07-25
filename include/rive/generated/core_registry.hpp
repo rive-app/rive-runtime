@@ -651,8 +651,11 @@ public:
             case SoloBase::activeComponentIdPropertyKey:
                 object->as<SoloBase>()->activeComponentId(value);
                 break;
-            case LayoutComponentStyleBase::scaleTypePropertyKey:
-                object->as<LayoutComponentStyleBase>()->scaleType(value);
+            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
+                object->as<LayoutComponentStyleBase>()->layoutWidthScaleType(value);
+                break;
+            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
+                object->as<LayoutComponentStyleBase>()->layoutHeightScaleType(value);
                 break;
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
                 object->as<LayoutComponentStyleBase>()->layoutAlignmentType(value);
@@ -1734,8 +1737,10 @@ public:
                 return object->as<NestedAnimationBase>()->animationId();
             case SoloBase::activeComponentIdPropertyKey:
                 return object->as<SoloBase>()->activeComponentId();
-            case LayoutComponentStyleBase::scaleTypePropertyKey:
-                return object->as<LayoutComponentStyleBase>()->scaleType();
+            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
+                return object->as<LayoutComponentStyleBase>()->layoutWidthScaleType();
+            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
+                return object->as<LayoutComponentStyleBase>()->layoutHeightScaleType();
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->layoutAlignmentType();
             case LayoutComponentStyleBase::animationStyleTypePropertyKey:
@@ -2439,7 +2444,8 @@ public:
             case NestedArtboardBase::artboardIdPropertyKey:
             case NestedAnimationBase::animationIdPropertyKey:
             case SoloBase::activeComponentIdPropertyKey:
-            case LayoutComponentStyleBase::scaleTypePropertyKey:
+            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
+            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
             case LayoutComponentStyleBase::animationStyleTypePropertyKey:
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
@@ -2888,7 +2894,9 @@ public:
                 return object->is<NestedAnimationBase>();
             case SoloBase::activeComponentIdPropertyKey:
                 return object->is<SoloBase>();
-            case LayoutComponentStyleBase::scaleTypePropertyKey:
+            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();

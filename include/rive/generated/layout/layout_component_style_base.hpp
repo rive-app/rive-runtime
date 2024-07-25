@@ -57,7 +57,8 @@ public:
     static const uint16_t flexShrinkPropertyKey = 522;
     static const uint16_t flexBasisPropertyKey = 523;
     static const uint16_t aspectRatioPropertyKey = 524;
-    static const uint16_t scaleTypePropertyKey = 546;
+    static const uint16_t layoutWidthScaleTypePropertyKey = 655;
+    static const uint16_t layoutHeightScaleTypePropertyKey = 656;
     static const uint16_t layoutAlignmentTypePropertyKey = 632;
     static const uint16_t animationStyleTypePropertyKey = 589;
     static const uint16_t interpolationTypePropertyKey = 590;
@@ -132,7 +133,8 @@ private:
     float m_FlexShrink = 1.0f;
     float m_FlexBasis = 1.0f;
     float m_AspectRatio = 0.0f;
-    uint32_t m_ScaleType = 0;
+    uint32_t m_LayoutWidthScaleType = 0;
+    uint32_t m_LayoutHeightScaleType = 0;
     uint32_t m_LayoutAlignmentType = 0;
     uint32_t m_AnimationStyleType = 0;
     uint32_t m_InterpolationType = 0;
@@ -477,15 +479,26 @@ public:
         aspectRatioChanged();
     }
 
-    inline uint32_t scaleType() const { return m_ScaleType; }
-    void scaleType(uint32_t value)
+    inline uint32_t layoutWidthScaleType() const { return m_LayoutWidthScaleType; }
+    void layoutWidthScaleType(uint32_t value)
     {
-        if (m_ScaleType == value)
+        if (m_LayoutWidthScaleType == value)
         {
             return;
         }
-        m_ScaleType = value;
-        scaleTypeChanged();
+        m_LayoutWidthScaleType = value;
+        layoutWidthScaleTypeChanged();
+    }
+
+    inline uint32_t layoutHeightScaleType() const { return m_LayoutHeightScaleType; }
+    void layoutHeightScaleType(uint32_t value)
+    {
+        if (m_LayoutHeightScaleType == value)
+        {
+            return;
+        }
+        m_LayoutHeightScaleType = value;
+        layoutHeightScaleTypeChanged();
     }
 
     inline uint32_t layoutAlignmentType() const { return m_LayoutAlignmentType; }
@@ -1013,7 +1026,8 @@ public:
         m_FlexShrink = object.m_FlexShrink;
         m_FlexBasis = object.m_FlexBasis;
         m_AspectRatio = object.m_AspectRatio;
-        m_ScaleType = object.m_ScaleType;
+        m_LayoutWidthScaleType = object.m_LayoutWidthScaleType;
+        m_LayoutHeightScaleType = object.m_LayoutHeightScaleType;
         m_LayoutAlignmentType = object.m_LayoutAlignmentType;
         m_AnimationStyleType = object.m_AnimationStyleType;
         m_InterpolationType = object.m_InterpolationType;
@@ -1147,8 +1161,11 @@ public:
             case aspectRatioPropertyKey:
                 m_AspectRatio = CoreDoubleType::deserialize(reader);
                 return true;
-            case scaleTypePropertyKey:
-                m_ScaleType = CoreUintType::deserialize(reader);
+            case layoutWidthScaleTypePropertyKey:
+                m_LayoutWidthScaleType = CoreUintType::deserialize(reader);
+                return true;
+            case layoutHeightScaleTypePropertyKey:
+                m_LayoutHeightScaleType = CoreUintType::deserialize(reader);
                 return true;
             case layoutAlignmentTypePropertyKey:
                 m_LayoutAlignmentType = CoreUintType::deserialize(reader);
@@ -1317,7 +1334,8 @@ protected:
     virtual void flexShrinkChanged() {}
     virtual void flexBasisChanged() {}
     virtual void aspectRatioChanged() {}
-    virtual void scaleTypeChanged() {}
+    virtual void layoutWidthScaleTypeChanged() {}
+    virtual void layoutHeightScaleTypeChanged() {}
     virtual void layoutAlignmentTypeChanged() {}
     virtual void animationStyleTypeChanged() {}
     virtual void interpolationTypeChanged() {}

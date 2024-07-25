@@ -56,6 +56,20 @@ protected:
 
     Artboard* getArtboard() override { return artboard(); }
 
+    LayoutComponent* layoutParent()
+    {
+        auto p = parent();
+        while (p != nullptr)
+        {
+            if (p->is<LayoutComponent>())
+            {
+                return p->as<LayoutComponent>();
+            }
+            p = p->parent();
+        }
+        return nullptr;
+    }
+
 private:
 #ifdef WITH_RIVE_LAYOUT
 protected:

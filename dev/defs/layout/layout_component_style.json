@@ -317,12 +317,20 @@
       },
       "runtime": false
     },
-    "scaleType": {
+    "layoutWidthScaleType": {
       "type": "uint",
       "initialValue": "0",
       "key": {
-        "int": 546,
-        "string": "scaletype"
+        "int": 655,
+        "string": "layoutwidthscaletype"
+      }
+    },
+    "layoutHeightScaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 656,
+        "string": "layoutheightscaletype"
       }
     },
     "layoutAlignmentType": {

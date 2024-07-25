@@ -241,6 +241,75 @@ void LayoutComponent::syncStyle()
         ygStyle.dimensions()[YGDimensionHeight] = YGValueAuto;
     }
 
+    if (layoutParent() != nullptr)
+    {
+        bool isRow = layoutParent()->style()->flexDirection() == YGFlexDirectionRow ||
+                     layoutParent()->style()->flexDirection() == YGFlexDirectionRowReverse;
+        switch (m_style->widthScaleType())
+        {
+            case LayoutScaleType::fixed:
+                if (isRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                }
+                break;
+            case LayoutScaleType::fill:
+                if (isRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(1);
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignStretch;
+                }
+                break;
+            case LayoutScaleType::hug:
+                if (isRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignAuto;
+                }
+                break;
+            default:
+                break;
+        }
+        bool isColumn = !isRow;
+        switch (m_style->heightScaleType())
+        {
+            case LayoutScaleType::fixed:
+                if (isColumn)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                }
+                break;
+            case LayoutScaleType::fill:
+                if (isColumn)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(1);
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignStretch;
+                }
+                break;
+            case LayoutScaleType::hug:
+                if (isColumn)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignAuto;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
     bool isRowForAlignment = m_style->flexDirection() == YGFlexDirectionRow ||
                              m_style->flexDirection() == YGFlexDirectionRowReverse;
     switch (m_style->alignmentType())
@@ -364,15 +433,8 @@ void LayoutComponent::syncStyle()
     ygStyle.display() = m_style->display();
     ygStyle.positionType() = m_style->positionType();
     ygStyle.flex() = YGFloatOptional(m_style->flex());
-    ygStyle.flexGrow() = YGFloatOptional(m_style->flexGrow());
-    ygStyle.flexShrink() = YGFloatOptional(m_style->flexShrink());
-    // ygStyle.flexBasis() = m_style->flexBasis();
     ygStyle.flexDirection() = m_style->flexDirection();
     ygStyle.flexWrap() = m_style->flexWrap();
-    // ygStyle.alignItems() = m_style->alignItems();
-    // ygStyle.alignContent() = m_style->alignContent();
-    ygStyle.alignSelf() = m_style->alignSelf();
-    // ygStyle.justifyContent() = m_style->justifyContent();
 
     ygNode.setStyle(ygStyle);
 }

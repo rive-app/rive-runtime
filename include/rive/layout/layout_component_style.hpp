@@ -38,6 +38,13 @@ enum class LayoutAlignmentType : uint8_t
     spaceBetweenEnd
 };
 
+enum class LayoutScaleType : uint8_t
+{
+    fixed,
+    fill,
+    hug
+};
+
 class KeyFrameInterpolator;
 class LayoutComponentStyle : public LayoutComponentStyleBase
 {
@@ -57,6 +64,8 @@ public:
     YGDisplay display();
     YGPositionType positionType();
     LayoutAlignmentType alignmentType();
+    LayoutScaleType widthScaleType();
+    LayoutScaleType heightScaleType();
 
     YGFlexDirection flexDirection();
     YGDirection direction();
@@ -100,6 +109,8 @@ public:
     void markLayoutStyleDirty();
 
     void layoutAlignmentTypeChanged() override;
+    void layoutWidthScaleTypeChanged() override;
+    void layoutHeightScaleTypeChanged() override;
     void displayValueChanged() override;
     void positionTypeValueChanged() override;
     void overflowValueChanged() override;

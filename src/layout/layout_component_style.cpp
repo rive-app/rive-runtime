@@ -25,6 +25,16 @@ LayoutAlignmentType LayoutComponentStyle::alignmentType()
     return LayoutAlignmentType(layoutAlignmentType());
 }
 
+LayoutScaleType LayoutComponentStyle::widthScaleType()
+{
+    return LayoutScaleType(layoutWidthScaleType());
+}
+
+LayoutScaleType LayoutComponentStyle::heightScaleType()
+{
+    return LayoutScaleType(layoutHeightScaleType());
+}
+
 YGDisplay LayoutComponentStyle::display() { return YGDisplay(displayValue()); }
 
 YGPositionType LayoutComponentStyle::positionType() { return YGPositionType(positionTypeValue()); }
@@ -133,6 +143,8 @@ void LayoutComponentStyle::markLayoutStyleDirty() {}
 #endif
 
 void LayoutComponentStyle::layoutAlignmentTypeChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::layoutWidthScaleTypeChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::layoutHeightScaleTypeChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::displayValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::positionTypeValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::overflowValueChanged() { markLayoutNodeDirty(); }
