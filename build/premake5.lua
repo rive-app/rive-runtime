@@ -128,6 +128,11 @@ do
         objdir('%{cfg.system}_sim/obj/%{cfg.buildcfg}')
     end
 
+    filter('system:macosx or system:ios')
+    do
+        files({ '../src/text/font_hb_apple.mm' })
+    end
+
     filter({ 'system:android', 'configurations:release' })
     do
         buildoptions({ '-flto=full' })

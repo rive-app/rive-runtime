@@ -274,4 +274,10 @@ do
         includedirs({ './' })
         forceincludes({ 'rive_harfbuzz_renames.h' })
     end
+
+    filter('system:macosx or system:ios')
+    do
+        defines({'HAVE_CORETEXT'})
+        files({harfbuzz .. '/src/hb-coretext.cc'})
+    end
 end

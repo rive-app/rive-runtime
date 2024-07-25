@@ -140,6 +140,11 @@ do
         architecture('x64')
         defines({ '_USE_MATH_DEFINES' })
     end
+
+    filter('system:macosx or system:ios')
+    do
+        files({ 'src/text/font_hb_apple.mm' })
+    end
 end
 
 newoption({

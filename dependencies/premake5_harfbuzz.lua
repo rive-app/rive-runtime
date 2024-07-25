@@ -349,4 +349,10 @@ do
         targetdir('%{cfg.system}/cache/arm64/bin/%{cfg.buildcfg}')
         objdir('%{cfg.system}/cache/arm64/obj/%{cfg.buildcfg}')
     end
+
+    filter('system:macosx or system:ios')
+    do
+        defines({'HAVE_CORETEXT'})
+        files({harfbuzz .. '/src/hb-coretext.cc'})
+    end
 end

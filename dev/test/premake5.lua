@@ -62,4 +62,13 @@ do
         })
         forceincludes({ 'rive_yoga_renames.h' })
     end
+
+    filter({ 'system:macosx'} )
+    do
+        links({
+            'Foundation.framework',
+            'CoreGraphics.framework',
+            'CoreText.framework'
+        })
+    end
 end

@@ -48,6 +48,10 @@ rive::rcp<rive::Font> HBFont::Decode(rive::Span<const uint8_t> span)
     return nullptr;
 }
 
+#ifndef __APPLE__
+rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont) { return nullptr; }
+#endif
+
 //////////////
 
 constexpr int kStdScale = 2048;

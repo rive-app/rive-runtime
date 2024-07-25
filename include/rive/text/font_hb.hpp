@@ -32,6 +32,7 @@ public:
     bool hasGlyph(rive::Span<const rive::Unichar>) const override;
 
     static rive::rcp<rive::Font> Decode(rive::Span<const uint8_t>);
+    static rive::rcp<rive::Font> FromSystem(void* systemFont);
     hb_font_t* font() const { return m_font; }
 
 private:
