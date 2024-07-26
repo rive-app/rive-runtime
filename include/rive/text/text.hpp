@@ -200,6 +200,9 @@ public:
     float effectiveHeight() { return std::isnan(m_layoutHeight) ? height() : m_layoutHeight; }
 #ifdef WITH_RIVE_TEXT
     const std::vector<TextValueRun*>& runs() const { return m_runs; }
+    static SimpleArray<SimpleArray<GlyphLine>> BreakLines(const SimpleArray<Paragraph>& paragraphs,
+                                                          float width,
+                                                          TextAlign align);
 #endif
 
     bool haveModifiers() const

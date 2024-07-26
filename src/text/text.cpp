@@ -269,7 +269,7 @@ void Text::buildRenderStyles()
         style->rewindPath();
     }
     m_renderStyles.clear();
-    if (m_shape.size() == 0)
+    if (m_shape.empty())
     {
         m_bounds = AABB(0.0f, 0.0f, 0.0f, 0.0f);
         return;
@@ -508,7 +508,6 @@ const TextStyle* Text::styleFromShaperId(uint16_t id) const
 
 void Text::draw(Renderer* renderer)
 {
-
     ClipResult clipResult = applyClip(renderer);
     if (clipResult == ClipResult::noClip)
     {
@@ -646,9 +645,9 @@ bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
     return !styledText.empty();
 }
 
-static SimpleArray<SimpleArray<GlyphLine>> breakLines(const SimpleArray<Paragraph>& paragraphs,
-                                                      float width,
-                                                      TextAlign align)
+SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(const SimpleArray<Paragraph>& paragraphs,
+                                                     float width,
+                                                     TextAlign align)
 {
     bool autoWidth = width == -1.0f;
     float paragraphWidth = width;
@@ -706,7 +705,7 @@ void Text::update(ComponentDirt value)
             auto runs = m_modifierStyledText.runs();
             m_modifierShape = runs[0].font->shapeText(m_modifierStyledText.unichars(), runs);
             m_modifierLines =
-                breakLines(m_modifierShape,
+                BreakLines(m_modifierShape,
                            effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
                            (TextAlign)alignValue());
             m_glyphLookup.compute(m_modifierStyledText.unichars(), m_modifierShape);
@@ -725,7 +724,7 @@ void Text::update(ComponentDirt value)
             auto runs = m_styledText.runs();
             m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
             m_lines =
-                breakLines(m_shape,
+                BreakLines(m_shape,
                            effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
                            (TextAlign)alignValue());
             if (!precomputeModifierCoverage && haveModifiers())
@@ -776,7 +775,7 @@ Vec2D Text::measure(Vec2D maxSize)
         const float paragraphSpace = paragraphSpacing();
         auto runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-        auto lines = breakLines(shape,
+        auto lines = BreakLines(shape,
                                 std::min(maxSize.x,
                                          sizing() == TextSizing::autoWidth
                                              ? std::numeric_limits<float>::max()

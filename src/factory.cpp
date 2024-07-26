@@ -5,6 +5,7 @@
 #include "rive/factory.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/raw_path.hpp"
+#include "rive/text/raw_text.hpp"
 #ifdef WITH_RIVE_TEXT
 #include "rive/text/font_hb.hpp"
 #endif
