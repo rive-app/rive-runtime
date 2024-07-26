@@ -16,6 +16,7 @@
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/animation/listener_fire_event.hpp"
+#include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/node.hpp"
 #include "catch.hpp"
@@ -258,4 +259,64 @@ TEST_CASE("timeline events load correctly and report", "[events]")
 
     // Event should've occurred right at 0.5 seconds.
     REQUIRE(stateMachineInstance->reportedEventAt(0).secondsDelay() == Approx(0.1f));
+}
+
+TEST_CASE("events from a nested artboard propagate to a listener on a parent", "[events]")
+{
+    auto file = ReadRiveFile("../../test/assets/nested_event_test.riv");
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachineInstance = artboard->stateMachineAt(0);
+    REQUIRE(stateMachineInstance != nullptr);
+    REQUIRE(stateMachineInstance->stateMachine()->inputCount() == 1);
+
+    // Input is on the main artboard
+    auto input = stateMachineInstance->getBool("Boolean 1");
+    REQUIRE(input->value() == false);
+
+    artboard->advance(0.0f);
+    stateMachineInstance->advance(0.0f);
+
+    auto nested = artboard->find<rive::NestedArtboard>();
+    REQUIRE(nested.size() == 1);
+    auto nestedArtboard = nested[0]->artboardInstance();
+    auto nestedStateMachineInstance =
+        nested[0]->nestedAnimations()[0]->as<rive::NestedStateMachine>()->stateMachineInstance();
+    REQUIRE(nestedStateMachineInstance != nullptr);
+    auto events = nestedArtboard->find<rive::Event>();
+    REQUIRE(events.size() == 1);
+
+    // Validate listener on the nested artboard
+    REQUIRE(nestedStateMachineInstance->stateMachine()->listenerCount() == 1);
+    auto listener1 = nestedStateMachineInstance->stateMachine()->listener(0);
+    auto target1 = nestedArtboard->resolve(listener1->targetId());
+    REQUIRE(target1->is<rive::Shape>());
+    REQUIRE(listener1->actionCount() == 1);
+    auto fireEvent1 = listener1->action(0);
+    REQUIRE(fireEvent1 != nullptr);
+    REQUIRE(fireEvent1->is<rive::ListenerFireEvent>());
+    REQUIRE(fireEvent1->as<rive::ListenerFireEvent>()->eventId() != 0);
+    auto event = nestedArtboard->resolve(fireEvent1->as<rive::ListenerFireEvent>()->eventId());
+    REQUIRE(event->is<rive::Event>());
+    REQUIRE(event->as<rive::Event>()->name() == "NestedEvent");
+
+    // Validate the event is reported to the nested artboard
+    REQUIRE(nestedStateMachineInstance->reportedEventCount() == 0);
+    stateMachineInstance->pointerDown(rive::Vec2D(250.0f, 100.0f));
+    REQUIRE(nestedStateMachineInstance->reportedEventCount() == 1);
+    auto nestedReportedEvent1 = nestedStateMachineInstance->reportedEventAt(0);
+    REQUIRE(nestedReportedEvent1.event()->name() == "NestedEvent");
+
+    artboard->advance(0.0f);
+
+    // Validate the input on the main artboard updates as a result of the event
+    // from the nested artboard
+    REQUIRE(input->value() == true);
+
+    // After advancing again the reportedEventCount should return to 0.
+    stateMachineInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 0);
 }
