@@ -1089,7 +1089,8 @@ void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& 
             {
                 for (const auto event : events)
                 {
-                    auto sourceArtboard = source == nullptr ? artboard() : source->artboard();
+                    auto sourceArtboard =
+                        source == nullptr ? artboard() : source->artboardInstance();
 
                     // listener->eventId() can point to an id from an event in the context of this
                     // artboard or the context of a nested artboard. Because those ids belong to
