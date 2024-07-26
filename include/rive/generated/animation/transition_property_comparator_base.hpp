@@ -1,15 +1,15 @@
-#ifndef _RIVE_TRANSITION_CONDITION_BASE_HPP_
-#define _RIVE_TRANSITION_CONDITION_BASE_HPP_
-#include "rive/core.hpp"
+#ifndef _RIVE_TRANSITION_PROPERTY_COMPARATOR_BASE_HPP_
+#define _RIVE_TRANSITION_PROPERTY_COMPARATOR_BASE_HPP_
+#include "rive/animation/transition_comparator.hpp"
 namespace rive
 {
-class TransitionConditionBase : public Core
+class TransitionPropertyComparatorBase : public TransitionComparator
 {
 protected:
-    typedef Core Super;
+    typedef TransitionComparator Super;
 
 public:
-    static const uint16_t typeKey = 476;
+    static const uint16_t typeKey = 478;
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
@@ -17,7 +17,8 @@ public:
     {
         switch (typeKey)
         {
-            case TransitionConditionBase::typeKey:
+            case TransitionPropertyComparatorBase::typeKey:
+            case TransitionComparatorBase::typeKey:
                 return true;
             default:
                 return false;
@@ -25,10 +26,6 @@ public:
     }
 
     uint16_t coreType() const override { return typeKey; }
-
-    void copy(const TransitionConditionBase& object) {}
-
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override { return false; }
 
 protected:
 };

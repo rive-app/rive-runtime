@@ -20,7 +20,11 @@
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_condition.hpp"
+#include "rive/animation/transition_comparator.hpp"
+#include "rive/animation/transition_property_viewmodel_comparator.hpp"
+#include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine_fire_event.hpp"
+#include "rive/data_bind_flags.hpp"
 #include "rive/event_report.hpp"
 #include "rive/hit_result.hpp"
 #include "rive/math/aabb.hpp"
@@ -746,6 +750,36 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         m_layers[i].init(this, machine->layer(i), m_artboardInstance);
     }
 
+    // Initialize dataBinds. All databinds are cloned for the state machine instance.
+    // That enables binding each instance to its own context without polluting the rest.
+    auto dataBindCount = machine->dataBindCount();
+    for (size_t i = 0; i < dataBindCount; i++)
+    {
+        auto dataBind = machine->dataBind(i);
+        auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
+        m_dataBinds.push_back(dataBindClone);
+        if (dataBind->target()->is<BindableProperty>())
+        {
+            auto bindableProperty = dataBind->target()->as<BindableProperty>();
+            auto bindablePropertyInstance = m_bindablePropertyInstances.find(bindableProperty);
+            BindableProperty* bindablePropertyClone;
+            if (bindablePropertyInstance == m_bindablePropertyInstances.end())
+            {
+                bindablePropertyClone = bindableProperty->clone()->as<BindableProperty>();
+                m_bindablePropertyInstances[bindableProperty] = bindablePropertyClone;
+            }
+            else
+            {
+                bindablePropertyClone = bindablePropertyInstance->second;
+            }
+            dataBindClone->target(bindablePropertyClone);
+            if (static_cast<DataBindFlags>(dataBindClone->flags()) == DataBindFlags::ToSource)
+            {
+                bindablePropertyClone->dataBind(dataBindClone);
+            }
+        }
+    }
+
     // Initialize listeners. Store a lookup table of shape id to hit shape
     // representation (an object that stores all the listeners triggered by the
     // shape producing a listener).
@@ -855,8 +889,22 @@ void StateMachineInstance::sortHitComponents()
     }
 }
 
+void StateMachineInstance::updateDataBinds()
+{
+    for (auto dataBind : m_dataBinds)
+    {
+        auto d = dataBind->dirt();
+        if (d != ComponentDirt::None)
+        {
+            dataBind->dirt(ComponentDirt::None);
+            dataBind->update(d);
+        }
+    }
+}
+
 bool StateMachineInstance::advance(float seconds)
 {
+    updateDataBinds();
     if (m_artboardInstance->hasChangedDrawOrderInLastUpdate())
     {
         sortHitComponents();

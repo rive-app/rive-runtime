@@ -59,10 +59,21 @@
 #include "rive/animation/state_machine_trigger.hpp"
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_bool_condition.hpp"
+#include "rive/animation/transition_comparator.hpp"
 #include "rive/animation/transition_condition.hpp"
+#include "rive/animation/transition_input_condition.hpp"
 #include "rive/animation/transition_number_condition.hpp"
+#include "rive/animation/transition_property_comparator.hpp"
+#include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
+#include "rive/animation/transition_value_boolean_comparator.hpp"
+#include "rive/animation/transition_value_color_comparator.hpp"
+#include "rive/animation/transition_value_comparator.hpp"
 #include "rive/animation/transition_value_condition.hpp"
+#include "rive/animation/transition_value_enum_comparator.hpp"
+#include "rive/animation/transition_value_number_comparator.hpp"
+#include "rive/animation/transition_value_string_comparator.hpp"
+#include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/artboard.hpp"
 #include "rive/assets/asset.hpp"
 #include "rive/assets/audio_asset.hpp"
@@ -290,6 +301,8 @@ public:
                 return new KeyedProperty();
             case StateMachineListenerBase::typeKey:
                 return new StateMachineListener();
+            case TransitionPropertyViewModelComparatorBase::typeKey:
+                return new TransitionPropertyViewModelComparator();
             case KeyFrameIdBase::typeKey:
                 return new KeyFrameId();
             case KeyFrameBoolBase::typeKey:
@@ -300,6 +313,8 @@ public:
                 return new ListenerAlignTarget();
             case TransitionNumberConditionBase::typeKey:
                 return new TransitionNumberCondition();
+            case TransitionValueBooleanComparatorBase::typeKey:
+                return new TransitionValueBooleanComparator();
             case AnyStateBase::typeKey:
                 return new AnyState();
             case CubicInterpolatorComponentBase::typeKey:
@@ -310,6 +325,8 @@ public:
                 return new KeyFrameString();
             case ListenerNumberChangeBase::typeKey:
                 return new ListenerNumberChange();
+            case TransitionViewModelConditionBase::typeKey:
+                return new TransitionViewModelCondition();
             case CubicEaseInterpolatorBase::typeKey:
                 return new CubicEaseInterpolator();
             case StateTransitionBase::typeKey:
@@ -330,10 +347,14 @@ public:
                 return new LinearAnimation();
             case StateMachineTriggerBase::typeKey:
                 return new StateMachineTrigger();
+            case TransitionValueColorComparatorBase::typeKey:
+                return new TransitionValueColorComparator();
             case ListenerTriggerChangeBase::typeKey:
                 return new ListenerTriggerChange();
             case BlendStateDirectBase::typeKey:
                 return new BlendStateDirect();
+            case TransitionValueNumberComparatorBase::typeKey:
+                return new TransitionValueNumberComparator();
             case NestedStateMachineBase::typeKey:
                 return new NestedStateMachine();
             case ElasticInterpolatorBase::typeKey:
@@ -344,8 +365,12 @@ public:
                 return new NestedNumber();
             case BlendState1DBase::typeKey:
                 return new BlendState1D();
+            case TransitionValueEnumComparatorBase::typeKey:
+                return new TransitionValueEnumComparator();
             case KeyFrameCallbackBase::typeKey:
                 return new KeyFrameCallback();
+            case TransitionValueStringComparatorBase::typeKey:
+                return new TransitionValueStringComparator();
             case NestedRemapAnimationBase::typeKey:
                 return new NestedRemapAnimation();
             case TransitionBoolConditionBase::typeKey:
@@ -533,6 +558,9 @@ public:
                 break;
             case ListenerAlignTargetBase::preserveOffsetPropertyKey:
                 object->as<ListenerAlignTargetBase>()->preserveOffset(value);
+                break;
+            case TransitionValueBooleanComparatorBase::valuePropertyKey:
+                object->as<TransitionValueBooleanComparatorBase>()->value(value);
                 break;
             case NestedBoolBase::nestedValuePropertyKey:
                 object->as<NestedBoolBase>()->nestedValue(value);
@@ -813,8 +841,8 @@ public:
             case BlendAnimationDirectBase::blendSourcePropertyKey:
                 object->as<BlendAnimationDirectBase>()->blendSource(value);
                 break;
-            case TransitionConditionBase::inputIdPropertyKey:
-                object->as<TransitionConditionBase>()->inputId(value);
+            case TransitionInputConditionBase::inputIdPropertyKey:
+                object->as<TransitionInputConditionBase>()->inputId(value);
                 break;
             case KeyedPropertyBase::propertyKeyPropertyKey:
                 object->as<KeyedPropertyBase>()->propertyKey(value);
@@ -839,6 +867,15 @@ public:
                 break;
             case TransitionValueConditionBase::opValuePropertyKey:
                 object->as<TransitionValueConditionBase>()->opValue(value);
+                break;
+            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
+                object->as<TransitionViewModelConditionBase>()->leftComparatorId(value);
+                break;
+            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
+                object->as<TransitionViewModelConditionBase>()->rightComparatorId(value);
+                break;
+            case TransitionViewModelConditionBase::opValuePropertyKey:
+                object->as<TransitionViewModelConditionBase>()->opValue(value);
                 break;
             case StateTransitionBase::stateToIdPropertyKey:
                 object->as<StateTransitionBase>()->stateToId(value);
@@ -887,6 +924,9 @@ public:
                 break;
             case BlendState1DBase::inputIdPropertyKey:
                 object->as<BlendState1DBase>()->inputId(value);
+                break;
+            case TransitionValueEnumComparatorBase::valuePropertyKey:
+                object->as<TransitionValueEnumComparatorBase>()->value(value);
                 break;
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 object->as<BlendStateTransitionBase>()->exitBlendAnimationId(value);
@@ -1041,6 +1081,9 @@ public:
             case KeyFrameColorBase::valuePropertyKey:
                 object->as<KeyFrameColorBase>()->value(value);
                 break;
+            case TransitionValueColorComparatorBase::valuePropertyKey:
+                object->as<TransitionValueColorComparatorBase>()->value(value);
+                break;
             case SolidColorBase::colorValuePropertyKey:
                 object->as<SolidColorBase>()->colorValue(value);
                 break;
@@ -1079,6 +1122,9 @@ public:
                 break;
             case KeyFrameStringBase::valuePropertyKey:
                 object->as<KeyFrameStringBase>()->value(value);
+                break;
+            case TransitionValueStringComparatorBase::valuePropertyKey:
+                object->as<TransitionValueStringComparatorBase>()->value(value);
                 break;
             case OpenUrlEventBase::urlPropertyKey:
                 object->as<OpenUrlEventBase>()->url(value);
@@ -1309,6 +1355,9 @@ public:
                 break;
             case LinearAnimationBase::speedPropertyKey:
                 object->as<LinearAnimationBase>()->speed(value);
+                break;
+            case TransitionValueNumberComparatorBase::valuePropertyKey:
+                object->as<TransitionValueNumberComparatorBase>()->value(value);
                 break;
             case ElasticInterpolatorBase::amplitudePropertyKey:
                 object->as<ElasticInterpolatorBase>()->amplitude(value);
@@ -1656,6 +1705,8 @@ public:
                 return object->as<KeyFrameBoolBase>()->value();
             case ListenerAlignTargetBase::preserveOffsetPropertyKey:
                 return object->as<ListenerAlignTargetBase>()->preserveOffset();
+            case TransitionValueBooleanComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueBooleanComparatorBase>()->value();
             case NestedBoolBase::nestedValuePropertyKey:
                 return object->as<NestedBoolBase>()->nestedValue();
             case LinearAnimationBase::enableWorkAreaPropertyKey:
@@ -1845,8 +1896,8 @@ public:
                 return object->as<BlendAnimationDirectBase>()->inputId();
             case BlendAnimationDirectBase::blendSourcePropertyKey:
                 return object->as<BlendAnimationDirectBase>()->blendSource();
-            case TransitionConditionBase::inputIdPropertyKey:
-                return object->as<TransitionConditionBase>()->inputId();
+            case TransitionInputConditionBase::inputIdPropertyKey:
+                return object->as<TransitionInputConditionBase>()->inputId();
             case KeyedPropertyBase::propertyKeyPropertyKey:
                 return object->as<KeyedPropertyBase>()->propertyKey();
             case StateMachineListenerBase::targetIdPropertyKey:
@@ -1863,6 +1914,12 @@ public:
                 return object->as<ListenerAlignTargetBase>()->targetId();
             case TransitionValueConditionBase::opValuePropertyKey:
                 return object->as<TransitionValueConditionBase>()->opValue();
+            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
+                return object->as<TransitionViewModelConditionBase>()->leftComparatorId();
+            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
+                return object->as<TransitionViewModelConditionBase>()->rightComparatorId();
+            case TransitionViewModelConditionBase::opValuePropertyKey:
+                return object->as<TransitionViewModelConditionBase>()->opValue();
             case StateTransitionBase::stateToIdPropertyKey:
                 return object->as<StateTransitionBase>()->stateToId();
             case StateTransitionBase::flagsPropertyKey:
@@ -1895,6 +1952,8 @@ public:
                 return object->as<ElasticInterpolatorBase>()->easingValue();
             case BlendState1DBase::inputIdPropertyKey:
                 return object->as<BlendState1DBase>()->inputId();
+            case TransitionValueEnumComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueEnumComparatorBase>()->value();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->as<BlendStateTransitionBase>()->exitBlendAnimationId();
             case StrokeBase::capPropertyKey:
@@ -2000,6 +2059,8 @@ public:
                 return object->as<ViewModelInstanceColorBase>()->propertyValue();
             case KeyFrameColorBase::valuePropertyKey:
                 return object->as<KeyFrameColorBase>()->value();
+            case TransitionValueColorComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueColorComparatorBase>()->value();
             case SolidColorBase::colorValuePropertyKey:
                 return object->as<SolidColorBase>()->colorValue();
             case GradientStopBase::colorValuePropertyKey:
@@ -2029,6 +2090,8 @@ public:
                 return object->as<StateMachineComponentBase>()->name();
             case KeyFrameStringBase::valuePropertyKey:
                 return object->as<KeyFrameStringBase>()->value();
+            case TransitionValueStringComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueStringComparatorBase>()->value();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->as<OpenUrlEventBase>()->url();
             case BindablePropertyStringBase::propertyValuePropertyKey:
@@ -2186,6 +2249,8 @@ public:
                 return object->as<KeyFrameDoubleBase>()->value();
             case LinearAnimationBase::speedPropertyKey:
                 return object->as<LinearAnimationBase>()->speed();
+            case TransitionValueNumberComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueNumberComparatorBase>()->value();
             case ElasticInterpolatorBase::amplitudePropertyKey:
                 return object->as<ElasticInterpolatorBase>()->amplitude();
             case ElasticInterpolatorBase::periodPropertyKey:
@@ -2406,6 +2471,7 @@ public:
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
             case KeyFrameBoolBase::valuePropertyKey:
             case ListenerAlignTargetBase::preserveOffsetPropertyKey:
+            case TransitionValueBooleanComparatorBase::valuePropertyKey:
             case NestedBoolBase::nestedValuePropertyKey:
             case LinearAnimationBase::enableWorkAreaPropertyKey:
             case LinearAnimationBase::quantizePropertyKey:
@@ -2498,7 +2564,7 @@ public:
             case BlendAnimationBase::animationIdPropertyKey:
             case BlendAnimationDirectBase::inputIdPropertyKey:
             case BlendAnimationDirectBase::blendSourcePropertyKey:
-            case TransitionConditionBase::inputIdPropertyKey:
+            case TransitionInputConditionBase::inputIdPropertyKey:
             case KeyedPropertyBase::propertyKeyPropertyKey:
             case StateMachineListenerBase::targetIdPropertyKey:
             case StateMachineListenerBase::listenerTypeValuePropertyKey:
@@ -2507,6 +2573,9 @@ public:
             case ListenerBoolChangeBase::valuePropertyKey:
             case ListenerAlignTargetBase::targetIdPropertyKey:
             case TransitionValueConditionBase::opValuePropertyKey:
+            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
+            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
+            case TransitionViewModelConditionBase::opValuePropertyKey:
             case StateTransitionBase::stateToIdPropertyKey:
             case StateTransitionBase::flagsPropertyKey:
             case StateTransitionBase::durationPropertyKey:
@@ -2523,6 +2592,7 @@ public:
             case LinearAnimationBase::workEndPropertyKey:
             case ElasticInterpolatorBase::easingValuePropertyKey:
             case BlendState1DBase::inputIdPropertyKey:
+            case TransitionValueEnumComparatorBase::valuePropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case StrokeBase::capPropertyKey:
             case StrokeBase::joinPropertyKey:
@@ -2573,6 +2643,7 @@ public:
                 return CoreUintType::id;
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
             case KeyFrameColorBase::valuePropertyKey:
+            case TransitionValueColorComparatorBase::valuePropertyKey:
             case SolidColorBase::colorValuePropertyKey:
             case GradientStopBase::colorValuePropertyKey:
             case BindablePropertyColorBase::propertyValuePropertyKey:
@@ -2585,6 +2656,7 @@ public:
             case AnimationBase::namePropertyKey:
             case StateMachineComponentBase::namePropertyKey:
             case KeyFrameStringBase::valuePropertyKey:
+            case TransitionValueStringComparatorBase::valuePropertyKey:
             case OpenUrlEventBase::urlPropertyKey:
             case BindablePropertyStringBase::propertyValuePropertyKey:
             case TextValueRunBase::textPropertyKey:
@@ -2662,6 +2734,7 @@ public:
             case ListenerNumberChangeBase::valuePropertyKey:
             case KeyFrameDoubleBase::valuePropertyKey:
             case LinearAnimationBase::speedPropertyKey:
+            case TransitionValueNumberComparatorBase::valuePropertyKey:
             case ElasticInterpolatorBase::amplitudePropertyKey:
             case ElasticInterpolatorBase::periodPropertyKey:
             case NestedNumberBase::nestedValuePropertyKey:
@@ -2820,6 +2893,8 @@ public:
                 return object->is<KeyFrameBoolBase>();
             case ListenerAlignTargetBase::preserveOffsetPropertyKey:
                 return object->is<ListenerAlignTargetBase>();
+            case TransitionValueBooleanComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueBooleanComparatorBase>();
             case NestedBoolBase::nestedValuePropertyKey:
                 return object->is<NestedBoolBase>();
             case LinearAnimationBase::enableWorkAreaPropertyKey:
@@ -3002,8 +3077,8 @@ public:
                 return object->is<BlendAnimationDirectBase>();
             case BlendAnimationDirectBase::blendSourcePropertyKey:
                 return object->is<BlendAnimationDirectBase>();
-            case TransitionConditionBase::inputIdPropertyKey:
-                return object->is<TransitionConditionBase>();
+            case TransitionInputConditionBase::inputIdPropertyKey:
+                return object->is<TransitionInputConditionBase>();
             case KeyedPropertyBase::propertyKeyPropertyKey:
                 return object->is<KeyedPropertyBase>();
             case StateMachineListenerBase::targetIdPropertyKey:
@@ -3020,6 +3095,12 @@ public:
                 return object->is<ListenerAlignTargetBase>();
             case TransitionValueConditionBase::opValuePropertyKey:
                 return object->is<TransitionValueConditionBase>();
+            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
+                return object->is<TransitionViewModelConditionBase>();
+            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
+                return object->is<TransitionViewModelConditionBase>();
+            case TransitionViewModelConditionBase::opValuePropertyKey:
+                return object->is<TransitionViewModelConditionBase>();
             case StateTransitionBase::stateToIdPropertyKey:
                 return object->is<StateTransitionBase>();
             case StateTransitionBase::flagsPropertyKey:
@@ -3052,6 +3133,8 @@ public:
                 return object->is<ElasticInterpolatorBase>();
             case BlendState1DBase::inputIdPropertyKey:
                 return object->is<BlendState1DBase>();
+            case TransitionValueEnumComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueEnumComparatorBase>();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->is<BlendStateTransitionBase>();
             case StrokeBase::capPropertyKey:
@@ -3150,6 +3233,8 @@ public:
                 return object->is<ViewModelInstanceColorBase>();
             case KeyFrameColorBase::valuePropertyKey:
                 return object->is<KeyFrameColorBase>();
+            case TransitionValueColorComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueColorComparatorBase>();
             case SolidColorBase::colorValuePropertyKey:
                 return object->is<SolidColorBase>();
             case GradientStopBase::colorValuePropertyKey:
@@ -3172,6 +3257,8 @@ public:
                 return object->is<StateMachineComponentBase>();
             case KeyFrameStringBase::valuePropertyKey:
                 return object->is<KeyFrameStringBase>();
+            case TransitionValueStringComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueStringComparatorBase>();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->is<OpenUrlEventBase>();
             case BindablePropertyStringBase::propertyValuePropertyKey:
@@ -3322,6 +3409,8 @@ public:
                 return object->is<KeyFrameDoubleBase>();
             case LinearAnimationBase::speedPropertyKey:
                 return object->is<LinearAnimationBase>();
+            case TransitionValueNumberComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueNumberComparatorBase>();
             case ElasticInterpolatorBase::amplitudePropertyKey:
                 return object->is<ElasticInterpolatorBase>();
             case ElasticInterpolatorBase::periodPropertyKey:

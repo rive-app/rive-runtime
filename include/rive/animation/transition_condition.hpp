@@ -15,8 +15,6 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
 
-    virtual bool evaluate(const SMIInput* inputInstance) const { return true; }
-
 protected:
     virtual bool validateInputType(const StateMachineInput* input) const { return true; }
 };

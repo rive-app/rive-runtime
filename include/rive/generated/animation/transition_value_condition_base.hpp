@@ -1,13 +1,13 @@
 #ifndef _RIVE_TRANSITION_VALUE_CONDITION_BASE_HPP_
 #define _RIVE_TRANSITION_VALUE_CONDITION_BASE_HPP_
-#include "rive/animation/transition_condition.hpp"
+#include "rive/animation/transition_input_condition.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
-class TransitionValueConditionBase : public TransitionCondition
+class TransitionValueConditionBase : public TransitionInputCondition
 {
 protected:
-    typedef TransitionCondition Super;
+    typedef TransitionInputCondition Super;
 
 public:
     static const uint16_t typeKey = 69;
@@ -19,6 +19,7 @@ public:
         switch (typeKey)
         {
             case TransitionValueConditionBase::typeKey:
+            case TransitionInputConditionBase::typeKey:
             case TransitionConditionBase::typeKey:
                 return true;
             default:
@@ -48,7 +49,7 @@ public:
     void copy(const TransitionValueConditionBase& object)
     {
         m_OpValue = object.m_OpValue;
-        TransitionCondition::copy(object);
+        TransitionInputCondition::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -59,7 +60,7 @@ public:
                 m_OpValue = CoreUintType::deserialize(reader);
                 return true;
         }
-        return TransitionCondition::deserialize(propertyKey, reader);
+        return TransitionInputCondition::deserialize(propertyKey, reader);
     }
 
 protected:

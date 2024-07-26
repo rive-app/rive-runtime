@@ -5,7 +5,7 @@
     "string": "transitionvaluecondition"
   },
   "abstract": true,
-  "extends": "animation/transition_condition.json",
+  "extends": "animation/transition_input_condition.json",
   "properties": {
     "opValue": {
       "type": "uint",

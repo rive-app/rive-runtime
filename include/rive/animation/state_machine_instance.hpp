@@ -147,6 +147,7 @@ public:
         return nullptr;
     }
 #endif
+    void updateDataBinds();
 
 private:
     std::vector<EventReport> m_reportedEvents;
@@ -160,6 +161,7 @@ private:
     NestedArtboard* m_parentNestedArtboard = nullptr;
     std::vector<DataBind*> m_dataBinds;
     std::unordered_map<BindableProperty*, BindableProperty*> m_bindablePropertyInstances;
+
 #ifdef WITH_RIVE_TOOLS
 public:
     void onInputChanged(InputChanged callback) { m_inputChangedCallback = callback; }

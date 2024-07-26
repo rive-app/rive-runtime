@@ -21,6 +21,7 @@
 #include "rive/importers/layer_state_importer.hpp"
 #include "rive/importers/state_transition_importer.hpp"
 #include "rive/importers/state_machine_layer_component_importer.hpp"
+#include "rive/importers/transition_viewmodel_condition_importer.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/importers/viewmodel_instance_list_importer.hpp"
@@ -31,6 +32,7 @@
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/blend_state_1d.hpp"
 #include "rive/animation/blend_state_direct.hpp"
+#include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
@@ -371,6 +373,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject = rivestd::make_unique<ViewModelInstanceListImporter>(
                     object->as<ViewModelInstanceList>());
                 stackType = ViewModelInstanceList::typeKey;
+                break;
+            case TransitionViewModelCondition::typeKey:
+                stackObject = rivestd::make_unique<TransitionViewModelConditionImporter>(
+                    object->as<TransitionViewModelCondition>());
+                stackType = TransitionViewModelCondition::typeKey;
                 break;
             case BindablePropertyNumber::typeKey:
             case BindablePropertyString::typeKey:

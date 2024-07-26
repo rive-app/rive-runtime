@@ -5,6 +5,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/core_context.hpp"
 
@@ -87,4 +88,28 @@ StatusCode ViewModelInstance::import(ImportStack& importStack)
 
     viewModelImporter->addInstance(this);
     return StatusCode::Ok;
+}
+
+ViewModelInstanceValue* ViewModelInstance::propertyFromPath(std::vector<uint32_t>* path,
+                                                            size_t index)
+{
+    if (index < path->size())
+    {
+        auto propertyId = (*path)[index];
+        auto property = propertyValue(propertyId);
+        if (property != nullptr)
+        {
+            if (index == path->size() - 1)
+            {
+                return property;
+            }
+            if (property->is<ViewModelInstanceViewModel>())
+            {
+                auto propertyViewModel = property->as<ViewModelInstanceViewModel>();
+                auto viewModelInstance = propertyViewModel->referenceViewModelInstance();
+                return viewModelInstance->propertyFromPath(path, index + 1);
+            }
+        }
+    }
+    return nullptr;
 }

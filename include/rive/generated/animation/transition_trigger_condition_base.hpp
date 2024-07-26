@@ -1,12 +1,12 @@
 #ifndef _RIVE_TRANSITION_TRIGGER_CONDITION_BASE_HPP_
 #define _RIVE_TRANSITION_TRIGGER_CONDITION_BASE_HPP_
-#include "rive/animation/transition_condition.hpp"
+#include "rive/animation/transition_input_condition.hpp"
 namespace rive
 {
-class TransitionTriggerConditionBase : public TransitionCondition
+class TransitionTriggerConditionBase : public TransitionInputCondition
 {
 protected:
-    typedef TransitionCondition Super;
+    typedef TransitionInputCondition Super;
 
 public:
     static const uint16_t typeKey = 68;
@@ -18,6 +18,7 @@ public:
         switch (typeKey)
         {
             case TransitionTriggerConditionBase::typeKey:
+            case TransitionInputConditionBase::typeKey:
             case TransitionConditionBase::typeKey:
                 return true;
             default:

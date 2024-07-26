@@ -8,7 +8,10 @@
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
+#include "rive/animation/transition_input_condition.hpp"
+#include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/layer_state_importer.hpp"
 
@@ -147,13 +150,26 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
 
     for (auto condition : m_Conditions)
     {
-        // N.B. state machine instance sanitizes these for us...
-        auto input = stateMachineInstance->input(condition->inputId());
-
-        if ((ignoreTriggers && condition->is<TransitionTriggerCondition>()) ||
-            !condition->evaluate(input))
+        if (condition->is<TransitionInputCondition>())
         {
-            return AllowTransition::no;
+            auto inputCondition = condition->as<TransitionInputCondition>();
+            // N.B. state machine instance sanitizes these for us...
+            auto input = stateMachineInstance->input(inputCondition->inputId());
+
+            if ((ignoreTriggers && inputCondition->is<TransitionTriggerCondition>()) ||
+                !inputCondition->evaluate(input))
+            {
+                return AllowTransition::no;
+            }
+        }
+        else if (condition->is<TransitionViewModelCondition>())
+        {
+            auto transitionViewModelCondition = condition->as<TransitionViewModelCondition>();
+
+            if (!transitionViewModelCondition->evaluateCondition(stateMachineInstance))
+            {
+                return AllowTransition::no;
+            }
         }
     }
 

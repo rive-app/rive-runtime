@@ -14,6 +14,7 @@
 #include "rive/data_bind/context/context_value_enum.hpp"
 #include "rive/data_bind/context/context_value_list.hpp"
 #include "rive/data_bind/context/context_value_color.hpp"
+#include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
@@ -42,6 +43,7 @@ StatusCode DataBind::import(ImportStack& importStack)
             case BindablePropertyBooleanBase::typeKey:
             case BindablePropertyEnumBase::typeKey:
             case BindablePropertyColorBase::typeKey:
+            case TransitionPropertyViewModelComparatorBase::typeKey:
             {
                 auto stateMachineImporter =
                     importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);

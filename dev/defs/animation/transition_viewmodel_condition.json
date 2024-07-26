@@ -1,0 +1,41 @@
+{
+  "name": "TransitionViewModelCondition",
+  "key": {
+    "int": 482,
+    "string": "transitionviewmodelcondition"
+  },
+  "extends": "animation/transition_condition.json",
+  "properties": {
+    "leftComparatorId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 648,
+        "string": "leftcomparatorid"
+      },
+      "description": "The id of the left comaprand to use for this condition"
+    },
+    "rightComparatorId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 649,
+        "string": "rightcomparatorid"
+      },
+      "description": "The id of the right comaprand to use for this condition"
+    },
+    "opValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 650,
+        "string": "opvalue"
+      },
+      "description": "Integer representation of the StateMachineOp enum."
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "TransitionValueColorComparator",
+  "key": {
+    "int": 483,
+    "string": "transitionvaluecolorcomparator"
+  },
+  "extends": "animation/transition_value_comparator.json",
+  "properties": {
+    "value": {
+      "type": "Color",
+      "initialValue": "0xFF1D1D1D",
+      "key": {
+        "int": 651,
+        "string": "value"
+      }
+    }
+  }
+}

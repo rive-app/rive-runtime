@@ -1,7 +1,7 @@
 {
   "name": "TransitionCondition",
   "key": {
-    "int": 67,
+    "int": 476,
     "string": "transitioncondition"
   },
   "abstract": true,
@@ -28,17 +28,6 @@
       },
       "description": "Order value for condition in a transition.",
       "runtime": false
-    },
-    "inputId": {
-      "type": "Id",
-      "typeRuntime": "uint",
-      "initialValue": "Core.missingId",
-      "initialValueRuntime": "-1",
-      "key": {
-        "int": 155,
-        "string": "inputid"
-      },
-      "description": "Id of the StateMachineInput referenced."
     }
   }
 }

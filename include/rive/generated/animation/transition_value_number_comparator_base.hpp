@@ -1,16 +1,16 @@
-#ifndef _RIVE_TRANSITION_NUMBER_CONDITION_BASE_HPP_
-#define _RIVE_TRANSITION_NUMBER_CONDITION_BASE_HPP_
-#include "rive/animation/transition_value_condition.hpp"
+#ifndef _RIVE_TRANSITION_VALUE_NUMBER_COMPARATOR_BASE_HPP_
+#define _RIVE_TRANSITION_VALUE_NUMBER_COMPARATOR_BASE_HPP_
+#include "rive/animation/transition_value_comparator.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
-class TransitionNumberConditionBase : public TransitionValueCondition
+class TransitionValueNumberComparatorBase : public TransitionValueComparator
 {
 protected:
-    typedef TransitionValueCondition Super;
+    typedef TransitionValueComparator Super;
 
 public:
-    static const uint16_t typeKey = 70;
+    static const uint16_t typeKey = 484;
 
     /// Helper to quickly determine if a core object extends another without RTTI
     /// at runtime.
@@ -18,10 +18,9 @@ public:
     {
         switch (typeKey)
         {
-            case TransitionNumberConditionBase::typeKey:
-            case TransitionValueConditionBase::typeKey:
-            case TransitionInputConditionBase::typeKey:
-            case TransitionConditionBase::typeKey:
+            case TransitionValueNumberComparatorBase::typeKey:
+            case TransitionValueComparatorBase::typeKey:
+            case TransitionComparatorBase::typeKey:
                 return true;
             default:
                 return false;
@@ -30,7 +29,7 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t valuePropertyKey = 157;
+    static const uint16_t valuePropertyKey = 652;
 
 private:
     float m_Value = 0.0f;
@@ -48,10 +47,10 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const TransitionNumberConditionBase& object)
+    void copy(const TransitionValueNumberComparatorBase& object)
     {
         m_Value = object.m_Value;
-        TransitionValueCondition::copy(object);
+        TransitionValueComparator::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -62,7 +61,7 @@ public:
                 m_Value = CoreDoubleType::deserialize(reader);
                 return true;
         }
-        return TransitionValueCondition::deserialize(propertyKey, reader);
+        return TransitionValueComparator::deserialize(propertyKey, reader);
     }
 
 protected:
