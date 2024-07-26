@@ -19,41 +19,30 @@ cd submodules/rive-cpp/skia/dependencies
 ./make_glfw.sh
 ```
 
-## Install Premake5
-
-Grab the binary from the premake5 GitHub releases: https://github.com/premake/premake-core/releases/ or you can build your own for Apple Silicon:
-
-```
-git clone --depth 1 --branch master https://github.com/premake/premake-core.git
-cd premake-core
-make -f Bootstrap.mak osx PLATFORM=ARM
-# binaries will be in bin/release/* put them in your path
-```
-
 ## Install Python PLY
 
 ```
 python3 -m pip install ply
 ```
 
-## Call Premake & Build
+## Add build_rive.sh to $PATH
 
 ```
-PREMAKE_PATH="$(pwd)/submodules/rive-cpp/build" premake5 gmake2 --with_rive_text --config=release --out=out/release
-cd out/release
-make -j20
-# run path_fiddle
-./path_fiddle [/path/to/my.riv]
+export PATH="$PATH:$(pwd)/submodules/rive-cpp/build"
 ```
 
-## Build and serve for WebGL2
+## Build & run
 
 ```
-PREMAKE_PATH="$(pwd)/submodules/rive-cpp/build" premake5 gmake2 --with_rive_text --config=release --arch=wasm --out=out/wasm_release
+build_rive.sh release
+out/release/path_fiddle [/path/to/my.riv]
+```
+
+## Build & serve for WebGL2
+
+```
+build_rive.sh ninja wasm release
 cd out/wasm_release
-# Ensure your emsdk_env is configured.
-make -j20 path_fiddle
-# serve to http://localhost:5555/
 python3 -m http.server 5555
 ```
 
