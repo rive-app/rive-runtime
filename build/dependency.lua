@@ -42,7 +42,7 @@ function m.github(project, tag)
                     and progress,
             }
         )
-        print('Downloaded ' .. project .. '.')
+        print('Downloaded ' .. project .. ' to ' .. dependencies .. '/' .. hash)
         zip.extract(downloadFilename, dependencies .. '/' .. hash)
         os.remove(downloadFilename)
     end
@@ -50,8 +50,6 @@ function m.github(project, tag)
 
     local iter = pairs(dirs)
     local currentKey, currentValue = iter(dirs)
-    print('Dependency ' .. project .. ' located at:')
-    print('  ' .. currentValue)
     return currentValue
 end
 return m

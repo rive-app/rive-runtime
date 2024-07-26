@@ -1,3 +1,11 @@
+if _ACTION == 'ninja' then
+    require "ninja"
+end
+
+if _ACTION == 'export-compile-commands' then
+    require "export-compile-commands"
+end
+
 workspace('rive')
 
 newoption({
