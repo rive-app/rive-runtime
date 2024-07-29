@@ -54,6 +54,7 @@
 #   build_rive.sh rebuild out/debug gms goldens  # args after OUT get forwarded to the buildsystem
 
 set -e
+set -o pipefail
 
 # Detect where build_rive.sh is located on disk.
 # https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
