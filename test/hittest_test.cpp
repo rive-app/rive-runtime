@@ -8,6 +8,7 @@
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/state_machine_input_instance.hpp>
 #include <rive/animation/nested_state_machine.hpp>
+#include <rive/animation/animation_state.hpp>
 #include "rive_file_reader.hpp"
 
 #include <catch.hpp>
@@ -244,6 +245,142 @@ TEST_CASE("early out on listeners", "[hittest]")
     REQUIRE(hitComponentWithNoEarlyOut->earlyOutCount == 0);
     REQUIRE(hitComponentOpaque->earlyOutCount == 0);
     REQUIRE(hitComponentOnlyPointerDown->earlyOutCount == 4);
+
+    delete stateMachineInstance;
+}
+
+TEST_CASE("click event", "[hittest]")
+{
+    // This test has two rectangles of size [200, 200]
+    // positioned at [100,100] and [200, 200]
+    // they overlap between coordinates [100,100]-[200, 200]
+    // they are inside a group that has a listener attached to it
+    // that listener should fire an event on "Click"
+    auto file = ReadRiveFile("../../test/assets/click_event.riv");
+
+    auto artboard = file->artboard("art-1");
+    auto artboardInstance = artboard->instance();
+    auto stateMachine = artboard->stateMachine("sm-1");
+
+    REQUIRE(artboardInstance != nullptr);
+    REQUIRE(artboardInstance->stateMachineCount() == 1);
+
+    REQUIRE(stateMachine != nullptr);
+
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
+
+    stateMachineInstance->advance(0.0f);
+    artboardInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->needsAdvance() == true);
+    stateMachineInstance->advance(0.0f);
+    // There is a single listener with two shapes in it
+    REQUIRE(stateMachineInstance->hitComponentsCount() == 2);
+    auto layerCount = stateMachine->layerCount();
+    REQUIRE(layerCount == 1);
+    REQUIRE(stateMachineInstance->reportedEventCount() == 0);
+    // Click in place should trigger a click event
+    stateMachineInstance->pointerDown(rive::Vec2D(75.0f, 75.0f));
+    stateMachineInstance->pointerUp(rive::Vec2D(75.0f, 75.0f));
+    REQUIRE(stateMachineInstance->reportedEventCount() == 1);
+    // Pointer down inside shape but Pointer up outside the shape
+    // should not trigger a click event
+    stateMachineInstance->pointerDown(rive::Vec2D(75.0f, 75.0f));
+    stateMachineInstance->pointerUp(rive::Vec2D(300.0f, 75.0f));
+    REQUIRE(stateMachineInstance->reportedEventCount() == 1);
+    // Pointer down outside shape but Pointer up inside the shape
+    // should not trigger a click event
+    stateMachineInstance->pointerDown(rive::Vec2D(300.0f, 75.0f));
+    stateMachineInstance->pointerUp(rive::Vec2D(75.0f, 75.0f));
+    REQUIRE(stateMachineInstance->reportedEventCount() == 1);
+    // Pointer down in shape 1 Pointer up in shape 2 of the same group
+    // should trigger a click event
+    stateMachineInstance->pointerDown(rive::Vec2D(75.0f, 75.0f));
+    stateMachineInstance->pointerUp(rive::Vec2D(225.0f, 225.0f));
+    REQUIRE(stateMachineInstance->reportedEventCount() == 2);
+    // Pointer down and up in area where both shapes overlap
+    // should trigger a single click event
+    stateMachineInstance->pointerDown(rive::Vec2D(150.0f, 150.0f));
+    stateMachineInstance->pointerUp(rive::Vec2D(150.0f, 150.0f));
+    REQUIRE(stateMachineInstance->reportedEventCount() == 3);
+
+    delete stateMachineInstance;
+}
+
+TEST_CASE("multiple shapes with mouse movement behavior", "[hittest]")
+{
+    // This test has two rectangles of size [200, 200]
+    // positioned at [100,100] and [100, 200]
+    // they overlap between coordinates [100,0]-[200, 200]
+    // they are inside a group that has a Pointer enter and a Pointer out
+    // listeners that toggle between two states (red and green)
+    // starting at "red"
+    auto file = ReadRiveFile("../../test/assets/click_event.riv");
+
+    auto artboard = file->artboard("art-2");
+    auto artboardInstance = artboard->instance();
+    auto stateMachine = artboard->stateMachine("sm-1");
+
+    REQUIRE(artboardInstance != nullptr);
+    REQUIRE(artboardInstance->stateMachineCount() == 1);
+
+    REQUIRE(stateMachine != nullptr);
+
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
+
+    stateMachineInstance->advance(0.0f);
+    artboardInstance->advance(0.0f);
+    REQUIRE(stateMachineInstance->needsAdvance() == true);
+    stateMachineInstance->advance(0.0f);
+    // There is a single listener with two shapes in it
+    REQUIRE(stateMachineInstance->hitComponentsCount() == 2);
+    auto layerCount = stateMachine->layerCount();
+    REQUIRE(layerCount == 1);
+    // Move over the first shape
+    stateMachineInstance->pointerMove(rive::Vec2D(75.0f, 75.0f));
+    artboardInstance->advance(0.0f);
+    stateMachineInstance->advanceAndApply(0.0f);
+
+    {
+        auto state = stateMachineInstance->layerState(0);
+        REQUIRE(state->is<rive::AnimationState>());
+        auto animation = state->as<rive::AnimationState>()->animation();
+        REQUIRE(animation->name() == "green");
+    }
+    // Move over the second shape, nothing should change
+    stateMachineInstance->pointerMove(rive::Vec2D(200.0f, 75.0f));
+    artboardInstance->advance(0.0f);
+    stateMachineInstance->advanceAndApply(0.0f);
+
+    {
+        auto state = stateMachineInstance->layerState(0);
+        REQUIRE(state->is<rive::AnimationState>());
+        auto animation = state->as<rive::AnimationState>()->animation();
+        REQUIRE(animation->name() == "green");
+    }
+    // Move out of the second shape, should go back to red
+    stateMachineInstance->pointerMove(rive::Vec2D(400.0f, 75.0f));
+    artboardInstance->advance(0.0f);
+    stateMachineInstance->advanceAndApply(0.0f);
+
+    {
+        auto state = stateMachineInstance->layerState(0);
+        REQUIRE(state->is<rive::AnimationState>());
+        auto animation = state->as<rive::AnimationState>()->animation();
+        REQUIRE(animation->name() == "red");
+    }
+    // Move back into the second shape, should go to green
+    stateMachineInstance->pointerMove(rive::Vec2D(200.0f, 75.0f));
+    artboardInstance->advance(0.0f);
+    stateMachineInstance->advanceAndApply(0.0f);
+
+    {
+        auto state = stateMachineInstance->layerState(0);
+        REQUIRE(state->is<rive::AnimationState>());
+        auto animation = state->as<rive::AnimationState>()->animation();
+        REQUIRE(animation->name() == "green");
+    }
 
     delete stateMachineInstance;
 }

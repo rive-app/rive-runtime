@@ -27,6 +27,7 @@ class Shape;
 class StateMachineLayerInstance;
 class HitComponent;
 class HitShape;
+class ListenerGroup;
 class NestedArtboard;
 class NestedEventListener;
 class NestedEventNotifier;
@@ -146,6 +147,7 @@ public:
         }
         return nullptr;
     }
+    const LayerState* layerState(size_t index);
 #endif
     void updateDataBinds();
 
@@ -157,6 +159,7 @@ private:
     size_t m_layerCount;
     StateMachineLayerInstance* m_layers;
     std::vector<std::unique_ptr<HitComponent>> m_hitComponents;
+    std::vector<std::unique_ptr<ListenerGroup>> m_listenerGroups;
     StateMachineInstance* m_parentStateMachineInstance = nullptr;
     NestedArtboard* m_parentNestedArtboard = nullptr;
     std::vector<DataBind*> m_dataBinds;
@@ -178,6 +181,7 @@ public:
     {}
     virtual ~HitComponent() {}
     virtual HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) = 0;
+    virtual void prepareEvent(Vec2D position, ListenerType hitType) = 0;
 #ifdef WITH_RIVE_TOOLS
     virtual bool hitTest(Vec2D position) const = 0;
 #endif

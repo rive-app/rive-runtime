@@ -26,6 +26,7 @@
 #include "rive/animation/state_machine_fire_event.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/event_report.hpp"
+#include "rive/gesture_click_phase.hpp"
 #include "rive/hit_result.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
@@ -190,7 +191,6 @@ public:
     {
         uint32_t totalWeight = 0;
         auto stateFrom = stateFromInstance->state();
-        // printf("stateFrom->transitionCount(): %zu\n", stateFrom->transitionCount());
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length; i++)
         {
             auto transition = stateFrom->transition(i);
@@ -425,6 +425,45 @@ private:
     float m_holdTime = 0.0f;
 };
 
+class ListenerGroup
+{
+public:
+    ListenerGroup(const StateMachineListener* listener) : m_listener(listener) {}
+    void consume() { m_isConsumed = true; }
+    //
+    void hover() { m_isHovered = true; }
+    void reset()
+    {
+        m_isConsumed = false;
+        m_prevIsHovered = m_isHovered;
+        m_isHovered = false;
+        if (m_clickPhase == GestureClickPhase::clicked)
+        {
+            m_clickPhase = GestureClickPhase::out;
+        }
+    }
+    bool isConsumed() { return m_isConsumed; }
+    bool isHovered() { return m_isHovered; }
+    bool prevHovered() { return m_prevIsHovered; }
+    void clickPhase(GestureClickPhase value) { m_clickPhase = value; }
+    GestureClickPhase clickPhase() { return m_clickPhase; }
+    const StateMachineListener* listener() const { return m_listener; };
+    // A vector storing the previous position for this specific listener gorup
+    Vec2D previousPosition;
+
+private:
+    // Consumed listeners aren't processed again in the current frame
+    bool m_isConsumed = false;
+    // This variable holds the hover status of the the listener itself so it can
+    // be shared between all shapes that target it
+    bool m_isHovered = false;
+    // Variable storing the previous hovered state to check for hover changes
+    bool m_prevIsHovered = false;
+    // A click gesture is composed of three phases and is shared between all shapes
+    GestureClickPhase m_clickPhase = GestureClickPhase::out;
+    const StateMachineListener* m_listener;
+};
+
 /// Representation of a Shape from the Artboard Instance and all the listeners it
 /// triggers. Allows tracking hover and performing hit detection only once on
 /// shapes that trigger multiple listeners.
@@ -444,8 +483,7 @@ public:
     bool hasDownListener = false;
     bool hasUpListener = false;
     float hitRadius = 2;
-    Vec2D previousPosition;
-    std::vector<const StateMachineListener*> listeners;
+    std::vector<ListenerGroup*> listeners;
 
     bool hitTest(Vec2D position) const
 #ifdef WITH_RIVE_TOOLS
@@ -466,6 +504,29 @@ public:
         return shape->hitTest(hitArea);
     }
 
+    void prepareEvent(Vec2D position, ListenerType hitType) override
+    {
+        if (canEarlyOut && (hitType != ListenerType::down || !hasDownListener) &&
+            (hitType != ListenerType::up || !hasUpListener))
+        {
+#ifdef TESTING
+            earlyOutCount++;
+#endif
+            return;
+        }
+        isHovered = hitTest(position);
+
+        // // iterate all listeners associated with this hit shape
+        if (isHovered)
+        {
+            for (auto listenerGroup : listeners)
+            {
+
+                listenerGroup->hover();
+            }
+        }
+    }
+
     HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) override
     {
         // If the shape doesn't have any ListenerType::move / enter / exit and the event
@@ -475,53 +536,90 @@ public:
         if (canEarlyOut && (hitType != ListenerType::down || !hasDownListener) &&
             (hitType != ListenerType::up || !hasUpListener))
         {
-#ifdef TESTING
-            earlyOutCount++;
-#endif
             return HitResult::none;
         }
         auto shape = m_component->as<Shape>();
-        bool isOver = canHit ? hitTest(position) : false;
-        bool hoverChange = isHovered != isOver;
-        isHovered = isOver;
-        if (hoverChange && isHovered)
-        {
-            previousPosition.x = position.x;
-            previousPosition.y = position.y;
-        }
 
         // // iterate all listeners associated with this hit shape
-        for (auto listener : listeners)
+        for (auto listenerGroup : listeners)
         {
+            if (listenerGroup->isConsumed())
+            {
+                continue;
+            }
+
+            bool isGroupHovered = canHit ? listenerGroup->isHovered() : false;
+            bool hoverChange = listenerGroup->prevHovered() != isGroupHovered;
+            // If hover has changes, it means that the element is hovered for the
+            // first time. Previous positions need to be reset to avoid jumps.
+            if (hoverChange && isGroupHovered)
+            {
+                listenerGroup->previousPosition.x = position.x;
+                listenerGroup->previousPosition.y = position.y;
+            }
+
+            // Handle click gesture phases. A click gesture has two phases.
+            // First one attached to a pointer down actions, second one attached to a
+            // pointer up action. Both need to act on a shape of the listener group.
+            if (isGroupHovered)
+            {
+                if (hitType == ListenerType::down)
+                {
+                    listenerGroup->clickPhase(GestureClickPhase::down);
+                }
+                else if (hitType == ListenerType::up &&
+                         listenerGroup->clickPhase() == GestureClickPhase::down)
+                {
+                    listenerGroup->clickPhase(GestureClickPhase::clicked);
+                }
+            }
+            else
+            {
+                if (hitType == ListenerType::down || hitType == ListenerType::up)
+                {
+                    listenerGroup->clickPhase(GestureClickPhase::out);
+                }
+            }
+            auto listener = listenerGroup->listener();
             // Always update hover states regardless of which specific listener type
             // we're trying to trigger.
-            if (hoverChange)
+            // If hover has changed and:
+            // - it's hovering and the listener is of type enter
+            // - it's not hovering and the listener is of type exit
+            if (hoverChange &&
+                ((isGroupHovered && listener->listenerType() == ListenerType::enter) ||
+                 (!isGroupHovered && listener->listenerType() == ListenerType::exit)))
             {
-                if (isOver && listener->listenerType() == ListenerType::enter)
-                {
-                    listener->performChanges(m_stateMachineInstance, position, previousPosition);
-                    m_stateMachineInstance->markNeedsAdvance();
-                }
-                else if (!isOver && listener->listenerType() == ListenerType::exit)
-                {
-                    listener->performChanges(m_stateMachineInstance, position, previousPosition);
-                    m_stateMachineInstance->markNeedsAdvance();
-                }
-            }
-            if (isOver && hitType == listener->listenerType())
-            {
-                listener->performChanges(m_stateMachineInstance, position, previousPosition);
+                listener->performChanges(m_stateMachineInstance,
+                                         position,
+                                         listenerGroup->previousPosition);
                 m_stateMachineInstance->markNeedsAdvance();
+                listenerGroup->consume();
             }
+            // Perform changes if:
+            // - the click gesture is complete and the listener is of type click
+            // - the event type matches the listener type and it is hovering the group
+            if ((listenerGroup->clickPhase() == GestureClickPhase::clicked &&
+                 listener->listenerType() == ListenerType::click) ||
+                (isGroupHovered && hitType == listener->listenerType()))
+            {
+                listener->performChanges(m_stateMachineInstance,
+                                         position,
+                                         listenerGroup->previousPosition);
+                m_stateMachineInstance->markNeedsAdvance();
+                listenerGroup->consume();
+            }
+            listenerGroup->previousPosition.x = position.x;
+            listenerGroup->previousPosition.y = position.y;
         }
-        previousPosition.x = position.x;
-        previousPosition.y = position.y;
-        return isOver ? shape->isTargetOpaque() ? HitResult::hitOpaque : HitResult::hit
-                      : HitResult::none;
+        return (isHovered && canHit)
+                   ? shape->isTargetOpaque() ? HitResult::hitOpaque : HitResult::hit
+                   : HitResult::none;
     }
 
-    void addListener(const StateMachineListener* stateMachineListener)
+    void addListener(ListenerGroup* listenerGroup)
     {
+        auto stateMachineListener = listenerGroup->listener();
         auto listenerType = stateMachineListener->listenerType();
         if (listenerType == ListenerType::enter || listenerType == ListenerType::exit ||
             listenerType == ListenerType::move)
@@ -530,16 +628,16 @@ public:
         }
         else
         {
-            if (listenerType == ListenerType::down)
+            if (listenerType == ListenerType::down || listenerType == ListenerType::click)
             {
                 hasDownListener = true;
             }
-            else if (listenerType == ListenerType::up)
+            if (listenerType == ListenerType::up || listenerType == ListenerType::click)
             {
                 hasUpListener = true;
             }
         }
-        listeners.push_back(stateMachineListener);
+        listeners.push_back(listenerGroup);
     }
 };
 class HitNestedArtboard : public HitComponent
@@ -615,6 +713,7 @@ public:
                         case ListenerType::enter:
                         case ListenerType::exit:
                         case ListenerType::event:
+                        case ListenerType::click:
                             break;
                     }
                 }
@@ -630,6 +729,7 @@ public:
                         case ListenerType::enter:
                         case ListenerType::exit:
                         case ListenerType::event:
+                        case ListenerType::click:
                             break;
                     }
                 }
@@ -637,7 +737,9 @@ public:
         }
         return hitResult;
     }
+    void prepareEvent(Vec2D position, ListenerType hitType) override {}
 };
+
 } // namespace rive
 
 HitResult StateMachineInstance::updateListeners(Vec2D position, ListenerType hitType)
@@ -647,9 +749,19 @@ HitResult StateMachineInstance::updateListeners(Vec2D position, ListenerType hit
         position -= Vec2D(m_artboardInstance->originX() * m_artboardInstance->width(),
                           m_artboardInstance->originY() * m_artboardInstance->height());
     }
-
+    // First reset all listener groups before processing the events
+    for (const auto& listenerGroup : m_listenerGroups)
+    {
+        listenerGroup.get()->reset();
+    }
+    // Next prepare the event to set the common hover status for each group
+    for (const auto& hitShape : m_hitComponents)
+    {
+        hitShape->prepareEvent(position, hitType);
+    }
     bool hitSomething = false;
     bool hitOpaque = false;
+    // Finally process the events
     for (const auto& hitShape : m_hitComponents)
     {
         // TODO: quick reject.
@@ -705,6 +817,17 @@ HitResult StateMachineInstance::pointerExit(Vec2D position)
 {
     return updateListeners(position, ListenerType::exit);
 }
+
+#ifdef TESTING
+const LayerState* StateMachineInstance::layerState(size_t index)
+{
+    if (index < m_machine->layerCount())
+    {
+        return m_layers[index].currentState();
+    }
+    return nullptr;
+}
+#endif
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
@@ -791,6 +914,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         {
             continue;
         }
+        auto listenerGroup = rivestd::make_unique<ListenerGroup>(listener);
         auto target = m_artboardInstance->resolve(listener->targetId());
         if (target != nullptr && target->is<ContainerComponent>())
         {
@@ -811,11 +935,12 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     {
                         hitShape = itr->second;
                     }
-                    hitShape->addListener(listener);
+                    hitShape->addListener(listenerGroup.get());
                 }
                 return true;
             });
         }
+        m_listenerGroups.push_back(std::move(listenerGroup));
     }
 
     for (auto nestedArtboard : instance->nestedArtboards())

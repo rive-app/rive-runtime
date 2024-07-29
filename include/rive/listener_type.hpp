@@ -10,6 +10,7 @@ enum class ListenerType : int
     up = 3,
     move = 4,
     event = 5,
+    click = 6,
 };
 }
 #endif
