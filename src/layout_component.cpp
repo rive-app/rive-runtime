@@ -532,12 +532,15 @@ void LayoutComponent::updateLayoutBounds()
         if (left != toBounds.left() || top != toBounds.top() || width != toBounds.width() ||
             height != toBounds.height())
         {
-            m_animationData.elapsedSeconds = 0;
             m_animationData.fromBounds = AABB(m_layoutLocationX,
                                               m_layoutLocationY,
                                               m_layoutLocationX + this->width(),
                                               m_layoutLocationY + this->height());
             m_animationData.toBounds = AABB(left, top, left + width, top + height);
+            if (m_animationData.elapsedSeconds > 0.1)
+            {
+                m_animationData.elapsedSeconds = 0;
+            }
             propagateSize();
             markWorldTransformDirty();
         }
