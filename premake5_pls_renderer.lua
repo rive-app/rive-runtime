@@ -120,24 +120,34 @@ if _OPTIONS['with_vulkan'] or _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] t
     makecommand = makecommand .. ' spirv'
 end
 
--- Wipe out the shader directory if this make command differs from the one that built it.
-local makecommand_file = pls_shaders_absolute_dir .. '/.makecommand'
-os.execute(
-    'if [[ $(< '
-        .. makecommand_file
-        .. ') != \''
-        .. makecommand
-        .. '\' ]]; then '
-        .. 'rm -fr '
-        .. pls_shaders_absolute_dir
-        .. '; fi'
-)
+function execute_and_check(cmd)
+    if not os.execute(cmd) then
+        error('\nError executing command:\n  ' .. cmd)
+    end
+end
 
--- Generate shaders.
-os.execute(makecommand)
+-- Wipe out the shader directory if this make command differs from the one that built it.
+local existing_makecommand = nil
+local makecommand_filename = pls_shaders_absolute_dir .. '/./.makecommand'
+local makecommand_file = io.open(makecommand_filename)
+if makecommand_file then
+    existing_makecommand = makecommand_file:read('*all')
+    -- Trim whitespace
+    existing_makecommand = string.gsub(existing_makecommand, '^%s*(.-)%s*$', '%1')
+    makecommand_file:close()
+end
+if not existing_makecommand or existing_makecommand ~= makecommand then
+    if existing_makecommand then
+        print('"make" command for PLS shaders differs from before: cleaning...')
+    end
+    execute_and_check('rm -fr ' .. pls_shaders_absolute_dir)
+end
+
+-- Build shaders.
+execute_and_check(makecommand)
 
 -- Save the make command for incremental shader builds.
-os.execute('echo \'' .. makecommand .. '\' > ' .. makecommand_file)
+execute_and_check('echo ' .. makecommand .. ' > ' .. makecommand_filename)
 
 newoption({
     trigger = 'nop-obj-c',
