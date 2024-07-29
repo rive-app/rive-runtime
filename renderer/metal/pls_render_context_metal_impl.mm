@@ -150,7 +150,7 @@ public:
             desc.vertexFunction = vertexMain;
             desc.fragmentFunction = fragmentMain;
 
-            auto* framebuffer = desc.colorAttachments[FRAMEBUFFER_PLANE_IDX];
+            auto* framebuffer = desc.colorAttachments[COLOR_PLANE_IDX];
             framebuffer.pixelFormat = pixelFormat;
 
             switch (interlockMode)
@@ -159,7 +159,7 @@ public:
                     // In rasterOrdering mode, the PLS planes are accessed as color attachments.
                     desc.colorAttachments[COVERAGE_PLANE_IDX].pixelFormat = MTLPixelFormatR32Uint;
                     desc.colorAttachments[CLIP_PLANE_IDX].pixelFormat = MTLPixelFormatR32Uint;
-                    desc.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].pixelFormat = pixelFormat;
+                    desc.colorAttachments[SCRATCH_COLOR_PLANE_IDX].pixelFormat = pixelFormat;
                     break;
                 case pls::InterlockMode::atomics:
                     // In atomic mode, the PLS planes are accessed as device buffers. We only use
@@ -456,7 +456,7 @@ PLSRenderTargetMetal::PLSRenderTargetMetal(id<MTLDevice> gpu,
             make_pls_memoryless_texture(gpu, MTLPixelFormatR32Uint, width, height);
         m_clipMemorylessTexture =
             make_pls_memoryless_texture(gpu, MTLPixelFormatR32Uint, width, height);
-        m_originalDstColorMemorylessTexture =
+        m_scratchColorMemorylessTexture =
             make_pls_memoryless_texture(gpu, m_pixelFormat, width, height);
     }
 }
@@ -798,7 +798,7 @@ id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
         {
             [encoder setFragmentBuffer:renderTarget->colorAtomicBuffer()
                                 offset:0
-                               atIndex:FRAMEBUFFER_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
+                               atIndex:COLOR_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
         }
         [encoder setFragmentBuffer:renderTarget->coverageAtomicBuffer()
                             offset:0
@@ -922,26 +922,26 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     MTLRenderPassDescriptor* pass = [MTLRenderPassDescriptor renderPassDescriptor];
     pass.renderTargetWidth = desc.renderTargetUpdateBounds.right;
     pass.renderTargetHeight = desc.renderTargetUpdateBounds.bottom;
-    pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].texture = renderTarget->targetTexture();
+    pass.colorAttachments[COLOR_PLANE_IDX].texture = renderTarget->targetTexture();
     switch (desc.colorLoadAction)
     {
         case pls::LoadAction::clear:
         {
             float cc[4];
             UnpackColorToRGBA32F(desc.clearColor, cc);
-            pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].loadAction = MTLLoadActionClear;
-            pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].clearColor =
+            pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionClear;
+            pass.colorAttachments[COLOR_PLANE_IDX].clearColor =
                 MTLClearColorMake(cc[0], cc[1], cc[2], cc[3]);
             break;
         }
         case pls::LoadAction::preserveRenderTarget:
-            pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].loadAction = MTLLoadActionLoad;
+            pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionLoad;
             break;
         case pls::LoadAction::dontCare:
-            pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].loadAction = MTLLoadActionDontCare;
+            pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionDontCare;
             break;
     }
-    pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].storeAction = MTLStoreActionStore;
+    pass.colorAttachments[COLOR_PLANE_IDX].storeAction = MTLStoreActionStore;
 
     // In atomic mode, advanced blends have to render through an offscreen color buffer in order to
     // read destination color. This offscreen color buffer gets transferred to the main framebuffer
@@ -967,10 +967,10 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
             desc.interlockMode == pls::InterlockMode::atomics ? MTLStoreActionStore
                                                               : MTLStoreActionDontCare;
 
-        pass.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].texture =
-            renderTarget->m_originalDstColorMemorylessTexture;
-        pass.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].loadAction = MTLLoadActionDontCare;
-        pass.colorAttachments[ORIGINAL_DST_COLOR_PLANE_IDX].storeAction = MTLStoreActionDontCare;
+        pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].texture =
+            renderTarget->m_scratchColorMemorylessTexture;
+        pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].loadAction = MTLLoadActionDontCare;
+        pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].storeAction = MTLStoreActionDontCare;
     }
     else
     {
@@ -1161,7 +1161,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                     // hammer and break the entire render pass between overlapping draws.
                     // TODO: Is there a lighter way to achieve this?
                     [encoder endEncoding];
-                    pass.colorAttachments[FRAMEBUFFER_PLANE_IDX].loadAction = MTLLoadActionLoad;
+                    pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionLoad;
                     encoder = makeRenderPassForDraws(desc, pass, commandBuffer);
                     break;
             }

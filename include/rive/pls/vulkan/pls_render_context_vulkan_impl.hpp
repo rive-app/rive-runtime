@@ -46,11 +46,11 @@ private:
 
     rcp<vkutil::Texture> m_coverageTexture;
     rcp<vkutil::Texture> m_clipTexture;
-    rcp<vkutil::Texture> m_originalDstColorTexture;
+    rcp<vkutil::Texture> m_scratchColorTexture;
 
     rcp<vkutil::TextureView> m_coverageTextureView;
     rcp<vkutil::TextureView> m_clipTextureView;
-    rcp<vkutil::TextureView> m_originalDstColorTextureView;
+    rcp<vkutil::TextureView> m_scratchColorTextureView;
 };
 
 class PLSRenderContextVulkanImpl : public PLSRenderContextImpl

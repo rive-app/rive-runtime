@@ -61,7 +61,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         auto rwTexBuffers = DrawBufferMask::coverage;
         if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
         {
-            rwTexBuffers |= DrawBufferMask::color | DrawBufferMask::originalDstColor;
+            rwTexBuffers |= DrawBufferMask::color | DrawBufferMask::scratchColor;
         }
         else if (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
@@ -79,7 +79,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             // framebuffer gets bound.
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
+            glClearBufferfv(GL_COLOR, COLOR_PLANE_IDX, clearColor4f);
         }
         {
             GLuint coverageClear[4]{desc.coverageClearValue};

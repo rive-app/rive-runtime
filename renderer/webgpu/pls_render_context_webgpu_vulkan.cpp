@@ -312,7 +312,7 @@ wgpu::RenderPassEncoder PLSRenderContextWebGPUVulkan::makePLSRenderPass(
         emscripten_webgpu_export_texture_view(renderTarget->m_targetTextureView.Get()),
         emscripten_webgpu_export_texture_view(renderTarget->m_coverageTextureView.Get()),
         emscripten_webgpu_export_texture_view(renderTarget->m_clipTextureView.Get()),
-        emscripten_webgpu_export_texture_view(renderTarget->m_originalDstColorTextureView.Get()),
+        emscripten_webgpu_export_texture_view(renderTarget->m_scratchColorTextureView.Get()),
         loadOp,
         clearColor.r,
         clearColor.g,

@@ -98,10 +98,10 @@
 #define BINDINGS_SET_COUNT 4
 
 // Index of each pixel local storage plane.
-#define FRAMEBUFFER_PLANE_IDX 0
+#define COLOR_PLANE_IDX 0
 #define COVERAGE_PLANE_IDX 1
 #define CLIP_PLANE_IDX 2
-#define ORIGINAL_DST_COLOR_PLANE_IDX 3
+#define SCRATCH_COLOR_PLANE_IDX 3
 
 // acos(1/4), because the miter limit is always 4.
 #define MITER_ANGLE_LIMIT float(1.318116071652817965746)

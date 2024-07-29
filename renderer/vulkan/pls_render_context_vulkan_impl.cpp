@@ -855,7 +855,7 @@ public:
         };
         VkAttachmentReference attachmentReferences[] = {
             {
-                .attachment = FRAMEBUFFER_PLANE_IDX,
+                .attachment = COLOR_PLANE_IDX,
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
             },
             {
@@ -867,14 +867,14 @@ public:
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
             },
             {
-                .attachment = ORIGINAL_DST_COLOR_PLANE_IDX,
+                .attachment = SCRATCH_COLOR_PLANE_IDX,
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
             },
         };
-        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+        static_assert(COLOR_PLANE_IDX == 0);
         static_assert(COVERAGE_PLANE_IDX == 1);
         static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
 
         VkSubpassDescription subpassDescription = {
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -930,8 +930,9 @@ public:
                 .try_emplace(shaderKey, m_device, drawType, interlockMode, shaderFeatures)
                 .first->second;
 
-        // TODO: This is where we will configure permutations based on ShaderFeatures.
-        // For now, we just set the temporary "kHasRasterOrdering" value.
+        // TODO: This is where we will configure permutations based on
+        // ShaderFeatures. For now, we just set the temporary "kHasRasterOrdering"
+        // value.
         VkBool32 shaderPermutationFlags[1] = {
             plsImplVulkan->m_extensions.EXT_rasterization_order_attachment_access,
         };
@@ -1327,7 +1328,7 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
 
     VkDescriptorSetLayoutBinding plsInputAttachmentBindings[] = {
         {
-            .binding = FRAMEBUFFER_PLANE_IDX,
+            .binding = COLOR_PLANE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -1345,16 +1346,16 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
         {
-            .binding = ORIGINAL_DST_COLOR_PLANE_IDX,
+            .binding = SCRATCH_COLOR_PLANE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
     };
-    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+    static_assert(COLOR_PLANE_IDX == 0);
     static_assert(COVERAGE_PLANE_IDX == 1);
     static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
 
     VkDescriptorSetLayoutCreateInfo plsInputAttachmentLayout = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -1803,9 +1804,9 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator, VkCommandB
         m_clipTextureView = allocator->makeTextureView(m_clipTexture);
     }
 
-    if (m_originalDstColorTexture == nullptr)
+    if (m_scratchColorTexture == nullptr)
     {
-        m_originalDstColorTexture = allocator->makeTexture({
+        m_scratchColorTexture = allocator->makeTexture({
             .format = VK_FORMAT_R8G8B8A8_UNORM,
             .extent = {width(), height(), 1},
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
@@ -1813,11 +1814,11 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator, VkCommandB
         });
 
         vkutil::insert_image_memory_barrier(commandBuffer,
-                                            *m_originalDstColorTexture,
+                                            *m_scratchColorTexture,
                                             VK_IMAGE_LAYOUT_UNDEFINED,
                                             VK_IMAGE_LAYOUT_GENERAL);
 
-        m_originalDstColorTextureView = allocator->makeTextureView(m_originalDstColorTexture);
+        m_scratchColorTextureView = allocator->makeTextureView(m_scratchColorTexture);
     }
 }
 
@@ -2062,7 +2063,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         *renderTarget->m_targetTextureView,
         *renderTarget->m_coverageTextureView,
         *renderTarget->m_clipTextureView,
-        *renderTarget->m_originalDstColorTextureView,
+        *renderTarget->m_scratchColorTextureView,
     };
 
     rcp<vkutil::Framebuffer> framebuffer = m_allocator->makeFramebuffer({
@@ -2195,7 +2196,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_device,
         inputAttachmentDescriptorSet,
         {
-            .dstBinding = FRAMEBUFFER_PLANE_IDX,
+            .dstBinding = COLOR_PLANE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
         },
         {
@@ -2212,13 +2213,13 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             },
             {
-                .imageView = *renderTarget->m_originalDstColorTextureView,
+                .imageView = *renderTarget->m_scratchColorTextureView,
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             },
         });
-    static_assert(COVERAGE_PLANE_IDX == FRAMEBUFFER_PLANE_IDX + 1);
+    static_assert(COVERAGE_PLANE_IDX == COLOR_PLANE_IDX + 1);
     static_assert(CLIP_PLANE_IDX == COVERAGE_PLANE_IDX + 1);
-    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == CLIP_PLANE_IDX + 1);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == CLIP_PLANE_IDX + 1);
 
     // Bind the descriptor sets for this draw pass.
     // (The imageTexture and imageDraw dynamic uniform offsets might have to update

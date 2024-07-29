@@ -35,7 +35,7 @@ public:
 
     ID3D11UnorderedAccessView* coverageUAV();
     ID3D11UnorderedAccessView* clipUAV();
-    ID3D11UnorderedAccessView* originalDstColorUAV();
+    ID3D11UnorderedAccessView* scratchColorUAV();
 
 private:
     const ComPtr<ID3D11Device> m_gpu;
@@ -47,14 +47,14 @@ private:
 
     ComPtr<ID3D11Texture2D> m_offscreenTexture;
     ComPtr<ID3D11Texture2D> m_coverageTexture;
-    ComPtr<ID3D11Texture2D> m_originalDstColorTexture;
+    ComPtr<ID3D11Texture2D> m_scratchColorTexture;
     ComPtr<ID3D11Texture2D> m_clipTexture;
 
     ComPtr<ID3D11RenderTargetView> m_targetRTV;
     ComPtr<ID3D11UnorderedAccessView> m_targetUAV;
     ComPtr<ID3D11UnorderedAccessView> m_coverageUAV;
     ComPtr<ID3D11UnorderedAccessView> m_clipUAV;
-    ComPtr<ID3D11UnorderedAccessView> m_originalDstColorUAV;
+    ComPtr<ID3D11UnorderedAccessView> m_scratchColorUAV;
 };
 
 // D3D backend implementation of PLSRenderContextImpl.

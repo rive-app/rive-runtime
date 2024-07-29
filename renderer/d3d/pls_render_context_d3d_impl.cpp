@@ -22,9 +22,9 @@
 #include "generated/shaders/tessellate.glsl.hpp"
 
 // D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color output. Use the
-// (unused in this case) ORIGINAL_DST_COLOR_PLANE_IDX instead when we are doing a coalesced resolve
+// (unused in this case) SCRATCH_COLOR_PLANE_IDX instead when we are doing a coalesced resolve
 // and transfer.
-#define COALESCED_OFFSCREEN_FRAMEBUFFER_PLANE_IDX ORIGINAL_DST_COLOR_PLANE_IDX
+#define COALESCED_OFFSCREEN_COLOR_PLANE_IDX SCRATCH_COLOR_PLANE_IDX
 
 constexpr static UINT kPatchVertexDataSlot = 0;
 constexpr static UINT kTriangleVertexDataSlot = 1;
@@ -849,25 +849,25 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::clipUAV()
     return m_clipUAV.Get();
 }
 
-ID3D11UnorderedAccessView* PLSRenderTargetD3D::originalDstColorUAV()
+ID3D11UnorderedAccessView* PLSRenderTargetD3D::scratchColorUAV()
 {
-    if (m_originalDstColorTexture == nullptr)
+    if (m_scratchColorTexture == nullptr)
     {
-        m_originalDstColorTexture = make_simple_2d_texture(m_gpu.Get(),
-                                                           DXGI_FORMAT_R8G8B8A8_TYPELESS,
-                                                           width(),
-                                                           height(),
-                                                           1,
-                                                           D3D11_BIND_UNORDERED_ACCESS);
+        m_scratchColorTexture = make_simple_2d_texture(m_gpu.Get(),
+                                                       DXGI_FORMAT_R8G8B8A8_TYPELESS,
+                                                       width(),
+                                                       height(),
+                                                       1,
+                                                       D3D11_BIND_UNORDERED_ACCESS);
     }
-    if (m_originalDstColorUAV == nullptr)
+    if (m_scratchColorUAV == nullptr)
     {
-        m_originalDstColorUAV = make_simple_2d_uav(
+        m_scratchColorUAV = make_simple_2d_uav(
             m_gpu.Get(),
-            m_originalDstColorTexture.Get(),
+            m_scratchColorTexture.Get(),
             m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R32_UINT);
     }
-    return m_originalDstColorUAV.Get();
+    return m_scratchColorUAV.Get();
 }
 
 void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -983,8 +983,8 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         if (pixelShaderMiscFlags & pls::ShaderMiscFlags::coalescedResolveAndTransfer)
         {
             s << "#define " << GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER << '\n';
-            s << "#define " << GLSL_FRAMEBUFFER_PLANE_IDX_OVERRIDE << ' '
-              << COALESCED_OFFSCREEN_FRAMEBUFFER_PLANE_IDX << '\n';
+            s << "#define " << GLSL_COLOR_PLANE_IDX_OVERRIDE << ' '
+              << COALESCED_OFFSCREEN_COLOR_PLANE_IDX << '\n';
         }
         switch (drawType)
         {
@@ -1417,15 +1417,15 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         renderTarget->coverageUAV(),
         renderTarget->clipUAV(),
         desc.interlockMode == pls::InterlockMode::rasterOrdering
-            ? renderTarget->originalDstColorUAV()
-            : NULL, // Atomic mode doesn't use the originalDstColor.
+            ? renderTarget->scratchColorUAV()
+            : NULL, // Atomic mode doesn't use the scratchColor.
     };
-    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+    static_assert(COLOR_PLANE_IDX == 0);
     static_assert(COVERAGE_PLANE_IDX == 1);
     static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
-    UINT numUsedUAVs = plsUAVs[ORIGINAL_DST_COLOR_PLANE_IDX] != nullptr ? std::size(plsUAVs)
-                                                                        : std::size(plsUAVs) - 1;
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+    UINT numUsedUAVs =
+        plsUAVs[SCRATCH_COLOR_PLANE_IDX] != nullptr ? std::size(plsUAVs) : std::size(plsUAVs) - 1;
     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
         renderDirectToRasterPipeline ? 1 : 0,
         &targetRTV,
@@ -1569,7 +1569,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                     };
                     static_assert(COVERAGE_PLANE_IDX == 1);
                     static_assert(CLIP_PLANE_IDX == 2);
-                    static_assert(COALESCED_OFFSCREEN_FRAMEBUFFER_PLANE_IDX == 3);
+                    static_assert(COALESCED_OFFSCREEN_COLOR_PLANE_IDX == 3);
                     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(1,
                                                                             &resolveRTV,
                                                                             NULL,

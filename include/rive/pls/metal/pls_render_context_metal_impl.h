@@ -70,7 +70,7 @@ private:
 
     id<MTLTexture> m_coverageMemorylessTexture = nil;
     id<MTLTexture> m_clipMemorylessTexture = nil;
-    id<MTLTexture> m_originalDstColorMemorylessTexture = nil;
+    id<MTLTexture> m_scratchColorMemorylessTexture = nil;
 
     id<MTLBuffer> m_colorAtomicBuffer = nil;
     id<MTLBuffer> m_coverageAtomicBuffer = nil;

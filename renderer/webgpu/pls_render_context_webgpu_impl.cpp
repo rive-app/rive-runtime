@@ -1083,12 +1083,12 @@ PLSRenderTargetWebGPU::PLSRenderTargetWebGPU(wgpu::Device device,
     m_clipTexture = device.CreateTexture(&desc);
 
     desc.format = m_framebufferFormat;
-    m_originalDstColorTexture = device.CreateTexture(&desc);
+    m_scratchColorTexture = device.CreateTexture(&desc);
 
     m_targetTextureView = {}; // Will be configured later by setTargetTexture().
     m_coverageTextureView = m_coverageTexture.CreateView();
     m_clipTextureView = m_clipTexture.CreateView();
-    m_originalDstColorTextureView = m_originalDstColorTexture.CreateView();
+    m_scratchColorTextureView = m_scratchColorTexture.CreateView();
 }
 
 void PLSRenderTargetWebGPU::setTargetTextureView(wgpu::TextureView textureView)
@@ -1542,10 +1542,10 @@ wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
         {.format = wgpu::TextureFormat::R32Uint},
         {.format = framebufferFormat},
     };
-    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+    static_assert(COLOR_PLANE_IDX == 0);
     static_assert(COVERAGE_PLANE_IDX == 1);
     static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
 
     wgpu::FragmentState fragmentState = {
         .module = fragmentShader,
@@ -1608,17 +1608,17 @@ wgpu::RenderPassEncoder PLSRenderContextWebGPUImpl::makePLSRenderPass(
             .clearValue = {},
         },
         {
-            // originalDstColor
-            .view = renderTarget->m_originalDstColorTextureView,
+            // scratchColor
+            .view = renderTarget->m_scratchColorTextureView,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Discard,
             .clearValue = {},
         },
     };
-    static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+    static_assert(COLOR_PLANE_IDX == 0);
     static_assert(COVERAGE_PLANE_IDX == 1);
     static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
 
     wgpu::RenderPassDescriptor passDesc = {
         .colorAttachmentCount = static_cast<size_t>(
@@ -1848,7 +1848,7 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     {
         wgpu::BindGroupEntry plsTextureBindingEntries[] = {
             {
-                .binding = FRAMEBUFFER_PLANE_IDX,
+                .binding = COLOR_PLANE_IDX,
                 .textureView = renderTarget->m_targetTextureView,
             },
             {
@@ -1860,8 +1860,8 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 .textureView = renderTarget->m_clipTextureView,
             },
             {
-                .binding = ORIGINAL_DST_COLOR_PLANE_IDX,
-                .textureView = renderTarget->m_originalDstColorTextureView,
+                .binding = SCRATCH_COLOR_PLANE_IDX,
+                .textureView = renderTarget->m_scratchColorTextureView,
             },
         };
 

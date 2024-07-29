@@ -38,9 +38,9 @@ __pixel_local_inEXT PLS
 __pixel_local_outEXT PLS
 #endif
 {
-    layout(rgba8) mediump vec4 framebuffer;
+    layout(rgba8) mediump vec4 colorBuffer;
     layout(r32ui) highp uint coverageCountBuffer;
-    layout(rgba8) mediump vec4 originalDstColorBuffer;
+    layout(rgba8) mediump vec4 scratchColorBuffer;
 #ifdef @ENABLE_CLIPPING
     layout(r32ui) highp uint clipBuffer;
 #endif
@@ -60,17 +60,17 @@ void main()
 {
 #ifdef @CLEAR_COLOR
 #if __VERSION__ >= 310
-    framebuffer = clearColor.value;
+    colorBuffer = clearColor.value;
 #else
-    framebuffer = @clearColor;
+    colorBuffer = @clearColor;
 #endif
 #endif
 
 #ifdef @LOAD_COLOR
 #ifdef GL_ARM_shader_framebuffer_fetch
-    framebuffer = gl_LastFragColorARM;
+    colorBuffer = gl_LastFragColorARM;
 #else
-    framebuffer = fragColor;
+    colorBuffer = fragColor;
 #endif
 #endif
 
@@ -83,7 +83,7 @@ void main()
 #endif
 
 #ifdef @STORE_COLOR
-    fragColor = framebuffer;
+    fragColor = colorBuffer;
 #endif
 }
 

@@ -195,7 +195,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glFramebufferPixelLocalClearValuefvANGLE(FRAMEBUFFER_PLANE_IDX, clearColor4f);
+            glFramebufferPixelLocalClearValuefvANGLE(COLOR_PLANE_IDX, clearColor4f);
         }
         GLenum clipLoadAction = (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
                                     ? GL_LOAD_OP_ZERO_ANGLE
@@ -204,10 +204,10 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                              GL_LOAD_OP_ZERO_ANGLE,
                              clipLoadAction,
                              GL_DONT_CARE};
-        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+        static_assert(COLOR_PLANE_IDX == 0);
         static_assert(COVERAGE_PLANE_IDX == 1);
         static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
         glBeginPixelLocalStorageANGLE(4, loadOps);
     }
 
@@ -217,10 +217,10 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                                                 GL_DONT_CARE,
                                                 GL_DONT_CARE,
                                                 GL_DONT_CARE};
-        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+        static_assert(COLOR_PLANE_IDX == 0);
         static_assert(COVERAGE_PLANE_IDX == 1);
         static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(ORIGINAL_DST_COLOR_PLANE_IDX == 3);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
         glEndPixelLocalStorageANGLE(4, kStoreOps);
 
         if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(

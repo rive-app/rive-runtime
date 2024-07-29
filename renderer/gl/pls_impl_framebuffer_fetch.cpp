@@ -54,7 +54,7 @@ public:
         auto fbFetchBuffers = DrawBufferMask::color;
         if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
         {
-            fbFetchBuffers |= DrawBufferMask::coverage | DrawBufferMask::originalDstColor;
+            fbFetchBuffers |= DrawBufferMask::coverage | DrawBufferMask::scratchColor;
         }
         else
         {
@@ -71,7 +71,7 @@ public:
 
         // Instruct the driver not to load existing PLS plane contents into tiled memory, with the
         // exception of the color buffer if it's preserved.
-        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+        static_assert(COLOR_PLANE_IDX == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER,
                                 desc.colorLoadAction == LoadAction::preserveRenderTarget ? 3 : 4,
                                 desc.colorLoadAction == LoadAction::preserveRenderTarget
@@ -83,7 +83,7 @@ public:
         {
             float clearColor4f[4];
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
-            glClearBufferfv(GL_COLOR, FRAMEBUFFER_PLANE_IDX, clearColor4f);
+            glClearBufferfv(GL_COLOR, COLOR_PLANE_IDX, clearColor4f);
         }
         if (fbFetchBuffers & DrawBufferMask::coverage)
         {
@@ -115,7 +115,7 @@ public:
 
         // Instruct the driver not to flush PLS contents from tiled memory, with the exception of
         // the color buffer.
-        static_assert(FRAMEBUFFER_PLANE_IDX == 0);
+        static_assert(COLOR_PLANE_IDX == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, kPLSDrawBuffers + 1);
 
         if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(

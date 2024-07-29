@@ -281,11 +281,11 @@ PLS_BLOCK_BEGIN
 // We only write the framebuffer as a storage texture when there are blend modes. Otherwise, we
 // render to it as a normal color attachment.
 #ifdef @ENABLE_ADVANCED_BLEND
-#ifdef @FRAMEBUFFER_PLANE_IDX_OVERRIDE
+#ifdef @COLOR_PLANE_IDX_OVERRIDE
 // D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color output.
-PLS_DECL4F(@FRAMEBUFFER_PLANE_IDX_OVERRIDE, framebuffer);
+PLS_DECL4F(@COLOR_PLANE_IDX_OVERRIDE, colorBuffer);
 #else
-PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
+PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
 #endif
 #endif
 PLS_DECLUI_ATOMIC(COVERAGE_PLANE_IDX, coverageCountBuffer);
@@ -422,7 +422,7 @@ half4 do_advanced_blend(half4 srcColorUnmul, half4 dstColorPremul, ushort blendM
 
 half4 do_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
 {
-    half4 dstColorPremul = PLS_LOAD4F(framebuffer);
+    half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
     ushort blendMode = make_ushort((paintData.x >> 4) & 0xfu);
     return do_advanced_blend(color, dstColorPremul, blendMode);
 }
@@ -432,11 +432,11 @@ void write_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
     if (color.a != .0)
     {
         half4 blendedColor = do_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
-        PLS_STORE4F(framebuffer, blendedColor);
+        PLS_STORE4F(colorBuffer, blendedColor);
     }
     else
     {
-        PLS_PRESERVE_4F(framebuffer);
+        PLS_PRESERVE_4F(colorBuffer);
     }
 }
 #endif // ENABLE_ADVANCED_BLEND
@@ -620,16 +620,16 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
         // TODO: Are advanced blend modes associative? srcOver is, so at least there we can blend
         // lastColor and imageColor first, and potentially avoid a framebuffer load if it ends up
         // opaque.
-        half4 dstColorPremul = PLS_LOAD4F(framebuffer);
+        half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
         ushort lastBlendMode = make_ushort((lastPaintData.x >> 4) & 0xfu);
         ushort imageBlendMode = make_ushort(imageDrawUniforms.blendMode);
         dstColorPremul = do_advanced_blend(lastColor, dstColorPremul, lastBlendMode);
         imageColor = do_advanced_blend(imageColor, dstColorPremul, imageBlendMode);
-        PLS_STORE4F(framebuffer, imageColor);
+        PLS_STORE4F(colorBuffer, imageColor);
     }
     else
     {
-        PLS_PRESERVE_4F(framebuffer);
+        PLS_PRESERVE_4F(colorBuffer);
     }
 #else
     // Leverage the property that premultiplied src-over blending is associative and blend the
@@ -659,11 +659,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     _fragColor = make_half4(0, 0, 0, 0);
 #endif
 #ifdef @STORE_COLOR_CLEAR
-    PLS_STORE4F(framebuffer, unpackUnorm4x8(uniforms.colorClearValue));
+    PLS_STORE4F(colorBuffer, unpackUnorm4x8(uniforms.colorClearValue));
 #endif
 #ifdef @SWIZZLE_COLOR_BGRA_TO_RGBA
-    half4 color = PLS_LOAD4F(framebuffer);
-    PLS_STORE4F(framebuffer, color.bgra);
+    half4 color = PLS_LOAD4F(colorBuffer);
+    PLS_STORE4F(colorBuffer, color.bgra);
 #endif
     PLS_STOREUI_ATOMIC(coverageCountBuffer, uniforms.coverageClearValue);
 #ifdef @ENABLE_CLIPPING

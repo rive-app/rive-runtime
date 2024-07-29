@@ -106,7 +106,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIPPING
     uint clipIDBits = (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >> 16;
     v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
-    // Negative clipID means to update the clip buffer instead of the framebuffer.
+    // Negative clipID means to update the clip buffer instead of the color buffer.
     if (paintType == CLIP_UPDATE_PAINT_TYPE)
         v_clipID = -v_clipID;
 #endif
@@ -297,12 +297,12 @@ INLINE half4 find_paint_color(float4 paint
 #ifndef @USING_DEPTH_STENCIL
 
 PLS_BLOCK_BEGIN
-PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
+PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
 #ifdef @ENABLE_CLIPPING
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 #endif
-PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
+PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
 PLS_BLOCK_END
 
 PLS_MAIN(@drawFragmentMain)
@@ -385,23 +385,23 @@ PLS_MAIN(@drawFragmentMain)
                 // Stash outerClipCoverage before overwriting clipBuffer, in case we hit this pixel
                 // again and need it. (Not necessary when drawing interior triangles because they
                 // always go last and don't overlap.)
-                PLS_STORE4F(originalDstColorBuffer, make_half4(outerClipCoverage, 0, 0, 0));
+                PLS_STORE4F(scratchColorBuffer, make_half4(outerClipCoverage, 0, 0, 0));
 #endif
             }
             else
             {
-                // Subsequent hit: outerClipCoverage is stashed in originalDstColorBuffer.
-                outerClipCoverage = PLS_LOAD4F(originalDstColorBuffer).r;
+                // Subsequent hit: outerClipCoverage is stashed in scratchColorBuffer.
+                outerClipCoverage = PLS_LOAD4F(scratchColorBuffer).r;
 #ifndef @DRAW_INTERIOR_TRIANGLES
                 // Since interior triangles are always last, there's no need to preserve this value.
-                PLS_PRESERVE_4F(originalDstColorBuffer);
+                PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
             }
             coverage = min(coverage, outerClipCoverage);
         }
 #endif // @ENABLE_NESTED_CLIPPING
         PLS_STOREUI(clipBuffer, packHalf2x16(make_half2(coverage, clipID)));
-        PLS_PRESERVE_4F(framebuffer);
+        PLS_PRESERVE_4F(colorBuffer);
     }
     else // Render to the main framebuffer.
 #endif   // @ENABLE_CLIPPING
@@ -437,19 +437,19 @@ PLS_MAIN(@drawFragmentMain)
         if (coverageBufferID != v_pathID)
         {
             // This is the first fragment from pathID to touch this pixel.
-            dstColor = PLS_LOAD4F(framebuffer);
+            dstColor = PLS_LOAD4F(colorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
             // We don't need to store coverage when drawing interior triangles because they always
             // go last and don't overlap, so every fragment is the final one in the path.
-            PLS_STORE4F(originalDstColorBuffer, dstColor);
+            PLS_STORE4F(scratchColorBuffer, dstColor);
 #endif
         }
         else
         {
-            dstColor = PLS_LOAD4F(originalDstColorBuffer);
+            dstColor = PLS_LOAD4F(scratchColorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
             // Since interior triangles are always last, there's no need to preserve this value.
-            PLS_PRESERVE_4F(originalDstColorBuffer);
+            PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
         }
 
@@ -473,7 +473,7 @@ PLS_MAIN(@drawFragmentMain)
             color = color + dstColor * (1. - color.a);
         }
 
-        PLS_STORE4F(framebuffer, color);
+        PLS_STORE4F(colorBuffer, color);
     }
 
 #ifndef @DRAW_INTERIOR_TRIANGLES

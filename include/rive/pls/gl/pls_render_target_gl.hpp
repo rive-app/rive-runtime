@@ -24,7 +24,7 @@ public:
 
     // Ensures backing textures for the internal PLS planes are allocated.
     // Does not allocate an offscreen target texture.
-    // Does not allocate an "originalDstColor" texture if InterlockMode is experimentalAtomics.
+    // Does not allocate an "scratchColor" texture if InterlockMode is experimentalAtomics.
     virtual void allocateInternalPLSTextures(pls::InterlockMode) = 0;
 
     // Specifies which PLS planes to enable when a render target is bound.
@@ -33,9 +33,9 @@ public:
         color = 1 << 0,
         coverage = 1 << 1,
         clip = 1 << 2,
-        originalDstColor = 1 << 3,
+        scratchColor = 1 << 3,
 
-        rasterOrderingBuffers = color | coverage | clip | originalDstColor,
+        rasterOrderingBuffers = color | coverage | clip | scratchColor,
         atomicBuffers = color | coverage | clip,
     };
 
@@ -125,7 +125,7 @@ private:
     glutils::Framebuffer m_framebufferID = glutils::Framebuffer::Zero();
     glutils::Texture m_coverageTexture = glutils::Texture::Zero();
     glutils::Texture m_clipTexture = glutils::Texture::Zero();
-    glutils::Texture m_originalDstColorTexture = glutils::Texture::Zero();
+    glutils::Texture m_scratchColorTexture = glutils::Texture::Zero();
     glutils::Framebuffer m_headlessFramebuffer = glutils::Framebuffer::Zero();
 
     // GL enables the first drawBuffer by default.

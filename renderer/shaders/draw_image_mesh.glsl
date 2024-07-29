@@ -91,10 +91,10 @@ FRAG_STORAGE_BUFFER_BLOCK_END
 #ifndef @USING_DEPTH_STENCIL
 
 PLS_BLOCK_BEGIN
-PLS_DECL4F(FRAMEBUFFER_PLANE_IDX, framebuffer);
+PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
-PLS_DECL4F(ORIGINAL_DST_COLOR_PLANE_IDX, originalDstColorBuffer);
+PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
 PLS_BLOCK_END
 
 PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
@@ -129,7 +129,7 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 
     // Blend with the framebuffer color.
     color.a *= imageDrawUniforms.opacity * coverage;
-    half4 dstColor = PLS_LOAD4F(framebuffer);
+    half4 dstColor = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
     if (imageDrawUniforms.blendMode != 0u /*!srcOver*/)
     {
@@ -149,7 +149,7 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
         color = color + dstColor * (1. - color.a);
     }
 
-    PLS_STORE4F(framebuffer, color);
+    PLS_STORE4F(colorBuffer, color);
     PLS_PRESERVE_UI(clipBuffer);
 
     PLS_INTERLOCK_END;
