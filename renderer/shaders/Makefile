@@ -48,6 +48,7 @@ $(OUT)/macosx/rive_pls_macosx.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $
 	@mkdir -p $(OUT)/macosx
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk macosx metal -std=macos-metal2.3 \
+		-mmacosx-version-min=13.0 \
 		-I$(OUT) -ffast-math -ffp-contract=fast -fpreserve-invariance -fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/macosx/%.air, $(FILE));)
