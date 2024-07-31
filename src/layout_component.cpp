@@ -321,6 +321,7 @@ void LayoutComponent::syncStyle()
             if (isRowForAlignment)
             {
                 ygStyle.alignItems() = YGAlignFlexStart;
+                ygStyle.alignContent() = YGAlignFlexStart;
             }
             else
             {
@@ -334,6 +335,7 @@ void LayoutComponent::syncStyle()
             if (isRowForAlignment)
             {
                 ygStyle.alignItems() = YGAlignCenter;
+                ygStyle.alignContent() = YGAlignCenter;
             }
             else
             {
@@ -347,6 +349,7 @@ void LayoutComponent::syncStyle()
             if (isRowForAlignment)
             {
                 ygStyle.alignItems() = YGAlignFlexEnd;
+                ygStyle.alignContent() = YGAlignFlexEnd;
             }
             else
             {
@@ -366,6 +369,7 @@ void LayoutComponent::syncStyle()
             else
             {
                 ygStyle.alignItems() = YGAlignFlexStart;
+                ygStyle.alignContent() = YGAlignFlexStart;
             }
             break;
         case LayoutAlignmentType::topCenter:
@@ -378,6 +382,7 @@ void LayoutComponent::syncStyle()
             else
             {
                 ygStyle.alignItems() = YGAlignCenter;
+                ygStyle.alignContent() = YGAlignCenter;
             }
             break;
         case LayoutAlignmentType::topRight:
@@ -390,6 +395,7 @@ void LayoutComponent::syncStyle()
             else
             {
                 ygStyle.alignItems() = YGAlignFlexEnd;
+                ygStyle.alignContent() = YGAlignFlexEnd;
             }
             break;
         case LayoutAlignmentType::spaceBetweenStart:
